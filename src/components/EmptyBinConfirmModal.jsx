@@ -1,5 +1,6 @@
 import React from 'react';
 import { Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 
@@ -10,6 +11,8 @@ const EmptyBinConfirmModal = () => {
     confirmEmptyBin,
   } = useDayPlannerCtx();
   const { showEmptyBinConfirm, setShowEmptyBinConfirm, setShowMobileRecycleBin } = useSyncCtx();
+
+  const { t } = useTranslation();
 
   if (!showEmptyBinConfirm) return null;
 
@@ -23,23 +26,23 @@ const EmptyBinConfirmModal = () => {
               <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
                 <Trash2 size={20} className="text-red-600 dark:text-red-400" />
               </div>
-              <h3 className={`text-lg font-semibold ${textPrimary}`}>Empty Recycle Bin</h3>
+              <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('modal.emptyBinTitle')}</h3>
             </div>
             <p className={`${textSecondary} mb-6`}>
-              Are you sure you want to permanently delete all {recycleBin.length} task{recycleBin.length !== 1 ? 's' : ''} in the recycle bin? This action cannot be undone.
+              {t('modal.emptyBinMessage', { count: recycleBin.length, plural: recycleBin.length !== 1 ? 's' : '' })}
             </p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => { setShowEmptyBinConfirm(false); setShowMobileRecycleBin(false); }}
                 className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={confirmEmptyBin}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
-                Delete All
+                {t('common.deleteAll')}
               </button>
             </div>
           </div>

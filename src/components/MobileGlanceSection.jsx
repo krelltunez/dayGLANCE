@@ -20,6 +20,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getGlanceHGInstances, isHGSessionReachable } from '../hooks/useHyperGlance.js';
+import { useTranslation } from 'react-i18next';
 
 const MobileGlanceSection = () => {
   const {
@@ -115,7 +116,7 @@ const MobileGlanceSection = () => {
     voiceCanRecord,
     healthPerms,
   } = useFeaturesCtx();
-
+  const { t } = useTranslation();
   const glanceSwipeStartX = useRef(0);
 
   const isHealthSyncPaused = (habit) => {
@@ -139,7 +140,7 @@ const MobileGlanceSection = () => {
       className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'} transition-colors`}
     >
       <Search size={16} />
-      <span className="text-sm">Search tasks...</span>
+      <span className="text-sm">{t('spotlight.searchPlaceholder')}</span>
     </button>
     {allTags.length > 0 && (
       <button
@@ -213,9 +214,9 @@ const MobileGlanceSection = () => {
         {habitsEnabled && (!showCarousel || effectivePage === 0) && (() => {
           if (activeHabits.length === 0) return (
             <div className={`rounded-lg border ${borderClass} p-3 cursor-pointer active:opacity-70 transition-opacity`} onClick={() => { setMobileActiveTab('settings'); setMobileSettingsView('habits'); }}>
-              <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Habits</div>
+              <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>{t('settings.habitTracking')}</div>
               <div className="flex items-center gap-2">
-                <span className={`text-xs ${textSecondary} italic`}>None added</span>
+                <span className={`text-xs ${textSecondary} italic`}>{t('common.noneAdded')}</span>
                 <span className="text-xs text-teal-500 font-medium">+ Add</span>
               </div>
             </div>
@@ -271,7 +272,7 @@ const MobileGlanceSection = () => {
                           )}
                           <button onClick={() => { incrementHabit(habit.id); }} className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-100 text-stone-600 active:bg-stone-200'}`}><Plus size={16} /></button>
                         </div>
-                        <button onClick={() => { setHabitCount(habit.id, 0); setHabitLongPressId(null); setHabitEditingCountId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">Reset</button>
+                        <button onClick={() => { setHabitCount(habit.id, 0); setHabitLongPressId(null); setHabitEditingCountId(null); }} className="mt-2 w-full text-xs text-red-500 font-medium py-1 rounded hover:bg-red-500/10 transition-colors">{t('common.reset')}</button>
                       </div>
                     </>
                   )}
@@ -381,7 +382,7 @@ const MobileGlanceSection = () => {
                 <Flag size={13} className="text-amber-400 flex-shrink-0" />
                 <span className={`text-sm font-medium ${textPrimary} truncate`}>{g.title}</span>
               </div>
-              <span className={`text-xs flex-shrink-0 font-medium px-1.5 py-0.5 rounded ${darkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-100 text-amber-700'}`}>Due today</span>
+              <span className={`text-xs flex-shrink-0 font-medium px-1.5 py-0.5 rounded ${darkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-100 text-amber-700'}`}>{t('app.goalDueToday')}</span>
             </div>
             <div className="flex items-center gap-2">
               <div className={`flex-1 h-1.5 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-200'}`}>
@@ -403,7 +404,7 @@ const MobileGlanceSection = () => {
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 flex-shrink-0">
           <Sun size={16} className="text-amber-500" />
-          <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>Morning Briefing</span>
+          <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>{t('app.morningBriefing')}</span>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
@@ -426,7 +427,7 @@ const MobileGlanceSection = () => {
         {morningGlanceLoading && (
           <div className="flex items-center gap-2">
             <Loader size={14} className={`animate-spin ${textSecondary}`} />
-            <span className={`text-xs ${textSecondary}`}>Generating your briefing...</span>
+            <span className={`text-xs ${textSecondary}`}>{t('app.generatingBriefing')}</span>
           </div>
         )}
         {morningGlanceError && (
@@ -452,7 +453,7 @@ const MobileGlanceSection = () => {
       onClick={generateMorningSummary}
     >
       <Sun size={14} className="text-amber-500 flex-shrink-0" />
-      <span className={`text-sm ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>Click here to see AI briefing</span>
+      <span className={`text-sm ${darkMode ? 'text-amber-300' : 'text-amber-700'}`}>{t('app.clickForAiBriefing')}</span>
       <button
         onClick={(e) => { e.stopPropagation(); dismissMorningGlance(); }}
         className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`}
@@ -470,7 +471,7 @@ const MobileGlanceSection = () => {
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 flex-shrink-0">
           <Moon size={16} className="text-indigo-400" />
-          <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>Evening Reflection</span>
+          <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>{t('app.eveningReflection')}</span>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           <button onClick={() => generateEveningReflection(true)} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Regenerate">
@@ -485,7 +486,7 @@ const MobileGlanceSection = () => {
         {eveningGlanceLoading && (
           <div className="flex items-center gap-2">
             <Loader size={14} className={`animate-spin ${textSecondary}`} />
-            <span className={`text-xs ${textSecondary}`}>Reflecting on your day...</span>
+            <span className={`text-xs ${textSecondary}`}>{t('app.reflectingOnDay')}</span>
           </div>
         )}
         {eveningGlanceError && <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{eveningGlanceError}</p>}
@@ -507,7 +508,7 @@ const MobileGlanceSection = () => {
       onClick={generateEveningReflection}
     >
       <Moon size={14} className="text-indigo-400 flex-shrink-0" />
-      <span className={`text-sm ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>Click here for evening reflection</span>
+      <span className={`text-sm ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>{t('app.clickForEveningReflection')}</span>
       <button onClick={(e) => { e.stopPropagation(); dismissEveningGlance(); }} className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`} title="Dismiss for today">
         <X size={12} className={textSecondary} />
       </button>
@@ -577,7 +578,7 @@ const MobileGlanceSection = () => {
         >
           <div className="flex items-center gap-2">
             <AlertTriangle size={15} className="text-orange-500" />
-            <span className="text-sm font-semibold text-orange-500">Overdue</span>
+            <span className="text-sm font-semibold text-orange-500">{t('common.overdue')}</span>
             <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-orange-500/30 text-orange-300' : 'bg-orange-200 text-orange-700'}`}>
               {pastOverdue.length}
             </span>
@@ -829,10 +830,10 @@ const MobileGlanceSection = () => {
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
             {agendaNowMarker.gapMinutes < 30 ? (
-              <div className="text-xs italic text-red-500 mt-0.5">Get ready to be productive!</div>
+              <div className="text-xs italic text-red-500 mt-0.5">{t('app.getReadyToBeProductive')}</div>
             ) : agendaNowMarker.inboxCount > 0 ? (
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-xs italic text-red-500">Maybe tackle an inbox task?</span>
+                <span className="text-xs italic text-red-500">{t('app.maybeTackleInbox')}</span>
                 {agendaNowMarker.showNudge && aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
                   <button onClick={() => { setFrameNudgeDismissedKey(''); generateFrameNudge(); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-500/20 hover:bg-teal-500/30 text-teal-600 dark:text-teal-400 transition-colors">
                     <Sparkles size={9} />AI
@@ -987,10 +988,10 @@ const MobileGlanceSection = () => {
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
               {agendaNowMarker.gapMinutes < 30 ? (
-                <div className="text-xs italic text-red-500 mt-0.5">Get ready to be productive!</div>
+                <div className="text-xs italic text-red-500 mt-0.5">{t('app.getReadyToBeProductive')}</div>
               ) : agendaNowMarker.inboxCount > 0 ? (
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-xs italic text-red-500">Maybe tackle an inbox task?</span>
+                  <span className="text-xs italic text-red-500">{t('app.maybeTackleInbox')}</span>
                   {agendaNowMarker.showNudge && aiConfig.enabled && aiConfig.features?.frameNudge && activeFrameForNudge && (
                     <button onClick={() => { setFrameNudgeDismissedKey(''); generateFrameNudge(); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-500/20 hover:bg-teal-500/30 text-teal-600 dark:text-teal-400 transition-colors">
                       <Sparkles size={9} />AI
@@ -1043,7 +1044,7 @@ const MobileGlanceSection = () => {
               </div>
               <div className="px-2 pb-1.5">
                 {section.tasks.length === 0 && !markerInThisFrame ? (
-                  <p className={`text-xs ${textSecondary} py-2 px-1 italic`}>No tasks scheduled</p>
+                  <p className={`text-xs ${textSecondary} py-2 px-1 italic`}>{t('app.noTasksScheduled')}</p>
                 ) : (() => {
                   const items = [];
                   if (markerInThisFrame && nowMarkerSectionInfo.afterTaskIdx < 0) {
@@ -1121,7 +1122,7 @@ const MobileGlanceSection = () => {
           </span>
         </div>
         {isEmpty ? (
-          <p className={`text-sm ${textSecondary} italic`}>Tomorrow is wide open</p>
+          <p className={`text-sm ${textSecondary} italic`}>{t('app.tomorrowWideOpen')}</p>
         ) : (
           <div className="space-y-1">
             {firstStartTime && (
@@ -1164,9 +1165,9 @@ const MobileGlanceSection = () => {
     if (visibleRoutines.length === 0) {
       return (
         <div className={`mt-3 pt-3 border-t ${borderClass} cursor-pointer active:opacity-70 transition-opacity`} onClick={openRoutinesSettings}>
-          <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>Routines</div>
+          <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>{t('settings.routines')}</div>
           <div className="flex items-center gap-2">
-            <span className={`text-xs ${textSecondary} italic`}>None scheduled</span>
+            <span className={`text-xs ${textSecondary} italic`}>{t('common.noneScheduled')}</span>
             <span className="text-xs text-teal-500 font-medium">+ Add</span>
           </div>
         </div>
@@ -1175,7 +1176,7 @@ const MobileGlanceSection = () => {
     return (
       <div className={`mt-3 pt-3 border-t ${borderClass}`}>
         <div className="flex items-center justify-between mb-2">
-          <div className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>Routines</div>
+          <div className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>{t('settings.routines')}</div>
           <button onClick={openRoutinesSettings} className="text-xs text-teal-500 font-medium active:opacity-70 transition-opacity">+ Add</button>
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -1243,7 +1244,7 @@ const MobileGlanceSection = () => {
               >
                 <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: barColor }}></div>
                 <span className={`text-sm font-medium min-w-0 truncate ${darkMode ? 'text-gray-200' : 'text-stone-800'}`}>{project.title}</span>
-                {canEnter && <span className="text-xs font-medium text-green-500 flex-shrink-0">In progress</span>}
+                {canEnter && <span className="text-xs font-medium text-green-500 flex-shrink-0">{t('common.inProgress')}</span>}
                 {instance.isOverdue && !canEnter && <span className="text-xs font-semibold text-amber-500 flex-shrink-0">{instance.date === getTodayStr() ? 'Today' : new Date(instance.date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · Overdue</span>}
                 {isFuture && timeLabel && <span className={`text-xs flex-shrink-0 ${darkMode ? 'text-gray-400' : 'text-stone-500'}`}>{timeLabel}</span>}
                 {!isFuture && <span className="ml-auto flex items-center gap-0.5 px-2 py-0.5 rounded-full text-white text-[9px] font-bold animate-pulse flex-shrink-0" style={{ backgroundColor: barColor }}><Zap size={9} />hyperGLANCE</span>}
@@ -1277,7 +1278,7 @@ const MobileGlanceSection = () => {
           <div className="p-4">
             {agendaTask.imported && !agendaTask.isTaskCalendar ? (
               <div>
-                <div className={`text-xs font-semibold ${textSecondary} mb-1`}>Description</div>
+                <div className={`text-xs font-semibold ${textSecondary} mb-1`}>{t('common.description')}</div>
                 <div className={`text-sm whitespace-pre-wrap p-3 rounded-lg ${darkMode ? 'bg-white/5' : 'bg-black/5'} ${textPrimary}`}>
                   {renderFormattedText(agendaTask.notes)}
                 </div>

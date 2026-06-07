@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 /**
@@ -12,7 +13,9 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
  *   onConfirm    — called when the user confirms
  *   onCancel     — called when the user cancels or clicks the backdrop
  */
-const ConfirmDialog = ({ title, message, confirmLabel = 'Delete', onConfirm, onCancel, hideCancelButton = false }) => {
+const ConfirmDialog = ({ title, message, confirmLabel, onConfirm, onCancel, hideCancelButton = false }) => {
+  const { t } = useTranslation();
+  const resolvedConfirmLabel = confirmLabel ?? t('common.delete');
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg } =
     useDayPlannerCtx();
 
@@ -38,14 +41,14 @@ const ConfirmDialog = ({ title, message, confirmLabel = 'Delete', onConfirm, onC
               onClick={onCancel}
               className={`px-3 py-2 text-base rounded-lg ${hoverBg} ${textSecondary} transition-colors`}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           )}
           <button
             onClick={onConfirm}
             className={`px-4 py-2 text-base rounded-lg font-medium transition-colors ${hideCancelButton ? `${hoverBg} ${textPrimary}` : 'bg-red-600 hover:bg-red-700 text-white'}`}
           >
-            {confirmLabel}
+            {resolvedConfirmLabel}
           </button>
         </div>
       </div>

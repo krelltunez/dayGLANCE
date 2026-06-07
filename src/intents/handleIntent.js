@@ -1,5 +1,8 @@
 import {
   ACTIONS,
+  ENTITY_TYPES,
+  EVENTS,
+  SOURCE_APPS,
   TABS,
   QUERY_RETURN_VARS,
   RETURN_VAR_TYPES,
@@ -7,6 +10,7 @@ import {
   CompleteSchema,
   OpenSchema,
   QuerySchema,
+  NotifySchema,
   normalizePriority,
   normalizeTags,
   normalizeDue,
@@ -125,6 +129,87 @@ function resolveProjectId(nameOrId, projects) {
   );
 }
 
+async function handleCreateGoal(payload, context) {
+  const { goals = [], addGoal } = context;
+
+  // Idempotency: skip if a goal with this source_app + source_entity_id already exists.
+  if (payload.source_app && payload.source_entity_id) {
+    const existing = goals.find(
+      g => g.source_app === payload.source_app && g.source_entity_id === payload.source_entity_id
+    );
+    if (existing) {
+      return ok({ task_id: existing.id, warning: 'Goal already exists' });
+    }
+  }
+
+  if (!addGoal) {
+    return ok({ warning: '', _normalized: payload });
+  }
+
+  const targetDate = payload.due ? payload.due.slice(0, 10) : undefined;
+
+  // Deterministic ID so two devices processing the same intent create the same
+  // goal ID — the sync engine then merges them as one rather than keeping both.
+  const goalId = payload.source_app && payload.source_entity_id
+    ? await deterministicTaskId(`${payload.source_app}|${payload.source_entity_id}`)
+    : crypto.randomUUID();
+
+  const newGoal = addGoal({
+    id: goalId,
+    title: payload.title,
+    ...(targetDate ? { targetDate } : {}),
+    ...(payload.source_app ? { source_app: payload.source_app } : {}),
+    ...(payload.source_entity_id ? { source_entity_id: payload.source_entity_id } : {}),
+  });
+
+  return ok({ task_id: newGoal.id });
+}
+
+function handleNotify(payload, context) {
+  const v = validate(NotifySchema, payload);
+  if (!v.ok) return fail(v.error);
+
+  const { goals = [], updateGoal, deleteGoal } = context;
+  const { source_app, source_entity_id, event, entity_type, due, title } = v.data;
+
+  // Skip notifies about tasks — only handle goal notifies here.
+  if (entity_type && entity_type !== ENTITY_TYPES.GOAL) {
+    return ok({ warning: 'entity_type not goal — skipped' });
+  }
+
+  // When source_app is dayGLANCE, source_entity_id IS the goal's own id.
+  // Otherwise match by source_app + source_entity_id (goal created by lifeGLANCE).
+  const goal =
+    source_app === SOURCE_APPS.DAYGLANCE
+      ? goals.find(g => g.id === source_entity_id)
+      : goals.find(g => g.source_app === source_app && g.source_entity_id === source_entity_id);
+
+  if (!goal) return ok({ warning: 'no matching goal' });
+  if (!updateGoal && !deleteGoal) return ok({ warning: '', _normalized: v.data });
+
+  switch (event) {
+    case EVENTS.COMPLETED:
+      updateGoal(goal.id, { status: 'completed' });
+      break;
+    case EVENTS.UNCOMPLETED:
+      updateGoal(goal.id, { status: 'active' });
+      break;
+    case EVENTS.DELETED:
+      deleteGoal?.(goal.id);
+      break;
+    case EVENTS.RESCHEDULED:
+      updateGoal(goal.id, { targetDate: due ? due.slice(0, 10) : null });
+      break;
+    case EVENTS.UPDATED:
+      updateGoal(goal.id, { title });
+      break;
+    default:
+      return fail(`Unknown event: ${event}`);
+  }
+
+  return ok({ task_id: goal.id });
+}
+
 async function handleCreate(payload, context) {
   const {
     tasks = [],
@@ -134,11 +219,17 @@ async function handleCreate(payload, context) {
     setUnscheduledTasks,
     setRecurringTasks,
     projects = [],
+    goals = [],
+    addGoal,
     eventId,
   } = context;
 
   const v = validate(CreateSchema, payload);
   if (!v.ok) return fail(v.error);
+
+  if (v.data.entity_type === ENTITY_TYPES.GOAL) {
+    return handleCreateGoal(v.data, context);
+  }
 
   const raw = v.data;
 
@@ -428,6 +519,8 @@ export async function handleIntent(action, payload, context = {}) {
       return handleCreate(payload, context);
     case ACTIONS.COMPLETE:
       return handleComplete(payload, context);
+    case ACTIONS.NOTIFY:
+      return handleNotify(payload, context);
     case ACTIONS.OPEN:
       return handleOpen(payload, context);
     case ACTIONS.QUERY:

@@ -10,6 +10,7 @@ import { HABIT_COLORS, HABIT_ICONS } from '../constants/habits.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { useTranslation } from 'react-i18next';
 
 const MobileBottomSheets = () => {
   const {
@@ -50,6 +51,7 @@ const MobileBottomSheets = () => {
     restoreFromRecycleBin, emptyRecycleBin, undeleteTask,
     getTasksForDate,
   } = useDayPlannerCtx();
+  const { t } = useTranslation();
   const { showMobileRecycleBin, setShowMobileRecycleBin } = useSyncCtx();
   const {
     activeHabits, habitStreaks, habitLogs, habitsEnabled,
@@ -76,7 +78,7 @@ const MobileBottomSheets = () => {
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
           <Trash2 size={18} className={textSecondary} />
-          <span className={`font-semibold ${textPrimary}`}>Recycle Bin</span>
+          <span className={`font-semibold ${textPrimary}`}>{t('app.recycleBin')}</span>
           <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-stone-200 text-stone-500'}`}>
             {recycleBin.filter(t => !t.isExample).length}
           </span>
@@ -102,7 +104,7 @@ const MobileBottomSheets = () => {
       {/* Task list */}
       <div className="overflow-y-auto px-4 pb-2 space-y-2">
         {recycleBin.filter(t => !t.isExample).length === 0 ? (
-          <p className={`text-sm ${textSecondary} text-center py-8`}>Recycle bin is empty</p>
+          <p className={`text-sm ${textSecondary} text-center py-8`}>{t('app.recycleBinEmpty')}</p>
         ) : (
           recycleBin.filter(t => !t.isExample).map(task => (
             <div
@@ -157,7 +159,7 @@ const MobileBottomSheets = () => {
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
           <Filter size={18} className={textSecondary} />
-          <span className={`font-semibold ${textPrimary}`}>Filter by Tag</span>
+          <span className={`font-semibold ${textPrimary}`}>{t('common.filterByTag')}</span>
         </div>
         <div className="flex items-center gap-3">
           {allTags.every(tag => selectedTags.includes(tag)) ? (
@@ -247,7 +249,7 @@ const MobileBottomSheets = () => {
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
           <BarChart3 size={18} className={textSecondary} />
-          <span className={`font-semibold ${textPrimary}`}>Daily Summary</span>
+          <span className={`font-semibold ${textPrimary}`}>{t('app.dailySummary')}</span>
         </div>
         <button
           onClick={() => setShowMobileDailySummary(false)}
@@ -260,7 +262,7 @@ const MobileBottomSheets = () => {
       {/* Stats */}
       <div className="px-4 pb-4">
         {actualTodayNonImportedTasks.length === 0 ? (
-          <p className={`text-sm ${textSecondary} text-center py-4`}>No tasks scheduled for today</p>
+          <p className={`text-sm ${textSecondary} text-center py-4`}>{t('app.noTasksToday')}</p>
         ) : (() => {
           const pct = Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100);
           const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
@@ -309,19 +311,19 @@ const MobileBottomSheets = () => {
                 {todayDueGoals.map(g => (
                   <div key={g.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${darkMode ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-50 text-yellow-700'}`}>
                     <Flag size={14} className="flex-shrink-0" />
-                    <span className="truncate">Goal due today: {g.title}</span>
+                    <span className="truncate">{t('app.goalDueToday')}: {g.title}</span>
                   </div>
                 ))}
                 {todayCompletedGoals.map(g => (
                   <div key={g.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${darkMode ? 'bg-amber-900/30 text-amber-300' : 'bg-amber-50 text-amber-700'}`}>
                     <Flag size={14} className="flex-shrink-0" />
-                    <span className="truncate">Goal complete: {g.title}</span>
+                    <span className="truncate">{t('app.goalComplete')}: {g.title}</span>
                   </div>
                 ))}
                 {todayCompletedProjects.map(p => (
                   <div key={p.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${darkMode ? 'bg-green-900/30 text-green-300' : 'bg-green-50 text-green-700'}`}>
                     <FolderOpen size={14} className="flex-shrink-0" />
-                    <span className="truncate">Project complete: {p.title}</span>
+                    <span className="truncate">{t('app.projectComplete')}: {p.title}</span>
                   </div>
                 ))}
               </div>
@@ -356,7 +358,7 @@ const MobileBottomSheets = () => {
             >
               <div className="flex items-center gap-2">
                 <Flame size={18} className="text-orange-500" />
-                <span className={`font-semibold ${textPrimary}`}>Habit Tracker</span>
+                <span className={`font-semibold ${textPrimary}`}>{t('app.habitTracker')}</span>
               </div>
               {dailyStatsHabitsCollapsed ? <ChevronDown size={16} className={textSecondary} /> : <ChevronUp size={16} className={textSecondary} />}
             </button>
@@ -409,7 +411,7 @@ const MobileBottomSheets = () => {
           >
             <div className="flex items-center gap-2">
               <TrendingUp size={18} className={textSecondary} />
-              <span className={`font-semibold ${textPrimary}`}>All-Time Summary</span>
+              <span className={`font-semibold ${textPrimary}`}>{t('app.allTimeSummary')}</span>
             </div>
             {dailyStatsAllTimeCollapsed ? <ChevronDown size={16} className={textSecondary} /> : <ChevronUp size={16} className={textSecondary} />}
           </button>
@@ -475,7 +477,7 @@ const MobileBottomSheets = () => {
               )}
               {allTimeScheduledCount > 0 && (
                 <div className="flex items-center justify-between pt-1">
-                  <div className="flex items-center gap-2"><Trophy size={14} className="text-amber-400" /> <span className={`font-semibold ${textPrimary}`}>Completion rate</span></div>
+                  <div className="flex items-center gap-2"><Trophy size={14} className="text-amber-400" /> <span className={`font-semibold ${textPrimary}`}>{t('app.completionRate')}</span></div>
                   <span className={`font-semibold ${textPrimary}`}>{Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}%</span>
                 </div>
               )}

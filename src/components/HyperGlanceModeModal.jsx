@@ -8,6 +8,7 @@ import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { extractWikilinks, stripWikilinks } from '../utils/taskUtils.js';
 import { hexToRgba } from '../utils/colorUtils.js';
 import { isNativeAndroid, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeShowFocusTimerNotification, nativeDismissFocusTimerNotification, nativeGetFocusPendingAction } from '../native.js';
+import { useTranslation } from 'react-i18next';
 
 const HyperGlanceModeModal = () => {
   const {
@@ -20,6 +21,7 @@ const HyperGlanceModeModal = () => {
     generateAISubtasks,
     playFocusSound,
   } = useDayPlannerCtx();
+  const { t } = useTranslation();
 
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
 
@@ -256,22 +258,22 @@ const HyperGlanceModeModal = () => {
 
           {/* Timer settings — 3 columns */}
           <div className="space-y-3">
-            <div className="text-gray-400 text-xs font-semibold uppercase tracking-wide">Pomodoro Timer</div>
+            <div className="text-gray-400 text-xs font-semibold uppercase tracking-wide">{t('focus.pomodoroTimer')}</div>
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-gray-800 rounded-xl p-3 flex flex-col gap-1">
-                <span className="text-gray-400 text-xs">Work (min)</span>
+                <span className="text-gray-400 text-xs">{t('focus.workMin')}</span>
                 <input type="number" min={1} max={120} value={hgWorkMinutes}
                   onChange={e => setHgWorkMinutes(Math.max(1, parseInt(e.target.value) || 25))}
                   className={inputCls} />
               </div>
               <div className="bg-gray-800 rounded-xl p-3 flex flex-col gap-1">
-                <span className="text-gray-400 text-xs">Break (min)</span>
+                <span className="text-gray-400 text-xs">{t('focus.breakMin')}</span>
                 <input type="number" min={1} max={60} value={hgBreakMinutes}
                   onChange={e => setHgBreakMinutes(Math.max(1, parseInt(e.target.value) || 5))}
                   className={inputCls} />
               </div>
               <div className="bg-gray-800 rounded-xl p-3 flex flex-col gap-1">
-                <span className="text-gray-400 text-xs">Long break (min)</span>
+                <span className="text-gray-400 text-xs">{t('focus.longBreakMin')}</span>
                 <input type="number" min={1} max={60} value={hgLongBreakMinutes}
                   onChange={e => setHgLongBreakMinutes(Math.max(1, parseInt(e.target.value) || 15))}
                   className={inputCls} />
@@ -283,7 +285,7 @@ const HyperGlanceModeModal = () => {
           {/* Android DND permission prompt */}
           {isNativeAndroid() && !nativeIsDndPermissionGranted() && (
             <div className="w-full flex items-center justify-between bg-gray-800/60 border border-gray-700 rounded-lg px-4 py-3 text-sm">
-              <span className="text-gray-300">Enable Do Not Disturb during session?</span>
+              <span className="text-gray-300">{t('focus.enableDoNotDisturb')}</span>
               <button
                 onClick={nativeRequestDndPermission}
                 className="ml-3 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors flex-shrink-0"
@@ -346,24 +348,24 @@ const HyperGlanceModeModal = () => {
 
           <div className="w-full space-y-3">
             <div className="flex justify-between bg-gray-800 rounded-lg px-4 py-3">
-              <span className="text-gray-400">Tasks completed</span>
+              <span className="text-gray-400">{t('focus.tasksCompleted')}</span>
               <span className="text-white font-semibold">{completedCount} / {projectTasks.length}</span>
             </div>
             {elapsed > 0 && (
               <div className="flex justify-between bg-gray-800 rounded-lg px-4 py-3">
-                <span className="text-gray-400">Session time</span>
+                <span className="text-gray-400">{t('focus.sessionTime')}</span>
                 <span className="text-white font-semibold">{formatElapsed(elapsed)}</span>
               </div>
             )}
             {hgCycleCount > 0 && (
               <div className="flex justify-between bg-gray-800 rounded-lg px-4 py-3">
-                <span className="text-gray-400">Pomodoro cycles</span>
+                <span className="text-gray-400">{t('focus.pomodoroCycles')}</span>
                 <span className="text-white font-semibold">{hgCycleCount}</span>
               </div>
             )}
             {elapsed > 0 && projectTasks.length > 0 && (
               <div className="flex justify-between bg-gray-800 rounded-lg px-4 py-3">
-                <span className="text-gray-400">Completion rate</span>
+                <span className="text-gray-400">{t('app.completionRate')}</span>
                 <span className="text-white font-semibold">{Math.round((completedCount / projectTasks.length) * 100)}%</span>
               </div>
             )}
@@ -387,7 +389,7 @@ const HyperGlanceModeModal = () => {
       <div className="fixed inset-0 z-[200] bg-gray-950 flex flex-col items-center justify-center">
         <div className="w-full max-w-sm px-6 py-8 flex flex-col items-center gap-5">
           <X size={40} className="text-gray-400" />
-          <h2 className="text-xl font-bold text-white text-center">Leave hyperGLANCE?</h2>
+          <h2 className="text-xl font-bold text-white text-center">{t('focus.leaveHyperGlance')}</h2>
           <p className="text-gray-400 text-sm text-center">
             Your progress is saved. You can return to this session later.
           </p>

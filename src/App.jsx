@@ -74,6 +74,7 @@ import useGTDFrames from './hooks/useGTDFrames.js';
 import { getGlanceHGInstances, isHGSessionReachable } from './hooks/useHyperGlance.js';
 import { useIntentPoller, INTENT_CONFIG_KEY } from './intents/useIntentPoller.js';
 import { useNotifyEmitter } from './intents/useNotifyEmitter.js';
+import { useGoalNotifyEmitter } from './intents/useGoalNotifyEmitter.js';
 import { syncSharedUsers, syncSharedUsersViaICloud } from './intents/sharedUsers.js';
 import useVoiceAI from './hooks/useVoiceAI.js';
 import useNavigation from './hooks/useNavigation.js';
@@ -124,6 +125,7 @@ import SpotlightModal from './components/SpotlightModal.jsx';
 import HabitModal from './components/HabitModal.jsx';
 import SubscriptionWall from './components/SubscriptionWall.jsx';
 import { useSubscription } from './hooks/useSubscription.js';
+import { useTranslation } from 'react-i18next';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -182,6 +184,7 @@ const TimePicker = ({ value, onChange, use24HourClock, borderClass, darkMode }) 
 const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
 const DayPlanner = () => {
+  const { t } = useTranslation();
   const { isPro, isLoading: subLoading, isAndroidApp, isIOSApp, isElectronApp, productId: subProductId, subscribe, restore, prices: subPrices, trialEligible, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase, isReviewerUnlocked, setReviewerUnlocked } = useSubscription();
   useEffect(() => { if (isReviewerUnlocked) console.info('[dayGLANCE] Reviewer unlock active'); }, [isReviewerUnlocked]);
   const _visibleDays = useVisibleDays();
@@ -890,6 +893,7 @@ const DayPlanner = () => {
   useIntentPoller({
     tasks, unscheduledTasks, recurringTasks, projects,
     setTasks, setUnscheduledTasks, setRecurringTasks,
+    goals, addGoal, updateGoal, deleteGoal,
     navigate: tab => {
       // TABS values: 'glance' | 'timeline' | 'inbox' | 'goals' | 'settings'
       // mobileActiveTab values: 'dayglance' | 'timeline' | 'inbox' | 'goals' | 'settings'
@@ -899,6 +903,7 @@ const DayPlanner = () => {
     },
   });
   useNotifyEmitter({ tasks, unscheduledTasks });
+  useGoalNotifyEmitter({ goals });
 
   const {
     todayTasks,
@@ -8328,7 +8333,7 @@ const DayPlanner = () => {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Target size={16} className="text-purple-500" />
-                  <span className={`font-semibold text-sm ${textPrimary}`}>Focus Log</span>
+                  <span className={`font-semibold text-sm ${textPrimary}`}>{t('app.focusLog')}</span>
                   <span className={`text-xs ${textSecondary}`}>{displayDate}</span>
                 </div>
                 <button
@@ -8340,9 +8345,9 @@ const DayPlanner = () => {
               </div>
 
               {/* This day */}
-              <div className={`text-xs font-semibold uppercase tracking-wider ${textSecondary} mb-2`}>This Day</div>
+              <div className={`text-xs font-semibold uppercase tracking-wider ${textSecondary} mb-2`}>{t('app.thisDay')}</div>
               {dayData.totalMinutes === 0 ? (
-                <p className={`text-sm ${textSecondary} italic mb-4`}>No focus sessions recorded.</p>
+                <p className={`text-sm ${textSecondary} italic mb-4`}>{t('app.noFocusSessions')}</p>
               ) : (
                 <div className="flex gap-2 mb-4">
                   <Tile value={fmtMin(dayData.totalMinutes)} label="Focus time" />
@@ -8352,7 +8357,7 @@ const DayPlanner = () => {
               )}
 
               {/* Last 7 days */}
-              <div className={`text-xs font-semibold uppercase tracking-wider ${textSecondary} mb-2`}>Last 7 Days</div>
+              <div className={`text-xs font-semibold uppercase tracking-wider ${textSecondary} mb-2`}>{t('app.last7Days')}</div>
               {/* Mini bar chart */}
               <div className="flex items-end gap-1 h-12 mb-1">
                 {last7Data.map((d, i) => {
@@ -8383,7 +8388,7 @@ const DayPlanner = () => {
                 ))}
               </div>
               {totalMin7 === 0 ? (
-                <p className={`text-sm ${textSecondary} italic`}>No focus sessions in the last 7 days.</p>
+                <p className={`text-sm ${textSecondary} italic`}>{t('app.noFocusLast7')}</p>
               ) : (
                 <div className="flex gap-2">
                   <Tile value={fmtMin(totalMin7)} label="Total" />
@@ -8423,7 +8428,7 @@ const DayPlanner = () => {
               <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
                 <Cloud size={20} className="text-blue-600 dark:text-blue-400" />
               </div>
-              <h3 className={`text-lg font-semibold ${textPrimary}`}>Existing Data Found</h3>
+              <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('app.existingDataFound')}</h3>
             </div>
             <p className={`${textSecondary} mb-2`}>
               Your cloud server already has synced data. What would you like to do?
@@ -8457,8 +8462,8 @@ const DayPlanner = () => {
                 }}
                 className={`w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-left transition-colors`}
               >
-                <div className="font-medium">Merge both</div>
-                <div className="text-sm text-blue-100">Combine local and server data, keeping all tasks</div>
+                <div className="font-medium">{t('app.mergeBoth')}</div>
+                <div className="text-sm text-blue-100">{t('app.mergeBothHint')}</div>
               </button>
               <button
                 onClick={() => {
@@ -8475,8 +8480,8 @@ const DayPlanner = () => {
                 }}
                 className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-left transition-colors`}
               >
-                <div className="font-medium">Use server data</div>
-                <div className={`text-sm ${textSecondary}`}>Replace local data with what's on the server</div>
+                <div className="font-medium">{t('app.useServerData')}</div>
+                <div className={`text-sm ${textSecondary}`}>{t('app.useServerDataHint')}</div>
               </button>
               <button
                 onClick={async () => {
@@ -8492,8 +8497,8 @@ const DayPlanner = () => {
                 }}
                 className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-left transition-colors`}
               >
-                <div className="font-medium">Use local data</div>
-                <div className={`text-sm ${textSecondary}`}>Upload current data to the server, replacing what's there</div>
+                <div className="font-medium">{t('app.useLocalData')}</div>
+                <div className={`text-sm ${textSecondary}`}>{t('app.useLocalDataHint')}</div>
               </button>
             </div>
           </div>
@@ -8743,14 +8748,14 @@ const DayPlanner = () => {
             <div className="flex items-center justify-between px-4 py-3">
               <div className="flex items-center gap-2">
                 <Trash2 size={18} className={textSecondary} />
-                <span className={`font-semibold ${textPrimary}`}>Recycle Bin</span>
+                <span className={`font-semibold ${textPrimary}`}>{t('app.recycleBin')}</span>
                 <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-stone-200 text-stone-500'}`}>
                   {recycleBin.filter(t => !t.isExample).length}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 {recycleBin.filter(t => !t.isExample).length > 0 && (
-                  <button onClick={emptyRecycleBin} className="text-xs text-red-500 font-medium px-2 py-1 rounded-lg hover:bg-red-500/5 active:bg-red-500/10 dark:hover:bg-red-500/10 dark:active:bg-red-500/20 transition-colors">Empty All</button>
+                  <button onClick={emptyRecycleBin} className="text-xs text-red-500 font-medium px-2 py-1 rounded-lg hover:bg-red-500/5 active:bg-red-500/10 dark:hover:bg-red-500/10 dark:active:bg-red-500/20 transition-colors">{t('app.emptyAll')}</button>
                 )}
                 <button onClick={() => setShowMobileRecycleBin(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`} aria-label="Close recycle bin">
                   <X size={16} className={textSecondary} />
@@ -8759,7 +8764,7 @@ const DayPlanner = () => {
             </div>
             <div className="overflow-y-auto px-4 pb-2 space-y-2">
               {recycleBin.filter(t => !t.isExample).length === 0 ? (
-                <p className={`text-sm ${textSecondary} text-center py-8`}>Recycle bin is empty</p>
+                <p className={`text-sm ${textSecondary} text-center py-8`}>{t('app.recycleBinEmpty')}</p>
               ) : (
                 recycleBin.filter(t => !t.isExample).map(task => (
                   <div key={`tablet-bin-${task.id}`} className={`${task.color} rounded-lg p-3 opacity-60`}>
@@ -8767,7 +8772,7 @@ const DayPlanner = () => {
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm truncate">{renderTitle(task.title)}</div>
                         <div className="text-xs opacity-75 mt-1">
-                          {task._deletedFrom === 'inbox' ? <>Inbox • {task.duration}min</> : task.startTime ? <>{formatTime(task.startTime)} • {task.duration}min</> : <>{task.duration}min</>}
+                          {task._deletedFrom === 'inbox' ? <>{t('app.recycleBinInbox')} • {task.duration}min</> : task.startTime ? <>{formatTime(task.startTime)} • {task.duration}min</> : <>{task.duration}min</>}
                         </div>
                       </div>
                       <button onClick={() => { undeleteTask(task.id); if (recycleBin.filter(t => !t.isExample).length <= 1) setShowMobileRecycleBin(false); }} className="bg-white/20 rounded-lg p-1.5 hover:bg-white/25 active:bg-white/30 transition-colors" title="Restore">
@@ -8799,7 +8804,7 @@ const DayPlanner = () => {
             <div className="flex items-center justify-between px-4 py-3">
               <div className="flex items-center gap-2">
                 <BarChart3 size={18} className={textSecondary} />
-                <span className={`font-semibold ${textPrimary}`}>Daily Summary</span>
+                <span className={`font-semibold ${textPrimary}`}>{t('app.dailySummary')}</span>
               </div>
               <button onClick={() => setShowMobileDailySummary(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`} aria-label="Close">
                 <X size={16} className={textSecondary} />
@@ -8807,7 +8812,7 @@ const DayPlanner = () => {
             </div>
             <div className="overflow-y-auto px-4 pb-2">
               {actualTodayNonImportedTasks.length === 0 ? (
-                <p className={`text-sm ${textSecondary} text-center py-4`}>No tasks scheduled for today</p>
+                <p className={`text-sm ${textSecondary} text-center py-4`}>{t('app.noTasksToday')}</p>
               ) : (() => {
                 const pct = Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100);
                 const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
@@ -8849,19 +8854,19 @@ const DayPlanner = () => {
                         {todayDueGoals.map(g => (
                           <div key={g.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${darkMode ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-50 text-yellow-700'}`}>
                             <Flag size={14} className="flex-shrink-0" />
-                            <span className="truncate">Goal due today: {g.title}</span>
+                            <span className="truncate">{t('app.goalDueToday', { title: g.title })}</span>
                           </div>
                         ))}
                         {todayCompletedGoals.map(g => (
                           <div key={g.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${darkMode ? 'bg-amber-900/30 text-amber-300' : 'bg-amber-50 text-amber-700'}`}>
                             <Flag size={14} className="flex-shrink-0" />
-                            <span className="truncate">Goal complete: {g.title}</span>
+                            <span className="truncate">{t('app.goalComplete', { title: g.title })}</span>
                           </div>
                         ))}
                         {todayCompletedProjects.map(p => (
                           <div key={p.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${darkMode ? 'bg-green-900/30 text-green-300' : 'bg-green-50 text-green-700'}`}>
                             <FolderOpen size={14} className="flex-shrink-0" />
-                            <span className="truncate">Project complete: {p.title}</span>
+                            <span className="truncate">{t('app.projectComplete', { title: p.title })}</span>
                           </div>
                         ))}
                       </div>
@@ -8895,7 +8900,7 @@ const DayPlanner = () => {
                   >
                     <div className="flex items-center gap-2">
                       <Flame size={18} className="text-orange-500" />
-                      <span className={`font-semibold ${textPrimary}`}>Habit Tracker</span>
+                      <span className={`font-semibold ${textPrimary}`}>{t('app.habitTracker')}</span>
                     </div>
                     {desktopStatsHabitsCollapsed ? <ChevronDown size={16} className={textSecondary} /> : <ChevronUp size={16} className={textSecondary} />}
                   </button>
@@ -8948,7 +8953,7 @@ const DayPlanner = () => {
                 >
                   <div className="flex items-center gap-2">
                     <TrendingUp size={18} className={textSecondary} />
-                    <span className={`font-semibold ${textPrimary}`}>All-Time Summary</span>
+                    <span className={`font-semibold ${textPrimary}`}>{t('app.allTimeSummary')}</span>
                   </div>
                   {desktopStatsAllTimeCollapsed ? <ChevronDown size={16} className={textSecondary} /> : <ChevronUp size={16} className={textSecondary} />}
                 </button>
@@ -9014,7 +9019,7 @@ const DayPlanner = () => {
                   )}
                   {allTimeScheduledCount > 0 && (
                     <div className="flex items-center justify-between pt-1">
-                      <div className="flex items-center gap-2"><Trophy size={14} className="text-amber-400" /> <span className={`font-semibold ${textPrimary}`}>Completion rate</span></div>
+                      <div className="flex items-center gap-2"><Trophy size={14} className="text-amber-400" /> <span className={`font-semibold ${textPrimary}`}>{t('app.completionRate')}</span></div>
                       <span className={`font-semibold ${textPrimary}`}>{Math.round((allTimeCompletedCount / allTimeScheduledCount) * 100)}%</span>
                     </div>
                   )}
@@ -9034,7 +9039,7 @@ const DayPlanner = () => {
             className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg text-sm font-medium bg-blue-600 text-white active:bg-blue-700 transition-opacity`}
           >
             <Clock size={14} />
-            <span>Refocus timeline</span>
+            <span>{t('app.refocusTimeline')}</span>
           </button>
         </div>
       )}
@@ -9059,7 +9064,7 @@ const DayPlanner = () => {
             <div className={`px-5 py-4 border-b ${borderClass} flex items-center justify-between`}>
               <div className="flex items-center gap-2">
                 <CalendarDays size={18} className="text-orange-500" />
-                <h2 className={`text-lg font-bold ${textPrimary}`}>Reschedule Incomplete Tasks</h2>
+                <h2 className={`text-lg font-bold ${textPrimary}`}>{t('app.rescheduleIncompleteTasks')}</h2>
               </div>
               <button onClick={() => setShowRescheduleModal(false)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`}>
                 <X size={20} className={textSecondary} />
@@ -9101,7 +9106,7 @@ const DayPlanner = () => {
                 <div className={`font-semibold ${textPrimary}`}>
                   {new Date(habitDayPopup + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 </div>
-                <div className={`text-xs ${textSecondary} mt-0.5`}>Habit summary</div>
+                <div className={`text-xs ${textSecondary} mt-0.5`}>{t('app.habitSummary')}</div>
               </div>
               <button onClick={() => setHabitDayPopup(null)} className={`${textSecondary} hover:${textPrimary} transition-colors`}><X size={18} /></button>
             </div>
@@ -9159,7 +9164,7 @@ const DayPlanner = () => {
             <div className={`flex items-center justify-between px-5 py-4 border-b ${borderClass}`}>
               <div className="flex items-center gap-2">
                 <HelpCircle size={18} className="text-blue-500" />
-                <h2 className={`font-semibold ${textPrimary}`}>Help & Feedback</h2>
+                <h2 className={`font-semibold ${textPrimary}`}>{t('app.helpFeedback')}</h2>
               </div>
               <button onClick={() => setShowHelpModal(false)} className={`p-1 rounded-lg ${darkMode ? 'hover:bg-white/10' : 'hover:bg-stone-100'}`}>
                 <X size={18} className={textSecondary} />
@@ -9169,7 +9174,7 @@ const DayPlanner = () => {
             <div className="px-5 py-4 space-y-5">
               {/* Docs */}
               <div>
-                <p className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} mb-2`}>Documentation</p>
+                <p className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} mb-2`}>{t('app.documentation')}</p>
                 <a
                   href="https://docs.dayglance.app"
                   target="_blank"
@@ -9183,7 +9188,7 @@ const DayPlanner = () => {
 
               {/* Contact */}
               <div>
-                <p className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} mb-2`}>Contact & Issues</p>
+                <p className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} mb-2`}>{t('app.contactIssues')}</p>
                 <a
                   href="mailto:support@glance-apps.com"
                   className="flex items-center gap-2 text-blue-500 hover:text-blue-400 transition-colors text-sm font-medium"
@@ -9206,8 +9211,8 @@ const DayPlanner = () => {
               <div className={`pt-4 border-t ${borderClass}`}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className={`text-sm font-medium ${textPrimary}`}>Getting Started checklist</p>
-                    <p className={`text-xs ${textSecondary} mt-0.5`}>Show the guided checklist in the sidebar</p>
+                    <p className={`text-sm font-medium ${textPrimary}`}>{t('app.gettingStartedChecklist')}</p>
+                    <p className={`text-xs ${textSecondary} mt-0.5`}>{t('app.gettingStartedChecklistHint')}</p>
                   </div>
                   <button
                     onClick={() => {

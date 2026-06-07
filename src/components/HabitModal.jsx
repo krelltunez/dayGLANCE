@@ -3,12 +3,14 @@ import {
   X, Activity, Target, GripVertical, RefreshCw,
   Pencil, Trash2, ChevronUp, ChevronDown, Plus, Footprints, Moon, WifiOff,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from '../constants/habits.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getDeviceId } from '../native.js';
 
 const HabitModal = () => {
+  const { t } = useTranslation();
   const { cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg } = useDayPlannerCtx();
   const {
     setShowHabitModal,
@@ -25,7 +27,7 @@ const HabitModal = () => {
         {/* Header */}
         <div className={`px-5 py-4 border-b ${borderClass} flex items-center justify-between`}>
           <h2 className={`text-lg font-bold ${textPrimary}`}>
-            {editingHabit ? 'Edit Habit' : 'Manage Habits'}
+            {editingHabit ? t('habit.editHabit') : t('habit.manageHabits')}
           </h2>
           <button onClick={() => { setShowHabitModal(false); setEditingHabit(null); }} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`}>
             <X size={20} className={textSecondary} />
@@ -41,10 +43,10 @@ const HabitModal = () => {
                 <div className="space-y-4">
                   {/* Name */}
                   <div>
-                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Name</label>
+                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('habit.habitName')}</label>
                     <input
                       type="text"
-                      placeholder="e.g., Drink water"
+                      placeholder={t('habit.habitNamePlaceholder')}
                       value={editingHabit.name || ''}
                       onChange={(e) => setEditingHabit(prev => ({ ...prev, name: e.target.value }))}
                       className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
@@ -54,7 +56,7 @@ const HabitModal = () => {
 
                   {/* Type toggle */}
                   <div>
-                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Type</label>
+                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('habit.habitType')}</label>
                     <div className="flex gap-2">
                       <button
                         onClick={() => setEditingHabit(prev => ({ ...prev, type: 'doMore' }))}
@@ -64,7 +66,7 @@ const HabitModal = () => {
                             : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-100 text-stone-700'}`
                         }`}
                       >
-                        Do More
+                        {t('habit.habitDoMore')}
                       </button>
                       <button
                         onClick={() => setEditingHabit(prev => ({ ...prev, type: 'limit' }))}
@@ -74,18 +76,18 @@ const HabitModal = () => {
                             : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-100 text-stone-700'}`
                         }`}
                       >
-                        Limit
+                        {t('habit.habitLimit')}
                       </button>
                     </div>
                     <p className={`text-xs ${textSecondary} mt-1`}>
-                      {editingHabit.type === 'doMore' ? 'Track progress toward a daily goal' : 'Track consumption against a daily ceiling'}
+                      {editingHabit.type === 'doMore' ? t('habit.habitDoMoreHint') : t('habit.habitLimitHint')}
                     </p>
                   </div>
 
                   {/* Target + Unit */}
                   <div className="flex gap-3">
                     <div className="flex-1">
-                      <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{editingHabit.type === 'doMore' ? 'Daily Goal' : 'Daily Limit'}</label>
+                      <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{editingHabit.type === 'doMore' ? t('habit.habitDailyGoal') : t('habit.habitDailyLimit')}</label>
                       <input
                         type="number"
                         min="1"
@@ -95,10 +97,10 @@ const HabitModal = () => {
                       />
                     </div>
                     <div className="flex-1">
-                      <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Unit</label>
+                      <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('habit.habitUnit')}</label>
                       <input
                         type="text"
-                        placeholder="e.g., glasses"
+                        placeholder={t('habit.habitUnitPlaceholder')}
                         value={editingHabit.unit || ''}
                         onChange={(e) => setEditingHabit(prev => ({ ...prev, unit: e.target.value }))}
                         className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
@@ -112,7 +114,7 @@ const HabitModal = () => {
                     const days = editingHabit.scheduledDays ?? [0, 1, 2, 3, 4, 5, 6];
                     return (
                       <div>
-                        <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Active days</label>
+                        <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('habit.habitActiveDays')}</label>
                         <div className="flex gap-1.5">
                           {DOW_LABELS.map((label, idx) => {
                             const active = days.includes(idx);
@@ -146,7 +148,7 @@ const HabitModal = () => {
 
                   {/* Icon picker */}
                   <div>
-                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Icon</label>
+                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('habit.habitIcon')}</label>
                     <div className="flex flex-wrap gap-2">
                       {HABIT_ICON_NAMES.map(name => {
                         const Icon = HABIT_ICONS[name];
@@ -169,7 +171,7 @@ const HabitModal = () => {
 
                   {/* Color picker */}
                   <div>
-                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Color</label>
+                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('habit.habitColor')}</label>
                     <div className="flex flex-wrap gap-2">
                       {HABIT_COLORS.map(c => (
                         <button
@@ -190,7 +192,7 @@ const HabitModal = () => {
                       onClick={() => setEditingHabit(null)}
                       className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'} transition-colors`}
                     >
-                      Cancel
+                      {t('common.cancel')}
                     </button>
                     <button
                       onClick={() => {
@@ -205,7 +207,7 @@ const HabitModal = () => {
                       disabled={!editingHabit.name?.trim() || !editingHabit.target}
                       className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                      {isNew ? 'Add Habit' : 'Save'}
+                      {isNew ? t('habit.addHabit') : t('common.save')}
                     </button>
                   </div>
                 </div>
@@ -217,8 +219,8 @@ const HabitModal = () => {
               {activeHabits.length === 0 ? (
                 <div className={`text-center py-8 ${textSecondary}`}>
                   <Activity size={40} className="mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">No habits yet</p>
-                  <p className="text-xs mt-1">Add a habit to start tracking</p>
+                  <p className="text-sm">{t('habit.noHabitsTitle')}</p>
+                  <p className="text-xs mt-1">{t('habit.noHabitsHint')}</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -259,7 +261,7 @@ const HabitModal = () => {
                             })()}
                           </div>
                           <div className={`text-xs ${textSecondary}`}>
-                            {habit.type === 'doMore' ? 'Goal' : 'Limit'}: {habit.target} {habit.unit}
+                            {habit.type === 'doMore' ? t('habit.habitGoalPrefix') : t('habit.habitLimitPrefix')}: {habit.target} {habit.unit}
                           </div>
                           {(() => {
                             const days = habit.scheduledDays ?? [0, 1, 2, 3, 4, 5, 6];
@@ -303,7 +305,7 @@ const HabitModal = () => {
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-blue-500/30 text-blue-500 text-sm font-medium hover:bg-blue-500/5 transition-colors"
                 >
                   <Plus size={16} />
-                  Add Habit
+                  {t('habit.addHabit')}
                 </button>
               )}
 
@@ -312,8 +314,8 @@ const HabitModal = () => {
                 <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${darkMode ? 'border-green-800 bg-green-950/40' : 'border-green-200 bg-green-50'}`}>
                   <Footprints size={22} className="text-green-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-semibold ${darkMode ? 'text-green-300' : 'text-green-800'}`}>Track steps automatically</div>
-                    <div className={`text-xs ${darkMode ? 'text-green-500' : 'text-green-600'} mt-0.5`}>Pulls from Health Connect — no manual tapping</div>
+                    <div className={`text-sm font-semibold ${darkMode ? 'text-green-300' : 'text-green-800'}`}>{t('habit.trackStepsTitle')}</div>
+                    <div className={`text-xs ${darkMode ? 'text-green-500' : 'text-green-600'} mt-0.5`}>{t('habit.trackStepsHint')}</div>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">
                     {!healthPerms?.steps && (
@@ -321,7 +323,7 @@ const HabitModal = () => {
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 active:bg-green-700 transition-colors"
                       >
-                        Authorize
+                        {t('common.authorize')}
                       </button>
                     )}
                     <button
@@ -329,7 +331,7 @@ const HabitModal = () => {
                       disabled={!healthPerms?.steps}
                       className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${healthPerms?.steps ? 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700' : 'bg-green-500/30 text-white/50 cursor-not-allowed'}`}
                     >
-                      Add
+                      {t('common.add')}
                     </button>
                   </div>
                 </div>
@@ -340,8 +342,8 @@ const HabitModal = () => {
                 <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${darkMode ? 'border-indigo-800 bg-indigo-950/40' : 'border-indigo-200 bg-indigo-50'}`}>
                   <Moon size={22} className="text-indigo-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-semibold ${darkMode ? 'text-indigo-300' : 'text-indigo-800'}`}>Track sleep automatically</div>
-                    <div className={`text-xs ${darkMode ? 'text-indigo-500' : 'text-indigo-600'} mt-0.5`}>Pulls from Health Connect — no manual tapping</div>
+                    <div className={`text-sm font-semibold ${darkMode ? 'text-indigo-300' : 'text-indigo-800'}`}>{t('habit.trackSleepTitle')}</div>
+                    <div className={`text-xs ${darkMode ? 'text-indigo-500' : 'text-indigo-600'} mt-0.5`}>{t('habit.trackSleepHint')}</div>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">
                     {!healthPerms?.sleep && (
@@ -349,7 +351,7 @@ const HabitModal = () => {
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700 transition-colors"
                       >
-                        Authorize
+                        {t('common.authorize')}
                       </button>
                     )}
                     <button
@@ -357,7 +359,7 @@ const HabitModal = () => {
                       disabled={!healthPerms?.sleep}
                       className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${healthPerms?.sleep ? 'bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700' : 'bg-indigo-500/30 text-white/50 cursor-not-allowed'}`}
                     >
-                      Add
+                      {t('common.add')}
                     </button>
                   </div>
                 </div>
@@ -366,7 +368,7 @@ const HabitModal = () => {
               {/* Archived habits */}
               {habits.filter(h => h.archived).length > 0 && (
                 <div className="pt-2">
-                  <h4 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} mb-2`}>Archived</h4>
+                  <h4 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} mb-2`}>{t('habit.archived')}</h4>
                   <div className="space-y-1">
                     {habits.filter(h => h.archived).map(habit => {
                       const IconComp = HABIT_ICONS[habit.icon] || Target;
@@ -375,8 +377,8 @@ const HabitModal = () => {
                         <div key={habit.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-800/50' : 'bg-stone-50'} opacity-60`}>
                           <IconComp size={16} style={{ color: colorObj.ring }} />
                           <span className={`text-sm flex-1 ${textPrimary}`}>{habit.name}</span>
-                          <button onClick={() => updateHabit(habit.id, { archived: false })} className={`text-xs text-blue-500 font-medium px-2 py-1 rounded hover:bg-blue-500/10`}>Restore</button>
-                          <button onClick={() => deleteHabit(habit.id)} className={`text-xs text-red-500 font-medium px-2 py-1 rounded hover:bg-red-500/10`}>Delete</button>
+                          <button onClick={() => updateHabit(habit.id, { archived: false })} className={`text-xs text-blue-500 font-medium px-2 py-1 rounded hover:bg-blue-500/10`}>{t('common.restore')}</button>
+                          <button onClick={() => deleteHabit(habit.id)} className={`text-xs text-red-500 font-medium px-2 py-1 rounded hover:bg-red-500/10`}>{t('common.delete')}</button>
                         </div>
                       );
                     })}

@@ -556,7 +556,8 @@ async function _poll(config, context) {
  * Config is read from localStorage at mount; no-ops when unconfigured.
  *
  * context shape: { tasks, unscheduledTasks, recurringTasks, projects,
- *                  setTasks, setUnscheduledTasks, setRecurringTasks, navigate }
+ *                  setTasks, setUnscheduledTasks, setRecurringTasks,
+ *                  goals, addGoal, updateGoal, deleteGoal, navigate }
  */
 export function useIntentPoller(context) {
   const contextRef = useRef(context);

@@ -2,6 +2,7 @@ import React from 'react';
 import { ChevronRight, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { stripWikilinks } from '../utils/taskUtils.js';
+import { useTranslation } from 'react-i18next';
 
 const IncompleteTasksModal = () => {
   const {
@@ -13,6 +14,7 @@ const IncompleteTasksModal = () => {
     calendarRef, timeGridRef,
     formatTime, timeToMinutes,
   } = useDayPlannerCtx();
+  const { t } = useTranslation();
 
   if (!showIncompleteTasks) return null;
 
@@ -28,7 +30,7 @@ const IncompleteTasksModal = () => {
             >
               <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
                 <div>
-                  <h2 className={`text-lg font-bold ${textPrimary}`}>Incomplete Tasks</h2>
+                  <h2 className={`text-lg font-bold ${textPrimary}`}>{t('app.incompleteTasks')}</h2>
                   <p className={`text-xs ${textSecondary}`}>{isDaily ? 'Today' : 'All Time'} — {items.length} task{items.length !== 1 ? 's' : ''}</p>
                 </div>
                 <button onClick={() => setShowIncompleteTasks(null)} className={`${textSecondary} hover:${textPrimary}`}>
@@ -37,7 +39,7 @@ const IncompleteTasksModal = () => {
               </div>
               <div className="overflow-y-auto p-4">
                 {items.length === 0 ? (
-                  <p className={`text-center ${textSecondary} py-6`}>All tasks completed!</p>
+                  <p className={`text-center ${textSecondary} py-6`}>{t('app.allTasksCompleted')}</p>
                 ) : (
                   <div className="space-y-2">
                     {items.map(task => (

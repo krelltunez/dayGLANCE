@@ -1,5 +1,6 @@
 import React from 'react';
 import { RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 const RecurringDeleteModal = () => {
@@ -8,6 +9,8 @@ const RecurringDeleteModal = () => {
     cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg,
     deleteRecurringInstance,
   } = useDayPlannerCtx();
+
+  const { t } = useTranslation();
 
   if (!recurringDeleteConfirm) return null;
 
@@ -21,41 +24,41 @@ const RecurringDeleteModal = () => {
               <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
                 <RefreshCw size={20} className="text-red-600 dark:text-red-400" />
               </div>
-              <h3 className={`text-lg font-semibold ${textPrimary}`}>Delete Recurring Task</h3>
+              <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('modal.confirmDeleteRecurring')}</h3>
             </div>
             <p className={`${textSecondary} mb-2`}>
-              How would you like to delete this recurring task?
+              {t('modal.confirmDeleteRecurringMessage')}
             </p>
             <p className={`text-xs ${textSecondary} mb-4`}>
-              Note: Recurring tasks are permanently deleted and cannot be restored from the recycle bin.
+              {t('modal.confirmDeleteRecurringNote')}
             </p>
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => deleteRecurringInstance('this')}
                 className={`w-full text-left px-4 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary}`}
               >
-                <div className="font-medium">This occurrence</div>
-                <div className={`text-xs ${textSecondary}`}>Only skip {recurringDeleteConfirm.dateStr}</div>
+                <div className="font-medium">{t('modal.deleteThisOccurrence')}</div>
+                <div className={`text-xs ${textSecondary}`}>{t('modal.deleteThisOccurrenceHint', { date: recurringDeleteConfirm.dateStr })}</div>
               </button>
               <button
                 onClick={() => deleteRecurringInstance('future')}
                 className={`w-full text-left px-4 py-2.5 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary}`}
               >
-                <div className="font-medium">This and all future</div>
-                <div className={`text-xs ${textSecondary}`}>Stop recurring from {recurringDeleteConfirm.dateStr} onward</div>
+                <div className="font-medium">{t('modal.deleteThisAndFuture')}</div>
+                <div className={`text-xs ${textSecondary}`}>{t('modal.deleteThisAndFutureHint', { date: recurringDeleteConfirm.dateStr })}</div>
               </button>
               <button
                 onClick={() => deleteRecurringInstance('series')}
                 className="w-full text-left px-4 py-2.5 rounded-lg bg-red-600 text-white hover:bg-red-700"
               >
-                <div className="font-medium">Delete entire series</div>
-                <div className="text-xs opacity-75">Remove all occurrences</div>
+                <div className="font-medium">{t('modal.deleteEntireSeries')}</div>
+                <div className="text-xs opacity-75">{t('modal.deleteEntireSeriesHint')}</div>
               </button>
               <button
                 onClick={() => setRecurringDeleteConfirm(null)}
                 className={`w-full px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg} mt-1`}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Save, Cloud } from 'lucide-react';
 import { autoBackupProviders } from '../utils/autoBackup.js';
+import { useTranslation } from 'react-i18next';
 
 // Auto-Backup Settings Form (extracted to avoid hooks-in-conditional issues)
 const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrimary, textSecondary, borderClass, hoverBg, onRemoteBackupNow }) => {
+  const { t } = useTranslation();
   const [testResult, setTestResult] = useState(null);
   const [testing, setTesting] = useState(false);
 
@@ -44,7 +46,7 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
               onChange={(e) => updateLocal({ enabled: e.target.checked })}
               className="w-4 h-4 rounded"
             />
-            <span className={textPrimary}>Enable automatic local backups</span>
+            <span className={textPrimary}>{t('backup.enableLocalBackups')}</span>
           </label>
           {localConfig.enabled && (
             <div className="ml-7">
@@ -54,9 +56,9 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
                 onChange={(e) => updateLocal({ frequency: e.target.value })}
                 className={`px-3 py-1.5 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
               >
-                <option value="hourly">Hourly (keep 24)</option>
-                <option value="daily">Daily (keep 30)</option>
-                <option value="weekly">Weekly (keep 12)</option>
+                <option value="hourly">{t('backup.hourly')}</option>
+                <option value="daily">{t('backup.daily')}</option>
+                <option value="weekly">{t('backup.weekly')}</option>
               </select>
               {status.local.lastBackup && (
                 <p className={`text-xs ${textSecondary} mt-1`}>
@@ -82,7 +84,7 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
               onChange={(e) => updateRemote({ enabled: e.target.checked })}
               className="w-4 h-4 rounded"
             />
-            <span className={textPrimary}>Enable automatic remote backups</span>
+            <span className={textPrimary}>{t('backup.enableRemoteBackups')}</span>
           </label>
           <p className={`text-xs ${textSecondary} ml-7`}>
             Only enable on one device. If you use multiple devices, use Cloud Sync to keep them in sync and set up remote backups on your primary device only.
@@ -122,9 +124,9 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
                   onChange={(e) => updateRemote({ frequency: e.target.value })}
                   className={`px-3 py-1.5 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
                 >
-                  <option value="hourly">Hourly (keep 24)</option>
-                  <option value="daily">Daily (keep 30)</option>
-                  <option value="weekly">Weekly (keep 12)</option>
+                  <option value="hourly">{t('backup.hourly')}</option>
+                  <option value="daily">{t('backup.daily')}</option>
+                  <option value="weekly">{t('backup.weekly')}</option>
                 </select>
               </div>
 

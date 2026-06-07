@@ -1,13 +1,15 @@
 import React from 'react';
 import { BrainCircuit, LayoutGrid, Inbox, CalendarDays, Check, Loader } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const SmartSchedulePanel = ({ aiConfig, inboxTasks, smartScheduleResults, smartScheduleLoading, smartScheduleError, smartScheduleAccepted, setSmartScheduleAccepted, onRun, onApply, onCancel, darkMode, textPrimary, textSecondary, borderClass, cardBg, hoverBg, gtdFrames, formatTime, mode = 'inbox' }) => {
+  const { t } = useTranslation();
   const isReschedule = mode === 'reschedule';
   if (!aiConfig?.enabled || (!aiConfig.features?.smartScheduling && !isReschedule)) {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3">
         <BrainCircuit size={48} className={textSecondary} />
-        <h3 className={`text-lg font-semibold ${textPrimary}`}>AI Scheduling</h3>
+        <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('app.aiScheduling')}</h3>
         <p className={`text-sm ${textSecondary} text-center max-w-xs`}>
           Enable AI features and Smart Scheduling in Settings to use this feature.
         </p>
@@ -19,7 +21,7 @@ const SmartSchedulePanel = ({ aiConfig, inboxTasks, smartScheduleResults, smartS
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3">
         <LayoutGrid size={48} className={textSecondary} />
-        <h3 className={`text-lg font-semibold ${textPrimary}`}>No Active Frames</h3>
+        <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('frames.noActiveFrames')}</h3>
         <p className={`text-sm ${textSecondary} text-center max-w-xs`}>
           Create and enable at least one GTD Frame before running Smart Schedule.
         </p>
@@ -53,7 +55,7 @@ const SmartSchedulePanel = ({ aiConfig, inboxTasks, smartScheduleResults, smartS
 
     return (
       <div className="space-y-3">
-        <h3 className={`text-sm font-semibold ${textPrimary}`}>Proposed Schedule</h3>
+        <h3 className={`text-sm font-semibold ${textPrimary}`}>{t('app.proposedSchedule')}</h3>
         {placements.length > 0 && (
           <div className="space-y-2">
             {placements.map(p => {
@@ -83,7 +85,7 @@ const SmartSchedulePanel = ({ aiConfig, inboxTasks, smartScheduleResults, smartS
 
         {unplaceable.length > 0 && (
           <div>
-            <h4 className={`text-xs font-semibold ${textSecondary} mb-1`}>Could not be placed</h4>
+            <h4 className={`text-xs font-semibold ${textSecondary} mb-1`}>{t('app.couldNotBePlaced')}</h4>
             <div className="space-y-1">
               {unplaceable.map(u => {
                 const task = findTaskById(u.taskId);

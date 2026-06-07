@@ -18,6 +18,7 @@ import MobileViewToggle from './MobileViewToggle.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { useTranslation } from 'react-i18next';
 
 const DesktopLayout = () => {
   const {
@@ -224,6 +225,7 @@ const DesktopLayout = () => {
     hideStandaloneTasksInbox, inboxTagFilter, inboxProjectFilter, setInboxProjectFilter,
     archiveInboxTask,
   } = useDayPlannerCtx();
+  const { t } = useTranslation();
 
   const {
     autoBackupInProgressRef, syncAllRef,
@@ -454,7 +456,7 @@ const DesktopLayout = () => {
             {runningTask && (
               <>
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-                <span className="truncate">Now: {runningTask.title}</span>
+                <span className="truncate">{t('common.now')}: {runningTask.title}</span>
               </>
             )}
           </div>
@@ -713,7 +715,7 @@ const DesktopLayout = () => {
                   title="Today's daily note"
                 >
                   {obsidianConfig?.enabled ? <BookOpen size={15} /> : <NotebookPen size={15} />}
-                  <span className="text-xs font-medium whitespace-nowrap">Daily Note</span>
+                  <span className="text-xs font-medium whitespace-nowrap">{t('common.dailyNote')}</span>
                 </button>
               )}
               {/* Goals & Projects FAB — bottom-left of GLANCE panel */}
@@ -723,7 +725,7 @@ const DesktopLayout = () => {
                   className={`absolute bottom-6 left-4 z-10 h-9 px-3 rounded-full shadow-lg flex items-center gap-1.5 transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
                 >
                   <GitBranch size={15} />
-                  <span className="text-xs font-medium whitespace-nowrap">Goals &amp; Projects</span>
+                  <span className="text-xs font-medium whitespace-nowrap">{t('settings.goalsProjects')}</span>
                 </button>
               )}
             </div>
@@ -785,7 +787,7 @@ const DesktopLayout = () => {
                 title="Today's daily note"
               >
                 {obsidianConfig?.enabled ? <BookOpen size={15} /> : <NotebookPen size={15} />}
-                <span className="text-xs font-medium whitespace-nowrap">Daily Note</span>
+                <span className="text-xs font-medium whitespace-nowrap">{t('common.dailyNote')}</span>
               </button>
             )}
             {/* Goals & Projects FAB — bottom-left of GLANCE panel */}
@@ -796,7 +798,7 @@ const DesktopLayout = () => {
                 title="Goals & Projects"
               >
                 <GitBranch size={15} />
-                <span className="text-xs font-medium whitespace-nowrap">Goals &amp; Projects</span>
+                <span className="text-xs font-medium whitespace-nowrap">{t('settings.goalsProjects')}</span>
               </button>
             )}
           </div>

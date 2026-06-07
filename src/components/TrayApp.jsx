@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import GlanceSidebar from './GlanceSidebar.jsx';
 import TrayHeader from './TrayHeader.jsx';
 import TrayFocus from './TrayFocus.jsx';

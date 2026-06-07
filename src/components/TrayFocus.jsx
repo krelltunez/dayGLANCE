@@ -1,4 +1,5 @@
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useTranslation } from 'react-i18next';
 
 const PHASE_LABELS = { work: 'Work', shortBreak: 'Short Break', longBreak: 'Long Break' };
 const PHASE_COLORS = {

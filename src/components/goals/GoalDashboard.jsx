@@ -20,6 +20,7 @@ import {
   GitBranch,
   GripVertical,
   Layers,
+  Link2,
   LogIn,
   Plus,
   RotateCcw,
@@ -40,11 +41,14 @@ import { dateToString } from '../../utils/taskUtils.js';
 import { calculateGoalProgress } from '../../utils/goalProgress.js';
 import { isProjectStalled } from '../../utils/projectProgress.js';
 import GoalCard from './GoalCard.jsx';
+import { useTranslation } from 'react-i18next';
 import GoalProgress from './GoalProgress.jsx';
 import ProjectCard from '../projects/ProjectCard.jsx';
 import ConfirmDialog from '../ConfirmDialog.jsx';
 import DatePicker from '../DatePicker.jsx';
 import ClockTimePicker from '../ClockTimePicker.jsx';
+import { emitGoalCreate } from '../../intents/emitGoalCreate.js';
+import { INTENT_CONFIG_KEY } from '../../intents/useIntentPoller.js';
 
 // ─── Tiny helpers ─────────────────────────────────────────────────────────────
 
@@ -110,15 +114,17 @@ function findDefaultActiveIdx(sortedGoals) {
 
 // ─── Goal form (create / edit) ────────────────────────────────────────────────
 
-const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mobile }) => {
+const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mobile, showLifeGlanceCheckbox = false }) => {
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg, isMobile } =
     useDayPlannerCtx();
+  const { t } = useTranslation();
 
   const [title, setTitle] = useState(initial?.title || '');
   const [description, setDescription] = useState(initial?.description || '');
   const [targetDate, setTargetDate] = useState(initial?.targetDate || '');
   const [color, setColor] = useState(initial?.color || TASK_COLORS[0].class);
   const [status, setStatus] = useState(initial?.status || 'active');
+  const [trackInLifeGlance, setTrackInLifeGlance] = useState(false);
 
   // "Completed" only available when all child projects are completed (or none exist)
   const activeChildProjects = childProjects.filter(p => p.status !== 'archived');
@@ -127,7 +133,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onSave({ title: title.trim(), description: description.trim(), targetDate: targetDate || undefined, color, status });
+    onSave({ title: title.trim(), description: description.trim(), targetDate: targetDate || undefined, color, status, trackInLifeGlance: showLifeGlanceCheckbox && !initial && trackInLifeGlance });
   };
 
   return (
@@ -142,7 +148,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
 
       {/* Title */}
       <div className="flex flex-col gap-1">
-        <label className={`text-xs font-medium ${textSecondary}`}>Title *</label>
+        <label className={`text-xs font-medium ${textSecondary}`}>{t('common.titleRequired')}</label>
         <input
           autoFocus={!initial && !isMobile}
           value={title}
@@ -170,7 +176,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
 
       {/* Target date */}
       <div className="flex flex-col gap-1">
-        <label className={`text-xs font-medium ${textSecondary}`}>Target date</label>
+        <label className={`text-xs font-medium ${textSecondary}`}>{t('common.targetDate')}</label>
         <input
           type="date"
           value={targetDate}
@@ -237,6 +243,27 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
               Complete all projects first to mark this goal as done.
             </p>
           )}
+        </div>
+      )}
+
+      {/* Track in lifeGLANCE — checkbox on create, read-only indicator on edit */}
+      {showLifeGlanceCheckbox && !initial && (
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={trackInLifeGlance}
+            onChange={e => setTrackInLifeGlance(e.target.checked)}
+            className="w-4 h-4 rounded accent-blue-500"
+          />
+          <span className={`text-sm ${textSecondary}`}>Track in lifeGLANCE</span>
+        </label>
+      )}
+      {initial && (initial.source_app === 'app.lifeglance' || initial.synced_to_lifeglance) && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+          <Link2 size={14} className="text-blue-400 flex-shrink-0" />
+          <span className="text-sm text-blue-400">
+            {initial.source_app === 'app.lifeglance' ? t('goals.fromLifeGlance') : t('goals.trackedInLifeGlance')}
+          </span>
         </div>
       )}
 
@@ -369,7 +396,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
 
       {/* Title */}
       <div className="flex flex-col gap-1">
-        <label className={`text-xs font-medium ${textSecondary}`}>Title *</label>
+        <label className={`text-xs font-medium ${textSecondary}`}>{t('common.titleRequired')}</label>
         <input
           autoFocus={!initial && !isMobile}
           value={title}
@@ -397,7 +424,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
 
       {/* Goal */}
       <div className="flex flex-col gap-1">
-        <label className={`text-xs font-medium ${textSecondary}`}>Goal (optional)</label>
+        <label className={`text-xs font-medium ${textSecondary}`}>{t('goals.goalOptional')}</label>
         <select
           value={goalId}
           onChange={e => setGoalId(e.target.value)}
@@ -676,7 +703,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
       {editingTemplateTask && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80]" onClick={() => setEditingTemplateTask(null)}>
           <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'} border rounded-xl shadow-2xl p-4 w-80 mx-4`} onClick={e => e.stopPropagation()}>
-            <h4 className={`text-sm font-semibold ${textPrimary} mb-3`}>Edit template task</h4>
+            <h4 className={`text-sm font-semibold ${textPrimary} mb-3`}>{t('goals.editTemplateTask')}</h4>
             <div className="space-y-3">
               <div>
                 <label className={`text-xs font-medium ${textSecondary} mb-1 block`}>Name</label>
@@ -776,6 +803,7 @@ export const FormOverlay = ({ children, onClose, mobile, cardBg }) => {
 const GoalMiniCard = ({ goal, onClick }) => {
   const { darkMode, textPrimary, textSecondary, tasks, unscheduledTasks } = useDayPlannerCtx();
   const { projects, updateGoal } = useFeaturesCtx();
+  const { t } = useTranslation();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const hex = toHex(goal.color || 'bg-blue-500');
@@ -809,9 +837,16 @@ const GoalMiniCard = ({ goal, onClick }) => {
         darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-stone-50 hover:bg-stone-100'
       }`}
     >
-      <p className={`text-sm font-semibold ${textPrimary} leading-tight truncate`}>
-        {goal.title}
-      </p>
+      <div className="flex items-center gap-1.5">
+        <p className={`text-sm font-semibold ${textPrimary} leading-tight truncate flex-1 min-w-0`}>
+          {goal.title}
+        </p>
+        {(goal.source_app === 'app.lifeglance' || goal.synced_to_lifeglance) && (
+          <span title="Linked with lifeGLANCE" className={`flex-shrink-0 ${textSecondary} opacity-60`}>
+            <Link2 size={11} />
+          </span>
+        )}
+      </div>
       {(!isCompleted && (daysLabel || showCaution || allProjectsDone)) ? (
         <div className="flex items-center gap-1 mt-0.5">
           {daysLabel && <span className={`text-xs ${labelColor}`}>{daysLabel}</span>}
@@ -853,6 +888,7 @@ const DesktopDashboard = ({
   projectCardRefs,
 }) => {
   const { darkMode, textPrimary, textSecondary, borderClass, hoverBg } = useDayPlannerCtx();
+  const { t } = useTranslation();
   const { moveProject, goalsDashboardFocusId, setGoalsDashboardFocusId } = useFeaturesCtx();
 
   const containerRef = useRef(null);
@@ -1088,7 +1124,7 @@ const DesktopDashboard = ({
             <div className={`relative z-10 mb-4 px-3 py-2.5 rounded-xl border-2 border-dashed ${
               darkMode ? 'border-gray-600 bg-gray-800/60' : 'border-stone-300 bg-stone-50'
             }`}>
-              <p className={`text-xs text-center mb-2 ${textSecondary} opacity-50`}>Drop on a goal to reassign</p>
+              <p className={`text-xs text-center mb-2 ${textSecondary} opacity-50`}>{t('goals.dropToReassign')}</p>
               <div className="flex flex-wrap gap-2 justify-center">
                 {sortedGoals.map(g => {
                   const hex = toHex(g.color || 'bg-blue-500');
@@ -1273,7 +1309,7 @@ const DesktopDashboard = ({
             );
             if (activeProjs.length === 0 && doneProjs.length === 0) {
               return dragProjectId
-                ? <p className={`text-xs text-center py-4 ${textSecondary} opacity-50`}>Drop here to make standalone</p>
+                ? <p className={`text-xs text-center py-4 ${textSecondary} opacity-50`}>{t('goals.dropToStandalone')}</p>
                 : null;
             }
             return (
@@ -1319,7 +1355,7 @@ const DesktopDashboard = ({
           }`}>
             <GitBranch size={28} className={textSecondary} />
           </div>
-          <p className={`text-sm font-medium ${textPrimary}`}>No goals or projects yet</p>
+          <p className={`text-sm font-medium ${textPrimary}`}>{t('goals.noGoalsYet')}</p>
           <p className={`text-xs ${textSecondary} text-center max-w-xs`}>
             Create a goal to track long-term progress, or add a standalone project to organise tasks without a goal.
           </p>
@@ -1341,6 +1377,7 @@ const MobileDashboard = ({
 }) => {
   const { darkMode, textPrimary, textSecondary, hoverBg, cardBg, borderClass, tasks: scheduledTasks, unscheduledTasks } = useDayPlannerCtx();
   const { updateGoal, moveProject, goalsDashboardFocusId, setGoalsDashboardFocusId } = useFeaturesCtx();
+  const { t } = useTranslation();
 
   const scrollRef = useRef(null);
   const swipeRef = useRef(null); // { startX, startY, locked }
@@ -1489,7 +1526,7 @@ const MobileDashboard = ({
         <div className={`w-14 h-14 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700' : 'bg-stone-100'}`}>
           <GitBranch size={28} className={textSecondary} />
         </div>
-        <p className={`text-sm font-medium ${textPrimary}`}>No goals or projects yet</p>
+        <p className={`text-sm font-medium ${textPrimary}`}>{t('goals.noGoalsYet')}</p>
         <p className={`text-xs ${textSecondary} text-center`}>
           Create a goal to track long-term progress, or add a standalone project to organise tasks without a goal.
         </p>
@@ -1663,7 +1700,7 @@ const MobileDashboard = ({
                 {children.length === 0 ? (
                   <div className="flex flex-col items-center gap-2 py-8">
                     <FolderOpen size={24} className={textSecondary} />
-                    <p className={`text-sm ${textSecondary}`}>No projects yet</p>
+                    <p className={`text-sm ${textSecondary}`}>{t('goals.noProjectsYet')}</p>
                     <button
                       onClick={() => onNewProject(goal.id)}
                       className="flex items-center gap-1.5 text-sm text-emerald-500 hover:text-emerald-600"
@@ -1740,7 +1777,7 @@ const MobileDashboard = ({
               {standaloneProjects.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-8">
                   <FolderOpen size={24} className={textSecondary} />
-                  <p className={`text-sm ${textSecondary}`}>No standalone projects</p>
+                  <p className={`text-sm ${textSecondary}`}>{t('goals.noStandaloneProjects')}</p>
                   <button
                     onClick={() => onNewProject(null)}
                     className="flex items-center gap-1.5 text-sm text-emerald-500 hover:text-emerald-600"
@@ -1871,11 +1908,19 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
     addGoal, updateGoal, deleteGoal,
     addProject, updateProject,
   } = useFeaturesCtx();
+  const { t } = useTranslation();
 
   const [goalForm, setGoalForm] = useState(null);
   const [projectForm, setProjectForm] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null); // { title, message, onConfirm }
   const [showArchived, setShowArchived] = useState(false);
+
+  const hasWebDAVIntents = useMemo(() => {
+    const raw = localStorage.getItem(INTENT_CONFIG_KEY);
+    if (!raw) return false;
+    const cfg = JSON.parse(raw);
+    return !!(cfg?.webdavUrl && cfg?.username && cfg?.appPassword);
+  }, []);
 
   // Trigger props from header buttons (mobile embedded mode)
   useEffect(() => { if (addGoalTrigger > 0) setGoalForm({ editing: null }); }, [addGoalTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1892,9 +1937,10 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
   const archivedCount = archivedGoals.length + archivedProjects.length;
 
   const handleSaveGoal = (fields) => {
+    const { trackInLifeGlance, ...goalFields } = fields;
     if (goalForm.editing) {
       const wasArchived = goalForm.editing.status === 'archived';
-      const nowArchived = fields.status === 'archived';
+      const nowArchived = goalFields.status === 'archived';
       if (nowArchived && !wasArchived) {
         // Cascade: archive completed child projects; detach incomplete ones as standalone.
         // Single atomic setProjects call so all changes land in one state update.
@@ -1910,9 +1956,10 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
           return { ...rest, updatedAt: now };
         }));
       }
-      updateGoal(goalForm.editing.id, fields);
+      updateGoal(goalForm.editing.id, goalFields);
     } else {
-      addGoal(fields);
+      const newGoal = addGoal({ ...goalFields, ...(trackInLifeGlance ? { synced_to_lifeglance: true } : {}) });
+      if (trackInLifeGlance) emitGoalCreate(newGoal);
     }
     setGoalForm(null);
   };
@@ -2011,7 +2058,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
                   <div className="flex-1 min-w-0">
                     <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>Goals</p>
                     {archivedGoals.length === 0 ? (
-                      <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>No archived goals</p>
+                      <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>{t('goals.noArchivedGoals')}</p>
                     ) : (
                       <div className="flex flex-col gap-1">
                         {archivedGoals.map(g => (
@@ -2030,7 +2077,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
                   <div className="flex-1 min-w-0">
                     <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>Projects</p>
                     {archivedProjects.length === 0 ? (
-                      <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>No archived projects</p>
+                      <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>{t('goals.noArchivedProjects')}</p>
                     ) : (
                       <div className="flex flex-col gap-1">
                         {archivedProjects.map(p => (
@@ -2052,7 +2099,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
         </div>
         {goalForm && (
           <FormOverlay onClose={() => setGoalForm(null)} mobile cardBg={cardBg}>
-            <GoalForm initial={goalForm.editing} onSave={handleSaveGoal} onDelete={goalForm.editing ? () => handleDeleteGoal(goalForm.editing.id) : undefined} onCancel={() => setGoalForm(null)} mobile />
+            <GoalForm initial={goalForm.editing} onSave={handleSaveGoal} onDelete={goalForm.editing ? () => handleDeleteGoal(goalForm.editing.id) : undefined} onCancel={() => setGoalForm(null)} mobile showLifeGlanceCheckbox={hasWebDAVIntents} />
           </FormOverlay>
         )}
         {projectForm && (
@@ -2153,7 +2200,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
                     <div className="flex-1 min-w-0">
                       <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>Goals</p>
                       {archivedGoals.length === 0 ? (
-                        <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>No archived goals</p>
+                        <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>{t('goals.noArchivedGoals')}</p>
                       ) : (
                         <div className="grid grid-cols-2 gap-1">
                           {archivedGoals.map(g => (
@@ -2184,7 +2231,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
                     <div className="flex-1 min-w-0">
                       <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>Projects</p>
                       {archivedProjects.length === 0 ? (
-                        <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>No archived projects</p>
+                        <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>{t('goals.noArchivedProjects')}</p>
                       ) : (
                         <div className="grid grid-cols-2 gap-1">
                           {archivedProjects.map(p => (
@@ -2225,6 +2272,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
             onCancel={() => setGoalForm(null)}
             onDelete={goalForm.editing ? () => handleDeleteGoal(goalForm.editing.id) : undefined}
             mobile={isMobile}
+            showLifeGlanceCheckbox={hasWebDAVIntents}
           />
         </FormOverlay>
       )}

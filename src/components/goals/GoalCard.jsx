@@ -1,5 +1,5 @@
 import React, { forwardRef } from 'react';
-import { AlertTriangle, Calendar, CircleCheckBig, Edit2, FolderOpen, Layers, Plus } from 'lucide-react';
+import { AlertTriangle, Calendar, CircleCheckBig, Edit2, FolderOpen, Layers, Link2, Plus } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { calculateGoalProgress } from '../../utils/goalProgress.js';
@@ -71,6 +71,11 @@ const GoalCard = forwardRef(
           <span className="flex-1 text-white font-semibold text-sm leading-tight truncate">
             {goal.title}
           </span>
+          {(goal.source_app === 'app.lifeglance' || goal.synced_to_lifeglance) && (
+            <span title="Linked with lifeGLANCE" className="flex-shrink-0 text-white/70">
+              <Link2 size={12} />
+            </span>
+          )}
           <button
             onClick={onEdit}
             className="flex-shrink-0 text-white/70 hover:text-white transition-colors p-0.5 rounded"

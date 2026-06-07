@@ -14,6 +14,7 @@ import { taskColorToHex } from '../utils/colorUtils.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getHGBarsForDate, isHGSessionReachable } from '../hooks/useHyperGlance.js';
+import { useTranslation } from 'react-i18next';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -684,6 +685,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
     pushUndo, playUISound,
     listEndOfDayTime,
   } = useDayPlannerCtx();
+  const { t } = useTranslation();
 
   const {
     routinesEnabled, todayRoutines, setTodayRoutines, routineCompletions, toggleRoutineCompletion,
@@ -1311,7 +1313,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
                 All day
               </span>
               {allItems.length === 0 && listDragItem && (
-                <span className={`text-[10px] ${textSecondary} opacity-50`}>Drop here to make all-day</span>
+                <span className={`text-[10px] ${textSecondary} opacity-50`}>{t('task.dropToAllDay')}</span>
               )}
               {visible.map(({ kind, data }) => {
                 if (kind === 'task') {
@@ -1432,12 +1434,12 @@ const MobileListView = ({ hideInboxHandle = false }) => {
           <div className={`flex flex-col items-center justify-center py-16 ${textSecondary}`}>
             {isToday && pastItems.length > 0 ? (
               <>
-                <p className="text-sm font-medium">Nothing left for today</p>
+                <p className="text-sm font-medium">{t('app.nothingLeftToday')}</p>
                 <p className="text-xs mt-1 opacity-60">All done — or tap + to add more</p>
               </>
             ) : (
               <>
-                <p className="text-sm">No items scheduled</p>
+                <p className="text-sm">{t('app.noItemsScheduled')}</p>
                 {isToday && <p className="text-xs mt-1 opacity-60">Tap + to add a task</p>}
               </>
             )}
@@ -1758,7 +1760,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
               textTransform: 'uppercase',
             }}
           >
-            <span className={textSecondary}>Inbox</span>
+            <span className={textSecondary}>{t('task.inbox')}</span>
           </span>
         </button>,
         mobileDateHeaderRef.current
@@ -1791,7 +1793,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
           <div className={`flex items-center justify-between px-3 py-2 border-b ${borderClass} flex-shrink-0`}>
             <div className="flex items-center gap-1.5">
               <Inbox size={13} className={textSecondary} />
-              <span className={`text-xs font-semibold ${textSecondary}`}>Inbox</span>
+              <span className={`text-xs font-semibold ${textSecondary}`}>{t('task.inbox')}</span>
             </div>
             <button
               onClick={() => { setInboxOpen(false); setInboxPinned(false); }}
@@ -1804,7 +1806,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
           {/* Task list — vertical scroll */}
           <div className="flex-1 overflow-y-auto py-2 px-2 space-y-1.5">
             {inboxTasks.length === 0 ? (
-              <p className={`text-[10px] ${textSecondary} text-center py-4`}>Empty</p>
+              <p className={`text-[10px] ${textSecondary} text-center py-4`}>{t('common.empty')}</p>
             ) : (
               inboxTasks.map(task => {
                 const hex = taskColorToHex(task.color) || '#3b82f6';

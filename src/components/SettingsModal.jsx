@@ -14,8 +14,10 @@ import { syncSharedUsers } from '../intents/sharedUsers.js';
 import { getSyncPassphrase, setSyncPassphrase } from '../utils/crypto.js';
 import { setupIntentsEncryption } from '../intents/intentsEncryptionSetup.js';
 import { loadIntentsRootKey, clearIntentsRootKey } from '../intents/intentsKeyStore.js';
+import { useTranslation } from 'react-i18next';
 
 const SettingsModal = () => {
+  const { t } = useTranslation();
   const {
     showSettings, setShowSettings,
     collapsedSettings, toggleSettingsSection,
@@ -151,7 +153,7 @@ const SettingsModal = () => {
                   <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
                     <Settings size={20} className="text-blue-600 dark:text-blue-400" />
                   </div>
-                  <h3 className={`text-lg font-semibold ${textPrimary}`}>Settings</h3>
+                  <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('settings.title')}</h3>
                 </div>
 
                 {updateInfo && (
@@ -159,13 +161,13 @@ const SettingsModal = () => {
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1">
                         <div className={`text-sm font-medium ${darkMode ? 'text-blue-300' : 'text-blue-800'}`}>
-                          Update available: v{updateInfo.latestVersion}
+                          {t('settings.updateAvailable', { version: updateInfo.latestVersion })}
                         </div>
                         <div className={`text-xs mt-1 ${darkMode ? 'text-blue-400/70' : 'text-blue-600/70'}`}>
-                          You're on v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '?'}
+                          {t('settings.updateCurrentVersion', { version: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '?' })}
                         </div>
                         <div className={`text-xs mt-2 space-y-1 ${darkMode ? 'text-blue-300/80' : 'text-blue-700/80'}`}>
-                          <div><strong>Vercel / Web:</strong> Refresh the page to update</div>
+                          <div><strong>Vercel / Web:</strong> {t('settings.updateVercelHint')}</div>
                           <div><strong>Docker:</strong> <code className={`text-[11px] px-1 py-0.5 rounded ${darkMode ? 'bg-blue-900/50' : 'bg-blue-100'}`}>docker compose pull && docker compose up -d</code></div>
                         </div>
                         <div className="flex items-center gap-2 mt-2">
@@ -176,7 +178,7 @@ const SettingsModal = () => {
                             className={`text-xs font-medium ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'} flex items-center gap-1`}
                           >
                             <ExternalLink size={12} />
-                            Release notes
+                            {t('settings.updateReleaseNotes')}
                           </a>
                         </div>
                       </div>
@@ -200,13 +202,13 @@ const SettingsModal = () => {
                     <div className="flex items-start gap-2">
                       <Globe size={14} className={`flex-shrink-0 mt-0.5 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
                       <div className="flex-1 min-w-0">
-                        <div className={`text-sm font-medium ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>Timezone mismatch</div>
+                        <div className={`text-sm font-medium ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>{t('settings.timezoneMismatch')}</div>
                         <div className={`text-xs mt-0.5 ${darkMode ? 'text-amber-400/80' : 'text-amber-700/80'}`}>
-                          Device: <strong>{Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, ' ')}</strong>
-                          {' · '}Home: <strong>{homeTimezone.replace(/_/g, ' ')}</strong>
+                          {t('settings.timezoneDevice')}: <strong>{Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, ' ')}</strong>
+                          {' · '}{t('settings.timezoneHome')}: <strong>{homeTimezone.replace(/_/g, ' ')}</strong>
                         </div>
                         <div className={`text-xs mt-1 ${darkMode ? 'text-amber-400/70' : 'text-amber-600/70'}`}>
-                          Task times may appear offset on this device. Update your home timezone below, or re-enable automatic timezone on your device.
+                          {t('settings.timezoneMismatchHint')}
                         </div>
                       </div>
                     </div>
@@ -222,10 +224,10 @@ const SettingsModal = () => {
                       <div className="space-y-3">
                         <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                           <LayoutGrid size={16} className={textSecondary} />
-                          View defaults
+                          {t('settings.viewDefaults')}
                         </h4>
                         <div>
-                          <label className={`block text-xs ${textSecondary} mb-1.5`}>Default view on load</label>
+                          <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.defaultViewOnLoad')}</label>
                           <div className="flex gap-2">
                             {['multi', 'day', 'week'].map(v => (
                               <button
@@ -237,13 +239,13 @@ const SettingsModal = () => {
                                     : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                                 }`}
                               >
-                                {v === 'multi' ? 'Multi-day' : v === 'day' ? 'Day' : 'Week'}
+                                {v === 'multi' ? t('settings.viewMultiDay') : v === 'day' ? t('settings.viewDay') : t('settings.viewWeek')}
                               </button>
                             ))}
                           </div>
                         </div>
                         <div>
-                          <label className={`block text-xs ${textSecondary} mb-1.5`}>Day view mode</label>
+                          <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.dayViewMode')}</label>
                           <div className="flex gap-2">
                             <button
                               onClick={() => setDayViewMode('calendar-day')}
@@ -253,7 +255,7 @@ const SettingsModal = () => {
                                   : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                               }`}
                             >
-                              Calendar day
+                              {t('settings.viewCalendarDay')}
                             </button>
                             <button
                               onClick={() => setDayViewMode('rolling-24')}
@@ -263,12 +265,12 @@ const SettingsModal = () => {
                                   : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                               }`}
                             >
-                              Rolling 24h
+                              {t('settings.viewRolling24')}
                             </button>
                           </div>
                         </div>
                         <div>
-                          <label className={`block text-xs ${textSecondary} mb-1.5`}>Week view mode</label>
+                          <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.weekViewMode')}</label>
                           <div className="flex gap-2">
                             <button
                               onClick={() => setWeekViewMode('strict')}
@@ -278,7 +280,7 @@ const SettingsModal = () => {
                                   : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                               }`}
                             >
-                              Strict week
+                              {t('settings.viewStrictWeek')}
                             </button>
                             <button
                               onClick={() => setWeekViewMode('rolling')}
@@ -288,12 +290,12 @@ const SettingsModal = () => {
                                   : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                               }`}
                             >
-                              Rolling 7 days
+                              {t('settings.viewRolling7')}
                             </button>
                           </div>
                         </div>
                         <div>
-                          <label className={`block text-xs ${textSecondary} mb-1.5`}>Week timeline start</label>
+                          <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.weekTimelineStart')}</label>
                           <div className="flex flex-wrap gap-2">
                             {[0, 4, 5, 6, 7].map(h => (
                               <button
@@ -312,9 +314,9 @@ const SettingsModal = () => {
                         </div>
                         {habitsEnabled && goalsProjectsEnabled && (
                           <div>
-                            <label className={`block text-xs ${textSecondary} mb-1.5`}>GLANCE default</label>
+                            <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.glanceDefault')}</label>
                             <div className="flex gap-2">
-                              {[{ value: 0, label: 'Habits' }, { value: 1, label: 'Goals' }].map(({ value, label }) => (
+                              {[{ value: 0, label: t('settings.glanceDefaultHabits') }, { value: 1, label: t('settings.glanceDefaultGoals') }].map(({ value, label }) => (
                                 <button
                                   key={value}
                                   onClick={() => setGlancePage(value)}
@@ -341,9 +343,9 @@ const SettingsModal = () => {
                         <div className="space-y-3">
                           <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                             <LayoutGrid size={16} className={textSecondary} />
-                            Timeline view
+                            {t('settings.timelineView')}
                           </h4>
-                          <p className={`text-xs ${textSecondary}`}>Default view for the Timeline tab</p>
+                          <p className={`text-xs ${textSecondary}`}>{t('settings.timelineViewHint')}</p>
                           <div className="flex gap-2">
                             {['grid', 'list'].map(mode => (
                               <button
@@ -355,14 +357,14 @@ const SettingsModal = () => {
                                     : `${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-stone-300'} ${textPrimary}`
                                 }`}
                               >
-                                {mode === 'grid' ? 'GRID' : 'LIST'}
+                                {mode === 'grid' ? t('settings.viewGrid') : t('settings.viewList')}
                               </button>
                             ))}
                           </div>
                           {mobileViewMode === 'list' && (
                             <div className="mt-3 space-y-1.5">
-                              <label className={`block text-xs font-medium ${textSecondary}`}>End of day (LIST view)</label>
-                              <p className={`text-xs ${textSecondary} opacity-70`}>Extends the spine to this time so you can drag items there</p>
+                              <label className={`block text-xs font-medium ${textSecondary}`}>{t('settings.endOfDay')}</label>
+                              <p className={`text-xs ${textSecondary} opacity-70`}>{t('settings.endOfDayHint')}</p>
                               <div className="flex flex-wrap gap-1.5">
                                 {[{ label: 'Off', value: null }, ...Array.from({ length: 13 }, (_, i) => {
                                   const totalMin = 18 * 60 + i * 30;
@@ -398,10 +400,10 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <Clock size={16} className={textSecondary} />
-                        Localization
+                        {t('settings.localization')}
                       </h4>
                       <div>
-                        <label className={`block text-xs ${textSecondary} mb-1.5`}>Clock format</label>
+                        <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.clockFormat')}</label>
                         <div className="flex gap-2">
                           <button
                             onClick={() => setUse24HourClock(false)}
@@ -411,7 +413,7 @@ const SettingsModal = () => {
                                 : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                             }`}
                           >
-                            12-hour
+                            {t('settings.clock12h')}
                           </button>
                           <button
                             onClick={() => setUse24HourClock(true)}
@@ -421,12 +423,12 @@ const SettingsModal = () => {
                                 : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                             }`}
                           >
-                            24-hour
+                            {t('settings.clock24h')}
                           </button>
                         </div>
                       </div>
                       <div>
-                        <label className={`block text-xs ${textSecondary} mb-1.5`}>First day of week</label>
+                        <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.firstDayOfWeek')}</label>
                         <div className="flex gap-2">
                           <button
                             onClick={() => setWeekStartDay(0)}
@@ -436,7 +438,7 @@ const SettingsModal = () => {
                                 : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                             }`}
                           >
-                            Sunday
+                            {t('settings.firstDaySunday')}
                           </button>
                           <button
                             onClick={() => setWeekStartDay(1)}
@@ -446,12 +448,12 @@ const SettingsModal = () => {
                                 : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                             }`}
                           >
-                            Monday
+                            {t('settings.firstDayMonday')}
                           </button>
                         </div>
                       </div>
                       <div>
-                        <label className={`block text-xs ${textSecondary} mb-1.5`}>Home timezone</label>
+                        <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.homeTimezone')}</label>
                         <select
                           value={homeTimezone}
                           onChange={e => setHomeTimezone(e.target.value)}
@@ -462,7 +464,7 @@ const SettingsModal = () => {
                           ))}
                         </select>
                         <p className={`text-[10px] ${textSecondary} mt-1 opacity-70`}>
-                          Used to detect when your device is in a different timezone.
+                          {t('settings.homeTimezoneHint')}
                         </p>
                       </div>
                     </div>
@@ -474,15 +476,15 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <Key size={16} className={textSecondary} />
-                        Global Shortcuts
+                        {t('settings.globalShortcuts')}
                       </h4>
                       <p className={`text-sm ${textSecondary}`}>
-                        Open the quick-add popup from anywhere on your Mac.
+                        {t('settings.globalShortcutsHint')}
                       </p>
                       <div className="flex items-center gap-2">
                         <input
                           readOnly
-                          placeholder="Click, then press shortcut…"
+                          placeholder={t('settings.globalShortcutsPlaceholder')}
                           value={trayHotkey}
                           onKeyDown={handleHotkeyRecord}
                           className={`flex-1 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'} text-sm cursor-pointer font-mono`}
@@ -492,17 +494,17 @@ const SettingsModal = () => {
                             onClick={clearHotkey}
                             className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`}
                           >
-                            Clear
+                            {t('common.clear')}
                           </button>
                         )}
                       </div>
                       <p className={`text-sm ${textSecondary} mt-3`}>
-                        Show the main app window from anywhere on your Mac.
+                        {t('settings.globalShortcutsMainWindowHint')}
                       </p>
                       <div className="flex items-center gap-2">
                         <input
                           readOnly
-                          placeholder="Click, then press shortcut…"
+                          placeholder={t('settings.globalShortcutsPlaceholder')}
                           value={mainWindowHotkey}
                           onKeyDown={handleMainWindowHotkeyRecord}
                           className={`flex-1 px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'} text-sm cursor-pointer font-mono`}
@@ -512,7 +514,7 @@ const SettingsModal = () => {
                             onClick={clearMainWindowHotkey}
                             className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`}
                           >
-                            Clear
+                            {t('common.clear')}
                           </button>
                         )}
                       </div>
@@ -525,7 +527,7 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <Bell size={16} className={textSecondary} />
-                        Sound
+                        {t('settings.sound')}
                       </h4>
                       <label className="flex items-center gap-3 cursor-pointer">
                         <div className="relative">
@@ -539,7 +541,7 @@ const SettingsModal = () => {
                             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
                           </div>
                         </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable UI sounds</span>
+                        <span className={`text-sm ${textPrimary}`}>{t('settings.enableUISounds')}</span>
                       </label>
                     </div>
 
@@ -550,7 +552,7 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <Thermometer size={16} className={textSecondary} />
-                        Weather
+                        {t('settings.weather')}
                       </h4>
                       <label className="flex items-center gap-3 cursor-pointer">
                         <div className="relative">
@@ -559,12 +561,12 @@ const SettingsModal = () => {
                             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${weatherEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
                           </div>
                         </div>
-                        <span className={`text-sm ${textPrimary}`}>Show weather in header</span>
+                        <span className={`text-sm ${textPrimary}`}>{t('settings.showWeatherInHeader')}</span>
                       </label>
                       {weatherEnabled && (
                         <>
                           <div>
-                            <label className={`block text-sm ${textSecondary} mb-1`}>ZIP code or city name</label>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.weatherZipLabel')}</label>
                             <input
                               type="text"
                               placeholder="e.g. 90210 or Seattle"
@@ -576,7 +578,7 @@ const SettingsModal = () => {
                             />
                           </div>
                           <div>
-                            <label className={`block text-sm ${textSecondary} mb-1`}>Temperature unit</label>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.weatherTempUnit')}</label>
                             <div className="flex gap-2">
                               <button onClick={() => { setWeatherTempUnit('fahrenheit'); setTimeout(fetchWeather, 100); }} className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${weatherTempUnit === 'fahrenheit' ? 'bg-blue-600 text-white' : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`}`}>°F</button>
                               <button onClick={() => { setWeatherTempUnit('celsius'); setTimeout(fetchWeather, 100); }} className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${weatherTempUnit === 'celsius' ? 'bg-blue-600 text-white' : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`}`}>°C</button>
@@ -592,7 +594,7 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <Newspaper size={16} className={textSecondary} />
-                        Daily Content
+                        {t('settings.dailyContent')}
                       </h4>
                       <label className="flex items-center gap-3 cursor-pointer">
                         <div className="relative">
@@ -601,7 +603,7 @@ const SettingsModal = () => {
                             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${dailyContentEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
                           </div>
                         </div>
-                        <span className={`text-sm ${textPrimary}`}>Show daily tips &amp; quotes in header</span>
+                        <span className={`text-sm ${textPrimary}`}>{t('settings.showDailyContent')}</span>
                       </label>
                     </div>
 
@@ -613,7 +615,7 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <Flag size={16} className={textSecondary} />
-                        Goals &amp; Projects
+                        {t('settings.goalsProjects')}
                       </h4>
                       <label className="flex items-center gap-3 cursor-pointer">
                         <div className="relative">
@@ -627,7 +629,7 @@ const SettingsModal = () => {
                             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${goalsProjectsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
                           </div>
                         </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable goals &amp; projects</span>
+                        <span className={`text-sm ${textPrimary}`}>{t('settings.enableGoalsProjects')}</span>
                       </label>
                     </div>
 
@@ -637,7 +639,7 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <Sparkles size={16} className={textSecondary} />
-                        Routines
+                        {t('settings.routines')}
                       </h4>
                       <label className="flex items-center gap-3 cursor-pointer">
                         <div className="relative">
@@ -651,7 +653,7 @@ const SettingsModal = () => {
                             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${routinesEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
                           </div>
                         </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable routines</span>
+                        <span className={`text-sm ${textPrimary}`}>{t('settings.enableRoutines')}</span>
                       </label>
                     </div>
 
@@ -661,7 +663,7 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <Activity size={16} className={textSecondary} />
-                        Habit Tracking
+                        {t('settings.habitTracking')}
                       </h4>
                       <label className="flex items-center gap-3 cursor-pointer">
                         <div className="relative">
@@ -675,7 +677,7 @@ const SettingsModal = () => {
                             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${habitsEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
                           </div>
                         </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable habit tracking</span>
+                        <span className={`text-sm ${textPrimary}`}>{t('settings.enableHabitTracking')}</span>
                       </label>
                     </div>
 
@@ -685,20 +687,20 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <div className={`font-medium ${textPrimary} flex items-center gap-2`}>
                         <Archive size={16} className={textSecondary} />
-                        Inbox
+                        {t('settings.inbox')}
                       </div>
                       <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>Auto-archive completed Inbox tasks</label>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.inboxAutoArchive')}</label>
                         <select
                           value={inboxAutoArchiveDays}
                           onChange={(e) => setInboxAutoArchiveDays(Number(e.target.value))}
                           className={`px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         >
-                          <option value={0}>Never</option>
-                          <option value={7}>After 7 days</option>
-                          <option value={14}>After 14 days</option>
-                          <option value={30}>After 30 days</option>
-                          <option value={60}>After 60 days</option>
+                          <option value={0}>{t('settings.inboxArchiveNever')}</option>
+                          <option value={7}>{t('settings.inboxArchive7')}</option>
+                          <option value={14}>{t('settings.inboxArchive14')}</option>
+                          <option value={30}>{t('settings.inboxArchive30')}</option>
+                          <option value={60}>{t('settings.inboxArchive60')}</option>
                         </select>
                       </div>
                     </div>
@@ -711,13 +713,13 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('cloudSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <Cloud size={16} className={textSecondary} />
-                        Cloud Sync
+                        {t('settings.cloudSync')}
                         {cloudSyncConfig?.enabled && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.cloudSync ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.cloudSync && (<>
                       <p className={`${textSecondary} text-xs`}>
-                        Sync all your data (tasks, inbox, routines, settings) as a JSON file to your cloud storage.
+                        {t('settings.cloudSyncDesc')}
                       </p>
                       <CloudSyncSettingsForm
                         darkMode={darkMode}
@@ -745,7 +747,7 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('calSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <RefreshCw size={16} className={textSecondary} />
-                        Calendar Sync
+                        {t('settings.calendarSync')}
                         {calSyncConfigured && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
                       </button>
@@ -753,7 +755,7 @@ const SettingsModal = () => {
                       {!isNativeApp() && (
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>
-                          Calendar URL (iCal/CalDAV)
+                          {t('settings.calendarUrl')}
                         </label>
                         <input
                           type="url"
@@ -773,10 +775,10 @@ const SettingsModal = () => {
                       )}
                       {!isNativeApp() && syncUrl && (
                         <div className={`space-y-2 pl-3 border-l-2 ${darkMode ? 'border-gray-600' : 'border-stone-300'}`}>
-                          <p className={`text-xs font-medium ${textSecondary}`}>Basic auth (optional — for private calendars)</p>
+                          <p className={`text-xs font-medium ${textSecondary}`}>{t('settings.calendarBasicAuth')}</p>
                           <div className="flex gap-2">
                             <div className="flex-1">
-                              <label className={`block text-xs ${textSecondary} mb-1`}>Username</label>
+                              <label className={`block text-xs ${textSecondary} mb-1`}>{t('common.username')}</label>
                               <input
                                 type="text"
                                 placeholder="username"
@@ -786,7 +788,7 @@ const SettingsModal = () => {
                               />
                             </div>
                             <div className="flex-1">
-                              <label className={`block text-xs ${textSecondary} mb-1`}>Password</label>
+                              <label className={`block text-xs ${textSecondary} mb-1`}>{t('common.password')}</label>
                               <input
                                 type="password"
                                 placeholder="password"
@@ -805,7 +807,7 @@ const SettingsModal = () => {
                       )}
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>
-                          Task Calendar URL (iCal/CalDAV)
+                          {t('settings.taskCalendarUrl')}
                         </label>
                         <input
                           type="url"
@@ -821,10 +823,10 @@ const SettingsModal = () => {
                       </div>
                       {taskCalendarUrl && (
                         <div className={`space-y-2 pl-3 border-l-2 ${darkMode ? 'border-gray-600' : 'border-stone-300'}`}>
-                          <p className={`text-xs font-medium ${textSecondary}`}>Basic auth / sync completions back (optional)</p>
+                          <p className={`text-xs font-medium ${textSecondary}`}>{t('settings.taskCalendarAuth')}</p>
                           <div className="flex gap-2">
                             <div className="flex-1">
-                              <label className={`block text-xs ${textSecondary} mb-1`}>Username</label>
+                              <label className={`block text-xs ${textSecondary} mb-1`}>{t('common.username')}</label>
                               <input
                                 type="text"
                                 placeholder="username"
@@ -834,7 +836,7 @@ const SettingsModal = () => {
                               />
                             </div>
                             <div className="flex-1">
-                              <label className={`block text-xs ${textSecondary} mb-1`}>App Password</label>
+                              <label className={`block text-xs ${textSecondary} mb-1`}>{t('settings.appPassword')}</label>
                               <input
                                 type="password"
                                 placeholder="app-password"
@@ -845,7 +847,7 @@ const SettingsModal = () => {
                             </div>
                           </div>
                           <div>
-                            <label className={`block text-xs ${textSecondary} mb-1`}>CalDAV Base URL</label>
+                            <label className={`block text-xs ${textSecondary} mb-1`}>{t('settings.calDAVBaseUrl')}</label>
                             <input
                               type="url"
                               placeholder="https://cloud.example.com/remote.php/dav/calendars/user/personal/"
@@ -864,7 +866,7 @@ const SettingsModal = () => {
                       )}
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>
-                          Keep past events
+                          {t('settings.keepPastEvents')}
                         </label>
                         <select
                           value={syncRetentionDays}
@@ -890,18 +892,18 @@ const SettingsModal = () => {
                         className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm ${!calSyncConfigured ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
-                        {isSyncing ? 'Syncing...' : 'Sync Now'}
+                        {isSyncing ? t('common.syncing') : t('common.syncNow')}
                       </button>
                       {calSyncLastSynced && (
                         <p className={`text-xs ${textSecondary}`}>
-                          Last synced: {new Date(calSyncLastSynced).toLocaleString()}
+                          {t('common.lastSynced')}: {new Date(calSyncLastSynced).toLocaleString()}
                         </p>
                       )}
                       {isNativeApp() && (
                         <div className="space-y-2 pt-1">
                           <div className="flex items-center justify-between">
-                            <p className={`text-sm font-medium ${textPrimary}`}>Device Calendars</p>
-                            <button onClick={() => { const cals = nativeGetCalendars(); if (cals.length > 0) setAvailableCalendars(cals); }} className={`text-xs ${textSecondary} underline`}>Refresh</button>
+                            <p className={`text-sm font-medium ${textPrimary}`}>{t('settings.deviceCalendars')}</p>
+                            <button onClick={() => { const cals = nativeGetCalendars(); if (cals.length > 0) setAvailableCalendars(cals); }} className={`text-xs ${textSecondary} underline`}>{t('common.refresh')}</button>
                           </div>
                           {availableCalendars.length === 0 ? (
                             <p className={`text-xs ${textSecondary}`}>No calendars loaded — tap Refresh, or rebuild the app if this persists.</p>
@@ -933,13 +935,13 @@ const SettingsModal = () => {
                       )}
                       {/* iCal Import — one-time .ics file import, lives inside Calendar Sync */}
                       <div className={`pt-2 border-t ${borderClass} space-y-2`}>
-                        <p className={`text-sm font-medium ${textPrimary}`}>Import .ics file</p>
+                        <p className={`text-sm font-medium ${textPrimary}`}>{t('settings.importIcsFile')}</p>
                         <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} text-sm ${textPrimary}`}>
                           <Upload size={14} className={textSecondary} />
-                          Choose .ics file
+                          {t('settings.chooseIcsFile')}
                           <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setShowSettings(false); }} className="hidden" />
                         </label>
-                        <p className={`text-xs ${textSecondary}`}>Import events from an iCal (.ics) file</p>
+                        <p className={`text-xs ${textSecondary}`}>{t('settings.importIcsDesc')}</p>
                       </div>
                       </>)}
                     </div>
@@ -950,7 +952,7 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('multiUser')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <Users size={16} className={textSecondary} />
-                        Multi-user
+                        {t('settings.multiUser')}
                         {multiUserEnabled && users.filter(u => !u.deleted).length > 0 && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.multiUser ? '' : 'rotate-180'}`} />
                       </button>
@@ -959,8 +961,8 @@ const SettingsModal = () => {
                           {/* Enable toggle */}
                           <div className="flex items-center justify-between gap-3">
                             <div>
-                              <p className={`text-sm font-medium ${textPrimary}`}>Multi-user mode</p>
-                              <p className={`${textSecondary} text-xs`}>Tag chores with specific household members</p>
+                              <p className={`text-sm font-medium ${textPrimary}`}>{t('settings.multiUserMode')}</p>
+                              <p className={`${textSecondary} text-xs`}>{t('settings.multiUserModeHint')}</p>
                             </div>
                             <button
                               type="button"
@@ -1008,13 +1010,13 @@ const SettingsModal = () => {
                                 }`}
                               >
                                 <RefreshCw size={12} className={userSyncStatus === 'syncing' ? 'animate-spin' : ''} />
-                                {userSyncStatus === 'ok' ? 'Synced!' : userSyncStatus === 'error' ? 'Failed' : 'Sync now'}
+                                {userSyncStatus === 'ok' ? t('common.saved') : userSyncStatus === 'error' ? t('settings.syncFailed') : t('common.syncNow')}
                               </button>
                             )}
                           </div>
                           {/* User list */}
                           <div>
-                            <p className={`text-xs font-medium ${textSecondary} mb-2`}>People</p>
+                            <p className={`text-xs font-medium ${textSecondary} mb-2`}>{t('settings.multiUserPeople')}</p>
                             <div className="space-y-2">
                               {users.filter(u => !u.deleted).map(u => (
                                 <div key={u.id} className="flex items-center gap-2">
@@ -1044,8 +1046,8 @@ const SettingsModal = () => {
                                           setEditingUserId(null);
                                         }}
                                         className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-                                      >Save</button>
-                                      <button type="button" onClick={() => setEditingUserId(null)} className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>Cancel</button>
+                                      >{t('common.save')}</button>
+                                      <button type="button" onClick={() => setEditingUserId(null)} className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>{t('common.cancel')}</button>
                                     </>
                                   ) : (
                                     <>
@@ -1126,21 +1128,21 @@ const SettingsModal = () => {
                                     setAddingUser(false);
                                   }}
                                   className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-                                >Add</button>
-                                <button type="button" onClick={() => { setAddingUser(false); setNewUserName(''); }} className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>Cancel</button>
+                                >{t('common.add')}</button>
+                                <button type="button" onClick={() => { setAddingUser(false); setNewUserName(''); }} className={`px-2 py-1 rounded text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>{t('common.cancel')}</button>
                               </div>
                             ) : (
                               <button
                                 type="button"
                                 onClick={() => setAddingUser(true)}
                                 className={`mt-2 text-sm ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'}`}
-                              >+ Add person</button>
+                              >+ {t('common.addPerson')}</button>
                             )}
                           </div>
                           {/* Users path — only shown when GLANCE Integrations WebDAV is configured */}
                           {intentForm.webdavUrl && (
                             <div>
-                              <label className={`block text-sm ${textSecondary} mb-1`}>Users sync path</label>
+                              <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.usersSyncPath')}</label>
                               <input
                                 type="text"
                                 placeholder="/GLANCE/users/"
@@ -1167,7 +1169,7 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('ai')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <BrainCircuit size={16} className={aiConfig.enabled ? 'text-purple-400' : textSecondary} />
-                        AI Features
+                        {t('settings.aiFeatures')}
                         {aiConfig.enabled && <span className="mr-1 w-2 h-2 rounded-full bg-purple-500 flex-shrink-0" />}
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.ai ? '' : 'rotate-180'}`} />
                       </button>
@@ -1189,14 +1191,14 @@ const SettingsModal = () => {
                             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${aiConfig.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
                           </div>
                         </div>
-                        <span className={`text-sm ${textPrimary}`}>Enable AI features</span>
+                        <span className={`text-sm ${textPrimary}`}>{t('settings.enableAIFeatures')}</span>
                       </label>
 
                       {aiConfig.enabled && (
                         <div className="space-y-3 mt-2">
                           {/* Provider selector */}
                           <div>
-                            <label className={`block text-sm ${textSecondary} mb-1`}>Provider</label>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.aiProvider')}</label>
                             <select
                               value={aiConfig.provider}
                               onChange={(e) => {
@@ -1224,7 +1226,7 @@ const SettingsModal = () => {
                             <div>
                               <label className={`block text-sm ${textSecondary} mb-1`}>
                                 <Key size={12} className="inline mr-1" />
-                                API Key
+                                {t('settings.aiApiKey')}
                               </label>
                               <input
                                 type="password"
@@ -1265,7 +1267,7 @@ const SettingsModal = () => {
 
                           {/* Model selector */}
                           <div>
-                            <label className={`block text-sm ${textSecondary} mb-1`}>Model</label>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.aiModel')}</label>
                             {(PROVIDER_MODELS[aiConfig.provider] || []).length > 0 ? (
                               <select
                                 value={aiConfig.model}
@@ -1312,10 +1314,10 @@ const SettingsModal = () => {
                                 ) : (
                                   <Wifi size={14} />
                                 )}
-                                {aiConnectionStatus === 'testing' ? 'Testing...' : 'Test Connection'}
+                                {aiConnectionStatus === 'testing' ? t('settings.aiTesting') : t('settings.aiTestConnection')}
                               </button>
                               {aiConnectionStatus === 'success' && (
-                                <span className="text-xs text-green-500">Connected</span>
+                                <span className="text-xs text-green-500">{t('settings.aiConnected')}</span>
                               )}
                               {aiConnectionStatus === 'error' && !aiOllamaHelp && (
                                 <span className="text-xs text-red-500 truncate max-w-[180px]" title={aiConnectionMessage}>{aiConnectionMessage}</span>
@@ -1343,17 +1345,17 @@ const SettingsModal = () => {
 
                           {/* Per-feature toggles */}
                           <div className="space-y-2 mt-2">
-                            <p className={`text-xs font-medium ${textSecondary}`}>Features</p>
+                            <p className={`text-xs font-medium ${textSecondary}`}>{t('settings.aiFeaturesList')}</p>
                             {[
-                              { key: 'voiceTaskInput', label: 'Voice task input', icon: <Mic size={12} /> },
-                              { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={12} /> },
-                              { key: 'eveningReflection', label: 'Evening reflection', icon: <Moon size={12} /> },
-                              { key: 'durationEstimate', label: 'Duration estimates', icon: <Sparkles size={12} /> },
-                              { key: 'frameNudge', label: 'Frame nudges', icon: <Zap size={12} /> },
-                              { key: 'aiReschedule', label: 'End-of-day reschedule', icon: <CalendarDays size={12} /> },
-                              { key: 'aiSubtasks', label: 'AI subtask generation', icon: <CheckSquare size={12} /> },
-                              { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={12} /> },
-                              { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={12} /> },
+                              { key: 'voiceTaskInput', label: t('settings.aiVoiceTaskInput'), icon: <Mic size={12} /> },
+                              { key: 'morningSummary', label: t('settings.aiMorningSummary'), icon: <Sun size={12} /> },
+                              { key: 'eveningReflection', label: t('settings.aiEveningReflection'), icon: <Moon size={12} /> },
+                              { key: 'durationEstimate', label: t('settings.aiDurationEstimates'), icon: <Sparkles size={12} /> },
+                              { key: 'frameNudge', label: t('settings.aiFrameNudges'), icon: <Zap size={12} /> },
+                              { key: 'aiReschedule', label: t('settings.aiReschedule'), icon: <CalendarDays size={12} /> },
+                              { key: 'aiSubtasks', label: t('settings.aiSubtasks'), icon: <CheckSquare size={12} /> },
+                              { key: 'weeklySummary', label: t('settings.aiWeeklySummary'), icon: <BarChart3 size={12} /> },
+                              { key: 'smartScheduling', label: t('settings.aiSmartScheduling'), icon: <CalendarDays size={12} /> },
                             ].map(f => (
                               <label key={f.key} className={`flex items-center gap-2 ${f.comingSoon ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}>
                                 <div className="relative flex-shrink-0">
@@ -1393,7 +1395,7 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('obsidian')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <BookOpen size={16} className={textSecondary} />
-                        Obsidian Integration
+                        {t('settings.obsidianIntegration')}
                         {obsidianConfig?.enabled && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.obsidian ? '' : 'rotate-180'}`} />
                       </button>
@@ -1416,7 +1418,7 @@ const SettingsModal = () => {
                             className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
                           >
                             <FolderOpen size={14} />
-                            Open Vault Settings
+                            {t('settings.obsidianOpenVaultSettings')}
                           </button>
                         </div>
                       ) : obsidianConfig?.enabled ? (
@@ -1428,7 +1430,7 @@ const SettingsModal = () => {
                           </div>
                           <div>
                             <label className={`block text-sm ${textSecondary} mb-1`}>
-                              Daily notes folder
+                              {t('settings.obsidianDailyNotesFolder')}
                             </label>
                             <input
                               type="text"
@@ -1443,7 +1445,7 @@ const SettingsModal = () => {
                           </div>
                           <div>
                             <label className={`block text-sm ${textSecondary} mb-1`}>
-                              New notes folder
+                              {t('settings.obsidianNewNotesFolder')}
                             </label>
                             <input
                               type="text"
@@ -1458,7 +1460,7 @@ const SettingsModal = () => {
                           </div>
                           <div>
                             <label className={`block text-sm ${textSecondary} mb-1`}>
-                              Filename pattern
+                              {t('settings.obsidianFilenamePattern')}
                             </label>
                             <input
                               type="text"
@@ -1473,7 +1475,7 @@ const SettingsModal = () => {
                           </div>
                           <div>
                             <label className={`block text-sm ${textSecondary} mb-1`}>
-                              Task heading
+                              {t('settings.obsidianTaskHeading')}
                             </label>
                             <input
                               type="text"
@@ -1488,7 +1490,7 @@ const SettingsModal = () => {
                           </div>
                           <div>
                             <label className={`block text-sm ${textSecondary} mb-1`}>
-                              Daily note template
+                              {t('settings.obsidianDailyNoteTemplate')}
                             </label>
                             <textarea
                               value={dailyNoteTemplate}
@@ -1508,7 +1510,7 @@ const SettingsModal = () => {
                               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
                             >
                               <RefreshCw size={14} className={obsidianSyncStatus === 'syncing' ? 'animate-spin' : ''} />
-                              {obsidianSyncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
+                              {obsidianSyncStatus === 'syncing' ? t('common.syncing') : t('common.syncNow')}
                             </button>
                             <button
                               onClick={async () => {
@@ -1523,18 +1525,18 @@ const SettingsModal = () => {
                               }}
                               className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
                             >
-                              Disconnect
+                              {t('common.disconnect')}
                             </button>
                           </div>
                           {obsidianSyncStatus === 'success' && (
-                            <p className={`text-xs text-green-500`}>Sync complete</p>
+                            <p className={`text-xs text-green-500`}>{t('settings.obsidianSyncComplete')}</p>
                           )}
                           {obsidianSyncStatus === 'error' && (
-                            <p className={`text-xs text-red-500`}>Sync failed — check console for details</p>
+                            <p className={`text-xs text-red-500`}>{t('settings.obsidianSyncFailed')}</p>
                           )}
                           {obsidianLastSynced && (
                             <p className={`text-xs ${textSecondary}`}>
-                              Last synced: {new Date(obsidianLastSynced).toLocaleString()}
+                              {t('common.lastSynced')}: {new Date(obsidianLastSynced).toLocaleString()}
                             </p>
                           )}
                         </div>
@@ -1554,7 +1556,7 @@ const SettingsModal = () => {
                           className={`px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm`}
                         >
                           <FolderOpen size={14} />
-                          Select Vault Folder
+                          {t('settings.obsidianSelectVault')}
                         </button>
                       )}
                       </>)}
@@ -1567,7 +1569,7 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('trmnl')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <LayoutGrid size={16} className={textSecondary} />
-                        TRMNL Dashboard
+                        {t('settings.trmnlDashboard')}
                         {trmnlConfig?.enabled && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.trmnl ? '' : 'rotate-180'}`} />
                       </button>
@@ -1576,7 +1578,7 @@ const SettingsModal = () => {
                         Push your daily schedule to a <a href="https://trmnl.com" target="_blank" rel="noopener noreferrer" className="underline">TRMNL</a> e-ink display via webhook. Install the <strong>DayGLANCE</strong> recipe from the TRMNL Recipe Library to get started.
                       </p>
                       <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>Webhook URL</label>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.trmnlWebhookUrl')}</label>
                         <input
                           type="url"
                           placeholder="https://usetrmnl.com/api/custom_plugins/your-uuid"
@@ -1589,7 +1591,7 @@ const SettingsModal = () => {
                         </p>
                       </div>
                       <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>API Key (optional)</label>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.trmnlApiKey')}</label>
                         <input
                           type="password"
                           placeholder="Bearer token"
@@ -1607,13 +1609,13 @@ const SettingsModal = () => {
                               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
                             >
                               <RefreshCw size={14} className={trmnlSyncStatus === 'syncing' ? 'animate-spin' : ''} />
-                              {trmnlSyncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
+                              {trmnlSyncStatus === 'syncing' ? t('common.syncing') : t('common.syncNow')}
                             </button>
                             <button
                               onClick={() => setTrmnlConfig(prev => ({ ...prev, enabled: false }))}
                               className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
                             >
-                              Disable
+                              {t('common.disable')}
                             </button>
                           </>
                         ) : (
@@ -1627,15 +1629,15 @@ const SettingsModal = () => {
                             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm disabled:opacity-50"
                           >
                             <Wifi size={14} />
-                            Enable & Sync
+                            {t('settings.trmnlEnableSync')}
                           </button>
                         )}
                       </div>
-                      {trmnlSyncStatus === 'success' && <p className="text-xs text-green-500">Data sent to TRMNL</p>}
-                      {trmnlSyncStatus === 'error' && <p className="text-xs text-red-500">Sync failed — check console</p>}
+                      {trmnlSyncStatus === 'success' && <p className="text-xs text-green-500">{t('settings.trmnlSyncSuccess')}</p>}
+                      {trmnlSyncStatus === 'error' && <p className="text-xs text-red-500">{t('settings.trmnlSyncError')}</p>}
                       {trmnlLastSynced && (
                         <p className={`text-xs ${textSecondary}`}>
-                          Last synced: {new Date(trmnlLastSynced).toLocaleString()}
+                          {t('common.lastSynced')}: {new Date(trmnlLastSynced).toLocaleString()}
                         </p>
                       )}
 
@@ -1648,7 +1650,7 @@ const SettingsModal = () => {
                     <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('intent')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <Activity size={16} className={textSecondary} />
-                        GLANCE Integrations
+                        {t('settings.glanceIntegrations')}
                         {intentForm.webdavUrl && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.intent ? '' : 'rotate-180'}`} />
                       </button>
@@ -1658,7 +1660,7 @@ const SettingsModal = () => {
                       </p>
                       <div className="space-y-3">
                         <div>
-                          <label className={`block text-sm ${textSecondary} mb-1`}>Server URL</label>
+                          <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.glanceServerUrl')}</label>
                           <input
                             type="url"
                             placeholder="https://nextcloud.example.com/remote.php/dav/files/user"
@@ -1669,7 +1671,7 @@ const SettingsModal = () => {
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className={`block text-sm ${textSecondary} mb-1`}>Username</label>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>{t('common.username')}</label>
                             <input
                               type="text"
                               placeholder="your-username"
@@ -1679,7 +1681,7 @@ const SettingsModal = () => {
                             />
                           </div>
                           <div>
-                            <label className={`block text-sm ${textSecondary} mb-1`}>App password</label>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.appPassword')}</label>
                             <input
                               type="password"
                               placeholder="••••••••••••"
@@ -1690,7 +1692,7 @@ const SettingsModal = () => {
                           </div>
                         </div>
                         <div>
-                          <label className={`block text-sm ${textSecondary} mb-1`}>Events path</label>
+                          <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.glanceEventsPath')}</label>
                           <input
                             type="text"
                             placeholder="/GLANCE/events/"
@@ -1702,7 +1704,7 @@ const SettingsModal = () => {
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className={`block text-sm ${textSecondary} mb-1`}>Foreground poll</label>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.glanceForegroundPoll')}</label>
                             <select
                               value={intentForm.foregroundInterval}
                               onChange={e => setIntentForm(p => ({ ...p, foregroundInterval: Number(e.target.value) }))}
@@ -1717,7 +1719,7 @@ const SettingsModal = () => {
                             </select>
                           </div>
                           <div>
-                            <label className={`block text-sm ${textSecondary} mb-1`}>Background poll</label>
+                            <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.glanceBackgroundPoll')}</label>
                             <select
                               value={intentForm.backgroundInterval}
                               onChange={e => setIntentForm(p => ({ ...p, backgroundInterval: Number(e.target.value) }))}
@@ -1733,7 +1735,7 @@ const SettingsModal = () => {
                           </div>
                         </div>
                         <div>
-                          <label className={`block text-sm ${textSecondary} mb-1`}>Event retention (days)</label>
+                          <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.glanceEventRetention')}</label>
                           <input
                             type="number"
                             min={1}
@@ -1811,13 +1813,13 @@ const SettingsModal = () => {
                                 }}
                                 className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
                               >
-                                Confirm
+                                {t('common.confirm')}
                               </button>
                               <button
                                 onClick={() => { setIntentSetupPhase(null); setIntentPassphraseInput(''); }}
                                 className={`px-3 py-1.5 ${darkMode ? 'bg-gray-600 hover:bg-gray-500' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm`}
                               >
-                                Cancel
+                                {t('common.cancel')}
                               </button>
                             </div>
                           </div>
@@ -1889,7 +1891,7 @@ const SettingsModal = () => {
                             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 text-sm transition-colors flex items-center gap-1.5"
                           >
                             {intentSetupPhase === 'running' && <Loader size={13} className="animate-spin" />}
-                            {intentSaved ? 'Saved' : 'Save'}
+                            {intentSaved ? t('common.saved') : t('common.save')}
                           </button>
                           {intentForm.webdavUrl && (
                             <button
@@ -1900,7 +1902,7 @@ const SettingsModal = () => {
                               }}
                               className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
                             >
-                              Disconnect
+                              {t('common.disconnect')}
                             </button>
                           )}
                           <button
@@ -1908,7 +1910,7 @@ const SettingsModal = () => {
                             className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-sm flex items-center gap-1.5 transition-colors`}
                           >
                             <Activity size={14} />
-                            Activity Log
+                            {t('settings.glanceActivityLog')}
                           </button>
                         </div>
                       </div>
@@ -1922,7 +1924,7 @@ const SettingsModal = () => {
                   onClick={() => setShowSettings(false)}
                   className={`w-full mt-2 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
                 >
-                  Close
+                  {t('common.close')}
                 </button>
               </div>
             </div>
