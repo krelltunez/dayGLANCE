@@ -880,6 +880,7 @@ const DesktopDashboard = ({
   projectCardRefs,
 }) => {
   const { darkMode, textPrimary, textSecondary, borderClass, hoverBg } = useDayPlannerCtx();
+  const { t } = useTranslation();
   const { moveProject, goalsDashboardFocusId, setGoalsDashboardFocusId } = useFeaturesCtx();
 
   const containerRef = useRef(null);
@@ -1368,6 +1369,7 @@ const MobileDashboard = ({
 }) => {
   const { darkMode, textPrimary, textSecondary, hoverBg, cardBg, borderClass, tasks: scheduledTasks, unscheduledTasks } = useDayPlannerCtx();
   const { updateGoal, moveProject, goalsDashboardFocusId, setGoalsDashboardFocusId } = useFeaturesCtx();
+  const { t } = useTranslation();
 
   const scrollRef = useRef(null);
   const swipeRef = useRef(null); // { startX, startY, locked }
@@ -1898,6 +1900,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
     addGoal, updateGoal, deleteGoal,
     addProject, updateProject,
   } = useFeaturesCtx();
+  const { t } = useTranslation();
 
   const [goalForm, setGoalForm] = useState(null);
   const [projectForm, setProjectForm] = useState(null);
