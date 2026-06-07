@@ -1,6 +1,8 @@
 import {
   ACTIONS,
   ENTITY_TYPES,
+  EVENTS,
+  SOURCE_APPS,
   TABS,
   QUERY_RETURN_VARS,
   RETURN_VAR_TYPES,
@@ -8,6 +10,7 @@ import {
   CompleteSchema,
   OpenSchema,
   QuerySchema,
+  NotifySchema,
   normalizePriority,
   normalizeTags,
   normalizeDue,
@@ -154,6 +157,51 @@ function handleCreateGoal(payload, context) {
   });
 
   return ok({ task_id: newGoal.id });
+}
+
+function handleNotify(payload, context) {
+  const v = validate(NotifySchema, payload);
+  if (!v.ok) return fail(v.error);
+
+  const { goals = [], updateGoal, deleteGoal } = context;
+  const { source_app, source_entity_id, event, entity_type, due, title } = v.data;
+
+  // Skip notifies about tasks — only handle goal notifies here.
+  if (entity_type && entity_type !== ENTITY_TYPES.GOAL) {
+    return ok({ warning: 'entity_type not goal — skipped' });
+  }
+
+  // When source_app is dayGLANCE, source_entity_id IS the goal's own id.
+  // Otherwise match by source_app + source_entity_id (goal created by lifeGLANCE).
+  const goal =
+    source_app === SOURCE_APPS.DAYGLANCE
+      ? goals.find(g => g.id === source_entity_id)
+      : goals.find(g => g.source_app === source_app && g.source_entity_id === source_entity_id);
+
+  if (!goal) return ok({ warning: 'no matching goal' });
+  if (!updateGoal && !deleteGoal) return ok({ warning: '', _normalized: v.data });
+
+  switch (event) {
+    case EVENTS.COMPLETED:
+      updateGoal(goal.id, { status: 'completed' });
+      break;
+    case EVENTS.UNCOMPLETED:
+      updateGoal(goal.id, { status: 'active' });
+      break;
+    case EVENTS.DELETED:
+      deleteGoal?.(goal.id);
+      break;
+    case EVENTS.RESCHEDULED:
+      updateGoal(goal.id, { targetDate: due ? due.slice(0, 10) : null });
+      break;
+    case EVENTS.UPDATED:
+      updateGoal(goal.id, { title });
+      break;
+    default:
+      return fail(`Unknown event: ${event}`);
+  }
+
+  return ok({ task_id: goal.id });
 }
 
 async function handleCreate(payload, context) {
@@ -465,6 +513,8 @@ export async function handleIntent(action, payload, context = {}) {
       return handleCreate(payload, context);
     case ACTIONS.COMPLETE:
       return handleComplete(payload, context);
+    case ACTIONS.NOTIFY:
+      return handleNotify(payload, context);
     case ACTIONS.OPEN:
       return handleOpen(payload, context);
     case ACTIONS.QUERY:

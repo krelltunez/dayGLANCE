@@ -557,7 +557,7 @@ async function _poll(config, context) {
  *
  * context shape: { tasks, unscheduledTasks, recurringTasks, projects,
  *                  setTasks, setUnscheduledTasks, setRecurringTasks,
- *                  goals, addGoal, navigate }
+ *                  goals, addGoal, updateGoal, deleteGoal, navigate }
  */
 export function useIntentPoller(context) {
   const contextRef = useRef(context);

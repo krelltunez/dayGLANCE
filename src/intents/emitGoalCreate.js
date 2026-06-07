@@ -48,8 +48,8 @@ export async function emitGoalCreate(goal) {
 
   try {
     const envelope = deriveKey
-      ? await buildEncryptedEnvelope({ action: 'create', payload, emittedBy: SOURCE_APPS.DAYGLANCE }, deriveKey)
-      : buildEnvelope({ action: 'create', payload, emittedBy: SOURCE_APPS.DAYGLANCE });
+      ? await buildEncryptedEnvelope({ action: 'create', payload, emittedBy: SOURCE_APPS.DAYGLANCE, eventId: goal.id }, deriveKey)
+      : buildEnvelope({ action: 'create', payload, emittedBy: SOURCE_APPS.DAYGLANCE, eventId: goal.id });
     await writeEventFile(config, envelope);
     await writeEventFileICloud(config, envelope);
     logActivity({
