@@ -16,6 +16,7 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getHGBarsForDate } from '../hooks/useHyperGlance.js';
 import HyperGlanceBar from './HyperGlanceBar.jsx';
+import { useTranslation } from 'react-i18next';
 
 const TimeGrid = () => {
   const {
@@ -65,6 +66,7 @@ const TimeGrid = () => {
     setInboxProjectFilter, setInboxPriorityFilter, setHideCompletedInbox,
     setHideProjectTasksInbox, setHideStandaloneTasksInbox,
   } = useDayPlannerCtx();
+  const { t } = useTranslation();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
   const {
     goalsProjectsEnabled,
@@ -360,7 +362,7 @@ const TimeGrid = () => {
                       title="Postpone to tomorrow"
                     >
                       <SkipForward size={14} />
-                      {inMenu && <span className="text-xs">Postpone</span>}
+                      {inMenu && <span className="text-xs">{t('common.postpone')}</span>}
                     </button>
                     )}
                     {!isTablet && (
@@ -370,7 +372,7 @@ const TimeGrid = () => {
                       title="Edit"
                     >
                       <Pencil size={14} />
-                      {inMenu && <span className="text-xs">Edit</span>}
+                      {inMenu && <span className="text-xs">{t('common.edit')}</span>}
                     </button>
                     )}
                     {!isTablet && (
@@ -380,7 +382,7 @@ const TimeGrid = () => {
                       title="Delete"
                     >
                       <Trash2 size={14} />
-                      {inMenu && <span className="text-xs">Delete</span>}
+                      {inMenu && <span className="text-xs">{t('common.delete')}</span>}
                     </button>
                     )}
                   </>
@@ -396,7 +398,7 @@ const TimeGrid = () => {
                     title="Postpone to tomorrow"
                   >
                     <SkipForward size={14} />
-                    {inMenu && <span className="text-xs">Postpone</span>}
+                    {inMenu && <span className="text-xs">{t('common.postpone')}</span>}
                   </button>
                   {!isTablet && (
                   <button
@@ -405,7 +407,7 @@ const TimeGrid = () => {
                     title="Edit"
                   >
                     <Pencil size={14} />
-                    {inMenu && <span className="text-xs">Edit</span>}
+                    {inMenu && <span className="text-xs">{t('common.edit')}</span>}
                   </button>
                   )}
                   {!isTablet && (
@@ -415,7 +417,7 @@ const TimeGrid = () => {
                     title="Move to Inbox"
                   >
                     <Inbox size={14} />
-                    {inMenu && <span className="text-xs">To Inbox</span>}
+                    {inMenu && <span className="text-xs">{t('common.toInbox')}</span>}
                   </button>
                   )}
                 </>
@@ -467,7 +469,7 @@ const TimeGrid = () => {
                   <>
                     <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${isRecurringTask ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                       {isRecurringTask ? (
-                        <><Trash2 size={14} className="mr-1" />Delete</>
+                        <><Trash2 size={14} className="mr-1" />{t('common.delete')}</>
                       ) : (
                         <><Inbox size={14} className="mr-1" />Inbox</>
                       )}

@@ -1,4 +1,5 @@
 import { Bell, X, Clock } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 export default function TrayReminders({ darkMode, reminders }) {

@@ -39,6 +39,7 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import InboxFilterPopover from './InboxFilterPopover.jsx';
 import InboxArchivedBar from './InboxArchivedBar.jsx';
+import { useTranslation } from 'react-i18next';
 
 const MobileLayout = () => {
   const [tzBannerDismissed, setTzBannerDismissed] = useState(false);
@@ -252,6 +253,7 @@ const MobileLayout = () => {
     hideStandaloneTasksInbox, inboxTagFilter, inboxProjectFilter, setInboxProjectFilter,
     archiveInboxTask,
   } = useDayPlannerCtx();
+  const { t } = useTranslation();
 
   const {
     autoBackupInProgressRef, syncAllRef,
@@ -582,7 +584,7 @@ const MobileLayout = () => {
                       title="New Inbox Task"
                     >
                       <Plus size={14} strokeWidth={3} />
-                      <span className="text-xs font-medium">New Task</span>
+                      <span className="text-xs font-medium">{t('common.newTask')}</span>
                     </button>
                     {aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
                       <button
@@ -641,14 +643,14 @@ const MobileLayout = () => {
                     className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
                   >
                     <Flag size={14} strokeWidth={2.5} />
-                    <span className="text-xs font-medium">Add Goal</span>
+                    <span className="text-xs font-medium">{t('common.addGoal')}</span>
                   </button>
                   <button
                     onClick={() => setAddProjectTrigger(v => v + 1)}
                     className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg active:bg-emerald-700 transition-colors"
                   >
                     <Layers size={14} strokeWidth={2.5} />
-                    <span className="text-xs font-medium">Add Project</span>
+                    <span className="text-xs font-medium">{t('common.addProject')}</span>
                   </button>
                 </div>
               </div>
@@ -714,14 +716,14 @@ const MobileLayout = () => {
                     return (
                       <div className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold ${darkMode ? 'bg-amber-900/40 text-amber-300 border-b border-amber-700/40' : 'bg-amber-50 text-amber-800 border-b border-amber-200'}`}>
                         <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-                        <span className="truncate">Now: {renderTitle(runningTask.title)}</span>
+                        <span className="truncate">{t('common.now')}: {renderTitle(runningTask.title)}</span>
                       </div>
                     );
                   })()}
                   <div className={`flex border-b ${borderClass} ${mobileDragPreviewTime === 'all-day' ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
                     <div className={`w-12 flex-shrink-0 border-r ${borderClass} ${mobileDragPreviewTime === 'all-day' ? 'flex items-center justify-center' : ''}`}>
                       {mobileDragPreviewTime === 'all-day'
-                        ? <span className="text-[9px] font-bold text-blue-500">ALL DAY</span>
+                        ? <span className="text-[9px] font-bold text-blue-500">{t('task.allDay')}</span>
                         : <MobileViewToggle />
                       }
                     </div>
@@ -806,7 +808,7 @@ const MobileLayout = () => {
                         <div className="p-4">
                           {noteTask.imported && !noteTask.isTaskCalendar ? (
                             <div>
-                              <div className={`text-xs font-semibold ${textSecondary} mb-1`}>Description</div>
+                              <div className={`text-xs font-semibold ${textSecondary} mb-1`}>{t('common.description')}</div>
                               <textarea
                                 defaultValue={noteTask.notes || ''}
                                 placeholder="Add description…"

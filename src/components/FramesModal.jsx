@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Plus, LayoutGrid } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { DAY_LABELS } from '../constants/frames.js';
 import FrameEditor from './FrameEditor.jsx';
 import SmartSchedulePanel from './SmartSchedulePanel.jsx';
@@ -7,6 +8,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const FramesModal = () => {
+  const { t } = useTranslation();
   const {
     allTags, unscheduledTasks,
     getTodayStr, formatTime,
@@ -33,7 +35,7 @@ const FramesModal = () => {
       >
         <div className={`sticky top-0 ${cardBg} z-10 px-6 pt-5 pb-3 border-b ${borderClass}`}>
           <div className="flex items-center justify-between mb-3">
-            <h2 className={`text-lg font-semibold ${textPrimary}`}>GTD Frames</h2>
+            <h2 className={`text-lg font-semibold ${textPrimary}`}>{t('frames.title')}</h2>
             <button onClick={() => { setShowFramesModal(false); setEditingFrame(null); }} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`}>
               <X size={18} className={textSecondary} />
             </button>
@@ -45,13 +47,13 @@ const FramesModal = () => {
               onClick={() => setFramesModalTab('frames')}
               className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${framesModalTab === 'frames' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900 shadow-sm') : textSecondary}`}
             >
-              My Frames
+              {t('frames.tabMyFrames')}
             </button>
             <button
               onClick={() => setFramesModalTab('schedule')}
               className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${framesModalTab === 'schedule' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900 shadow-sm') : textSecondary}`}
             >
-              Smart Schedule
+              {t('frames.tabSmartSchedule')}
             </button>
           </div>
           )}
@@ -85,16 +87,16 @@ const FramesModal = () => {
                     return visibleFrames.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 gap-3">
                       <LayoutGrid size={48} className={textSecondary} />
-                      <h3 className={`text-lg font-semibold ${textPrimary}`}>No Frames Yet</h3>
+                      <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('frames.noFramesTitle')}</h3>
                       <p className={`text-sm ${textSecondary} text-center max-w-xs`}>
-                        Frames are time blocks on your calendar where the AI scheduler can place tasks. Create your first frame to get started.
+                        {t('frames.noFramesDesc')}
                       </p>
                       <button
                         onClick={() => setEditingFrame('new')}
                         className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
                       >
                         <Plus size={16} />
-                        Create Frame
+                        {t('frames.createFrame')}
                       </button>
                     </div>
                   ) : (
@@ -108,8 +110,8 @@ const FramesModal = () => {
                           <div className="flex items-center gap-2">
                             <div className={`w-3 h-3 rounded-full ${frame.color}`} />
                             <span className={`font-medium text-sm ${textPrimary}`}>{frame.label}</span>
-                            {frame.singleDate && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>one-time</span>}
-                            {!frame.enabled && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textSecondary}`}>Off</span>}
+                            {frame.singleDate && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>{t('frames.oneTime')}</span>}
+                            {!frame.enabled && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textSecondary}`}>{t('frames.frameOff')}</span>}
                           </div>
                           <div className={`text-xs ${textSecondary} mt-1`}>
                             {formatTime(frame.start)} – {formatTime(frame.end)} · {frame.singleDate
@@ -124,7 +126,7 @@ const FramesModal = () => {
                         className={`w-full p-3 rounded-lg border border-dashed ${borderClass} text-sm ${textSecondary} flex items-center justify-center gap-2 ${hoverBg} transition-colors`}
                       >
                         <Plus size={16} />
-                        Add Frame
+                        {t('frames.addFrame')}
                       </button>
                     </div>
                   );

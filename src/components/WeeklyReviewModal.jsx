@@ -6,6 +6,7 @@ import { dateToString, stripWikilinks } from '../utils/taskUtils.js';
 import { getOccurrencesInRange } from '../utils/recurrenceEngine.js';
 import { calculateProjectProgress, isProjectStalled } from '../utils/projectProgress.js';
 import { calculateGoalProgress } from '../utils/goalProgress.js';
+import { useTranslation } from 'react-i18next';
 
 const WeeklyReviewModal = () => {
   const {
@@ -17,6 +18,7 @@ const WeeklyReviewModal = () => {
     darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     use24HourClock, formatTime, timeToMinutes,
   } = useDayPlannerCtx();
+  const { t } = useTranslation();
   const {
     showWeeklyReview, setShowWeeklyReview,
     weeklyAISummary, setWeeklyAISummary,
@@ -501,7 +503,7 @@ const WeeklyReviewModal = () => {
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-2">
                   <BarChart3 size={18} className={textSecondary} />
-                  <span className={`font-semibold ${textPrimary}`}>Weekly Review</span>
+                  <span className={`font-semibold ${textPrimary}`}>{t('weeklyReview.title')}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   {/* Desktop chevron nav */}
@@ -551,11 +553,11 @@ const WeeklyReviewModal = () => {
               >
                 {/* Card 1: Past 7 Days */}
                 <div className="flex-shrink-0 w-full h-full overflow-y-auto px-4 pb-4" style={{ scrollSnapAlign: 'start' }}>
-                  <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-1`}>Past 7 Days</h3>
+                  <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-1`}>{t('weeklyReview.past7Days')}</h3>
                   <p className={`text-xs ${textSecondary} mb-4`}>{formatRange(pastStartStr, pastEndStr)}</p>
 
                   {pastScheduled === 0 ? (
-                    <p className={`text-sm ${textSecondary} italic`}>No tasks were scheduled in the past 7 days</p>
+                    <p className={`text-sm ${textSecondary} italic`}>{t('weeklyReview.noTasksPast7Days')}</p>
                   ) : (
                     <>
                       <div className="grid grid-cols-2 gap-3 mb-3">
@@ -634,7 +636,7 @@ const WeeklyReviewModal = () => {
                         className={`flex items-center justify-between w-full py-1.5 text-xs font-semibold uppercase ${textSecondary} tracking-wider`}
                         onClick={() => setFramesCollapsed(c => !c)}
                       >
-                        <span>Frame Utilization</span>
+                        <span>{t('weeklyReview.frameUtilization')}</span>
                         {framesCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
                       </button>
                       {!framesCollapsed && (
@@ -700,12 +702,12 @@ const WeeklyReviewModal = () => {
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <Sparkles size={14} className="text-purple-500" />
-                          <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>AI Insights</span>
+                          <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>{t('weeklyReview.aiInsights')}</span>
                         </div>
                         {weeklyAILoading && <Loader size={12} className={`animate-spin ${textSecondary}`} />}
                       </div>
                       {weeklyAILoading && !weeklyAISummary && (
-                        <p className={`text-xs ${textSecondary}`}>Analyzing your week...</p>
+                        <p className={`text-xs ${textSecondary}`}>{t('weeklyReview.analyzingWeek')}</p>
                       )}
                       {weeklyAIError && (
                         <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{weeklyAIError}</p>
@@ -720,7 +722,7 @@ const WeeklyReviewModal = () => {
                       onClick={() => generateWeeklyAISummary(weeklyAIStats)}
                     >
                       <Sparkles size={14} className="text-purple-500 flex-shrink-0" />
-                      <span className={`text-sm ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>Click here to see AI insights</span>
+                      <span className={`text-sm ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>{t('weeklyReview.clickForAiInsights')}</span>
                     </div>
                     )
                   )}
@@ -728,7 +730,7 @@ const WeeklyReviewModal = () => {
 
                 {/* Card 2: Next 7 Days */}
                 <div className="flex-shrink-0 w-full h-full overflow-y-auto px-4 pb-4" style={{ scrollSnapAlign: 'start' }}>
-                  <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-1`}>Next 7 Days</h3>
+                  <h3 className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-1`}>{t('weeklyReview.next7Days')}</h3>
                   <p className={`text-xs ${textSecondary} mb-4`}>{formatRange(nextStartStr, nextEndStr)}</p>
 
                   <div className="grid grid-cols-2 gap-3 mb-3">
@@ -755,7 +757,7 @@ const WeeklyReviewModal = () => {
                   {/* Goals due this week */}
                   {goalsProjectsEnabled && nextWeekDueGoals.length > 0 && (
                     <div className="mb-4">
-                      <div className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-2`}>Goals Due This Week</div>
+                      <div className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-2`}>{t('weeklyReview.goalsDueThisWeek')}</div>
                       <div className="space-y-2">
                         {nextWeekDueGoals.map(g => (
                           <div key={g.id} className={`rounded-lg border p-3 ${darkMode ? 'border-gray-600 bg-gray-700/40' : 'border-stone-200 bg-stone-50'}`}>
@@ -789,7 +791,7 @@ const WeeklyReviewModal = () => {
                   {/* Standalone projects */}
                   {goalsProjectsEnabled && nextWeekProjects.length > 0 && (
                     <div className="mb-4">
-                      <div className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-2`}>Standalone Projects</div>
+                      <div className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-2`}>{t('goals.noStandaloneProjects')}</div>
                       <div className="space-y-2">
                         {nextWeekProjects.map(p => {
                           const momentumColor = p.momentum === 'green' ? '#22c55e' : p.momentum === 'amber' ? '#f59e0b' : '#ef4444';

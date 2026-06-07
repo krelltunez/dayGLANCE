@@ -1,7 +1,9 @@
 import React from 'react';
 import { Sparkles, X, CheckCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const GettingStartedChecklist = ({ items, completedCount, darkMode, textPrimary, textSecondary, onDismiss, onComplete }) => {
+  const { t } = useTranslation();
   const totalCount = items.length;
   const progressPct = Math.round((completedCount / totalCount) * 100);
 
@@ -10,7 +12,7 @@ const GettingStartedChecklist = ({ items, completedCount, darkMode, textPrimary,
       <div className="px-3 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Sparkles size={15} className="text-blue-500" />
-          <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">Getting Started</span>
+          <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">{t('gettingStarted.title')}</span>
           <span className={`text-xs px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-blue-500/30 text-blue-300' : 'bg-blue-200 text-blue-700'}`}>
             {completedCount}/{totalCount}
           </span>
@@ -43,7 +45,7 @@ const GettingStartedChecklist = ({ items, completedCount, darkMode, textPrimary,
           onClick={onComplete}
           className={`w-full py-2 rounded-lg text-sm font-medium transition-colors ${darkMode ? 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
         >
-          I'm Good to Go
+          {t('gettingStarted.imGoodToGo')}
         </button>
       </div>
     </div>

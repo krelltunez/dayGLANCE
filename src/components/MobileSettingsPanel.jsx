@@ -27,6 +27,7 @@ import { syncSharedUsers } from '../intents/sharedUsers.js';
 import { getSyncPassphrase, setSyncPassphrase } from '../utils/crypto.js';
 import { setupIntentsEncryption } from '../intents/intentsEncryptionSetup.js';
 import { loadIntentsRootKey, clearIntentsRootKey } from '../intents/intentsKeyStore.js';
+import { useTranslation } from 'react-i18next';
 
 const MobileSettingsPanel = () => {
   const {
@@ -139,7 +140,8 @@ const MobileSettingsPanel = () => {
     const raw = localStorage.getItem(MULTI_USER_CONFIG_KEY);
     return raw ? (JSON.parse(raw).usersPath ?? '/GLANCE/users/') : '/GLANCE/users/';
   });
-  const [muSyncStatus, setMuSyncStatus] = useState(null); // null | 'syncing' | 'ok' | 'error'
+  const [muSyncStatus, setMuSyncStatus] = useState(null);
+  const { t } = useTranslation(); // null | 'syncing' | 'ok' | 'error'
 
   // Commit staged routines on unmount (e.g. user switches tabs while in routines view)
   const mobileSettingsViewRef = useRef(mobileSettingsView);
@@ -167,7 +169,7 @@ const MobileSettingsPanel = () => {
       <div className={`p-3 rounded-xl border ${darkMode ? 'bg-amber-900/20 border-amber-800' : 'bg-amber-50 border-amber-200'} flex items-start gap-2`}>
         <Globe size={14} className={`flex-shrink-0 mt-0.5 ${darkMode ? 'text-amber-400' : 'text-amber-600'}`} />
         <div className="flex-1 min-w-0">
-          <div className={`text-xs font-semibold ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>Timezone mismatch</div>
+          <div className={`text-xs font-semibold ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>{t('settings.timezoneMismatch')}</div>
           <div className={`text-xs mt-0.5 ${darkMode ? 'text-amber-400/80' : 'text-amber-700/80'}`}>
             Device: <strong>{Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, ' ')}</strong>
           </div>
@@ -178,7 +180,7 @@ const MobileSettingsPanel = () => {
             onClick={() => setMobileSettingsView('app')}
             className={`mt-1.5 text-[10px] font-medium underline ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}
           >
-            Fix in App Settings →
+            {t('settings.fixInAppSettings')}
           </button>
         </div>
       </div>
@@ -199,14 +201,14 @@ const MobileSettingsPanel = () => {
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
       >
         <CalendarDays size={24} className={textSecondary} />
-        <span className={`text-xs font-medium ${textPrimary}`}>Week: {weekStartDay === 0 ? 'Sun' : 'Mon'}</span>
+        <span className={`text-xs font-medium ${textPrimary}`}>{weekStartDay === 0 ? t('settings.weekStartSun') : t('settings.weekStartMon')}</span>
       </button>
       <button
         onClick={() => setSoundEnabled(!soundEnabled)}
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
       >
         {soundEnabled ? <Volume2 size={24} className="text-green-500" /> : <VolumeX size={24} className={textSecondary} />}
-        <span className={`text-xs font-medium ${textPrimary}`}>Sound {soundEnabled ? 'On' : 'Off'}</span>
+        <span className={`text-xs font-medium ${textPrimary}`}>{soundEnabled ? t('settings.soundOn') : t('settings.soundOff')}</span>
       </button>
       {/* Row 2: Dark/Light | Frames | Goals */}
       <button
@@ -214,21 +216,21 @@ const MobileSettingsPanel = () => {
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
       >
         {darkMode ? <Sun size={24} className="text-amber-400" /> : <Moon size={24} className={textSecondary} />}
-        <span className={`text-xs font-medium ${textPrimary}`}>{darkMode ? 'Light' : 'Dark'}</span>
+        <span className={`text-xs font-medium ${textPrimary}`}>{darkMode ? t('settings.lightMode') : t('settings.darkMode')}</span>
       </button>
       <button
         onClick={() => setMobileSettingsView('frames')}
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
       >
         <LayoutGrid size={24} className={mobileSettingsView === 'frames' ? 'text-blue-500' : textSecondary} />
-        <span className={`text-xs font-medium ${textPrimary}`}>Frames</span>
+        <span className={`text-xs font-medium ${textPrimary}`}>{t('settings.frames')}</span>
       </button>
       <button
         onClick={() => { if (!goalsProjectsEnabled) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setGoalsProjectsEnabled(!goalsProjectsEnabled); }}
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
       >
         {goalsProjectsEnabled ? <Flag size={24} className="text-blue-500" /> : <Flag size={24} className={textSecondary} />}
-        <span className={`text-xs font-medium ${textPrimary}`}>Goals {goalsProjectsEnabled ? 'On' : 'Off'}</span>
+        <span className={`text-xs font-medium ${textPrimary}`}>{goalsProjectsEnabled ? t('settings.goalsOn') : t('settings.goalsOff')}</span>
       </button>
       {/* Row 3: Routines | Habits | AI */}
       <button
@@ -241,27 +243,27 @@ const MobileSettingsPanel = () => {
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
       >
         <Sparkles size={24} className={mobileSettingsView === 'routines' ? 'text-teal-500' : routinesEnabled ? 'text-teal-500' : textSecondary} />
-        <span className={`text-xs font-medium ${textPrimary}`}>Routines {routinesEnabled ? 'On' : 'Off'}</span>
+        <span className={`text-xs font-medium ${textPrimary}`}>{routinesEnabled ? t('settings.routinesOn') : t('settings.routinesOff')}</span>
       </button>
       <button
         onClick={() => setMobileSettingsView('habits')}
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
       >
         <Activity size={24} className={mobileSettingsView === 'habits' ? 'text-green-500' : habitsEnabled ? 'text-green-500' : textSecondary} />
-        <span className={`text-xs font-medium ${textPrimary}`}>Habits {habitsEnabled ? 'On' : 'Off'}</span>
+        <span className={`text-xs font-medium ${textPrimary}`}>{habitsEnabled ? t('settings.habitsOn') : t('settings.habitsOff')}</span>
       </button>
       <button
         onClick={() => setMobileSettingsView('ai')}
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
       >
         {aiConfig.enabled ? <BrainCircuit size={24} className="text-purple-400" /> : <BrainCircuit size={24} className={textSecondary} />}
-        <span className={`text-xs font-medium ${textPrimary}`}>AI {aiConfig.enabled ? 'On' : 'Off'}</span>
+        <span className={`text-xs font-medium ${textPrimary}`}>{aiConfig.enabled ? t('settings.aiOn') : t('settings.aiOff')}</span>
       </button>
     </div>
 
     {/* Sync buttons */}
     <div className="space-y-2">
-      <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>Sync</h3>
+      <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>{t('settings.sync')}</h3>
       {calSyncConfigured && (
         <button
           onClick={() => { if (!isSyncing) syncAll(); }}
@@ -274,7 +276,7 @@ const MobileSettingsPanel = () => {
               isSyncing ? 'bg-blue-500 animate-pulse' : calSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
             }`} />
           </div>
-          <span className={`font-medium ${textPrimary}`}>Sync Calendars</span>
+          <span className={`font-medium ${textPrimary}`}>{t('settings.syncCalendars')}</span>
         </button>
       )}
       {cloudSyncConfig?.enabled && (
@@ -294,7 +296,7 @@ const MobileSettingsPanel = () => {
               <p className="text-xs text-red-500 mt-0.5 leading-tight">{cloudSyncError}</p>
             )}
             {cloudSyncStatus === 'success' && cloudSyncLastSynced && (
-              <p className={`text-xs ${textSecondary} mt-0.5`}>Last synced {new Date(cloudSyncLastSynced).toLocaleTimeString()}</p>
+              <p className={`text-xs ${textSecondary} mt-0.5`}>{t('common.lastSynced')} {new Date(cloudSyncLastSynced).toLocaleTimeString()}</p>
             )}
           </div>
         </button>
@@ -312,7 +314,7 @@ const MobileSettingsPanel = () => {
               }`} />
             )}
           </div>
-          <span className={`font-medium ${textPrimary} flex-1 text-left`}>Obsidian</span>
+          <span className={`font-medium ${textPrimary} flex-1 text-left`}>{t('settings.obsidian')}</span>
           <ChevronRight size={18} className={textSecondary} />
         </button>
       )}
@@ -326,7 +328,7 @@ const MobileSettingsPanel = () => {
             <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-green-500`} />
           )}
         </div>
-        <span className={`font-medium ${textPrimary} flex-1 text-left`}>GLANCE Integrations</span>
+        <span className={`font-medium ${textPrimary} flex-1 text-left`}>{t('settings.glanceIntegrations')}</span>
         <ChevronRight size={18} className={textSecondary} />
       </button>
       <button
@@ -339,7 +341,7 @@ const MobileSettingsPanel = () => {
             <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-green-500`} />
           )}
         </div>
-        <span className={`font-medium ${textPrimary} flex-1 text-left`}>Multi-user</span>
+        <span className={`font-medium ${textPrimary} flex-1 text-left`}>{t('settings.multiUser')}</span>
         <ChevronRight size={18} className={textSecondary} />
       </button>
     </div>
@@ -347,13 +349,13 @@ const MobileSettingsPanel = () => {
     {/* Stats */}
     {/* Sub-menu buttons */}
     <div className="space-y-2">
-      <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>More</h3>
+      <h3 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1`}>{t('settings.more')}</h3>
       <button
         onClick={() => setMobileSettingsView('app')}
         className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
       >
         <Settings size={20} className={textSecondary} />
-        <span className={`font-medium ${textPrimary} flex-1 text-left`}>App Settings</span>
+        <span className={`font-medium ${textPrimary} flex-1 text-left`}>{t('settings.appSettings')}</span>
         <ChevronRight size={18} className={textSecondary} />
       </button>
       <button
@@ -361,7 +363,7 @@ const MobileSettingsPanel = () => {
         className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
       >
         <Bell size={20} className={textSecondary} />
-        <span className={`font-medium ${textPrimary} flex-1 text-left`}>Notifications</span>
+        <span className={`font-medium ${textPrimary} flex-1 text-left`}>{t('settings.notifications')}</span>
         <ChevronRight size={18} className={textSecondary} />
       </button>
       <button
@@ -369,7 +371,7 @@ const MobileSettingsPanel = () => {
         className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
       >
         <Save size={20} className={textSecondary} />
-        <span className={`font-medium ${textPrimary} flex-1 text-left`}>Backups</span>
+        <span className={`font-medium ${textPrimary} flex-1 text-left`}>{t('settings.backups')}</span>
         <ChevronRight size={18} className={textSecondary} />
       </button>
       <button
@@ -377,7 +379,7 @@ const MobileSettingsPanel = () => {
         className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
       >
         <HelpCircle size={20} className={textSecondary} />
-        <span className={`font-medium ${textPrimary} flex-1 text-left`}>Help & Feedback</span>
+        <span className={`font-medium ${textPrimary} flex-1 text-left`}>{t('app.helpFeedback')}</span>
         <ChevronRight size={18} className={textSecondary} />
       </button>
       {canConsumeTestPurchase && devTapCount >= 7 && (
@@ -410,16 +412,16 @@ const MobileSettingsPanel = () => {
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
       >
         <ChevronLeft size={18} />
-        <span className="text-sm font-medium">Settings</span>
+        <span className="text-sm font-medium">{t('common.settings')}</span>
       </button>
 
       {/* View default */}
       <div className="space-y-2">
         <div className={`font-medium ${textPrimary} flex items-center gap-2`}>
           <LayoutGrid size={16} className={textSecondary} />
-          View default
+          {t('settings.viewDefault')}
         </div>
-        <p className={`text-xs ${textSecondary}`}>Default view for the Timeline tab</p>
+        <p className={`text-xs ${textSecondary}`}>{t('settings.viewDefaultDesc')}</p>
         <div className="flex gap-2">
           {['grid', 'list'].map(mode => (
             <button
@@ -439,8 +441,8 @@ const MobileSettingsPanel = () => {
         {/* End of day (LIST view only) */}
         {mobileViewMode === 'list' && (
           <div className="mt-3 space-y-1.5">
-            <label className={`block text-xs font-medium ${textSecondary}`}>End of day (LIST view)</label>
-            <p className={`text-xs ${textSecondary} opacity-70`}>Extends the spine to this time so you can drag items there</p>
+            <label className={`block text-xs font-medium ${textSecondary}`}>{t('settings.endOfDay')}</label>
+            <p className={`text-xs ${textSecondary} opacity-70`}>{t('settings.endOfDayHint')}</p>
             <div className="flex flex-wrap gap-1.5">
               {[{ label: 'Off', value: null }, ...Array.from({ length: 13 }, (_, i) => {
                 const totalMin = 18 * 60 + i * 30;
@@ -474,9 +476,9 @@ const MobileSettingsPanel = () => {
       <div className="space-y-2">
         <div className={`font-medium ${textPrimary} flex items-center gap-2`}>
           <Globe size={16} className={textSecondary} />
-          Home timezone
+          {t('settings.homeTimezone')}
         </div>
-        <p className={`text-xs ${textSecondary}`}>Used to detect when your device is in a different timezone.</p>
+        <p className={`text-xs ${textSecondary}`}>{t('settings.homeTimezoneDesc')}</p>
         <select
           value={homeTimezone}
           onChange={e => setHomeTimezone(e.target.value)}
@@ -495,9 +497,9 @@ const MobileSettingsPanel = () => {
           <div className="space-y-2">
             <div className={`font-medium ${textPrimary} flex items-center gap-2`}>
               <LayoutGrid size={16} className={textSecondary} />
-              GLANCE default
+              {t('settings.glanceDefault')}
             </div>
-            <p className={`text-xs ${textSecondary}`}>Starting page of the GLANCE habits/goals carousel</p>
+            <p className={`text-xs ${textSecondary}`}>{t('settings.glanceDefaultDesc')}</p>
             <div className="flex gap-2">
               {[{ value: 0, label: 'HABITS' }, { value: 1, label: 'GOALS' }].map(({ value, label }) => (
                 <button
@@ -523,14 +525,14 @@ const MobileSettingsPanel = () => {
       <div className="space-y-3">
         <button onClick={() => toggleSettingsSection('calSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
           <RefreshCw size={16} className={textSecondary} />
-          Calendar Sync
+          {t('settings.calendarSync')}
           {calSyncConfigured && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
           <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
         </button>
         {!collapsedSettings.calSync && (<>
         {!isNativeApp() && (
         <div>
-          <label className={`block text-sm ${textSecondary} mb-1`}>Calendar URL (iCal/CalDAV)</label>
+          <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.calendarUrl')}</label>
           <input
             type="url"
             placeholder="https://..."
@@ -542,7 +544,7 @@ const MobileSettingsPanel = () => {
         )}
         {!isNativeApp() && syncUrl && (
           <div className={`space-y-2 pl-3 border-l-2 ${darkMode ? 'border-gray-600' : 'border-stone-300'}`}>
-            <p className={`text-xs font-medium ${textSecondary}`}>Basic auth (optional — for private calendars)</p>
+            <p className={`text-xs font-medium ${textSecondary}`}>{t('settings.calendarBasicAuth')}</p>
             <div>
               <label className={`block text-xs ${textSecondary} mb-1`}>Username</label>
               <input
@@ -571,7 +573,7 @@ const MobileSettingsPanel = () => {
           </p>
         )}
         <div>
-          <label className={`block text-sm ${textSecondary} mb-1`}>Task Calendar URL</label>
+          <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.taskCalendarUrl')}</label>
           <input
             type="url"
             placeholder="https://..."
@@ -582,7 +584,7 @@ const MobileSettingsPanel = () => {
         </div>
         {taskCalendarUrl && (
           <div className={`space-y-2 pl-3 border-l-2 ${darkMode ? 'border-gray-600' : 'border-stone-300'}`}>
-            <p className={`text-xs font-medium ${textSecondary}`}>Basic auth / sync completions back (optional)</p>
+            <p className={`text-xs font-medium ${textSecondary}`}>{t('settings.taskCalendarAuth')}</p>
             <div>
               <label className={`block text-xs ${textSecondary} mb-1`}>Username</label>
               <input
@@ -604,7 +606,7 @@ const MobileSettingsPanel = () => {
               />
             </div>
             <div>
-              <label className={`block text-xs ${textSecondary} mb-1`}>CalDAV Base URL</label>
+              <label className={`block text-xs ${textSecondary} mb-1`}>{t('settings.calDAVBaseUrl')}</label>
               <input
                 type="url"
                 placeholder="https://cloud.example.com/remote.php/dav/calendars/user/personal/"
@@ -622,7 +624,7 @@ const MobileSettingsPanel = () => {
           </div>
         )}
         <div>
-          <label className={`block text-sm ${textSecondary} mb-1`}>Keep past events</label>
+          <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.keepPastEvents')}</label>
           <select
             value={syncRetentionDays}
             onChange={(e) => setSyncRetentionDays(Number(e.target.value))}
@@ -647,10 +649,10 @@ const MobileSettingsPanel = () => {
           className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm ${!calSyncConfigured ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
-          {isSyncing ? 'Syncing...' : 'Sync Now'}
+          {isSyncing ? t('settings.syncing') : t('settings.syncNow')}
         </button>
         {calSyncLastSynced && (
-          <p className={`text-xs ${textSecondary}`}>Last synced: {new Date(calSyncLastSynced).toLocaleString()}</p>
+          <p className={`text-xs ${textSecondary}`}>{t('common.lastSynced')}: {new Date(calSyncLastSynced).toLocaleString()}</p>
         )}
         {isNativeApp() && (
           <div className="space-y-2 pt-1">
@@ -695,12 +697,12 @@ const MobileSettingsPanel = () => {
       <div className="space-y-3">
         <button onClick={() => toggleSettingsSection('cloudSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
           <Cloud size={16} className={textSecondary} />
-          Cloud Sync
+          {t('settings.cloudSync')}
           {cloudSyncConfig?.enabled && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
           <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.cloudSync ? '' : 'rotate-180'}`} />
         </button>
         {!collapsedSettings.cloudSync && (<>
-        <p className={`${textSecondary} text-xs`}>Sync all your data as a JSON file to your cloud storage.</p>
+        <p className={`${textSecondary} text-xs`}>{t('settings.cloudSyncDesc')}</p>
         <CloudSyncSettingsForm
           darkMode={darkMode}
           textPrimary={textPrimary}
@@ -725,20 +727,20 @@ const MobileSettingsPanel = () => {
       <div className="space-y-3">
         <div className={`font-medium ${textPrimary} flex items-center gap-2`}>
           <Archive size={16} className={textSecondary} />
-          Inbox
+          {t('settings.inbox')}
         </div>
         <div>
-          <label className={`block text-sm ${textSecondary} mb-1`}>Auto-archive completed Inbox tasks</label>
+          <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.inboxAutoArchive')}</label>
           <select
             value={inboxAutoArchiveDays}
             onChange={(e) => setInboxAutoArchiveDays(Number(e.target.value))}
             className={`px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
           >
-            <option value={0}>Never</option>
-            <option value={7}>After 7 days</option>
-            <option value={14}>After 14 days</option>
-            <option value={30}>After 30 days</option>
-            <option value={60}>After 60 days</option>
+            <option value={0}>{t('settings.inboxArchiveNever')}</option>
+            <option value={7}>{t('settings.inboxArchive7')}</option>
+            <option value={14}>{t('settings.inboxArchive14')}</option>
+            <option value={30}>{t('settings.inboxArchive30')}</option>
+            <option value={60}>{t('settings.inboxArchive60')}</option>
           </select>
         </div>
       </div>
@@ -749,11 +751,11 @@ const MobileSettingsPanel = () => {
       <div className="space-y-3">
         <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
           <Upload size={16} className={textSecondary} />
-          iCal Import
+          {t('settings.importIcs')}
         </h4>
         <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors text-sm`}>
           <Upload size={14} className={textSecondary} />
-          Choose .ics file
+          {t('settings.chooseIcsFile')}
           <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setMobileSettingsView('main'); }} className="hidden" />
         </label>
       </div>
@@ -770,7 +772,7 @@ const MobileSettingsPanel = () => {
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
       >
         <ChevronLeft size={18} />
-        <span className="text-sm font-medium">Settings</span>
+        <span className="text-sm font-medium">{t('common.settings')}</span>
       </button>
 
       {/* Master toggle */}
@@ -786,7 +788,7 @@ const MobileSettingsPanel = () => {
             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
           </div>
         </div>
-        <span className={`text-sm ${textPrimary}`}>Enable reminders</span>
+        <span className={`text-sm ${textPrimary}`}>{t('settings.enableReminders')}</span>
       </label>
 
       {reminderSettings.enabled && (
@@ -799,7 +801,7 @@ const MobileSettingsPanel = () => {
                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.inAppToasts !== false ? 'translate-x-5' : 'translate-x-1'}`} />
               </div>
             </div>
-            <span className={`text-sm ${textPrimary}`}>In-app toasts</span>
+            <span className={`text-sm ${textPrimary}`}>{t('settings.inAppToasts')}</span>
           </label>
 
           {/* Browser notifications */}
@@ -815,7 +817,7 @@ const MobileSettingsPanel = () => {
               </div>
             </div>
             <div>
-              <span className={`text-sm ${textPrimary}`}>Browser notifications</span>
+              <span className={`text-sm ${textPrimary}`}>{t('settings.browserNotifications')}</span>
               <p className={`text-xs ${textSecondary}`}>
                 {typeof Notification !== 'undefined'
                   ? Notification.permission === 'granted' ? 'Permission granted'
@@ -908,7 +910,7 @@ const MobileSettingsPanel = () => {
                   <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.weeklyReview?.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
                 </div>
               </div>
-              <span className={`text-sm ${textPrimary}`}>Notify me for weekly review</span>
+              <span className={`text-sm ${textPrimary}`}>{t('settings.notifyWeeklyReview')}</span>
             </label>
             {reminderSettings.weeklyReview?.enabled && (
               <div className="space-y-3 ml-1">
@@ -957,7 +959,7 @@ const MobileSettingsPanel = () => {
               <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.hyperGlance?.enabled !== false ? 'translate-x-5' : 'translate-x-1'}`} />
             </div>
           </div>
-          <span className={`text-sm ${textPrimary}`}>Notify me at session start</span>
+          <span className={`text-sm ${textPrimary}`}>{t('settings.notifySessionStart')}</span>
         </label>
         {reminderSettings.hyperGlance?.enabled !== false && (
           <div>
@@ -991,7 +993,7 @@ const MobileSettingsPanel = () => {
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
       >
         <ChevronLeft size={18} />
-        <span className="text-sm font-medium">Settings</span>
+        <span className="text-sm font-medium">{t('common.settings')}</span>
       </button>
 
       {/* Export / Restore */}
@@ -1002,16 +1004,16 @@ const MobileSettingsPanel = () => {
         >
           <div className="font-medium flex items-center gap-2">
             <Upload size={16} className="rotate-180" />
-            Export Backup
+            {t('settings.exportBackup')}
           </div>
-          <div className={`text-sm ${textSecondary}`}>Download all tasks and settings as JSON</div>
+          <div className={`text-sm ${textSecondary}`}>{t('settings.exportBackupDesc')}</div>
         </button>
         <label className={`block w-full px-4 py-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-100 hover:bg-stone-200'} ${textPrimary} rounded-lg text-left transition-colors cursor-pointer`}>
           <div className="font-medium flex items-center gap-2">
             <Upload size={16} />
-            Restore Backup
+            {t('settings.restoreBackup')}
           </div>
-          <div className={`text-sm ${textSecondary}`}>Load data from a backup file</div>
+          <div className={`text-sm ${textSecondary}`}>{t('settings.restoreBackupDesc')}</div>
           <input type="file" accept=".json" onChange={handleBackupFileSelect} className="hidden" />
         </label>
       </div>
@@ -1022,7 +1024,7 @@ const MobileSettingsPanel = () => {
       <div className="space-y-3">
         <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
           <Clock size={16} className={textSecondary} />
-          Auto-Backup
+          {t('settings.autoBackup')}
           {(autoBackupConfig.local.enabled || autoBackupConfig.remote.enabled) && (
             <span className="ml-auto text-xs px-1.5 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded">Active</span>
           )}
@@ -1048,7 +1050,7 @@ const MobileSettingsPanel = () => {
           onClick={() => { loadAutoBackupHistory(); }}
           className={`px-4 py-2 text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors`}
         >
-          Load Backup History
+          {t('settings.loadBackupHistory')}
         </button>
         {autoBackupHistory.local.length > 0 && (
           <div>
@@ -1099,17 +1101,15 @@ const MobileSettingsPanel = () => {
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
       >
         <ChevronLeft size={18} />
-        <span className="text-sm font-medium">Settings</span>
+        <span className="text-sm font-medium">{t('common.settings')}</span>
       </button>
 
       <div className="space-y-4">
         <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
           <BrainCircuit size={18} className={aiConfig.enabled ? 'text-purple-400' : textSecondary} />
-          AI Features
+          {t('settings.aiFeatures')}
         </h4>
-        <p className={`${textSecondary} text-xs`}>
-          BYO API key — all calls go directly from your browser to your provider.
-        </p>
+        <p className={`${textSecondary} text-xs`}>{t('settings.aiByoApiKey')}</p>
 
         {/* Master toggle */}
         <label className="flex items-center gap-3 cursor-pointer">
@@ -1124,7 +1124,7 @@ const MobileSettingsPanel = () => {
               <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${aiConfig.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
             </div>
           </div>
-          <span className={`text-sm ${textPrimary}`}>Enable AI features</span>
+          <span className={`text-sm ${textPrimary}`}>{t('settings.enableAIFeatures')}</span>
         </label>
 
         {aiConfig.enabled && (
@@ -1169,7 +1169,7 @@ const MobileSettingsPanel = () => {
                   }}
                   className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm font-mono`}
                 />
-                <p className={`text-xs ${textSecondary} mt-0.5`}>Stored in browser localStorage — keep your device secure.</p>
+                <p className={`text-xs ${textSecondary} mt-0.5`}>{t('settings.aiApiKeyHint')}</p>
               </div>
             )}
 
@@ -1242,7 +1242,7 @@ const MobileSettingsPanel = () => {
                   {aiConnectionStatus === 'testing' ? 'Testing...' : 'Test Connection'}
                 </button>
                 {aiConnectionStatus === 'success' && (
-                  <span className="text-xs text-green-500">Connected</span>
+                  <span className="text-xs text-green-500">{t('settings.aiConnected')}</span>
                 )}
                 {aiConnectionStatus === 'error' && !aiOllamaHelp && (
                   <span className="text-xs text-red-500">{aiConnectionMessage}</span>
@@ -1272,17 +1272,17 @@ const MobileSettingsPanel = () => {
 
             {/* Per-feature toggles */}
             <div className="space-y-3">
-              <p className={`text-xs font-medium uppercase ${textSecondary}`}>Features</p>
+              <p className={`text-xs font-medium uppercase ${textSecondary}`}>{t('settings.aiFeaturesList')}</p>
               {[
-                { key: 'voiceTaskInput', label: 'Voice task input', icon: <Mic size={14} /> },
-                { key: 'morningSummary', label: 'Morning summary', icon: <Sun size={14} /> },
-                { key: 'eveningReflection', label: 'Evening reflection', icon: <Moon size={14} /> },
-                { key: 'durationEstimate', label: 'Duration estimates', icon: <Sparkles size={14} /> },
-                { key: 'frameNudge', label: 'Frame nudges', icon: <Zap size={14} /> },
-                { key: 'aiReschedule', label: 'End-of-day reschedule', icon: <CalendarDays size={14} /> },
-                { key: 'aiSubtasks', label: 'AI subtask generation', icon: <CheckSquare size={14} /> },
-                { key: 'weeklySummary', label: 'Weekly summary', icon: <BarChart3 size={14} /> },
-                { key: 'smartScheduling', label: 'Smart scheduling', icon: <CalendarDays size={14} /> },
+                { key: 'voiceTaskInput', label: t('settings.aiVoiceTaskInput'), icon: <Mic size={14} /> },
+                { key: 'morningSummary', label: t('settings.aiMorningSummary'), icon: <Sun size={14} /> },
+                { key: 'eveningReflection', label: t('settings.aiEveningReflection'), icon: <Moon size={14} /> },
+                { key: 'durationEstimate', label: t('settings.aiDurationEstimates'), icon: <Sparkles size={14} /> },
+                { key: 'frameNudge', label: t('settings.aiFrameNudges'), icon: <Zap size={14} /> },
+                { key: 'aiReschedule', label: t('settings.aiReschedule'), icon: <CalendarDays size={14} /> },
+                { key: 'aiSubtasks', label: t('settings.aiSubtasks'), icon: <CheckSquare size={14} /> },
+                { key: 'weeklySummary', label: t('settings.aiWeeklySummary'), icon: <BarChart3 size={14} /> },
+                { key: 'smartScheduling', label: t('settings.aiSmartScheduling'), icon: <CalendarDays size={14} /> },
               ].map(f => (
                 <label key={f.key} className={`flex items-center gap-3 ${f.comingSoon ? 'opacity-50 cursor-default' : 'cursor-pointer'}`}>
                   <div className="relative">
@@ -1324,15 +1324,13 @@ const MobileSettingsPanel = () => {
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
       >
         <ChevronLeft size={18} />
-        <span className="text-sm font-medium">Settings</span>
+        <span className="text-sm font-medium">{t('common.settings')}</span>
       </button>
       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
         <BookOpen size={18} className={obsidianConfig?.enabled ? 'text-purple-400' : textSecondary} />
-        Obsidian Integration
+        {t('settings.obsidianIntegration')}
       </h4>
-      <p className={`text-xs ${textSecondary}`}>
-        Import tasks and sync daily notes with your Obsidian vault.
-      </p>
+      <p className={`text-xs ${textSecondary}`}>{t('settings.obsidianDesc')}</p>
       {!isNativeApp() && !isFileSystemAccessSupported() && (
         <p className={`text-xs text-amber-500`}>
           Obsidian integration requires a Chromium-based browser (Chrome, Edge, or Brave). Firefox and Safari do not support the File System Access API.
@@ -1343,7 +1341,7 @@ const MobileSettingsPanel = () => {
           {obsidianConfig?.enabled ? (
             <div className={`flex items-center gap-2 text-sm ${textPrimary}`}>
               <FolderOpen size={14} className={textSecondary} />
-              <span className="truncate">Vault connected</span>
+              <span className="truncate">{t('settings.obsidianVaultConnected')}</span>
               <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
             </div>
           ) : (
@@ -1359,7 +1357,7 @@ const MobileSettingsPanel = () => {
                 className={`px-3 py-2 rounded-lg flex items-center gap-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-stone-100 text-stone-700'}`}
               >
                 <FolderOpen size={14} />
-                Vault Settings
+                {t('settings.obsidianVaultSettings')}
               </button>
             ) : (
               <button
@@ -1367,7 +1365,7 @@ const MobileSettingsPanel = () => {
                 className={`px-3 py-2 rounded-lg flex items-center gap-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-stone-100 text-stone-700'}`}
               >
                 <FolderOpen size={14} />
-                {obsidianConfig?.enabled ? 'Change Vault' : 'Connect Vault'}
+                {obsidianConfig?.enabled ? t('settings.obsidianChangeVault') : t('settings.obsidianConnectVault')}
               </button>
             )}
             {obsidianConfig?.enabled && (
@@ -1378,7 +1376,7 @@ const MobileSettingsPanel = () => {
                   className="px-3 py-2 bg-purple-600 text-white rounded-lg flex items-center gap-2 text-sm disabled:opacity-50"
                 >
                   <RefreshCw size={14} className={obsidianSyncStatus === 'syncing' ? 'animate-spin' : ''} />
-                  {obsidianSyncStatus === 'syncing' ? 'Syncing…' : 'Sync Now'}
+                  {obsidianSyncStatus === 'syncing' ? t('settings.syncing') : t('settings.syncNow')}
                 </button>
                 <button
                   onClick={() => {
@@ -1401,7 +1399,7 @@ const MobileSettingsPanel = () => {
           {/* Daily notes folder */}
           {obsidianConfig?.enabled && (
             <div>
-              <label className={`block text-sm ${textSecondary} mb-1`}>Daily notes folder</label>
+              <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianDailyNotesFolder')}</label>
               <input
                 type="text"
                 placeholder="(vault root)"
@@ -1415,7 +1413,7 @@ const MobileSettingsPanel = () => {
           {/* New notes folder */}
           {obsidianConfig?.enabled && (
             <div>
-              <label className={`block text-sm ${textSecondary} mb-1`}>New notes folder</label>
+              <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianNewNotesFolder')}</label>
               <input
                 type="text"
                 placeholder="dayGLANCE"
@@ -1429,7 +1427,7 @@ const MobileSettingsPanel = () => {
           {/* Filename pattern */}
           {obsidianConfig?.enabled && (
             <div>
-              <label className={`block text-sm ${textSecondary} mb-1`}>Filename pattern</label>
+              <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianFilenamePattern')}</label>
               <input
                 type="text"
                 placeholder="yyyy-MM-dd"
@@ -1443,7 +1441,7 @@ const MobileSettingsPanel = () => {
           {/* Task heading — same as web */}
           {obsidianConfig?.enabled && (
             <div>
-              <label className={`block text-sm ${textSecondary} mb-1`}>Task heading</label>
+              <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianTaskHeading')}</label>
               <input
                 type="text"
                 placeholder="## Tasks"
@@ -1457,7 +1455,7 @@ const MobileSettingsPanel = () => {
           {/* Daily note template — same as web */}
           {obsidianConfig?.enabled && (
             <div>
-              <label className={`block text-sm ${textSecondary} mb-1`}>Daily note template</label>
+              <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianDailyNoteTemplate')}</label>
               <textarea
                 value={dailyNoteTemplate}
                 onChange={(e) => setDailyNoteTemplate(e.target.value)}
@@ -1467,10 +1465,10 @@ const MobileSettingsPanel = () => {
               />
             </div>
           )}
-          {obsidianSyncStatus === 'success' && <p className="text-xs text-green-500">Sync complete</p>}
-          {obsidianSyncStatus === 'error' && <p className="text-xs text-red-500">Sync failed — check that vault is configured</p>}
+          {obsidianSyncStatus === 'success' && <p className="text-xs text-green-500">{t('settings.obsidianSyncComplete')}</p>}
+          {obsidianSyncStatus === 'error' && <p className="text-xs text-red-500">{t('settings.obsidianSyncFailed')}</p>}
           {obsidianLastSynced && obsidianConfig?.enabled && (
-            <p className={`text-xs ${textSecondary}`}>Last synced: {new Date(obsidianLastSynced).toLocaleString()}</p>
+            <p className={`text-xs ${textSecondary}`}>{t('common.lastSynced')}: {new Date(obsidianLastSynced).toLocaleString()}</p>
           )}
         </div>
       ) : obsidianConfig?.enabled ? (
@@ -1481,7 +1479,7 @@ const MobileSettingsPanel = () => {
             <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
           </div>
           <div>
-            <label className={`block text-sm ${textSecondary} mb-1`}>Daily notes folder</label>
+            <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianDailyNotesFolder')}</label>
             <input
               type="text"
               placeholder="(vault root)"
@@ -1492,7 +1490,7 @@ const MobileSettingsPanel = () => {
             <p className={`text-xs ${textSecondary} mt-1`}>Leave empty for vault root. Common: "Daily Notes" or "journals"</p>
           </div>
           <div>
-            <label className={`block text-sm ${textSecondary} mb-1`}>New notes folder</label>
+            <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianNewNotesFolder')}</label>
             <input
               type="text"
               placeholder="dayGLANCE"
@@ -1503,7 +1501,7 @@ const MobileSettingsPanel = () => {
             <p className={`text-xs ${textSecondary} mt-1`}>Where new notes created in dayGLANCE are saved. Leave empty for vault root.</p>
           </div>
           <div>
-            <label className={`block text-sm ${textSecondary} mb-1`}>Filename pattern</label>
+            <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianFilenamePattern')}</label>
             <input
               type="text"
               placeholder="yyyy-MM-dd"
@@ -1514,7 +1512,7 @@ const MobileSettingsPanel = () => {
             <p className={`text-xs ${textSecondary} mt-1`}>Date pattern for daily note filenames (without .md). e.g. "yyyy-MM-dd", "dd-MM-yyyy", "MMMM dd, yyyy"</p>
           </div>
           <div>
-            <label className={`block text-sm ${textSecondary} mb-1`}>Task heading</label>
+            <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianTaskHeading')}</label>
             <input
               type="text"
               placeholder="## Tasks"
@@ -1525,7 +1523,7 @@ const MobileSettingsPanel = () => {
             <p className={`text-xs ${textSecondary} mt-1`}>Markdown heading under which new tasks are appended in daily notes.</p>
           </div>
           <div>
-            <label className={`block text-sm ${textSecondary} mb-1`}>Daily note template</label>
+            <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianDailyNoteTemplate')}</label>
             <textarea
               value={dailyNoteTemplate}
               onChange={(e) => setDailyNoteTemplate(e.target.value)}
@@ -1558,10 +1556,10 @@ const MobileSettingsPanel = () => {
               Disconnect
             </button>
           </div>
-          {obsidianSyncStatus === 'success' && <p className="text-xs text-green-500">Sync complete</p>}
+          {obsidianSyncStatus === 'success' && <p className="text-xs text-green-500">{t('settings.obsidianSyncComplete')}</p>}
           {obsidianSyncStatus === 'error' && <p className="text-xs text-red-500">Sync failed{obsidianSyncError ? `: ${obsidianSyncError}` : ''}</p>}
           {obsidianLastSynced && (
-            <p className={`text-xs ${textSecondary}`}>Last synced: {new Date(obsidianLastSynced).toLocaleString()}</p>
+            <p className={`text-xs ${textSecondary}`}>{t('common.lastSynced')}: {new Date(obsidianLastSynced).toLocaleString()}</p>
           )}
         </div>
       ) : (
@@ -1617,11 +1615,11 @@ const MobileSettingsPanel = () => {
           className={`flex items-center gap-2 ${textSecondary} mb-2`}
         >
           <ChevronLeft size={18} />
-          <span className="text-sm font-medium">Settings</span>
+          <span className="text-sm font-medium">{t('common.settings')}</span>
         </button>
         <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
           <Activity size={18} className={intentForm.webdavUrl ? 'text-blue-500' : textSecondary} />
-          GLANCE Integrations
+          {t('settings.glanceIntegrations')}
         </h4>
         <p className={`text-xs ${textSecondary} -mt-3`}>
           Connect dayGLANCE to other Glance-compatible apps via a shared WebDAV event log.
@@ -1629,10 +1627,10 @@ const MobileSettingsPanel = () => {
 
         {/* WebDAV endpoint */}
         <div>
-          <h5 className={sectionCls}>WebDAV Endpoint</h5>
+          <h5 className={sectionCls}>{t('settings.glanceWebdavEndpoint')}</h5>
           <div className="space-y-3">
             <div>
-              <label className={labelCls}>Server URL</label>
+              <label className={labelCls}>{t('settings.glanceServerUrl')}</label>
               <input
                 type="url"
                 placeholder="https://nextcloud.example.com/remote.php/dav/files/user"
@@ -1644,7 +1642,7 @@ const MobileSettingsPanel = () => {
               />
             </div>
             <div>
-              <label className={labelCls}>Username</label>
+              <label className={labelCls}>{t('common.username')}</label>
               <input
                 type="text"
                 placeholder="your-username"
@@ -1656,7 +1654,7 @@ const MobileSettingsPanel = () => {
               />
             </div>
             <div>
-              <label className={labelCls}>App password</label>
+              <label className={labelCls}>{t('settings.appPassword')}</label>
               <input
                 type="password"
                 placeholder="••••••••••••"
@@ -1666,7 +1664,7 @@ const MobileSettingsPanel = () => {
               />
             </div>
             <div>
-              <label className={labelCls}>Events path</label>
+              <label className={labelCls}>{t('settings.glanceEventsPath')}</label>
               <input
                 type="text"
                 placeholder="/GLANCE/events/"
@@ -1683,10 +1681,10 @@ const MobileSettingsPanel = () => {
 
         {/* Poll cadence */}
         <div>
-          <h5 className={sectionCls}>Poll Cadence</h5>
+          <h5 className={sectionCls}>{t('settings.glancePollCadence')}</h5>
           <div className="space-y-3">
             <div>
-              <label className={labelCls}>Foreground interval</label>
+              <label className={labelCls}>{t('settings.glanceForegroundPoll')}</label>
               <select
                 value={intentForm.foregroundInterval}
                 onChange={e => setIntentForm(p => ({ ...p, foregroundInterval: Number(e.target.value) }))}
@@ -1699,7 +1697,7 @@ const MobileSettingsPanel = () => {
               <p className={`text-xs ${textSecondary} mt-1`}>How often to check for new events while the app is in the foreground.</p>
             </div>
             <div>
-              <label className={labelCls}>Background interval</label>
+              <label className={labelCls}>{t('settings.glanceBackgroundPoll')}</label>
               <select
                 value={intentForm.backgroundInterval}
                 onChange={e => setIntentForm(p => ({ ...p, backgroundInterval: Number(e.target.value) }))}
@@ -1716,9 +1714,9 @@ const MobileSettingsPanel = () => {
 
         {/* Retention */}
         <div>
-          <h5 className={sectionCls}>Maintenance</h5>
+          <h5 className={sectionCls}>{t('settings.glanceMaintenance')}</h5>
           <div>
-            <label className={labelCls}>Retention (days)</label>
+            <label className={labelCls}>{t('settings.glanceRetentionDays')}</label>
             <input
               type="number"
               min={1}
@@ -1733,7 +1731,7 @@ const MobileSettingsPanel = () => {
 
         {/* Encryption */}
         <div>
-          <h5 className={sectionCls}>Encryption</h5>
+          <h5 className={sectionCls}>{t('settings.glanceEncryption')}</h5>
           <div className={`flex items-start gap-3 p-3 rounded-lg border ${borderClass} ${cloudSyncConfig?.encryptionEnabled ? '' : 'opacity-60'}`}>
             <input
               type="checkbox"
@@ -1876,13 +1874,13 @@ const MobileSettingsPanel = () => {
 
         {/* Activity log shortcut */}
         <div>
-          <h5 className={sectionCls}>Activity</h5>
+          <h5 className={sectionCls}>{t('settings.glanceActivity')}</h5>
           <button
             onClick={() => setShowIntentActivityLog(true)}
             className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
           >
             <Activity size={20} className={textSecondary} />
-            <span className={`font-medium ${textPrimary} flex-1 text-left`}>Intent Activity Log</span>
+            <span className={`font-medium ${textPrimary} flex-1 text-left`}>{t('settings.glanceActivityLog')}</span>
             <ChevronRight size={18} className={textSecondary} />
           </button>
         </div>
@@ -1898,7 +1896,7 @@ const MobileSettingsPanel = () => {
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
       >
         <ChevronLeft size={18} />
-        <span className="text-sm font-medium">Settings</span>
+        <span className="text-sm font-medium">{t('common.settings')}</span>
       </button>
 
       {/* Tab switcher — only show when AI scheduling is enabled */}
@@ -2026,14 +2024,14 @@ const MobileSettingsPanel = () => {
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
       >
         <ChevronLeft size={18} />
-        <span className="text-sm font-medium">Settings</span>
+        <span className="text-sm font-medium">{t('common.settings')}</span>
       </button>
 
       {/* Enable/disable toggle */}
       <div className={`flex items-center justify-between p-4 rounded-xl border ${borderClass} ${cardBg}`}>
         <div className="flex items-center gap-3">
           <Activity size={20} className={habitsEnabled ? 'text-green-500' : textSecondary} />
-          <span className={`text-sm font-medium ${textPrimary}`}>Habits</span>
+          <span className={`text-sm font-medium ${textPrimary}`}>{t('settings.habitTracking')}</span>
         </div>
         <button
           onClick={() => { if (!habitsEnabled) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setHabitsEnabled(!habitsEnabled); }}
@@ -2052,7 +2050,7 @@ const MobileSettingsPanel = () => {
               return (
                 <div className="space-y-4">
                   <div>
-                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Name</label>
+                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('common.name')}</label>
                     <input
                       type="text"
                       placeholder="e.g., Drink water"
@@ -2063,16 +2061,16 @@ const MobileSettingsPanel = () => {
                     />
                   </div>
                   <div>
-                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Type</label>
+                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('common.type')}</label>
                     <div className="flex gap-2">
                       <button
                         onClick={() => setEditingHabit(prev => ({ ...prev, type: 'doMore' }))}
                         className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors ${editingHabit.type === 'doMore' ? 'bg-blue-600 text-white' : (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-100 text-stone-700')}`}
-                      >Do More</button>
+                      >{t('habit.doMore')}</button>
                       <button
                         onClick={() => setEditingHabit(prev => ({ ...prev, type: 'limit' }))}
                         className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors ${editingHabit.type === 'limit' ? 'bg-red-600 text-white' : (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-100 text-stone-700')}`}
-                      >Limit</button>
+                      >{t('habit.limit')}</button>
                     </div>
                     <p className={`text-xs ${textSecondary} mt-1`}>{editingHabit.type === 'doMore' ? 'Track progress toward a daily goal' : 'Track consumption against a daily ceiling'}</p>
                   </div>
@@ -2088,7 +2086,7 @@ const MobileSettingsPanel = () => {
                       />
                     </div>
                     <div className="flex-1">
-                      <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Unit</label>
+                      <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('common.unit')}</label>
                       <input
                         type="text"
                         placeholder="e.g., glasses"
@@ -2104,7 +2102,7 @@ const MobileSettingsPanel = () => {
                     const days = editingHabit.scheduledDays ?? [0, 1, 2, 3, 4, 5, 6];
                     return (
                       <div>
-                        <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Active days</label>
+                        <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('habit.activeDays')}</label>
                         <div className="flex gap-1.5">
                           {DOW_LABELS.map((label, idx) => {
                             const active = days.includes(idx);
@@ -2136,7 +2134,7 @@ const MobileSettingsPanel = () => {
                     );
                   })()}
                   <div>
-                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Icon</label>
+                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('common.icon')}</label>
                     <div className="flex flex-wrap gap-2">
                       {HABIT_ICON_NAMES.map(name => {
                         const Icon = HABIT_ICONS[name];
@@ -2153,7 +2151,7 @@ const MobileSettingsPanel = () => {
                     </div>
                   </div>
                   <div>
-                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Color</label>
+                    <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('common.color')}</label>
                     <div className="flex flex-wrap gap-2">
                       {HABIT_COLORS.map(c => (
                         <button
@@ -2168,7 +2166,7 @@ const MobileSettingsPanel = () => {
                     <button
                       onClick={() => setEditingHabit(null)}
                       className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'} transition-colors`}
-                    >Cancel</button>
+                    >{t('common.cancel')}</button>
                     <button
                       onClick={() => {
                         if (!editingHabit.name?.trim()) return;
@@ -2177,7 +2175,7 @@ const MobileSettingsPanel = () => {
                       }}
                       disabled={!editingHabit.name?.trim() || !editingHabit.target}
                       className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >{isNew ? 'Add Habit' : 'Save'}</button>
+                    >{isNew ? t('habit.addHabit') : t('common.save')}</button>
                   </div>
                 </div>
               );
@@ -2188,8 +2186,8 @@ const MobileSettingsPanel = () => {
               {activeHabits.length === 0 ? (
                 <div className={`text-center py-8 ${textSecondary}`}>
                   <Activity size={40} className="mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">No habits yet</p>
-                  <p className="text-xs mt-1">Add a habit to start tracking</p>
+                  <p className="text-sm">{t('habit.noHabitsYet')}</p>
+                  <p className="text-xs mt-1">{t('habit.addHabitHint')}</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -2260,7 +2258,7 @@ const MobileSettingsPanel = () => {
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-blue-500/30 text-blue-500 text-sm font-medium hover:bg-blue-500/5 transition-colors"
                 >
                   <Plus size={16} />
-                  Add Habit
+                  {t('habit.addHabit')}
                 </button>
               )}
               {window.DayGlanceNative && !activeHabits.some(h => h.source === 'healthConnect' && h.unit === 'steps') && activeHabits.length < 8 && (
@@ -2317,7 +2315,7 @@ const MobileSettingsPanel = () => {
               )}
               {habits.filter(h => h.archived).length > 0 && (
                 <div className="pt-2">
-                  <h4 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} mb-2`}>Archived</h4>
+                  <h4 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} mb-2`}>{t('common.archived')}</h4>
                   <div className="space-y-1">
                     {habits.filter(h => h.archived).map(habit => {
                       const IconComp = HABIT_ICONS[habit.icon] || Target;
@@ -2326,8 +2324,8 @@ const MobileSettingsPanel = () => {
                         <div key={habit.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-800/50' : 'bg-stone-50'} opacity-60`}>
                           <IconComp size={16} style={{ color: colorObj.ring }} />
                           <span className={`text-sm flex-1 ${textPrimary}`}>{habit.name}</span>
-                          <button onClick={() => updateHabit(habit.id, { archived: false })} className="text-xs text-blue-500 font-medium px-2 py-1 rounded hover:bg-blue-500/10">Restore</button>
-                          <button onClick={() => deleteHabit(habit.id)} className="text-xs text-red-500 font-medium px-2 py-1 rounded hover:bg-red-500/10">Delete</button>
+                          <button onClick={() => updateHabit(habit.id, { archived: false })} className="text-xs text-blue-500 font-medium px-2 py-1 rounded hover:bg-blue-500/10">{t('common.restore')}</button>
+                          <button onClick={() => deleteHabit(habit.id)} className="text-xs text-red-500 font-medium px-2 py-1 rounded hover:bg-red-500/10">{t('common.delete')}</button>
                         </div>
                       );
                     })}
@@ -2349,14 +2347,14 @@ const MobileSettingsPanel = () => {
         className={`flex items-center gap-2 ${textSecondary} mb-2`}
       >
         <ChevronLeft size={18} />
-        <span className="text-sm font-medium">Settings</span>
+        <span className="text-sm font-medium">{t('common.settings')}</span>
       </button>
 
       {/* Enable/disable toggle */}
       <div className={`flex items-center justify-between p-4 rounded-xl border ${borderClass} ${cardBg}`}>
         <div className="flex items-center gap-3">
           <Sparkles size={20} className={routinesEnabled ? 'text-teal-500' : textSecondary} />
-          <span className={`text-sm font-medium ${textPrimary}`}>Routines</span>
+          <span className={`text-sm font-medium ${textPrimary}`}>{t('settings.routines')}</span>
         </div>
         <button
           onClick={() => { if (!routinesEnabled) setOnboardingProgress(prev => ({ ...prev, hasEnabledOptionalFeature: true })); setRoutinesEnabled(!routinesEnabled); }}
@@ -2381,8 +2379,8 @@ const MobileSettingsPanel = () => {
       {/* Enable toggle */}
       <div className="flex items-center justify-between gap-3 py-1">
         <div>
-          <p className={`text-sm font-medium ${textPrimary}`}>Multi-user mode</p>
-          <p className={`text-xs ${textSecondary}`}>Tag chores with specific household members</p>
+          <p className={`text-sm font-medium ${textPrimary}`}>{t('settings.multiUserMode')}</p>
+          <p className={`text-xs ${textSecondary}`}>{t('settings.multiUserModeHint')}</p>
         </div>
         <button
           type="button"
@@ -2462,8 +2460,8 @@ const MobileSettingsPanel = () => {
                       setMuEditingUserId(null);
                     }}
                     className="px-2 py-1 bg-blue-600 text-white rounded-lg text-xs"
-                  >Save</button>
-                  <button type="button" onClick={() => setMuEditingUserId(null)} className={`px-2 py-1 rounded-lg text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>Cancel</button>
+                  >{t('common.save')}</button>
+                  <button type="button" onClick={() => setMuEditingUserId(null)} className={`px-2 py-1 rounded-lg text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>{t('common.cancel')}</button>
                 </>
               ) : (
                 <>
@@ -2480,7 +2478,7 @@ const MobileSettingsPanel = () => {
                       ? 'border-green-500 bg-green-500/20 text-green-400'
                       : `${borderClass} ${darkMode ? 'bg-transparent text-gray-400' : 'bg-transparent text-stone-500'}`}`}
                   >{meUserSyncId === (u.syncId ?? u.id) ? '✓ Me' : 'Me'}</button>
-                  <button type="button" onClick={() => { setMuEditingUserId(u.id); setMuEditingUserName(u.name); }} className={`px-2 py-1 rounded-lg text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>Edit</button>
+                  <button type="button" onClick={() => { setMuEditingUserId(u.id); setMuEditingUserName(u.name); }} className={`px-2 py-1 rounded-lg text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>{t('common.edit')}</button>
                   <button
                     type="button"
                     onClick={() => {
@@ -2493,7 +2491,7 @@ const MobileSettingsPanel = () => {
                       }
                     }}
                     className="px-2 py-1 rounded-lg text-xs bg-red-500/20 text-red-500"
-                  >Remove</button>
+                  >{t('common.remove')}</button>
                 </>
               )}
             </div>
@@ -2538,8 +2536,8 @@ const MobileSettingsPanel = () => {
                 setMuAddingUser(false);
               }}
               className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm"
-            >Add</button>
-            <button type="button" onClick={() => { setMuAddingUser(false); setMuNewUserName(''); }} className={`px-2 py-1 rounded-lg text-sm ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>Cancel</button>
+            >{t('common.add')}</button>
+            <button type="button" onClick={() => { setMuAddingUser(false); setMuNewUserName(''); }} className={`px-2 py-1 rounded-lg text-sm ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>{t('common.cancel')}</button>
           </div>
         ) : (
           <button
@@ -2547,7 +2545,7 @@ const MobileSettingsPanel = () => {
             onClick={() => setMuAddingUser(true)}
             className={`mt-3 w-full ${cardBg} border ${borderClass} rounded-xl p-3 flex items-center justify-center gap-2 ${darkMode ? 'text-blue-400' : 'text-blue-600'} text-sm font-medium`}
           >
-            <Plus size={16} /> Add person
+            <Plus size={16} /> {t('common.addPerson')}
           </button>
         )}
       </div>
@@ -2556,7 +2554,7 @@ const MobileSettingsPanel = () => {
       {/* Users sync path (only shown when cloud sync is configured) */}
       {cloudSyncConfig?.enabled && (
         <div>
-          <label className={`block text-sm ${textSecondary} mb-1`}>Users sync path</label>
+          <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.usersSyncPath')}</label>
           <input
             type="text"
             placeholder="/GLANCE/users/"

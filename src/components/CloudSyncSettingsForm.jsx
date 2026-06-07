@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { setupEncryptionKey, setSyncPassphrase, clearEncryptionKey } from '../utils/crypto.js';
+import { useTranslation } from 'react-i18next';
 
 // Cloud sync settings form (extracted to avoid hooks-in-conditional issues)
 const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, provider, currentProvider, onClose, cloudSyncLastSynced, cloudSyncStatus, cloudSyncError, onSyncKeyReady }) => {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState(() => {
     const initial = {
       provider: currentProvider,
@@ -94,13 +96,13 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
             className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
           />
           {field.type === 'password' && (
-            <p className={`text-xs ${textSecondary} mt-0.5`}>Stored in browser localStorage — keep your device secure.</p>
+            <p className={`text-xs ${textSecondary} mt-0.5`}>{t('settings.aiApiKeyHint')}</p>
           )}
         </div>
       ))}
 
       <div>
-        <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Sync folder</label>
+        <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('settings.syncFolder')}</label>
         <input
           type="text"
           placeholder="GLANCE/dayglance"
@@ -128,7 +130,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
             }}
             className="w-5 h-5 rounded flex-shrink-0"
           />
-          <span className={`text-sm font-medium ${textPrimary}`}>Enable end-to-end encryption</span>
+          <span className={`text-sm font-medium ${textPrimary}`}>{t('settings.enableE2EEncryption')}</span>
         </label>
 
         {encryptionEnabled && (

@@ -21,6 +21,7 @@ import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { useTranslation } from 'react-i18next';
 
 const CalendarHeader = () => {
   const {
@@ -82,6 +83,7 @@ const CalendarHeader = () => {
     getNextQuarterHour,
     addTasksFromSelection,
   } = useDayPlannerCtx();
+  const { t } = useTranslation();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
   const {
     focusLog, setFocusLogModalDate,
@@ -354,7 +356,7 @@ const CalendarHeader = () => {
   return (
     <div className={`flex items-center gap-2 px-4 py-1.5 text-xs font-semibold ${darkMode ? 'bg-amber-900/40 text-amber-300 border-b border-amber-700/40' : 'bg-amber-50 text-amber-800 border-b border-amber-200'}`}>
       <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-      <span className="truncate">Now: {renderTitle(runningTask.title)}</span>
+      <span className="truncate">{t('common.now')}: {renderTitle(runningTask.title)}</span>
     </div>
   );
 })()}
@@ -369,7 +371,7 @@ const CalendarHeader = () => {
       className={`flex-shrink-0 border-r ${borderClass} flex items-center justify-center`}
       style={{ width: WEEK_GUTTER_W, minHeight: '28px' }}
     >
-      <span className={`text-[10px] font-semibold ${textSecondary} uppercase tracking-wide`}>All day</span>
+      <span className={`text-[10px] font-semibold ${textSecondary} uppercase tracking-wide`}>{t('task.allDay')}</span>
     </div>
     {weekViewDates.map((date, idx) => {
       const dateStr = dateToString(date);
@@ -610,7 +612,7 @@ const CalendarHeader = () => {
                   <>
                     <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${isRecurringAllDay ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                       {isRecurringAllDay ? (
-                        <><Trash2 size={14} className="mr-1" />Delete</>
+                        <><Trash2 size={14} className="mr-1" />{t('common.delete')}</>
                       ) : (
                         <><Inbox size={14} className="mr-1" />Inbox</>
                       )}

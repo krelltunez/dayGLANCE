@@ -3,6 +3,7 @@ import { Calendar, Eye, Flag, Inbox, Settings } from 'lucide-react';
 import { isNativeAndroid } from '../native.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { useTranslation } from 'react-i18next';
 
 const MobileTabBar = () => {
   const {
@@ -13,6 +14,7 @@ const MobileTabBar = () => {
     filteredUnscheduledTasks, todayAgenda,
     goToToday,
   } = useDayPlannerCtx();
+  const { t } = useTranslation();
   const {
     goalsProjectsEnabled, goals, handleRoutinesDone,
   } = useFeaturesCtx();
@@ -41,7 +43,7 @@ const MobileTabBar = () => {
           className={`flex flex-col items-center justify-center ${showLabels ? 'gap-0.5' : ''} flex-1 h-full ${mobileActiveTab === 'dayglance' ? 'text-blue-500' : textSecondary}`}
         >
           <Eye size={iconSize} />
-          {showLabels && <span className="text-[10px] font-medium">GLANCE</span>}
+          {showLabels && <span className="text-[10px] font-medium">{t('common.glance')}</span>}
         </button>
         <button
           onClick={() => {
@@ -72,7 +74,7 @@ const MobileTabBar = () => {
               ) : null;
             })()}
           </div>
-          {showLabels && <span className="text-[10px] font-medium">Timeline</span>}
+          {showLabels && <span className="text-[10px] font-medium">{t('common.timeline')}</span>}
         </button>
         <button
           onClick={() => {
@@ -90,7 +92,7 @@ const MobileTabBar = () => {
               </span>
             )}
           </div>
-          {showLabels && <span className="text-[10px] font-medium">Inbox</span>}
+          {showLabels && <span className="text-[10px] font-medium">{t('task.inbox')}</span>}
         </button>
         {goalsProjectsEnabled && (
         <button
@@ -118,7 +120,7 @@ const MobileTabBar = () => {
           className={`flex flex-col items-center justify-center ${showLabels ? 'gap-0.5' : ''} flex-1 h-full ${mobileActiveTab === 'settings' ? 'text-blue-500' : textSecondary}`}
         >
           <Settings size={iconSize} />
-          {showLabels && <span className="text-[10px] font-medium">Settings</span>}
+          {showLabels && <span className="text-[10px] font-medium">{t('common.settings')}</span>}
         </button>
       </div>
     </div>
