@@ -1314,6 +1314,64 @@ const DayPlanner = () => {
         refreshHealthPermsRef.current?.();
         syncHealthConnectHabitsRef.current?.();
       }, 0));
+      // Phase 10/11 — drain pending actions written by native extensions while
+      // the app was backgrounded (widget intents, quick actions, deep links,
+      // Spotlight taps, share extension).
+      if (window.DayGlanceNative?.getPendingDeepLink) {
+        const rawLink = window.DayGlanceNative.getPendingDeepLink();
+        if (rawLink && rawLink !== 'null') {
+          const link = rawLink.replace(/^"|"$/g, '');
+          try {
+            const url = new URL(link);
+            const action = url.pathname.replace(/^\/+/, '') || url.hostname;
+            const taskId = url.searchParams.get('id');
+            if (action === 'task' && taskId) {
+              // Spotlight tap — scroll task into view by dispatching an event
+              // the task list listens for (same pattern as search highlight).
+              window.dispatchEvent(new CustomEvent('dayglanceOpenTask', { detail: { taskId } }));
+            } else if (action === 'newScheduledTask') {
+              setShowAddTask(true);
+            } else if (action === 'newInboxTask') {
+              openNewInboxTaskRef.current?.();
+            } else if (action === 'startFocus') {
+              setShowFocusMode(true);
+            }
+          } catch (_) {}
+        }
+      }
+      if (window.DayGlanceNative?.getPendingShortcutAction) {
+        const rawAction = window.DayGlanceNative.getPendingShortcutAction();
+        if (rawAction && rawAction !== 'null') {
+          const action = rawAction.replace(/^"|"$/g, '');
+          if (action === 'com.dayglance.newScheduledTask') setShowAddTask(true);
+          else if (action === 'com.dayglance.newInboxTask') openNewInboxTaskRef.current?.();
+          else if (action === 'com.dayglance.startFocus') setShowFocusMode(true);
+          // com.dayglance.openToday — app is already on today view; nothing extra needed
+        }
+      }
+      if (window.DayGlanceNative?.getShareExtensionPending) {
+        try {
+          const raw = window.DayGlanceNative.getShareExtensionPending();
+          const items = JSON.parse(raw);
+          if (Array.isArray(items) && items.length > 0) {
+            items.forEach(text => {
+              const { title: shareTitle, notes: shareNotes } = extractShareTitle(text);
+              setNewTask({
+                title: shareTitle,
+                notes: shareNotes || undefined,
+                startTime: getNextQuarterHour(),
+                duration: 30,
+                date: dateToString(selectedDate),
+                isAllDay: false,
+                openInInbox: true,
+                deadline: null,
+                priority: 0,
+              });
+              setShowAddTask(true);
+            });
+          }
+        } catch (_) {}
+      }
     };
     document.addEventListener('visibilitychange', handleVisibility);
     document.addEventListener('dayglanceForeground', handleNativeForeground);
@@ -1472,6 +1530,7 @@ const DayPlanner = () => {
   // cross-platform users (+ Android) keep WebDAV for that leg.
   // Uses the same cloudSyncInProgressRef lock to serialise with WebDAV.
   const iCloudSyncRef = useRef(null);
+  const openNewInboxTaskRef = useRef(null);
   const iCloudAvailableRef = useRef(null); // null=unchecked, true/false=result
   const iCloudLastWriteAtRef = useRef(0);
 
@@ -6604,6 +6663,9 @@ const DayPlanner = () => {
         }
       : null,
   });
+  // Keep a stable ref so the foreground handler (defined earlier in the component)
+  // can call openNewInboxTask without needing it in its closure.
+  openNewInboxTaskRef.current = openNewInboxTask;
 
   // Wire up TDZ-safe refs for useDragDrop (see refs declared before the hook call).
   moveToRecycleBinRef.current = moveToRecycleBin;
@@ -7176,6 +7238,23 @@ const DayPlanner = () => {
     goals,
     goalsProjectsEnabled,
   ]);
+
+  // Phase 11 — Spotlight indexing: keep Spotlight in sync with non-archived,
+  // non-completed tasks so they're searchable from iOS Spotlight.
+  useEffect(() => {
+    if (!window.DayGlanceNative?.indexSpotlight) return;
+    if (!dataLoaded) return;
+    const allTasks = [...tasks, ...unscheduledTasks].filter(t => !t.archived && !t.completed);
+    const items = allTasks.map(t => ({
+      id: t.id,
+      title: t.title.replace(/\[\[[^\]]*\]\]/g, '').replace(/#\S+/g, '').replace(/\s+/g, ' ').trim(),
+      date: t.date || t.startTime || undefined,
+      notes: (t.notes || '').substring(0, 500) || undefined,
+    }));
+    try {
+      window.DayGlanceNative.indexSpotlight(JSON.stringify(items));
+    } catch (_) {}
+  }, [dataLoaded, tasks, unscheduledTasks]);
 
   // GTD Frame CRUD operations
   const saveFrame = (frame) => {
