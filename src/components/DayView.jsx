@@ -30,7 +30,6 @@ function getTaskSlice(task, col, hourHeight, timeToMinutes) {
     height: Math.max(27, rawH),
     clippedTop: taskStart < colStart,
     clippedBottom: taskEnd > colEnd,
-    showTitle: taskStart >= colStart,
   };
 }
 
@@ -355,7 +354,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
             const slice = getTaskSlice(task, col, hourHeight, timeToMinutes);
             if (!slice) return null;
 
-            const { top, height, clippedTop, clippedBottom, showTitle } = slice;
+            const { top, height, clippedTop, clippedBottom } = slice;
             const { left, width } = columnConflictPos(task, colTasks, timeToMinutes);
 
             const isImported = task.imported;
@@ -420,14 +419,12 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                     <ChevronUp size={12} className="text-white/70" />
                   </div>
                 )}
-                {showTitle && (
-                  <TimelineTaskCardContent
-                    task={task}
-                    height={height}
-                    isNarrowWidth={false}
-                    flipNotesPanel={(8 * hourHeight) - (top + height) < 200}
-                  />
-                )}
+                <TimelineTaskCardContent
+                  task={task}
+                  height={height}
+                  isNarrowWidth={false}
+                  flipNotesPanel={(8 * hourHeight) - (top + height) < 200}
+                />
                 {clippedBottom && (
                   <div className="absolute bottom-0 left-0 right-0 flex justify-center pointer-events-none">
                     <ChevronDown size={12} className="text-white/70" />

@@ -3176,6 +3176,7 @@ const DayPlanner = () => {
               completed: false,
               notes: '',
               subtasks: [],
+              assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds,
             }]);
           } else {
             setRecurringTasks(prev => prev.map(t => {
@@ -3191,6 +3192,7 @@ const DayPlanner = () => {
                       duration: newTask.duration,
                       isAllDay: newTask.isAllDay || false,
                       color: newTask.color || colors[0].class,
+                      assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds,
                     }
                   }
                 };
@@ -3220,6 +3222,7 @@ const DayPlanner = () => {
         recurrence: { ...newTask.recurrence, startDate: taskDate },
         completedDates: existingTask?.completed ? [taskDate] : [],
         exceptions: {},
+        assignedUserSyncIds: newTask.assignedUserSyncIds || existingTask?.assignedUserSyncIds,
         lastModified: new Date().toISOString()
       };
       setTasks(prev => prev.filter(t => t.id !== taskId));
@@ -5979,6 +5982,7 @@ const DayPlanner = () => {
           color: exception?.color ?? template.color,
           completed,
           isAllDay: exception?.isAllDay ?? template.isAllDay ?? false,
+          assignedUserSyncIds: exception?.assignedUserSyncIds ?? template.assignedUserSyncIds,
           notes: template.notes || '',
           subtasks: template.subtasks || [],
           date: dateStr,
