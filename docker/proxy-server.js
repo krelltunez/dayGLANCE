@@ -24,39 +24,9 @@ function validateProxyUrl(urlString) {
     throw new Error('Only http and https URLs are allowed');
   }
 
-  const hostname = parsed.hostname.toLowerCase();
-
-  if (hostname === 'localhost' || hostname === '0.0.0.0') {
-    throw new Error('Private/reserved addresses are not allowed');
-  }
-
-  const ipv4 = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (ipv4) {
-    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
-    if (
-      a === 10 ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      a === 127 ||
-      (a === 169 && b === 254) ||
-      a === 0 ||
-      (a === 100 && b >= 64 && b <= 127)
-    ) {
-      throw new Error('Private/reserved addresses are not allowed');
-    }
-  }
-
-  if (
-    hostname === '::1' ||
-    hostname === '::' ||
-    /^::ffff:/i.test(hostname) ||
-    /^fe80:/i.test(hostname) ||
-    /^fc/i.test(hostname) ||
-    /^fd/i.test(hostname)
-  ) {
-    throw new Error('Private/reserved addresses are not allowed');
-  }
-
+  // This server runs only in self-hosted Docker deployments, where users need
+  // to reach WebDAV/calendar servers on their local network. Private IP ranges
+  // are intentionally allowed here; SSRF checks are only enforced on Vercel.
   return parsed;
 }
 

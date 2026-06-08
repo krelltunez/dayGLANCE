@@ -10,6 +10,10 @@ function validateProxyUrl(urlString) {
     throw new Error('Only http and https URLs are allowed');
   }
 
+  // SSRF protection only applies on Vercel. Self-hosted Docker deployments need
+  // to reach calendar servers on the local network, so we skip these checks there.
+  if (!process.env.VERCEL) return parsed;
+
   const hostname = parsed.hostname.toLowerCase();
 
   if (hostname === 'localhost' || hostname === '0.0.0.0') {
