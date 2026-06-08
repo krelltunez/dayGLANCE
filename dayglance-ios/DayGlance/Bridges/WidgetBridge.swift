@@ -7,7 +7,10 @@ final class WidgetBridge {
     static let shared = WidgetBridge()
 
     func updateSnapshot(_ json: String) {
-        guard let data = json.data(using: .utf8),
+        // Widgets are killed at 30 MB with no warning. Cap stored JSON at 200 KB —
+        // safely under that limit even with the full snapshot structure.
+        guard json.utf8.count <= 200_000,
+              let data = json.data(using: .utf8),
               let defaults = UserDefaults(suiteName: "group.com.dayglance.app") else { return }
         defaults.set(data, forKey: "widgetSnapshot")
         WidgetCenter.shared.reloadAllTimelines()

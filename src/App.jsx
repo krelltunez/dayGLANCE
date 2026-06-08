@@ -1470,6 +1470,20 @@ const DayPlanner = () => {
     }
   }, [dataLoaded]);
 
+  // Drain pending quick-action shortcut when data finishes loading. This covers
+  // the case where the app was killed when the user tapped a home screen shortcut —
+  // dayglanceForeground fires before dataLoaded is true so the action would be missed.
+  useEffect(() => {
+    if (!dataLoaded) return;
+    if (!window.DayGlanceNative?.getPendingShortcutAction) return;
+    const rawAction = window.DayGlanceNative.getPendingShortcutAction();
+    if (!rawAction || rawAction === 'null') return;
+    const action = rawAction.replace(/^"|"$/g, '');
+    if (action === 'com.dayglance.newScheduledTask') setShowAddTask(true);
+    else if (action === 'com.dayglance.newInboxTask') openNewInboxTaskRef.current?.();
+    else if (action === 'com.dayglance.startFocus') setShowFocusMode(true);
+  }, [dataLoaded]);
+
   const writeConfigTimestamp = (key) => {
     if (!configTrackingActiveRef.current || applyingRemoteDataRef.current) return;
     localStorage.setItem(key, new Date().toISOString());

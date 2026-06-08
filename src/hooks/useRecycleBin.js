@@ -39,6 +39,11 @@ export default function useRecycleBin({
     const now = new Date().toISOString();
     recycleBin.forEach(t => { tombstones[String(t.id)] = now; });
     localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(tombstones));
+    // Deindex permanently deleted tasks from Spotlight so they don't linger.
+    try {
+      const ids = recycleBin.map(t => String(t.id));
+      if (ids.length > 0) window.DayGlanceNative?.deindexSpotlight?.(JSON.stringify(ids));
+    } catch (_) {}
     setRecycleBin([]);
     setShowEmptyBinConfirm(false);
     setShowMobileRecycleBin(false);

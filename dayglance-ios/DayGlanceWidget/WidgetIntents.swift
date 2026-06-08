@@ -1,6 +1,17 @@
 import AppIntents
 import WidgetKit
 
+// iOS 18.4 introduced stricter sandboxing for AppIntents running in the widget
+// process when the main app is not alive. ForegroundContinuableIntent routes the
+// intent through the main app process, avoiding entitlement errors.
+@available(iOS 17.0, *)
+@available(iOSApplicationExtension, unavailable)
+extension CompleteTaskIntent: ForegroundContinuableIntent {}
+
+@available(iOS 17.0, *)
+@available(iOSApplicationExtension, unavailable)
+extension StartFocusIntent: ForegroundContinuableIntent {}
+
 @available(iOS 17.0, *)
 struct CompleteTaskIntent: AppIntent {
     static let title: LocalizedStringResource = "Complete Task"

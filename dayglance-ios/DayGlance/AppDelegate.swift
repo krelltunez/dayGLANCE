@@ -4,6 +4,7 @@ import UserNotifications
 import RevenueCat
 import BackgroundTasks
 import CoreSpotlight
+import WidgetKit
 
 class AppDelegate: NSObject, UIApplicationDelegate {
 
@@ -28,8 +29,10 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
         // Phase 10 — Background widget refresh
         BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.dayglance.widgetrefresh", using: nil) { task in
-            // The background refresh just asks the WebView to re-push the snapshot.
-            NotificationCenter.default.post(name: .dayGlanceWidgetRefresh, object: nil)
+            // The WebView is suspended when this fires so posting a notification to it
+            // does nothing. Reload from whatever is already in the App Group container —
+            // it's the freshest data available without the app running.
+            WidgetCenter.shared.reloadAllTimelines()
             task.setTaskCompleted(success: true)
         }
 
