@@ -477,6 +477,52 @@ class NativeBridge(
     }
 
     /**
+     * Returns a pending intent as a JSON string { "action": "...", "payload": {...} },
+     * or "" if none is pending. Reads and clears the value atomically.
+     *
+     * Called by JS on every visibilitychange event (same cadence as getPendingAction).
+     */
+    @JavascriptInterface
+    fun getPendingIntent(): String {
+        val json = dataStore.pendingIntentJson ?: return ""
+        dataStore.pendingIntentJson = null
+        return json
+    }
+
+    /**
+     * Called by JS after handleIntent completes. Sends an app.dayglance.RESULT
+     * global broadcast so Tasker or other listeners can receive the outcome.
+     *
+     * Extras:
+     *   "action"  (String) — the action that was processed
+     *   "result"  (String) — the handleIntent result object as a JSON string
+     */
+    @JavascriptInterface
+    fun reportIntentResult(action: String, resultJson: String) {
+        val broadcast = Intent("app.dayglance.RESULT").apply {
+            putExtra("action", action)
+            putExtra("result", resultJson)
+        }
+        context.sendBroadcast(broadcast)
+    }
+
+    /**
+     * Called by useNotifyEmitter to broadcast an outbound notify event in parallel
+     * with WebDAV/iCloud, so Tasker or other local listeners can react to task
+     * state changes (completion, reschedule, update).
+     *
+     * Extra:
+     *   "payload" (String) — the full notify envelope as a JSON string
+     */
+    @JavascriptInterface
+    fun sendNotifyBroadcast(notifyJson: String) {
+        val broadcast = Intent("app.dayglance.NOTIFY").apply {
+            putExtra("payload", notifyJson)
+        }
+        context.sendBroadcast(broadcast)
+    }
+
+    /**
      * Called by JS once the app is interactive and the initial Obsidian sync
      * (if configured) has completed. Signals the native side to dismiss the
      * splash screen, which has been held to hide the blocking sync freeze.

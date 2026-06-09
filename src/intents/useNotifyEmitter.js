@@ -4,6 +4,7 @@ import { loadIntentsRootKey } from './intentsKeyStore.js';
 import { writeEventFile, writeEventFileICloud, INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from './useIntentPoller.js';
 import { logActivity } from './intentLog.js';
 import * as iCloudTransport from './icloudFileTransport.js';
+import { isNativeAndroid } from '../native';
 
 // The tray holds a read-only state snapshot. Any task-state changes in tray
 // mode (e.g. from an iCloud sync download) were already handled by the main
@@ -177,6 +178,11 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
             : buildEnvelope({ action: 'notify', payload, emittedBy: 'app.dayglance' });
           await writeEventFile(config, envelope);          // WebDAV (no-ops if not configured)
           await writeEventFileICloud(config, envelope);    // iCloud (no-ops if not available)
+          if (isNativeAndroid()) {
+            try {
+              window.DayGlanceNative?.sendNotifyBroadcast?.(JSON.stringify(envelope));
+            } catch (_) {}
+          }
           logActivity({
             direction: 'out',
             action: 'notify',

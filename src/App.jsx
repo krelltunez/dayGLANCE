@@ -75,6 +75,8 @@ import { getGlanceHGInstances, isHGSessionReachable } from './hooks/useHyperGlan
 import { useIntentPoller, INTENT_CONFIG_KEY } from './intents/useIntentPoller.js';
 import { useNotifyEmitter } from './intents/useNotifyEmitter.js';
 import { useGoalNotifyEmitter } from './intents/useGoalNotifyEmitter.js';
+import { useAndroidIntentBridge } from './intents/useAndroidIntentBridge.js';
+import { useUrlActionHandler } from './intents/useUrlActionHandler.js';
 import { syncSharedUsers, syncSharedUsersViaICloud } from './intents/sharedUsers.js';
 import useVoiceAI from './hooks/useVoiceAI.js';
 import useNavigation from './hooks/useNavigation.js';
@@ -748,6 +750,22 @@ const DayPlanner = () => {
     playUISound,
   });
 
+  // URL action handler: fires once on mount. Reads ?action= from the URL, dispatches
+  // through handleIntent (or shows a hint for 'query'), and shows a toast outcome.
+  useUrlActionHandler({
+    context: {
+      tasks, unscheduledTasks, recurringTasks, projects,
+      setTasks, setUnscheduledTasks, setRecurringTasks,
+      goals, addGoal, updateGoal, deleteGoal,
+      navigate: tab => {
+        const mobileTab = tab === 'glance' ? 'dayglance' : tab;
+        setMobileActiveTab(mobileTab);
+        if (tab === 'glance' || tab === 'inbox') setTabletActiveTab(tab === 'glance' ? 'glance' : 'inbox');
+      },
+    },
+    setUndoToast,
+  });
+
   const {
     showEmptyBinConfirm, setShowEmptyBinConfirm,
     showMobileRecycleBin, setShowMobileRecycleBin,
@@ -904,6 +922,18 @@ const DayPlanner = () => {
   });
   useNotifyEmitter({ tasks, unscheduledTasks });
   useGoalNotifyEmitter({ goals });
+
+  // Android intent transport: picks up pending intents on visibilitychange and calls handleIntent.
+  useAndroidIntentBridge({
+    tasks, unscheduledTasks, recurringTasks, projects,
+    setTasks, setUnscheduledTasks, setRecurringTasks,
+    goals, addGoal, updateGoal, deleteGoal,
+    navigate: tab => {
+      const mobileTab = tab === 'glance' ? 'dayglance' : tab;
+      setMobileActiveTab(mobileTab);
+      if (tab === 'glance' || tab === 'inbox') setTabletActiveTab(tab === 'glance' ? 'glance' : 'inbox');
+    },
+  });
 
   const {
     todayTasks,
