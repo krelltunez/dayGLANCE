@@ -2,9 +2,12 @@ package com.dayglance.app
 
 import android.Manifest
 import android.app.AlarmManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo
+import org.json.JSONObject
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
@@ -90,6 +93,19 @@ class MainActivity : AppCompatActivity() {
 
     // Shown at most once per session so we don't nag the user repeatedly
     private var exactAlarmPromptShown = false
+
+    // Receives the internal INTENT_RECEIVED broadcast sent by IntentReceiver and triggers
+    // a visibilitychange event in the WebView so JS picks up the pending intent immediately.
+    private val intentForwardReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            webView.post {
+                webView.evaluateJavascript(
+                    "(function(){ document.dispatchEvent(new Event('visibilitychange')); })();",
+                    null
+                )
+            }
+        }
+    }
 
     // Pending WebRTC permission request (microphone) waiting for Android runtime permission result
     private var pendingWebPermissionRequest: PermissionRequest? = null
@@ -360,6 +376,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        unregisterReceiver(intentForwardReceiver)
         super.onPause()
         // Show the overlay so the stale cached frame is hidden when the user returns.
         // dataStore.appDarkMode is the app's own dark/light preference (independent of the
@@ -392,6 +409,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        registerReceiver(
+            intentForwardReceiver,
+            IntentFilter(ACTION_INTENT_RECEIVED),
+            Context.RECEIVER_NOT_EXPORTED
+        )
         // webView.onResume() intentionally omitted — we don't call webView.onPause() either,
         // so the GPU surface stays live. Calling resume without a prior pause triggers a
         // surface invalidation that causes a blank-frame flash on return from background.
@@ -527,6 +549,10 @@ class MainActivity : AppCompatActivity() {
             ACTION_ADD_TASK       -> store.pendingAddTask = true
             ACTION_ADD_INBOX_TASK -> store.pendingAddInboxTask = true
             Intent.ACTION_SEND    -> storeShareIntent(intent, store)
+            "app.dayglance.CREATE",
+            "app.dayglance.COMPLETE",
+            "app.dayglance.OPEN",
+            "app.dayglance.QUERY" -> storeIntentAction(intent, store)
             else -> return
         }
         // The WebView is already loaded; trigger the JS check immediately.
@@ -555,11 +581,28 @@ class MainActivity : AppCompatActivity() {
         store.pendingShareText = combined.take(500)
     }
 
+    /**
+     * Stores a CREATE/COMPLETE/OPEN/QUERY Activity intent as pendingIntentJson so JS picks it
+     * up via NativeBridge.getPendingIntent() on the next visibilitychange event.
+     */
+    private fun storeIntentAction(intent: Intent, store: SharedDataStore) {
+        val action = intent.action ?: return
+        val payloadExtra = intent.getStringExtra("payload")
+        // Parse and re-serialize via JSONObject to prevent JSON injection.
+        val payloadObj = try {
+            if (payloadExtra != null) JSONObject(payloadExtra) else JSONObject()
+        } catch (e: Exception) {
+            JSONObject()
+        }
+        store.pendingIntentJson = JSONObject().put("action", action).put("payload", payloadObj).toString()
+    }
+
     companion object {
         private const val RC_PERMISSIONS = 1001
         private const val RC_MICROPHONE = 1002
         const val ACTION_VOICE_INPUT = "com.dayglance.app.ACTION_VOICE_INPUT"
         const val ACTION_ADD_TASK       = "com.dayglance.app.ACTION_ADD_TASK"
         const val ACTION_ADD_INBOX_TASK = "com.dayglance.app.ACTION_ADD_INBOX_TASK"
+        const val ACTION_INTENT_RECEIVED = "com.dayglance.app.INTENT_RECEIVED"
     }
 }

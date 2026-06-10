@@ -78,6 +78,23 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+            <!-- Intents transport: receive CREATE/COMPLETE/OPEN/QUERY as Activity intents (app already running) -->
+            <intent-filter>
+                <action android:name="app.dayglance.CREATE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="app.dayglance.COMPLETE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="app.dayglance.OPEN" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="app.dayglance.QUERY" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
@@ -205,6 +222,18 @@
             <intent-filter>
                 <action android:name="com.dayglance.app.ACTION_SNOOZE" />
                 <action android:name="com.dayglance.app.ACTION_COMPLETE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Intents transport: receives CREATE, COMPLETE, OPEN, QUERY broadcasts from Tasker/other apps -->
+        <receiver
+            android:name=".intents.IntentReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.dayglance.CREATE" />
+                <action android:name="app.dayglance.COMPLETE" />
+                <action android:name="app.dayglance.OPEN" />
+                <action android:name="app.dayglance.QUERY" />
             </intent-filter>
         </receiver>
 

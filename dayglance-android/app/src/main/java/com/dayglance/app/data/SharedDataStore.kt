@@ -167,6 +167,21 @@ class SharedDataStore(context: Context) {
             else remove(KEY_PENDING_FOCUS_ACTION)
         }
 
+    // ── Intents transport ───────────────────────────────────────────────────
+
+    /**
+     * JSON string of a pending intent received via broadcast or Activity intent.
+     * Format: { "action": "app.dayglance.CREATE", "payload": {...} }
+     * Written by IntentReceiver or MainActivity.onNewIntent(); read and cleared by
+     * NativeBridge.getPendingIntent().
+     */
+    var pendingIntentJson: String?
+        get() = prefs.getString(KEY_PENDING_INTENT_JSON, null)
+        set(value) = prefs.edit {
+            if (value != null) putString(KEY_PENDING_INTENT_JSON, value)
+            else remove(KEY_PENDING_INTENT_JSON)
+        }
+
     // ── Subscription ────────────────────────────────────────────────────────
 
     /** True when Google Play confirms an active subscription. Cached locally. */
@@ -247,6 +262,7 @@ class SharedDataStore(context: Context) {
         private const val KEY_PENDING_ADD_INBOX_TASK = "pending_add_inbox_task"
         private const val KEY_PENDING_SHARE = "pending_share_text"
         private const val KEY_PENDING_FOCUS_ACTION = "pending_focus_action"
+        private const val KEY_PENDING_INTENT_JSON = "pending_intent_json"
         private const val KEY_APP_DARK_MODE = "app_dark_mode"
         private const val KEY_LAST_UP_NEXT_BODY = "last_up_next_body"
         private const val KEY_SUBSCRIPTION_ACTIVE = "subscription_active"

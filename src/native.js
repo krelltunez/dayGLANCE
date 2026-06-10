@@ -370,6 +370,39 @@ export const nativeGetPendingAction = () => {
 };
 
 /**
+ * Reads and clears any pending intent stored by IntentReceiver or MainActivity.onNewIntent.
+ * Returns null if nothing is pending, or { action: 'app.dayglance.CREATE', payload: {...} }.
+ *
+ * Called on app focus / visibilitychange to pick up intents that arrived while backgrounded.
+ */
+export const nativeGetPendingIntent = () => {
+  const bridge = nativeBridge();
+  if (!bridge?.getPendingIntent) return null;
+  try {
+    const raw = bridge.getPendingIntent();
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Reports the result of a handled intent back to the native side, which sends
+ * an app.dayglance.RESULT global broadcast so Tasker or other listeners can
+ * receive the outcome.
+ *
+ * @param action     The action string that was processed (e.g. "app.dayglance.CREATE")
+ * @param resultJson The handleIntent result object serialised as a JSON string
+ */
+export const nativeReportIntentResult = (action, resultJson) => {
+  const bridge = nativeBridge();
+  if (!bridge?.reportIntentResult) return;
+  try {
+    bridge.reportIntentResult(action, resultJson);
+  } catch (_) {}
+};
+
+/**
  * Performs a native HTTP request (Android only), bypassing CORS and the
  * /api/webdav-proxy/ server. Used by WebDAV cloud sync providers.
  *

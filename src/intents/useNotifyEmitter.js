@@ -4,6 +4,7 @@ import { loadIntentsRootKey } from './intentsKeyStore.js';
 import { writeEventFile, writeEventFileICloud, INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from './useIntentPoller.js';
 import { logActivity } from './intentLog.js';
 import * as iCloudTransport from './icloudFileTransport.js';
+import { isNativeAndroid } from '../native';
 
 // The tray holds a read-only state snapshot. Any task-state changes in tray
 // mode (e.g. from an iCloud sync download) were already handled by the main
@@ -177,6 +178,14 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
             : buildEnvelope({ action: 'notify', payload, emittedBy: 'app.dayglance' });
           await writeEventFile(config, envelope);          // WebDAV (no-ops if not configured)
           await writeEventFileICloud(config, envelope);    // iCloud (no-ops if not available)
+          // Android broadcast: only on the plaintext path. Encrypted envelopes can't be
+          // used by local listeners (no key), and their ciphertext fields don't survive
+          // JSON.stringify cleanly. Tasker users should rely on WebDAV for encrypted setups.
+          if (isNativeAndroid() && !deriveKey) {
+            try {
+              window.DayGlanceNative?.sendNotifyBroadcast?.(JSON.stringify(payload));
+            } catch (_) {}
+          }
           logActivity({
             direction: 'out',
             action: 'notify',
