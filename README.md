@@ -366,11 +366,6 @@ dayGLANCE is MIT-licensed and actively maintained. Contributions are welcome, fr
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to run the app locally, run tests, and submit a pull request. For a deeper understanding of how the codebase is structured, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
-### Where help is most wanted
-
-- **Translations / i18n**: the UI is English-only today
-- **Documentation**: setup guides, video walkthroughs, integration how-tos
-
 Please open an issue before starting large changes so we can discuss approach. For small fixes, PRs are welcome directly.
 
 ---
