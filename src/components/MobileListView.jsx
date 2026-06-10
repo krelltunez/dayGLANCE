@@ -684,6 +684,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
     setExpandedNotesTaskId,
     pushUndo, playUISound,
     listEndOfDayTime,
+    filteredUnscheduledTasks,
   } = useDayPlannerCtx();
   const { t } = useTranslation();
 
@@ -808,10 +809,10 @@ const MobileListView = ({ hideInboxHandle = false }) => {
     });
   }, [futureItems, routineCompletions, nowMin, timeToMinutes]);
 
-  // Inbox tasks
+  // Inbox tasks — mirror the same filtered/sorted list shown in the Inbox tab
   const inboxTasks = useMemo(() =>
-    unscheduledTasks.filter(t => !t.isExample && !t.completed),
-    [unscheduledTasks],
+    filteredUnscheduledTasks.filter(t => !t.isExample),
+    [filteredUnscheduledTasks],
   );
 
   // ── Conflict helpers ───────────────────────────────────────────────────────
