@@ -81,7 +81,7 @@ export default function useTaskActions({
   const updateRecurringTemplate = (taskId, updater) => {
     const parsed = parseRecurringId(taskId);
     if (parsed) {
-      setRecurringTasks(prev => prev.map(t => t.id === parsed.templateId ? updater(t) : t));
+      setRecurringTasks(prev => prev.map(t => t.id === parsed.templateId ? { ...updater(t), lastModified: new Date().toISOString() } : t));
     }
   };
 
