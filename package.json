@@ -43,6 +43,7 @@
     "electron": "^31.0.0",
     "electron-builder": "^24.13.0",
     "electronmon": "^2.0.3",
+    "jimp": "^1.6.1",
     "postcss": "^8.4.27",
     "tailwindcss": "^3.3.3",
     "tailwindcss-animate": "^1.0.7",

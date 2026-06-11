@@ -87,6 +87,7 @@ targets:
         UIStatusBarStyle: UIStatusBarStyleDefault
         UIViewControllerBasedStatusBarAppearance: false
         NSHealthShareUsageDescription: "dayGLANCE reads your step count and sleep data to show your daily activity and recovery on the home screen."
+        NSHealthUpdateUsageDescription: "DayGlance uses Health data to display your steps and sleep activity on your daily timeline."
         NSCalendarsUsageDescription: "dayGLANCE reads your calendars to show upcoming events on the home screen."
         NSCalendarsFullAccessUsageDescription: "dayGLANCE reads your calendars to show upcoming events on the home screen and can create calendar events from your tasks."
         NSCalendarsWriteOnlyAccessUsageDescription: "dayGLANCE can create calendar events from your tasks."
@@ -140,6 +141,7 @@ targets:
     info:
       path: DayGlanceWidget/Info.plist
       properties:
+        CFBundleDisplayName: DayGlance
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
@@ -164,6 +166,7 @@ targets:
     info:
       path: ShareExtension/Info.plist
       properties:
+        CFBundleDisplayName: DayGlance Share
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
