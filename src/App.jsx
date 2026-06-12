@@ -601,6 +601,11 @@ const DayPlanner = () => {
 
   const syncAllRef = useRef(null);
 
+  // Multi-user: owner stamped onto newly created habits/routines. Updated each
+  // render (below, once multi-user state exists) to the habits/routines
+  // dashboard's active user. null = single-user mode → items are left unowned.
+  const hrOwnerRef = useRef(null);
+
   // Settings & Reminders modals
   const [showSettings, setShowSettings] = useState(false);
   const [collapsedSettings, setCollapsedSettings] = useState({ cloudSync: true, calSync: !isNativeApp(), ai: true, obsidian: !isNativeApp(), trmnl: true, multiUser: true });
@@ -628,7 +633,7 @@ const DayPlanner = () => {
     habitDayPopup, setHabitDayPopup,
     habitLongPressTimer,
     habitLongPressOpenedAt,
-    activeHabits,
+    activeHabits: allActiveHabits,
     habitStreaks,
     getTodayHabitCount,
     incrementHabit,
@@ -643,10 +648,10 @@ const DayPlanner = () => {
     healthPerms,
     addStepsHabit,
     addSleepHabit,
-  } = useHabits({ playUISound });
+  } = useHabits({ playUISound, hrOwnerRef });
   const {
     routineDefinitions, setRoutineDefinitions,
-    todayRoutines, setTodayRoutines,
+    todayRoutines: allTodayRoutines, setTodayRoutines,
     routinesDate, setRoutinesDate,
     removedTodayRoutineIds, setRemovedTodayRoutineIds,
     showRoutinesDashboard, setShowRoutinesDashboard,
@@ -664,7 +669,8 @@ const DayPlanner = () => {
     deleteRoutineChip,
     toggleRoutineChipSelection,
     handleRoutinesDone,
-  } = useRoutines({ currentTime, onboardingProgress, setOnboardingProgress });
+    selectTodayChipsForOwner,
+  } = useRoutines({ currentTime, onboardingProgress, setOnboardingProgress, hrOwnerRef });
   const {
     goals, setGoals,
     projects, setProjects,
@@ -692,6 +698,85 @@ const DayPlanner = () => {
     const assigned = task.assignedUserSyncIds ?? [];
     return assigned.length === 0 || assigned.includes(meUserSyncId);
   }, [multiUserEnabled, meUserSyncId]);
+
+  // Habits & Routines use a single-owner model (not the broadcast-with-filter
+  // model used by tasks/goals/projects). Everyday rings and the timeline always
+  // show the current user's ("me") items; the management dashboards have a
+  // switcher (hrViewUserSyncId, default = me) to view/edit any member's items.
+  const [hrViewUserSyncId, setHrViewUserSyncId] = useState(meUserSyncId);
+  // Keep the switcher pointed at a valid, existing user; fall back to "me".
+  useEffect(() => {
+    setHrViewUserSyncId(prev => {
+      if (!multiUserEnabled) return meUserSyncId;
+      const stillExists = prev && users.some(u => !u.deleted && (u.syncId ?? u.id) === prev);
+      return stillExists ? prev : meUserSyncId;
+    });
+  }, [multiUserEnabled, meUserSyncId, users]);
+
+  // Owner stamped onto items created from the dashboards (the active/switcher
+  // user). null in single-user mode so nothing is stamped.
+  useEffect(() => {
+    hrOwnerRef.current = multiUserEnabled ? (hrViewUserSyncId || meUserSyncId || null) : null;
+  });
+
+  // True when `item` belongs to `syncId` (or is unowned — unowned items show to
+  // whoever is viewing, matching tasks' empty-assignment "everybody" default).
+  const ownedBy = useCallback((item, syncId) => {
+    if (!multiUserEnabled) return true;
+    const target = syncId || meUserSyncId;
+    if (!target) return true;
+    return !item.ownerSyncId || item.ownerSyncId === target;
+  }, [multiUserEnabled, meUserSyncId]);
+
+  // Everyday "my" habits (rings/glance); management list for the switcher user.
+  const activeHabits = useMemo(
+    () => allActiveHabits.filter(h => ownedBy(h, meUserSyncId)),
+    [allActiveHabits, ownedBy, meUserSyncId]
+  );
+  const managedHabits = useMemo(
+    () => allActiveHabits.filter(h => ownedBy(h, hrViewUserSyncId)),
+    [allActiveHabits, ownedBy, hrViewUserSyncId]
+  );
+  // Everyday timeline/widgets show only my placed routines; persistence and
+  // cloud sync use the full `allTodayRoutines` so other members' entries are
+  // preserved across saves.
+  const todayRoutines = useMemo(
+    () => allTodayRoutines.filter(r => ownedBy(r, meUserSyncId)),
+    [allTodayRoutines, ownedBy, meUserSyncId]
+  );
+
+  // One-time migration (per device): when multi-user is enabled, assign existing
+  // unowned habits / routine chips / today-routines to the current user so they
+  // keep showing for "me". Goals and projects are intentionally left untouched.
+  // Anything misattributed (e.g. a pre-existing shared store) is reassignable via
+  // the dashboard switcher.
+  const hrMigratedRef = useRef(false);
+  useEffect(() => {
+    if (hrMigratedRef.current) return;
+    if (!dataLoaded || !multiUserEnabled || !meUserSyncId) return;
+    if (localStorage.getItem('dayglance-hr-owner-migrated')) { hrMigratedRef.current = true; return; }
+    const now = new Date().toISOString();
+    setHabits(prev => prev.some(h => !h.ownerSyncId)
+      ? prev.map(h => h.ownerSyncId ? h : { ...h, ownerSyncId: meUserSyncId, lastModified: now })
+      : prev);
+    setRoutineDefinitions(prev => {
+      let any = false;
+      const next = {};
+      for (const [bucket, arr] of Object.entries(prev)) {
+        next[bucket] = arr.map(c => {
+          if (c.ownerSyncId) return c;
+          any = true;
+          return { ...c, ownerSyncId: meUserSyncId, lastModified: now };
+        });
+      }
+      return any ? next : prev;
+    });
+    setTodayRoutines(prev => prev.some(r => !r.ownerSyncId)
+      ? prev.map(r => r.ownerSyncId ? r : { ...r, ownerSyncId: meUserSyncId, lastModified: now })
+      : prev);
+    localStorage.setItem('dayglance-hr-owner-migrated', now);
+    hrMigratedRef.current = true;
+  }, [dataLoaded, multiUserEnabled, meUserSyncId]);
 
   const {
     showFocusMode, setShowFocusMode,
@@ -1082,7 +1167,7 @@ const DayPlanner = () => {
     setRoutinesEnabled, setGoals, setProjects, setGoalsProjectsEnabled, setDataLoaded,
     setUnscheduledOrderTimestamp,
     // values for saveData
-    tasks, unscheduledTasks, recycleBin, recurringTasks, todayRoutines,
+    tasks, unscheduledTasks, recycleBin, recurringTasks, todayRoutines: allTodayRoutines,
     darkMode, syncUrl, taskCalendarUrl, syncRetentionDays, completedTaskUids,
     routineDefinitions, routinesDate, removedTodayRoutineIds,
     habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
@@ -1097,7 +1182,7 @@ const DayPlanner = () => {
     dataLoaded,
     suppressClearPendingRef, suppressCloudUploadRef, suppressTimestampRef,
     tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays,
-    completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate,
+    completedTaskUids, recurringTasks, routineDefinitions, todayRoutines: allTodayRoutines, routinesDate,
     removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
     goals, projects, goalsProjectsEnabled,
   });
@@ -1485,7 +1570,7 @@ const DayPlanner = () => {
       cloudSyncEngineRef.current.upload();
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled, syncKeyReady, multiUserEnabled, users]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, allTodayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled, syncKeyReady, multiUserEnabled, users]);
 
   // ── Config field timestamp tracking ──────────────────────────────────────
   // Tracks when habitsEnabled/routinesEnabled/goalsProjectsEnabled/obsidianConfig
@@ -2490,7 +2575,7 @@ const DayPlanner = () => {
         recurringTasks,
         selectedDate: today,
         use24HourClock: use24HourClock,
-        habits,
+        habits: activeHabits,
         habitLogs,
         weatherSummary: weather ? `${weather.temp}°${weatherTempUnit === 'celsius' ? 'C' : 'F'} ${weather.description || ''}`.trim() : '',
         dailyNotes,
@@ -5156,7 +5241,7 @@ const DayPlanner = () => {
         completedTaskUids: prunedUids,
         recurringTasks: stampTaskTimestamps(recurringTasks, 'day-planner-recurring-tasks'),
         routineDefinitions,
-        todayRoutines: stampTaskTimestamps(todayRoutines, 'day-planner-today-routines'),
+        todayRoutines: stampTaskTimestamps(allTodayRoutines, 'day-planner-today-routines'),
         routinesDate,
         routineCompletions,
         minimizedSections,
@@ -8185,6 +8270,11 @@ const DayPlanner = () => {
     routineDurationEditId, setRoutineDurationEditId,
     routinesEnabled, setRoutinesEnabled,
     routineCompletions, setRoutineCompletions, toggleRoutineCompletion,
+    selectTodayChipsForOwner,
+
+    // ── Habits & Routines multi-user ──────────────────────────────────────────
+    hrViewUserSyncId, setHrViewUserSyncId,
+    ownedBy,
 
     // ── Habits ────────────────────────────────────────────────────────────────
     habits, setHabits,
@@ -8197,7 +8287,7 @@ const DayPlanner = () => {
     habitLongPressId, setHabitLongPressId,
     habitEditingCountId, setHabitEditingCountId,
     habitDayPopup, setHabitDayPopup,
-    activeHabits, habitStreaks,
+    activeHabits, managedHabits, habitStreaks,
     habitLongPressTimer,
     habitLongPressOpenedAt,
 

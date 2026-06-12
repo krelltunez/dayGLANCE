@@ -2,6 +2,7 @@ import React from 'react';
 import { Clock, Plus, Sparkles, Trash2, Undo2, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 
 const MobileRoutinesTab = () => {
   const { isPhone, isMobile, isTablet, darkMode, textSecondary, hoverBg, colors, formatTime, getDayName, cardBg, borderClass, textPrimary } = useDayPlannerCtx();
@@ -14,6 +15,8 @@ const MobileRoutinesTab = () => {
     routineDeleteConfirm, setRoutineDeleteConfirm,
     routineFocusedChipId, setRoutineFocusedChipId,
     addRoutineChip, deleteRoutineChip, toggleRoutineChipSelection,
+    multiUserEnabled, users, hrViewUserSyncId, setHrViewUserSyncId,
+    ownedBy, selectTodayChipsForOwner,
   } = useFeaturesCtx();
 
   const today = new Date();
@@ -25,12 +28,24 @@ const MobileRoutinesTab = () => {
   const bucketLabel = (b) => b === 'everyday' ? 'Every Day' : b.charAt(0).toUpperCase() + b.slice(1);
   const isHighlighted = (b) => b === todayDayName || b === 'everyday';
 
-  const hasAnyChips = Object.values(routineDefinitions).some(arr => arr.some(c => !String(c.id).startsWith('example-')));
+  const hasAnyChips = Object.values(routineDefinitions).some(arr => arr.some(c => !String(c.id).startsWith('example-') && ownedBy(c, hrViewUserSyncId)));
 
   return (
     <>
     <div className={`px-4 py-4 mobile-tab-fade-in`}>
       <div className="space-y-3">
+        {multiUserEnabled && users.filter(u => !u.deleted).length > 0 && (
+          <UserOwnerSwitcher
+            enabled={multiUserEnabled}
+            users={users}
+            value={hrViewUserSyncId}
+            onChange={(id) => { setHrViewUserSyncId(id); selectTodayChipsForOwner(id); }}
+            darkMode={darkMode}
+            borderClass={borderClass}
+            textSecondary={textSecondary}
+            label="Routines for"
+          />
+        )}
         {/* Today's selected routine */}
         <div className={`rounded-lg border-2 border-dashed ${darkMode ? 'border-gray-600' : 'border-stone-300'} p-4`}>
           <div className={`text-xs font-semibold uppercase tracking-wide mb-3 ${textSecondary} text-center`}>Today's Routine</div>
@@ -98,7 +113,7 @@ const MobileRoutinesTab = () => {
 
         {/* Day buckets */}
         {allBuckets.map(bucket => {
-          const chips = (routineDefinitions[bucket] || []).filter(c => !String(c.id).startsWith('example-'));
+          const chips = (routineDefinitions[bucket] || []).filter(c => !String(c.id).startsWith('example-') && ownedBy(c, hrViewUserSyncId));
           return (
             <div
               key={bucket}

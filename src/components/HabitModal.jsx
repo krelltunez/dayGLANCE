@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from '../constants/habits.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { getDeviceId } from '../native.js';
 
 const HabitModal = () => {
@@ -16,9 +17,10 @@ const HabitModal = () => {
     setShowHabitModal,
     editingHabit, setEditingHabit,
     draggedHabitIdx, setDraggedHabitIdx,
-    activeHabits, habits,
+    managedHabits: activeHabits, habits,
     addHabit, updateHabit, archiveHabit, deleteHabit, reorderHabits,
     addStepsHabit, addSleepHabit, healthPerms,
+    multiUserEnabled, users, hrViewUserSyncId, setHrViewUserSyncId,
   } = useFeaturesCtx();
 
   return (
@@ -216,6 +218,16 @@ const HabitModal = () => {
           ) : (
             /* Habit list view */
             <>
+              <UserOwnerSwitcher
+                enabled={multiUserEnabled}
+                users={users}
+                value={hrViewUserSyncId}
+                onChange={setHrViewUserSyncId}
+                darkMode={darkMode}
+                borderClass={borderClass}
+                textSecondary={textSecondary}
+                label="Habits for"
+              />
               {activeHabits.length === 0 ? (
                 <div className={`text-center py-8 ${textSecondary}`}>
                   <Activity size={40} className="mx-auto mb-3 opacity-30" />

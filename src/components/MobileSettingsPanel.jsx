@@ -19,6 +19,7 @@ import AutoBackupSettingsForm from './AutoBackupSettingsForm.jsx';
 import FrameEditor from './FrameEditor.jsx';
 import SmartSchedulePanel from './SmartSchedulePanel.jsx';
 import MobileRoutinesTab from './MobileRoutinesTab.jsx';
+import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -89,11 +90,12 @@ const MobileSettingsPanel = () => {
     setRoutineAddingToBucket, setRoutineNewChipName,
     handleRoutinesDone,
     habitsEnabled, setHabitsEnabled,
-    activeHabits, habits,
+    managedHabits: activeHabits, habits,
     editingHabit, setEditingHabit,
     draggedHabitIdx, setDraggedHabitIdx,
     addHabit, updateHabit, archiveHabit, deleteHabit, reorderHabits,
     addStepsHabit, addSleepHabit, healthPerms,
+    hrViewUserSyncId, setHrViewUserSyncId,
     goalsProjectsEnabled, setGoalsProjectsEnabled,
     gtdFrames,
     framesModalTab, setFramesModalTab,
@@ -2183,6 +2185,18 @@ const MobileSettingsPanel = () => {
           ) : (
             /* Habit list */
             <>
+              <div className="mb-3">
+                <UserOwnerSwitcher
+                  enabled={multiUserEnabled}
+                  users={users}
+                  value={hrViewUserSyncId}
+                  onChange={setHrViewUserSyncId}
+                  darkMode={darkMode}
+                  borderClass={borderClass}
+                  textSecondary={textSecondary}
+                  label="Habits for"
+                />
+              </div>
               {activeHabits.length === 0 ? (
                 <div className={`text-center py-8 ${textSecondary}`}>
                   <Activity size={40} className="mx-auto mb-3 opacity-30" />

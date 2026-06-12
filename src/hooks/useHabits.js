@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { dateToString } from '../utils/taskUtils.js';
 import { getDeviceId, isNativeIOS } from '../native.js';
 
-const useHabits = ({ playUISound }) => {
+const useHabits = ({ playUISound, hrOwnerRef }) => {
   const [habits, setHabits] = useState([]);
   const [habitLogs, setHabitLogs] = useState({});
   const [habitsEnabled, setHabitsEnabled] = useState(() => {
@@ -133,7 +133,16 @@ const useHabits = ({ playUISound }) => {
   };
 
   const addHabit = (habit) => {
-    setHabits(prev => [...prev, { ...habit, id: crypto.randomUUID(), createdAt: new Date().toISOString(), archived: false }]);
+    // Multi-user: stamp the dashboard's active owner so the habit only shows for
+    // that user. Single-user mode leaves it unowned (ref is null).
+    const owner = hrOwnerRef?.current;
+    setHabits(prev => [...prev, {
+      ...habit,
+      ...(habit.ownerSyncId || owner ? { ownerSyncId: habit.ownerSyncId ?? owner } : {}),
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      archived: false,
+    }]);
   };
 
   const updateHabit = (id, updates) => {
@@ -152,13 +161,26 @@ const useHabits = ({ playUISound }) => {
   };
 
   const reorderHabits = (fromIndex, toIndex) => {
+    // In multi-user mode the indices come from the owner-filtered list shown in
+    // the dashboard, so reorder only within that owner's active habits and leave
+    // other members' positions untouched.
+    const owner = hrOwnerRef?.current ?? null;
     setHabits(prev => {
       const updated = [...prev];
-      const active = updated.filter(h => !h.archived);
-      const [moved] = active.splice(fromIndex, 1);
-      active.splice(toIndex, 0, moved);
       const archived = updated.filter(h => h.archived);
-      return [...active, ...archived];
+      const active = updated.filter(h => !h.archived);
+      if (!owner) {
+        const [moved] = active.splice(fromIndex, 1);
+        active.splice(toIndex, 0, moved);
+        return [...active, ...archived];
+      }
+      const isOwners = (h) => !h.ownerSyncId || h.ownerSyncId === owner;
+      const ownerActive = active.filter(isOwners);
+      const [moved] = ownerActive.splice(fromIndex, 1);
+      ownerActive.splice(toIndex, 0, moved);
+      let oi = 0;
+      const rebuiltActive = active.map(h => isOwners(h) ? ownerActive[oi++] : h);
+      return [...rebuiltActive, ...archived];
     });
   };
 

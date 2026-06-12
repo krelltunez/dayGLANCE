@@ -3,6 +3,7 @@ import { X, Plus, Clock, Undo2, Sparkles, Trash2 } from 'lucide-react';
 import ClockTimePicker from './ClockTimePicker.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 
 const RoutinesDashboardModal = () => {
   const {
@@ -20,6 +21,8 @@ const RoutinesDashboardModal = () => {
     routineDefinitions,
     dashboardSelectedChips, setDashboardSelectedChips,
     addRoutineChip, deleteRoutineChip, toggleRoutineChipSelection,
+    multiUserEnabled, users, hrViewUserSyncId, setHrViewUserSyncId,
+    ownedBy, selectTodayChipsForOwner,
   } = useFeaturesCtx();
 
   return (
@@ -52,6 +55,20 @@ const RoutinesDashboardModal = () => {
                 <X size={20} className={textSecondary} />
               </button>
             </div>
+            {multiUserEnabled && users.filter(u => !u.deleted).length > 0 && (
+              <div className="mt-4">
+                <UserOwnerSwitcher
+                  enabled={multiUserEnabled}
+                  users={users}
+                  value={hrViewUserSyncId}
+                  onChange={(id) => { setHrViewUserSyncId(id); selectTodayChipsForOwner(id); }}
+                  darkMode={darkMode}
+                  borderClass={borderClass}
+                  textSecondary={textSecondary}
+                  label="Routines for"
+                />
+              </div>
+            )}
           </div>
 
           {/* Body */}
@@ -65,7 +82,7 @@ const RoutinesDashboardModal = () => {
               const isHighlighted = (b) => b === todayDayName || b === 'everyday';
 
               const renderBucket = (bucket) => {
-                const chips = routineDefinitions[bucket] || [];
+                const chips = (routineDefinitions[bucket] || []).filter(c => ownedBy(c, hrViewUserSyncId));
                 return (
                   <div
                     key={bucket}
@@ -148,7 +165,7 @@ const RoutinesDashboardModal = () => {
                 );
               };
 
-              const hasAnyChips = Object.values(routineDefinitions).some(arr => arr.length > 0);
+              const hasAnyChips = Object.values(routineDefinitions).some(arr => arr.some(c => ownedBy(c, hrViewUserSyncId)));
 
               return (
                 <div className="grid grid-cols-3 gap-4">

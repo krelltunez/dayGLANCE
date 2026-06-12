@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { dateToString } from '../utils/taskUtils.js';
 
-const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress }) => {
+const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, hrOwnerRef }) => {
+  // The dashboard's active owner (multi-user) or null in single-user mode.
+  const currentOwner = () => hrOwnerRef?.current ?? null;
+  // True when a routine chip / today-routine belongs to `owner` (or is unowned).
+  const ownedByOwner = (item, owner) => !owner || !item.ownerSyncId || item.ownerSyncId === owner;
   const [routineDefinitions, setRoutineDefinitions] = useState({ monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [], everyday: [] });
   const [todayRoutines, setTodayRoutines] = useState([]);
   const [routinesDate, setRoutinesDate] = useState('');
@@ -72,9 +76,18 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress })
     });
   };
 
+  // Pre-populate the dashboard center with the given owner's placed routines.
+  const selectTodayChipsForOwner = (owner) => {
+    setDashboardSelectedChips(
+      todayRoutines
+        .filter(r => ownedByOwner(r, owner))
+        .map(r => ({ id: r.id, name: r.name, bucket: r.bucket, startTime: r.startTime || null }))
+    );
+  };
+
   const openRoutinesDashboard = () => {
-    // Pre-populate center with chips already placed today
-    setDashboardSelectedChips(todayRoutines.map(r => ({ id: r.id, name: r.name, bucket: r.bucket, startTime: r.startTime || null })));
+    // Pre-populate center with the active owner's chips already placed today
+    selectTodayChipsForOwner(currentOwner());
     setRoutineAddingToBucket(null);
     setRoutineNewChipName('');
     setShowRoutinesDashboard(true);
@@ -84,9 +97,10 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress })
     const name = routineNewChipName.trim();
     if (!name) return;
     const chipId = crypto.randomUUID();
+    const owner = currentOwner();
     setRoutineDefinitions(prev => ({
       ...prev,
-      [bucket]: [...prev[bucket], { id: chipId, name, lastModified: new Date().toISOString() }]
+      [bucket]: [...prev[bucket], { id: chipId, name, ...(owner ? { ownerSyncId: owner } : {}), lastModified: new Date().toISOString() }]
     }));
     setRoutineNewChipName('');
     setRoutineAddingToBucket(null);
@@ -123,6 +137,7 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress })
 
   const handleRoutinesDone = () => {
     const todayStr = dateToString(new Date());
+    const owner = currentOwner();
     // Preserve placement info for chips that were already placed on the timeline
     const existingMap = {};
     todayRoutines.forEach(r => { existingMap[r.id] = r; });
@@ -135,15 +150,15 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress })
         // existing DnD-placed time so that opening and closing the modal without
         // touching the time picker never unschedules a placed routine.
         const startTime = chip.startTime !== null ? chip.startTime : (existing.startTime || null);
-        return { ...existing, name: chip.name, bucket: chip.bucket, startTime, isAllDay: !startTime, lastModified: now };
+        return { ...existing, name: chip.name, bucket: chip.bucket, startTime, isAllDay: !startTime, ...(owner ? { ownerSyncId: existing.ownerSyncId ?? owner } : {}), lastModified: now };
       }
-      return { id: chip.id, name: chip.name, bucket: chip.bucket, startTime: chip.startTime || null, duration: 15, isAllDay: !chip.startTime, lastModified: now };
+      return { id: chip.id, name: chip.name, bucket: chip.bucket, startTime: chip.startTime || null, duration: 15, isAllDay: !chip.startTime, ...(owner ? { ownerSyncId: owner } : {}), lastModified: now };
     });
 
-    // Record tombstones for routines that were removed from today's list
-    // so the removal syncs across devices instead of being re-added by merge.
+    // Record tombstones for the active owner's routines that were removed from
+    // today's list so the removal syncs. Other members' entries are left alone.
     const newIds = new Set(newTodayRoutines.map(r => String(r.id)));
-    const removedIds = todayRoutines.filter(r => !newIds.has(String(r.id)));
+    const removedIds = todayRoutines.filter(r => ownedByOwner(r, owner) && !newIds.has(String(r.id)));
     if (removedIds.length > 0) {
       setRemovedTodayRoutineIds(prev => {
         const updated = { ...prev };
@@ -162,7 +177,8 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress })
       });
     }
 
-    setTodayRoutines(newTodayRoutines);
+    // Replace only the active owner's today routines; keep other members'.
+    setTodayRoutines(prev => [...prev.filter(r => !ownedByOwner(r, owner)), ...newTodayRoutines]);
     setRoutinesDate(todayStr);
     setShowRoutinesDashboard(false);
     setRoutineTimePickerChipId(null);
@@ -193,6 +209,7 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress })
     deleteRoutineChip,
     toggleRoutineChipSelection,
     handleRoutinesDone,
+    selectTodayChipsForOwner,
   };
 };
 
