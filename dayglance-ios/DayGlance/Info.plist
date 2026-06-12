@@ -57,6 +57,12 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<!-- Export compliance: set to true because the app ships full-strength,
+	     non-exempt encryption — AES-256-GCM with PBKDF2-SHA-256 (310k iterations)
+	     for end-to-end encrypted cloud sync/backup (@glance-apps/sync), not just
+	     HTTPS. Relies on the mass-market exemption (U.S. License Exception ENC,
+	     EAR 740.17); the annual BIS self-classification report must be filed.
+	     This declaration skips the per-build App Store Connect export prompt. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<true/>
 </dict>
