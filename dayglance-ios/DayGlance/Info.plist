@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.dayglance.widgetrefresh</string>
+	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -18,6 +22,17 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.dayglance</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>dayglance</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSAppTransportSecurity</key>
@@ -33,8 +48,56 @@
 	<string>dayGLANCE can create calendar events from your tasks.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>dayGLANCE reads your step count and sleep data to show your daily activity and recovery on the home screen.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>DayGlance uses Health data to display your steps and sleep activity on your daily timeline.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>dayGLANCE uses the microphone to record voice input for AI task parsing.</string>
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>NSUserActivityTypeBrowsingWeb</string>
+		<string>com.apple.corespotlightitem</string>
+	</array>
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeAdd</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Add to today's schedule</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>New Scheduled Task</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.dayglance.newScheduledTask</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeAdd</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Capture quickly</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>New Inbox Task</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.dayglance.newInboxTask</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypePlay</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Focus on next task</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Start Focus</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.dayglance.startFocus</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeDate</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Open Today</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.dayglance.openToday</string>
+		</dict>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
