@@ -3842,6 +3842,7 @@ const DayPlanner = () => {
       }
     }
     const events = [];
+    const overrides = []; // VEVENT RECURRENCE-ID single-instance exceptions (moved/cancelled)
     let currentEvent = null;
     let currentType = null; // 'event' or 'todo'
 
@@ -3860,11 +3861,17 @@ const DayPlanner = () => {
           currentEvent.dtstart = currentEvent.due;
           currentEvent.isAllDay = currentEvent.dueIsAllDay;
         }
-        // Skip RECURRENCE-ID overrides — these are individual-instance exceptions
-        // (e.g. a single completed occurrence of a recurring VTODO). The master RRULE
-        // expansion already generates dates for each occurrence, and completion state
-        // is tracked locally via completedTaskUids.
-        if (currentEvent.summary && currentEvent.dtstart && !currentEvent.isRecurrenceOverride) {
+        // RECURRENCE-ID overrides modify (move/cancel) a single occurrence of a
+        // recurring series. For VTODOs we keep the long-standing behaviour of
+        // dropping them — completion is tracked locally via completedTaskUids.
+        // For VEVENTs we must NOT drop them blindly: moving or cancelling one
+        // instance does not add an EXDATE to the master, so ignoring the override
+        // leaves a phantom occurrence at the original slot. Collect VEVENT overrides
+        // so expansion can suppress the master occurrence and re-place (or cancel) it.
+        const isCancelled = currentType === 'event' && currentEvent.status === 'CANCELLED';
+        if (currentType === 'event' && currentEvent.isRecurrenceOverride && currentEvent.recurrenceId && currentEvent.uid) {
+          overrides.push(currentEvent);
+        } else if (currentEvent.summary && currentEvent.dtstart && !currentEvent.isRecurrenceOverride && !isCancelled) {
           events.push(currentEvent);
         }
         currentEvent = null;
@@ -3914,6 +3921,13 @@ const DayPlanner = () => {
           }
         } else if (line.startsWith('RECURRENCE-ID')) {
           currentEvent.isRecurrenceOverride = true;
+          // Capture the value (the original occurrence this override replaces),
+          // handling parameters like RECURRENCE-ID;TZID=...:20260101T090000.
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) currentEvent.recurrenceId = line.substring(colonIdx + 1).trim();
+        } else if (line.startsWith('STATUS')) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) currentEvent.status = line.substring(colonIdx + 1).trim().toUpperCase();
         } else if (line.startsWith('RRULE:')) {
           currentEvent.rrule = line.substring(6);
         } else if (line.startsWith('EXDATE')) {
@@ -3933,10 +3947,31 @@ const DayPlanner = () => {
     const curYear = new Date().getFullYear();
     const expandedEvents = [];
 
+    // Index VEVENT RECURRENCE-ID overrides by their series UID. Each override
+    // suppresses the master's generated occurrence at the original slot (an
+    // implicit EXDATE) and — unless STATUS:CANCELLED — is re-emitted at its new
+    // DTSTART. Matching is date-level to mirror the EXDATE handling below.
+    const overrideDatesByUid = {};
+    const overrideEventsByUid = {};
+    for (const ov of overrides) {
+      if (!overrideDatesByUid[ov.uid]) overrideDatesByUid[ov.uid] = [];
+      overrideDatesByUid[ov.uid].push(ov.recurrenceId.substring(0, 8));
+      if (ov.status !== 'CANCELLED' && ov.summary && ov.dtstart) {
+        if (!overrideEventsByUid[ov.uid]) overrideEventsByUid[ov.uid] = [];
+        overrideEventsByUid[ov.uid].push(ov);
+      }
+    }
+
     for (const event of events) {
       if (!event.rrule) {
         expandedEvents.push(event);
         continue;
+      }
+
+      // Fold this series' RECURRENCE-ID override dates into its EXDATE set so the
+      // master never emits a phantom occurrence at a moved or cancelled slot.
+      if (event.uid && overrideDatesByUid[event.uid]) {
+        event.exdates = [...(event.exdates || []), ...overrideDatesByUid[event.uid]];
       }
 
       const rule = {};
@@ -4109,6 +4144,14 @@ const DayPlanner = () => {
       } else {
         // Unsupported frequency — keep the original event
         expandedEvents.push(event);
+      }
+    }
+
+    // Append the moved/modified single instances at their new DTSTART. Cancelled
+    // overrides were excluded above and intentionally produce no event.
+    for (const uid of Object.keys(overrideEventsByUid)) {
+      for (const ov of overrideEventsByUid[uid]) {
+        expandedEvents.push({ ...ov, rrule: undefined });
       }
     }
 
