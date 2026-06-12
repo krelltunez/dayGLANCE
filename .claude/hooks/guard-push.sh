@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Blocks `git push` when the current branch has already been merged into main.
-# Uses two complementary git checks — no GitHub API needed.
+# Blocks `git push` when the current branch's PR has already been merged into
+# main — the signal to start a fresh branch instead of adding more commits.
 # Reads a Bash tool call from stdin (JSON with .tool_input.command).
 
 command=$(jq -r '.tool_input.command // ""' 2>/dev/null)
@@ -15,25 +15,23 @@ if [ -z "$branch" ]; then
   exit 0
 fi
 
-# Fetch the latest main so both checks reflect the true remote state.
+# Fetch the latest main so the check reflects the true remote state.
 git -C "$CLAUDE_PROJECT_DIR" fetch origin main --quiet 2>/dev/null
 
 block() {
-  printf '{"continue":false,"stopReason":"Branch '"'"'%s'"'"' is already merged into main — per CLAUDE.md, create a new branch from the correct base before pushing."}\n' \
+  printf '{"continue":false,"stopReason":"Branch '"'"'%s'"'"' already has a merged PR in main — per CLAUDE.md, create a new branch from the latest main before pushing."}\n' \
     "$branch"
   exit 0
 }
 
-# Check 1: branch tip is already an ancestor of origin/main (catches fast-forward
-# and regular merges where no new commits have been added after the merge).
-if git -C "$CLAUDE_PROJECT_DIR" merge-base --is-ancestor HEAD origin/main 2>/dev/null; then
-  block
-fi
-
-# Check 2: origin/main contains a GitHub merge commit referencing this branch.
-# This catches the case where new commits were added to the branch AFTER the PR
-# was merged — the branch tip is no longer in main, so check 1 misses it, but
-# the merge commit message "Merge pull request #N from owner/<branch>" is there.
+# Block only when origin/main contains a GitHub merge commit referencing this
+# branch (e.g. "Merge pull request #N from krelltunez/<branch>"). That is the
+# reliable "this branch's PR already merged" signal.
+#
+# We intentionally do NOT block merely because HEAD is an ancestor of
+# origin/main: that is also true for a freshly-created branch still even with
+# main (no new commits yet), which caused constant false-positive blocks on
+# brand-new branches.
 if git -C "$CLAUDE_PROJECT_DIR" log origin/main --oneline --grep="from krelltunez/${branch}$" | grep -q .; then
   block
 fi
