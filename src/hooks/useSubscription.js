@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { isNativeIOS } from '../native.js';
+import { deriveReviewerCode, sha256Hex } from '../config/reviewerAccess.js';
 
 // ── Platform detection ────────────────────────────────────────────────────────
 
@@ -127,14 +128,31 @@ export function useSubscription() {
   const [trialEligible, setTrialEligible] = useState(() => readTrialEligibility());
   const [isLoading, setIsLoading]         = useState(false);
   const [billingEvent, setBillingEvent]   = useState(null);
-  const [isReviewerUnlocked, setIsReviewerUnlockedState] = useState(
-    () => localStorage.getItem(REVIEWER_UNLOCK_KEY) === 'true'
-  );
+  const [isReviewerUnlocked, setIsReviewerUnlockedState] = useState(false);
   const timeoutRef = useRef(null);
 
-  const setReviewerUnlocked = useCallback(() => {
-    try { localStorage.setItem(REVIEWER_UNLOCK_KEY, 'true'); } catch {}
-    setIsReviewerUnlockedState(true);
+  // Async init: validate stored hash against this month's derived code.
+  useEffect(() => {
+    const stored = localStorage.getItem(REVIEWER_UNLOCK_KEY);
+    if (!stored) return;
+    deriveReviewerCode()
+      .then(code => sha256Hex(code))
+      .then(hash => { if (stored === hash) setIsReviewerUnlockedState(true); })
+      .catch(() => {});
+  }, []);
+
+  // Validates input against this month's code; stores hash on success.
+  const setReviewerUnlocked = useCallback(async (input) => {
+    try {
+      const expected = await deriveReviewerCode();
+      if (input !== expected) return false;
+      const hash = await sha256Hex(input);
+      try { localStorage.setItem(REVIEWER_UNLOCK_KEY, hash); } catch {}
+      setIsReviewerUnlockedState(true);
+      return true;
+    } catch {
+      return false;
+    }
   }, []);
 
   const isOnNativePlatform = !!(BILLING || IOS || ELECTRON);

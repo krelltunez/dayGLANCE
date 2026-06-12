@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Loader } from 'lucide-react';
-import { REVIEWER_ACCESS_CODE } from '../config/reviewerAccess.js';
 
 /**
  * Full-screen paywall shown on Android, iOS, and macOS when the user has no active subscription.
@@ -72,12 +71,9 @@ export default function SubscriptionWall({
     setTimeout(() => codeInputRef.current?.focus(), 0);
   };
 
-  const handleCodeSubmit = () => {
-    if (codeValue.trim() === REVIEWER_ACCESS_CODE) {
-      onReviewerUnlock?.();
-    } else {
-      setCodeError(true);
-    }
+  const handleCodeSubmit = async () => {
+    const ok = await onReviewerUnlock?.(codeValue.trim());
+    if (!ok) setCodeError(true);
   };
 
   const bg   = dark ? 'bg-gray-950' : 'bg-white';
