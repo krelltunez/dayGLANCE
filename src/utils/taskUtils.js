@@ -125,10 +125,9 @@ export const formatDeadlineDate = (deadline) => {
 // from the latest fetch and should be tombstoned so the deletion propagates via
 // cloud sync (instead of being resurrected from the remote sync file).
 //
-// Scope (v1): non-recurring task-calendar items only. Recurring series are left to
-// the existing wholesale-replace behaviour because normal occurrence advancement
-// (completing an instance rolls the due date forward) would otherwise be mistaken
-// for a deletion and churn tombstones.
+// Scope: non-recurring task-calendar items only. Recurring series can't be diffed
+// per-occurrence (normal advancement churns occurrence ids) — they are handled by
+// computeRecurringSeriesTombstones below, which keys off master-UID presence.
 //
 // Safety: returns [] when the fresh feed is empty — an empty-but-valid calendar is
 // far more likely a transient server/auth glitch than a real "everything deleted",
@@ -149,6 +148,50 @@ export const computeTaskCalendarTombstones = (priorTasks, freshTaskItems, { cuto
       t.importSource !== 'file' &&
       !t.isRecurringSeries &&
       !freshIds.has(String(t.id)) &&
+      (!cutoffDateStr || (t.date && t.date >= cutoffDateStr))
+    )
+    .map(t => String(t.id));
+};
+
+// Determine which previously-imported *recurring* CalDAV task-calendar series have
+// been deleted on the server and should be tombstoned. Complements
+// computeTaskCalendarTombstones, which deliberately skips recurring items.
+//
+// Why recurring needs a different signal than per-occurrence diffing:
+//   1. Completing an occurrence rolls the master DUE/DTSTART forward (Nextcloud has
+//      no per-instance RECURRENCE-ID overrides for VTODOs), so the expanded
+//      occurrence ids legitimately change every cycle — a per-occurrence diff would
+//      read that normal churn as a deletion.
+//   2. Occurrence expansion is windowed (±1 year), so a *live* series whose next
+//      occurrence is far out — or whose run already ended — can expand to zero
+//      in-window occurrences while its master VTODO still exists on the server.
+// So a series is "deleted" iff its master UID is absent from the raw feed, not iff
+// its occurrences vanished. `presentMasterUids` must therefore be collected from the
+// parsed feed *before* RRULE expansion (every VTODO/VEVENT uid), so a live but
+// out-of-window series is correctly treated as still present and left alone.
+//
+// Safety: returns [] when presentMasterUids is empty/missing — an empty feed is far
+// more likely a transient server/auth glitch than a real wipe (mirrors the
+// non-recurring guard).
+//
+//   priorTasks        - tasks from the local snapshot before replacement
+//   presentMasterUids - Set or array of icalUids present in the raw (pre-expansion) feed
+//   cutoffDateStr     - YYYY-MM-DD retention cutoff; occurrences dated before it are
+//                       skipped (they won't re-import anyway). null = keep all.
+// Returns: array of task ids (strings) — every local occurrence of each deleted series.
+export const computeRecurringSeriesTombstones = (priorTasks, presentMasterUids, { cutoffDateStr = null } = {}) => {
+  const present = presentMasterUids instanceof Set
+    ? presentMasterUids
+    : new Set((presentMasterUids || []).map(String));
+  if (present.size === 0) return [];
+  if (!Array.isArray(priorTasks) || priorTasks.length === 0) return [];
+  return priorTasks
+    .filter(t =>
+      t.isTaskCalendar &&
+      t.importSource !== 'file' &&
+      t.isRecurringSeries &&
+      t.icalUid &&
+      !present.has(String(t.icalUid)) &&
       (!cutoffDateStr || (t.date && t.date >= cutoffDateStr))
     )
     .map(t => String(t.id));

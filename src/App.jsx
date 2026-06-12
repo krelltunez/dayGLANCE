@@ -11,7 +11,7 @@ import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { webdavFetch } from './utils/cloudSyncProviders.js';
 import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
-import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones } from './utils/taskUtils.js';
+import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex } from './utils/colorUtils.js';
 import { calculateGoalProgress } from './utils/goalProgress.js';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from './constants/habits.js';
@@ -4155,6 +4155,15 @@ const DayPlanner = () => {
       }
     }
 
+    // Surface the set of master UIDs present in the raw feed (pre-expansion) so
+    // callers can detect deleted recurring series. A live series can expand to zero
+    // in-window occurrences, so its UID would be missing from expandedEvents — but
+    // it is still here, in `events`, which is the authoritative "exists on server"
+    // signal. Non-enumerable so it doesn't disturb callers that iterate the array.
+    Object.defineProperty(expandedEvents, 'masterUids', {
+      value: new Set(events.map(e => e.uid).filter(Boolean).map(String)),
+      enumerable: false,
+    });
     return expandedEvents;
   };
 
@@ -4733,17 +4742,23 @@ const DayPlanner = () => {
       );
       const taskCalendarItems = filterByDateWindow(allTaskItems, syncRetentionDays);
 
-      // Tombstone non-recurring task-calendar items that vanished from the feed
-      // (deleted/moved on the server). Without a tombstone the cloud merge treats
-      // the still-present remote copy as a "remote-only" item and resurrects it.
-      // Diff against the unwindowed expansion so an item merely aged past the
-      // retention window isn't mistaken for a deletion. computeTaskCalendarTombstones
-      // returns [] for an empty feed (likely a transient glitch, not a real wipe).
+      // Tombstone task-calendar items that vanished from the feed (deleted/moved on
+      // the server). Without a tombstone the cloud merge treats the still-present
+      // remote copy as a "remote-only" item and resurrects it. Both helpers return
+      // [] for an empty feed (likely a transient glitch, not a real wipe).
+      //   - Non-recurring: diff occurrence ids against the unwindowed expansion, so
+      //     an item merely aged past the retention window isn't mistaken for a delete.
+      //   - Recurring: diff at the series level by master UID against the raw feed
+      //     (events.masterUids), so normal occurrence advancement — and live series
+      //     that expand to zero in-window occurrences — aren't mistaken for deletes.
       const tombstoneCutoffStr = syncRetentionDays > 0
         ? dateToString(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - syncRetentionDays))
         : null;
       const priorTasksSnapshot = JSON.parse(localStorage.getItem('day-planner-tasks') || '[]');
-      const tombstoneIds = computeTaskCalendarTombstones(priorTasksSnapshot, allTaskItems, { cutoffDateStr: tombstoneCutoffStr });
+      const tombstoneIds = [
+        ...computeTaskCalendarTombstones(priorTasksSnapshot, allTaskItems, { cutoffDateStr: tombstoneCutoffStr }),
+        ...computeRecurringSeriesTombstones(priorTasksSnapshot, events.masterUids, { cutoffDateStr: tombstoneCutoffStr }),
+      ];
       if (tombstoneIds.length > 0) {
         const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}');
         const nowIso = new Date().toISOString();

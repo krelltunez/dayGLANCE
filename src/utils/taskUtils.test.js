@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeTaskCalendarTombstones } from './taskUtils.js';
+import { computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './taskUtils.js';
 
 // A synced (non-file) CalDAV task-calendar item as produced by expandMultiDayEvent.
 const tcItem = (id, date, extra = {}) => ({
@@ -70,5 +70,93 @@ describe('computeTaskCalendarTombstones', () => {
   it('handles empty/invalid prior input gracefully', () => {
     expect(computeTaskCalendarTombstones([], [tcItem('a', '2026-06-10')])).toEqual([]);
     expect(computeTaskCalendarTombstones(null, [tcItem('a', '2026-06-10')])).toEqual([]);
+  });
+});
+
+// A synced recurring-series occurrence (carries the master uid + isRecurringSeries).
+const recItem = (uid, date, extra = {}) => tcItem(`${uid}-${date}`, date, {
+  icalUid: uid,
+  isRecurringSeries: true,
+  ...extra,
+});
+
+describe('computeRecurringSeriesTombstones', () => {
+  it('tombstones every occurrence of a series whose master UID left the feed', () => {
+    const prior = [
+      recItem('uid-r', '2026-06-10'),
+      recItem('uid-r', '2026-06-17'),
+      recItem('uid-r', '2026-06-24'),
+    ];
+    // The master VTODO uid-r is gone from the raw feed (deleted on the server).
+    expect(computeRecurringSeriesTombstones(prior, new Set(['uid-other']))).toEqual([
+      'uid-r-2026-06-10', 'uid-r-2026-06-17', 'uid-r-2026-06-24',
+    ]);
+  });
+
+  it('leaves a series alone while its master UID is still present (normal churn)', () => {
+    // Occurrence dates differ from prior (completion advanced the due date), but the
+    // master UID is still in the feed — must not be mistaken for a deletion.
+    const prior = [recItem('uid-r', '2026-06-10'), recItem('uid-r', '2026-06-17')];
+    expect(computeRecurringSeriesTombstones(prior, new Set(['uid-r']))).toEqual([]);
+  });
+
+  it('does NOT tombstone a live series that expands to zero in-window occurrences', () => {
+    // The key case: the master is still on the server (uid in presentMasterUids,
+    // collected pre-expansion) but produced no occurrences this fetch. The stale
+    // local occurrences must survive, not be tombstoned.
+    const prior = [recItem('uid-far', '2026-06-10')];
+    expect(computeRecurringSeriesTombstones(prior, new Set(['uid-far', 'uid-other']))).toEqual([]);
+  });
+
+  it('skips tombstoning entirely when the feed has no master UIDs (transient-glitch guard)', () => {
+    const prior = [recItem('uid-r', '2026-06-10')];
+    expect(computeRecurringSeriesTombstones(prior, new Set())).toEqual([]);
+    expect(computeRecurringSeriesTombstones(prior, [])).toEqual([]);
+    expect(computeRecurringSeriesTombstones(prior, null)).toEqual([]);
+  });
+
+  it('only tombstones the deleted series when several series coexist', () => {
+    const prior = [
+      recItem('uid-gone', '2026-06-10'),
+      recItem('uid-gone', '2026-06-17'),
+      recItem('uid-live', '2026-06-11'),
+    ];
+    expect(computeRecurringSeriesTombstones(prior, new Set(['uid-live']))).toEqual([
+      'uid-gone-2026-06-10', 'uid-gone-2026-06-17',
+    ]);
+  });
+
+  it('ignores non-recurring, non-task-calendar, and file-imported items', () => {
+    const prior = [
+      tcItem('plain-2026-06-10', '2026-06-10'), // non-recurring task-calendar (handled elsewhere)
+      recItem('uid-file', '2026-06-10', { importSource: 'file' }), // ICS file import
+      { id: 'regular-1', date: '2026-06-10', isRecurringSeries: true }, // not task-calendar
+    ];
+    expect(computeRecurringSeriesTombstones(prior, new Set(['uid-present']))).toEqual([]);
+  });
+
+  it('only tombstones occurrences within the retention window', () => {
+    const prior = [
+      recItem('uid-gone', '2026-01-01'), // before cutoff
+      recItem('uid-gone', '2026-06-10'), // within window
+    ];
+    const result = computeRecurringSeriesTombstones(prior, new Set(['uid-other']), { cutoffDateStr: '2026-05-13' });
+    expect(result).toEqual(['uid-gone-2026-06-10']);
+  });
+
+  it('accepts the present UIDs as a plain array', () => {
+    const prior = [recItem('uid-r', '2026-06-10')];
+    expect(computeRecurringSeriesTombstones(prior, ['uid-other'])).toEqual(['uid-r-2026-06-10']);
+    expect(computeRecurringSeriesTombstones(prior, ['uid-r'])).toEqual([]);
+  });
+
+  it('skips recurring items missing an icalUid (defensive)', () => {
+    const prior = [tcItem('no-uid-2026-06-10', '2026-06-10', { isRecurringSeries: true })];
+    expect(computeRecurringSeriesTombstones(prior, new Set(['uid-other']))).toEqual([]);
+  });
+
+  it('handles empty/invalid prior input gracefully', () => {
+    expect(computeRecurringSeriesTombstones([], new Set(['a']))).toEqual([]);
+    expect(computeRecurringSeriesTombstones(null, new Set(['a']))).toEqual([]);
   });
 });
