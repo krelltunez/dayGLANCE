@@ -24,6 +24,10 @@ const dayGlanceEngineConfig = {
       ? (...args) => window.electronAPI.proxyFetch(...args)
       : null,
 
+  isHostedApp:
+    typeof window !== 'undefined' &&
+    /(^|\.)(?:dayglance|lifeglance|lastglance)\.app$/.test(window.location.hostname),
+
   // Relative URL → proxy runs at the same origin as the app.
   proxyUrl: import.meta.env.VITE_WEBDAV_PROXY_URL ?? '',
 
