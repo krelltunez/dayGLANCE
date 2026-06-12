@@ -110,10 +110,12 @@ export default function SubscriptionWall({
 
       {/* Headline */}
       <h1 className={`text-xl font-semibold text-center mb-2 ${text}`}>
-        Unlock dayGLANCE Pro
+        {trialEligible ? 'Start your 14-day free trial' : 'Unlock dayGLANCE Pro'}
       </h1>
       <p className={`text-sm text-center mb-7 max-w-xs ${sub}`}>
-        Choose a plan to keep using dayGLANCE. Your data is safe and waiting.
+        {trialEligible
+          ? 'Free for 14 days — nothing charged today. Cancel anytime, keep your data.'
+          : 'Pick a plan to pick up where you left off. Your data is safe and waiting.'}
       </p>
 
       {/* Error message */}
@@ -126,27 +128,7 @@ export default function SubscriptionWall({
       {/* Plan cards */}
       <div className="w-full max-w-xs space-y-3 mb-5">
 
-        {/* Lifetime — best value, shown first */}
-        <button
-          onClick={() => handleSubscribe('lifetime', onSubscribeLifetime)}
-          disabled={!!pending}
-          className={`w-full rounded-xl border px-4 py-4 text-left transition-colors ${card} ${pending === 'lifetime' ? 'opacity-60' : ''}`}
-        >
-          <div className="flex items-baseline justify-between">
-            <div className="flex items-center gap-2">
-              <span className={`font-semibold text-sm ${text}`}>Lifetime</span>
-              <span className="text-xs bg-indigo-600 text-white rounded-full px-2 py-0.5 leading-none">Best value</span>
-            </div>
-            {prices?.lifetime
-              ? <span className={`text-sm font-medium ${text}`}>{prices.lifetime}</span>
-              : <span className={`text-xs ${sub}`}>Loading…</span>
-            }
-          </div>
-          <div className={`text-xs mt-0.5 ${sub}`}>One-time purchase · yours forever</div>
-          {pending === 'lifetime' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
-        </button>
-
-        {/* Annual subscription */}
+        {/* Annual subscription — shown first; carries the free trial */}
         <button
           onClick={() => handleSubscribe('yearly', onSubscribeYearly)}
           disabled={!!pending}
@@ -165,6 +147,26 @@ export default function SubscriptionWall({
               : `Billed yearly · ${prices?.yearly ?? '$9.99'}/yr`}
           </div>
           {pending === 'yearly' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
+        </button>
+
+        {/* Lifetime — best value */}
+        <button
+          onClick={() => handleSubscribe('lifetime', onSubscribeLifetime)}
+          disabled={!!pending}
+          className={`w-full rounded-xl border px-4 py-4 text-left transition-colors ${card} ${pending === 'lifetime' ? 'opacity-60' : ''}`}
+        >
+          <div className="flex items-baseline justify-between">
+            <div className="flex items-center gap-2">
+              <span className={`font-semibold text-sm ${text}`}>Lifetime</span>
+              <span className="text-xs bg-indigo-600 text-white rounded-full px-2 py-0.5 leading-none">Best value</span>
+            </div>
+            {prices?.lifetime
+              ? <span className={`text-sm font-medium ${text}`}>{prices.lifetime}</span>
+              : <span className={`text-xs ${sub}`}>Loading…</span>
+            }
+          </div>
+          <div className={`text-xs mt-0.5 ${sub}`}>One-time purchase · yours forever</div>
+          {pending === 'lifetime' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
         </button>
 
       </div>
