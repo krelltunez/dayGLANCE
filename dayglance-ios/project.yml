@@ -86,6 +86,14 @@ targets:
         UIRequiresFullScreen: false
         UIStatusBarStyle: UIStatusBarStyleDefault
         UIViewControllerBasedStatusBarAppearance: false
+        # Export compliance: false because the app's encryption uses only standard,
+        # internationally-recognized algorithms (AES-256-GCM, PBKDF2-SHA-256,
+        # HMAC-SHA-256) for end-to-end cloud sync/backup (@glance-apps/sync) in a
+        # mass-market app, which qualifies for the EAR exemption. This makes App
+        # Store Connect skip the export-compliance prompt on every build. Keep this
+        # here (not just in the generated Info.plist) so xcodegen can't strip it.
+        # Separately, file the annual BIS self-classification report.
+        ITSAppUsesNonExemptEncryption: false
         NSHealthShareUsageDescription: "dayGLANCE reads your step count and sleep data to show your daily activity and recovery on the home screen."
         NSHealthUpdateUsageDescription: "DayGlance uses Health data to display your steps and sleep activity on your daily timeline."
         NSCalendarsUsageDescription: "dayGLANCE reads your calendars to show upcoming events on the home screen."
