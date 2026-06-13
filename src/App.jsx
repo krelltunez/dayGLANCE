@@ -3365,6 +3365,7 @@ const DayPlanner = () => {
           duration: newTask.duration,
           color: newTask.color || colors[0].class,
           projectId: newTask.projectId,
+          assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds ?? rest.assignedUserSyncIds,
         }]);
       } else {
         // Already unscheduled, just update
@@ -3374,6 +3375,7 @@ const DayPlanner = () => {
           duration: newTask.duration,
           color: newTask.color || colors[0].class,
           projectId: newTask.projectId,
+          assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds ?? t.assignedUserSyncIds,
           transitionId: crypto.randomUUID(),
         } : t));
       }
