@@ -268,6 +268,11 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('day-planner-mobile-view-mode');
     return saved ? JSON.parse(saved) : 'grid';
   });
+  // LIST view is a portrait-only tablet feature; in landscape the tablet always
+  // uses the two-column timeline (and hides the LIST/GRID toggle). This mirrors
+  // how wider Android tablets behave, where landscape drops out of tablet mode
+  // entirely. (On phones, list view is independent of orientation.)
+  const tabletListView = isTablet && !isLandscape && mobileViewMode === 'list';
   const [glancePage, setGlancePage] = useState(() => {
     const saved = localStorage.getItem('day-planner-glance-page');
     return saved !== null ? parseInt(saved, 10) : 0;
@@ -1197,7 +1202,7 @@ const DayPlanner = () => {
     selectedDate,
     isMobile, isTablet,
     mobileActiveTab,
-    mobileViewMode,
+    mobileViewMode, tabletListView,
     viewMode: effectiveViewMode,
   });
 
@@ -7946,7 +7951,7 @@ const DayPlanner = () => {
     // ── Layout / navigation ───────────────────────────────────────────────────
     tabletActiveTab, setTabletActiveTab,
     mobileActiveTab, setMobileActiveTab,
-    mobileViewMode, setMobileViewMode,
+    mobileViewMode, setMobileViewMode, tabletListView,
     listEndOfDayTime, setListEndOfDayTime,
     glancePage, setGlancePage,
     mobileWelcomeStep, setMobileWelcomeStep,
@@ -9341,7 +9346,7 @@ const DayPlanner = () => {
       )}
 
       {/* Refocus timeline toast — all form factors except mobile list view */}
-      {timelineScrolledAway && effectiveViewMode === 'multi' && !((isMobile || isTablet) && mobileViewMode === 'list') && (
+      {timelineScrolledAway && effectiveViewMode === 'multi' && !((isMobile && mobileViewMode === 'list') || tabletListView) && (
         <div className="fixed left-1/2 -translate-x-1/2 z-50 pointer-events-auto" style={{ bottom: isMobile ? 'calc(5rem + env(safe-area-inset-bottom, 0px))' : '1.5rem' }}>
           <button
             onClick={() => { setTimelineScrolledAway(false); scrollToCurrentHour(true); }}

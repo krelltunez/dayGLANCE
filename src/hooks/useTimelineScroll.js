@@ -6,7 +6,7 @@ export default function useTimelineScroll({
   selectedDate,
   isMobile, isTablet,
   mobileActiveTab,
-  mobileViewMode,
+  mobileViewMode, tabletListView,
   viewMode = 'multi',
 }) {
   const [timelineScrolledAway, setTimelineScrolledAway] = useState(false);
@@ -51,14 +51,15 @@ export default function useTimelineScroll({
       if (calendarRef.current) calendarRef.current.scrollTop = 0;
       return;
     }
-    // On mobile, skip scroll-to-now when in list view (no time grid to scroll)
-    if (isMobile && mobileViewMode === 'list') return;
+    // Skip scroll-to-now when in list view (no time grid to scroll) — on phones
+    // whenever list mode is active, and on tablets in portrait list mode.
+    if ((isMobile && mobileViewMode === 'list') || tabletListView) return;
     const isToday = dateToString(selectedDate) === dateToString(new Date());
     if (isToday && calendarRef.current && (!isMobile || mobileActiveTab === 'timeline')) {
       const timerId = setTimeout(() => scrollToCurrentHour(false), 100);
       return () => clearTimeout(timerId);
     }
-  }, [selectedDate, isMobile, mobileActiveTab, mobileViewMode, scrollToCurrentHour, viewMode]);
+  }, [selectedDate, isMobile, mobileActiveTab, mobileViewMode, tabletListView, scrollToCurrentHour, viewMode]);
 
   // Detect when user scrolls away from current time (all form factors)
   useEffect(() => {
