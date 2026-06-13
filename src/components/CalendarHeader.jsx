@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next';
 
 const CalendarHeader = () => {
   const {
-    isTablet,
+    isTablet, isLandscape,
     visibleDates,
     selectedDate,
     canShowViewCycler, effectiveViewMode,
@@ -164,7 +164,7 @@ const CalendarHeader = () => {
         className={`flex-shrink-0 border-r ${borderClass} flex items-center justify-center`}
         style={{ width: WEEK_GUTTER_W, minHeight: 'var(--header-row-h)' }}
       >
-        {isTablet ? <MobileViewToggle /> : (canShowViewCycler && <ViewCycler />)}
+        {isTablet && !isLandscape ? <MobileViewToggle /> : (canShowViewCycler && <ViewCycler />)}
       </div>
       {weekViewDates.map((date, idx) => {
         const dateStr = dateToString(date);
@@ -204,7 +204,7 @@ const CalendarHeader = () => {
     <>
     {/* Top-left cell: hosts ViewCycler on large screens */}
     <div className={`w-16 flex-shrink-0 border-r ${borderClass} flex items-center justify-center`} style={{ minHeight: 'var(--header-row-h)' }}>
-      {isTablet ? <MobileViewToggle /> : (canShowViewCycler && <ViewCycler />)}
+      {isTablet && !isLandscape ? <MobileViewToggle /> : (canShowViewCycler && <ViewCycler />)}
     </div>
     {visibleDates.map((date, idx) => {
     const isDateToday = dateToString(date) === dateToString(new Date());
@@ -300,7 +300,7 @@ const CalendarHeader = () => {
               column boundaries align: both header and DayView start at x=0. */}
           {idx === 0 && (isTablet || canShowViewCycler) && (
             <div className={`absolute left-0 top-0 w-16 h-full border-r ${borderClass} ${cardBg}`}>
-              {isTablet ? <MobileViewToggle /> : <ViewCycler />}
+              {isTablet && !isLandscape ? <MobileViewToggle /> : <ViewCycler />}
             </div>
           )}
           {/* Ring overlay rendered after ViewCycler so it paints on top of it —

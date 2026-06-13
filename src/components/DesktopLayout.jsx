@@ -56,7 +56,7 @@ const DesktopLayout = () => {
     hours, firstHour,
     tabletActiveTab, setTabletActiveTab,
     mobileActiveTab, setMobileActiveTab,
-    mobileViewMode,
+    tabletListView,
     mobileWelcomeStep, setMobileWelcomeStep,
     desktopWelcomeStep, setDesktopWelcomeStep,
     showMonthView, setShowMonthView,
@@ -816,8 +816,9 @@ const DesktopLayout = () => {
               <CalendarHeader />
               </div>
 
-              {/* Main calendar grid — switches between multi/day/week views, or list view on tablet */}
-              {isTablet && mobileViewMode === 'list'
+              {/* Main calendar grid — switches between multi/day/week views, or list
+                  view on tablet (portrait only; landscape uses the two-column timeline) */}
+              {tabletListView
                 ? <MobileListView hideInboxHandle />
                 : <>
                     {effectiveViewMode === 'multi' && <TimeGrid />}
