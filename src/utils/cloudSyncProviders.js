@@ -3,20 +3,22 @@
 import { nativeHttpRequest as _nativeHttpRequest } from '../native.js';
 import { webdavFetch as _webdavFetch, createProviders } from '@glance-apps/sync';
 
-// iOS sets window.DayGlanceIOS = true. Its DayGlanceNative is a Proxy that
-// makes every property truthy — explicitly exclude iOS so it falls through
-// to the Vercel proxy path, same as the original webdavFetch logic.
-const isAndroid =
+// The native HTTP bridge exists on BOTH Android and iOS — iOS exposes it via
+// the DayGlanceNative Proxy (dgbridge:// → URLSession). src/sync/adapter.js (the
+// main sync engine) routes WebDAV through it on iOS, which is why main sync works
+// there; webdavFetch must match. Otherwise iOS falls back to /api/webdav-proxy/,
+// which is unreachable from the app's dg:// origin (proxyUrl is relative), so
+// every request throws. Detection mirrors adapter.js exactly.
+const isNativeApp =
   typeof window !== 'undefined' &&
-  !window.DayGlanceIOS &&
   !!window.DayGlanceNative?.httpRequest;
 
 const dayGlanceEngineConfig = {
   appFolderName: 'GLANCE/dayglance',
   syncFilename: 'dayglance-sync.json',
 
-  // Android: pass the real bridge. iOS/web: null → falls through to proxy.
-  nativeHttpRequest: isAndroid ? _nativeHttpRequest : null,
+  // Android + iOS: use the native bridge. Web: null → falls through to proxy.
+  nativeHttpRequest: isNativeApp ? _nativeHttpRequest : null,
 
   // Electron: detect at module load (preload sets this up before renderer).
   electronProxyFetch:
@@ -34,11 +36,11 @@ const dayGlanceEngineConfig = {
   // Crypto config (threaded to encryptData/decryptData inside providers).
   cryptoDBName: 'dayglance-crypto',
   nativeGetSyncKey:
-    isAndroid && window?.DayGlanceNative?.getSyncKey
+    isNativeApp && window?.DayGlanceNative?.getSyncKey
       ? () => window.DayGlanceNative.getSyncKey()
       : null,
   nativeStoreSyncKey:
-    isAndroid && window?.DayGlanceNative?.storeSyncKey
+    isNativeApp && window?.DayGlanceNative?.storeSyncKey
       ? (val) => window.DayGlanceNative.storeSyncKey(val)
       : null,
 };
