@@ -22,7 +22,8 @@ const RoutinesDashboardModal = () => {
     dashboardSelectedChips, setDashboardSelectedChips,
     addRoutineChip, deleteRoutineChip, toggleRoutineChipSelection,
     multiUserEnabled, users, hrViewUserSyncId, setHrViewUserSyncId,
-    ownedBy, selectTodayChipsForOwner,
+    managedBy, selectTodayChipsForOwner,
+    meUserSyncId, hasUnownedRoutines, claimUnownedRoutines,
   } = useFeaturesCtx();
 
   return (
@@ -67,6 +68,20 @@ const RoutinesDashboardModal = () => {
                   textSecondary={textSecondary}
                   label="Routines for"
                 />
+                {hasUnownedRoutines && meUserSyncId && hrViewUserSyncId === meUserSyncId && (
+                  <div className={`mt-3 px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-amber-500/10' : 'bg-amber-50'} flex items-center justify-between gap-3`}>
+                    <p className={`text-xs ${textSecondary}`}>
+                      Some routines aren't assigned to anyone yet, so they show for every member. Claim them as yours.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => claimUnownedRoutines()}
+                      className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500 text-white hover:bg-amber-600"
+                    >
+                      Claim
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -82,7 +97,7 @@ const RoutinesDashboardModal = () => {
               const isHighlighted = (b) => b === todayDayName || b === 'everyday';
 
               const renderBucket = (bucket) => {
-                const chips = (routineDefinitions[bucket] || []).filter(c => ownedBy(c, hrViewUserSyncId));
+                const chips = (routineDefinitions[bucket] || []).filter(c => managedBy(c, hrViewUserSyncId));
                 return (
                   <div
                     key={bucket}
@@ -165,7 +180,7 @@ const RoutinesDashboardModal = () => {
                 );
               };
 
-              const hasAnyChips = Object.values(routineDefinitions).some(arr => arr.some(c => ownedBy(c, hrViewUserSyncId)));
+              const hasAnyChips = Object.values(routineDefinitions).some(arr => arr.some(c => managedBy(c, hrViewUserSyncId)));
 
               return (
                 <div className="grid grid-cols-3 gap-4">

@@ -738,15 +738,87 @@ const DayPlanner = () => {
     return !item.ownerSyncId || item.ownerSyncId === target;
   }, [multiUserEnabled, meUserSyncId]);
 
+  // Stricter ownership test for the management dashboards (the Habit/Routine
+  // owner switcher). Unlike ownedBy, an UNOWNED item belongs to "me" only — it
+  // must never surface under another member, where it would render and be
+  // deletable by someone who doesn't own it (the cross-owner leak that let
+  // "Maggie" see and delete "Jason"'s habits). ownedBy keeps the looser
+  // "unowned = everyone" rule for the everyday "my" rings/timeline so legacy
+  // unstamped items still show for the primary user.
+  const managedBy = useCallback((item, syncId) => {
+    if (!multiUserEnabled) return true;
+    if (item.ownerSyncId) return item.ownerSyncId === syncId;
+    return syncId === meUserSyncId; // unowned → me's (null === null shows in the default view)
+  }, [multiUserEnabled, meUserSyncId]);
+
   // Everyday "my" habits (rings/glance); management list for the switcher user.
   const activeHabits = useMemo(
     () => allActiveHabits.filter(h => ownedBy(h, meUserSyncId)),
     [allActiveHabits, ownedBy, meUserSyncId]
   );
   const managedHabits = useMemo(
-    () => allActiveHabits.filter(h => ownedBy(h, hrViewUserSyncId)),
-    [allActiveHabits, ownedBy, hrViewUserSyncId]
+    () => allActiveHabits.filter(h => managedBy(h, hrViewUserSyncId)),
+    [allActiveHabits, managedBy, hrViewUserSyncId]
   );
+  // Whether the switcher is pointed at "me" and unowned (legacy/unstamped) habits
+  // are present — gates the "Claim" affordance so the primary user can deterministically
+  // take ownership of habits the one-time migration failed to stamp.
+  const hasUnownedHabits = useMemo(
+    () => multiUserEnabled && habits.some(h => !h.ownerSyncId),
+    [multiUserEnabled, habits]
+  );
+  // Stamp every unowned habit (active + archived) with the current "me" so it
+  // stops surfacing for other members and survives cloud sync as explicitly owned.
+  const claimUnownedHabits = useCallback(() => {
+    if (!meUserSyncId) return;
+    const now = new Date().toISOString();
+    setHabits(prev => prev.some(h => !h.ownerSyncId)
+      ? prev.map(h => h.ownerSyncId ? h : { ...h, ownerSyncId: meUserSyncId, lastModified: now })
+      : prev);
+  }, [meUserSyncId, setHabits]);
+
+  // Routine equivalent of the habit claim: unowned routine chips (excluding the
+  // seeded example- chips) or unowned placed today-routines mean the dashboard
+  // would surface them for everyone. Stamp them with "me" deterministically.
+  const hasUnownedRoutines = useMemo(
+    () => multiUserEnabled && (
+      Object.values(routineDefinitions).some(arr => arr.some(c => !c.ownerSyncId && !String(c.id).startsWith('example-')))
+      || allTodayRoutines.some(r => !r.ownerSyncId)
+    ),
+    [multiUserEnabled, routineDefinitions, allTodayRoutines]
+  );
+  const claimUnownedRoutines = useCallback(() => {
+    if (!meUserSyncId) return;
+    const now = new Date().toISOString();
+    setRoutineDefinitions(prev => {
+      let any = false;
+      const next = {};
+      for (const [bucket, arr] of Object.entries(prev)) {
+        next[bucket] = arr.map(c => {
+          if (c.ownerSyncId || String(c.id).startsWith('example-')) return c;
+          any = true;
+          return { ...c, ownerSyncId: meUserSyncId, lastModified: now };
+        });
+      }
+      return any ? next : prev;
+    });
+    setTodayRoutines(prev => prev.some(r => !r.ownerSyncId)
+      ? prev.map(r => r.ownerSyncId ? r : { ...r, ownerSyncId: meUserSyncId, lastModified: now })
+      : prev);
+  }, [meUserSyncId, setRoutineDefinitions, setTodayRoutines]);
+
+  // GTD Frames equivalent of the habit/routine claim.
+  const hasUnownedFrames = useMemo(
+    () => multiUserEnabled && gtdFrames.some(f => !f.ownerSyncId),
+    [multiUserEnabled, gtdFrames]
+  );
+  const claimUnownedFrames = useCallback(() => {
+    if (!meUserSyncId) return;
+    const now = new Date().toISOString();
+    setGtdFrames(prev => prev.some(f => !f.ownerSyncId)
+      ? prev.map(f => f.ownerSyncId ? f : { ...f, ownerSyncId: meUserSyncId, lastModified: now })
+      : prev);
+  }, [meUserSyncId, setGtdFrames]);
   // Everyday timeline/widgets show only my placed routines; persistence and
   // cloud sync use the full `allTodayRoutines` so other members' entries are
   // preserved across saves.
@@ -783,6 +855,9 @@ const DayPlanner = () => {
     });
     setTodayRoutines(prev => prev.some(r => !r.ownerSyncId)
       ? prev.map(r => r.ownerSyncId ? r : { ...r, ownerSyncId: meUserSyncId, lastModified: now })
+      : prev);
+    setGtdFrames(prev => prev.some(f => !f.ownerSyncId)
+      ? prev.map(f => f.ownerSyncId ? f : { ...f, ownerSyncId: meUserSyncId, lastModified: now })
       : prev);
     localStorage.setItem('dayglance-hr-owner-migrated', now);
     hrMigratedRef.current = true;
@@ -6582,6 +6657,7 @@ const DayPlanner = () => {
     return gtdFrames
       .filter(f => {
         if (!f.enabled) return false;
+        if (!ownedBy(f, meUserSyncId)) return false; // everyday/timeline shows only my frames
         if (f.singleDate) return f.singleDate === dateStr;
         return f.days.includes(dayOfWeek);
       })
@@ -6603,7 +6679,7 @@ const DayPlanner = () => {
         };
       })
       .filter(Boolean);
-  }, [gtdFrames]);
+  }, [gtdFrames, ownedBy, meUserSyncId]);
 
   // --- Frame Nudge --- (must be after getFrameInstancesForDate and getTasksForDate)
   const activeFrameForNudge = useMemo(() => {
@@ -7490,7 +7566,14 @@ const DayPlanner = () => {
     if (frame.id) {
       setGtdFrames(prev => prev.map(f => f.id === frame.id ? frame : f));
     } else {
-      setGtdFrames(prev => [...prev, { ...frame, id: crypto.randomUUID() }]);
+      // Multi-user: stamp the dashboard's active owner so the frame only shows
+      // for that user. Single-user mode leaves it unowned (ref is null).
+      const owner = hrOwnerRef?.current;
+      setGtdFrames(prev => [...prev, {
+        ...frame,
+        ...(frame.ownerSyncId || owner ? { ownerSyncId: frame.ownerSyncId ?? owner } : {}),
+        id: crypto.randomUUID(),
+      }]);
     }
     setEditingFrame(null);
   };
@@ -8292,7 +8375,9 @@ const DayPlanner = () => {
 
     // ── Habits & Routines multi-user ──────────────────────────────────────────
     hrViewUserSyncId, setHrViewUserSyncId,
-    ownedBy,
+    ownedBy, managedBy,
+    hasUnownedRoutines, claimUnownedRoutines,
+    hasUnownedFrames, claimUnownedFrames,
 
     // ── Habits ────────────────────────────────────────────────────────────────
     habits, setHabits,
@@ -8306,6 +8391,7 @@ const DayPlanner = () => {
     habitEditingCountId, setHabitEditingCountId,
     habitDayPopup, setHabitDayPopup,
     activeHabits, managedHabits, habitStreaks,
+    hasUnownedHabits, claimUnownedHabits,
     habitLongPressTimer,
     habitLongPressOpenedAt,
 

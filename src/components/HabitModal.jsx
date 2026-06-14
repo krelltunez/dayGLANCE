@@ -21,6 +21,7 @@ const HabitModal = () => {
     addHabit, updateHabit, archiveHabit, deleteHabit, reorderHabits,
     addStepsHabit, addSleepHabit, healthPerms,
     multiUserEnabled, users, hrViewUserSyncId, setHrViewUserSyncId,
+    meUserSyncId, managedBy, hasUnownedHabits, claimUnownedHabits,
   } = useFeaturesCtx();
 
   return (
@@ -228,6 +229,20 @@ const HabitModal = () => {
                 textSecondary={textSecondary}
                 label="Habits for"
               />
+              {multiUserEnabled && hasUnownedHabits && meUserSyncId && hrViewUserSyncId === meUserSyncId && (
+                <div className={`mb-3 px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-amber-500/10' : 'bg-amber-50'} flex items-center justify-between gap-3`}>
+                  <p className={`text-xs ${textSecondary}`}>
+                    Some habits aren't assigned to anyone yet, so they show for every member. Claim them as yours.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => claimUnownedHabits()}
+                    className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500 text-white hover:bg-amber-600"
+                  >
+                    Claim
+                  </button>
+                </div>
+              )}
               {activeHabits.length === 0 ? (
                 <div className={`text-center py-8 ${textSecondary}`}>
                   <Activity size={40} className="mx-auto mb-3 opacity-30" />
@@ -377,12 +392,12 @@ const HabitModal = () => {
                 </div>
               )}
 
-              {/* Archived habits */}
-              {habits.filter(h => h.archived).length > 0 && (
+              {/* Archived habits — scoped to the selected owner so they don't leak across members */}
+              {habits.filter(h => h.archived && managedBy(h, hrViewUserSyncId)).length > 0 && (
                 <div className="pt-2">
                   <h4 className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} mb-2`}>{t('habit.archived')}</h4>
                   <div className="space-y-1">
-                    {habits.filter(h => h.archived).map(habit => {
+                    {habits.filter(h => h.archived && managedBy(h, hrViewUserSyncId)).map(habit => {
                       const IconComp = HABIT_ICONS[habit.icon] || Target;
                       const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
                       return (

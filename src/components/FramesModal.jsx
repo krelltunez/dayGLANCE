@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { DAY_LABELS } from '../constants/frames.js';
 import FrameEditor from './FrameEditor.jsx';
 import SmartSchedulePanel from './SmartSchedulePanel.jsx';
+import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
@@ -24,6 +25,8 @@ const FramesModal = () => {
     smartScheduleAccepted, setSmartScheduleAccepted,
     runSmartSchedule, applySmartSchedule, setSmartScheduleResults, setSmartScheduleError,
     saveFrame, deleteFrame,
+    multiUserEnabled, users, hrViewUserSyncId, setHrViewUserSyncId,
+    managedBy, meUserSyncId, hasUnownedFrames, claimUnownedFrames,
   } = useFeaturesCtx();
 
   return (
@@ -81,9 +84,37 @@ const FramesModal = () => {
                 />
               ) : (
                 <>
+                  {multiUserEnabled && users.filter(u => !u.deleted).length > 0 && (
+                    <div className="mb-3">
+                      <UserOwnerSwitcher
+                        enabled={multiUserEnabled}
+                        users={users}
+                        value={hrViewUserSyncId}
+                        onChange={setHrViewUserSyncId}
+                        darkMode={darkMode}
+                        borderClass={borderClass}
+                        textSecondary={textSecondary}
+                        label="Frames for"
+                      />
+                      {hasUnownedFrames && meUserSyncId && hrViewUserSyncId === meUserSyncId && (
+                        <div className={`mt-3 px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-amber-500/10' : 'bg-amber-50'} flex items-center justify-between gap-3`}>
+                          <p className={`text-xs ${textSecondary}`}>
+                            Some frames aren't assigned to anyone yet, so they show for every member. Claim them as yours.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => claimUnownedFrames()}
+                            className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500 text-white hover:bg-amber-600"
+                          >
+                            Claim
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {(() => {
                     const todayStr = getTodayStr();
-                    const visibleFrames = gtdFrames.filter(f => !f.singleDate || f.singleDate >= todayStr);
+                    const visibleFrames = gtdFrames.filter(f => (!f.singleDate || f.singleDate >= todayStr) && managedBy(f, hrViewUserSyncId));
                     return visibleFrames.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 gap-3">
                       <LayoutGrid size={48} className={textSecondary} />
