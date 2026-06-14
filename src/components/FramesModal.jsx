@@ -20,7 +20,7 @@ const FramesModal = () => {
     setShowFramesModal,
     editingFrame, setEditingFrame,
     framesModalTab, setFramesModalTab,
-    gtdFrames, aiConfig,
+    gtdFrames, myFrames, aiConfig,
     smartScheduleResults, smartScheduleLoading, smartScheduleError,
     smartScheduleAccepted, setSmartScheduleAccepted,
     runSmartSchedule, applySmartSchedule, setSmartScheduleResults, setSmartScheduleError,
@@ -185,7 +185,7 @@ const FramesModal = () => {
               borderClass={borderClass}
               cardBg={cardBg}
               hoverBg={hoverBg}
-              gtdFrames={gtdFrames}
+              gtdFrames={myFrames}
               formatTime={formatTime}
             />
           )}

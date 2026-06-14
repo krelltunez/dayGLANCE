@@ -87,7 +87,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     habitOverflowOpen, setHabitOverflowOpen,
     showHabitModal, setShowHabitModal,
     aiConfig,
-    gtdFrames,
+    myFrames,
     showFramesModal, setShowFramesModal,
     framesModalTab, setFramesModalTab,
     editingFrame, setEditingFrame,
@@ -527,7 +527,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
         {morningGlanceText && !morningGlanceLoading && (
           <p className={`text-sm leading-relaxed ${textPrimary}`}>{morningGlanceText}</p>
         )}
-        {morningGlanceText && !morningGlanceLoading && aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
+        {morningGlanceText && !morningGlanceLoading && aiConfig?.enabled && aiConfig.features?.smartScheduling && myFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
           <button
             onClick={() => isTray ? openMainAt({ action: 'schedule-inbox' }) : (setShowFramesModal(true), setFramesModalTab('schedule'), setEditingFrame(null))}
             className={`mt-2 flex items-center gap-1.5 text-xs font-medium transition-colors ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-700'}`}
@@ -583,7 +583,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
         )}
         {eveningGlanceError && <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{eveningGlanceError}</p>}
         {eveningGlanceText && !eveningGlanceLoading && <p className={`text-sm leading-relaxed ${textPrimary}`}>{eveningGlanceText}</p>}
-        {eveningGlanceText && !eveningGlanceLoading && incompleteTodayTasks.length > 0 && gtdFrames.filter(f => f.enabled).length > 0 && aiConfig.features?.aiReschedule && (
+        {eveningGlanceText && !eveningGlanceLoading && incompleteTodayTasks.length > 0 && myFrames.filter(f => f.enabled).length > 0 && aiConfig.features?.aiReschedule && (
           <button
             onClick={() => isTray ? openMainAt({ action: 'reschedule' }) : (setShowRescheduleModal(true), setRescheduleResults(null), setRescheduleError(''))}
             className={`mt-2 flex items-center gap-1.5 text-xs font-medium transition-colors ${darkMode ? 'text-orange-400 hover:text-orange-300' : 'text-orange-600 hover:text-orange-700'}`}
@@ -642,7 +642,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
   }}
 />}
   {/* Reschedule Tasks — shown when overdue past-day tasks exist, or incomplete today tasks after 7pm */}
-  {aiConfig?.enabled && aiConfig.features?.aiReschedule && gtdFrames.filter(f => f.enabled).length > 0 && (() => {
+  {aiConfig?.enabled && aiConfig.features?.aiReschedule && myFrames.filter(f => f.enabled).length > 0 && (() => {
     const _todayStr = getTodayStr();
     const _pastOverdue = getOverdueTasks().filter(t => t._overdueType === 'scheduled' ? t.date < _todayStr : true);
     if (!(_pastOverdue.length > 0 || (incompleteTodayTasks.length > 0 && currentTime.getHours() >= 19))) return null;

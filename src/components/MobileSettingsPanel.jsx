@@ -98,7 +98,7 @@ const MobileSettingsPanel = () => {
     addStepsHabit, addSleepHabit, healthPerms,
     hrViewUserSyncId, setHrViewUserSyncId,
     goalsProjectsEnabled, setGoalsProjectsEnabled,
-    gtdFrames,
+    gtdFrames, myFrames,
     framesModalTab, setFramesModalTab,
     editingFrame, setEditingFrame,
     saveFrame, deleteFrame,
@@ -1942,7 +1942,7 @@ const MobileSettingsPanel = () => {
             <>
               {(() => {
                 const todayStr = getTodayStr();
-                const visibleFrames = gtdFrames.filter(f => !f.singleDate || f.singleDate >= todayStr);
+                const visibleFrames = myFrames.filter(f => !f.singleDate || f.singleDate >= todayStr);
                 return visibleFrames.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 gap-3">
                     <LayoutGrid size={48} className={textSecondary} />
@@ -2012,7 +2012,7 @@ const MobileSettingsPanel = () => {
           borderClass={borderClass}
           cardBg={cardBg}
           hoverBg={hoverBg}
-          gtdFrames={gtdFrames}
+          gtdFrames={myFrames}
           formatTime={formatTime}
         />
       )}
