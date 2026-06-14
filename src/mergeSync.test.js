@@ -837,12 +837,37 @@ describe('mergeSyncData — routine definitions', () => {
     expect(data.deletedRoutineChipIds['2']).toBeDefined();
   });
 
-  // Regression: a chip edited on one device (e.g. claimed — ownerSyncId stamped
-  // with a fresh lastModified) must propagate to the other device that still has
-  // the older copy of the same chip id. Before @glance-apps/sync v1.3.1 the local
-  // chip was kept verbatim on id collision, so claims/renames never synced.
-  it('SCENARIO: routine chip claim propagates via last-write-wins on collision', () => {
-    // Maggie's device still has the unowned chip (older).
+  // Regression: a claimed chip (ownerSyncId stamped) must propagate to a device
+  // that still holds an unclaimed copy of the same id. Before @glance-apps/sync
+  // v1.3.1 the local chip was kept verbatim on collision (claims never synced);
+  // v1.3.2 made a claimed chip override an unclaimed one regardless of timestamp.
+  it('SCENARIO: routine chip claim propagates even when the unclaimed copy is newer', () => {
+    // Maggie's device holds the unclaimed chip with a NEWER lastModified — this is
+    // the case pure last-write-wins (v1.3.1) got wrong, leaving it claimable.
+    const maggie = {
+      ...emptyData(),
+      routineDefinitions: {
+        ...emptyData().routineDefinitions,
+        monday: [{ id: 1, name: 'Workout', lastModified: ts(2) }],
+      },
+    };
+    // Jason claimed it earlier: ownerSyncId stamped, OLDER lastModified.
+    const jason = {
+      ...emptyData(),
+      routineDefinitions: {
+        ...emptyData().routineDefinitions,
+        monday: [{ id: 1, name: 'Workout', ownerSyncId: 'jason', lastModified: ts(60) }],
+      },
+    };
+
+    const { data, localChanged } = mergeSyncData(maggie, jason);
+    expect(data.routineDefinitions.monday).toHaveLength(1);
+    expect(data.routineDefinitions.monday[0].ownerSyncId).toBe('jason');
+    expect(localChanged).toBe(true); // Maggie's device must adopt the claim
+  });
+
+  // The claimed chip also wins when it carries the newer timestamp (the simple case).
+  it('SCENARIO: routine chip claim propagates when the claim is also newer', () => {
     const maggie = {
       ...emptyData(),
       routineDefinitions: {
@@ -850,7 +875,6 @@ describe('mergeSyncData — routine definitions', () => {
         monday: [{ id: 1, name: 'Workout', lastModified: ts(60) }],
       },
     };
-    // Jason claimed it: same id, ownerSyncId stamped, newer lastModified.
     const jason = {
       ...emptyData(),
       routineDefinitions: {
@@ -862,7 +886,29 @@ describe('mergeSyncData — routine definitions', () => {
     const { data, localChanged } = mergeSyncData(maggie, jason);
     expect(data.routineDefinitions.monday).toHaveLength(1);
     expect(data.routineDefinitions.monday[0].ownerSyncId).toBe('jason');
-    expect(localChanged).toBe(true); // Maggie's device must pick up the claim
+    expect(localChanged).toBe(true);
+  });
+
+  // Two members independently claiming the same chip id is a genuine conflict —
+  // resolved by recency (the documented fallback once ownership status matches).
+  it('SCENARIO: competing claims on the same chip resolve by newer lastModified', () => {
+    const maggie = {
+      ...emptyData(),
+      routineDefinitions: {
+        ...emptyData().routineDefinitions,
+        monday: [{ id: 1, name: 'Workout', ownerSyncId: 'maggie', lastModified: ts(2) }],
+      },
+    };
+    const jason = {
+      ...emptyData(),
+      routineDefinitions: {
+        ...emptyData().routineDefinitions,
+        monday: [{ id: 1, name: 'Workout', ownerSyncId: 'jason', lastModified: ts(60) }],
+      },
+    };
+
+    const { data } = mergeSyncData(maggie, jason);
+    expect(data.routineDefinitions.monday[0].ownerSyncId).toBe('maggie'); // newer claim wins
   });
 });
 
