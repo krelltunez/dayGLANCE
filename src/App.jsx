@@ -806,6 +806,19 @@ const DayPlanner = () => {
       ? prev.map(r => r.ownerSyncId ? r : { ...r, ownerSyncId: meUserSyncId, lastModified: now })
       : prev);
   }, [meUserSyncId, setRoutineDefinitions, setTodayRoutines]);
+
+  // GTD Frames equivalent of the habit/routine claim.
+  const hasUnownedFrames = useMemo(
+    () => multiUserEnabled && gtdFrames.some(f => !f.ownerSyncId),
+    [multiUserEnabled, gtdFrames]
+  );
+  const claimUnownedFrames = useCallback(() => {
+    if (!meUserSyncId) return;
+    const now = new Date().toISOString();
+    setGtdFrames(prev => prev.some(f => !f.ownerSyncId)
+      ? prev.map(f => f.ownerSyncId ? f : { ...f, ownerSyncId: meUserSyncId, lastModified: now })
+      : prev);
+  }, [meUserSyncId, setGtdFrames]);
   // Everyday timeline/widgets show only my placed routines; persistence and
   // cloud sync use the full `allTodayRoutines` so other members' entries are
   // preserved across saves.
@@ -842,6 +855,9 @@ const DayPlanner = () => {
     });
     setTodayRoutines(prev => prev.some(r => !r.ownerSyncId)
       ? prev.map(r => r.ownerSyncId ? r : { ...r, ownerSyncId: meUserSyncId, lastModified: now })
+      : prev);
+    setGtdFrames(prev => prev.some(f => !f.ownerSyncId)
+      ? prev.map(f => f.ownerSyncId ? f : { ...f, ownerSyncId: meUserSyncId, lastModified: now })
       : prev);
     localStorage.setItem('dayglance-hr-owner-migrated', now);
     hrMigratedRef.current = true;
@@ -6641,6 +6657,7 @@ const DayPlanner = () => {
     return gtdFrames
       .filter(f => {
         if (!f.enabled) return false;
+        if (!ownedBy(f, meUserSyncId)) return false; // everyday/timeline shows only my frames
         if (f.singleDate) return f.singleDate === dateStr;
         return f.days.includes(dayOfWeek);
       })
@@ -6662,7 +6679,7 @@ const DayPlanner = () => {
         };
       })
       .filter(Boolean);
-  }, [gtdFrames]);
+  }, [gtdFrames, ownedBy, meUserSyncId]);
 
   // --- Frame Nudge --- (must be after getFrameInstancesForDate and getTasksForDate)
   const activeFrameForNudge = useMemo(() => {
@@ -7549,7 +7566,14 @@ const DayPlanner = () => {
     if (frame.id) {
       setGtdFrames(prev => prev.map(f => f.id === frame.id ? frame : f));
     } else {
-      setGtdFrames(prev => [...prev, { ...frame, id: crypto.randomUUID() }]);
+      // Multi-user: stamp the dashboard's active owner so the frame only shows
+      // for that user. Single-user mode leaves it unowned (ref is null).
+      const owner = hrOwnerRef?.current;
+      setGtdFrames(prev => [...prev, {
+        ...frame,
+        ...(frame.ownerSyncId || owner ? { ownerSyncId: frame.ownerSyncId ?? owner } : {}),
+        id: crypto.randomUUID(),
+      }]);
     }
     setEditingFrame(null);
   };
@@ -8353,6 +8377,7 @@ const DayPlanner = () => {
     hrViewUserSyncId, setHrViewUserSyncId,
     ownedBy, managedBy,
     hasUnownedRoutines, claimUnownedRoutines,
+    hasUnownedFrames, claimUnownedFrames,
 
     // ── Habits ────────────────────────────────────────────────────────────────
     habits, setHabits,
