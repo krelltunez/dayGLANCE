@@ -30,8 +30,12 @@ function usersDir(baseUrl, usersPath) {
   return `${baseUrl}${path}`;
 }
 
+// Encode credentials as Base64 for Basic auth. btoa() alone throws
+// InvalidCharacterError on codepoints > 255 (accented chars, CJK, emoji), so
+// UTF-8-encode first — matching toBase64() used everywhere else in the app.
 function authHeaders(username, appPassword) {
-  const cred = btoa(`${username}:${appPassword}`);
+  const raw = `${username}:${appPassword}`;
+  const cred = btoa(String.fromCharCode(...new TextEncoder().encode(raw)));
   return { 'X-WebDAV-Auth': `Basic ${cred}` };
 }
 
