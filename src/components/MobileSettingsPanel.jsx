@@ -24,7 +24,8 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from '../intents/useIntentPoller.js';
-import { syncSharedUsers } from '../intents/sharedUsers.js';
+import { syncSharedUsers, syncSharedUsersViaICloud } from '../intents/sharedUsers.js';
+import { isAvailable as isICloudAvailable } from '../intents/icloudFileTransport.js';
 import { getSyncPassphrase, setSyncPassphrase } from '../utils/crypto.js';
 import { setupIntentsEncryption } from '../intents/intentsEncryptionSetup.js';
 import { loadIntentsRootKey, clearIntentsRootKey } from '../intents/intentsKeyStore.js';
@@ -2412,7 +2413,7 @@ const MobileSettingsPanel = () => {
       </div>
       <div className="flex items-center justify-between gap-3">
         <p className={`text-xs ${textSecondary}`}>Share dayGLANCE with your household. Tasks can be assigned to specific people; unassigned tasks are visible to everyone.</p>
-        {cloudSyncConfig?.enabled && (
+        {(cloudSyncConfig?.enabled || isICloudAvailable()) && (
           <button
             type="button"
             disabled={muSyncStatus === 'syncing'}
@@ -2421,7 +2422,11 @@ const MobileSettingsPanel = () => {
               try {
                 const raw = localStorage.getItem(MULTI_USER_CONFIG_KEY);
                 const uPath = raw ? (JSON.parse(raw).usersPath ?? undefined) : undefined;
-                const merged = await syncSharedUsers(cloudSyncConfig, uPath, users);
+                // Prefer WebDAV when configured; otherwise fetch the roster from
+                // iCloud Drive (zero-config sync across same-Apple-ID devices).
+                const merged = cloudSyncConfig?.enabled
+                  ? await syncSharedUsers(cloudSyncConfig, uPath, users)
+                  : await syncSharedUsersViaICloud(uPath, users);
                 if (merged) {
                   localStorage.setItem('dayglance-users', JSON.stringify(merged));
                   setUsers(merged);
