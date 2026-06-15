@@ -538,7 +538,7 @@ const CalendarHeader = () => {
 )}
 
 {/* Multi-mode all-day tasks section */}
-{effectiveViewMode === 'multi' && (visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay) || getDeadlineTasksForDate(dateToString(date)).length > 0) || (routinesEnabled && todayRoutines.some(r => r.isAllDay))) && (
+{effectiveViewMode === 'multi' && !(isTablet && !isLandscape && mobileViewMode === 'list') && (visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay) || getDeadlineTasksForDate(dateToString(date)).length > 0) || (routinesEnabled && todayRoutines.some(r => r.isAllDay))) && (
   <div ref={(el) => { if (isTablet) mobileAllDaySectionRef.current = el; }} className={`flex border-b ${borderClass} ${cardBg}`}>
     <div className={`w-16 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
       ALL DAY
