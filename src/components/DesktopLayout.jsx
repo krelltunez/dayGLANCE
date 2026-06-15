@@ -5,6 +5,7 @@ import {
   RefreshCw, Save, Settings, Sun, Trash2,
 } from 'lucide-react';
 import { dateToString, formatDateRange } from '../utils/taskUtils.js';
+import { isNativeApp } from '../native.js';
 import DesktopHeader from './DesktopHeader.jsx';
 import CalendarHeader from './CalendarHeader.jsx';
 import TimeGrid from './TimeGrid.jsx';
@@ -494,7 +495,7 @@ const DesktopLayout = () => {
               )}
           </div>
           <div className="flex items-center gap-2">
-            <button
+            {!isNativeApp() && <button
               onClick={() => {
                 if (isSyncing) return;
                 if (calSyncConfigured) {
@@ -517,7 +518,7 @@ const DesktopLayout = () => {
                   'bg-green-500'
                 }`} />
               )}
-            </button>
+            </button>}
             <button
               onClick={() => {
                 if (cloudSyncConfig?.enabled) {
