@@ -106,6 +106,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     showVoiceInput, setShowVoiceInput,
     voiceCanRecord,
     healthPerms,
+    isVisibleForUser,
   } = useFeaturesCtx();
   const { t } = useTranslation();
 
@@ -262,7 +263,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       : [];
     const allTasksCombined = [...tasks, ...unscheduledTasks];
     const activeGoalsList = goalsProjectsEnabled
-      ? goals.filter(g => g.status === 'active').map(g => {
+      ? goals.filter(g => g.status === 'active' && isVisibleForUser(g)).map(g => {
           const progressPct = Math.round(calculateGoalProgress(g.id, projects, allTasksCombined) * 100);
           const daysLeft = g.targetDate
             ? Math.ceil((new Date(g.targetDate + 'T00:00:00') - new Date(getTodayStr() + 'T00:00:00')) / 86400000)
