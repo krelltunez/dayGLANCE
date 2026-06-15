@@ -1141,7 +1141,7 @@ const SettingsModal = () => {
                                 type="button"
                                 onClick={() => setAddingUser(true)}
                                 className={`mt-2 text-sm ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'}`}
-                              >+ {t('common.addPerson')}</button>
+                              >{t('common.addPerson')}</button>
                             )}
                           </div>
                           {/* Users path — only shown when GLANCE Integrations WebDAV is configured */}

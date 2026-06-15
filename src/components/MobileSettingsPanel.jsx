@@ -2564,7 +2564,7 @@ const MobileSettingsPanel = () => {
             onClick={() => setMuAddingUser(true)}
             className={`mt-3 w-full ${cardBg} border ${borderClass} rounded-xl p-3 flex items-center justify-center gap-2 ${darkMode ? 'text-blue-400' : 'text-blue-600'} text-sm font-medium`}
           >
-            <Plus size={16} /> {t('common.addPerson')}
+            {t('common.addPerson')}
           </button>
         )}
       </div>
