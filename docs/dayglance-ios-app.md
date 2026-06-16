@@ -471,11 +471,11 @@ Ship the three widget kinds at the minimum-viable sizes to give iOS a native-fee
 - App Group shared container (`group.com.dayglance.app`) replaces Android's `SharedDataStore`
 - Three widget kinds matching Android: **Up Next**, **Goal**, **Project**. The fourth Android widget — **dayGLANCE** (mirror of the GLANCE tab) — is intentionally **out of v1 scope**; it's the densest layout and benefits most from being designed alongside the Live Activity work in v1.1.
 - `nativeUpdateWidgetSnapshot(type, json)` bridge call — one call per widget kind
-- SwiftUI views — **Medium** size for all three at launch; Small added where the design is obvious (Up Next, Project)
+- SwiftUI views — **Medium** and **Large** sizes for all three (Up Next, Goal, Project). Small was removed; the dense layouts read poorly at that size. Large shows more (extra subtasks/notes on Up Next, more tasks on Project, per-project progress bars on Goal).
 - `BGAppRefreshTask` for 15-minute background refresh
 - iOS 17+ interactive widget buttons (task complete) on Up Next — App Intents required (small set: complete-task, start-focus)
 
-**Deferred to v1.1**: Large size, StandBy variant, Lock Screen widgets (separate widget family — circular, rectangular, inline), iPad-XL size.
+**Deferred to v1.1**: StandBy variant, Lock Screen widgets (separate widget family — circular, rectangular, inline), iPad-XL size.
 
 ### Phase 11 — iOS launch polish (v1)
 
@@ -483,7 +483,7 @@ Native-feeling touches that make v1 look like an iOS app rather than a port. All
 
 - **Haptics**: `nativeHaptic(type)` bridge call wired to `UIImpactFeedbackGenerator` (light/medium/heavy/success/warning/error). Web layer fires on task complete, snooze, focus-start, etc.
 - **Share Extension**: Receive shared text/URLs → create new inbox task on next app open. Standard `ShareViewController` extension target.
-- **Home Screen Quick Actions**: Long-press app icon menu with up to four actions — "New scheduled task", "New inbox task", "Start Focus on next task", "Open today". Static items in `Info.plist` (`UIApplicationShortcutItems`); handled in scene delegate, routed to the WebView as a deep link (e.g. `dg:///?action=newInboxTask`).
+- **Home Screen Quick Actions**: Long-press app icon menu with four actions — "New Scheduled Task", "New Inbox Task", "Start Focus", "Voice Input". Static items in `Info.plist` (`UIApplicationShortcutItems`); the chosen action type is stashed in the AppDelegate and drained by the web layer (via `getPendingShortcutAction`) on launch/foreground. ("Open Today" was removed — it duplicated the default launch behaviour.)
 - **Spotlight indexing**: CoreSpotlight indexes today's and upcoming tasks (and goals/projects), so users can search from the home screen and tap to open dayGLANCE deep-linked to the item. Index updates on data change via the bridge.
 - **Reminders read (opt-in)**: EventKit already covers Reminders. Add a Settings toggle "Show iOS Reminders as inbox tasks" (off by default). When enabled, reminders surface read-only alongside dayGLANCE inbox tasks — gives Apple-ecosystem users a way to consolidate without forced migration.
 - **Validate free platform features** (no implementation, just confirm they work): Universal Clipboard (copy on Mac, paste on iOS), AirDrop (export sharing), Continuity Camera (image attachments to task notes), Live Text (free OCR on attached images).

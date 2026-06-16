@@ -63,6 +63,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         completionHandler: @escaping (Bool) -> Void
     ) {
         AppDelegate.pendingShortcutAction = shortcutItem.type
+        AppDelegate.notifyWebViewToDrainPendingActions()
         completionHandler(true)
     }
 
@@ -71,6 +72,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
         if url.scheme == "dayglance" {
             AppDelegate.pendingDeepLink = url.absoluteString
+            AppDelegate.notifyWebViewToDrainPendingActions()
         }
         return true
     }
@@ -81,8 +83,21 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         if userActivity.activityType == CSSearchableItemActionType,
            let id = userActivity.userInfo?[CSSearchableItemActivityIdentifier] as? String {
             AppDelegate.pendingDeepLink = "dayglance://task?id=\(id)"
+            AppDelegate.notifyWebViewToDrainPendingActions()
         }
         return true
+    }
+
+    /// Nudges the web layer to poll for the pending shortcut/deep-link it just
+    /// stored. The WebView translates .dayGlanceForeground into a JS
+    /// `dayglanceForeground` event, whose handler drains the pending action.
+    /// Posting here (rather than relying solely on the scenePhase → active
+    /// transition) closes the cold-launch race where the native callback can
+    /// arrive after the app is already active and the one-shot drain has run.
+    static func notifyWebViewToDrainPendingActions() {
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .dayGlanceForeground, object: nil)
+        }
     }
 }
 

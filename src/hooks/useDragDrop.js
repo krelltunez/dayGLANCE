@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { dateToString } from '../utils/taskUtils.js';
 import { TASK_COLORS } from '../utils/colorUtils.js';
-import { nativeUpdateEvent } from '../native.js';
+import { nativeUpdateEvent, triggerHaptic } from '../native.js';
 
 // Pure utilities used by position helpers
 const timeToMinutes = (time) => {
@@ -1004,7 +1004,7 @@ export default function useDragDrop({
       if (overTrash !== mobileDragOverTrashRef.current) {
         mobileDragOverTrashRef.current = overTrash;
         setMobileDragOverTrash(overTrash);
-        if (overTrash && navigator.vibrate) navigator.vibrate(30);
+        if (overTrash) triggerHaptic('medium');
       }
       if (overTrash) return; // freeze preview time — don't update while over trash
     }
@@ -1171,7 +1171,7 @@ export default function useDragDrop({
         document.body.style.webkitUserSelect = 'none';
         document.body.style.userSelect = 'none';
         // Haptic feedback
-        if (navigator.vibrate) navigator.vibrate(50);
+        triggerHaptic('heavy');
       }, 500);
     }
   };
@@ -1488,7 +1488,7 @@ export default function useDragDrop({
 
     if (Math.abs(offset) > threshold && !isRightSwipeBlocked) {
       // Trigger action
-      if (navigator.vibrate) navigator.vibrate(40);
+      triggerHaptic('medium');
       const direction = offset > 0 ? 'right' : 'left';
       // Animate off-screen
       el.style.transform = `translateX(${direction === 'right' ? elWidth : -elWidth}px)`;

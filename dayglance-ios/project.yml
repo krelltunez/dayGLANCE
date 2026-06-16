@@ -124,9 +124,10 @@ targets:
             UIApplicationShortcutItemTitle: Start Focus
             UIApplicationShortcutItemSubtitle: Focus on next task
             UIApplicationShortcutItemIconType: UIApplicationShortcutIconTypePlay
-          - UIApplicationShortcutItemType: com.dayglance.openToday
-            UIApplicationShortcutItemTitle: Open Today
-            UIApplicationShortcutItemIconType: UIApplicationShortcutIconTypeDate
+          - UIApplicationShortcutItemType: com.dayglance.voiceInput
+            UIApplicationShortcutItemTitle: Voice Input
+            UIApplicationShortcutItemSubtitle: Capture tasks by voice
+            UIApplicationShortcutItemIconType: UIApplicationShortcutIconTypeAudio
 
   DayGlanceWidget:
     type: app-extension

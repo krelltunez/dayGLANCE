@@ -596,3 +596,44 @@ export const nativeShareFile = (filename, content) => {
     return null;
   }
 };
+
+// ── Haptics ─────────────────────────────────────────────────────────────────
+
+// Web vibration durations (ms) used only for the PWA / desktop fallback.
+const WEB_VIBRATION_PATTERNS = {
+  light: 10,
+  medium: 30,
+  heavy: 50,
+  success: [30, 50, 30],
+  warning: [40, 60, 40],
+  error: [60, 40, 60],
+};
+
+/**
+ * Triggers haptic feedback, routed to the correct mechanism per platform.
+ *
+ * Both the iOS WKWebView and the Android System WebView ignore the web
+ * `navigator.vibrate` API, so feedback must go through the native bridge's
+ * triggerHaptic (UIFeedbackGenerator on iOS, Vibrator on Android). Only the
+ * PWA / desktop web build falls back to navigator.vibrate.
+ *
+ * NOTE: iPads have no Taptic Engine, so UIFeedbackGenerator is a silent no-op
+ * there — haptics on iOS are felt on iPhone only. On Android the device's
+ * system "touch/haptic feedback" setting must be enabled.
+ *
+ * @param type  'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error'
+ */
+export const triggerHaptic = (type = 'medium') => {
+  const bridge = nativeBridge();
+  if (bridge?.triggerHaptic) {
+    try {
+      bridge.triggerHaptic(type);
+      return;
+    } catch (_) { /* fall through to the web vibration fallback */ }
+  }
+  if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+    try {
+      navigator.vibrate(WEB_VIBRATION_PATTERNS[type] ?? 30);
+    } catch (_) {}
+  }
+};

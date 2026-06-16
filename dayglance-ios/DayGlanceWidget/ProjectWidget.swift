@@ -20,6 +20,7 @@ struct ProjectProvider: TimelineProvider {
 
 struct ProjectWidgetView: View {
     var entry: ProjectEntry
+    @Environment(\.widgetFamily) var family
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -74,7 +75,7 @@ struct ProjectWidgetView: View {
                 Divider()
                 let incomplete = tasks.filter { !($0.completed ?? false) }
                 let complete = tasks.filter { $0.completed ?? false }
-                let visible = Array((incomplete + complete).prefix(4))
+                let visible = Array((incomplete + complete).prefix(family == .systemLarge ? 8 : 4))
                 ForEach(visible, id: \.id) { t in
                     HStack(spacing: 6) {
                         Image(systemName: (t.completed ?? false) ? "checkmark.circle.fill" : "circle")
@@ -111,6 +112,6 @@ struct ProjectWidget: Widget {
         }
         .configurationDisplayName("Project")
         .description("Progress on your active project.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemMedium, .systemLarge])
     }
 }

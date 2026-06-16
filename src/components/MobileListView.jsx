@@ -11,6 +11,7 @@ import * as LucideIcons from 'lucide-react';
 import { renderTitle, isLinkOnlyTask, getLinkUrl, hasNotesOrSubtasks, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { taskColorToHex } from '../utils/colorUtils.js';
+import { triggerHaptic } from '../native.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getHGBarsForDate, isHGSessionReachable } from '../hooks/useHyperGlance.js';
@@ -966,7 +967,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
     ref.active = false;
     ref.ignoreRoutineId = item._kind === 'routine' ? item._routineId : null;
     ref.timer = setTimeout(() => {
-      navigator.vibrate?.(10);
+      triggerHaptic('light');
       ref.active = true;
       dragTouchPos.current = { x: t.clientX, y: t.clientY };
       setListDragItem(item);

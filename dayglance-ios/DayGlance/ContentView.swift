@@ -1,5 +1,6 @@
 import SwiftUI
 import EventKit
+import CoreSpotlight
 
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -35,6 +36,22 @@ struct ContentView: View {
                 if current != lastCalendarStatus {
                     lastCalendarStatus = current
                     NotificationCenter.default.post(name: .dayGlanceReloadWebView, object: nil)
+                }
+            }
+            // Spotlight result taps. SwiftUI delivers these reliably on both cold
+            // and warm launch, unlike the AppDelegate continueUserActivity path
+            // which can be skipped under the scene-based lifecycle.
+            .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                if let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String {
+                    AppDelegate.pendingDeepLink = "dayglance://task?id=\(id)"
+                    AppDelegate.notifyWebViewToDrainPendingActions()
+                }
+            }
+            // dayglance:// deep links (e.g. from Shortcuts or other apps).
+            .onOpenURL { url in
+                if url.scheme == "dayglance" {
+                    AppDelegate.pendingDeepLink = url.absoluteString
+                    AppDelegate.notifyWebViewToDrainPendingActions()
                 }
             }
     }

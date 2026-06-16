@@ -1,6 +1,7 @@
 import { cleanTitle } from '../utils/suggestionParser.js';
 import { dateToString, extractTags, formatDeadlineDate } from '../utils/taskUtils.js';
 import { TASK_COLORS } from '../utils/colorUtils.js';
+import { triggerHaptic } from '../native.js';
 
 // Strip a specific tag (e.g. "#obsidian") from a title string.
 const stripTag = (title, tag) =>
@@ -379,7 +380,7 @@ export default function useTaskActions({
   const toggleComplete = (id, fromInbox = false) => {
     pushUndo();
     playUISound('tick');
-    if (navigator.vibrate) navigator.vibrate(30);
+    triggerHaptic('medium');
     if (typeof id === 'string' && id.startsWith('recurring-')) {
       const { templateId, dateStr } = parseRecurringId(id);
       setRecurringTasks(prev => prev.map(t => {
@@ -644,7 +645,7 @@ export default function useTaskActions({
         setTasks(prev => prev.filter(t => t.id !== id));
       }
       playUISound('swoosh');
-      if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+      triggerHaptic('success');
       setUndoToast({ message: 'Task deleted', actionable: true });
       if (!onboardingProgress.hasUsedActionButtons) {
         setOnboardingProgress(prev => ({ ...prev, hasUsedActionButtons: true }));
