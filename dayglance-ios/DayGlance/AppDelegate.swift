@@ -36,6 +36,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             task.setTaskCompleted(success: true)
         }
 
+        // Capture Quick Action if app was cold-launched via a home screen shortcut.
+        // (On warm launch, performActionFor shortcutItem: is called instead.)
+        if let shortcut = launchOptions?[UIApplication.LaunchOptionsKey.shortcutItem] as? UIApplicationShortcutItem {
+            AppDelegate.pendingShortcutAction = shortcut.type
+        }
+
         return true
     }
 

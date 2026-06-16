@@ -24,7 +24,7 @@ struct ProjectWidgetView: View {
 
     var body: some View {
         let taskLimit = family == .systemLarge ? 8 : 4
-        return VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             header
             Divider().padding(.vertical, 4)
             if let projects = entry.snapshot?.allProjects,

@@ -323,6 +323,7 @@ const DayPlanner = () => {
   const [editingRecurrenceTaskId, setEditingRecurrenceTaskId] = useState(null); // recurring composite ID string
   const [showRecurrenceEndDatePicker, setShowRecurrenceEndDatePicker] = useState(null); // { source: 'edit' | 'new', templateId?: number }
   const [showAddTask, setShowAddTask] = useState(false);
+  const [spotlightTaskId, setSpotlightTaskId] = useState(null); // pending Spotlight navigation
   const [taskAISuggestion, setTaskAISuggestion] = useState(null); // { duration, tags }
   const [taskAISuggestionLoading, setTaskAISuggestionLoading] = useState(false);
   const [frameNudgeSuggestion, setFrameNudgeSuggestion] = useState(null); // { taskId, taskTitle, reason, isInbox }
@@ -1528,38 +1529,41 @@ const DayPlanner = () => {
       // Phase 10/11 — drain pending actions written by native extensions while
       // the app was backgrounded (widget intents, quick actions, deep links,
       // Spotlight taps, share extension).
-      if (window.DayGlanceNative?.getPendingDeepLink) {
-        const rawLink = window.DayGlanceNative.getPendingDeepLink();
-        if (rawLink && rawLink !== 'null') {
-          const link = rawLink.replace(/^"|"$/g, '');
-          try {
-            const url = new URL(link);
-            const action = url.pathname.replace(/^\/+/, '') || url.hostname;
-            const taskId = url.searchParams.get('id');
-            if (action === 'task' && taskId) {
-              // Spotlight tap — scroll task into view by dispatching an event
-              // the task list listens for (same pattern as search highlight).
-              window.dispatchEvent(new CustomEvent('dayglanceOpenTask', { detail: { taskId } }));
-            } else if (action === 'newScheduledTask') {
-              setShowAddTask(true);
-            } else if (action === 'newInboxTask') {
-              openNewInboxTaskRef.current?.();
-            } else if (action === 'startFocus') {
-              setShowFocusMode(true);
-            }
-          } catch (_) {}
+      // Delay 200 ms: on warm launch, scenePhase.active fires before the system
+      // calls performActionFor(shortcutItem:) or continue(userActivity:), so
+      // polling immediately would always return null.
+      setTimeout(() => {
+        if (window.DayGlanceNative?.getPendingDeepLink) {
+          const rawLink = window.DayGlanceNative.getPendingDeepLink();
+          if (rawLink && rawLink !== 'null') {
+            const link = rawLink.replace(/^"|"$/g, '');
+            try {
+              const url = new URL(link);
+              const action = url.pathname.replace(/^\/+/, '') || url.hostname;
+              const taskId = url.searchParams.get('id');
+              if (action === 'task' && taskId) {
+                setSpotlightTaskId(taskId);
+              } else if (action === 'newScheduledTask') {
+                setShowAddTask(true);
+              } else if (action === 'newInboxTask') {
+                openNewInboxTaskRef.current?.();
+              } else if (action === 'startFocus') {
+                setShowFocusMode(true);
+              }
+            } catch (_) {}
+          }
         }
-      }
-      if (window.DayGlanceNative?.getPendingShortcutAction) {
-        const rawAction = window.DayGlanceNative.getPendingShortcutAction();
-        if (rawAction && rawAction !== 'null') {
-          const action = rawAction.replace(/^"|"$/g, '');
-          if (action === 'com.dayglance.newScheduledTask') setShowAddTask(true);
-          else if (action === 'com.dayglance.newInboxTask') openNewInboxTaskRef.current?.();
-          else if (action === 'com.dayglance.startFocus') setShowFocusMode(true);
-          // com.dayglance.openToday — app is already on today view; nothing extra needed
+        if (window.DayGlanceNative?.getPendingShortcutAction) {
+          const rawAction = window.DayGlanceNative.getPendingShortcutAction();
+          if (rawAction && rawAction !== 'null') {
+            const action = rawAction.replace(/^"|"$/g, '');
+            if (action === 'com.dayglance.newScheduledTask') setShowAddTask(true);
+            else if (action === 'com.dayglance.newInboxTask') openNewInboxTaskRef.current?.();
+            else if (action === 'com.dayglance.startFocus') setShowFocusMode(true);
+            // com.dayglance.openToday — app is already on today view; nothing extra needed
+          }
         }
-      }
+      }, 200);
       if (window.DayGlanceNative?.getShareExtensionPending) {
         try {
           const raw = window.DayGlanceNative.getShareExtensionPending();
@@ -1687,18 +1691,50 @@ const DayPlanner = () => {
   }, [dataLoaded]);
 
   // Drain pending quick-action shortcut when data finishes loading. This covers
-  // the case where the app was killed when the user tapped a home screen shortcut —
-  // dayglanceForeground fires before dataLoaded is true so the action would be missed.
+  // the case where the app was killed when the user tapped a home screen shortcut or
+  // Spotlight result — dayglanceForeground fires before dataLoaded is true so the
+  // action would be missed.
   useEffect(() => {
     if (!dataLoaded) return;
-    if (!window.DayGlanceNative?.getPendingShortcutAction) return;
-    const rawAction = window.DayGlanceNative.getPendingShortcutAction();
-    if (!rawAction || rawAction === 'null') return;
-    const action = rawAction.replace(/^"|"$/g, '');
-    if (action === 'com.dayglance.newScheduledTask') setShowAddTask(true);
-    else if (action === 'com.dayglance.newInboxTask') openNewInboxTaskRef.current?.();
-    else if (action === 'com.dayglance.startFocus') setShowFocusMode(true);
+    if (window.DayGlanceNative?.getPendingShortcutAction) {
+      const rawAction = window.DayGlanceNative.getPendingShortcutAction();
+      if (rawAction && rawAction !== 'null') {
+        const action = rawAction.replace(/^"|"$/g, '');
+        if (action === 'com.dayglance.newScheduledTask') setShowAddTask(true);
+        else if (action === 'com.dayglance.newInboxTask') openNewInboxTaskRef.current?.();
+        else if (action === 'com.dayglance.startFocus') setShowFocusMode(true);
+      }
+    }
+    if (window.DayGlanceNative?.getPendingDeepLink) {
+      const rawLink = window.DayGlanceNative.getPendingDeepLink();
+      if (rawLink && rawLink !== 'null') {
+        const link = rawLink.replace(/^"|"$/g, '');
+        try {
+          const url = new URL(link);
+          const action = url.pathname.replace(/^\/+/, '') || url.hostname;
+          const taskId = url.searchParams.get('id');
+          if (action === 'task' && taskId) setSpotlightTaskId(taskId);
+          else if (action === 'newScheduledTask') setShowAddTask(true);
+          else if (action === 'newInboxTask') openNewInboxTaskRef.current?.();
+          else if (action === 'startFocus') setShowFocusMode(true);
+        } catch (_) {}
+      }
+    }
   }, [dataLoaded]);
+
+  // Navigate to a task opened via Spotlight search.
+  useEffect(() => {
+    if (!spotlightTaskId || !dataLoaded) return;
+    const scheduledTask = tasks.find(t => t.id === spotlightTaskId);
+    if (scheduledTask?.date) {
+      setSelectedDate(new Date(scheduledTask.date + 'T12:00:00'));
+      if (isMobile || isTablet) setMobileActiveTab('timeline');
+    } else if (unscheduledTasks.find(t => t.id === spotlightTaskId)) {
+      if (isMobile || isTablet) setMobileActiveTab('inbox');
+    }
+    setSpotlightTaskId(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spotlightTaskId, dataLoaded]);
 
   const writeConfigTimestamp = (key) => {
     if (!configTrackingActiveRef.current || applyingRemoteDataRef.current) return;

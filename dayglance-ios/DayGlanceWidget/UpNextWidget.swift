@@ -45,9 +45,10 @@ struct UpNextWidgetView: View {
         .containerBackground(.background, for: .widget)
     }
 
+    @ViewBuilder
     private func taskView(task: NextTaskData) -> some View {
         let subtaskLimit = family == .systemLarge ? 8 : 3
-        return VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             header
             Divider().padding(.vertical, 4)
             HStack(alignment: .top, spacing: 8) {
