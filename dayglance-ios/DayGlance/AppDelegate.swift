@@ -49,6 +49,23 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         scheduleWidgetRefresh()
     }
 
+    // MARK: - Scene configuration
+
+    // SwiftUI's App lifecycle is scene-based. Routing scene creation through a
+    // UISceneConfiguration with our SceneDelegate is the only reliable way to
+    // receive Home Screen Quick Actions (and cold-launch Spotlight / deep links)
+    // in this kind of app. We do not manage a window in the delegate, so SwiftUI
+    // continues to provide and render the scene's content unchanged.
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        let config = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        config.delegateClass = SceneDelegate.self
+        return config
+    }
+
     private func scheduleWidgetRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: "com.dayglance.widgetrefresh")
         request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
