@@ -598,6 +598,12 @@ function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24Ho
             color: darkMode ? '#fca5a5' : '#991b1b',
             border: '2px solid #ef4444',
             background: darkMode ? '#ef444415' : '#fef2f2',
+            display: 'inline-block',
+            maxWidth: '100%',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            verticalAlign: 'middle',
           }}
         >
           {countdownStr}

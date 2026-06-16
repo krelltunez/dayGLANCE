@@ -48,7 +48,7 @@ struct UpNextWidgetView: View {
     private func taskView(task: NextTaskData) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            Divider().padding(.vertical, 4)
+            Divider().padding(.vertical, 3)
             HStack(alignment: .top, spacing: 8) {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Color(hex: task.colorHex ?? "#3b82f6"))
@@ -60,7 +60,7 @@ struct UpNextWidgetView: View {
                             .font(.subheadline).fontWeight(.semibold)
                             .lineLimit(family == .systemLarge ? 3 : 2)
                         Spacer()
-                        if let time = formattedTime(task) {
+                        if let time = timeLabel(task) {
                             Text(time)
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
@@ -100,13 +100,13 @@ struct UpNextWidgetView: View {
                             }
                             .buttonStyle(.bordered)
                         }
-                        .padding(.top, 2)
+                        .padding(.top, 1)
                     }
                 }
             }
             if let subtasks = task.subtasks, !subtasks.isEmpty {
-                Divider().padding(.vertical, 4)
-                ForEach(subtasks.prefix(family == .systemLarge ? 6 : 3), id: \.title) { sub in
+                Divider().padding(.vertical, 3)
+                ForEach(subtasks.prefix(family == .systemLarge ? 7 : 4), id: \.title) { sub in
                     HStack(spacing: 6) {
                         Image(systemName: sub.completed ? "checkmark.circle.fill" : "circle")
                             .font(.caption2)
@@ -133,6 +133,20 @@ struct UpNextWidgetView: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }
+    }
+
+    // Start time plus duration, e.g. "9:00AM · 30m". Falls back to just the
+    // start time when no duration is set.
+    private func timeLabel(_ task: NextTaskData) -> String? {
+        guard let time = formattedTime(task) else { return nil }
+        if let d = task.duration, d > 0 { return "\(time) · \(formattedDuration(d))" }
+        return time
+    }
+
+    private func formattedDuration(_ minutes: Int) -> String {
+        if minutes < 60 { return "\(minutes)m" }
+        let h = minutes / 60, m = minutes % 60
+        return m == 0 ? "\(h)h" : "\(h)h\(m)m"
     }
 
     private func formattedTime(_ task: NextTaskData) -> String? {

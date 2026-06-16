@@ -41,9 +41,15 @@ struct ProjectWidgetView: View {
     }
 
     private var header: some View {
-        Text("PROJECT")
-            .font(.caption2).fontWeight(.bold)
-            .foregroundColor(.secondary)
+        HStack {
+            Text("PROJECT")
+                .font(.caption2).fontWeight(.bold)
+                .foregroundColor(.secondary)
+            Spacer()
+            Text(entry.snapshot?.dateLabel ?? "")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
     }
 
     private func projectView(proj: ProjectData) -> some View {

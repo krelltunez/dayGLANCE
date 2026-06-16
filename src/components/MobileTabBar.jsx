@@ -16,10 +16,14 @@ const MobileTabBar = () => {
   } = useDayPlannerCtx();
   const { t } = useTranslation();
   const {
-    goalsProjectsEnabled, goals, handleRoutinesDone,
+    goalsProjectsEnabled, goals, handleRoutinesDone, isVisibleForUser,
   } = useFeaturesCtx();
 
-  const activeGoals = goalsProjectsEnabled ? (goals || []).filter(g => g.status !== 'archived') : [];
+  // Count only the active user's goals (matches the per-user visibility used
+  // for goals elsewhere); in single-user mode isVisibleForUser is always true.
+  const activeGoals = goalsProjectsEnabled
+    ? (goals || []).filter(g => g.status !== 'archived' && isVisibleForUser(g))
+    : [];
   const goalsCount = activeGoals.length;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const hasOverdueGoal = activeGoals.some(g => g.targetDate && new Date(g.targetDate + 'T00:00:00') < today && g.status !== 'completed');

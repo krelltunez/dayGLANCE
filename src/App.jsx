@@ -7403,7 +7403,7 @@ const DayPlanner = () => {
       duration: nextTaskCandidate.duration || 0,
       tags: (nextTaskCandidate.tags || []).slice(0, 5),
       notes: (nextTaskCandidate.notes || '').substring(0, 300),
-      subtasks: (nextTaskCandidate.subtasks || []).slice(0, 5).map(s => ({
+      subtasks: (nextTaskCandidate.subtasks || []).slice(0, 7).map(s => ({
         title: s.title,
         completed: s.completed || false,
       })),
@@ -7610,11 +7610,16 @@ const DayPlanner = () => {
   ]);
 
   // Phase 11 — Spotlight indexing: keep Spotlight in sync with non-archived,
-  // non-completed tasks so they're searchable from iOS Spotlight.
+  // non-completed tasks so they're searchable from iOS Spotlight. Past-dated
+  // tasks and events are excluded — only today/future and undated (inbox)
+  // items are worth surfacing. Date strings are 'YYYY-MM-DD', so a lexical
+  // compare against today is correct.
   useEffect(() => {
     if (!window.DayGlanceNative?.indexSpotlight) return;
     if (!dataLoaded) return;
-    const allTasks = [...tasks, ...unscheduledTasks].filter(t => !t.archived && !t.completed && isVisibleForUser(t));
+    const todayStr = dateToString(new Date());
+    const allTasks = [...tasks, ...unscheduledTasks].filter(t =>
+      !t.archived && !t.completed && isVisibleForUser(t) && (!t.date || t.date >= todayStr));
     const items = allTasks.map(t => ({
       id: t.id,
       title: t.title.replace(/\[\[[^\]]*\]\]/g, '').replace(/#\S+/g, '').replace(/\s+/g, ' ').trim(),

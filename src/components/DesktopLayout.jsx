@@ -470,7 +470,7 @@ const DesktopLayout = () => {
 
       {/* Tablet header strip */}
       {isTablet && (
-        <div className={`${cardBg} border-b ${borderClass} px-4 flex items-center justify-between`} style={{ height: '56px' }}>
+        <div className={`${cardBg} border-b ${borderClass} px-4 flex items-center justify-between relative`} style={{ height: '56px' }}>
           <div className="flex items-center gap-1">
               <button onClick={() => changeDate(-1)} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label="Previous day">
                 <ChevronLeft size={20} className={textSecondary} />
