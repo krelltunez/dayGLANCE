@@ -9,9 +9,20 @@ struct WidgetSnapshot: Codable {
     var dateLabel: String?
     var use24Hour: Bool?
     var nextTask: NextTaskData?
+    var upcomingTasks: [UpcomingTaskData]?
     var allGoals: [GoalData]?
     var allProjects: [ProjectData]?
     var updatedAt: Double?
+}
+
+// Lightweight task used to fill leftover space in the Up Next widget when the
+// primary task has no subtasks/notes of its own.
+struct UpcomingTaskData: Codable {
+    var id: String?
+    var title: String?
+    var colorHex: String?
+    var startTime: String?
+    var duration: Int?
 }
 
 struct NextTaskData: Codable {

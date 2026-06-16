@@ -89,6 +89,7 @@ struct ProjectWidgetView: View {
                             .foregroundColor((t.completed ?? false) ? .green : .secondary)
                         Text(t.title ?? "")
                             .font(.caption2)
+                            .strikethrough(t.completed ?? false)
                             .foregroundColor((t.completed ?? false) ? .secondary : .primary)
                             .lineLimit(1)
                     }

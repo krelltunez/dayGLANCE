@@ -1544,7 +1544,7 @@ const DayPlanner = () => {
               if (action === 'task' && taskId) {
                 setSpotlightTaskId(taskId);
               } else if (action === 'newScheduledTask') {
-                setShowAddTask(true);
+                openNewTaskFormRef.current?.();
               } else if (action === 'newInboxTask') {
                 openNewInboxTaskRef.current?.();
               } else if (action === 'startFocus') {
@@ -1560,7 +1560,7 @@ const DayPlanner = () => {
           const rawAction = window.DayGlanceNative.getPendingShortcutAction();
           if (rawAction && rawAction !== 'null') {
             const action = rawAction.replace(/^"|"$/g, '');
-            if (action === 'com.dayglance.newScheduledTask') setShowAddTask(true);
+            if (action === 'com.dayglance.newScheduledTask') openNewTaskFormRef.current?.();
             else if (action === 'com.dayglance.newInboxTask') openNewInboxTaskRef.current?.();
             else if (action === 'com.dayglance.startFocus') setShowFocusMode(true);
             else if (action === 'com.dayglance.voiceInput') {
@@ -1706,7 +1706,7 @@ const DayPlanner = () => {
       const rawAction = window.DayGlanceNative.getPendingShortcutAction();
       if (rawAction && rawAction !== 'null') {
         const action = rawAction.replace(/^"|"$/g, '');
-        if (action === 'com.dayglance.newScheduledTask') setShowAddTask(true);
+        if (action === 'com.dayglance.newScheduledTask') openNewTaskFormRef.current?.();
         else if (action === 'com.dayglance.newInboxTask') openNewInboxTaskRef.current?.();
         else if (action === 'com.dayglance.startFocus') setShowFocusMode(true);
         else if (action === 'com.dayglance.voiceInput') {
@@ -1724,7 +1724,7 @@ const DayPlanner = () => {
           const action = url.pathname.replace(/^\/+/, '') || url.hostname;
           const taskId = url.searchParams.get('id');
           if (action === 'task' && taskId) setSpotlightTaskId(taskId);
-          else if (action === 'newScheduledTask') setShowAddTask(true);
+          else if (action === 'newScheduledTask') openNewTaskFormRef.current?.();
           else if (action === 'newInboxTask') openNewInboxTaskRef.current?.();
           else if (action === 'startFocus') setShowFocusMode(true);
           else if (action === 'voiceInput') {
@@ -1811,6 +1811,7 @@ const DayPlanner = () => {
   // Uses the same cloudSyncInProgressRef lock to serialise with WebDAV.
   const iCloudSyncRef = useRef(null);
   const openNewInboxTaskRef = useRef(null);
+  const openNewTaskFormRef = useRef(null);
   const iCloudAvailableRef = useRef(null); // null=unchecked, true/false=result
   const iCloudLastWriteAtRef = useRef(0);
 
@@ -7031,6 +7032,7 @@ const DayPlanner = () => {
   // Keep a stable ref so the foreground handler (defined earlier in the component)
   // can call openNewInboxTask without needing it in its closure.
   openNewInboxTaskRef.current = openNewInboxTask;
+  openNewTaskFormRef.current = openNewTaskForm;
 
   // Wire up TDZ-safe refs for useDragDrop (see refs declared before the hook call).
   moveToRecycleBinRef.current = moveToRecycleBin;
@@ -7386,22 +7388,26 @@ const DayPlanner = () => {
     // ── Next Task (for Up Next widget) ───────────────────────────────────
     // The nearest non-completed scheduled task that hasn't ended yet (or is in progress).
     const nowMin = today.getHours() * 60 + today.getMinutes();
-    const nextTaskCandidate = todayAgenda
+    // Scheduled, non-completed tasks that haven't ended yet (in progress or
+    // upcoming), in chronological order. The first is the "Up Next" task; the
+    // rest fill leftover widget space when the primary task is simple.
+    const sortedUpcoming = todayAgenda
       .filter(t => t._agendaType === 'scheduled' && !t.completed && t.startTime)
       .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
-      .find(t => {
+      .filter(t => {
         const start = timeToMinutes(t.startTime);
         const end = start + (t.duration || 0);
         // Include if not yet ended (covers "in progress" and "upcoming")
         return end > nowMin || (t.duration === 0 && start >= nowMin);
-      }) || null;
+      });
+    const nextTaskCandidate = sortedUpcoming[0] || null;
     const nextTaskItem = nextTaskCandidate ? {
       id: nextTaskCandidate.id,
       title: nextTaskCandidate.title.replace(/\[\[[^\]]*\]\]/g, '').replace(/#\S+/g, '').replace(/\s+/g, ' ').trim(),
       colorHex: taskColorToHex(nextTaskCandidate.color, nextTaskCandidate.nativeCalendarColor),
       startTime: nextTaskCandidate.startTime || '',
       duration: nextTaskCandidate.duration || 0,
-      tags: (nextTaskCandidate.tags || []).slice(0, 5),
+      tags: extractTags(nextTaskCandidate.title).slice(0, 5),
       notes: (nextTaskCandidate.notes || '').substring(0, 300),
       subtasks: (nextTaskCandidate.subtasks || []).slice(0, 7).map(s => ({
         title: s.title,
@@ -7409,6 +7415,16 @@ const DayPlanner = () => {
       })),
       projectName: getProjectName(nextTaskCandidate),
     } : null;
+
+    // The tasks after the "Up Next" one — used to fill the widget when the
+    // primary task has no subtasks/notes. Cap at 4 (the Large widget's max).
+    const upcomingTaskItems = sortedUpcoming.slice(1, 5).map(t => ({
+      id: t.id,
+      title: t.title.replace(/\[\[[^\]]*\]\]/g, '').replace(/#\S+/g, '').replace(/\s+/g, ' ').trim(),
+      colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
+      startTime: t.startTime || '',
+      duration: t.duration || 0,
+    }));
 
     // ── All Goals (for Goal widget) ───────────────────────────────────────
     const allGoalsData = goalsProjectsEnabled
@@ -7584,6 +7600,7 @@ const DayPlanner = () => {
       hyperGlance: hyperGlanceItems,
       glanceAhead: glanceAheadData,
       nextTask: nextTaskItem,
+      upcomingTasks: upcomingTaskItems,
       nextUpNext,
       updatedAt: Date.now(),
     };

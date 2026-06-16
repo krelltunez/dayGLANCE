@@ -60,7 +60,7 @@ struct UpNextWidgetView: View {
                             .font(.subheadline).fontWeight(.semibold)
                             .lineLimit(family == .systemLarge ? 3 : 2)
                         Spacer()
-                        if let time = timeLabel(task) {
+                        if let time = timeLabel(startTime: task.startTime, duration: task.duration) {
                             Text(time)
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
@@ -117,10 +117,35 @@ struct UpNextWidgetView: View {
                             .lineLimit(1)
                     }
                 }
+            } else if !showsNotes(task), let upcoming = entry.snapshot?.upcomingTasks, !upcoming.isEmpty {
+                // The primary task is simple, so fill the leftover space with the
+                // next upcoming tasks (title + time only — no action buttons).
+                Divider().padding(.vertical, 3)
+                ForEach(upcoming.prefix(family == .systemLarge ? 4 : 2), id: \.id) { up in
+                    HStack(spacing: 8) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color(hex: up.colorHex ?? "#3b82f6"))
+                            .frame(width: 3, height: 14)
+                        Text(up.title ?? "")
+                            .font(.caption2)
+                            .lineLimit(1)
+                        Spacer()
+                        if let time = timeLabel(startTime: up.startTime, duration: up.duration) {
+                            Text(time)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
             }
         }
         .padding()
         .containerBackground(.background, for: .widget)
+    }
+
+    // Notes are only rendered on the Large family, and only when present.
+    private func showsNotes(_ task: NextTaskData) -> Bool {
+        family == .systemLarge && !(task.notes?.isEmpty ?? true)
     }
 
     private var header: some View {
@@ -137,9 +162,9 @@ struct UpNextWidgetView: View {
 
     // Start time plus duration, e.g. "9:00AM · 30m". Falls back to just the
     // start time when no duration is set.
-    private func timeLabel(_ task: NextTaskData) -> String? {
-        guard let time = formattedTime(task) else { return nil }
-        if let d = task.duration, d > 0 { return "\(time) · \(formattedDuration(d))" }
+    private func timeLabel(startTime: String?, duration: Int?) -> String? {
+        guard let time = formattedTime(startTime) else { return nil }
+        if let d = duration, d > 0 { return "\(time) · \(formattedDuration(d))" }
         return time
     }
 
@@ -149,8 +174,8 @@ struct UpNextWidgetView: View {
         return m == 0 ? "\(h)h" : "\(h)h\(m)m"
     }
 
-    private func formattedTime(_ task: NextTaskData) -> String? {
-        guard let st = task.startTime, !st.isEmpty else { return nil }
+    private func formattedTime(_ startTime: String?) -> String? {
+        guard let st = startTime, !st.isEmpty else { return nil }
         let use24 = entry.snapshot?.use24Hour ?? false
         let parts = st.split(separator: ":").compactMap { Int($0) }
         guard parts.count >= 2 else { return st }
