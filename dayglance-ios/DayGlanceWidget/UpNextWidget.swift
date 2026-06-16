@@ -104,6 +104,10 @@ struct UpNextWidgetView: View {
                     }
                 }
             }
+            // Keep the main row at its natural height — the color bar is a
+            // greedy shape that would otherwise stretch and shove the list below
+            // it to the bottom of the widget.
+            .fixedSize(horizontal: false, vertical: true)
             if let subtasks = task.subtasks, !subtasks.isEmpty {
                 Divider().padding(.vertical, 3)
                 ForEach(subtasks.prefix(family == .systemLarge ? 7 : 4), id: \.title) { sub in
@@ -138,6 +142,8 @@ struct UpNextWidgetView: View {
                     }
                 }
             }
+            // Pack everything to the top; leftover space falls to the bottom.
+            Spacer(minLength: 0)
         }
         .padding()
         .containerBackground(.background, for: .widget)
