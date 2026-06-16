@@ -7146,7 +7146,7 @@ const DayPlanner = () => {
   // every 15 minutes when the app is closed.
   useEffect(() => {
     if (!dataLoaded) return;
-    if (!isNativeAndroid() || !window.DayGlanceNative?.updateWidgetSnapshot) return;
+    if ((!isNativeAndroid() && !isNativeIOS()) || !window.DayGlanceNative?.updateWidgetSnapshot) return;
 
     const today = new Date();
     const todayStr = getTodayStr();
