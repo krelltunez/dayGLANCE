@@ -46,11 +46,11 @@ struct UpNextWidgetView: View {
     }
 
     private func taskView(task: NextTaskData) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let subtaskLimit = family == .systemLarge ? 8 : 3
+        return VStack(alignment: .leading, spacing: 0) {
             header
             Divider().padding(.vertical, 4)
             HStack(alignment: .top, spacing: 8) {
-                // Color accent bar
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Color(hex: task.colorHex ?? "#3b82f6"))
                     .frame(width: 3)
@@ -86,8 +86,7 @@ struct UpNextWidgetView: View {
                             .lineLimit(3)
                             .padding(.top, 2)
                     }
-                    // iOS 17+ interactive buttons
-                    if #available(iOS 17.0, *) {
+                    if #available(iOS 17.0, *), family != .systemSmall {
                         HStack(spacing: 8) {
                             Button(intent: CompleteTaskIntent(taskId: task.id ?? "")) {
                                 Label("Done", systemImage: "checkmark.circle")
@@ -104,10 +103,9 @@ struct UpNextWidgetView: View {
                     }
                 }
             }
-            if let subtasks = task.subtasks, !subtasks.isEmpty {
+            if family != .systemSmall, let subtasks = task.subtasks, !subtasks.isEmpty {
                 Divider().padding(.vertical, 4)
-                let limit = family == .systemLarge ? 8 : 3
-                ForEach(subtasks.prefix(limit), id: \.title) { sub in
+                ForEach(subtasks.prefix(subtaskLimit), id: \.title) { sub in
                     HStack(spacing: 6) {
                         Image(systemName: sub.completed ? "checkmark.circle.fill" : "circle")
                             .font(.caption2)

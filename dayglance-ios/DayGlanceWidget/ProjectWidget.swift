@@ -23,12 +23,13 @@ struct ProjectWidgetView: View {
     @Environment(\.widgetFamily) var family
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let taskLimit = family == .systemLarge ? 8 : 4
+        return VStack(alignment: .leading, spacing: 0) {
             header
             Divider().padding(.vertical, 4)
             if let projects = entry.snapshot?.allProjects,
                let proj = projects.first(where: { $0.status != "completed" && $0.status != "archived" }) ?? projects.first {
-                projectView(proj: proj)
+                projectView(proj: proj, taskLimit: taskLimit)
             } else {
                 Text("No active projects")
                     .font(.caption)
@@ -46,7 +47,7 @@ struct ProjectWidgetView: View {
             .foregroundColor(.secondary)
     }
 
-    private func projectView(proj: ProjectData) -> some View {
+    private func projectView(proj: ProjectData, taskLimit: Int) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top) {
                 RoundedRectangle(cornerRadius: 2)
@@ -73,7 +74,6 @@ struct ProjectWidgetView: View {
             }
             if let tasks = proj.tasks, !tasks.isEmpty {
                 Divider()
-                let taskLimit = family == .systemLarge ? 8 : 4
                 let incomplete = tasks.filter { !($0.completed ?? false) }
                 let complete = tasks.filter { $0.completed ?? false }
                 let visible = Array((incomplete + complete).prefix(taskLimit))
