@@ -370,6 +370,23 @@ export const nativeGetPendingAction = () => {
 };
 
 /**
+ * Reads and clears any pending action stored by an Up Next widget button
+ * (iOS AppIntents write to a separate App Group slot from notification actions).
+ * Returns null if nothing is pending, or e.g. { action: 'completeTask', taskId: '...' }
+ * / { action: 'startFocus' }.
+ */
+export const nativeGetWidgetPendingAction = () => {
+  const bridge = nativeBridge();
+  if (!bridge?.getWidgetPendingAction) return null;
+  try {
+    const raw = bridge.getWidgetPendingAction();
+    return raw && raw !== 'null' ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
  * Reads and clears any pending intent stored by IntentReceiver or MainActivity.onNewIntent.
  * Returns null if nothing is pending, or { action: 'app.dayglance.CREATE', payload: {...} }.
  *

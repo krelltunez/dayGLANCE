@@ -15,6 +15,9 @@ extension StartFocusIntent: ForegroundContinuableIntent {}
 @available(iOS 17.0, *)
 struct CompleteTaskIntent: AppIntent {
     static let title: LocalizedStringResource = "Complete Task"
+    // Task data lives in the web layer, so the app must be foregrounded to apply
+    // the action; the web layer drains it via getWidgetPendingAction on resume.
+    static var openAppWhenRun: Bool = true
 
     @Parameter(title: "Task ID")
     var taskId: String
@@ -35,6 +38,8 @@ struct CompleteTaskIntent: AppIntent {
 @available(iOS 17.0, *)
 struct StartFocusIntent: AppIntent {
     static let title: LocalizedStringResource = "Start Focus"
+    // Opens Focus mode in the app; foreground so the web layer can act on it.
+    static var openAppWhenRun: Bool = true
 
     func perform() async throws -> some IntentResult {
         if let defaults = UserDefaults(suiteName: "group.com.dayglance.app") {
