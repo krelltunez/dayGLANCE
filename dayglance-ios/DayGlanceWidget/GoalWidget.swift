@@ -1,20 +1,65 @@
 import WidgetKit
 import SwiftUI
+import AppIntents
+
+// MARK: - Configuration
+
+/// A goal the user can pick in the widget editor (long-press → Edit Widget).
+struct GoalEntity: AppEntity {
+    let id: String
+    let title: String
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation { "Goal" }
+    static var defaultQuery = GoalEntityQuery()
+
+    var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(title)") }
+}
+
+/// Supplies the goal list (from the latest snapshot) to the widget editor and
+/// resolves a previously-selected goal by id.
+struct GoalEntityQuery: EntityQuery {
+    func entities(for identifiers: [String]) async throws -> [GoalEntity] {
+        allEntities().filter { identifiers.contains($0.id) }
+    }
+    func suggestedEntities() async throws -> [GoalEntity] { allEntities() }
+
+    private func allEntities() -> [GoalEntity] {
+        (loadSnapshot()?.allGoals ?? []).compactMap { g in
+            guard let id = g.id else { return nil }
+            return GoalEntity(id: id, title: g.title ?? "Untitled")
+        }
+    }
+}
+
+/// Per-widget configuration: which goal to show. nil = first/active (the prior
+/// behavior), so widgets placed before this change keep working unchanged.
+struct SelectGoalIntent: WidgetConfigurationIntent {
+    static var title: LocalizedStringResource = "Select Goal"
+    static var description = IntentDescription("Choose which goal this widget displays.")
+
+    @Parameter(title: "Goal")
+    var goal: GoalEntity?
+}
+
+// MARK: - Timeline
 
 struct GoalEntry: TimelineEntry {
     let date: Date
     let snapshot: WidgetSnapshot?
+    let selectedGoalId: String?
 }
 
-struct GoalProvider: TimelineProvider {
-    func placeholder(in context: Context) -> GoalEntry { GoalEntry(date: Date(), snapshot: nil) }
-    func getSnapshot(in context: Context, completion: @escaping (GoalEntry) -> Void) {
-        completion(GoalEntry(date: Date(), snapshot: loadSnapshot()))
+struct GoalProvider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> GoalEntry {
+        GoalEntry(date: Date(), snapshot: nil, selectedGoalId: nil)
     }
-    func getTimeline(in context: Context, completion: @escaping (Timeline<GoalEntry>) -> Void) {
-        let entry = GoalEntry(date: Date(), snapshot: loadSnapshot())
+    func snapshot(for configuration: SelectGoalIntent, in context: Context) async -> GoalEntry {
+        GoalEntry(date: Date(), snapshot: loadSnapshot(), selectedGoalId: configuration.goal?.id)
+    }
+    func timeline(for configuration: SelectGoalIntent, in context: Context) async -> Timeline<GoalEntry> {
+        let entry = GoalEntry(date: Date(), snapshot: loadSnapshot(), selectedGoalId: configuration.goal?.id)
         let next = Calendar.current.date(byAdding: .minute, value: 15, to: Date())!
-        completion(Timeline(entries: [entry], policy: .after(next)))
+        return Timeline(entries: [entry], policy: .after(next))
     }
 }
 
@@ -22,11 +67,21 @@ struct GoalWidgetView: View {
     var entry: GoalEntry
     @Environment(\.widgetFamily) var family
 
+    // The configured goal, falling back to the first goal when nothing is
+    // selected or the selection is no longer in the snapshot.
+    private var selectedGoal: GoalData? {
+        let goals = entry.snapshot?.allGoals ?? []
+        if let id = entry.selectedGoalId, let match = goals.first(where: { $0.id == id }) {
+            return match
+        }
+        return goals.first
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider().padding(.vertical, 4)
-            if let goals = entry.snapshot?.allGoals, let goal = goals.first {
+            if let goal = selectedGoal {
                 goalView(goal: goal)
             } else {
                 Text("No active goals")
@@ -123,11 +178,11 @@ struct GoalWidgetView: View {
 struct GoalWidget: Widget {
     let kind = "GoalWidget"
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: GoalProvider()) { entry in
+        AppIntentConfiguration(kind: kind, intent: SelectGoalIntent.self, provider: GoalProvider()) { entry in
             GoalWidgetView(entry: entry)
         }
         .configurationDisplayName("Goal")
-        .description("Progress on your active goal.")
+        .description("Progress on a goal. Long-press to choose which one.")
         .supportedFamilies([.systemMedium, .systemLarge])
     }
 }
