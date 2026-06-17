@@ -1569,6 +1569,18 @@ const DayPlanner = () => {
             }
           }
         }
+        // Up Next widget Done / Focus buttons. openAppWhenRun foregrounds the
+        // app, but perform() may write the action just after scenePhase.active —
+        // so this is drained here on the same 200 ms delay as quick actions,
+        // rather than synchronously, to avoid the poll racing ahead of the write.
+        const widgetAction = nativeGetWidgetPendingAction();
+        if (widgetAction) {
+          if (widgetAction.action === 'completeTask' && widgetAction.taskId) {
+            toggleComplete(widgetAction.taskId);
+          } else if (widgetAction.action === 'startFocus') {
+            setShowFocusMode(true);
+          }
+        }
       }, 200);
       if (window.DayGlanceNative?.getShareExtensionPending) {
         try {
@@ -6396,15 +6408,6 @@ const DayPlanner = () => {
   useEffect(() => {
     if (!isNativeApp()) return;
     const checkPending = () => {
-      // Up Next widget buttons (Done / Focus) write to a separate slot.
-      const widgetPending = nativeGetWidgetPendingAction();
-      if (widgetPending) {
-        if (widgetPending.action === 'completeTask' && widgetPending.taskId) {
-          toggleComplete(widgetPending.taskId);
-        } else if (widgetPending.action === 'startFocus') {
-          setShowFocusMode(true);
-        }
-      }
       const pending = nativeGetPendingAction();
       if (!pending) return;
       if (pending.action === 'voice_input') {
