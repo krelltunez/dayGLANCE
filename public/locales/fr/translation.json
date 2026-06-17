@@ -663,6 +663,7 @@
     "dropToStandalone": "Déposer ici pour rendre autonome",
     "noProjectsYet": "Aucun projet pour l'instant",
     "noStandaloneProjects": "Aucun projet autonome",
+    "standaloneProjects": "Projets autonomes",
     "standalone": "Autonome",
     "projects": "Projets",
     "noArchivedGoals": "Aucun objectif archivé",

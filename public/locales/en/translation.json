@@ -663,6 +663,7 @@
     "dropToStandalone": "Drop here to make standalone",
     "noProjectsYet": "No projects yet",
     "noStandaloneProjects": "No standalone projects",
+    "standaloneProjects": "Standalone Projects",
     "standalone": "Standalone",
     "projects": "Projects",
     "noArchivedGoals": "No archived goals",

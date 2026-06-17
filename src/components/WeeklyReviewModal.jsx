@@ -410,7 +410,7 @@ const WeeklyReviewModal = () => {
 
         // Goals due in next 7 days (only goals with targetDate in range)
         const nextWeekDueGoals = goalsProjectsEnabled
-          ? goals.filter(g => g.status === 'active' && g.targetDate && g.targetDate >= todayStr && g.targetDate <= nextEndStr)
+          ? goals.filter(g => g.status === 'active' && ownedBy(g, meUserSyncId) && g.targetDate && g.targetDate >= todayStr && g.targetDate <= nextEndStr)
               .map(g => {
                 const progress = calculateGoalProgress(g.id, projects, allTasksCombined);
                 const target = new Date(g.targetDate + 'T00:00:00');
@@ -429,7 +429,7 @@ const WeeklyReviewModal = () => {
         const sevenDaysAgoStr = dateToString(new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000));
         const fourteenDaysAgoStr = dateToString(new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000));
         const nextWeekProjects = goalsProjectsEnabled
-          ? projects.filter(p => p.status === 'active' && !p.goalId).map(p => {
+          ? projects.filter(p => p.status === 'active' && !p.goalId && ownedBy(p, meUserSyncId)).map(p => {
               const pTasks = allTasksCombined.filter(t => t.projectId === p.id && !t.archived);
               const totalTasks = pTasks.length;
               const completedTasks = pTasks.filter(t => t.completed).length;
@@ -792,7 +792,7 @@ const WeeklyReviewModal = () => {
                   {/* Standalone projects */}
                   {goalsProjectsEnabled && nextWeekProjects.length > 0 && (
                     <div className="mb-4">
-                      <div className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-2`}>{t('goals.noStandaloneProjects')}</div>
+                      <div className={`text-xs font-semibold uppercase ${textSecondary} tracking-wider mb-2`}>{t('goals.standaloneProjects')}</div>
                       <div className="space-y-2">
                         {nextWeekProjects.map(p => {
                           const momentumColor = p.momentum === 'green' ? '#22c55e' : p.momentum === 'amber' ? '#f59e0b' : '#ef4444';
