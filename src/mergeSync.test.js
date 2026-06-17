@@ -1448,6 +1448,34 @@ describe('mergeHabitLogs', () => {
     expect(merged['2026-02-20'].h1).toBe(2);
     expect(merged['2026-02-20'].h2).toBe(4);
   });
+
+  it('uses last-writer-wins when timestamps differ (allows decrements)', () => {
+    const local = { '2026-02-20': { h1: 1 } };
+    const remote = { '2026-02-20': { h1: 5 } };
+    const localTs = { '2026-02-20:h1': ts(1) };   // local is newer
+    const remoteTs = { '2026-02-20:h1': ts(10) };
+    const { merged } = mergeHabitLogs(local, remote, localTs, remoteTs);
+    expect(merged['2026-02-20'].h1).toBe(1);       // newer local decrement wins
+  });
+
+  it('reconciles a split-brain: equal timestamps but different counts converge to max', () => {
+    // Regression: two devices ended up with identical per-(day,habit) timestamps
+    // but different counts. The upstream tie-break kept local on both sides, so
+    // they never reconciled. The deterministic max tie-break converges them.
+    const sameTs = ts(5);
+    const mac = { '2026-02-20': { h1: 4 } };
+    const ipad = { '2026-02-20': { h1: 2 } };
+    const macTs = { '2026-02-20:h1': sameTs };
+    const ipadTs = { '2026-02-20:h1': sameTs };
+
+    const onIpad = mergeHabitLogs(ipad, mac, ipadTs, macTs);
+    expect(onIpad.merged['2026-02-20'].h1).toBe(4); // iPad adopts the higher count
+    expect(onIpad.localChanged).toBe(true);
+
+    const onMac = mergeHabitLogs(mac, ipad, macTs, ipadTs);
+    expect(onMac.merged['2026-02-20'].h1).toBe(4);  // Mac keeps it; both now agree
+    expect(onMac.localChanged).toBe(false);
+  });
 });
 
 // ─── mergeSyncData — habits integration ───────────────────────────────
