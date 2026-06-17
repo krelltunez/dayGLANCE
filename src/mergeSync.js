@@ -82,6 +82,22 @@ export const mergeHabitLogs = (localLogs, remoteLogs, localTs = {}, remoteTs = {
           // so a stuck split-brain reconciles instead of each side keeping its
           // own value.
           winner = Math.max(localCount, remoteCount);
+
+          // Diagnostic (harmless, behaviour-neutral): an equal *present*
+          // timestamp with diverging counts is the split-brain signature — a
+          // count drifted without its timestamp advancing. We can't yet repro
+          // the seed, so this surfaces the event if it ever recurs on-device,
+          // with enough context to trace which write decoupled them. Both-
+          // missing (legacy entries with no timestamp) is normal and not logged.
+          if (lTime > 0 && localCount !== remoteCount) {
+            try {
+              console.warn(
+                `[habit-sync] split-brain healed at equal timestamp — ${tsKey}: ` +
+                `local=${localCount} remote=${remoteCount} → ${winner} ` +
+                `(ts=${localTs[tsKey] ?? remoteTs[tsKey]})`
+              );
+            } catch (_) { /* console unavailable — ignore */ }
+          }
         }
 
         if (winner !== localCount) localChanged = true;
