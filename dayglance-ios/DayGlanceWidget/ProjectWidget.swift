@@ -1,20 +1,71 @@
 import WidgetKit
 import SwiftUI
+import AppIntents
+
+// MARK: - Configuration
+
+/// A project the user can pick in the widget editor (long-press → Edit Widget).
+struct ProjectEntity: AppEntity {
+    let id: String
+    let title: String
+    let goalTitle: String?
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation { "Project" }
+    static var defaultQuery = ProjectEntityQuery()
+
+    var displayRepresentation: DisplayRepresentation {
+        if let goalTitle, !goalTitle.isEmpty {
+            return DisplayRepresentation(title: "\(title)", subtitle: "\(goalTitle)")
+        }
+        return DisplayRepresentation(title: "\(title)")
+    }
+}
+
+/// Supplies the project list (from the latest snapshot) to the widget editor and
+/// resolves a previously-selected project by id.
+struct ProjectEntityQuery: EntityQuery {
+    func entities(for identifiers: [String]) async throws -> [ProjectEntity] {
+        allEntities().filter { identifiers.contains($0.id) }
+    }
+    func suggestedEntities() async throws -> [ProjectEntity] { allEntities() }
+
+    private func allEntities() -> [ProjectEntity] {
+        (loadSnapshot()?.allProjects ?? []).compactMap { p in
+            guard let id = p.id else { return nil }
+            return ProjectEntity(id: id, title: p.title ?? "Untitled", goalTitle: p.goalTitle)
+        }
+    }
+}
+
+/// Per-widget configuration: which project to show. nil = first active project
+/// (the prior behavior), so widgets placed before this change keep working.
+struct SelectProjectIntent: WidgetConfigurationIntent {
+    static var title: LocalizedStringResource = "Select Project"
+    static var description = IntentDescription("Choose which project this widget displays.")
+
+    @Parameter(title: "Project")
+    var project: ProjectEntity?
+}
+
+// MARK: - Timeline
 
 struct ProjectEntry: TimelineEntry {
     let date: Date
     let snapshot: WidgetSnapshot?
+    let selectedProjectId: String?
 }
 
-struct ProjectProvider: TimelineProvider {
-    func placeholder(in context: Context) -> ProjectEntry { ProjectEntry(date: Date(), snapshot: nil) }
-    func getSnapshot(in context: Context, completion: @escaping (ProjectEntry) -> Void) {
-        completion(ProjectEntry(date: Date(), snapshot: loadSnapshot()))
+struct ProjectProvider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> ProjectEntry {
+        ProjectEntry(date: Date(), snapshot: nil, selectedProjectId: nil)
     }
-    func getTimeline(in context: Context, completion: @escaping (Timeline<ProjectEntry>) -> Void) {
-        let entry = ProjectEntry(date: Date(), snapshot: loadSnapshot())
+    func snapshot(for configuration: SelectProjectIntent, in context: Context) async -> ProjectEntry {
+        ProjectEntry(date: Date(), snapshot: loadSnapshot(), selectedProjectId: configuration.project?.id)
+    }
+    func timeline(for configuration: SelectProjectIntent, in context: Context) async -> Timeline<ProjectEntry> {
+        let entry = ProjectEntry(date: Date(), snapshot: loadSnapshot(), selectedProjectId: configuration.project?.id)
         let next = Calendar.current.date(byAdding: .minute, value: 15, to: Date())!
-        completion(Timeline(entries: [entry], policy: .after(next)))
+        return Timeline(entries: [entry], policy: .after(next))
     }
 }
 
@@ -22,12 +73,21 @@ struct ProjectWidgetView: View {
     var entry: ProjectEntry
     @Environment(\.widgetFamily) var family
 
+    // The configured project, falling back to the first active (non-completed,
+    // non-archived) project when nothing is selected or the selection is gone.
+    private var selectedProject: ProjectData? {
+        let projects = entry.snapshot?.allProjects ?? []
+        if let id = entry.selectedProjectId, let match = projects.first(where: { $0.id == id }) {
+            return match
+        }
+        return projects.first(where: { $0.status != "completed" && $0.status != "archived" }) ?? projects.first
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider().padding(.vertical, 4)
-            if let projects = entry.snapshot?.allProjects,
-               let proj = projects.first(where: { $0.status != "completed" && $0.status != "archived" }) ?? projects.first {
+            if let proj = selectedProject {
                 projectView(proj: proj)
             } else {
                 Text("No active projects")
@@ -114,11 +174,11 @@ struct ProjectWidgetView: View {
 struct ProjectWidget: Widget {
     let kind = "ProjectWidget"
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: ProjectProvider()) { entry in
+        AppIntentConfiguration(kind: kind, intent: SelectProjectIntent.self, provider: ProjectProvider()) { entry in
             ProjectWidgetView(entry: entry)
         }
         .configurationDisplayName("Project")
-        .description("Progress on your active project.")
+        .description("Progress on a project. Long-press to choose which one.")
         .supportedFamilies([.systemMedium, .systemLarge])
     }
 }
