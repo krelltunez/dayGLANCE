@@ -16,13 +16,22 @@ const IncompleteTasksModal = () => {
   } = useDayPlannerCtx();
   const { t } = useTranslation();
 
+  // Dismiss on Escape. Use a document-level listener rather than the overlay's
+  // own focus so it keeps working after focus moves into a button/link inside.
+  React.useEffect(() => {
+    if (!showIncompleteTasks) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setShowIncompleteTasks(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [showIncompleteTasks, setShowIncompleteTasks]);
+
   if (!showIncompleteTasks) return null;
 
   const isDaily = showIncompleteTasks === 'today';
   const items = isDaily ? todayIncompleteTasks : allTimeIncompleteTasks;
 
   return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowIncompleteTasks(null)} onKeyDown={(e) => { if (e.key === 'Escape') setShowIncompleteTasks(null); }} tabIndex={-1} ref={el => el && el.focus()}>
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowIncompleteTasks(null)}>
             <div
               className={`${cardBg} rounded-lg shadow-xl ${borderClass} border max-w-md w-full mx-4 flex flex-col`}
               style={{ maxHeight: '70vh' }}
