@@ -86,22 +86,25 @@ struct UpNextWidgetView: View {
                             .lineLimit(3)
                             .padding(.top, 2)
                     }
-                    // iOS 17+ interactive buttons
-                    if #available(iOS 17.0, *) {
-                        HStack(spacing: 8) {
-                            Button(intent: CompleteTaskIntent(taskId: task.id ?? "")) {
-                                Label("Done", systemImage: "checkmark.circle")
-                                    .font(.caption2)
+                    // Action buttons. These open the app via a dayglance:// deep
+                    // link (same mechanism as Quick Actions / Spotlight), which the
+                    // web layer drains on foreground. AppIntent-based buttons that
+                    // try to act in the background never reliably reached the web
+                    // layer, so the task was never completed / focus never started.
+                    HStack(spacing: 8) {
+                        if let id = task.id?.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+                           let doneURL = URL(string: "dayglance://completeTask?id=\(id)") {
+                            Link(destination: doneURL) {
+                                actionLabel("Done", systemImage: "checkmark.circle")
                             }
-                            .buttonStyle(.bordered)
-                            Button(intent: StartFocusIntent()) {
-                                Label("Focus", systemImage: "play.circle")
-                                    .font(.caption2)
-                            }
-                            .buttonStyle(.bordered)
                         }
-                        .padding(.top, 1)
+                        if let focusURL = URL(string: "dayglance://startFocus") {
+                            Link(destination: focusURL) {
+                                actionLabel("Focus", systemImage: "play.circle")
+                            }
+                        }
                     }
+                    .padding(.top, 1)
                 }
             }
             // Keep the main row at its natural height — the color bar is a
@@ -152,6 +155,15 @@ struct UpNextWidgetView: View {
     // Notes are only rendered on the Large family, and only when present.
     private func showsNotes(_ task: NextTaskData) -> Bool {
         family == .systemLarge && !(task.notes?.isEmpty ?? true)
+    }
+
+    // A bordered-pill label used for the Done / Focus deep-link buttons.
+    private func actionLabel(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption2)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(.quaternary, in: Capsule())
     }
 
     private var header: some View {
