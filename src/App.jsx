@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, Flag, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
-import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeGetWidgetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote, nativeGetNote, nativeWriteNote, nativeOpenNote, nativeListNotes, nativeClearVault, nativeSetVaultSettings, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeStartRecording, nativeStopRecording, triggerHaptic } from './native.js';
+import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote, nativeGetNote, nativeWriteNote, nativeOpenNote, nativeListNotes, nativeClearVault, nativeSetVaultSettings, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeStartRecording, nativeStopRecording, triggerHaptic } from './native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, tryRestoreVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative, simpleHash as obsidianSimpleHash, readWikiNote, writeWikiNote, listVaultNotes, appendTaskToDailyNote, appendTaskToDailyNoteNative } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
@@ -1543,6 +1543,8 @@ const DayPlanner = () => {
               const taskId = url.searchParams.get('id');
               if (action === 'task' && taskId) {
                 setSpotlightTaskId(taskId);
+              } else if (action === 'completeTask' && taskId) {
+                toggleComplete(taskId);
               } else if (action === 'newScheduledTask') {
                 openNewTaskFormRef.current?.();
               } else if (action === 'newInboxTask') {
@@ -1567,18 +1569,6 @@ const DayPlanner = () => {
               voiceAutoStartRef.current = true;
               setShowVoiceInput(true);
             }
-          }
-        }
-        // Up Next widget Done / Focus buttons. openAppWhenRun foregrounds the
-        // app, but perform() may write the action just after scenePhase.active —
-        // so this is drained here on the same 200 ms delay as quick actions,
-        // rather than synchronously, to avoid the poll racing ahead of the write.
-        const widgetAction = nativeGetWidgetPendingAction();
-        if (widgetAction) {
-          if (widgetAction.action === 'completeTask' && widgetAction.taskId) {
-            toggleComplete(widgetAction.taskId);
-          } else if (widgetAction.action === 'startFocus') {
-            setShowFocusMode(true);
           }
         }
       }, 200);
@@ -1736,6 +1726,7 @@ const DayPlanner = () => {
           const action = url.pathname.replace(/^\/+/, '') || url.hostname;
           const taskId = url.searchParams.get('id');
           if (action === 'task' && taskId) setSpotlightTaskId(taskId);
+          else if (action === 'completeTask' && taskId) toggleComplete(taskId);
           else if (action === 'newScheduledTask') openNewTaskFormRef.current?.();
           else if (action === 'newInboxTask') openNewInboxTaskRef.current?.();
           else if (action === 'startFocus') setShowFocusMode(true);
