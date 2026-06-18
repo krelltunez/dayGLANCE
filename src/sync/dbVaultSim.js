@@ -10,18 +10,15 @@
 // exactly the serialization encryptEntity/decryptEntity perform (dbCrypto.js:274,
 // 300) — so nested structures and keyed maps are exercised through the wire.
 //
-// Two deliberate, documented divergences from dbEngine.js, both behavior-
-// preserving:
-//   1. The pull cursor advances only on PULL (to the max seq seen), not on push.
-//      dbEngine.js advances the HWM on push too (dbEngine.js:225); replicating
-//      that here would let a device skip another device's rows that were written
-//      between its own push and the next list. Because re-applying an
-//      already-seen row is idempotent under LWW (skipped) and under the
-//      insert-only bundle merges (union/recency no-ops), pulling from the lower
-//      cursor is safe and simply avoids the skip — a strictly more conservative
-//      cursor.
-//   2. After each pull we run reconcileCrossList (the spec-5.2 cross-list
-//      dedupe). In the live engine this hooks the end-of-cycle apply notify.
+// Cursor model: the pull cursor advances only on PULL (to the max seq seen),
+// never on push. As of @glance-apps/sync 1.4.0 this is exactly what the real
+// engine does — it split the cursor into a pull cursor (getHighWaterMark,
+// pull-only) and a separate push-ack marker (getPushAck), so a push never moves
+// the pull cursor. (Under 1.3.2 the engine advanced the shared HWM on push,
+// which could skip an unread remote row; the package fix closed that, and
+// dbEngineWiring.test.js asserts it directly.) The one simulator-only convenience
+// is that reconcileCrossList runs at the end of each pull; in the live engine
+// dayGLANCE's createDbEngine wrapper runs it at end-of-cycle.
 
 import {
   getLocalEntity,

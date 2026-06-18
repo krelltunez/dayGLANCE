@@ -108,14 +108,23 @@ export function createDbEngine(callbacks = {}) {
   // In-flight guard so a debounced push never overlaps a cadence-triggered cycle.
   let syncing = false;
 
-  // dayGLANCE composes its own cycle as PULL-then-PUSH (the engine's built-in
-  // dbSyncCycle is push-then-pull). Pull-first matters here: the engine advances
-  // its high-water mark on push (dbEngine.js:225), so a device that pushes before
-  // pulling would skip rows written below its new cursor and never see them.
-  // Pulling first means we always read up to the current head, merge it into the
-  // mirror, then push the merged superset — so the HWM only ever advances past
-  // rows we have actually seen. It also lets bundle merges push the merged value
-  // in the same cycle rather than waiting for a re-push next cycle.
+  // dayGLANCE wraps the engine's push/pull steps in its own cycle so it can
+  // (1) seed the dirty set by diffing app state into the mirror, (2) commit the
+  // merged mirror back to React/localStorage ONLY on success, and (3) run
+  // cross-list reconcile + snapshot. This wrapper is required regardless of the
+  // package version — it is the bridge between the engine and dayGLANCE's
+  // non-Dexie state, not a transport workaround.
+  //
+  // Cycle ORDER is pull-then-push. As of @glance-apps/sync 1.4.0 this is NOT a
+  // correctness requirement and NOT a data-loss mitigation: the engine split the
+  // cursor so a push never advances the pull cursor (getHighWaterMark is
+  // pull-only; getPushAck tracks push idempotency), making push-then-pull and
+  // pull-then-push equally safe. We keep pull-first only for marginal freshness —
+  // merging remote before the push lets a bundle superset and any cross-list
+  // reconcile flush in the SAME cycle instead of the next one. It is free, since
+  // we compose the cycle from pullRemoteChanges/pushDirtyRows anyway to get
+  // commit-only-on-success (the engine's own dbSyncCycle swallows errors, which
+  // would let a failed cycle commit a partial mirror).
   const dbSyncCycle = async () => {
     if (typeof callbacks.getData !== 'function') return;
     if (syncing) return;

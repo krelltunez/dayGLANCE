@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, beforeAll, afterEach, afterAll, vi } from 'vitest';
-import { setSyncPassphrase } from '@glance-apps/sync';
+import { setSyncPassphrase, createDbSyncEngine } from '@glance-apps/sync';
 import { createDbEngine } from './dbEngine.js';
 import { getVaultConfig, setVaultConfig, isVaultEnabled } from './vaultConfig.js';
 import { getDeviceId } from './deviceId.js';
@@ -197,5 +197,80 @@ describe('Part B — end-to-end two-device sync via the REAL engine', () => {
       expect(inTasks).toBe(true);
       expect(inUnsched).toBe(false);
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1.4.0 cursor fix — targeted interleave test.
+//
+// Proves the residual race the package fix closed: a PUSH must not advance the
+// PULL cursor (getHighWaterMark) past a remote row the device has not yet read.
+// Under 1.3.2 the engine advanced a single shared HWM on push, so a remote row
+// whose seq sat below the device's freshly-pushed rows was skipped forever
+// (unrecoverable for insert-only rows). 1.4.0 split the cursor: getHighWaterMark
+// is pull-only, getPushAck tracks push idempotency.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('1.4.0 — push does not advance the pull cursor past an unread remote row', () => {
+  beforeEach(() => {
+    global.localStorage = memLocalStorage();
+    setSyncPassphrase('correct horse battery staple');
+  });
+
+  // A raw createDbSyncEngine over a flat entityId→entity map (no app adapter),
+  // so we can drive push/pull steps and inspect the cursors directly.
+  function makeRawEngine(name, vault) {
+    let nativeKey = null;
+    const data = {};
+    const engine = createDbSyncEngine({
+      storageKeyPrefix: `raw-${name}`,
+      appId: 'dayglance',
+      vaultApp: 'dayglance',
+      cryptoDBName: `raw-${name}-crypto`,
+      accountId: 'acct-raw',
+      vaultClient: vault,
+      deviceId: `raw-${name}`,
+      nativeGetSyncKey: () => nativeKey,
+      nativeStoreSyncKey: (v) => { nativeKey = v; },
+      getLocalEntity: (id) => (id in data ? data[id] : null),
+      applyRemoteEntity: (id, e) => { data[id] = e; },
+      applyRemoteDelete: (id) => { delete data[id]; },
+      isInsertOnly: () => false,
+      getEntityLastModified: (e) => e && e.lastModified,
+    });
+    return { engine, data };
+  }
+
+  it('A push (seqs > N+1) leaves the pull cursor at N, so the next pull still lists B@N+1', async () => {
+    const vault = createMemoryVault();
+    const A = makeRawEngine('A', vault);
+    const B = makeRawEngine('B', vault);
+
+    // Baseline: A writes a1 (seq 1) and pulls, so A's pull cursor sits at N = 1.
+    A.data['a1'] = { id: 'a1', lastModified: '2026-06-18T10:00:00.000Z' };
+    A.engine.markDirty('a1');
+    await A.engine.pushDirtyRows();      // a1 → seq 1
+    await A.engine.pullRemoteChanges();  // A pull cursor advances to 1
+    const N = A.engine.getHighWaterMark();
+    expect(N).toBe(1);
+
+    // B writes b1 at seq N+1 = 2 (A has NOT read it yet).
+    B.data['b1'] = { id: 'b1', lastModified: '2026-06-18T10:05:00.000Z' };
+    B.engine.markDirty('b1');
+    await B.engine.pushDirtyRows();      // b1 → seq 2 (= N+1)
+
+    // A pushes a new row, which the server assigns a seq ABOVE N+1 (seq 3).
+    A.data['a2'] = { id: 'a2', lastModified: '2026-06-18T10:10:00.000Z' };
+    A.engine.markDirty('a2');
+    await A.engine.pushDirtyRows();      // a2 → seq 3 (> N+1)
+
+    // The fix: A's push consumed nothing, so the PULL cursor is unchanged (still
+    // N); only the push-ack marker advanced.
+    expect(A.engine.getHighWaterMark()).toBe(N);
+    expect(A.engine.getPushAck()).toBeGreaterThanOrEqual(3);
+
+    // Therefore A's NEXT pull resumes from N and still lists B's row at N+1.
+    await A.engine.pullRemoteChanges();
+    expect(A.data['b1']).toBeTruthy();
+    expect(A.data['b1'].id).toBe('b1');
   });
 });
