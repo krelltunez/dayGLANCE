@@ -119,4 +119,54 @@ different-kind move (newest wins), and the priority tie-break.
 
 ## Part B — live wiring
 
-_(documented below as each piece lands)_
+Mirrors the lastGLANCE reference. Additive and reversible: the DB engine runs
+**alongside** the file-tier WebDAV engine, sharing only the local data and sync
+passphrase, and is **fully inert when the vault is disabled** (`createDbEngine`
+returns null, the cadence effect early-returns, `schedulePush` is a no-op). The
+file-tier payload is retained untouched — nothing is deleted, and the default
+transport is unchanged.
+
+| Piece | File | One-line summary |
+|---|---|---|
+| **B1** vault config + gate | `vaultConfig.js`, `deviceId.js`, `dbEngine.js` | `dayglance-vault-config` key + `isVaultEnabled`; stable `dayglance-device-id`; `createDbEngine` constructs the real `createDbSyncEngine` alongside WebDAV, returns null when off, HWM-0 seeds the full snapshot. |
+| **B2** dirty tracking + safe apply | `dbEngine.js` | Dirty set computed by diffing the current shred against a persisted snapshot (dayGLANCE's equivalent of per-write `markDirty`, since it has no data-layer); remote applies mutate a per-cycle mirror committed once via `applyPayload`, which sets the suppress flags so a pulled row never bounces back as a WebDAV upload or a re-push. |
+| **B3** push-on-write | `dirtyTracker.js`, `useSaveOnChange.js` | Debounced **3 s, vault-only** push after each local write; never fans out to WebDAV (the file tier keeps its cadence model, spec 6.5); off-safe. |
+| **B4** transport UI | `CloudSyncSettingsForm.jsx` | Independent GLANCEvault toggle (URL/token/account), saved to its own key, **reload on change**; orthogonal to the WebDAV provider. |
+| **B5** WebDAV retained | — | File-tier engine, payload, and merge are completely unchanged; the DB engine never touches the WebDAV file. |
+
+### Cycle ordering note
+
+dayGLANCE composes its cycle **pull-then-push** (the engine's built-in
+`dbSyncCycle` is push-then-pull). The engine advances its high-water mark on
+push (`dbEngine.js:225`), so a device that pushed before pulling would skip rows
+written below its new cursor and never see them — observed directly as a failing
+end-to-end test. Pulling first means the HWM only ever advances past rows the
+device has actually seen, and bundle merges push the merged superset in the same
+cycle. Built from the engine's exposed `pullRemoteChanges` / `pushDirtyRows` /
+`updateDeviceCursor`; the package is not modified.
+
+### Backgrounded-write-reaches-vault check (the lastGLANCE bug)
+
+`dbEngineWiring.test.js` proves the B3 behavior with fake timers: a burst of
+writes collapses into **one** debounced `dbSyncCycle` ~3 s after the last write,
+it is **vault-only** (the file engine is never called), and it is a no-op once
+the engine is detached (vault disabled). So a write on a backgrounded device
+reaches the vault without waiting for an app reopen — the bug the lastGLANCE
+push-on-write fix addressed. **Confirmed.**
+
+### Part B validation
+
+- End-to-end through the **real** `createDbSyncEngine` + real AES-GCM (in-memory
+  vault + native key store, no network/indexedDB): a task syncs A→B; concurrent
+  bundle edits converge by set-union; a cross-list move lands under exactly one
+  kind. Gate returns null when disabled; deviceId stable; push-on-write debounce
+  vault-only + off-safe.
+- Full suite **293/293**; production `vite build` passes.
+
+---
+
+## Verdict
+
+dayGLANCE's data model is **losslessly representable AND correctly mergeable** as
+rows under current semantics. No unavoidable loss window. The GLANCEvault DB
+transport is wired opt-in alongside WebDAV, non-destructive and reversible.
