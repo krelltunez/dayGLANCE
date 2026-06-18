@@ -215,11 +215,14 @@ describe('dbAdapter losslessness gate', () => {
     expect(logRows[0].entity.value['2026-06-18']).toEqual({ 7101: 4, 7102: 1 });
   });
 
-  it('routes every row by explicit _kind, and marks no kind insert-only in stage 1', () => {
+  it('routes every row by explicit _kind; bundles are insert-only, collections are LWW', () => {
     const rows = shredState(buildFixture());
     for (const r of rows) {
       expect(entityKind(r.entity)).toBe(r.kind);
-      expect(isInsertOnly(r.entity)).toBe(false);
+      // Stage 2: singleton bundles are insert-only (always merged on pull) so a
+      // concurrent edit to a different bundle entry is never lost. Per-item
+      // collections and per-date dailyNotes stay on entity-grain LWW.
+      expect(isInsertOnly(r.entity)).toBe(r.kind === 'singleton');
     }
   });
 
