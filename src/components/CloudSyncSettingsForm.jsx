@@ -3,7 +3,7 @@ import { AlertTriangle } from 'lucide-react';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { setupEncryptionKey, setSyncPassphrase, clearEncryptionKey, getSyncPassphrase } from '../utils/crypto.js';
 import { getVaultConfig, setVaultConfig } from '../sync/vaultConfig.js';
-import { createDbEngine } from '../sync/dbEngine.js';
+import { createDbEngine, resetDbRootKey } from '../sync/dbEngine.js';
 import { useTranslation } from 'react-i18next';
 
 // Cloud sync settings form (extracted to avoid hooks-in-conditional issues)
@@ -110,12 +110,19 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
     if (vaultEnabled && passphrase) setSyncPassphrase(passphrase);
     setVaultConfig(nextVault);
 
+    // Any enable/disable makes the entered passphrase authoritative: drop a cached
+    // DB root key (in-memory + keystore/IndexedDB) so the next derive uses the
+    // current passphrase + the server's account salt. Without this, a key cached
+    // during an earlier attempt (wrong/old passphrase) stays locked in and pulling
+    // another device's rows fails with "Decryption failed".
+    if (vaultChanged) await resetDbRootKey();
+
     // Run the first real sync NOW, while the passphrase is in memory: this caches
     // the DB root key (IndexedDB on web, OS keystore on native) AND uploads/downloads
     // immediately, so data moves on Save instead of waiting for the post-reload
     // cadence. The passphrase itself is never persisted. It also validates the
-    // vault URL/token — on failure we surface the error and roll back instead of
-    // reloading.
+    // vault URL/token AND the passphrase — on failure we surface the error and roll
+    // back instead of reloading.
     if (vaultEnabled && vaultChanged) {
       setVaultBootstrapping(true);
       try {
@@ -129,12 +136,15 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         if (!result.ok) throw new Error(result.error || 'sync failed');
       } catch (err) {
         setVaultBootstrapping(false);
+        await resetDbRootKey(); // don't leave a bad key cached after a failed attempt
         setVaultConfig(vaultOriginal || null); // roll back so we don't half-enable
         const msg = err?.message || '';
         setVaultBootstrapError(
-          /passphrase/i.test(msg)
-            ? 'Enter your sync passphrase above to enable GLANCEvault.'
-            : `Couldn't reach GLANCEvault — check the vault URL and device token. (${msg || 'request failed'})`,
+          /decrypt/i.test(msg)
+            ? 'Wrong sync passphrase — it must exactly match the passphrase used on your other devices.'
+            : /passphrase/i.test(msg)
+              ? 'Enter your sync passphrase above to enable GLANCEvault.'
+              : `Couldn't reach GLANCEvault — check the vault URL and device token. (${msg || 'request failed'})`,
         );
         return;
       }

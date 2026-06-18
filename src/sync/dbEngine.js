@@ -23,7 +23,7 @@
 //     applyPayload (which sets the suppress flags), so a pulled row never bounces
 //     back out as a file-tier upload or a re-push.
 
-import { createDbSyncEngine } from '@glance-apps/sync';
+import { createDbSyncEngine, clearDbRootKey } from '@glance-apps/sync';
 import { getVaultConfig, isVaultEnabled } from './vaultConfig.js';
 import { getDeviceId } from './deviceId.js';
 import {
@@ -38,6 +38,28 @@ import {
 
 const APP_ID = 'dayglance';
 const CRYPTO_DB_NAME = 'dayglance-db-crypto';
+
+// Where the per-account DB root key is stored: the OS keystore on native shells
+// (mirrors the file tier in adapter.js), IndexedDB elsewhere. Centralized so the
+// engine and resetDbRootKey agree.
+function nativeKeyConfig() {
+  const bridge = typeof window !== 'undefined' ? window.DayGlanceNative : null;
+  const isNativeApp = !!bridge?.httpRequest;
+  return {
+    cryptoDBName: CRYPTO_DB_NAME,
+    nativeGetSyncKey: isNativeApp && bridge?.getSyncKey ? () => bridge.getSyncKey() : null,
+    nativeStoreSyncKey: isNativeApp && bridge?.storeSyncKey ? (val) => bridge.storeSyncKey(val) : null,
+  };
+}
+
+// Drop any cached DB root key (in-memory + keystore/IndexedDB) so the next sync
+// re-derives it from the current session passphrase + the server's account salt.
+// Called when the vault is enabled/disabled so a freshly-entered passphrase is
+// authoritative — otherwise a key cached during an earlier attempt (wrong/old
+// passphrase) stays locked in and decryption of other devices' rows fails.
+export async function resetDbRootKey() {
+  try { await clearDbRootKey(nativeKeyConfig()); } catch { /* ignore */ }
+}
 
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const hashOf = (entity) => JSON.stringify(entity);
@@ -74,10 +96,9 @@ export function createDbEngine(callbacks = {}) {
   // callers (App wiring, save-time bootstrap) don't each have to pass them.
   const nativeBridge = typeof window !== 'undefined' ? window.DayGlanceNative : null;
   const isNativeApp = !!nativeBridge?.httpRequest;
-  const nativeGetSyncKey = callbacks.nativeGetSyncKey
-    ?? (isNativeApp && nativeBridge?.getSyncKey ? () => nativeBridge.getSyncKey() : null);
-  const nativeStoreSyncKey = callbacks.nativeStoreSyncKey
-    ?? (isNativeApp && nativeBridge?.storeSyncKey ? (val) => nativeBridge.storeSyncKey(val) : null);
+  const nativeKeys = nativeKeyConfig();
+  const nativeGetSyncKey = callbacks.nativeGetSyncKey ?? nativeKeys.nativeGetSyncKey;
+  const nativeStoreSyncKey = callbacks.nativeStoreSyncKey ?? nativeKeys.nativeStoreSyncKey;
 
   // The vault client defaults to global fetch, which fails inside the Android
   // WebView (no CORS, restricted network) — the same reason the WebDAV file tier
