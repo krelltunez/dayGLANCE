@@ -79,6 +79,32 @@ export function createDbEngine(callbacks = {}) {
   const nativeStoreSyncKey = callbacks.nativeStoreSyncKey
     ?? (isNativeApp && nativeBridge?.storeSyncKey ? (val) => nativeBridge.storeSyncKey(val) : null);
 
+  // The vault client defaults to global fetch, which fails inside the Android
+  // WebView (no CORS, restricted network) — the same reason the WebDAV file tier
+  // routes through the native HTTP bridge (adapter.js / providers.js). Supply a
+  // fetchImpl that bridges to it on native, the electron proxy on desktop
+  // electron, and otherwise falls through to global fetch.
+  const electronProxyFetch = typeof window !== 'undefined' && window.electronAPI?.isElectron
+    ? (...args) => window.electronAPI.proxyFetch(...args)
+    : null;
+  const fetchImpl = callbacks.fetchImpl
+    ?? (isNativeApp
+      ? async (url, { method = 'GET', headers = {}, body } = {}) => {
+        let r;
+        try { r = JSON.parse(nativeBridge.httpRequest(method, url, JSON.stringify(headers), body ?? '')); }
+        catch { throw new TypeError('Failed to fetch'); }
+        if (!r) throw new TypeError('Failed to fetch');
+        return {
+          status: r.status,
+          ok: r.ok,
+          statusText: r.statusText,
+          headers: { get: (h) => (h.toLowerCase() === 'etag' ? (r.headers?.etag ?? null) : null) },
+          json: async () => JSON.parse(r.body),
+          text: async () => r.body,
+        };
+      }
+      : (electronProxyFetch || undefined));
+
   const loadSnapshot = () => {
     try { return JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || '{}'); } catch { return {}; }
   };
@@ -100,6 +126,7 @@ export function createDbEngine(callbacks = {}) {
     accountId: cfg.accountId,
     deviceId: callbacks.deviceId || getDeviceId(),
     vaultClient: callbacks.vaultClient,
+    fetchImpl,
     nativeGetSyncKey,
     nativeStoreSyncKey,
     getLocalEntity: (entityId) => adapterGetLocalEntity(mirror, entityId),

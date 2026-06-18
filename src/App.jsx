@@ -8490,6 +8490,27 @@ const DayPlanner = () => {
       await eng.dbSyncCycle();
       setVaultLastSynced(eng.getLastSynced?.() || new Date().toISOString());
     },
+    // Called from the settings form right after enabling the vault, while the
+    // passphrase is in memory. Builds a transient engine with the REAL data
+    // callbacks and runs one full cycle — caching the root key AND doing the
+    // first sync — so data moves immediately on Save instead of waiting for the
+    // post-reload cadence. Returns { ok, error } so the form can surface failures
+    // (e.g. an unreachable vault) and roll back instead of reloading.
+    vaultBootstrapSync: async () => {
+      let bootErr = null;
+      const eng = createDbEngine({
+        getData:    () => engineCallbacksRef.current.buildPayload?.()?.data,
+        commitData: (data) => engineCallbacksRef.current.applyPayload?.(data, { allowEmpty: true }),
+        onStatusChange: (s) => setVaultStatus(s),
+        onError:    (msg) => { if (msg) bootErr = msg; },
+      });
+      if (!eng) return { ok: false, error: 'GLANCEvault is not configured.' };
+      await eng.dbSyncCycle();
+      if (bootErr) return { ok: false, error: bootErr };
+      setVaultError(null);
+      setVaultLastSynced(eng.getLastSynced?.() || new Date().toISOString());
+      return { ok: true };
+    },
     vaultStatus, vaultError, vaultLastSynced,
     syncAll,
     performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, nativeClearVault,
