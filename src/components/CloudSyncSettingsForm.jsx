@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { setupEncryptionKey, setSyncPassphrase, clearEncryptionKey } from '../utils/crypto.js';
+import { getVaultConfig, setVaultConfig } from '../sync/vaultConfig.js';
 import { useTranslation } from 'react-i18next';
 
 // Cloud sync settings form (extracted to avoid hooks-in-conditional issues)
@@ -23,6 +24,15 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   const [testResult, setTestResult] = useState(null);
   const [testing, setTesting] = useState(false);
   const [migrationOldPath] = useState(() => localStorage.getItem('dayglance-sync-migration-old-path'));
+
+  // GLANCEvault (DB transport) — independent of the WebDAV provider above. Runs
+  // ALONGSIDE WebDAV; your WebDAV data is never modified. Saved to its own
+  // localStorage key; toggling it requires a reload so the engines reconstruct.
+  const [vaultOriginal] = useState(() => getVaultConfig());
+  const [vaultEnabled, setVaultEnabled] = useState(() => !!vaultOriginal?.enabled);
+  const [vaultUrl, setVaultUrl] = useState(() => vaultOriginal?.vaultUrl || '');
+  const [vaultToken, setVaultToken] = useState(() => vaultOriginal?.vaultToken || '');
+  const [vaultAccountId, setVaultAccountId] = useState(() => vaultOriginal?.accountId || '');
 
   const activeProvider = cloudSyncProviders[formData.provider] || provider;
   const requiredFieldsFilled = activeProvider.configFields.every(f => formData[f.key]) && !!formData.syncFolder;
@@ -62,6 +72,18 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
 
     setCloudSyncConfig(newConfig);
     onSyncKeyReady?.(encryptionEnabled);
+
+    // GLANCEvault is saved/cleared independently of the file engine. Only stored
+    // when the toggle is on; cleared (reverting to file-only) when off.
+    const nextVault = vaultEnabled
+      ? { enabled: true, vaultUrl: vaultUrl.trim(), vaultToken: vaultToken.trim(), accountId: vaultAccountId.trim() }
+      : null;
+    const vaultChanged = JSON.stringify(nextVault) !== JSON.stringify(vaultOriginal || null);
+    setVaultConfig(nextVault);
+
+    // A vault change requires a reload so the DB engine is (re)constructed with
+    // the new transport config on next mount (mirrors lastGLANCE).
+    if (vaultChanged) { window.location.reload(); return; }
     onClose();
   };
 
@@ -179,6 +201,58 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
               <p className="font-medium text-amber-600">Important — store your passphrase safely</p>
               <p>This passphrase cannot be recovered. You will need it to set up sync on new devices. Store it in a password manager.</p>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* GLANCEvault (DB transport) — independent toggle, runs alongside WebDAV */}
+      <div className={`border-t ${borderClass} pt-4 space-y-3`}>
+        <label className="flex items-center gap-3 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={vaultEnabled}
+            onChange={(e) => setVaultEnabled(e.target.checked)}
+            className="w-5 h-5 rounded flex-shrink-0"
+          />
+          <span className={`text-sm font-medium ${textPrimary}`}>GLANCEvault (database sync)</span>
+        </label>
+        <p className={`text-xs ${textSecondary} ml-7`}>
+          Row-grained database sync. Runs alongside your existing WebDAV sync. Your WebDAV data is never modified.
+          Uses the same encryption passphrase as above.
+        </p>
+        {vaultEnabled && (
+          <div className="ml-7 space-y-3">
+            <div>
+              <label className={`block text-sm ${textSecondary} mb-1`}>Vault URL</label>
+              <input
+                type="text"
+                placeholder="https://vault.glance-apps.com"
+                value={vaultUrl}
+                onChange={(e) => setVaultUrl(e.target.value)}
+                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+              />
+            </div>
+            <div>
+              <label className={`block text-sm ${textSecondary} mb-1`}>Device token</label>
+              <input
+                type="password"
+                placeholder="Device bearer token"
+                value={vaultToken}
+                onChange={(e) => setVaultToken(e.target.value)}
+                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+              />
+            </div>
+            <div>
+              <label className={`block text-sm ${textSecondary} mb-1`}>Account ID</label>
+              <input
+                type="text"
+                placeholder="Household account id"
+                value={vaultAccountId}
+                onChange={(e) => setVaultAccountId(e.target.value)}
+                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+              />
+            </div>
+            <p className={`text-xs ${textSecondary}`}>Saving a GLANCEvault change reloads the app so the sync engines reconstruct.</p>
           </div>
         )}
       </div>
