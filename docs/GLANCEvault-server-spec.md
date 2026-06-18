@@ -416,10 +416,18 @@ Requirements:
   contingent on the interval tick.
 - The interval remains as a backstop for catch-up and for delivering anything
   a missed push left behind, but it is not the primary delivery path.
-- The push-on-write must fire for every active transport. On a dual-transport
-  device (e.g. a cutover-window device writing to both WebDAV and GLANCEvault),
-  it drives both so the two transports do not drift apart on independent
-  cadences.
+- Push-on-write drives the GLANCEvault (DB) transport only. The file tier
+  (WebDAV) deliberately stays on its cadence model (load, focus, interval) and
+  does NOT get push-on-write, because its full-payload upload makes per-write
+  pushes expensive. This is how lastGLANCE shipped and is the intended design,
+  not a gap. On a dual-write device (WebDAV plus GLANCEvault), a local write
+  pushes to the vault within the debounce window and reaches WebDAV only on the
+  next cadence tick. That is fine: the two transports are not meant to converge
+  with each other; each independently converges the household, and a
+  vault-only device reads from the vault, so WebDAV lagging is invisible to it.
+  (If an app ever wants push-on-write to also drive WebDAV, that is net-new
+  work and would want a much longer debounce given the full-payload cost. The
+  default, matching lastGLANCE, is vault-only push.)
 
 Where this lives: the row protocol and merge logic are in `@glance-apps/sync`,
 but cadence and triggers (the interval, visibility/focus listeners, and this
