@@ -69,6 +69,16 @@ export function createDbEngine(callbacks = {}) {
   const storageKeyPrefix = callbacks.storageKeyPrefix || 'dayglance-vault';
   const SNAPSHOT_KEY = `${storageKeyPrefix}-db-sync-snapshot`;
 
+  // On native shells the root key is stored in the OS keystore (mirrors the file
+  // tier in adapter.js), elsewhere in IndexedDB. Default these from the bridge so
+  // callers (App wiring, save-time bootstrap) don't each have to pass them.
+  const nativeBridge = typeof window !== 'undefined' ? window.DayGlanceNative : null;
+  const isNativeApp = !!nativeBridge?.httpRequest;
+  const nativeGetSyncKey = callbacks.nativeGetSyncKey
+    ?? (isNativeApp && nativeBridge?.getSyncKey ? () => nativeBridge.getSyncKey() : null);
+  const nativeStoreSyncKey = callbacks.nativeStoreSyncKey
+    ?? (isNativeApp && nativeBridge?.storeSyncKey ? (val) => nativeBridge.storeSyncKey(val) : null);
+
   const loadSnapshot = () => {
     try { return JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || '{}'); } catch { return {}; }
   };
@@ -90,8 +100,8 @@ export function createDbEngine(callbacks = {}) {
     accountId: cfg.accountId,
     deviceId: callbacks.deviceId || getDeviceId(),
     vaultClient: callbacks.vaultClient,
-    nativeGetSyncKey: callbacks.nativeGetSyncKey || null,
-    nativeStoreSyncKey: callbacks.nativeStoreSyncKey || null,
+    nativeGetSyncKey,
+    nativeStoreSyncKey,
     getLocalEntity: (entityId) => adapterGetLocalEntity(mirror, entityId),
     applyRemoteEntity: (entityId, entity) => {
       // Bundle merges may leave us richer than the clobbered vault row; re-push

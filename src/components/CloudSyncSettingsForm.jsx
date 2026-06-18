@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
-import { setupEncryptionKey, setSyncPassphrase, clearEncryptionKey } from '../utils/crypto.js';
+import { setupEncryptionKey, setSyncPassphrase, clearEncryptionKey, getSyncPassphrase } from '../utils/crypto.js';
 import { getVaultConfig, setVaultConfig } from '../sync/vaultConfig.js';
+import { createDbEngine } from '../sync/dbEngine.js';
 import { useTranslation } from 'react-i18next';
 
 // Cloud sync settings form (extracted to avoid hooks-in-conditional issues)
@@ -36,9 +37,12 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   const [vaultUrl, setVaultUrl] = useState(() => vaultOriginal?.vaultUrl || '');
   const [vaultToken, setVaultToken] = useState(() => vaultOriginal?.vaultToken || '');
   const [vaultAccountId, setVaultAccountId] = useState(() => vaultOriginal?.accountId || '');
+  const [vaultBootstrapping, setVaultBootstrapping] = useState(false);
+  const [vaultBootstrapError, setVaultBootstrapError] = useState(null);
 
   const activeProvider = cloudSyncProviders[formData.provider] || provider;
   const requiredFieldsFilled = activeProvider.configFields.every(f => formData[f.key]) && !!formData.syncFolder;
+  const webdavConfigured = requiredFieldsFilled;
 
   // When enabling encryption, require a passphrase (confirmed) on fresh enable.
   // When already enabled, allow saving without re-entering (passphrase field is optional).
@@ -46,7 +50,21 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   const passphraseRequired = encryptionEnabled && !alreadyEncrypted;
   const passphraseMismatch = passphraseRequired && passphraseConfirm && passphrase !== passphraseConfirm;
   const passphraseValid = !passphraseRequired || (passphrase.length > 0 && passphrase === passphraseConfirm);
-  const canSave = requiredFieldsFilled && passphraseValid && !passphraseMismatch;
+
+  // GLANCEvault is independent of WebDAV and always end-to-end encrypted: enabling
+  // it needs (a) all three vault fields and (b) the sync passphrase. The passphrase
+  // lives only in memory, so after a reload `getSyncPassphrase()` is null even when
+  // WebDAV encryption works off its cached key — in that case the user must
+  // (re)enter it in the encryption field above. A passphrase setup must therefore
+  // exist (encryption on, or already configured) and a passphrase must be in hand.
+  const vaultFilled = vaultEnabled && !!vaultUrl.trim() && !!vaultToken.trim() && !!vaultAccountId.trim();
+  const passphraseAvailable = !!getSyncPassphrase() || passphrase.length > 0;
+  const vaultEncryptionReady = encryptionEnabled || alreadyEncrypted;
+  const vaultReady = !vaultFilled || (vaultEncryptionReady && passphraseAvailable);
+
+  // Save is enabled when EITHER transport is fully set up (vault no longer gated
+  // on the WebDAV connection).
+  const canSave = (webdavConfigured || vaultFilled) && passphraseValid && !passphraseMismatch && vaultReady;
 
   const handleTest = async () => {
     setTesting(true);
@@ -57,17 +75,21 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   };
 
   const handleSave = async () => {
-    const newConfig = { ...formData, provider: formData.provider, enabled: true, encryptionEnabled };
+    setVaultBootstrapError(null);
+    // WebDAV is only marked enabled when its connection is actually configured, so
+    // enabling GLANCEvault alone never writes a bogus enabled WebDAV config.
+    const newConfig = { ...formData, provider: formData.provider, enabled: webdavConfigured, encryptionEnabled };
 
     if (encryptionEnabled) {
       if (passphraseRequired && passphrase) {
-        // First-time setup: generate salt + derive + cache key.
+        // First-time setup: generate salt + derive + cache key (also sets the session passphrase).
         await setupEncryptionKey(passphrase);
-      } else if (!alreadyEncrypted && passphrase) {
-        // Re-entering passphrase on existing encrypted setup (new device via settings form).
+      } else if (passphrase) {
+        // Re-entering the passphrase on an already-encrypted setup (new device, or
+        // to make it available to GLANCEvault after a reload).
         setSyncPassphrase(passphrase);
       }
-      // If alreadyEncrypted and no passphrase entered, leave session key as-is.
+      // If already encrypted and no passphrase entered, leave the session key as-is.
     } else if (alreadyEncrypted) {
       // User disabled encryption.
       await clearEncryptionKey();
@@ -82,7 +104,33 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
       ? { enabled: true, vaultUrl: vaultUrl.trim(), vaultToken: vaultToken.trim(), accountId: vaultAccountId.trim() }
       : null;
     const vaultChanged = JSON.stringify(nextVault) !== JSON.stringify(vaultOriginal || null);
+
+    // The vault always shares the sync passphrase; make sure it is in the session
+    // before deriving the DB root key (covers re-entry on an already-encrypted setup).
+    if (vaultEnabled && passphrase) setSyncPassphrase(passphrase);
     setVaultConfig(nextVault);
+
+    // Bootstrap the DB root key NOW, while the passphrase is in memory, so it is
+    // cached (IndexedDB on web, OS keystore on native) and survives the reload —
+    // the passphrase itself is never persisted. This also validates the vault
+    // URL/token; on failure we surface the error and don't reload.
+    if (vaultEnabled && vaultChanged) {
+      setVaultBootstrapping(true);
+      try {
+        const boot = createDbEngine({ getData: () => ({}), commitData: () => {} });
+        if (boot) await boot.ensureRootKey();
+      } catch (err) {
+        setVaultBootstrapping(false);
+        setVaultConfig(vaultOriginal || null); // roll back so we don't half-enable
+        setVaultBootstrapError(
+          err?.code === 'PASSPHRASE_REQUIRED'
+            ? 'Enter your sync passphrase above to enable GLANCEvault.'
+            : `Couldn't reach GLANCEvault — check the vault URL and device token. (${err?.message || 'request failed'})`,
+        );
+        return;
+      }
+      setVaultBootstrapping(false);
+    }
 
     // A vault change requires a reload so the DB engine is (re)constructed with
     // the new transport config on next mount (mirrors lastGLANCE).
@@ -333,6 +381,19 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
               />
             </div>
             <p className={`text-xs ${textSecondary}`}>Saving a GLANCEvault change reloads the app so the sync engines reconstruct.</p>
+            {!vaultEncryptionReady && (
+              <p className="text-xs text-amber-500">
+                GLANCEvault is always end-to-end encrypted. Turn on “{t('settings.enableE2EEncryption')}” above and set your sync passphrase to enable it.
+              </p>
+            )}
+            {vaultEncryptionReady && !passphraseAvailable && (
+              <p className="text-xs text-amber-500">
+                Enter your sync passphrase in the encryption section above to enable GLANCEvault on this device.
+              </p>
+            )}
+            {vaultBootstrapError && (
+              <p className="text-xs text-red-500">{vaultBootstrapError}</p>
+            )}
           </div>
         )}
 
@@ -377,10 +438,10 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         )}
         <button
           onClick={handleSave}
-          disabled={!canSave}
+          disabled={!canSave || vaultBootstrapping}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
-          {cloudSyncConfig?.enabled ? 'Save' : 'Save & Enable'}
+          {vaultBootstrapping ? 'Enabling…' : (cloudSyncConfig?.enabled ? 'Save' : 'Save & Enable')}
         </button>
       </div>
     </div>
