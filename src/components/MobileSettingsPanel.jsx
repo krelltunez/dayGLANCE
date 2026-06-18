@@ -79,7 +79,7 @@ const MobileSettingsPanel = () => {
     obsidianSyncStatus, obsidianSyncError, obsidianLastSynced, setObsidianLastSynced,
     wikilinkCandidates, setWikilinkCandidates,
     cloudSyncTest, cloudSyncNow,
-    vaultSyncNow, vaultStatus, vaultError, vaultLastSynced,
+    vaultSyncNow, vaultBootstrapSync, vaultStatus, vaultError, vaultLastSynced,
     syncAll, performObsidianSync, performRemoteBackup, nativeClearVault,
     loadAutoBackupHistory,
     deleteLocalAutoBackup, deleteRemoteAutoBackup,
@@ -1317,6 +1317,7 @@ const MobileSettingsPanel = () => {
         cloudSyncError={cloudSyncError}
         cloudSyncNow={cloudSyncNow}
         vaultSyncNow={vaultSyncNow}
+        vaultBootstrapSync={vaultBootstrapSync}
         vaultStatus={vaultStatus}
         vaultError={vaultError}
         vaultLastSynced={vaultLastSynced}

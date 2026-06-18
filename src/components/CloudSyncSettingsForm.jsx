@@ -7,7 +7,7 @@ import { createDbEngine } from '../sync/dbEngine.js';
 import { useTranslation } from 'react-i18next';
 
 // Cloud sync settings form (extracted to avoid hooks-in-conditional issues)
-const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, cloudSyncNow, provider, currentProvider, onClose, cloudSyncLastSynced, cloudSyncStatus, cloudSyncError, vaultSyncNow, vaultStatus, vaultError, vaultLastSynced, onSyncKeyReady }) => {
+const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, cloudSyncNow, provider, currentProvider, onClose, cloudSyncLastSynced, cloudSyncStatus, cloudSyncError, vaultSyncNow, vaultBootstrapSync, vaultStatus, vaultError, vaultLastSynced, onSyncKeyReady }) => {
   const { t } = useTranslation();
   const [formData, setFormData] = useState(() => {
     const initial = {
@@ -110,22 +110,31 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
     if (vaultEnabled && passphrase) setSyncPassphrase(passphrase);
     setVaultConfig(nextVault);
 
-    // Bootstrap the DB root key NOW, while the passphrase is in memory, so it is
-    // cached (IndexedDB on web, OS keystore on native) and survives the reload —
-    // the passphrase itself is never persisted. This also validates the vault
-    // URL/token; on failure we surface the error and don't reload.
+    // Run the first real sync NOW, while the passphrase is in memory: this caches
+    // the DB root key (IndexedDB on web, OS keystore on native) AND uploads/downloads
+    // immediately, so data moves on Save instead of waiting for the post-reload
+    // cadence. The passphrase itself is never persisted. It also validates the
+    // vault URL/token — on failure we surface the error and roll back instead of
+    // reloading.
     if (vaultEnabled && vaultChanged) {
       setVaultBootstrapping(true);
       try {
-        const boot = createDbEngine({ getData: () => ({}), commitData: () => {} });
-        if (boot) await boot.ensureRootKey();
+        let result = { ok: true };
+        if (vaultBootstrapSync) {
+          result = await vaultBootstrapSync();
+        } else {
+          const boot = createDbEngine({ getData: () => ({}), commitData: () => {} });
+          if (boot) await boot.ensureRootKey();
+        }
+        if (!result.ok) throw new Error(result.error || 'sync failed');
       } catch (err) {
         setVaultBootstrapping(false);
         setVaultConfig(vaultOriginal || null); // roll back so we don't half-enable
+        const msg = err?.message || '';
         setVaultBootstrapError(
-          err?.code === 'PASSPHRASE_REQUIRED'
+          /passphrase/i.test(msg)
             ? 'Enter your sync passphrase above to enable GLANCEvault.'
-            : `Couldn't reach GLANCEvault — check the vault URL and device token. (${err?.message || 'request failed'})`,
+            : `Couldn't reach GLANCEvault — check the vault URL and device token. (${msg || 'request failed'})`,
         );
         return;
       }
