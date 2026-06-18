@@ -67,6 +67,9 @@ import useTrmnlSync from './hooks/useTrmnlSync.js';
 import useObsidian from './hooks/useObsidian.js';
 import useCloudSync from './hooks/useCloudSync.js';
 import { createDayGlanceEngine } from './sync/adapter.js';
+import { createDbEngine } from './sync/dbEngine.js';
+import { registerDbEngine } from './sync/dirtyTracker.js';
+import { isVaultEnabled } from './sync/vaultConfig.js';
 import { encryptData, decryptData, isEncryptedEnvelope, hasEncryptionReady } from './utils/crypto.js';
 import useCalendarSync from './hooks/useCalendarSync.js';
 import useBackup from './hooks/useBackup.js';
@@ -524,6 +527,13 @@ const DayPlanner = () => {
   // sees fresh closures every cycle — the engine itself is constructed once.
   const engineCallbacksRef = useRef({});
   const cloudSyncEngineRef = useRef(null);
+  // GLANCEvault row-grained DB transport (opt-in, runs ALONGSIDE the file tier).
+  const dbEngineRef = useRef(null);
+  // GLANCEvault status surfaced in the Cloud Sync settings (independent of the
+  // WebDAV file-tier status).
+  const [vaultStatus, setVaultStatus] = useState('idle');
+  const [vaultError, setVaultError] = useState(null);
+  const [vaultLastSynced, setVaultLastSynced] = useState(null);
   const engineFolderRef = useRef(null);
   const syncFolder = cloudSyncConfig?.syncFolder ?? 'GLANCE/dayglance';
   const autoBackupProviders = useMemo(() => createAutoBackupProvidersForFolder(syncFolder), [syncFolder]);
@@ -1677,6 +1687,45 @@ const DayPlanner = () => {
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
   }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, allTodayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled, syncKeyReady, multiUserEnabled, users]);
+
+  // ── GLANCEvault DB transport ─────────────────────────────────────────────
+  // Row-grained sync that runs ALONGSIDE the file-tier WebDAV engine (it shares
+  // the local data and sync passphrase but never touches the WebDAV file). Fully
+  // inert when the vault is disabled — createDbEngine returns null and nothing
+  // below runs, so file-only devices behave exactly as before. Push-on-write is
+  // handled by the 3 s debounce in dirtyTracker (wired from useSaveOnChange);
+  // this effect adds the cadence backstop (initial + focus + 5-min interval).
+  // See docs/glancevault-stage2.md.
+  useEffect(() => {
+    if (isTrayMode || !dataLoaded || !isVaultEnabled()) return;
+    const engine = createDbEngine({
+      getData:    () => engineCallbacksRef.current.buildPayload?.()?.data,
+      commitData: (data) => engineCallbacksRef.current.applyPayload?.(data, { allowEmpty: true }),
+      onStatusChange: (s) => {
+        setVaultStatus(s);
+        if (s === 'success') {
+          setVaultError(null);
+          setVaultLastSynced(dbEngineRef.current?.getLastSynced?.() || new Date().toISOString());
+        }
+      },
+      onError: (msg) => { setVaultError(msg || null); if (msg) console.warn('[dayglance] vault sync error:', msg); },
+    });
+    if (!engine) return;
+    dbEngineRef.current = engine;
+    registerDbEngine(engine);
+    setVaultLastSynced(engine.getLastSynced?.() || null);
+    const runCycle = () => engine.dbSyncCycle().catch(() => { /* surfaced via onError */ });
+    runCycle(); // initial
+    const onVisible = () => { if (document.visibilityState === 'visible') runCycle(); };
+    document.addEventListener('visibilitychange', onVisible);
+    const interval = setInterval(runCycle, 5 * 60 * 1000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(interval);
+      registerDbEngine(null);
+      dbEngineRef.current = null;
+    };
+  }, [dataLoaded]);
 
   // ── Config field timestamp tracking ──────────────────────────────────────
   // Tracks when habitsEnabled/routinesEnabled/goalsProjectsEnabled/obsidianConfig
@@ -8432,6 +8481,16 @@ const DayPlanner = () => {
     cloudSyncDownload: () => cloudSyncEngineRef.current.download(),
     cloudSyncUpload:   (prebuilt, opts) => cloudSyncEngineRef.current.upload({ prebuiltPayload: prebuilt, ...opts }),
     cloudSyncTest:     (cfg) => cloudSyncEngineRef.current.test(cfg),
+    // Manual "Sync now" for the WebDAV file tier (full merge cycle).
+    cloudSyncNow:      () => cloudSyncEngineRef.current.sync(),
+    // Manual "Sync now" for the GLANCEvault DB tier + its surfaced status.
+    vaultSyncNow: async () => {
+      const eng = dbEngineRef.current;
+      if (!eng) return;
+      await eng.dbSyncCycle();
+      setVaultLastSynced(eng.getLastSynced?.() || new Date().toISOString());
+    },
+    vaultStatus, vaultError, vaultLastSynced,
     syncAll,
     performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, nativeClearVault,
     performTrmnlSync,

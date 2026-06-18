@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { schedulePush as scheduleVaultPush } from '../sync/dirtyTracker.js';
 
 // The tray popup must never write to localStorage — it holds a snapshot of
 // state as of the last reload and would overwrite fresher main-window data.
@@ -17,6 +18,10 @@ export default function useSaveOnChange({
     if (isTrayMode || !dataLoaded) return;
     saveData();
     checkConflicts();
+    // Push-on-write to the GLANCEvault DB transport (debounced 3 s, vault-only).
+    // Off-safe no-op when the vault is disabled; skipped while applying remote
+    // data (suppressCloudUpload) so a pulled change never bounces back as a push.
+    if (!suppressCloudUploadRef.current) scheduleVaultPush();
     // After the first save pass following applyEngineData, clear the suppress flags
     // so subsequent user actions (e.g. completing a task) get properly stamped and uploaded.
     if (suppressClearPendingRef.current) {

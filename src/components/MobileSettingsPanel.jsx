@@ -78,7 +78,8 @@ const MobileSettingsPanel = () => {
     obsidianConfig, setObsidianConfig,
     obsidianSyncStatus, obsidianSyncError, obsidianLastSynced, setObsidianLastSynced,
     wikilinkCandidates, setWikilinkCandidates,
-    cloudSyncUpload, cloudSyncTest,
+    cloudSyncTest, cloudSyncNow,
+    vaultSyncNow, vaultStatus, vaultError, vaultLastSynced,
     syncAll, performObsidianSync, performRemoteBackup, nativeClearVault,
     loadAutoBackupHistory,
     deleteLocalAutoBackup, deleteRemoteAutoBackup,
@@ -282,28 +283,21 @@ const MobileSettingsPanel = () => {
           <span className={`font-medium ${textPrimary}`}>{t('settings.syncCalendars')}</span>
         </button>
       )}
-      {cloudSyncConfig?.enabled && (
-        <button
-          onClick={() => cloudSyncUpload()}
-          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
-        >
-          <div className="relative">
-            <Cloud size={20} className={`${textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
+      <button
+        onClick={() => setMobileSettingsView('cloudsync')}
+        className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+      >
+        <div className="relative">
+          <Cloud size={20} className={`${cloudSyncConfig?.enabled ? 'text-blue-500' : textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
+          {cloudSyncConfig?.enabled && (
             <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
               (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' : cloudSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
             }`} />
-          </div>
-          <div className="flex-1 text-left">
-            <span className={`font-medium ${textPrimary}`}>Cloud Sync</span>
-            {cloudSyncStatus === 'error' && cloudSyncError && (
-              <p className="text-xs text-red-500 mt-0.5 leading-tight">{cloudSyncError}</p>
-            )}
-            {cloudSyncStatus === 'success' && cloudSyncLastSynced && (
-              <p className={`text-xs ${textSecondary} mt-0.5`}>{t('common.lastSynced')} {new Date(cloudSyncLastSynced).toLocaleTimeString()}</p>
-            )}
-          </div>
-        </button>
-      )}
+          )}
+        </div>
+        <span className={`font-medium ${textPrimary} flex-1 text-left`}>{t('settings.cloudSync')}</span>
+        <ChevronRight size={18} className={textSecondary} />
+      </button>
       {isNativeApp() && (
         <button
           onClick={() => setMobileSettingsView('obsidian')}
@@ -406,8 +400,6 @@ const MobileSettingsPanel = () => {
 
   {/* App Settings sub-view */}
   {mobileSettingsView === 'app' && (() => {
-    const currentProvider = cloudSyncConfig?.provider || 'nextcloud';
-    const provider = cloudSyncProviders[currentProvider];
     return (
     <div className="px-4 py-4 space-y-4">
       <button
@@ -691,36 +683,6 @@ const MobileSettingsPanel = () => {
             </>)}
           </div>
         )}
-        </>)}
-      </div>
-
-      <hr className={borderClass} />
-
-      {/* Cloud Sync */}
-      <div className="space-y-3">
-        <button onClick={() => toggleSettingsSection('cloudSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
-          <Cloud size={16} className={textSecondary} />
-          {t('settings.cloudSync')}
-          {cloudSyncConfig?.enabled && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
-          <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.cloudSync ? '' : 'rotate-180'}`} />
-        </button>
-        {!collapsedSettings.cloudSync && (<>
-        <p className={`${textSecondary} text-xs`}>{t('settings.cloudSyncDesc')}</p>
-        <CloudSyncSettingsForm
-          darkMode={darkMode}
-          textPrimary={textPrimary}
-          textSecondary={textSecondary}
-          borderClass={borderClass}
-          hoverBg={hoverBg}
-          cloudSyncConfig={cloudSyncConfig}
-          setCloudSyncConfig={setCloudSyncConfig}
-          cloudSyncTest={cloudSyncTest}
-          provider={provider}
-          currentProvider={currentProvider}
-          onClose={() => setMobileSettingsView('main')}
-          cloudSyncLastSynced={cloudSyncLastSynced}
-          onSyncKeyReady={(ready) => setSyncKeyReady(ready)}
-        />
         </>)}
       </div>
 
@@ -1320,6 +1282,50 @@ const MobileSettingsPanel = () => {
   )}
 
   {/* Obsidian sub-view */}
+  {/* Cloud Sync sub-view */}
+  {mobileSettingsView === 'cloudsync' && (() => {
+    const currentProvider = cloudSyncConfig?.provider || 'nextcloud';
+    const provider = cloudSyncProviders[currentProvider];
+    return (
+    <div className="px-4 py-4 space-y-4">
+      <button
+        onClick={() => setMobileSettingsView('main')}
+        className={`flex items-center gap-2 ${textSecondary} mb-2`}
+      >
+        <ChevronLeft size={18} />
+        <span className="text-sm font-medium">{t('common.settings')}</span>
+      </button>
+      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+        <Cloud size={18} className={cloudSyncConfig?.enabled ? 'text-blue-500' : textSecondary} />
+        {t('settings.cloudSync')}
+      </h4>
+      <p className={`text-xs ${textSecondary}`}>{t('settings.cloudSyncDesc')}</p>
+      <CloudSyncSettingsForm
+        darkMode={darkMode}
+        textPrimary={textPrimary}
+        textSecondary={textSecondary}
+        borderClass={borderClass}
+        hoverBg={hoverBg}
+        cloudSyncConfig={cloudSyncConfig}
+        setCloudSyncConfig={setCloudSyncConfig}
+        cloudSyncTest={cloudSyncTest}
+        provider={provider}
+        currentProvider={currentProvider}
+        onClose={() => setMobileSettingsView('main')}
+        cloudSyncLastSynced={cloudSyncLastSynced}
+        cloudSyncStatus={cloudSyncStatus}
+        cloudSyncError={cloudSyncError}
+        cloudSyncNow={cloudSyncNow}
+        vaultSyncNow={vaultSyncNow}
+        vaultStatus={vaultStatus}
+        vaultError={vaultError}
+        vaultLastSynced={vaultLastSynced}
+        onSyncKeyReady={(ready) => setSyncKeyReady(ready)}
+      />
+    </div>
+    );
+  })()}
+
   {mobileSettingsView === 'obsidian' && (
     <div className="px-4 py-4 space-y-4">
       <button
