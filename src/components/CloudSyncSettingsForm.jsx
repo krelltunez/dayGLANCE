@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { setupEncryptionKey, setSyncPassphrase, clearEncryptionKey } from '../utils/crypto.js';
 import { getVaultConfig, setVaultConfig } from '../sync/vaultConfig.js';
 import { useTranslation } from 'react-i18next';
 
 // Cloud sync settings form (extracted to avoid hooks-in-conditional issues)
-const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, provider, currentProvider, onClose, cloudSyncLastSynced, cloudSyncStatus, cloudSyncError, onSyncKeyReady }) => {
+const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, cloudSyncNow, provider, currentProvider, onClose, cloudSyncLastSynced, cloudSyncStatus, cloudSyncError, vaultSyncNow, vaultStatus, vaultError, vaultLastSynced, onSyncKeyReady }) => {
   const { t } = useTranslation();
   const [formData, setFormData] = useState(() => {
     const initial = {
@@ -23,6 +24,8 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   const [passphraseConfirm, setPassphraseConfirm] = useState('');
   const [testResult, setTestResult] = useState(null);
   const [testing, setTesting] = useState(false);
+  const [syncingNow, setSyncingNow] = useState(false);
+  const [vaultSyncing, setVaultSyncing] = useState(false);
   const [migrationOldPath] = useState(() => localStorage.getItem('dayglance-sync-migration-old-path'));
 
   // GLANCEvault (DB transport) — independent of the WebDAV provider above. Runs
@@ -92,8 +95,30 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
     onClose();
   };
 
+  // Manual "Sync now" triggers — WebDAV file tier and GLANCEvault DB tier.
+  const handleSyncNow = async () => {
+    if (!cloudSyncNow) return;
+    setSyncingNow(true);
+    try { await cloudSyncNow(); } catch { /* surfaced via cloudSyncError */ }
+    finally { setSyncingNow(false); }
+  };
+  const handleVaultSyncNow = async () => {
+    if (!vaultSyncNow) return;
+    setVaultSyncing(true);
+    try { await vaultSyncNow(); } catch { /* surfaced via vaultError */ }
+    finally { setVaultSyncing(false); }
+  };
+
+  // Shared section-header style (uppercase, like the lastGLANCE layout).
+  const sectionHeader = `text-xs font-semibold uppercase tracking-wide ${textSecondary}`;
+  const secondaryBtn = `px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50`;
+  const vaultPersistedEnabled = !!vaultOriginal?.enabled;
+
   return (
     <div className="space-y-4">
+      {/* ── WebDAV Connection ─────────────────────────────────────────────── */}
+      <h3 className={sectionHeader}>WebDAV Connection</h3>
+
       <div>
         <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Provider</label>
         <select
@@ -137,6 +162,55 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
 
       {activeProvider.helpText && (
         <p className={`text-xs ${textSecondary}`}>{activeProvider.helpText}</p>
+      )}
+
+      {/* WebDAV actions: Test Connection + Sync Now, with status below. */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleTest}
+          disabled={testing || !requiredFieldsFilled}
+          className={secondaryBtn}
+        >
+          {testing ? 'Testing...' : 'Test Connection'}
+        </button>
+        <button
+          onClick={handleSyncNow}
+          disabled={syncingNow || !cloudSyncConfig?.enabled}
+          title={!cloudSyncConfig?.enabled ? 'Enable WebDAV sync first' : 'Sync with WebDAV now'}
+          className={secondaryBtn}
+        >
+          {(syncingNow || cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'Syncing...' : 'Sync Now'}
+        </button>
+      </div>
+      {testResult && (
+        <p className={`text-sm ${testResult.success ? 'text-green-500' : 'text-red-500'}`}>
+          {testResult.success ? 'Connection successful!' : testResult.error}
+        </p>
+      )}
+      {cloudSyncStatus === 'error' && cloudSyncError ? (
+        <p className="text-xs text-red-500">{cloudSyncError}</p>
+      ) : cloudSyncLastSynced ? (
+        <p className={`text-xs ${textSecondary}`}>
+          Last synced: {new Date(cloudSyncLastSynced).toLocaleString()}
+        </p>
+      ) : null}
+
+      {migrationOldPath && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 space-y-1">
+          <p className="font-semibold">Optional: move sync folder</p>
+          <p>Your sync file is at the old location. You can move it for cleaner organization — sync will continue to work either way.</p>
+          <p className="font-mono break-all">{migrationOldPath} → GLANCE/dayglance/</p>
+          <p>After moving the file, update your Sync folder setting above to <span className="font-mono">GLANCE/dayglance</span>.</p>
+          <button
+            onClick={() => {
+              localStorage.removeItem('dayglance-sync-migration-old-path');
+              localStorage.setItem('dayglance-sync-migration-checked', '1');
+            }}
+            className="text-amber-700 underline mt-1"
+          >
+            Dismiss
+          </button>
+        </div>
       )}
 
       {/* Encryption section */}
@@ -205,8 +279,14 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         )}
       </div>
 
-      {/* GLANCEvault (DB transport) — independent toggle, runs alongside WebDAV */}
+      {/* ── GLANCEvault (Beta) ────────────────────────────────────────────── */}
       <div className={`border-t ${borderClass} pt-4 space-y-3`}>
+        <h3 className={sectionHeader}>GLANCEvault (Beta)</h3>
+        <p className="text-xs text-amber-500 flex items-start gap-1.5">
+          <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+          <span>Experimental. Requires a self-hosted GLANCEvault server. Not recommended for most users.</span>
+        </p>
+
         <label className="flex items-center gap-3 cursor-pointer select-none">
           <input
             type="checkbox"
@@ -214,7 +294,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
             onChange={(e) => setVaultEnabled(e.target.checked)}
             className="w-5 h-5 rounded flex-shrink-0"
           />
-          <span className={`text-sm font-medium ${textPrimary}`}>GLANCEvault (database sync)</span>
+          <span className={`text-sm font-medium ${textPrimary}`}>Sync via GLANCEvault</span>
         </label>
         <p className={`text-xs ${textSecondary} ml-7`}>
           Row-grained database sync. Runs alongside your existing WebDAV sync. Your WebDAV data is never modified.
@@ -255,47 +335,30 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
             <p className={`text-xs ${textSecondary}`}>Saving a GLANCEvault change reloads the app so the sync engines reconstruct.</p>
           </div>
         )}
-      </div>
 
-      <div className="flex items-center gap-2">
-        <button
-          onClick={handleTest}
-          disabled={testing || !requiredFieldsFilled}
-          className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50`}
-        >
-          {testing ? 'Testing...' : 'Test Connection'}
-        </button>
-        {testResult && (
-          <span className={`text-sm ${testResult.success ? 'text-green-500' : 'text-red-500'}`}>
-            {testResult.success ? 'Connection successful!' : testResult.error}
-          </span>
+        {/* GLANCEvault actions: Sync Now, with status below. Enabled once the
+            saved config is active (and the engine therefore exists). */}
+        {vaultPersistedEnabled && (
+          <>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleVaultSyncNow}
+                disabled={vaultSyncing}
+                className={secondaryBtn}
+              >
+                {(vaultSyncing || vaultStatus === 'uploading' || vaultStatus === 'downloading') ? 'Syncing...' : 'Sync Now'}
+              </button>
+            </div>
+            {vaultError ? (
+              <p className="text-xs text-red-500">{vaultError}</p>
+            ) : vaultLastSynced ? (
+              <p className={`text-xs ${textSecondary}`}>
+                Last synced: {new Date(vaultLastSynced).toLocaleString()}
+              </p>
+            ) : null}
+          </>
         )}
       </div>
-
-      {migrationOldPath && (
-        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 space-y-1">
-          <p className="font-semibold">Optional: move sync folder</p>
-          <p>Your sync file is at the old location. You can move it for cleaner organization — sync will continue to work either way.</p>
-          <p className="font-mono break-all">{migrationOldPath} → GLANCE/dayglance/</p>
-          <p>After moving the file, update your Sync folder setting above to <span className="font-mono">GLANCE/dayglance</span>.</p>
-          <button
-            onClick={() => {
-              localStorage.removeItem('dayglance-sync-migration-old-path');
-              localStorage.setItem('dayglance-sync-migration-checked', '1');
-            }}
-            className="text-amber-700 underline mt-1"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-      {cloudSyncStatus === 'error' && cloudSyncError ? (
-        <p className="text-xs text-red-500">{cloudSyncError}</p>
-      ) : cloudSyncLastSynced ? (
-        <p className={`text-xs ${textSecondary}`}>
-          Last synced: {new Date(cloudSyncLastSynced).toLocaleString()}
-        </p>
-      ) : null}
 
       <div className="flex justify-end gap-2 pt-2">
         <button

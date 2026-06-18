@@ -529,6 +529,11 @@ const DayPlanner = () => {
   const cloudSyncEngineRef = useRef(null);
   // GLANCEvault row-grained DB transport (opt-in, runs ALONGSIDE the file tier).
   const dbEngineRef = useRef(null);
+  // GLANCEvault status surfaced in the Cloud Sync settings (independent of the
+  // WebDAV file-tier status).
+  const [vaultStatus, setVaultStatus] = useState('idle');
+  const [vaultError, setVaultError] = useState(null);
+  const [vaultLastSynced, setVaultLastSynced] = useState(null);
   const engineFolderRef = useRef(null);
   const syncFolder = cloudSyncConfig?.syncFolder ?? 'GLANCE/dayglance';
   const autoBackupProviders = useMemo(() => createAutoBackupProvidersForFolder(syncFolder), [syncFolder]);
@@ -1696,11 +1701,19 @@ const DayPlanner = () => {
     const engine = createDbEngine({
       getData:    () => engineCallbacksRef.current.buildPayload?.()?.data,
       commitData: (data) => engineCallbacksRef.current.applyPayload?.(data, { allowEmpty: true }),
-      onError:    (msg) => { if (msg) console.warn('[dayglance] vault sync error:', msg); },
+      onStatusChange: (s) => {
+        setVaultStatus(s);
+        if (s === 'success') {
+          setVaultError(null);
+          setVaultLastSynced(dbEngineRef.current?.getLastSynced?.() || new Date().toISOString());
+        }
+      },
+      onError: (msg) => { setVaultError(msg || null); if (msg) console.warn('[dayglance] vault sync error:', msg); },
     });
     if (!engine) return;
     dbEngineRef.current = engine;
     registerDbEngine(engine);
+    setVaultLastSynced(engine.getLastSynced?.() || null);
     const runCycle = () => engine.dbSyncCycle().catch(() => { /* surfaced via onError */ });
     runCycle(); // initial
     const onVisible = () => { if (document.visibilityState === 'visible') runCycle(); };
@@ -8468,6 +8481,16 @@ const DayPlanner = () => {
     cloudSyncDownload: () => cloudSyncEngineRef.current.download(),
     cloudSyncUpload:   (prebuilt, opts) => cloudSyncEngineRef.current.upload({ prebuiltPayload: prebuilt, ...opts }),
     cloudSyncTest:     (cfg) => cloudSyncEngineRef.current.test(cfg),
+    // Manual "Sync now" for the WebDAV file tier (full merge cycle).
+    cloudSyncNow:      () => cloudSyncEngineRef.current.sync(),
+    // Manual "Sync now" for the GLANCEvault DB tier + its surfaced status.
+    vaultSyncNow: async () => {
+      const eng = dbEngineRef.current;
+      if (!eng) return;
+      await eng.dbSyncCycle();
+      setVaultLastSynced(eng.getLastSynced?.() || new Date().toISOString());
+    },
+    vaultStatus, vaultError, vaultLastSynced,
     syncAll,
     performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, nativeClearVault,
     performTrmnlSync,

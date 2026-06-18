@@ -78,7 +78,8 @@ const MobileSettingsPanel = () => {
     obsidianConfig, setObsidianConfig,
     obsidianSyncStatus, obsidianSyncError, obsidianLastSynced, setObsidianLastSynced,
     wikilinkCandidates, setWikilinkCandidates,
-    cloudSyncUpload, cloudSyncTest,
+    cloudSyncUpload, cloudSyncTest, cloudSyncNow,
+    vaultSyncNow, vaultStatus, vaultError, vaultLastSynced,
     syncAll, performObsidianSync, performRemoteBackup, nativeClearVault,
     loadAutoBackupHistory,
     deleteLocalAutoBackup, deleteRemoteAutoBackup,
@@ -719,6 +720,13 @@ const MobileSettingsPanel = () => {
           currentProvider={currentProvider}
           onClose={() => setMobileSettingsView('main')}
           cloudSyncLastSynced={cloudSyncLastSynced}
+          cloudSyncStatus={cloudSyncStatus}
+          cloudSyncError={cloudSyncError}
+          cloudSyncNow={cloudSyncNow}
+          vaultSyncNow={vaultSyncNow}
+          vaultStatus={vaultStatus}
+          vaultError={vaultError}
+          vaultLastSynced={vaultLastSynced}
           onSyncKeyReady={(ready) => setSyncKeyReady(ready)}
         />
         </>)}

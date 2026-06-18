@@ -50,7 +50,8 @@ const SettingsModal = () => {
   const {
     handleFileUpload,
     cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, cloudSyncLastSynced,
-    cloudSyncStatus, cloudSyncError,
+    cloudSyncStatus, cloudSyncError, cloudSyncNow,
+    vaultSyncNow, vaultStatus, vaultError, vaultLastSynced,
     syncKeyReady, setSyncKeyReady,
     calSyncConfigured, syncUrl, setSyncUrl,
     showCalendarUrlHint, setShowCalendarUrlHint,
@@ -737,6 +738,11 @@ const SettingsModal = () => {
                         cloudSyncLastSynced={cloudSyncLastSynced}
                         cloudSyncStatus={cloudSyncStatus}
                         cloudSyncError={cloudSyncError}
+                        cloudSyncNow={cloudSyncNow}
+                        vaultSyncNow={vaultSyncNow}
+                        vaultStatus={vaultStatus}
+                        vaultError={vaultError}
+                        vaultLastSynced={vaultLastSynced}
                         onSyncKeyReady={(ready) => setSyncKeyReady(ready)}
                       />
                       </>)}
