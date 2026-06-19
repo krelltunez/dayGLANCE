@@ -534,6 +534,16 @@ const DayPlanner = () => {
   const [vaultStatus, setVaultStatus] = useState('idle');
   const [vaultError, setVaultError] = useState(null);
   const [vaultLastSynced, setVaultLastSynced] = useState(null);
+  // Count of synced rows the last cycle couldn't decrypt (skipped/quarantined by
+  // the engine) — surfaced in Cloud Sync settings so a key mismatch is visible.
+  const [vaultSkipped, setVaultSkipped] = useState(0);
+  // Map the engine's typed error codes to a user-facing message. KEY_MISMATCH
+  // (wrong passphrase/salt) gets a clear instruction instead of the raw crypto text.
+  const vaultErrorText = (msg, code) => {
+    if (!msg) return null;
+    if (code === 'KEY_MISMATCH') return 'Wrong sync passphrase — it must exactly match the passphrase used on your other devices.';
+    return msg;
+  };
   const engineFolderRef = useRef(null);
   const syncFolder = cloudSyncConfig?.syncFolder ?? 'GLANCE/dayglance';
   const autoBackupProviders = useMemo(() => createAutoBackupProvidersForFolder(syncFolder), [syncFolder]);
@@ -1708,7 +1718,11 @@ const DayPlanner = () => {
           setVaultLastSynced(dbEngineRef.current?.getLastSynced?.() || new Date().toISOString());
         }
       },
-      onError: (msg) => { setVaultError(msg || null); if (msg) console.warn('[dayglance] vault sync error:', msg); },
+      onError: (msg, code) => { setVaultError(vaultErrorText(msg, code)); if (msg) console.warn('[dayglance] vault sync error:', code || '', msg); },
+      onRowsSkipped: (count) => {
+        setVaultSkipped(count);
+        if (count > 0) setUndoToast({ message: `GLANCEvault: ${count} item${count === 1 ? '' : 's'} couldn't be read — see Cloud Sync settings`, actionable: false });
+      },
     });
     if (!engine) return;
     dbEngineRef.current = engine;
@@ -8498,20 +8512,22 @@ const DayPlanner = () => {
     // (e.g. an unreachable vault) and roll back instead of reloading.
     vaultBootstrapSync: async () => {
       let bootErr = null;
+      let bootCode = null;
       const eng = createDbEngine({
         getData:    () => engineCallbacksRef.current.buildPayload?.()?.data,
         commitData: (data) => engineCallbacksRef.current.applyPayload?.(data, { allowEmpty: true }),
         onStatusChange: (s) => setVaultStatus(s),
-        onError:    (msg) => { if (msg) bootErr = msg; },
+        onError:    (msg, code) => { if (msg) { bootErr = msg; bootCode = code; } },
+        onRowsSkipped: (count) => setVaultSkipped(count),
       });
       if (!eng) return { ok: false, error: 'GLANCEvault is not configured.' };
       await eng.dbSyncCycle();
-      if (bootErr) return { ok: false, error: bootErr };
+      if (bootErr) return { ok: false, error: bootErr, code: bootCode };
       setVaultError(null);
       setVaultLastSynced(eng.getLastSynced?.() || new Date().toISOString());
       return { ok: true };
     },
-    vaultStatus, vaultError, vaultLastSynced,
+    vaultStatus, vaultError, vaultLastSynced, vaultSkipped,
     syncAll,
     performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, nativeClearVault,
     performTrmnlSync,

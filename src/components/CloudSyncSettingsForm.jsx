@@ -7,7 +7,7 @@ import { createDbEngine, resetDbRootKey } from '../sync/dbEngine.js';
 import { useTranslation } from 'react-i18next';
 
 // Cloud sync settings form (extracted to avoid hooks-in-conditional issues)
-const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, cloudSyncNow, provider, currentProvider, onClose, cloudSyncLastSynced, cloudSyncStatus, cloudSyncError, vaultSyncNow, vaultBootstrapSync, vaultStatus, vaultError, vaultLastSynced, onSyncKeyReady }) => {
+const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, cloudSyncNow, provider, currentProvider, onClose, cloudSyncLastSynced, cloudSyncStatus, cloudSyncError, vaultSyncNow, vaultBootstrapSync, vaultStatus, vaultError, vaultLastSynced, vaultSkipped, onSyncKeyReady }) => {
   const { t } = useTranslation();
   const [formData, setFormData] = useState(() => {
     const initial = {
@@ -136,14 +136,14 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
           const boot = createDbEngine({ getData: () => ({}), commitData: () => {} });
           if (boot) await boot.ensureRootKey();
         }
-        if (!result.ok) throw new Error(result.error || 'sync failed');
+        if (!result.ok) { const e = new Error(result.error || 'sync failed'); e.code = result.code; throw e; }
       } catch (err) {
         setVaultBootstrapping(false);
         await resetDbRootKey(); // don't leave a bad key cached after a failed attempt
         setVaultConfig(vaultOriginal || null); // roll back so we don't half-enable
         const msg = err?.message || '';
         setVaultBootstrapError(
-          /decrypt/i.test(msg)
+          (err?.code === 'KEY_MISMATCH' || /decrypt/i.test(msg))
             ? 'Wrong sync passphrase — it must exactly match the passphrase used on your other devices.'
             : /passphrase/i.test(msg)
               ? 'Enter your sync passphrase above to enable GLANCEvault.'
@@ -449,6 +449,11 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
                 Last synced: {new Date(vaultLastSynced).toLocaleString()}
               </p>
             ) : null}
+            {vaultSkipped > 0 && (
+              <p className="text-xs text-amber-500">
+                {vaultSkipped} item{vaultSkipped === 1 ? '' : 's'} couldn’t be read (skipped). This usually means a different sync passphrase was used on another device.
+              </p>
+            )}
           </>
         )}
       </div>
