@@ -202,7 +202,10 @@ export function createDbEngine(callbacks = {}) {
       }
 
       callbacks.onStatusChange?.('downloading');
-      await engine.pullRemoteChanges();   // merge remote into mirror first
+      const pull = await engine.pullRemoteChanges();   // merge remote into mirror first
+      // The engine's onRowsSkipped fires from its own dbSyncCycle, which we
+      // bypass — so surface undecryptable-row skips from the pull result here.
+      if (pull && pull.skipped > 0) callbacks.onRowsSkipped?.(pull.skipped, pull.skippedEntityIds || []);
       reconcileCrossList(mirror, (id) => engine.markDirty(id));
       callbacks.onStatusChange?.('uploading');
       await engine.pushDirtyRows();        // push merged superset + local changes
@@ -211,10 +214,12 @@ export function createDbEngine(callbacks = {}) {
       callbacks.commitData?.(clone(mirror));
       saveSnapshot(snapshotShred(mirror));
       callbacks.onStatusChange?.('success');
+      return { applied: pull?.applied ?? 0, skipped: pull?.skipped ?? 0, skippedEntityIds: pull?.skippedEntityIds ?? [] };
     } catch (err) {
       const code = err && err.code ? err.code : 'NETWORK_ERROR';
       callbacks.onError?.(err?.message || String(err), code);
       callbacks.onStatusChange?.('error');
+      return { applied: 0, skipped: 0, skippedEntityIds: [], error: err?.message, code };
     } finally {
       syncing = false;
     }

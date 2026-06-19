@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { setupEncryptionKey, setSyncPassphrase, clearEncryptionKey, getSyncPassphrase } from '../utils/crypto.js';
 import { getVaultConfig, setVaultConfig } from '../sync/vaultConfig.js';
@@ -7,7 +7,7 @@ import { createDbEngine, resetDbRootKey } from '../sync/dbEngine.js';
 import { useTranslation } from 'react-i18next';
 
 // Cloud sync settings form (extracted to avoid hooks-in-conditional issues)
-const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, cloudSyncNow, provider, currentProvider, onClose, cloudSyncLastSynced, cloudSyncStatus, cloudSyncError, vaultSyncNow, vaultBootstrapSync, vaultStatus, vaultError, vaultLastSynced, onSyncKeyReady }) => {
+const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderClass, hoverBg, cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, cloudSyncNow, provider, currentProvider, onClose, cloudSyncLastSynced, cloudSyncStatus, cloudSyncError, vaultSyncNow, vaultBootstrapSync, vaultStatus, vaultError, vaultLastSynced, vaultSkipped, onSyncKeyReady }) => {
   const { t } = useTranslation();
   const [formData, setFormData] = useState(() => {
     const initial = {
@@ -39,6 +39,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   const [vaultAccountId, setVaultAccountId] = useState(() => vaultOriginal?.accountId || '');
   const [vaultBootstrapping, setVaultBootstrapping] = useState(false);
   const [vaultBootstrapError, setVaultBootstrapError] = useState(null);
+  const [showVaultToken, setShowVaultToken] = useState(false);
 
   const activeProvider = cloudSyncProviders[formData.provider] || provider;
   const requiredFieldsFilled = activeProvider.configFields.every(f => formData[f.key]) && !!formData.syncFolder;
@@ -63,8 +64,10 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   const vaultReady = !vaultFilled || (vaultEncryptionReady && passphraseAvailable);
 
   // Save is enabled when EITHER transport is fully set up (vault no longer gated
-  // on the WebDAV connection).
-  const canSave = (webdavConfigured || vaultFilled) && passphraseValid && !passphraseMismatch && vaultReady;
+  // on the WebDAV connection) OR the user is turning the vault OFF — so a
+  // vault-only device can disable it even though nothing remains configured.
+  const vaultBeingDisabled = !!vaultOriginal?.enabled && !vaultEnabled;
+  const canSave = (webdavConfigured || vaultFilled || vaultBeingDisabled) && passphraseValid && !passphraseMismatch && vaultReady;
 
   const handleTest = async () => {
     setTesting(true);
@@ -133,14 +136,14 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
           const boot = createDbEngine({ getData: () => ({}), commitData: () => {} });
           if (boot) await boot.ensureRootKey();
         }
-        if (!result.ok) throw new Error(result.error || 'sync failed');
+        if (!result.ok) { const e = new Error(result.error || 'sync failed'); e.code = result.code; throw e; }
       } catch (err) {
         setVaultBootstrapping(false);
         await resetDbRootKey(); // don't leave a bad key cached after a failed attempt
         setVaultConfig(vaultOriginal || null); // roll back so we don't half-enable
         const msg = err?.message || '';
         setVaultBootstrapError(
-          /decrypt/i.test(msg)
+          (err?.code === 'KEY_MISMATCH' || /decrypt/i.test(msg))
             ? 'Wrong sync passphrase — it must exactly match the passphrase used on your other devices.'
             : /passphrase/i.test(msg)
               ? 'Enter your sync passphrase above to enable GLANCEvault.'
@@ -381,13 +384,23 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
             </div>
             <div>
               <label className={`block text-sm ${textSecondary} mb-1`}>Device token</label>
-              <input
-                type="password"
-                placeholder="Device bearer token"
-                value={vaultToken}
-                onChange={(e) => setVaultToken(e.target.value)}
-                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
-              />
+              <div className="relative">
+                <input
+                  type={showVaultToken ? 'text' : 'password'}
+                  placeholder="Device bearer token"
+                  value={vaultToken}
+                  onChange={(e) => setVaultToken(e.target.value)}
+                  className={`w-full px-3 py-2 pr-10 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowVaultToken(v => !v)}
+                  aria-label={showVaultToken ? 'Hide device token' : 'Show device token'}
+                  className={`absolute inset-y-0 right-0 flex items-center px-3 ${textSecondary}`}
+                >
+                  {showVaultToken ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
             <div>
               <label className={`block text-sm ${textSecondary} mb-1`}>Account ID</label>
@@ -436,6 +449,11 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
                 Last synced: {new Date(vaultLastSynced).toLocaleString()}
               </p>
             ) : null}
+            {vaultSkipped > 0 && (
+              <p className="text-xs text-amber-500">
+                {vaultSkipped} item{vaultSkipped === 1 ? '' : 's'} couldn’t be read (skipped). This usually means a different sync passphrase was used on another device.
+              </p>
+            )}
           </>
         )}
       </div>
@@ -460,7 +478,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
           disabled={!canSave || vaultBootstrapping}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
-          {vaultBootstrapping ? 'Enabling…' : (cloudSyncConfig?.enabled ? 'Save' : 'Save & Enable')}
+          {vaultBootstrapping ? 'Enabling…' : ((cloudSyncConfig?.enabled || vaultOriginal?.enabled) ? 'Save' : 'Save & Enable')}
         </button>
       </div>
     </div>
