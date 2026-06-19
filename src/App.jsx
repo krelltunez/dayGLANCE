@@ -538,10 +538,12 @@ const DayPlanner = () => {
   // the engine) — surfaced in Cloud Sync settings so a key mismatch is visible.
   const [vaultSkipped, setVaultSkipped] = useState(0);
   // Map the engine's typed error codes to a user-facing message. KEY_MISMATCH
-  // (wrong passphrase/salt) gets a clear instruction instead of the raw crypto text.
+  // (wrong passphrase/salt) and VERIFIER_UNSUPPORTED (server too old for the key
+  // verifier) get clear instructions instead of the raw crypto/HTTP text.
   const vaultErrorText = (msg, code) => {
     if (!msg) return null;
     if (code === 'KEY_MISMATCH') return 'Wrong sync passphrase — it must exactly match the passphrase used on your other devices.';
+    if (code === 'VERIFIER_UNSUPPORTED') return 'Your GLANCEvault server needs to be updated to support this app version (key verification).';
     return msg;
   };
   const engineFolderRef = useRef(null);

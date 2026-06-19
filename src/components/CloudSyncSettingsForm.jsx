@@ -143,11 +143,13 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         setVaultConfig(vaultOriginal || null); // roll back so we don't half-enable
         const msg = err?.message || '';
         setVaultBootstrapError(
-          (err?.code === 'KEY_MISMATCH' || /decrypt/i.test(msg))
-            ? 'Wrong sync passphrase — it must exactly match the passphrase used on your other devices.'
-            : /passphrase/i.test(msg)
-              ? 'Enter your sync passphrase above to enable GLANCEvault.'
-              : `Couldn't reach GLANCEvault — check the vault URL and device token. (${msg || 'request failed'})`,
+          err?.code === 'VERIFIER_UNSUPPORTED'
+            ? 'Your GLANCEvault server needs to be updated to support this app version (key verification).'
+            : (err?.code === 'KEY_MISMATCH' || /decrypt/i.test(msg))
+              ? 'Wrong sync passphrase — it must exactly match the passphrase used on your other devices.'
+              : /passphrase/i.test(msg)
+                ? 'Enter your sync passphrase above to enable GLANCEvault.'
+                : `Couldn't reach GLANCEvault — check the vault URL and device token. (${msg || 'request failed'})`,
         );
         return;
       }
