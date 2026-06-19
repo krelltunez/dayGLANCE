@@ -274,3 +274,133 @@ describe('1.4.0 — push does not advance the pull cursor past an unread remote 
     expect(A.data['b1'].id).toBe('b1');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Electron transport — the DB tier must adapt the vaultClient's
+// fetch-style `doFetch(url, init)` calls to the POSITIONAL
+// `proxyFetch(method, url, headers, body)` IPC bridge.
+//
+// Regression: previously the electron branch handed `electronProxyFetch`
+// straight to the engine as `fetchImpl`. The vaultClient then called it
+// `doFetch(url, init)`, so the URL string landed in proxyFetch's `method` slot
+// and the options object in its `url` slot. The electron main process rejects
+// an unrecognized method with a SYNTHETIC 400 ("Method not allowed") WITHOUT
+// ever hitting the network — which is exactly the client-side "list failed:
+// 400" / VERIFIER_UNSUPPORTED that never reached the server (Caddy logged
+// nothing). These tests prove the bridge is now invoked positionally and that a
+// real request is emitted for the actual vault URL.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('Electron transport — proxyFetch is called positionally (real request emitted)', () => {
+  const VALID_METHODS = new Set(['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'PATCH']);
+
+  // An in-memory GLANCEvault speaking the same HTTP surface the real server
+  // does, driven through proxyFetch's positional (method, url, headers, body)
+  // contract. Records every call so the test can assert the arg ORDER.
+  function createHttpVault() {
+    const salts = new Map();
+    const rows = new Map(); // entityId -> { entityId, seq, envelope, deleted }
+    let seq = 0;
+    const calls = [];
+    const json = (status, obj) => ({
+      status, ok: status >= 200 && status < 300, statusText: 'OK',
+      body: JSON.stringify(obj), headers: { etag: null },
+    });
+    const notFound = () => ({ status: 404, ok: false, statusText: 'Not Found', body: '', headers: { etag: null } });
+
+    const proxyFetch = async (method, url, headers, body) => {
+      calls.push({ method, url, headers, body });
+      const u = new URL(url);
+      const p = u.pathname;
+      const q = u.searchParams;
+      let m;
+      if ((m = p.match(/^\/salt\/(.+)$/))) {
+        const acct = decodeURIComponent(m[1]);
+        if (method === 'GET') return salts.has(acct) ? json(200, { salt: salts.get(acct) }) : notFound();
+        if (method === 'PUT') { const b = JSON.parse(body); if (!salts.has(acct)) salts.set(acct, b.salt); return json(200, { salt: salts.get(acct) }); }
+      }
+      if ((m = p.match(/^\/sync\/[^/]+\/batch$/))) {
+        const b = JSON.parse(body);
+        for (const r of b.rows) rows.set(r.entityId, { entityId: r.entityId, seq: ++seq, envelope: r.envelope, deleted: false });
+        return json(200, { written: b.rows.length, maxSeq: seq });
+      }
+      if ((m = p.match(/^\/sync\/[^/]+\/list$/))) {
+        const since = Number(q.get('since') || 0);
+        const out = [...rows.values()].filter((r) => r.seq > since).sort((a, b) => a.seq - b.seq);
+        return json(200, { rows: out, hasMore: false });
+      }
+      if ((m = p.match(/^\/sync\/[^/]+\/device$/))) return json(200, { updated: true });
+      if ((m = p.match(/^\/sync\/[^/]+\/(.+)$/))) {
+        const entityId = decodeURIComponent(m[1]);
+        if (method === 'GET') { const r = rows.get(entityId); return (r && !r.deleted) ? json(200, r) : notFound(); }
+        if (method === 'DELETE') { rows.set(entityId, { entityId, seq: ++seq, envelope: null, deleted: true }); return json(200, { seq }); }
+      }
+      return json(400, { error: `unhandled ${method} ${p}` });
+    };
+    return { proxyFetch, calls, rows };
+  }
+
+  beforeEach(() => {
+    global.localStorage = memLocalStorage();
+    setVaultConfig({ enabled: true, vaultUrl: 'https://glancevault.test', vaultToken: 'tok', accountId: 'acct-electron' });
+    setSyncPassphrase('correct horse battery staple');
+  });
+  afterEach(() => { delete global.window; });
+
+  function makeElectronEngine(vault, initial) {
+    let data = clone(initial);
+    let nativeKey = null;
+    // Mark the shell as Electron and expose the positional proxyFetch the way
+    // preload.ts does — but route it into our in-memory HTTP vault.
+    global.window = { electronAPI: { isElectron: true, proxyFetch: vault.proxyFetch } };
+    const engine = createDbEngine({
+      // No vaultClient + no fetchImpl: forces createDbEngine to build the REAL
+      // vaultClient over the electron fetchImpl adapter under test.
+      storageKeyPrefix: 'electron-dev',
+      deviceId: 'device-electron',
+      nativeGetSyncKey: () => nativeKey,
+      nativeStoreSyncKey: (v) => { nativeKey = v; },
+      getData: () => clone(data),
+      commitData: (d) => { data = d; },
+    });
+    return { engine, get data() { return data; } };
+  }
+
+  it('emits real, positionally-correct requests to the vault URL (no synthetic 400)', async () => {
+    const vault = createHttpVault();
+    const dev = makeElectronEngine(vault, { ...EMPTY, tasks: [task(7, '2026-06-18T10:00:00.000Z')] });
+
+    await dev.engine.dbSyncCycle();
+
+    // A real request was emitted (acceptance criterion (a)).
+    expect(vault.calls.length).toBeGreaterThan(0);
+
+    // EVERY call used the positional contract: arg 1 is an HTTP method, arg 2 is
+    // the full vault URL. Under the old bug arg 1 would be the URL string.
+    for (const c of vault.calls) {
+      expect(VALID_METHODS.has(c.method)).toBe(true);
+      expect(typeof c.url).toBe('string');
+      expect(c.url.startsWith('https://glancevault.test/')).toBe(true);
+    }
+
+    // The key verifier's single-row GET went out as a real GET (not a 400),
+    // and an incremental list was actually requested.
+    expect(vault.calls.some((c) => c.method === 'GET' && c.url.includes('__glance_keycheck'))).toBe(true);
+    expect(vault.calls.some((c) => c.method === 'GET' && c.url.includes('/list?'))).toBe(true);
+
+    // Bearer auth survived the bridge hop (headers landed in the headers slot,
+    // not swallowed by an off-by-one in the arg order).
+    expect(vault.calls.every((c) => c.headers && c.headers.Authorization === 'Bearer tok')).toBe(true);
+  });
+
+  it('round-trips a task through the HTTP vault and back into a second device', async () => {
+    const vault = createHttpVault();
+    const A = makeElectronEngine(vault, { ...EMPTY, tasks: [task(42, '2026-06-18T10:00:00.000Z')] });
+    await A.engine.dbSyncCycle();
+
+    const B = makeElectronEngine(vault, { ...EMPTY });
+    await B.engine.dbSyncCycle();
+    await B.engine.dbSyncCycle();
+
+    expect(B.data.tasks.map((t) => t.id)).toContain(42);
+  });
+});

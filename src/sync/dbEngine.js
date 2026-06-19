@@ -105,26 +105,52 @@ export function createDbEngine(callbacks = {}) {
   // routes through the native HTTP bridge (adapter.js / providers.js). Supply a
   // fetchImpl that bridges to it on native, the electron proxy on desktop
   // electron, and otherwise falls through to global fetch.
+  //
+  // BOTH native and electron bridges take POSITIONAL args
+  // (method, url, headers, body) and return a plain {status, ok, statusText,
+  // body, headers} object — NOT the fetch (url, init) -> Response signature the
+  // vaultClient calls with. So each branch must adapt: destructure the (url,
+  // init) call and re-issue it positionally, then wrap the result in a
+  // Response-like shape. Passing the bridge through as `fetchImpl` directly is a
+  // bug — the vaultClient's `doFetch(url, init)` would land the URL string in
+  // the bridge's `method` slot, which the electron main process rejects with a
+  // synthetic 400 ("Method not allowed") WITHOUT ever hitting the network (the
+  // file tier avoids this by handing electronProxyFetch to providers.js, which
+  // already calls it positionally).
   const electronProxyFetch = typeof window !== 'undefined' && window.electronAPI?.isElectron
     ? (...args) => window.electronAPI.proxyFetch(...args)
     : null;
+  // Wrap a bridge's plain {status, ok, statusText, body, headers} result in the
+  // subset of the Response interface the vaultClient consumes.
+  const shapeResponse = (r) => {
+    if (!r) throw new TypeError('Failed to fetch');
+    return {
+      status: r.status,
+      ok: r.ok,
+      statusText: r.statusText,
+      headers: { get: (h) => (h.toLowerCase() === 'etag' ? (r.headers?.etag ?? null) : null) },
+      json: async () => JSON.parse(r.body),
+      text: async () => r.body,
+    };
+  };
   const fetchImpl = callbacks.fetchImpl
     ?? (isNativeApp
       ? async (url, { method = 'GET', headers = {}, body } = {}) => {
+        // The native bridge is synchronous and returns a JSON string.
         let r;
         try { r = JSON.parse(nativeBridge.httpRequest(method, url, JSON.stringify(headers), body ?? '')); }
         catch { throw new TypeError('Failed to fetch'); }
-        if (!r) throw new TypeError('Failed to fetch');
-        return {
-          status: r.status,
-          ok: r.ok,
-          statusText: r.statusText,
-          headers: { get: (h) => (h.toLowerCase() === 'etag' ? (r.headers?.etag ?? null) : null) },
-          json: async () => JSON.parse(r.body),
-          text: async () => r.body,
-        };
+        return shapeResponse(r);
       }
-      : (electronProxyFetch || undefined));
+      : electronProxyFetch
+        ? async (url, { method = 'GET', headers = {}, body } = {}) => {
+          // electronProxyFetch is async (IPC) and returns the object directly.
+          let r;
+          try { r = await electronProxyFetch(method, url, headers, body ?? null); }
+          catch { throw new TypeError('Failed to fetch'); }
+          return shapeResponse(r);
+        }
+        : undefined);
 
   // Diagnostic: wrap the transport so every vault request logs its method, full
   // URL (which carries accountId + entityId) and HTTP status on failure. Turns a
