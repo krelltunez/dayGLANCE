@@ -126,6 +126,28 @@ export function createDbEngine(callbacks = {}) {
       }
       : (electronProxyFetch || undefined));
 
+  // Diagnostic: wrap the transport so every vault request logs its method, full
+  // URL (which carries accountId + entityId) and HTTP status on failure. Turns a
+  // bare "get row failed: 400" into the exact request that produced it, so we can
+  // see at a glance whether accountId is populated and which entityId/route the
+  // server rejected — instead of guessing across repos. Quiet on success.
+  const rawFetch = fetchImpl || ((...a) => globalThis.fetch(...a));
+  const loggingFetch = async (url, opts = {}) => {
+    let res;
+    try {
+      res = await rawFetch(url, opts);
+    } catch (e) {
+      console.warn('[dayglance vault]', opts.method || 'GET', String(url), '→ network error:', e?.message || e);
+      throw e;
+    }
+    if (!res || res.ok === false) console.warn('[dayglance vault]', opts.method || 'GET', String(url), '→', res?.status);
+    return res;
+  };
+
+  // Surface the accountId the engine is actually constructed with (settles the
+  // "empty accountId?" question directly).
+  console.info('[dayglance vault] engine accountId:', JSON.stringify(cfg.accountId ?? null), 'vaultUrl:', cfg.vaultUrl || '(none)');
+
   const loadSnapshot = () => {
     try { return JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || '{}'); } catch { return {}; }
   };
@@ -145,9 +167,9 @@ export function createDbEngine(callbacks = {}) {
     vaultUrl: cfg.vaultUrl,
     vaultToken: cfg.vaultToken,
     accountId: cfg.accountId,
+    fetchImpl: loggingFetch,
     deviceId: callbacks.deviceId || getDeviceId(),
     vaultClient: callbacks.vaultClient,
-    fetchImpl,
     nativeGetSyncKey,
     nativeStoreSyncKey,
     getLocalEntity: (entityId) => adapterGetLocalEntity(mirror, entityId),
