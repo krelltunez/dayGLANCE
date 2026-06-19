@@ -63,8 +63,10 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   const vaultReady = !vaultFilled || (vaultEncryptionReady && passphraseAvailable);
 
   // Save is enabled when EITHER transport is fully set up (vault no longer gated
-  // on the WebDAV connection).
-  const canSave = (webdavConfigured || vaultFilled) && passphraseValid && !passphraseMismatch && vaultReady;
+  // on the WebDAV connection) OR the user is turning the vault OFF — so a
+  // vault-only device can disable it even though nothing remains configured.
+  const vaultBeingDisabled = !!vaultOriginal?.enabled && !vaultEnabled;
+  const canSave = (webdavConfigured || vaultFilled || vaultBeingDisabled) && passphraseValid && !passphraseMismatch && vaultReady;
 
   const handleTest = async () => {
     setTesting(true);
@@ -460,7 +462,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
           disabled={!canSave || vaultBootstrapping}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
-          {vaultBootstrapping ? 'Enabling…' : (cloudSyncConfig?.enabled ? 'Save' : 'Save & Enable')}
+          {vaultBootstrapping ? 'Enabling…' : ((cloudSyncConfig?.enabled || vaultOriginal?.enabled) ? 'Save' : 'Save & Enable')}
         </button>
       </div>
     </div>
