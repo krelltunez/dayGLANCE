@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { setupEncryptionKey, setSyncPassphrase, clearEncryptionKey, getSyncPassphrase } from '../utils/crypto.js';
 import { getVaultConfig, setVaultConfig } from '../sync/vaultConfig.js';
@@ -39,6 +39,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   const [vaultAccountId, setVaultAccountId] = useState(() => vaultOriginal?.accountId || '');
   const [vaultBootstrapping, setVaultBootstrapping] = useState(false);
   const [vaultBootstrapError, setVaultBootstrapError] = useState(null);
+  const [showVaultToken, setShowVaultToken] = useState(false);
 
   const activeProvider = cloudSyncProviders[formData.provider] || provider;
   const requiredFieldsFilled = activeProvider.configFields.every(f => formData[f.key]) && !!formData.syncFolder;
@@ -383,13 +384,23 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
             </div>
             <div>
               <label className={`block text-sm ${textSecondary} mb-1`}>Device token</label>
-              <input
-                type="password"
-                placeholder="Device bearer token"
-                value={vaultToken}
-                onChange={(e) => setVaultToken(e.target.value)}
-                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
-              />
+              <div className="relative">
+                <input
+                  type={showVaultToken ? 'text' : 'password'}
+                  placeholder="Device bearer token"
+                  value={vaultToken}
+                  onChange={(e) => setVaultToken(e.target.value)}
+                  className={`w-full px-3 py-2 pr-10 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowVaultToken(v => !v)}
+                  aria-label={showVaultToken ? 'Hide device token' : 'Show device token'}
+                  className={`absolute inset-y-0 right-0 flex items-center px-3 ${textSecondary}`}
+                >
+                  {showVaultToken ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
             <div>
               <label className={`block text-sm ${textSecondary} mb-1`}>Account ID</label>
