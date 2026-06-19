@@ -144,10 +144,6 @@ export function createDbEngine(callbacks = {}) {
     return res;
   };
 
-  // Surface the accountId the engine is actually constructed with (settles the
-  // "empty accountId?" question directly).
-  console.info('[dayglance vault] engine accountId:', JSON.stringify(cfg.accountId ?? null), 'vaultUrl:', cfg.vaultUrl || '(none)');
-
   const loadSnapshot = () => {
     try { return JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || '{}'); } catch { return {}; }
   };

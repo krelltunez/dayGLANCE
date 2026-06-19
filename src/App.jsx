@@ -544,6 +544,7 @@ const DayPlanner = () => {
     if (!msg) return null;
     if (code === 'KEY_MISMATCH') return 'Wrong sync passphrase — it must exactly match the passphrase used on your other devices.';
     if (code === 'VERIFIER_UNSUPPORTED') return 'Your GLANCEvault server needs to be updated to support this app version (key verification).';
+    if (code === 'ACCOUNT_ID_REQUIRED') return 'GLANCEvault is missing an account ID — re-open Cloud Sync settings and re-enter your GLANCEvault details.';
     return msg;
   };
   const engineFolderRef = useRef(null);

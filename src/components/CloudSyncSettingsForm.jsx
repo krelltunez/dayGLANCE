@@ -145,6 +145,8 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         setVaultBootstrapError(
           err?.code === 'VERIFIER_UNSUPPORTED'
             ? 'Your GLANCEvault server needs to be updated to support this app version (key verification).'
+            : err?.code === 'ACCOUNT_ID_REQUIRED'
+            ? 'GLANCEvault is missing an account ID — re-enter your GLANCEvault details (URL, device token, and account ID) above.'
             : (err?.code === 'KEY_MISMATCH' || /decrypt/i.test(msg))
               ? 'Wrong sync passphrase — it must exactly match the passphrase used on your other devices.'
               : /passphrase/i.test(msg)
