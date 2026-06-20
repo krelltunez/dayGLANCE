@@ -1369,9 +1369,9 @@ const DayPlanner = () => {
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     if (themeColorMeta) themeColorMeta.setAttribute('content', darkMode ? '#1f2937' : '#ffffff');
     // Sync status-bar icon colour with the app's own theme.  The app has its own
-    // dark-mode toggle independent of the Android OS setting, so the Kotlin side
-    // can't reliably read resources.configuration.uiMode — it has to be told.
-    if (isNativeAndroid()) window.DayGlanceNative?.setStatusBarAppearance?.(darkMode);
+    // dark-mode toggle independent of the OS appearance setting, so the native
+    // side can't reliably read the system uiMode/trait — it has to be told.
+    if (isNativeApp()) window.DayGlanceNative?.setStatusBarAppearance?.(darkMode);
   }, [darkMode]);
 
   useEffect(() => {

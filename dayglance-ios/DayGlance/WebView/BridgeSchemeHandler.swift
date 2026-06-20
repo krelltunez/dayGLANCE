@@ -211,6 +211,12 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
             HapticBridge.shared.trigger(type)
             return "null"
 
+        // Phase 11 — Status bar appearance (sync with web layer's dark mode)
+        case "setStatusBarAppearance":
+            guard let isDark = args.first as? Bool else { return "null" }
+            StatusBarBridge.shared.setAppearance(isDark: isDark)
+            return "null"
+
         // Phase 11 — Spotlight
         case "indexSpotlight":
             guard let json = args.first as? String else { return "null" }
