@@ -217,6 +217,9 @@ final class NotificationBridge {
         c.title = title
         c.body  = body
         c.sound = .default
+        // Task and event reminders are time-critical: surface them through Focus /
+        // Do Not Disturb (subject to the user's per-app Time Sensitive permission).
+        c.interruptionLevel = .timeSensitive
         return c
     }
 
