@@ -75,6 +75,9 @@ class ReminderReceiver : BroadcastReceiver() {
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            // Categorise so the alert can pass through Do Not Disturb (Android's
+            // equivalent of iOS Time Sensitive): events vs task reminders.
+            .setCategory(if (isCalendar) NotificationCompat.CATEGORY_EVENT else NotificationCompat.CATEGORY_REMINDER)
             .setContentIntent(tapIntent)
             .setAutoCancel(true)
 

@@ -84,6 +84,9 @@ class NotificationBridge(private val context: Context) {
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            // CATEGORY_REMINDER lets the alert ride through Do Not Disturb when the
+            // user has the Reminders exception enabled — the parallel to iOS Time Sensitive.
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setContentIntent(tapPendingIntent())
             .setAutoCancel(true)
             .build()
@@ -124,6 +127,9 @@ class NotificationBridge(private val context: Context) {
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            // Categorise so the alert can pass through Do Not Disturb (Android's
+            // equivalent of iOS Time Sensitive): events vs task reminders.
+            .setCategory(if (isCalendarEvent) NotificationCompat.CATEGORY_EVENT else NotificationCompat.CATEGORY_REMINDER)
             .setContentIntent(tapPendingIntent())
             .setAutoCancel(true)
 
@@ -314,6 +320,7 @@ class NotificationBridge(private val context: Context) {
                 .setContentTitle(task.optString("title", "Up Next"))
                 .setContentText(task.optString("bodyText", ""))
                 .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setCategory(NotificationCompat.CATEGORY_STATUS)
                 .setOngoing(true)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setOnlyAlertOnce(true)
@@ -379,6 +386,7 @@ class NotificationBridge(private val context: Context) {
             .setSubText("Focus Mode")
             .setContentTitle(phaseLabel)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)

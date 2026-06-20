@@ -336,7 +336,7 @@ An iOS Share Extension lets users share text or URLs from any app (Safari, Notes
 - `UNNotificationServiceExtension` not needed — action handling in `UNUserNotificationCenterDelegate`
 - No boot receiver needed (iOS restores notifications automatically)
 
-**Status: ✅ Complete.** All six bridge methods implemented. Snooze + Mark Complete action categories registered at launch via `AppDelegate`. `UNUserNotificationCenterDelegate` wired for foreground banner presentation and action handling.
+**Status: ✅ Complete.** All six bridge methods implemented. Snooze + Mark Complete action categories registered at launch via `AppDelegate`. `UNUserNotificationCenterDelegate` wired for foreground banner presentation and action handling. Reminders are sent at `.timeSensitive` interruption level (with the `com.apple.developer.usernotifications.time-sensitive` entitlement) so they surface through Focus / Do Not Disturb, subject to the user's per-app permission. Android parity: reminder notifications carry `CATEGORY_REMINDER` (or `CATEGORY_EVENT` for calendar events) so they ride through DND under the matching exception.
 
 ### Phase 5 — File access + Obsidian
 
