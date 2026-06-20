@@ -13,8 +13,6 @@ Part of the **GLANCE family**: focused, standalone apps connected through a shar
 
 ![dayGLANCE Desktop Overview](screenshots/hero-dark.png)
 
-https://github.com/user-attachments/assets/198d77d0-fc60-42b9-a3d4-a160915c197b
-
 ---
 
 ## Why dayGLANCE?
