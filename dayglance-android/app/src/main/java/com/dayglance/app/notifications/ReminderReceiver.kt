@@ -12,8 +12,6 @@ import com.dayglance.app.DayGlanceApplication
 import com.dayglance.app.MainActivity
 import com.dayglance.app.R
 import com.dayglance.app.bridge.NotificationBridge
-import com.dayglance.app.data.SharedDataStore
-import org.json.JSONArray
 
 /**
  * Phase 5: BroadcastReceiver for scheduled reminder alarms.
@@ -36,18 +34,10 @@ class ReminderReceiver : BroadcastReceiver() {
     }
 
     private fun rescheduleAfterBoot(context: Context) {
-        val json = SharedDataStore(context).scheduledRemindersJson ?: return
-        val now = System.currentTimeMillis()
-        val bridge = NotificationBridge(context)
-        runCatching {
-            val arr = JSONArray(json)
-            for (i in 0 until arr.length()) {
-                val r = arr.getJSONObject(i)
-                // Skip reminders that already fired before the reboot
-                if (r.getLong("triggerAtMillis") <= now) continue
-                bridge.scheduleFromJson(r)
-            }
-        }
+        // AlarmManager alarms don't survive a reboot — re-register every persisted
+        // reminder whose trigger time is still in the future. Shared with the
+        // WidgetUpdateWorker backstop and TimeChangeReceiver.
+        NotificationBridge(context).reregisterPersistedReminders()
     }
 
     private fun showReminder(context: Context, intent: Intent) {

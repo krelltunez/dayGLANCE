@@ -82,6 +82,14 @@ class WidgetUpdateWorker(
             com.dayglance.app.notifications.UpNextNotificationUpdater.refresh(context)
         } catch (_: Throwable) { }
 
+        // Backstop: re-register task reminder alarms in case an aggressive OEM battery
+        // killer or a system restart cleared them. Idempotent — alarms that still exist
+        // are updated in place (FLAG_UPDATE_CURRENT) and reminders that already fired are
+        // skipped, so this never duplicates or resurrects a notification.
+        try {
+            com.dayglance.app.bridge.NotificationBridge(context).reregisterPersistedReminders()
+        } catch (_: Throwable) { }
+
         Result.success()
     }
 
