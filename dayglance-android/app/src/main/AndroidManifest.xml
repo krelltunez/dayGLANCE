@@ -247,6 +247,17 @@
             </intent-filter>
         </receiver>
 
+        <!-- Re-registers reminder alarms + refreshes Up Next when the clock or
+             timezone changes (travel, DST, manual clock change). -->
+        <receiver
+            android:name=".notifications.TimeChangeReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+            </intent-filter>
+        </receiver>
+
         <!-- FileProvider: used by NativeBridge.shareFile() to expose cache-dir JSON
              backup files to the system share sheet without WRITE_EXTERNAL_STORAGE. -->
         <provider

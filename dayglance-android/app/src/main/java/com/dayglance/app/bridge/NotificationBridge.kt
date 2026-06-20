@@ -225,6 +225,35 @@ class NotificationBridge(private val context: Context) {
         }
     }
 
+    /**
+     * Re-registers every persisted reminder alarm whose trigger time is still in
+     * the future. Reads the same [SharedDataStore.scheduledRemindersJson] that
+     * [syncReminders] maintains, so it never re-creates an alarm the JS layer has
+     * cancelled.
+     *
+     * Idempotent: alarms that already exist are updated in place (the PendingIntent
+     * uses FLAG_UPDATE_CURRENT keyed on id.hashCode()), so calling this repeatedly
+     * never duplicates alarms. Reminders that already fired are skipped.
+     *
+     * Called from three places:
+     *   - ReminderReceiver on BOOT_COMPLETED (AlarmManager alarms don't survive reboot)
+     *   - WidgetUpdateWorker as a 15-minute backstop (recovers alarms cleared by
+     *     aggressive OEM battery killers)
+     *   - TimeChangeReceiver on clock / timezone changes
+     */
+    internal fun reregisterPersistedReminders() {
+        val json = dataStore.scheduledRemindersJson ?: return
+        val now = System.currentTimeMillis()
+        runCatching {
+            val arr = JSONArray(json)
+            for (i in 0 until arr.length()) {
+                val r = arr.getJSONObject(i)
+                if (r.getLong("triggerAtMillis") <= now) continue
+                scheduleFromJson(r)
+            }
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private fun scheduleAlarm(pi: PendingIntent, triggerAtMillis: Long) {
