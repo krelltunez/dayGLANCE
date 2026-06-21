@@ -1697,6 +1697,34 @@ const DayPlanner = () => {
   // On native apps, only the task calendar matters — calendar events come from the native bridge.
   // The immediate sync on mount ensures stale events are cleared whenever the app opens,
   // not just after 15 minutes (which is longer than most PWA sessions).
+  // Maintain this device's own per-user calendar entry (multi-user, post-migration).
+  // Done in an EFFECT rather than in buildSyncPayload so it only ever reads FLUSHED
+  // state: a payload built mid-migration (from the engine's render-time closure)
+  // must never seed the pre-clear, possibly-leaked URL into our own syncId entry.
+  // Declared before the migration and sync-trigger effects so that on the migration
+  // commit it runs first and skips (flag not yet set), then re-runs next render with
+  // the cleared URL. Content-compared so updatedAt only advances on a real change
+  // (and not during remote apply, when the applied value already matches).
+  useEffect(() => {
+    if (!multiUserEnabled || !meUserSyncId) return;
+    if (localStorage.getItem('day-planner-calendar-per-user-migrated') !== 'true') return;
+    const encrypted = !!(cloudSyncConfig?.encryptionEnabled || isVaultEnabled());
+    const includeAuth = syncCalendarCreds && encrypted && taskCalendarAuth
+      && (taskCalendarAuth.username || taskCalendarAuth.appPassword);
+    const desired = { syncUrl, taskCalendarUrl, ...(includeAuth ? { auth: taskCalendarAuth } : {}) };
+    let map = {};
+    try { map = JSON.parse(localStorage.getItem('day-planner-calendar-config-by-user') || '{}'); } catch { map = {}; }
+    const cur = map[meUserSyncId];
+    const sameContent = !!cur
+      && (cur.syncUrl ?? '') === (desired.syncUrl ?? '')
+      && (cur.taskCalendarUrl ?? '') === (desired.taskCalendarUrl ?? '')
+      && JSON.stringify(cur.auth ?? null) === JSON.stringify(desired.auth ?? null);
+    if (sameContent) return;
+    map[meUserSyncId] = { ...desired, updatedAt: new Date().toISOString() };
+    localStorage.setItem('day-planner-calendar-config-by-user', JSON.stringify(map));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [multiUserEnabled, meUserSyncId, syncUrl, taskCalendarUrl, taskCalendarAuth, syncCalendarCreds, cloudSyncConfig?.encryptionEnabled]);
+
   useEffect(() => {
     if (isTrayMode) return;
     const hasSyncTarget = isNativeApp() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
@@ -5505,33 +5533,13 @@ const DayPlanner = () => {
       !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')
       && !(multiUserEnabled && t.imported && t.importSource === 'sync');
 
-    // Per-user calendar config (multi-user only). Write this device's own syncId
-    // entry into the shared map so the URLs — and credentials, when opted in AND
-    // sync is encrypted — follow this user across their devices without leaking to
-    // others. updatedAt only advances on a real content change (content-compare),
-    // so it doesn't thrash the per-syncId LWW merge.
-    // Gated on the one-time migration having run, so we never seed the entry from a
-    // top-level URL that might have leaked from another user pre-Phase-2 (the
-    // migration resets that to a clean slate first — see the effect below).
+    // Per-user calendar config (multi-user). Read-only here: the device's own
+    // entry is maintained by an effect (see "maintain per-user calendar entry"),
+    // NOT seeded here. buildSyncPayload runs from the engine's render-time closure
+    // and could otherwise fire mid-migration with a stale syncUrl while the
+    // migrated flag is already set, writing a leaked URL into this device's entry.
     let calendarConfigByUser = {};
     try { calendarConfigByUser = JSON.parse(localStorage.getItem('day-planner-calendar-config-by-user') || '{}'); } catch { calendarConfigByUser = {}; }
-    const calMigrated = localStorage.getItem('day-planner-calendar-per-user-migrated') === 'true';
-    if (multiUserEnabled && meUserSyncId && calMigrated) {
-      const encrypted = !!(cloudSyncConfig?.encryptionEnabled || isVaultEnabled());
-      const includeAuth = syncCalendarCreds && encrypted && taskCalendarAuth
-        && (taskCalendarAuth.username || taskCalendarAuth.appPassword);
-      const desired = { syncUrl, taskCalendarUrl, ...(includeAuth ? { auth: taskCalendarAuth } : {}) };
-      const cur = calendarConfigByUser[meUserSyncId];
-      const sameContent = !!cur
-        && (cur.syncUrl ?? '') === (desired.syncUrl ?? '')
-        && (cur.taskCalendarUrl ?? '') === (desired.taskCalendarUrl ?? '')
-        && JSON.stringify(cur.auth ?? null) === JSON.stringify(desired.auth ?? null);
-      calendarConfigByUser = {
-        ...calendarConfigByUser,
-        [meUserSyncId]: { ...desired, updatedAt: sameContent ? cur.updatedAt : new Date().toISOString() },
-      };
-      localStorage.setItem('day-planner-calendar-config-by-user', JSON.stringify(calendarConfigByUser));
-    }
     return {
       version: 2,
       lastModified: new Date().toISOString(),
