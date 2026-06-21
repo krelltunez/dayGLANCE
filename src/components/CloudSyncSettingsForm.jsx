@@ -21,6 +21,11 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
     return initial;
   });
   const [encryptionEnabled, setEncryptionEnabled] = useState(cloudSyncConfig?.encryptionEnabled ?? false);
+  // WebDAV on/off, independent of whether the connection fields are filled — lets a
+  // device keep its WebDAV credentials but stop syncing (e.g. moving fully to
+  // GLANCEvault). Existing configured devices start checked; fresh ones start off
+  // and reveal the connection fields when checked (mirrors the encryption/vault toggles).
+  const [webdavEnabled, setWebdavEnabled] = useState(() => cloudSyncConfig?.enabled ?? false);
   const [passphrase, setPassphrase] = useState('');
   const [passphraseConfirm, setPassphraseConfirm] = useState('');
   const [testResult, setTestResult] = useState(null);
@@ -44,6 +49,11 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   const activeProvider = cloudSyncProviders[formData.provider] || provider;
   const requiredFieldsFilled = activeProvider.configFields.every(f => formData[f.key]) && !!formData.syncFolder;
   const webdavConfigured = requiredFieldsFilled;
+  // WebDAV syncs only when the user has it toggled on AND the connection is complete.
+  const webdavActive = webdavEnabled && webdavConfigured;
+  // True when the user is turning a previously-active WebDAV sync off, so Save stays
+  // enabled even if nothing else (vault) is configured.
+  const webdavBeingDisabled = !!cloudSyncConfig?.enabled && !webdavEnabled;
 
   // When enabling encryption, require a passphrase (confirmed) on fresh enable.
   // When already enabled, allow saving without re-entering (passphrase field is optional).
@@ -67,7 +77,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   // on the WebDAV connection) OR the user is turning the vault OFF — so a
   // vault-only device can disable it even though nothing remains configured.
   const vaultBeingDisabled = !!vaultOriginal?.enabled && !vaultEnabled;
-  const canSave = (webdavConfigured || vaultFilled || vaultBeingDisabled) && passphraseValid && !passphraseMismatch && vaultReady;
+  const canSave = (webdavActive || vaultFilled || vaultBeingDisabled || webdavBeingDisabled) && passphraseValid && !passphraseMismatch && vaultReady;
 
   const handleTest = async () => {
     setTesting(true);
@@ -79,9 +89,10 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
 
   const handleSave = async () => {
     setVaultBootstrapError(null);
-    // WebDAV is only marked enabled when its connection is actually configured, so
-    // enabling GLANCEvault alone never writes a bogus enabled WebDAV config.
-    const newConfig = { ...formData, provider: formData.provider, enabled: webdavConfigured, encryptionEnabled };
+    // WebDAV is marked enabled only when the user toggled it on AND the connection is
+    // configured — so enabling GLANCEvault alone never writes a bogus enabled WebDAV
+    // config, and unchecking the toggle disables sync while keeping the credentials.
+    const newConfig = { ...formData, provider: formData.provider, enabled: webdavActive, encryptionEnabled };
 
     if (encryptionEnabled) {
       if (passphraseRequired && passphrase) {
@@ -164,11 +175,6 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
     onClose();
   };
 
-  const handleDisable = () => {
-    setCloudSyncConfig({ ...cloudSyncConfig, enabled: false });
-    onClose();
-  };
-
   // Manual "Sync now" triggers — WebDAV file tier and GLANCEvault DB tier.
   const handleSyncNow = async () => {
     if (!cloudSyncNow) return;
@@ -190,100 +196,118 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
 
   return (
     <div className="space-y-4">
-      {/* ── WebDAV Connection ─────────────────────────────────────────────── */}
-      <h3 className={sectionHeader}>WebDAV Connection</h3>
+      {/* ── WebDAV Sync ───────────────────────────────────────────────────── */}
+      <h3 className={sectionHeader}>WebDAV Sync</h3>
 
-      <div>
-        <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Provider</label>
-        <select
-          value={formData.provider}
-          onChange={(e) => setFormData(prev => ({ ...prev, provider: e.target.value }))}
-          className={`w-full px-3 py-2 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-stone-100 text-stone-900'}`}
-        >
-          {Object.entries(cloudSyncProviders).map(([key, p]) => (
-            <option key={key} value={key}>{p.name}</option>
-          ))}
-        </select>
-      </div>
-
-      {activeProvider.configFields.map(field => (
-        <div key={field.key}>
-          <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{field.label}</label>
-          <input
-            type={field.type}
-            placeholder={field.placeholder}
-            value={formData[field.key] || ''}
-            onChange={(e) => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
-            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
-          />
-          {field.type === 'password' && (
-            <p className={`text-xs ${textSecondary} mt-0.5`}>{t('settings.aiApiKeyHint')}</p>
-          )}
-        </div>
-      ))}
-
-      <div>
-        <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('settings.syncFolder')}</label>
+      <label className="flex items-center gap-3 cursor-pointer select-none">
         <input
-          type="text"
-          placeholder="GLANCE/dayglance"
-          value={formData.syncFolder || ''}
-          onChange={(e) => setFormData(prev => ({ ...prev, syncFolder: e.target.value }))}
-          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+          type="checkbox"
+          checked={webdavEnabled}
+          onChange={(e) => setWebdavEnabled(e.target.checked)}
+          className="w-5 h-5 rounded flex-shrink-0"
         />
-        <p className={`text-xs ${textSecondary} mt-0.5`}>Path on your WebDAV server where sync files are stored.</p>
-      </div>
+        <span className={`text-sm font-medium ${textPrimary}`}>Sync via WebDAV</span>
+      </label>
+      <p className={`text-xs ${textSecondary} ml-7`}>
+        Sync to any WebDAV server (Nextcloud, ownCloud, etc.). Turn this off to keep your
+        connection details but stop syncing on this device — for example when moving fully to GLANCEvault.
+      </p>
 
-      {activeProvider.helpText && (
-        <p className={`text-xs ${textSecondary}`}>{activeProvider.helpText}</p>
-      )}
+      {webdavEnabled && (
+        <div className="ml-7 space-y-4">
+          <div>
+            <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Provider</label>
+            <select
+              value={formData.provider}
+              onChange={(e) => setFormData(prev => ({ ...prev, provider: e.target.value }))}
+              className={`w-full px-3 py-2 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-stone-100 text-stone-900'}`}
+            >
+              {Object.entries(cloudSyncProviders).map(([key, p]) => (
+                <option key={key} value={key}>{p.name}</option>
+              ))}
+            </select>
+          </div>
 
-      {/* WebDAV actions: Test Connection + Sync Now, with status below. */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={handleTest}
-          disabled={testing || !requiredFieldsFilled}
-          className={secondaryBtn}
-        >
-          {testing ? 'Testing...' : 'Test Connection'}
-        </button>
-        <button
-          onClick={handleSyncNow}
-          disabled={syncingNow || !cloudSyncConfig?.enabled}
-          title={!cloudSyncConfig?.enabled ? 'Enable WebDAV sync first' : 'Sync with WebDAV now'}
-          className={secondaryBtn}
-        >
-          {(syncingNow || cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'Syncing...' : 'Sync Now'}
-        </button>
-      </div>
-      {testResult && (
-        <p className={`text-sm ${testResult.success ? 'text-green-500' : 'text-red-500'}`}>
-          {testResult.success ? 'Connection successful!' : testResult.error}
-        </p>
-      )}
-      {cloudSyncStatus === 'error' && cloudSyncError ? (
-        <p className="text-xs text-red-500">{cloudSyncError}</p>
-      ) : cloudSyncLastSynced ? (
-        <p className={`text-xs ${textSecondary}`}>
-          Last synced: {new Date(cloudSyncLastSynced).toLocaleString()}
-        </p>
-      ) : null}
+          {activeProvider.configFields.map(field => (
+            <div key={field.key}>
+              <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{field.label}</label>
+              <input
+                type={field.type}
+                placeholder={field.placeholder}
+                value={formData[field.key] || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+              />
+              {field.type === 'password' && (
+                <p className={`text-xs ${textSecondary} mt-0.5`}>{t('settings.aiApiKeyHint')}</p>
+              )}
+            </div>
+          ))}
 
-      {migrationOldPath && (
-        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 space-y-1">
-          <p className="font-semibold">Optional: move sync folder</p>
-          <p>Your sync file is at the old location. You can move it for cleaner organization — sync will continue to work either way.</p>
-          <p className="font-mono break-all">{migrationOldPath} → GLANCE/dayglance/</p>
-          <p>After moving the file, update your Sync folder setting above to <span className="font-mono">GLANCE/dayglance</span>.</p>
-          <button
-            onClick={() => {
-              localStorage.removeItem('dayglance-sync-migration-old-path');
-              localStorage.setItem('dayglance-sync-migration-checked', '1');
-            }}
-            className="text-amber-700 underline mt-1"
-          >
-            Dismiss
-          </button>
+          <div>
+            <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('settings.syncFolder')}</label>
+            <input
+              type="text"
+              placeholder="GLANCE/dayglance"
+              value={formData.syncFolder || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, syncFolder: e.target.value }))}
+              className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+            />
+            <p className={`text-xs ${textSecondary} mt-0.5`}>Path on your WebDAV server where sync files are stored.</p>
+          </div>
+
+          {activeProvider.helpText && (
+            <p className={`text-xs ${textSecondary}`}>{activeProvider.helpText}</p>
+          )}
+
+          {/* WebDAV actions: Test Connection + Sync Now, with status below. */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleTest}
+              disabled={testing || !requiredFieldsFilled}
+              className={secondaryBtn}
+            >
+              {testing ? 'Testing...' : 'Test Connection'}
+            </button>
+            <button
+              onClick={handleSyncNow}
+              disabled={syncingNow || !cloudSyncConfig?.enabled}
+              title={!cloudSyncConfig?.enabled ? 'Enable WebDAV sync first' : 'Sync with WebDAV now'}
+              className={secondaryBtn}
+            >
+              {(syncingNow || cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'Syncing...' : 'Sync Now'}
+            </button>
+          </div>
+          {testResult && (
+            <p className={`text-sm ${testResult.success ? 'text-green-500' : 'text-red-500'}`}>
+              {testResult.success ? 'Connection successful!' : testResult.error}
+            </p>
+          )}
+          {cloudSyncStatus === 'error' && cloudSyncError ? (
+            <p className="text-xs text-red-500">{cloudSyncError}</p>
+          ) : cloudSyncLastSynced ? (
+            <p className={`text-xs ${textSecondary}`}>
+              Last synced: {new Date(cloudSyncLastSynced).toLocaleString()}
+            </p>
+          ) : null}
+
+          {migrationOldPath && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 space-y-1">
+              <p className="font-semibold">Optional: move sync folder</p>
+              <p>Your sync file is at the old location. You can move it for cleaner organization — sync will continue to work either way.</p>
+              <p className="font-mono break-all">{migrationOldPath} → GLANCE/dayglance/</p>
+              <p>After moving the file, update your Sync folder setting above to <span className="font-mono">GLANCE/dayglance</span>.</p>
+              <button
+                onClick={() => {
+                  localStorage.removeItem('dayglance-sync-migration-old-path');
+                  localStorage.setItem('dayglance-sync-migration-checked', '1');
+                }}
+                className="text-amber-700 underline mt-1"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -469,14 +493,6 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         >
           Cancel
         </button>
-        {cloudSyncConfig?.enabled && (
-          <button
-            onClick={handleDisable}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-          >
-            Disable
-          </button>
-        )}
         <button
           onClick={handleSave}
           disabled={!canSave || vaultBootstrapping}
