@@ -14,6 +14,7 @@ import { syncSharedUsers, syncSharedUsersViaICloud } from '../intents/sharedUser
 import { isAvailable as isICloudAvailable } from '../intents/icloudFileTransport.js';
 import { getSyncPassphrase, setSyncPassphrase } from '../utils/crypto.js';
 import { isVaultEnabled } from '../sync/vaultConfig.js';
+import { getDbIntentsConfig, setDbIntentsConfig, getDbIntentsConnection } from '../intents/dbIntentsConfig.js';
 import { setupIntentsEncryption } from '../intents/intentsEncryptionSetup.js';
 import { loadIntentsRootKey, clearIntentsRootKey } from '../intents/intentsKeyStore.js';
 import { useTranslation } from 'react-i18next';
@@ -109,6 +110,11 @@ const SettingsModal = () => {
   // null | 'passphrase-needed' | 'running' | { error: string }
   const [intentSetupPhase, setIntentSetupPhase] = useState(null);
   const [intentPassphraseInput, setIntentPassphraseInput] = useState('');
+  // GLANCEvault DB intents (beta). Tracks only the `enabled` flag — the rest of
+  // the config (ttlMs, pollIntervalMinutes) is preserved on save, and the vault
+  // connection is INHERITED from the GLANCEvault sync config (not edited here).
+  const [dbIntentsEnabled, setDbIntentsEnabled] = useState(() => !!getDbIntentsConfig()?.enabled);
+  const [dbIntentsSaved, setDbIntentsSaved] = useState(false);
 
 
   const [trayHotkey, setTrayHotkey] = useState(() => localStorage.getItem('dg-tray-hotkey') || '');
@@ -1944,6 +1950,85 @@ const SettingsModal = () => {
                             {t('settings.glanceActivityLog')}
                           </button>
                         </div>
+                      </div>
+
+                      {/* GLANCEvault intents (beta) — DB transport. Independent of the
+                          WebDAV intents config above AND of the vault sync toggle; it only
+                          INHERITS the vault connection from the GLANCEvault sync config. */}
+                      <div className={`mt-4 pt-4 border-t ${borderClass} space-y-3`}>
+                        <div className="flex items-center gap-2">
+                          <Server size={14} className={textSecondary} />
+                          <span className={`text-sm font-medium ${textPrimary}`}>GLANCEvault intents</span>
+                          <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-600'}`}>Beta</span>
+                        </div>
+                        <p className={`${textSecondary} text-xs`}>
+                          Deliver intents over your GLANCEvault server instead of (or alongside) the WebDAV event log. Uses the same vault connection as GLANCEvault sync — no separate URL or token needed.
+                        </p>
+
+                        {(() => {
+                          const dbConn = getDbIntentsConnection();
+                          return (
+                            <>
+                              <div className={`text-xs px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/40' : 'bg-stone-50'}`}>
+                                {dbConn ? (
+                                  <span className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                                    <span className={textSecondary}>Vault connection detected — ready to enable.</span>
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+                                    <span className={textSecondary}>No vault connection. Configure GLANCEvault in Cloud Sync settings first.</span>
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className={`flex items-start gap-3 p-3 rounded-lg border ${borderClass} ${dbConn ? '' : 'opacity-60'}`}>
+                                <input
+                                  type="checkbox"
+                                  id="db-intents-toggle"
+                                  checked={dbIntentsEnabled}
+                                  disabled={!dbConn}
+                                  onChange={e => setDbIntentsEnabled(e.target.checked)}
+                                  className="mt-0.5 h-4 w-4 rounded"
+                                />
+                                <div>
+                                  <label htmlFor="db-intents-toggle" className={`text-sm font-medium ${textPrimary} ${dbConn ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                                    Enable GLANCEvault intents
+                                  </label>
+                                  <p className={`text-xs ${textSecondary} mt-0.5`}>
+                                    Independent of WebDAV intents and of GLANCEvault sync. Saving reloads the app so the poller restarts.
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                  onClick={() => {
+                                    // Match-by-construction: spread the EXISTING config and override
+                                    // only `enabled`, so ttlMs / pollIntervalMinutes are preserved
+                                    // (not re-seeded). Persist via the config module's own saver to
+                                    // the exact key the gate reads.
+                                    const existing = getDbIntentsConfig() || {};
+                                    const wasEnabled = !!existing.enabled;
+                                    setDbIntentsConfig({ ...existing, enabled: dbIntentsEnabled });
+                                    // Reload-on-change so useDbIntentPoller remounts and picks up the
+                                    // new config (mirrors the GLANCEvault sync toggle's behavior).
+                                    if (wasEnabled !== dbIntentsEnabled) {
+                                      window.location.reload();
+                                      return;
+                                    }
+                                    setDbIntentsSaved(true);
+                                    setTimeout(() => setDbIntentsSaved(false), 2000);
+                                  }}
+                                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 text-sm transition-colors"
+                                >
+                                  {dbIntentsSaved ? t('common.saved') : t('common.save')}
+                                </button>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                       </>)}
                     </div>
