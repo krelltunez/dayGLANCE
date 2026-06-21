@@ -384,6 +384,13 @@ const DayPlanner = () => {
   useEffect(() => { localStorage.setItem('day-planner-weather-enabled', JSON.stringify(weatherEnabled)); }, [weatherEnabled]);
   useEffect(() => { localStorage.setItem('day-planner-daily-content-enabled', JSON.stringify(dailyContentEnabled)); }, [dailyContentEnabled]);
   const [syncUrl, setSyncUrl] = useState('');
+  // When multi-user is on, whether to include CalDAV credentials (not just URLs)
+  // in the per-user calendar config that syncs across this user's devices. Only
+  // takes effect when sync is encrypted. Defaults on; surfaced as a toggle.
+  const [syncCalendarCreds, setSyncCalendarCreds] = useState(() => {
+    const v = localStorage.getItem('day-planner-sync-calendar-creds');
+    return v === null ? true : v === 'true';
+  });
   const [showCalendarUrlHint, setShowCalendarUrlHint] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -1832,6 +1839,41 @@ const DayPlanner = () => {
   useEffect(() => { writeConfigTimestamp('day-planner-goals-projects-enabled-updated-at'); }, [goalsProjectsEnabled]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { writeConfigTimestamp('dayglance-multi-user-enabled-updated-at'); }, [multiUserEnabled]);
+  useEffect(() => { localStorage.setItem('day-planner-sync-calendar-creds', String(syncCalendarCreds)); }, [syncCalendarCreds]);
+
+  // One-time per-device cleanup when this device first runs in per-user calendar
+  // mode (multi-user on + a "me" selected). Calendar config and CalDAV-imported
+  // tasks carry no owner, so we can't tell whether the current top-level URL /
+  // sync-tasks are this user's own or leaked in from another user before per-user
+  // config existed. Rather than guess, reset to a clean slate:
+  //   • drop subscription-derived ('sync') tasks — ephemeral; they re-fetch from
+  //     your own URL once you set it, and leaked ones simply don't come back;
+  //   • clear the top-level calendar URLs — re-enter once, and it then syncs to
+  //     your other devices via calendarConfigByUser. (Auth is kept: it's
+  //     device-local and never leaked, so you don't re-type your password.)
+  // Runs exactly once, guarded by a persisted flag.
+  useEffect(() => {
+    if (!dataLoaded || !multiUserEnabled || !meUserSyncId) return;
+    if (localStorage.getItem('day-planner-calendar-per-user-migrated') === 'true') return;
+    // Drop subscription-derived tasks unconditionally — always safe (re-fetchable).
+    const isSyncImport = (t) => t.imported && t.importSource === 'sync';
+    setTasks(prev => prev.filter(t => !isSyncImport(t)));
+    setUnscheduledTasks(prev => prev.filter(t => !isSyncImport(t)));
+    // Only clear the top-level URLs if no clean per-user config exists yet. If
+    // another of this user's devices has already established it (post-migration),
+    // that entry is the source of truth and arrives via the normal sync path —
+    // clearing here would overwrite it with empty.
+    let map = {};
+    try { map = JSON.parse(localStorage.getItem('day-planner-calendar-config-by-user') || '{}'); } catch { map = {}; }
+    if (!map[meUserSyncId]) {
+      localStorage.removeItem('day-planner-sync-url');
+      localStorage.removeItem('day-planner-task-calendar-url');
+      setSyncUrl('');
+      setTaskCalendarUrl('');
+    }
+    localStorage.setItem('day-planner-calendar-per-user-migrated', 'true');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataLoaded, multiUserEnabled, meUserSyncId]);
 
   // Sync user list with glance-users.json on WebDAV and iCloud, so dayGLANCE
   // and lastGLANCE share the same roster regardless of which app is opened first.
@@ -5440,26 +5482,62 @@ const DayPlanner = () => {
       const m = uid.match(/::(\d{4}-\d{2}-\d{2})$/);
       return !m || new Date(m[1]) >= uidCutoff;
     });
-    const _tasksForSync = tasks.filter(t => !t._native && !(t.imported && !t.isTaskCalendar && t.importSource !== 'file'));
-    const _unschedForSync = unscheduledTasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file'));
+    // Imported-task sync rule. Always drop read-only CalDAV events; keep
+    // isTaskCalendar to-dos and ICS file imports as first-class data. In
+    // multi-user, additionally drop ALL subscription-derived ('sync') items so a
+    // CalDAV feed never leaks to other users — each device re-fetches from its own
+    // per-user URL (completion still flows back through CalDAV).
+    const keepImported = (t) =>
+      !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')
+      && !(multiUserEnabled && t.imported && t.importSource === 'sync');
+
+    // Per-user calendar config (multi-user only). Write this device's own syncId
+    // entry into the shared map so the URLs — and credentials, when opted in AND
+    // sync is encrypted — follow this user across their devices without leaking to
+    // others. updatedAt only advances on a real content change (content-compare),
+    // so it doesn't thrash the per-syncId LWW merge.
+    // Gated on the one-time migration having run, so we never seed the entry from a
+    // top-level URL that might have leaked from another user pre-Phase-2 (the
+    // migration resets that to a clean slate first — see the effect below).
+    let calendarConfigByUser = {};
+    try { calendarConfigByUser = JSON.parse(localStorage.getItem('day-planner-calendar-config-by-user') || '{}'); } catch { calendarConfigByUser = {}; }
+    const calMigrated = localStorage.getItem('day-planner-calendar-per-user-migrated') === 'true';
+    if (multiUserEnabled && meUserSyncId && calMigrated) {
+      const encrypted = !!(cloudSyncConfig?.encryptionEnabled || isVaultEnabled());
+      const includeAuth = syncCalendarCreds && encrypted && taskCalendarAuth
+        && (taskCalendarAuth.username || taskCalendarAuth.appPassword);
+      const desired = { syncUrl, taskCalendarUrl, ...(includeAuth ? { auth: taskCalendarAuth } : {}) };
+      const cur = calendarConfigByUser[meUserSyncId];
+      const sameContent = !!cur
+        && (cur.syncUrl ?? '') === (desired.syncUrl ?? '')
+        && (cur.taskCalendarUrl ?? '') === (desired.taskCalendarUrl ?? '')
+        && JSON.stringify(cur.auth ?? null) === JSON.stringify(desired.auth ?? null);
+      calendarConfigByUser = {
+        ...calendarConfigByUser,
+        [meUserSyncId]: { ...desired, updatedAt: sameContent ? cur.updatedAt : new Date().toISOString() },
+      };
+      localStorage.setItem('day-planner-calendar-config-by-user', JSON.stringify(calendarConfigByUser));
+    }
     return {
       version: 2,
       lastModified: new Date().toISOString(),
       data: {
         tasks: stampTaskTimestamps(
-          tasks.filter(t => !t._native && !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
+          tasks.filter(t => !t._native && keepImported(t)),
           'day-planner-tasks'
         ),
         unscheduledTasks: stampTaskTimestamps(
-          unscheduledTasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
+          unscheduledTasks.filter(keepImported),
           'day-planner-unscheduled'
         ),
         unscheduledOrderTimestamp,
         recycleBin: stampTaskTimestamps(recycleBin, 'day-planner-recycle-bin'),
         syncUrl,
         taskCalendarUrl,
-        // taskCalendarAuth is intentionally excluded — credentials must not be written
-        // to the shared sync file on the WebDAV server.
+        calendarConfigByUser,
+        // taskCalendarAuth is intentionally excluded from the top level — credentials
+        // ride per-user inside calendarConfigByUser (only when opted in and encrypted),
+        // never as a shared top-level field.
         completedTaskUids: prunedUids,
         recurringTasks: stampTaskTimestamps(recurringTasks, 'day-planner-recurring-tasks'),
         routineDefinitions,
@@ -5529,6 +5607,15 @@ const DayPlanner = () => {
     suppressCloudUploadRef.current = true;
     suppressTimestampRef.current = true;
 
+    // Per-user calendar mode: when multi-user is on and a user is selected, this
+    // device's calendar config comes from calendarConfigByUser[mySyncId], not the
+    // top-level syncUrl/taskCalendarUrl (which are device-local in multi-user).
+    // Read meUserSyncId fresh from localStorage to avoid a stale closure.
+    const meSidForCal = (() => {
+      try { return JSON.parse(localStorage.getItem('dayglance-multi-user-config') || '{}').meUserSyncId || null; } catch { return null; }
+    })();
+    const perUserCalendar = !!(data.multiUserEnabled && meSidForCal);
+
     // Normalize task defaults so localStorage and React state are identical.
     // Without this, stampTaskTimestamps detects spurious differences (e.g.
     // missing notes/subtasks) and re-stamps lastModified, making stale local
@@ -5540,7 +5627,11 @@ const DayPlanner = () => {
     // resurrect deleted events. On native, the OS bridge re-provides them; on PWA, CalDAV
     // sync re-imports them on every fetch. Calendar tasks (isTaskCalendar:true) and ICS file
     // imports (importSource:'file') are first-class user data and are kept as normal.
-    const filterTasks = tasks => tasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file'));
+    // In multi-user also drop subscription-derived ('sync') items — they ride
+    // per-user via the calendar URL, not the shared payload (mirrors buildSyncPayload).
+    const filterTasks = tasks => tasks.filter(t =>
+      !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')
+      && !(multiUserEnabled && t.imported && t.importSource === 'sync'));
 
     const normalizedTasks = data.tasks ? filterTasks(normalizeTasks(data.tasks)) : null;
     const normalizedUnsched = data.unscheduledTasks ? filterTasks(normalizeTasks(data.unscheduledTasks)) : null;
@@ -5551,9 +5642,12 @@ const DayPlanner = () => {
     if (data.recycleBin) localStorage.setItem('day-planner-recycle-bin', JSON.stringify(data.recycleBin));
     // Calendar URLs: apply whenever remote explicitly includes them (even empty string,
     // which propagates an intentional URL clear). Only skip when the key is absent.
-    if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', data.syncUrl);
-    if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
-    // taskCalendarAuth is not applied from sync — credentials are device-local only.
+    // In per-user mode the top-level URLs are device-local — config is applied from
+    // calendarConfigByUser[mySyncId] below instead.
+    if (!perUserCalendar && data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', data.syncUrl);
+    if (!perUserCalendar && data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
+    // taskCalendarAuth is not applied from the top level — credentials are device-local
+    // unless they arrive per-user inside calendarConfigByUser (applied below).
     if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
     if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
     if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
@@ -5645,6 +5739,20 @@ const DayPlanner = () => {
       setMultiUserEnabled(data.multiUserEnabled);
       if (data.multiUserEnabledUpdatedAt) localStorage.setItem('dayglance-multi-user-enabled-updated-at', data.multiUserEnabledUpdatedAt);
     }
+    if (data.calendarConfigByUser) {
+      // Store the merged per-user map, then — in per-user mode — apply MY own
+      // entry to this device's live calendar config. Other users' entries are
+      // stored but never read here, which is what keeps calendars isolated.
+      localStorage.setItem('day-planner-calendar-config-by-user', JSON.stringify(data.calendarConfigByUser));
+      if (perUserCalendar) {
+        const mine = data.calendarConfigByUser[meSidForCal];
+        if (mine) {
+          if (mine.syncUrl !== undefined) { localStorage.setItem('day-planner-sync-url', mine.syncUrl); setSyncUrl(mine.syncUrl); }
+          if (mine.taskCalendarUrl !== undefined) { localStorage.setItem('day-planner-task-calendar-url', mine.taskCalendarUrl); setTaskCalendarUrl(mine.taskCalendarUrl); }
+          if (mine.auth) { localStorage.setItem('day-planner-task-calendar-auth', JSON.stringify(mine.auth)); setTaskCalendarAuth(mine.auth); }
+        }
+      }
+    }
     if (data.deletedGoalIds) localStorage.setItem('day-planner-deleted-goal-ids', JSON.stringify(data.deletedGoalIds));
     if (data.deletedProjectIds) localStorage.setItem('day-planner-deleted-project-ids', JSON.stringify(data.deletedProjectIds));
     if (data.obsidianConfig) {
@@ -5693,8 +5801,8 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-unscheduled-order-ts', data.unscheduledOrderTimestamp);
     }
     if (data.recycleBin) setRecycleBin(data.recycleBin);
-    if (data.syncUrl !== undefined) setSyncUrl(data.syncUrl);
-    if (data.taskCalendarUrl !== undefined) setTaskCalendarUrl(data.taskCalendarUrl);
+    if (!perUserCalendar && data.syncUrl !== undefined) setSyncUrl(data.syncUrl);
+    if (!perUserCalendar && data.taskCalendarUrl !== undefined) setTaskCalendarUrl(data.taskCalendarUrl);
     if (data.completedTaskUids) setCompletedTaskUids(new Set(data.completedTaskUids));
     if (data.recurringTasks) setRecurringTasks(prev => {
       const mergedIds = new Set(data.recurringTasks.map(t => String(t.id)));
@@ -8429,6 +8537,7 @@ const DayPlanner = () => {
     syncUrl, setSyncUrl,
     taskCalendarUrl, setTaskCalendarUrl,
     taskCalendarAuth, setTaskCalendarAuth,
+    syncCalendarCreds, setSyncCalendarCreds,
     syncRetentionDays, setSyncRetentionDays,
     calSyncStatus, setCalSyncStatus,
     calSyncLastSynced, setCalSyncLastSynced,

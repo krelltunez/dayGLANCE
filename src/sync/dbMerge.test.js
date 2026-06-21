@@ -167,6 +167,32 @@ describe('A1 bundle merge — concurrent different-entry edits are not lost', ()
     expect(a.data.habitsEnabled).toBe(true);   // A keeps its own
     expect(b.data.habitsEnabled).toBe(false);  // B keeps its own
   });
+
+  it('multi-user: calendar URLs are device-local but calendarConfigByUser merges per syncId', () => {
+    const base = { ...EMPTY_COLLECTIONS, multiUserEnabled: true, syncUrl: '', taskCalendarUrl: '', calendarConfigByUser: {} };
+    const { vault, a, b } = newPair(base);
+    // Each device is a different user editing its own per-user entry; both survive.
+    // The top-level syncUrl stays device-local (a different value on each device).
+    a.mutate((d) => {
+      d.syncUrl = 'https://a-local';
+      d.calendarConfigByUser = { ...d.calendarConfigByUser, jason: { syncUrl: 'https://jason', updatedAt: T1 } };
+      return ['singleton:syncUrl', 'singleton:calendarConfigByUser'];
+    });
+    b.mutate((d) => {
+      d.syncUrl = 'https://b-local';
+      d.calendarConfigByUser = { ...d.calendarConfigByUser, kim: { syncUrl: 'https://kim', updatedAt: T1 } };
+      return ['singleton:syncUrl', 'singleton:calendarConfigByUser'];
+    });
+    syncToConvergence(a, b, vault);
+    // Both users' per-user entries converge on both devices...
+    for (const dev of [a, b]) {
+      expect(dev.data.calendarConfigByUser.jason.syncUrl).toBe('https://jason');
+      expect(dev.data.calendarConfigByUser.kim.syncUrl).toBe('https://kim');
+    }
+    // ...while the top-level URL stays whatever each device set locally.
+    expect(a.data.syncUrl).toBe('https://a-local');
+    expect(b.data.syncUrl).toBe('https://b-local');
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
