@@ -12,6 +12,15 @@ export const mergeTaskArrays = (local, remote, deletedIds, syncHorizon = null) =
 // leaving the per-device `multiUserEnabled` toggle alone. dayGLANCE previously
 // wrapped this function to patch the roster in; that stopgap is no longer
 // needed — the upstream merge covers every sync path directly.
+
+// Settings the upstream file-tier merge resolves last-writer-wins but which we
+// override back to this device's local value so they don't propagate. Mirrors
+// the vault tier (src/sync/dbAdapter.js):
+//  - obsidianConfig is ALWAYS device-local (the vault differs per machine).
+//  - the feature toggles are device-local ONLY when multi-user is on; a
+//    single-user install keeps syncing them LWW across that user's own devices.
+const ALWAYS_LOCAL_KEYS = ['obsidianConfig'];
+const MULTIUSER_LOCAL_KEYS = ['habitsEnabled', 'routinesEnabled', 'goalsProjectsEnabled'];
 export {
   mergeDailyNotes,
   mergeHabits,
@@ -129,5 +138,18 @@ export const mergeSyncData = (local, remote, retentionDays) => {
   // Make sure a heal (one side's count changing) actually triggers a write/push.
   if (habitLogsFix.localChanged) result.localChanged = true;
   if (habitLogsFix.remoteChanged) result.remoteChanged = true;
+  // Keep device-local settings on this device's own value rather than the
+  // last-writer-wins result. Feature toggles only when multi-user is on, so a
+  // household member's toggle never propagates; single-user keeps syncing them.
+  const keepLocalKeys = local?.multiUserEnabled
+    ? [...ALWAYS_LOCAL_KEYS, ...MULTIUSER_LOCAL_KEYS]
+    : ALWAYS_LOCAL_KEYS;
+  for (const key of keepLocalKeys) {
+    if (local && Object.prototype.hasOwnProperty.call(local, key)) {
+      result.data[key] = local[key];
+      const tsKey = `${key}UpdatedAt`;
+      if (Object.prototype.hasOwnProperty.call(local, tsKey)) result.data[tsKey] = local[tsKey];
+    }
+  }
   return result;
 };

@@ -9890,9 +9890,10 @@ const DayPlanner = () => {
       {/* Keyboard Shortcut Cheat Sheet */}
       {showShortcutHelp && <ShortcutHelpModal />}
 
-      {/* Sync passphrase prompt — shown on app load when encryption is enabled
-          but no cached key was found in device storage (e.g. new device). */}
-      {cloudSyncConfig?.encryptionEnabled && syncKeyReady === false && (
+      {/* Sync passphrase prompt — shown on app load when an encrypted transport
+          (WebDAV encryption or GLANCEvault) is active but no cached key was found
+          in device storage (e.g. new device, or first launch after key isolation). */}
+      {(cloudSyncConfig?.encryptionEnabled || isVaultEnabled()) && syncKeyReady === false && (
         <SyncPassphraseModal
           darkMode={darkMode}
           textPrimary={textPrimary}

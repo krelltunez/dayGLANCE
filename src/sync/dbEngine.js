@@ -23,7 +23,7 @@
 //     applyPayload (which sets the suppress flags), so a pulled row never bounces
 //     back out as a file-tier upload or a re-push.
 
-import { createDbSyncEngine, clearDbRootKey } from '@glance-apps/sync';
+import { createDbSyncEngine, clearDbRootKey, initDbRootKey } from '@glance-apps/sync';
 import { getVaultConfig, isVaultEnabled } from './vaultConfig.js';
 import { getDeviceId } from './deviceId.js';
 import {
@@ -39,16 +39,36 @@ import {
 const APP_ID = 'dayglance';
 const CRYPTO_DB_NAME = 'dayglance-db-crypto';
 
+// Native keystore slot for the DB root key. On native shells the bridge exposes a
+// SINGLE legacy slot (getSyncKey/storeSyncKey) that the WebDAV file tier already
+// uses; storing the DB root key there too makes the two tiers clobber each other,
+// which on Android forces a passphrase re-prompt on every launch. Newer shells add
+// per-slot methods, so we isolate the DB key under its own slot. The IndexedDB
+// path (non-native) is already isolated via the distinct CRYPTO_DB_NAME.
+const VAULT_KEY_SLOT = 'db';
+
 // Where the per-account DB root key is stored: the OS keystore on native shells
 // (mirrors the file tier in adapter.js), IndexedDB elsewhere. Centralized so the
 // engine and resetDbRootKey agree.
 function nativeKeyConfig() {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceNative : null;
   const isNativeApp = !!bridge?.httpRequest;
+  if (!isNativeApp) {
+    return { cryptoDBName: CRYPTO_DB_NAME, nativeGetSyncKey: null, nativeStoreSyncKey: null };
+  }
+  // Prefer the isolated per-slot bridge methods; fall back to the shared legacy
+  // slot on older shells (no isolation there, but no worse than before).
+  if (bridge.getSyncKeyForSlot && bridge.storeSyncKeyForSlot) {
+    return {
+      cryptoDBName: CRYPTO_DB_NAME,
+      nativeGetSyncKey: () => bridge.getSyncKeyForSlot(VAULT_KEY_SLOT),
+      nativeStoreSyncKey: (val) => bridge.storeSyncKeyForSlot(VAULT_KEY_SLOT, val),
+    };
+  }
   return {
     cryptoDBName: CRYPTO_DB_NAME,
-    nativeGetSyncKey: isNativeApp && bridge?.getSyncKey ? () => bridge.getSyncKey() : null,
-    nativeStoreSyncKey: isNativeApp && bridge?.storeSyncKey ? (val) => bridge.storeSyncKey(val) : null,
+    nativeGetSyncKey: bridge.getSyncKey ? () => bridge.getSyncKey() : null,
+    nativeStoreSyncKey: bridge.storeSyncKey ? (val) => bridge.storeSyncKey(val) : null,
   };
 }
 
@@ -59,6 +79,15 @@ function nativeKeyConfig() {
 // passphrase) stays locked in and decryption of other devices' rows fails.
 export async function resetDbRootKey() {
   try { await clearDbRootKey(nativeKeyConfig()); } catch { /* ignore */ }
+}
+
+// Restore the cached DB root key from device storage (keystore/IndexedDB) without
+// the passphrase. Used by the app's load-time readiness gate so a vault-enabled
+// device that already has its key cached unlocks silently instead of prompting.
+// Returns false (not throwing) when no key is cached, so the caller can show the
+// passphrase prompt.
+export async function restoreDbRootKey() {
+  try { return await initDbRootKey(nativeKeyConfig()); } catch { return false; }
 }
 
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));

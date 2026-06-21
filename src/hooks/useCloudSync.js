@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { initSessionKey } from '../utils/crypto.js';
+import { isVaultEnabled } from '../sync/vaultConfig.js';
+import { restoreDbRootKey } from '../sync/dbEngine.js';
 
 const useCloudSync = () => {
   const [cloudSyncConfig, setCloudSyncConfig] = useState(() => {
@@ -64,25 +66,40 @@ const useCloudSync = () => {
     }
   }, [cloudSyncConfig]);
 
-  // On mount: attempt to restore the session encryption key from device storage.
-  // If encryption is enabled but no cached key exists, syncKeyReady stays false
-  // so the app can show the passphrase prompt.
+  // On mount: attempt to restore the cached encryption key(s) from device storage
+  // for whichever transports are active. syncKeyReady becomes false only when an
+  // active transport needs a key that isn't cached, so the app shows the passphrase
+  // prompt. Each tier has its OWN cached key (file tier vs GLANCEvault DB root key),
+  // so we restore exactly the ones in use:
+  //   • File tier  — needed only when WebDAV sync is enabled AND encrypted. A
+  //     vault-only device has encryptionEnabled=true but enabled=false, so it must
+  //     NOT be gated on the file-tier key (which it never writes) — that was the
+  //     cause of the every-launch re-prompt.
+  //   • GLANCEvault — needed whenever the vault is enabled; gated on its DB root key.
   useEffect(() => {
     const config = (() => {
       const saved = localStorage.getItem('day-planner-cloud-sync-config');
       return saved ? JSON.parse(saved) : null;
     })();
 
-    if (config?.encryptionEnabled) {
-      initSessionKey().then((found) => {
-        // found = true  → key restored silently, unlock sync immediately
-        // found = false → passphrase prompt will be shown by App
-        setSyncKeyReady(found);
-      });
-    } else {
-      // Encryption not configured — no passphrase needed.
+    const needFileKey  = !!(config?.enabled && config?.encryptionEnabled);
+    const needVaultKey = isVaultEnabled();
+
+    if (!needFileKey && !needVaultKey) {
+      // No encrypted transport active — no passphrase needed.
       setSyncKeyReady(true);
+      return;
     }
+
+    Promise.all([
+      needFileKey  ? initSessionKey()   : Promise.resolve(true),
+      needVaultKey ? restoreDbRootKey() : Promise.resolve(true),
+    ]).then(([fileOk, vaultOk]) => {
+      // Ready only when every active tier restored its key; otherwise App shows
+      // the passphrase prompt, and the entered passphrase re-derives + caches the
+      // missing key(s) on the next sync.
+      setSyncKeyReady(fileOk && vaultOk);
+    });
   }, []);
 
   return {
