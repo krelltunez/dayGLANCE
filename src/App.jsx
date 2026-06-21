@@ -1841,6 +1841,40 @@ const DayPlanner = () => {
   useEffect(() => { writeConfigTimestamp('dayglance-multi-user-enabled-updated-at'); }, [multiUserEnabled]);
   useEffect(() => { localStorage.setItem('day-planner-sync-calendar-creds', String(syncCalendarCreds)); }, [syncCalendarCreds]);
 
+  // One-time per-device cleanup when this device first runs in per-user calendar
+  // mode (multi-user on + a "me" selected). Calendar config and CalDAV-imported
+  // tasks carry no owner, so we can't tell whether the current top-level URL /
+  // sync-tasks are this user's own or leaked in from another user before per-user
+  // config existed. Rather than guess, reset to a clean slate:
+  //   • drop subscription-derived ('sync') tasks — ephemeral; they re-fetch from
+  //     your own URL once you set it, and leaked ones simply don't come back;
+  //   • clear the top-level calendar URLs — re-enter once, and it then syncs to
+  //     your other devices via calendarConfigByUser. (Auth is kept: it's
+  //     device-local and never leaked, so you don't re-type your password.)
+  // Runs exactly once, guarded by a persisted flag.
+  useEffect(() => {
+    if (!dataLoaded || !multiUserEnabled || !meUserSyncId) return;
+    if (localStorage.getItem('day-planner-calendar-per-user-migrated') === 'true') return;
+    // Drop subscription-derived tasks unconditionally — always safe (re-fetchable).
+    const isSyncImport = (t) => t.imported && t.importSource === 'sync';
+    setTasks(prev => prev.filter(t => !isSyncImport(t)));
+    setUnscheduledTasks(prev => prev.filter(t => !isSyncImport(t)));
+    // Only clear the top-level URLs if no clean per-user config exists yet. If
+    // another of this user's devices has already established it (post-migration),
+    // that entry is the source of truth and arrives via the normal sync path —
+    // clearing here would overwrite it with empty.
+    let map = {};
+    try { map = JSON.parse(localStorage.getItem('day-planner-calendar-config-by-user') || '{}'); } catch { map = {}; }
+    if (!map[meUserSyncId]) {
+      localStorage.removeItem('day-planner-sync-url');
+      localStorage.removeItem('day-planner-task-calendar-url');
+      setSyncUrl('');
+      setTaskCalendarUrl('');
+    }
+    localStorage.setItem('day-planner-calendar-per-user-migrated', 'true');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataLoaded, multiUserEnabled, meUserSyncId]);
+
   // Sync user list with glance-users.json on WebDAV and iCloud, so dayGLANCE
   // and lastGLANCE share the same roster regardless of which app is opened first.
   // Both transports run simultaneously; whichever returns non-null is applied.
@@ -5462,9 +5496,13 @@ const DayPlanner = () => {
     // sync is encrypted — follow this user across their devices without leaking to
     // others. updatedAt only advances on a real content change (content-compare),
     // so it doesn't thrash the per-syncId LWW merge.
+    // Gated on the one-time migration having run, so we never seed the entry from a
+    // top-level URL that might have leaked from another user pre-Phase-2 (the
+    // migration resets that to a clean slate first — see the effect below).
     let calendarConfigByUser = {};
     try { calendarConfigByUser = JSON.parse(localStorage.getItem('day-planner-calendar-config-by-user') || '{}'); } catch { calendarConfigByUser = {}; }
-    if (multiUserEnabled && meUserSyncId) {
+    const calMigrated = localStorage.getItem('day-planner-calendar-per-user-migrated') === 'true';
+    if (multiUserEnabled && meUserSyncId && calMigrated) {
       const encrypted = !!(cloudSyncConfig?.encryptionEnabled || isVaultEnabled());
       const includeAuth = syncCalendarCreds && encrypted && taskCalendarAuth
         && (taskCalendarAuth.username || taskCalendarAuth.appPassword);
