@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { buildEnvelope, buildEncryptedEnvelope, eventId as makeEventId, EVENTS, ENTITY_TYPES, deriveEnvelopeKey } from '@glance-apps/intents';
 import { loadIntentsRootKey } from './intentsKeyStore.js';
 import { writeEventFile, writeEventFileICloud, INTENT_CONFIG_KEY } from './useIntentPoller.js';
+import { sendIntentDb } from './dbIntentsTransport.js';
+import { isDbIntentsEnabled } from './dbIntentsConfig.js';
 import { logActivity } from './intentLog.js';
 import * as iCloudTransport from './icloudFileTransport.js';
 
@@ -67,7 +69,9 @@ export function useGoalNotifyEmitter({ goals }) {
 
     const hasWebDAV = !!(config?.webdavUrl && config?.username && config?.appPassword);
     const hasICloud = iCloudTransport.isAvailable();
-    if (!hasWebDAV && !hasICloud) return;
+    // The DB intents transport runs alongside WebDAV/iCloud and may be enabled on
+    // its own, so don't bail when the file tiers are absent if DB intents is active.
+    if (!hasWebDAV && !hasICloud && !isDbIntentsEnabled()) return;
 
     const prevMap = new Map(prev.map(g => [g.id, g]));
     const nextMap = new Map(goals.map(g => [g.id, g]));
@@ -96,7 +100,7 @@ export function useGoalNotifyEmitter({ goals }) {
 
     const fire = async () => {
       let deriveKey = null;
-      if (config.encryptionEnabled) {
+      if (config?.encryptionEnabled) {
         const rootKey = await loadIntentsRootKey();
         if (!rootKey) {
           console.warn('[goal-notify] intents encryption setup incomplete — skipping', emits.length, 'emit(s)');
@@ -136,6 +140,7 @@ export function useGoalNotifyEmitter({ goals }) {
             : buildEnvelope({ action: 'notify', payload, emittedBy: 'app.dayglance' });
           await writeEventFile(config, envelope);
           await writeEventFileICloud(config, envelope);
+          await sendIntentDb(envelope);  // GLANCEvault DB (no-ops unless enabled)
           logActivity({
             direction: 'out',
             action: 'notify',

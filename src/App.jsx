@@ -76,6 +76,7 @@ import useBackup from './hooks/useBackup.js';
 import useGTDFrames from './hooks/useGTDFrames.js';
 import { getGlanceHGInstances, isHGSessionReachable } from './hooks/useHyperGlance.js';
 import { useIntentPoller, INTENT_CONFIG_KEY } from './intents/useIntentPoller.js';
+import { useDbIntentPoller } from './intents/dbIntentsTransport.js';
 import { useNotifyEmitter } from './intents/useNotifyEmitter.js';
 import { useGoalNotifyEmitter } from './intents/useGoalNotifyEmitter.js';
 import { useAndroidIntentBridge } from './intents/useAndroidIntentBridge.js';
@@ -1104,6 +1105,19 @@ const DayPlanner = () => {
     navigate: tab => {
       // TABS values: 'glance' | 'timeline' | 'inbox' | 'goals' | 'settings'
       // mobileActiveTab values: 'dayglance' | 'timeline' | 'inbox' | 'goals' | 'settings'
+      const mobileTab = tab === 'glance' ? 'dayglance' : tab;
+      setMobileActiveTab(mobileTab);
+      if (tab === 'glance' || tab === 'inbox') setTabletActiveTab(tab === 'glance' ? 'glance' : 'inbox');
+    },
+  });
+  // GLANCEvault DB intents transport — receive poller mounted alongside the
+  // WebDAV poller; no-ops unless DB intents is enabled (its own flag + an
+  // inherited vault connection). Same context shape as useIntentPoller.
+  useDbIntentPoller({
+    tasks, unscheduledTasks, recurringTasks, projects,
+    setTasks, setUnscheduledTasks, setRecurringTasks,
+    goals, addGoal, updateGoal, deleteGoal,
+    navigate: tab => {
       const mobileTab = tab === 'glance' ? 'dayglance' : tab;
       setMobileActiveTab(mobileTab);
       if (tab === 'glance' || tab === 'inbox') setTabletActiveTab(tab === 'glance' ? 'glance' : 'inbox');

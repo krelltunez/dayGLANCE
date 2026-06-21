@@ -1,6 +1,8 @@
 import { buildEnvelope, buildEncryptedEnvelope, ENTITY_TYPES, SOURCE_APPS, deriveEnvelopeKey } from '@glance-apps/intents';
 import { loadIntentsRootKey } from './intentsKeyStore.js';
 import { writeEventFile, writeEventFileICloud, INTENT_CONFIG_KEY } from './useIntentPoller.js';
+import { sendIntentDb } from './dbIntentsTransport.js';
+import { isDbIntentsEnabled } from './dbIntentsConfig.js';
 import { logActivity } from './intentLog.js';
 
 /**
@@ -29,7 +31,9 @@ export async function emitGoalCreate(goal) {
   const raw = localStorage.getItem(INTENT_CONFIG_KEY);
   const config = raw ? JSON.parse(raw) : null;
   const hasWebDAV = !!(config?.webdavUrl && config?.username && config?.appPassword);
-  if (!hasWebDAV) return;
+  // The DB intents transport runs alongside WebDAV and may be enabled on its own,
+  // so don't bail when WebDAV is absent if DB intents is active.
+  if (!hasWebDAV && !isDbIntentsEnabled()) return;
 
   const payload = {
     title: goal.title,
@@ -42,7 +46,7 @@ export async function emitGoalCreate(goal) {
   const now = new Date().toISOString();
 
   let deriveKey = null;
-  if (config.encryptionEnabled) {
+  if (config?.encryptionEnabled) {
     const rootKey = await loadIntentsRootKey();
     if (!rootKey) {
       console.warn('[goal-create] intents encryption setup incomplete — skipping emit');
@@ -68,6 +72,7 @@ export async function emitGoalCreate(goal) {
       : buildEnvelope({ action: 'create', payload, emittedBy: SOURCE_APPS.DAYGLANCE, eventId });
     await writeEventFile(config, envelope);
     await writeEventFileICloud(config, envelope);
+    await sendIntentDb(envelope);  // DB intents transport (no-ops unless enabled)
     logActivity({
       direction: 'out',
       action: 'create',
