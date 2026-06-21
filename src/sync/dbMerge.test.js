@@ -143,16 +143,16 @@ describe('A1 bundle merge — concurrent different-entry edits are not lost', ()
     }
   });
 
-  it('*Enabled pair: last-writer-wins by paired UpdatedAt, deterministic on both', () => {
+  it('*Enabled toggles stay device-local: a remote toggle never overrides local', () => {
     const base = { ...EMPTY_COLLECTIONS, habitsEnabled: true, habitsEnabledUpdatedAt: T0 };
     const { vault, a, b } = newPair(base);
-    a.mutate((d) => { d.habitsEnabled = false; d.habitsEnabledUpdatedAt = T1; return ['singleton:habitsEnabled']; });
-    b.mutate((d) => { d.habitsEnabled = true; d.habitsEnabledUpdatedAt = T2; return ['singleton:habitsEnabled']; });
+    // Device B turns Habits off with the NEWEST timestamp — under the old LWW it
+    // would flip A too. With device-local toggles each device keeps its own value.
+    a.mutate((d) => { d.habitsEnabled = true;  d.habitsEnabledUpdatedAt = T1; return ['singleton:habitsEnabled']; });
+    b.mutate((d) => { d.habitsEnabled = false; d.habitsEnabledUpdatedAt = T2; return ['singleton:habitsEnabled']; });
     syncToConvergence(a, b, vault);
-    for (const dev of [a, b]) {
-      expect(dev.data.habitsEnabled).toBe(true);          // T2 is newest
-      expect(dev.data.habitsEnabledUpdatedAt).toBe(T2);
-    }
+    expect(a.data.habitsEnabled).toBe(true);   // A keeps its own
+    expect(b.data.habitsEnabled).toBe(false);  // B keeps its own
   });
 });
 

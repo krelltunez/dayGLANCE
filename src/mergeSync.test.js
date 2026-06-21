@@ -1520,23 +1520,31 @@ describe('mergeSyncData — habits integration', () => {
     expect(data.habitLogs['2026-02-20']['1']).toBe(7);
   });
 
-  it('propagates habitsEnabled from remote', () => {
+  it('keeps habitsEnabled device-local (remote never overrides)', () => {
     const deviceA = { ...base, habits: [], habitLogs: {}, habitsEnabled: true };
     const deviceB = { ...base, habits: [], habitLogs: {}, habitsEnabled: false };
-    const { data, localChanged } = mergeSyncData(deviceA, deviceB);
-    expect(data.habitsEnabled).toBe(false);
-    expect(localChanged).toBe(true);
+    const { data } = mergeSyncData(deviceA, deviceB);
+    // Device A keeps its own toggle even though B's value would win LWW — so one
+    // household member turning Habits off does not turn it off for everyone.
+    expect(data.habitsEnabled).toBe(true);
   });
 
-  it('propagates routinesEnabled from remote', () => {
+  it('keeps routinesEnabled device-local (remote never overrides)', () => {
     const deviceA = { ...base, routinesEnabled: true };
     const deviceB = { ...base, routinesEnabled: false };
-    const { data, localChanged } = mergeSyncData(deviceA, deviceB);
-    expect(data.routinesEnabled).toBe(false);
-    expect(localChanged).toBe(true);
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.routinesEnabled).toBe(true);
   });
 
-  it('defaults routinesEnabled to true when not present', () => {
+  it('keeps goalsProjectsEnabled and obsidianConfig device-local', () => {
+    const deviceA = { ...base, goalsProjectsEnabled: false, obsidianConfig: { taskHeading: '## A' } };
+    const deviceB = { ...base, goalsProjectsEnabled: true, obsidianConfig: { taskHeading: '## B' } };
+    const { data } = mergeSyncData(deviceA, deviceB);
+    expect(data.goalsProjectsEnabled).toBe(false);
+    expect(data.obsidianConfig).toEqual({ taskHeading: '## A' });
+  });
+
+  it('defaults routinesEnabled to undefined when not present on this device', () => {
     const deviceA = { ...base };
     const deviceB = { ...base };
     const { data } = mergeSyncData(deviceA, deviceB);

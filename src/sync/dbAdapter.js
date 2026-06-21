@@ -101,10 +101,6 @@ const deepEqual = (a, b) => {
   if (ka.length !== kb.length) return false;
   return ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && deepEqual(a[k], b[k]));
 };
-// Last-writer-wins for a single config value via paired updatedAt timestamps;
-// remote wins ties (mirrors merge.js pickConfigByTs:12-17).
-const pickByTs = (localVal, localTs, remoteVal, remoteTs) =>
-  (ts(remoteTs) >= ts(localTs) ? remoteVal : localVal);
 
 // ── kind / mutability / tiebreaker (engine callbacks) ──────────────────────────
 export function entityKind(entity) {
@@ -333,9 +329,13 @@ const TOMBSTONE_BUNDLES = new Set([
 ]);
 // Device-local prefs: the file-tier merge keeps the local value (merge.js:900-901
 // / weather not in merge output), so a pulled value never overwrites it. Listed
-// so the default branch doesn't LWW-clobber them.
+// so the default branch doesn't LWW-clobber them. The feature-enablement toggles
+// (habitsEnabled/routinesEnabled/goalsProjectsEnabled) and obsidianConfig are
+// device-local so one household member toggling a feature — or pointing Obsidian
+// at a different vault — does not flip it for everyone else on the same account.
 const DEVICE_LOCAL_BUNDLES = new Set([
   'minimizedSections', 'use24HourClock', 'weatherZip', 'weatherTempUnit', 'multiUserEnabled',
+  'habitsEnabled', 'routinesEnabled', 'goalsProjectsEnabled', 'obsidianConfig',
 ]);
 
 function mergeBundle(data, key, value, extra) {
@@ -383,20 +383,10 @@ function mergeBundle(data, key, value, extra) {
       // (mirrors merge.js:810-815).
       data[key] = value || data[key] || '';
       return;
-    case 'habitsEnabled':
-    case 'routinesEnabled':
-    case 'goalsProjectsEnabled': {
-      const tsKey = `${key}UpdatedAt`;
-      data[key] = pickByTs(data[key], data[tsKey], value, extra[tsKey]);
-      data[tsKey] = newerIso(data[tsKey], extra[tsKey]);
-      return;
-    }
-    case 'obsidianConfig': {
-      data.obsidianConfig = pickByTs(data.obsidianConfig, data.obsidianConfigUpdatedAt, value, extra.obsidianConfigUpdatedAt);
-      data.obsidianConfigUpdatedAt = newerIso(data.obsidianConfigUpdatedAt, extra.obsidianConfigUpdatedAt);
-      return;
-    }
     default:
+      // habitsEnabled / routinesEnabled / goalsProjectsEnabled / obsidianConfig
+      // fall through here and are kept local (DEVICE_LOCAL_BUNDLES) — see the set
+      // definition for why these are per-device rather than last-writer-wins.
       if (DEVICE_LOCAL_BUNDLES.has(key)) return; // keep local
       // Unknown bundle: fall back to LWW overwrite, but make it visible so a new
       // bundle type isn't silently subjected to a loss window.

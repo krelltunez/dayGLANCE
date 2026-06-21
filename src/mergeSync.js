@@ -12,6 +12,13 @@ export const mergeTaskArrays = (local, remote, deletedIds, syncHorizon = null) =
 // leaving the per-device `multiUserEnabled` toggle alone. dayGLANCE previously
 // wrapped this function to patch the roster in; that stopgap is no longer
 // needed — the upstream merge covers every sync path directly.
+
+// Settings kept per-device: the upstream file-tier merge resolves these
+// last-writer-wins, but on a shared (multi-user) account that lets one person's
+// toggle flip the feature for everyone. We override the merged result back to
+// this device's local value so they never propagate. Mirrors the vault tier's
+// DEVICE_LOCAL_BUNDLES (src/sync/dbAdapter.js).
+const DEVICE_LOCAL_KEYS = ['habitsEnabled', 'routinesEnabled', 'goalsProjectsEnabled', 'obsidianConfig'];
 export {
   mergeDailyNotes,
   mergeHabits,
@@ -129,5 +136,14 @@ export const mergeSyncData = (local, remote, retentionDays) => {
   // Make sure a heal (one side's count changing) actually triggers a write/push.
   if (habitLogsFix.localChanged) result.localChanged = true;
   if (habitLogsFix.remoteChanged) result.remoteChanged = true;
+  // Keep device-local settings on this device's own value rather than the
+  // last-writer-wins result, so a household member's toggle never propagates.
+  for (const key of DEVICE_LOCAL_KEYS) {
+    if (local && Object.prototype.hasOwnProperty.call(local, key)) {
+      result.data[key] = local[key];
+      const tsKey = `${key}UpdatedAt`;
+      if (Object.prototype.hasOwnProperty.call(local, tsKey)) result.data[tsKey] = local[tsKey];
+    }
+  }
   return result;
 };
