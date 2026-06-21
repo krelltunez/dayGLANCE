@@ -54,6 +54,14 @@ import {
 // send path. It is a seq (number) and advances ONLY from intents actually
 // received/processed — sending NEVER touches it (see the advance site below).
 const DB_CURSOR_KEY = 'dayglance-db-intent-cursor';
+// Per-seq consecutive-failure counters for the bounded-retry model. PERSISTED
+// next to the receive cursor because retries span poll cycles (and app reloads):
+// an in-memory counter would reset on every reload and never reach the cap.
+const DB_RETRY_KEY = 'dayglance-db-intent-retries';
+// A row whose handler THROWS this many consecutive times is treated as poison:
+// we give up, log loudly, and advance past it so the channel can't wedge forever.
+// (Name and value match lastGLANCE.)
+const MAX_INTENT_RETRIES = 5;
 const PAGE_LIMIT = 500;
 const APP_EMITTER = 'app.dayglance';
 
@@ -73,6 +81,35 @@ function getReceiveCursor() {
 }
 function setReceiveCursor(seq) {
   localStorage.setItem(DB_CURSOR_KEY, String(seq));
+}
+
+// ─── per-seq failure counters (persisted) ────────────────────────────────────
+
+// Map of { [seq]: consecutiveFailureCount }. Only ACTIVELY-failing seqs hold an
+// entry — counters are cleared on success and on give-up, so the map never grows
+// unbounded for every seq ever seen.
+function loadRetries() {
+  try { return JSON.parse(localStorage.getItem(DB_RETRY_KEY) || '{}'); } catch { return {}; }
+}
+function saveRetries(map) {
+  if (!map || Object.keys(map).length === 0) localStorage.removeItem(DB_RETRY_KEY);
+  else localStorage.setItem(DB_RETRY_KEY, JSON.stringify(map));
+}
+// Bump and persist the failure count for a seq; returns the new count.
+function bumpFailure(seq) {
+  const map = loadRetries();
+  const next = (map[String(seq)] || 0) + 1;
+  map[String(seq)] = next;
+  saveRetries(map);
+  return next;
+}
+// Drop a seq's counter (on success or give-up) so the map doesn't leak.
+function clearFailure(seq) {
+  const map = loadRetries();
+  if (map[String(seq)] !== undefined) {
+    delete map[String(seq)];
+    saveRetries(map);
+  }
 }
 
 // ─── HTTP (native vs electron vs browser) ────────────────────────────────────
@@ -191,10 +228,20 @@ export async function sendIntentDb(envelope) {
 // visibility filter, and into the SAME handler (handleIntent) the WebDAV path
 // feeds. It is duplicated rather than shared only to keep the WebDAV transport
 // byte-for-byte intact per the change's constraints.
+//
+// Return contract drives the drain's three-way failure model:
+//   'ok'        — consumed cleanly (loopback/multi-user skip, or handleIntent
+//                 succeeded). The drain advances the cursor and clears counters.
+//   'permanent' — this row will NEVER succeed (decode/decrypt failure, missing
+//                 root key, or a SOFT handler failure result.success===false —
+//                 the handler deciding it can't process this intent). The drain
+//                 advances past it; retrying is pointless.
+// A THROWN exception is NOT returned — it propagates to the caller, which treats
+// it as a maybe-transient handler error subject to bounded retry.
 async function routeIncoming(raw, context) {
   // Skip our own events (loopback). Checked on the raw object before parsing
   // because our notify envelopes use a schema parseEnvelope rejects as malformed.
-  if (raw?.emitted_by === APP_EMITTER) return;
+  if (raw?.emitted_by === APP_EMITTER) return 'ok';
 
   let envelope;
   try {
@@ -206,7 +253,7 @@ async function routeIncoming(raw, context) {
           direction: 'in', action: 'unknown', event: null, source_app: null,
           title: null, timestamp: new Date().toISOString(), status: 'error', error: 'no_root_key',
         });
-        return;
+        return 'permanent';
       }
       envelope = await parseEncryptedEnvelope(raw, (salt) => deriveEnvelopeKey(rootKey, salt));
     } else {
@@ -234,10 +281,10 @@ async function routeIncoming(raw, context) {
       direction: 'in', action: 'unknown', event: null, source_app: null,
       title: null, timestamp: new Date().toISOString(), status: logStatus, error: errorCode,
     });
-    return;
+    return 'permanent';
   }
 
-  if (envelope.emitted_by === APP_EMITTER) return;
+  if (envelope.emitted_by === APP_EMITTER) return 'ok';
 
   // Multi-user visibility filter: skip CREATE intents not assigned to this user.
   if (envelope.action === ACTIONS.CREATE) {
@@ -253,11 +300,14 @@ async function routeIncoming(raw, context) {
           title: envelope.payload.title ?? null, timestamp: envelope.emitted_at,
           status: 'ok', error: null,
         });
-        return;
+        return 'ok';
       }
     }
   }
 
+  // A THROW here propagates to the caller (transient → bounded retry). A returned
+  // result.success===false is a SOFT failure: the handler refusing this intent,
+  // which won't change on retry → permanent.
   const result = await handleIntent(envelope.action, envelope.payload, { ...context, eventId: envelope.event_id });
   logActivity({
     direction: 'in', action: envelope.action, event: envelope.payload.event ?? null,
@@ -265,6 +315,7 @@ async function routeIncoming(raw, context) {
     title: envelope.payload.title ?? null, timestamp: envelope.emitted_at,
     status: result.success ? 'ok' : 'error', error: result.success ? null : result.error,
   });
+  return result.success ? 'ok' : 'permanent';
 }
 
 /**
@@ -275,6 +326,15 @@ async function routeIncoming(raw, context) {
  * row's seq, and — while hasMore is true — list again from the new cursor. We
  * never read .rows just once.
  *
+ * Per-row failure handling is three-way:
+ *   (1) DECODE / PERMANENT-BAD (unparseable row, decrypt failure, or a SOFT
+ *       handler result.success===false) → advance past it; retrying is pointless.
+ *   (2) HANDLER THREW (maybe-transient) → do NOT advance; bump a persisted
+ *       per-seq counter. At MAX_INTENT_RETRIES consecutive failures the row is
+ *       poison: give up, log loudly, advance past it. Below the cap, HOLD —
+ *       stop the whole drain (cursor unchanged) so the next poll retries here.
+ *   (3) SUCCESS → advance and clear the seq's counter.
+ *
  * Connection is inherited from the vault SYNC config unless injected (tests).
  */
 export async function pollDbIntents(context, opts = {}) {
@@ -282,6 +342,9 @@ export async function pollDbIntents(context, opts = {}) {
   if (!connection) return;
 
   const vaultFetch = opts.vaultFetch ?? defaultVaultFetch();
+  // Test seam: lets tests drive the three-way model deterministically. Defaults
+  // to the real router in production.
+  const route = opts.routeIncoming ?? routeIncoming;
   const headers = authHeaders(connection.vaultToken);
   const base = connection.vaultUrl.replace(/\/+$/, '');
 
@@ -316,43 +379,72 @@ export async function pollDbIntents(context, opts = {}) {
     const rows = Array.isArray(payload.rows) ? payload.rows : [];
 
     for (const rawRow of rows) {
+      // ── (1) DECODE / PERMANENT-BAD ──────────────────────────────────────────
       let parsed;
       try {
         // Codec: decodes the base64 envelope back to an object on parsed.envelope.
         parsed = parseIntentRow(rawRow);
       } catch (err) {
-        // Malformed server row — log and advance past it (using its seq if
-        // available) so the loop can't wedge on a single bad row.
+        // Malformed server row — it will never decode. Advance past it (using its
+        // seq if available) so the loop can't wedge on a single bad row.
         console.warn('[db-intent] Skipping unparseable row:', err.message);
         logActivity({
           direction: 'in', action: 'unknown', event: null, source_app: null,
           title: null, timestamp: new Date().toISOString(), status: 'error', error: 'row_parse_error',
         });
         if (typeof rawRow?.seq === 'number') {
+          clearFailure(rawRow.seq);
           setReceiveCursor(rawRow.seq);
           since = rawRow.seq;
         }
         continue;
       }
 
+      // ── (2) ROUTE: success / permanent / THROW (maybe-transient) ────────────
+      let outcome;
       try {
-        await routeIncoming(parsed.envelope, context);
+        // 'ok' or 'permanent'; a THROW means a maybe-transient handler error.
+        outcome = await route(parsed.envelope, context);
       } catch (err) {
-        // A single failing intent must not wedge the drain (mirrors the WebDAV
-        // path, which advances its cursor past a row even on processing error).
-        console.warn('[db-intent] Error processing row', parsed.eventId, ':', err.message);
-        logActivity({
-          direction: 'in', action: 'unknown', event: null, source_app: null,
-          title: null, timestamp: new Date().toISOString(), status: 'error', error: err.message,
-        });
+        // HANDLER THREW — treat as maybe-transient. Do NOT advance yet; bump the
+        // PERSISTED per-seq counter so the cap is reached even across reloads.
+        const failures = bumpFailure(parsed.seq);
+        if (failures >= MAX_INTENT_RETRIES) {
+          // Poison: it has failed MAX_INTENT_RETRIES times running. Give up so the
+          // channel doesn't wedge forever — log loudly, clear the counter, advance.
+          console.error(
+            `[db-intent] Giving up on intent ${parsed.eventId} (seq ${parsed.seq}) after ${failures} consecutive failures:`,
+            err.message,
+          );
+          logActivity({
+            direction: 'in', action: 'unknown', event: null, source_app: null,
+            title: null, timestamp: new Date().toISOString(), status: 'error', error: `gave_up_after_${failures}`,
+          });
+          clearFailure(parsed.seq);
+          setReceiveCursor(parsed.seq);
+          since = parsed.seq;
+          continue;
+        }
+        // Under the cap: HOLD. Stop the whole drain for this poll (this page AND
+        // any further pages), leaving the cursor unadvanced so the next poll
+        // retries from here. End cleanly — no uncaught throw.
+        console.warn(
+          `[db-intent] Holding intent ${parsed.eventId} (seq ${parsed.seq}) for retry ${failures}/${MAX_INTENT_RETRIES}:`,
+          err.message,
+        );
+        return;
       }
 
-      // ── RECEIVE CURSOR ADVANCE ──────────────────────────────────────────────
+      // ── (3) ADVANCE (success or permanent) ──────────────────────────────────
       // Advance ONLY from a row actually received/processed (its seq). Sending
-      // never reaches here. NOTE: the server returns only NON-EXPIRED rows, so
-      // this cursor can legitimately jump past the seq of an intent that expired
-      // (TTL) before this device listed it. That gap is correct/intended, NOT the
-      // sync cursor-skip bug — there is simply no row to deliver for that seq.
+      // never reaches here. Clear any failure counter for this seq on success AND
+      // on permanent give-up so the counter map never leaks. NOTE: the server
+      // returns only NON-EXPIRED rows, so this cursor can legitimately jump past
+      // the seq of an intent that expired (TTL) before this device listed it.
+      // That gap is correct/intended, NOT the sync cursor-skip bug — there is
+      // simply no row to deliver for that seq.
+      void outcome; // 'ok' and 'permanent' both advance; distinction was logged inside routeIncoming
+      clearFailure(parsed.seq);
       setReceiveCursor(parsed.seq);
       since = parsed.seq;
     }
@@ -429,4 +521,4 @@ export function useDbIntentPoller(context) {
 }
 
 // Exported for tests.
-export { DB_CURSOR_KEY };
+export { DB_CURSOR_KEY, DB_RETRY_KEY, MAX_INTENT_RETRIES };

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { buildEnvelope, buildIntentRow, ACTIONS, TABS } from '@glance-apps/intents';
-import { sendIntentsDb, pollDbIntents, DB_CURSOR_KEY } from './dbIntentsTransport.js';
+import { sendIntentsDb, pollDbIntents, DB_CURSOR_KEY, DB_RETRY_KEY, MAX_INTENT_RETRIES } from './dbIntentsTransport.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // App-owned GLANCEvault DB intents transport. These exercise the REAL codec
@@ -206,5 +206,143 @@ describe('DB intents — RECEIVE (pagination loop drains a >500 backlog)', () =>
     const server = createMemoryIntentsServer();
     await pollDbIntents({}, { connection: null, vaultFetch: server.vaultFetch });
     expect(server.calls.list).toHaveLength(0);
+  });
+});
+
+// Seed n valid (non-expired) foreign notify rows into the server.
+async function seedRows(server, n, nowFn = () => Date.now()) {
+  for (let i = 0; i < n; i++) {
+    const env = makeForeignNotify(i);
+    const row = buildIntentRow(env, { expiresAt: new Date(nowFn() + 3600_000) });
+    await server.vaultFetch(
+      'POST', `${CONN.vaultUrl}/intents/batch`,
+      { Authorization: `Bearer ${CONN.vaultToken}`, 'Content-Type': 'application/json' },
+      JSON.stringify({ accountId: CONN.accountId, events: [{ eventId: row.eventId, envelope: row.envelope, expiresAt: row.expiresAt }] }),
+    );
+  }
+}
+
+const retries = () => JSON.parse(localStorage.getItem(DB_RETRY_KEY) || '{}');
+const cursor = () => localStorage.getItem(DB_CURSOR_KEY);
+const CTX = {}; // the injected router ignores context
+
+describe('DB intents — RECEIVE bounded-retry model', () => {
+  it('(a) a handler that THROWS once then succeeds is retried, not lost', async () => {
+    const server = createMemoryIntentsServer();
+    await seedRows(server, 1); // one row at seq 1
+
+    let calls = 0;
+    const route = async () => {
+      calls++;
+      if (calls === 1) throw new Error('transient db error');
+      return 'ok';
+    };
+
+    // First poll: handler throws → HOLD. Cursor must NOT advance; counter persisted.
+    await pollDbIntents(CTX, { connection: CONN, vaultFetch: server.vaultFetch, routeIncoming: route });
+    expect(cursor()).toBeNull();
+    expect(retries()).toEqual({ 1: 1 });
+
+    // Second poll: same row redelivered (cursor held), handler now succeeds → advance + clear.
+    await pollDbIntents(CTX, { connection: CONN, vaultFetch: server.vaultFetch, routeIncoming: route });
+    expect(Number(cursor())).toBe(1);
+    expect(retries()).toEqual({}); // counter cleared on success
+    expect(calls).toBe(2); // delivered twice: failed, then succeeded — never dropped
+  });
+
+  it('a HOLD stops the entire drain — no further pages this poll', async () => {
+    const server = createMemoryIntentsServer({ pageSize: 500 });
+    await seedRows(server, 600); // two pages
+
+    const route = async () => { throw new Error('boom'); };
+    await pollDbIntents(CTX, { connection: CONN, vaultFetch: server.vaultFetch, routeIncoming: route });
+
+    // Threw on the very first row → held immediately; page 2 never fetched.
+    expect(server.calls.list).toHaveLength(1);
+    expect(cursor()).toBeNull();          // cursor unadvanced
+    expect(retries()).toEqual({ 1: 1 });  // only the first row's seq is counted
+  });
+
+  it('(b) a row that throws >= MAX_INTENT_RETRIES is given up, logged, and skipped (no wedge)', async () => {
+    const server = createMemoryIntentsServer();
+    await seedRows(server, 2); // seq 1 (poison) then seq 2 (good)
+
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // seq 1 always throws; seq 2 succeeds. Key off the decoded envelope's task id.
+    const route = async (envelope) => {
+      if (envelope.payload?.task_id === 't-0') throw new Error('always fails');
+      return 'ok';
+    };
+
+    // Polls 1..(MAX-1): each throws on seq 1 → HOLD, cursor stays null, counter climbs.
+    for (let n = 1; n < MAX_INTENT_RETRIES; n++) {
+      await pollDbIntents(CTX, { connection: CONN, vaultFetch: server.vaultFetch, routeIncoming: route });
+      expect(cursor()).toBeNull();
+      expect(retries()).toEqual({ 1: n });
+    }
+
+    // Poll MAX: count reaches MAX_INTENT_RETRIES → give up on seq 1, advance past it,
+    // then seq 2 succeeds → cursor lands at 2. Channel did not wedge.
+    await pollDbIntents(CTX, { connection: CONN, vaultFetch: server.vaultFetch, routeIncoming: route });
+    expect(Number(cursor())).toBe(2);
+    expect(retries()).toEqual({}); // poison counter cleared on give-up; no leak
+
+    // Give-up was logged loudly.
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Giving up on intent'),
+      expect.anything(),
+    );
+
+    // A subsequent poll re-delivers nothing (single empty page from the advanced cursor).
+    server.calls.list.length = 0;
+    await pollDbIntents(CTX, { connection: CONN, vaultFetch: server.vaultFetch, routeIncoming: route });
+    expect(server.calls.list).toHaveLength(1);
+    expect(server.calls.list[0].since).toBe(2);
+
+    errSpy.mockRestore();
+  });
+
+  it('(c) the failure counter persists across a simulated reload', async () => {
+    const server = createMemoryIntentsServer();
+    await seedRows(server, 1);
+
+    const route = async () => { throw new Error('still failing'); };
+
+    // First poll on "session 1": counter → 1, held.
+    await pollDbIntents(CTX, { connection: CONN, vaultFetch: server.vaultFetch, routeIncoming: route });
+    expect(retries()).toEqual({ 1: 1 });
+
+    // Simulate an app reload: brand-new localStorage seeded ONLY from what was
+    // persisted (retry counter; cursor was never advanced so it's absent). If the
+    // counter were in-memory it would reset to 0 here and never reach the cap.
+    const persistedRetry = localStorage.getItem(DB_RETRY_KEY);
+    global.localStorage = memLocalStorage();
+    localStorage.setItem(DB_RETRY_KEY, persistedRetry);
+
+    // First poll on "session 2": same row redelivered, throws again → counter 2,
+    // proving it accumulated across the reload rather than restarting.
+    await pollDbIntents(CTX, { connection: CONN, vaultFetch: server.vaultFetch, routeIncoming: route });
+    expect(retries()).toEqual({ 1: 2 });
+    expect(cursor()).toBeNull();
+  });
+
+  it('(d) a SOFT failure (result.success===false → permanent) advances past, no retry', async () => {
+    const server = createMemoryIntentsServer();
+    await seedRows(server, 1);
+
+    let calls = 0;
+    const route = async () => { calls++; return 'permanent'; }; // handler refuses this intent
+
+    await pollDbIntents(CTX, { connection: CONN, vaultFetch: server.vaultFetch, routeIncoming: route });
+    expect(Number(cursor())).toBe(1);  // advanced past — permanent, not retried
+    expect(retries()).toEqual({});     // no counter created for a permanent failure
+    expect(calls).toBe(1);
+
+    // Not redelivered on the next poll.
+    server.calls.list.length = 0;
+    await pollDbIntents(CTX, { connection: CONN, vaultFetch: server.vaultFetch, routeIncoming: route });
+    expect(server.calls.list).toHaveLength(1);
+    expect(server.calls.list[0].since).toBe(1);
+    expect(calls).toBe(1); // route NOT called again
   });
 });
