@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeTaskArrays, mergeRoutineDefinitions, mergeDailyNotes, mergeHabits, mergeHabitLogs, mergeSyncData } from './mergeSync.js';
+import { mergeTaskArrays, mergeRoutineDefinitions, mergeDailyNotes, mergeHabits, mergeHabitLogs, mergeSyncData, mergeCalendarConfigByUser } from './mergeSync.js';
 
 // Helpers to create task fixtures with timestamps
 const T = (id, title, lastModified, extra = {}) => ({
@@ -1946,5 +1946,66 @@ describe('mergeSyncData — multi-user roster', () => {
     const remote = { ...base(), multiUserEnabled: true, multiUserEnabledUpdatedAt: ts(5) };
     const { data } = mergeSyncData(local, remote);
     expect(data.multiUserEnabled).toBeUndefined();
+  });
+});
+
+// Per-user calendar config: URLs (and opt-in credentials) travel per-user via the
+// calendarConfigByUser map so they sync across one user's devices without leaking
+// to others. The top-level syncUrl/taskCalendarUrl go device-local in multi-user.
+describe('mergeCalendarConfigByUser', () => {
+  // NOTE: ts(minutesAgo) — a SMALLER argument is more recent.
+  it('unions entries from both sides, keeping the newer per syncId', () => {
+    const a = { jason: { syncUrl: 'https://a', updatedAt: ts(5) } }; // newer — A wins
+    const b = {
+      jason: { syncUrl: 'https://b', updatedAt: ts(60) }, // older
+      kim:   { syncUrl: 'https://k', updatedAt: ts(20) }, // only on B — adopted
+    };
+    const out = mergeCalendarConfigByUser(a, b);
+    expect(out.jason.syncUrl).toBe('https://a');
+    expect(out.kim.syncUrl).toBe('https://k');
+  });
+
+  it('a newer remote entry overrides the local one', () => {
+    const a = { jason: { syncUrl: 'https://old', updatedAt: ts(60) } }; // older
+    const b = { jason: { syncUrl: 'https://new', updatedAt: ts(5) } };  // newer
+    expect(mergeCalendarConfigByUser(a, b).jason.syncUrl).toBe('https://new');
+  });
+
+  it('tolerates empty / missing sides', () => {
+    expect(mergeCalendarConfigByUser(undefined, undefined)).toEqual({});
+    expect(mergeCalendarConfigByUser({ a: { updatedAt: ts(1) } }, undefined)).toEqual({ a: { updatedAt: ts(1) } });
+  });
+});
+
+describe('mergeSyncData — per-user calendar config', () => {
+  const base = () => ({
+    tasks: [], unscheduledTasks: [], recycleBin: [], recurringTasks: [],
+    completedTaskUids: [], deletedTaskIds: {}, routineDefinitions: {},
+    todayRoutines: [], routinesDate: '', deletedRoutineChipIds: {},
+    removedTodayRoutineIds: {}, dailyNotes: {},
+  });
+
+  it('single-user: top-level calendar URLs still merge (prefer non-empty)', () => {
+    const local = { ...base(), syncUrl: '', taskCalendarUrl: '' };
+    const remote = { ...base(), syncUrl: 'https://feed', taskCalendarUrl: 'https://tasks' };
+    const { data } = mergeSyncData(local, remote);
+    expect(data.syncUrl).toBe('https://feed');
+    expect(data.taskCalendarUrl).toBe('https://tasks');
+  });
+
+  it('multi-user: top-level calendar URLs are device-local (remote never overrides)', () => {
+    const local = { ...base(), multiUserEnabled: true, syncUrl: 'https://mine', taskCalendarUrl: '' };
+    const remote = { ...base(), syncUrl: 'https://theirs', taskCalendarUrl: 'https://theirtasks' };
+    const { data } = mergeSyncData(local, remote);
+    expect(data.syncUrl).toBe('https://mine');
+    expect(data.taskCalendarUrl).toBe('');
+  });
+
+  it('merges calendarConfigByUser per syncId across devices', () => {
+    const local = { ...base(), calendarConfigByUser: { jason: { syncUrl: 'https://j', updatedAt: ts(60) } } };
+    const remote = { ...base(), calendarConfigByUser: { kim: { syncUrl: 'https://k', updatedAt: ts(20) } } };
+    const { data } = mergeSyncData(local, remote);
+    expect(data.calendarConfigByUser.jason.syncUrl).toBe('https://j');
+    expect(data.calendarConfigByUser.kim.syncUrl).toBe('https://k');
   });
 });

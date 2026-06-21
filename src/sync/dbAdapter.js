@@ -340,13 +340,15 @@ const ALWAYS_DEVICE_LOCAL = new Set([
   'minimizedSections', 'use24HourClock', 'weatherZip', 'weatherTempUnit', 'multiUserEnabled',
   'obsidianConfig',
 ]);
-// Feature-enablement toggles are device-local ONLY when multi-user is on, so one
-// household member hiding a feature does not hide it for everyone. A single-user
-// install keeps them syncing last-writer-wins across that user's own devices —
-// the gate below reads the LOCAL multiUserEnabled flag (itself device-local, so
-// stable regardless of merge order).
+// Feature-enablement toggles and the calendar-subscription URLs are device-local
+// ONLY when multi-user is on. For the toggles, so one household member hiding a
+// feature does not hide it for everyone; for the URLs, because each user's
+// calendar config travels per-user via the calendarConfigByUser map instead (so
+// it never leaks to other users on the same account). A single-user install
+// keeps both syncing across that user's own devices — the gate reads the LOCAL
+// multiUserEnabled flag (itself device-local, so stable regardless of merge order).
 const MULTIUSER_DEVICE_LOCAL = new Set([
-  'habitsEnabled', 'routinesEnabled', 'goalsProjectsEnabled',
+  'habitsEnabled', 'routinesEnabled', 'goalsProjectsEnabled', 'syncUrl', 'taskCalendarUrl',
 ]);
 // True when `key` must keep the local value rather than accept the pulled one,
 // given this device's multi-user state. Used by both the merge and the re-push
@@ -395,10 +397,26 @@ function mergeBundle(data, key, value, extra) {
       return;
     case 'syncUrl':
     case 'taskCalendarUrl':
+      // Multi-user: keep local — the per-user calendarConfigByUser map carries
+      // each user's URL instead, so it never leaks across users on one account.
+      if (data.multiUserEnabled) return;
       // prefer a non-empty value; don't let an unconfigured device clear a URL
       // (mirrors merge.js:810-815).
       data[key] = value || data[key] || '';
       return;
+    case 'calendarConfigByUser': {
+      // {syncId → {syncUrl, taskCalendarUrl, auth?, updatedAt}}: union by syncId,
+      // keep the newer entry per user (LWW). Each device reads only its own
+      // syncId's entry, so concurrent edits by different users never collide.
+      const local = data.calendarConfigByUser || {};
+      const remote = value || {};
+      const out = { ...local };
+      for (const [sid, entry] of Object.entries(remote)) {
+        if (!out[sid] || ts(entry?.updatedAt) > ts(out[sid]?.updatedAt)) out[sid] = entry;
+      }
+      data.calendarConfigByUser = out;
+      return;
+    }
     case 'habitsEnabled':
     case 'routinesEnabled':
     case 'goalsProjectsEnabled': {

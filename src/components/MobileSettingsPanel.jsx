@@ -22,6 +22,7 @@ import MobileRoutinesTab from './MobileRoutinesTab.jsx';
 import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
+import { isVaultEnabled } from '../sync/vaultConfig.js';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from '../intents/useIntentPoller.js';
 import { syncSharedUsers, syncSharedUsersViaICloud } from '../intents/sharedUsers.js';
@@ -63,6 +64,7 @@ const MobileSettingsPanel = () => {
     syncUrl, setSyncUrl,
     taskCalendarUrl, setTaskCalendarUrl,
     taskCalendarAuth, setTaskCalendarAuth,
+    syncCalendarCreds, setSyncCalendarCreds,
     syncRetentionDays, setSyncRetentionDays,
     calSyncStatus, calSyncLastSynced, calSyncConfigured,
     availableCalendars, setAvailableCalendars,
@@ -617,6 +619,22 @@ const MobileSettingsPanel = () => {
               Username + password fetches protected task calendars. Adding a CalDAV Base URL also syncs completion status back to your server.
             </p>
           </div>
+        )}
+        {multiUserEnabled && meUserSyncId && (
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={syncCalendarCreds}
+              onChange={(e) => setSyncCalendarCreds(e.target.checked)}
+              className="mt-0.5 flex-shrink-0"
+            />
+            <span className={`text-xs ${textSecondary}`}>
+              {t('settings.syncCalendarCreds')}
+              {!(cloudSyncConfig?.encryptionEnabled || isVaultEnabled()) && (
+                <span className="block mt-0.5 italic">{t('settings.syncCalendarCredsNeedsEncryption')}</span>
+              )}
+            </span>
+          </label>
         )}
         <div>
           <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.keepPastEvents')}</label>

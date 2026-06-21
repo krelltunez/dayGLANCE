@@ -151,6 +151,8 @@
     "taskCalendarUrl": "Task Calendar URL (iCal/CalDAV)",
     "taskCalendarAuth": "Basic auth / sync completions back (optional)",
     "calDAVBaseUrl": "CalDAV Base URL",
+    "syncCalendarCreds": "Sync calendar credentials across my devices",
+    "syncCalendarCredsNeedsEncryption": "Takes effect once sync encryption is on — until then, credentials stay on this device.",
     "keepPastEvents": "Keep past events",
     "appPassword": "App Password",
     "deviceCalendars": "Device Calendars",

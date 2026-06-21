@@ -20,7 +20,21 @@ export const mergeTaskArrays = (local, remote, deletedIds, syncHorizon = null) =
 //  - the feature toggles are device-local ONLY when multi-user is on; a
 //    single-user install keeps syncing them LWW across that user's own devices.
 const ALWAYS_LOCAL_KEYS = ['obsidianConfig'];
-const MULTIUSER_LOCAL_KEYS = ['habitsEnabled', 'routinesEnabled', 'goalsProjectsEnabled'];
+// syncUrl/taskCalendarUrl are device-local in multi-user because each user's
+// calendar config travels per-user via the calendarConfigByUser map instead.
+const MULTIUSER_LOCAL_KEYS = ['habitsEnabled', 'routinesEnabled', 'goalsProjectsEnabled', 'syncUrl', 'taskCalendarUrl'];
+
+// Per-user calendar config: {syncId → {syncUrl, taskCalendarUrl, auth?, updatedAt}}.
+// Union by syncId, keeping the newer entry per user (LWW). Each device reads only
+// its own syncId's entry, so concurrent edits by different users never collide.
+export const mergeCalendarConfigByUser = (local = {}, remote = {}) => {
+  const out = { ...(local || {}) };
+  for (const [sid, entry] of Object.entries(remote || {})) {
+    const newer = !out[sid] || new Date(entry?.updatedAt || 0) > new Date(out[sid]?.updatedAt || 0);
+    if (newer) out[sid] = entry;
+  }
+  return out;
+};
 export {
   mergeDailyNotes,
   mergeHabits,
@@ -138,6 +152,13 @@ export const mergeSyncData = (local, remote, retentionDays) => {
   // Make sure a heal (one side's count changing) actually triggers a write/push.
   if (habitLogsFix.localChanged) result.localChanged = true;
   if (habitLogsFix.remoteChanged) result.remoteChanged = true;
+  // Per-user calendar config merges by syncId (the upstream merge doesn't know
+  // this key), so resolve it explicitly here from both sides.
+  if (local?.calendarConfigByUser || remote?.calendarConfigByUser) {
+    result.data.calendarConfigByUser = mergeCalendarConfigByUser(
+      local?.calendarConfigByUser, remote?.calendarConfigByUser,
+    );
+  }
   // Keep device-local settings on this device's own value rather than the
   // last-writer-wins result. Feature toggles only when multi-user is on, so a
   // household member's toggle never propagates; single-user keeps syncing them.
