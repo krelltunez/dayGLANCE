@@ -101,6 +101,10 @@ const deepEqual = (a, b) => {
   if (ka.length !== kb.length) return false;
   return ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && deepEqual(a[k], b[k]));
 };
+// Last-writer-wins for a single config value via paired updatedAt timestamps;
+// remote wins ties (mirrors merge.js pickConfigByTs:12-17).
+const pickByTs = (localVal, localTs, remoteVal, remoteTs) =>
+  (ts(remoteTs) >= ts(localTs) ? remoteVal : localVal);
 
 // ── kind / mutability / tiebreaker (engine callbacks) ──────────────────────────
 export function entityKind(entity) {
@@ -282,7 +286,7 @@ export function applyRemoteEntity(data, entity) {
   if (kind === SINGLETON_KIND) {
     const key = entity._key;
     mergeBundle(data, key, entity.value, entity._extra || {});
-    if (DEVICE_LOCAL_BUNDLES.has(key)) return []; // kept local, never re-pushed
+    if (keptLocalBundle(data, key)) return []; // kept local, never re-pushed
     const merged = makeSingletonEntity(data, key);
     const same = deepEqual(merged.value, entity.value) && deepEqual(merged._extra || {}, entity._extra || {});
     return same ? [] : [makeEntityId(SINGLETON_KIND, key)];
@@ -329,14 +333,26 @@ const TOMBSTONE_BUNDLES = new Set([
 ]);
 // Device-local prefs: the file-tier merge keeps the local value (merge.js:900-901
 // / weather not in merge output), so a pulled value never overwrites it. Listed
-// so the default branch doesn't LWW-clobber them. The feature-enablement toggles
-// (habitsEnabled/routinesEnabled/goalsProjectsEnabled) and obsidianConfig are
-// device-local so one household member toggling a feature — or pointing Obsidian
-// at a different vault — does not flip it for everyone else on the same account.
-const DEVICE_LOCAL_BUNDLES = new Set([
+// so the default branch doesn't LWW-clobber them. obsidianConfig is here
+// unconditionally because the Obsidian vault genuinely differs per machine
+// (installed or not, different path).
+const ALWAYS_DEVICE_LOCAL = new Set([
   'minimizedSections', 'use24HourClock', 'weatherZip', 'weatherTempUnit', 'multiUserEnabled',
-  'habitsEnabled', 'routinesEnabled', 'goalsProjectsEnabled', 'obsidianConfig',
+  'obsidianConfig',
 ]);
+// Feature-enablement toggles are device-local ONLY when multi-user is on, so one
+// household member hiding a feature does not hide it for everyone. A single-user
+// install keeps them syncing last-writer-wins across that user's own devices —
+// the gate below reads the LOCAL multiUserEnabled flag (itself device-local, so
+// stable regardless of merge order).
+const MULTIUSER_DEVICE_LOCAL = new Set([
+  'habitsEnabled', 'routinesEnabled', 'goalsProjectsEnabled',
+]);
+// True when `key` must keep the local value rather than accept the pulled one,
+// given this device's multi-user state. Used by both the merge and the re-push
+// guard so they stay in lockstep.
+const keptLocalBundle = (data, key) =>
+  ALWAYS_DEVICE_LOCAL.has(key) || (MULTIUSER_DEVICE_LOCAL.has(key) && !!data.multiUserEnabled);
 
 function mergeBundle(data, key, value, extra) {
   if (TOMBSTONE_BUNDLES.has(key)) {
@@ -383,11 +399,20 @@ function mergeBundle(data, key, value, extra) {
       // (mirrors merge.js:810-815).
       data[key] = value || data[key] || '';
       return;
+    case 'habitsEnabled':
+    case 'routinesEnabled':
+    case 'goalsProjectsEnabled': {
+      // Multi-user: keep local (device-local). Single-user: LWW across own devices.
+      if (data.multiUserEnabled) return;
+      const tsKey = `${key}UpdatedAt`;
+      data[key] = pickByTs(data[key], data[tsKey], value, extra[tsKey]);
+      data[tsKey] = newerIso(data[tsKey], extra[tsKey]);
+      return;
+    }
     default:
-      // habitsEnabled / routinesEnabled / goalsProjectsEnabled / obsidianConfig
-      // fall through here and are kept local (DEVICE_LOCAL_BUNDLES) — see the set
-      // definition for why these are per-device rather than last-writer-wins.
-      if (DEVICE_LOCAL_BUNDLES.has(key)) return; // keep local
+      // obsidianConfig (and the clock/weather/minimized prefs) are kept local —
+      // see ALWAYS_DEVICE_LOCAL for why these are per-device, not last-writer-wins.
+      if (ALWAYS_DEVICE_LOCAL.has(key)) return; // keep local
       // Unknown bundle: fall back to LWW overwrite, but make it visible so a new
       // bundle type isn't silently subjected to a loss window.
       // eslint-disable-next-line no-console

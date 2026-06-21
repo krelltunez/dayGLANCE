@@ -1520,27 +1520,36 @@ describe('mergeSyncData — habits integration', () => {
     expect(data.habitLogs['2026-02-20']['1']).toBe(7);
   });
 
-  it('keeps habitsEnabled device-local (remote never overrides)', () => {
+  it('single-user: habitsEnabled still propagates from remote (LWW)', () => {
     const deviceA = { ...base, habits: [], habitLogs: {}, habitsEnabled: true };
     const deviceB = { ...base, habits: [], habitLogs: {}, habitsEnabled: false };
     const { data } = mergeSyncData(deviceA, deviceB);
-    // Device A keeps its own toggle even though B's value would win LWW — so one
-    // household member turning Habits off does not turn it off for everyone.
+    // No multiUserEnabled flag → the toggle syncs across the user's own devices.
+    expect(data.habitsEnabled).toBe(false);
+  });
+
+  it('multi-user: keeps habitsEnabled device-local (remote never overrides)', () => {
+    const deviceA = { ...base, habits: [], habitLogs: {}, habitsEnabled: true, multiUserEnabled: true };
+    const deviceB = { ...base, habits: [], habitLogs: {}, habitsEnabled: false };
+    const { data } = mergeSyncData(deviceA, deviceB);
+    // Device A has multi-user on, so it keeps its own toggle even though B's value
+    // would win LWW — one household member turning Habits off can't hide it for all.
     expect(data.habitsEnabled).toBe(true);
   });
 
-  it('keeps routinesEnabled device-local (remote never overrides)', () => {
-    const deviceA = { ...base, routinesEnabled: true };
-    const deviceB = { ...base, routinesEnabled: false };
+  it('multi-user: keeps routinesEnabled and goalsProjectsEnabled device-local', () => {
+    const deviceA = { ...base, routinesEnabled: true, goalsProjectsEnabled: false, multiUserEnabled: true };
+    const deviceB = { ...base, routinesEnabled: false, goalsProjectsEnabled: true };
     const { data } = mergeSyncData(deviceA, deviceB);
     expect(data.routinesEnabled).toBe(true);
+    expect(data.goalsProjectsEnabled).toBe(false);
   });
 
-  it('keeps goalsProjectsEnabled and obsidianConfig device-local', () => {
-    const deviceA = { ...base, goalsProjectsEnabled: false, obsidianConfig: { taskHeading: '## A' } };
-    const deviceB = { ...base, goalsProjectsEnabled: true, obsidianConfig: { taskHeading: '## B' } };
+  it('keeps obsidianConfig device-local even with multi-user off', () => {
+    const deviceA = { ...base, obsidianConfig: { taskHeading: '## A' } };
+    const deviceB = { ...base, obsidianConfig: { taskHeading: '## B' } };
     const { data } = mergeSyncData(deviceA, deviceB);
-    expect(data.goalsProjectsEnabled).toBe(false);
+    // Obsidian vault differs per machine, so it is always device-local.
     expect(data.obsidianConfig).toEqual({ taskHeading: '## A' });
   });
 
