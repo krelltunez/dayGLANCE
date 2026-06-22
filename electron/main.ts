@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createWsServer } from './ws-server.js';
 import { registerSubscriptionHandlers } from './subscription.js';
+import { registerCalendarHandlers } from './calendar.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -620,6 +621,7 @@ app.whenReady().then(() => {
   const win = createWindow();
   createWsServer(() => live(mainWindow));
   registerSubscriptionHandlers(win);
+  registerCalendarHandlers();
   if (process.platform === 'darwin') { createTray(); startICloudWatch(win); }
 
   app.on('activate', () => {

@@ -129,6 +129,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   makeICloudDir: (relativePath: string): Promise<boolean> =>
     ipcRenderer.invoke('icloud:make-dir', relativePath),
 
+  // Native calendar (macOS / EventKit) — read-only access to the system Calendar
+  // via a signed Swift helper spawned by the main process. Mirrors the mobile
+  // bridge's JSON contract so the renderer reuses nativeEventToTask unchanged.
+  // All return empty/false on non-macOS platforms.
+  requestCalendarAccess: (): Promise<{ granted: boolean }> =>
+    ipcRenderer.invoke('calendar:request-access'),
+  getCalendars: (): Promise<Array<{ id: string; name: string; accountName: string; color: string }>> =>
+    ipcRenderer.invoke('calendar:get-calendars'),
+  // Returns a per-day map { "YYYY-MM-DD": Event[] } covering [startDate, endDate] inclusive.
+  getCalendarEvents: (startDate: string, endDate: string): Promise<Record<string, unknown[]>> =>
+    ipcRenderer.invoke('calendar:get-events', startDate, endDate),
+
   // Tray popup listens for the signal to focus the quick-add input.
   onFocusQuickAdd: (callback: () => void) => {
     const handler = () => callback();
