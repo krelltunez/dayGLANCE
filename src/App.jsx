@@ -1967,7 +1967,6 @@ const DayPlanner = () => {
   const iCloudSyncRef = useRef(null);
   const openNewInboxTaskRef = useRef(null);
   const openNewTaskFormRef = useRef(null);
-  const iCloudAvailableRef = useRef(null); // null=unchecked, true/false=result
   const iCloudLastWriteAtRef = useRef(0);
 
   const isElectronMac = () =>
@@ -2013,15 +2012,18 @@ const DayPlanner = () => {
     // If the file happens to be an encrypted envelope (written by an older build),
     // we attempt to decrypt it once and write it back as plaintext below.
 
-    // iOS: check iCloud availability once and cache.
+    // iOS: re-probe iCloud availability every cycle rather than caching a sticky
+    // result. A sticky cache meant disabling iCloud Drive mid-session left the value
+    // at `true`, so every 15s poll still read the container, got an "iCloud not
+    // available" error, and flashed a transient sync error until the app was
+    // relaunched. Re-probing is cheap (a nil-container check) and self-healing: we
+    // bail silently while iCloud is off and resume automatically when it returns.
     if (onIOS) {
-      if (iCloudAvailableRef.current === null) {
-        try {
-          const r = JSON.parse(window.DayGlanceNative.iCloudAvailable());
-          iCloudAvailableRef.current = r.available === true;
-        } catch { iCloudAvailableRef.current = false; }
-      }
-      if (!iCloudAvailableRef.current) return;
+      let available = false;
+      try {
+        available = JSON.parse(window.DayGlanceNative.iCloudAvailable()).available === true;
+      } catch { available = false; }
+      if (!available) return;
     }
 
     cloudSyncInProgressRef.current = true;
