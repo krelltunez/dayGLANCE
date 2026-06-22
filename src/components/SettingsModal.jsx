@@ -7,7 +7,8 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
-import { isNativeAndroid, isNativeApp, nativeGetCalendars } from '../native.js';
+import { isNativeAndroid, nativeGetCalendars } from '../native.js';
+import { hasNativeCalendar, electronCalendarAvailable, electronGetCalendars } from '../utils/nativeCalendar.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault } from '../obsidian.js';
 import { INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from '../intents/useIntentPoller.js';
 import { syncSharedUsers, syncSharedUsersViaICloud } from '../intents/sharedUsers.js';
@@ -769,7 +770,7 @@ const SettingsModal = () => {
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.calSync && (<>
-                      {!isNativeApp() && (
+                      {!hasNativeCalendar() && (
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>
                           {t('settings.calendarUrl')}
@@ -790,7 +791,7 @@ const SettingsModal = () => {
                         </p>
                       </div>
                       )}
-                      {!isNativeApp() && syncUrl && (
+                      {!hasNativeCalendar() && syncUrl && (
                         <div className={`space-y-2 pl-3 border-l-2 ${darkMode ? 'border-gray-600' : 'border-stone-300'}`}>
                           <p className={`text-xs font-medium ${textSecondary}`}>{t('settings.calendarBasicAuth')}</p>
                           <div className="flex gap-2">
@@ -817,7 +818,7 @@ const SettingsModal = () => {
                           </div>
                         </div>
                       )}
-                      {isNativeApp() && (
+                      {hasNativeCalendar() && (
                         <p className={`text-xs ${textSecondary}`}>
                           Calendar events are read from your device accounts. Use the Device Calendars section below to choose which calendars to show.
                         </p>
@@ -932,11 +933,14 @@ const SettingsModal = () => {
                           {t('common.lastSynced')}: {new Date(calSyncLastSynced).toLocaleString()}
                         </p>
                       )}
-                      {isNativeApp() && (
+                      {hasNativeCalendar() && (
                         <div className="space-y-2 pt-1">
                           <div className="flex items-center justify-between">
                             <p className={`text-sm font-medium ${textPrimary}`}>{t('settings.deviceCalendars')}</p>
-                            <button onClick={() => { const cals = nativeGetCalendars(); if (cals.length > 0) setAvailableCalendars(cals); }} className={`text-xs ${textSecondary} underline`}>{t('common.refresh')}</button>
+                            <button onClick={async () => {
+                              const cals = electronCalendarAvailable() ? await electronGetCalendars() : nativeGetCalendars();
+                              if (cals.length > 0) setAvailableCalendars(cals);
+                            }} className={`text-xs ${textSecondary} underline`}>{t('common.refresh')}</button>
                           </div>
                           {availableCalendars.length === 0 ? (
                             <p className={`text-xs ${textSecondary}`}>No calendars loaded — tap Refresh, or rebuild the app if this persists.</p>

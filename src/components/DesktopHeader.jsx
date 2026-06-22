@@ -4,6 +4,7 @@ import {
   HelpCircle, Moon, RefreshCw, Save, Settings, Sun,
 } from 'lucide-react';
 import { dateToString, formatDateRange } from '../utils/taskUtils.js';
+import { hasNativeCalendar } from '../utils/nativeCalendar.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -174,7 +175,7 @@ const DesktopHeader = () => {
 
         {/* Right: Action buttons */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          <button
+          {!hasNativeCalendar() && <button
             onClick={() => {
               if (isSyncing) return;
               if (calSyncConfigured) {
@@ -196,7 +197,7 @@ const DesktopHeader = () => {
                 'bg-green-500'
               }`} />
             )}
-          </button>
+          </button>}
           <button
             onClick={() => {
               if (cloudSyncConfig?.enabled) {
