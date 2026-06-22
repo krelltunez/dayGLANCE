@@ -71,7 +71,21 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   const vaultFilled = vaultEnabled && !!vaultUrl.trim() && !!vaultToken.trim() && !!vaultAccountId.trim();
   const passphraseAvailable = !!getSyncPassphrase() || passphrase.length > 0;
   const vaultEncryptionReady = encryptionEnabled || alreadyEncrypted;
-  const vaultReady = !vaultFilled || (vaultEncryptionReady && passphraseAvailable);
+
+  // The vault config the user is about to save (null when toggled off), compared
+  // against what's persisted. Save only bootstraps/derives the vault key when this
+  // is true (see handleSave), so the passphrase is only actually required then.
+  const nextVaultConfig = vaultEnabled
+    ? { enabled: true, vaultUrl: vaultUrl.trim(), vaultToken: vaultToken.trim(), accountId: vaultAccountId.trim() }
+    : null;
+  const vaultChanged = JSON.stringify(nextVaultConfig) !== JSON.stringify(vaultOriginal || null);
+
+  // GLANCEvault needs the passphrase to (re)derive its key — but only when we'll
+  // actually use it, i.e. when the vault is being enabled or its config edited. An
+  // already-enabled, unchanged vault doesn't bootstrap on Save, so it must NOT block
+  // saving an unrelated change (e.g. the WebDAV toggle) just because the passphrase
+  // isn't in memory after a reload.
+  const vaultReady = !(vaultFilled && vaultChanged) || (vaultEncryptionReady && passphraseAvailable);
 
   // Save is enabled when EITHER transport is fully set up (vault no longer gated
   // on the WebDAV connection) OR the user is turning the vault OFF — so a
@@ -113,11 +127,10 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
     onSyncKeyReady?.(encryptionEnabled);
 
     // GLANCEvault is saved/cleared independently of the file engine. Only stored
-    // when the toggle is on; cleared (reverting to file-only) when off.
-    const nextVault = vaultEnabled
-      ? { enabled: true, vaultUrl: vaultUrl.trim(), vaultToken: vaultToken.trim(), accountId: vaultAccountId.trim() }
-      : null;
-    const vaultChanged = JSON.stringify(nextVault) !== JSON.stringify(vaultOriginal || null);
+    // when the toggle is on; cleared (reverting to file-only) when off. Uses the
+    // hoisted nextVaultConfig/vaultChanged so the gate above and this save agree on
+    // exactly when the vault is changing (and therefore needs the passphrase).
+    const nextVault = nextVaultConfig;
 
     // The vault always shares the sync passphrase; make sure it is in the session
     // before deriving the DB root key (covers re-entry on an already-encrypted setup).
@@ -446,7 +459,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
                 GLANCEvault is always end-to-end encrypted. Turn on “{t('settings.enableE2EEncryption')}” above and set your sync passphrase to enable it.
               </p>
             )}
-            {vaultEncryptionReady && !passphraseAvailable && (
+            {vaultEncryptionReady && vaultChanged && !passphraseAvailable && (
               <p className="text-xs text-amber-500">
                 Enter your sync passphrase in the encryption section above to enable GLANCEvault on this device.
               </p>
