@@ -3824,8 +3824,12 @@ const DayPlanner = () => {
         };
       });
 
+      // Drop both prior _native events and any read-only subscription imports
+      // (importSource 'sync', non-task, non-file) that may have arrived via cloud
+      // merge — on native-calendar devices the live EventKit/bridge fetch is the
+      // sole source, so those would otherwise show as stale gray duplicates.
       setTasks(prev => [
-        ...prev.filter(t => !t._native),
+        ...prev.filter(t => !t._native && !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
         ...fetchedWithOverrides,
       ]);
     };
