@@ -7,7 +7,7 @@ import {
 import { dateToString, extractWikilinks, formatDateRange } from '../utils/taskUtils.js';
 import { renderTitle } from '../utils/textFormatting.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
-import { isNativeApp } from '../native.js';
+import { hasNativeCalendar } from '../utils/nativeCalendar.js';
 import DesktopHeader from './DesktopHeader.jsx';
 import CalendarHeader from './CalendarHeader.jsx';
 import TimeGrid from './TimeGrid.jsx';
@@ -497,7 +497,7 @@ const DesktopLayout = () => {
               )}
           </div>
           <div className="flex items-center gap-2">
-            {!isNativeApp() && <button
+            {!hasNativeCalendar() && <button
               onClick={() => {
                 if (isSyncing) return;
                 if (calSyncConfigured) {

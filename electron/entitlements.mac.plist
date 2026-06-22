@@ -11,6 +11,9 @@
     <!-- Outbound network access (CalDAV, AI APIs, WebSocket, etc.) -->
     <key>com.apple.security.network.client</key>
     <true/>
+    <!-- Read access to the system Calendar via the EventKit helper -->
+    <key>com.apple.security.personal-information.calendars</key>
+    <true/>
     <!-- iCloud entitlements are NOT needed for the Developer ID build: the app
          is unsandboxed and accesses the iCloud container via a plain file path.
          They will be added to a separate entitlements.mas.plist for the future

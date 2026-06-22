@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, Flag, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
+import { hasNativeCalendar, electronGetCalendars, electronGetEventsByDate, electronRequestCalendarAccess, nativeEventToTask } from './utils/nativeCalendar.js';
 import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote, nativeGetNote, nativeWriteNote, nativeOpenNote, nativeListNotes, nativeClearVault, nativeSetVaultSettings, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeStartRecording, nativeStopRecording, triggerHaptic } from './native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, tryRestoreVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative, simpleHash as obsidianSimpleHash, readWikiNote, writeWikiNote, listVaultNotes, appendTaskToDailyNote, appendTaskToDailyNoteNative } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
@@ -428,8 +429,9 @@ const DayPlanner = () => {
   const [calendarFilter, setCalendarFilter] = useState(() => {
     try { return JSON.parse(localStorage.getItem('day-planner-calendar-filter') || '[]'); } catch { return []; }
   });
-  // On native apps, calendar events come from the native bridge — only task calendar URL matters for sync
-  const calSyncConfigured = isNativeApp() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
+  // When a native calendar source is present (mobile bridge or macOS EventKit),
+  // calendar events come from there — only the task calendar URL matters for sync.
+  const calSyncConfigured = hasNativeCalendar() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
   const [calendarUrlAuth, setCalendarUrlAuth] = useState(() => {
     const saved = localStorage.getItem('day-planner-calendar-url-auth');
     return saved ? JSON.parse(saved) : { username: '', password: '' };
@@ -1727,7 +1729,7 @@ const DayPlanner = () => {
 
   useEffect(() => {
     if (isTrayMode) return;
-    const hasSyncTarget = isNativeApp() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
+    const hasSyncTarget = hasNativeCalendar() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
     if (!hasSyncTarget) return;
 
     syncAllRef.current({ silent: true });
@@ -3724,79 +3726,34 @@ const DayPlanner = () => {
   // --- Focus Mode handlers ---
 
 
-  // ── Native Calendar Events (Android only) ────────────────────────────────
+  // ── Native Calendar Events (mobile bridge + macOS Electron) ──────────────
   // Fetches events from the device calendar for a ±2-day window around the
   // selected date and merges them into `tasks` as _native-flagged entries.
   // _native tasks are excluded from saveData so they're never persisted.
-
-  const nativeEventToTask = (event) => {
-    const isAllDay = event.allDay;
-    const startStr = event.start; // "YYYY-MM-DDThh:mm:ss" or "YYYY-MM-DD"
-    const endStr   = event.end;
-
-    // Android formats all-day event timestamps (stored as UTC midnight) as local time
-    // strings without a timezone suffix. In UTC- timezones this shifts the date one day
-    // back (e.g. UTC midnight March 15 → local "2026-03-14T19:00:00"). Parse via Date
-    // so JS treats the string as local time, then read the UTC date from toISOString()
-    // to recover the correct calendar date regardless of device timezone.
-    const allDayDateStr = (str) => {
-      if (!str || str.length === 10) return str; // already "YYYY-MM-DD"
-      return new Date(str).toISOString().substring(0, 10);
-    };
-
-    const startDate = isAllDay ? allDayDateStr(startStr) : startStr.substring(0, 10);
-    // CalendarRepository already subtracts 1 day from Android's exclusive dtend before
-    // sending, so the end arrives as the inclusive last day in "YYYY-MM-DD" format.
-    const endDate = endStr ? endStr.substring(0, 10) : startDate;
-    const isMultiDay = isAllDay && endDate > startDate;
-    // For multi-day all-day events use the queried date so each day they span appears
-    // correctly. Clamp _queryDate to [startDate, endDate]: Android can return an event
-    // one day early/late due to UTC-offset arithmetic, so out-of-range query dates are
-    // snapped to the nearest valid boundary instead of displaying the event off by a day.
-    let date;
-    if (isMultiDay && event._queryDate) {
-      const qd = event._queryDate;
-      date = qd < startDate ? startDate : qd > endDate ? endDate : qd;
-    } else {
-      date = startDate;
-    }
-    const startTime = isAllDay ? null : startStr.substring(11, 16); // "HH:MM"
-    let duration = 60;
-    if (!isAllDay && endStr && endStr.length >= 16) {
-      const endTime = endStr.substring(11, 16);
-      duration = Math.max(15, timeToMinutes(endTime) - timeToMinutes(startTime));
-    }
-    return {
-      // Multi-day all-day events get a per-day ID so each day's copy survives dedup
-      id:                   isMultiDay ? `native-cal-${event.id}-${date}` : `native-cal-${event.id}`,
-      nativeEventId:        event.id,
-      nativeCalendarColor:  event.color || '',
-      title:                event.title || '',
-      date,
-      startTime:            startTime || null,
-      duration,
-      isAllDay,
-      imported:             true,
-      isTaskCalendar:       String(event.id).startsWith('task-'),
-      notes:                event.notes || '',
-      location:             event.location || '',
-      calendarName:         event.calendarName || '',
-      completed:            false,
-      _native:              true,
-    };
-  };
+  // nativeEventToTask now lives in src/utils/nativeCalendar.js.
 
   // Fetch available device calendars once on load
   useEffect(() => {
-    if (!isNativeApp()) return;
-    const cals = nativeGetCalendars();
-    if (cals.length > 0) setAvailableCalendars(cals);
+    if (!hasNativeCalendar()) return;
+    if (isNativeApp()) {
+      const cals = nativeGetCalendars();
+      if (cals.length > 0) setAvailableCalendars(cals);
+    } else {
+      // Electron (macOS): request access first so the calendar list isn't empty
+      // on the very first launch before permission has been granted.
+      let cancelled = false;
+      (async () => {
+        await electronRequestCalendarAccess();
+        const cals = await electronGetCalendars();
+        if (!cancelled && cals.length > 0) setAvailableCalendars(cals);
+      })();
+      return () => { cancelled = true; };
+    }
   }, []);
 
 
   useEffect(() => {
-    if (!isNativeApp()) return;
-
+    if (!hasNativeCalendar()) return;
 
     const dates = [];
     for (let offset = -2; offset <= 2; offset++) {
@@ -3805,75 +3762,88 @@ const DayPlanner = () => {
       dates.push(dateToString(d));
     }
 
-    // nativeGetEvents uses synchronous XHR under the hood (iOS bridge). Calling it
-    // inside Promise.then() blocks the XHR on WKWebView, so we fetch synchronously.
-    const results = dates.map(d => nativeGetEvents(d));
+    // `results` is a per-day array aligned to `dates` — each entry is that day's
+    // event list (or null). The mobile and Electron transports both produce this
+    // shape so the merge below is identical across platforms.
+    const applyEvents = (results) => {
+      // Tag each event with the date it was queried for so multi-day all-day events
+      // can be shown on every day they span, not just their start date.
+      const allEvents = results.flatMap((result, i) =>
+        Array.isArray(result) ? result.map(e => ({ ...e, _queryDate: dates[i] })) : []
+      );
 
-    // Tag each event with the date it was queried for so multi-day all-day events
-    // can be shown on every day they span, not just their start date.
-    const allEvents = results.flatMap((result, i) =>
-      Array.isArray(result) ? result.map(e => ({ ...e, _queryDate: dates[i] })) : []
-    );
-
-
-    // Discover calendars that appear in events but weren't returned by getCalendars()
-    // (e.g. task-only calendars that some providers omit from the calendars list).
-    setAvailableCalendars(prev => {
-      const knownIds = new Set(prev.map(c => c.id));
-      const newCals = [];
-      allEvents.forEach(e => {
-        if (e.calendarId && !knownIds.has(e.calendarId)) {
-          knownIds.add(e.calendarId);
-          newCals.push({ id: e.calendarId, name: e.calendarName || 'Unknown Calendar', accountName: '', color: e.color || '#6b7280' });
-        }
-      });
-      if (newCals.length === 0) return prev;
-      // Extend any active calendarFilter so newly discovered calendars show as checked.
-      setCalendarFilter(f => {
-        if (f.length === 0) return f;
-        const toAdd = newCals.map(c => c.id).filter(id => !f.includes(id));
-        return toAdd.length > 0 ? [...f, ...toAdd] : f;
-      });
-      return [...prev, ...newCals];
-    });
-
-    const filterSet = calendarFilter.length > 0 ? new Set(calendarFilter) : null;
-
-
-    // Deduplicate by task id: CalendarContract can return the same all-day event
-    // in adjacent day windows (especially in UTC+ timezones). Keep first occurrence.
-    const seen = new Set();
-    const fetched = allEvents
-      .filter(e => !filterSet || filterSet.has(e.calendarId))
-      .map(e => nativeEventToTask(e))
-      .filter(t => {
-        if (seen.has(t.id)) return false;
-        seen.add(t.id);
-        return true;
+      // Discover calendars that appear in events but weren't returned by getCalendars()
+      // (e.g. task-only calendars that some providers omit from the calendars list).
+      setAvailableCalendars(prev => {
+        const knownIds = new Set(prev.map(c => c.id));
+        const newCals = [];
+        allEvents.forEach(e => {
+          if (e.calendarId && !knownIds.has(e.calendarId)) {
+            knownIds.add(e.calendarId);
+            newCals.push({ id: e.calendarId, name: e.calendarName || 'Unknown Calendar', accountName: '', color: e.color || '#6b7280' });
+          }
+        });
+        if (newCals.length === 0) return prev;
+        // Extend any active calendarFilter so newly discovered calendars show as checked.
+        setCalendarFilter(f => {
+          if (f.length === 0) return f;
+          const toAdd = newCals.map(c => c.id).filter(id => !f.includes(id));
+          return toAdd.length > 0 ? [...f, ...toAdd] : f;
+        });
+        return [...prev, ...newCals];
       });
 
+      const filterSet = calendarFilter.length > 0 ? new Set(calendarFilter) : null;
 
-    // Apply any stored time overrides (from dragging all-day events to the timeline)
-    // so the scheduled position survives date navigation and native calendar re-fetches.
-    const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
-    const fetchedWithOverrides = fetched.map(t => {
-      const override = t.nativeEventId && overrides[String(t.nativeEventId)];
-      if (!override) return t;
-      return {
-        ...t,
-        ...(override.date !== undefined ? { date: override.date } : {}),
-        ...(override.startTime !== undefined ? { startTime: override.startTime, isAllDay: false } : {}),
-        ...(override.duration !== undefined ? { duration: override.duration } : {}),
-        ...(override.title !== undefined ? { title: override.title } : {}),
-        ...(override.notes !== undefined ? { notes: override.notes } : {}),
-        ...(override.color !== undefined ? { color: override.color } : {}),
-      };
-    });
+      // Deduplicate by task id: CalendarContract can return the same all-day event
+      // in adjacent day windows (especially in UTC+ timezones). Keep first occurrence.
+      const seen = new Set();
+      const fetched = allEvents
+        .filter(e => !filterSet || filterSet.has(e.calendarId))
+        .map(e => nativeEventToTask(e))
+        .filter(t => {
+          if (seen.has(t.id)) return false;
+          seen.add(t.id);
+          return true;
+        });
 
-    setTasks(prev => [
-      ...prev.filter(t => !t._native),
-      ...fetchedWithOverrides,
-    ]);
+      // Apply any stored time overrides (from dragging all-day events to the timeline)
+      // so the scheduled position survives date navigation and native calendar re-fetches.
+      const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
+      const fetchedWithOverrides = fetched.map(t => {
+        const override = t.nativeEventId && overrides[String(t.nativeEventId)];
+        if (!override) return t;
+        return {
+          ...t,
+          ...(override.date !== undefined ? { date: override.date } : {}),
+          ...(override.startTime !== undefined ? { startTime: override.startTime, isAllDay: false } : {}),
+          ...(override.duration !== undefined ? { duration: override.duration } : {}),
+          ...(override.title !== undefined ? { title: override.title } : {}),
+          ...(override.notes !== undefined ? { notes: override.notes } : {}),
+          ...(override.color !== undefined ? { color: override.color } : {}),
+        };
+      });
+
+      setTasks(prev => [
+        ...prev.filter(t => !t._native),
+        ...fetchedWithOverrides,
+      ]);
+    };
+
+    if (isNativeApp()) {
+      // nativeGetEvents uses synchronous XHR under the hood (iOS bridge). Calling it
+      // inside Promise.then() blocks the XHR on WKWebView, so we fetch synchronously.
+      applyEvents(dates.map(d => nativeGetEvents(d)));
+    } else {
+      // Electron (macOS): async IPC pre-fetch over the same window (Option A), then
+      // feed the identical merge path. Guard against out-of-order resolves on rapid
+      // date navigation.
+      let cancelled = false;
+      electronGetEventsByDate(dates).then(results => {
+        if (!cancelled) applyEvents(results);
+      });
+      return () => { cancelled = true; };
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, calendarFilter, nativeCalendarKey]);
 
@@ -5002,9 +4972,10 @@ const DayPlanner = () => {
 
   // Returns { success: boolean, count?: number, error?: string }
   const syncWithCalendar = async () => {
-    // On native apps, calendar events come from the native bridge (EventKit/CalendarBridge).
-    // CalDAV iCal sync would duplicate those events, so skip it entirely.
-    if (isNativeApp()) return { success: false, error: 'no-url' };
+    // When a native calendar source is present (mobile bridge or macOS EventKit),
+    // calendar events come from there. CalDAV iCal sync would duplicate those
+    // events, so skip it entirely.
+    if (hasNativeCalendar()) return { success: false, error: 'no-url' };
     if (!syncUrl) {
       return { success: false, error: 'no-url' };
     }
@@ -5451,7 +5422,7 @@ const DayPlanner = () => {
 
   // Combined sync function that shows a single notification
   const syncAll = async ({ silent = false } = {}) => {
-    const hasSyncTarget = isNativeApp() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
+    const hasSyncTarget = hasNativeCalendar() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
     if (!hasSyncTarget) {
       if (!silent) setSyncNotification({ type: 'info', message: 'Please enter a task calendar URL in sync settings' });
       return;

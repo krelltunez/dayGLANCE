@@ -1,8 +1,48 @@
 # macOS Native Calendar (Electron / EventKit) — Implementation Plan
 
-Status: **planned, not started.** This doc captures full context so the work can
-resume cold in a future session. Follows the calendar work in PRs #1029 (toggles)
-and #1030 (per-user calendar config).
+Status: **code complete (read-only MVP); pending signed-build validation on a Mac.**
+Steps 1–4 of the sequencing below are implemented (chosen designs: Option A async
+cache, Option 1 Swift helper). What remains is compiling/signing the helper and
+manually verifying a notarized build on macOS — neither possible in the CI/Linux
+dev container. Follows the calendar work in PRs #1029 (toggles) and #1030
+(per-user calendar config).
+
+## What landed
+
+- **Swift EventKit helper** — `electron/native/calendar-helper/Sources/main.swift`.
+  Subcommands `request-access`, `auth-status`, `calendars`, `events --start --end`
+  (the events command returns a per-day `{ "YYYY-MM-DD": [event,…] }` map so
+  multi-day all-day events appear under every day they span, mirroring the mobile
+  per-day `getEvents(date)`). Output JSON is byte-for-byte the iOS contract.
+- **Build script** — `scripts/build-calendar-helper.sh` compiles a universal
+  (arm64 + x64) binary; no-ops on non-macOS hosts. Wired into the `build:electron*`
+  npm scripts and gitignored under `electron/native/calendar-helper/build/`.
+- **Main-process IPC** — `electron/calendar.ts` (`registerCalendarHandlers`,
+  registered from `main.ts`): `calendar:request-access`, `calendar:get-calendars`,
+  `calendar:get-events` spawn the helper via `execFile` and return safe empty
+  defaults off-macOS or when the helper is absent.
+- **Preload bridge** — `electron/preload.ts` exposes `requestCalendarAccess`,
+  `getCalendars`, `getCalendarEvents(startDate, endDate)`.
+- **Capability + extraction** — `src/utils/nativeCalendar.js` now owns
+  `nativeEventToTask` (moved out of `App.jsx`) plus `hasNativeCalendar()`,
+  `electronCalendarAvailable()`, and the Electron accessors.
+- **App wiring** — `App.jsx` gates the calendar-fetch effects and the
+  `syncWithCalendar` / `syncAll` / `calSyncConfigured` early-returns on
+  `hasNativeCalendar()`; the fetch effect branches to an async Electron pre-fetch
+  that feeds the unchanged merge path.
+- **Packaging** — `electron-builder.config.cjs` adds `mac`/`mas` `extendInfo`
+  (NSCalendars[FullAccess]UsageDescription) and `extraResources` for the helper;
+  both entitlement plists add `com.apple.security.personal-information.calendars`.
+- **Test** — `src/utils/nativeCalendar.test.js` covers the `nativeEventToTask`
+  mapping against the Electron/mobile event shape.
+
+## Remaining (needs a Mac)
+
+- Run `npm run build:calendar-helper` then `build:electron:release` (or `:mas`) on
+  macOS; confirm the helper is signed inside `Contents/Resources/calendar-helper`
+  and the notarized build passes Gatekeeper.
+- Manual validation per the **Testing / validation** section below.
+- Permission-denied UX polish (step 4 stretch) and write-back (step 5) remain.
 
 ## Goal
 
