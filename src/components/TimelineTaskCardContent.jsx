@@ -163,7 +163,7 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
       <div className="px-2 py-1 flex-1 min-w-0 h-full flex flex-col">
         {isImported && !isCalendarEvent ? null : isCalendarEvent ? (
           /* IMPORTED EVENT LAYOUT: Always show time on right with truncated title */
-          <div className="flex flex-col h-full justify-between gap-0.5">
+          <div className="flex flex-col h-full justify-start gap-0.5">
             <div className="flex items-center justify-between gap-2">
               <div
                 className="font-semibold text-sm leading-tight truncate flex-1 min-w-0"
