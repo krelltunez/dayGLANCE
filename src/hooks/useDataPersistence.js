@@ -1,4 +1,15 @@
 import { dateToString } from '../utils/taskUtils.js';
+import { hasNativeCalendar } from '../utils/nativeCalendar.js';
+
+// Read-only CalDAV/ICS-subscription events (importSource 'sync', non-task,
+// non-file) are ephemeral remote data, re-fetched live each session. On devices
+// with a native calendar source (macOS EventKit / mobile bridge) that live fetch
+// is disabled, so any such events lingering in storage — from an earlier build or
+// a cloud merge — must be dropped rather than shown as stale gray duplicates of
+// the native events. ICS file imports ('file') and CalDAV task-calendar to-dos
+// (isTaskCalendar) are first-class user data and are always kept.
+const isSubscriptionImport = (t) =>
+  !t._native && t.imported && !t.isTaskCalendar && t.importSource !== 'file';
 
 export default function useDataPersistence({
   // setters for loadData
@@ -77,8 +88,11 @@ export default function useDataPersistence({
       if (unscheduledData) localStorage.setItem('day-planner-unscheduled', JSON.stringify(parsedUnscheduled));
 
       // Load tasks normally; preserve any _native events already queued by Effect B
-      // if it raced ahead of loadData in React's state update batch.
-      setTasks(prev => [...parsedTasks, ...prev.filter(t => t._native)]);
+      // if it raced ahead of loadData in React's state update batch. On native-
+      // calendar devices, drop any persisted subscription imports so they don't
+      // linger as stale duplicates of the live EventKit/bridge events.
+      const loadedTasks = hasNativeCalendar() ? parsedTasks.filter(t => !isSubscriptionImport(t)) : parsedTasks;
+      setTasks(prev => [...loadedTasks, ...prev.filter(t => t._native)]);
       setUnscheduledTasks(parsedUnscheduled.filter(t => !t.imported));
       if (recycleBinData) {
         setRecycleBin(JSON.parse(recycleBinData));
@@ -174,7 +188,12 @@ export default function useDataPersistence({
       }
     };
 
-    const stampedTasks = stampTaskTimestamps(tasks.filter(t => !t._native), 'day-planner-tasks');
+    // Never persist _native events; on native-calendar devices also drop ephemeral
+    // subscription imports so they don't reappear (stale) on the next reload.
+    const stampedTasks = stampTaskTimestamps(
+      tasks.filter(t => !t._native && !(hasNativeCalendar() && isSubscriptionImport(t))),
+      'day-planner-tasks'
+    );
     const stampedUnscheduled = stampTaskTimestamps(unscheduledTasks, 'day-planner-unscheduled');
     const stampedRecycleBin = stampTaskTimestamps(recycleBin, 'day-planner-recycle-bin');
     const stampedRecurring = stampTaskTimestamps(recurringTasks, 'day-planner-recurring-tasks');
