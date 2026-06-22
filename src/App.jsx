@@ -3784,12 +3784,21 @@ const DayPlanner = () => {
           }
         });
         if (newCals.length === 0) return prev;
-        // Extend any active calendarFilter so newly discovered calendars show as checked.
-        setCalendarFilter(f => {
-          if (f.length === 0) return f;
-          const toAdd = newCals.map(c => c.id).filter(id => !f.includes(id));
-          return toAdd.length > 0 ? [...f, ...toAdd] : f;
-        });
+        // Extend any active calendarFilter so newly discovered calendars show as
+        // checked — but only once the calendar list has actually loaded (prev
+        // non-empty). On Electron the calendars fetch is async, so on startup the
+        // events can resolve first while prev is still empty; every event-calendar
+        // then looks "new" and augmenting the filter would silently re-check
+        // calendars the user had unselected (calendarFilter loads synchronously
+        // from localStorage, before the async calendar list does). Mobile is
+        // unaffected — nativeGetCalendars() is synchronous.
+        if (prev.length > 0) {
+          setCalendarFilter(f => {
+            if (f.length === 0) return f;
+            const toAdd = newCals.map(c => c.id).filter(id => !f.includes(id));
+            return toAdd.length > 0 ? [...f, ...toAdd] : f;
+          });
+        }
         return [...prev, ...newCals];
       });
 
