@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { buildEnvelope, buildEncryptedEnvelope, eventId as makeEventId, EVENTS, ENTITY_TYPES, deriveEnvelopeKey } from '@glance-apps/intents';
 import { loadIntentsRootKey } from './intentsKeyStore.js';
 import { writeEventFile, writeEventFileICloud, INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from './useIntentPoller.js';
+import { sendIntentDb } from './dbIntentsTransport.js';
+import { isDbIntentsEnabled } from './dbIntentsConfig.js';
 import { logActivity } from './intentLog.js';
 import * as iCloudTransport from './icloudFileTransport.js';
 import { isNativeAndroid } from '../native';
@@ -115,7 +117,9 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
     // Skip emit when neither WebDAV nor iCloud is configured
     const hasWebDAV = !!(config?.webdavUrl && config?.username && config?.appPassword);
     const hasICloud = iCloudTransport.isAvailable();
-    if (!hasWebDAV && !hasICloud) return;
+    // The DB intents transport runs alongside WebDAV/iCloud and may be enabled on
+    // its own, so don't bail when the file tiers are absent if DB intents is active.
+    if (!hasWebDAV && !hasICloud && !isDbIntentsEnabled()) return;
 
     const prevMap = new Map(prev.map(t => [t.id, t]));
     const nextMap = new Map(allTasks.map(t => [t.id, t]));
@@ -149,7 +153,7 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
 
       // Resolve encryption posture once for the whole batch.
       let deriveKey = null;
-      if (config.encryptionEnabled) {
+      if (config?.encryptionEnabled) {
         const rootKey = await loadIntentsRootKey();
         if (!rootKey) {
           // Root key not cached — setup incomplete. Block all emits; do not fall back to plaintext.
@@ -178,6 +182,7 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
             : buildEnvelope({ action: 'notify', payload, emittedBy: 'app.dayglance' });
           await writeEventFile(config, envelope);          // WebDAV (no-ops if not configured)
           await writeEventFileICloud(config, envelope);    // iCloud (no-ops if not available)
+          await sendIntentDb(envelope);                    // GLANCEvault DB (no-ops unless enabled)
           // Android broadcast: only on the plaintext path. Encrypted envelopes can't be
           // used by local listeners (no key), and their ciphertext fields don't survive
           // JSON.stringify cleanly. Tasker users should rely on WebDAV for encrypted setups.
