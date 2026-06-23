@@ -2658,7 +2658,7 @@ const DayPlanner = () => {
 
     // Today's recurring instances past their end time
     const todayRecurring = expandedRecurringTasks.filter(t =>
-      t.date === todayStr && !t.completed && !t.isExample && isOverdueToday(t)
+      t.date === todayStr && !t.completed && !t.isExample && isVisibleForUser(t) && isOverdueToday(t)
     ).map(t => ({ ...t, _overdueType: 'scheduled' }));
 
     // Past uncompleted recurring all-day instances (look back up to 7 days)
@@ -2669,6 +2669,7 @@ const DayPlanner = () => {
       const dateStr = dateToString(d);
       for (const template of recurringTasks) {
         if (template.isExample) continue;
+        if (!isVisibleForUser(template)) continue;
         const isTemplateAllDay = template.isAllDay ?? false;
         if (!isTemplateAllDay) continue;
         const occs = getOccurrencesInRange(template, dateStr, dateStr);
@@ -2892,10 +2893,13 @@ const DayPlanner = () => {
     setTrmnlSyncStatus('syncing');
     try {
       const today = selectedDate ? dateToString(selectedDate) : new Date().toISOString().slice(0, 10);
+      // Multi-user: the TRMNL dashboard belongs to the current user, so scope
+      // tasks to what's visible to "me" before gathering the payload. Imported
+      // calendar events carry no assignment and remain included.
       const mergeVars = gatherTrmnlData({
-        tasks,
-        unscheduledTasks,
-        recurringTasks,
+        tasks: tasks.filter(isVisibleForUser),
+        unscheduledTasks: unscheduledTasks.filter(isVisibleForUser),
+        recurringTasks: recurringTasks.filter(isVisibleForUser),
         selectedDate: today,
         use24HourClock: use24HourClock,
         habits: activeHabits,
@@ -3366,9 +3370,10 @@ const DayPlanner = () => {
   const hasTasksOnDate = (date) => {
     if (!date) return false;
     const dateStr = dateToString(date);
-    if (tasks.some(task => task.date === dateStr)) return true;
+    if (tasks.some(task => task.date === dateStr && isVisibleForUser(task))) return true;
     // Check recurring tasks for this date
     for (const template of recurringTasks) {
+      if (!isVisibleForUser(template)) continue;
       const occs = getOccurrencesInRange(template, dateStr, dateStr);
       if (occs.length > 0) return true;
     }
@@ -3380,7 +3385,7 @@ const DayPlanner = () => {
     const importedDates = new Set();
     const appTaskDates = new Set();
     for (const task of tasks) {
-      if (!task.date) continue;
+      if (!task.date || !isVisibleForUser(task)) continue;
       if (task.imported) importedDates.add(task.date);
       else appTaskDates.add(task.date);
     }
@@ -3391,16 +3396,17 @@ const DayPlanner = () => {
     const rangeEnd = dateToString(new Date(year, month + 1, 0));
     const recurringDates = new Set();
     for (const template of recurringTasks) {
+      if (!isVisibleForUser(template)) continue;
       const occs = getOccurrencesInRange(template, rangeStart, rangeEnd);
       for (const dateStr of occs) recurringDates.add(dateStr);
     }
     // Inbox tasks with deadlines
     const deadlineDates = new Set();
     for (const task of unscheduledTasks) {
-      if (task.deadline) deadlineDates.add(task.deadline);
+      if (task.deadline && isVisibleForUser(task)) deadlineDates.add(task.deadline);
     }
     return { importedDates, appTaskDates, recurringDates, deadlineDates };
-  }, [tasks, recurringTasks, unscheduledTasks, viewedMonth]);
+  }, [tasks, recurringTasks, unscheduledTasks, viewedMonth, isVisibleForUser]);
 
   // Returns which indicator dots to show for a date: { hasNote, hasImported, hasAppTask }
   const getDateIndicators = (date) => {
@@ -6194,8 +6200,8 @@ const DayPlanner = () => {
       const calendarEventsToday = tasks.filter(t => t.date === todayStr && t.imported && !t.isTaskCalendar)
         .map(t => ({ title: t.title, time: t.startTime, isAllDay: t.isAllDay || false, duration: t.duration || 0 }))
         .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-      // Gather today's recurring tasks
-      const todayRecurring = recurringTasks.flatMap(t => {
+      // Gather today's recurring tasks (series-level assignment → filter templates)
+      const todayRecurring = recurringTasks.filter(isVisibleForUser).flatMap(t => {
         const occs = getOccurrencesInRange(t, todayStr, todayStr);
         return occs.map(() => ({ title: t.title, time: t.startTime, completed: (t.completedDates || []).includes(todayStr) }));
       }).filter(t => !t.completed);
@@ -6936,8 +6942,8 @@ const DayPlanner = () => {
 
     // Gather tomorrow's tasks (regular + recurring)
     const regularTasks = tasks.filter(t => t.date === tomorrowStr && !t.completed && !t.isExample && isVisibleForUser(t));
-    // Expand recurring tasks for tomorrow
-    const recurringInstances = recurringTasks.flatMap(template => {
+    // Expand recurring tasks for tomorrow (series-level assignment → filter templates)
+    const recurringInstances = recurringTasks.filter(isVisibleForUser).flatMap(template => {
       const occs = getOccurrencesInRange(template, tomorrowStr, tomorrowStr);
       return occs.map(dateStr => {
         const completed = (template.completedDates || []).includes(dateStr);
