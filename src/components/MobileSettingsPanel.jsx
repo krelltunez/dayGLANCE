@@ -30,6 +30,7 @@ import { syncSharedUsers, syncSharedUsersViaICloud } from '../intents/sharedUser
 import { isAvailable as isICloudAvailable } from '../intents/icloudFileTransport.js';
 import { getSyncPassphrase, setSyncPassphrase } from '../utils/crypto.js';
 import { setupIntentsEncryption } from '../intents/intentsEncryptionSetup.js';
+import { ensureVaultIntentsKey, setupVaultIntentsEncryption } from '../intents/vaultIntentsSetup.js';
 import { loadIntentsRootKey, clearIntentsRootKey } from '../intents/intentsKeyStore.js';
 import { useTranslation } from 'react-i18next';
 
@@ -144,6 +145,9 @@ const MobileSettingsPanel = () => {
   // INHERITED from the GLANCEvault sync config (not edited here).
   const [dbIntentsEnabled, setDbIntentsEnabled] = useState(() => !!getDbIntentsConfig()?.enabled);
   const [dbIntentsSaved, setDbIntentsSaved] = useState(false);
+  // Vault intents key-setup phase: null | 'passphrase-needed' | 'running' | { error }.
+  const [dbIntentsSetupPhase, setDbIntentsSetupPhase] = useState(null);
+  const [dbIntentsPassphraseInput, setDbIntentsPassphraseInput] = useState('');
   const [muAddingUser, setMuAddingUser] = useState(false);
   const [muNewUserName, setMuNewUserName] = useState('');
   const [muEditingUserId, setMuEditingUserId] = useState(null);
@@ -1971,13 +1975,98 @@ const MobileSettingsPanel = () => {
                   </div>
                 </div>
 
+                {/* Vault intents are ALWAYS encrypted. Enabling derives + caches the
+                    vault intents key BEFORE the reload; prompt only when the passphrase
+                    is actually unavailable. */}
+                {dbIntentsSetupPhase === 'passphrase-needed' && (
+                  <div className={`p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
+                    <p className={`text-sm ${textPrimary} mb-2`}>
+                      GLANCEvault intents are always encrypted. Enter your sync passphrase to set up the encryption key.
+                    </p>
+                    <input
+                      type="password"
+                      autoFocus
+                      value={dbIntentsPassphraseInput}
+                      onChange={e => setDbIntentsPassphraseInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Escape') { setDbIntentsSetupPhase(null); setDbIntentsPassphraseInput(''); setDbIntentsEnabled(false); } }}
+                      placeholder="Your sync passphrase"
+                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm mb-2`}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        disabled={!dbIntentsPassphraseInput.trim()}
+                        onClick={async () => {
+                          const passphrase = dbIntentsPassphraseInput.trim();
+                          setSyncPassphrase(passphrase);
+                          setDbIntentsPassphraseInput('');
+                          setDbIntentsSetupPhase('running');
+                          try {
+                            await setupVaultIntentsEncryption(passphrase);
+                          } catch (err) {
+                            setDbIntentsSetupPhase({ error: err.message });
+                            return;
+                          }
+                          const existing = getDbIntentsConfig() || {};
+                          setDbIntentsConfig({ ...existing, enabled: true });
+                          window.location.reload();
+                        }}
+                        className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        onClick={() => { setDbIntentsSetupPhase(null); setDbIntentsPassphraseInput(''); setDbIntentsEnabled(false); }}
+                        className={`px-3 py-1.5 ${darkMode ? 'bg-gray-600 hover:bg-gray-500' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm`}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <p className="text-xs text-amber-500 mt-2">
+                      Encryption setup is required — GLANCEvault intents won't be enabled until the key is set up.
+                    </p>
+                  </div>
+                )}
+                {dbIntentsSetupPhase === 'running' && (
+                  <div className={`flex items-center gap-2 p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
+                    <Loader size={14} className="animate-spin text-blue-500" />
+                    <span className={`text-sm ${textSecondary}`}>Setting up vault intents encryption…</span>
+                  </div>
+                )}
+                {dbIntentsSetupPhase?.error && (
+                  <div className={`p-3 rounded-lg border border-red-300 ${darkMode ? 'bg-red-900/20' : 'bg-red-50'}`}>
+                    <p className="text-sm text-red-500">Setup failed: {dbIntentsSetupPhase.error}</p>
+                    <button
+                      onClick={() => { setDbIntentsSetupPhase(null); setDbIntentsEnabled(false); }}
+                      className="mt-1 text-xs text-red-400 hover:text-red-300 underline"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+
                 <button
-                  onClick={() => {
+                  disabled={dbIntentsSetupPhase === 'running' || dbIntentsSetupPhase === 'passphrase-needed'}
+                  onClick={async () => {
                     // Match-by-construction: spread the EXISTING config and override
                     // only `enabled`, so ttlMs / pollIntervalMinutes are preserved.
                     // Persist via the config module's saver to the key the gate reads.
                     const existing = getDbIntentsConfig() || {};
                     const wasEnabled = !!existing.enabled;
+                    // Vault intents are always encrypted — derive + cache the vault
+                    // intents key BEFORE the reload (the passphrase is gone after).
+                    if (dbIntentsEnabled) {
+                      let res;
+                      try {
+                        res = await ensureVaultIntentsKey();
+                      } catch (err) {
+                        setDbIntentsSetupPhase({ error: err.message });
+                        return; // do NOT enable without a key
+                      }
+                      if (res.needsPassphrase) {
+                        setDbIntentsSetupPhase('passphrase-needed');
+                        return; // prompt; its confirm finishes save + reload
+                      }
+                    }
                     setDbIntentsConfig({ ...existing, enabled: dbIntentsEnabled });
                     // Reload-on-change so useDbIntentPoller remounts (mirrors the
                     // GLANCEvault sync toggle's behavior).
