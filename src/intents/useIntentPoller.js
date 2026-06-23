@@ -63,9 +63,14 @@ function parseFilenameDate(ts) {
 /**
  * PUT a single envelope as a JSON file into the intent events directory.
  * Creates the directory (MKCOL) on first use. Silently no-ops if config is absent.
+ *
+ * Returns the final webdavFetch response ({ status, ok, ... }), or undefined when
+ * config is absent, so the durable-outbox deliverer can map HTTP outcomes to
+ * delivered/transient/permanent. The existing fire-and-forget emit-site callers
+ * ignore the return value, so this is backward-compatible.
  */
 export async function writeEventFile(config, envelope) {
-  if (!config?.webdavUrl || !config?.username || !config?.appPassword) return;
+  if (!config?.webdavUrl || !config?.username || !config?.appPassword) return undefined;
 
   const dir = eventsDir(config);
   const filename = filenameFor(envelope);
@@ -81,6 +86,7 @@ export async function writeEventFile(config, envelope) {
   if (!res.ok) {
     console.error('[intent] writeEventFile failed:', res.status, filename);
   }
+  return res;
 }
 
 // ─── public: garbage-collect old event files ────────────────────────────────
@@ -149,19 +155,24 @@ export async function runIntentGC(config) {
 /**
  * Write a single envelope as a JSON file to iCloud Drive.
  * No-ops if iCloud is unavailable. Creates the events directory on first use.
+ *
+ * Returns true when the file was written, false when iCloud is unavailable or
+ * the write failed (both retryable), so the durable-outbox deliverer can map the
+ * outcome. Existing fire-and-forget callers ignore the return value.
  */
 export async function writeEventFileICloud(config, envelope) {
-  if (!iCloudTransport.isAvailable()) return;
+  if (!iCloudTransport.isAvailable()) return false;
   const eventsRelPath = ((config?.eventsPath ?? DEFAULT_EVENTS_PATH).replace(/^\//, '').replace(/\/*$/, '')) + '/';
   const filename = filenameFor(envelope);
   const filePath = eventsRelPath + filename;
   const body = JSON.stringify(envelope);
-  const ok = await iCloudTransport.writeFile(filePath, body);
+  let ok = await iCloudTransport.writeFile(filePath, body);
   if (!ok) {
     // Directory may not exist yet — create it and retry
     await iCloudTransport.makeDir(eventsRelPath);
-    await iCloudTransport.writeFile(filePath, body);
+    ok = await iCloudTransport.writeFile(filePath, body);
   }
+  return ok;
 }
 
 // ─── iCloud: garbage-collect old event files ─────────────────────────────────

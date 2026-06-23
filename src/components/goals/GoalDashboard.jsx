@@ -50,6 +50,7 @@ import DatePicker from '../DatePicker.jsx';
 import ClockTimePicker from '../ClockTimePicker.jsx';
 import { emitGoalCreate } from '../../intents/emitGoalCreate.js';
 import { INTENT_CONFIG_KEY } from '../../intents/useIntentPoller.js';
+import { enabledIntentTargets } from '../../intents/emitTargets.js';
 
 // ─── Tiny helpers ─────────────────────────────────────────────────────────────
 
@@ -1944,11 +1945,17 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
   const [confirmDialog, setConfirmDialog] = useState(null); // { title, message, onConfirm }
   const [showArchived, setShowArchived] = useState(false);
 
-  const hasWebDAVIntents = useMemo(() => {
-    const raw = localStorage.getItem(INTENT_CONFIG_KEY);
-    if (!raw) return false;
-    const cfg = JSON.parse(raw);
-    return !!(cfg?.webdavUrl && cfg?.username && cfg?.appPassword);
+  // Show the "Track in lifeGLANCE" checkbox whenever ANY intents transport is
+  // enabled — WebDAV, iCloud, OR GLANCEvault — not just WebDAV. emitGoalCreate
+  // delivers over whichever targets are enabled, so the share UI must follow the
+  // same enablement, otherwise a vault-only user can't share goals.
+  const hasIntentsTarget = useMemo(() => {
+    let cfg = null;
+    try {
+      const raw = localStorage.getItem(INTENT_CONFIG_KEY);
+      cfg = raw ? JSON.parse(raw) : null;
+    } catch { cfg = null; }
+    return enabledIntentTargets(cfg).length > 0;
   }, []);
 
   // Trigger props from header buttons (mobile embedded mode)
@@ -2134,7 +2141,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
         </div>
         {goalForm && (
           <FormOverlay onClose={() => setGoalForm(null)} mobile cardBg={cardBg}>
-            <GoalForm initial={goalForm.editing} onSave={handleSaveGoal} onDelete={goalForm.editing ? () => handleDeleteGoal(goalForm.editing.id) : undefined} onCancel={() => setGoalForm(null)} mobile showLifeGlanceCheckbox={hasWebDAVIntents} />
+            <GoalForm initial={goalForm.editing} onSave={handleSaveGoal} onDelete={goalForm.editing ? () => handleDeleteGoal(goalForm.editing.id) : undefined} onCancel={() => setGoalForm(null)} mobile showLifeGlanceCheckbox={hasIntentsTarget} />
           </FormOverlay>
         )}
         {projectForm && (
@@ -2307,7 +2314,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
             onCancel={() => setGoalForm(null)}
             onDelete={goalForm.editing ? () => handleDeleteGoal(goalForm.editing.id) : undefined}
             mobile={isMobile}
-            showLifeGlanceCheckbox={hasWebDAVIntents}
+            showLifeGlanceCheckbox={hasIntentsTarget}
           />
         </FormOverlay>
       )}
