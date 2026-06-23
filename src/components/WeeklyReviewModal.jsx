@@ -24,7 +24,7 @@ const WeeklyReviewModal = () => {
     weeklyAISummary, setWeeklyAISummary,
     weeklyAILoading, weeklyAIError, setWeeklyAIError,
     generateWeeklyAISummary,
-    goals, projects, goalsProjectsEnabled,
+    goals: allGoals, projects: allProjects, goalsProjectsEnabled,
     habitsEnabled, habits, habitLogs,
     gtdFrames,
     aiConfig,
@@ -41,12 +41,14 @@ const WeeklyReviewModal = () => {
 
   if (!showWeeklyReview) return null;
 
-  // Multi-user: the weekly review reflects only the current user's tasks, so
-  // scope every task source here before any stats are computed. Imported
-  // calendar events carry no assignment, so they remain included.
+  // Multi-user: the weekly review reflects only the current user's tasks, goals,
+  // and projects, so scope every source here before any stats are computed.
+  // Imported calendar events carry no assignment, so they remain included.
   const tasks = allTasks.filter(isVisibleForUser);
   const recurringTasks = allRecurringTasks.filter(isVisibleForUser);
   const unscheduledTasks = allUnscheduledTasks.filter(isVisibleForUser);
+  const goals = allGoals.filter(isVisibleForUser);
+  const projects = allProjects.filter(isVisibleForUser);
 
         // Compute rolling 7-day boundaries
         const today = new Date();
