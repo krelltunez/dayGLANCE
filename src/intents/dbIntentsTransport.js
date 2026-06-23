@@ -64,6 +64,20 @@ const MAX_INTENT_RETRIES = 5;
 const PAGE_LIMIT = 500;
 const APP_EMITTER = 'app.dayglance';
 
+// Thrown by routeIncoming when the vault intents key isn't available yet (cached
+// key absent, or a NoKeyError surfaced during parse). This is a TRANSIENT
+// condition — the key becomes available once setup/restore completes — so the
+// drain must HOLD + bounded-retry (same machinery as a handler throw), never
+// advance past the row. Distinct from a genuine decrypt failure with the key
+// PRESENT (wrong key / bad ciphertext), which is permanent.
+export class KeyUnavailableError extends Error {
+  constructor(message = 'vault intents key not available') {
+    super(message);
+    this.name = 'KeyUnavailableError';
+  }
+}
+
+
 // The tray popup holds a read-only snapshot and must never poll — processing an
 // event would consume it before the main window can act (mirrors useIntentPoller).
 const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
@@ -252,12 +266,11 @@ async function routeIncoming(raw, context, opts = {}) {
     if (raw?.encrypted === true) {
       const rootKey = await loadKey();
       if (!rootKey) {
-        console.warn('[db-intent] Skipping encrypted event — intents encryption not set up');
-        logActivity({
-          direction: 'in', action: 'unknown', event: null, source_app: null,
-          title: null, timestamp: new Date().toISOString(), status: 'error', error: 'no_root_key',
-        });
-        return 'permanent';
+        // KEY NOT AVAILABLE — transient (setup not complete yet, or mid-restore).
+        // Throw so the drain HOLDS + bounded-retries via the SAME machinery as a
+        // handler throw; once the key exists the held row decrypts and processes.
+        // Do NOT advance/lose the row here.
+        throw new KeyUnavailableError();
       }
       envelope = await parseEncryptedEnvelope(raw, (salt) => deriveEnvelopeKey(rootKey, salt));
     } else {
@@ -276,13 +289,23 @@ async function routeIncoming(raw, context, opts = {}) {
       return 'permanent';
     }
   } catch (parseErr) {
+    // TRANSIENT — key not available: our own KeyUnavailableError, or a NoKeyError
+    // surfaced by the parser. Re-throw so the drain HOLDS + bounded-retries
+    // (persisted per-seq counter, give up at MAX_INTENT_RETRIES) instead of
+    // advancing past — never lose a row that only failed for lack of a key.
+    if (parseErr instanceof KeyUnavailableError) throw parseErr;
+    if (parseErr instanceof NoKeyError) {
+      console.warn('[db-intent] Holding encrypted event — vault intents key not available (NoKeyError)');
+      throw new KeyUnavailableError('vault intents key not available (NoKeyError)');
+    }
+
+    // PERMANENT — key IS present but the row won't decrypt/validate (wrong key,
+    // corrupt ciphertext, or malformed/protocol mismatch). Advance past + log.
     let errorCode = parseErr.name ?? 'parse_error';
     // MalformedEnvelopeError = decrypted/parsed fine but failed schema validation
     // (protocol mismatch) — amber, not a genuine key/network failure.
     let logStatus = 'error';
-    if (parseErr instanceof NoKeyError) {
-      console.warn('[db-intent] Skipping encrypted event (no key)');
-    } else if (parseErr instanceof WrongKeyError) {
+    if (parseErr instanceof WrongKeyError) {
       console.warn('[db-intent] Skipping encrypted event (wrong key)');
     } else if (parseErr instanceof MalformedEnvelopeError) {
       console.warn('[db-intent] Skipping malformed envelope:', parseErr.message);
@@ -343,12 +366,16 @@ async function routeIncoming(raw, context, opts = {}) {
  * never read .rows just once.
  *
  * Per-row failure handling is three-way:
- *   (1) DECODE / PERMANENT-BAD (unparseable row, decrypt failure, or a SOFT
- *       handler result.success===false) → advance past it; retrying is pointless.
- *   (2) HANDLER THREW (maybe-transient) → do NOT advance; bump a persisted
- *       per-seq counter. At MAX_INTENT_RETRIES consecutive failures the row is
- *       poison: give up, log loudly, advance past it. Below the cap, HOLD —
- *       stop the whole drain (cursor unchanged) so the next poll retries here.
+ *   (1) DECODE / PERMANENT-BAD (unparseable row, a plaintext-on-vault rejection,
+ *       a decrypt failure WITH THE KEY PRESENT — wrong key / bad ciphertext — or
+ *       a SOFT handler result.success===false) → advance past it; retrying is
+ *       pointless.
+ *   (2) TRANSIENT — HANDLER THREW or KEY NOT AVAILABLE (routeIncoming throws
+ *       KeyUnavailableError when the vault intents key is absent). Do NOT advance;
+ *       bump a persisted per-seq counter. At MAX_INTENT_RETRIES consecutive
+ *       failures the row is poison: give up, log loudly, advance past it. Below
+ *       the cap, HOLD — stop the whole drain (cursor unchanged) so the next poll
+ *       retries here (the key may have become available by then).
  *   (3) SUCCESS → advance and clear the seq's counter.
  *
  * Connection is inherited from the vault SYNC config unless injected (tests).
