@@ -25,7 +25,6 @@
 
 import { useEffect, useRef } from 'react';
 import {
-  parseEnvelope,
   parseEncryptedEnvelope,
   deriveEnvelopeKey,
   NoKeyError,
@@ -38,7 +37,7 @@ import {
   parseSince,
   formatSince,
 } from '@glance-apps/intents';
-import { loadIntentsRootKey } from './intentsKeyStore.js';
+import { loadVaultIntentsRootKey } from './intentsKeyStore.js';
 import { handleIntent } from './handleIntent.js';
 import { logActivity } from './intentLog.js';
 import { MULTI_USER_CONFIG_KEY } from './useIntentPoller.js';
@@ -119,7 +118,7 @@ function clearFailure(seq) {
 // body) and return a plain { status, ok, body } object; the browser path uses
 // global fetch and is normalized to the same shape. Returns a function
 // (method, url, headers, body) => Promise<{ status, ok, body }>.
-function defaultVaultFetch() {
+export function defaultVaultFetch() {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceNative : null;
   const isNativeApp = !!bridge?.httpRequest;
   const electronProxyFetch = typeof window !== 'undefined' && window.electronAPI?.isElectron
@@ -238,15 +237,20 @@ export async function sendIntentDb(envelope) {
 //                 advances past it; retrying is pointless.
 // A THROWN exception is NOT returned — it propagates to the caller, which treats
 // it as a maybe-transient handler error subject to bounded retry.
-async function routeIncoming(raw, context) {
+async function routeIncoming(raw, context, opts = {}) {
   // Skip our own events (loopback). Checked on the raw object before parsing
   // because our notify envelopes use a schema parseEnvelope rejects as malformed.
   if (raw?.emitted_by === APP_EMITTER) return 'ok';
 
+  // Vault rows are decrypted with the VAULT intents key slot (distinct from the
+  // WebDAV intents key) — the vault encrypts with that key, so it decrypts with
+  // it too. Injectable for tests; defaults to the real vault-slot loader.
+  const loadKey = opts.loadKey ?? loadVaultIntentsRootKey;
+
   let envelope;
   try {
     if (raw?.encrypted === true) {
-      const rootKey = await loadIntentsRootKey();
+      const rootKey = await loadKey();
       if (!rootKey) {
         console.warn('[db-intent] Skipping encrypted event — intents encryption not set up');
         logActivity({
@@ -257,7 +261,19 @@ async function routeIncoming(raw, context) {
       }
       envelope = await parseEncryptedEnvelope(raw, (salt) => deriveEnvelopeKey(rootKey, salt));
     } else {
-      envelope = parseEnvelope(raw);
+      // ZERO-KNOWLEDGE ENFORCEMENT: the vault must ONLY ever carry ciphertext.
+      // A row that is not encrypted is a contract violation — REJECT it. Never
+      // parse or route it. Treat as permanent-bad so the drain advances past it
+      // (no wedge), exactly like an undecodable row.
+      console.error(
+        '[db-intent] REJECTING plaintext row on vault (zero-knowledge violation); eventId:',
+        raw?.event_id ?? null,
+      );
+      logActivity({
+        direction: 'in', action: 'unknown', event: null, source_app: null,
+        title: null, timestamp: new Date().toISOString(), status: 'error', error: 'plaintext_rejected',
+      });
+      return 'permanent';
     }
   } catch (parseErr) {
     let errorCode = parseErr.name ?? 'parse_error';
@@ -521,4 +537,4 @@ export function useDbIntentPoller(context) {
 }
 
 // Exported for tests.
-export { DB_CURSOR_KEY, DB_RETRY_KEY, MAX_INTENT_RETRIES };
+export { DB_CURSOR_KEY, DB_RETRY_KEY, MAX_INTENT_RETRIES, routeIncoming };
