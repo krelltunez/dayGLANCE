@@ -191,6 +191,12 @@ const TimePicker = ({ value, onChange, use24HourClock, borderClass, darkMode }) 
 
 const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
+// How far back/forward the spotlight search fetches native (device) calendar events.
+// The timeline only loads a ±2-day window, so a broader range is fetched on demand
+// when the search opens so device-calendar events elsewhere are still searchable.
+const SPOTLIGHT_NATIVE_PAST_DAYS = 90;
+const SPOTLIGHT_NATIVE_FUTURE_DAYS = 365;
+
 const DayPlanner = () => {
   const { t } = useTranslation();
   const { isPro, isLoading: subLoading, isAndroidApp, isIOSApp, isElectronApp, productId: subProductId, subscribe, restore, prices: subPrices, trialEligible, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase, isReviewerUnlocked, setReviewerUnlocked } = useSubscription();
@@ -1054,6 +1060,10 @@ const DayPlanner = () => {
   const [spotlightQuery, setSpotlightQuery] = useState('');
   const [spotlightSelectedIndex, setSpotlightSelectedIndex] = useState(0);
   const spotlightInputRef = useRef(null);
+  // Native calendar events the timeline only fetches for a ±2-day window. When the
+  // spotlight search opens we fetch a much wider window so device-calendar events
+  // become searchable (see the effect near the native-calendar fetch below).
+  const [spotlightNativeTasks, setSpotlightNativeTasks] = useState([]);
 
   const { changeDate, goToToday, goToDate, handleSpotlightSelect } = useNavigation({
     visibleDays,
@@ -3889,6 +3899,66 @@ const DayPlanner = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, calendarFilter, nativeCalendarKey]);
 
+  // Wider native-calendar fetch for the spotlight search. The timeline effect above
+  // only loads a ±2-day window, so device-calendar events on other dates never reach
+  // the search. When the search opens, fetch a broad window (cached for the session)
+  // and feed it into spotlightResults. macOS (Electron) resolves the whole range in a
+  // single async IPC call; the mobile bridge is synchronous per-day, so we fetch in
+  // chunks with yields between them and publish results progressively to avoid
+  // blocking the main thread while the modal is open.
+  useEffect(() => {
+    if (!showSpotlight || !hasNativeCalendar()) return;
+    const filterSet = calendarFilter.length > 0 ? new Set(calendarFilter) : null;
+    const start = new Date(); start.setDate(start.getDate() - SPOTLIGHT_NATIVE_PAST_DAYS);
+    const end = new Date(); end.setDate(end.getDate() + SPOTLIGHT_NATIVE_FUTURE_DAYS);
+    const dates = [];
+    for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) dates.push(dateToString(d));
+
+    const toTasks = (results) => {
+      const seen = new Set();
+      const flat = results
+        .flatMap((result, i) => Array.isArray(result) ? result.map(e => ({ ...e, _queryDate: dates[i] })) : [])
+        .filter(e => !filterSet || filterSet.has(e.calendarId))
+        .map(e => nativeEventToTask(e))
+        .filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
+      // Collapse repeated/recurring occurrences (same title + calendar) to the single
+      // occurrence nearest today, so a daily/weekly event doesn't flood the results.
+      const todayMs = new Date(getTodayStr()).getTime();
+      const byKey = new Map();
+      for (const t of flat) {
+        const key = `${(t.title || '').toLowerCase()}|${t.calendarName || ''}`;
+        const existing = byKey.get(key);
+        if (!existing) { byKey.set(key, t); continue; }
+        const dist = (d) => Math.abs(new Date(d).getTime() - todayMs);
+        if (dist(t.date) < dist(existing.date)) byKey.set(key, t);
+      }
+      return [...byKey.values()];
+    };
+
+    let cancelled = false;
+    if (isNativeApp()) {
+      // Synchronous bridge: walk the window in day-chunks, yielding between chunks.
+      const CHUNK = 30;
+      const acc = new Array(dates.length).fill(null);
+      let i = 0;
+      const step = () => {
+        if (cancelled) return;
+        const endIdx = Math.min(i + CHUNK, dates.length);
+        for (; i < endIdx; i++) acc[i] = nativeGetEvents(dates[i]);
+        setSpotlightNativeTasks(toTasks(acc));
+        if (i < dates.length) setTimeout(step, 0);
+      };
+      step();
+      return () => { cancelled = true; };
+    } else {
+      electronGetEventsByDate(dates).then(results => {
+        if (!cancelled) setSpotlightNativeTasks(toTasks(results));
+      });
+      return () => { cancelled = true; };
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSpotlight, calendarFilter, nativeCalendarKey]);
+
   const enterFocusMode = () => {
     setShowFocusMode(true);
     setFocusShowSettings(true);
@@ -6706,9 +6776,16 @@ const DayPlanner = () => {
       }
     };
 
-    // Scheduled tasks
+    // Scheduled tasks. Native (device-calendar) events that the timeline merged into
+    // `tasks` for the current ±2-day window are skipped here — they're searched via
+    // the wider spotlightNativeTasks set below so they aren't listed twice.
     for (const task of tasks) {
+      if (task._native) continue;
       matchTask(task, 'scheduled', 'Scheduled', task.date);
+    }
+    // Native calendar events fetched over the wider spotlight window
+    for (const task of spotlightNativeTasks) {
+      matchTask(task, 'event', 'Calendar', task.date);
     }
     // Inbox tasks (archived get their own source/label)
     for (const task of unscheduledTasks) {
@@ -6746,7 +6823,7 @@ const DayPlanner = () => {
     results.forEach(r => { r.group = getGroup(r); });
 
     // Sort: by group, then title match, then source priority, then date
-    const sourcePriority = { scheduled: 0, inbox: 1, recurring: 2, deleted: 3, archived: 4 };
+    const sourcePriority = { scheduled: 0, event: 1, inbox: 2, recurring: 3, deleted: 4, archived: 5 };
     results.sort((a, b) => {
       const gA = groupOrder[a.group] ?? 6;
       const gB = groupOrder[b.group] ?? 6;
@@ -6763,7 +6840,7 @@ const DayPlanner = () => {
     });
 
     return results.slice(0, 50);
-  }, [showSpotlight, spotlightQuery, tasks, unscheduledTasks, recurringTasks, recycleBin]);
+  }, [showSpotlight, spotlightQuery, tasks, unscheduledTasks, recurringTasks, recycleBin, spotlightNativeTasks]);
 
   // Compute today's agenda for dayGLANCE section (excludes past events)
   const todayAgenda = useMemo(() => {

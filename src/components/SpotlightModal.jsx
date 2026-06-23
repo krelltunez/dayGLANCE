@@ -64,6 +64,7 @@ const SpotlightModal = () => {
           ) : (() => {
             const sourceBadgeColors = darkMode ? {
               scheduled: 'bg-blue-900/40 text-blue-300',
+              event: 'bg-amber-900/40 text-amber-300',
               inbox: 'bg-green-900/40 text-green-300',
               project: 'bg-green-900/40 text-green-300',
               recurring: 'bg-purple-900/40 text-purple-300',
@@ -71,6 +72,7 @@ const SpotlightModal = () => {
               archived: 'bg-gray-700/60 text-gray-400',
             } : {
               scheduled: 'bg-blue-100 text-blue-700',
+              event: 'bg-amber-100 text-amber-700',
               inbox: 'bg-green-100 text-green-700',
               project: 'bg-green-100 text-green-700',
               recurring: 'bg-purple-100 text-purple-700',
