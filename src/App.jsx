@@ -6751,6 +6751,9 @@ const DayPlanner = () => {
     const cutoffStr = dateToString(cutoff);
 
     const matchTask = (task, source, sourceLabel, date) => {
+      // Respect multi-user visibility — don't surface other users' tasks.
+      // (Native calendar events carry no assignment, so they stay visible.)
+      if (!isVisibleForUser(task)) return;
       // Skip scheduled tasks older than 2 years
       if (date && date < cutoffStr) return;
       // Check title
@@ -6841,7 +6844,7 @@ const DayPlanner = () => {
     });
 
     return results.slice(0, 50);
-  }, [showSpotlight, spotlightQuery, tasks, unscheduledTasks, recurringTasks, recycleBin, spotlightNativeTasks]);
+  }, [showSpotlight, spotlightQuery, tasks, unscheduledTasks, recurringTasks, recycleBin, spotlightNativeTasks, isVisibleForUser]);
 
   // Compute today's agenda for dayGLANCE section (excludes past events)
   const todayAgenda = useMemo(() => {
