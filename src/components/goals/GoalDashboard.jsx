@@ -134,10 +134,15 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
   const activeChildProjects = childProjects.filter(p => p.status !== 'archived');
   const canComplete = activeChildProjects.length === 0 || activeChildProjects.every(p => p.status === 'completed');
 
+  // A goal that already lives in lifeGLANCE (came from it, or was already shared)
+  // shows a read-only indicator instead of the share checkbox. The checkbox is
+  // offered for BOTH new goals and existing goals not yet shared.
+  const alreadyShared = !!(initial && (initial.source_app === 'app.lifeglance' || initial.synced_to_lifeglance));
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onSave({ title: title.trim(), description: description.trim(), targetDate: targetDate || undefined, color, status, assignedUserSyncIds, trackInLifeGlance: showLifeGlanceCheckbox && !initial && trackInLifeGlance });
+    onSave({ title: title.trim(), description: description.trim(), targetDate: targetDate || undefined, color, status, assignedUserSyncIds, trackInLifeGlance: showLifeGlanceCheckbox && !alreadyShared && trackInLifeGlance });
   };
 
   return (
@@ -261,8 +266,9 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
         </div>
       )}
 
-      {/* Track in lifeGLANCE — checkbox on create, read-only indicator on edit */}
-      {showLifeGlanceCheckbox && !initial && (
+      {/* Track in lifeGLANCE — checkbox when not yet shared (new OR existing goal),
+          read-only indicator once it already lives in lifeGLANCE. */}
+      {showLifeGlanceCheckbox && !alreadyShared && (
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <input
             type="checkbox"
@@ -273,7 +279,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
           <span className={`text-sm ${textSecondary}`}>Track in lifeGLANCE</span>
         </label>
       )}
-      {initial && (initial.source_app === 'app.lifeglance' || initial.synced_to_lifeglance) && (
+      {alreadyShared && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
           <Link2 size={14} className="text-blue-400 flex-shrink-0" />
           <span className="text-sm text-blue-400">
@@ -1998,7 +2004,14 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
           return { ...rest, updatedAt: now };
         }));
       }
-      updateGoal(goalForm.editing.id, goalFields);
+      // Sharing an EXISTING, not-yet-shared goal: mark it synced and emit a
+      // create so lifeGLANCE mirrors it. Guarded so we never re-emit for a goal
+      // already shared or one that originated in lifeGLANCE.
+      const shareNow = trackInLifeGlance
+        && !goalForm.editing.synced_to_lifeglance
+        && goalForm.editing.source_app !== 'app.lifeglance';
+      updateGoal(goalForm.editing.id, { ...goalFields, ...(shareNow ? { synced_to_lifeglance: true } : {}) });
+      if (shareNow) emitGoalCreate({ ...goalForm.editing, ...goalFields, synced_to_lifeglance: true });
     } else {
       const newGoal = addGoal({ ...goalFields, ...(trackInLifeGlance ? { synced_to_lifeglance: true } : {}) });
       if (trackInLifeGlance) emitGoalCreate(newGoal);
