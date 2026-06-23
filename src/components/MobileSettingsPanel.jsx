@@ -940,7 +940,8 @@ const MobileSettingsPanel = () => {
         </div>
       )}
 
-      {/* hyperGLANCE Sessions — independent of global enabled toggle */}
+      {/* hyperGLANCE Sessions — only relevant when Goals & Projects is on */}
+      {goalsProjectsEnabled && (
       <div className={`border-t ${borderClass} pt-4`}>
         <div className="flex items-center gap-2 mb-3">
           <Zap size={16} className="text-indigo-500" />
@@ -976,6 +977,7 @@ const MobileSettingsPanel = () => {
           </div>
         )}
       </div>
+      )}
     </div>
   )}
 
