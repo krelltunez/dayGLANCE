@@ -8,15 +8,18 @@ export default function useDeadlinePriority({
   playUISound,
   onboardingProgress,
   setOnboardingProgress,
+  isVisibleForUser = () => true,
 }) {
   const [pendingPriorities, setPendingPriorities] = useState({});
   const priorityTimeouts = useRef({});
 
-  // Get inbox tasks with deadlines for a specific date (not overdue)
+  // Get inbox tasks with deadlines for a specific date (not overdue).
+  // Respect multi-user visibility so deadlines assigned to other users don't
+  // surface in the all-day area.
   const getDeadlineTasksForDate = (dateStr) => {
     const todayStr = dateToString(new Date());
     return unscheduledTasks.filter(t =>
-      t.deadline === dateStr && (t.deadline >= todayStr || t.completed)
+      t.deadline === dateStr && (t.deadline >= todayStr || t.completed) && isVisibleForUser(t)
     );
   };
 

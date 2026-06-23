@@ -1189,6 +1189,7 @@ const DayPlanner = () => {
     playUISound,
     onboardingProgress,
     setOnboardingProgress,
+    isVisibleForUser,
   });
   const { conflicts, checkConflicts } = useConflictDetection({
     tasks,
