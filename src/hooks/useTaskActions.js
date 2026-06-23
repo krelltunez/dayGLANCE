@@ -182,6 +182,9 @@ export default function useTaskActions({
           recurrence: { ...newTask.recurrence, startDate: taskDate },
           completedDates: [],
           exceptions: {},
+          // User assignment on recurring tasks is series-level: it lives on the
+          // template so every materialised instance inherits it.
+          ...(newTask.assignedUserSyncIds?.length ? { assignedUserSyncIds: newTask.assignedUserSyncIds } : {}),
           lastModified: new Date().toISOString()
         };
         setRecurringTasks(prev => [...prev, template]);

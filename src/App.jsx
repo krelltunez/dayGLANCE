@@ -3621,10 +3621,13 @@ const DayPlanner = () => {
                       duration: newTask.duration,
                       isAllDay: newTask.isAllDay || false,
                       color: newTask.color || colors[0].class,
-                      assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds,
                     }
                   }
                 };
+                // User assignment applies to the whole series, not just this
+                // instance: write it to the template so every occurrence inherits
+                // it. (Empty array clears the assignment; nullish leaves it as-is.)
+                updated.assignedUserSyncIds = mobileEditingTask.assignedUserSyncIds ?? t.assignedUserSyncIds;
                 // Update recurrence pattern on template if changed
                 updated.recurrence = { ...newTask.recurrence, startDate: t.recurrence?.startDate || parsed.dateStr.substring(0, 8) + '01' };
                 updated.lastModified = new Date().toISOString();
@@ -3651,7 +3654,7 @@ const DayPlanner = () => {
         recurrence: { ...newTask.recurrence, startDate: taskDate },
         completedDates: existingTask?.completed ? [taskDate] : [],
         exceptions: {},
-        assignedUserSyncIds: newTask.assignedUserSyncIds || existingTask?.assignedUserSyncIds,
+        assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds ?? existingTask?.assignedUserSyncIds,
         lastModified: new Date().toISOString()
       };
       setTasks(prev => prev.filter(t => t.id !== taskId));
@@ -6517,7 +6520,9 @@ const DayPlanner = () => {
           color: exception?.color ?? template.color,
           completed,
           isAllDay: exception?.isAllDay ?? template.isAllDay ?? false,
-          assignedUserSyncIds: exception?.assignedUserSyncIds ?? template.assignedUserSyncIds,
+          // Assignment is series-level: always inherit from the template so every
+          // instance is visible to (and filterable by) the same assigned users.
+          assignedUserSyncIds: template.assignedUserSyncIds,
           notes: template.notes || '',
           subtasks: template.subtasks || [],
           date: dateStr,
