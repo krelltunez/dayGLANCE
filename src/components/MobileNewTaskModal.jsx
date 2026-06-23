@@ -247,6 +247,28 @@ const MobileNewTaskModal = () => {
                       );
                     })}
                   </div>
+                  {/* Scope of the assignment change — only when editing an existing
+                      recurring task. New recurring tasks always assign the series. */}
+                  {mobileEditingTask && typeof mobileEditingTask.id === 'string' && mobileEditingTask.id.startsWith('recurring-') && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className={`text-xs ${textSecondary} opacity-70`}>Apply to</span>
+                      {[{ key: 'all', label: 'All instances' }, { key: 'this', label: 'This instance' }].map(opt => {
+                        const active = (mobileEditingTask._assignScope || 'all') === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setMobileEditingTask(prev => ({ ...prev, _assignScope: opt.key }))}
+                            className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${active
+                              ? `border-blue-500 ${darkMode ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700'}`
+                              : `${borderClass} ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-white text-stone-600'}`}`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 

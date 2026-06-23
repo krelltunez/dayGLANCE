@@ -3573,6 +3573,7 @@ const DayPlanner = () => {
             notes: template?.notes || '',
             subtasks: template?.subtasks ? JSON.parse(JSON.stringify(template.subtasks)) : [],
             date: newTask.date || parsed.dateStr,
+            ...(mobileEditingTask.assignedUserSyncIds?.length ? { assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds } : {}),
           };
           setTasks(prev => [...prev, regularTask]);
           recordDeletedTaskTombstone(parsed.templateId);
@@ -3608,32 +3609,51 @@ const DayPlanner = () => {
               assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds,
             }]);
           } else {
+            // User-assignment scope chosen in the Edit Task modal: 'all' (the
+            // whole series, default) or 'this' (only the edited occurrence).
+            const assignScope = mobileEditingTask._assignScope || 'all';
+            const assigned = mobileEditingTask.assignedUserSyncIds;
             setRecurringTasks(prev => prev.map(t => {
-              if (t.id === parsed.templateId) {
-                const updated = {
-                  ...t,
-                  exceptions: {
-                    ...t.exceptions,
-                    [parsed.dateStr]: {
-                      ...(t.exceptions?.[parsed.dateStr] || {}),
-                      title: cleanTitle(newTask.title),
-                      startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
-                      duration: newTask.duration,
-                      isAllDay: newTask.isAllDay || false,
-                      color: newTask.color || colors[0].class,
+              if (t.id !== parsed.templateId) return t;
+              // Title/time/colour edits always live on this date's exception.
+              const instanceException = {
+                ...(t.exceptions?.[parsed.dateStr] || {}),
+                title: cleanTitle(newTask.title),
+                startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
+                duration: newTask.duration,
+                isAllDay: newTask.isAllDay || false,
+                color: newTask.color || colors[0].class,
+              };
+              let exceptions = { ...t.exceptions, [parsed.dateStr]: instanceException };
+              let templateAssigned = t.assignedUserSyncIds;
+              if (assignScope === 'this') {
+                // Assign only this occurrence: store the override on its exception.
+                // An empty array means "everybody" for this date; undefined leaves
+                // it inheriting the series value.
+                if (assigned !== undefined) instanceException.assignedUserSyncIds = assigned;
+              } else {
+                // Assign the whole series: write to the template and strip any
+                // per-instance assignment overrides so the series value wins on
+                // every occurrence.
+                templateAssigned = assigned ?? t.assignedUserSyncIds;
+                exceptions = Object.fromEntries(
+                  Object.entries(exceptions).map(([d, exc]) => {
+                    if (exc && 'assignedUserSyncIds' in exc) {
+                      const { assignedUserSyncIds, ...rest } = exc;
+                      return [d, rest];
                     }
-                  }
-                };
-                // User assignment applies to the whole series, not just this
-                // instance: write it to the template so every occurrence inherits
-                // it. (Empty array clears the assignment; nullish leaves it as-is.)
-                updated.assignedUserSyncIds = mobileEditingTask.assignedUserSyncIds ?? t.assignedUserSyncIds;
-                // Update recurrence pattern on template if changed
-                updated.recurrence = { ...newTask.recurrence, startDate: t.recurrence?.startDate || parsed.dateStr.substring(0, 8) + '01' };
-                updated.lastModified = new Date().toISOString();
-                return updated;
+                    return [d, exc];
+                  })
+                );
               }
-              return t;
+              return {
+                ...t,
+                exceptions,
+                assignedUserSyncIds: templateAssigned,
+                // Update recurrence pattern on template if changed
+                recurrence: { ...newTask.recurrence, startDate: t.recurrence?.startDate || parsed.dateStr.substring(0, 8) + '01' },
+                lastModified: new Date().toISOString(),
+              };
             }));
           }
         }
@@ -6520,9 +6540,9 @@ const DayPlanner = () => {
           color: exception?.color ?? template.color,
           completed,
           isAllDay: exception?.isAllDay ?? template.isAllDay ?? false,
-          // Assignment is series-level: always inherit from the template so every
-          // instance is visible to (and filterable by) the same assigned users.
-          assignedUserSyncIds: template.assignedUserSyncIds,
+          // Assignment is series-level by default (inherited from the template),
+          // but an instance can carry its own override when assigned "this only".
+          assignedUserSyncIds: exception?.assignedUserSyncIds ?? template.assignedUserSyncIds,
           notes: template.notes || '',
           subtasks: template.subtasks || [],
           date: dateStr,
