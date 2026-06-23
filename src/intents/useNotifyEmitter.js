@@ -1,11 +1,9 @@
-import { useEffect, useRef } from 'react';
-import { buildEnvelope, buildEncryptedEnvelope, eventId as makeEventId, EVENTS, ENTITY_TYPES, deriveEnvelopeKey } from '@glance-apps/intents';
-import { loadIntentsRootKey } from './intentsKeyStore.js';
-import { writeEventFile, writeEventFileICloud, INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from './useIntentPoller.js';
-import { sendIntentDb } from './dbIntentsTransport.js';
-import { isDbIntentsEnabled } from './dbIntentsConfig.js';
+import { useEffect, useRef, useReducer } from 'react';
+import { eventId as makeEventId, EVENTS, ENTITY_TYPES } from '@glance-apps/intents';
+import { INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from './useIntentPoller.js';
+import { enabledIntentTargets } from './emitTargets.js';
+import { enqueueAndFlush } from './outboxEmit.js';
 import { logActivity } from './intentLog.js';
-import * as iCloudTransport from './icloudFileTransport.js';
 import { isNativeAndroid } from '../native';
 
 // The tray holds a read-only state snapshot. Any task-state changes in tray
@@ -99,6 +97,13 @@ export function buildNotifyPayload(task, change, now, meUserSyncId = null) {
  */
 export function useNotifyEmitter({ tasks, unscheduledTasks }) {
   const prevRef = useRef(null);
+  // Guard so a re-render during the async enqueue/flush window can't re-detect
+  // and double-enqueue the same change (notify event_ids are freshly generated,
+  // so a re-detection would not be deduped by the outbox).
+  const inFlightRef = useRef(false);
+  // After a fire() completes (and advances the snapshot), force one more effect
+  // run so any change that arrived DURING the in-flight window is picked up.
+  const [, bump] = useReducer(x => x + 1, 0);
 
   useEffect(() => {
     if (isTrayMode) return;
@@ -110,16 +115,17 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
 
     const allTasks = [...tasks, ...unscheduledTasks];
     const prev = prevRef.current;
-    prevRef.current = allTasks;
 
-    // Skip the initial snapshot — no previous state to diff against
-    if (prev === null) return;
-    // Skip emit when neither WebDAV nor iCloud is configured
-    const hasWebDAV = !!(config?.webdavUrl && config?.username && config?.appPassword);
-    const hasICloud = iCloudTransport.isAvailable();
-    // The DB intents transport runs alongside WebDAV/iCloud and may be enabled on
-    // its own, so don't bail when the file tiers are absent if DB intents is active.
-    if (!hasWebDAV && !hasICloud && !isDbIntentsEnabled()) return;
+    // Skip the initial snapshot — no previous state to diff against.
+    if (prev === null) { prevRef.current = allTasks; return; }
+    // A fire() is in progress; it will advance the snapshot and bump() us again.
+    if (inFlightRef.current) return;
+
+    // Targets enabled for this emit ('webdav' | 'icloud' | 'vault'). When NONE
+    // are enabled there's nowhere to send, so consume the changes (advance the
+    // snapshot) and bail — matching the old early-return-after-advance behavior.
+    const targets = enabledIntentTargets(config);
+    if (targets.length === 0) { prevRef.current = allTasks; return; }
 
     const prevMap = new Map(prev.map(t => [t.id, t]));
     const nextMap = new Map(allTasks.map(t => [t.id, t]));
@@ -144,76 +150,60 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
       if (change) emits.push({ task: nextTask, change });
     }
 
-    if (!emits.length) return;
+    // Nothing notification-worthy changed — advance the snapshot and bail.
+    if (!emits.length) { prevRef.current = allTasks; return; }
 
+    inFlightRef.current = true;
     const fire = async () => {
-      // Resolve this device's user sync_id for completion attribution.
-      const muRaw = localStorage.getItem(MULTI_USER_CONFIG_KEY);
-      const meUserSyncId = muRaw ? (JSON.parse(muRaw).meUserSyncId || null) : null;
+      try {
+        // Resolve this device's user sync_id for completion attribution.
+        const muRaw = localStorage.getItem(MULTI_USER_CONFIG_KEY);
+        const meUserSyncId = muRaw ? (JSON.parse(muRaw).meUserSyncId || null) : null;
 
-      // Resolve encryption posture once for the whole batch.
-      let deriveKey = null;
-      if (config?.encryptionEnabled) {
-        const rootKey = await loadIntentsRootKey();
-        if (!rootKey) {
-          // Root key not cached — setup incomplete. Block all emits; do not fall back to plaintext.
-          console.warn('[notify] intents encryption setup incomplete — skipping', emits.length, 'emit(s)');
-          logActivity({
-            direction: 'out',
+        // Build a RAW intent per change (NOT an envelope — encryption happens at
+        // flush in the per-target deliverer). The payload's event_id, stable per
+        // change, is the outbox id AND the server idempotency key, and flows
+        // unchanged through every retry.
+        const items = emits.map(({ task, change }) => {
+          const payload = buildNotifyPayload(task, change, now, meUserSyncId);
+          const intent = {
+            event_id: payload.event_id,
             action: 'notify',
-            event: null,
-            source_app: null,
-            title: null,
-            timestamp: now,
-            status: 'error',
-            error: 'setup_incomplete',
-          });
-          return;
-        }
-        deriveKey = (salt) => deriveEnvelopeKey(rootKey, salt);
-      }
+            emitted_by: 'app.dayglance',
+            payload,
+          };
+          return {
+            intent,
+            onOk: () => {
+              logActivity({
+                direction: 'out', action: 'notify', event: change.event,
+                source_app: task.source_app, title: task.title, timestamp: now,
+                status: 'ok', error: null,
+              });
+              // Android broadcast for local Tasker listeners — a LOCAL notification,
+              // independent of the durable outbox. Only on a plaintext WebDAV posture
+              // (encrypted payloads are unusable by keyless local listeners).
+              if (isNativeAndroid() && !config?.encryptionEnabled) {
+                try { window.DayGlanceNative?.sendNotifyBroadcast?.(JSON.stringify(payload)); } catch (_) {}
+              }
+            },
+            onError: (err) => {
+              console.warn('[notify] enqueue failed for task', task.id, ':', err.message);
+              logActivity({
+                direction: 'out', action: 'notify', event: change.event,
+                source_app: task.source_app, title: task.title, timestamp: now,
+                status: 'error', error: err.name ?? err.message,
+              });
+            },
+          };
+        });
 
-      for (const { task, change } of emits) {
-        const payload = buildNotifyPayload(task, change, now, meUserSyncId);
-
-        try {
-          const envelope = deriveKey
-            ? await buildEncryptedEnvelope({ action: 'notify', payload, emittedBy: 'app.dayglance' }, deriveKey)
-            : buildEnvelope({ action: 'notify', payload, emittedBy: 'app.dayglance' });
-          await writeEventFile(config, envelope);          // WebDAV (no-ops if not configured)
-          await writeEventFileICloud(config, envelope);    // iCloud (no-ops if not available)
-          await sendIntentDb(envelope);                    // GLANCEvault DB (no-ops unless enabled)
-          // Android broadcast: only on the plaintext path. Encrypted envelopes can't be
-          // used by local listeners (no key), and their ciphertext fields don't survive
-          // JSON.stringify cleanly. Tasker users should rely on WebDAV for encrypted setups.
-          if (isNativeAndroid() && !deriveKey) {
-            try {
-              window.DayGlanceNative?.sendNotifyBroadcast?.(JSON.stringify(payload));
-            } catch (_) {}
-          }
-          logActivity({
-            direction: 'out',
-            action: 'notify',
-            event: change.event,
-            source_app: task.source_app,
-            title: task.title,
-            timestamp: now,
-            status: 'ok',
-            error: null,
-          });
-        } catch (err) {
-          console.warn('[notify] emit failed for task', task.id, ':', err.message);
-          logActivity({
-            direction: 'out',
-            action: 'notify',
-            event: change.event,
-            source_app: task.source_app,
-            title: task.title,
-            timestamp: now,
-            status: 'error',
-            error: err.name ?? err.message,
-          });
-        }
+        // Advance the change-snapshot ONLY after the intents are durably queued.
+        const allEnqueued = await enqueueAndFlush(items, targets);
+        if (allEnqueued) prevRef.current = allTasks;
+      } finally {
+        inFlightRef.current = false;
+        bump(); // re-run the effect to catch any change from the in-flight window
       }
     };
 

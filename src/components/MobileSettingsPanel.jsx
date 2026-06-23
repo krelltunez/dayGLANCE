@@ -31,6 +31,7 @@ import { isAvailable as isICloudAvailable } from '../intents/icloudFileTransport
 import { getSyncPassphrase, setSyncPassphrase } from '../utils/crypto.js';
 import { setupIntentsEncryption } from '../intents/intentsEncryptionSetup.js';
 import { ensureVaultIntentsKey, setupVaultIntentsEncryption } from '../intents/vaultIntentsSetup.js';
+import { flushOutboxNow } from '../intents/useOutboxFlush.js';
 import { loadIntentsRootKey, clearIntentsRootKey } from '../intents/intentsKeyStore.js';
 import { useTranslation } from 'react-i18next';
 
@@ -2069,11 +2070,14 @@ const MobileSettingsPanel = () => {
                     }
                     setDbIntentsConfig({ ...existing, enabled: dbIntentsEnabled });
                     // Reload-on-change so useDbIntentPoller remounts (mirrors the
-                    // GLANCEvault sync toggle's behavior).
+                    // GLANCEvault sync toggle's behavior). The post-reload
+                    // useOutboxFlush mount drain flushes held intents now the key exists.
                     if (wasEnabled !== dbIntentsEnabled) {
                       window.location.reload();
                       return;
                     }
+                    // No reload (already enabled): key may have just been set up — flush now.
+                    await flushOutboxNow();
                     setDbIntentsSaved(true);
                     setTimeout(() => setDbIntentsSaved(false), 2000);
                   }}

@@ -18,6 +18,7 @@ import { isVaultEnabled } from '../sync/vaultConfig.js';
 import { getDbIntentsConfig, setDbIntentsConfig, getDbIntentsConnection } from '../intents/dbIntentsConfig.js';
 import { setupIntentsEncryption } from '../intents/intentsEncryptionSetup.js';
 import { ensureVaultIntentsKey, setupVaultIntentsEncryption } from '../intents/vaultIntentsSetup.js';
+import { flushOutboxNow } from '../intents/useOutboxFlush.js';
 import { loadIntentsRootKey, clearIntentsRootKey } from '../intents/intentsKeyStore.js';
 import { useTranslation } from 'react-i18next';
 
@@ -2108,11 +2109,16 @@ const SettingsModal = () => {
                                     }
                                     setDbIntentsConfig({ ...existing, enabled: dbIntentsEnabled });
                                     // Reload-on-change so useDbIntentPoller remounts and picks up the
-                                    // new config (mirrors the GLANCEvault sync toggle's behavior).
+                                    // new config (mirrors the GLANCEvault sync toggle's behavior). The
+                                    // post-reload useOutboxFlush mount drain flushes any held intents
+                                    // now that the vault key exists.
                                     if (wasEnabled !== dbIntentsEnabled) {
                                       window.location.reload();
                                       return;
                                     }
+                                    // No reload (already enabled): the key may have just been set up,
+                                    // so flush held intents now.
+                                    await flushOutboxNow();
                                     setDbIntentsSaved(true);
                                     setTimeout(() => setDbIntentsSaved(false), 2000);
                                   }}

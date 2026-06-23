@@ -80,6 +80,7 @@ import { useIntentPoller, INTENT_CONFIG_KEY } from './intents/useIntentPoller.js
 import { useDbIntentPoller } from './intents/dbIntentsTransport.js';
 import { useNotifyEmitter } from './intents/useNotifyEmitter.js';
 import { useGoalNotifyEmitter } from './intents/useGoalNotifyEmitter.js';
+import { useOutboxFlush } from './intents/useOutboxFlush.js';
 import { useAndroidIntentBridge } from './intents/useAndroidIntentBridge.js';
 import { useUrlActionHandler } from './intents/useUrlActionHandler.js';
 import { syncSharedUsers, syncSharedUsersViaICloud } from './intents/sharedUsers.js';
@@ -1127,6 +1128,9 @@ const DayPlanner = () => {
   });
   useNotifyEmitter({ tasks, unscheduledTasks });
   useGoalNotifyEmitter({ goals });
+  // Durable outbox background drain: flush queued intents on mount (catches
+  // anything held from a previous session), on focus, and on the poll cadence.
+  useOutboxFlush();
 
   // Android intent transport: picks up pending intents on visibilitychange and calls handleIntent.
   useAndroidIntentBridge({

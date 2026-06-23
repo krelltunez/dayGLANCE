@@ -1,11 +1,9 @@
-import { useEffect, useRef } from 'react';
-import { buildEnvelope, buildEncryptedEnvelope, eventId as makeEventId, EVENTS, ENTITY_TYPES, deriveEnvelopeKey } from '@glance-apps/intents';
-import { loadIntentsRootKey } from './intentsKeyStore.js';
-import { writeEventFile, writeEventFileICloud, INTENT_CONFIG_KEY } from './useIntentPoller.js';
-import { sendIntentDb } from './dbIntentsTransport.js';
-import { isDbIntentsEnabled } from './dbIntentsConfig.js';
+import { useEffect, useRef, useReducer } from 'react';
+import { eventId as makeEventId, EVENTS, ENTITY_TYPES } from '@glance-apps/intents';
+import { INTENT_CONFIG_KEY } from './useIntentPoller.js';
+import { enabledIntentTargets } from './emitTargets.js';
+import { enqueueAndFlush } from './outboxEmit.js';
 import { logActivity } from './intentLog.js';
-import * as iCloudTransport from './icloudFileTransport.js';
 
 const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
@@ -53,6 +51,8 @@ function detectGoalChange(prev, next) {
  */
 export function useGoalNotifyEmitter({ goals }) {
   const prevRef = useRef(null);
+  const inFlightRef = useRef(false);
+  const [, bump] = useReducer(x => x + 1, 0);
 
   useEffect(() => {
     if (isTrayMode) return;
@@ -63,15 +63,12 @@ export function useGoalNotifyEmitter({ goals }) {
     })();
 
     const prev = prevRef.current;
-    prevRef.current = goals;
 
-    if (prev === null) return;
+    if (prev === null) { prevRef.current = goals; return; }
+    if (inFlightRef.current) return;
 
-    const hasWebDAV = !!(config?.webdavUrl && config?.username && config?.appPassword);
-    const hasICloud = iCloudTransport.isAvailable();
-    // The DB intents transport runs alongside WebDAV/iCloud and may be enabled on
-    // its own, so don't bail when the file tiers are absent if DB intents is active.
-    if (!hasWebDAV && !hasICloud && !isDbIntentsEnabled()) return;
+    const targets = enabledIntentTargets(config);
+    if (targets.length === 0) { prevRef.current = goals; return; }
 
     const prevMap = new Map(prev.map(g => [g.id, g]));
     const nextMap = new Map(goals.map(g => [g.id, g]));
@@ -96,74 +93,56 @@ export function useGoalNotifyEmitter({ goals }) {
       if (change) emits.push({ goal: nextGoal, change });
     }
 
-    if (!emits.length) return;
+    if (!emits.length) { prevRef.current = goals; return; }
 
+    inFlightRef.current = true;
     const fire = async () => {
-      let deriveKey = null;
-      if (config?.encryptionEnabled) {
-        const rootKey = await loadIntentsRootKey();
-        if (!rootKey) {
-          console.warn('[goal-notify] intents encryption setup incomplete — skipping', emits.length, 'emit(s)');
-          logActivity({
-            direction: 'out',
-            action: 'notify',
-            event: null,
-            source_app: null,
-            title: null,
-            timestamp: now,
-            status: 'error',
-            error: 'setup_incomplete',
-          });
-          return;
-        }
-        deriveKey = (salt) => deriveEnvelopeKey(rootKey, salt);
-      }
-
-      for (const { goal, change } of emits) {
-        const payload = {
-          event_id: makeEventId(),
-          source_app: goal.source_app,
-          source_entity_id: goal.source_entity_id,
-          event: change.event,
-          task_id: goal.id,
-          title: goal.title,
-          timestamp: now,
-          entity_type: ENTITY_TYPES.GOAL,
-          ...(change.due !== undefined ? { due: change.due } : {}),
-          ...(change.previous_due !== undefined ? { previous_due: change.previous_due } : {}),
-          ...(change.event === EVENTS.COMPLETED ? { completed_at: now } : {}),
-        };
-
-        try {
-          const envelope = deriveKey
-            ? await buildEncryptedEnvelope({ action: 'notify', payload, emittedBy: 'app.dayglance' }, deriveKey)
-            : buildEnvelope({ action: 'notify', payload, emittedBy: 'app.dayglance' });
-          await writeEventFile(config, envelope);
-          await writeEventFileICloud(config, envelope);
-          await sendIntentDb(envelope);  // GLANCEvault DB (no-ops unless enabled)
-          logActivity({
-            direction: 'out',
-            action: 'notify',
-            event: change.event,
+      try {
+        const items = emits.map(({ goal, change }) => {
+          const payload = {
+            event_id: makeEventId(),
             source_app: goal.source_app,
+            source_entity_id: goal.source_entity_id,
+            event: change.event,
+            task_id: goal.id,
             title: goal.title,
             timestamp: now,
-            status: 'ok',
-            error: null,
-          });
-        } catch (err) {
-          console.warn('[goal-notify] emit failed for goal', goal.id, ':', err.message);
-          logActivity({
-            direction: 'out',
+            entity_type: ENTITY_TYPES.GOAL,
+            ...(change.due !== undefined ? { due: change.due } : {}),
+            ...(change.previous_due !== undefined ? { previous_due: change.previous_due } : {}),
+            ...(change.event === EVENTS.COMPLETED ? { completed_at: now } : {}),
+          };
+          // RAW intent — encryption happens at flush in the per-target deliverer.
+          const intent = {
+            event_id: payload.event_id,
             action: 'notify',
-            event: change.event,
-            source_app: goal.source_app,
-            title: goal.title,
-            timestamp: now,
-            status: 'error',
-            error: err.name ?? err.message,
-          });
-        }
+            emitted_by: 'app.dayglance',
+            payload,
+          };
+          return {
+            intent,
+            onOk: () => logActivity({
+              direction: 'out', action: 'notify', event: change.event,
+              source_app: goal.source_app, title: goal.title, timestamp: now,
+              status: 'ok', error: null,
+            }),
+            onError: (err) => {
+              console.warn('[goal-notify] enqueue failed for goal', goal.id, ':', err.message);
+              logActivity({
+                direction: 'out', action: 'notify', event: change.event,
+                source_app: goal.source_app, title: goal.title, timestamp: now,
+                status: 'error', error: err.name ?? err.message,
+              });
+            },
+          };
+        });
+
+        // Advance the snapshot ONLY after durable enqueue.
+        const allEnqueued = await enqueueAndFlush(items, targets);
+        if (allEnqueued) prevRef.current = goals;
+      } finally {
+        inFlightRef.current = false;
+        bump();
       }
     };
 
