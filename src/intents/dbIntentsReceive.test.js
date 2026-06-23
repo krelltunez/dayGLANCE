@@ -6,7 +6,7 @@ import { buildEnvelope, buildEncryptedEnvelope, deriveIntentsRootKey, deriveEnve
 // rows it accepts; a rejected plaintext row must never reach it.
 vi.mock('./handleIntent.js', () => ({ handleIntent: vi.fn(async () => ({ success: true })) }));
 
-import { routeIncoming } from './dbIntentsTransport.js';
+import { routeIncoming, KeyUnavailableError } from './dbIntentsTransport.js';
 import { handleIntent } from './handleIntent.js';
 import { getActivityLog } from './intentLog.js';
 
@@ -69,15 +69,16 @@ describe('vault receive plaintext rejection', () => {
     expect(handleIntent.mock.calls[0][1].title).toBe('inbound');
   });
 
-  it('(d) an encrypted row with NO vault key cached is held (permanent for this drain, no_root_key)', async () => {
+  it('(d) an encrypted row with NO vault key cached is TRANSIENT: routeIncoming throws (held, not advanced)', async () => {
     const rootKey = await deriveIntentsRootKey('pw', new Uint8Array(16).fill(8));
     const env = await buildEncryptedEnvelope({
       action: 'notify', payload: validPayload(), emittedBy: 'app.lifeglance', eventId: '20260101T000000Z-ccc333',
     }, (salt) => deriveEnvelopeKey(rootKey, salt));
 
-    const outcome = await routeIncoming(env, {}, { loadKey: async () => null });
-    expect(outcome).toBe('permanent');
+    // Key absent → KeyUnavailableError so the drain HOLDS + bounded-retries
+    // (never advances past / loses the row). It is no longer a permanent skip.
+    await expect(routeIncoming(env, {}, { loadKey: async () => null }))
+      .rejects.toBeInstanceOf(KeyUnavailableError);
     expect(handleIntent).not.toHaveBeenCalled();
-    expect(getActivityLog()[0].error).toBe('no_root_key');
   });
 });
