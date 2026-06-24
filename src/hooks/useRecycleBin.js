@@ -15,7 +15,12 @@ export default function useRecycleBin({
     pushUndo();
     const task = recycleBin.find(t => t.id === id);
     if (task) {
-      const { _deletedFrom, ...cleanTask } = task; // Remove metadata
+      // Drop the deletion metadata and re-stamp lastModified to "now" so the
+      // restore wins against the bin entry on other devices (whose deletedAt is
+      // the deletion-time stamp). Without a fresher lastModified the cross-list
+      // reconciliation would just send the task straight back to the bin.
+      const { _deletedFrom, deletedAt, ...rest } = task;
+      const cleanTask = { ...rest, lastModified: new Date().toISOString() };
 
       if (_deletedFrom === 'inbox') {
         setUnscheduledTasks(prev => [...prev, cleanTask]);

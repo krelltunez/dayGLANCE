@@ -84,7 +84,7 @@ const MobileSettingsPanel = () => {
     obsidianSyncStatus, obsidianSyncError, obsidianLastSynced, setObsidianLastSynced,
     wikilinkCandidates, setWikilinkCandidates,
     cloudSyncTest, cloudSyncNow,
-    vaultSyncNow, vaultBootstrapSync, vaultStatus, vaultError, vaultLastSynced, vaultSkipped,
+    vaultSyncNow, vaultBootstrapSync, vaultStatus, vaultError, vaultLastSynced, vaultSkipped, vaultEnabled,
     syncAll, performObsidianSync, performRemoteBackup, nativeClearVault,
     loadAutoBackupHistory,
     deleteLocalAutoBackup, deleteRemoteAutoBackup,
@@ -300,14 +300,23 @@ const MobileSettingsPanel = () => {
         onClick={() => setMobileSettingsView('cloudsync')}
         className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
       >
-        <div className="relative">
-          <Cloud size={20} className={`${cloudSyncConfig?.enabled ? 'text-blue-500' : textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
-          {cloudSyncConfig?.enabled && (
-            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-              (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' : cloudSyncStatus === 'error' ? 'bg-red-500' : 'bg-green-500'
-            }`} />
-          )}
-        </div>
+        {/* Dot reflects WebDAV OR GLANCEvault; vault-only uses vault status. */}
+        {(() => {
+          const webdavOn = !!cloudSyncConfig?.enabled;
+          const syncOn = webdavOn || vaultEnabled;
+          const st = webdavOn ? cloudSyncStatus : vaultStatus;
+          const syncing = st === 'uploading' || st === 'downloading';
+          return (
+            <div className="relative">
+              <Cloud size={20} className={`${syncOn ? 'text-blue-500' : textSecondary} ${syncing ? 'animate-pulse' : ''}`} />
+              {syncOn && (
+                <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                  syncing ? 'bg-blue-500 animate-pulse' : st === 'error' ? 'bg-red-500' : 'bg-green-500'
+                }`} />
+              )}
+            </div>
+          );
+        })()}
         <span className={`font-medium ${textPrimary} flex-1 text-left`}>{t('settings.cloudSync')}</span>
         <ChevronRight size={18} className={textSecondary} />
       </button>
@@ -940,7 +949,8 @@ const MobileSettingsPanel = () => {
         </div>
       )}
 
-      {/* hyperGLANCE Sessions — independent of global enabled toggle */}
+      {/* hyperGLANCE Sessions — only relevant when Goals & Projects is on */}
+      {goalsProjectsEnabled && (
       <div className={`border-t ${borderClass} pt-4`}>
         <div className="flex items-center gap-2 mb-3">
           <Zap size={16} className="text-indigo-500" />
@@ -976,6 +986,7 @@ const MobileSettingsPanel = () => {
           </div>
         )}
       </div>
+      )}
     </div>
   )}
 

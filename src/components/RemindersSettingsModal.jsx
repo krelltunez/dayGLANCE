@@ -15,6 +15,7 @@ const RemindersSettingsModal = () => {
     showWeeklyReviewTimePicker, setShowWeeklyReviewTimePicker,
     reminderSettings, setReminderSettings,
     applyReminderPreset, updateCategoryReminder,
+    goalsProjectsEnabled,
   } = useFeaturesCtx();
 
   return (
@@ -232,7 +233,8 @@ const RemindersSettingsModal = () => {
               )}
             </div>
 
-            {/* hyperGLANCE Sessions */}
+            {/* hyperGLANCE Sessions — only relevant when Goals & Projects is on */}
+            {goalsProjectsEnabled && (
             <div className={`border-t ${borderClass} mt-4 pt-4`}>
               <div className="flex items-center gap-2 mb-3">
                 <Zap size={16} className="text-indigo-500" />
@@ -273,6 +275,7 @@ const RemindersSettingsModal = () => {
                 </div>
               )}
             </div>
+            )}
 
             <button
               onClick={() => setShowRemindersSettings(false)}

@@ -283,6 +283,7 @@ const DesktopLayout = () => {
     nativeEventToTask, clearNativeEventOverride, parseDatetime, parseICS, filterByDateWindow,
     loadData, saveData,
     cloudSyncDownload, cloudSyncUpload, cloudSyncTest, syncAll,
+    vaultEnabled, vaultStatus, vaultLastSynced, vaultSyncNow,
     performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian,
     performTrmnlSync,
     performLocalBackup, performRemoteBackup,
@@ -294,6 +295,15 @@ const DesktopLayout = () => {
     buildSyncPayload,
     fetchAllDailyContent, fetchWeather,
   } = useSyncCtx();
+
+  // Cloud-sync button: hidden unless WebDAV and/or GLANCEvault is configured.
+  // Vault-only drives a vault sync and reflects vault status; WebDAV is unchanged.
+  const webdavOn = !!cloudSyncConfig?.enabled;
+  const syncConfigured = webdavOn || vaultEnabled;
+  const effSyncStatus = webdavOn ? cloudSyncStatus : vaultStatus;
+  const effSyncLastSynced = webdavOn ? cloudSyncLastSynced : vaultLastSynced;
+  const effSyncing = effSyncStatus === 'uploading' || effSyncStatus === 'downloading';
+  const triggerSync = () => { if (webdavOn) cloudSyncUpload(); if (vaultEnabled) vaultSyncNow?.(); };
 
   const {
     voiceRecorderRef, voiceAudioChunksRef, voiceAutoStartRef,
@@ -521,29 +531,23 @@ const DesktopLayout = () => {
                 }`} />
               )}
             </button>}
+            {syncConfigured && (
             <button
-              onClick={() => {
-                if (cloudSyncConfig?.enabled) {
-                  cloudSyncUpload();
-                } else {
-                  setShowSettings(true);
-                }
-              }}
+              onClick={triggerSync}
               className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
-              title={cloudSyncConfig?.enabled
-                ? (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading' ? 'Syncing...' : `Cloud sync — last: ${cloudSyncLastSynced ? new Date(cloudSyncLastSynced).toLocaleTimeString() : 'never'}`)
-                : 'Set up cloud sync'}
+              title={effSyncing
+                ? 'Syncing...'
+                : `${webdavOn ? 'Cloud' : 'GLANCEvault'} sync — last: ${effSyncLastSynced ? new Date(effSyncLastSynced).toLocaleTimeString() : 'never'}`}
               aria-label="Cloud sync"
             >
-              <Cloud size={18} className={`${textSecondary} ${(cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'animate-pulse' : ''}`} />
-              {cloudSyncConfig?.enabled && (
-                <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
-                  (cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'bg-blue-500 animate-pulse' :
-                  cloudSyncStatus === 'error' ? 'bg-red-500' :
-                  'bg-green-500'
-                }`} />
-              )}
+              <Cloud size={18} className={`${textSecondary} ${effSyncing ? 'animate-pulse' : ''}`} />
+              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
+                effSyncing ? 'bg-blue-500 animate-pulse' :
+                effSyncStatus === 'error' ? 'bg-red-500' :
+                'bg-green-500'
+              }`} />
             </button>
+            )}
             {obsidianConfig?.enabled && (
               <button
                 onClick={() => performObsidianSync()}

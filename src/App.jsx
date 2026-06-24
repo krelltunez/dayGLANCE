@@ -191,6 +191,12 @@ const TimePicker = ({ value, onChange, use24HourClock, borderClass, darkMode }) 
 
 const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
+// How far back/forward the spotlight search fetches native (device) calendar events.
+// The timeline only loads a ±2-day window, so a broader range is fetched on demand
+// when the search opens so device-calendar events elsewhere are still searchable.
+const SPOTLIGHT_NATIVE_PAST_DAYS = 90;
+const SPOTLIGHT_NATIVE_FUTURE_DAYS = 365;
+
 const DayPlanner = () => {
   const { t } = useTranslation();
   const { isPro, isLoading: subLoading, isAndroidApp, isIOSApp, isElectronApp, productId: subProductId, subscribe, restore, prices: subPrices, trialEligible, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase, isReviewerUnlocked, setReviewerUnlocked } = useSubscription();
@@ -1054,6 +1060,10 @@ const DayPlanner = () => {
   const [spotlightQuery, setSpotlightQuery] = useState('');
   const [spotlightSelectedIndex, setSpotlightSelectedIndex] = useState(0);
   const spotlightInputRef = useRef(null);
+  // Native calendar events the timeline only fetches for a ±2-day window. When the
+  // spotlight search opens we fetch a much wider window so device-calendar events
+  // become searchable (see the effect near the native-calendar fetch below).
+  const [spotlightNativeTasks, setSpotlightNativeTasks] = useState([]);
 
   const { changeDate, goToToday, goToDate, handleSpotlightSelect } = useNavigation({
     visibleDays,
@@ -1179,6 +1189,7 @@ const DayPlanner = () => {
     playUISound,
     onboardingProgress,
     setOnboardingProgress,
+    isVisibleForUser,
   });
   const { conflicts, checkConflicts } = useConflictDetection({
     tasks,
@@ -2647,7 +2658,7 @@ const DayPlanner = () => {
 
     // Today's recurring instances past their end time
     const todayRecurring = expandedRecurringTasks.filter(t =>
-      t.date === todayStr && !t.completed && !t.isExample && isOverdueToday(t)
+      t.date === todayStr && !t.completed && !t.isExample && isVisibleForUser(t) && isOverdueToday(t)
     ).map(t => ({ ...t, _overdueType: 'scheduled' }));
 
     // Past uncompleted recurring all-day instances (look back up to 7 days)
@@ -2658,6 +2669,7 @@ const DayPlanner = () => {
       const dateStr = dateToString(d);
       for (const template of recurringTasks) {
         if (template.isExample) continue;
+        if (!isVisibleForUser(template)) continue;
         const isTemplateAllDay = template.isAllDay ?? false;
         if (!isTemplateAllDay) continue;
         const occs = getOccurrencesInRange(template, dateStr, dateStr);
@@ -2881,10 +2893,13 @@ const DayPlanner = () => {
     setTrmnlSyncStatus('syncing');
     try {
       const today = selectedDate ? dateToString(selectedDate) : new Date().toISOString().slice(0, 10);
+      // Multi-user: the TRMNL dashboard belongs to the current user, so scope
+      // tasks to what's visible to "me" before gathering the payload. Imported
+      // calendar events carry no assignment and remain included.
       const mergeVars = gatherTrmnlData({
-        tasks,
-        unscheduledTasks,
-        recurringTasks,
+        tasks: tasks.filter(isVisibleForUser),
+        unscheduledTasks: unscheduledTasks.filter(isVisibleForUser),
+        recurringTasks: recurringTasks.filter(isVisibleForUser),
         selectedDate: today,
         use24HourClock: use24HourClock,
         habits: activeHabits,
@@ -3355,9 +3370,10 @@ const DayPlanner = () => {
   const hasTasksOnDate = (date) => {
     if (!date) return false;
     const dateStr = dateToString(date);
-    if (tasks.some(task => task.date === dateStr)) return true;
+    if (tasks.some(task => task.date === dateStr && isVisibleForUser(task))) return true;
     // Check recurring tasks for this date
     for (const template of recurringTasks) {
+      if (!isVisibleForUser(template)) continue;
       const occs = getOccurrencesInRange(template, dateStr, dateStr);
       if (occs.length > 0) return true;
     }
@@ -3369,7 +3385,7 @@ const DayPlanner = () => {
     const importedDates = new Set();
     const appTaskDates = new Set();
     for (const task of tasks) {
-      if (!task.date) continue;
+      if (!task.date || !isVisibleForUser(task)) continue;
       if (task.imported) importedDates.add(task.date);
       else appTaskDates.add(task.date);
     }
@@ -3380,16 +3396,17 @@ const DayPlanner = () => {
     const rangeEnd = dateToString(new Date(year, month + 1, 0));
     const recurringDates = new Set();
     for (const template of recurringTasks) {
+      if (!isVisibleForUser(template)) continue;
       const occs = getOccurrencesInRange(template, rangeStart, rangeEnd);
       for (const dateStr of occs) recurringDates.add(dateStr);
     }
     // Inbox tasks with deadlines
     const deadlineDates = new Set();
     for (const task of unscheduledTasks) {
-      if (task.deadline) deadlineDates.add(task.deadline);
+      if (task.deadline && isVisibleForUser(task)) deadlineDates.add(task.deadline);
     }
     return { importedDates, appTaskDates, recurringDates, deadlineDates };
-  }, [tasks, recurringTasks, unscheduledTasks, viewedMonth]);
+  }, [tasks, recurringTasks, unscheduledTasks, viewedMonth, isVisibleForUser]);
 
   // Returns which indicator dots to show for a date: { hasNote, hasImported, hasAppTask }
   const getDateIndicators = (date) => {
@@ -3573,6 +3590,7 @@ const DayPlanner = () => {
             notes: template?.notes || '',
             subtasks: template?.subtasks ? JSON.parse(JSON.stringify(template.subtasks)) : [],
             date: newTask.date || parsed.dateStr,
+            ...(mobileEditingTask.assignedUserSyncIds?.length ? { assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds } : {}),
           };
           setTasks(prev => [...prev, regularTask]);
           recordDeletedTaskTombstone(parsed.templateId);
@@ -3608,29 +3626,51 @@ const DayPlanner = () => {
               assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds,
             }]);
           } else {
+            // User-assignment scope chosen in the Edit Task modal: 'all' (the
+            // whole series, default) or 'this' (only the edited occurrence).
+            const assignScope = mobileEditingTask._assignScope || 'all';
+            const assigned = mobileEditingTask.assignedUserSyncIds;
             setRecurringTasks(prev => prev.map(t => {
-              if (t.id === parsed.templateId) {
-                const updated = {
-                  ...t,
-                  exceptions: {
-                    ...t.exceptions,
-                    [parsed.dateStr]: {
-                      ...(t.exceptions?.[parsed.dateStr] || {}),
-                      title: cleanTitle(newTask.title),
-                      startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
-                      duration: newTask.duration,
-                      isAllDay: newTask.isAllDay || false,
-                      color: newTask.color || colors[0].class,
-                      assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds,
+              if (t.id !== parsed.templateId) return t;
+              // Title/time/colour edits always live on this date's exception.
+              const instanceException = {
+                ...(t.exceptions?.[parsed.dateStr] || {}),
+                title: cleanTitle(newTask.title),
+                startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
+                duration: newTask.duration,
+                isAllDay: newTask.isAllDay || false,
+                color: newTask.color || colors[0].class,
+              };
+              let exceptions = { ...t.exceptions, [parsed.dateStr]: instanceException };
+              let templateAssigned = t.assignedUserSyncIds;
+              if (assignScope === 'this') {
+                // Assign only this occurrence: store the override on its exception.
+                // An empty array means "everybody" for this date; undefined leaves
+                // it inheriting the series value.
+                if (assigned !== undefined) instanceException.assignedUserSyncIds = assigned;
+              } else {
+                // Assign the whole series: write to the template and strip any
+                // per-instance assignment overrides so the series value wins on
+                // every occurrence.
+                templateAssigned = assigned ?? t.assignedUserSyncIds;
+                exceptions = Object.fromEntries(
+                  Object.entries(exceptions).map(([d, exc]) => {
+                    if (exc && 'assignedUserSyncIds' in exc) {
+                      const { assignedUserSyncIds, ...rest } = exc;
+                      return [d, rest];
                     }
-                  }
-                };
-                // Update recurrence pattern on template if changed
-                updated.recurrence = { ...newTask.recurrence, startDate: t.recurrence?.startDate || parsed.dateStr.substring(0, 8) + '01' };
-                updated.lastModified = new Date().toISOString();
-                return updated;
+                    return [d, exc];
+                  })
+                );
               }
-              return t;
+              return {
+                ...t,
+                exceptions,
+                assignedUserSyncIds: templateAssigned,
+                // Update recurrence pattern on template if changed
+                recurrence: { ...newTask.recurrence, startDate: t.recurrence?.startDate || parsed.dateStr.substring(0, 8) + '01' },
+                lastModified: new Date().toISOString(),
+              };
             }));
           }
         }
@@ -3651,7 +3691,7 @@ const DayPlanner = () => {
         recurrence: { ...newTask.recurrence, startDate: taskDate },
         completedDates: existingTask?.completed ? [taskDate] : [],
         exceptions: {},
-        assignedUserSyncIds: newTask.assignedUserSyncIds || existingTask?.assignedUserSyncIds,
+        assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds ?? existingTask?.assignedUserSyncIds,
         lastModified: new Date().toISOString()
       };
       setTasks(prev => prev.filter(t => t.id !== taskId));
@@ -3865,6 +3905,66 @@ const DayPlanner = () => {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, calendarFilter, nativeCalendarKey]);
+
+  // Wider native-calendar fetch for the spotlight search. The timeline effect above
+  // only loads a ±2-day window, so device-calendar events on other dates never reach
+  // the search. When the search opens, fetch a broad window (cached for the session)
+  // and feed it into spotlightResults. macOS (Electron) resolves the whole range in a
+  // single async IPC call; the mobile bridge is synchronous per-day, so we fetch in
+  // chunks with yields between them and publish results progressively to avoid
+  // blocking the main thread while the modal is open.
+  useEffect(() => {
+    if (!showSpotlight || !hasNativeCalendar()) return;
+    const filterSet = calendarFilter.length > 0 ? new Set(calendarFilter) : null;
+    const start = new Date(); start.setDate(start.getDate() - SPOTLIGHT_NATIVE_PAST_DAYS);
+    const end = new Date(); end.setDate(end.getDate() + SPOTLIGHT_NATIVE_FUTURE_DAYS);
+    const dates = [];
+    for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) dates.push(dateToString(d));
+
+    const toTasks = (results) => {
+      const seen = new Set();
+      const flat = results
+        .flatMap((result, i) => Array.isArray(result) ? result.map(e => ({ ...e, _queryDate: dates[i] })) : [])
+        .filter(e => !filterSet || filterSet.has(e.calendarId))
+        .map(e => nativeEventToTask(e))
+        .filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
+      // Collapse repeated/recurring occurrences (same title + calendar) to the single
+      // occurrence nearest today, so a daily/weekly event doesn't flood the results.
+      const todayMs = new Date(getTodayStr()).getTime();
+      const byKey = new Map();
+      for (const t of flat) {
+        const key = `${(t.title || '').toLowerCase()}|${t.calendarName || ''}`;
+        const existing = byKey.get(key);
+        if (!existing) { byKey.set(key, t); continue; }
+        const dist = (d) => Math.abs(new Date(d).getTime() - todayMs);
+        if (dist(t.date) < dist(existing.date)) byKey.set(key, t);
+      }
+      return [...byKey.values()];
+    };
+
+    let cancelled = false;
+    if (isNativeApp()) {
+      // Synchronous bridge: walk the window in day-chunks, yielding between chunks.
+      const CHUNK = 30;
+      const acc = new Array(dates.length).fill(null);
+      let i = 0;
+      const step = () => {
+        if (cancelled) return;
+        const endIdx = Math.min(i + CHUNK, dates.length);
+        for (; i < endIdx; i++) acc[i] = nativeGetEvents(dates[i]);
+        setSpotlightNativeTasks(toTasks(acc));
+        if (i < dates.length) setTimeout(step, 0);
+      };
+      step();
+      return () => { cancelled = true; };
+    } else {
+      electronGetEventsByDate(dates).then(results => {
+        if (!cancelled) setSpotlightNativeTasks(toTasks(results));
+      });
+      return () => { cancelled = true; };
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSpotlight, calendarFilter, nativeCalendarKey]);
 
   const enterFocusMode = () => {
     setShowFocusMode(true);
@@ -6100,8 +6200,8 @@ const DayPlanner = () => {
       const calendarEventsToday = tasks.filter(t => t.date === todayStr && t.imported && !t.isTaskCalendar)
         .map(t => ({ title: t.title, time: t.startTime, isAllDay: t.isAllDay || false, duration: t.duration || 0 }))
         .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-      // Gather today's recurring tasks
-      const todayRecurring = recurringTasks.flatMap(t => {
+      // Gather today's recurring tasks (series-level assignment → filter templates)
+      const todayRecurring = recurringTasks.filter(isVisibleForUser).flatMap(t => {
         const occs = getOccurrencesInRange(t, todayStr, todayStr);
         return occs.map(() => ({ title: t.title, time: t.startTime, completed: (t.completedDates || []).includes(todayStr) }));
       }).filter(t => !t.completed);
@@ -6517,6 +6617,8 @@ const DayPlanner = () => {
           color: exception?.color ?? template.color,
           completed,
           isAllDay: exception?.isAllDay ?? template.isAllDay ?? false,
+          // Assignment is series-level by default (inherited from the template),
+          // but an instance can carry its own override when assigned "this only".
           assignedUserSyncIds: exception?.assignedUserSyncIds ?? template.assignedUserSyncIds,
           notes: template.notes || '',
           subtasks: template.subtasks || [],
@@ -6655,6 +6757,9 @@ const DayPlanner = () => {
     const cutoffStr = dateToString(cutoff);
 
     const matchTask = (task, source, sourceLabel, date) => {
+      // Respect multi-user visibility — don't surface other users' tasks.
+      // (Native calendar events carry no assignment, so they stay visible.)
+      if (!isVisibleForUser(task)) return;
       // Skip scheduled tasks older than 2 years
       if (date && date < cutoffStr) return;
       // Check title
@@ -6681,9 +6786,16 @@ const DayPlanner = () => {
       }
     };
 
-    // Scheduled tasks
+    // Scheduled tasks. Native (device-calendar) events that the timeline merged into
+    // `tasks` for the current ±2-day window are skipped here — they're searched via
+    // the wider spotlightNativeTasks set below so they aren't listed twice.
     for (const task of tasks) {
+      if (task._native) continue;
       matchTask(task, 'scheduled', 'Scheduled', task.date);
+    }
+    // Native calendar events fetched over the wider spotlight window
+    for (const task of spotlightNativeTasks) {
+      matchTask(task, 'event', 'Calendar', task.date);
     }
     // Inbox tasks (archived get their own source/label)
     for (const task of unscheduledTasks) {
@@ -6721,7 +6833,7 @@ const DayPlanner = () => {
     results.forEach(r => { r.group = getGroup(r); });
 
     // Sort: by group, then title match, then source priority, then date
-    const sourcePriority = { scheduled: 0, inbox: 1, recurring: 2, deleted: 3, archived: 4 };
+    const sourcePriority = { scheduled: 0, event: 1, inbox: 2, recurring: 3, deleted: 4, archived: 5 };
     results.sort((a, b) => {
       const gA = groupOrder[a.group] ?? 6;
       const gB = groupOrder[b.group] ?? 6;
@@ -6738,7 +6850,7 @@ const DayPlanner = () => {
     });
 
     return results.slice(0, 50);
-  }, [showSpotlight, spotlightQuery, tasks, unscheduledTasks, recurringTasks, recycleBin]);
+  }, [showSpotlight, spotlightQuery, tasks, unscheduledTasks, recurringTasks, recycleBin, spotlightNativeTasks, isVisibleForUser]);
 
   // Compute today's agenda for dayGLANCE section (excludes past events)
   const todayAgenda = useMemo(() => {
@@ -6830,8 +6942,8 @@ const DayPlanner = () => {
 
     // Gather tomorrow's tasks (regular + recurring)
     const regularTasks = tasks.filter(t => t.date === tomorrowStr && !t.completed && !t.isExample && isVisibleForUser(t));
-    // Expand recurring tasks for tomorrow
-    const recurringInstances = recurringTasks.flatMap(template => {
+    // Expand recurring tasks for tomorrow (series-level assignment → filter templates)
+    const recurringInstances = recurringTasks.filter(isVisibleForUser).flatMap(template => {
       const occs = getOccurrencesInRange(template, tomorrowStr, tomorrowStr);
       return occs.map(dateStr => {
         const completed = (template.completedDates || []).includes(dateStr);
@@ -8652,6 +8764,9 @@ const DayPlanner = () => {
       return { ok: true };
     },
     vaultStatus, vaultError, vaultLastSynced, vaultSkipped,
+    // Reactive enablement flag for the header sync button. A vault enable/disable
+    // always reloads the app (CloudSyncSettingsForm), so a render-time read is current.
+    vaultEnabled: isVaultEnabled(),
     syncAll,
     performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, nativeClearVault,
     performTrmnlSync,

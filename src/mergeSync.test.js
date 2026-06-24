@@ -494,6 +494,52 @@ describe('mergeSyncData', () => {
     expect(data.recycleBin).toHaveLength(1);
   });
 
+  // ── Zombie-resurrection regression ────────────────────────────
+  // An OLD task (lastModified beyond the retention horizon) that gets deleted
+  // must not resurrect. moveToRecycleBin stamps the bin entry with a FRESH
+  // deletedAt AND lastModified so the entry survives horizon pruning and wins
+  // the active-vs-recycled reconciliation.
+  it('SCENARIO: deleting a stale task (beyond sync horizon) does not resurrect it', () => {
+    const oldLm = ts(200 * 24 * 60); // ~200 days ago, older than the horizon
+    const freshStamp = ts(0);        // moveToRecycleBin's fresh stamp
+    const thisDevice = {
+      ...emptyData(),
+      recycleBin: [{ ...T(1, 'Leaked seed task', freshStamp), deletedAt: freshStamp, _deletedFrom: 'inbox' }],
+    };
+    // The stale cloud / other device still holds it active with its old timestamp,
+    // and publishes a pruned-before fence (~90 days) that engages the sync horizon.
+    const otherDevice = {
+      ...emptyData(),
+      unscheduledTasks: [T(1, 'Leaked seed task', oldLm)],
+      tombstonePrunedBefore: ts(90 * 24 * 60),
+    };
+    const { data } = mergeSyncData(thisDevice, otherDevice, 90);
+    expect(data.unscheduledTasks).toHaveLength(0); // does NOT come back to inbox
+    expect(data.recycleBin).toHaveLength(1);        // stays in the bin
+    expect(data.recycleBin[0].id).toBe(1);
+  });
+
+  it('ROOT CAUSE: a stale-stamped bin entry is horizon-pruned and the task resurrects', () => {
+    // Documents the pre-fix behaviour: when the bin entry kept the task's OWN
+    // stale lastModified, the merge dropped it as a presumed zombie (the remote's
+    // tombstonePrunedBefore fence engages the horizon), leaving the remote active
+    // copy — which carries no tombstone — to reconcile straight back into the inbox.
+    const oldLm = ts(200 * 24 * 60);
+    const thisDevice = {
+      ...emptyData(),
+      recycleBin: [{ ...T(1, 'Leaked seed task', oldLm), deletedAt: ts(0), _deletedFrom: 'inbox' }],
+    };
+    const otherDevice = {
+      ...emptyData(),
+      unscheduledTasks: [T(1, 'Leaked seed task', oldLm)],
+      tombstonePrunedBefore: ts(90 * 24 * 60),
+    };
+    const { data } = mergeSyncData(thisDevice, otherDevice, 90);
+    // The stale bin entry is pruned, so the active copy survives — the bug.
+    expect(data.recycleBin).toHaveLength(0);
+    expect(data.unscheduledTasks).toHaveLength(1);
+  });
+
   it('SCENARIO: task restored from recycle bin stays active when other device syncs', () => {
     // Device A restored the task (bumped lastModified)
     const deviceA = {

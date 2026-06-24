@@ -12,7 +12,7 @@ const WeeklyReviewModal = () => {
   const {
     mobileReviewPage, setMobileReviewPage,
     reviewScrollRef,
-    tasks, recurringTasks, unscheduledTasks,
+    tasks: allTasks, recurringTasks: allRecurringTasks, unscheduledTasks: allUnscheduledTasks,
     selectedDate,
     isMobile, isTablet,
     darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
@@ -24,11 +24,12 @@ const WeeklyReviewModal = () => {
     weeklyAISummary, setWeeklyAISummary,
     weeklyAILoading, weeklyAIError, setWeeklyAIError,
     generateWeeklyAISummary,
-    goals, projects, goalsProjectsEnabled,
+    goals: allGoals, projects: allProjects, goalsProjectsEnabled,
     habitsEnabled, habits, habitLogs,
     gtdFrames,
     aiConfig,
     ownedBy, meUserSyncId,
+    isVisibleForUser,
   } = useFeaturesCtx();
 
   // Local collapse state for past-week HABITS and FRAME UTILIZATION sections
@@ -39,6 +40,15 @@ const WeeklyReviewModal = () => {
   useEffect(() => { setMobileReviewPage(0); }, []);
 
   if (!showWeeklyReview) return null;
+
+  // Multi-user: the weekly review reflects only the current user's tasks, goals,
+  // and projects, so scope every source here before any stats are computed.
+  // Imported calendar events carry no assignment, so they remain included.
+  const tasks = allTasks.filter(isVisibleForUser);
+  const recurringTasks = allRecurringTasks.filter(isVisibleForUser);
+  const unscheduledTasks = allUnscheduledTasks.filter(isVisibleForUser);
+  const goals = allGoals.filter(isVisibleForUser);
+  const projects = allProjects.filter(isVisibleForUser);
 
         // Compute rolling 7-day boundaries
         const today = new Date();

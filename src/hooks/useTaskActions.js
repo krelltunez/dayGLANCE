@@ -182,6 +182,9 @@ export default function useTaskActions({
           recurrence: { ...newTask.recurrence, startDate: taskDate },
           completedDates: [],
           exceptions: {},
+          // User assignment on recurring tasks is series-level: it lives on the
+          // template so every materialised instance inherits it.
+          ...(newTask.assignedUserSyncIds?.length ? { assignedUserSyncIds: newTask.assignedUserSyncIds } : {}),
           lastModified: new Date().toISOString()
         };
         setRecurringTasks(prev => [...prev, template]);
@@ -633,10 +636,22 @@ export default function useTaskActions({
       if (expandedNotesTaskId === id) {
         setExpandedNotesTaskId(null);
       }
+      // Stamp the bin entry with a FRESH timestamp that is strictly newer than
+      // the task's own lastModified, used for BOTH deletedAt and lastModified.
+      // This prevents "zombie" resurrection: an old task (lastModified beyond the
+      // sync horizon) would otherwise have its recycle-bin entry pruned as a
+      // presumed zombie during merge, after which the remote active copy — which
+      // carries no tombstone — reconciles straight back into the inbox. A fresh
+      // stamp keeps the bin entry alive past the horizon and lets it win the
+      // active-vs-recycled reconciliation in both the file and vault sync tiers.
+      const deletedStamp = new Date(
+        Math.max(Date.now(), (task.lastModified ? Date.parse(task.lastModified) : 0) + 1000)
+      ).toISOString();
       const taskWithMeta = {
         ...task,
         _deletedFrom: actuallyInInbox ? 'inbox' : 'calendar',
-        deletedAt: new Date().toISOString()
+        deletedAt: deletedStamp,
+        lastModified: deletedStamp,
       };
       setRecycleBin(prev => [...prev, taskWithMeta]);
       if (actuallyInInbox) {

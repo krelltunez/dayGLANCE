@@ -64,12 +64,14 @@ export default function useNavigation({
       }, delay);
     };
 
-    if (source === 'scheduled') {
+    if (source === 'scheduled' || source === 'event') {
       if (isMobile) {
         setMobileActiveTab('timeline');
       }
       goToDate(task.date);
-      scrollAndHighlight(`[data-task-id="${task.id}"]`);
+      // Native calendar events are fetched per-date, so the card may not exist
+      // until the timeline re-fetches the target day — give it a little longer.
+      scrollAndHighlight(`[data-task-id="${task.id}"]`, source === 'event' ? 600 : 300);
     } else if (source === 'inbox') {
       if (isMobile) {
         setMobileActiveTab('inbox');
