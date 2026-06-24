@@ -21,6 +21,20 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, h
       return filtered;
     } catch (_) { return {}; }
   });
+  // Per-routine completion timestamps (ISO), the sync LWW key that lets an
+  // un-complete win over a stale complete instead of being resurrected by a
+  // grow-union merge. Kept day-scoped (the ISO date prefix must be today).
+  const [routineCompletionTimestamps, setRoutineCompletionTimestamps] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('day-planner-routine-completion-timestamps') || '{}');
+      const todayStr = dateToString(new Date());
+      const filtered = {};
+      for (const [id, iso] of Object.entries(stored)) {
+        if (typeof iso === 'string' && iso.slice(0, 10) === todayStr) filtered[id] = iso;
+      }
+      return filtered;
+    } catch (_) { return {}; }
+  });
   const [showRoutinesDashboard, setShowRoutinesDashboard] = useState(false);
   const [dashboardSelectedChips, setDashboardSelectedChips] = useState([]);
   const [routineAddingToBucket, setRoutineAddingToBucket] = useState(null);
@@ -50,6 +64,11 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, h
     localStorage.setItem('day-planner-routine-completions', JSON.stringify(routineCompletions));
   }, [routineCompletions]);
 
+  // Persist completion timestamps (the sync LWW key) alongside the completions.
+  useEffect(() => {
+    localStorage.setItem('day-planner-routine-completion-timestamps', JSON.stringify(routineCompletionTimestamps));
+  }, [routineCompletionTimestamps]);
+
   // Auto-clear today's routines on day rollover
   useEffect(() => {
     const todayStr = dateToString(new Date());
@@ -58,8 +77,10 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, h
       setRoutinesDate(todayStr);
       setRemovedTodayRoutineIds({});
       setRoutineCompletions({});
+      setRoutineCompletionTimestamps({});
       localStorage.removeItem('day-planner-removed-today-routine-ids');
       localStorage.removeItem('day-planner-routine-completions');
+      localStorage.removeItem('day-planner-routine-completion-timestamps');
     }
   }, [currentTime]);
 
@@ -74,6 +95,9 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, h
       }
       return next;
     });
+    // Stamp the toggle (complete AND un-complete) so sync resolves the latest
+    // state by last-writer-wins instead of grow-unioning the completion back.
+    setRoutineCompletionTimestamps(prev => ({ ...prev, [routineId]: new Date().toISOString() }));
   };
 
   // Pre-populate the dashboard center with the given owner's placed routines.
@@ -203,6 +227,7 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, h
     routineDurationEditId, setRoutineDurationEditId,
     routinesEnabled, setRoutinesEnabled,
     routineCompletions, setRoutineCompletions,
+    routineCompletionTimestamps, setRoutineCompletionTimestamps,
     toggleRoutineCompletion,
     openRoutinesDashboard,
     addRoutineChip,

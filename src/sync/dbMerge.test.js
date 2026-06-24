@@ -108,14 +108,48 @@ describe('A1 bundle merge — concurrent different-entry edits are not lost', ()
     }
   });
 
-  it('routineCompletions: completing different routines both survive (set-union)', () => {
-    const base = { ...EMPTY_COLLECTIONS, routinesDate: '2026-06-18', routineCompletions: {} };
+  it('routineCompletions: completing different routines both survive', () => {
+    const base = { ...EMPTY_COLLECTIONS, routinesDate: '2026-06-18', routineCompletions: {}, routineCompletionTimestamps: {} };
     const { vault, a, b } = newPair(base);
-    a.mutate((d) => { d.routineCompletions['5001'] = '2026-06-18'; return ['singleton:routineCompletions']; });
-    b.mutate((d) => { d.routineCompletions['5002'] = '2026-06-18'; return ['singleton:routineCompletions']; });
+    a.mutate((d) => { d.routineCompletions['5001'] = '2026-06-18'; d.routineCompletionTimestamps['5001'] = T1; return ['singleton:routineCompletions']; });
+    b.mutate((d) => { d.routineCompletions['5002'] = '2026-06-18'; d.routineCompletionTimestamps['5002'] = T1; return ['singleton:routineCompletions']; });
     syncToConvergence(a, b, vault);
     for (const dev of [a, b]) {
       expect(dev.data.routineCompletions).toEqual({ 5001: '2026-06-18', 5002: '2026-06-18' });
+    }
+  });
+
+  it('routineCompletions: an un-complete propagates instead of being resurrected (flip-flop bug)', () => {
+    // Both devices see routine 5001 completed. Device A un-completes it (deletes
+    // the key, stamps a later timestamp). After sync, BOTH devices must show it
+    // un-completed — a grow-union would resurrect it from B's stale completion.
+    const base = {
+      ...EMPTY_COLLECTIONS, routinesDate: '2026-06-18',
+      routineCompletions: { 5001: '2026-06-18' },
+      routineCompletionTimestamps: { 5001: T0 },
+    };
+    const { vault, a, b } = newPair(base);
+    a.mutate((d) => { delete d.routineCompletions['5001']; d.routineCompletionTimestamps['5001'] = T2; return ['singleton:routineCompletions']; });
+    syncToConvergence(a, b, vault);
+    for (const dev of [a, b]) {
+      expect(dev.data.routineCompletions['5001']).toBeUndefined();
+    }
+  });
+
+  it('routineCompletions: a re-complete after an un-complete wins by recency', () => {
+    // A un-completes (T1), then B re-completes the same routine later (T2).
+    // The later complete must win on both devices.
+    const base = {
+      ...EMPTY_COLLECTIONS, routinesDate: '2026-06-18',
+      routineCompletions: { 5001: '2026-06-18' },
+      routineCompletionTimestamps: { 5001: T0 },
+    };
+    const { vault, a, b } = newPair(base);
+    a.mutate((d) => { delete d.routineCompletions['5001']; d.routineCompletionTimestamps['5001'] = T1; return ['singleton:routineCompletions']; });
+    b.mutate((d) => { d.routineCompletions['5001'] = '2026-06-18'; d.routineCompletionTimestamps['5001'] = T2; return ['singleton:routineCompletions']; });
+    syncToConvergence(a, b, vault);
+    for (const dev of [a, b]) {
+      expect(dev.data.routineCompletions['5001']).toBe('2026-06-18');
     }
   });
 

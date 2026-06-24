@@ -111,6 +111,7 @@ function buildFixture() {
     ],
     routinesDate: '2026-06-18',
     routineCompletions: { 5001: '2026-06-18' },
+    routineCompletionTimestamps: { 5001: ts(40) },
     minimizedSections: { inbox: true, habits: false },
     use24HourClock: true,
     weatherZip: '60601',

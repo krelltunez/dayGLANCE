@@ -135,6 +135,68 @@ export const mergeHabitLogs = (localLogs, remoteLogs, localTs = {}, remoteTs = {
 };
 
 /**
+ * Routine-completion merge with per-routine timestamps.
+ *
+ * Routine completions are a `{routineId → 'YYYY-MM-DD'}` map, but the only
+ * top-level signal was the bare date, so the upstream/vault merge could only
+ * grow-union them: a key, once present, never goes away. That breaks the toggle.
+ * UN-completing a routine deletes its key locally (useRoutines.toggleRoutineCompletion),
+ * and a grow-union immediately resurrects it from any device that still has the
+ * completion — so the routine flips between done/undone on every sync round-trip
+ * with no user action (the same zombie-resurrection class fixed for tasks).
+ *
+ * Fix: carry a parallel `{routineId → ISO}` timestamp map, stamped on EVERY
+ * toggle (complete AND un-complete), and resolve each routine by last-writer-wins
+ * on that timestamp — so a later un-complete (key absent, newer ts) beats an
+ * earlier complete. Presence/absence in the completions map is the value; the
+ * timestamp decides the winner. Legacy entries with no timestamp fall back to the
+ * old grow-union (present wins), so nothing regresses on first upgrade.
+ *
+ * Mirrors mergeHabitLogs above (count↔presence, day-key↔routine-id); routed
+ * through mergeSyncData below and the vault adapter (src/sync/dbAdapter.js).
+ */
+export const mergeRoutineCompletions = (localC = {}, remoteC = {}, localTs = {}, remoteTs = {}) => {
+  const ids = new Set([
+    ...Object.keys(localC), ...Object.keys(remoteC),
+    ...Object.keys(localTs), ...Object.keys(remoteTs),
+  ]);
+  const merged = {};
+  const mergedTimestamps = {};
+  let localChanged = false;
+  let remoteChanged = false;
+
+  for (const id of ids) {
+    const lHas = Object.prototype.hasOwnProperty.call(localC, id);
+    const rHas = Object.prototype.hasOwnProperty.call(remoteC, id);
+    const lTime = localTs[id] ? new Date(localTs[id]).getTime() : 0;
+    const rTime = remoteTs[id] ? new Date(remoteTs[id]).getTime() : 0;
+
+    // Keep the newer timestamp per id so the marker (incl. a tombstone) converges.
+    const newerTs = rTime > lTime ? remoteTs[id] : (localTs[id] ?? remoteTs[id]);
+    if (newerTs) mergedTimestamps[id] = newerTs;
+
+    let present, date;
+    if (lTime > rTime) {
+      present = lHas; date = localC[id];          // local strictly newer
+    } else if (rTime > lTime) {
+      present = rHas; date = remoteC[id];         // remote strictly newer
+    } else {
+      // Equal timestamps (or both missing — legacy): present wins, so a
+      // completion is never silently dropped, matching the old grow-union.
+      present = lHas || rHas;
+      date = (lHas && rHas)
+        ? (localC[id] > remoteC[id] ? localC[id] : remoteC[id])
+        : (lHas ? localC[id] : remoteC[id]);
+    }
+    if (present) merged[id] = date;
+    if (present !== lHas) localChanged = true;
+    if (present !== rHas) remoteChanged = true;
+  }
+
+  return { merged, mergedTimestamps, localChanged, remoteChanged };
+};
+
+/**
  * Full-sync merge. Delegates to the upstream merge, then overrides the
  * habit-log portion with the deterministic tie-break above so existing stuck
  * habit counts self-heal across the fleet (no manual re-touch, no package bump).
@@ -152,6 +214,19 @@ export const mergeSyncData = (local, remote, retentionDays) => {
   // Make sure a heal (one side's count changing) actually triggers a write/push.
   if (habitLogsFix.localChanged) result.localChanged = true;
   if (habitLogsFix.remoteChanged) result.remoteChanged = true;
+  // Routine completions: resolve by per-routine timestamp so an un-complete
+  // propagates instead of being resurrected by the grow-union (the flip-flop bug).
+  if (local?.routineCompletions || remote?.routineCompletions ||
+      local?.routineCompletionTimestamps || remote?.routineCompletionTimestamps) {
+    const rcFix = mergeRoutineCompletions(
+      local?.routineCompletions || {}, remote?.routineCompletions || {},
+      local?.routineCompletionTimestamps || {}, remote?.routineCompletionTimestamps || {},
+    );
+    result.data.routineCompletions = rcFix.merged;
+    result.data.routineCompletionTimestamps = rcFix.mergedTimestamps;
+    if (rcFix.localChanged) result.localChanged = true;
+    if (rcFix.remoteChanged) result.remoteChanged = true;
+  }
   // Per-user calendar config merges by syncId (the upstream merge doesn't know
   // this key), so resolve it explicitly here from both sides.
   if (local?.calendarConfigByUser || remote?.calendarConfigByUser) {

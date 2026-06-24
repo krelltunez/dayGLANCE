@@ -26,7 +26,7 @@
 // array inside its row, habitLogs stays a keyed map carried whole. No finer
 // per-completion remodeling.
 
-import { mergeHabitLogs, mergeRoutineDefinitions } from '../mergeSync.js';
+import { mergeHabitLogs, mergeRoutineDefinitions, mergeRoutineCompletions } from '../mergeSync.js';
 
 // ── Collection kinds: each array element is one row, keyed by a stable id, with
 // entity-grain last-writer-wins on tsField (the same grain the file-tier merge
@@ -74,6 +74,7 @@ export const SINGLETON_KIND = 'singleton';
 // order-independent. This is COARSER grouping, not finer remodeling (rule 4).
 export const BUNDLE_OWNS = {
   habitLogs:            ['habitLogTimestamps'],
+  routineCompletions:   ['routineCompletionTimestamps'],
   habitsEnabled:        ['habitsEnabledUpdatedAt'],
   routinesEnabled:      ['routinesEnabledUpdatedAt'],
   goalsProjectsEnabled: ['goalsProjectsEnabledUpdatedAt'],
@@ -315,12 +316,6 @@ const MERGE = {
     for (const [k, v] of Object.entries(remote)) out[k] = newerIso(out[k], v);
     return out;
   },
-  // {routineId → 'YYYY-MM-DD'}: union, keep the later date per key.
-  unionLaterDate(local = {}, remote = {}) {
-    const out = { ...local };
-    for (const [k, v] of Object.entries(remote)) out[k] = (out[k] && out[k] > v) ? out[k] : v;
-    return out;
-  },
   // string[]: set-union (grow-only).
   unionArray(local = [], remote = []) {
     return [...new Set([...(local || []), ...(remote || [])])];
@@ -382,9 +377,17 @@ function mergeBundle(data, key, value, extra) {
       data.routineDefinitions = res.merged;
       return;
     }
-    case 'routineCompletions':
-      data.routineCompletions = MERGE.unionLaterDate(data.routineCompletions || {}, value || {});
+    case 'routineCompletions': {
+      // Per-routine LWW on the timestamp sibling (rides in _extra) so an
+      // un-complete propagates instead of being resurrected by a grow-union.
+      const res = mergeRoutineCompletions(
+        data.routineCompletions || {}, value || {},
+        data.routineCompletionTimestamps || {}, extra.routineCompletionTimestamps || {},
+      );
+      data.routineCompletions = res.merged;
+      data.routineCompletionTimestamps = res.mergedTimestamps;
       return;
+    }
     case 'completedTaskUids':
       data.completedTaskUids = MERGE.unionArray(data.completedTaskUids || [], value || []);
       return;

@@ -710,6 +710,7 @@ const DayPlanner = () => {
     routineDurationEditId, setRoutineDurationEditId,
     routinesEnabled, setRoutinesEnabled,
     routineCompletions, setRoutineCompletions, toggleRoutineCompletion,
+    routineCompletionTimestamps, setRoutineCompletionTimestamps,
     openRoutinesDashboard,
     addRoutineChip,
     deleteRoutineChip,
@@ -5656,6 +5657,9 @@ const DayPlanner = () => {
         todayRoutines: stampTaskTimestamps(allTodayRoutines, 'day-planner-today-routines'),
         routinesDate,
         routineCompletions,
+        // Sibling LWW timestamps for routine completions (no React state in the
+        // payload closure — read from localStorage, like habitLogTimestamps).
+        routineCompletionTimestamps: JSON.parse(localStorage.getItem('day-planner-routine-completion-timestamps') || '{}'),
         minimizedSections,
         use24HourClock,
         weatherZip,
@@ -5770,6 +5774,7 @@ const DayPlanner = () => {
       if (data.todayRoutines) localStorage.setItem('day-planner-today-routines', JSON.stringify(data.todayRoutines));
       localStorage.setItem('day-planner-routines-date', data.routinesDate);
       if (data.routineCompletions) localStorage.setItem('day-planner-routine-completions', JSON.stringify(data.routineCompletions));
+      if (data.routineCompletionTimestamps) localStorage.setItem('day-planner-routine-completion-timestamps', JSON.stringify(data.routineCompletionTimestamps));
     }
     // selectedTags is a per-device UI preference and is not applied to state here.
     // minimizedSections is synced to localStorage so the same section layout follows the user across devices.
@@ -5928,6 +5933,7 @@ const DayPlanner = () => {
       if (data.todayRoutines) setTodayRoutines(data.todayRoutines);
       setRoutinesDate(data.routinesDate);
       if (data.routineCompletions) setRoutineCompletions(data.routineCompletions);
+      if (data.routineCompletionTimestamps) setRoutineCompletionTimestamps(data.routineCompletionTimestamps);
     }
     if (data.use24HourClock !== undefined) setUse24HourClock(data.use24HourClock);
     if (data.weatherZip !== undefined) setWeatherZip(data.weatherZip);
