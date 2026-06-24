@@ -26,7 +26,7 @@
 // array inside its row, habitLogs stays a keyed map carried whole. No finer
 // per-completion remodeling.
 
-import { mergeHabitLogs, mergeRoutineDefinitions, mergeRoutineCompletions } from '../mergeSync.js';
+import { mergeHabitLogs, mergeRoutineDefinitions, mergeRoutineCompletions, mergeCompletedDates } from '../mergeSync.js';
 
 // ── Collection kinds: each array element is one row, keyed by a stable id, with
 // entity-grain last-writer-wins on tsField (the same grain the file-tier merge
@@ -114,9 +114,14 @@ export function entityKind(entity) {
 }
 
 // Singletons (bundles) are insert-only: always applied so their merge runs.
-// Collections and per-date dailyNotes use normal entity-grain LWW.
+// recurringTasks are too: their completedDates must UNION across devices (the
+// row is shared by every occurrence), so the row has to be merged on every pull
+// rather than LWW-skipped — otherwise a completion is lost whenever the series is
+// edited concurrently. See applyRemoteRecurring (scalar fields still resolve LWW).
+// Other collections and per-date dailyNotes use normal entity-grain LWW.
 export function isInsertOnly(entity) {
-  return entityKind(entity) === SINGLETON_KIND;
+  const k = entityKind(entity);
+  return k === SINGLETON_KIND || k === 'recurringTasks';
 }
 
 export function getEntityLastModified(entity) {
@@ -252,6 +257,34 @@ export function getLocalEntity(data, entityId) {
   return null;
 }
 
+// Insert-only merge for one recurring template (always runs on pull). Scalar
+// fields (title, time, assignment, recurrence, exceptions…) resolve by whole-row
+// LWW exactly as before — the winner is the newer lastModified — but completedDates
+// UNION across both copies (per-date LWW via completedDatesTimestamps) so a
+// completion made on one device is never dropped by a concurrent series edit on
+// another. Returns the row's entityId to re-push when our merged superset differs
+// from the pulled row, so the vault converges (mirrors the bundle superset re-push).
+function applyRemoteRecurring(data, remote) {
+  if (!Array.isArray(data.recurringTasks)) data.recurringTasks = [];
+  const id = String(remote.id);
+  const idx = data.recurringTasks.findIndex((x) => x != null && String(x.id) === id);
+  if (idx < 0) {
+    data.recurringTasks.push(remote);
+    return [];
+  }
+  const local = data.recurringTasks[idx];
+  const winner = ts(remote.lastModified) >= ts(local.lastModified) ? remote : local;
+  const { completedDates, completedDatesTimestamps } = mergeCompletedDates(
+    local.completedDates || [], remote.completedDates || [],
+    local.completedDatesTimestamps || {}, remote.completedDatesTimestamps || {},
+  );
+  const merged = { ...winner, completedDates };
+  if (Object.keys(completedDatesTimestamps).length) merged.completedDatesTimestamps = completedDatesTimestamps;
+  else delete merged.completedDatesTimestamps;
+  data.recurringTasks[idx] = merged;
+  return deepEqual(merged, remote) ? [] : [makeEntityId('recurringTasks', id)];
+}
+
 function upsertCollection(data, kind, value) {
   const cfg = COLLECTION_KINDS[kind];
   if (!Array.isArray(data[kind])) data[kind] = [];
@@ -275,6 +308,9 @@ function upsertCollection(data, kind, value) {
 // edits there already land on distinct entityIds.
 export function applyRemoteEntity(data, entity) {
   const kind = entityKind(entity);
+  if (kind === 'recurringTasks') {
+    return applyRemoteRecurring(data, entity.value);
+  }
   if (COLLECTION_KINDS[kind]) {
     upsertCollection(data, kind, entity.value);
     return [];

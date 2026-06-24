@@ -197,6 +197,51 @@ export const mergeRoutineCompletions = (localC = {}, remoteC = {}, localTs = {},
 };
 
 /**
+ * Merge the completion state of two copies of the SAME recurring template.
+ *
+ * A recurring task's per-occurrence completions live in `completedDates` INSIDE
+ * the shared template row, which both sync tiers otherwise resolve by whole-row
+ * last-writer-wins. That silently drops a completion whenever the series is
+ * touched concurrently on another device — most easily a completion on one
+ * device versus an edit to the same series on another, since the (now
+ * series-level) user-assignment write bumps the template's `lastModified`, so its
+ * row — which lacks the completion — wins and reverts it on every device. That is
+ * the "completed on one device, not the others" report.
+ *
+ * Union the dates instead so no completion is lost, and use the optional per-date
+ * `completedDatesTimestamps` map to let a later UN-complete (date removed, newer
+ * stamp) win over an earlier complete — the same presence-by-timestamp model as
+ * routine completions above. Legacy rows with no timestamps fall back to a plain
+ * union (present wins), so nothing regresses on first upgrade.
+ */
+export const mergeCompletedDates = (localDates = [], remoteDates = [], localTs = {}, remoteTs = {}) => {
+  const lSet = new Set(localDates || []);
+  const rSet = new Set(remoteDates || []);
+  const allDates = new Set([...lSet, ...rSet, ...Object.keys(localTs), ...Object.keys(remoteTs)]);
+  const completedDates = [];
+  const completedDatesTimestamps = {};
+  for (const d of allDates) {
+    const lt = localTs[d] ? new Date(localTs[d]).getTime() : 0;
+    const rt = remoteTs[d] ? new Date(remoteTs[d]).getTime() : 0;
+    const newerTs = rt > lt ? remoteTs[d] : (localTs[d] ?? remoteTs[d]);
+    if (newerTs) completedDatesTimestamps[d] = newerTs;
+    let present;
+    if (lt > rt) present = lSet.has(d);
+    else if (rt > lt) present = rSet.has(d);
+    else present = lSet.has(d) || rSet.has(d); // tie / legacy: present wins
+    if (present) completedDates.push(d);
+  }
+  completedDates.sort();
+  return { completedDates, completedDatesTimestamps };
+};
+
+// Order-independent equality of two date lists (used to flag re-push/persist).
+const sameDateSet = (a = [], b = []) => {
+  const sa = new Set(a), sb = new Set(b);
+  return sa.size === sb.size && [...sa].every((x) => sb.has(x));
+};
+
+/**
  * Full-sync merge. Delegates to the upstream merge, then overrides the
  * habit-log portion with the deterministic tie-break above so existing stuck
  * habit counts self-heal across the fleet (no manual re-touch, no package bump).
@@ -226,6 +271,30 @@ export const mergeSyncData = (local, remote, retentionDays) => {
     result.data.routineCompletionTimestamps = rcFix.mergedTimestamps;
     if (rcFix.localChanged) result.localChanged = true;
     if (rcFix.remoteChanged) result.remoteChanged = true;
+  }
+  // Recurring completions ride inside the shared template row, which the upstream
+  // merge resolves by whole-row LWW — re-merge each series' completedDates by date
+  // so a completion is never clobbered by a concurrent edit to the same series
+  // (e.g. a series-level assignment change) on another device.
+  if (local?.recurringTasks || remote?.recurringTasks) {
+    const lById = new Map((local?.recurringTasks || []).map((t) => [String(t.id), t]));
+    const rById = new Map((remote?.recurringTasks || []).map((t) => [String(t.id), t]));
+    result.data.recurringTasks = (result.data.recurringTasks || []).map((t) => {
+      const l = lById.get(String(t.id));
+      const r = rById.get(String(t.id));
+      if (!l || !r) return t; // present on only one side — nothing concurrent to merge
+      const { completedDates, completedDatesTimestamps } = mergeCompletedDates(
+        l.completedDates || [], r.completedDates || [],
+        l.completedDatesTimestamps || {}, r.completedDatesTimestamps || {},
+      );
+      if (!sameDateSet(completedDates, l.completedDates || [])) result.localChanged = true;
+      if (!sameDateSet(completedDates, r.completedDates || [])) result.remoteChanged = true;
+      return {
+        ...t,
+        completedDates,
+        ...(Object.keys(completedDatesTimestamps).length ? { completedDatesTimestamps } : {}),
+      };
+    });
   }
   // Per-user calendar config merges by syncId (the upstream merge doesn't know
   // this key), so resolve it explicitly here from both sides.

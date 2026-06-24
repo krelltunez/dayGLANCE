@@ -91,6 +91,7 @@ function buildFixture() {
         recurrence: { type: 'weekly', days: ['mon', 'thu'] },
         startTime: '08:00',
         completedDates: ['2026-06-11', '2026-06-15', '2026-06-18'], // array stays inside the row
+        completedDatesTimestamps: { '2026-06-11': ts(210), '2026-06-15': ts(160), '2026-06-18': ts(40) },
       },
     ],
     recycleBin: [
@@ -216,14 +217,16 @@ describe('dbAdapter losslessness gate', () => {
     expect(logRows[0].entity.value['2026-06-18']).toEqual({ 7101: 4, 7102: 1 });
   });
 
-  it('routes every row by explicit _kind; bundles are insert-only, collections are LWW', () => {
+  it('routes every row by explicit _kind; bundles + recurringTasks are insert-only, other collections are LWW', () => {
     const rows = shredState(buildFixture());
     for (const r of rows) {
       expect(entityKind(r.entity)).toBe(r.kind);
       // Stage 2: singleton bundles are insert-only (always merged on pull) so a
-      // concurrent edit to a different bundle entry is never lost. Per-item
+      // concurrent edit to a different bundle entry is never lost. recurringTasks
+      // are too, so each series' completedDates UNION across devices instead of a
+      // completion being clobbered by a concurrent series edit. Other per-item
       // collections and per-date dailyNotes stay on entity-grain LWW.
-      expect(isInsertOnly(r.entity)).toBe(r.kind === 'singleton');
+      expect(isInsertOnly(r.entity)).toBe(r.kind === 'singleton' || r.kind === 'recurringTasks');
     }
   });
 

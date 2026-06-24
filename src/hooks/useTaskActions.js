@@ -394,6 +394,10 @@ export default function useTaskActions({
           completedDates: completed
             ? (t.completedDates || []).filter(d => d !== dateStr)
             : [...(t.completedDates || []), dateStr],
+          // Stamp the toggled occurrence so sync resolves this complete/un-complete
+          // by last-writer-wins per date instead of letting a concurrent series
+          // edit clobber it (completedDates is unioned across devices on merge).
+          completedDatesTimestamps: { ...(t.completedDatesTimestamps || {}), [dateStr]: new Date().toISOString() },
           lastModified: new Date().toISOString()
         };
       }));
