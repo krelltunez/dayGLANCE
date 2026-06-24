@@ -108,14 +108,118 @@ describe('A1 bundle merge — concurrent different-entry edits are not lost', ()
     }
   });
 
-  it('routineCompletions: completing different routines both survive (set-union)', () => {
-    const base = { ...EMPTY_COLLECTIONS, routinesDate: '2026-06-18', routineCompletions: {} };
+  it('routineCompletions: completing different routines both survive', () => {
+    const base = { ...EMPTY_COLLECTIONS, routinesDate: '2026-06-18', routineCompletions: {}, routineCompletionTimestamps: {} };
     const { vault, a, b } = newPair(base);
-    a.mutate((d) => { d.routineCompletions['5001'] = '2026-06-18'; return ['singleton:routineCompletions']; });
-    b.mutate((d) => { d.routineCompletions['5002'] = '2026-06-18'; return ['singleton:routineCompletions']; });
+    a.mutate((d) => { d.routineCompletions['5001'] = '2026-06-18'; d.routineCompletionTimestamps['5001'] = T1; return ['singleton:routineCompletions']; });
+    b.mutate((d) => { d.routineCompletions['5002'] = '2026-06-18'; d.routineCompletionTimestamps['5002'] = T1; return ['singleton:routineCompletions']; });
     syncToConvergence(a, b, vault);
     for (const dev of [a, b]) {
       expect(dev.data.routineCompletions).toEqual({ 5001: '2026-06-18', 5002: '2026-06-18' });
+    }
+  });
+
+  it('routineCompletions: an un-complete propagates instead of being resurrected (flip-flop bug)', () => {
+    // Both devices see routine 5001 completed. Device A un-completes it (deletes
+    // the key, stamps a later timestamp). After sync, BOTH devices must show it
+    // un-completed — a grow-union would resurrect it from B's stale completion.
+    const base = {
+      ...EMPTY_COLLECTIONS, routinesDate: '2026-06-18',
+      routineCompletions: { 5001: '2026-06-18' },
+      routineCompletionTimestamps: { 5001: T0 },
+    };
+    const { vault, a, b } = newPair(base);
+    a.mutate((d) => { delete d.routineCompletions['5001']; d.routineCompletionTimestamps['5001'] = T2; return ['singleton:routineCompletions']; });
+    syncToConvergence(a, b, vault);
+    for (const dev of [a, b]) {
+      expect(dev.data.routineCompletions['5001']).toBeUndefined();
+    }
+  });
+
+  it('routineCompletions: a re-complete after an un-complete wins by recency', () => {
+    // A un-completes (T1), then B re-completes the same routine later (T2).
+    // The later complete must win on both devices.
+    const base = {
+      ...EMPTY_COLLECTIONS, routinesDate: '2026-06-18',
+      routineCompletions: { 5001: '2026-06-18' },
+      routineCompletionTimestamps: { 5001: T0 },
+    };
+    const { vault, a, b } = newPair(base);
+    a.mutate((d) => { delete d.routineCompletions['5001']; d.routineCompletionTimestamps['5001'] = T1; return ['singleton:routineCompletions']; });
+    b.mutate((d) => { d.routineCompletions['5001'] = '2026-06-18'; d.routineCompletionTimestamps['5001'] = T2; return ['singleton:routineCompletions']; });
+    syncToConvergence(a, b, vault);
+    for (const dev of [a, b]) {
+      expect(dev.data.routineCompletions['5001']).toBe('2026-06-18');
+    }
+  });
+
+  it('recurringTasks: a completion is not clobbered by a concurrent series edit (the cross-device bug)', () => {
+    const base = {
+      ...EMPTY_COLLECTIONS,
+      recurringTasks: [{
+        id: 3001, title: 'Stretch', duration: 10, lastModified: T0,
+        recurrence: { type: 'daily' },
+        completedDates: ['2026-06-17'], completedDatesTimestamps: { '2026-06-17': T0 },
+      }],
+    };
+    const { vault, a, b } = newPair(base);
+    // Device A completes a NEW occurrence.
+    a.mutate((d) => {
+      const t = d.recurringTasks[0];
+      t.completedDates = [...t.completedDates, '2026-06-18'];
+      t.completedDatesTimestamps = { ...t.completedDatesTimestamps, '2026-06-18': T1 };
+      t.lastModified = T1;
+      return ['recurringTasks:3001'];
+    });
+    // Device B edits the same series LATER (e.g. a series-level assignment change);
+    // its row does not yet have A's completion. Old whole-row LWW would drop it.
+    b.mutate((d) => {
+      const t = d.recurringTasks[0];
+      t.assignedUserSyncIds = ['user-x'];
+      t.lastModified = T2;
+      return ['recurringTasks:3001'];
+    });
+    syncToConvergence(a, b, vault);
+    for (const dev of [a, b]) {
+      const t = dev.data.recurringTasks.find((x) => x.id === 3001);
+      expect(new Set(t.completedDates)).toEqual(new Set(['2026-06-17', '2026-06-18'])); // completion survived
+      expect(t.assignedUserSyncIds).toEqual(['user-x']);                                 // newer scalar edit survived
+    }
+  });
+
+  it('recurringTasks: completing different occurrences on each device both survive', () => {
+    const base = {
+      ...EMPTY_COLLECTIONS,
+      recurringTasks: [{
+        id: 3001, title: 'Stretch', lastModified: T0, recurrence: { type: 'daily' },
+        completedDates: [], completedDatesTimestamps: {},
+      }],
+    };
+    const { vault, a, b } = newPair(base);
+    a.mutate((d) => { const t = d.recurringTasks[0]; t.completedDates = ['2026-06-18']; t.completedDatesTimestamps = { '2026-06-18': T1 }; t.lastModified = T1; return ['recurringTasks:3001']; });
+    b.mutate((d) => { const t = d.recurringTasks[0]; t.completedDates = ['2026-06-19']; t.completedDatesTimestamps = { '2026-06-19': T2 }; t.lastModified = T2; return ['recurringTasks:3001']; });
+    syncToConvergence(a, b, vault);
+    for (const dev of [a, b]) {
+      const t = dev.data.recurringTasks.find((x) => x.id === 3001);
+      expect(new Set(t.completedDates)).toEqual(new Set(['2026-06-18', '2026-06-19']));
+    }
+  });
+
+  it('recurringTasks: an un-complete propagates instead of being resurrected', () => {
+    const base = {
+      ...EMPTY_COLLECTIONS,
+      recurringTasks: [{
+        id: 3001, title: 'Stretch', lastModified: T0, recurrence: { type: 'daily' },
+        completedDates: ['2026-06-18'], completedDatesTimestamps: { '2026-06-18': T0 },
+      }],
+    };
+    const { vault, a, b } = newPair(base);
+    // A un-completes (removes the date, stamps a later timestamp); B is untouched.
+    a.mutate((d) => { const t = d.recurringTasks[0]; t.completedDates = []; t.completedDatesTimestamps = { '2026-06-18': T2 }; t.lastModified = T2; return ['recurringTasks:3001']; });
+    syncToConvergence(a, b, vault);
+    for (const dev of [a, b]) {
+      const t = dev.data.recurringTasks.find((x) => x.id === 3001);
+      expect(t.completedDates).toEqual([]);
     }
   });
 
