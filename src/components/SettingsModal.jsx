@@ -730,7 +730,7 @@ const SettingsModal = () => {
                       <button onClick={() => toggleSettingsSection('cloudSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <Cloud size={16} className={textSecondary} />
                         {t('settings.cloudSync')}
-                        {cloudSyncConfig?.enabled && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        {(cloudSyncConfig?.enabled || isVaultEnabled()) && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.cloudSync ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.cloudSync && (<>
@@ -1697,7 +1697,7 @@ const SettingsModal = () => {
                       <button onClick={() => toggleSettingsSection('intent')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <Activity size={16} className={textSecondary} />
                         {t('settings.glanceIntegrations')}
-                        {intentForm.webdavUrl && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        {(intentForm.webdavUrl || dbIntentsEnabled) && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.intent ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.intent && (<>
