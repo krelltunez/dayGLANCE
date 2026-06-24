@@ -342,8 +342,8 @@ const MobileSettingsPanel = () => {
         className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
       >
         <div className="relative">
-          <Activity size={20} className={intentForm.webdavUrl ? 'text-blue-500' : textSecondary} />
-          {intentForm.webdavUrl && (
+          <Activity size={20} className={(intentForm.webdavUrl || dbIntentsEnabled) ? 'text-blue-500' : textSecondary} />
+          {(intentForm.webdavUrl || dbIntentsEnabled) && (
             <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-green-500`} />
           )}
         </div>
