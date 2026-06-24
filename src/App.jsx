@@ -8764,6 +8764,9 @@ const DayPlanner = () => {
       return { ok: true };
     },
     vaultStatus, vaultError, vaultLastSynced, vaultSkipped,
+    // Reactive enablement flag for the header sync button. A vault enable/disable
+    // always reloads the app (CloudSyncSettingsForm), so a render-time read is current.
+    vaultEnabled: isVaultEnabled(),
     syncAll,
     performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, nativeClearVault,
     performTrmnlSync,
