@@ -10,6 +10,7 @@
 
 import { enqueue as defaultEnqueue, flush as defaultFlush } from './outbox.js';
 import { deliverers as defaultDeliverers } from './deliverers.js';
+import { reconcileOutboxActivity } from './intentLog.js';
 
 /**
  * @param {Array<{intent:object, onOk?:Function, onError?:(err:Error)=>void}>} items
@@ -35,6 +36,8 @@ export async function enqueueAndFlush(items, targets, deps = {}) {
   }
 
   // Trigger delivery; the outbox's in-flight lock serializes overlapping flushes.
-  await flush(deliverers);
+  const result = await flush(deliverers);
+  // Fold delivery outcomes back into the just-logged 'queued' entries.
+  reconcileOutboxActivity(result);
   return allEnqueued;
 }

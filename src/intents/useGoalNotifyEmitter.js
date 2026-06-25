@@ -125,6 +125,7 @@ export function useGoalNotifyEmitter({ goals }) {
               direction: 'out', action: 'notify', event: change.event,
               source_app: goal.source_app, title: goal.title, timestamp: now,
               status: 'ok', error: null,
+              event_id: payload.event_id, delivery: 'queued',
             }),
             onError: (err) => {
               console.warn('[goal-notify] enqueue failed for goal', goal.id, ':', err.message);

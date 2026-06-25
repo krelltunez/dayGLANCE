@@ -11,6 +11,7 @@
 import { useEffect } from 'react';
 import { flush } from './outbox.js';
 import { deliverers } from './deliverers.js';
+import { reconcileOutboxActivity } from './intentLog.js';
 
 const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
@@ -19,7 +20,10 @@ const FLUSH_INTERVAL_MS = 2 * 60 * 1000;
 
 async function drain() {
   try {
-    await flush(deliverers);
+    const result = await flush(deliverers);
+    // Reflect delivered / held-for-key outcomes back into the activity log,
+    // including intents carried over (held) from a previous session.
+    reconcileOutboxActivity(result);
   } catch (err) {
     console.warn('[outbox] flush error:', err?.message);
   }

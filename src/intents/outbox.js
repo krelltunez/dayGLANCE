@@ -47,6 +47,13 @@ export const DELIVERED = 'delivered';
 export const TRANSIENT = 'transient';
 export const PERMANENT = 'permanent';
 
+// A deliverer may return { status: TRANSIENT, reason: HELD_NO_KEY_REASON } to
+// signal that it held the intent specifically because its encryption key isn't
+// set up yet (vs. a network/server transient). flush() surfaces these ids so the
+// activity log can show a "waiting for the intents key" state instead of a
+// silent stall. Purely observational — it does not change retry behaviour.
+export const HELD_NO_KEY_REASON = 'intents_key_not_ready';
+
 // Per-target delivery statuses stored on an entry.
 const PENDING = 'pending';
 const GIVEN_UP = 'given-up';
@@ -260,7 +267,10 @@ export async function flush(deliverers, opts) {
   if (_flushLock) return { attempted: 0, delivered: 0, gaveUp: 0, removed: 0, skipped: true };
   _flushLock = true;
 
-  const stats = { attempted: 0, delivered: 0, gaveUp: 0, removed: 0, skipped: false };
+  // `delivered`/`gaveUp`/etc. are counts (back-compat). `deliveredIds` and
+  // `heldNoKeyIds` carry the event_ids that transitioned this flush so callers
+  // can reconcile the activity log (queued → delivered, or queued → held).
+  const stats = { attempted: 0, delivered: 0, gaveUp: 0, removed: 0, skipped: false, deliveredIds: [], heldNoKeyIds: [] };
   try {
     const entries = await store.getAll();
     for (const entry of entries) {
@@ -272,19 +282,27 @@ export async function flush(deliverers, opts) {
         if (typeof deliver !== 'function') continue; // not attempted this flush
 
         stats.attempted++;
-        let result;
+        let raw;
         try {
-          result = await deliver(entry.intent);
+          raw = await deliver(entry.intent);
         } catch {
-          result = TRANSIENT; // a thrown send is a maybe-transient failure
+          raw = TRANSIENT; // a thrown send is a maybe-transient failure
         }
-        result = normalizeResult(result);
+        const result = normalizeResult(raw);
 
         if (result === DELIVERED) {
           entry.targets[target] = DELIVERED;
           stats.delivered++;
+          if (!stats.deliveredIds.includes(entry.id)) stats.deliveredIds.push(entry.id);
           changed = true;
           continue;
+        }
+
+        // Held specifically because the encryption key isn't ready — record it so
+        // the activity log can show "waiting for the intents key" rather than a
+        // silent stall. (Only while the target is still pending/transient.)
+        if (result === TRANSIENT && raw && typeof raw === 'object' && raw.reason === HELD_NO_KEY_REASON) {
+          if (!stats.heldNoKeyIds.includes(entry.id)) stats.heldNoKeyIds.push(entry.id);
         }
 
         // Both transient and permanent count an attempt against the target.

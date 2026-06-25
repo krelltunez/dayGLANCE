@@ -179,6 +179,7 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
                 direction: 'out', action: 'notify', event: change.event,
                 source_app: task.source_app, title: task.title, timestamp: now,
                 status: 'ok', error: null,
+                event_id: payload.event_id, delivery: 'queued',
               });
               // Android broadcast for local Tasker listeners — a LOCAL notification,
               // independent of the durable outbox. Only on a plaintext WebDAV posture

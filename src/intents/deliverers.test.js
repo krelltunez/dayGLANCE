@@ -8,6 +8,7 @@ import {
   TRANSIENT,
   PERMANENT,
 } from './deliverers.js';
+import { HELD_NO_KEY_REASON } from './outbox.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Intents deliverers (stage 2a). These exercise the REAL deliverers and the REAL
@@ -101,13 +102,14 @@ describe('vault deliverer', () => {
     expect(Buffer.from(sent.events[0].envelope, 'base64').toString('utf8')).not.toContain('SECRET-TITLE');
   });
 
-  // (b) NO cached key → 'transient', sends nothing, builds nothing.
-  it('(b) with no cached key returns transient and sends nothing', async () => {
+  // (b) NO cached key → held (transient) tagged with the key-not-ready reason,
+  //     sends nothing, builds nothing.
+  it('(b) with no cached key returns transient (held: key not ready) and sends nothing', async () => {
     const vaultFetch = vi.fn();
     const result = await vaultDeliverer(makeIntent(), {
       connection: CONN, vaultFetch, loadKey: async () => null,
     });
-    expect(result).toBe(TRANSIENT);
+    expect(result).toEqual({ status: TRANSIENT, reason: HELD_NO_KEY_REASON });
     expect(vaultFetch).not.toHaveBeenCalled();
   });
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ArrowDownLeft, ArrowUpRight, ChevronRight, Trash2 } from 'lucide-react';
+import { X, ArrowDownLeft, ArrowUpRight, ChevronRight, Trash2, Check, Clock, KeyRound } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { getActivityLog, clearActivityLog } from '../intents/intentLog.js';
@@ -64,6 +64,28 @@ function errorMessage(entry) {
 
 function errorTextClass(entry) {
   return entry.status === 'warn' ? 'text-amber-500' : 'text-red-500';
+}
+
+// Outbound delivery lifecycle chip: queued (in the outbox) → delivered (landed
+// on the vault/WebDAV) — or held while the intents encryption key isn't ready.
+// Inbound entries have no delivery field and render nothing here.
+const DELIVERY_CHIPS = {
+  queued:    { Icon: Clock,    label: 'queued',          cls: 'text-stone-400' },
+  held:      { Icon: KeyRound, label: 'waiting for key', cls: 'text-amber-500' },
+  delivered: { Icon: Check,    label: 'delivered',       cls: 'text-green-500' },
+};
+
+function DeliveryChip({ entry }) {
+  if (entry.direction !== 'out' || !entry.delivery) return null;
+  const chip = DELIVERY_CHIPS[entry.delivery];
+  if (!chip) return null;
+  const { Icon, label, cls } = chip;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[11px] ${cls}`} title={label}>
+      <Icon size={11} className="flex-shrink-0" />
+      {label}
+    </span>
+  );
 }
 
 function shortApp(source_app) {
@@ -199,6 +221,7 @@ const IntentActivityLogModal = () => {
                           {shortApp(entry.source_app) && (
                             <span className={`text-xs ${textSecondary}`}>{shortApp(entry.source_app)}</span>
                           )}
+                          <DeliveryChip entry={entry} />
                         </div>
                         {entry.title && (
                           <p className={`text-xs ${textPrimary} mt-0.5 truncate`}>{entry.title}</p>

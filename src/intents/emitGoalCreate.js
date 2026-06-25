@@ -64,6 +64,7 @@ export async function emitGoalCreate(goal) {
       direction: 'out', action: 'create', event: null,
       source_app: SOURCE_APPS.DAYGLANCE, title: goal.title, timestamp: now,
       status: 'ok', error: null,
+      event_id: eventId, delivery: 'queued',
     }),
     onError: (err) => {
       console.warn('[goal-create] enqueue failed for goal', goal.id, ':', err.message);
