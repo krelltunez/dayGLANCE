@@ -37,6 +37,7 @@ import {
   DEFAULT_DB_INTENTS_TTL_MS,
 } from './dbIntentsConfig.js';
 import * as iCloudTransport from './icloudFileTransport.js';
+import { HELD_NO_KEY_REASON } from './outbox.js';
 
 export const DELIVERED = 'delivered';
 export const TRANSIENT = 'transient';
@@ -120,7 +121,10 @@ export async function vaultDeliverer(intent, opts = {}) {
   const rootKey = await (opts.loadKey ?? loadVaultIntentsRootKey)();
   if (!rootKey) {
     // Key not set up yet (or mid-restore). Send nothing, build nothing, hold.
-    return TRANSIENT;
+    // Tag the reason so flush()/the activity log can show a visible "waiting for
+    // the intents key" state instead of a silent stall (this was undiagnosable
+    // before: the outbox held quietly while the log still read "queued").
+    return { status: TRANSIENT, reason: HELD_NO_KEY_REASON };
   }
 
   // ── ALWAYS-ENCRYPTED envelope (no plaintext branch, ever) ──
