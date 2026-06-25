@@ -19,19 +19,12 @@ const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMous
     showCheck = count >= target && target > 0;
     showX = false;
   } else {
-    // Limit type: ring is always full, color shifts green → yellow → red
+    // Limit type: ring is always full. Stay green (with a check) while at or
+    // under the limit, then flip to red (with an X) once it's exceeded —
+    // no amber intermediate state.
     progress = 1;
-    if (count === 0) {
-      ringColor = '#22c55e'; // green
-    } else if (count <= target) {
-      // Graduated yellow/amber
-      const ratio = count / target;
-      if (ratio <= 0.5) ringColor = '#eab308'; // yellow
-      else ringColor = '#f59e0b'; // amber
-    } else {
-      ringColor = '#ef4444'; // red
-    }
-    showCheck = false;
+    ringColor = count <= target ? '#22c55e' : '#ef4444';
+    showCheck = count <= target;
     showX = count > target;
   }
 
@@ -121,9 +114,7 @@ const MiniHabitRing = ({ habit, count = 0, darkMode }) => {
     ringColor = count === 0 ? (darkMode ? '#4b5563' : '#d1d5db') : colorObj.ring;
   } else {
     progress = 1;
-    if (count === 0) ringColor = '#22c55e';
-    else if (count <= target) ringColor = '#f59e0b';
-    else ringColor = '#ef4444';
+    ringColor = count <= target ? '#22c55e' : '#ef4444';
   }
 
   return (
