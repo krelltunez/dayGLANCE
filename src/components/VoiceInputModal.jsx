@@ -3,7 +3,7 @@ import { BrainCircuit, Check, Loader, Mic, MicOff, Pencil, Plus, X } from 'lucid
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import ClockTimePicker from './ClockTimePicker.jsx';
-import { supportsTranscription } from '../ai.js';
+import { supportsTranscription, PROVIDER_LABELS } from '../ai.js';
 
 const VoiceInputModal = () => {
   const {
