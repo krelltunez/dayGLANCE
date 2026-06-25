@@ -5839,7 +5839,6 @@ const DayPlanner = () => {
       if (data.goalsProjectsEnabledUpdatedAt) localStorage.setItem('day-planner-goals-projects-enabled-updated-at', data.goalsProjectsEnabledUpdatedAt);
     }
     if (data.users !== undefined) {
-      console.log('[diag] applyEngineData users:', JSON.stringify(data.users));
       const localUsers = JSON.parse(localStorage.getItem('dayglance-users') || '[]');
       const merged = new Map(localUsers.map(u => [u.syncId ?? u.id, u]));
       for (const u of data.users) {
