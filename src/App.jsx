@@ -134,6 +134,7 @@ import HabitModal from './components/HabitModal.jsx';
 import SubscriptionWall from './components/SubscriptionWall.jsx';
 import { useSubscription } from './hooks/useSubscription.js';
 import { useTranslation } from 'react-i18next';
+import { syncErrorText } from './sync/syncErrors.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -554,16 +555,6 @@ const DayPlanner = () => {
   // Count of synced rows the last cycle couldn't decrypt (skipped/quarantined by
   // the engine) — surfaced in Cloud Sync settings so a key mismatch is visible.
   const [vaultSkipped, setVaultSkipped] = useState(0);
-  // Map the engine's typed error codes to a user-facing message. KEY_MISMATCH
-  // (wrong passphrase/salt) and VERIFIER_UNSUPPORTED (server too old for the key
-  // verifier) get clear instructions instead of the raw crypto/HTTP text.
-  const vaultErrorText = (msg, code) => {
-    if (!msg) return null;
-    if (code === 'KEY_MISMATCH') return 'Wrong sync passphrase — it must exactly match the passphrase used on your other devices.';
-    if (code === 'VERIFIER_UNSUPPORTED') return 'Your GLANCEvault server needs to be updated to support this app version (key verification).';
-    if (code === 'ACCOUNT_ID_REQUIRED') return 'GLANCEvault is missing an account ID — re-open Cloud Sync settings and re-enter your GLANCEvault details.';
-    return msg;
-  };
   const engineFolderRef = useRef(null);
   const syncFolder = cloudSyncConfig?.syncFolder ?? 'GLANCE/dayglance';
   const autoBackupProviders = useMemo(() => createAutoBackupProvidersForFolder(syncFolder), [syncFolder]);
@@ -579,7 +570,7 @@ const DayPlanner = () => {
         if (status === 'idle' && (prev === 'uploading' || prev === 'downloading')) return prev;
         return status;
       }),
-      onError:              (msg) => setCloudSyncError(msg),
+      onError:              (msg, code) => setCloudSyncError(syncErrorText(t, msg, code)),
       onLastSyncedChange:   (iso) => setCloudSyncLastSynced(iso),
       onConflict:           (remoteData, remoteModified, etag) =>
         setCloudSyncConflict({ remoteData, remoteModified, etag }),
@@ -1788,7 +1779,7 @@ const DayPlanner = () => {
           setVaultLastSynced(dbEngineRef.current?.getLastSynced?.() || new Date().toISOString());
         }
       },
-      onError: (msg, code) => { setVaultError(vaultErrorText(msg, code)); if (msg) console.warn('[dayglance] vault sync error:', code || '', msg); },
+      onError: (msg, code) => { setVaultError(syncErrorText(t, msg, code)); if (msg) console.warn('[dayglance] vault sync error:', code || '', msg); },
       onRowsSkipped: (count) => {
         setVaultSkipped(count);
         if (count > 0) setUndoToast({ message: `GLANCEvault: ${count} item${count === 1 ? '' : 's'} couldn't be read — see Cloud Sync settings`, actionable: false });
@@ -2074,7 +2065,7 @@ const DayPlanner = () => {
       if (remote?.downloading) return;
       if (remote?.error) {
         console.error('iCloud unavailable:', remote.error);
-        setCloudSyncError(`iCloud unavailable: ${remote.error}`);
+        setCloudSyncError(t('sync.errors.iCloudUnavailable', { error: remote.error }));
         setCloudSyncStatus('error');
         setTimeout(() => setCloudSyncStatus((s) => s === 'error' ? 'idle' : s), 5000);
         return;

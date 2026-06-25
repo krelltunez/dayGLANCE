@@ -166,17 +166,19 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         await resetDbRootKey(); // don't leave a bad key cached after a failed attempt
         setVaultConfig(vaultOriginal || null); // roll back so we don't half-enable
         const msg = err?.message || '';
-        setVaultBootstrapError(
-          err?.code === 'VERIFIER_UNSUPPORTED'
-            ? 'Your GLANCEvault server needs to be updated to support this app version (key verification).'
-            : err?.code === 'ACCOUNT_ID_REQUIRED'
-            ? 'GLANCEvault is missing an account ID — re-enter your GLANCEvault details (URL, device token, and account ID) above.'
-            : (err?.code === 'KEY_MISMATCH' || /decrypt/i.test(msg))
-              ? 'Wrong sync passphrase — it must exactly match the passphrase used on your other devices.'
-              : /passphrase/i.test(msg)
-                ? 'Enter your sync passphrase above to enable GLANCEvault.'
-                : `Couldn't reach GLANCEvault — check the vault URL and device token. (${msg || 'request failed'})`,
-        );
+        const code = err?.code;
+        let key, opts;
+        if (code === 'VERIFIER_UNSUPPORTED' || code === 'ACCOUNT_ID_REQUIRED') {
+          key = `sync.errors.${code}`;
+        } else if (code === 'KEY_MISMATCH' || /decrypt/i.test(msg)) {
+          key = 'sync.errors.KEY_MISMATCH';
+        } else if (/passphrase/i.test(msg)) {
+          key = 'sync.errors.passphraseNeeded';
+        } else {
+          key = 'sync.errors.vaultUnreachable';
+          opts = { detail: msg || t('sync.errors.requestFailed') };
+        }
+        setVaultBootstrapError(t(key, opts));
         return;
       }
       setVaultBootstrapping(false);
