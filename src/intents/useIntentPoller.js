@@ -393,6 +393,13 @@ async function poll(config, context) {
 }
 
 async function _poll(config, context) {
+  // No-op when WebDAV isn't configured. The poller also runs when only iCloud
+  // is available (config can be null), so guard before dereferencing it —
+  // otherwise eventsDir() throws on config.webdavUrl and the catch in runPoll
+  // would swallow it as a recurring "[intent] poll error" while also skipping
+  // the iCloud poll that follows.
+  if (!config?.webdavUrl || !config?.username || !config?.appPassword) return;
+
   const dir = eventsDir(config);
   const headers = authHeaders(config);
 
