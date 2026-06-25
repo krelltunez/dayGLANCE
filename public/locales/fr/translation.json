@@ -1,4 +1,25 @@
 {
+  "sync": {
+    "_comment": "STUB — English placeholders awaiting French translation.",
+    "errors": {
+      "AUTH_FAILURE": "Authentication failed — check your username and password in sync settings.",
+      "FORBIDDEN": "Sync blocked (403) — your server may be blocking the request.",
+      "LOCKED": "Sync is locked by another device — try again in a moment.",
+      "NETWORK_ERROR": "Network error — check your connection and try again.",
+      "PASSPHRASE_REQUIRED": "Enter your sync passphrase to continue.",
+      "PRECONDITION_FAILED": "Another device updated first — retrying.",
+      "KEY_MISMATCH": "Wrong sync passphrase — it must exactly match the passphrase used on your other devices.",
+      "VERIFIER_UNSUPPORTED": "Your GLANCEvault server needs to be updated to support this app version (key verification).",
+      "ACCOUNT_ID_REQUIRED": "GLANCEvault is missing an account ID — re-enter your GLANCEvault details (URL, device token, and account ID) in Cloud Sync settings.",
+      "APP_ID_MISMATCH": "This sync data belongs to a different app.",
+      "SCHEMA_FORWARD_INCOMPATIBLE": "This sync data is from a newer app version — please update the app.",
+      "ROW_DECRYPT_FAILED": "Some items couldn't be decrypted.",
+      "passphraseNeeded": "Enter your sync passphrase above to enable GLANCEvault.",
+      "vaultUnreachable": "Couldn't reach GLANCEvault — check the vault URL and device token. ({{detail}})",
+      "requestFailed": "request failed",
+      "iCloudUnavailable": "iCloud unavailable: {{error}}"
+    }
+  },
   "common": {
     "cancel": "Annuler",
     "save": "Enregistrer",
