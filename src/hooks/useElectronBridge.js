@@ -41,10 +41,8 @@ const HABIT_COLOR_HEX = {
 function habitRingColor(habit, count) {
   const base = HABIT_COLOR_HEX[habit.color] ?? '#3b82f6';
   if (habit.type === 'limit') {
-    if (count === 0) return '#22c55e';
-    if (count <= habit.target * 0.5) return '#eab308';
-    if (count <= habit.target) return '#f59e0b';
-    return '#ef4444';
+    // Green while at or under the limit, red once exceeded — no amber state.
+    return count <= habit.target ? '#22c55e' : '#ef4444';
   }
   return count === 0 ? '#d1d5db' : base;
 }

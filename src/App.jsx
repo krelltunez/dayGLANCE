@@ -7547,12 +7547,11 @@ const DayPlanner = () => {
         isComplete = h.target > 0 && count >= h.target;
         ringColorHex = count === 0 ? '#d1d5db' : colorObj.ring;
       } else {
+        // Limit type: green (met) while at or under the limit, red once over —
+        // no amber intermediate state.
         progress = 1;
-        isComplete = false;
-        if (count === 0) ringColorHex = '#22c55e';
-        else if (count <= h.target * 0.5) ringColorHex = '#eab308';
-        else if (count <= h.target) ringColorHex = '#f59e0b';
-        else ringColorHex = '#ef4444';
+        isComplete = count <= h.target;
+        ringColorHex = count <= h.target ? '#22c55e' : '#ef4444';
       }
       return {
         id: h.id,
