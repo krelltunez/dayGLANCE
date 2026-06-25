@@ -13,7 +13,7 @@ const WeeklyReviewModal = () => {
     mobileReviewPage, setMobileReviewPage,
     reviewScrollRef,
     tasks: allTasks, recurringTasks: allRecurringTasks, unscheduledTasks: allUnscheduledTasks,
-    selectedDate,
+    selectedDate, setSelectedDate,
     isMobile, isTablet,
     darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     use24HourClock, formatTime, timeToMinutes,
