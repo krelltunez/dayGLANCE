@@ -77,12 +77,30 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, h
       setRoutinesDate(todayStr);
       setRemovedTodayRoutineIds({});
       setRoutineCompletions({});
-      setRoutineCompletionTimestamps({});
+      // Don't just drop the completion timestamps — a bare clear leaves no
+      // signal, so any device/vault snapshot still holding yesterday's
+      // completion (with yesterday's timestamp) wins the LWW merge and
+      // resurrects it, making a freshly-added routine show up completed today
+      // (same zombie-resurrection class as the recycle-bin delete fix).
+      // Instead, stamp a fresh tombstone (completion absent, timestamp = now)
+      // for every id that carried a completion or an old timestamp, so the
+      // cleared state out-dates the stale remote completion and heals it.
+      const nowIso = new Date().toISOString();
+      const tombstones = {};
+      for (const id of new Set([
+        ...Object.keys(routineCompletions),
+        ...Object.keys(routineCompletionTimestamps),
+      ])) {
+        tombstones[id] = nowIso;
+      }
+      setRoutineCompletionTimestamps(tombstones);
       localStorage.removeItem('day-planner-removed-today-routine-ids');
-      localStorage.removeItem('day-planner-routine-completions');
-      localStorage.removeItem('day-planner-routine-completion-timestamps');
+      localStorage.setItem('day-planner-routine-completions', '{}');
+      localStorage.setItem('day-planner-routine-completion-timestamps', JSON.stringify(tombstones));
     }
-  }, [currentTime, routinesDate]);
+    // routineCompletions/routineCompletionTimestamps are read only to build the
+    // rollover tombstones; the guard above no-ops every other (toggle-driven) run.
+  }, [currentTime, routinesDate, routineCompletions, routineCompletionTimestamps]);
 
   const toggleRoutineCompletion = (routineId) => {
     const todayStr = dateToString(new Date());
