@@ -35,7 +35,17 @@ export default function useDataPersistence({
     if (suppressTimestampRef.current) return currentTasks;
     let prev;
     try { prev = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { prev = []; }
-    return stampTimestamps(currentTasks, prev, new Date().toISOString());
+    // Opt-in diagnostic: set localStorage 'dayglance-debug-stamp' = '1' to log
+    // which fields trip a re-stamp. Use it to catch a phantom re-stamp (a default
+    // or unexpected field, not a real edit) if task resurrection ever recurs.
+    let onRestamp;
+    try {
+      if (localStorage.getItem('dayglance-debug-stamp') === '1') {
+        onRestamp = ({ id, changedKeys }) =>
+          console.warn(`[stamp] re-stamped ${storageKey} ${id} — changed:`, changedKeys);
+      }
+    } catch { /* ignore */ }
+    return stampTimestamps(currentTasks, prev, new Date().toISOString(), onRestamp);
   };
 
   const loadData = () => {

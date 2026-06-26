@@ -40,6 +40,28 @@ describe('stampTimestamps', () => {
     expect(out[0].lastModified).toBe(stored[0].lastModified); // NOT ISO(0)
   });
 
+  describe('onRestamp diagnostic', () => {
+    it('reports the changed fields when an existing task is re-stamped', () => {
+      const prev = [{ id: 1, title: 'A', completed: false, lastModified: ISO(100) }];
+      const curr = [{ id: 1, title: 'A', completed: true, lastModified: ISO(100) }];
+      const calls = [];
+      stampTimestamps(curr, prev, 'NOW', (info) => calls.push(info));
+      expect(calls).toEqual([{ id: 1, changedKeys: ['completed'] }]);
+    });
+
+    it('does NOT fire for unchanged tasks, default-only diffs, or new tasks', () => {
+      const calls = [];
+      const onRestamp = (info) => calls.push(info);
+      // unchanged
+      stampTimestamps([{ id: 1, title: 'A', lastModified: ISO(100) }], [{ id: 1, title: 'A', lastModified: ISO(100) }], 'NOW', onRestamp);
+      // default-only diff (the resurrection vector — must stay silent)
+      stampTimestamps([{ id: 2, title: 'B', notes: '', subtasks: [], lastModified: ISO(100) }], [{ id: 2, title: 'B', lastModified: ISO(100) }], 'NOW', onRestamp);
+      // new task
+      stampTimestamps([{ id: 3, title: 'C' }], [], 'NOW', onRestamp);
+      expect(calls).toEqual([]);
+    });
+  });
+
   it('a completion made elsewhere survives a stale device sync (end-to-end)', () => {
     // Device B (online) completed the task 30 min ago, bumping its lastModified.
     const remoteCompleted = [{ id: 1, title: 'Pay rent', completed: true, completedAt: '2026-06-26', lastModified: ISO(30) }];
