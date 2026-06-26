@@ -249,7 +249,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
           {/* Row 1: title + edit/delete */}
           <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-1">
             {dragHandleProps && (
-              <div {...dragHandleProps} className={`flex-shrink-0 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title="Drag to reorder">
+              <div {...dragHandleProps} data-drag-handle className={`flex-shrink-0 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title="Drag to reorder">
                 <GripVertical size={12} />
               </div>
             )}
@@ -337,7 +337,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
         {/* Header: title + badges + edit + delete */}
         <div className="flex items-start gap-2">
           {dragHandleProps && (
-            <div {...dragHandleProps} className={`flex-shrink-0 mt-0.5 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title="Drag to reorder">
+            <div {...dragHandleProps} data-drag-handle className={`flex-shrink-0 mt-0.5 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title="Drag to reorder">
               <GripVertical size={14} />
             </div>
           )}
@@ -457,11 +457,8 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                 <div
                   key={t.id}
                   data-drag-idx={draggable ? incompleteUnscheduledIdx : undefined}
-                  draggable={draggable}
-                  onDragStart={draggable ? e => handleDragStart(e, incompleteUnscheduledIdx) : undefined}
                   onDragOver={draggable ? e => handleDragOver(e, incompleteUnscheduledIdx) : undefined}
                   onDrop={draggable ? e => handleDrop(e, incompleteUnscheduledIdx) : undefined}
-                  onDragEnd={draggable ? handleDragEnd : undefined}
                   className={`flex items-center rounded-lg select-none transition-colors ${hoverBg} ${
                     draggable && dragIdx === incompleteUnscheduledIdx ? 'opacity-40' : ''
                   } ${
@@ -529,9 +526,19 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                     </div>
                   )}
                   {draggable && (
+                    // Drag SOURCE lives on the grip (not the row): on iOS, touching a
+                    // non-draggable child inside a draggable row puts the gesture into a
+                    // native-drag limbo that starves our touch listeners. Mirroring the
+                    // project-card grip (which works) — grip is the draggable source, the
+                    // row is only the drop target — fixes touch reorder. data-drag-handle
+                    // + select-none apply the documented iOS selection/callout guards.
                     <div
-                      className={`flex-shrink-0 p-1 cursor-grab touch-none ${textSecondary} opacity-30`}
+                      data-drag-handle
+                      draggable
+                      onDragStart={e => handleDragStart(e, incompleteUnscheduledIdx)}
+                      onDragEnd={handleDragEnd}
                       onTouchStart={e => handleGripTouchStart(e, incompleteUnscheduledIdx)}
+                      className={`flex-shrink-0 p-1 cursor-grab active:cursor-grabbing touch-none select-none ${textSecondary} opacity-30`}
                       aria-label="Drag to reorder"
                     >
                       <GripVertical size={12} />
