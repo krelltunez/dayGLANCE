@@ -23,6 +23,14 @@ export default [
   {
     files: ['src/**/*.{js,jsx}'],
     ...js.configs.recommended,
+    // While exhaustive-deps is only a warning, the existing
+    // `// eslint-disable-next-line react-hooks/exhaustive-deps` intent-markers
+    // report as "unused" (the current plugin flags a different line than where
+    // they sit). Don't flag them as unused for now; re-enable this when the
+    // exhaustive-deps backlog is cleaned up and the directives are repositioned.
+    linterOptions: {
+      reportUnusedDisableDirectives: 'off',
+    },
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -48,7 +56,9 @@ export default [
       // context values and imports), which would bury the useful warnings above.
       // Re-enable as 'warn' (with the ^_ ignore patterns) after a cleanup pass.
       'no-unused-vars': 'off',
-      'no-empty': 'warn',
+      // Empty catch is a deliberate "best-effort, ignore failure" idiom here, so
+      // allow it; still flag genuinely empty if/for/while blocks.
+      'no-empty': ['warn', { allowEmptyCatch: true }],
       'no-constant-condition': ['warn', { checkLoops: false }],
       'no-useless-escape': 'warn',
       'no-prototype-builtins': 'warn',

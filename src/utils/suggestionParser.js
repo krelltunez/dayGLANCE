@@ -49,7 +49,7 @@ export const getPartialDate = (text, cursorPos) => {
     const char = text[startIndex];
     if (char === '@') {
       const partial = text.slice(startIndex + 1, cursorPos);
-      if (partial.length >= 1 && /^[\w\s\/\-,]*$/.test(partial)) {
+      if (partial.length >= 1 && /^[\w\s/\-,]*$/.test(partial)) {
         return { partial, startIndex };
       }
       return null;
@@ -83,7 +83,7 @@ export const getPartialDeadline = (text, cursorPos) => {
     const char = text[startIndex];
     if (char === '$') {
       const partial = text.slice(startIndex + 1, cursorPos);
-      if (partial.length >= 1 && /^[\w\s\/\-,]*$/.test(partial)) {
+      if (partial.length >= 1 && /^[\w\s/\-,]*$/.test(partial)) {
         return { partial, startIndex };
       }
       return null;
