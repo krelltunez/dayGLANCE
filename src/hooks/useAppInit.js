@@ -26,6 +26,9 @@ export default function useAppInit({
     return () => {
       clearInterval(rotationInterval);
     };
+    // Mount-once: load data and start the rotation interval exactly once. Re-running
+    // on dependency changes would reload data and reset the interval.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist welcome dismissal only when user has real tasks
@@ -48,5 +51,5 @@ export default function useAppInit({
         setShowWelcome(false);
       }
     }
-  }, [dataLoaded, hasZeroRealTasks]);
+  }, [dataLoaded, hasZeroRealTasks, hasCheckedInitialWelcome, setShowWelcome]);
 }

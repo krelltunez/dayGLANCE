@@ -25,7 +25,7 @@ export default function useWeekViewHourHeight(calendarRef, stickyHeaderRef, visi
       cancelAnimationFrame(rafId);
       roRef?.disconnect();
     };
-  }, [visibleHours]); // refs are stable; visibleHours changes when truncation toggles
+  }, [visibleHours, calendarRef, stickyHeaderRef]); // refs are stable; visibleHours changes when truncation toggles
 
   return hourHeight;
 }

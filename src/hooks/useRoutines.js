@@ -82,7 +82,7 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, h
       localStorage.removeItem('day-planner-routine-completions');
       localStorage.removeItem('day-planner-routine-completion-timestamps');
     }
-  }, [currentTime]);
+  }, [currentTime, routinesDate]);
 
   const toggleRoutineCompletion = (routineId) => {
     const todayStr = dateToString(new Date());

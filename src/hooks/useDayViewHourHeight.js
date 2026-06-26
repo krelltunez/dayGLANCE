@@ -34,20 +34,24 @@ export default function useDayViewHourHeight(calendarRef, stickyHeaderRef) {
       const ro = new ResizeObserver(compute);
       if (calendarRef?.current) {
         ro.observe(calendarRef.current);
-        calendarRef.current.addEventListener('scroll', onScroll, { passive: true });
+        scrollEl = calendarRef.current;
+        scrollEl.addEventListener('scroll', onScroll, { passive: true });
       }
       if (stickyHeaderRef?.current) ro.observe(stickyHeaderRef.current);
-      // Keep a reference so cleanup can disconnect even after the rAF fires.
+      // Keep references so cleanup can disconnect/detach even after the rAF fires —
+      // and so the listener is removed from the SAME node it was attached to, not
+      // whatever calendarRef.current happens to be at cleanup time.
       roRef = ro;
     });
 
     let roRef = null;
+    let scrollEl = null;
     return () => {
       cancelAnimationFrame(rafId);
       roRef?.disconnect();
-      calendarRef?.current?.removeEventListener('scroll', onScroll);
+      scrollEl?.removeEventListener('scroll', onScroll);
     };
-  }, []); // refs are stable objects — no deps needed
+  }, [calendarRef, stickyHeaderRef]); // refs are stable; listed to satisfy exhaustive-deps
 
   return hourHeight;
 }

@@ -7,23 +7,24 @@ export default function useTaskMeasurement({ tasks, visibleDays, mobileActiveTab
   // Measure task widths using ResizeObserver
   useEffect(() => {
     const observer = new ResizeObserver((entries) => {
-      const newWidths = {};
-      let hasChanges = false;
-
-      for (const entry of entries) {
-        const taskId = entry.target.dataset.taskId;
-        if (taskId) {
-          const width = entry.contentRect.width;
-          if (taskWidths[taskId] !== width) {
-            newWidths[taskId] = width;
-            hasChanges = true;
+      // Compare against live state inside the updater rather than a captured
+      // `taskWidths` — the observer outlives the render it was created in, so a
+      // closed-over copy would be stale. Returning `prev` unchanged when nothing
+      // differs avoids a needless re-render.
+      setTaskWidths(prev => {
+        let next = prev;
+        for (const entry of entries) {
+          const taskId = entry.target.dataset.taskId;
+          if (taskId) {
+            const width = entry.contentRect.width;
+            if (prev[taskId] !== width) {
+              if (next === prev) next = { ...prev };
+              next[taskId] = width;
+            }
           }
         }
-      }
-
-      if (hasChanges) {
-        setTaskWidths(prev => ({ ...prev, ...newWidths }));
-      }
+        return next;
+      });
     });
 
     // Observe all registered task elements

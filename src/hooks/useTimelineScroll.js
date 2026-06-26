@@ -29,7 +29,7 @@ export default function useTimelineScroll({
         calendarRef.current.scrollTop = scrollPosition;
       }
     }
-  }, [viewMode]);
+  }, [viewMode, calendarRef, timeGridRef]);
 
   // Scroll timeline to a specific time string (e.g. "08:00")
   const scrollToHour = useCallback((timeStr, smooth = false) => {
@@ -43,7 +43,7 @@ export default function useTimelineScroll({
         calendarRef.current.scrollTop = scrollPosition;
       }
     }
-  }, []);
+  }, [calendarRef, timeGridRef]);
 
   useEffect(() => {
     if (viewMode !== 'multi') {
@@ -59,7 +59,7 @@ export default function useTimelineScroll({
       const timerId = setTimeout(() => scrollToCurrentHour(false), 100);
       return () => clearTimeout(timerId);
     }
-  }, [selectedDate, isMobile, mobileActiveTab, mobileViewMode, tabletListView, scrollToCurrentHour, viewMode]);
+  }, [selectedDate, isMobile, mobileActiveTab, mobileViewMode, tabletListView, scrollToCurrentHour, viewMode, calendarRef]);
 
   // Detect when user scrolls away from current time (all form factors)
   useEffect(() => {
@@ -89,7 +89,7 @@ export default function useTimelineScroll({
     // Delay initial check so the scroll-to-current-hour effect (100ms timeout) runs first
     const initialCheckTimer = setTimeout(onScroll, 200);
     return () => { el.removeEventListener('scroll', onScroll); clearTimeout(initialCheckTimer); };
-  }, [isMobile, isTablet, selectedDate, mobileActiveTab]);
+  }, [isMobile, isTablet, selectedDate, mobileActiveTab, calendarRef, timeGridRef]);
 
   // Auto-refocus timeline every 30 minutes on tablet and desktop
   useEffect(() => {
@@ -113,7 +113,7 @@ export default function useTimelineScroll({
       clearTimeout(timeoutId);
       if (intervalId) clearInterval(intervalId);
     };
-  }, [isMobile, selectedDate, scrollToCurrentHour, viewMode]);
+  }, [isMobile, selectedDate, scrollToCurrentHour, viewMode, calendarRef]);
 
   return { timelineScrolledAway, setTimelineScrolledAway, scrollToCurrentHour, scrollToHour };
 }

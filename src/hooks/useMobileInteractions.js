@@ -49,7 +49,7 @@ export default function useMobileInteractions({ isMobile, performUndo, performRe
       document.removeEventListener('touchmove', onTouchMove);
       document.removeEventListener('touchend', onTouchEnd);
     };
-  }, [isMobile]);
+  }, [isMobile, performUndo, performRedo]);
 
   return { longPressTriggeredRef, longPressTimerRef };
 }
