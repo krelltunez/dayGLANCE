@@ -146,28 +146,15 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     setDragOverIdx(null);
   };
 
-  // ── Touch drag-to-reorder (mobile) ─────────────────────────────────────────
-  const handleGripTouchStart = (e, idx) => {
-    touchDragRef.current = { active: true, fromIdx: idx, overIdx: null };
-    setDragIdx(idx);
-  };
-
-  const handleGripTouchMove = (e) => {
-    if (!touchDragRef.current.active) return;
-    e.preventDefault();
-    const touch = e.touches[0];
-    const el = document.elementFromPoint(touch.clientX, touch.clientY);
-    const taskEl = el?.closest('[data-drag-idx]');
-    if (taskEl) {
-      const overIdx = parseInt(taskEl.getAttribute('data-drag-idx'), 10);
-      if (!isNaN(overIdx)) {
-        touchDragRef.current.overIdx = overIdx;
-        setDragOverIdx(overIdx);
-      }
-    }
-  };
-
-  const handleGripTouchEnd = () => {
+  // ── Touch drag-to-reorder (mobile/iOS) ──────────────────────────────────────
+  // iOS WebKit broke this in two ways that Android/desktop don't hit: React's
+  // synthetic onTouchMove is passive, so e.preventDefault() is ignored, and the
+  // parent row's draggable={true} makes a long-press start a native HTML5 drag
+  // that hijacks the gesture. So the grip's touch reorder never landed on iOS.
+  // Mirror the app's proven touch-DnD pattern (useDragDrop): set up the listeners
+  // at the document level with { passive: false } so preventDefault works, and
+  // cancel dragstart for the duration of the drag so the native drag can't fire.
+  const finishGripTouch = () => {
     if (!touchDragRef.current.active) return;
     const { fromIdx, overIdx } = touchDragRef.current;
     touchDragRef.current = { active: false, fromIdx: null, overIdx: null };
@@ -186,6 +173,40 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     }
     setDragIdx(null);
     setDragOverIdx(null);
+  };
+
+  const handleGripTouchStart = (e, idx) => {
+    touchDragRef.current = { active: true, fromIdx: idx, overIdx: null };
+    setDragIdx(idx);
+
+    const onMove = (moveEvent) => {
+      if (!touchDragRef.current.active) return;
+      moveEvent.preventDefault(); // honoured: this listener is non-passive
+      const touch = moveEvent.touches[0];
+      if (!touch) return;
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const taskEl = el?.closest('[data-drag-idx]');
+      if (taskEl) {
+        const overIdx = parseInt(taskEl.getAttribute('data-drag-idx'), 10);
+        if (!isNaN(overIdx)) {
+          touchDragRef.current.overIdx = overIdx;
+          setDragOverIdx(overIdx);
+        }
+      }
+    };
+    // Block the parent draggable row from starting a native iOS drag mid-gesture.
+    const preventDrag = (de) => de.preventDefault();
+    const onEnd = () => {
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onEnd);
+      document.removeEventListener('dragstart', preventDrag);
+      finishGripTouch();
+    };
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+    document.addEventListener('touchcancel', onEnd);
+    document.addEventListener('dragstart', preventDrag);
   };
 
   // ── Quick-add ──────────────────────────────────────────────────────────────
@@ -511,8 +532,6 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                     <div
                       className={`flex-shrink-0 p-1 cursor-grab touch-none ${textSecondary} opacity-30`}
                       onTouchStart={e => handleGripTouchStart(e, incompleteUnscheduledIdx)}
-                      onTouchMove={handleGripTouchMove}
-                      onTouchEnd={handleGripTouchEnd}
                       aria-label="Drag to reorder"
                     >
                       <GripVertical size={12} />
