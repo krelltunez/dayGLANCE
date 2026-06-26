@@ -951,6 +951,52 @@ const DesktopDashboard = ({
     setDropInsertBeforeId(null);
   }, []);
 
+  // ── Touch drag (iOS/iPad) ──────────────────────────────────────────────────
+  // iOS WebKit never fires the HTML5 drag events above for touch, so on iPad
+  // (the desktop layout runs there: isMobile is false at >=721px wide) project
+  // cards could not be dragged at all. Mirror the proven touch pattern used by
+  // MobileDashboard / ProjectCard: track the drag in a ref and resolve the drop
+  // target under the finger via elementFromPoint. Drop targets carry the move
+  // semantics in data-* attributes (data-move-goal: '' = standalone; optional
+  // data-move-before: a project id to insert before), so one handler covers the
+  // reassign pills, the per-group containers, and the within-group card slots.
+  const touchDragRef = useRef({ active: false, projId: null, goalId: undefined, beforeId: null });
+
+  const startDragTouch = useCallback((projId) => (e) => {
+    e.preventDefault(); // grip is touch-none; block scroll/text-selection
+    touchDragRef.current = { active: true, projId, goalId: undefined, beforeId: null };
+    setDragProjectId(projId);
+  }, []);
+
+  const moveDragTouch = useCallback((e) => {
+    const st = touchDragRef.current;
+    if (!st.active) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    if (!touch) return;
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const target = el?.closest('[data-move-goal]');
+    if (!target) return;
+    const goalAttr = target.getAttribute('data-move-goal'); // '' = standalone
+    const beforeAttr = target.getAttribute('data-move-before');
+    const goalId = goalAttr === '' ? null : goalAttr;
+    const beforeId = beforeAttr && beforeAttr !== st.projId ? beforeAttr : null;
+    st.goalId = goalId;
+    st.beforeId = beforeId;
+    // Drive the same visual affordances as the mouse path.
+    setDropInsertBeforeId(beforeId);
+    setDropZoneTarget(beforeId ? undefined : goalId);
+  }, []);
+
+  const endDragTouch = useCallback(() => {
+    const st = touchDragRef.current;
+    touchDragRef.current = { active: false, projId: null, goalId: undefined, beforeId: null };
+    if (st.active && st.projId && st.goalId !== undefined) {
+      moveProject(st.projId, st.goalId, st.beforeId || null);
+    }
+    endDrag();
+  }, [moveProject, endDrag]);
+
   // Sort goals: completed/overdue → left, active/upcoming → right (default focus)
   const sortedGoals = useMemo(() => sortGoalsForCarousel(activeGoals), [activeGoals]);
   const [activeGoalIdx, setActiveGoalIdx] = useState(
@@ -1167,6 +1213,7 @@ const DesktopDashboard = ({
                   return (
                     <div
                       key={g.id}
+                      data-move-goal={g.id}
                       onDragOver={e => { e.preventDefault(); setDropZoneTarget(g.id); }}
                       onDragLeave={() => setDropZoneTarget(undefined)}
                       onDrop={e => { e.preventDefault(); moveProject(dragProjectId, g.id); endDrag(); }}
@@ -1183,6 +1230,7 @@ const DesktopDashboard = ({
                   );
                 })}
                 <div
+                  data-move-goal=""
                   onDragOver={e => { e.preventDefault(); setDropZoneTarget(null); }}
                   onDragLeave={() => setDropZoneTarget(undefined)}
                   onDrop={e => { e.preventDefault(); moveProject(dragProjectId, null); endDrag(); }}
@@ -1208,11 +1256,16 @@ const DesktopDashboard = ({
               draggable: true,
               onDragStart: (e) => startDrag(e, proj.id),
               onDragEnd: endDrag,
+              onTouchStart: startDragTouch(proj.id),
+              onTouchMove: moveDragTouch,
+              onTouchEnd: endDragTouch,
             });
             const wrapCard = (proj, cardJsx) => (
               <div
                 key={proj.id}
                 data-proj-id={proj.id}
+                data-move-goal={activeGoal.id}
+                data-move-before={proj.id}
                 className={`relative w-[260px] transition-opacity ${dragProjectId === proj.id ? 'opacity-40' : ''} ${
                   dropInsertBeforeId === proj.id && dragProjectId && dragProjectId !== proj.id
                     ? 'ring-2 ring-blue-500 rounded-xl' : ''
@@ -1239,6 +1292,7 @@ const DesktopDashboard = ({
             return (
               <div
                 className="relative z-10 mb-8"
+                data-move-goal={activeGoal.id}
                 onDragOver={e => { e.preventDefault(); }}
                 onDrop={e => {
                   e.preventDefault();
@@ -1283,6 +1337,7 @@ const DesktopDashboard = ({
       {/* Standalone projects */}
       {(standaloneProjects.length > 0 || dragProjectId) && (
         <div
+          data-move-goal=""
           className={`relative z-10 pt-6 border-t ${borderClass} ${
             dragProjectId && dropZoneTarget === null
               ? darkMode ? 'bg-emerald-900/20 rounded-xl' : 'bg-emerald-50 rounded-xl'
@@ -1315,11 +1370,16 @@ const DesktopDashboard = ({
               draggable: true,
               onDragStart: (e) => startDrag(e, proj.id),
               onDragEnd: endDrag,
+              onTouchStart: startDragTouch(proj.id),
+              onTouchMove: moveDragTouch,
+              onTouchEnd: endDragTouch,
             });
             const wrapCard = (proj, cardJsx) => (
               <div
                 key={proj.id}
                 data-proj-id={proj.id}
+                data-move-goal=""
+                data-move-before={proj.id}
                 className={`relative w-[260px] transition-opacity ${dragProjectId === proj.id ? 'opacity-40' : ''} ${
                   dropInsertBeforeId === proj.id && dragProjectId && dragProjectId !== proj.id
                     ? 'ring-2 ring-blue-500 rounded-xl' : ''
