@@ -33,5 +33,10 @@ export default function useSaveOnChange({
         suppressTimestampRef.current = false;
       });
     }
+    // Intentionally keyed on the DATA slices only: this effect should fire when
+    // saved data changes, not when saveData/checkConflicts identities change (they
+    // are called, not dependencies, and would over-trigger). The suppress* refs are
+    // stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataLoaded, tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays, completedTaskUids, recurringTasks, routineDefinitions, todayRoutines, routinesDate, removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames, goals, projects, goalsProjectsEnabled]);
 }
