@@ -954,41 +954,20 @@ const DesktopDashboard = ({
   // ── Touch drag (iOS/iPad) ──────────────────────────────────────────────────
   // iOS WebKit never fires the HTML5 drag events above for touch, so on iPad
   // (the desktop layout runs there: isMobile is false at >=721px wide) project
-  // cards could not be dragged at all. Mirror the proven touch pattern used by
-  // MobileDashboard / ProjectCard: track the drag in a ref and resolve the drop
-  // target under the finger via elementFromPoint. Drop targets carry the move
-  // semantics in data-* attributes (data-move-goal: '' = standalone; optional
-  // data-move-before: a project id to insert before), so one handler covers the
-  // reassign pills, the per-group containers, and the within-group card slots.
+  // cards could not be dragged at all. Mirror the app's proven touch-DnD pattern
+  // (useDragDrop): track the drag in a ref and resolve the drop target under the
+  // finger via elementFromPoint. Two iOS-specific gotchas force document-level
+  // listeners rather than React's onTouch* props: React's synthetic touchmove is
+  // passive (so e.preventDefault() is ignored), and the grip's draggable={true}
+  // would otherwise start a native iOS drag that hijacks the gesture — so we add
+  // touchmove with { passive: false } and cancel dragstart for the drag's life.
+  // Drop targets carry the move semantics in data-* attributes (data-move-goal:
+  // '' = standalone; optional data-move-before: a project id to insert before),
+  // so one handler covers the reassign pills, the per-group containers, and the
+  // within-group card slots.
   const touchDragRef = useRef({ active: false, projId: null, goalId: undefined, beforeId: null });
 
-  const startDragTouch = useCallback((projId) => (e) => {
-    e.preventDefault(); // grip is touch-none; block scroll/text-selection
-    touchDragRef.current = { active: true, projId, goalId: undefined, beforeId: null };
-    setDragProjectId(projId);
-  }, []);
-
-  const moveDragTouch = useCallback((e) => {
-    const st = touchDragRef.current;
-    if (!st.active) return;
-    e.preventDefault();
-    const touch = e.touches[0];
-    if (!touch) return;
-    const el = document.elementFromPoint(touch.clientX, touch.clientY);
-    const target = el?.closest('[data-move-goal]');
-    if (!target) return;
-    const goalAttr = target.getAttribute('data-move-goal'); // '' = standalone
-    const beforeAttr = target.getAttribute('data-move-before');
-    const goalId = goalAttr === '' ? null : goalAttr;
-    const beforeId = beforeAttr && beforeAttr !== st.projId ? beforeAttr : null;
-    st.goalId = goalId;
-    st.beforeId = beforeId;
-    // Drive the same visual affordances as the mouse path.
-    setDropInsertBeforeId(beforeId);
-    setDropZoneTarget(beforeId ? undefined : goalId);
-  }, []);
-
-  const endDragTouch = useCallback(() => {
+  const finishDragTouch = useCallback(() => {
     const st = touchDragRef.current;
     touchDragRef.current = { active: false, projId: null, goalId: undefined, beforeId: null };
     if (st.active && st.projId && st.goalId !== undefined) {
@@ -996,6 +975,44 @@ const DesktopDashboard = ({
     }
     endDrag();
   }, [moveProject, endDrag]);
+
+  const startDragTouch = useCallback((projId) => () => {
+    touchDragRef.current = { active: true, projId, goalId: undefined, beforeId: null };
+    setDragProjectId(projId);
+
+    const onMove = (moveEvent) => {
+      const st = touchDragRef.current;
+      if (!st.active) return;
+      moveEvent.preventDefault(); // honoured: this listener is non-passive
+      const touch = moveEvent.touches[0];
+      if (!touch) return;
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const target = el?.closest('[data-move-goal]');
+      if (!target) return;
+      const goalAttr = target.getAttribute('data-move-goal'); // '' = standalone
+      const beforeAttr = target.getAttribute('data-move-before');
+      const goalId = goalAttr === '' ? null : goalAttr;
+      const beforeId = beforeAttr && beforeAttr !== st.projId ? beforeAttr : null;
+      st.goalId = goalId;
+      st.beforeId = beforeId;
+      // Drive the same visual affordances as the mouse path.
+      setDropInsertBeforeId(beforeId);
+      setDropZoneTarget(beforeId ? undefined : goalId);
+    };
+    // Block the grip's draggable from starting a native iOS drag mid-gesture.
+    const preventDrag = (de) => de.preventDefault();
+    const onEnd = () => {
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onEnd);
+      document.removeEventListener('dragstart', preventDrag);
+      finishDragTouch();
+    };
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+    document.addEventListener('touchcancel', onEnd);
+    document.addEventListener('dragstart', preventDrag);
+  }, [finishDragTouch]);
 
   // Sort goals: completed/overdue → left, active/upcoming → right (default focus)
   const sortedGoals = useMemo(() => sortGoalsForCarousel(activeGoals), [activeGoals]);
@@ -1257,8 +1274,6 @@ const DesktopDashboard = ({
               onDragStart: (e) => startDrag(e, proj.id),
               onDragEnd: endDrag,
               onTouchStart: startDragTouch(proj.id),
-              onTouchMove: moveDragTouch,
-              onTouchEnd: endDragTouch,
             });
             const wrapCard = (proj, cardJsx) => (
               <div
@@ -1371,8 +1386,6 @@ const DesktopDashboard = ({
               onDragStart: (e) => startDrag(e, proj.id),
               onDragEnd: endDrag,
               onTouchStart: startDragTouch(proj.id),
-              onTouchMove: moveDragTouch,
-              onTouchEnd: endDragTouch,
             });
             const wrapCard = (proj, cardJsx) => (
               <div
