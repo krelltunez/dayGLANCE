@@ -247,9 +247,9 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
           style={goalHex ? { borderLeft: `3px solid ${goalHex}88` } : {}}
         >
           {/* Row 1: title + edit/delete */}
-          <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-1">
+          <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-1 dnd-no-select">
             {dragHandleProps && (
-              <div {...dragHandleProps} data-drag-handle className={`flex-shrink-0 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title="Drag to reorder">
+              <div {...dragHandleProps} data-drag-handle className={`flex-shrink-0 p-1.5 -m-1 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title="Drag to reorder">
                 <GripVertical size={12} />
               </div>
             )}
@@ -335,9 +335,9 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
       {/* Card body */}
       <div className="flex flex-col gap-2 p-3">
         {/* Header: title + badges + edit + delete */}
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-2 dnd-no-select">
           {dragHandleProps && (
-            <div {...dragHandleProps} data-drag-handle className={`flex-shrink-0 mt-0.5 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title="Drag to reorder">
+            <div {...dragHandleProps} data-drag-handle className={`flex-shrink-0 mt-0.5 p-1.5 -m-1 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title="Drag to reorder">
               <GripVertical size={14} />
             </div>
           )}
@@ -459,7 +459,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                   data-drag-idx={draggable ? incompleteUnscheduledIdx : undefined}
                   onDragOver={draggable ? e => handleDragOver(e, incompleteUnscheduledIdx) : undefined}
                   onDrop={draggable ? e => handleDrop(e, incompleteUnscheduledIdx) : undefined}
-                  className={`flex items-center rounded-lg select-none transition-colors ${hoverBg} ${
+                  className={`flex items-center rounded-lg select-none dnd-no-select transition-colors ${hoverBg} ${
                     draggable && dragIdx === incompleteUnscheduledIdx ? 'opacity-40' : ''
                   } ${
                     draggable && dragOverIdx === incompleteUnscheduledIdx && dragIdx !== incompleteUnscheduledIdx
@@ -538,7 +538,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                       onDragStart={e => handleDragStart(e, incompleteUnscheduledIdx)}
                       onDragEnd={handleDragEnd}
                       onTouchStart={e => handleGripTouchStart(e, incompleteUnscheduledIdx)}
-                      className={`flex-shrink-0 p-1 cursor-grab active:cursor-grabbing touch-none select-none ${textSecondary} opacity-30`}
+                      className={`flex-shrink-0 p-2 -my-1 cursor-grab active:cursor-grabbing touch-none select-none ${textSecondary} opacity-30`}
                       aria-label="Drag to reorder"
                     >
                       <GripVertical size={12} />
