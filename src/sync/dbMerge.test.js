@@ -153,6 +153,46 @@ describe('A1 bundle merge — concurrent different-entry edits are not lost', ()
     }
   });
 
+  it('routineCompletions: a day-rollover clear is not resurrected by a stale remote completion (completed-on-add bug)', () => {
+    // Both devices hold yesterday's completion of routine 5001. Device A rolls
+    // over to the new day: it clears the completion but stamps a FRESH tombstone
+    // timestamp (T2) for that id instead of just dropping the timestamp. Device B
+    // hasn't rolled over yet and still carries the stale completion (T0). After
+    // sync, the completion must NOT come back — otherwise a routine re-added on
+    // the new day shows up already completed (driven by routineCompletions[id]).
+    const base = {
+      ...EMPTY_COLLECTIONS, routinesDate: '2026-06-18',
+      routineCompletions: { 5001: '2026-06-18' },
+      routineCompletionTimestamps: { 5001: T0 },
+    };
+    const { vault, a, b } = newPair(base);
+    // Rollover on A: completion cleared, tombstone timestamp stamped fresh.
+    a.mutate((d) => { delete d.routineCompletions['5001']; d.routineCompletionTimestamps['5001'] = T2; return ['singleton:routineCompletions']; });
+    syncToConvergence(a, b, vault);
+    for (const dev of [a, b]) {
+      expect(dev.data.routineCompletions['5001']).toBeUndefined();
+    }
+  });
+
+  it('routineCompletions: a bare clear (no tombstone) WOULD be resurrected — proves the tombstone is load-bearing', () => {
+    // Counter-case to the test above: if the rollover had merely dropped the
+    // timestamp (leaving T0) instead of stamping a fresh one, the remote's
+    // equal-timestamp completion wins by the "present-wins" tie-break and the
+    // completion is resurrected. This documents why the fix stamps the tombstone.
+    const base = {
+      ...EMPTY_COLLECTIONS, routinesDate: '2026-06-18',
+      routineCompletions: { 5001: '2026-06-18' },
+      routineCompletionTimestamps: { 5001: T0 },
+    };
+    const { vault, a, b } = newPair(base);
+    // Bare clear: completion removed but timestamp left untouched (the old bug).
+    a.mutate((d) => { delete d.routineCompletions['5001']; return ['singleton:routineCompletions']; });
+    syncToConvergence(a, b, vault);
+    for (const dev of [a, b]) {
+      expect(dev.data.routineCompletions['5001']).toBe('2026-06-18'); // resurrected
+    }
+  });
+
   it('recurringTasks: a completion is not clobbered by a concurrent series edit (the cross-device bug)', () => {
     const base = {
       ...EMPTY_COLLECTIONS,

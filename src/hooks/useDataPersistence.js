@@ -1,5 +1,6 @@
 import { dateToString } from '../utils/taskUtils.js';
 import { hasNativeCalendar } from '../utils/nativeCalendar.js';
+import { stampTimestamps } from '../utils/stampTimestamps.js';
 
 // Read-only CalDAV/ICS-subscription events (importSource 'sync', non-task,
 // non-file) are ephemeral remote data, re-fetched live each session. On devices
@@ -32,28 +33,19 @@ export default function useDataPersistence({
   // Stamp lastModified on tasks that changed since last save
   const stampTaskTimestamps = (currentTasks, storageKey) => {
     if (suppressTimestampRef.current) return currentTasks;
-    const now = new Date().toISOString();
     let prev;
     try { prev = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { prev = []; }
-    const prevMap = new Map(prev.map(t => [String(t.id), t]));
-    return currentTasks.map(t => {
-      const id = String(t.id);
-      const prevTask = prevMap.get(id);
-      if (prevTask && prevTask.lastModified) {
-        const { lastModified: _a, ...prevRest } = prevTask;
-        const { lastModified: _b, ...currRest } = t;
-        if (JSON.stringify(prevRest) === JSON.stringify(currRest)) {
-          return { ...t, lastModified: prevTask.lastModified };
-        }
+    // Opt-in diagnostic: set localStorage 'dayglance-debug-stamp' = '1' to log
+    // which fields trip a re-stamp. Use it to catch a phantom re-stamp (a default
+    // or unexpected field, not a real edit) if task resurrection ever recurs.
+    let onRestamp;
+    try {
+      if (localStorage.getItem('dayglance-debug-stamp') === '1') {
+        onRestamp = ({ id, changedKeys }) =>
+          console.warn(`[stamp] re-stamped ${storageKey} ${id} — changed:`, changedKeys);
       }
-      // If the task is new to localStorage but already carries a lastModified
-      // (e.g. a fresh Obsidian import stamped with epoch, or a task arriving
-      // via cloud sync), preserve it so cloud merge doesn't treat a passive
-      // re-import as a newer edit than real user changes on other devices.
-      if (!prevTask && t.lastModified) return t;
-      // Task is new or changed — stamp it now so other devices see the update
-      return { ...t, lastModified: now };
-    });
+    } catch { /* ignore */ }
+    return stampTimestamps(currentTasks, prev, new Date().toISOString(), onRestamp);
   };
 
   const loadData = () => {

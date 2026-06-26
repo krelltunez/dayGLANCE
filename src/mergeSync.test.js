@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeTaskArrays, mergeRoutineDefinitions, mergeDailyNotes, mergeHabits, mergeHabitLogs, mergeSyncData, mergeCalendarConfigByUser } from './mergeSync.js';
+import { mergeTaskArrays, mergeRoutineDefinitions, mergeDailyNotes, mergeHabits, mergeHabitLogs, mergeRoutineCompletions, mergeSyncData, mergeCalendarConfigByUser } from './mergeSync.js';
 
 // Helpers to create task fixtures with timestamps
 const T = (id, title, lastModified, extra = {}) => ({
@@ -142,17 +142,22 @@ describe('mergeSyncData', () => {
 
   // ── The user's reported scenario ───────────────────────────────
   it('SCENARIO: tasks added on desktop survive when tablet syncs', () => {
+    // Task 1 exists on BOTH sides and must be byte-identical, so compute its
+    // timestamp ONCE. Calling ts(30) separately per side produced two values a
+    // millisecond apart on slow runners, making the tablet's copy look newer and
+    // flipping remoteChanged to true (flaky CI failure).
+    const standupTs = ts(30);
     const desktop = {
       ...emptyData(),
       tasks: [
-        T(1, 'Morning standup', ts(30)),
+        T(1, 'Morning standup', standupTs),
         T(2, 'New from desktop', ts(5)),
       ],
       unscheduledTasks: [T(10, 'Inbox from desktop', ts(4))],
     };
     const tablet = {
       ...emptyData(),
-      tasks: [T(1, 'Morning standup', ts(30))],
+      tasks: [T(1, 'Morning standup', standupTs)],
       unscheduledTasks: [],
     };
 
@@ -1524,6 +1529,40 @@ describe('mergeHabitLogs', () => {
   });
 });
 
+// ─── mergeRoutineCompletions ──────────────────────────────────────────
+
+describe('mergeRoutineCompletions', () => {
+  const Y0 = '2026-06-25T10:00:00.000Z'; // yesterday's completion
+  const N0 = '2026-06-26T06:00:00.000Z'; // this-morning rollover
+
+  it('a fresh rollover tombstone beats a stale remote completion (completed-on-add bug)', () => {
+    // Local rolled over: completion cleared, but a fresh tombstone timestamp was
+    // stamped for the id. Remote still holds yesterday's completion. The newer
+    // local timestamp must win so the completion is NOT resurrected — otherwise a
+    // routine re-added this morning renders already-completed.
+    const { merged, remoteChanged } = mergeRoutineCompletions(
+      {},                 // local: cleared
+      { 5001: '2026-06-25' }, // remote: still completed yesterday
+      { 5001: N0 },       // local tombstone stamped at rollover
+      { 5001: Y0 },       // remote's stale completion timestamp
+    );
+    expect(merged['5001']).toBeUndefined();
+    expect(remoteChanged).toBe(true); // remote heals (drops the completion)
+  });
+
+  it('a bare clear (no tombstone, timestamp dropped) IS resurrected — proves the tombstone matters', () => {
+    // Counter-case: without a fresh local timestamp, remote's completion is
+    // strictly newer and wins, resurrecting it. This is the pre-fix behavior.
+    const { merged } = mergeRoutineCompletions(
+      {},                 // local: cleared, but...
+      { 5001: '2026-06-25' },
+      {},                 // ...no local timestamp (the old bare clear)
+      { 5001: Y0 },
+    );
+    expect(merged['5001']).toBe('2026-06-25'); // resurrected
+  });
+});
+
 // ─── mergeSyncData — habits integration ───────────────────────────────
 
 describe('mergeSyncData — habits integration', () => {
@@ -2019,7 +2058,10 @@ describe('mergeCalendarConfigByUser', () => {
 
   it('tolerates empty / missing sides', () => {
     expect(mergeCalendarConfigByUser(undefined, undefined)).toEqual({});
-    expect(mergeCalendarConfigByUser({ a: { updatedAt: ts(1) } }, undefined)).toEqual({ a: { updatedAt: ts(1) } });
+    // Compute the timestamp once: the input and the expected output must match
+    // exactly, and two ts(1) calls can differ by a millisecond on slow runners.
+    const cfg = { a: { updatedAt: ts(1) } };
+    expect(mergeCalendarConfigByUser(cfg, undefined)).toEqual(cfg);
   });
 });
 
