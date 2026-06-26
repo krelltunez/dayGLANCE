@@ -47,13 +47,23 @@ const CRYPTO_DB_NAME = 'dayglance-db-crypto';
 // path (non-native) is already isolated via the distinct CRYPTO_DB_NAME.
 const VAULT_KEY_SLOT = 'db';
 
-// Where the per-account DB root key is stored: the OS keystore on native shells
-// (mirrors the file tier in adapter.js), IndexedDB elsewhere. Centralized so the
-// engine and resetDbRootKey agree.
-function nativeKeyConfig() {
+// Where the per-account DB root key is stored: the Android OS keystore on the
+// Android shell (mirrors the file tier in crypto.js), IndexedDB everywhere else
+// (web AND iOS). Centralized so the engine and resetDbRootKey agree.
+//
+// iOS gotcha (the every-launch passphrase re-prompt): iOS exposes
+// window.DayGlanceNative as a Proxy whose every property reads truthy, so the
+// old `!!bridge?.httpRequest` native-app check returned true on iOS and routed
+// it through the bridge's (non-functional, proxy-faked) keystore methods. The
+// DB root key was therefore never actually persisted, so restoreDbRootKey()
+// returned false on every launch and the passphrase modal reappeared. Only
+// Android — which sets no DayGlanceIOS marker and exposes a REAL getSyncKey —
+// should use the native keystore; iOS uses IndexedDB (which persists across
+// launches), exactly as src/utils/crypto.js does for the file tier.
+export function nativeKeyConfig() {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceNative : null;
-  const isNativeApp = !!bridge?.httpRequest;
-  if (!isNativeApp) {
+  const isAndroid = !!bridge && !window.DayGlanceIOS && !!bridge.getSyncKey;
+  if (!isAndroid) {
     return { cryptoDBName: CRYPTO_DB_NAME, nativeGetSyncKey: null, nativeStoreSyncKey: null };
   }
   // Prefer the isolated per-slot bridge methods; fall back to the shared legacy
