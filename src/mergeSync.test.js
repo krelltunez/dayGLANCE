@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeTaskArrays, mergeRoutineDefinitions, mergeDailyNotes, mergeHabits, mergeHabitLogs, mergeSyncData, mergeCalendarConfigByUser } from './mergeSync.js';
+import { mergeTaskArrays, mergeRoutineDefinitions, mergeDailyNotes, mergeHabits, mergeHabitLogs, mergeRoutineCompletions, mergeSyncData, mergeCalendarConfigByUser } from './mergeSync.js';
 
 // Helpers to create task fixtures with timestamps
 const T = (id, title, lastModified, extra = {}) => ({
@@ -1521,6 +1521,40 @@ describe('mergeHabitLogs', () => {
     const onMac = mergeHabitLogs(mac, ipad, macTs, ipadTs);
     expect(onMac.merged['2026-02-20'].h1).toBe(4);  // Mac keeps it; both now agree
     expect(onMac.localChanged).toBe(false);
+  });
+});
+
+// ─── mergeRoutineCompletions ──────────────────────────────────────────
+
+describe('mergeRoutineCompletions', () => {
+  const Y0 = '2026-06-25T10:00:00.000Z'; // yesterday's completion
+  const N0 = '2026-06-26T06:00:00.000Z'; // this-morning rollover
+
+  it('a fresh rollover tombstone beats a stale remote completion (completed-on-add bug)', () => {
+    // Local rolled over: completion cleared, but a fresh tombstone timestamp was
+    // stamped for the id. Remote still holds yesterday's completion. The newer
+    // local timestamp must win so the completion is NOT resurrected — otherwise a
+    // routine re-added this morning renders already-completed.
+    const { merged, remoteChanged } = mergeRoutineCompletions(
+      {},                 // local: cleared
+      { 5001: '2026-06-25' }, // remote: still completed yesterday
+      { 5001: N0 },       // local tombstone stamped at rollover
+      { 5001: Y0 },       // remote's stale completion timestamp
+    );
+    expect(merged['5001']).toBeUndefined();
+    expect(remoteChanged).toBe(true); // remote heals (drops the completion)
+  });
+
+  it('a bare clear (no tombstone, timestamp dropped) IS resurrected — proves the tombstone matters', () => {
+    // Counter-case: without a fresh local timestamp, remote's completion is
+    // strictly newer and wins, resurrecting it. This is the pre-fix behavior.
+    const { merged } = mergeRoutineCompletions(
+      {},                 // local: cleared, but...
+      { 5001: '2026-06-25' },
+      {},                 // ...no local timestamp (the old bare clear)
+      { 5001: Y0 },
+    );
+    expect(merged['5001']).toBe('2026-06-25'); // resurrected
   });
 });
 
