@@ -5302,6 +5302,7 @@ const DayPlanner = () => {
         // Parse RRULE from master VTODO
         const rruleMatch = icsContent.match(/^RRULE:(.+)$/m);
         if (!rruleMatch) {
+          // No recurrence rule on this VTODO — nothing to expand.
         } else {
           const rruleStr = rruleMatch[1].trim();
           const datePart = date.replace(/-/g, ''); // "YYYYMMDD"
