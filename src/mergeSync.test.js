@@ -142,17 +142,22 @@ describe('mergeSyncData', () => {
 
   // ── The user's reported scenario ───────────────────────────────
   it('SCENARIO: tasks added on desktop survive when tablet syncs', () => {
+    // Task 1 exists on BOTH sides and must be byte-identical, so compute its
+    // timestamp ONCE. Calling ts(30) separately per side produced two values a
+    // millisecond apart on slow runners, making the tablet's copy look newer and
+    // flipping remoteChanged to true (flaky CI failure).
+    const standupTs = ts(30);
     const desktop = {
       ...emptyData(),
       tasks: [
-        T(1, 'Morning standup', ts(30)),
+        T(1, 'Morning standup', standupTs),
         T(2, 'New from desktop', ts(5)),
       ],
       unscheduledTasks: [T(10, 'Inbox from desktop', ts(4))],
     };
     const tablet = {
       ...emptyData(),
-      tasks: [T(1, 'Morning standup', ts(30))],
+      tasks: [T(1, 'Morning standup', standupTs)],
       unscheduledTasks: [],
     };
 
@@ -2053,7 +2058,10 @@ describe('mergeCalendarConfigByUser', () => {
 
   it('tolerates empty / missing sides', () => {
     expect(mergeCalendarConfigByUser(undefined, undefined)).toEqual({});
-    expect(mergeCalendarConfigByUser({ a: { updatedAt: ts(1) } }, undefined)).toEqual({ a: { updatedAt: ts(1) } });
+    // Compute the timestamp once: the input and the expected output must match
+    // exactly, and two ts(1) calls can differ by a millisecond on slow runners.
+    const cfg = { a: { updatedAt: ts(1) } };
+    expect(mergeCalendarConfigByUser(cfg, undefined)).toEqual(cfg);
   });
 });
 
