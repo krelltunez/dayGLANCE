@@ -171,6 +171,29 @@ body.using-pointer a:focus-visible {
   }
 }
 
+/* Drag surfaces (task rows, project-card headers): on touch devices disable
+   text selection AND the iOS long-press callout/magnifier across the WHOLE
+   surface — not just the tiny grip — so a touch that slightly misses the
+   handle never selects nearby text. select-none alone only sets user-select;
+   iOS also needs -webkit-touch-callout: none to suppress the magnifier.
+   Scoped to coarse pointers so desktop selection is untouched; on Android this
+   only reinforces the no-selection behaviour it already had (the drag JS is
+   unchanged on every platform). Real text-entry fields keep selection. */
+@media (pointer: coarse) {
+  .dnd-no-select,
+  .dnd-no-select * {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .dnd-no-select input,
+  .dnd-no-select textarea,
+  .dnd-no-select [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
 /* Current task ring pulse animation */
 @keyframes current-task-ring {
   0%   { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7); }
