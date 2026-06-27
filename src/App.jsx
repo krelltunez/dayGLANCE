@@ -1258,7 +1258,12 @@ const DayPlanner = () => {
     if (!showAddTask) {
       swipeSchedulingInboxTaskId.current = null;
     }
-  }, [showAddTask, swipeSchedulingInboxTaskId]);
+    // swipeSchedulingInboxTaskId is a stable ref from useDragDrop, which is
+    // declared later in this component. Listing it here would evaluate the ref
+    // in its temporal dead zone on first render and crash. The body only reads
+    // it after commit, so keying on showAddTask alone is correct.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showAddTask]);
 
   // Extract partial tag being typed at cursor position
   // Format time for display (respects 12h/24h setting)
