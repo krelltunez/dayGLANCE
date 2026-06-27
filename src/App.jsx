@@ -319,6 +319,11 @@ const DayPlanner = () => {
     today.setHours(12, 0, 0, 0);
     return today;
   });
+  // Mirror selectedDate into a ref so handlers that are bound ONCE (e.g. the
+  // foreground Share-sheet listener) read the CURRENT date instead of the value
+  // captured when they were bound at mount.
+  const selectedDateRef = useRef(selectedDate);
+  selectedDateRef.current = selectedDate;
   const [tasks, setTasks] = useState([]);
   const [unscheduledTasks, setUnscheduledTasks] = useState([]);
   const [unscheduledOrderTimestamp, setUnscheduledOrderTimestamp] = useState(null);
@@ -1637,7 +1642,7 @@ const DayPlanner = () => {
                 notes: shareNotes || undefined,
                 startTime: getNextQuarterHour(),
                 duration: 30,
-                date: dateToString(selectedDate),
+                date: dateToString(selectedDateRef.current),
                 isAllDay: false,
                 openInInbox: true,
                 deadline: null,
