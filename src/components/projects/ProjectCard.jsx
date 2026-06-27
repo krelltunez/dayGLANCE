@@ -19,6 +19,20 @@ import { getActiveHGInstance } from '../../hooks/useHyperGlance.js';
 
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
 
+// iOS/iPadOS (incl. the native app and iPad reporting as Mac) is the only
+// platform where HTML5 drag never fires from touch. There, task reorder uses
+// the grip's custom touch path and the ROW must NOT be draggable — a draggable
+// ancestor starves the touch listeners (the bug fixed in #1063). EVERYWHERE
+// ELSE keeps the flawless whole-row HTML5 drag (drag from anywhere on the row),
+// so on iOS the grip is the draggable source and off-iOS the row is. Mirrors
+// the !window.DayGlanceIOS convention in src/utils/crypto.js, with a UA
+// fallback so iOS Safari/PWA is covered too.
+const IS_IOS = typeof navigator !== 'undefined' && (
+  /iP(hone|ad|od)/.test(navigator.platform || '') ||
+  (/Mac/.test(navigator.platform || '') && (navigator.maxTouchPoints || 0) > 1) ||
+  (typeof window !== 'undefined' && !!window.DayGlanceIOS)
+);
+
 /**
  * ProjectCard — a single project node in the Goals dashboard.
  *
@@ -453,10 +467,16 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                 ? projectUnscheduled.filter(u => !u.completed).findIndex(u => u.id === t.id)
                 : -1;
               const draggable = incompleteUnscheduledIdx !== -1;
+              // Whole-row HTML5 drag off-iOS (Android/desktop — grab anywhere on
+              // the row); grip-only touch drag on iOS (see IS_IOS note above).
+              const rowDraggable = draggable && !IS_IOS;
               return (
                 <div
                   key={t.id}
                   data-drag-idx={draggable ? incompleteUnscheduledIdx : undefined}
+                  draggable={rowDraggable}
+                  onDragStart={rowDraggable ? e => handleDragStart(e, incompleteUnscheduledIdx) : undefined}
+                  onDragEnd={rowDraggable ? handleDragEnd : undefined}
                   onDragOver={draggable ? e => handleDragOver(e, incompleteUnscheduledIdx) : undefined}
                   onDrop={draggable ? e => handleDrop(e, incompleteUnscheduledIdx) : undefined}
                   className={`flex items-center rounded-lg select-none dnd-no-select transition-colors ${hoverBg} ${
@@ -526,18 +546,19 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                     </div>
                   )}
                   {draggable && (
-                    // Drag SOURCE lives on the grip (not the row): on iOS, touching a
-                    // non-draggable child inside a draggable row puts the gesture into a
-                    // native-drag limbo that starves our touch listeners. Mirroring the
-                    // project-card grip (which works) — grip is the draggable source, the
-                    // row is only the drop target — fixes touch reorder. data-drag-handle
-                    // + select-none apply the documented iOS selection/callout guards.
+                    // iOS-only drag source. On iOS the row can't be draggable (it
+                    // starves the touch listeners), so the grip carries the drag and
+                    // the touch path; data-drag-handle + select-none apply the iOS
+                    // selection/callout guards. Off-iOS the whole row is the HTML5
+                    // drag source (above) and the grip is just the visual handle, so
+                    // we don't make it draggable there — that keeps Android's
+                    // flawless whole-row behaviour exactly as it was.
                     <div
                       data-drag-handle
-                      draggable
-                      onDragStart={e => handleDragStart(e, incompleteUnscheduledIdx)}
-                      onDragEnd={handleDragEnd}
-                      onTouchStart={e => handleGripTouchStart(e, incompleteUnscheduledIdx)}
+                      draggable={IS_IOS}
+                      onDragStart={IS_IOS ? e => handleDragStart(e, incompleteUnscheduledIdx) : undefined}
+                      onDragEnd={IS_IOS ? handleDragEnd : undefined}
+                      onTouchStart={IS_IOS ? e => handleGripTouchStart(e, incompleteUnscheduledIdx) : undefined}
                       className={`flex-shrink-0 p-2 -my-1 cursor-grab active:cursor-grabbing touch-none select-none ${textSecondary} opacity-30`}
                       aria-label="Drag to reorder"
                     >
