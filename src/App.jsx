@@ -1258,7 +1258,7 @@ const DayPlanner = () => {
     if (!showAddTask) {
       swipeSchedulingInboxTaskId.current = null;
     }
-  }, [showAddTask]);
+  }, [showAddTask, swipeSchedulingInboxTaskId]);
 
   // Extract partial tag being typed at cursor position
   // Format time for display (respects 12h/24h setting)
@@ -1492,7 +1492,7 @@ const DayPlanner = () => {
       handleRoutinesDone();
       setMobileActiveTab('dayglance');
     }
-  }, [routinesEnabled]);
+  }, [routinesEnabled, mobileActiveTab, handleRoutinesDone, setMobileActiveTab]);
 
   // Android back button: navigate to dayglance tab from other screens
   useEffect(() => {
@@ -1809,6 +1809,10 @@ const DayPlanner = () => {
       registerDbEngine(null);
       dbEngineRef.current = null;
     };
+    // Keyed on dataLoaded (sets up the DB engine once). setUndoToast/t are read
+    // when surfacing an error toast; adding t would tear down the engine on a
+    // mere language change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataLoaded]);
 
   // ── Config field timestamp tracking ──────────────────────────────────────
@@ -1870,6 +1874,9 @@ const DayPlanner = () => {
         } catch (_) {}
       }
     }
+    // Drains pending native actions once after load (keyed on dataLoaded). The
+    // setters/voiceAutoStartRef are stable; toggleComplete is read at drain time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataLoaded]);
 
   // Navigate to a task opened via Spotlight search.
@@ -2185,6 +2192,9 @@ const DayPlanner = () => {
     }
     if (oldFolderPath) localStorage.setItem(NOTICE_KEY, oldFolderPath);
     localStorage.setItem(CHECKED_KEY, '1');
+    // One-time migration notice (guarded by CHECKED_KEY). Reads the other
+    // cloudSyncConfig fields at check time; keyed on enabled + syncFolder.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloudSyncConfig?.enabled, cloudSyncConfig?.syncFolder]);
 
   // If encryption is enabled, wait until the session key is ready (either
@@ -2238,6 +2248,9 @@ const DayPlanner = () => {
       }
     }, 10 * 1000); // 10-second debounce after last change
     return () => { if (trmnlSyncTimerRef.current) clearTimeout(trmnlSyncTimerRef.current); };
+    // Keyed on the data that feeds a TRMNL push. The throttle constant, the
+    // trmnl*Ref values, and trmnlConfig.webhookUrl are stable or read at sync time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, unscheduledTasks, habits, habitLogs, todayRoutines, routinesEnabled, trmnlConfig?.enabled, dataLoaded]);
 
   // Auto-archive completed inbox tasks older than the configured threshold
@@ -2509,6 +2522,9 @@ const DayPlanner = () => {
     // Then check every 60 seconds
     const timer = setInterval(checkAndBackup, 60 * 1000);
     return () => clearInterval(timer);
+    // Keyed on the backup config; performLocalBackup/performRemoteBackup are
+    // declared later and read inside checkAndBackup at interval time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataLoaded, autoBackupConfig.local.enabled, autoBackupConfig.local.frequency, autoBackupConfig.remote.enabled, autoBackupConfig.remote.frequency]);
 
 
@@ -6046,7 +6062,7 @@ const DayPlanner = () => {
       return { task: best, source: 'inbox' };
     }
     return null;
-  }, [tasks, unscheduledTasks]);
+  }, [tasks, unscheduledTasks, isVisibleForUser]);
   voiceResolveTaskMatchRef.current = resolveTaskMatch;
 
   const voiceParseWithAI = useCallback(async () => {
@@ -6201,6 +6217,9 @@ const DayPlanner = () => {
     }
 
     setShowVoiceInput(false);
+    // Keyed on the parsed voice results; colors and the moveToRecycleBin/pushUndo
+    // helpers + setShowVoiceInput are read when changes are applied.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voiceParsedTasks, voiceParsedEdits]);
 
   // --- Morning dayGLANCE (AI morning summary) ---
@@ -6627,7 +6646,7 @@ const DayPlanner = () => {
       setSelectedTags(prev => [...prev, ...brandNewTags.filter(t => !prev.includes(t))]);
     }
     prevAllTagsRef.current = new Set(allTags);
-  }, [allTags]);
+  }, [allTags, setSelectedTags]);
 
   // Expand recurring task templates into virtual task instances for visible dates.
   // In week view, expand over the full week range (which may extend beyond visibleDates).
@@ -6693,7 +6712,7 @@ const DayPlanner = () => {
         ).length + (alreadyInstantiated ? 0 : (hg.templateTasks?.length || 0));
         return [{ id: project.id, title: project.title, date: instance.date, startMinutes: startH * 60 + startM, taskCount }];
       });
-  }, [hgVisibleProjects, goalsProjectsEnabled, tasks, unscheduledTasks]);
+  }, [hgVisibleProjects, goalsProjectsEnabled, tasks, unscheduledTasks, isVisibleForUser]);
 
   const {
     activeReminders, setActiveReminders,
@@ -7193,7 +7212,7 @@ const DayPlanner = () => {
     // Skip if the user already dismissed this key
     if (frameNudgeDismissedKey === activeFrameNudgeKey) return;
     generateFrameNudge();
-  }, [activeFrameNudgeKey, activeFrameForNudge, aiConfig, gtdFrames, frameNudgeDismissedKey, generateFrameNudge]);
+  }, [activeFrameNudgeKey, activeFrameForNudge, aiConfig, gtdFrames, frameNudgeDismissedKey, generateFrameNudge, myFrames]);
 
   // Compute available time slots within a frame instance, subtracting existing tasks/events.
   // For today, elapsed time is excluded: each slot's start is clipped to the current time.
@@ -7944,6 +7963,11 @@ const DayPlanner = () => {
     try {
       window.DayGlanceNative.updateWidgetSnapshot(JSON.stringify(snapshot));
     } catch (_) {}
+    // Keyed on the state that composes the widget snapshot. The omitted names are
+    // unstable per-render helpers (computeAvailableSlots/getFrameInstancesForDate/
+    // getOverdueTasks/getTodayHabitCount) plus stable isVisibleForUser and the
+    // use24HourClock value, all read when the snapshot is built.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dataLoaded,
     todayAgenda,
