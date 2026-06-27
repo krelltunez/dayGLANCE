@@ -37,7 +37,7 @@ const WeeklyReviewModal = () => {
   const [framesCollapsed, setFramesCollapsed] = useState(true);
 
   // Reset to page 0 whenever the modal opens so chevrons are never stale
-  useEffect(() => { setMobileReviewPage(0); }, []);
+  useEffect(() => { setMobileReviewPage(0); }, [setMobileReviewPage]);
 
   if (!showWeeklyReview) return null;
 

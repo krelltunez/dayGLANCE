@@ -61,6 +61,8 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
       }
     })();
     return () => { cancelled = true; };
+    // Mount-once: load this date's note. The modal is remounted per date.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // For non-Obsidian: apply template on mount when note is empty
@@ -69,6 +71,8 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
     if (!defaultText && template) {
       setLocalText(template);
     }
+    // Mount-once: seed the template only on open, not on later prop changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const localTextRef = useRef(localText);
   const onSaveRef = useRef(onSave);

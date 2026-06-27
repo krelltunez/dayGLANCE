@@ -295,5 +295,10 @@ export default function useKeyboardShortcuts({
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showHabitModal, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, hoverPreviewTime, hoverPreviewDate, isMobile, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames, canShowViewCycler]);
+    // Deps list the state the handler branches on (incl. tabletActiveTab, read by
+    // the '/' shortcut). The omitted names are setX setters, *Ref values, and the
+    // action callbacks (changeDate/goToToday/performUndo/performRedo/playUISound),
+    // all stable or read through refs — listing them would needlessly re-bind.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showHabitModal, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, hoverPreviewTime, hoverPreviewDate, isMobile, tabletActiveTab, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames, canShowViewCycler]);
 }

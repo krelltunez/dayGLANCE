@@ -611,6 +611,10 @@ export default function useElectronBridge({
         } : null,
       },
     });
+    // isVisibleForUser is omitted: it is a filter applied at push time and is
+    // recreated each render, so depending on it would re-push the snapshot on
+    // every render. The push is intentionally keyed on the state values below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     todayAgenda, currentTime, tasks, expandedRecurringTasks, todayHGSessions, focusModeAvailable,
     showFocusMode, focusShowSettings, focusShowStats, focusPhase, focusTimerSeconds, focusTimerRunning,

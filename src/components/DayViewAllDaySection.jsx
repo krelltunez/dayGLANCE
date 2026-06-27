@@ -74,7 +74,7 @@ const GroupChips = ({ tasks, deadlineTasks = [], date, dateStr, darkMode, border
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [tasks.length, deadlineTasks.length]);
+  }, [tasks.length, deadlineTasks.length, allItems.length]);
 
   useEffect(() => {
     if (!overflowOpen) return;
