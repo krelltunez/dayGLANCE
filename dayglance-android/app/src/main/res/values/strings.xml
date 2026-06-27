@@ -11,4 +11,8 @@
     <string name="shortcut_add_task_long">Add a scheduled task</string>
     <string name="shortcut_add_inbox_task_short">Inbox Task</string>
     <string name="shortcut_add_inbox_task_long">Add a task to inbox</string>
+    <!-- Quick Settings tile labels (mirror the launcher shortcuts) -->
+    <string name="tile_voice_label">Voice Task</string>
+    <string name="tile_add_inbox_label">Inbox Task</string>
+    <string name="tile_add_scheduled_label">Scheduled Task</string>
 </resources>
