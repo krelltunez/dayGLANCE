@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallba
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, Flag, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { hasNativeCalendar, electronGetCalendars, electronGetEventsByDate, electronRequestCalendarAccess, nativeEventToTask } from './utils/nativeCalendar.js';
-import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote, nativeGetNote, nativeWriteNote, nativeOpenNote, nativeListNotes, nativeClearVault, nativeSetVaultSettings, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeStartRecording, nativeStopRecording, triggerHaptic } from './native.js';
+import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote, nativeGetNote, nativeWriteNote, nativeOpenNote, nativeListNotes, nativeClearVault, nativeSetVaultSettings, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeStartRecording, nativeStopRecording, nativeGetWidgetPendingAction, triggerHaptic } from './native.js';
 import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, tryRestoreVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative, simpleHash as obsidianSimpleHash, readWikiNote, writeWikiNote, listVaultNotes, appendTaskToDailyNote, appendTaskToDailyNoteNative } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
@@ -1634,6 +1634,20 @@ const DayPlanner = () => {
             }
           }
         }
+        // iOS Control Center controls write a pending action to the App Group
+        // (see ControlWidgets.swift); drain it the same way as quick actions.
+        const widgetAction = nativeGetWidgetPendingAction();
+        if (widgetAction?.action) {
+          const wa = widgetAction.action;
+          if (wa === 'newScheduledTask') openNewTaskFormRef.current?.();
+          else if (wa === 'newInboxTask') openNewInboxTaskRef.current?.();
+          else if (wa === 'voiceInput') {
+            voiceAutoStartRef.current = true;
+            setShowVoiceInput(true);
+          }
+          else if (wa === 'startFocus') setShowFocusMode(true);
+          else if (wa === 'completeTask' && widgetAction.taskId) toggleComplete(widgetAction.taskId);
+        }
       }, 200);
       if (window.DayGlanceNative?.getShareExtensionPending) {
         try {
@@ -1878,6 +1892,19 @@ const DayPlanner = () => {
           }
         } catch (_) {}
       }
+    }
+    // iOS Control Center controls (cold launch): drain the App Group pending action.
+    const widgetAction = nativeGetWidgetPendingAction();
+    if (widgetAction?.action) {
+      const wa = widgetAction.action;
+      if (wa === 'newScheduledTask') openNewTaskFormRef.current?.();
+      else if (wa === 'newInboxTask') openNewInboxTaskRef.current?.();
+      else if (wa === 'voiceInput') {
+        voiceAutoStartRef.current = true;
+        setShowVoiceInput(true);
+      }
+      else if (wa === 'startFocus') setShowFocusMode(true);
+      else if (wa === 'completeTask' && widgetAction.taskId) toggleComplete(widgetAction.taskId);
     }
     // Drains pending native actions once after load (keyed on dataLoaded). The
     // setters/voiceAutoStartRef are stable; toggleComplete is read at drain time.
