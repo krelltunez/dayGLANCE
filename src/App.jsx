@@ -2288,6 +2288,10 @@ const DayPlanner = () => {
         console.error('Obsidian: failed to restore vault access', err);
       }
     })();
+    // Keyed on dataLoaded + enabled. performObsidianSync/notifyNativeReady are
+    // declared later in this component and read at call time; vault refs are read
+    // via .current, so they are intentionally not dependencies.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataLoaded, obsidianConfig?.enabled]);
 
   // Obsidian sync: on visibility change (user switches back from Obsidian / native settings)
@@ -2325,6 +2329,9 @@ const DayPlanner = () => {
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
+    // performObsidianSync/setObsidianConfig are read at call time (the former is
+    // declared later); keyed on enabled. Vault state is read via refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [obsidianConfig?.enabled]);
 
   // Obsidian sync: poll every 5 minutes while open
@@ -2334,11 +2341,14 @@ const DayPlanner = () => {
       if (obsidianVaultHandleRef.current) performObsidianSync();
     }, 5 * 60 * 1000);
     return () => clearInterval(timer);
+    // performObsidianSync is declared later and read at call time; the poll is
+    // keyed on enabled, and the vault handle is read via its ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [obsidianConfig?.enabled]);
 
   // Keep always-fresh refs so the interval-triggered performObsidianSync never reads stale state.
-  useEffect(() => { obsidianTasksRef.current = tasks; }, [tasks]);
-  useEffect(() => { obsidianInboxRef.current = unscheduledTasks; }, [unscheduledTasks]);
+  useEffect(() => { obsidianTasksRef.current = tasks; }, [tasks, obsidianTasksRef]);
+  useEffect(() => { obsidianInboxRef.current = unscheduledTasks; }, [unscheduledTasks, obsidianInboxRef]);
 
   // Obsidian writeback: detect completion/scheduling/title changes and write back to vault
   useEffect(() => {
@@ -2439,6 +2449,10 @@ const DayPlanner = () => {
       next[snapshotId] = { completed: task.completed, startTime: task.startTime || null, duration: task.duration || null, title: task.title, date: task.date || null };
     }
     obsidianPrevTaskStateRef.current = next;
+    // Keyed on task changes — writeback fires when tasks change and reads the
+    // current obsidianConfig paths + dedup refs at that moment. Adding the config
+    // paths would re-run a writeback on a mere settings change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, unscheduledTasks, obsidianConfig?.enabled]);
 
   // On iOS, persist Obsidian folder/pattern/newNotesFolder to UserDefaults so
@@ -2942,7 +2956,7 @@ const DayPlanner = () => {
       console.error('Failed to read wiki note:', err);
       return null;
     }
-  }, []);
+  }, [obsidianVaultHandleRef]);
 
   const saveWikiNote = useCallback(async (noteName, content) => {
     const handle = obsidianVaultHandleRef.current;
@@ -2958,7 +2972,7 @@ const DayPlanner = () => {
     } catch (err) {
       console.error('Failed to write wiki note:', err);
     }
-  }, [obsidianConfig?.newNotesFolder]);
+  }, [obsidianConfig?.newNotesFolder, obsidianVaultHandleRef]);
 
   // Opens a vault note in the Obsidian app (Android) or via obsidian:// URI (web/desktop).
   const openInObsidian = useCallback((noteName) => {
@@ -2976,7 +2990,7 @@ const DayPlanner = () => {
         '_blank',
       );
     }
-  }, []);
+  }, [obsidianVaultHandleRef]);
 
   // Signal the native Android side that the app is interactive and the initial
   // Obsidian sync has completed. This releases the splash screen that was held
