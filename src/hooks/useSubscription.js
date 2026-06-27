@@ -182,7 +182,7 @@ export function useSubscription() {
     if (!isOnNativePlatform) return;
     window.__billingEvent = handleBillingEvent;
     return () => { delete window.__billingEvent; };
-  }, [handleBillingEvent]);
+  }, [handleBillingEvent, isOnNativePlatform]);
 
   // Electron: subscribe to subscription:event IPC push.
   useEffect(() => {
@@ -249,7 +249,7 @@ export function useSubscription() {
     const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [refresh]);
+  }, [refresh, isOnNativePlatform]);
 
   // ── subscribe ──────────────────────────────────────────────────────────────
   /**

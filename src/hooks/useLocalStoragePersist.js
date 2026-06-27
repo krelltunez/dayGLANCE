@@ -65,7 +65,7 @@ export default function useLocalStoragePersist({
     if (!skipOnboardingPersist.current) {
       localStorage.setItem('sectionInfoDismissed', JSON.stringify(sectionInfoDismissed));
     }
-  }, [sectionInfoDismissed]);
+  }, [sectionInfoDismissed, skipOnboardingPersist]);
 
   // Persist dailyNotes to localStorage and trigger cloud sync upload
   useEffect(() => {
@@ -73,6 +73,10 @@ export default function useLocalStoragePersist({
     if (!suppressCloudUploadRef.current && (!cloudSyncConfig?.enabled || cloudSyncInitialDoneRef.current)) {
       localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
     }
+    // Keyed on dailyNotes only: this persists on note change and reads the sync
+    // guards (refs + current enabled flag) as live values. Adding cloudSyncConfig
+    // would re-persist and re-mark dirty on a mere sync-toggle, which is wrong.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dailyNotes]);
 
   // Persist daily note template

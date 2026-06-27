@@ -71,6 +71,10 @@ const HyperGlanceModeModal = () => {
       setHgCompleted(true);
       completeHyperGlanceSession(buildSessionStats());
     }
+    // Fires once when the session completes (guarded by !hgCompleted). setHgCompleted
+    // is a stable setter; buildSessionStats is declared below and read at call time,
+    // so it is deliberately not a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allDone, hgCompleted, hgShowSettings, completeHyperGlanceSession]);
 
   // Play sounds on phase transitions
@@ -83,7 +87,7 @@ const HyperGlanceModeModal = () => {
       playFocusSound(hgTimerPhase === 'work' ? 'work' : 'break');
     }
     prevPhaseRef.current = hgTimerPhase;
-  }, [hgTimerPhase]);
+  }, [hgTimerPhase, playFocusSound]);
 
   // Ref so the notification effect can read current seconds without depending on them —
   // only fire on meaningful transitions, not every tick (which resets the chronometer).
@@ -143,7 +147,7 @@ const HyperGlanceModeModal = () => {
       }, 1000);
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [hgTimerRunning, hgTimerPhase, hgWorkMinutes, hgBreakMinutes, hgLongBreakMinutes, hgCycleCount]);
+  }, [hgTimerRunning, hgTimerPhase, hgWorkMinutes, hgBreakMinutes, hgLongBreakMinutes, hgCycleCount, setHgCycleCount, setHgTimerPhase, setHgTimerSeconds]);
 
   // Session elapsed clock
   useEffect(() => {

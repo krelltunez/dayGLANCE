@@ -32,9 +32,12 @@ const useFocusMode = () => {
     localStorage.setItem('day-planner-focus-log', JSON.stringify(focusLog));
   }, [focusLog]);
 
-  // Focus Mode timer tick
+  // Focus Mode timer tick — runs the interval while the timer is active; the
+  // single derived flag re-runs the effect only when active-ness flips (not every
+  // second), matching the previous `focusTimerSeconds > 0` dependency.
+  const focusTimerActive = showFocusMode && focusTimerRunning && focusTimerSeconds > 0;
   useEffect(() => {
-    if (showFocusMode && focusTimerRunning && focusTimerSeconds > 0) {
+    if (focusTimerActive) {
       focusTimerRef.current = setInterval(() => {
         setFocusTimerSeconds(prev => {
           if (prev <= 1) return 0;
@@ -43,7 +46,7 @@ const useFocusMode = () => {
       }, 1000);
       return () => clearInterval(focusTimerRef.current);
     }
-  }, [showFocusMode, focusTimerRunning, focusTimerSeconds > 0]);
+  }, [focusTimerActive]);
 
   // Focus Mode timer end detection (reads from ref to avoid stale closure)
   useEffect(() => {

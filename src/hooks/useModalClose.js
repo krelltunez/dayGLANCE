@@ -145,5 +145,8 @@ export default function useModalClose({
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
+    // Deps list the open-modal flags the Escape handler branches on. The only
+    // omitted names are the setX state setters, which React guarantees are stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusLogModalDate, taskContextMenu, timelineContextMenu, quickAddFrameModal, frameContextMenu, frameAdjustModal, frameScheduleModal, showFramesModal, showSpotlight, showHelpModal, showShortcutHelp, editingRecurrenceTaskId, showMonthView, showAutoBackupManager, showBackupMenu, showVoiceInput, showSettings, showRemindersSettings, showWeeklyReview, showMobileDailySummary, showAddTask, showRecurrencePicker]);
 }

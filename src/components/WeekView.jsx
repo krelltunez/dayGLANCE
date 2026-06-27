@@ -551,6 +551,10 @@ const WeekView = () => {
     if (!task) return;
     setPopoverTask(task);
     setPopoverAnchor(chipEl.getBoundingClientRect());
+    // Fires when a note chip is expanded; reads the current week's dates/tasks at
+    // that moment. Re-running on weekViewDates/getTasksForDate identity would
+    // reposition the popover on unrelated re-renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandedNotesTaskId]);
 
   const handleTaskClick = (task, anchor) => {

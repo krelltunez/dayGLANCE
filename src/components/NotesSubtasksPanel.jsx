@@ -150,14 +150,22 @@ const NotesSubtasksPanel = ({
   useEffect(() => {
     if (!wikilinks || wikilinks.length === 0 || !onLoadWikiNote) return;
     wikilinks.forEach(noteName => loadNote(noteName));
-  }, []); // load only on mount
+    // Load only on mount; wikilinks/loaders are read once when the panel opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Save unsaved linked note changes on unmount
+  // Save unsaved linked note changes on unmount. Intentionally reads the refs'
+  // CURRENT values at unmount to flush the latest edits — the lint suggestion to
+  // snapshot at mount would capture the initial (empty) state instead.
   useEffect(() => {
     return () => {
       if (!onSaveWikiNoteRef.current) return;
-      Object.entries(linkedNoteTextsRef.current).forEach(([noteName, text]) => {
-        if (text !== (linkedNoteOriginalRef.current[noteName] ?? '')) {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const texts = linkedNoteTextsRef.current;
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const originals = linkedNoteOriginalRef.current;
+      Object.entries(texts).forEach(([noteName, text]) => {
+        if (text !== (originals[noteName] ?? '')) {
           onSaveWikiNoteRef.current(noteName, text);
         }
       });
@@ -177,6 +185,9 @@ const NotesSubtasksPanel = ({
   useEffect(() => {
     setLocalNotes(task.notes || '');
     setIsEditingNotes(!task.notes);
+    // Keyed on task.id only — re-syncing on task.notes would overwrite the user's
+    // in-progress edits in this panel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.id]);
 
   // Save notes on unmount only (e.g., when ESC is pressed or panel closes)
