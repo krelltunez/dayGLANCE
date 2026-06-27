@@ -1666,6 +1666,10 @@ const DayPlanner = () => {
       window.removeEventListener('focus', handleVisibility);
       delete window.__onHealthPermResult;
     };
+    // Mount-once: binds global foreground/visibility listeners a single time.
+    // Refs and setters are stable; selectedDate is read inside a handler and is
+    // intentionally not a dep so the listeners aren't re-bound on every date change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-refresh page at midnight (00:00:01) to reset the timeline to the new day
@@ -1757,7 +1761,7 @@ const DayPlanner = () => {
       cloudSyncEngineRef.current.upload();
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, allTodayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled, syncKeyReady, multiUserEnabled, users]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, allTodayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled, syncKeyReady, multiUserEnabled, users, cloudSyncDebounceRef, dataLoaded, suppressCloudUploadRef]);
 
   // ── GLANCEvault DB transport ─────────────────────────────────────────────
   // Row-grained sync that runs ALONGSIDE the file-tier WebDAV engine (it shares
@@ -2146,7 +2150,7 @@ const DayPlanner = () => {
         iCloudSyncRef.current?.();
       }
     });
-  }, []);
+  }, [cloudSyncInProgressRef]);
 
   // Cloud sync: download on app load or when sync is first enabled.
   // One-time check: if existing sync user is still on the legacy 'dayglance'
@@ -2188,7 +2192,7 @@ const DayPlanner = () => {
       // No cloud sync — allow local-modified timestamps immediately
       cloudSyncInitialDoneRef.current = true;
     }
-  }, [dataLoaded, cloudSyncConfig?.enabled, syncKeyReady]);
+  }, [dataLoaded, cloudSyncConfig?.enabled, syncKeyReady, cloudSyncInitialDoneRef]);
 
   // Cloud sync: poll for remote changes every 60 seconds.
   // Respects the engine's download backoff so persistent errors don't hammer
@@ -2201,7 +2205,7 @@ const DayPlanner = () => {
       }
     }, 60 * 1000);
     return () => clearInterval(pollTimer);
-  }, [cloudSyncConfig?.enabled]);
+  }, [cloudSyncConfig?.enabled, cloudSyncDownloadRef]);
 
   // TRMNL auto-sync: push data when tasks/habits change
   // Debounce 10s to batch rapid edits, then throttle to at most once per 2 min.
@@ -3135,6 +3139,9 @@ const DayPlanner = () => {
       }
       voiceAudioChunksRef.current = [];
     }
+    // Keyed on showVoiceInput (open/close). The omitted names are all stable
+    // state setters and *Ref values used to reset the recorder.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showVoiceInput]);
 
   const voiceStartRecording = useCallback(async () => {
@@ -3186,6 +3193,9 @@ const DayPlanner = () => {
       setVoiceParseError(msg);
       setVoiceMicError('error');
     }
+    // Omitted names are all stable state setters and *Ref values; keyed on
+    // voiceCanRecord.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voiceCanRecord]);
 
   // When the voice modal is opened via the Android launcher shortcut, auto-start recording.
@@ -3194,7 +3204,7 @@ const DayPlanner = () => {
       voiceAutoStartRef.current = false;
       voiceStartRecording();
     }
-  }, [showVoiceInput, voiceStartRecording]);
+  }, [showVoiceInput, voiceStartRecording, voiceAutoStartRef]);
 
   const voiceStopRecording = useCallback(async () => {
     const ref = voiceRecorderRef.current;
@@ -3275,6 +3285,8 @@ const DayPlanner = () => {
       }
       setVoiceIsTranscribing(false);
     }
+    // Omitted names are all stable state setters and *Ref values; keyed on aiConfig.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aiConfig]);
 
   const enterFocusModeRef = useRef(null);
@@ -5979,7 +5991,7 @@ const DayPlanner = () => {
     if (cloudSyncLastSynced && !cloudSyncInitialDoneRef.current) {
       cloudSyncInitialDoneRef.current = true;
     }
-  }, [cloudSyncLastSynced]);
+  }, [cloudSyncLastSynced, cloudSyncInitialDoneRef]);
 
   // DeadlinePickerPopover extracted to src/components/DeadlinePickerPopover.jsx
 
@@ -6076,7 +6088,7 @@ const DayPlanner = () => {
       setVoiceParsedEdits([]);
     }
     setVoiceIsParsing(false);
-  }, [voiceTranscript, aiConfig, allTags, buildTaskContextForAI, resolveTaskMatch]);
+  }, [voiceTranscript, aiConfig, allTags, buildTaskContextForAI, resolveTaskMatch, setVoiceIsParsing, setVoiceParseError, setVoiceParsedEdits, setVoiceParsedTasks]);
 
   // Apply all parsed changes (new tasks + edit commands)
   const voiceApplyAllChanges = useCallback(() => {
@@ -6473,7 +6485,7 @@ const DayPlanner = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [showVoiceInput, voiceIsRecording, voiceIsTranscribing, voiceParsedTasks, voiceParsedEdits, voiceManualMode, voiceCanRecord, voiceHasTranscription, voiceEditingParsed, voiceStartRecording, voiceStopRecording, voiceParseWithAI, voiceApplyAllChanges]);
+  }, [showVoiceInput, voiceIsRecording, voiceIsTranscribing, voiceParsedTasks, voiceParsedEdits, voiceManualMode, voiceCanRecord, voiceHasTranscription, voiceEditingParsed, voiceStartRecording, voiceStopRecording, voiceParseWithAI, voiceApplyAllChanges, setVoiceManualMode]);
 
   // L — toggle Intent Activity Log
   useEffect(() => {
