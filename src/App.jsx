@@ -1364,7 +1364,7 @@ const DayPlanner = () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
     };
-  }, [expandedTaskMenu, showColorPicker, showDeadlinePicker, expandedNotesTaskId, routineDurationEditId]);
+  }, [expandedTaskMenu, showColorPicker, showDeadlinePicker, expandedNotesTaskId, routineDurationEditId, setRoutineDurationEditId]);
 
 
   // Close habit day popup on ESC
@@ -1373,7 +1373,7 @@ const DayPlanner = () => {
     const handleKeyDown = (e) => { if (e.key === 'Escape') { e.preventDefault(); setHabitDayPopup(null); } };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [habitDayPopup]);
+  }, [habitDayPopup, setHabitDayPopup]);
 
   // Close notes panel on ESC
   useEffect(() => {
@@ -1515,7 +1515,7 @@ const DayPlanner = () => {
     if (!onboardingProgress.hasSetupSync && (syncUrl.trim() || taskCalendarUrl.trim())) {
       setOnboardingProgress(prev => ({ ...prev, hasSetupSync: true }));
     }
-  }, [syncUrl, taskCalendarUrl, onboardingProgress.hasSetupSync]);
+  }, [syncUrl, taskCalendarUrl, onboardingProgress.hasSetupSync, setOnboardingProgress]);
 
   useEffect(() => {
     // Tick every 15s for responsive reminders; firedRemindersRef prevents duplicates
@@ -1700,7 +1700,7 @@ const DayPlanner = () => {
       const filtered = prev.filter(f => !f.singleDate || f.singleDate >= cutoff);
       return filtered.length === prev.length ? prev : filtered;
     });
-  }, []); // Run once on app start
+  }, [setGtdFrames]); // Run once on app start (setGtdFrames is stable)
 
   // Auto-sync calendars on mount and then every 15 minutes when URLs are configured.
   // On native apps, only the task calendar matters — calendar events come from the native bridge.
@@ -6242,12 +6242,16 @@ const DayPlanner = () => {
       setMorningGlanceError(err.message);
     }
     setMorningGlanceLoading(false);
+    // Curated deps: the inputs that should regenerate the briefing. getOverdueTasks
+    // is an unstable helper read at call time (listing it would defeat this
+    // callback's memoization); the setters and isVisibleForUser are stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aiConfig, tasks, recurringTasks, unscheduledTasks]);
 
   const dismissMorningGlance = useCallback(() => {
     setMorningGlanceDismissed(true);
     localStorage.setItem('day-planner-mg-dismissed', localDateStr());
-  }, []);
+  }, [setMorningGlanceDismissed]);
 
   // Reset morning briefing state on day rollover (tab regains focus the next day).
   // We no longer auto-generate — the user clicks "see your daily briefing" to trigger it.
@@ -6268,7 +6272,7 @@ const DayPlanner = () => {
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [aiConfig.enabled, aiConfig.features.morningSummary]);
+  }, [aiConfig.enabled, aiConfig.features.morningSummary, setMorningGlanceDismissed, setMorningGlanceText]);
 
   // --- Evening Reflection ---
   const generateEveningReflection = useCallback(async (force = false) => {
@@ -6323,12 +6327,16 @@ const DayPlanner = () => {
       setEveningGlanceError(err.message);
     }
     setEveningGlanceLoading(false);
+    // Curated deps (see generateMorningSummary): getOverdueTasks/isVisibleForUser
+    // are read at call time; the setters are stable. Listing the unstable helper
+    // would defeat this callback's memoization.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aiConfig, tasks, unscheduledTasks]);
 
   const dismissEveningGlance = useCallback(() => {
     setEveningGlanceDismissed(true);
     localStorage.setItem('day-planner-eg-dismissed', localDateStr());
-  }, []);
+  }, [setEveningGlanceDismissed]);
 
   // Reset evening reflection on day rollover
   useEffect(() => {
@@ -6345,7 +6353,7 @@ const DayPlanner = () => {
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [aiConfig.enabled, aiConfig.features.eveningReflection]);
+  }, [aiConfig.enabled, aiConfig.features.eveningReflection, setEveningGlanceDismissed, setEveningGlanceText]);
 
   // Clear AI suggestion when the form closes or switches to edit mode
   useEffect(() => {
@@ -6391,7 +6399,7 @@ const DayPlanner = () => {
       setWeeklyAIError(err.message);
     }
     setWeeklyAILoading(false);
-  }, [aiConfig]);
+  }, [aiConfig, setWeeklyAIError, setWeeklyAILoading, setWeeklyAISummary]);
 
   // Voice input keyboard shortcuts (SPACE to hold-record, T for typing, ENTER to parse/accept)
   const voiceHasTranscription = aiConfig.enabled && supportsTranscription(aiConfig);
