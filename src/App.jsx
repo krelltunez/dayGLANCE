@@ -7046,7 +7046,9 @@ const DayPlanner = () => {
       committedMinutes,
       isEmpty: allTasks.length === 0 && deadlines.length === 0,
     };
-  }, [tasks, recurringTasks, unscheduledTasks, getOccurrencesInRange, dateToString, isVisibleForUser]);
+    // getOccurrencesInRange and dateToString are module-level imports, not
+    // reactive values, so they are intentionally not listed.
+  }, [tasks, recurringTasks, unscheduledTasks, isVisibleForUser]);
 
   // Group tasks + recurring by date for O(1) lookups (avoids repeated O(n) scans)
   const tasksByDate = useMemo(() => {
@@ -7064,11 +7066,13 @@ const DayPlanner = () => {
     return map;
   }, [tasks, expandedRecurringTasks, isVisibleForUser]);
 
-  // Helper to get tasks for a specific date (must be after filterByTags)
-  const getTasksForDate = (date) => {
+  // Helper to get tasks for a specific date (must be after filterByTags).
+  // Memoized so downstream useCallback/useMemo consumers stay stable; only
+  // re-created when the tag filter or the date-grouped task map changes.
+  const getTasksForDate = useCallback((date) => {
     const dateStr = dateToString(date);
     return filterByTags(tasksByDate[dateStr] || []);
-  };
+  }, [filterByTags, tasksByDate]);
 
   // --- GTD Frames: Instance computation + Available time calculation ---
 
@@ -7198,7 +7202,9 @@ const DayPlanner = () => {
       setFrameNudgeError('Could not get suggestion.');
     }
     setFrameNudgeLoading(false);
-  }, [agendaNowMarker, aiConfig, currentTime, extractTags, getFrameInstancesForDate, getTasksForDate, renderTitleWithoutTags, tasks, unscheduledTasks]);
+    // extractTags and renderTitleWithoutTags are module-level imports, not
+    // reactive values, so they are intentionally not listed.
+  }, [agendaNowMarker, aiConfig, currentTime, getFrameInstancesForDate, getTasksForDate, isVisibleForUser, unscheduledTasks]);
 
   // Auto-trigger frame nudge when entering a new Frame
   const prevFrameNudgeKeyRef = useRef(null);
@@ -7438,7 +7444,9 @@ const DayPlanner = () => {
 
     const remainingMinutes = blockEnd - nowMin;
     return remainingMinutes >= 45;
-  }, [currentTime, tasks, expandedRecurringTasks]);
+    // getTasksForDate already tracks tasks/expandedRecurringTasks (via tasksByDate)
+    // and the active tag filter, so it is the single correct dependency here.
+  }, [currentTime, getTasksForDate]);
   focusModeAvailableRef.current = focusModeAvailable;
 
   // ── Electron desktop bridge ──────────────────────────────────────────────
