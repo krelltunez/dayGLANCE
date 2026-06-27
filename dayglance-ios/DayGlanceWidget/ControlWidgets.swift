@@ -29,21 +29,13 @@ private enum ControlActionStore {
 
 // MARK: - Intents
 
-// iOS 18.4 tightened sandboxing for AppIntents running in the widget process when
-// the main app is not alive. Conforming to ForegroundContinuableIntent (in the app
-// process only) routes the intent through the app, matching how the existing widget
-// intents avoid entitlement errors. See WidgetIntents.swift.
-@available(iOS 18.0, *)
-@available(iOSApplicationExtension, unavailable)
-extension AddScheduledTaskControlIntent: ForegroundContinuableIntent {}
-
-@available(iOS 18.0, *)
-@available(iOSApplicationExtension, unavailable)
-extension AddInboxTaskControlIntent: ForegroundContinuableIntent {}
-
-@available(iOS 18.0, *)
-@available(iOSApplicationExtension, unavailable)
-extension VoiceInputControlIntent: ForegroundContinuableIntent {}
+// These intents only stash a pending action in the shared App Group and foreground
+// the app (openAppWhenRun); they run no app-process-only code, so — unlike the
+// home-screen widget intents in WidgetIntents.swift — they don't need
+// ForegroundContinuableIntent. The widget extension holds the App Group entitlement,
+// so the UserDefaults write succeeds in-process. (Conforming an iOS 18-only intent to
+// ForegroundContinuableIntent with @available(iOSApplicationExtension, unavailable)
+// also fails to compile in the extension target, which is what this avoids.)
 
 @available(iOS 18.0, *)
 struct AddScheduledTaskControlIntent: AppIntent {
