@@ -92,6 +92,11 @@ module.exports = {
       { from: 'electron/native/calendar-helper/build/dayglance-calendar-helper', to: 'calendar-helper/dayglance-calendar-helper' },
       { from: 'electron/native/icloud-helper/build/dayglance-icloud-helper', to: 'icloud-helper/dayglance-icloud-helper' },
     ],
+    // Universal (x86_64 + arm64) so the App Store accepts the build for every Mac.
+    // Without this it defaults to the host arch only (arm64), which Apple rejects
+    // unless the deployment target is 12.0+. The bundled Swift helpers are already
+    // universal (lipo'd in their build scripts), so they slot in cleanly.
+    target: [{ target: 'pkg', arch: 'universal' }],
   },
   win: {
     target: [{ target: 'nsis' }],
