@@ -14,7 +14,7 @@
 const { execSync } = require('child_process');
 const path = require('path');
 
-exports.default = async function codesignAdHoc({ appOutDir, packager }) {
+exports.default = async function codesignAdHoc({ appOutDir, packager, electronPlatformName }) {
   if (packager.platform.name !== 'mac') return;
   const appPath = path.join(appOutDir, `${packager.appInfo.productName}.app`);
 
@@ -29,6 +29,13 @@ exports.default = async function codesignAdHoc({ appOutDir, packager }) {
   execSync(`find ${JSON.stringify(appPath)} -name "._*" -delete`);
   console.log(`[codesign-ad-hoc] Clearing xattrs on ${appPath}`);
   execSync(`xattr -cr ${JSON.stringify(appPath)}`);
+  // MAS builds are always signed by electron-builder with the Mac App Store
+  // distribution identity (from the keychain) — never ad-hoc sign them, or the
+  // App Store signature would be invalid. The xattr cleanup above still helps.
+  if (electronPlatformName === 'mas') {
+    console.log('[codesign-ad-hoc] MAS build — electron-builder signs with the distribution identity; skipping ad-hoc sign.');
+    return;
+  }
   if (process.env.CSC_LINK) {
     console.log('[codesign-ad-hoc] CSC_LINK set — skipping ad-hoc sign (electron-builder will use Developer ID).');
     return;

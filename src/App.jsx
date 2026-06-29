@@ -10599,8 +10599,8 @@ const DayPlanner = () => {
           isLoading={subLoading}
           prices={subPrices}
           trialEligible={trialEligible}
-          onSubscribeYearly={() => subscribe(isAndroidApp ? 'dayglance_pro_annual' : 'com.dayglance.app.pro.yearly')}
-          onSubscribeLifetime={() => subscribe(isAndroidApp ? 'dayglance_pro_lifetime' : 'com.dayglance.app.pro.lifetime')}
+          onSubscribeYearly={() => subscribe(isAndroidApp ? 'dayglance_pro_annual' : 'com.dayglance.pro.yearly')}
+          onSubscribeLifetime={() => subscribe(isAndroidApp ? 'dayglance_pro_lifetime' : 'com.dayglance.pro.lifetime')}
           onRestore={restore}
           billingEvent={billingEvent}
           clearBillingEvent={clearBillingEvent}

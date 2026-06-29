@@ -80,7 +80,7 @@ function readTrialEligibility() {
   try {
     const data = JSON.parse(window.DayGlanceNative.getTrialEligibility());
     // Only treat as ineligible when the bridge explicitly returns false.
-    return data?.['com.dayglance.app.pro.yearly'] !== false;
+    return data?.['com.dayglance.pro.yearly'] !== false;
   } catch { return true; }
 }
 
@@ -255,7 +255,7 @@ export function useSubscription() {
   /**
    * Opens the platform purchase sheet.
    *   Android productId: 'dayglance_pro_annual' | 'dayglance_pro_lifetime'
-   *   iOS/macOS productId: 'com.dayglance.app.pro.monthly' | 'com.dayglance.app.pro.yearly'
+   *   iOS/macOS productId: 'com.dayglance.pro.yearly' | 'com.dayglance.pro.lifetime'
    */
   const subscribe = useCallback((productId) => {
     if (!isOnNativePlatform) return;

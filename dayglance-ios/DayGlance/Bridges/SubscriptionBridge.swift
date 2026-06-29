@@ -46,12 +46,12 @@ final class SubscriptionBridge {
         return "{\"active\":\(active),\"productId\":\(productJson)}"
     }
 
-    /// Returns `{"com.dayglance.app.pro.yearly": bool}` from the cached eligibility check.
+    /// Returns `{"com.dayglance.pro.yearly": bool}` from the cached eligibility check.
     /// Defaults to true when not yet determined — better to show trial copy and let Apple
     /// validate than to incorrectly hide it from eligible users.
     func getTrialEligibility() -> String {
         let eligible = UserDefaults.standard.object(forKey: "rc_trial_eligible_yearly") as? Bool ?? true
-        return "{\"com.dayglance.app.pro.yearly\":\(eligible)}"
+        return "{\"com.dayglance.pro.yearly\":\(eligible)}"
     }
 
     /// Returns `{"yearly":string|null,"lifetime":string|null}` from cached StoreKit prices.
@@ -131,8 +131,8 @@ final class SubscriptionBridge {
     }
 
     private func checkTrialEligibilityInBackground() {
-        Purchases.shared.checkTrialOrIntroDiscountEligibility(["com.dayglance.app.pro.yearly"]) { results in
-            guard let status = results["com.dayglance.app.pro.yearly"]?.status else { return }
+        Purchases.shared.checkTrialOrIntroDiscountEligibility(["com.dayglance.pro.yearly"]) { results in
+            guard let status = results["com.dayglance.pro.yearly"]?.status else { return }
             switch status {
             case .eligible:
                 UserDefaults.standard.set(true, forKey: "rc_trial_eligible_yearly")

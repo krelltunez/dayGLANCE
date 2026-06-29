@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- Inherited entitlements for child binaries: the Electron Helper apps and
+         our bundled Swift helpers (calendar, iCloud). Child processes must declare
+         the sandbox and then inherit the parent's capabilities at runtime, rather
+         than re-declaring iCloud/IAP/etc. directly. The full capability set lives
+         only in entitlements.mas.plist (the main app). -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <key>com.apple.security.inherit</key>
+    <true/>
+  </dict>
+</plist>

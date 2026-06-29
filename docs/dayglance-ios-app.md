@@ -388,8 +388,8 @@ StoreKit 2 integration is required on both platforms and unlocks Universal Purch
 **App Store Connect setup (once, before any code)**
 - Register one auto-renewable subscription group: "dayGLANCE Pro"
 - Two products:
-  - `com.dayglance.app.pro.yearly` — auto-renewable subscription (14-day free trial included)
-  - `com.dayglance.app.pro.lifetime` — **non-consumable** in-app purchase (not in the subscription group)
+  - `com.dayglance.pro.yearly` — auto-renewable subscription (14-day free trial included)
+  - `com.dayglance.pro.lifetime` — **non-consumable** in-app purchase (not in the subscription group)
 - Founder pricing: launch both products at the founder price, raise prices manually in App Store Connect after the founder window (~3 months, matching the approach used on Android). For the yearly subscription, existing subscribers continue at their original price on renewal — Apple grandfathers the founder rate. For the lifetime non-consumable, founder buyers keep the entitlement permanently regardless of the later price change. No offer codes or introductory offer apparatus needed; the price-change mechanic handles it cleanly on both product types.
 - Enable Universal Purchase: link iOS and macOS apps in App Store Connect under the same bundle ID family
 
