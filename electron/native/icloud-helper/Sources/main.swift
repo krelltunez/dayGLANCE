@@ -47,8 +47,12 @@ guard let command = args.first else {
 switch command {
 case "container":
     let identifier = args.count > 1 ? args[1] : nil
-    // NSNull so the JSON serializes as {"url":null} rather than failing on nil.
-    printJSON(["url": resolveContainer(identifier) ?? NSNull()])
+    // Print {"url":"..."} or {"url":null} — NSNull serializes as JSON null.
+    if let path = resolveContainer(identifier) {
+        printJSON(["url": path])
+    } else {
+        printJSON(["url": NSNull()])
+    }
 
 default:
     printJSON(["error": "unknown command: \(command)"])
