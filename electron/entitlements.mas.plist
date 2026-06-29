@@ -20,9 +20,10 @@
          behind the network.server entitlement. -->
     <key>com.apple.security.network.server</key>
     <true/>
-    <!-- StoreKit in-app purchases -->
-    <key>com.apple.security.in-app-payments</key>
-    <true/>
+    <!-- NOTE: StoreKit in-app purchases need NO sandbox entitlement on macOS.
+         com.apple.security.in-app-payments is the Apple Pay entitlement (not
+         StoreKit) and is rejected by App Store validation on macOS, so it is
+         intentionally omitted. IAP works via the sandbox + store signature alone. -->
     <!-- Read access to the system Calendar via the EventKit helper -->
     <key>com.apple.security.personal-information.calendars</key>
     <true/>
