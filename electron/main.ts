@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Pin userData explicitly to the productName-derived path. Electron's default
 // derives from app.getName() (never the bundle ID), and this pin has shipped in
 // every Electron build since main.ts was created, so existing users are already
-// here — the com.dayglance.app → com.dayglance bundle-ID change does not move it.
+// here. The MAS build's distinct bundle ID (com.dayglance) does not move it either.
 app.setPath('userData', path.join(app.getPath('appData'), 'dayGLANCE'));
 
 const DEV = !app.isPackaged;

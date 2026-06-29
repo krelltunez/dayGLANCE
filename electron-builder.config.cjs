@@ -27,9 +27,12 @@ const hasCert = Boolean(process.env.CSC_LINK);
 
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
-  // Bundle ID matches the iOS app (dayglance-ios → com.dayglance) so the two
-  // can be paired for Universal Purchase on the App Store.
-  appId: 'com.dayglance',
+  // Developer ID (dmg/zip) keeps the original com.dayglance.app identity so
+  // existing GitHub users are undisturbed. Only the MAS build overrides this to
+  // com.dayglance (via DAYGLANCE_APP_ID, set by the build:electron:mas script) so
+  // it matches the iOS app for Universal Purchase. electron-builder has a single
+  // global appId — there is no per-target override — hence the env switch.
+  appId: process.env.DAYGLANCE_APP_ID || 'com.dayglance.app',
   productName: 'dayGLANCE',
   // CFBundleVersion — the App Store requires a value that increases on every
   // upload. Falls back to `version` when BUILD_NUMBER is unset (local/dev).
