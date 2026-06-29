@@ -33,7 +33,7 @@ export class VaultIntentsSetupError extends Error {
 // latter to the former — the same shaping src/sync/dbEngine.js does for the sync
 // vault client — so getSalt routes through the exact transport the DB intents
 // path already uses on every platform.
-function adaptFetchForVaultClient(rawFetch) {
+export function adaptFetchForVaultClient(rawFetch) {
   return async (url, { method = 'GET', headers = {}, body } = {}) => {
     const r = await rawFetch(method, url, headers, body ?? null);
     if (!r) throw new TypeError('Failed to fetch');
