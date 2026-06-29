@@ -14,9 +14,11 @@
     "test": "vitest run",
     "dev:electron": "npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && concurrently -n renderer,main,preload,electron -c cyan,yellow,magenta,green \"vite\" \"npx tsc -p tsconfig.electron.json -w --preserveWatchOutput\" \"npx tsc -p tsconfig.electron.preload.json -w --preserveWatchOutput\" \"VITE_DEV_SERVER_URL=http://localhost:5173 electronmon .\"",
     "build:calendar-helper": "bash scripts/build-calendar-helper.sh",
-    "build:electron": "npm run build:calendar-helper && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs",
-    "build:electron:release": "npm run build:calendar-helper && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs --publish never",
-    "build:electron:mas": "npm run build:calendar-helper && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs --mac mas --publish never"
+    "build:icloud-helper": "bash scripts/build-icloud-helper.sh",
+    "build:helpers": "npm run build:calendar-helper && npm run build:icloud-helper",
+    "build:electron": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs",
+    "build:electron:release": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs --publish never",
+    "build:electron:mas": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs --mac mas --publish never"
   },
   "dependencies": {
     "@glance-apps/intents": "1.4.0",

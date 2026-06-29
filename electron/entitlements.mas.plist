@@ -2,17 +2,23 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
   <dict>
-    <!-- Required by Electron for the V8 JIT compiler under Hardened Runtime -->
+    <!-- Allows the V8 JIT. Kept for parity with Electron's defaults; it is a
+         no-op under MAS (Hardened Runtime is off — the App Sandbox governs
+         execution instead). com.apple.security.cs.allow-unsigned-executable-memory
+         is deliberately NOT included: it is a Hardened-Runtime concept that draws
+         App Store review scrutiny and is unnecessary for the sandboxed build. -->
     <key>com.apple.security.cs.allow-jit</key>
-    <true/>
-    <!-- Required by Electron to load its own unsigned helper code -->
-    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
     <true/>
     <!-- MAS requires full App Sandbox -->
     <key>com.apple.security.app-sandbox</key>
     <true/>
-    <!-- Outbound network (CalDAV, AI APIs, RevenueCat REST, WebSocket) -->
+    <!-- Outbound network (CalDAV, AI APIs, RevenueCat REST) -->
     <key>com.apple.security.network.client</key>
+    <true/>
+    <!-- Inbound: the local WebSocket server (ws://127.0.0.1:7892) used by the
+         Stream Deck plugin needs a listening socket, which the sandbox gates
+         behind the network.server entitlement. -->
+    <key>com.apple.security.network.server</key>
     <true/>
     <!-- StoreKit in-app purchases -->
     <key>com.apple.security.in-app-payments</key>

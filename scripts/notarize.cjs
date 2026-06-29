@@ -12,8 +12,12 @@
 const { notarize } = require('@electron/notarize');
 const path = require('path');
 
-exports.default = async function notarizeApp({ appOutDir, packager }) {
+exports.default = async function notarizeApp({ appOutDir, packager, electronPlatformName }) {
   if (packager.platform.name !== 'mac') return;
+  // MAS builds are distributed through the App Store, which runs its own
+  // notarization — never submit them to the notary service (it would fail).
+  // electronPlatformName is 'mas' for App Store targets and 'darwin' otherwise.
+  if (electronPlatformName === 'mas') return;
   if (!process.env.CSC_LINK) return; // skip ad-hoc / dev builds
 
   const appPath = path.join(appOutDir, `${packager.appInfo.productName}.app`);

@@ -13,6 +13,7 @@ dist-ssr
 dist-electron
 dist-app
 electron/native/calendar-helper/build/
+electron/native/icloud-helper/build/
 outputs
 dayglance-android/app/src/main/assets/web
 *.local
