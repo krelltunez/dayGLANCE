@@ -9,8 +9,8 @@ import crypto from 'node:crypto';
 const RC_API_KEY       = 'appl_uHejfwubTbYOTpEPNYFsjXAgnHw';
 const RC_BASE          = 'https://api.revenuecat.com/v1';
 const ENTITLEMENT_ID   = 'pro';
-const PRODUCT_YEARLY   = 'com.dayglance.app.pro.yearly';
-const PRODUCT_LIFETIME = 'com.dayglance.app.pro.lifetime';
+const PRODUCT_YEARLY   = 'com.dayglance.pro.yearly';
+const PRODUCT_LIFETIME = 'com.dayglance.pro.lifetime';
 
 // ── Anonymous app user ID ─────────────────────────────────────────────────────
 // Derived from a hash of the userData path — stable per user+app installation,
