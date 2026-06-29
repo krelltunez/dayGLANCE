@@ -18,7 +18,7 @@
     "build:helpers": "npm run build:calendar-helper && npm run build:icloud-helper",
     "build:electron": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs",
     "build:electron:release": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs --publish never",
-    "build:electron:mas": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && DAYGLANCE_APP_ID=com.dayglance electron-builder --config electron-builder.config.cjs --mac mas --publish never"
+    "build:electron:mas": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && DAYGLANCE_APP_ID=com.dayglance electron-builder --config electron-builder.config.cjs --mac mas --universal --publish never"
   },
   "dependencies": {
     "@glance-apps/intents": "1.4.0",
