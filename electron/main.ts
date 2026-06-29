@@ -9,34 +9,10 @@ import { registerICloudHandlers } from './icloud.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// First-launch migration: carry user data over from any legacy store into the
-// canonical `dayGLANCE` directory. The bundle ID changed (com.dayglance.app →
-// com.dayglance) to match the iOS app for Universal Purchase; while userData has
-// always been pinned to the productName-derived path (so the rename does not move
-// it on its own), this also rescues data from the old bundle-id-derived default
-// or an earlier lowercase name in case any build ran without the pin. Never
-// clobbers an existing store, and is a no-op when there is nothing to migrate.
-function migrateLegacyUserData(): void {
-  const appData = app.getPath('appData');
-  const target = path.join(appData, 'dayGLANCE');
-  // Canonical store already present — leave live data untouched.
-  if (fs.existsSync(target)) return;
-  // Legacy locations, in priority order. First existing match wins.
-  const source = ['dayglance', 'com.dayglance.app', 'com.dayglance']
-    .map((name) => path.join(appData, name))
-    .find((dir) => dir !== target && fs.existsSync(dir));
-  if (!source) return;
-  try {
-    fs.cpSync(source, target, { recursive: true });
-    console.log(`[dayGLANCE] Migrated userData ${source} → ${target}`);
-  } catch (e) {
-    console.error(`[dayGLANCE] userData migration from ${source} failed:`, e);
-  }
-}
-
-// Pin userData explicitly — the implicit default derives from productName,
-// so a rename or build-config drift would silently orphan existing user data.
-migrateLegacyUserData();
+// Pin userData explicitly to the productName-derived path. Electron's default
+// derives from app.getName() (never the bundle ID), and this pin has shipped in
+// every Electron build since main.ts was created, so existing users are already
+// here — the com.dayglance.app → com.dayglance bundle-ID change does not move it.
 app.setPath('userData', path.join(app.getPath('appData'), 'dayGLANCE'));
 
 const DEV = !app.isPackaged;
