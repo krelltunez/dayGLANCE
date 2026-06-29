@@ -4,6 +4,7 @@ import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { setupEncryptionKey, setSyncPassphrase, clearEncryptionKey, getSyncPassphrase } from '../utils/crypto.js';
 import { getVaultConfig, setVaultConfig } from '../sync/vaultConfig.js';
 import { createDbEngine, resetDbRootKey } from '../sync/dbEngine.js';
+import { testVaultConnection } from '../sync/vaultConnectionTest.js';
 import { useTranslation } from 'react-i18next';
 
 // Cloud sync settings form (extracted to avoid hooks-in-conditional issues)
@@ -45,6 +46,10 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   const [vaultBootstrapping, setVaultBootstrapping] = useState(false);
   const [vaultBootstrapError, setVaultBootstrapError] = useState(null);
   const [showVaultToken, setShowVaultToken] = useState(false);
+  // Pre-save vault credential check (mirrors the WebDAV Test Connection UX above,
+  // but the LOGIC is the vault getSalt probe — see testVaultConnection).
+  const [vaultTesting, setVaultTesting] = useState(false);
+  const [vaultTestResult, setVaultTestResult] = useState(null);
 
   const activeProvider = cloudSyncProviders[formData.provider] || provider;
   const requiredFieldsFilled = activeProvider.configFields.every(f => formData[f.key]) && !!formData.syncFolder;
@@ -202,6 +207,24 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
     setVaultSyncing(true);
     try { await vaultSyncNow(); } catch { /* surfaced via vaultError */ }
     finally { setVaultSyncing(false); }
+  };
+
+  // Pre-save TEST only: probe the entered vault credentials with an authenticated
+  // getSalt and surface a typed outcome. Does NOT save, enable, or derive a key —
+  // it just tells the user whether the credentials work, so bad vault credentials
+  // no longer save silently and fail invisibly at first sync.
+  const handleVaultTest = async () => {
+    setVaultTesting(true);
+    setVaultTestResult(null);
+    try {
+      const result = await testVaultConnection({ vaultUrl, vaultToken, accountId: vaultAccountId });
+      setVaultTestResult(result);
+    } catch {
+      // testVaultConnection classifies every failure itself; this is defensive.
+      setVaultTestResult({ ok: false, message: 'Could not reach the vault at this URL.' });
+    } finally {
+      setVaultTesting(false);
+    }
   };
 
   // Shared section-header style (uppercase, like the lastGLANCE layout).
@@ -455,6 +478,24 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
               />
             </div>
+            {/* Vault actions: pre-save Test Connection (mirrors the WebDAV button
+                above), with the typed outcome shown below. This verifies the
+                credentials with a getSalt probe; it does not save or enable. */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleVaultTest}
+                disabled={vaultTesting || !vaultFilled}
+                className={secondaryBtn}
+              >
+                {vaultTesting ? 'Testing...' : 'Test Connection'}
+              </button>
+            </div>
+            {vaultTestResult && (
+              <p className={`text-sm ${vaultTestResult.ok ? 'text-green-500' : 'text-red-500'}`}>
+                {vaultTestResult.message}
+              </p>
+            )}
             <p className={`text-xs ${textSecondary}`}>Saving a GLANCEvault change reloads the app so the sync engines reconstruct.</p>
             {!vaultEncryptionReady && (
               <p className="text-xs text-amber-500">
