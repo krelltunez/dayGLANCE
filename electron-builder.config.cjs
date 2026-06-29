@@ -97,6 +97,11 @@ module.exports = {
     // unless the deployment target is 12.0+. The bundled Swift helpers are already
     // universal (lipo'd in their build scripts), so they slot in cleanly.
     target: [{ target: 'pkg', arch: 'universal' }],
+    // The bundled Swift helpers are already universal (x86_64+arm64), so they're
+    // byte-identical in the x64 and arm64 sub-builds. @electron/universal refuses
+    // to merge identical Mach-O files unless they're declared here — this tells it
+    // to take them as-is instead of trying to lipo two copies of the same fat binary.
+    x64ArchFiles: '**/dayglance-*-helper',
   },
   win: {
     target: [{ target: 'nsis' }],
