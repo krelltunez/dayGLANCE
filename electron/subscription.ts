@@ -4,8 +4,10 @@ import crypto from 'node:crypto';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-// Replace with the public macOS SDK key from the RevenueCat dashboard
-// (App Settings → API Keys → Public app-specific key for macOS).
+// Public RevenueCat SDK key for the "App Store" app. Under Apple Universal
+// Purchase the iOS and macOS apps share a single RevenueCat App Store app, so
+// this one key (and its App Store shared secret) covers the Mac build too —
+// there is no separate macOS app or macOS-specific key.
 const RC_API_KEY       = 'appl_uHejfwubTbYOTpEPNYFsjXAgnHw';
 const RC_BASE          = 'https://api.revenuecat.com/v1';
 const ENTITLEMENT_ID   = 'pro';
