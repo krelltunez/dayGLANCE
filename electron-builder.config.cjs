@@ -10,18 +10,16 @@
 //   APPLE_APP_SPECIFIC_PASSWORD      app-specific password generated at appleid.apple.com
 //   APPLE_TEAM_ID                    10-char Team ID from developer.apple.com/account
 //
-// Required env vars for a Mac App Store build (build:electron:mas):
-//   CSC_LINK                         path to .p12 for the "3rd Party Mac Developer Application"
-//                                    (or "Apple Distribution") cert
-//   CSC_KEY_PASSWORD                 password for the .p12
-//   APPLE_TEAM_ID                    10-char Team ID
-//   MAC_PROVISIONING_PROFILE         path to the .provisionprofile carrying the App ID +
-//                                    iCloud + IAP capabilities (required for MAS)
-//   BUILD_NUMBER                     (optional) CFBundleVersion — must increase per upload
-//
-//   The MAS .pkg is signed with the "3rd Party Mac Developer Installer" (or
-//   "Mac Installer Distribution") cert, which electron-builder auto-selects from
-//   the keychain. Both the Application and Installer certs must be present.
+// Mac App Store build (build:electron:mas) — no env vars required for a normal run:
+//   - Drop your provisioning profile at electron/dayglance.mas.provisionprofile
+//     (git-ignored). It carries the App ID + iCloud + IAP capabilities. Override
+//     the path with MAC_PROVISIONING_PROFILE if you keep it elsewhere.
+//   - Signing certs come from the login keychain automatically: the
+//     "3rd Party Mac Developer Application" (or "Apple Distribution") cert signs
+//     the .app, and the "3rd Party Mac Developer Installer" (or "Mac Installer
+//     Distribution") cert signs the .pkg. Both must be present.
+//   - CFBundleVersion defaults to the app `version` (bump it per release, as usual);
+//     set BUILD_NUMBER only if you need to upload twice under the same version.
 
 const hasCert = Boolean(process.env.CSC_LINK);
 
@@ -76,9 +74,10 @@ module.exports = {
     // Child binaries (Electron Helpers + bundled Swift helpers) get the minimal
     // sandbox+inherit set; only the main app carries iCloud/IAP/etc.
     entitlementsInherit: 'electron/entitlements.mas.inherit.plist',
-    // MAS builds require an embedded provisioning profile carrying the App ID +
-    // iCloud + IAP capabilities. Supplied via env (CI decodes a base64 secret).
-    provisioningProfile: process.env.MAC_PROVISIONING_PROFILE || undefined,
+    // Embedded provisioning profile (App ID + iCloud + IAP capabilities). Defaults
+    // to a fixed git-ignored path so a normal build needs no env setup — just drop
+    // the file there once. MAC_PROVISIONING_PROFILE overrides the location.
+    provisioningProfile: process.env.MAC_PROVISIONING_PROFILE || 'electron/dayglance.mas.provisionprofile',
     category: 'public.app-category.productivity',
     extendInfo: {
       NSCalendarsUsageDescription: 'dayGLANCE shows your calendar events alongside your tasks.',
