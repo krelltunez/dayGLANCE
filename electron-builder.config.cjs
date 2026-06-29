@@ -22,6 +22,10 @@
 //     set BUILD_NUMBER only if you need to upload twice under the same version.
 
 const hasCert = Boolean(process.env.CSC_LINK);
+// MAS builds sign from the keychain (no CSC_LINK), so they must never inherit the
+// dev ad-hoc `identity: null` below — that would skip signing entirely. The mas
+// script is the only thing that sets DAYGLANCE_APP_ID, so it's a reliable signal.
+const isMasBuild = process.env.DAYGLANCE_APP_ID === 'com.dayglance';
 
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
@@ -43,9 +47,10 @@ module.exports = {
   },
   files: ['dist/**/*', 'dist-electron/**/*'],
   mac: {
-    // null → ad-hoc (dev); undefined → electron-builder auto-selects the
-    // Developer ID Application cert from Keychain when CSC_LINK is set.
-    identity: hasCert ? undefined : null,
+    // null → ad-hoc (dev); undefined → electron-builder auto-selects the signing
+    // cert from the Keychain (Developer ID when CSC_LINK is set; the Apple
+    // Distribution cert for MAS, which the mas block inherits).
+    identity: hasCert || isMasBuild ? undefined : null,
     hardenedRuntime: hasCert,
     notarize: false, // handled by afterSign hook (scripts/notarize.cjs)
     category: 'public.app-category.productivity',
