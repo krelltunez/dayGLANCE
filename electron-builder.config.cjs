@@ -36,9 +36,18 @@ module.exports = {
   // global appId — there is no per-target override — hence the env switch.
   appId: process.env.DAYGLANCE_APP_ID || 'com.dayglance.app',
   productName: 'dayGLANCE',
-  // CFBundleVersion — the App Store requires a value that increases on every
-  // upload. Falls back to `version` when BUILD_NUMBER is unset (local/dev).
-  buildVersion: process.env.BUILD_NUMBER || undefined,
+  // CFBundleVersion (the *build* number) — must strictly increase on every App
+  // Store upload, independent of the marketing version (CFBundleShortVersionString,
+  // which stays `version` from package.json, e.g. 3.8.1). Auto-derived from the
+  // build date+time as YYYYMMDD.HHMM so it always increases and never needs a manual
+  // bump; set BUILD_NUMBER to override. This scheme also stays greater than the very
+  // first upload (which used "3.8.1"): its leading component (e.g. 20260630) dwarfs
+  // "3", so Apple's component-wise comparison always sees it as newer.
+  buildVersion: process.env.BUILD_NUMBER || (() => {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.${p(d.getHours())}${p(d.getMinutes())}`;
+  })(),
   afterPack: './scripts/codesign-ad-hoc.cjs',
   afterSign: hasCert ? './scripts/notarize.cjs' : undefined,
   directories: {
