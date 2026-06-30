@@ -96,6 +96,10 @@ module.exports = {
     extendInfo: {
       NSCalendarsUsageDescription: 'dayGLANCE shows your calendar events alongside your tasks.',
       NSCalendarsFullAccessUsageDescription: 'dayGLANCE shows your calendar events alongside your tasks.',
+      // Export compliance: the app uses only standard HTTPS/TLS (exempt encryption),
+      // no proprietary or user-facing crypto. Declaring this in the binary stops
+      // App Store Connect from prompting for encryption docs on every upload.
+      ITSAppUsesNonExemptEncryption: false,
     },
     extraResources: [
       { from: 'electron/native/calendar-helper/build/dayglance-calendar-helper', to: 'calendar-helper/dayglance-calendar-helper' },
