@@ -30,6 +30,14 @@
     <!-- Obsidian vault: user picks folder via open panel -->
     <key>com.apple.security.files.user-selected.read-write</key>
     <true/>
+    <!-- Persist that folder access across relaunches. The Obsidian integration uses
+         the File System Access API (showDirectoryPicker) and stores the directory
+         handle in IndexedDB; on the next launch Chromium needs an app-scoped
+         security-scoped bookmark to re-establish sandbox access to that folder.
+         Without this, a restored handle reports "granted" but writes fail with
+         "could not be modified due to the state of the underlying filesystem". -->
+    <key>com.apple.security.files.bookmarks.app-scope</key>
+    <true/>
     <!-- iCloud CloudDocuments sync -->
     <key>com.apple.developer.icloud-container-identifiers</key>
     <array>
