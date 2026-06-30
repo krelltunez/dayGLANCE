@@ -1,81 +1,42 @@
 import { ipcMain, app, BrowserWindow } from 'electron';
-import { execFile } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
 
 // ── iCloud sync (macOS) ─────────────────────────────────────────────────────
 //
 // Reads/writes dayglance-sync.json and supplemental intent files in the shared
 // iCloud ubiquitous container, also used by the iOS app.
 //
-// Container location is resolved two ways:
-//   1. Sandboxed Mac App Store build — $HOME points inside the sandbox container
-//      and can never reach Mobile Documents, so a tiny signed Swift helper calls
-//      NSFileManager.url(forUbiquityContainerIdentifier:) and returns the real path.
-//   2. Unsandboxed Developer ID build — no iCloud entitlement (by design), so the
-//      helper returns null and we fall back to the plain $HOME-relative path, which
-//      is correct and unchanged from the prior behavior.
+// Container resolution: the iCloud container lives at the real
+// ~/Library/Mobile Documents/iCloud~com~dayglance/. Under the Mac App Store
+// sandbox, app.getPath('home') is the app's private container Data dir, so we
+// strip the container suffix to recover the real home (a no-op on the unsandboxed
+// Developer ID build, where it's already the real home). The MAIN process holds
+// the com.apple.developer.icloud-container-identifiers entitlement, so the sandbox
+// grants it access to that path.
 //
-// ICLOUD_CONTAINER_DOTTED must match the iCloud-prefixed entitlement value
-// (com.apple.developer.icloud-container-identifiers). ICLOUD_CONTAINER_FOLDER is
-// the on-disk folder spelling (dots → tildes) used for the fallback path. Update
-// both here and in the entitlement files if the container ID changes.
-const ICLOUD_CONTAINER_DOTTED = 'iCloud.com.dayglance';
+// Why not NSFileManager.url(forUbiquityContainerIdentifier:) via a helper: that API
+// only returns a path to a process carrying the iCloud *developer* entitlement, and
+// a spawned helper signed with app-sandbox+inherit doesn't have it — developer
+// entitlements don't propagate through `inherit` the way the calendar TCC permission
+// does. Resolving in-process (where the entitlement lives) is correct and simpler.
+//
+// ICLOUD_CONTAINER_FOLDER is the on-disk folder spelling (dots → tildes). Update it
+// and the entitlement files together if the container ID changes.
 const ICLOUD_CONTAINER_FOLDER = 'iCloud~com~dayglance';
 const SYNC_FILE = 'dayglance-sync.json';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-const HELPER_NAME = 'dayglance-icloud-helper';
-
-// Resolves the helper path: bundled under Contents/Resources/icloud-helper in
-// packaged builds (electron-builder extraResources), or the local build output in dev.
-function helperPath(): string | null {
-  const candidate = app.isPackaged
-    ? path.join(process.resourcesPath, 'icloud-helper', HELPER_NAME)
-    : path.join(__dirname, '..', 'electron', 'native', 'icloud-helper', 'build', HELPER_NAME);
-  return fs.existsSync(candidate) ? candidate : null;
+// The real home directory, recovered from the sandbox-redirected container path.
+function realHomeDir(): string {
+  return app.getPath('home').replace(/\/Library\/Containers\/[^/]+\/Data$/, '');
 }
 
-function runHelper(args: string[]): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const bin = helperPath();
-    if (!bin) { reject(new Error('icloud helper not found')); return; }
-    execFile(bin, args, { timeout: 15_000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
-      if (err) { reject(err); return; }
-      try { resolve(JSON.parse(stdout.toString().trim() || 'null')); }
-      catch (e) { reject(e); }
-    });
-  });
+function iCloudDocumentsDir(): string {
+  return path.join(realHomeDir(), `Library/Mobile Documents/${ICLOUD_CONTAINER_FOLDER}/Documents`);
 }
 
-// $HOME-relative Documents dir — correct for the unsandboxed Developer ID build.
-function fallbackDocumentsDir(): string {
-  return path.join(
-    app.getPath('home'),
-    `Library/Mobile Documents/${ICLOUD_CONTAINER_FOLDER}/Documents`
-  );
-}
-
-// Resolve the container's Documents dir, preferring the helper (sandbox-correct)
-// and caching the first success. On failure we return the $HOME fallback without
-// caching, so a transient helper error (e.g. iCloud still signing in) is retried.
-let cachedDocumentsDir: string | null = null;
-async function iCloudDocumentsDir(): Promise<string> {
-  if (cachedDocumentsDir) return cachedDocumentsDir;
-  try {
-    const res = await runHelper(['container', ICLOUD_CONTAINER_DOTTED]) as { url?: string | null } | null;
-    if (res?.url) {
-      cachedDocumentsDir = path.join(res.url, 'Documents');
-      return cachedDocumentsDir;
-    }
-  } catch { /* helper missing or iCloud unavailable — fall back */ }
-  return fallbackDocumentsDir();
-}
-
-async function syncFilePath(): Promise<string> {
-  return path.join(await iCloudDocumentsDir(), SYNC_FILE);
+function syncFilePath(): string {
+  return path.join(iCloudDocumentsDir(), SYNC_FILE);
 }
 
 // Track our own writes so the fs.watch callback can ignore them.
