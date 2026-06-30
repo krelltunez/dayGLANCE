@@ -16,8 +16,13 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    # Injected by scripts/gen-ios-project.sh (run via `npm run ios:generate`) so iOS
+    # versioning matches the macOS app: MARKETING_VERSION comes from package.json
+    # "version" (CFBundleShortVersionString — kept in sync across both apps), and
+    # CURRENT_PROJECT_VERSION is an auto date-based build number (YYYYMMDD.HHMM) that
+    # always increases. A bare `xcodegen generate` leaves these empty — use the script.
+    MARKETING_VERSION: "${DG_MARKETING_VERSION}"
+    CURRENT_PROJECT_VERSION: "${DG_BUILD_NUMBER}"
     SWIFT_VERSION: "5.9"
 
 targets:
@@ -151,6 +156,9 @@ targets:
       path: DayGlanceWidget/Info.plist
       properties:
         CFBundleDisplayName: DayGlance
+        # Must match the app's version (App Store rejects mismatched embedded extensions).
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
@@ -176,6 +184,9 @@ targets:
       path: ShareExtension/Info.plist
       properties:
         CFBundleDisplayName: DayGlance Share
+        # Must match the app's version (App Store rejects mismatched embedded extensions).
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController

@@ -303,7 +303,7 @@ An iOS Share Extension lets users share text or URLs from any app (Safari, Notes
 - Create `dayglance-ios/` Xcode project (Swift, SwiftUI app lifecycle)
 - `ContentView` hosts a `WKWebView` loading requests via `WKURLSchemeHandler` (chosen over promise-wrapper approach: keeps all `native.js` call sites synchronous-looking with no changes)
 - `vite.config.ios.js` (clone of android config) outputting to `dayglance-ios/DayGlance/Resources/web/`
-- Build script: `npm run build:ios` → Vite build → copy assets → open Xcode
+- Build flow: `npm run build:ios` (Vite build of web assets) → `npm run ios:generate` (XcodeGen project + version injection: marketing version from package.json, auto date-based build number) → open Xcode → Archive. The web assets are copied into the bundle by the target's post-build script.
 - Status bar colour matching + safe area insets; portrait lock on iPhone, all orientations on iPad
 - iPad split view / multitasking support (`UIRequiresFullScreen = false`); system keyboard shortcut overlay
 - Bridge detection: inject `window.DayGlanceIOS = true` so `native.js` can distinguish iOS from Android
