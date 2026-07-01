@@ -90,6 +90,22 @@ function makeDirHandle(api, relPath, name) {
         yield [it.name, handle];
       }
     },
+
+    async *keys() {
+      const items = await api.listDir(relPath);
+      for (const it of items) yield it.name;
+    },
+
+    async *values() {
+      for await (const [, handle] of this.entries()) yield handle;
+    },
+
+    // FS Access directory handles are themselves async-iterable (equivalent to
+    // entries()); obsidian.js's sync path iterates the handle directly, so the
+    // shim must support it too — this was the missing piece.
+    [Symbol.asyncIterator]() {
+      return this.entries();
+    },
   };
 }
 
