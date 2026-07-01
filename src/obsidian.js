@@ -14,8 +14,13 @@
 
 import { makeElectronVaultHandle } from './obsidianElectronHandle.js';
 
+// MAS-only: the sandboxed Mac App Store build routes vault access through the main
+// process (native picker + security-scoped bookmark). The unsandboxed Developer ID
+// and dev Electron builds keep the proven File System Access API path unchanged, so
+// this change touches nothing but the MAS build.
 const isElectronObsidian = () =>
-  typeof window !== 'undefined' && !!(window.electronAPI && window.electronAPI.isElectron && window.electronAPI.obsidian);
+  typeof window !== 'undefined' &&
+  !!(window.electronAPI && window.electronAPI.isMAS && window.electronAPI.obsidian);
 
 // ---------------------------------------------------------------------------
 // IndexedDB — persist the vault directory handle across sessions

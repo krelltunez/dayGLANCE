@@ -3,6 +3,11 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
   platform: process.platform,
+  // True only in the Mac App Store (sandboxed) build. Electron sets process.mas
+  // for the `mas` target. Used to gate sandbox-only behavior (e.g. Obsidian vault
+  // access via the main process) so the unsandboxed Developer ID / dev build keeps
+  // its proven File System Access path unchanged.
+  isMAS: process.mas === true,
 
   // Renderer pushes app state to connected WebSocket clients (e.g. Stream Deck plugin)
   pushState: (state: unknown) => ipcRenderer.send('ws:push-state', state),
