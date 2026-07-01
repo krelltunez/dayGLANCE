@@ -9,6 +9,8 @@
     "build": "vite build",
     "build:android": "./node_modules/.bin/vite build --config vite.config.android.js",
     "build:ios": "./node_modules/.bin/vite build --config vite.config.ios.js",
+    "ios:generate": "bash scripts/gen-ios-project.sh",
+    "ios": "npm run build:ios && npm run ios:generate",
     "preview": "vite preview",
     "lint": "eslint src --max-warnings 0",
     "test": "vitest run",
