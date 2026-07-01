@@ -138,6 +138,33 @@ Note the keys are already `%`-prefixed inside the JSON. They are **not** deliver
 
 ---
 
+## Example: complete a task by tapping an NFC tag
+
+The most common automation — stick an NFC tag somewhere (by the door, on the pill bottle, on the bin) and complete a task by tapping your phone to it. No RESULT parsing needed; it's a single fire-and-forget broadcast.
+
+You don't need to *write* anything to the tag — Tasker matches the tag's built-in hardware ID, so a blank tag works.
+
+**1. Capture the tag's ID (once):**
+- **New Profile → Event → NFC Tag** (leave the fields blank for now), link it to any throwaway task, and tap your tag. Tasker fills in `%nfc_id`. Note that value (or just Flash `%nfc_id` to read it), then delete the throwaway profile.
+
+**2. Build the real profile:**
+- **New Profile → Event → NFC Tag**, set **ID** to the value from step 1 so *only* this tag triggers.
+- Linked **Task** → Add action → **Intent**:
+  - **Action**: `app.dayglance.COMPLETE`
+  - **Package**: `com.dayglance.app`
+  - **Extra**: `payload:{"title":"Take out the trash"}`
+  - **Target**: **Broadcast Receiver**
+
+That's it — tap the tag, the task is marked complete silently.
+
+**Matching the task:** `COMPLETE` accepts either `title` (fuzzy match, shown above — easiest for a stable/recurring task) or `task_id` (exact). If the title matches more than one open task, dayGLANCE completes the soonest-due one and returns a `warning` saying so. For a one-off task where you have the UUID, use `payload:{"task_id":"a1b2c3d4-..."}` instead — grab the id from the `task_id` field of a CREATE RESULT (see the CREATE recipe above).
+
+**Confirming it worked (optional):** add a RESULT receiver (below) and Flash `%result` — a completion returns `{"success":true,...}`, or `{"success":false,"error":"no matching task"}` if the title didn't match anything.
+
+> **App must be alive:** COMPLETE is a broadcast, so dayGLANCE has to be running (backgrounded is fine). If it's been swiped away, the tap is dropped. If you need it to work even when the app is closed, either set **Target: Activity** (opens the app to complete it) or use the WebDAV transport.
+
+---
+
 ## Receiving the RESULT broadcast in Tasker
 
 Every action (including QUERY) replies with an `app.dayglance.RESULT` broadcast, but **nothing displays it for you** — you have to receive it in a separate profile.
