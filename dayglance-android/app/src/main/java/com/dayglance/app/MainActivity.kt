@@ -94,16 +94,34 @@ class MainActivity : AppCompatActivity() {
     // Shown at most once per session so we don't nag the user repeatedly
     private var exactAlarmPromptShown = false
 
-    // Receives the internal INTENT_RECEIVED broadcast sent by IntentReceiver and triggers
-    // a visibilitychange event in the WebView so JS picks up the pending intent immediately.
+    // Receives the internal INTENT_RECEIVED broadcast sent by IntentReceiver and asks JS
+    // to pick up the pending intent immediately. Registered for the whole activity
+    // lifetime (onCreate → onDestroy), not just while resumed, so intents fired from
+    // Tasker while the app is backgrounded are still forwarded to the (still-running) WebView.
     private val intentForwardReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            webView.post {
-                webView.evaluateJavascript(
-                    "(function(){ document.dispatchEvent(new Event('visibilitychange')); })();",
-                    null
-                )
-            }
+            forwardPendingIntentToJs()
+        }
+    }
+
+    // Tracks whether intentForwardReceiver is currently registered so onDestroy can
+    // unregister exactly once without risking IllegalArgumentException.
+    private var intentForwardReceiverRegistered = false
+
+    /**
+     * Pokes the WebView to drain any pending intent stored by IntentReceiver /
+     * onNewIntent. Calls the dedicated JS hook exposed by useAndroidIntentBridge
+     * (which processes the intent regardless of document.visibilityState); falls
+     * back to a synthetic visibilitychange event if the hook isn't ready yet.
+     */
+    private fun forwardPendingIntentToJs() {
+        webView.post {
+            webView.evaluateJavascript(
+                "(function(){ if (window.__dayglanceCheckPendingIntent) {" +
+                " window.__dayglanceCheckPendingIntent();" +
+                " } else { document.dispatchEvent(new Event('visibilitychange')); } })();",
+                null
+            )
         }
     }
 
@@ -235,6 +253,19 @@ class MainActivity : AppCompatActivity() {
 
         configureWebView()
         requestRuntimePermissions()
+
+        // Register the INTENT_RECEIVED forward receiver for the whole activity lifetime.
+        // It was previously registered in onResume/unregistered in onPause, which meant the
+        // wake broadcast was dropped whenever the app was backgrounded — so Tasker intents
+        // fired against a backgrounded (but running) app never reached JS. ContextCompat
+        // applies the RECEIVER_NOT_EXPORTED flag correctly across all supported API levels.
+        ContextCompat.registerReceiver(
+            this,
+            intentForwardReceiver,
+            IntentFilter(ACTION_INTENT_RECEIVED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        intentForwardReceiverRegistered = true
 
         // WebViewAssetLoader serves assets via https://appassets.androidplatform.net
         // so ES module scripts load without CORS errors (file:// blocks type="module")
@@ -376,7 +407,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
-        unregisterReceiver(intentForwardReceiver)
         super.onPause()
         // Show the overlay so the stale cached frame is hidden when the user returns.
         // dataStore.appDarkMode is the app's own dark/light preference (independent of the
@@ -407,13 +437,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onDestroy() {
+        if (intentForwardReceiverRegistered) {
+            unregisterReceiver(intentForwardReceiver)
+            intentForwardReceiverRegistered = false
+        }
+        super.onDestroy()
+    }
+
     override fun onResume() {
         super.onResume()
-        registerReceiver(
-            intentForwardReceiver,
-            IntentFilter(ACTION_INTENT_RECEIVED),
-            Context.RECEIVER_NOT_EXPORTED
-        )
+        // Safety net: drain any intent that landed while the WebView bridge wasn't yet
+        // ready to receive the wake broadcast (e.g. during a cold-start registration gap
+        // or after a process restart). Normal background delivery is handled live by
+        // intentForwardReceiver, which now stays registered while backgrounded.
+        forwardPendingIntentToJs()
         // webView.onResume() intentionally omitted — we don't call webView.onPause() either,
         // so the GPU surface stays live. Calling resume without a prior pause triggers a
         // surface invalidation that causes a blank-frame flash on return from background.
@@ -556,13 +594,7 @@ class MainActivity : AppCompatActivity() {
             else -> return
         }
         // The WebView is already loaded; trigger the JS check immediately.
-        webView.post {
-            webView.evaluateJavascript(
-                "(function(){ if(document.visibilityState==='visible')" +
-                "document.dispatchEvent(new Event('visibilitychange')); })();",
-                null
-            )
-        }
+        forwardPendingIntentToJs()
     }
 
     /**

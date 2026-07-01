@@ -10,7 +10,7 @@ dayGLANCE exposes four inbound broadcast actions that you can fire from Tasker, 
 
 When the action is processed, dayGLANCE sends an outbound `app.dayglance.RESULT` broadcast that you can receive in Tasker to check the outcome. dayGLANCE also emits `app.dayglance.NOTIFY` broadcasts whenever tasks change state (completed, rescheduled, updated, deleted).
 
-> **Important:** dayGLANCE must be running and in the foreground (or at least not killed) for broadcasts to be processed. For fully unattended automation (e.g. creating tasks while the app is closed), use the WebDAV transport instead.
+> **Important:** dayGLANCE must be running for broadcasts to be processed — but it does **not** need to be in the foreground. Intents fired while the app is backgrounded are handled live, as long as the app has not been swiped away / killed by the system. For fully unattended automation (e.g. creating tasks while the app is closed), use the WebDAV transport instead.
 
 ---
 
@@ -151,7 +151,7 @@ dayGLANCE fires `app.dayglance.NOTIFY` whenever a task with a `source_app` + `so
 
 ## Troubleshooting
 
-- **Nothing happens:** Make sure dayGLANCE is running. Broadcasts sent while the app is closed are not queued.
+- **Nothing happens:** Make sure dayGLANCE is still running (backgrounded is fine, but not swiped-away/killed). Broadcasts sent while the app is closed are not queued.
 - **Task not found (COMPLETE):** Pass `task_id` instead of `title` for reliable matching.
 - **No RESULT received:** Check that Tasker has permission to receive broadcasts from other apps. Ensure your intent filter matches `app.dayglance.RESULT` exactly.
 - **For set-and-forget automation** (creating tasks without the app open): use the WebDAV transport — dayGLANCE polls a WebDAV directory for incoming intent files even when backgrounded.

@@ -40,6 +40,14 @@ export function useAndroidIntentBridge(context) {
       nativeReportIntentResult(action, JSON.stringify(result));
     };
 
+    // Expose an unconditional entry point for the native side to invoke directly
+    // (from MainActivity's INTENT_RECEIVED forward receiver and onResume). This
+    // must NOT be gated on document.visibilityState: the WebView is never paused
+    // (webView.onPause() is intentionally skipped so the GPU surface stays live),
+    // so its visibilityState stays 'visible' even while the app is backgrounded —
+    // but we don't want to depend on that invariant to process background intents.
+    window.__dayglanceCheckPendingIntent = checkPending;
+
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         checkPending();
@@ -50,6 +58,11 @@ export function useAndroidIntentBridge(context) {
     checkPending();
 
     document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      if (window.__dayglanceCheckPendingIntent === checkPending) {
+        delete window.__dayglanceCheckPendingIntent;
+      }
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 }
