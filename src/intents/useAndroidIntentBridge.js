@@ -1,6 +1,21 @@
 import { useEffect, useRef } from 'react';
+import { ACTIONS } from '@glance-apps/intents';
 import { isNativeAndroid, nativeGetPendingIntent, nativeReportIntentResult } from '../native';
 import { handleIntent } from './handleIntent.js';
+
+/**
+ * The native transport delivers the fully-qualified Android action string
+ * (e.g. "app.dayglance.OPEN") — that's what IntentReceiver / onNewIntent store.
+ * handleIntent, however, switches on the short ACTIONS constants ("open"), so
+ * the raw broadcast action never matches and every intent falls through to
+ * "Unknown action". Map the broadcast action to the intents action here.
+ */
+const BROADCAST_ACTION_MAP = {
+  'app.dayglance.CREATE': ACTIONS.CREATE,
+  'app.dayglance.COMPLETE': ACTIONS.COMPLETE,
+  'app.dayglance.OPEN': ACTIONS.OPEN,
+  'app.dayglance.QUERY': ACTIONS.QUERY,
+};
 
 /**
  * Android intent transport bridge.
@@ -29,14 +44,19 @@ export function useAndroidIntentBridge(context) {
       if (!intent) return;
 
       const { action, payload = {} } = intent;
+      // action is the Android broadcast action (e.g. "app.dayglance.OPEN");
+      // translate it to the short ACTIONS constant handleIntent expects.
+      const mappedAction = BROADCAST_ACTION_MAP[action] ?? action;
       let result;
       try {
-        result = await handleIntent(action, payload, contextRef.current);
+        result = await handleIntent(mappedAction, payload, contextRef.current);
       } catch (err) {
         result = { success: false, error: err?.message ?? String(err) };
       }
 
-      console.log('[intent-bridge]', action, result);
+      // Report back under the ORIGINAL broadcast action so Tasker's RESULT
+      // listener sees %action = "app.dayglance.OPEN" as documented.
+      console.log('[intent-bridge]', action, '→', mappedAction, result);
       nativeReportIntentResult(action, JSON.stringify(result));
     };
 

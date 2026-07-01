@@ -94,8 +94,10 @@ Opens the app and optionally navigates to a specific task or tab.
 
 **Example payload:**
 ```json
-{"tab":"inbox"}
+{"tab":"goals"}
 ```
+
+> **Target must be Activity, not Broadcast Receiver.** Unlike CREATE / COMPLETE / QUERY (which just mutate state or return data and work fine as broadcasts), OPEN needs to bring dayGLANCE to the foreground. Android does not let a background broadcast launch an activity, so if you send OPEN as a **Broadcast Receiver** the tab will change silently underneath but the app won't come forward. In Tasker's Intent action, set **Target: Activity** and **Package: `com.dayglance.app`** for OPEN.
 
 ---
 
