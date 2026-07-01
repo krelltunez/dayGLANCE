@@ -166,19 +166,26 @@ If the Flash shows `{"success":true,...,"%dg_count_today":0,...}`, the transport
 
 Flashing `%result` shows the whole JSON object. To pull out a single count, parse it first. Two ways:
 
-**A. JavaScriptlet (most reliable — the `%`-prefixed keys confuse some of Tasker's built-in JSON parsers):**
+> **Note:** *Variable Convert* is **not** the tool for this — its `JSON Encode` function goes the other way (variables → JSON). And **JavaScriptlet is its own action** (under **Code**), not a Variable Convert function.
 
-Add **Code → JavaScriptlet** *before* the Flash:
+**A. JavaScriptlet (most reliable — the `%`-prefixed keys confuse Tasker's built-in JSON parsers):**
+
+Add an action → **Code → JavaScriptlet** *before* the Flash. Read `%result` with `local()` (its name has lowercase letters, so it's a *local* variable — `global()` would return nothing):
 ```js
-var r = JSON.parse(global('result'));
+var r = JSON.parse(local('result'));
 setLocal('today', r['%dg_count_today']);
 setLocal('inbox', r['%dg_count_inbox']);
 ```
 Then **Alert → Flash**, Text: `Today: %today · Inbox: %inbox`
 
-**B. Variable Convert → JSON Read:**
+**B. Variable Search Replace (no JavaScript):**
 
-Add **Variable → Variable Convert**, Name `%result`, Function **JSON Read**. Tasker exposes the fields as array-style variables; reference the one you want (e.g. `%result.%dg_count_today` — the exact name depends on your Tasker version, so Flash `%result()` first to see how the keys were split). Then **Flash** the value. If the `%` in the keys trips this up, use method A.
+Add **Variable → Variable Search Replace**:
+- **Variable**: `%result`
+- **Search**: `%dg_count_today":(\d+)`
+- Tick **Store Matches in Array**, name it e.g. `%m`
+
+The captured number lands in `%m1`, so **Flash** `Today: %m1`.
 
 > **Heads-up — "Not running task … Already running / Abort New Task":** dayGLANCE sends a RESULT for *every* action and also emits NOTIFY broadcasts, so your receiver task can be triggered again while it's still running. If you see that warning, open the receiver task's properties (gear icon) and set **Collision Handling** to **Run Both Together** (or *Queue*) instead of *Abort New Task*. This is a Tasker setting, not a dayGLANCE issue — the first Flash still ran.
 
