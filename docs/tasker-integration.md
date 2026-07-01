@@ -158,11 +158,29 @@ Pair a QUERY sender with a RESULT receiver:
    - **Extra**: `payload:{}`
    - **Target**: **Broadcast Receiver**
 2. **Receiver profile** → **Event** → **Intent Received**, **Action**: `app.dayglance.RESULT`, linked task:
-   - **Variable → Java Script(let)** or a **JSON Read** action to parse `%result`, or simplest for a quick test:
    - **Alert → Flash**, Text: `%result` — this dumps the raw JSON so you can confirm the round-trip works.
-   - To show just the today count: parse `%result` (e.g. Tasker's **Variable → Variable Convert → JSON Read**, giving `%dg_count_today`) then **Flash** `Today: %dg_count_today`.
 
-If the Flash shows the JSON, the transport is working end-to-end. If nothing flashes, the RESULT profile isn't matching — double-check the action is exactly `app.dayglance.RESULT` and that Tasker is allowed to receive external intents.
+If the Flash shows `{"success":true,...,"%dg_count_today":0,...}`, the transport is working end-to-end. If nothing flashes, the RESULT profile isn't matching — double-check the action is exactly `app.dayglance.RESULT` and that Tasker is allowed to receive external intents.
+
+### Parsing `%result` into a clean value
+
+Flashing `%result` shows the whole JSON object. To pull out a single count, parse it first. Two ways:
+
+**A. JavaScriptlet (most reliable — the `%`-prefixed keys confuse some of Tasker's built-in JSON parsers):**
+
+Add **Code → JavaScriptlet** *before* the Flash:
+```js
+var r = JSON.parse(global('result'));
+setLocal('today', r['%dg_count_today']);
+setLocal('inbox', r['%dg_count_inbox']);
+```
+Then **Alert → Flash**, Text: `Today: %today · Inbox: %inbox`
+
+**B. Variable Convert → JSON Read:**
+
+Add **Variable → Variable Convert**, Name `%result`, Function **JSON Read**. Tasker exposes the fields as array-style variables; reference the one you want (e.g. `%result.%dg_count_today` — the exact name depends on your Tasker version, so Flash `%result()` first to see how the keys were split). Then **Flash** the value. If the `%` in the keys trips this up, use method A.
+
+> **Heads-up — "Not running task … Already running / Abort New Task":** dayGLANCE sends a RESULT for *every* action and also emits NOTIFY broadcasts, so your receiver task can be triggered again while it's still running. If you see that warning, open the receiver task's properties (gear icon) and set **Collision Handling** to **Run Both Together** (or *Queue*) instead of *Abort New Task*. This is a Tasker setting, not a dayGLANCE issue — the first Flash still ran.
 
 ---
 
