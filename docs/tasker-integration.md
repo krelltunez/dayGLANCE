@@ -189,6 +189,44 @@ The captured number lands in `%m1`, so **Flash** `Today: %m1`.
 
 > **Heads-up — "Not running task … Already running / Abort New Task":** dayGLANCE sends a RESULT for *every* action and also emits NOTIFY broadcasts, so your receiver task can be triggered again while it's still running. If you see that warning, open the receiver task's properties (gear icon) and set **Collision Handling** to **Run Both Together** (or *Queue*) instead of *Abort New Task*. This is a Tasker setting, not a dayGLANCE issue — the first Flash still ran.
 
+### More recipes
+
+Every action's RESULT lands in the **same** `app.dayglance.RESULT` receiver, so real setups usually branch on `%action` and check `success` first. All of these go in a JavaScriptlet reading `local('result')`.
+
+**Pull every QUERY field into clean variables:**
+```js
+var r = JSON.parse(local('result'));
+setLocal('dg_today',   r['%dg_count_today']);
+setLocal('dg_overdue', r['%dg_count_overdue']);
+setLocal('dg_week',    r['%dg_count_week']);
+setLocal('dg_total',   r['%dg_count_total']);
+setLocal('dg_inbox',   r['%dg_count_inbox']);
+setLocal('dg_next',    r['%dg_next_title']);
+setLocal('dg_next_at', r['%dg_next_time']);
+```
+Then **Flash**: `%dg_today today · %dg_overdue overdue · next: %dg_next at %dg_next_at`
+
+**Route one receiver by action** — `%action` holds the full action string (e.g. `app.dayglance.CREATE`). Add an **If** condition to each downstream action:
+- `If %action ~ app.dayglance.QUERY` → parse counts and Flash them
+- `If %action ~ app.dayglance.CREATE` → save the new id: **Variable Set** `%last_task_id` to the parsed `task_id` (use it later in a COMPLETE payload)
+- `If %action ~ app.dayglance.COMPLETE` → Flash "Completed ✓"
+
+(`~` is Tasker's "matches" operator.)
+
+**Capture the new task's id after CREATE:**
+```js
+var r = JSON.parse(local('result'));
+setLocal('new_id', r.task_id);   // '' if the create failed
+```
+
+**Fail loudly when something goes wrong** — `success` is `false` and `error` is populated on any failure:
+```js
+var r = JSON.parse(local('result'));
+setLocal('ok',  r.success);      // "true" / "false" as a string in Tasker
+setLocal('err', r.error);
+```
+Then **If** `%ok ~ false` → **Flash** `dayGLANCE: %err`. A `warning` field (e.g. "task already complete") may be present even when `success` is `true`.
+
 ---
 
 ## Outbound NOTIFY broadcast
