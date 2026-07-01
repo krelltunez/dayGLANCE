@@ -147,4 +147,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('tray:focus-quick-add', handler);
     return () => ipcRenderer.removeListener('tray:focus-quick-add', handler);
   },
+
+  // Obsidian vault (macOS) — folder access held by the main process via a
+  // security-scoped bookmark so it survives relaunch under the App Sandbox. The
+  // renderer drives file I/O through the shim in src/obsidianElectronHandle.js.
+  obsidian: {
+    pick: (): Promise<{ path: string; name: string } | null> => ipcRenderer.invoke('obsidian:pick'),
+    restore: (): Promise<{ path: string; name: string } | null> => ipcRenderer.invoke('obsidian:restore'),
+    disconnect: (): Promise<boolean> => ipcRenderer.invoke('obsidian:disconnect'),
+    stat: (relativePath: string): Promise<{ kind: 'file' | 'directory' } | null> =>
+      ipcRenderer.invoke('obsidian:stat', relativePath),
+    listDir: (relativePath: string): Promise<Array<{ name: string; kind: 'file' | 'directory' }>> =>
+      ipcRenderer.invoke('obsidian:list-dir', relativePath),
+    readFile: (relativePath: string): Promise<{ text?: string; lastModified?: number; notFound?: boolean; error?: string }> =>
+      ipcRenderer.invoke('obsidian:read-file', relativePath),
+    writeFile: (relativePath: string, content: string): Promise<boolean> =>
+      ipcRenderer.invoke('obsidian:write-file', relativePath, content),
+  },
 });
