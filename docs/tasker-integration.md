@@ -103,13 +103,26 @@ Opens the app and optionally navigates to a specific task or tab.
 
 ### QUERY
 
-Returns the current task counts. The response arrives as an `app.dayglance.RESULT` broadcast.
+Returns the current task counts. QUERY produces **no visible effect in dayGLANCE itself** — it only replies with an `app.dayglance.RESULT` broadcast. To see anything, you must set up a second Tasker profile to receive that broadcast (see [Receiving the RESULT broadcast](#receiving-the-result-broadcast-in-tasker) below) and, e.g., Flash `%result`.
 
 No required payload fields. You may pass an empty JSON object `{}`.
 
-**Result extras:**
-- `success`: `true`
-- `counts`: JSON object with today's task counts
+**Result:** the `app.dayglance.RESULT` broadcast carries a `result` String extra (surfaced in Tasker as `%result`) containing a JSON object with `success: true` plus these count/next-up fields:
+
+| Key | Meaning |
+|-----|---------|
+| `%dg_count_today` | Tasks scheduled for today |
+| `%dg_count_overdue` | Scheduled tasks with a date before today |
+| `%dg_count_week` | Tasks scheduled today through the next 6 days |
+| `%dg_count_total` | All incomplete tasks (scheduled + inbox) |
+| `%dg_count_inbox` | Incomplete inbox (unscheduled) tasks |
+| `%dg_in_progress_title` | Title of the task in progress right now (empty if none) |
+| `%dg_in_progress_end` | End time of the in-progress task (`HH:MM`) |
+| `%dg_in_progress_remaining_min` | Minutes left in the in-progress task |
+| `%dg_next_title` | Title of the next upcoming task today (empty if none) |
+| `%dg_next_time` | Start time of the next task (`HH:MM`) |
+
+Note the keys are already `%`-prefixed inside the JSON. They are **not** delivered as individual Tasker variables automatically — you get the whole object as the `%result` **string** and parse it (JSON parser / Variable Split) to pull out a value.
 
 ---
 
@@ -127,11 +140,29 @@ No required payload fields. You may pass an empty JSON object `{}`.
 
 ## Receiving the RESULT broadcast in Tasker
 
-1. Create a **Profile** → **Event** → **Intent Received**
+Every action (including QUERY) replies with an `app.dayglance.RESULT` broadcast, but **nothing displays it for you** — you have to receive it in a separate profile.
+
+1. Create a **Profile** → **Event** → **System** → **Intent Received**
 2. Set **Action** to `app.dayglance.RESULT`
 3. In the linked task, read:
    - `%action` — the action that was handled (e.g. `app.dayglance.CREATE`)
    - `%result` — JSON string with the result object
+
+### Example: show QUERY counts in a toast
+
+Pair a QUERY sender with a RESULT receiver:
+
+1. **Sender task** → Add action → **Intent**
+   - **Action**: `app.dayglance.QUERY`
+   - **Package**: `com.dayglance.app`
+   - **Extra**: `payload:{}`
+   - **Target**: **Broadcast Receiver**
+2. **Receiver profile** → **Event** → **Intent Received**, **Action**: `app.dayglance.RESULT`, linked task:
+   - **Variable → Java Script(let)** or a **JSON Read** action to parse `%result`, or simplest for a quick test:
+   - **Alert → Flash**, Text: `%result` — this dumps the raw JSON so you can confirm the round-trip works.
+   - To show just the today count: parse `%result` (e.g. Tasker's **Variable → Variable Convert → JSON Read**, giving `%dg_count_today`) then **Flash** `Today: %dg_count_today`.
+
+If the Flash shows the JSON, the transport is working end-to-end. If nothing flashes, the RESULT profile isn't matching — double-check the action is exactly `app.dayglance.RESULT` and that Tasker is allowed to receive external intents.
 
 ---
 
