@@ -14,13 +14,20 @@
 
 import { makeElectronVaultHandle } from './obsidianElectronHandle.js';
 
-// MAS-only: the sandboxed Mac App Store build routes vault access through the main
-// process (native picker + security-scoped bookmark). The unsandboxed Developer ID
-// and dev Electron builds keep the proven File System Access API path unchanged, so
-// this change touches nothing but the MAS build.
+// All Electron builds route vault access through the main process (native picker +
+// security-scoped bookmark). Required under the MAS sandbox (a renderer FS Access
+// handle can't persist there); the unsandboxed Developer ID / dev builds simply get
+// an empty bookmark and read/write the path directly. Unifying on one path — now
+// that it's verified on MAS — means dev exercises the same code that ships, so shim
+// bugs surface on the desk instead of only in the sandbox. Web and native (iOS/
+// Android) have no electronAPI and keep their existing paths.
+//
+// Migration note: an existing Developer ID user's vault lives as an FS Access handle
+// in IndexedDB (no extractable filesystem path), so there's no auto-migration — they
+// reconnect the vault once via the native picker. Sync just no-ops until then.
 const isElectronObsidian = () =>
   typeof window !== 'undefined' &&
-  !!(window.electronAPI && window.electronAPI.isMAS && window.electronAPI.obsidian);
+  !!(window.electronAPI && window.electronAPI.isElectron && window.electronAPI.obsidian);
 
 // ---------------------------------------------------------------------------
 // IndexedDB — persist the vault directory handle across sessions
