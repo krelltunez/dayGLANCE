@@ -3,6 +3,11 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
   platform: process.platform,
+  // True only in the Mac App Store (sandboxed) build. Electron sets process.mas
+  // for the `mas` target. Used to gate sandbox-only behavior (e.g. Obsidian vault
+  // access via the main process) so the unsandboxed Developer ID / dev build keeps
+  // its proven File System Access path unchanged.
+  isMAS: process.mas === true,
 
   // Renderer pushes app state to connected WebSocket clients (e.g. Stream Deck plugin)
   pushState: (state: unknown) => ipcRenderer.send('ws:push-state', state),
@@ -146,5 +151,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = () => callback();
     ipcRenderer.on('tray:focus-quick-add', handler);
     return () => ipcRenderer.removeListener('tray:focus-quick-add', handler);
+  },
+
+  // Obsidian vault (macOS) — folder access held by the main process via a
+  // security-scoped bookmark so it survives relaunch under the App Sandbox. The
+  // renderer drives file I/O through the shim in src/obsidianElectronHandle.js.
+  obsidian: {
+    pick: (): Promise<{ path: string; name: string } | null> => ipcRenderer.invoke('obsidian:pick'),
+    restore: (): Promise<{ path: string; name: string } | null> => ipcRenderer.invoke('obsidian:restore'),
+    disconnect: (): Promise<boolean> => ipcRenderer.invoke('obsidian:disconnect'),
+    stat: (relativePath: string): Promise<{ kind: 'file' | 'directory' } | null> =>
+      ipcRenderer.invoke('obsidian:stat', relativePath),
+    listDir: (relativePath: string): Promise<Array<{ name: string; kind: 'file' | 'directory' }>> =>
+      ipcRenderer.invoke('obsidian:list-dir', relativePath),
+    readFile: (relativePath: string): Promise<{ text?: string; lastModified?: number; notFound?: boolean; error?: string }> =>
+      ipcRenderer.invoke('obsidian:read-file', relativePath),
+    writeFile: (relativePath: string, content: string): Promise<boolean> =>
+      ipcRenderer.invoke('obsidian:write-file', relativePath, content),
   },
 });

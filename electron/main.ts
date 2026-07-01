@@ -6,6 +6,7 @@ import { createWsServer } from './ws-server.js';
 import { registerSubscriptionHandlers } from './subscription.js';
 import { registerCalendarHandlers } from './calendar.js';
 import { registerICloudHandlers } from './icloud.js';
+import { registerObsidianHandlers } from './obsidian.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -464,6 +465,7 @@ app.whenReady().then(() => {
   registerSubscriptionHandlers(win);
   registerCalendarHandlers();
   registerICloudHandlers(() => live(mainWindow));
+  registerObsidianHandlers();
   if (process.platform === 'darwin') createTray();
 
   app.on('activate', () => {

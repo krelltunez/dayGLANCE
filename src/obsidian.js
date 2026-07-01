@@ -4,7 +4,23 @@
  * Provides one-way task import (Obsidian → DG) and two-way daily notes
  * via the File System Access API. Vault directory handles are persisted
  * in IndexedDB so re-granting permission is a single click.
+ *
+ * On Electron the File System Access handle can't persist across relaunch under
+ * the Mac App Store sandbox, so vault access is delegated to the main process
+ * (native folder picker + security-scoped bookmark). requestVaultAccess/restore/
+ * disconnect route through electronAPI.obsidian and return a handle SHIM
+ * (makeElectronVaultHandle) that the rest of this module drives unchanged.
  */
+
+import { makeElectronVaultHandle } from './obsidianElectronHandle.js';
+
+// MAS-only: the sandboxed Mac App Store build routes vault access through the main
+// process (native picker + security-scoped bookmark). The unsandboxed Developer ID
+// and dev Electron builds keep the proven File System Access API path unchanged, so
+// this change touches nothing but the MAS build.
+const isElectronObsidian = () =>
+  typeof window !== 'undefined' &&
+  !!(window.electronAPI && window.electronAPI.isMAS && window.electronAPI.obsidian);
 
 // ---------------------------------------------------------------------------
 // IndexedDB — persist the vault directory handle across sessions
@@ -63,6 +79,7 @@ async function removeVaultHandle() {
 // ---------------------------------------------------------------------------
 
 export function isFileSystemAccessSupported() {
+  if (isElectronObsidian()) return true; // native picker + bookmark in the main process
   return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
 }
 
@@ -75,6 +92,11 @@ export function isFileSystemAccessSupported() {
  * Returns the directory handle or null if cancelled.
  */
 export async function requestVaultAccess() {
+  if (isElectronObsidian()) {
+    // Native folder picker in the main process; persists a security-scoped bookmark.
+    const res = await window.electronAPI.obsidian.pick();
+    return res ? makeElectronVaultHandle() : null;
+  }
   try {
     const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
     await saveVaultHandle(handle);
@@ -92,6 +114,11 @@ export async function requestVaultAccess() {
  * Returns the handle or null.
  */
 export async function tryRestoreVaultAccess() {
+  if (isElectronObsidian()) {
+    // Re-open the stored bookmark in the main process; no user gesture needed.
+    const res = await window.electronAPI.obsidian.restore();
+    return res ? makeElectronVaultHandle() : null;
+  }
   const handle = await loadVaultHandle();
   if (!handle) return null;
   const perm = await handle.queryPermission({ mode: 'readwrite' });
@@ -103,6 +130,12 @@ export async function tryRestoreVaultAccess() {
  * Re-requests permission if needed (requires a user gesture). Returns the handle or null.
  */
 export async function getVaultAccess() {
+  if (isElectronObsidian()) {
+    // Bookmark-backed access is re-established by the main process; nothing to
+    // re-prompt for. Returns a handle when a vault is configured, else null.
+    const res = await window.electronAPI.obsidian.restore();
+    return res ? makeElectronVaultHandle() : null;
+  }
   const handle = await loadVaultHandle();
   if (!handle) return null;
 
@@ -122,6 +155,10 @@ export async function getVaultAccess() {
  * Disconnect — remove the stored handle.
  */
 export async function disconnectVault() {
+  if (isElectronObsidian()) {
+    await window.electronAPI.obsidian.disconnect();
+    return;
+  }
   await removeVaultHandle();
 }
 
