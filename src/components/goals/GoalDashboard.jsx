@@ -2370,16 +2370,29 @@ const GoalDetailPanel = ({ goal, projects, onEditGoal, onEditProject, onNewProje
 
   return (
     <div className={`mt-5 border-t ${borderClass} pt-4`}>
-      <div className="flex items-center justify-between mb-3">
-        <span className={`text-xs font-semibold uppercase tracking-wider ${textSecondary}`}>{goal.title}</span>
-        <button onClick={onClose} className={`p-1.5 rounded-lg ${hoverBg}`} aria-label="Close">
-          <X size={15} className={textSecondary} />
-        </button>
-      </div>
-
-      {/* Goal header card (edit + add project live here) */}
-      <div className={`${isMobile ? '' : 'max-w-sm mx-auto'} mb-4`}>
-        <GoalCard goal={goal} projects={childProjects} onEdit={() => onEditGoal(goal)} onNewProject={() => onNewProject(goal.id)} />
+      {/* Title + actions (the bar above already shows dates/progress/area) */}
+      <div className="mb-4">
+        <div className="flex items-center gap-2">
+          <span className={`text-sm font-semibold ${textPrimary} truncate min-w-0`}>{goal.title}</span>
+          <button
+            onClick={() => onEditGoal(goal)}
+            className="flex-shrink-0 flex items-center gap-1 text-xs font-medium text-blue-500 hover:text-blue-600 px-1.5 py-1 rounded transition-colors"
+          >
+            <Edit2 size={13} /> {t('common.edit')}
+          </button>
+          <button
+            onClick={() => onNewProject(goal.id)}
+            className="flex-shrink-0 flex items-center gap-1 text-xs font-medium text-emerald-500 hover:text-emerald-600 px-1.5 py-1 rounded transition-colors"
+          >
+            <Layers size={13} /> {t('common.addProject')}
+          </button>
+          <button onClick={onClose} className={`ml-auto flex-shrink-0 p-1.5 rounded-lg ${hoverBg}`} aria-label="Close">
+            <X size={15} className={textSecondary} />
+          </button>
+        </div>
+        {goal.description && (
+          <p className={`mt-1 text-xs ${textSecondary} leading-snug whitespace-pre-wrap`}>{goal.description}</p>
+        )}
       </div>
 
       {/* Child projects — identical to List view (inline tasks), reorderable within the goal */}
