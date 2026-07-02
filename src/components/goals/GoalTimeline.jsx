@@ -31,8 +31,8 @@ const PERIODS = [
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-// Vertical breathing room: space under the "Today" label before the first bar,
-// and above the month labels below the last bar.
+// Vertical breathing room: space above the first bar, and above the month
+// labels below the last bar.
 const TOP_PAD = 24;
 const BOTTOM_PAD = 30;
 const ROW_H = 44;   // per-goal row height (px)
@@ -80,7 +80,7 @@ const GoalTimeline = ({ goals, projects, onEditGoal }) => {
 
   // Window bounds: [first day of current month, +N months). Computed once per
   // render from `now`; the day granularity is enough for a month-scale chart.
-  const { leftEdge, span, todayMs, monthTicks } = useMemo(() => {
+  const { leftEdge, span, monthTicks } = useMemo(() => {
     const now = new Date();
     const left = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
     const right = new Date(now.getFullYear(), now.getMonth() + period.months, 1, 0, 0, 0, 0);
@@ -91,7 +91,7 @@ const GoalTimeline = ({ goals, projects, onEditGoal }) => {
       const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
       ticks.push({ ms: d.getTime(), month: d.getMonth(), year: d.getFullYear() });
     }
-    return { leftEdge: leftMs, rightEdge: rightMs, span: rightMs - leftMs, todayMs: now.getTime(), monthTicks: ticks };
+    return { leftEdge: leftMs, rightEdge: rightMs, span: rightMs - leftMs, monthTicks: ticks };
   }, [period.months]);
 
   // Fraction (0..1) of the window a given timestamp sits at.
@@ -132,7 +132,6 @@ const GoalTimeline = ({ goals, projects, onEditGoal }) => {
   }, [goals, projects, allTasks, leftEdge, span]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hiddenCount = goals.length - rows.length;
-  const todayPct = frac(todayMs) * 100;
   const gridColor = darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
   const chartHeight = TOP_PAD + rows.length * ROW_H + BOTTOM_PAD;
 
@@ -187,17 +186,6 @@ const GoalTimeline = ({ goals, projects, onEditGoal }) => {
                 </div>
               );
             })}
-            {/* Today marker */}
-            {todayPct >= 0 && todayPct <= 100 && (
-              <div
-                className="absolute"
-                style={{ left: `${todayPct}%`, top: TOP_PAD, bottom: BOTTOM_PAD, width: 2, background: '#ef4444' }}
-              >
-                <span className="absolute left-1 text-[10px] font-semibold text-red-500 whitespace-nowrap" style={{ top: -TOP_PAD + 2 }}>
-                  Today
-                </span>
-              </div>
-            )}
           </div>
 
           {/* Bars */}
