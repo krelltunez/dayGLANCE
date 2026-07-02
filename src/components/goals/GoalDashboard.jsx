@@ -2079,7 +2079,7 @@ const GoalControls = ({ onManageAreas }) => {
       <div className={`ml-auto flex rounded-lg border ${borderClass} overflow-hidden`}>
         {[
           { key: 'list', label: 'List', Icon: LayoutDashboard },
-          { key: 'timeline', label: 'Timeline', Icon: LineChart },
+          { key: 'timeline', label: 'Roadmap', Icon: LineChart },
         ].map(({ key, label, Icon }) => (
           <button
             key={key}
