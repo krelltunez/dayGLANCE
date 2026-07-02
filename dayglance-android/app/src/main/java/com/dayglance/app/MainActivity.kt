@@ -173,6 +173,16 @@ class MainActivity : AppCompatActivity() {
             ACTION_ADD_TASK       -> store.pendingAddTask = true
             ACTION_ADD_INBOX_TASK -> store.pendingAddInboxTask = true
             Intent.ACTION_SEND    -> storeShareIntent(intent, store)
+            // Cold start via an app.dayglance.* Activity intent (app was killed):
+            // onNewIntent is NOT called for the launching intent, so without this the
+            // action's payload — the target tab for OPEN, the task for COMPLETE, etc. —
+            // would be dropped and the app would just open to the default tab. Store it
+            // like onNewIntent does; the intent bridge drains it on mount (no JS poke
+            // here — the WebView hasn't loaded yet).
+            "app.dayglance.CREATE",
+            "app.dayglance.COMPLETE",
+            "app.dayglance.OPEN",
+            "app.dayglance.QUERY" -> storeIntentAction(intent, store)
         }
 
         billingManager = BillingManager(this, dataStore)
