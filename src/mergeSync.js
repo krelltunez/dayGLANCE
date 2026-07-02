@@ -2,7 +2,7 @@
 // dayGLANCE tasks use `lastModified` for the per-item timestamp, so
 // mergeTaskArrays pins timestampField rather than re-exporting the alias
 // directly (which would default to `updatedAt`).
-import { mergeArrayById, mergeSyncData as upstreamMergeSyncData } from '@glance-apps/sync';
+import { mergeArrayById, mergeSyncData as upstreamMergeSyncData, pruneTombstones } from '@glance-apps/sync';
 
 export const mergeTaskArrays = (local, remote, deletedIds, syncHorizon = null) =>
   mergeArrayById(local, remote, deletedIds, syncHorizon, { timestampField: 'lastModified' });
@@ -39,8 +39,8 @@ export {
   mergeDailyNotes,
   mergeHabits,
   mergeRoutineDefinitions,
-  pruneTombstones,
 } from '@glance-apps/sync';
+export { pruneTombstones };
 
 /**
  * Habit-log merge with a deterministic tie-break.
@@ -302,6 +302,28 @@ export const mergeSyncData = (local, remote, retentionDays) => {
     result.data.calendarConfigByUser = mergeCalendarConfigByUser(
       local?.calendarConfigByUser, remote?.calendarConfigByUser,
     );
+  }
+  // Areas are a dayGLANCE-only collection the upstream merge doesn't know about,
+  // so it drops them (its output is an explicit key list). Merge them here by id
+  // with the same LWW-on-updatedAt + tombstone strategy the package uses for
+  // goals/projects, and prune stale tombstones to the retention window. Without
+  // this, areas would be lost on every WebDAV/iCloud sync round-trip.
+  if (local?.areas || remote?.areas || local?.deletedAreaIds || remote?.deletedAreaIds) {
+    const allDeletedAreaIds = { ...(local?.deletedAreaIds || {}) };
+    for (const [id, tsVal] of Object.entries(remote?.deletedAreaIds || {})) {
+      if (!allDeletedAreaIds[id] || new Date(tsVal) > new Date(allDeletedAreaIds[id])) {
+        allDeletedAreaIds[id] = tsVal;
+      }
+    }
+    const areasMerge = mergeArrayById(
+      local?.areas || [], remote?.areas || [], allDeletedAreaIds, null,
+      { timestampField: 'updatedAt' },
+    );
+    result.data.areas = areasMerge.merged;
+    const cutoff = retentionDays > 0 ? new Date(Date.now() - retentionDays * 86400000) : null;
+    result.data.deletedAreaIds = pruneTombstones(allDeletedAreaIds, cutoff);
+    if (areasMerge.localChanged) result.localChanged = true;
+    if (areasMerge.remoteChanged) result.remoteChanged = true;
   }
   // Keep device-local settings on this device's own value rather than the
   // last-writer-wins result. Feature toggles only when multi-user is on, so a

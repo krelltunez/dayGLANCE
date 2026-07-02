@@ -2097,3 +2097,56 @@ describe('mergeSyncData — per-user calendar config', () => {
     expect(data.calendarConfigByUser.kim.syncUrl).toBe('https://k');
   });
 });
+
+// ─── Areas (dayGLANCE-only collection; upstream merge drops unknown keys, so the
+// wrapper in mergeSync.js re-merges them by id with LWW + tombstones) ──────────
+describe('mergeSyncData — areas sync', () => {
+  const emptyData = () => ({
+    tasks: [], unscheduledTasks: [], recycleBin: [], recurringTasks: [],
+    completedTaskUids: [], deletedTaskIds: {}, deletedRoutineChipIds: {}, deletedFrameIds: {},
+    syncUrl: null, taskCalendarUrl: null,
+    routineDefinitions: {}, todayRoutines: [], routinesDate: '',
+    minimizedSections: {}, use24HourClock: false, gtdFrames: [],
+    areas: [], deletedAreaIds: {},
+  });
+  const A = (id, name, updatedAt, extra = {}) => ({ id, name, color: 'bg-blue-500', order: 0, updatedAt, ...extra });
+
+  it('keeps areas through a merge (not dropped like unknown keys would be)', () => {
+    const local = { ...emptyData(), areas: [A('a1', 'Finance', ts(10))] };
+    const remote = emptyData();
+    const { data, remoteChanged } = mergeSyncData(local, remote);
+    expect(data.areas).toHaveLength(1);
+    expect(data.areas[0].name).toBe('Finance');
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('merges remote-only and local-only areas together', () => {
+    const local = { ...emptyData(), areas: [A('a1', 'Local', ts(10))] };
+    const remote = { ...emptyData(), areas: [A('a2', 'Remote', ts(10))] };
+    const { data } = mergeSyncData(local, remote);
+    expect(data.areas.map(a => a.id).sort()).toEqual(['a1', 'a2']);
+  });
+
+  it('resolves a conflicting area by newer updatedAt (LWW)', () => {
+    const local = { ...emptyData(), areas: [A('a1', 'Old name', ts(30))] };
+    const remote = { ...emptyData(), areas: [A('a1', 'New name', ts(2))] };
+    const { data } = mergeSyncData(local, remote);
+    expect(data.areas).toHaveLength(1);
+    expect(data.areas[0].name).toBe('New name');
+  });
+
+  it('drops an area whose tombstone is newer than the area', () => {
+    const local = { ...emptyData(), areas: [A('a1', 'Keep', ts(10))] };
+    const remote = { ...emptyData(), areas: [A('a1', 'Keep', ts(10))], deletedAreaIds: { a1: ts(1) } };
+    const { data } = mergeSyncData(local, remote);
+    expect(data.areas.find(a => a.id === 'a1')).toBeUndefined();
+    expect(data.deletedAreaIds.a1).toBeTruthy();
+  });
+
+  it('unions area tombstones from both sides', () => {
+    const local = { ...emptyData(), deletedAreaIds: { a1: ts(5) } };
+    const remote = { ...emptyData(), deletedAreaIds: { a2: ts(5) } };
+    const { data } = mergeSyncData(local, remote);
+    expect(Object.keys(data.deletedAreaIds).sort()).toEqual(['a1', 'a2']);
+  });
+});

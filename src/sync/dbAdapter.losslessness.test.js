@@ -146,13 +146,18 @@ function buildFixture() {
       { id: 8002, title: 'Work', lastModified: ts(650) },
     ],
     goals: [
-      { id: 9101, title: 'Run a marathon', updatedAt: ts(800), frameId: 8001, progress: 0.3 },
+      { id: 9101, title: 'Run a marathon', updatedAt: ts(800), frameId: 8001, progress: 0.3, areaId: 6001, startDate: '2026-06-01' },
     ],
     deletedGoalIds: { 9199: ts(950) },
     projects: [
       { id: 7001, title: 'Q3 launch', updatedAt: ts(60), goalId: 9101, hyperglance: { enabled: false } },
     ],
     deletedProjectIds: { 7099: ts(990) },
+    areas: [
+      { id: 6001, name: 'Health & Fitness', color: 'bg-green-500', order: 0, updatedAt: ts(820) },
+      { id: 6002, name: 'Work', color: 'bg-blue-500', order: 10, updatedAt: ts(810) },
+    ],
+    deletedAreaIds: { 6099: ts(940) },
     goalsProjectsEnabled: true,
     goalsProjectsEnabledUpdatedAt: ts(5000),
     obsidianConfig: { taskHeading: '## Tasks', dailyNoteTemplate: 'tpl', newNotesFolder: 'Notes' },
@@ -291,5 +296,37 @@ describe('discrimination: structural sniff vs explicit _kind', () => {
     }
     // No row is ever the ambiguous bucket the structural sniff produced.
     expect([...kinds].every(k => k === 'singleton' || k === 'dailyNotes' || k in COLLECTION_KINDS)).toBe(true);
+  });
+});
+
+// ─── Areas: registered as a per-row collection (LWW on updatedAt) with a
+// singleton tombstone bundle, mirroring goals/projects. ───────────────────────
+describe('areas (GLANCEvault adapter)', () => {
+  it('is a registered collection keyed by id on updatedAt', () => {
+    expect(COLLECTION_KINDS.areas).toEqual({ idField: 'id', tsField: 'updatedAt' });
+  });
+
+  it('shreds each area to its own row and reassembles losslessly', () => {
+    const data = {
+      areas: [
+        { id: 'a1', name: 'Finance', color: 'bg-blue-500', order: 0, updatedAt: '2026-06-01T00:00:00Z' },
+        { id: 'a2', name: 'Dev', color: 'bg-green-500', order: 10, updatedAt: '2026-06-02T00:00:00Z' },
+      ],
+      deletedAreaIds: { a9: '2026-05-01T00:00:00Z' },
+    };
+    const rows = shredState(data);
+    const areaRows = rows.filter(r => entityKind(r.entity) === 'areas');
+    expect(areaRows).toHaveLength(2);
+    expect(areaRows[0].entityId).toBe(makeEntityId('areas', 'a1'));
+
+    const back = reassembleState(rows);
+    expect(back.areas).toEqual(data.areas);
+    expect(back.deletedAreaIds).toEqual(data.deletedAreaIds);
+  });
+
+  it('surfaces updatedAt as the entity-grain LWW timestamp', () => {
+    const rows = shredState({ areas: [{ id: 'a1', name: 'X', updatedAt: '2026-06-03T00:00:00Z' }] });
+    const areaRow = rows.find(r => entityKind(r.entity) === 'areas');
+    expect(getEntityLastModified(areaRow.entity)).toBe('2026-06-03T00:00:00Z');
   });
 });

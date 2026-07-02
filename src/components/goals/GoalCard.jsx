@@ -1,5 +1,6 @@
 import React, { forwardRef } from 'react';
 import { AlertTriangle, Calendar, CircleCheckBig, Edit2, FolderOpen, Layers, Link2, Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { calculateGoalProgress } from '../../utils/goalProgress.js';
@@ -29,12 +30,14 @@ const GoalCard = forwardRef(
       darkMode,
       borderClass, textPrimary, textSecondary, hoverBg,
     } = useDayPlannerCtx();
-    const { updateGoal, isVisibleForUser } = useFeaturesCtx();
+    const { updateGoal, isVisibleForUser, areas = [] } = useFeaturesCtx();
+    const { t } = useTranslation();
 
     // Multi-user: progress and stalled state reflect only the current user's tasks.
     const allTasks = [...tasks, ...unscheduledTasks].filter(isVisibleForUser);
     const progress = calculateGoalProgress(goal.id, projects, allTasks);
     const goalColor = goal.color || 'bg-blue-500';
+    const area = goal.areaId ? areas.find(a => a.id === goal.areaId) : null;
 
     // Days remaining until target date
     let daysLabel = null;
@@ -92,6 +95,16 @@ const GoalCard = forwardRef(
             darkMode ? 'bg-gray-800' : 'bg-white'
           }`}
         >
+          {/* Area badge */}
+          {area && (
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${area.color || 'bg-blue-500'}`} />
+              <span className={`text-[11px] font-medium ${textSecondary} truncate`}>
+                {area.name || t('goals.untitledArea')}
+              </span>
+            </div>
+          )}
+
           {/* Target date + caution, or Completed label */}
           {isCompleted ? (
             <p className="text-xs text-emerald-500">Completed</p>

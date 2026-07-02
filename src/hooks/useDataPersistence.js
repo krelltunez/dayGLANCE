@@ -18,14 +18,14 @@ export default function useDataPersistence({
   setDarkMode, setSyncUrl, setTaskCalendarUrl, setCompletedTaskUids,
   setDailyNotes, setRoutineDefinitions, setTodayRoutines, setRoutinesDate,
   setRemovedTodayRoutineIds, setHabits, setHabitLogs, setHabitsEnabled,
-  setRoutinesEnabled, setGoals, setProjects, setGoalsProjectsEnabled, setDataLoaded,
+  setRoutinesEnabled, setGoals, setProjects, setAreas, setGoalsProjectsEnabled, setDataLoaded,
   setUnscheduledOrderTimestamp,
   // values for saveData
   tasks, unscheduledTasks, recycleBin, recurringTasks, todayRoutines,
   darkMode, syncUrl, taskCalendarUrl, syncRetentionDays, completedTaskUids,
   routineDefinitions, routinesDate, removedTodayRoutineIds,
   habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
-  goals, projects, goalsProjectsEnabled,
+  goals, projects, areas, goalsProjectsEnabled,
   unscheduledOrderTimestamp,
   cloudSyncConfig, cloudSyncInitialDoneRef, suppressTimestampRef,
   setUndoToast,
@@ -156,6 +156,8 @@ export default function useDataPersistence({
       if (goalsData) setGoals(JSON.parse(goalsData));
       const projectsData = localStorage.getItem('day-planner-projects');
       if (projectsData) setProjects(JSON.parse(projectsData));
+      const areasData = localStorage.getItem('day-planner-areas');
+      if (areasData) setAreas(JSON.parse(areasData));
       const goalsProjectsEnabledData = localStorage.getItem('day-planner-goals-projects-enabled');
       if (goalsProjectsEnabledData !== null) setGoalsProjectsEnabled(JSON.parse(goalsProjectsEnabledData));
     } catch (error) {
@@ -221,6 +223,7 @@ export default function useDataPersistence({
     safeSet('day-planner-gtd-frames', JSON.stringify(gtdFrames));
     safeSet('day-planner-goals', JSON.stringify(goals));
     safeSet('day-planner-projects', JSON.stringify(projects));
+    safeSet('day-planner-areas', JSON.stringify(areas));
     safeSet('day-planner-goals-projects-enabled', JSON.stringify(goalsProjectsEnabled));
     if (unscheduledOrderTimestamp) safeSet('day-planner-unscheduled-order-ts', unscheduledOrderTimestamp);
     // Only update local-modified after initial cloud sync has run,

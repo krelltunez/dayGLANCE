@@ -40,6 +40,7 @@ export const COLLECTION_KINDS = {
   habits:           { idField: 'id',     tsField: 'lastModified' }, // falls back to createdAt
   goals:            { idField: 'id',     tsField: 'updatedAt'    },
   projects:         { idField: 'id',     tsField: 'updatedAt'    },
+  areas:            { idField: 'id',     tsField: 'updatedAt'    },
   gtdFrames:        { idField: 'id',     tsField: 'lastModified' },
   users:            { idField: 'syncId', tsField: 'updatedAt'    }, // falls back to id
 };
@@ -360,7 +361,7 @@ const MERGE = {
 
 const TOMBSTONE_BUNDLES = new Set([
   'deletedTaskIds', 'deletedRoutineChipIds', 'deletedFrameIds', 'removedTodayRoutineIds',
-  'deletedHabitIds', 'deletedGoalIds', 'deletedProjectIds',
+  'deletedHabitIds', 'deletedGoalIds', 'deletedProjectIds', 'deletedAreaIds',
 ]);
 // Device-local prefs: the file-tier merge keeps the local value (merge.js:900-901
 // / weather not in merge output), so a pulled value never overwrites it. Listed
