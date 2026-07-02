@@ -58,7 +58,7 @@ const goalEndMs = (goal) => (goal.targetDate ? new Date(goal.targetDate + 'T00:0
  * title sits inside its bar, or just outside when the bar is too short to hold it.
  */
 const GoalTimeline = ({ goals, projects, onEditGoal }) => {
-  const { darkMode, textPrimary, textSecondary, tasks, unscheduledTasks } = useDayPlannerCtx();
+  const { darkMode, textPrimary, textSecondary, tasks, unscheduledTasks, isMobile } = useDayPlannerCtx();
   const [periodKey, setPeriodKey] = useState('6m');
   const period = PERIODS.find(p => p.key === periodKey) || PERIODS[2];
 
@@ -98,8 +98,13 @@ const GoalTimeline = ({ goals, projects, onEditGoal }) => {
   const frac = (ms) => Math.max(0, Math.min(1, (ms - leftEdge) / span));
   const rightEdgeMs = leftEdge + span;
 
-  // Label density: monthly up to a year, quarterly beyond, so 2Y stays legible.
-  const labelEvery = period.months > 12 ? 3 : 1;
+  // Month-axis density. Narrow (mobile) widths crowd fast, so thin the labels
+  // out sooner there. Gridlines are drawn only at labeled months (below), so the
+  // axis and the vertical lines always agree.
+  let labelEvery;
+  if (period.months <= 6) labelEvery = 1;
+  else if (period.months <= 12) labelEvery = isMobile ? 2 : 1;   // 1Y: every other month on mobile
+  else labelEvery = isMobile ? 4 : 3;                             // 2Y: quarterly (every 4 on mobile)
 
   // Build per-goal bar geometry, keeping only goals whose span intersects the
   // window. Sorted by start so bars cascade top→bottom.
@@ -164,6 +169,9 @@ const GoalTimeline = ({ goals, projects, onEditGoal }) => {
           {/* Month gridlines + labels + today marker (behind the bars) */}
           <div className="pointer-events-none absolute inset-0">
             {monthTicks.map((tick, i) => {
+              // Only labeled months get a gridline, so the vertical lines match
+              // the labels in the bottom row (no orphan lines between labels).
+              if (i % labelEvery !== 0) return null;
               const x = frac(tick.ms) * 100;
               const atRightEdge = x > 99;
               return (
@@ -172,17 +180,15 @@ const GoalTimeline = ({ goals, projects, onEditGoal }) => {
                   className="absolute"
                   style={{ left: `${x}%`, top: TOP_PAD, bottom: BOTTOM_PAD, width: 1, background: gridColor }}
                 >
-                  {i % labelEvery === 0 && (
-                    <span
-                      className={`absolute text-[10px] ${textSecondary} opacity-70 whitespace-nowrap`}
-                      style={{
-                        bottom: -BOTTOM_PAD + 8,
-                        ...(atRightEdge ? { right: 2, textAlign: 'right' } : { left: 2 }),
-                      }}
-                    >
-                      {MONTH_ABBR[tick.month]}{tick.month === 0 ? ` '${String(tick.year).slice(2)}` : ''}
-                    </span>
-                  )}
+                  <span
+                    className={`absolute text-[10px] ${textSecondary} opacity-70 whitespace-nowrap`}
+                    style={{
+                      bottom: -BOTTOM_PAD + 8,
+                      ...(atRightEdge ? { right: 2, textAlign: 'right' } : { left: 2 }),
+                    }}
+                  >
+                    {MONTH_ABBR[tick.month]}{tick.month === 0 ? ` '${String(tick.year).slice(2)}` : ''}
+                  </span>
                 </div>
               );
             })}
@@ -193,8 +199,11 @@ const GoalTimeline = ({ goals, projects, onEditGoal }) => {
             {rows.map(({ goal, leftPct, widthPct, clippedLeft, clippedRight, openEnded, progress }) => {
               const hex = toHex(goal.color);
               const pct = Math.round(progress * 100);
-              const fillColor = darken(hex, 0.24);   // completed portion
-              const trackColor = darken(hex, 0.58);   // remaining portion (darker)
+              // Whole bar is the exact picker colour (so a 0% bar reads true to the
+              // swatch); the completed portion deepens to a slightly darker shade as
+              // the fuel gauge. Keeps white text legible on both.
+              const trackColor = hex;                 // remaining portion = exact picker colour
+              const fillColor = darken(hex, 0.26);    // completed portion: deeper shade
               const textShadow = '0 1px 2px rgba(0,0,0,0.4)';
               const barLeftPx = (leftPct / 100) * chartW;
               const barWpx = (widthPct / 100) * chartW;
