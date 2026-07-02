@@ -710,6 +710,7 @@
     "noGoalsInRange": "No goals fall within this range.",
     "goalsOutsideRange_one": "{{count}} goal outside this range (ended before the current month or starts beyond the window).",
     "goalsOutsideRange_other": "{{count}} goals outside this range (ended before the current month or start beyond the window).",
+    "editGoal": "Edit Goal",
     "newArea": "New Area",
     "editArea": "Edit Area",
     "deleteArea": "Delete Area",

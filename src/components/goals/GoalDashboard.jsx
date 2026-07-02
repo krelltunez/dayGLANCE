@@ -2378,7 +2378,7 @@ const GoalDetailPanel = ({ goal, projects, onEditGoal, onEditProject, onNewProje
             onClick={() => onEditGoal(goal)}
             className="flex-shrink-0 flex items-center gap-1 text-xs font-medium text-blue-500 hover:text-blue-600 px-1.5 py-1 rounded transition-colors"
           >
-            <Edit2 size={13} /> {t('common.edit')}
+            <Edit2 size={13} /> {t('goals.editGoal')}
           </button>
           <button
             onClick={() => onNewProject(goal.id)}

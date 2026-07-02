@@ -215,8 +215,13 @@ const GoalTimeline = ({ goals, projects, areas = [], selectedGoalId, onSelectGoa
       t('goals.completePct', { pct }),
     ].filter(Boolean).join('\n');
 
+    const dimmed = selectedGoalId && !selected;
     return (
-      <div key={goal.id} className="relative w-full flex items-center" style={{ height: ROW_H }}>
+      <div
+        key={goal.id}
+        className="relative w-full flex items-center transition-opacity duration-200"
+        style={{ height: ROW_H, opacity: dimmed ? 0.32 : 1 }}
+      >
         <button
           onClick={() => onSelectGoal?.(goal.id)}
           className="absolute flex items-center px-1.5"
@@ -308,7 +313,10 @@ const GoalTimeline = ({ goals, projects, areas = [], selectedGoalId, onSelectGoa
           <div style={{ paddingTop: TOP_PAD, paddingBottom: BOTTOM_PAD }}>
             {groups.map((g) => (
               <div key={g.area?.id || '__none__'}>
-                <div className="relative z-10 flex items-center gap-1.5" style={{ height: HEADER_H }}>
+                <div
+                  className="relative z-10 flex items-center gap-1.5 transition-opacity duration-200"
+                  style={{ height: HEADER_H, opacity: selectedGoalId && !g.rows.some(r => r.goal.id === selectedGoalId) ? 0.32 : 1 }}
+                >
                   <span
                     className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                     style={{ background: g.area ? toHex(g.area.color) : (darkMode ? '#6b7280' : '#9ca3af') }}
