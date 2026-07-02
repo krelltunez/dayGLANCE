@@ -8,12 +8,28 @@
  *   - CRUD functions return the new/updated object so callers can chain
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { TASK_COLORS } from '../utils/colorUtils.js';
 
 const useGoalsProjects = () => {
   const [goals, setGoals] = useState([]);
   const [projects, setProjects] = useState([]);
+  // Areas group goals into a category level above them (e.g. "Money/Finance",
+  // "App Development"). Standalone projects are never associated with an area.
+  const [areas, setAreas] = useState([]);
   const [showGoalsDashboard, setShowGoalsDashboard] = useState(false);
+
+  // ── Dashboard UI prefs (device-local, not synced) ────────────────────────────
+  // Which area the dashboard is filtered to: 'all' | 'uncategorized' | areaId.
+  const [goalsAreaFilter, setGoalsAreaFilter] = useState(
+    () => localStorage.getItem('day-planner-goals-area-filter') || 'all'
+  );
+  // Dashboard layout: 'list' (cards) | 'timeline' (temporal chart).
+  const [goalsViewMode, setGoalsViewMode] = useState(
+    () => localStorage.getItem('day-planner-goals-view-mode') || 'list'
+  );
+  useEffect(() => { localStorage.setItem('day-planner-goals-area-filter', goalsAreaFilter); }, [goalsAreaFilter]);
+  useEffect(() => { localStorage.setItem('day-planner-goals-view-mode', goalsViewMode); }, [goalsViewMode]);
 
   const [goalsProjectsEnabled, setGoalsProjectsEnabled] = useState(() => {
     const stored = localStorage.getItem('day-planner-goals-projects-enabled');
@@ -56,6 +72,57 @@ const useGoalsProjects = () => {
     const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-goal-ids') || '{}');
     tombstones[String(id)] = new Date().toISOString();
     localStorage.setItem('day-planner-deleted-goal-ids', JSON.stringify(tombstones));
+  }, []);
+
+  // ── Area CRUD ────────────────────────────────────────────────────────────────
+
+  const addArea = useCallback((fields) => {
+    const now = new Date().toISOString();
+    const newArea = {
+      id: crypto.randomUUID(),
+      name: '',
+      color: TASK_COLORS[0].class,
+      ...fields,
+      createdAt: now,
+      updatedAt: now,
+    };
+    setAreas(prev => [
+      ...prev,
+      { ...newArea, order: newArea.order ?? (prev.reduce((m, a) => Math.max(m, a.order ?? 0), 0) + 10) },
+    ]);
+    return newArea;
+  }, []);
+
+  const updateArea = useCallback((id, updates) => {
+    setAreas(prev => prev.map(a =>
+      a.id === id
+        ? { ...a, ...updates, updatedAt: new Date().toISOString() }
+        : a
+    ));
+  }, []);
+
+  const deleteArea = useCallback((id) => {
+    setAreas(prev => prev.filter(a => a.id !== id));
+    // Detach the area from any goals that referenced it (they become
+    // Uncategorized) rather than leaving a dangling areaId.
+    setGoals(prev => prev.map(g => {
+      if (g.areaId !== id) return g;
+      const { areaId: _removed, ...rest } = g;
+      return { ...rest, updatedAt: new Date().toISOString() };
+    }));
+    // Record tombstone so cloud sync doesn't resurrect the area from other devices
+    const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-area-ids') || '{}');
+    tombstones[String(id)] = new Date().toISOString();
+    localStorage.setItem('day-planner-deleted-area-ids', JSON.stringify(tombstones));
+  }, []);
+
+  // Reassign order (0, 10, 20…) from an ordered list of area ids so the order syncs.
+  const reorderAreas = useCallback((orderedIds) => {
+    const now = new Date().toISOString();
+    setAreas(prev => {
+      const orderMap = new Map(orderedIds.map((id, i) => [id, i * 10]));
+      return prev.map(a => orderMap.has(a.id) ? { ...a, order: orderMap.get(a.id), updatedAt: now } : a);
+    });
   }, []);
 
   // ── Project CRUD ─────────────────────────────────────────────────────────────
@@ -143,9 +210,13 @@ const useGoalsProjects = () => {
   return {
     goals, setGoals,
     projects, setProjects,
+    areas, setAreas,
+    goalsAreaFilter, setGoalsAreaFilter,
+    goalsViewMode, setGoalsViewMode,
     showGoalsDashboard, setShowGoalsDashboard,
     goalsProjectsEnabled, setGoalsProjectsEnabled,
     addGoal, updateGoal, deleteGoal,
+    addArea, updateArea, deleteArea, reorderAreas,
     addProject, updateProject, deleteProject, moveProject,
   };
 };

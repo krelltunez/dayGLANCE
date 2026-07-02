@@ -717,9 +717,13 @@ const DayPlanner = () => {
   const {
     goals, setGoals,
     projects, setProjects,
+    areas, setAreas,
+    goalsAreaFilter, setGoalsAreaFilter,
+    goalsViewMode, setGoalsViewMode,
     showGoalsDashboard, setShowGoalsDashboard,
     goalsProjectsEnabled, setGoalsProjectsEnabled,
     addGoal, updateGoal, deleteGoal,
+    addArea, updateArea, deleteArea, reorderAreas,
     addProject, updateProject, deleteProject, moveProject,
   } = useGoalsProjects();
   const [projectFilter, setProjectFilter] = useState(null);
@@ -1300,14 +1304,14 @@ const DayPlanner = () => {
     setDarkMode, setSyncUrl, setTaskCalendarUrl, setCompletedTaskUids,
     setDailyNotes, setRoutineDefinitions, setTodayRoutines, setRoutinesDate,
     setRemovedTodayRoutineIds, setHabits, setHabitLogs, setHabitsEnabled,
-    setRoutinesEnabled, setGoals, setProjects, setGoalsProjectsEnabled, setDataLoaded,
+    setRoutinesEnabled, setGoals, setProjects, setAreas, setGoalsProjectsEnabled, setDataLoaded,
     setUnscheduledOrderTimestamp,
     // values for saveData
     tasks, unscheduledTasks, recycleBin, recurringTasks, todayRoutines: allTodayRoutines,
     darkMode, syncUrl, taskCalendarUrl, syncRetentionDays, completedTaskUids,
     routineDefinitions, routinesDate, removedTodayRoutineIds,
     habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
-    goals, projects, goalsProjectsEnabled,
+    goals, projects, areas, goalsProjectsEnabled,
     unscheduledOrderTimestamp,
     cloudSyncConfig, cloudSyncInitialDoneRef, suppressTimestampRef,
     setUndoToast,
@@ -1320,7 +1324,7 @@ const DayPlanner = () => {
     tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays,
     completedTaskUids, recurringTasks, routineDefinitions, todayRoutines: allTodayRoutines, routinesDate,
     removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
-    goals, projects, goalsProjectsEnabled,
+    goals, projects, areas, goalsProjectsEnabled,
   });
 
   const { timelineScrolledAway, setTimelineScrolledAway, scrollToCurrentHour, scrollToHour } = useTimelineScroll({
@@ -4892,6 +4896,7 @@ const DayPlanner = () => {
         calendarFilter: JSON.parse(localStorage.getItem('day-planner-calendar-filter') || '[]'),
         goals: JSON.parse(localStorage.getItem('day-planner-goals') || '[]'),
         projects: JSON.parse(localStorage.getItem('day-planner-projects') || '[]'),
+        areas: JSON.parse(localStorage.getItem('day-planner-areas') || '[]'),
         goalsProjectsEnabled: JSON.parse(localStorage.getItem('day-planner-goals-projects-enabled') || 'false'),
       }
     };
@@ -4941,6 +4946,7 @@ const DayPlanner = () => {
       calendarFilter: JSON.parse(localStorage.getItem('day-planner-calendar-filter') || '[]'),
       goals: JSON.parse(localStorage.getItem('day-planner-goals') || '[]'),
       projects: JSON.parse(localStorage.getItem('day-planner-projects') || '[]'),
+      areas: JSON.parse(localStorage.getItem('day-planner-areas') || '[]'),
       goalsProjectsEnabled: JSON.parse(localStorage.getItem('day-planner-goals-projects-enabled') || 'false'),
     }
   });
@@ -5116,6 +5122,7 @@ const DayPlanner = () => {
         if (data.calendarFilter) localStorage.setItem('day-planner-calendar-filter', JSON.stringify(data.calendarFilter));
         if (data.goals) localStorage.setItem('day-planner-goals', JSON.stringify(data.goals));
         if (data.projects) localStorage.setItem('day-planner-projects', JSON.stringify(data.projects));
+        if (data.areas) localStorage.setItem('day-planner-areas', JSON.stringify(data.areas));
         if (data.goalsProjectsEnabled !== undefined) localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
 
         // Reload app to reflect changes
@@ -5755,6 +5762,8 @@ const DayPlanner = () => {
         deletedGoalIds: JSON.parse(localStorage.getItem('day-planner-deleted-goal-ids') || '{}'),
         projects,
         deletedProjectIds: JSON.parse(localStorage.getItem('day-planner-deleted-project-ids') || '{}'),
+        areas,
+        deletedAreaIds: JSON.parse(localStorage.getItem('day-planner-deleted-area-ids') || '{}'),
         goalsProjectsEnabled,
         goalsProjectsEnabledUpdatedAt: localStorage.getItem('day-planner-goals-projects-enabled-updated-at') || null,
         obsidianConfig: obsidianConfig ?? null,
@@ -5904,6 +5913,11 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-projects', JSON.stringify(data.projects));
       setProjects(data.projects);
     }
+    if (data.areas) {
+      localStorage.setItem('day-planner-areas', JSON.stringify(data.areas));
+      setAreas(data.areas);
+    }
+    if (data.deletedAreaIds) localStorage.setItem('day-planner-deleted-area-ids', JSON.stringify(data.deletedAreaIds));
     if (data.goalsProjectsEnabled !== undefined) {
       localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
       setGoalsProjectsEnabled(data.goalsProjectsEnabled);
@@ -9005,11 +9019,15 @@ const DayPlanner = () => {
     // ── Goals & Projects ──────────────────────────────────────────────────────
     goals, setGoals,
     projects, setProjects,
+    areas, setAreas,
+    goalsAreaFilter, setGoalsAreaFilter,
+    goalsViewMode, setGoalsViewMode,
     hgVisibleProjects,
     showGoalsDashboard, setShowGoalsDashboard,
     goalsDashboardFocusId, setGoalsDashboardFocusId,
     goalsProjectsEnabled, setGoalsProjectsEnabled,
     addGoal, updateGoal, deleteGoal,
+    addArea, updateArea, deleteArea, reorderAreas,
     addProject, updateProject, deleteProject, moveProject,
     projectFilter, setProjectFilter,
 

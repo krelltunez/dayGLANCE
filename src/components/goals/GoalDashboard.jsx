@@ -41,6 +41,7 @@ import { dateToString } from '../../utils/taskUtils.js';
 import { calculateGoalProgress } from '../../utils/goalProgress.js';
 import { isProjectStalled } from '../../utils/projectProgress.js';
 import GoalCard from './GoalCard.jsx';
+import GoalTimeline from './GoalTimeline.jsx';
 import { useTranslation } from 'react-i18next';
 import GoalProgress from './GoalProgress.jsx';
 import ProjectCard from '../projects/ProjectCard.jsx';
@@ -119,11 +120,17 @@ function findDefaultActiveIdx(sortedGoals) {
 const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mobile, showLifeGlanceCheckbox = false }) => {
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg, isMobile } =
     useDayPlannerCtx();
-  const { multiUserEnabled, users } = useFeaturesCtx();
+  const { multiUserEnabled, users, areas = [] } = useFeaturesCtx();
   const { t } = useTranslation();
 
   const [title, setTitle] = useState(initial?.title || '');
   const [description, setDescription] = useState(initial?.description || '');
+  const [areaId, setAreaId] = useState(initial?.areaId || '');
+  // New goals default their start date to today; existing goals keep whatever
+  // they have (blank for goals created before this field existed).
+  const [startDate, setStartDate] = useState(
+    initial?.startDate ?? (initial ? '' : dateToString(new Date()))
+  );
   const [targetDate, setTargetDate] = useState(initial?.targetDate || '');
   const [color, setColor] = useState(initial?.color || TASK_COLORS[0].class);
   const [status, setStatus] = useState(initial?.status || 'active');
@@ -139,10 +146,13 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
   // offered for BOTH new goals and existing goals not yet shared.
   const alreadyShared = !!(initial && (initial.source_app === 'app.lifeglance' || initial.synced_to_lifeglance));
 
+  const sortedAreas = [...areas].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const startAfterTarget = !!(startDate && targetDate && startDate > targetDate);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onSave({ title: title.trim(), description: description.trim(), targetDate: targetDate || undefined, color, status, assignedUserSyncIds, trackInLifeGlance: showLifeGlanceCheckbox && !alreadyShared && trackInLifeGlance });
+    onSave({ title: title.trim(), description: description.trim(), areaId: areaId || undefined, startDate: startDate || undefined, targetDate: targetDate || undefined, color, status, assignedUserSyncIds, trackInLifeGlance: showLifeGlanceCheckbox && !alreadyShared && trackInLifeGlance });
   };
 
   return (
@@ -183,6 +193,36 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
         />
       </div>
 
+      {/* Area */}
+      <div className="flex flex-col gap-1">
+        <label className={`text-xs font-medium ${textSecondary}`}>Area</label>
+        <select
+          value={areaId}
+          onChange={e => setAreaId(e.target.value)}
+          className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+            darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'
+          }`}
+        >
+          <option value="">No area</option>
+          {sortedAreas.map(a => (
+            <option key={a.id} value={a.id}>{a.name || 'Untitled area'}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Start date */}
+      <div className="flex flex-col gap-1">
+        <label className={`text-xs font-medium ${textSecondary}`}>Start date</label>
+        <input
+          type="date"
+          value={startDate}
+          onChange={e => setStartDate(e.target.value)}
+          className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+            darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'
+          }`}
+        />
+      </div>
+
       {/* Target date */}
       <div className="flex flex-col gap-1">
         <label className={`text-xs font-medium ${textSecondary}`}>{t('common.targetDate')}</label>
@@ -194,6 +234,9 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
             darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'
           }`}
         />
+        {startAfterTarget && (
+          <p className="text-xs text-amber-500">Start date is after the target date.</p>
+        )}
       </div>
 
       {/* Color */}
@@ -1999,6 +2042,173 @@ const MobileDashboard = ({
 
 // ─── GoalDashboard modal ──────────────────────────────────────────────────────
 
+// ─── Dashboard controls (area filter + view toggle) ───────────────────────────
+
+const GoalControls = ({ onManageAreas }) => {
+  const { darkMode, textSecondary, borderClass } = useDayPlannerCtx();
+  const { areas = [], goalsAreaFilter, setGoalsAreaFilter, goalsViewMode, setGoalsViewMode } = useFeaturesCtx();
+  const sorted = [...areas].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap mb-4">
+      {/* Area filter */}
+      <select
+        value={goalsAreaFilter}
+        onChange={e => setGoalsAreaFilter(e.target.value)}
+        className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'
+        }`}
+      >
+        <option value="all">All areas</option>
+        <option value="uncategorized">Uncategorized</option>
+        {sorted.map(a => (
+          <option key={a.id} value={a.id}>{a.name || 'Untitled area'}</option>
+        ))}
+      </select>
+      <button
+        type="button"
+        onClick={onManageAreas}
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg ${textSecondary} border ${borderClass} ${
+          darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'
+        } transition-colors`}
+      >
+        <FolderOpen size={13} /> Manage areas
+      </button>
+
+      {/* View toggle */}
+      <div className={`ml-auto flex rounded-lg border ${borderClass} overflow-hidden`}>
+        {[
+          { key: 'list', label: 'List', Icon: LayoutDashboard },
+          { key: 'timeline', label: 'Timeline', Icon: LineChart },
+        ].map(({ key, label, Icon }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setGoalsViewMode(key)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              goalsViewMode === key
+                ? 'bg-blue-600 text-white'
+                : `${textSecondary} ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'}`
+            }`}
+          >
+            <Icon size={13} /> {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ─── Manage Areas modal ────────────────────────────────────────────────────────
+
+const ManageAreas = ({ onClose }) => {
+  const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg } = useDayPlannerCtx();
+  const { areas = [], addArea, updateArea, deleteArea, reorderAreas } = useFeaturesCtx();
+  const [paletteForId, setPaletteForId] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const sorted = [...areas].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  const move = (idx, dir) => {
+    const next = [...sorted];
+    const j = idx + dir;
+    if (j < 0 || j >= next.length) return;
+    [next[idx], next[j]] = [next[j], next[idx]];
+    reorderAreas(next.map(a => a.id));
+  };
+
+  return (
+    <form
+      onClick={e => e.stopPropagation()}
+      onSubmit={e => e.preventDefault()}
+      className={`${cardBg} rounded-2xl shadow-2xl w-full max-w-md p-5 flex flex-col gap-4`}
+    >
+      <div className="flex items-center justify-between">
+        <h3 className={`text-base font-semibold ${textPrimary}`}>Manage Areas</h3>
+        <button type="button" onClick={onClose} className={`p-1.5 rounded-lg ${hoverBg}`} aria-label="Close">
+          <X size={16} className={textSecondary} />
+        </button>
+      </div>
+
+      {sorted.length === 0 ? (
+        <p className={`text-xs ${textSecondary} opacity-60`}>No areas yet. Add one to group your goals (e.g. "Money/Finance", "App Development").</p>
+      ) : (
+        <div className="flex flex-col gap-2 max-h-[50vh] overflow-y-auto">
+          {sorted.map((area, idx) => (
+            <div key={area.id} className={`flex flex-col gap-2 p-2 rounded-lg border ${borderClass}`}>
+              <div className="flex items-center gap-2">
+                {/* Color swatch (toggles palette) */}
+                <button
+                  type="button"
+                  onClick={() => setPaletteForId(paletteForId === area.id ? null : area.id)}
+                  className={`w-6 h-6 rounded-full flex-shrink-0 ${area.color || 'bg-blue-500'} ring-1 ring-black/10`}
+                  aria-label="Area color"
+                />
+                {/* Name */}
+                <input
+                  value={area.name}
+                  onChange={e => updateArea(area.id, { name: e.target.value })}
+                  placeholder="Area name"
+                  className={`flex-1 min-w-0 px-2 py-1.5 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    darkMode ? 'bg-gray-700 text-gray-100 placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'
+                  }`}
+                />
+                {/* Reorder */}
+                <button type="button" onClick={() => move(idx, -1)} disabled={idx === 0}
+                  className={`p-1 rounded ${hoverBg} ${textSecondary} disabled:opacity-30`} aria-label="Move up">
+                  <ChevronDown size={14} className="rotate-180" />
+                </button>
+                <button type="button" onClick={() => move(idx, 1)} disabled={idx === sorted.length - 1}
+                  className={`p-1 rounded ${hoverBg} ${textSecondary} disabled:opacity-30`} aria-label="Move down">
+                  <ChevronDown size={14} />
+                </button>
+                {/* Delete */}
+                <button type="button" onClick={() => setConfirmDeleteId(area.id)}
+                  className={`p-1 rounded ${darkMode ? 'text-red-400 hover:bg-red-900/20' : 'text-red-500 hover:bg-red-50'}`} aria-label="Delete area">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+              {/* Palette */}
+              {paletteForId === area.id && (
+                <div className="grid grid-cols-9 gap-2 px-1 pb-1">
+                  {TASK_COLORS.map(c => (
+                    <button
+                      key={c.class}
+                      type="button"
+                      onClick={() => { updateArea(area.id, { color: c.class }); setPaletteForId(null); }}
+                      className={`w-6 h-6 rounded-full ${c.class} transition-transform ${
+                        area.color === c.class ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : 'hover:scale-110'
+                      }`}
+                      aria-label={c.name}
+                    />
+                  ))}
+                </div>
+              )}
+              {/* Inline delete confirm */}
+              {confirmDeleteId === area.id && (
+                <div className="flex items-center gap-2 px-1">
+                  <span className={`text-xs ${textSecondary}`}>Delete this area? Its goals become Uncategorized.</span>
+                  <button type="button" onClick={() => { deleteArea(area.id); setConfirmDeleteId(null); }}
+                    className="ml-auto text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700">Delete</button>
+                  <button type="button" onClick={() => setConfirmDeleteId(null)}
+                    className={`text-xs px-2 py-1 rounded ${hoverBg} ${textSecondary}`}>Cancel</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => addArea({ name: '' })}
+        className={`flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-dashed ${borderClass} ${textSecondary} ${hoverBg} transition-colors`}
+      >
+        <Plus size={15} /> Add area
+      </button>
+    </form>
+  );
+};
+
 const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0, addProjectTrigger = 0 }) => {
   const {
     tasks, setTasks,
@@ -2013,6 +2223,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
   const {
     showGoalsDashboard, setShowGoalsDashboard,
     goals, projects, setProjects,
+    areas = [], goalsAreaFilter, setGoalsAreaFilter, goalsViewMode,
     addGoal, updateGoal, deleteGoal,
     addProject, updateProject,
     isVisibleForUser,
@@ -2023,6 +2234,16 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
   const [projectForm, setProjectForm] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null); // { title, message, onConfirm }
   const [showArchived, setShowArchived] = useState(false);
+  const [showManageAreas, setShowManageAreas] = useState(false);
+
+  // If the saved filter points at an area that no longer exists (deleted on this
+  // or another device), fall back to "All" so the dashboard isn't stuck empty.
+  useEffect(() => {
+    if (goalsAreaFilter && goalsAreaFilter !== 'all' && goalsAreaFilter !== 'uncategorized'
+        && !areas.some(a => a.id === goalsAreaFilter)) {
+      setGoalsAreaFilter('all');
+    }
+  }, [goalsAreaFilter, areas, setGoalsAreaFilter]);
 
   // Show the "Track in lifeGLANCE" checkbox whenever ANY intents transport is
   // enabled — WebDAV, iCloud, OR GLANCEvault — not just WebDAV. emitGoalCreate
@@ -2053,6 +2274,16 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
   const visibleProjects = useMemo(() => projects.filter(isVisibleForUser), [projects, isVisibleForUser]);
   const activeGoals = useMemo(() => visibleGoals.filter(g => g.status !== 'archived'), [visibleGoals]);
   const activeProjects = useMemo(() => visibleProjects.filter(p => p.status !== 'archived'), [visibleProjects]);
+
+  // Area filter (dashboard-level). Standalone projects are area-agnostic and are
+  // NOT filtered — activeProjects is passed through whole so they always show.
+  const filteredGoals = useMemo(() => {
+    if (!goalsAreaFilter || goalsAreaFilter === 'all') return activeGoals;
+    if (goalsAreaFilter === 'uncategorized') {
+      return activeGoals.filter(g => !g.areaId || !areas.some(a => a.id === g.areaId));
+    }
+    return activeGoals.filter(g => g.areaId === goalsAreaFilter);
+  }, [activeGoals, goalsAreaFilter, areas]);
   const archivedGoals = useMemo(() => visibleGoals.filter(g => g.status === 'archived'), [visibleGoals]);
   const archivedProjects = useMemo(() => visibleProjects.filter(p => p.status === 'archived'), [visibleProjects]);
   const archivedCount = archivedGoals.length + archivedProjects.length;
@@ -2148,11 +2379,12 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
       }
       if (goalForm) { setGoalForm(null); return; }
       if (projectForm) { setProjectForm(null); return; }
+      if (showManageAreas) { setShowManageAreas(false); return; }
       if (!embedded) setShowGoalsDashboard(false);
     };
     document.addEventListener('keydown', handler, true); // capture phase
     return () => document.removeEventListener('keydown', handler, true);
-  }, [showGoalsDashboard, embedded, goalForm, projectForm, showAddTask, expandedNotesTaskId,
+  }, [showGoalsDashboard, embedded, goalForm, projectForm, showManageAreas, showAddTask, expandedNotesTaskId,
       setShowAddTask, setShowNewTaskDeadlinePicker, setShowGoalsDashboard, setExpandedNotesTaskId]);
 
   if (!showGoalsDashboard && !embedded) return null;
@@ -2163,14 +2395,27 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
       <>
         {/* Body */}
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-          <MobileDashboard
-            activeGoals={activeGoals}
-            activeProjects={activeProjects}
-            onEditGoal={goal => setGoalForm({ editing: goal })}
-            onEditProject={proj => setProjectForm({ editing: proj, defaultGoalId: null })}
-            onNewProject={defaultGoalId => setProjectForm({ editing: null, defaultGoalId })}
-            isActive={isActive}
-          />
+          <div className="px-3 pt-3 flex-shrink-0">
+            <GoalControls onManageAreas={() => setShowManageAreas(true)} />
+          </div>
+          {goalsViewMode === 'timeline' ? (
+            <div className="flex-1 overflow-y-auto px-3 pb-3">
+              <GoalTimeline
+                goals={filteredGoals}
+                projects={activeProjects}
+                onEditGoal={goal => setGoalForm({ editing: goal })}
+              />
+            </div>
+          ) : (
+            <MobileDashboard
+              activeGoals={filteredGoals}
+              activeProjects={activeProjects}
+              onEditGoal={goal => setGoalForm({ editing: goal })}
+              onEditProject={proj => setProjectForm({ editing: proj, defaultGoalId: null })}
+              onNewProject={defaultGoalId => setProjectForm({ editing: null, defaultGoalId })}
+              isActive={isActive}
+            />
+          )}
           {archivedCount > 0 && (
             <div className={`border-t ${borderClass} flex-shrink-0`}>
               <button
@@ -2235,6 +2480,11 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
             <ProjectForm initial={projectForm.editing} goals={goals} defaultGoalId={projectForm.defaultGoalId} onSave={handleSaveProject} onCancel={() => setProjectForm(null)} mobile />
           </FormOverlay>
         )}
+        {showManageAreas && (
+          <FormOverlay onClose={() => setShowManageAreas(false)} mobile cardBg={cardBg}>
+            <ManageAreas onClose={() => setShowManageAreas(false)} />
+          </FormOverlay>
+        )}
         {confirmDialog && (
           <ConfirmDialog title={confirmDialog.title} message={confirmDialog.message} onConfirm={confirmDialog.onConfirm} onCancel={() => setConfirmDialog(null)} />
         )}
@@ -2296,8 +2546,16 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
           {/* Body */}
           <div className="flex-1 overflow-y-auto overflow-x-hidden">
             <div className="p-6">
-              <DesktopDashboard
-                  activeGoals={activeGoals}
+              <GoalControls onManageAreas={() => setShowManageAreas(true)} />
+              {goalsViewMode === 'timeline' ? (
+                <GoalTimeline
+                  goals={filteredGoals}
+                  projects={activeProjects}
+                  onEditGoal={goal => setGoalForm({ editing: goal })}
+                />
+              ) : (
+                <DesktopDashboard
+                  activeGoals={filteredGoals}
                   activeProjects={activeProjects}
                   onEditGoal={goal => setGoalForm({ editing: goal })}
                   onEditProject={proj => setProjectForm({ editing: proj, defaultGoalId: null })}
@@ -2305,6 +2563,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
                   goalCardRefs={goalCardRefs}
                   projectCardRefs={projectCardRefs}
                 />
+              )}
             </div>
 
             {/* Archived section */}
@@ -2416,6 +2675,13 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
             onCancel={() => setProjectForm(null)}
             mobile={isMobile}
           />
+        </FormOverlay>
+      )}
+
+      {/* Manage Areas overlay */}
+      {showManageAreas && (
+        <FormOverlay onClose={() => setShowManageAreas(false)} mobile={isMobile} cardBg={cardBg}>
+          <ManageAreas onClose={() => setShowManageAreas(false)} />
         </FormOverlay>
       )}
 
