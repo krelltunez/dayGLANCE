@@ -161,7 +161,35 @@ That's it — tap the tag, the task is marked complete silently.
 
 **Confirming it worked (optional):** add a RESULT receiver (below) and Flash `%result` — a completion returns `{"success":true,...}`, or `{"success":false,"error":"no matching task"}` if the title didn't match anything.
 
-> **App must be alive:** COMPLETE is a broadcast, so dayGLANCE has to be running (backgrounded is fine). If it's been swiped away, the tap is dropped. If you need it to work even when the app is closed, either set **Target: Activity** (opens the app to complete it) or use the WebDAV transport.
+> **App must be alive:** COMPLETE as a **broadcast** needs dayGLANCE to be running (backgrounded is fine). If it's been swiped away, the tap is dropped. To make it work even when the app is killed, see the next section.
+
+---
+
+## Making an action reliable when the app may be closed
+
+A **broadcast** is silent and non-disruptive, but only works while dayGLANCE is alive (backgrounded counts). An **Activity** intent always works — it launches the app on a cold start and carries the action with it — but it foregrounds the app every time. Pick based on how sure you are the app is running:
+
+### Simplest: send the action as an Activity intent
+
+If you don't mind dayGLANCE briefly coming to the foreground, just set **Target: Activity** (Package `com.dayglance.app`) on the COMPLETE/CREATE intent. On a killed app it cold-starts and runs the action on startup; on a running app it foregrounds and runs it immediately. Add **App → Go Home** afterward if you want to bounce back out.
+
+> Requires the cold-start intent handling shipped in versionCode 141+. On earlier builds an Activity-target COMPLETE is dropped when the app is killed (only OPEN opens the app, and even then it ignores the payload).
+
+### Silent-when-possible: probe first, foreground only if dead
+
+To stay silent when the app is alive and only foreground it when it's actually been killed, use dayGLANCE's RESULT broadcast as a liveness probe — it only replies if the app is running. There's no reliable way for Tasker to detect a *backgrounded-but-alive* process directly, so let the app answer instead.
+
+**Sender task:**
+1. **Variable Clear** `%DGACK` — use a **global** (all-caps) name so the separate RESULT receiver task can set it; a local variable won't cross tasks.
+2. **Send Intent** → your action (e.g. COMPLETE), **Target: Broadcast Receiver**, `payload:{...}`
+3. **Wait** ~1200 ms (or **Task → Wait Until** `%DGACK ~ 1` with a timeout)
+4. **If** `%DGACK` **isn't set** (app was dead) → **Send Intent** → the *same* action, **Target: Activity**. Optionally **App → Go Home** after a short Wait.
+
+**Receiver profile** (separate): **Event → Intent Received**, Action `app.dayglance.RESULT` → **Variable Set** `%DGACK` to `1`.
+
+**Why it can't double-complete:** the broadcast is stored once and drained once. If the app was alive it completes immediately and acks, so you skip the Activity send. If it was dead there's no ack, and the Activity send boots the app and drains the stored action — and since both intents carry the *identical* payload, even overlap is harmless (a second COMPLETE just returns "already complete"). Tune the Wait so a slow-but-alive app still acks in time.
+
+This pattern makes OPEN unnecessary for *doing* things — the Activity form of the action is both the wake and the work. Use OPEN only when showing a specific tab is the actual goal.
 
 ---
 
