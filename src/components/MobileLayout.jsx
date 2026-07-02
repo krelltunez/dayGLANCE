@@ -465,6 +465,7 @@ const MobileLayout = () => {
 
   const [addGoalTrigger, setAddGoalTrigger] = useState(0);
   const [addProjectTrigger, setAddProjectTrigger] = useState(0);
+  const [addAreaTrigger, setAddAreaTrigger] = useState(0);
   const [dailyStatsHabitsCollapsed, setDailyStatsHabitsCollapsed] = useState(true);
   const [dailyStatsAllTimeCollapsed, setDailyStatsAllTimeCollapsed] = useState(true);
 
@@ -638,6 +639,13 @@ const MobileLayout = () => {
                   </h2>
                 </div>
                 <div className="flex items-center gap-1 px-4 py-2">
+                  <button
+                    onClick={() => setAddAreaTrigger(v => v + 1)}
+                    className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-violet-600 text-white rounded-lg active:bg-violet-700 transition-colors"
+                  >
+                    <FolderOpen size={14} strokeWidth={2.5} />
+                    <span className="text-xs font-medium">{t('common.addArea')}</span>
+                  </button>
                   <button
                     onClick={() => setAddGoalTrigger(v => v + 1)}
                     className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
@@ -1119,7 +1127,7 @@ const MobileLayout = () => {
 
             {/* GoalDashboard stays mounted to avoid expensive remount on every tab switch */}
             <div className={`flex flex-col flex-1 min-h-0 overflow-hidden ${mobileActiveTab === 'goals' ? '' : 'hidden'}`}>
-              <GoalDashboard embedded isActive={mobileActiveTab === 'goals'} addGoalTrigger={addGoalTrigger} addProjectTrigger={addProjectTrigger} />
+              <GoalDashboard embedded isActive={mobileActiveTab === 'goals'} addGoalTrigger={addGoalTrigger} addProjectTrigger={addProjectTrigger} addAreaTrigger={addAreaTrigger} />
             </div>
 
 

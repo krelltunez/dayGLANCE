@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { TAILWIND_TO_HEX } from '../../utils/colorUtils.js';
 import { calculateGoalProgress } from '../../utils/goalProgress.js';
@@ -6,9 +7,13 @@ import { calculateGoalProgress } from '../../utils/goalProgress.js';
 /** Hex value for a Tailwind bg-* class, falling back to blue. */
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
 
-/** Scale a #rrggbb hex toward black by `amt` (0..1); returns an rgb() string.
- *  Used to darken bar colours enough that white on-bar text stays legible for
- *  every palette hue, including light ones like yellow. */
+/** Blend a #rrggbb hex toward white by `amt` (0..1); returns an rgb() string. */
+const lighten = (hex, amt) => {
+  const c = (i) => { const v = parseInt(hex.slice(i, i + 2), 16); return Math.round(v + (255 - v) * amt); };
+  return `rgb(${c(1)}, ${c(3)}, ${c(5)})`;
+};
+/** Blend a #rrggbb hex toward black by `amt` (0..1); returns an rgb() string.
+ *  Used for the text-pill backgrounds so labels keep contrast on any bar. */
 const darken = (hex, amt) => {
   const f = 1 - amt;
   const c = (i) => Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * f)));
@@ -19,8 +24,6 @@ const darken = (hex, amt) => {
 // background instead of fading to a hardcoded colour, so it works in any theme.
 const OPEN_ENDED_MASK = 'linear-gradient(to right, #000 0%, #000 55%, transparent 100%)';
 
-// Period presets shown along the top. `months` is the width of the window that
-// starts at the first day of the current month (the fixed left edge).
 const PERIODS = [
   { key: '1m', label: '1M', months: 1 },
   { key: '3m', label: '3M', months: 3 },
@@ -31,39 +34,33 @@ const PERIODS = [
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-// Vertical breathing room: space above the first bar, and above the month
-// labels below the last bar.
-const TOP_PAD = 24;
-const BOTTOM_PAD = 30;
-const ROW_H = 44;   // per-goal row height (px)
-const BAR_H = 28;   // bar height (px)
-const CHAR_PX = 6.4; // rough width of a text-xs character, for label-fit estimate
+const TOP_PAD = 24;     // space above the first row
+const BOTTOM_PAD = 30;  // space for the month labels below the last row
+const ROW_H = 44;       // per-goal row height (px)
+const BAR_H = 28;       // bar height (px)
+const HEADER_H = 30;    // area group header height (px)
+const CHAR_PX = 5.7;    // rough width of a pill character, for label-fit estimates
 
-/** Parse a goal's effective start: explicit startDate ('YYYY-MM-DD') or, for
- *  goals created before the field existed, its createdAt timestamp. */
 const goalStartMs = (goal) => {
   if (goal.startDate) return new Date(goal.startDate + 'T00:00:00').getTime();
   if (goal.createdAt) return new Date(goal.createdAt).getTime();
   return null;
 };
-/** Parse a goal's target date to ms, or null when it has none (open-ended). */
 const goalEndMs = (goal) => (goal.targetDate ? new Date(goal.targetDate + 'T00:00:00').getTime() : null);
 
 /**
- * Temporal (Gantt-style) view of goals. Each goal is a horizontal bar spanning
- * its start → target date, coloured with the goal's colour, whose fill acts as a
- * completion fuel gauge. The window's left edge is fixed at the first day of the
- * current month; the period selector zooms the right edge out (1M–2Y). The view
- * is static (no horizontal scroll) — bars are clipped to the window. The goal
- * title sits inside its bar, or just outside when the bar is too short to hold it.
+ * Temporal (Gantt/roadmap) view of goals grouped by Area. Each goal is a bar
+ * from its start → target date: the remaining portion is a light tint of the
+ * goal's colour and the completed portion is the full swatch colour (a fuel
+ * gauge). Labels ride in darker pills so they stay legible on any bar. The left
+ * edge is fixed at the current month; the period selector zooms out (1M–2Y).
  */
-const GoalTimeline = ({ goals, projects, onEditGoal }) => {
+const GoalTimeline = ({ goals, projects, areas = [], onEditGoal }) => {
   const { darkMode, textPrimary, textSecondary, tasks, unscheduledTasks, isMobile } = useDayPlannerCtx();
+  const { t } = useTranslation();
   const [periodKey, setPeriodKey] = useState('6m');
   const period = PERIODS.find(p => p.key === periodKey) || PERIODS[2];
 
-  // Measured chart width, so we can decide per-bar whether the title fits inside
-  // and keep the right edge from being clipped.
   const chartRef = useRef(null);
   const [chartW, setChartW] = useState(0);
   useEffect(() => {
@@ -78,36 +75,42 @@ const GoalTimeline = ({ goals, projects, onEditGoal }) => {
 
   const allTasks = useMemo(() => [...(tasks || []), ...(unscheduledTasks || [])], [tasks, unscheduledTasks]);
 
-  // Window bounds: [first day of current month, +N months). Computed once per
-  // render from `now`; the day granularity is enough for a month-scale chart.
-  const { leftEdge, span, monthTicks } = useMemo(() => {
+  const { leftEdge, span, monthTicks, nowYear } = useMemo(() => {
     const now = new Date();
     const left = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
     const right = new Date(now.getFullYear(), now.getMonth() + period.months, 1, 0, 0, 0, 0);
-    const leftMs = left.getTime();
-    const rightMs = right.getTime();
     const ticks = [];
     for (let i = 0; i <= period.months; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
       ticks.push({ ms: d.getTime(), month: d.getMonth(), year: d.getFullYear() });
     }
-    return { leftEdge: leftMs, rightEdge: rightMs, span: rightMs - leftMs, monthTicks: ticks };
+    return { leftEdge: left.getTime(), span: right.getTime() - left.getTime(), monthTicks: ticks, nowYear: now.getFullYear() };
   }, [period.months]);
 
-  // Fraction (0..1) of the window a given timestamp sits at.
   const frac = (ms) => Math.max(0, Math.min(1, (ms - leftEdge) / span));
   const rightEdgeMs = leftEdge + span;
 
-  // Month-axis density. Narrow (mobile) widths crowd fast, so thin the labels
-  // out sooner there. Gridlines are drawn only at labeled months (below), so the
-  // axis and the vertical lines always agree.
   let labelEvery;
   if (period.months <= 6) labelEvery = 1;
-  else if (period.months <= 12) labelEvery = isMobile ? 2 : 1;   // 1Y: every other month on mobile
-  else labelEvery = isMobile ? 4 : 3;                             // 2Y: quarterly (every 4 on mobile)
+  else if (period.months <= 12) labelEvery = isMobile ? 2 : 1;
+  else labelEvery = isMobile ? 4 : 3;
 
-  // Build per-goal bar geometry, keeping only goals whose span intersects the
-  // window. Sorted by start so bars cascade top→bottom.
+  // Short date like "Dec 20", adding the year only when it isn't the current one.
+  const fmtDate = (ymd) => {
+    const d = new Date(ymd + 'T00:00:00');
+    const base = `${MONTH_ABBR[d.getMonth()]} ${d.getDate()}`;
+    return d.getFullYear() === nowYear ? base : `${base} '${String(d.getFullYear()).slice(2)}`;
+  };
+  const daysLabel = (goal) => {
+    if (!goal.targetDate) return null;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const diff = Math.ceil((new Date(goal.targetDate + 'T00:00:00') - today) / 86400000);
+    if (diff === 0) return t('goals.dueToday');
+    if (diff < 0) return t('goals.daysOverdue', { count: Math.abs(diff) });
+    return t('goals.daysLeft', { count: diff });
+  };
+
+  // Per-goal geometry + metadata, in-range only, sorted by start.
   const rows = useMemo(() => {
     const built = [];
     for (const goal of goals) {
@@ -119,10 +122,8 @@ const GoalTimeline = ({ goals, projects, onEditGoal }) => {
         ? effectiveStart <= rightEdgeMs
         : effectiveStart <= rightEdgeMs && endMs >= leftEdge;
       if (!intersects) continue;
-
       const sPct = frac(Math.min(effectiveStart, rightEdgeMs)) * 100;
       const ePct = (openEnded ? 1 : frac(endMs)) * 100;
-      const progress = calculateGoalProgress(goal.id, projects, allTasks);
       built.push({
         goal,
         leftPct: sPct,
@@ -130,21 +131,137 @@ const GoalTimeline = ({ goals, projects, onEditGoal }) => {
         clippedLeft: startMs != null && startMs < leftEdge,
         clippedRight: !openEnded && endMs > rightEdgeMs,
         openEnded,
-        progress,
+        progress: calculateGoalProgress(goal.id, projects, allTasks),
+        projCount: projects.filter(p => p.goalId === goal.id && p.status !== 'archived').length,
       });
     }
     return built.sort((a, b) => (goalStartMs(a.goal) ?? leftEdge) - (goalStartMs(b.goal) ?? leftEdge));
   }, [goals, projects, allTasks, leftEdge, span]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Group rows by area (ordered), with an unassigned group last.
+  const groups = useMemo(() => {
+    const sortedAreas = [...areas].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const byArea = new Map();
+    const noArea = [];
+    for (const r of rows) {
+      const aid = r.goal.areaId;
+      const area = aid && sortedAreas.find(a => a.id === aid);
+      if (area) { if (!byArea.has(aid)) byArea.set(aid, []); byArea.get(aid).push(r); }
+      else noArea.push(r);
+    }
+    const gs = [];
+    for (const a of sortedAreas) { const rs = byArea.get(a.id); if (rs && rs.length) gs.push({ area: a, rows: rs }); }
+    if (noArea.length) gs.push({ area: null, rows: noArea });
+    return gs;
+  }, [rows, areas]);
+
   const hiddenCount = goals.length - rows.length;
   const gridColor = darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
-  const chartHeight = TOP_PAD + rows.length * ROW_H + BOTTOM_PAD;
+
+  const renderBar = (row) => {
+    const { goal, leftPct, widthPct, clippedLeft, clippedRight, openEnded, progress, projCount } = row;
+    const hex = toHex(goal.color);
+    const pct = Math.round(progress * 100);
+    const trackColor = lighten(hex, 0.5);   // remaining portion: light tint of swatch
+    const fillColor = hex;                    // completed portion: true swatch colour
+    const pillBg = darken(hex, 0.45);         // darker same-family bg → white text reads
+
+    const dLabel = daysLabel(goal);
+    const projLabel = t('goals.projectCount', { count: projCount });
+    const endLabel = openEnded ? null : (goal.targetDate ? fmtDate(goal.targetDate) : null);
+    const pctLabel = `${pct}%`;
+
+    const leftText = [goal.title, dLabel, projLabel].filter(Boolean).join('  ·  ');
+    const rightText = [endLabel, pctLabel].filter(Boolean).join('  ·  ');
+    const combinedText = openEnded
+      ? [goal.title, projLabel, pctLabel].filter(Boolean).join('  ·  ')
+      : [leftText, rightText].filter(Boolean).join('  ·  ');
+
+    const barWpx = (widthPct / 100) * chartW;
+    const barLeftPx = (leftPct / 100) * chartW;
+    const est = (s) => s.length * CHAR_PX + 18;
+    const estL = est(leftText), estR = est(rightText), estC = est(combinedText);
+
+    // Placement: split (two pills inside) → combined inside → combined outside.
+    let mode, outLeft = 0, outAlign = 'left';
+    if (!openEnded && chartW > 0 && barWpx >= estL + estR + 12) {
+      mode = 'split';
+    } else if (chartW === 0 || barWpx >= estC + 6) {
+      mode = 'inside';
+    } else {
+      mode = 'outside';
+      const rightPos = barLeftPx + barWpx + 6;
+      if (rightPos + estC <= chartW) { outLeft = rightPos; outAlign = 'left'; }
+      else if (barLeftPx - estC - 6 >= 0) { outLeft = barLeftPx - 6; outAlign = 'right'; }
+      else { mode = 'inside'; } // nowhere to go — clip inside
+    }
+
+    const Pill = ({ children, className = '' }) => (
+      <span
+        className={`relative z-10 inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium text-white whitespace-nowrap ${className}`}
+        style={{ background: pillBg }}
+      >
+        {children}
+      </span>
+    );
+
+    const tooltip = [
+      goal.title,
+      goal.startDate ? `${t('goals.start')}: ${fmtDate(goal.startDate)}` : null,
+      goal.targetDate ? `${t('goals.target')}: ${fmtDate(goal.targetDate)}` : t('goals.noTarget'),
+      dLabel,
+      projLabel,
+      t('goals.completePct', { pct }),
+    ].filter(Boolean).join('\n');
+
+    return (
+      <div key={goal.id} className="relative w-full flex items-center" style={{ height: ROW_H }}>
+        <button
+          onClick={() => onEditGoal?.(goal)}
+          className="absolute flex items-center px-1.5"
+          style={{
+            left: `${leftPct}%`,
+            width: `${widthPct}%`,
+            height: BAR_H,
+            justifyContent: mode === 'split' ? 'space-between' : 'flex-start',
+            background: trackColor,
+            borderTopLeftRadius: clippedLeft ? 0 : 8,
+            borderBottomLeftRadius: clippedLeft ? 0 : 8,
+            borderTopRightRadius: clippedRight || openEnded ? 0 : 8,
+            borderBottomRightRadius: clippedRight || openEnded ? 0 : 8,
+            borderLeft: clippedLeft ? `2px dotted ${fillColor}` : 'none',
+            overflow: 'hidden',
+            ...(openEnded ? { maskImage: OPEN_ENDED_MASK, WebkitMaskImage: OPEN_ENDED_MASK } : {}),
+          }}
+          title={tooltip}
+        >
+          {/* Completion fill (fuel gauge) */}
+          <div className="absolute inset-y-0 left-0 pointer-events-none" style={{ width: `${pct}%`, background: fillColor }} />
+          {mode === 'split' && (<><Pill>{leftText}</Pill><Pill>{rightText}</Pill></>)}
+          {mode === 'inside' && (<Pill className="max-w-full overflow-hidden"><span className="truncate">{combinedText}</span></Pill>)}
+        </button>
+
+        {mode === 'outside' && chartW > 0 && (
+          <button
+            onClick={() => onEditGoal?.(goal)}
+            className="absolute z-10"
+            style={outAlign === 'left'
+              ? { left: outLeft, top: '50%', transform: 'translateY(-50%)' }
+              : { left: outLeft, top: '50%', transform: 'translate(-100%, -50%)' }}
+            title={tooltip}
+          >
+            <Pill>{combinedText}</Pill>
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col gap-3">
       {/* Period selector */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        <span className={`text-xs font-medium ${textSecondary} mr-1`}>Range</span>
+        <span className={`text-xs font-medium ${textSecondary} mr-1`}>{t('goals.range')}</span>
         {PERIODS.map(p => (
           <button
             key={p.key}
@@ -162,30 +279,21 @@ const GoalTimeline = ({ goals, projects, onEditGoal }) => {
 
       {rows.length === 0 ? (
         <div className={`text-sm ${textSecondary} opacity-60 py-8 text-center`}>
-          No goals fall within this range.
+          {t('goals.noGoalsInRange')}
         </div>
       ) : (
-        <div ref={chartRef} className="relative w-full" style={{ height: chartHeight }}>
-          {/* Month gridlines + labels + today marker (behind the bars) */}
+        <div ref={chartRef} className="relative w-full">
+          {/* Month gridlines + labels (behind the bars) */}
           <div className="pointer-events-none absolute inset-0">
             {monthTicks.map((tick, i) => {
-              // Only labeled months get a gridline, so the vertical lines match
-              // the labels in the bottom row (no orphan lines between labels).
               if (i % labelEvery !== 0) return null;
               const x = frac(tick.ms) * 100;
               const atRightEdge = x > 99;
               return (
-                <div
-                  key={tick.ms}
-                  className="absolute"
-                  style={{ left: `${x}%`, top: TOP_PAD, bottom: BOTTOM_PAD, width: 1, background: gridColor }}
-                >
+                <div key={tick.ms} className="absolute" style={{ left: `${x}%`, top: TOP_PAD, bottom: BOTTOM_PAD, width: 1, background: gridColor }}>
                   <span
                     className={`absolute text-[10px] ${textSecondary} opacity-70 whitespace-nowrap`}
-                    style={{
-                      bottom: -BOTTOM_PAD + 8,
-                      ...(atRightEdge ? { right: 2, textAlign: 'right' } : { left: 2 }),
-                    }}
+                    style={{ bottom: -BOTTOM_PAD + 8, ...(atRightEdge ? { right: 2, textAlign: 'right' } : { left: 2 }) }}
                   >
                     {MONTH_ABBR[tick.month]}{tick.month === 0 ? ` '${String(tick.year).slice(2)}` : ''}
                   </span>
@@ -194,109 +302,29 @@ const GoalTimeline = ({ goals, projects, onEditGoal }) => {
             })}
           </div>
 
-          {/* Bars */}
-          <div className="absolute left-0 right-0" style={{ top: TOP_PAD }}>
-            {rows.map(({ goal, leftPct, widthPct, clippedLeft, clippedRight, openEnded, progress }) => {
-              const hex = toHex(goal.color);
-              const pct = Math.round(progress * 100);
-              // Whole bar is the exact picker colour (so a 0% bar reads true to the
-              // swatch); the completed portion deepens to a slightly darker shade as
-              // the fuel gauge. Keeps white text legible on both.
-              const trackColor = hex;                 // remaining portion = exact picker colour
-              const fillColor = darken(hex, 0.26);    // completed portion: deeper shade
-              const textShadow = '0 1px 2px rgba(0,0,0,0.4)';
-              const barLeftPx = (leftPct / 100) * chartW;
-              const barWpx = (widthPct / 100) * chartW;
-              const titlePx = goal.title.length * CHAR_PX + 18;
-              // Decide title placement. Inside when the bar can hold title + %,
-              // otherwise just outside (right if it fits, else left of the bar).
-              let placement = 'inside';
-              let outsideLeftPx = 0;
-              let outsideAlign = 'left';
-              if (chartW > 0 && barWpx < titlePx + 34) {
-                const rightPos = barLeftPx + barWpx + 6;
-                if (rightPos + titlePx <= chartW) {
-                  placement = 'right'; outsideLeftPx = rightPos; outsideAlign = 'left';
-                } else if (barLeftPx - titlePx - 6 >= 0) {
-                  placement = 'left'; outsideLeftPx = barLeftPx - 6; outsideAlign = 'right';
-                } else {
-                  placement = 'inside';
-                }
-              }
-              const outsideLabel = `${goal.title} · ${pct}%`;
-              return (
-                <div key={goal.id} className="relative w-full flex items-center" style={{ height: ROW_H }}>
-                  {/* Bar */}
-                  <button
-                    onClick={() => onEditGoal?.(goal)}
-                    className="absolute flex items-center gap-1.5 px-2"
-                    style={{
-                      left: `${leftPct}%`,
-                      width: `${widthPct}%`,
-                      height: BAR_H,
-                      justifyContent: openEnded ? 'flex-start' : 'space-between',
-                      background: trackColor,
-                      borderTopLeftRadius: clippedLeft ? 0 : 8,
-                      borderBottomLeftRadius: clippedLeft ? 0 : 8,
-                      borderTopRightRadius: clippedRight || openEnded ? 0 : 8,
-                      borderBottomRightRadius: clippedRight || openEnded ? 0 : 8,
-                      borderLeft: clippedLeft ? `2px dotted ${fillColor}` : 'none',
-                      overflow: 'hidden',
-                      ...(openEnded ? { maskImage: OPEN_ENDED_MASK, WebkitMaskImage: OPEN_ENDED_MASK } : {}),
-                    }}
-                    title={`${goal.title} — ${pct}% complete`}
-                  >
-                    {/* Completion fill (fuel gauge) */}
-                    <div
-                      className="absolute inset-y-0 left-0 pointer-events-none"
-                      style={{ width: `${pct}%`, background: fillColor }}
-                    />
-                    {placement === 'inside' && (
-                      openEnded ? (
-                        // Open-ended bars fade out on the right, so keep the title
-                        // and % grouped at the left where the bar is fully opaque.
-                        <span className="relative z-10 flex items-center gap-1.5 min-w-0">
-                          <span className="text-xs font-medium text-white truncate" style={{ textShadow }}>{goal.title}</span>
-                          <span className="text-[10px] font-semibold tabular-nums text-white flex-shrink-0" style={{ textShadow }}>{pct}%</span>
-                        </span>
-                      ) : (
-                        <>
-                          <span className="relative z-10 text-xs font-medium text-white truncate" style={{ textShadow }}>
-                            {goal.title}
-                          </span>
-                          <span className="relative z-10 text-[10px] font-semibold tabular-nums text-white flex-shrink-0" style={{ textShadow }}>
-                            {pct}%
-                          </span>
-                        </>
-                      )
-                    )}
-                  </button>
-
-                  {/* Outside label for short bars */}
-                  {placement !== 'inside' && chartW > 0 && (
-                    <button
-                      onClick={() => onEditGoal?.(goal)}
-                      className={`absolute text-xs font-medium whitespace-nowrap ${textPrimary} hover:text-blue-500 transition-colors`}
-                      style={
-                        outsideAlign === 'left'
-                          ? { left: outsideLeftPx, top: '50%', transform: 'translateY(-50%)' }
-                          : { left: outsideLeftPx, top: '50%', transform: 'translate(-100%, -50%)' }
-                      }
-                      title={outsideLabel}
-                    >
-                      {outsideLabel}
-                    </button>
-                  )}
+          {/* Grouped rows */}
+          <div style={{ paddingTop: TOP_PAD, paddingBottom: BOTTOM_PAD }}>
+            {groups.map((g) => (
+              <div key={g.area?.id || '__none__'}>
+                <div className="relative z-10 flex items-center gap-1.5" style={{ height: HEADER_H }}>
+                  <span
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ background: g.area ? toHex(g.area.color) : (darkMode ? '#6b7280' : '#9ca3af') }}
+                  />
+                  <span className={`text-xs font-semibold ${textPrimary} truncate`}>
+                    {g.area ? (g.area.name || t('goals.untitledArea')) : t('goals.noDefinedArea')}
+                  </span>
                 </div>
-              );
-            })}
+                {g.rows.map(renderBar)}
+              </div>
+            ))}
           </div>
         </div>
       )}
 
       {hiddenCount > 0 && (
         <p className={`text-xs ${textSecondary} opacity-60`}>
-          {hiddenCount} goal{hiddenCount === 1 ? '' : 's'} outside this range (ended before the current month or start beyond the window).
+          {t('goals.goalsOutsideRange', { count: hiddenCount })}
         </p>
       )}
     </div>
