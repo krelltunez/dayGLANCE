@@ -55,7 +55,7 @@ const goalEndMs = (goal) => (goal.targetDate ? new Date(goal.targetDate + 'T00:0
  * gauge). Labels ride in darker pills so they stay legible on any bar. The left
  * edge is fixed at the current month; the period selector zooms out (1M–2Y).
  */
-const GoalTimeline = ({ goals, projects, areas = [], onEditGoal }) => {
+const GoalTimeline = ({ goals, projects, areas = [], selectedGoalId, onSelectGoal }) => {
   const { darkMode, textPrimary, textSecondary, tasks, unscheduledTasks, isMobile } = useDayPlannerCtx();
   const { t } = useTranslation();
   const [periodKey, setPeriodKey] = useState('6m');
@@ -161,6 +161,7 @@ const GoalTimeline = ({ goals, projects, areas = [], onEditGoal }) => {
   const renderBar = (row) => {
     const { goal, leftPct, widthPct, clippedLeft, clippedRight, openEnded, progress, projCount } = row;
     const hex = toHex(goal.color);
+    const selected = goal.id === selectedGoalId;
     const pct = Math.round(progress * 100);
     const trackColor = lighten(hex, 0.5);   // remaining portion: light tint of swatch
     const fillColor = hex;                    // completed portion: true swatch colour
@@ -217,7 +218,7 @@ const GoalTimeline = ({ goals, projects, areas = [], onEditGoal }) => {
     return (
       <div key={goal.id} className="relative w-full flex items-center" style={{ height: ROW_H }}>
         <button
-          onClick={() => onEditGoal?.(goal)}
+          onClick={() => onSelectGoal?.(goal.id)}
           className="absolute flex items-center px-1.5"
           style={{
             left: `${leftPct}%`,
@@ -231,6 +232,7 @@ const GoalTimeline = ({ goals, projects, areas = [], onEditGoal }) => {
             borderBottomRightRadius: clippedRight || openEnded ? 0 : 8,
             borderLeft: clippedLeft ? `2px dotted ${fillColor}` : 'none',
             overflow: 'hidden',
+            boxShadow: selected ? `0 0 0 2px ${darkMode ? '#0f172a' : '#ffffff'}, 0 0 0 4px ${fillColor}` : 'none',
             ...(openEnded ? { maskImage: OPEN_ENDED_MASK, WebkitMaskImage: OPEN_ENDED_MASK } : {}),
           }}
           title={tooltip}
@@ -243,7 +245,7 @@ const GoalTimeline = ({ goals, projects, areas = [], onEditGoal }) => {
 
         {mode === 'outside' && chartW > 0 && (
           <button
-            onClick={() => onEditGoal?.(goal)}
+            onClick={() => onSelectGoal?.(goal.id)}
             className="absolute z-10"
             style={outAlign === 'left'
               ? { left: outLeft, top: '50%', transform: 'translateY(-50%)' }

@@ -2283,6 +2283,129 @@ const AreaForm = ({ initial, onClose }) => {
   );
 };
 
+// ─── Goal detail panel (roadmap) ──────────────────────────────────────────────
+// Shown beneath the roadmap chart when a bar is clicked: the goal's header card
+// (edit / add project) plus its child ProjectCards — identical to the List view,
+// including inline tasks. Supports drag-reorder of projects WITHIN this goal only.
+
+const GoalDetailPanel = ({ goal, projects, onEditGoal, onEditProject, onNewProject, onClose }) => {
+  const { darkMode, borderClass, textPrimary, textSecondary, hoverBg, isMobile } = useDayPlannerCtx();
+  const { moveProject } = useFeaturesCtx();
+  const { t } = useTranslation();
+
+  const childProjects = useMemo(
+    () => sortByOrder(projects.filter(p => p.goalId === goal.id && p.status !== 'archived')),
+    [projects, goal.id]
+  );
+  const activeProjs = childProjects.filter(p => p.status !== 'completed');
+  const doneProjs = childProjects.filter(p => p.status === 'completed');
+
+  // ── Within-goal reorder: HTML5 drag (desktop) + touch drag (iOS) ─────────────
+  const [dragId, setDragId] = useState(null);
+  const [beforeId, setBeforeId] = useState(null);
+  const touchRef = useRef({ active: false, projId: null, beforeId: null });
+
+  const endDrag = useCallback(() => { setDragId(null); setBeforeId(null); }, []);
+  const startDrag = useCallback((e, id) => {
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => setDragId(id), 0);
+  }, []);
+  const finishTouch = useCallback(() => {
+    const st = touchRef.current;
+    touchRef.current = { active: false, projId: null, beforeId: null };
+    if (st.active && st.projId) moveProject(st.projId, goal.id, st.beforeId || null);
+    endDrag();
+  }, [moveProject, goal.id, endDrag]);
+  const startTouch = useCallback((id) => () => {
+    touchRef.current = { active: true, projId: id, beforeId: null };
+    setDragId(id);
+    const onMove = (me) => {
+      const st = touchRef.current;
+      if (!st.active) return;
+      me.preventDefault();
+      const tch = me.touches[0];
+      if (!tch) return;
+      const el = document.elementFromPoint(tch.clientX, tch.clientY);
+      const target = el?.closest('[data-detail-before]');
+      const b = target?.getAttribute('data-detail-before');
+      const nb = b && b !== st.projId ? b : null;
+      st.beforeId = nb;
+      setBeforeId(nb);
+    };
+    const preventDrag = (de) => de.preventDefault();
+    const onEnd = () => {
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onEnd);
+      document.removeEventListener('dragstart', preventDrag);
+      finishTouch();
+    };
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+    document.addEventListener('touchcancel', onEnd);
+    document.addEventListener('dragstart', preventDrag);
+  }, [finishTouch]);
+
+  const dragHandle = (proj) => ({
+    draggable: true,
+    onDragStart: (e) => startDrag(e, proj.id),
+    onDragEnd: endDrag,
+    onTouchStart: startTouch(proj.id),
+  });
+  const wrapCard = (proj, jsx) => (
+    <div
+      key={proj.id}
+      data-detail-before={proj.id}
+      className={`relative ${isMobile ? 'w-full' : 'w-[260px]'} transition-opacity ${dragId === proj.id ? 'opacity-40' : ''} ${
+        beforeId === proj.id && dragId && dragId !== proj.id ? 'ring-2 ring-blue-500 rounded-xl' : ''
+      }`}
+      onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragId && dragId !== proj.id) setBeforeId(proj.id); }}
+      onDrop={e => { e.preventDefault(); if (!dragId) return; moveProject(dragId, goal.id, proj.id); endDrag(); }}
+    >
+      {jsx}
+    </div>
+  );
+
+  const listClass = `flex ${isMobile ? 'flex-col' : 'flex-wrap justify-center'} gap-4`;
+
+  return (
+    <div className={`mt-5 border-t ${borderClass} pt-4`}>
+      <div className="flex items-center justify-between mb-3">
+        <span className={`text-xs font-semibold uppercase tracking-wider ${textSecondary}`}>{goal.title}</span>
+        <button onClick={onClose} className={`p-1.5 rounded-lg ${hoverBg}`} aria-label="Close">
+          <X size={15} className={textSecondary} />
+        </button>
+      </div>
+
+      {/* Goal header card (edit + add project live here) */}
+      <div className={`${isMobile ? '' : 'max-w-sm mx-auto'} mb-4`}>
+        <GoalCard goal={goal} projects={childProjects} onEdit={() => onEditGoal(goal)} onNewProject={() => onNewProject(goal.id)} />
+      </div>
+
+      {/* Child projects — identical to List view (inline tasks), reorderable within the goal */}
+      <div
+        onDragOver={e => e.preventDefault()}
+        onDrop={e => { e.preventDefault(); if (!dragId || beforeId) return; moveProject(dragId, goal.id); endDrag(); }}
+      >
+        {activeProjs.length > 0 && (
+          <div className={`${listClass} mb-3`}>
+            {activeProjs.map(proj => wrapCard(proj,
+              <ProjectCard project={proj} onEditClick={() => onEditProject(proj)} dragHandleProps={dragHandle(proj)} />
+            ))}
+          </div>
+        )}
+        {doneProjs.length > 0 && (
+          <div className={listClass}>
+            {doneProjs.map(proj => wrapCard(proj,
+              <ProjectCard project={proj} onEditClick={() => onEditProject(proj)} compact dragHandleProps={dragHandle(proj)} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0, addProjectTrigger = 0, addAreaTrigger = 0 }) => {
   const {
     tasks, setTasks,
@@ -2310,6 +2433,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
   const [confirmDialog, setConfirmDialog] = useState(null); // { title, message, onConfirm }
   const [showArchived, setShowArchived] = useState(false);
   const [showManageAreas, setShowManageAreas] = useState(false);
+  const [selectedRoadmapGoalId, setSelectedRoadmapGoalId] = useState(null); // roadmap detail panel
 
   // If the saved filter points at an area that no longer exists (deleted on this
   // or another device), fall back to "All" so the dashboard isn't stuck empty.
@@ -2360,6 +2484,16 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
     }
     return activeGoals.filter(g => g.areaId === goalsAreaFilter);
   }, [activeGoals, goalsAreaFilter, areas]);
+
+  // Roadmap detail-panel selection: clear it when the goal leaves the filtered
+  // view or when we switch away from the roadmap.
+  useEffect(() => {
+    if (selectedRoadmapGoalId && (goalsViewMode !== 'timeline' || !filteredGoals.some(g => g.id === selectedRoadmapGoalId))) {
+      setSelectedRoadmapGoalId(null);
+    }
+  }, [selectedRoadmapGoalId, goalsViewMode, filteredGoals]);
+  const selectedRoadmapGoal = filteredGoals.find(g => g.id === selectedRoadmapGoalId) || null;
+  const toggleRoadmapGoal = (id) => setSelectedRoadmapGoalId(cur => (cur === id ? null : id));
   const archivedGoals = useMemo(() => visibleGoals.filter(g => g.status === 'archived'), [visibleGoals]);
   const archivedProjects = useMemo(() => visibleProjects.filter(p => p.status === 'archived'), [visibleProjects]);
   const archivedCount = archivedGoals.length + archivedProjects.length;
@@ -2481,8 +2615,19 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
                 goals={filteredGoals}
                 projects={activeProjects}
                 areas={areas}
-                onEditGoal={goal => setGoalForm({ editing: goal })}
+                selectedGoalId={selectedRoadmapGoalId}
+                onSelectGoal={toggleRoadmapGoal}
               />
+              {selectedRoadmapGoal && (
+                <GoalDetailPanel
+                  goal={selectedRoadmapGoal}
+                  projects={activeProjects}
+                  onEditGoal={goal => setGoalForm({ editing: goal })}
+                  onEditProject={proj => setProjectForm({ editing: proj, defaultGoalId: null })}
+                  onNewProject={goalId => setProjectForm({ editing: null, defaultGoalId: goalId })}
+                  onClose={() => setSelectedRoadmapGoalId(null)}
+                />
+              )}
             </div>
           ) : (
             <MobileDashboard
@@ -2637,12 +2782,25 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
             <div className="p-6">
               <GoalControls onManageAreas={() => setShowManageAreas(true)} />
               {goalsViewMode === 'timeline' ? (
-                <GoalTimeline
-                  goals={filteredGoals}
-                  projects={activeProjects}
-                  areas={areas}
-                  onEditGoal={goal => setGoalForm({ editing: goal })}
-                />
+                <>
+                  <GoalTimeline
+                    goals={filteredGoals}
+                    projects={activeProjects}
+                    areas={areas}
+                    selectedGoalId={selectedRoadmapGoalId}
+                    onSelectGoal={toggleRoadmapGoal}
+                  />
+                  {selectedRoadmapGoal && (
+                    <GoalDetailPanel
+                      goal={selectedRoadmapGoal}
+                      projects={activeProjects}
+                      onEditGoal={goal => setGoalForm({ editing: goal })}
+                      onEditProject={proj => setProjectForm({ editing: proj, defaultGoalId: null })}
+                      onNewProject={goalId => setProjectForm({ editing: null, defaultGoalId: goalId })}
+                      onClose={() => setSelectedRoadmapGoalId(null)}
+                    />
+                  )}
+                </>
               ) : (
                 <DesktopDashboard
                   activeGoals={filteredGoals}
