@@ -1,18 +1,23 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
-import { TAILWIND_TO_HEX, hexToRgba } from '../../utils/colorUtils.js';
+import { TAILWIND_TO_HEX } from '../../utils/colorUtils.js';
 import { calculateGoalProgress } from '../../utils/goalProgress.js';
 
 /** Hex value for a Tailwind bg-* class, falling back to blue. */
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
 
-/** Relative luminance (0..1) of a #rrggbb hex, used to pick readable on-bar text. */
-const luminance = (hex) => {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+/** Scale a #rrggbb hex toward black by `amt` (0..1); returns an rgb() string.
+ *  Used to darken bar colours enough that white on-bar text stays legible for
+ *  every palette hue, including light ones like yellow. */
+const darken = (hex, amt) => {
+  const f = 1 - amt;
+  const c = (i) => Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * f)));
+  return `rgb(${c(1)}, ${c(3)}, ${c(5)})`;
 };
+
+// Fade applied to open-ended (no target) bars: the bar dissolves into the page
+// background instead of fading to a hardcoded colour, so it works in any theme.
+const OPEN_ENDED_MASK = 'linear-gradient(to right, #000 0%, #000 55%, transparent 100%)';
 
 // Period presets shown along the top. `months` is the width of the window that
 // starts at the first day of the current month (the fixed left edge).
@@ -200,7 +205,9 @@ const GoalTimeline = ({ goals, projects, onEditGoal }) => {
             {rows.map(({ goal, leftPct, widthPct, clippedLeft, clippedRight, openEnded, progress }) => {
               const hex = toHex(goal.color);
               const pct = Math.round(progress * 100);
-              const onBar = luminance(hex) > 0.6 ? '#1c1917' : '#ffffff';
+              const fillColor = darken(hex, 0.24);   // completed portion
+              const trackColor = darken(hex, 0.58);   // remaining portion (darker)
+              const textShadow = '0 1px 2px rgba(0,0,0,0.4)';
               const barLeftPx = (leftPct / 100) * chartW;
               const barWpx = (widthPct / 100) * chartW;
               const titlePx = goal.title.length * CHAR_PX + 18;
@@ -225,48 +232,46 @@ const GoalTimeline = ({ goals, projects, onEditGoal }) => {
                   {/* Bar */}
                   <button
                     onClick={() => onEditGoal?.(goal)}
-                    className="absolute flex items-center justify-between gap-1.5 px-2"
+                    className="absolute flex items-center gap-1.5 px-2"
                     style={{
                       left: `${leftPct}%`,
                       width: `${widthPct}%`,
                       height: BAR_H,
-                      background: hexToRgba(hex, darkMode ? 0.4 : 0.45),
+                      justifyContent: openEnded ? 'flex-start' : 'space-between',
+                      background: trackColor,
                       borderTopLeftRadius: clippedLeft ? 0 : 8,
                       borderBottomLeftRadius: clippedLeft ? 0 : 8,
                       borderTopRightRadius: clippedRight || openEnded ? 0 : 8,
                       borderBottomRightRadius: clippedRight || openEnded ? 0 : 8,
-                      borderLeft: clippedLeft ? `2px dotted ${hex}` : 'none',
+                      borderLeft: clippedLeft ? `2px dotted ${fillColor}` : 'none',
                       overflow: 'hidden',
+                      ...(openEnded ? { maskImage: OPEN_ENDED_MASK, WebkitMaskImage: OPEN_ENDED_MASK } : {}),
                     }}
                     title={`${goal.title} — ${pct}% complete`}
                   >
                     {/* Completion fill (fuel gauge) */}
                     <div
                       className="absolute inset-y-0 left-0 pointer-events-none"
-                      style={{ width: `${pct}%`, background: hex, opacity: openEnded ? 0.85 : 1 }}
+                      style={{ width: `${pct}%`, background: fillColor }}
                     />
-                    {/* Open-ended fade to signal "no target date" */}
-                    {openEnded && (
-                      <div
-                        className="absolute inset-y-0 right-0 w-1/2 pointer-events-none"
-                        style={{ background: `linear-gradient(to right, transparent, ${darkMode ? 'rgba(17,24,39,0.9)' : 'rgba(255,255,255,0.9)'})` }}
-                      />
-                    )}
                     {placement === 'inside' && (
-                      <>
-                        <span
-                          className="relative z-10 text-xs font-medium truncate"
-                          style={{ color: onBar, textShadow: '0 1px 1px rgba(0,0,0,0.18)' }}
-                        >
-                          {goal.title}
+                      openEnded ? (
+                        // Open-ended bars fade out on the right, so keep the title
+                        // and % grouped at the left where the bar is fully opaque.
+                        <span className="relative z-10 flex items-center gap-1.5 min-w-0">
+                          <span className="text-xs font-medium text-white truncate" style={{ textShadow }}>{goal.title}</span>
+                          <span className="text-[10px] font-semibold tabular-nums text-white flex-shrink-0" style={{ textShadow }}>{pct}%</span>
                         </span>
-                        <span
-                          className="relative z-10 text-[10px] font-semibold tabular-nums flex-shrink-0"
-                          style={{ color: onBar, textShadow: '0 1px 1px rgba(0,0,0,0.18)' }}
-                        >
-                          {pct}%
-                        </span>
-                      </>
+                      ) : (
+                        <>
+                          <span className="relative z-10 text-xs font-medium text-white truncate" style={{ textShadow }}>
+                            {goal.title}
+                          </span>
+                          <span className="relative z-10 text-[10px] font-semibold tabular-nums text-white flex-shrink-0" style={{ textShadow }}>
+                            {pct}%
+                          </span>
+                        </>
+                      )
                     )}
                   </button>
 
