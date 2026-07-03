@@ -8,6 +8,7 @@ Thanks for your interest in contributing! Whether you're fixing a typo, squashin
 
 - [Running the app locally](#running-the-app-locally)
 - [Running tests](#running-tests)
+- [Regenerating screenshots](#regenerating-screenshots)
 - [Project structure](#project-structure)
 - [Making a pull request](#making-a-pull-request)
 - [Reporting security issues](#reporting-security-issues)
@@ -63,6 +64,38 @@ npm run test
 Tests run with [Vitest](https://vitest.dev/). Test files live next to the source files they cover and use the `.test.js` suffix (e.g. `mergeSync.test.js`).
 
 When adding new logic, please add a test file alongside it if the logic is non-trivial (data transformations, sync/merge behaviour, etc.). UI-heavy code doesn't need to be tested exhaustively.
+
+---
+
+## Regenerating screenshots
+
+The images in `screenshots/` (used by `README.md`) and `screenshots/app-store/` (store listings) are generated from the running app rather than captured by hand, so they stay consistent as the UI evolves. Two scripts drive a headless Chromium (via [Playwright](https://playwright.dev/)) against the dev server, seed realistic demo data, and capture each view:
+
+| Script | Output |
+|---|---|
+| `scripts/gen-readme-screenshots.mjs` | `screenshots/*.png` (the images `README.md` references) |
+| `scripts/gen-appstore-screenshots.mjs` | `screenshots/app-store/{phone,tablet,desktop}/*.png` |
+
+To run them:
+
+```bash
+npm i -D playwright          # not a runtime dependency, install on demand
+npx playwright install chromium
+npm run dev                  # in one terminal (serves on :5173 or :5174)
+node scripts/gen-readme-screenshots.mjs
+node scripts/gen-appstore-screenshots.mjs both   # light | dark | both
+```
+
+How they work, briefly:
+
+- **Seeding:** each run evaluates `scripts/seed-demo-data.js` inside the page to write demo tasks, goals, routines, and habits into `localStorage`, then reloads so the app boots with that state.
+- **Frozen clock:** the browser clock is pinned to a fixed weekday mid-morning, so the day reads as in progress (one live task plus upcoming ones) instead of overdue, and so runs are deterministic.
+- **Device sizing:** the viewport and device scale factor select the phone, tablet, or desktop layout; the app's own responsive breakpoints do the rest.
+
+Notes:
+
+- The dev server must be running first. Set `DAYGLANCE_URL` if it is not on the default port.
+- A few views cannot be produced headlessly and are captured on a real device when needed: an Android home screen widget lives in the OS launcher, and the Obsidian inline note needs a live vault (the File System Access API).
 
 ---
 

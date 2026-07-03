@@ -94,9 +94,9 @@ The Android app ships the full web app in a WebView with native enhancements tha
 | ⏱️ **Immersive Focus Mode** | Full-screen timer with automatic Do Not Disturb and portrait lock |
 | 🎨 **Theme-aware status bar** | Status bar icons match the app's light/dark theme |
 
-| Home Screen Widget | App Timeline |
+| App Timeline (GRID) | App Timeline (LIST) |
 |:-:|:-:|
-| ![Android Home Screen Widget](screenshots/android-widget.png) | ![Android App Timeline](screenshots/android-timeline.png) |
+| ![Android App Timeline (Grid)](screenshots/android-timeline.png) | ![Android App Timeline (List)](screenshots/android-timeline-list.png) |
 
 ---
 
@@ -119,6 +119,18 @@ When your day is winding down (either once today's agenda is clear or after 7pm)
 Drag tasks onto a 24-hour timeline, resize by dragging edges, and filter by `#tags`. Supports 1, 2, or 3-day views depending on screen size.
 
 ![Time-Blocking on the Timeline](screenshots/timeline.png)
+
+### Desktop Views: MULTI, DAY, and WEEK
+
+On wide screens a view cycler appears in the timeline header, letting you switch how the day is laid out:
+
+- **MULTI**: adjacent days side by side (up to three at once), the default multi-day timeline.
+- **DAY**: a single day, with the full 24 hours wrapped across columns so nothing is off-screen.
+- **WEEK**: a seven-day grid for planning the week at a glance.
+
+| MULTI | DAY | WEEK |
+|:-:|:-:|:-:|
+| ![Multi-day view](screenshots/desktop-multi.png) | ![Single-day view](screenshots/desktop-day.png) | ![Week view](screenshots/desktop-week.png) |
 
 ### Smart Inbox
 
@@ -184,8 +196,6 @@ Current weather and a 5-day forecast in the header (by zip code). A rotating pan
 
 Build reusable daily task templates for each day of the week. Drag a routine onto the timeline in one gesture to populate your day instantly, with no re-entering recurring tasks.
 
-![Routines Dashboard](screenshots/routines.png)
-
 ### Recurring Tasks
 
 Set tasks to repeat daily, weekly on specific days, monthly, or on custom intervals. Edit a single occurrence or the entire series.
@@ -208,7 +218,7 @@ Tasks completed, completion rate, time planned vs. spent, focus time logged, and
 
 ## Goals & Projects
 
-Organize long-horizon work into a three-tier hierarchy: **Goals → Projects → Tasks**.
+Organize long-horizon work into a hierarchy of **Goals → Projects → Tasks**, with optional **Areas** to group related goals.
 
 ![Goals & Projects Dashboard](screenshots/goals-projects.png)
 
@@ -223,6 +233,12 @@ Organize long-horizon work into a three-tier hierarchy: **Goals → Projects →
 Progress is duration-weighted: a 2-hour task moves the needle more than a 15-minute one. Goals without target dates never show as overdue; goals and projects past their target date surface an amber warning. Projects inactive for 7+ days with incomplete tasks are flagged as **Stalled**.
 
 Archived goals and projects collapse into a disclosure section at the bottom and are excluded from all progress calculations.
+
+**Areas** are an optional top level that group related goals (for example work vs. personal). Filter the dashboard to a single area, or view every goal together.
+
+**Roadmap view** trades the card dashboard for a horizontal timeline: each goal becomes a bar spanning today to its target date, with an adjustable range from one month to two years, so you can see where everything lands.
+
+![Goals Roadmap timeline](screenshots/goals-roadmap.png)
 
 **Setup:** Disabled by default; enable in **Settings → Goals & Projects**. Data syncs alongside tasks via WebDAV/Nextcloud.
 
@@ -269,8 +285,6 @@ Sync tasks and daily notes directly with your **Obsidian vault**, with no plugin
 - Daily notes sync **bidirectionally**
 
 **Setup:** Settings → Obsidian → select your vault folder. Available on desktop browsers (Chrome, Edge, Brave) and the Android app.
-
-![Obsidian Integration](screenshots/obsidian.png)
 
 ---
 
@@ -345,16 +359,6 @@ Attach freeform notes to any day for journaling, reflections, or quick reference
 | PWA | [vite-plugin-pwa](https://vite-pwa-org.netlify.app) + Workbox |
 | Testing | [Vitest](https://vitest.dev) |
 | Containerization | Docker + Nginx |
-
----
-
-## Roadmap
-
-- **Multiple calendar feeds**: support for more than one iCal/CalDAV source simultaneously
-- **Server-side storage**: optional self-hosted database backend (SQLite or Postgres)
-- **iOS app**: native iOS wrapper with widget and Obsidian deep-link support
-
-Have a feature request? [Open an issue →](https://github.com/krelltunez/dayglance/issues)
 
 ---
 
