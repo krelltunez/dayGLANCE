@@ -20,6 +20,34 @@ import {
 
 export const DEFAULT_TASK_COLOR = 'bg-blue-500';
 
+// localStorage key holding the goal tombstone map ({ id → deletedAt ISO }).
+// Kept in sync with useGoalsProjects.deleteGoal, which writes it.
+const DELETED_GOAL_IDS_KEY = 'day-planner-deleted-goal-ids';
+
+/**
+ * Clear a stale tombstone for a goal id, if present.
+ *
+ * An inbound cross-app CREATE is authoritative: it must supersede any local
+ * tombstone left by a prior deletion of the same (deterministic) id, otherwise
+ * the tombstone wins the last-writer-wins sync merge and re-drops the goal we
+ * just created — which the notify emitter then echoes back as a spurious
+ * `deleted`. Removing the tombstone as part of the create lets the merge keep
+ * the goal. No-ops safely when storage is unavailable (skeleton/tests) or the
+ * id was never tombstoned.
+ */
+function clearGoalTombstone(goalId) {
+  if (!goalId || typeof localStorage === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(DELETED_GOAL_IDS_KEY);
+    if (!raw) return;
+    const tombstones = JSON.parse(raw);
+    if (Object.prototype.hasOwnProperty.call(tombstones, String(goalId))) {
+      delete tombstones[String(goalId)];
+      localStorage.setItem(DELETED_GOAL_IDS_KEY, JSON.stringify(tombstones));
+    }
+  } catch (_) { /* malformed/absent storage — nothing to clear */ }
+}
+
 // Derive a deterministic UUID from a seed string so that two devices
 // processing the same intent create tasks with the same ID, letting the sync
 // engine deduplicate them naturally rather than keeping both copies.
@@ -138,6 +166,10 @@ async function handleCreateGoal(payload, context) {
       g => g.source_app === payload.source_app && g.source_entity_id === payload.source_entity_id
     );
     if (existing) {
+      // Still supersede any stale tombstone for the existing goal so a pending
+      // sync merge can't drop it out from under us (same reasoning as the create
+      // path below).
+      clearGoalTombstone(existing.id);
       return ok({ task_id: existing.id, warning: 'Goal already exists' });
     }
   }
@@ -153,6 +185,12 @@ async function handleCreateGoal(payload, context) {
   const goalId = payload.source_app && payload.source_entity_id
     ? await deterministicTaskId(`${payload.source_app}|${payload.source_entity_id}`)
     : crypto.randomUUID();
+
+  // This inbound create supersedes any stale tombstone for this id (a prior
+  // deletion). Clear it BEFORE adding so the next sync merge keeps the new goal
+  // instead of re-dropping it against the tombstone (which the notify emitter
+  // would then echo outbound as a spurious `deleted`).
+  clearGoalTombstone(goalId);
 
   const newGoal = addGoal({
     id: goalId,

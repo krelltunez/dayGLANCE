@@ -540,6 +540,12 @@ const DayPlanner = () => {
   const syncKeyReadyRef = useRef(syncKeyReady);
   useEffect(() => { syncKeyReadyRef.current = syncKeyReady; }, [syncKeyReady]);
 
+  // True while applyEngineData is applying remote/merged data (declared here,
+  // above the intent emitters, so those hooks can read it as their remote-apply
+  // guard — a sync-driven setGoals/setTasks must NOT echo an outbound intent).
+  // Set in applyEngineData; cleared 500ms later (see applyingRemoteDataRef usage).
+  const applyingRemoteDataRef   = useRef(false); // true while applyEngineData is running
+
   // ── Cloud sync engine ────────────────────────────────────────────────────
   // The orchestration (download → validate → merge → apply → upload, with
   // backoff, hard-stops, 412 retry, follow-up queueing, etc.) lives in
@@ -1138,8 +1144,15 @@ const DayPlanner = () => {
       if (tab === 'glance' || tab === 'inbox') setTabletActiveTab(tab === 'glance' ? 'glance' : 'inbox');
     },
   });
-  useNotifyEmitter({ tasks, unscheduledTasks });
-  useGoalNotifyEmitter({ goals });
+  // Guard the intent emitters against sync/remote-apply-driven state changes: a
+  // setGoals/setTasks coming from applyEngineData (or any merge apply) must not
+  // echo an outbound intent, mirroring how the cloud-upload effect bails on
+  // suppressCloudUploadRef. applyingRemoteDataRef covers the whole apply window
+  // (cleared on a 500ms timer, never mid-commit); suppressCloudUploadRef is
+  // included as the same belt the push side uses.
+  const isRemoteApply = () => applyingRemoteDataRef.current || suppressCloudUploadRef.current;
+  useNotifyEmitter({ tasks, unscheduledTasks, isRemoteApply });
+  useGoalNotifyEmitter({ goals, isRemoteApply });
   // Durable outbox background drain: flush queued intents on mount (catches
   // anything held from a previous session), on focus, and on the poll cadence.
   useOutboxFlush();
@@ -1847,7 +1860,9 @@ const DayPlanner = () => {
   // last changed on this device, so mergeSyncData can do last-writer-wins instead
   // of remote-always-wins.
   const configTrackingActiveRef = useRef(false); // false until after initial loadData
-  const applyingRemoteDataRef   = useRef(false); // true while applyEngineData is running
+  // applyingRemoteDataRef is declared earlier (near the cloud-sync refs) so the
+  // intent emitters, which mount above this point, can read it as their
+  // remote-apply guard.
   // Timestamp (ms) when the iCloud mutex was taken, so a foreground resume can
   // tell a genuinely in-flight cycle from one stranded by iOS suspending the app
   // mid-sync (the in-flight promise never settles, so its finally never clears

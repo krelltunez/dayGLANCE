@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { EVENTS } from '@glance-apps/intents';
-import { buildNotifyPayload } from './useNotifyEmitter.js';
+import { buildNotifyPayload, planTaskNotifyEmits } from './useNotifyEmitter.js';
 
 const BASE_TASK = {
   id: 'task-1',
@@ -73,5 +73,69 @@ describe('buildNotifyPayload', () => {
     const change = { event: EVENTS.UPDATED, due: '2026-06-01' };
     const payload = buildNotifyPayload(task, change, NOW, 'user-sync-id-abc');
     expect('completed_by_user_id' in payload).toBe(false);
+  });
+});
+
+describe('planTaskNotifyEmits — remote-apply echo guard', () => {
+  const linked = { ...BASE_TASK }; // carries source_app + source_entity_id
+
+  it('emits DELETED when a linked task is removed by a USER action (not remote)', () => {
+    const { emits, advanceTo } = planTaskNotifyEmits([linked], [], { isRemoteApply: false });
+    expect(emits).toHaveLength(1);
+    expect(emits[0].task.id).toBe('task-1');
+    expect(emits[0].change.event).toBe(EVENTS.DELETED);
+    // Not advanced yet — the snapshot advances only after a durable enqueue.
+    expect(advanceTo).toBeNull();
+  });
+
+  it('does NOT emit when the same removal is driven by a sync/remote apply', () => {
+    const { emits, advanceTo } = planTaskNotifyEmits([linked], [], { isRemoteApply: true });
+    expect(emits).toHaveLength(0);
+    // Remote change is consumed into the baseline silently.
+    expect(advanceTo).toEqual([]);
+  });
+
+  it('does NOT emit for a remote-driven field change either', () => {
+    const changed = { ...linked, title: 'Renamed remotely' };
+    const { emits, advanceTo } = planTaskNotifyEmits([linked], [changed], { isRemoteApply: true });
+    expect(emits).toHaveLength(0);
+    expect(advanceTo).toEqual([changed]);
+  });
+
+  it('emits UPDATED for a user field change (guard does not suppress real actions)', () => {
+    const changed = { ...linked, title: 'Renamed by user' };
+    const { emits } = planTaskNotifyEmits([linked], [changed], { isRemoteApply: false });
+    expect(emits).toHaveLength(1);
+    expect(emits[0].change.event).toBe(EVENTS.UPDATED);
+  });
+
+  it('never emits for a brand-new task (creation is not a notify)', () => {
+    const { emits, advanceTo } = planTaskNotifyEmits([], [linked], { isRemoteApply: false });
+    expect(emits).toHaveLength(0);
+    expect(advanceTo).toEqual([linked]);
+  });
+
+  it('ignores tasks without source linkage', () => {
+    const local = { id: 'local-1', title: 'Local only' };
+    const { emits } = planTaskNotifyEmits([local], [], { isRemoteApply: false });
+    expect(emits).toHaveLength(0);
+  });
+
+  it('initial snapshot (prev === null) just seeds the baseline', () => {
+    const { emits, advanceTo } = planTaskNotifyEmits(null, [linked], { isRemoteApply: false });
+    expect(emits).toHaveLength(0);
+    expect(advanceTo).toEqual([linked]);
+  });
+
+  it('no enabled targets → consume the change without emitting', () => {
+    const { emits, advanceTo } = planTaskNotifyEmits([linked], [], { isRemoteApply: false, hasTargets: false });
+    expect(emits).toHaveLength(0);
+    expect(advanceTo).toEqual([]);
+  });
+
+  it('in-flight → hold (no emit, no advance) until the running fire() completes', () => {
+    const { emits, advanceTo } = planTaskNotifyEmits([linked], [], { isRemoteApply: false, inFlight: true });
+    expect(emits).toHaveLength(0);
+    expect(advanceTo).toBeNull();
   });
 });

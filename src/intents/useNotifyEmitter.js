@@ -87,6 +87,52 @@ export function buildNotifyPayload(task, change, now, meUserSyncId = null) {
 // ─── hook ────────────────────────────────────────────────────────────────────
 
 /**
+ * Pure planner: decide what to emit for a prev→next tasks snapshot transition,
+ * and what the new baseline snapshot should be. Extracted from the effect so the
+ * remote-apply guard and the deleted/changed diff are unit-testable without a
+ * React renderer.
+ *
+ * Returns { emits, advanceTo } — see planGoalNotifyEmits for the contract.
+ *
+ * The isRemoteApply branch is the echo guard: a tasks change driven by a
+ * sync/remote apply (applyEngineData's setTasks/setUnscheduledTasks, or any
+ * merge-driven mutation) must NOT emit an outbound intent — it did not come from
+ * the user. It is consumed into the baseline silently, mirroring how the
+ * cloud-upload effect bails on suppressCloudUploadRef.
+ */
+export function planTaskNotifyEmits(prev, next, { isRemoteApply = false, hasTargets = true, inFlight = false } = {}) {
+  if (prev === null) return { emits: [], advanceTo: next };
+  if (isRemoteApply) return { emits: [], advanceTo: next };
+  if (inFlight) return { emits: [], advanceTo: null };
+  if (!hasTargets) return { emits: [], advanceTo: next };
+
+  const prevMap = new Map(prev.map(t => [t.id, t]));
+  const nextMap = new Map(next.map(t => [t.id, t]));
+
+  const emits = [];
+
+  // Deleted: present in prev but gone from next
+  for (const [id, prevTask] of prevMap) {
+    if (!shouldEmit(prevTask)) continue;
+    if (!nextMap.has(id)) {
+      emits.push({ task: prevTask, change: { event: EVENTS.DELETED } });
+    }
+  }
+
+  // Changed: present in both prev and next
+  for (const [id, nextTask] of nextMap) {
+    if (!shouldEmit(nextTask)) continue;
+    const prevTask = prevMap.get(id);
+    if (!prevTask) continue; // new task — no notify for creation
+    const change = detectChange(prevTask, nextTask);
+    if (change) emits.push({ task: nextTask, change });
+  }
+
+  if (!emits.length) return { emits: [], advanceTo: next };
+  return { emits, advanceTo: null }; // advanced after durable enqueue
+}
+
+/**
  * Watches tasks and unscheduledTasks for changes to tasks that carry
  * source_app + source_entity_id, and emits a WebDAV notify event for each
  * state change. No-ops when the intent WebDAV config is absent.
@@ -94,8 +140,11 @@ export function buildNotifyPayload(task, change, now, meUserSyncId = null) {
  * Covered events: completed, uncompleted, deleted, rescheduled, updated.
  * Recurring templates are excluded — their completion model (completedDates)
  * differs from the boolean model assumed here.
+ *
+ * `isRemoteApply` (optional) is a getter returning true while a sync/remote
+ * apply is mutating task state, so those changes are never echoed outbound.
  */
-export function useNotifyEmitter({ tasks, unscheduledTasks }) {
+export function useNotifyEmitter({ tasks, unscheduledTasks, isRemoteApply }) {
   const prevRef = useRef(null);
   // Guard so a re-render during the async enqueue/flush window can't re-detect
   // and double-enqueue the same change (notify event_ids are freshly generated,
@@ -114,44 +163,23 @@ export function useNotifyEmitter({ tasks, unscheduledTasks }) {
     })();
 
     const allTasks = [...tasks, ...unscheduledTasks];
-    const prev = prevRef.current;
-
-    // Skip the initial snapshot — no previous state to diff against.
-    if (prev === null) { prevRef.current = allTasks; return; }
-    // A fire() is in progress; it will advance the snapshot and bump() us again.
-    if (inFlightRef.current) return;
 
     // Targets enabled for this emit ('webdav' | 'icloud' | 'vault'). When NONE
-    // are enabled there's nowhere to send, so consume the changes (advance the
-    // snapshot) and bail — matching the old early-return-after-advance behavior.
+    // are enabled there's nowhere to send, so the planner consumes the changes
+    // (advances the snapshot) and bails — matching the old behavior.
     const targets = enabledIntentTargets(config);
-    if (targets.length === 0) { prevRef.current = allTasks; return; }
-
-    const prevMap = new Map(prev.map(t => [t.id, t]));
-    const nextMap = new Map(allTasks.map(t => [t.id, t]));
     const now = new Date().toISOString();
 
-    const emits = [];
+    const { emits, advanceTo } = planTaskNotifyEmits(prevRef.current, allTasks, {
+      isRemoteApply: !!isRemoteApply?.(),
+      hasTargets: targets.length > 0,
+      inFlight: inFlightRef.current,
+    });
 
-    // Deleted: present in prev but gone from next
-    for (const [id, prevTask] of prevMap) {
-      if (!shouldEmit(prevTask)) continue;
-      if (!nextMap.has(id)) {
-        emits.push({ task: prevTask, change: { event: EVENTS.DELETED } });
-      }
+    if (!emits.length) {
+      if (advanceTo !== null) prevRef.current = advanceTo;
+      return;
     }
-
-    // Changed: present in both prev and next
-    for (const [id, nextTask] of nextMap) {
-      if (!shouldEmit(nextTask)) continue;
-      const prevTask = prevMap.get(id);
-      if (!prevTask) continue; // new task — no notify for creation
-      const change = detectChange(prevTask, nextTask);
-      if (change) emits.push({ task: nextTask, change });
-    }
-
-    // Nothing notification-worthy changed — advance the snapshot and bail.
-    if (!emits.length) { prevRef.current = allTasks; return; }
 
     inFlightRef.current = true;
     const fire = async () => {
