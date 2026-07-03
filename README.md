@@ -121,7 +121,7 @@ The Apple apps ship the full app natively on each device, with capabilities that
 | 📌 **Menu-bar tray mode (Mac)** | Keep dayGLANCE one click away in the menu bar, with a live focus countdown in the tray |
 | 🖥️ **Native on Apple Silicon & Intel** | A true native Mac build that runs on both Apple Silicon and Intel Macs |
 
-*Preparing for release — the App Store link above is a placeholder until the listing goes live.*
+*Preparing for release: the App Store link above is a placeholder until the listing goes live.*
 
 ---
 

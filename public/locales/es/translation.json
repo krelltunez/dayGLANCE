@@ -1,20 +1,20 @@
 {
   "sync": {
     "errors": {
-      "AUTH_FAILURE": "Autenticación fallida — comprueba tu usuario y contraseña en los ajustes de sincronización.",
-      "FORBIDDEN": "Sincronización bloqueada (403) — puede que tu servidor esté bloqueando la solicitud.",
-      "LOCKED": "La sincronización está bloqueada por otro dispositivo — inténtalo de nuevo en un momento.",
-      "NETWORK_ERROR": "Error de red — comprueba tu conexión e inténtalo de nuevo.",
+      "AUTH_FAILURE": "Autenticación fallida. Comprueba tu usuario y contraseña en los ajustes de sincronización.",
+      "FORBIDDEN": "Sincronización bloqueada (403). Puede que tu servidor esté bloqueando la solicitud.",
+      "LOCKED": "La sincronización está bloqueada por otro dispositivo. Inténtalo de nuevo en un momento.",
+      "NETWORK_ERROR": "Error de red. Comprueba tu conexión e inténtalo de nuevo.",
       "PASSPHRASE_REQUIRED": "Introduce tu frase de contraseña de sincronización para continuar.",
-      "PRECONDITION_FAILED": "Otro dispositivo se actualizó primero — reintentando.",
-      "KEY_MISMATCH": "Frase de contraseña de sincronización incorrecta — debe coincidir exactamente con la usada en tus otros dispositivos.",
+      "PRECONDITION_FAILED": "Otro dispositivo se actualizó primero. Reintentando.",
+      "KEY_MISMATCH": "Frase de contraseña de sincronización incorrecta. Debe coincidir exactamente con la usada en tus otros dispositivos.",
       "VERIFIER_UNSUPPORTED": "Tu servidor GLANCEvault necesita actualizarse para admitir esta versión de la app (verificación de clave).",
-      "ACCOUNT_ID_REQUIRED": "A GLANCEvault le falta un ID de cuenta — vuelve a introducir los datos de GLANCEvault (URL, token del dispositivo e ID de cuenta) en los ajustes de sincronización en la nube.",
+      "ACCOUNT_ID_REQUIRED": "A GLANCEvault le falta un ID de cuenta. Vuelve a introducir los datos de GLANCEvault (URL, token del dispositivo e ID de cuenta) en los ajustes de sincronización en la nube.",
       "APP_ID_MISMATCH": "Estos datos de sincronización pertenecen a otra app.",
-      "SCHEMA_FORWARD_INCOMPATIBLE": "Estos datos de sincronización son de una versión más reciente de la app — actualiza la app.",
+      "SCHEMA_FORWARD_INCOMPATIBLE": "Estos datos de sincronización son de una versión más reciente de la app. Actualiza la app.",
       "ROW_DECRYPT_FAILED": "No se pudieron descifrar algunos elementos.",
       "passphraseNeeded": "Introduce arriba tu frase de contraseña de sincronización para activar GLANCEvault.",
-      "vaultUnreachable": "No se pudo conectar con GLANCEvault — comprueba la URL del vault y el token del dispositivo. ({{detail}})",
+      "vaultUnreachable": "No se pudo conectar con GLANCEvault. Comprueba la URL del vault y el token del dispositivo. ({{detail}})",
       "requestFailed": "la solicitud falló",
       "iCloudUnavailable": "iCloud no disponible: {{error}}"
     }
@@ -173,7 +173,7 @@
     "taskCalendarAuth": "Auth básica / sincronizar completados (opcional)",
     "calDAVBaseUrl": "URL base CalDAV",
     "syncCalendarCreds": "Sincronizar las credenciales del calendario entre mis dispositivos",
-    "syncCalendarCredsNeedsEncryption": "Se aplica una vez que el cifrado de sincronización esté activado — hasta entonces, las credenciales permanecen en este dispositivo.",
+    "syncCalendarCredsNeedsEncryption": "Se aplica una vez que el cifrado de sincronización esté activado. Hasta entonces, las credenciales permanecen en este dispositivo.",
     "keepPastEvents": "Conservar eventos pasados",
     "appPassword": "Contraseña de la aplicación",
     "deviceCalendars": "Calendarios del dispositivo",

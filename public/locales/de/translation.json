@@ -1,20 +1,20 @@
 {
   "sync": {
     "errors": {
-      "AUTH_FAILURE": "Authentifizierung fehlgeschlagen — überprüfen Sie Benutzernamen und Passwort in den Synchronisierungseinstellungen.",
-      "FORBIDDEN": "Synchronisierung blockiert (403) — Ihr Server blockiert möglicherweise die Anfrage.",
-      "LOCKED": "Die Synchronisierung ist von einem anderen Gerät gesperrt — versuchen Sie es gleich noch einmal.",
-      "NETWORK_ERROR": "Netzwerkfehler — überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+      "AUTH_FAILURE": "Authentifizierung fehlgeschlagen. Überprüfen Sie Benutzernamen und Passwort in den Synchronisierungseinstellungen.",
+      "FORBIDDEN": "Synchronisierung blockiert (403). Ihr Server blockiert möglicherweise die Anfrage.",
+      "LOCKED": "Die Synchronisierung ist von einem anderen Gerät gesperrt. Versuchen Sie es gleich noch einmal.",
+      "NETWORK_ERROR": "Netzwerkfehler. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
       "PASSPHRASE_REQUIRED": "Geben Sie Ihre Sync-Passphrase ein, um fortzufahren.",
-      "PRECONDITION_FAILED": "Ein anderes Gerät hat zuerst aktualisiert — wird erneut versucht.",
-      "KEY_MISMATCH": "Falsche Sync-Passphrase — sie muss genau mit der auf Ihren anderen Geräten verwendeten Passphrase übereinstimmen.",
+      "PRECONDITION_FAILED": "Ein anderes Gerät hat zuerst aktualisiert. Wird erneut versucht.",
+      "KEY_MISMATCH": "Falsche Sync-Passphrase. Sie muss genau mit der auf Ihren anderen Geräten verwendeten Passphrase übereinstimmen.",
       "VERIFIER_UNSUPPORTED": "Ihr GLANCEvault-Server muss aktualisiert werden, um diese App-Version zu unterstützen (Schlüsselüberprüfung).",
-      "ACCOUNT_ID_REQUIRED": "Bei GLANCEvault fehlt eine Konto-ID — geben Sie Ihre GLANCEvault-Details (URL, Gerätetoken und Konto-ID) in den Cloud-Synchronisierungseinstellungen erneut ein.",
+      "ACCOUNT_ID_REQUIRED": "Bei GLANCEvault fehlt eine Konto-ID. Geben Sie Ihre GLANCEvault-Details (URL, Gerätetoken und Konto-ID) in den Cloud-Synchronisierungseinstellungen erneut ein.",
       "APP_ID_MISMATCH": "Diese Synchronisierungsdaten gehören zu einer anderen App.",
-      "SCHEMA_FORWARD_INCOMPATIBLE": "Diese Synchronisierungsdaten stammen von einer neueren App-Version — bitte aktualisieren Sie die App.",
+      "SCHEMA_FORWARD_INCOMPATIBLE": "Diese Synchronisierungsdaten stammen von einer neueren App-Version. Bitte aktualisieren Sie die App.",
       "ROW_DECRYPT_FAILED": "Einige Elemente konnten nicht entschlüsselt werden.",
       "passphraseNeeded": "Geben Sie oben Ihre Sync-Passphrase ein, um GLANCEvault zu aktivieren.",
-      "vaultUnreachable": "GLANCEvault konnte nicht erreicht werden — überprüfen Sie die Vault-URL und das Gerätetoken. ({{detail}})",
+      "vaultUnreachable": "GLANCEvault konnte nicht erreicht werden. Überprüfen Sie die Vault-URL und das Gerätetoken. ({{detail}})",
       "requestFailed": "Anfrage fehlgeschlagen",
       "iCloudUnavailable": "iCloud nicht verfügbar: {{error}}"
     }
@@ -173,7 +173,7 @@
     "taskCalendarAuth": "Basisauth / Abschlüsse synchronisieren (optional)",
     "calDAVBaseUrl": "CalDAV-Basis-URL",
     "syncCalendarCreds": "Kalender-Anmeldedaten geräteübergreifend synchronisieren",
-    "syncCalendarCredsNeedsEncryption": "Wird wirksam, sobald die Synchronisierungsverschlüsselung aktiviert ist — bis dahin bleiben die Anmeldedaten auf diesem Gerät.",
+    "syncCalendarCredsNeedsEncryption": "Wird wirksam, sobald die Synchronisierungsverschlüsselung aktiviert ist. Bis dahin bleiben die Anmeldedaten auf diesem Gerät.",
     "keepPastEvents": "Vergangene Ereignisse behalten",
     "appPassword": "App-Passwort",
     "deviceCalendars": "Gerätekalender",
