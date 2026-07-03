@@ -196,8 +196,6 @@ Current weather and a 5-day forecast in the header (by zip code). A rotating pan
 
 Build reusable daily task templates for each day of the week. Drag a routine onto the timeline in one gesture to populate your day instantly, with no re-entering recurring tasks.
 
-![Routines Dashboard](screenshots/routines.png)
-
 ### Recurring Tasks
 
 Set tasks to repeat daily, weekly on specific days, monthly, or on custom intervals. Edit a single occurrence or the entire series.
@@ -361,16 +359,6 @@ Attach freeform notes to any day for journaling, reflections, or quick reference
 | PWA | [vite-plugin-pwa](https://vite-pwa-org.netlify.app) + Workbox |
 | Testing | [Vitest](https://vitest.dev) |
 | Containerization | Docker + Nginx |
-
----
-
-## Roadmap
-
-- **Multiple calendar feeds**: support for more than one iCal/CalDAV source simultaneously
-- **Server-side storage**: optional self-hosted database backend (SQLite or Postgres)
-- **iOS app**: native iOS wrapper with widget and Obsidian deep-link support
-
-Have a feature request? [Open an issue →](https://github.com/krelltunez/dayglance/issues)
 
 ---
 

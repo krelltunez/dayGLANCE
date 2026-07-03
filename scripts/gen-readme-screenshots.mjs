@@ -110,8 +110,8 @@ for (const view of ['multi', 'day', 'week']) {
   } catch (e) { fail(name, e); }
 }
 
-// ---------- Desktop modals: routines (R) and goals (G) ----------
-for (const [name, key] of [['routines', 'r'], ['goals-projects', 'g']]) {
+// ---------- Desktop modal: goals (G) ----------
+for (const [name, key] of [['goals-projects', 'g']]) {
   try {
     const { ctx, p } = await page({ w: 1360, h: 900, dsf: 2, mobile: false, dark: true });
     await p.locator('body').click({ position: { x: 5, y: 5 } });
@@ -122,13 +122,16 @@ for (const [name, key] of [['routines', 'r'], ['goals-projects', 'g']]) {
   } catch (e) { fail(name, e); }
 }
 
-// ---------- Goals Roadmap (Gantt) desktop modal ----------
+// ---------- Goals Roadmap (Gantt) with the v2.0 goal selected to reveal its projects ----------
 try {
-  const { ctx, p } = await page({ w: 1360, h: 900, dsf: 2, mobile: false, dark: true });
+  const { ctx, p } = await page({ w: 1360, h: 1180, dsf: 2, mobile: false, dark: true });
   await p.locator('body').click({ position: { x: 5, y: 5 } });
   await p.keyboard.press('g');
   await settle(ctx, p, 1200);
   await p.getByRole('button', { name: 'Roadmap' }).click();
+  await settle(ctx, p, 1200);
+  // Select the goal bar so the detail panel with its child projects opens below.
+  await p.getByText('Launch v2.0 client SaaS platform', { exact: false }).first().click();
   await settle(ctx, p, 1500);
   await save(p, 'goals-roadmap'); ok('goals-roadmap');
   await ctx.close();
