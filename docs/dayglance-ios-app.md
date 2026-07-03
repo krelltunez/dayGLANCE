@@ -307,7 +307,7 @@ An iOS Share Extension lets users share text or URLs from any app (Safari, Notes
 - Status bar colour matching + safe area insets; portrait lock on iPhone, all orientations on iPad
 - iPad split view / multitasking support (`UIRequiresFullScreen = false`); system keyboard shortcut overlay
 - Bridge detection: inject `window.DayGlanceIOS = true` so `native.js` can distinguish iOS from Android
-- App icon, launch screen, bundle ID (`com.dayglance.app`)
+- App icon, launch screen, bundle ID (`com.dayglance`)
 
 **Status: ✅ Complete.** Minor gap: status bar text colour is static (`UIStatusBarStyleDefault`) — does not flip to white in dark mode. Cosmetic; can be addressed in Phase 12 polish.
 

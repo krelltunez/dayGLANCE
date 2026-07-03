@@ -45,6 +45,7 @@ targets:
       path: DayGlance/DayGlance.entitlements
       properties:
         com.apple.developer.healthkit: true
+        com.apple.developer.usernotifications.time-sensitive: true
         com.apple.developer.icloud-container-identifiers:
           - iCloud.com.dayglance
         com.apple.developer.icloud-services:
@@ -58,10 +59,13 @@ targets:
           set -e
           SRC="${SRCROOT}/DayGlance/Resources/web"
           DST="${CODESIGNING_FOLDER_PATH}/web"
-          if [ -d "$SRC" ]; then
+          if [ -d "$SRC" ] && [ -f "$SRC/index.html" ]; then
               rm -rf "$DST"
               cp -R "$SRC" "$DST"
               echo "Copied web assets to ${DST}"
+          elif [ "$CONFIGURATION" = "Release" ]; then
+              echo "error: Web assets not found at ${SRC} (or index.html missing). A Release archive without them ships a blank app. Run: npm run build:ios from the repo root." >&2
+              exit 1
           else
               echo "warning: Web assets not found at ${SRC}. Run: npm run build:ios from the repo root."
           fi
@@ -107,6 +111,8 @@ targets:
         NSMicrophoneUsageDescription: "dayGLANCE uses the microphone to record voice input for AI task parsing."
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
+        UIBackgroundModes:
+          - fetch
         BGTaskSchedulerPermittedIdentifiers:
           - com.dayglance.widgetrefresh
         CFBundleURLTypes:

@@ -9,16 +9,7 @@
     <key>NSPrivacyAccessedAPITypes</key>
     <array>
         <dict>
-            <!-- File timestamps: used to detect remote iCloud sync file changes -->
-            <key>NSPrivacyAccessedAPIType</key>
-            <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
-            <key>NSPrivacyAccessedAPITypeReasons</key>
-            <array>
-                <string>DDA9.1</string>
-            </array>
-        </dict>
-        <dict>
-            <!-- UserDefaults: used to persist Obsidian vault bookmarks and app settings -->
+            <!-- UserDefaults: shared app-group defaults hold widget snapshot data -->
             <key>NSPrivacyAccessedAPIType</key>
             <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
             <key>NSPrivacyAccessedAPITypeReasons</key>

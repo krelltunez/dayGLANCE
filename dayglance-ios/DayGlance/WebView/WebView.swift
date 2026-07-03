@@ -3,6 +3,10 @@ import WebKit
 
 struct WebView: UIViewRepresentable {
 
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
 
@@ -29,7 +33,14 @@ struct WebView: UIViewRepresentable {
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
 
+        // Route external links (window.open / target="_blank" / same-frame external
+        // navigations) to the system browser instead of hijacking the app shell.
+        webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
+
+        #if DEBUG
         if #available(iOS 16.4, *) { webView.isInspectable = true }
+        #endif
 
         // Reload the page after permission dialogs close so the web app can
         // re-fetch health and calendar data with fresh authorization.
@@ -110,5 +121,76 @@ struct WebView: UIViewRepresentable {
             });
         })();
         """
+    }
+
+    // MARK: - Coordinator (navigation + UI delegates)
+
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
+
+        /// Open a URL in the system (Safari, Mail, Phone, …). Only http/https/mailto/tel.
+        private func openExternally(_ url: URL) {
+            UIApplication.shared.open(url, options: [:], completionHandler: nil)
+        }
+
+        // window.open(url, '_blank') and target="_blank" anchors ask WebKit to
+        // create a new web view. We never create one — instead we hand off any
+        // web URL to the system browser and return nil.
+        func webView(
+            _ webView: WKWebView,
+            createWebViewWith configuration: WKWebViewConfiguration,
+            for navigationAction: WKNavigationAction,
+            windowFeatures: WKWindowFeatures
+        ) -> WKWebView? {
+            if let url = navigationAction.request.url,
+               let scheme = url.scheme?.lowercased(),
+               scheme == "http" || scheme == "https" {
+                openExternally(url)
+            }
+            return nil
+        }
+
+        // Governs navigations (document loads), not fetch/XHR. The dgbridge:// XHR
+        // traffic and dg:// resource loads never reach here as navigations, but we
+        // explicitly allow those schemes plus about:blank to be safe.
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
+            guard let url = navigationAction.request.url else {
+                decisionHandler(.allow)
+                return
+            }
+            let scheme = url.scheme?.lowercased()
+
+            // Internal app content, the synchronous bridge scheme, and blank frames
+            // stay inside the web view.
+            if scheme == "dg" || scheme == "dgbridge" || scheme == "about" {
+                decisionHandler(.allow)
+                return
+            }
+
+            // mailto:/tel:/sms: are always handed to the system.
+            if scheme == "mailto" || scheme == "tel" || scheme == "sms" {
+                decisionHandler(.cancel)
+                openExternally(url)
+                return
+            }
+
+            // External web links: never load them in the app shell. Open a tapped
+            // link, or any main-frame / new-window navigation away from the app
+            // scheme, in the system browser. Sub-frame http(s) loads (e.g. an
+            // embedded iframe) are left to proceed normally.
+            if scheme == "http" || scheme == "https" {
+                let isMainFrame = navigationAction.targetFrame?.isMainFrame ?? true
+                if navigationAction.navigationType == .linkActivated || isMainFrame {
+                    decisionHandler(.cancel)
+                    openExternally(url)
+                    return
+                }
+            }
+
+            decisionHandler(.allow)
+        }
     }
 }
