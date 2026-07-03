@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { createKey, TABS, QUERY_RETURN_VARS } from '@glance-apps/intents';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { createKey, TABS, QUERY_RETURN_VARS, ENTITY_TYPES, SOURCE_APPS } from '@glance-apps/intents';
 import { handleIntent } from './handleIntent.js';
 
 // ─── create ────────────────────────────────────────────────────────────────
@@ -692,5 +692,98 @@ describe('handleIntent create execution', () => {
     await handleIntent('create', { title: 'Quick task' }, ctx);
     expect(ctx._inbox[0].color).toBe('bg-blue-500');
     expect(ctx._inbox[0].duration).toBe(30);
+  });
+});
+
+// ─── inbound goal create supersedes a stale tombstone (create/delete-loop fix) ──
+
+describe('handleIntent create goal — clears stale tombstone', () => {
+  const DELETED_GOAL_IDS_KEY = 'day-planner-deleted-goal-ids';
+
+  function memLocalStorage() {
+    const m = new Map();
+    return {
+      getItem: (k) => (m.has(k) ? m.get(k) : null),
+      setItem: (k, v) => m.set(k, String(v)),
+      removeItem: (k) => m.delete(k),
+      clear: () => m.clear(),
+    };
+  }
+
+  const readTombstones = () =>
+    JSON.parse(localStorage.getItem(DELETED_GOAL_IDS_KEY) || '{}');
+
+  const goalPayload = {
+    title: 'Rule of 55',
+    entity_type: ENTITY_TYPES.GOAL,
+    source_app: SOURCE_APPS.LIFEGLANCE,
+    source_entity_id: 'milestone_55',
+  };
+
+  beforeEach(() => {
+    global.localStorage = memLocalStorage();
+  });
+  afterAll(() => { delete global.localStorage; });
+
+  it('create path: clears the goal tombstone so the next merge keeps the goal', async () => {
+    // First create to learn the deterministic id the create path derives.
+    let capturedId = null;
+    const addGoal = (fields) => { capturedId = fields.id; return { id: fields.id }; };
+    await handleIntent('create', goalPayload, { goals: [], addGoal });
+    expect(capturedId).toBeTruthy();
+
+    // Simulate: the goal was later deleted (tombstone recorded) and dropped from
+    // state by a sync merge. lifeGLANCE re-emits the create.
+    localStorage.setItem(DELETED_GOAL_IDS_KEY, JSON.stringify({
+      [capturedId]: '2026-07-01T00:00:00.000Z',
+      'unrelated-goal': '2026-06-01T00:00:00.000Z',
+    }));
+
+    let secondId = null;
+    const addGoal2 = (fields) => { secondId = fields.id; return { id: fields.id }; };
+    const r = await handleIntent('create', goalPayload, { goals: [], addGoal: addGoal2 });
+
+    expect(r.success).toBe(true);
+    expect(secondId).toBe(capturedId);         // same deterministic id
+    const tombstones = readTombstones();
+    expect(tombstones[capturedId]).toBeUndefined();   // superseded
+    expect(tombstones['unrelated-goal']).toBe('2026-06-01T00:00:00.000Z'); // untouched
+  });
+
+  it('idempotency path: clears the tombstone for an already-existing goal', async () => {
+    const existing = {
+      id: 'goal-existing',
+      title: 'True retirement',
+      source_app: SOURCE_APPS.LIFEGLANCE,
+      source_entity_id: 'milestone_tr',
+    };
+    localStorage.setItem(DELETED_GOAL_IDS_KEY, JSON.stringify({
+      'goal-existing': '2026-07-01T00:00:00.000Z',
+    }));
+
+    let addCalled = false;
+    const addGoal = () => { addCalled = true; return { id: 'x' }; };
+    const r = await handleIntent(
+      'create',
+      { ...goalPayload, title: 'True retirement', source_entity_id: 'milestone_tr' },
+      { goals: [existing], addGoal },
+    );
+
+    expect(r.success).toBe(true);
+    expect(r.task_id).toBe('goal-existing');
+    expect(r.warning).toContain('already exists');
+    expect(addCalled).toBe(false);                        // no duplicate created
+    expect(readTombstones()['goal-existing']).toBeUndefined(); // tombstone cleared
+  });
+
+  it('leaves an unrelated tombstone alone when no tombstone exists for the created goal', async () => {
+    localStorage.setItem(DELETED_GOAL_IDS_KEY, JSON.stringify({
+      'some-other-id': '2026-06-01T00:00:00.000Z',
+    }));
+    const addGoal = (fields) => ({ id: fields.id });
+    const r = await handleIntent('create', goalPayload, { goals: [], addGoal });
+
+    expect(r.success).toBe(true);
+    expect(readTombstones()['some-other-id']).toBe('2026-06-01T00:00:00.000Z');
   });
 });

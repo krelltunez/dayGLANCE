@@ -43,13 +43,68 @@ function detectGoalChange(prev, next) {
 }
 
 /**
+ * Pure planner: decide what to emit for a prev→next goals snapshot transition,
+ * and what the new baseline snapshot should be. Extracted from the effect so the
+ * remote-apply guard and the deleted/changed diff are unit-testable without a
+ * React renderer.
+ *
+ * Returns { emits, advanceTo }:
+ *   - emits:     array of { goal, change } to enqueue (empty when nothing to send)
+ *   - advanceTo: the snapshot to store as prevRef, or null to leave it unchanged
+ *                (null while a fire() is in flight — it advances the ref itself,
+ *                or when there are emits, which advance after a durable enqueue)
+ *
+ * The isRemoteApply branch is the echo guard: a goals change driven by a
+ * sync/remote apply (applyEngineData's setGoals, or any merge-driven mutation)
+ * must NOT emit an outbound intent — it did not come from the user. It is
+ * consumed into the baseline silently, mirroring how the cloud-upload effect
+ * bails on suppressCloudUploadRef. Without it, a merge that drops a goal (e.g.
+ * re-applying a stale tombstone) looks identical to a user delete and echoes a
+ * spurious `deleted` back to the source app.
+ */
+export function planGoalNotifyEmits(prev, next, { isRemoteApply = false, hasTargets = true, inFlight = false } = {}) {
+  if (prev === null) return { emits: [], advanceTo: next };
+  if (isRemoteApply) return { emits: [], advanceTo: next };
+  if (inFlight) return { emits: [], advanceTo: null };
+  if (!hasTargets) return { emits: [], advanceTo: next };
+
+  const prevMap = new Map(prev.map(g => [g.id, g]));
+  const nextMap = new Map(next.map(g => [g.id, g]));
+
+  const emits = [];
+
+  // Deleted: present in prev but gone from next
+  for (const [id, prevGoal] of prevMap) {
+    if (!shouldEmit(prevGoal)) continue;
+    if (!nextMap.has(id)) {
+      emits.push({ goal: prevGoal, change: { event: EVENTS.DELETED } });
+    }
+  }
+
+  // Changed: present in both prev and next
+  for (const [id, nextGoal] of nextMap) {
+    if (!shouldEmit(nextGoal)) continue;
+    const prevGoal = prevMap.get(id);
+    if (!prevGoal) continue; // new goal — no notify for creation
+    const change = detectGoalChange(prevGoal, nextGoal);
+    if (change) emits.push({ goal: nextGoal, change });
+  }
+
+  if (!emits.length) return { emits: [], advanceTo: next };
+  return { emits, advanceTo: null }; // advanced after durable enqueue
+}
+
+/**
  * Watches goals for changes to goals that carry source_app + source_entity_id,
  * and emits a WebDAV notify event for each state change. No-ops when the intent
  * WebDAV config is absent.
  *
  * Mirrors useNotifyEmitter but for the Goals entity type.
+ *
+ * `isRemoteApply` (optional) is a getter returning true while a sync/remote
+ * apply is mutating goals state, so those changes are never echoed outbound.
  */
-export function useGoalNotifyEmitter({ goals }) {
+export function useGoalNotifyEmitter({ goals, isRemoteApply }) {
   const prevRef = useRef(null);
   const inFlightRef = useRef(false);
   const [, bump] = useReducer(x => x + 1, 0);
@@ -62,38 +117,19 @@ export function useGoalNotifyEmitter({ goals }) {
       return raw ? JSON.parse(raw) : null;
     })();
 
-    const prev = prevRef.current;
-
-    if (prev === null) { prevRef.current = goals; return; }
-    if (inFlightRef.current) return;
-
     const targets = enabledIntentTargets(config);
-    if (targets.length === 0) { prevRef.current = goals; return; }
-
-    const prevMap = new Map(prev.map(g => [g.id, g]));
-    const nextMap = new Map(goals.map(g => [g.id, g]));
     const now = new Date().toISOString();
 
-    const emits = [];
+    const { emits, advanceTo } = planGoalNotifyEmits(prevRef.current, goals, {
+      isRemoteApply: !!isRemoteApply?.(),
+      hasTargets: targets.length > 0,
+      inFlight: inFlightRef.current,
+    });
 
-    // Deleted: present in prev but gone from next
-    for (const [id, prevGoal] of prevMap) {
-      if (!shouldEmit(prevGoal)) continue;
-      if (!nextMap.has(id)) {
-        emits.push({ goal: prevGoal, change: { event: EVENTS.DELETED } });
-      }
+    if (!emits.length) {
+      if (advanceTo !== null) prevRef.current = advanceTo;
+      return;
     }
-
-    // Changed: present in both prev and next
-    for (const [id, nextGoal] of nextMap) {
-      if (!shouldEmit(nextGoal)) continue;
-      const prevGoal = prevMap.get(id);
-      if (!prevGoal) continue; // new goal — no notify for creation
-      const change = detectGoalChange(prevGoal, nextGoal);
-      if (change) emits.push({ goal: nextGoal, change });
-    }
-
-    if (!emits.length) { prevRef.current = goals; return; }
 
     inFlightRef.current = true;
     const fire = async () => {
