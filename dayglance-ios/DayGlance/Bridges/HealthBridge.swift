@@ -18,11 +18,45 @@ final class HealthBridge {
         HKQuantityType(.restingHeartRate),
     ]
 
-    // MARK: - Authorization
+    // MARK: - Authorization (deferred)
+    //
+    // Authorization is NO LONGER requested at launch (guideline 5.1.1 — reviewers
+    // dislike an unprompted HealthKit dialog in the startup cascade). Instead it is
+    // requested lazily the first time the web layer actually reads health data
+    // (getSteps / getSleep), i.e. only when a health-linked habit exists and its
+    // count is being fetched.
+    //
+    // The request is fired asynchronously so it never blocks the synchronous bridge
+    // thread (getSteps/getSleep hold the main thread on a semaphore while the query
+    // runs; presenting the permission sheet from a blocked main thread would
+    // deadlock). When the sheet closes we post .dayGlanceReloadWebView — the same
+    // reload-after-permission mechanism the calendar flow uses — so the web layer
+    // re-runs its health sync and the counts load with access granted.
+    //
+    // If the user already responded in a previous session, getRequestStatusForAuthorization
+    // reports .unnecessary, no sheet is shown, and the query below runs immediately —
+    // startup behaviour is unchanged for already-authorized users.
 
-    func requestAuthorization() {
-        guard HKHealthStore.isHealthDataAvailable() else { return }
-        store.requestAuthorization(toShare: nil, read: readTypes) { _, _ in }
+    private var authorizationRequested = false
+
+    /// Requests HealthKit authorization once, lazily, the first time health data is
+    /// read. No-op if health data is unavailable or a request has already been made
+    /// this session. Non-blocking.
+    private func ensureAuthorizationRequested() {
+        guard HKHealthStore.isHealthDataAvailable(), !authorizationRequested else { return }
+        authorizationRequested = true
+        store.getRequestStatusForAuthorization(toShare: [], read: readTypes) { [weak self] status, error in
+            guard let self, error == nil, status == .shouldRequest else { return }
+            DispatchQueue.main.async {
+                self.store.requestAuthorization(toShare: nil, read: self.readTypes) { _, _ in
+                    // Sheet dismissed (granted or denied): reload so the web layer
+                    // re-reads health data now that authorization is determined.
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(name: .dayGlanceReloadWebView, object: nil)
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Steps
@@ -33,6 +67,9 @@ final class HealthBridge {
               let day = parseDate(date) else {
             return #"{"steps":0,"goal":10000}"#
         }
+
+        // Lazily request authorization on first actual read (see notes above).
+        ensureAuthorizationRequested()
 
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: day)
@@ -69,6 +106,9 @@ final class HealthBridge {
               let day = parseDate(date) else {
             return #"{"durationMinutes":0,"stages":[]}"#
         }
+
+        // Lazily request authorization on first actual read (see notes above).
+        ensureAuthorizationRequested()
 
         let calendar    = Calendar.current
         let noon        = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day)!

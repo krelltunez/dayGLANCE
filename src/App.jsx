@@ -9,6 +9,7 @@ import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, 
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
 import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
+import { stripHealthSourcedLogs } from './utils/healthLogFilter.js';
 import { webdavFetch } from './utils/cloudSyncProviders.js';
 import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
@@ -2109,7 +2110,8 @@ const DayPlanner = () => {
         const payload = buildSyncPayload();
         const payloadTaskCount = (payload.data?.tasks?.length || 0) + (payload.data?.unscheduledTasks?.length || 0);
         if (localTaskCount + localInboxCount > 0 && payloadTaskCount === 0) return;
-        await iCloudWriteSync(onIOS, JSON.stringify(payload));
+        // Guideline 5.1.3: never write HealthKit-derived counts to iCloud.
+        await iCloudWriteSync(onIOS, JSON.stringify(stripHealthSourcedLogs(payload, habits)));
         return;
       }
 
@@ -2138,7 +2140,8 @@ const DayPlanner = () => {
         }
         if (!remote?.data) {
           const payload = buildSyncPayload();
-          await iCloudWriteSync(onIOS, JSON.stringify(payload));
+          // Guideline 5.1.3: never write HealthKit-derived counts to iCloud.
+          await iCloudWriteSync(onIOS, JSON.stringify(stripHealthSourcedLogs(payload, habits)));
           return;
         }
       }
@@ -2148,11 +2151,17 @@ const DayPlanner = () => {
       const { data: mergedData, localChanged, remoteChanged } = mergeSyncData(localData, remote.data, syncRetentionDays);
 
       if (localChanged) {
+        // Apply the FULL merged data locally (health-sourced counts stay on-device).
         applyEngineData(mergedData, { allowEmpty: !!remote.lastModified });
         localStorage.setItem('day-planner-cloud-sync-local-modified', new Date().toISOString());
       }
       if (remoteChanged || localChanged) {
-        const outPayload = { version: 2, lastModified: new Date().toISOString(), data: mergedData };
+        // Guideline 5.1.3: strip HealthKit-derived counts from the copy written to
+        // iCloud only — the local application above keeps them (re-derived per device).
+        const outPayload = stripHealthSourcedLogs(
+          { version: 2, lastModified: new Date().toISOString(), data: mergedData },
+          habits,
+        );
         await iCloudWriteSync(onIOS, JSON.stringify(outPayload));
       }
     } finally {
@@ -10146,7 +10155,7 @@ const DayPlanner = () => {
                   support@glance-apps.com
                 </a>
                 <a
-                  href="https://github.com/krelltunez/day-planner/issues"
+                  href="https://github.com/krelltunez/dayGLANCE/issues"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-blue-500 hover:text-blue-400 transition-colors text-sm font-medium mt-1.5"
