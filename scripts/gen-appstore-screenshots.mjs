@@ -30,6 +30,7 @@ const launchOpts = { headless: true };
 if (fs.existsSync(EXE)) launchOpts.executablePath = EXE;
 
 fs.mkdirSync(path.join(OUT, 'phone'), { recursive: true });
+fs.mkdirSync(path.join(OUT, 'tablet'), { recursive: true });
 fs.mkdirSync(path.join(OUT, 'desktop'), { recursive: true });
 
 // Screenshot-time polish applied on top of the generic demo seed, so the base
@@ -94,6 +95,15 @@ async function run(mode) {
         console.log(mode, name, 'ok');
       } catch (e) { console.log(mode, name, 'FAIL', e.message.split('\n')[0]); }
     }
+
+    // Goals -> Roadmap flowchart (still on the Goals tab from the loop above)
+    try {
+      await p.getByRole('button', { name: 'Roadmap' }).click();
+      await settle(ctx, p, 1500);
+      await p.screenshot({ path: path.join(OUT, 'phone', tag('04b-roadmap')) });
+      console.log(mode, '04b-roadmap ok');
+    } catch (e) { console.log(mode, '04b-roadmap FAIL', e.message.split('\n')[0]); }
+
     await ctx.close();
   }
 
@@ -114,6 +124,15 @@ async function run(mode) {
     await settle(ctx, p, 1500);
     await p.screenshot({ path: path.join(OUT, 'phone', tag('06-focus')) });
     console.log(mode, 'focus ok');
+    // Start the session -> running timer
+    try {
+      await p.getByRole('button', { name: 'Start Focus Session' }).click();
+      await settle(ctx, p, 1500);
+      await ctx.clock.runFor(60000); // advance a minute: timer reads 24:00, elapsed 1m
+      await p.waitForTimeout(200);
+      await p.screenshot({ path: path.join(OUT, 'phone', tag('07-focus-active')) });
+      console.log(mode, '07-focus-active ok');
+    } catch (e) { console.log(mode, '07-focus-active FAIL', e.message.split('\n')[0]); }
     await ctx.close();
   } catch (e) { console.log(mode, 'focus FAIL', e.message.split('\n')[0]); }
 
@@ -122,6 +141,21 @@ async function run(mode) {
     const { ctx, p } = await seededPage({ w: 1680, h: 1050, dsf: 2, mobile: false }, dark);
     await p.screenshot({ path: path.join(OUT, 'desktop', tag('01-overview')) });
     console.log(mode, 'desktop overview ok');
+    await ctx.close();
+  }
+
+  // ---- Tablet: iPad 12.9" portrait (1024x1366 @2x = 2048x2732) ----
+  {
+    const tablet = { w: 1024, h: 1366, dsf: 2, mobile: true };
+    const { ctx, p } = await seededPage(tablet, dark);
+    await p.screenshot({ path: path.join(OUT, 'tablet', tag('01-overview')) });
+    console.log(mode, 'tablet overview ok');
+    try {
+      await p.getByRole('button', { name: 'Goals & Projects' }).click();
+      await settle(ctx, p, 1500);
+      await p.screenshot({ path: path.join(OUT, 'tablet', tag('02-goals')) });
+      console.log(mode, 'tablet goals ok');
+    } catch (e) { console.log(mode, 'tablet goals FAIL', e.message.split('\n')[0]); }
     await ctx.close();
   }
 }
