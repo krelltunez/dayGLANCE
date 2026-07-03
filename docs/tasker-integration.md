@@ -12,6 +12,8 @@ When the action is processed, dayGLANCE sends an outbound `app.dayglance.RESULT`
 
 > **Important:** dayGLANCE must be running for broadcasts to be processed — but it does **not** need to be in the foreground. Intents fired while the app is backgrounded are handled live, as long as the app has not been swiped away / killed by the system. For fully unattended automation (e.g. creating tasks while the app is closed), use the WebDAV transport instead.
 
+> **Enable automation intents first (v4.0.0+).** As of v4.0.0 the intents transport is **off by default** and gated behind an opt-in switch. Before any of the actions below will do anything, open **dayGLANCE → Settings → GLANCE Integrations** (or on phones, the "Automation intents" section) and turn on **"Automation intents (Tasker)"**. While it is off, inbound CREATE/COMPLETE/OPEN/QUERY broadcasts are silently dropped and no RESULT/NOTIFY broadcasts are emitted — this keeps the intent surface closed for users who don't use automation. If your existing automations stop working after updating to v4, this toggle is why: flip it back on. (The flag is device-local and resets to off on a backup restore or device transfer, so re-enable it after moving to a new device.)
+
 ---
 
 ## Supported inbound actions

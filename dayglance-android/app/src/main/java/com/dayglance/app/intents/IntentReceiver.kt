@@ -3,6 +3,7 @@ package com.dayglance.app.intents
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.dayglance.app.data.SharedDataStore
 import org.json.JSONObject
 
@@ -21,6 +22,21 @@ class IntentReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return
+
+        // Opt-in gate: the automation intents transport is OFF by default. Drop
+        // every inbound broadcast (CREATE/COMPLETE/OPEN/QUERY) until the user
+        // enables "Automation intents" in Settings, so no third-party app can
+        // create, complete, or query tasks — the data never reaches JS. Log once
+        // so Tasker users can see why nothing happened.
+        if (!SharedDataStore(context).automationIntentsEnabled) {
+            Log.w(
+                "IntentReceiver",
+                "Dropped $action: Automation intents are disabled. " +
+                    "Enable them in dayGLANCE Settings to allow automation.",
+            )
+            return
+        }
+
         val payloadExtra = intent.getStringExtra("payload")
 
         // Parse and re-serialize via JSONObject to prevent JSON injection. A crafted

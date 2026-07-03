@@ -17,6 +17,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import android.view.View
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
@@ -670,6 +671,19 @@ class MainActivity : AppCompatActivity() {
      */
     private fun storeIntentAction(intent: Intent, store: SharedDataStore) {
         val action = intent.action ?: return
+
+        // Opt-in gate: mirror IntentReceiver. Activity-target automation intents
+        // (cold start via onCreate, warm via onNewIntent) also flow through here,
+        // so drop them too unless the user enabled "Automation intents" in Settings.
+        if (!store.automationIntentsEnabled) {
+            Log.w(
+                "MainActivity",
+                "Dropped Activity intent $action: Automation intents are disabled. " +
+                    "Enable them in dayGLANCE Settings to allow automation.",
+            )
+            return
+        }
+
         val payloadExtra = intent.getStringExtra("payload")
         // Parse and re-serialize via JSONObject to prevent JSON injection.
         val payloadObj = try {
