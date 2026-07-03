@@ -65,8 +65,17 @@ class BillingManager(
 
     private val scope = CoroutineScope(Dispatchers.IO)
 
+    /**
+     * Debug-only logging. Purchase flow details (tokens, offer tokens, product ids)
+     * must never reach logcat in release builds, so these are stripped when
+     * BuildConfig.DEBUG is false. Log.w / Log.e are kept for release diagnostics.
+     */
+    private fun logd(msg: String) {
+        if (BuildConfig.DEBUG) Log.d(TAG, msg)
+    }
+
     private val purchasesUpdatedListener = PurchasesUpdatedListener { result, purchases ->
-        Log.d(TAG, "purchasesUpdatedListener: code=${result.responseCode} msg='${result.debugMessage}' purchases=${purchases?.size ?: "null"}")
+        logd("purchasesUpdatedListener: code=${result.responseCode} msg='${result.debugMessage}' purchases=${purchases?.size ?: "null"}")
         when {
             result.responseCode == BillingClient.BillingResponseCode.OK && !purchases.isNullOrEmpty() -> {
                 for (purchase in purchases) handlePurchase(purchase)
@@ -215,7 +224,7 @@ class BillingManager(
         val productType = if (productId in INAPP_PRODUCTS) BillingClient.ProductType.INAPP
                           else BillingClient.ProductType.SUBS
 
-        Log.d(TAG, "launchPurchaseFlow($productId): type=$productType ts=${System.currentTimeMillis()}")
+        logd("launchPurchaseFlow($productId): type=$productType ts=${System.currentTimeMillis()}")
 
         val params = QueryProductDetailsParams.newBuilder()
             .setProductList(listOf(
@@ -228,7 +237,7 @@ class BillingManager(
 
         scope.launch {
             billingClient.queryProductDetailsAsync(params) { result, detailsList ->
-                Log.d(TAG, "launchPurchaseFlow($productId): queryProductDetailsAsync code=${result.responseCode} msg='${result.debugMessage}' count=${detailsList.size} ts=${System.currentTimeMillis()}")
+                logd("launchPurchaseFlow($productId): queryProductDetailsAsync code=${result.responseCode} msg='${result.debugMessage}' count=${detailsList.size} ts=${System.currentTimeMillis()}")
 
                 // Verbose product details — debug builds only
                 if (BuildConfig.DEBUG) {
@@ -260,7 +269,7 @@ class BillingManager(
                                 onBillingEvent?.invoke("error", BillingClient.BillingResponseCode.ITEM_UNAVAILABLE, "no_offer_token", productId)
                                 return@queryProductDetailsAsync
                             }
-                            Log.d(TAG, "launchPurchaseFlow($productId): offerToken='${offerToken.take(20)}...'")
+                            logd("launchPurchaseFlow($productId): offerToken='${offerToken.take(20)}...'")
                             setOfferToken(offerToken)
                         }
                     }
@@ -272,7 +281,7 @@ class BillingManager(
 
                 act.runOnUiThread {
                     val launchResult = billingClient.launchBillingFlow(act, flowParams)
-                    Log.d(TAG, "launchBillingFlow: code=${launchResult.responseCode} msg='${launchResult.debugMessage}' ts=${System.currentTimeMillis()}")
+                    logd("launchBillingFlow: code=${launchResult.responseCode} msg='${launchResult.debugMessage}' ts=${System.currentTimeMillis()}")
                     if (launchResult.responseCode != BillingClient.BillingResponseCode.OK) {
                         onBillingEvent?.invoke("error", launchResult.responseCode, launchResult.debugMessage, productId)
                     }
@@ -319,7 +328,7 @@ class BillingManager(
                 val p = ConsumeParams.newBuilder().setPurchaseToken(purchase.purchaseToken).build()
                 suspendCancellableCoroutine { cont ->
                     billingClient.consumeAsync(p) { result, _ ->
-                        Log.d(TAG, "consumeAsync INAPP ${purchase.purchaseToken.takeLast(8)}: code=${result.responseCode} msg='${result.debugMessage}'")
+                        logd("consumeAsync INAPP ${purchase.purchaseToken.takeLast(8)}: code=${result.responseCode} msg='${result.debugMessage}'")
                         cont.resume(Unit)
                     }
                 }
@@ -330,7 +339,7 @@ class BillingManager(
                 val p = ConsumeParams.newBuilder().setPurchaseToken(token).build()
                 suspendCancellableCoroutine { cont ->
                     billingClient.consumeAsync(p) { result, _ ->
-                        Log.d(TAG, "consumeAsync stored token ${token.takeLast(8)}: code=${result.responseCode} msg='${result.debugMessage}'")
+                        logd("consumeAsync stored token ${token.takeLast(8)}: code=${result.responseCode} msg='${result.debugMessage}'")
                         cont.resume(Unit)
                     }
                 }

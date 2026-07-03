@@ -2,6 +2,7 @@ package com.dayglance.app
 
 import android.Manifest
 import android.app.AlarmManager
+import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -29,6 +30,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -308,6 +310,45 @@ class MainActivity : AppCompatActivity() {
                 view: WebView,
                 request: WebResourceRequest
             ) = assetLoader.shouldInterceptRequest(request.url)
+
+            // Navigation allowlist. The WebView hosts privileged JavascriptInterface
+            // bridges (crypto key, Obsidian vault read/write, HTTP, billing), so it must
+            // only ever navigate to the bundled WebViewAssetLoader origin. Any link to a
+            // remote origin is opened externally instead of loaded in this WebView.
+            override fun shouldOverrideUrlLoading(
+                view: WebView,
+                request: WebResourceRequest
+            ): Boolean {
+                val url = request.url
+                // Allow the local asset origin and about:blank to load in-place.
+                if (url.host == "appassets.androidplatform.net") return false
+                if (url.toString() == "about:blank") return false
+
+                val scheme = url.scheme?.lowercase()
+                if (scheme == "http" || scheme == "https") {
+                    // Open remote web links in a Chrome Custom Tab (falls back to the
+                    // system browser via ACTION_VIEW if no Custom Tabs provider exists).
+                    try {
+                        CustomTabsIntent.Builder().build()
+                            .launchUrl(this@MainActivity, url)
+                    } catch (e: ActivityNotFoundException) {
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, url))
+                        } catch (e2: ActivityNotFoundException) {
+                            // No handler available — swallow rather than crash.
+                        }
+                    }
+                    return true
+                }
+
+                // Any other scheme (mailto:, tel:, geo:, etc.) — hand off to the system.
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, url))
+                } catch (e: ActivityNotFoundException) {
+                    // No app can handle this scheme — ignore rather than crash.
+                }
+                return true
+            }
 
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)

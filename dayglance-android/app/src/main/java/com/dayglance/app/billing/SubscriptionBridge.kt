@@ -128,6 +128,15 @@ class SubscriptionBridge(
      */
     @JavascriptInterface
     fun consumeTestPurchase() {
+        // Destructive test-only path: consuming the lifetime token revokes the user's
+        // purchase. Must never run in production Play builds — gate on debug builds only.
+        if (!BuildConfig.DEBUG) {
+            webView?.post {
+                webView.evaluateJavascript(
+                    """window.__billingEvent && window.__billingEvent({"status":"consume_failed","code":0,"message":"debug_only","productId":""});""", null)
+            }
+            return
+        }
         if (!BuildConfig.BILLING_ENABLED) return
         val token = dataStore.subscriptionToken ?: run {
             webView?.post {
