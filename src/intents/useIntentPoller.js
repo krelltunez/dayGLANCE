@@ -144,7 +144,7 @@ export async function runIntentGC(config) {
   }
 
   if (deleted > 0) {
-    console.log(`[intent-gc] Deleted ${deleted} expired event file(s)`);
+    if (import.meta.env.DEV) console.log(`[intent-gc] Deleted ${deleted} expired event file(s)`);
   }
 
   localStorage.setItem(GC_LAST_RUN_KEY, new Date().toISOString());
@@ -213,7 +213,7 @@ export async function runIntentGCICloud(config) {
   }
 
   if (deleted > 0) {
-    console.log(`[intent-gc/icloud] Deleted ${deleted} expired event file(s)`);
+    if (import.meta.env.DEV) console.log(`[intent-gc/icloud] Deleted ${deleted} expired event file(s)`);
   }
 }
 

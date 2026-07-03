@@ -1,4 +1,4 @@
-const GITHUB_REPO = 'krelltunez/day-planner';
+const GITHUB_REPO = 'krelltunez/dayGLANCE';
 const CACHE_KEY = 'dayglance-version-check';
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour cache to avoid redundant API calls within check intervals
 

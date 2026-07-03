@@ -1229,6 +1229,9 @@ const DayPlanner = () => {
   // Check for app updates on mount and every 6 hours
   useEffect(() => {
     if (isTrayMode) return;
+    // Skip the update check on Mac App Store (sandboxed) builds — the banner links to
+    // GitHub releases, which is not permitted under App Store review guidelines.
+    if (typeof window !== 'undefined' && window.electronAPI?.isMAS === true) return;
     const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
     const doCheck = async () => {
       const result = await checkForUpdate(currentVersion);
@@ -3975,6 +3978,8 @@ const DayPlanner = () => {
       let cancelled = false;
       electronGetEventsByDate(dates).then(results => {
         if (!cancelled) applyEvents(results);
+      }).catch(err => {
+        console.warn('electronGetEventsByDate (timeline) failed:', err);
       });
       return () => { cancelled = true; };
     }
@@ -4035,6 +4040,8 @@ const DayPlanner = () => {
     } else {
       electronGetEventsByDate(dates).then(results => {
         if (!cancelled) setSpotlightNativeTasks(toTasks(results));
+      }).catch(err => {
+        console.warn('electronGetEventsByDate (spotlight) failed:', err);
       });
       return () => { cancelled = true; };
     }
@@ -5190,10 +5197,10 @@ const DayPlanner = () => {
       if (!icsContent.includes('BEGIN:VCALENDAR')) {
         // CalDAV collection URLs (Baikal, Nextcloud, etc.) return HTML or WebDAV XML
         // unless ?export is appended. Auto-retry once before giving up.
-        console.log('[calendar-sync] Response is not ICS. Content-Type:', response.headers.get('content-type'), '— First 300 chars:', icsContent.slice(0, 300));
+        if (import.meta.env.DEV) console.log('[calendar-sync] Response is not ICS. Content-Type:', response.headers.get('content-type'), '— First 300 chars:', icsContent.slice(0, 300));
         if (!syncUrl.includes('export')) {
           const exportUrl = syncUrl.includes('?') ? `${syncUrl}&export` : `${syncUrl}?export`;
-          console.log('[calendar-sync] Retrying with ?export:', redactUrl(exportUrl));
+          if (import.meta.env.DEV) console.log('[calendar-sync] Retrying with ?export:', redactUrl(exportUrl));
           try {
             const exportResponse = await icsProxyFetch(exportUrl, calAuthValue);
             if (exportResponse.ok) {
@@ -5202,7 +5209,7 @@ const DayPlanner = () => {
                 icsContent = exportContent;
                 effectiveUrl = exportUrl;
               } else {
-                console.log('[calendar-sync] ?export retry also returned non-ICS. Content-Type:', exportResponse.headers.get('content-type'));
+                if (import.meta.env.DEV) console.log('[calendar-sync] ?export retry also returned non-ICS. Content-Type:', exportResponse.headers.get('content-type'));
               }
             }
           } catch { /* fall through to not-ical error below */ }
@@ -5267,9 +5274,9 @@ const DayPlanner = () => {
 
         if (!icsContent.includes('BEGIN:VCALENDAR') && !taskCalendarUrl.includes('export')) {
           // Auto-retry with ?export for CalDAV collection URLs (Baikal, Nextcloud, etc.)
-          console.log('[task-calendar-sync] Response is not ICS. Content-Type:', response.headers.get('content-type'), '— First 300 chars:', icsContent.slice(0, 300));
+          if (import.meta.env.DEV) console.log('[task-calendar-sync] Response is not ICS. Content-Type:', response.headers.get('content-type'), '— First 300 chars:', icsContent.slice(0, 300));
           const exportUrl = taskCalendarUrl.includes('?') ? `${taskCalendarUrl}&export` : `${taskCalendarUrl}?export`;
-          console.log('[task-calendar-sync] Retrying with ?export:', redactUrl(exportUrl));
+          if (import.meta.env.DEV) console.log('[task-calendar-sync] Retrying with ?export:', redactUrl(exportUrl));
           try {
             const exportResponse = await icsProxyFetch(exportUrl, taskAuthValue);
             if (exportResponse.ok) {

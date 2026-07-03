@@ -172,7 +172,7 @@ const SettingsModal = () => {
                   <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('settings.title')}</h3>
                 </div>
 
-                {updateInfo && (
+                {updateInfo && !(typeof window !== 'undefined' && window.electronAPI?.isMAS === true) && (
                   <div className={`mb-4 p-3 rounded-lg border ${darkMode ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-200'}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1">
