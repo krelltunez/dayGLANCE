@@ -8162,6 +8162,118 @@ const streamDeck = {
     },
 };
 
+// Canonical protocol contract for the dayGLANCE Desktop ↔ client WebSocket API.
+// All message type string constants and wire-format types live here.
+// Clients (Stream Deck plugin, future integrations) import from this file.
+// Do not define these strings anywhere else in the codebase.
+const PROTOCOL_VERSION = 1;
+// ── Outbound message type constants (server → clients) ───────────────────
+const MSG_DAY_STATE = 'day:state';
+// ── Handshake constants (property-inspector authentication) ──────────────
+// Browsers always send an Origin header on a WebSocket handshake, so the server
+// rejects every browser origin (including the opaque "null" of a sandboxed
+// iframe) to stop drive-by web pages from reaching the local API. The Stream
+// Deck property inspector runs in a webview and would be rejected too, so it
+// authenticates with a short-lived session token: the Origin-less plugin backend
+// receives the token from the server, relays it to the PI, and the PI presents
+// it as its first frame before the server registers it or sends any state.
+const MSG_DAY_TOKEN = 'day:token'; // server → native client: session token to relay to its PI
+// ── Inbound command type constants (clients → server) ────────────────────
+const MSG_DAY_FOCUS_START = 'day:focus:start';
+const MSG_DAY_FOCUS_TIMER_START = 'day:focus:timer-start';
+const MSG_DAY_FOCUS_STOP = 'day:focus:stop';
+const MSG_DAY_FOCUS_SKIP = 'day:focus:skip';
+const MSG_DAY_FOCUS_SET_DURATION = 'day:focus:set-duration';
+const MSG_DAY_FOCUS_DISMISS_STATS = 'day:focus:dismiss-stats';
+const MSG_DAY_HG_START = 'day:hg:start';
+const MSG_DAY_HG_TIMER_START = 'day:hg:timer-start';
+const MSG_DAY_HG_STOP = 'day:hg:stop';
+const MSG_DAY_HG_SKIP = 'day:hg:skip';
+const MSG_DAY_HG_SET_DURATION = 'day:hg:set-duration';
+const MSG_DAY_HG_COMPLETE = 'day:hg:complete';
+const MSG_DAY_HG_TASK_COMPLETE = 'day:hg:task-complete';
+const MSG_DAY_TASK_COMPLETE = 'day:task:complete';
+const MSG_DAY_HABIT_INCREMENT = 'day:habit:increment';
+const MSG_DAY_ROUTINE_COMPLETE = 'day:routine:complete';
+
+const WS_URL = "ws://localhost:7892";
+const RETRY_MS = 3000;
+let ws = null;
+let retryTimer;
+let lastState = null;
+const listeners = new Set();
+// dayGLANCE Desktop issues this Origin-less backend a session token on connect.
+// It is the credential the browser-based property inspector must present to the
+// same server (which rejects all browser origins otherwise), so we relay it via
+// plugin.ts → Stream Deck's sendToPropertyInspector.
+let sessionToken = null;
+const tokenListeners = new Set();
+function connect() {
+    clearTimeout(retryTimer);
+    console.log("[dayGLANCE] connecting to", WS_URL);
+    ws = new WebSocket$1(WS_URL);
+    ws.on("open", () => {
+        console.log("[dayGLANCE] WS connected");
+    });
+    ws.on("message", (data) => {
+        try {
+            const msg = JSON.parse(data.toString());
+            if (msg.type === MSG_DAY_TOKEN && typeof msg.token === "string") {
+                const token = msg.token;
+                sessionToken = token;
+                for (const listener of tokenListeners)
+                    listener(token);
+                return;
+            }
+            if (msg.type === MSG_DAY_STATE) {
+                lastState = msg;
+                for (const listener of listeners)
+                    listener(lastState);
+            }
+        }
+        catch {
+            // drop malformed frames
+        }
+    });
+    ws.on("close", () => {
+        console.log("[dayGLANCE] WS closed, retrying in", RETRY_MS, "ms");
+        // The old token is revoked server-side once this socket closes; the next
+        // connection is issued a fresh one.
+        sessionToken = null;
+        retryTimer = setTimeout(connect, RETRY_MS);
+    });
+    ws.on("error", () => {
+        // "close" fires after "error" — retry is handled there
+    });
+}
+function send(command) {
+    if (ws?.readyState === WebSocket$1.OPEN) {
+        const wire = { v: PROTOCOL_VERSION, ...command };
+        ws.send(JSON.stringify(wire));
+    }
+}
+/** Subscribe to state updates. Returns an unsubscribe function.
+ *  Immediately invokes listener with the last known state if available. */
+function onState(listener) {
+    listeners.add(listener);
+    if (lastState)
+        listener(lastState);
+    return () => listeners.delete(listener);
+}
+/** The current dayGLANCE Desktop session token, or null if not yet connected. */
+function getSessionToken() {
+    return sessionToken;
+}
+/** Subscribe to session-token updates (fires whenever a new token is issued).
+ *  Returns an unsubscribe function; invokes immediately if a token is known. */
+function onToken(listener) {
+    tokenListeners.add(listener);
+    if (sessionToken)
+        listener(sessionToken);
+    return () => tokenListeners.delete(listener);
+}
+connect();
+
 /******************************************************************************
 Copyright (c) Microsoft Corporation.
 
@@ -8217,81 +8329,6 @@ typeof SuppressedError === "function" ? SuppressedError : function (error, suppr
     var e = new Error(message);
     return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
 };
-
-// Canonical protocol contract for the dayGLANCE Desktop ↔ client WebSocket API.
-// All message type string constants and wire-format types live here.
-// Clients (Stream Deck plugin, future integrations) import from this file.
-// Do not define these strings anywhere else in the codebase.
-const PROTOCOL_VERSION = 1;
-// ── Outbound message type constants (server → clients) ───────────────────
-const MSG_DAY_STATE = 'day:state';
-// ── Inbound command type constants (clients → server) ────────────────────
-const MSG_DAY_FOCUS_START = 'day:focus:start';
-const MSG_DAY_FOCUS_TIMER_START = 'day:focus:timer-start';
-const MSG_DAY_FOCUS_STOP = 'day:focus:stop';
-const MSG_DAY_FOCUS_SKIP = 'day:focus:skip';
-const MSG_DAY_FOCUS_SET_DURATION = 'day:focus:set-duration';
-const MSG_DAY_FOCUS_DISMISS_STATS = 'day:focus:dismiss-stats';
-const MSG_DAY_HG_START = 'day:hg:start';
-const MSG_DAY_HG_TIMER_START = 'day:hg:timer-start';
-const MSG_DAY_HG_STOP = 'day:hg:stop';
-const MSG_DAY_HG_SKIP = 'day:hg:skip';
-const MSG_DAY_HG_SET_DURATION = 'day:hg:set-duration';
-const MSG_DAY_HG_COMPLETE = 'day:hg:complete';
-const MSG_DAY_HG_TASK_COMPLETE = 'day:hg:task-complete';
-const MSG_DAY_TASK_COMPLETE = 'day:task:complete';
-const MSG_DAY_HABIT_INCREMENT = 'day:habit:increment';
-const MSG_DAY_ROUTINE_COMPLETE = 'day:routine:complete';
-
-const WS_URL = "ws://localhost:7892";
-const RETRY_MS = 3000;
-let ws = null;
-let retryTimer;
-let lastState = null;
-const listeners = new Set();
-function connect() {
-    clearTimeout(retryTimer);
-    console.log("[dayGLANCE] connecting to", WS_URL);
-    ws = new WebSocket$1(WS_URL);
-    ws.on("open", () => {
-        console.log("[dayGLANCE] WS connected");
-    });
-    ws.on("message", (data) => {
-        try {
-            const msg = JSON.parse(data.toString());
-            if (msg.type === MSG_DAY_STATE) {
-                lastState = msg;
-                for (const listener of listeners)
-                    listener(lastState);
-            }
-        }
-        catch {
-            // drop malformed frames
-        }
-    });
-    ws.on("close", () => {
-        console.log("[dayGLANCE] WS closed, retrying in", RETRY_MS, "ms");
-        retryTimer = setTimeout(connect, RETRY_MS);
-    });
-    ws.on("error", () => {
-        // "close" fires after "error" — retry is handled there
-    });
-}
-function send(command) {
-    if (ws?.readyState === WebSocket$1.OPEN) {
-        const wire = { v: PROTOCOL_VERSION, ...command };
-        ws.send(JSON.stringify(wire));
-    }
-}
-/** Subscribe to state updates. Returns an unsubscribe function.
- *  Immediately invokes listener with the last known state if available. */
-function onState(listener) {
-    listeners.add(listener);
-    if (lastState)
-        listener(lastState);
-    return () => listeners.delete(listener);
-}
-connect();
 
 const FONT = "-apple-system, 'Helvetica Neue', Arial, sans-serif";
 const ORANGE = "#f97316";
@@ -10291,5 +10328,35 @@ streamDeck.actions.registerAction(new UpNextAction());
 streamDeck.actions.registerAction(new QuickGlanceAction());
 streamDeck.actions.registerAction(new RoutineAction());
 streamDeck.actions.registerAction(new HyperGlanceAction());
+// ── Property-inspector token relay ─────────────────────────────────────────
+// The property inspector connects to dayGLANCE Desktop's WebSocket directly and
+// must authenticate with a session token (see electron/ws-server.ts). Only this
+// Origin-less backend knows the token, so we relay it to the PI over Stream Deck's
+// PI channel. sendToPropertyInspector is a no-op unless a PI is currently visible,
+// so pushing on token arrival / PI request is safe.
+function sendTokenToPI(token) {
+    streamDeck.ui.sendToPropertyInspector({ event: "dg-token", token }).catch(() => {
+        // No PI visible, or it closed mid-send — harmless.
+    });
+}
+// Push proactively whenever a (new) token is issued — covers the case where the
+// PI is already open when Desktop starts or restarts.
+onToken(sendTokenToPI);
+// Respond to an explicit request from the PI (sent when it opens, before Desktop
+// may have connected).
+streamDeck.ui.onSendToPlugin((ev) => {
+    const payload = ev.payload;
+    if (payload?.event === "dg-request-token") {
+        const token = getSessionToken();
+        if (token)
+            sendTokenToPI(token);
+    }
+});
+// Push once when a PI appears, in case the token is already known.
+streamDeck.ui.onDidAppear(() => {
+    const token = getSessionToken();
+    if (token)
+        sendTokenToPI(token);
+});
 streamDeck.connect().catch((err) => console.error("[dayGLANCE] streamDeck.connect failed:", err));
 //# sourceMappingURL=plugin.js.map

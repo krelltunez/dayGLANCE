@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Full-backup rules for Android 11 and below (API <= 30).
+
+  Excludes SharedPreferences files that hold security-sensitive data:
+    - dayglance_crypto.xml : Keystore-wrapped sync-key ciphertext + IVs
+                             (CryptoKeyBridge, prefs name "dayglance_crypto").
+    - dayglance_shared.xml : subscription flags / product id / purchase token
+                             (SharedDataStore, prefs name "dayglance_shared").
+                             Auto Backup excludes SharedPreferences at file
+                             granularity, so the whole file is excluded.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="dayglance_crypto.xml" />
+    <exclude domain="sharedpref" path="dayglance_shared.xml" />
+</full-backup-content>

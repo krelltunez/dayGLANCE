@@ -73,7 +73,7 @@ Open [http://localhost:5173](http://localhost:5173). For production: `npm run bu
 
 ## Android App
 
-A native Android app is available on Google Play and as a direct APK download. The Android app distributed through the Google Play Store is a commercial binary that support continued development.
+A native Android app is available on Google Play and as a direct APK download. The Android app distributed through the Google Play Store is a commercial binary that supports continued development.
 
 [<img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="60">](https://play.google.com/store/apps/details?id=com.dayglance.app)
 
@@ -97,6 +97,31 @@ The Android app ships the full web app in a WebView with native enhancements tha
 | App Timeline (GRID) | App Timeline (LIST) |
 |:-:|:-:|
 | ![Android App Timeline (Grid)](screenshots/android-timeline.png) | ![Android App Timeline (List)](screenshots/android-timeline-list.png) |
+
+---
+
+## iOS & macOS App Store
+
+dayGLANCE is coming to the **App Store** for iPhone, iPad, and Mac. Like the Android build, the Apple apps wrap the full dayGLANCE experience with native platform integrations, and a single purchase covers every Apple device you own.
+
+<!-- TODO: replace APPLE_APP_ID with the real App Store ID before the announcement -->
+[<img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="60">](https://apps.apple.com/app/idAPPLE_APP_ID)
+
+The Apple apps ship the full app natively on each device, with capabilities that only make sense on Apple hardware:
+
+| Feature | Details |
+|---|---|
+| 🛒 **Universal Purchase** | Buy once and run dayGLANCE on iPhone, iPad, and Mac, with no separate purchase per device |
+| ☁️ **iCloud sync** | Tasks, habits, and plans stay up to date between your Mac and iPhone automatically, with no setup |
+| 📅 **Calendar on the timeline** | Your Apple Calendar (and any iCal/CalDAV subscription) surfaces color-coded alongside your tasks |
+| 🔗 **Obsidian vault support** | Connect a local Obsidian vault to sync daily notes and tasks directly |
+| 📱 **Home Screen widgets** | Glanceable widgets for your day on iPhone and iPad, plus iOS 18 Control Center controls for new tasks and voice input |
+| 🔍 **Spotlight search** | Your tasks are indexed in Spotlight, so you can search from anywhere and jump straight into dayGLANCE |
+| ⚡ **Quick actions** | Long-press the app icon to create a scheduled or inbox task, start a focus session, or queue voice input |
+| 📌 **Menu-bar tray mode (Mac)** | Keep dayGLANCE one click away in the menu bar, with a live focus countdown in the tray |
+| 🖥️ **Native on Apple Silicon & Intel** | A true native Mac build that runs on both Apple Silicon and Intel Macs |
+
+*Preparing for release: the App Store link above is a placeholder until the listing goes live.*
 
 ---
 

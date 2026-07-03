@@ -182,6 +182,28 @@ class SharedDataStore(context: Context) {
             else remove(KEY_PENDING_INTENT_JSON)
         }
 
+    // ── Automation intents (Tasker) opt-in gate ─────────────────────────────
+
+    /**
+     * Master opt-in for the Android automation intents transport (Tasker etc.).
+     *
+     * DEFAULT FALSE — the exported IntentReceiver drops inbound CREATE/COMPLETE/
+     * OPEN/QUERY broadcasts and NativeBridge suppresses the outbound RESULT/NOTIFY
+     * broadcasts until the user turns this on in Settings. This closes the
+     * unpermissioned intent surface for everyone who hasn't deliberately opted in.
+     *
+     * Written by NativeBridge.setAutomationIntentsEnabled() from the JS settings
+     * toggle; read by IntentReceiver (inbound gate) and NativeBridge (outbound gate).
+     *
+     * Lives in the backup-excluded dayglance_shared prefs on purpose: a security
+     * gate should reset to OFF on a cross-device restore/transfer rather than
+     * silently carrying an "open" posture onto a new device. The flag itself is
+     * not sensitive; resetting to the safe default is the desirable behaviour.
+     */
+    var automationIntentsEnabled: Boolean
+        get() = prefs.getBoolean(KEY_AUTOMATION_INTENTS_ENABLED, false)
+        set(value) = prefs.edit { putBoolean(KEY_AUTOMATION_INTENTS_ENABLED, value) }
+
     // ── Subscription ────────────────────────────────────────────────────────
 
     /** True when Google Play confirms an active subscription. Cached locally. */
@@ -263,6 +285,7 @@ class SharedDataStore(context: Context) {
         private const val KEY_PENDING_SHARE = "pending_share_text"
         private const val KEY_PENDING_FOCUS_ACTION = "pending_focus_action"
         private const val KEY_PENDING_INTENT_JSON = "pending_intent_json"
+        private const val KEY_AUTOMATION_INTENTS_ENABLED = "automation_intents_enabled"
         private const val KEY_APP_DARK_MODE = "app_dark_mode"
         private const val KEY_LAST_UP_NEXT_BODY = "last_up_next_body"
         private const val KEY_SUBSCRIPTION_ACTIVE = "subscription_active"

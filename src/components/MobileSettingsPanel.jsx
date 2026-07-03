@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { getTzLabel, getTzOptions } from '../utils/timezones.js';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from '../constants/habits.js';
-import { getDeviceId, isNativeAndroid, isNativeApp, nativeGetCalendars, nativePickVault } from '../native.js';
+import { getDeviceId, isNativeAndroid, isNativeApp, nativeGetCalendars, nativePickVault, nativeGetAutomationIntentsEnabled, nativeSetAutomationIntentsEnabled } from '../native.js';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, listVaultNotes } from '../obsidian.js';
@@ -149,6 +149,11 @@ const MobileSettingsPanel = () => {
   // Vault intents key-setup phase: null | 'passphrase-needed' | 'running' | { error }.
   const [dbIntentsSetupPhase, setDbIntentsSetupPhase] = useState(null);
   const [dbIntentsPassphraseInput, setDbIntentsPassphraseInput] = useState('');
+  // Android automation intents (Tasker) opt-in gate. DEFAULT OFF — the native
+  // SharedPreferences flag is the source of truth; mirror it for the toggle.
+  const [automationIntentsEnabled, setAutomationIntentsEnabled] = useState(
+    () => isNativeAndroid() && nativeGetAutomationIntentsEnabled(),
+  );
   const [muAddingUser, setMuAddingUser] = useState(false);
   const [muNewUserName, setMuNewUserName] = useState('');
   const [muEditingUserId, setMuEditingUserId] = useState(null);
@@ -1675,6 +1680,34 @@ const MobileSettingsPanel = () => {
         <p className={`text-xs ${textSecondary} -mt-3`}>
           Connect dayGLANCE to other Glance-compatible apps via a shared WebDAV event log.
         </p>
+
+        {/* Automation intents (Tasker) — Android only. Opt-in gate for the
+            exported IntentReceiver + outbound RESULT/NOTIFY broadcasts. */}
+        {isNativeAndroid() && (
+          <div>
+            <h5 className={sectionCls}>{t('settings.automationIntents')}</h5>
+            <p className={`text-xs ${textSecondary} mb-2`}>{t('settings.automationIntentsDesc')}</p>
+            <div className={`flex items-start gap-3 p-3 rounded-lg border ${borderClass}`}>
+              <input
+                type="checkbox"
+                id="automation-intents-toggle-mobile"
+                checked={automationIntentsEnabled}
+                onChange={e => {
+                  const v = e.target.checked;
+                  setAutomationIntentsEnabled(v);
+                  nativeSetAutomationIntentsEnabled(v);
+                }}
+                className="mt-0.5 h-4 w-4 rounded"
+              />
+              <div>
+                <label htmlFor="automation-intents-toggle-mobile" className={`text-sm font-medium ${textPrimary} cursor-pointer`}>
+                  {t('settings.automationIntentsToggle')}
+                </label>
+                <p className={`text-xs ${textSecondary} mt-0.5`}>{t('settings.automationIntentsWarning')}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* WebDAV endpoint */}
         <div>

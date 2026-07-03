@@ -1,3 +1,5 @@
+import { rejectIfBlocked } from './_proxyGuard.js';
+
 function validateProxyUrl(urlString) {
   let parsed;
   try {
@@ -61,6 +63,10 @@ function validateProxyUrl(urlString) {
 }
 
 export default async function handler(req, res) {
+  // Origin allowlist + per-IP rate limiting. Only the web/PWA build reaches
+  // this hosted endpoint; native apps and Electron fetch directly.
+  if (rejectIfBlocked(req, res)) return;
+
   const { url } = req.query;
 
   if (!url) {

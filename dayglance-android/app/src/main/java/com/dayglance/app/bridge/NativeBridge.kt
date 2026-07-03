@@ -499,6 +499,9 @@ class NativeBridge(
      */
     @JavascriptInterface
     fun reportIntentResult(action: String, resultJson: String) {
+        // Outbound gate: never emit the global RESULT broadcast (which carries
+        // query results incl. task titles/times) unless the user has opted in.
+        if (!dataStore.automationIntentsEnabled) return
         val broadcast = Intent("app.dayglance.RESULT").apply {
             putExtra("action", action)
             putExtra("result", resultJson)
@@ -516,10 +519,31 @@ class NativeBridge(
      */
     @JavascriptInterface
     fun sendNotifyBroadcast(notifyJson: String) {
+        // Outbound gate: never emit the global NOTIFY broadcast (which carries a
+        // full notify envelope) unless the user has opted in to automation intents.
+        if (!dataStore.automationIntentsEnabled) return
         val broadcast = Intent("app.dayglance.NOTIFY").apply {
             putExtra("payload", notifyJson)
         }
         context.sendBroadcast(broadcast)
+    }
+
+    // ── Automation intents (Tasker) opt-in ─────────────────────────────────────
+
+    /**
+     * Returns whether the automation intents transport is enabled. Read by the JS
+     * settings toggle to wire its initial state. Default false (see SharedDataStore).
+     */
+    @JavascriptInterface
+    fun getAutomationIntentsEnabled(): Boolean = dataStore.automationIntentsEnabled
+
+    /**
+     * Persists the automation intents opt-in flag. Called by the JS settings toggle.
+     * Gates both the inbound IntentReceiver and the outbound RESULT/NOTIFY broadcasts.
+     */
+    @JavascriptInterface
+    fun setAutomationIntentsEnabled(enabled: Boolean) {
+        dataStore.automationIntentsEnabled = enabled
     }
 
     /**

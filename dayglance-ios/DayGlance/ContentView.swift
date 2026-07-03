@@ -12,7 +12,10 @@ struct ContentView: View {
             .task {
                 let calendarWasUndetermined = EKEventStore.authorizationStatus(for: .event) == .notDetermined
 
-                HealthBridge.shared.requestAuthorization()
+                // HealthKit authorization is intentionally NOT requested here
+                // (guideline 5.1.1 — no unprompted HealthKit dialog in the launch
+                // cascade). It is requested lazily on first health-data read; see
+                // HealthBridge.ensureAuthorizationRequested().
 
                 await withCheckedContinuation { continuation in
                     CalendarBridge.shared.requestAuthorization { continuation.resume() }

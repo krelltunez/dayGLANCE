@@ -56,7 +56,7 @@ export function useAndroidIntentBridge(context) {
 
       // Report back under the ORIGINAL broadcast action so Tasker's RESULT
       // listener sees %action = "app.dayglance.OPEN" as documented.
-      console.log('[intent-bridge]', action, '→', mappedAction, result);
+      if (import.meta.env.DEV) console.log('[intent-bridge]', action, '→', mappedAction, result);
       nativeReportIntentResult(action, JSON.stringify(result));
     };
 

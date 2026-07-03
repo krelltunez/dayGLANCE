@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup / transfer rules for Android 12+ (API 31+).
+
+  Excludes SharedPreferences files that hold security-sensitive data:
+    - dayglance_crypto.xml : Keystore-wrapped sync-key ciphertext + IVs
+                             (CryptoKeyBridge, prefs name "dayglance_crypto").
+    - dayglance_shared.xml : subscription flags / product id / purchase token
+                             (SharedDataStore, prefs name "dayglance_shared").
+                             Auto Backup excludes SharedPreferences at file
+                             granularity, so the whole file is excluded — the
+                             other values it holds (widget snapshot, Obsidian
+                             SAF settings) are device-local or regenerated and
+                             are not useful to restore across devices anyway.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="dayglance_crypto.xml" />
+        <exclude domain="sharedpref" path="dayglance_shared.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="dayglance_crypto.xml" />
+        <exclude domain="sharedpref" path="dayglance_shared.xml" />
+    </device-transfer>
+</data-extraction-rules>

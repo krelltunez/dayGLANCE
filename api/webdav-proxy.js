@@ -1,3 +1,5 @@
+import { rejectIfBlocked } from './_proxyGuard.js';
+
 // Disable Vercel's default body parser so we can forward raw request bodies
 // (e.g. text/calendar) without them being mangled or rejected as unsupported.
 export const config = {
@@ -86,6 +88,11 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Max-Age', '86400');
     return res.status(204).end();
   }
+
+  // Origin allowlist + per-IP rate limiting, applied after the (unauthenticated)
+  // CORS preflight. Only the web/PWA build reaches this hosted endpoint; native
+  // apps and Electron fetch directly.
+  if (rejectIfBlocked(req, res)) return;
 
   const { url } = req.query;
 

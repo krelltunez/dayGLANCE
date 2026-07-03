@@ -2,6 +2,7 @@ package com.dayglance.app
 
 import android.Manifest
 import android.app.AlarmManager
+import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -16,6 +17,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import android.view.View
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
@@ -29,6 +31,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -308,6 +311,45 @@ class MainActivity : AppCompatActivity() {
                 view: WebView,
                 request: WebResourceRequest
             ) = assetLoader.shouldInterceptRequest(request.url)
+
+            // Navigation allowlist. The WebView hosts privileged JavascriptInterface
+            // bridges (crypto key, Obsidian vault read/write, HTTP, billing), so it must
+            // only ever navigate to the bundled WebViewAssetLoader origin. Any link to a
+            // remote origin is opened externally instead of loaded in this WebView.
+            override fun shouldOverrideUrlLoading(
+                view: WebView,
+                request: WebResourceRequest
+            ): Boolean {
+                val url = request.url
+                // Allow the local asset origin and about:blank to load in-place.
+                if (url.host == "appassets.androidplatform.net") return false
+                if (url.toString() == "about:blank") return false
+
+                val scheme = url.scheme?.lowercase()
+                if (scheme == "http" || scheme == "https") {
+                    // Open remote web links in a Chrome Custom Tab (falls back to the
+                    // system browser via ACTION_VIEW if no Custom Tabs provider exists).
+                    try {
+                        CustomTabsIntent.Builder().build()
+                            .launchUrl(this@MainActivity, url)
+                    } catch (e: ActivityNotFoundException) {
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, url))
+                        } catch (e2: ActivityNotFoundException) {
+                            // No handler available — swallow rather than crash.
+                        }
+                    }
+                    return true
+                }
+
+                // Any other scheme (mailto:, tel:, geo:, etc.) — hand off to the system.
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, url))
+                } catch (e: ActivityNotFoundException) {
+                    // No app can handle this scheme — ignore rather than crash.
+                }
+                return true
+            }
 
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
@@ -629,6 +671,19 @@ class MainActivity : AppCompatActivity() {
      */
     private fun storeIntentAction(intent: Intent, store: SharedDataStore) {
         val action = intent.action ?: return
+
+        // Opt-in gate: mirror IntentReceiver. Activity-target automation intents
+        // (cold start via onCreate, warm via onNewIntent) also flow through here,
+        // so drop them too unless the user enabled "Automation intents" in Settings.
+        if (!store.automationIntentsEnabled) {
+            Log.w(
+                "MainActivity",
+                "Dropped Activity intent $action: Automation intents are disabled. " +
+                    "Enable them in dayGLANCE Settings to allow automation.",
+            )
+            return
+        }
+
         val payloadExtra = intent.getStringExtra("payload")
         // Parse and re-serialize via JSONObject to prevent JSON injection.
         val payloadObj = try {

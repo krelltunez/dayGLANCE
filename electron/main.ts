@@ -1,6 +1,8 @@
 import { app, BrowserWindow, shell, ipcMain, net, Tray, Menu, nativeImage, globalShortcut, session } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
+import dns from 'node:dns';
+import nodeNet from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { createWsServer } from './ws-server.js';
 import { registerSubscriptionHandlers } from './subscription.js';
@@ -50,14 +52,23 @@ function openExternalSafe(url: string): void {
   } catch { /* malformed URL — ignore */ }
 }
 
-// True if the navigation target is the app itself (file:// in production,
-// the Vite dev server in dev). Used to block renderer-initiated navigations
-// to external origins (defense-in-depth against XSS).
+// The app's own bundled entry point — the ONLY file:// document navigations are
+// allowed to reach. Computed exactly as createWindow()/createTrayWindow() do via
+// loadFile() so the two stay in lock-step.
+const APP_INDEX_PATH = path.join(__dirname, '../dist/index.html');
+
+// True if the navigation target is the app itself: the Vite dev server in dev,
+// or the app's own dist/index.html (any query/hash — the tray uses ?tray=1) in
+// production. Used to block renderer-initiated navigations to external origins
+// AND to arbitrary local files (defense-in-depth against XSS).
 function isSameAppOrigin(url: string): boolean {
   try {
-    const { protocol, origin } = new URL(url);
-    if (protocol === 'file:') return true;
-    if (DEV && origin === new URL(VITE_DEV_SERVER_URL).origin) return true;
+    const parsed = new URL(url);
+    if (DEV && parsed.origin === new URL(VITE_DEV_SERVER_URL).origin) return true;
+    if (parsed.protocol === 'file:') {
+      // Compare resolved filesystem paths; fileURLToPath drops query/hash.
+      return path.resolve(fileURLToPath(parsed)) === path.resolve(APP_INDEX_PATH);
+    }
     return false;
   } catch { return false; }
 }
@@ -236,8 +247,38 @@ function createTray(): void {
 // Allowed HTTP methods for the proxy — covers CalDAV/WebDAV needs.
 const PROXY_ALLOWED_METHODS = new Set(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'PROPFIND', 'MKCOL', 'REPORT', 'OPTIONS']);
 
-// Block private/loopback/link-local addresses to prevent SSRF.
-function validateProxyUrl(urlString: string): void {
+// True for an IP address (v4 or v6 literal, no brackets) that is loopback,
+// private (RFC1918), link-local, CGNAT, or otherwise reserved. Shared by the
+// literal-host path and the DNS-resolution path so both block the same ranges.
+function isPrivateOrReservedIp(ip: string): boolean {
+  const h = ip.toLowerCase();
+
+  const ipv4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4) {
+    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+    return (
+      a === 10 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      a === 127 ||
+      (a === 169 && b === 254) ||
+      a === 0 ||
+      (a === 100 && b >= 64 && b <= 127)
+    );
+  }
+
+  return (
+    h === '::1' || h === '::' ||
+    /^::ffff:/i.test(h) || /^fe80:/i.test(h) ||
+    /^fc/i.test(h)      || /^fd/i.test(h)
+  );
+}
+
+// Block private/loopback/link-local addresses to prevent SSRF. For an IP-literal
+// host the range check runs directly; for a hostname we resolve EVERY A/AAAA
+// record via DNS and reject if any resolves internally — closing the bypass where
+// a public hostname (or a redirect target) points at 127.0.0.1 / an RFC1918 host.
+async function validateProxyUrl(urlString: string): Promise<void> {
   let parsed: URL;
   try { parsed = new URL(urlString); } catch { throw new Error('Invalid URL'); }
 
@@ -249,25 +290,25 @@ function validateProxyUrl(urlString: string): void {
 
   if (h === 'localhost' || h === '0.0.0.0') throw new Error('Private/reserved address');
 
-  const ipv4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (ipv4) {
-    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
-    if (
-      a === 10 ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      a === 127 ||
-      (a === 169 && b === 254) ||
-      a === 0 ||
-      (a === 100 && b >= 64 && b <= 127)
-    ) throw new Error('Private/reserved address');
+  // URL keeps the brackets on IPv6 literals (e.g. "[::1]"); strip them so the
+  // literal check and net.isIP see the bare address.
+  const bare = h.startsWith('[') && h.endsWith(']') ? h.slice(1, -1) : h;
+
+  if (nodeNet.isIP(bare)) {
+    if (isPrivateOrReservedIp(bare)) throw new Error('Private/reserved address');
+    return;
   }
 
-  if (
-    h === '::1' || h === '::' ||
-    /^::ffff:/i.test(h) || /^fe80:/i.test(h) ||
-    /^fc/i.test(h)      || /^fd/i.test(h)
-  ) throw new Error('Private/reserved address');
+  // Hostname — resolve and reject if ANY resolved address is internal.
+  let addresses: { address: string }[];
+  try {
+    addresses = await dns.promises.lookup(bare, { all: true });
+  } catch {
+    throw new Error('DNS resolution failed');
+  }
+  for (const { address } of addresses) {
+    if (isPrivateOrReservedIp(address)) throw new Error('Private/reserved address');
+  }
 }
 
 // Proxy outbound HTTP requests from the renderer so they aren't subject to
@@ -277,7 +318,7 @@ ipcMain.handle('proxy-fetch', async (_event, method: string, url: string, header
   if (!PROXY_ALLOWED_METHODS.has(upperMethod)) {
     return { status: 400, ok: false, statusText: 'Bad Request', body: 'Method not allowed' };
   }
-  try { validateProxyUrl(url); } catch (e: unknown) {
+  try { await validateProxyUrl(url); } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Invalid URL';
     return { status: 400, ok: false, statusText: 'Bad Request', body: msg };
   }
@@ -288,12 +329,38 @@ ipcMain.handle('proxy-fetch', async (_event, method: string, url: string, header
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30_000);
   try {
-    const response = await net.fetch(url, {
-      method: upperMethod,
-      headers,
-      signal: controller.signal,
-      ...(body != null ? { body } : {}),
-    });
+    // net.fetch follows redirects itself, but would NOT re-run validateProxyUrl
+    // on the redirect target — a public URL could 302 to http://127.0.0.1/… and
+    // bypass the SSRF guard. So follow manually, re-validating every hop.
+    const MAX_REDIRECTS = 5;
+    let currentUrl = url;
+    let currentMethod = upperMethod;
+    let currentBody = body;
+    let response: Awaited<ReturnType<typeof net.fetch>>;
+    for (let hop = 0; ; hop++) {
+      response = await net.fetch(currentUrl, {
+        method: currentMethod,
+        headers,
+        redirect: 'manual',
+        signal: controller.signal,
+        ...(currentBody != null ? { body: currentBody } : {}),
+      });
+      // Not a 3xx, or a 3xx without a Location — this is the final response.
+      const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null;
+      if (!location) break;
+      if (hop >= MAX_REDIRECTS) {
+        return { status: 0, ok: false, statusText: 'Too many redirects', body: '', headers: { etag: null } };
+      }
+      const nextUrl = new URL(location, currentUrl).toString();
+      await validateProxyUrl(nextUrl); // re-validate the redirect target (throws → caught below)
+      // Mirror fetch's method-rewrite semantics: 303 always, and 301/302 on POST,
+      // switch to a bodyless GET; other redirects preserve method and body.
+      if (response.status === 303 || ((response.status === 301 || response.status === 302) && currentMethod === 'POST')) {
+        currentMethod = 'GET';
+        currentBody = null;
+      }
+      currentUrl = nextUrl;
+    }
     const text = await response.text();
     return { status: response.status, ok: response.ok, statusText: response.statusText, body: text, headers: { etag: response.headers.get('etag') || null } };
   } catch (e: unknown) {
@@ -443,7 +510,32 @@ app.setAboutPanelOptions({
   credits: 'Support: support@glance-apps.com\nWeb: https://www.glance-apps.com/',
 });
 
+// Single-instance lock: only one dayGLANCE process may run at a time. A second
+// launch would race for the fixed 7892 WebSocket port and the window-state file,
+// so if we can't get the lock another instance already owns it — quit, and let
+// that primary instance surface its window via the 'second-instance' handler.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    const mw = live(mainWindow);
+    if (mw) {
+      if (mw.isMinimized()) mw.restore();
+      if (!mw.isVisible()) mw.show();
+      mw.focus();
+    } else {
+      // No live main window (tray-only after the window was closed) — recreate it.
+      createWindow();
+    }
+  });
+}
+
 app.whenReady().then(() => {
+  // A doomed second instance may still reach 'ready' before app.quit() takes
+  // effect; bail before creating any windows so it never steals the port/state.
+  if (!gotSingleInstanceLock) return;
+
   // Content Security Policy — applied to every response the renderer loads.
   // script-src 'self': only scripts from the app bundle (no inline scripts, no eval).
   // style-src 'self' 'unsafe-inline': Tailwind generates inline styles at runtime.

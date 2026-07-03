@@ -227,10 +227,6 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
             SpotlightBridge.shared.deindexItems(json)
             return "null"
 
-        // Phase 11 — Reminders
-        case "getReminders":
-            return CalendarBridge.shared.getReminders()
-
         default:
             return "null"
         }

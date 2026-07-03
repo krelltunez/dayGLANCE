@@ -1,11 +1,11 @@
-# Tasker / Android Intents — Implementation Report
+# Tasker / Android Intents: Implementation Report
 
 *How the Tasker intents transport is built in dayGLANCE, written as a porting guide for sibling apps (e.g. **lastGLANCE**).*
 
-dayGLANCE is a web app wrapped in a native Android shell (a hand-rolled `WebView` `MainActivity`). lastGLANCE has the same overall shape — a web frontend in a Capacitor Android/iOS wrapper with a Kotlin bridge for widgets — so the architecture ports directly. The two meaningful differences you'll adapt for:
+dayGLANCE is a web app wrapped in a native Android shell (a hand-rolled `WebView` `MainActivity`). lastGLANCE has the same overall shape (a web frontend in a Capacitor Android/iOS wrapper with a Kotlin bridge for widgets), so the architecture ports directly. The two meaningful differences you'll adapt for:
 
-1. **TypeScript instead of JavaScript** — trivial; add types to the handler/context.
-2. **Capacitor instead of a raw WebView shell** — you replace dayGLANCE's `addJavascriptInterface` bridge with a small **custom Capacitor plugin**, and hook Capacitor's `BridgeActivity` lifecycle instead of a bespoke `AppCompatActivity`. The *concepts* are identical; only the plumbing differs. See [Porting to lastGLANCE (Capacitor + TypeScript)](#porting-to-lastglance-capacitor--typescript).
+1. **TypeScript instead of JavaScript**: trivial; add types to the handler/context.
+2. **Capacitor instead of a raw WebView shell**: you replace dayGLANCE's `addJavascriptInterface` bridge with a small **custom Capacitor plugin**, and hook Capacitor's `BridgeActivity` lifecycle instead of a bespoke `AppCompatActivity`. The *concepts* are identical; only the plumbing differs. See [Porting to lastGLANCE (Capacitor + TypeScript)](#porting-to-lastglance-capacitor--typescript).
 
 This is Android-only. iOS has no equivalent broadcast mechanism; for cross-platform automation dayGLANCE uses file-based transports (WebDAV / an encrypted vault), which are out of scope here.
 
@@ -73,12 +73,12 @@ The design goal: **process inbound intents live while the app is backgrounded-bu
 
 ## 3. The web layer
 
-### 3.1 `handleIntent()` — the pure handler
+### 3.1 `handleIntent()`: the pure handler
 
 A single async function that takes `(action, payload, context)` and returns a plain result object. It:
 
 - validates + normalizes the payload (schemas live in a shared package, `@glance-apps/intents`),
-- performs the state change **only if** the relevant setters are present in `context` (otherwise it runs in "skeleton" mode and just returns the normalized payload — handy for tests and dry runs),
+- performs the state change **only if** the relevant setters are present in `context` (otherwise it runs in "skeleton" mode and just returns the normalized payload, handy for tests and dry runs),
 - returns `{ success, task_id, error, warning, ...extra }`.
 
 It is deliberately UI- and platform-agnostic. `context` is how the app injects its state and mutators:
@@ -88,14 +88,14 @@ handleIntent(action, payload, {
   tasks, unscheduledTasks, recurringTasks, projects, goals,   // read
   setTasks, setUnscheduledTasks, setRecurringTasks,           // write
   addGoal, updateGoal, deleteGoal,
-  navigate,          // (tab) => void   — used by OPEN
+  navigate,          // (tab) => void, used by OPEN
   eventId,           // idempotency key for file transports
 })
 ```
 
-**Idempotency matters.** dayGLANCE derives deterministic task IDs from `source_app + source_entity_id (+ due)` so the same logical intent, delivered twice (or to two synced devices), converges on one task instead of duplicating. Build this in from day one — automation *will* double-fire.
+**Idempotency matters.** dayGLANCE derives deterministic task IDs from `source_app + source_entity_id (+ due)` so the same logical intent, delivered twice (or to two synced devices), converges on one task instead of duplicating. Build this in from day one: automation *will* double-fire.
 
-### 3.2 `useAndroidIntentBridge` — the Android transport bridge
+### 3.2 `useAndroidIntentBridge`: the Android transport bridge
 
 A hook mounted once near the app root. Responsibilities:
 
@@ -128,7 +128,7 @@ export function useAndroidIntentBridge(context) {
       nativeReportIntentResult(action, JSON.stringify(result)); // report ORIGINAL action
     };
 
-    // Native calls this directly (unconditionally — NOT gated on visibilitychange)
+    // Native calls this directly (unconditionally, NOT gated on visibilitychange)
     window.__dayglanceCheckPendingIntent = checkPending;
 
     const onVis = () => { if (document.visibilityState === 'visible') checkPending(); };
@@ -144,7 +144,7 @@ export function useAndroidIntentBridge(context) {
 }
 ```
 
-### 3.3 `native.js` — bridge accessors
+### 3.3 `native.js`: bridge accessors
 
 Thin wrappers that feature-detect the injected bridge object and swallow errors, so the rest of the app never touches `window.DayGlanceNative` directly:
 
@@ -170,7 +170,7 @@ export const nativeReportIntentResult = (action, resultJson) => {
 
 Four pieces.
 
-### 4.1 `AndroidManifest.xml` — two ways in
+### 4.1 `AndroidManifest.xml`: two ways in
 
 Register the actions **both** as a manifest `<receiver>` (works while backgrounded/killed) **and** as `<activity>` intent-filters (so a sender can foreground the app):
 
@@ -194,11 +194,11 @@ Register the actions **both** as a manifest `<receiver>` (works while background
 
 `launchMode="singleTop"` is important: a warm Activity intent routes through `onNewIntent` instead of creating a second instance.
 
-### 4.2 `IntentReceiver` — the broadcast entry point
+### 4.2 `IntentReceiver`: the broadcast entry point
 
 A `BroadcastReceiver`. Because it's manifest-declared, Android instantiates it **even if the app process is dead**. It:
 
-1. re-serializes the payload through `JSONObject` (defensive — prevents JSON injection from a crafted `payload` extra),
+1. re-serializes the payload through `JSONObject` (defensive: prevents JSON injection from a crafted `payload` extra),
 2. writes `{action, payload}` to a persistent slot (`SharedDataStore.pendingIntentJson`),
 3. sends an **internal** broadcast (`com.dayglance.app.INTENT_RECEIVED`, package-scoped) to wake a running `MainActivity`.
 
@@ -218,10 +218,10 @@ class IntentReceiver : BroadcastReceiver() {
 }
 ```
 
-### 4.3 `MainActivity` — waking the WebView & cold-start handling
+### 4.3 `MainActivity`: waking the WebView & cold-start handling
 
-- A **runtime-registered** receiver (`intentForwardReceiver`) listens for `INTENT_RECEIVED` and pokes the WebView. **Register it for the whole activity lifetime (`onCreate` → `onDestroy`)**, not `onResume`/`onPause` — otherwise it's deaf exactly when you need it (app backgrounded). Use `ContextCompat.registerReceiver(..., RECEIVER_NOT_EXPORTED)` for correct flags on all API levels.
-- **`onCreate` and `onNewIntent` both store** Activity-target `app.dayglance.*` intents. `onNewIntent` handles the warm case (app already running); `onCreate` handles the **cold start** (killed app) — it is *not* called `onNewIntent` for the launching intent, so without the `onCreate` branch an Activity intent to a killed app loses its payload.
+- A **runtime-registered** receiver (`intentForwardReceiver`) listens for `INTENT_RECEIVED` and pokes the WebView. **Register it for the whole activity lifetime (`onCreate` → `onDestroy`)**, not `onResume`/`onPause`: otherwise it's deaf exactly when you need it (app backgrounded). Use `ContextCompat.registerReceiver(..., RECEIVER_NOT_EXPORTED)` for correct flags on all API levels.
+- **`onCreate` and `onNewIntent` both store** Activity-target `app.dayglance.*` intents. `onNewIntent` handles the warm case (app already running); `onCreate` handles the **cold start** (killed app): it is *not* called `onNewIntent` for the launching intent, so without the `onCreate` branch an Activity intent to a killed app loses its payload.
 - Poke JS by calling the exposed global; fall back to a synthetic `visibilitychange` if it isn't ready yet.
 
 ```kotlin
@@ -268,7 +268,7 @@ override fun onDestroy() {
 
 > **WebView visibility caveat (dayGLANCE-specific):** dayGLANCE intentionally never calls `webView.onPause()/onResume()` (to keep the GPU surface live), so the document's `visibilityState` never flips to `hidden`. That's why the JS drain must be triggered by an explicit call, not by relying on a real `visibilitychange`. Capacitor manages the WebView lifecycle for you, so verify how your WebView reports visibility and prefer the explicit-call path regardless.
 
-### 4.4 `NativeBridge` — the JS-callable surface
+### 4.4 `NativeBridge`: the JS-callable surface
 
 Methods annotated `@JavascriptInterface`, exposed as a named object on `window`:
 
@@ -299,7 +299,7 @@ Registered via `webView.addJavascriptInterface(nativeBridge, "DayGlanceNative")`
 
 ## 5. The action-string gotcha (read this)
 
-The single most confusing bug in this system. The native side stores the **fully-qualified Android action** — `intent.action` = `"app.dayglance.COMPLETE"`. But `handleIntent()` switches on **short** action constants — `ACTIONS.COMPLETE === "complete"` (the file transports build envelopes with `action: "complete"`). If you pass the raw broadcast string straight in, **every** action falls through to `default → "Unknown action"` and silently does nothing.
+The single most confusing bug in this system. The native side stores the **fully-qualified Android action**: `intent.action` = `"app.dayglance.COMPLETE"`. But `handleIntent()` switches on **short** action constants: `ACTIONS.COMPLETE === "complete"` (the file transports build envelopes with `action: "complete"`). If you pass the raw broadcast string straight in, **every** action falls through to `default → "Unknown action"` and silently does nothing.
 
 Map it at the bridge, and report back under the original so the sender's `%action` matches what it sent:
 
@@ -320,8 +320,8 @@ const BROADCAST_ACTION_MAP = {
 |-----------|----------|-----|
 | App **foreground/backgrounded (alive)** | Broadcast works, silently | `IntentReceiver` stores it; `intentForwardReceiver` (registered for full lifetime) wakes the WebView; JS drains it. |
 | App **killed** | Broadcast is **stored but not processed** until the app next runs | No JS is alive to drain it. The file persists in `SharedDataStore`, drained on next launch (`checkPending` on mount). |
-| App **killed**, want it done now | Send as an **Activity** intent | Cold-starts the app; `onCreate` stores the action; JS drains on mount. Foregrounds the app (unavoidable — Android forbids background activity launch). |
-| Detecting alive vs killed from the sender | No direct API | Use the RESULT broadcast as a **liveness probe** — fire as broadcast, and only fall back to an Activity send if no RESULT ack arrives within a timeout. |
+| App **killed**, want it done now | Send as an **Activity** intent | Cold-starts the app; `onCreate` stores the action; JS drains on mount. Foregrounds the app (unavoidable: Android forbids background activity launch). |
+| Detecting alive vs killed from the sender | No direct API | Use the RESULT broadcast as a **liveness probe**: fire as broadcast, and only fall back to an Activity send if no RESULT ack arrives within a timeout. |
 
 **Two footguns to design around:**
 
@@ -332,8 +332,8 @@ const BROADCAST_ACTION_MAP = {
 
 ## 7. Outbound: RESULT and NOTIFY
 
-- **RESULT** — sent after every handled action. Extras: `action` (the original broadcast action) and `result` (the handler's result object as a JSON string). This is also the QUERY reply. Note the whole result is one JSON string; the sender parses it. dayGLANCE names QUERY count keys as Tasker-style `%dg_count_today` etc. so they read naturally after parsing.
-- **NOTIFY** — emitted from the web layer when a task carrying `source_app`+`source_entity_id` changes (completed/uncompleted/deleted/rescheduled/updated), letting the originating automation react. Fired via `sendNotifyBroadcast()` in parallel with the durable file transports, and only on a plaintext posture (an encrypted payload is useless to a keyless local listener).
+- **RESULT**: sent after every handled action. Extras: `action` (the original broadcast action) and `result` (the handler's result object as a JSON string). This is also the QUERY reply. Note the whole result is one JSON string; the sender parses it. dayGLANCE names QUERY count keys as Tasker-style `%dg_count_today` etc. so they read naturally after parsing.
+- **NOTIFY**: emitted from the web layer when a task carrying `source_app`+`source_entity_id` changes (completed/uncompleted/deleted/rescheduled/updated), letting the originating automation react. Fired via `sendNotifyBroadcast()` in parallel with the durable file transports, and only on a plaintext posture (an encrypted payload is useless to a keyless local listener).
 
 ---
 
@@ -382,13 +382,13 @@ Key mapping from dayGLANCE → Capacitor:
 |---|---|
 | `addJavascriptInterface(bridge, "DayGlanceNative")` | `registerPlugin` + `@CapacitorPlugin` |
 | `webView.evaluateJavascript("window.__…()")` to poke JS | `notifyListeners("pendingIntent", …)` → JS `Intents.addListener('pendingIntent', drain)` |
-| `window.DayGlanceNative.getPendingIntent()` (sync) | `await Intents.getPendingIntent()` (**async** — the drain becomes fully promise-based, which it already is) |
+| `window.DayGlanceNative.getPendingIntent()` (sync) | `await Intents.getPendingIntent()` (**async**: the drain becomes fully promise-based, which it already is) |
 
 ### 8.2 Hook the Capacitor `BridgeActivity`
 
 lastGLANCE's `MainActivity` extends `BridgeActivity`. Override `onCreate`/`onNewIntent` to store Activity-target intents (call `super` first so Capacitor initializes), and register the `INTENT_RECEIVED` wake receiver `onCreate`→`onDestroy` just like dayGLANCE. The `IntentReceiver` (manifest broadcast receiver) is unchanged except for the action namespace.
 
-To poke the web layer, prefer `plugin.notifyListeners(...)` over reaching into the WebView directly — it's the Capacitor-native path and avoids fighting Capacitor's WebView lifecycle. (You can still get the `WebView` via `bridge.webView` if you ever need `evaluateJavascript`.)
+To poke the web layer, prefer `plugin.notifyListeners(...)` over reaching into the WebView directly: it's the Capacitor-native path and avoids fighting Capacitor's WebView lifecycle. (You can still get the `WebView` via `bridge.webView` if you ever need `evaluateJavascript`.)
 
 ### 8.3 TypeScript for the handler & bridge
 
@@ -406,7 +406,7 @@ export async function handleIntent(action: string, payload: unknown, ctx: Intent
 ```
 
 - Type the action map as `Record<string, Action>` so a missing case is a compile error.
-- If you share the schema/constants package (`@glance-apps/intents`), you get `ACTIONS`, the Zod schemas, and `TABS` typed for free — reuse it rather than re-declaring.
+- If you share the schema/constants package (`@glance-apps/intents`), you get `ACTIONS`, the Zod schemas, and `TABS` typed for free: reuse it rather than re-declaring.
 
 ### 8.4 Namespacing
 
@@ -416,7 +416,7 @@ Use `app.lastglance.CREATE` / `.RESULT` / `.NOTIFY` and an internal `com.lastgla
 
 ## 9. Porting checklist
 
-- [ ] Shared handler `handleIntent(action, payload, ctx)` — pure, typed, idempotent (deterministic IDs from `source_app`+`source_entity_id`).
+- [ ] Shared handler `handleIntent(action, payload, ctx)`: pure, typed, idempotent (deterministic IDs from `source_app`+`source_entity_id`).
 - [ ] Action map: fully-qualified broadcast action → short constant; report RESULT under the **original** action.
 - [ ] Manifest: actions on **both** a `<receiver>` and the `<activity>` (`singleTop`).
 - [ ] `IntentReceiver`: re-serialize payload via `JSONObject`; store to a persistent slot; send package-scoped `INTENT_RECEIVED`.
@@ -429,7 +429,7 @@ Use `app.lastglance.CREATE` / `.RESULT` / `.NOTIFY` and an internal `com.lastgla
 
 ---
 
-## 10. Reference — dayGLANCE source
+## 10. Reference: dayGLANCE source
 
 | Concern | File |
 |---------|------|

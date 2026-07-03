@@ -7,7 +7,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
-import { isNativeAndroid, nativeGetCalendars } from '../native.js';
+import { isNativeAndroid, nativeGetCalendars, nativeGetAutomationIntentsEnabled, nativeSetAutomationIntentsEnabled } from '../native.js';
 import { hasNativeCalendar, electronCalendarAvailable, electronGetCalendars } from '../utils/nativeCalendar.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault } from '../obsidian.js';
 import { INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from '../intents/useIntentPoller.js';
@@ -121,6 +121,12 @@ const SettingsModal = () => {
   // Vault intents key-setup phase: null | 'passphrase-needed' | 'running' | { error }.
   const [dbIntentsSetupPhase, setDbIntentsSetupPhase] = useState(null);
   const [dbIntentsPassphraseInput, setDbIntentsPassphraseInput] = useState('');
+  // Android automation intents (Tasker) opt-in gate. DEFAULT OFF — the flag is
+  // the single source of truth in native SharedPreferences; we mirror it here so
+  // the toggle reflects the persisted value. Only shown on native Android.
+  const [automationIntentsEnabled, setAutomationIntentsEnabled] = useState(
+    () => isNativeAndroid() && nativeGetAutomationIntentsEnabled(),
+  );
 
 
   const [trayHotkey, setTrayHotkey] = useState(() => localStorage.getItem('dg-tray-hotkey') || '');
@@ -172,7 +178,7 @@ const SettingsModal = () => {
                   <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('settings.title')}</h3>
                 </div>
 
-                {updateInfo && (
+                {updateInfo && !(typeof window !== 'undefined' && window.electronAPI?.isMAS === true) && (
                   <div className={`mb-4 p-3 rounded-lg border ${darkMode ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-200'}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1">
@@ -2133,6 +2139,46 @@ const SettingsModal = () => {
                       </div>
                       </>)}
                     </div>
+
+                    {/* Automation intents (Tasker) — Android only. Opt-in gate for the
+                        exported IntentReceiver + outbound RESULT/NOTIFY broadcasts. */}
+                    {isNativeAndroid() && (<>
+                    <hr className={borderClass} />
+                    <div className="space-y-3">
+                      <button onClick={() => toggleSettingsSection('automationIntents')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
+                        <Zap size={16} className={textSecondary} />
+                        {t('settings.automationIntents')}
+                        {automationIntentsEnabled && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.automationIntents ? '' : 'rotate-180'}`} />
+                      </button>
+                      {!collapsedSettings.automationIntents && (<>
+                      <p className={`${textSecondary} text-xs`}>
+                        {t('settings.automationIntentsDesc')}
+                      </p>
+                      <div className={`flex items-start gap-3 p-3 rounded-lg border ${borderClass}`}>
+                        <input
+                          type="checkbox"
+                          id="automation-intents-toggle"
+                          checked={automationIntentsEnabled}
+                          onChange={e => {
+                            const v = e.target.checked;
+                            setAutomationIntentsEnabled(v);
+                            nativeSetAutomationIntentsEnabled(v);
+                          }}
+                          className="mt-0.5 h-4 w-4 rounded"
+                        />
+                        <div>
+                          <label htmlFor="automation-intents-toggle" className={`text-sm font-medium ${textPrimary} cursor-pointer`}>
+                            {t('settings.automationIntentsToggle')}
+                          </label>
+                          <p className={`text-xs ${textSecondary} mt-0.5`}>
+                            {t('settings.automationIntentsWarning')}
+                          </p>
+                        </div>
+                      </div>
+                      </>)}
+                    </div>
+                    </>)}
 
                   </div>
                 </div>

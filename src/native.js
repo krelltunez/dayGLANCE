@@ -420,6 +420,36 @@ export const nativeReportIntentResult = (action, resultJson) => {
 };
 
 /**
+ * Reads the "Automation intents (Tasker)" opt-in flag from the native side.
+ * Returns false when the bridge is unavailable (PWA / web) or the flag is unset.
+ * Used to wire the initial state of the settings toggle. Android only.
+ */
+export const nativeGetAutomationIntentsEnabled = () => {
+  const bridge = nativeBridge();
+  if (!bridge?.getAutomationIntentsEnabled) return false;
+  try {
+    return !!bridge.getAutomationIntentsEnabled();
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Persists the "Automation intents (Tasker)" opt-in flag on the native side,
+ * gating both the inbound IntentReceiver and the outbound RESULT/NOTIFY
+ * broadcasts. No-op when the bridge is unavailable. Android only.
+ *
+ * @param enabled  true to allow automation intents, false to close the gate
+ */
+export const nativeSetAutomationIntentsEnabled = (enabled) => {
+  const bridge = nativeBridge();
+  if (!bridge?.setAutomationIntentsEnabled) return;
+  try {
+    bridge.setAutomationIntentsEnabled(!!enabled);
+  } catch (_) {}
+};
+
+/**
  * Performs a native HTTP request (Android only), bypassing CORS and the
  * /api/webdav-proxy/ server. Used by WebDAV cloud sync providers.
  *

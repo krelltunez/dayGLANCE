@@ -10,7 +10,9 @@ dayGLANCE exposes four inbound broadcast actions that you can fire from Tasker, 
 
 When the action is processed, dayGLANCE sends an outbound `app.dayglance.RESULT` broadcast that you can receive in Tasker to check the outcome. dayGLANCE also emits `app.dayglance.NOTIFY` broadcasts whenever tasks change state (completed, rescheduled, updated, deleted).
 
-> **Important:** dayGLANCE must be running for broadcasts to be processed — but it does **not** need to be in the foreground. Intents fired while the app is backgrounded are handled live, as long as the app has not been swiped away / killed by the system. For fully unattended automation (e.g. creating tasks while the app is closed), use the WebDAV transport instead.
+> **Important:** dayGLANCE must be running for broadcasts to be processed, but it does **not** need to be in the foreground. Intents fired while the app is backgrounded are handled live, as long as the app has not been swiped away / killed by the system. For fully unattended automation (e.g. creating tasks while the app is closed), use the WebDAV transport instead.
+
+> **Enable automation intents first (v4.0.0+).** As of v4.0.0 the intents transport is **off by default** and gated behind an opt-in switch. Before any of the actions below will do anything, open **dayGLANCE → Settings → GLANCE Integrations** (or on phones, the "Automation intents" section) and turn on **"Automation intents (Tasker)"**. While it is off, inbound CREATE/COMPLETE/OPEN/QUERY broadcasts are silently dropped and no RESULT/NOTIFY broadcasts are emitted, which keeps the intent surface closed for users who don't use automation. If your existing automations stop working after updating to v4, this toggle is why: flip it back on. (The flag is device-local and resets to off on a backup restore or device transfer, so re-enable it after moving to a new device.)
 
 ---
 
@@ -103,7 +105,7 @@ Opens the app and optionally navigates to a specific task or tab.
 
 ### QUERY
 
-Returns the current task counts. QUERY produces **no visible effect in dayGLANCE itself** — it only replies with an `app.dayglance.RESULT` broadcast. To see anything, you must set up a second Tasker profile to receive that broadcast (see [Receiving the RESULT broadcast](#receiving-the-result-broadcast-in-tasker) below) and, e.g., Flash `%result`.
+Returns the current task counts. QUERY produces **no visible effect in dayGLANCE itself**: it only replies with an `app.dayglance.RESULT` broadcast. To see anything, you must set up a second Tasker profile to receive that broadcast (see [Receiving the RESULT broadcast](#receiving-the-result-broadcast-in-tasker) below) and, e.g., Flash `%result`.
 
 No required payload fields. You may pass an empty JSON object `{}`.
 
@@ -122,7 +124,7 @@ No required payload fields. You may pass an empty JSON object `{}`.
 | `%dg_next_title` | Title of the next upcoming task today (empty if none) |
 | `%dg_next_time` | Start time of the next task (`HH:MM`) |
 
-Note the keys are already `%`-prefixed inside the JSON. They are **not** delivered as individual Tasker variables automatically — you get the whole object as the `%result` **string** and parse it (JSON parser / Variable Split) to pull out a value.
+Note the keys are already `%`-prefixed inside the JSON. They are **not** delivered as individual Tasker variables automatically. You get the whole object as the `%result` **string** and parse it (JSON parser / Variable Split) to pull out a value.
 
 ---
 
@@ -140,9 +142,9 @@ Note the keys are already `%`-prefixed inside the JSON. They are **not** deliver
 
 ## Example: complete a task by tapping an NFC tag
 
-The most common automation — stick an NFC tag somewhere (by the door, on the pill bottle, on the bin) and complete a task by tapping your phone to it. No RESULT parsing needed; it's a single fire-and-forget broadcast.
+The most common automation: stick an NFC tag somewhere (by the door, on the pill bottle, on the bin) and complete a task by tapping your phone to it. No RESULT parsing needed; it's a single fire-and-forget broadcast.
 
-You don't need to *write* anything to the tag — Tasker matches the tag's built-in hardware ID, so a blank tag works.
+You don't need to *write* anything to the tag: Tasker matches the tag's built-in hardware ID, so a blank tag works.
 
 **1. Capture the tag's ID (once):**
 - **New Profile → Event → NFC Tag** (leave the fields blank for now), link it to any throwaway task, and tap your tag. Tasker fills in `%nfc_id`. Note that value (or just Flash `%nfc_id` to read it), then delete the throwaway profile.
@@ -155,11 +157,11 @@ You don't need to *write* anything to the tag — Tasker matches the tag's built
   - **Extra**: `payload:{"title":"Take out the trash"}`
   - **Target**: **Broadcast Receiver**
 
-That's it — tap the tag, the task is marked complete silently.
+That's it: tap the tag, the task is marked complete silently.
 
-**Matching the task:** `COMPLETE` accepts either `title` (fuzzy match, shown above — easiest for a stable/recurring task) or `task_id` (exact). If the title matches more than one open task, dayGLANCE completes the soonest-due one and returns a `warning` saying so. For a one-off task where you have the UUID, use `payload:{"task_id":"a1b2c3d4-..."}` instead — grab the id from the `task_id` field of a CREATE RESULT (see the CREATE recipe above).
+**Matching the task:** `COMPLETE` accepts either `title` (fuzzy match, shown above, easiest for a stable/recurring task) or `task_id` (exact). If the title matches more than one open task, dayGLANCE completes the soonest-due one and returns a `warning` saying so. For a one-off task where you have the UUID, use `payload:{"task_id":"a1b2c3d4-..."}` instead. Grab the id from the `task_id` field of a CREATE RESULT (see the CREATE recipe above).
 
-**Confirming it worked (optional):** add a RESULT receiver (below) and Flash `%result` — a completion returns `{"success":true,...}`, or `{"success":false,"error":"no matching task"}` if the title didn't match anything.
+**Confirming it worked (optional):** add a RESULT receiver (below) and Flash `%result`. A completion returns `{"success":true,...}`, or `{"success":false,"error":"no matching task"}` if the title didn't match anything.
 
 > **App must be alive:** COMPLETE as a **broadcast** needs dayGLANCE to be running (backgrounded is fine). If it's been swiped away, the tap is dropped. To make it work even when the app is killed, see the next section.
 
@@ -167,7 +169,7 @@ That's it — tap the tag, the task is marked complete silently.
 
 ## Making an action reliable when the app may be closed
 
-A **broadcast** is silent and non-disruptive, but only works while dayGLANCE is alive (backgrounded counts). An **Activity** intent always works — it launches the app on a cold start and carries the action with it — but it foregrounds the app every time. Pick based on how sure you are the app is running:
+A **broadcast** is silent and non-disruptive, but only works while dayGLANCE is alive (backgrounded counts). An **Activity** intent always works (it launches the app on a cold start and carries the action with it), but it foregrounds the app every time. Pick based on how sure you are the app is running:
 
 ### Simplest: send the action as an Activity intent
 
@@ -177,31 +179,31 @@ If you don't mind dayGLANCE briefly coming to the foreground, just set **Target:
 
 ### Silent-when-possible: probe first, foreground only if dead
 
-To stay silent when the app is alive and only foreground it when it's actually been killed, use dayGLANCE's RESULT broadcast as a liveness probe — it only replies if the app is running. There's no reliable way for Tasker to detect a *backgrounded-but-alive* process directly, so let the app answer instead.
+To stay silent when the app is alive and only foreground it when it's actually been killed, use dayGLANCE's RESULT broadcast as a liveness probe: it only replies if the app is running. There's no reliable way for Tasker to detect a *backgrounded-but-alive* process directly, so let the app answer instead.
 
 **Sender task:**
-1. **Variable Clear** `%DGACK` — use a **global** (all-caps) name so the separate RESULT receiver task can set it; a local variable won't cross tasks.
+1. **Variable Clear** `%DGACK`: use a **global** (all-caps) name so the separate RESULT receiver task can set it; a local variable won't cross tasks.
 2. **Send Intent** → your action (e.g. COMPLETE), **Target: Broadcast Receiver**, `payload:{...}`
 3. **Wait** ~1200 ms (or **Task → Wait Until** `%DGACK ~ 1` with a timeout)
 4. **If** `%DGACK` **isn't set** (app was dead) → **Send Intent** → the *same* action, **Target: Activity**. Optionally **App → Go Home** after a short Wait.
 
 **Receiver profile** (separate): **Event → Intent Received**, Action `app.dayglance.RESULT` → **Variable Set** `%DGACK` to `1`.
 
-**Why it can't double-complete:** the broadcast is stored once and drained once. If the app was alive it completes immediately and acks, so you skip the Activity send. If it was dead there's no ack, and the Activity send boots the app and drains the stored action — and since both intents carry the *identical* payload, even overlap is harmless (a second COMPLETE just returns "already complete"). Tune the Wait so a slow-but-alive app still acks in time.
+**Why it can't double-complete:** the broadcast is stored once and drained once. If the app was alive it completes immediately and acks, so you skip the Activity send. If it was dead there's no ack, and the Activity send boots the app and drains the stored action, and since both intents carry the *identical* payload, even overlap is harmless (a second COMPLETE just returns "already complete"). Tune the Wait so a slow-but-alive app still acks in time.
 
-This pattern makes OPEN unnecessary for *doing* things — the Activity form of the action is both the wake and the work. Use OPEN only when showing a specific tab is the actual goal.
+This pattern makes OPEN unnecessary for *doing* things: the Activity form of the action is both the wake and the work. Use OPEN only when showing a specific tab is the actual goal.
 
 ---
 
 ## Receiving the RESULT broadcast in Tasker
 
-Every action (including QUERY) replies with an `app.dayglance.RESULT` broadcast, but **nothing displays it for you** — you have to receive it in a separate profile.
+Every action (including QUERY) replies with an `app.dayglance.RESULT` broadcast, but **nothing displays it for you**: you have to receive it in a separate profile.
 
 1. Create a **Profile** → **Event** → **System** → **Intent Received**
 2. Set **Action** to `app.dayglance.RESULT`
 3. In the linked task, read:
-   - `%action` — the action that was handled (e.g. `app.dayglance.CREATE`)
-   - `%result` — JSON string with the result object
+   - `%action`: the action that was handled (e.g. `app.dayglance.CREATE`)
+   - `%result`: JSON string with the result object
 
 ### Example: show QUERY counts in a toast
 
@@ -213,19 +215,19 @@ Pair a QUERY sender with a RESULT receiver:
    - **Extra**: `payload:{}`
    - **Target**: **Broadcast Receiver**
 2. **Receiver profile** → **Event** → **Intent Received**, **Action**: `app.dayglance.RESULT`, linked task:
-   - **Alert → Flash**, Text: `%result` — this dumps the raw JSON so you can confirm the round-trip works.
+   - **Alert → Flash**, Text: `%result`. This dumps the raw JSON so you can confirm the round-trip works.
 
-If the Flash shows `{"success":true,...,"%dg_count_today":0,...}`, the transport is working end-to-end. If nothing flashes, the RESULT profile isn't matching — double-check the action is exactly `app.dayglance.RESULT` and that Tasker is allowed to receive external intents.
+If the Flash shows `{"success":true,...,"%dg_count_today":0,...}`, the transport is working end-to-end. If nothing flashes, the RESULT profile isn't matching: double-check the action is exactly `app.dayglance.RESULT` and that Tasker is allowed to receive external intents.
 
 ### Parsing `%result` into a clean value
 
 Flashing `%result` shows the whole JSON object. To pull out a single count, parse it first. Two ways:
 
-> **Note:** *Variable Convert* is **not** the tool for this — its `JSON Encode` function goes the other way (variables → JSON). And **JavaScriptlet is its own action** (under **Code**), not a Variable Convert function.
+> **Note:** *Variable Convert* is **not** the tool for this: its `JSON Encode` function goes the other way (variables → JSON). And **JavaScriptlet is its own action** (under **Code**), not a Variable Convert function.
 
-**A. JavaScriptlet (most reliable — the `%`-prefixed keys confuse Tasker's built-in JSON parsers):**
+**A. JavaScriptlet (most reliable: the `%`-prefixed keys confuse Tasker's built-in JSON parsers):**
 
-Add an action → **Code → JavaScriptlet** *before* the Flash. Read `%result` with `local()` (its name has lowercase letters, so it's a *local* variable — `global()` would return nothing):
+Add an action → **Code → JavaScriptlet** *before* the Flash. Read `%result` with `local()` (its name has lowercase letters, so it's a *local* variable: `global()` would return nothing):
 ```js
 var r = JSON.parse(local('result'));
 setLocal('today', r['%dg_count_today']);
@@ -242,7 +244,7 @@ Add **Variable → Variable Search Replace**:
 
 The captured number lands in `%m1`, so **Flash** `Today: %m1`.
 
-> **Heads-up — "Not running task … Already running / Abort New Task":** dayGLANCE sends a RESULT for *every* action and also emits NOTIFY broadcasts, so your receiver task can be triggered again while it's still running. If you see that warning, open the receiver task's properties (gear icon) and set **Collision Handling** to **Run Both Together** (or *Queue*) instead of *Abort New Task*. This is a Tasker setting, not a dayGLANCE issue — the first Flash still ran.
+> **Heads-up, "Not running task … Already running / Abort New Task":** dayGLANCE sends a RESULT for *every* action and also emits NOTIFY broadcasts, so your receiver task can be triggered again while it's still running. If you see that warning, open the receiver task's properties (gear icon) and set **Collision Handling** to **Run Both Together** (or *Queue*) instead of *Abort New Task*. This is a Tasker setting, not a dayGLANCE issue. The first Flash still ran.
 
 ### More recipes
 
@@ -261,7 +263,7 @@ setLocal('dg_next_at', r['%dg_next_time']);
 ```
 Then **Flash**: `%dg_today today · %dg_overdue overdue · next: %dg_next at %dg_next_at`
 
-**Route one receiver by action** — `%action` holds the full action string (e.g. `app.dayglance.CREATE`). Add an **If** condition to each downstream action:
+**Route one receiver by action**: `%action` holds the full action string (e.g. `app.dayglance.CREATE`). Add an **If** condition to each downstream action:
 - `If %action ~ app.dayglance.QUERY` → parse counts and Flash them
 - `If %action ~ app.dayglance.CREATE` → save the new id: **Variable Set** `%last_task_id` to the parsed `task_id` (use it later in a COMPLETE payload)
 - `If %action ~ app.dayglance.COMPLETE` → Flash "Completed ✓"
@@ -274,7 +276,7 @@ var r = JSON.parse(local('result'));
 setLocal('new_id', r.task_id);   // '' if the create failed
 ```
 
-**Fail loudly when something goes wrong** — `success` is `false` and `error` is populated on any failure:
+**Fail loudly when something goes wrong**: `success` is `false` and `error` is populated on any failure:
 ```js
 var r = JSON.parse(local('result'));
 setLocal('ok',  r.success);      // "true" / "false" as a string in Tasker
@@ -289,7 +291,7 @@ Then **If** `%ok ~ false` → **Flash** `dayGLANCE: %err`. A `warning` field (e.
 dayGLANCE fires `app.dayglance.NOTIFY` whenever a task with a `source_app` + `source_entity_id` changes state. This lets the originating app react to completions, reschedules, etc.
 
 **Extra:**
-- `payload` (String) — full notify envelope as a JSON string
+- `payload` (String): full notify envelope as a JSON string
 
 **Covered events:** `completed`, `uncompleted`, `deleted`, `rescheduled`, `updated`.
 
@@ -305,4 +307,4 @@ dayGLANCE fires `app.dayglance.NOTIFY` whenever a task with a `source_app` + `so
 - **Nothing happens:** Make sure dayGLANCE is still running (backgrounded is fine, but not swiped-away/killed). Broadcasts sent while the app is closed are not queued.
 - **Task not found (COMPLETE):** Pass `task_id` instead of `title` for reliable matching.
 - **No RESULT received:** Check that Tasker has permission to receive broadcasts from other apps. Ensure your intent filter matches `app.dayglance.RESULT` exactly.
-- **For set-and-forget automation** (creating tasks without the app open): use the WebDAV transport — dayGLANCE polls a WebDAV directory for incoming intent files even when backgrounded.
+- **For set-and-forget automation** (creating tasks without the app open): use the WebDAV transport. dayGLANCE polls a WebDAV directory for incoming intent files even when backgrounded.

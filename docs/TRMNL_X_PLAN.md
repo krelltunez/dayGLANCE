@@ -8,7 +8,7 @@ Reference: [TRMNL X Guide](https://trmnl.com/framework/docs/trmnl_x_guide)
 
 ---
 
-## Phase 1 — Markup-only changes (Full layout)
+## Phase 1: Markup-only changes (Full layout)
 
 These require only edits to the recipe markup on TRMNL's dashboard. No app code changes.
 
@@ -38,7 +38,7 @@ The hero `{{ pct }}%` value in the right column:
 ```
 
 `value--xxlarge` is also worth testing if `xlarge` feels too conservative.
-Avoid the mega/giga/tera/peta tiers — those are for standalone single-number dashboards,
+Avoid the mega/giga/tera/peta tiers: those are for standalone single-number dashboards,
 not for a value sitting inside a 2-column layout.
 
 ### 1.3 Responsive task title clamping
@@ -54,7 +54,7 @@ without hurting the layout. Add clamp attributes to each task title span:
 ```
 
 This keeps a single line on OG (rows are tight) but allows 2 lines on X.
-The JS truncation limit should be loosened to match — see Phase 2.
+The JS truncation limit should be loosened to match (see Phase 2).
 
 ### 1.4 Responsive routine/habit columns
 
@@ -75,7 +75,7 @@ Same pattern applies to the habits list if it gets long enough to benefit.
 
 ---
 
-## Phase 2 — Markup-only changes (Mashup slots)
+## Phase 2: Markup-only changes (Mashup slots)
 
 Half Horizontal, Half Vertical, and Quadrant layouts live inside mashup slots where the
 available space is a fraction of the full screen. Use container query units (`cqw`/`cqh`)
@@ -86,7 +86,7 @@ slot dimensions on both OG and X.
 
 - Task title: `title--small lg:title--base` (same as full layout)
 - Show more tasks on X: the `limit:4` in the Liquid loop can't be made responsive in markup
-  alone — keep it at 4 for now and revisit when Phase 3 adds an `upcoming_lg` variable.
+  alone. Keep it at 4 for now and revisit when Phase 3 adds an `upcoming_lg` variable.
 - Percentage label: currently inline text; on X could become its own `value--small lg:value--base`
   element for better hierarchy.
 
@@ -121,14 +121,14 @@ The next-task description can use `data-clamp-lg="2"` to show more text on X.
 
 ---
 
-## Phase 3 — Data-side changes (`src/trmnl.js`)
+## Phase 3: Data-side changes (`src/trmnl.js`)
 
 These require app code changes and a new deployment.
 
 ### 3.1 Loosen truncation limits
 
 Current limits were set to hit TRMNL's free-tier 2 KB payload cap. TRMNL X is a paid device,
-but we can't know at push time which device a user has — so the approach is to loosen limits
+but we can't know at push time which device a user has, so the approach is to loosen limits
 modestly, staying well under ~4 KB (which all tiers support comfortably).
 
 | Field | Current limit | Proposed |
@@ -176,11 +176,11 @@ is used by the recipe markup. Expose the full `upcoming` array so the Full layou
 ```
 
 The variable is already in the payload (`upcoming` array), so this is a markup-only change
-in the recipe — but it's listed here as a reminder to bump `upcoming` slice to 5 in the
+in the recipe, but it's listed here as a reminder to bump `upcoming` slice to 5 in the
 data layer:
 
 ```js
-// trmnl.js — current
+// trmnl.js: current
 .slice(0, 3)
 
 // proposed
@@ -207,10 +207,10 @@ works fine on X and is the priority. Revisit when:
 
 ## Implementation order
 
-1. **Phase 1** — edit the recipe markup in TRMNL's dashboard (no deploy needed)
-2. **Phase 2** — edit mashup slot markup in TRMNL's dashboard (no deploy needed)
-3. **Phase 3** — code changes in `src/trmnl.js`, test, deploy
-4. **Portrait** — post-v2.0, revisit
+1. **Phase 1**: edit the recipe markup in TRMNL's dashboard (no deploy needed)
+2. **Phase 2**: edit mashup slot markup in TRMNL's dashboard (no deploy needed)
+3. **Phase 3**: code changes in `src/trmnl.js`, test, deploy
+4. **Portrait**: post-v2.0, revisit
 
 ---
 

@@ -20,13 +20,13 @@ This document describes the high-level architecture of the dayGLANCE app for con
 
 ## Overview
 
-dayGLANCE is a single-page React app wrapped in an Android WebView. The web app is the single source of truth — the Android layer provides native bridges for capabilities the browser can't reach (calendar, file system, notifications, health data). Cloud sync is optional and handled via WebDAV.
+dayGLANCE is a single-page React app wrapped in an Android WebView. The web app is the single source of truth. The Android layer provides native bridges for capabilities the browser can't reach (calendar, file system, notifications, health data). Cloud sync is optional and handled via WebDAV.
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │                 React SPA (Vite)                     │
-│  App.jsx — all UI and business logic                 │
-│  localStorage — primary data store                  │
+│  App.jsx: all UI and business logic                  │
+│  localStorage: primary data store                   │
 └──────┬──────────────┬───────────────┬───────────────┘
        │              │               │
   WebDAV sync   Obsidian vault   AI features
@@ -53,7 +53,7 @@ dayGLANCE is a single-page React app wrapped in an Android WebView. The web app 
 
 ### Structure
 
-`src/App.jsx` is the top-level orchestrator — it wires together state, hooks, and layout components. Over time, cohesive slices of logic have been extracted into dedicated modules:
+`src/App.jsx` is the top-level orchestrator. It wires together state, hooks, and layout components. Over time, cohesive slices of logic have been extracted into dedicated modules:
 
 | Path | Responsibility |
 |---|---|
@@ -66,13 +66,13 @@ dayGLANCE is a single-page React app wrapped in an Android WebView. The web app 
 | `trmnl.js` | TRMNL e-ink display integration |
 | `versionCheck.js` | Update checking |
 | `components/` | All React UI components (layout, modals, cards, etc.) |
-| `hooks/` | Custom React hooks (one concern per hook — see below) |
+| `hooks/` | Custom React hooks (one concern per hook, see below) |
 | `context/` | React Context definitions (`DayPlannerContext`, `FeaturesContext`, `SyncContext`) |
 | `utils/` | Pure utility functions (date/time formatting, task helpers, crypto, etc.) |
 | `constants/` | Static data (default frame definitions, habit presets) |
 | `config/` | Runtime configuration (feature-flag/reviewer access logic) |
-| `intents/` | `@glance-apps/intents` integration — intent polling, handling, and logging |
-| `sync/adapter.js` | `@glance-apps/sync` adapter — pins all dayGLANCE-specific sync engine config |
+| `intents/` | `@glance-apps/intents` integration: intent polling, handling, and logging |
+| `sync/adapter.js` | `@glance-apps/sync` adapter: pins all dayGLANCE-specific sync engine config |
 
 ### Hooks
 
@@ -110,11 +110,11 @@ Three context objects are used to avoid threading props through deeply nested co
 
 ### State management
 
-dayGLANCE uses plain React hooks — no Redux, Zustand, or external state library. State is declared in `App.jsx` and custom hooks; `useCallback` and `useMemo` are used extensively to avoid unnecessary re-renders.
+dayGLANCE uses plain React hooks: no Redux, Zustand, or external state library. State is declared in `App.jsx` and custom hooks; `useCallback` and `useMemo` are used extensively to avoid unnecessary re-renders.
 
 ### Persistence
 
-All data is stored in `localStorage`. Cloud sync (WebDAV) is optional and layered on top — the app works fully offline without it. Key storage buckets:
+All data is stored in `localStorage`. Cloud sync (WebDAV) is optional and layered on top: the app works fully offline without it. Key storage buckets:
 
 | Key | Contents |
 |---|---|
@@ -155,13 +155,13 @@ Tombstone maps (deleted IDs with timestamps) exist for tasks, routine chips, hab
   isAllDay: boolean?,
   imported: boolean?,         // true for calendar events
   importSource: "obsidian" | "calendar"?,
-  lastModified: string,       // ISO 8601 — used for sync conflict resolution
+  lastModified: string,       // ISO 8601: used for sync conflict resolution
 }
 ```
 
 ### Recurring task template
 
-Recurring tasks are stored as templates with a `recurrence` descriptor. Occurrences are computed on the fly via `getOccurrencesInRange()` — they are never written to the tasks array.
+Recurring tasks are stored as templates with a `recurrence` descriptor. Occurrences are computed on the fly via `getOccurrencesInRange()`. They are never written to the tasks array.
 
 ```js
 {
@@ -214,7 +214,7 @@ Sync is file-based: the entire app dataset is serialised to a single JSON file s
 3. **Write** the merged result back to the server
 4. **Apply** the merged result to local state
 
-There is no server-side logic — the client does all conflict resolution.
+There is no server-side logic: the client does all conflict resolution.
 
 ### Conflict resolution
 
@@ -239,11 +239,11 @@ Specialised mergers handle the nuances of each data type:
 
 | Function | What it handles |
 |---|---|
-| `mergeTaskArrays` | Tasks and inbox items — preserves local ordering, appends remote-only items at the end |
+| `mergeTaskArrays` | Tasks and inbox items: preserves local ordering, appends remote-only items at the end |
 | `mergeRoutineDefinitions` | Routine chips grouped by day-of-week bucket |
 | `mergeDailyNotes` | Notes by date key, supports tombstone entries |
 | `mergeHabits` | Habit definitions with union tombstone sets |
-| `mergeHabitLogs` | Per-date habit counts — takes the maximum count (counts only go up within a day) |
+| `mergeHabitLogs` | Per-date habit counts: takes the maximum count (counts only go up within a day) |
 | `mergeSyncData` | Orchestrates all of the above, handles cross-list reconciliation (e.g. a task in the active list on one device and the recycle bin on another) |
 
 ### Web vs Android
@@ -256,7 +256,7 @@ On **Android**, the native `HttpBridge` makes HTTP requests directly from Kotlin
 
 ## Obsidian integration
 
-Obsidian tasks are treated as a **read source** — dayGLANCE imports tasks from daily notes and writes completion state back, but the vault is never the authoritative store. The app owns scheduling.
+Obsidian tasks are treated as a **read source**: dayGLANCE imports tasks from daily notes and writes completion state back, but the vault is never the authoritative store. The app owns scheduling.
 
 ### Desktop (File System Access API)
 
@@ -312,7 +312,7 @@ The Android app (`MainActivity.kt`) loads the web bundle from `assets/web/` in a
 
 ### Communication pattern
 
-All bridge calls are **synchronous from the JS perspective** — parameters are passed as JSON strings, return values are JSON strings. The JS wrappers in `native.js` handle serialisation and provide fallback no-ops when running in a browser (i.e. not inside the Android WebView).
+All bridge calls are **synchronous from the JS perspective**: parameters are passed as JSON strings, return values are JSON strings. The JS wrappers in `native.js` handle serialisation and provide fallback no-ops when running in a browser (i.e. not inside the Android WebView).
 
 ```js
 // native.js wrapper pattern
@@ -342,7 +342,7 @@ External app writes intent envelope → WebDAV /GLANCE/events/
   → processed envelope files are garbage-collected after 30 days
 ```
 
-Supported intent actions are `create`, `complete`, `open`, and `query`. The tray popup (`?tray`) never polls — it holds a read-only state snapshot and must not consume events before the main window can act on them.
+Supported intent actions are `create`, `complete`, `open`, and `query`. The tray popup (`?tray`) never polls: it holds a read-only state snapshot and must not consume events before the main window can act on them.
 
 The `intentsEncryptionSetup.js` / `intentsKeyStore.js` modules manage the optional end-to-end encryption key used to protect envelope contents in transit.
 
@@ -376,7 +376,7 @@ Both proxies are only used by the web/PWA deployment. The Android app makes all 
 
 ## Home screen widget (Android)
 
-The Android home screen widget is implemented entirely in Kotlin — it does not use the WebView.
+The Android home screen widget is implemented entirely in Kotlin: it does not use the WebView.
 
 ```
 App (WebView JS)
@@ -390,6 +390,6 @@ Widget update triggered (WorkManager / AppWidgetManager)
   → Renders into widget via AppWidgetManager
 ```
 
-The snapshot JSON contains a pre-computed agenda for today — the widget has no business logic of its own, it just renders what the app tells it to. This means the widget is always consistent with the app's view of the day.
+The snapshot JSON contains a pre-computed agenda for today: the widget has no business logic of its own, it just renders what the app tells it to. This means the widget is always consistent with the app's view of the day.
 
 Layout files for widget item types live in `dayglance-android/app/src/main/res/layout/widget_item_*.xml`. All text sizes use `sp` units with a minimum of `11sp` for readability across launchers and system font scale settings.

@@ -37,8 +37,8 @@ const PROVIDER_MODELS = {
     { id: 'meta-llama/llama-3.3-70b-instruct', label: 'Llama 3.3 70B' },
   ],
   anthropic: [
-    { id: 'claude-haiku-4-5-20250514', label: 'Claude Haiku 4.5', recommended: true },
-    { id: 'claude-sonnet-4-5-20250514', label: 'Claude Sonnet 4.5' },
+    { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', recommended: true },
+    { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
   ],
   gemini: [
     { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', recommended: true },
