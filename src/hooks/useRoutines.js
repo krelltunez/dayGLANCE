@@ -1,6 +1,47 @@
 import { useState, useEffect } from 'react';
 import { dateToString } from '../utils/taskUtils.js';
 
+// Local midnight (00:00:00) of the current day, as an ISO instant. This is the
+// moment routine completions "reset" each day, and the timestamp used to stamp
+// day-rollover tombstones. Choosing local midnight (rather than "now") is
+// load-bearing for multi-device sync: the tombstone must be NEWER than a stale
+// completion carried over from a PRIOR day (so it heals the resurrection), yet
+// OLDER than any genuine completion made earlier TODAY on another device (whose
+// timestamp is after midnight, so it still wins the LWW merge).
+export const startOfTodayIso = (now = new Date()) => {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+};
+
+// Build the routine-completion state to load for `todayStr` from the persisted
+// maps. Today's completions are kept verbatim; every routine that carried a
+// prior-day completion or timestamp is reset for the new day — its completion
+// dropped and its timestamp replaced with a `midnightIso` tombstone. That
+// tombstone out-dates a stale remote completion on the day's first sync, so a
+// freshly re-added routine no longer shows up already-completed. This runs on
+// every load, so it fixes the common case (app closed overnight) that the
+// open-across-midnight rollover effect below never reaches.
+export const resetRoutineCompletionsForToday = (
+  storedCompletions = {}, storedTimestamps = {}, todayStr, midnightIso,
+) => {
+  const completions = {};
+  for (const [id, date] of Object.entries(storedCompletions)) {
+    if (date === todayStr) completions[id] = date;
+  }
+  const timestamps = {};
+  for (const id of new Set([...Object.keys(storedCompletions), ...Object.keys(storedTimestamps)])) {
+    // A genuine completion made today keeps its real timestamp so its recency is
+    // preserved for the LWW merge; anything older is reset to a midnight tombstone.
+    if (completions[id] && typeof storedTimestamps[id] === 'string' && storedTimestamps[id] >= midnightIso) {
+      timestamps[id] = storedTimestamps[id];
+    } else {
+      timestamps[id] = midnightIso;
+    }
+  }
+  return { completions, timestamps };
+};
+
 const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, hrOwnerRef }) => {
   // The dashboard's active owner (multi-user) or null in single-user mode.
   const currentOwner = () => hrOwnerRef?.current ?? null;
@@ -10,31 +51,24 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, h
   const [todayRoutines, setTodayRoutines] = useState([]);
   const [routinesDate, setRoutinesDate] = useState('');
   const [removedTodayRoutineIds, setRemovedTodayRoutineIds] = useState({});
-  const [routineCompletions, setRoutineCompletions] = useState(() => {
+  // Load today's completion state from the persisted maps. Both the completions
+  // and their sibling LWW timestamps are derived together so a routine reset for
+  // the new day gets a midnight tombstone (see resetRoutineCompletionsForToday),
+  // which stops a stale remote completion from resurrecting it on the first sync
+  // — the "added-already-completed" bug. Read once, since the timestamp
+  // initializer needs the raw completions too.
+  const loadRoutineState = () => {
     try {
-      const stored = JSON.parse(localStorage.getItem('day-planner-routine-completions') || '{}');
-      const todayStr = dateToString(new Date());
-      const filtered = {};
-      for (const [id, date] of Object.entries(stored)) {
-        if (date === todayStr) filtered[id] = date;
-      }
-      return filtered;
-    } catch (_) { return {}; }
-  });
+      const storedC = JSON.parse(localStorage.getItem('day-planner-routine-completions') || '{}');
+      const storedTs = JSON.parse(localStorage.getItem('day-planner-routine-completion-timestamps') || '{}');
+      return resetRoutineCompletionsForToday(storedC, storedTs, dateToString(new Date()), startOfTodayIso());
+    } catch (_) { return { completions: {}, timestamps: {} }; }
+  };
+  const [routineCompletions, setRoutineCompletions] = useState(() => loadRoutineState().completions);
   // Per-routine completion timestamps (ISO), the sync LWW key that lets an
-  // un-complete win over a stale complete instead of being resurrected by a
-  // grow-union merge. Kept day-scoped (the ISO date prefix must be today).
-  const [routineCompletionTimestamps, setRoutineCompletionTimestamps] = useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('day-planner-routine-completion-timestamps') || '{}');
-      const todayStr = dateToString(new Date());
-      const filtered = {};
-      for (const [id, iso] of Object.entries(stored)) {
-        if (typeof iso === 'string' && iso.slice(0, 10) === todayStr) filtered[id] = iso;
-      }
-      return filtered;
-    } catch (_) { return {}; }
-  });
+  // un-complete (or a day-rollover reset) win over a stale complete instead of
+  // being resurrected by a grow-union merge.
+  const [routineCompletionTimestamps, setRoutineCompletionTimestamps] = useState(() => loadRoutineState().timestamps);
   const [showRoutinesDashboard, setShowRoutinesDashboard] = useState(false);
   const [dashboardSelectedChips, setDashboardSelectedChips] = useState([]);
   const [routineAddingToBucket, setRoutineAddingToBucket] = useState(null);
@@ -85,13 +119,16 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, h
       // Instead, stamp a fresh tombstone (completion absent, timestamp = now)
       // for every id that carried a completion or an old timestamp, so the
       // cleared state out-dates the stale remote completion and heals it.
-      const nowIso = new Date().toISOString();
+      // Stamp the reset at local midnight of the new day — the same instant the
+      // load-time reset uses — so an un-complete made later today on another
+      // device still out-dates this tombstone and wins the merge.
+      const midnightIso = startOfTodayIso();
       const tombstones = {};
       for (const id of new Set([
         ...Object.keys(routineCompletions),
         ...Object.keys(routineCompletionTimestamps),
       ])) {
-        tombstones[id] = nowIso;
+        tombstones[id] = midnightIso;
       }
       setRoutineCompletionTimestamps(tombstones);
       localStorage.removeItem('day-planner-removed-today-routine-ids');

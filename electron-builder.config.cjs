@@ -36,6 +36,10 @@ module.exports = {
   // global appId — there is no per-target override — hence the env switch.
   appId: process.env.DAYGLANCE_APP_ID || 'com.dayglance.app',
   productName: 'dayGLANCE',
+  // NSHumanReadableCopyright in the bundle's Info.plist. Keeps the packaged
+  // metadata consistent with the runtime About panel (set via
+  // app.setAboutPanelOptions in electron/main.ts).
+  copyright: 'Copyright © 2026 GLANCE Apps',
   // CFBundleVersion (the *build* number) — must strictly increase on every App
   // Store upload, independent of the marketing version (CFBundleShortVersionString,
   // which stays `version` from package.json, e.g. 3.8.1). Auto-derived from the
