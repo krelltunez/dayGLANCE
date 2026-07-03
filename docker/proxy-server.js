@@ -4,6 +4,15 @@
 // that nginx can forward requests to it after URL-decoding the query string.
 // (nginx's $arg_* variables are not URL-decoded, so proxy_pass receives the
 // encoded value "https%3A%2F%2F..." which it rejects as an invalid prefix.)
+//
+// SECURITY: This proxy is intentionally OPEN — no origin allowlist, no rate
+// limiting, and (unlike the Vercel functions) no SSRF/private-range blocking —
+// because self-hosters legitimately point it at CalDAV/WebDAV/calendar servers
+// on their own LAN. That makes it an unauthenticated open relay. It binds to
+// 127.0.0.1 and is meant to sit behind the bundled nginx on a trusted network.
+// Do NOT expose this container directly to the public internet without putting
+// authentication and/or a reverse proxy with access controls in front of it;
+// doing so would let anyone relay requests through your network.
 'use strict';
 
 const http = require('http');
