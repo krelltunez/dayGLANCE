@@ -2,6 +2,7 @@ import WebSocket from "ws";
 import {
   PROTOCOL_VERSION,
   MSG_DAY_STATE,
+  MSG_DAY_TOKEN,
   MSG_DAY_FOCUS_START,
   MSG_DAY_FOCUS_TIMER_START,
   MSG_DAY_FOCUS_STOP,
@@ -52,6 +53,7 @@ type CommandPayload =
   | { type: typeof MSG_DAY_ROUTINE_COMPLETE; id: string };
 
 type StateListener = (state: DayGlanceState) => void;
+type TokenListener = (token: string) => void;
 
 const WS_URL = "ws://localhost:7892";
 const RETRY_MS = 3000;
@@ -60,6 +62,13 @@ let ws: WebSocket | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let lastState: DayGlanceState | null = null;
 const listeners = new Set<StateListener>();
+
+// dayGLANCE Desktop issues this Origin-less backend a session token on connect.
+// It is the credential the browser-based property inspector must present to the
+// same server (which rejects all browser origins otherwise), so we relay it via
+// plugin.ts → Stream Deck's sendToPropertyInspector.
+let sessionToken: string | null = null;
+const tokenListeners = new Set<TokenListener>();
 
 function connect(): void {
   clearTimeout(retryTimer);
@@ -73,6 +82,12 @@ function connect(): void {
   ws.on("message", (data) => {
     try {
       const msg = JSON.parse(data.toString());
+      if (msg.type === MSG_DAY_TOKEN && typeof msg.token === "string") {
+        const token: string = msg.token;
+        sessionToken = token;
+        for (const listener of tokenListeners) listener(token);
+        return;
+      }
       if (msg.type === MSG_DAY_STATE) {
         lastState = msg as DayGlanceState;
         for (const listener of listeners) listener(lastState);
@@ -84,6 +99,9 @@ function connect(): void {
 
   ws.on("close", () => {
     console.log("[dayGLANCE] WS closed, retrying in", RETRY_MS, "ms");
+    // The old token is revoked server-side once this socket closes; the next
+    // connection is issued a fresh one.
+    sessionToken = null;
     retryTimer = setTimeout(connect, RETRY_MS);
   });
 
@@ -105,6 +123,19 @@ export function onState(listener: StateListener): () => void {
   listeners.add(listener);
   if (lastState) listener(lastState);
   return () => listeners.delete(listener);
+}
+
+/** The current dayGLANCE Desktop session token, or null if not yet connected. */
+export function getSessionToken(): string | null {
+  return sessionToken;
+}
+
+/** Subscribe to session-token updates (fires whenever a new token is issued).
+ *  Returns an unsubscribe function; invokes immediately if a token is known. */
+export function onToken(listener: TokenListener): () => void {
+  tokenListeners.add(listener);
+  if (sessionToken) listener(sessionToken);
+  return () => tokenListeners.delete(listener);
 }
 
 connect();

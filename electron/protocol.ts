@@ -8,6 +8,17 @@ export const PROTOCOL_VERSION = 1 as const;
 // ── Outbound message type constants (server → clients) ───────────────────
 export const MSG_DAY_STATE = 'day:state' as const;
 
+// ── Handshake constants (property-inspector authentication) ──────────────
+// Browsers always send an Origin header on a WebSocket handshake, so the server
+// rejects every browser origin (including the opaque "null" of a sandboxed
+// iframe) to stop drive-by web pages from reaching the local API. The Stream
+// Deck property inspector runs in a webview and would be rejected too, so it
+// authenticates with a short-lived session token: the Origin-less plugin backend
+// receives the token from the server, relays it to the PI, and the PI presents
+// it as its first frame before the server registers it or sends any state.
+export const MSG_DAY_TOKEN = 'day:token' as const; // server → native client: session token to relay to its PI
+export const MSG_DAY_AUTH  = 'day:auth'  as const; // browser PI → server: first frame presenting the token
+
 // ── Inbound command type constants (clients → server) ────────────────────
 export const MSG_DAY_FOCUS_START          = 'day:focus:start'          as const;
 export const MSG_DAY_FOCUS_TIMER_START    = 'day:focus:timer-start'    as const;

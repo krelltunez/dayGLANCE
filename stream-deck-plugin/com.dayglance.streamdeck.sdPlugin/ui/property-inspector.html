@@ -92,10 +92,43 @@
 
     // Stream Deck ↔ plugin socket
     let sdWs = null;
+    let sdContext = null;
+    let sdActionUUID = null;
 
-    function connectElgatoStreamDeckSocket(port, pluginUUID, registerEvent) {
+    // dayGLANCE Desktop rejects browser origins unless they present a session
+    // token as their first frame. The token is only known to the (Origin-less)
+    // plugin backend, which relays it to us over the Stream Deck PI channel.
+    let dgToken = null;
+
+    function connectElgatoStreamDeckSocket(port, pluginUUID, registerEvent, info, actionInfo) {
+      sdContext = pluginUUID;
+      try { sdActionUUID = actionInfo ? JSON.parse(actionInfo).action : null; } catch { sdActionUUID = null; }
       sdWs = new WebSocket(`ws://127.0.0.1:${port}`);
-      sdWs.onopen = () => sdWs.send(JSON.stringify({ event: registerEvent, uuid: pluginUUID }));
+      sdWs.onopen = () => {
+        sdWs.send(JSON.stringify({ event: registerEvent, uuid: pluginUUID }));
+        probe(); // no token yet → requests one and starts the retry/status loop
+      };
+      sdWs.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.event === "sendToPropertyInspector" && data.payload?.event === "dg-token") {
+            dgToken = data.payload.token || null;
+            probe(); // (re)connect now that we have a fresh token
+          }
+        } catch {}
+      };
+    }
+
+    // Ask the plugin backend for the current dayGLANCE Desktop session token.
+    function requestToken() {
+      if (sdWs?.readyState === WebSocket.OPEN && sdContext) {
+        sdWs.send(JSON.stringify({
+          event: "sendToPlugin",
+          action: sdActionUUID,
+          context: sdContext,
+          payload: { event: "dg-request-token" },
+        }));
+      }
     }
 
     // dayGLANCE Desktop status probe
@@ -111,18 +144,19 @@
 
     function probe() {
       clearTimeout(retryTimer);
+      // No token yet (Desktop not connected to the backend) — ask again and wait.
+      if (!dgToken) { setStatus("disconnected"); requestToken(); retryTimer = setTimeout(probe, RETRY_MS); return; }
       if (dgWs) { dgWs.onopen = dgWs.onclose = dgWs.onerror = null; dgWs.close(); }
 
       dgWs = new WebSocket(WS_URL);
 
-      dgWs.onopen  = () => setStatus("connected");
-      dgWs.onclose = () => { setStatus("disconnected"); retryTimer = setTimeout(probe, RETRY_MS); };
+      // Authenticate with the token as the first frame, before the server sends state.
+      dgWs.onopen  = () => { dgWs.send(JSON.stringify({ v: 1, type: "day:auth", token: dgToken })); setStatus("connected"); };
+      dgWs.onclose = () => { setStatus("disconnected"); requestToken(); retryTimer = setTimeout(probe, RETRY_MS); };
       dgWs.onerror = () => { /* onclose fires after onerror */ };
     }
 
-    document.getElementById("reconnectBtn").addEventListener("click", probe);
-
-    probe();
+    document.getElementById("reconnectBtn").addEventListener("click", () => { requestToken(); probe(); });
   </script>
 </body>
 </html>
