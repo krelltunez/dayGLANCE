@@ -56,6 +56,30 @@ function fireBillingEvent(payload: object): void {
   live()?.webContents.send('subscription:event', payload);
 }
 
+// ── Restore settlement ────────────────────────────────────────────────────────
+// StoreKit delivers restored purchases through 'transactions-updated', but
+// Electron exposes no "restore finished" callback, so a restore that finds no
+// purchases produces no event at all. Settlement is therefore dual-path: a
+// restored transaction settles as soon as its receipt validates (regardless of
+// network speed), and a fallback timer settles the nothing-to-restore case.
+// Whichever runs first wins; the other becomes a no-op.
+
+const RESTORE_FALLBACK_MS = 10_000;
+let restorePending = false;
+let restoreFallback: NodeJS.Timeout | null = null;
+
+function settleRestore(active: boolean, productId: string | null): void {
+  if (!restorePending) return;
+  restorePending = false;
+  if (restoreFallback) { clearTimeout(restoreFallback); restoreFallback = null; }
+  fireBillingEvent({
+    status: 'cancelled', // mirrors Android restore pattern: spinner clears, no "new purchase" UI
+    code: 0,
+    message: active ? 'restore_complete_active' : 'restore_complete',
+    productId: productId ?? '',
+  });
+}
+
 // ── RevenueCat REST API ───────────────────────────────────────────────────────
 
 async function rcFetch(method: string, endpoint: string, body?: object): Promise<unknown> {
@@ -123,13 +147,18 @@ export function registerSubscriptionHandlers(window: BrowserWindow): void {
   inAppPurchase.on('transactions-updated', (async (_event: any, transactions: Electron.Transaction[]) => {
     for (const t of transactions) {
       if (t.transactionState === 'purchased' || t.transactionState === 'restored') {
-        await fetchEntitlementStatus(); // validates receipt with RC; result delivered via subscription:status
+        const s = await fetchEntitlementStatus(); // validates receipt with RC; result delivered via subscription:status
         fireBillingEvent({
           status: 'success',
           code: 0,
           message: 'ok',
           productId: t.payment.productIdentifier,
         });
+        if (t.transactionState === 'restored') {
+          // Explicit Restore Purchases flow: the receipt has validated, so
+          // settle now instead of leaving it to the fallback timer.
+          settleRestore(s.active, s.productId ?? t.payment.productIdentifier);
+        }
         inAppPurchase.finishTransactionByDate(t.transactionDate);
       } else if (t.transactionState === 'failed') {
         const cancelled = t.errorCode === 2; // SKErrorPaymentCancelled
@@ -184,17 +213,16 @@ export function registerSubscriptionHandlers(window: BrowserWindow): void {
     }
     try {
       inAppPurchase.restoreCompletedTransactions();
-      // Give StoreKit time to deliver restored transactions via 'transactions-updated',
-      // then post receipt and fire the terminal event.
-      setTimeout(async () => {
+      // Fast path: a restored transaction settles this via 'transactions-updated'
+      // as soon as its receipt validates. The timer only covers the
+      // nothing-to-restore case, which produces no StoreKit event at all.
+      restorePending = true;
+      if (restoreFallback) clearTimeout(restoreFallback);
+      restoreFallback = setTimeout(async () => {
+        restoreFallback = null;
         const s = await fetchEntitlementStatus();
-        fireBillingEvent({
-          status: 'cancelled', // mirrors Android restore pattern: spinner clears, no "new purchase" UI
-          code: 0,
-          message: s.active ? 'restore_complete_active' : 'restore_complete',
-          productId: s.productId ?? '',
-        });
-      }, 4000);
+        settleRestore(s.active, s.productId);
+      }, RESTORE_FALLBACK_MS);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Restore failed';
       fireBillingEvent({ status: 'error', code: 0, message: msg, productId: '' });
