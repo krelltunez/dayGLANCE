@@ -94,9 +94,9 @@ The Android app ships the full web app in a WebView with native enhancements tha
 | ⏱️ **Immersive Focus Mode** | Full-screen timer with automatic Do Not Disturb and portrait lock |
 | 🎨 **Theme-aware status bar** | Status bar icons match the app's light/dark theme |
 
-| Home Screen Widget | App Timeline |
+| App Timeline (GRID) | App Timeline (LIST) |
 |:-:|:-:|
-| ![Android Home Screen Widget](screenshots/android-widget.png) | ![Android App Timeline](screenshots/android-timeline.png) |
+| ![Android App Timeline — grid view](screenshots/android-timeline.png) | ![Android App Timeline — list view](screenshots/android-timeline-list.png) |
 
 ---
 
@@ -269,8 +269,6 @@ Sync tasks and daily notes directly with your **Obsidian vault**, with no plugin
 - Daily notes sync **bidirectionally**
 
 **Setup:** Settings → Obsidian → select your vault folder. Available on desktop browsers (Chrome, Edge, Brave) and the Android app.
-
-![Obsidian Integration](screenshots/obsidian.png)
 
 ---
 
