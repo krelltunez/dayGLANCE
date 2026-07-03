@@ -433,6 +433,16 @@ ipcMain.on('ws:push-state', (event) => {
   }
 });
 
+// Native macOS "About dayGLANCE" panel. macOS builds it from the bundle's
+// Info.plist, but setAboutPanelOptions lets us override the copyright and add
+// contact/website lines via the credits field (rendered below the copyright).
+// applicationName/version are left to Info.plist so they stay in sync with the
+// build (CFBundleShortVersionString + CFBundleVersion).
+app.setAboutPanelOptions({
+  copyright: 'Copyright © 2026 GLANCE Apps',
+  credits: 'Support: support@glance-apps.com\nWeb: https://www.glance-apps.com/',
+});
+
 app.whenReady().then(() => {
   // Content Security Policy — applied to every response the renderer loads.
   // script-src 'self': only scripts from the app bundle (no inline scripts, no eval).
