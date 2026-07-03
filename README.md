@@ -270,8 +270,6 @@ Sync tasks and daily notes directly with your **Obsidian vault**, with no plugin
 
 **Setup:** Settings → Obsidian → select your vault folder. Available on desktop browsers (Chrome, Edge, Brave) and the Android app.
 
-![Obsidian Integration](screenshots/obsidian.png)
-
 ---
 
 ## Optional Add-Ons
