@@ -96,7 +96,7 @@ The Android app ships the full web app in a WebView with native enhancements tha
 
 | App Timeline (GRID) | App Timeline (LIST) |
 |:-:|:-:|
-| ![Android App Timeline — Grid](screenshots/android-timeline.png) | ![Android App Timeline — List](screenshots/android-timeline-list.png) |
+| ![Android App Timeline (Grid)](screenshots/android-timeline.png) | ![Android App Timeline (List)](screenshots/android-timeline-list.png) |
 
 ---
 
