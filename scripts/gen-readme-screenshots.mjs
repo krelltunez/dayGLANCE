@@ -97,6 +97,19 @@ for (const [name, dark, size] of [
   } catch (e) { fail(name, e); }
 }
 
+// ---------- Widescreen view cycler: MULTI / DAY / WEEK (needs >=1600px wide) ----------
+for (const view of ['multi', 'day', 'week']) {
+  const name = `desktop-${view}`;
+  try {
+    const { ctx, p } = await page({
+      w: 1680, h: 980, dsf: 2, mobile: false, dark: true,
+      extra: `localStorage.setItem('day-planner-default-view', ${JSON.stringify(JSON.stringify(view))}); localStorage.setItem('day-planner-view-mode', ${JSON.stringify(JSON.stringify(view))});`,
+    });
+    await save(p, name); ok(name);
+    await ctx.close();
+  } catch (e) { fail(name, e); }
+}
+
 // ---------- Desktop modals: routines (R) and goals (G) ----------
 for (const [name, key] of [['routines', 'r'], ['goals-projects', 'g']]) {
   try {
@@ -108,6 +121,18 @@ for (const [name, key] of [['routines', 'r'], ['goals-projects', 'g']]) {
     await ctx.close();
   } catch (e) { fail(name, e); }
 }
+
+// ---------- Goals Roadmap (Gantt) desktop modal ----------
+try {
+  const { ctx, p } = await page({ w: 1360, h: 900, dsf: 2, mobile: false, dark: true });
+  await p.locator('body').click({ position: { x: 5, y: 5 } });
+  await p.keyboard.press('g');
+  await settle(ctx, p, 1200);
+  await p.getByRole('button', { name: 'Roadmap' }).click();
+  await settle(ctx, p, 1500);
+  await save(p, 'goals-roadmap'); ok('goals-roadmap');
+  await ctx.close();
+} catch (e) { fail('goals-roadmap', e); }
 
 // ---------- Phone: glance, timeline, inbox, android-timeline ----------
 {
@@ -136,7 +161,7 @@ try {
   await settle(ctx, p);
   await save(p, 'android-timeline-list'); ok('android-timeline-list');
   await ctx.close();
-}
+} catch (e) { fail('android-timeline-list', e); }
 
 // ---------- Phone: GLANCEahead (empty today) ----------
 try {

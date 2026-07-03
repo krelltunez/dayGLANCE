@@ -120,6 +120,18 @@ Drag tasks onto a 24-hour timeline, resize by dragging edges, and filter by `#ta
 
 ![Time-Blocking on the Timeline](screenshots/timeline.png)
 
+### Desktop Views: MULTI, DAY, and WEEK
+
+On wide screens a view cycler appears in the timeline header, letting you switch how the day is laid out:
+
+- **MULTI**: adjacent days side by side (up to three at once), the default multi-day timeline.
+- **DAY**: a single day, with the full 24 hours wrapped across columns so nothing is off-screen.
+- **WEEK**: a seven-day grid for planning the week at a glance.
+
+| MULTI | DAY | WEEK |
+|:-:|:-:|:-:|
+| ![Multi-day view](screenshots/desktop-multi.png) | ![Single-day view](screenshots/desktop-day.png) | ![Week view](screenshots/desktop-week.png) |
+
 ### Smart Inbox
 
 Capture tasks without scheduling them. Three priority levels, tag filtering, and drag-to-timeline when you're ready to commit.
@@ -208,7 +220,7 @@ Tasks completed, completion rate, time planned vs. spent, focus time logged, and
 
 ## Goals & Projects
 
-Organize long-horizon work into a three-tier hierarchy: **Goals → Projects → Tasks**.
+Organize long-horizon work into a hierarchy of **Goals → Projects → Tasks**, with optional **Areas** to group related goals.
 
 ![Goals & Projects Dashboard](screenshots/goals-projects.png)
 
@@ -223,6 +235,12 @@ Organize long-horizon work into a three-tier hierarchy: **Goals → Projects →
 Progress is duration-weighted: a 2-hour task moves the needle more than a 15-minute one. Goals without target dates never show as overdue; goals and projects past their target date surface an amber warning. Projects inactive for 7+ days with incomplete tasks are flagged as **Stalled**.
 
 Archived goals and projects collapse into a disclosure section at the bottom and are excluded from all progress calculations.
+
+**Areas** are an optional top level that group related goals (for example work vs. personal). Filter the dashboard to a single area, or view every goal together.
+
+**Roadmap view** trades the card dashboard for a horizontal timeline: each goal becomes a bar spanning today to its target date, with an adjustable range from one month to two years, so you can see where everything lands.
+
+![Goals Roadmap timeline](screenshots/goals-roadmap.png)
 
 **Setup:** Disabled by default; enable in **Settings → Goals & Projects**. Data syncs alongside tasks via WebDAV/Nextcloud.
 
