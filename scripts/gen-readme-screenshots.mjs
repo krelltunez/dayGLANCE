@@ -120,12 +120,21 @@ for (const [name, key] of [['routines', 'r'], ['goals-projects', 'g']]) {
       await save(p, name); ok(name);
     } catch (e) { fail(name, e); }
   }
-  // android-timeline is the same app timeline (Android is a WebView of the app)
+  // android-timeline is the same app timeline (Android is a WebView of the app) — GRID view
   try {
     await p.getByText('Timeline', { exact: true }).click();
     await settle(ctx, p);
     await save(p, 'android-timeline'); ok('android-timeline');
   } catch (e) { fail('android-timeline', e); }
+  await ctx.close();
+}
+
+// ---------- Phone: App Timeline — LIST view ----------
+try {
+  const { ctx, p } = await page({ ...PHONE, dark: true, extra: `localStorage.setItem('day-planner-mobile-view-mode', JSON.stringify('list'));` });
+  await p.getByText('Timeline', { exact: true }).click();
+  await settle(ctx, p);
+  await save(p, 'android-timeline-list'); ok('android-timeline-list');
   await ctx.close();
 }
 
