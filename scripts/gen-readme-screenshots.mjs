@@ -5,7 +5,8 @@
 // These are raw (no device frame / background) — apply your framing treatment
 // afterward, then swap them into README.md.
 //
-// Two README images are NOT reproducible headlessly and are skipped:
+// Writes straight into screenshots/, overwriting the images README.md points at.
+// Two README images are NOT reproducible headlessly and are left untouched:
 //   - android-widget.png : an Android home-screen widget (OS launcher, not the web app)
 //   - obsidian.png       : needs a live Obsidian vault so the inline note renders
 //
@@ -13,7 +14,7 @@
 //   npm run dev
 //   node scripts/gen-readme-screenshots.mjs
 //
-// Output: screenshots/readme/*.png
+// Output: screenshots/*.png (the 15 reproducible README images)
 
 import { chromium } from 'playwright';
 import fs from 'fs';
@@ -22,7 +23,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const OUT = path.join(ROOT, 'screenshots', 'readme');
+const OUT = path.join(ROOT, 'screenshots');
 const SEED = fs.readFileSync(path.join(__dirname, 'seed-demo-data.js'), 'utf8');
 const URL = process.env.DAYGLANCE_URL || 'http://localhost:5174/';
 const EXE = process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
