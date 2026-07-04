@@ -263,9 +263,11 @@ export function createNudgeCoalescer({
  * @param {boolean} [p.supported]      false → never opens (native/electron/none)
  * @param {number}  [p.backoffBaseMs]
  * @param {number}  [p.backoffMaxMs]
+ * @param {number}  [p.minStableMs]    connection must stay open ≥ this to reset backoff
  * @param {typeof setTimeout}  [p.setTimeoutFn]
  * @param {typeof clearTimeout}[p.clearTimeoutFn]
- * @param {(state:string) => void} [p.onStateChange]
+ * @param {() => number} [p.now]       clock (injectable for tests)
+ * @param {(state:string, detail?:any) => void} [p.onStateChange]
  */
 export function createVaultEventClient({
   getConnection,
@@ -274,8 +276,10 @@ export function createVaultEventClient({
   supported = true,
   backoffBaseMs = 1000,
   backoffMaxMs = 30000,
+  minStableMs = 5000,
   setTimeoutFn = setTimeout,
   clearTimeoutFn = clearTimeout,
+  now = () => Date.now(),
   onStateChange,
 } = {}) {
   let stopped = true;
@@ -294,11 +298,19 @@ export function createVaultEventClient({
       if (!connection) break; // nothing to connect to → let polling cover it
       abortController = makeAbort();
       onStateChange?.('connecting');
+      const startedAt = now();
       try {
         await openStream({
           connection,
           signal: abortController.signal,
-          onOpen: () => { attempt = 0; onStateChange?.('open'); },
+          // NOTE: do NOT reset the backoff here. A connection that OPENS then drops
+          // immediately (server closes fast, proxy timeout, CORS-accepted-then-reset)
+          // would otherwise reset attempt→0 every cycle and reconnect every
+          // backoffBaseMs (~1s) forever — a reconnect STORM that also re-fires the
+          // connected-seq reconcile drain, flickering sync and re-rendering the app.
+          // Backoff is reset below only after a connection proves STABLE (open long
+          // enough). See minStableMs.
+          onOpen: () => onStateChange?.('open'),
           onEvent,
         });
         // Stream ended cleanly (server closed / heartbeat gap) — reconnect soon.
@@ -306,9 +318,13 @@ export function createVaultEventClient({
       } catch (err) {
         // Connect/network/abort error — SSE is additive, so we swallow it and
         // reconnect. Polling keeps delivering in the meantime.
-        if (!stopped) onStateChange?.('error');
+        if (!stopped) onStateChange?.('error', err);
       }
       if (stopped) break;
+      // Reset backoff ONLY for a connection that stayed open long enough to be
+      // healthy; a flapping open/close keeps backing off (up to backoffMaxMs) so a
+      // broken endpoint can't storm.
+      if (now() - startedAt >= minStableMs) attempt = 0;
       const delay = Math.min(backoffMaxMs, backoffBaseMs * 2 ** attempt);
       attempt += 1;
       await new Promise((resolve) => { reconnectTimer = setTimeoutFn(resolve, delay); });

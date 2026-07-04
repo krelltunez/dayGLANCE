@@ -54,8 +54,29 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
       return undefined;
     }
 
+    // Observability: a live, inspectable snapshot so SSE health can be checked in
+    // a packaged/MAS build with no devtools — run `window.__glanceVaultSse` in the
+    // console (or read it from a diagnostics panel). Counters make a reconnect
+    // STORM (many connects, few events) immediately obvious. Logging is always-on
+    // (not DEV-gated) but low-volume: one line per lifecycle transition, not per
+    // heartbeat.
+    const diag = {
+      state: 'idle',
+      connects: 0,
+      events: 0,
+      drains: 0,
+      lastEventSeq: null,
+      lastEventKind: null,
+      lastError: null,
+      lastConnectedAt: null,
+      transport,
+    };
+    if (typeof window !== 'undefined') window.__glanceVaultSse = diag;
+
     const coalescer = createNudgeCoalescer({
       onDrain: (kind) => {
+        diag.drains += 1;
+        console.info('[vault-sse] drain →', kind);
         if (kind === 'sync') drainSyncRef.current?.();
         else if (kind === 'intents') drainIntentsRef.current?.();
       },
@@ -71,9 +92,17 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
           : null;
       },
       openStream: openWebSseStream,
-      onEvent: coalescer.handleEvent,
-      onStateChange: (state) => {
-        if (import.meta.env?.DEV) console.debug('[vault-sse]', state);
+      onEvent: (evt) => {
+        diag.events += 1;
+        if (evt && typeof evt.seq === 'number') { diag.lastEventSeq = evt.seq; diag.lastEventKind = evt.kind; }
+        coalescer.handleEvent(evt);
+      },
+      onStateChange: (state, detail) => {
+        diag.state = state;
+        if (state === 'connecting') diag.connects += 1;
+        if (state === 'open') diag.lastConnectedAt = new Date().toISOString();
+        if (state === 'error') { diag.lastError = detail?.message || String(detail || 'error'); console.warn('[vault-sse] error:', diag.lastError); }
+        else console.info('[vault-sse]', state, `(connects=${diag.connects} events=${diag.events} drains=${diag.drains})`);
       },
     });
 
