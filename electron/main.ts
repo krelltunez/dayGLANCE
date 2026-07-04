@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, net, protocol, Tray, Menu, nativeImage, globalShortcut, session } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, net, protocol, Tray, Menu, nativeImage, globalShortcut, session, screen } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import dns from 'node:dns';
@@ -216,6 +216,24 @@ function createTrayWindow(): BrowserWindow {
   return win;
 }
 
+// Position the tray popup under the menu-bar icon. When the icon's bounds are
+// unavailable/zero — which happens if the menu-bar item failed to render, e.g. an
+// icon that didn't load — fall back to the TOP-RIGHT of the primary display's work
+// area (under the menu bar, where the tray lives) instead of the (0,0) top-left
+// corner the raw arithmetic would otherwise produce.
+function positionTrayPopup(tw: BrowserWindow, iconBounds?: Electron.Rectangle): void {
+  const { width: popW } = tw.getBounds();
+  if (iconBounds && iconBounds.width > 0) {
+    tw.setPosition(
+      Math.round(iconBounds.x - popW / 2 + iconBounds.width / 2),
+      Math.round(iconBounds.y + iconBounds.height),
+    );
+    return;
+  }
+  const wa = screen.getPrimaryDisplay().workArea;
+  tw.setPosition(Math.round(wa.x + wa.width - popW - 8), Math.round(wa.y + 8));
+}
+
 function createTray(): void {
   // Downsample the high-res app icon to 44×44 px, then tell Electron it's a
   // @2x image so macOS renders it at 22 logical points — the standard menu bar
@@ -223,8 +241,11 @@ function createTray(): void {
   const srcPath = DEV
     ? path.join(process.cwd(), 'public/icon-512.png')
     : path.join(__dirname, '../dist/icon-512.png');
-  const iconBuf = nativeImage.createFromPath(srcPath).resize({ width: 44, height: 44 }).toPNG();
-  const icon = nativeImage.createFromBuffer(iconBuf, { scaleFactor: 2 });
+  const rawIcon = nativeImage.createFromPath(srcPath);
+  if (rawIcon.isEmpty()) console.error('[tray] menu-bar icon failed to load from', srcPath);
+  const iconBuf = rawIcon.resize({ width: 44, height: 44 }).toPNG();
+  let icon = nativeImage.createFromBuffer(iconBuf, { scaleFactor: 2 });
+  if (icon.isEmpty()) icon = rawIcon; // fall back to the un-resized image
   icon.setTemplateImage(true);
   tray = new Tray(icon);
   tray.setToolTip('dayGLANCE');
@@ -235,9 +256,7 @@ function createTray(): void {
     const tw = live(trayWindow);
     if (!tw) return;
     if (tw.isVisible()) { tw.hide(); return; }
-    const { x, y, width: iconW, height: iconH } = bounds;
-    const { width: popW } = tw.getBounds();
-    tw.setPosition(Math.round(x - popW / 2 + iconW / 2), Math.round(y + iconH));
+    positionTrayPopup(tw, bounds);
     trayIndicatorOn = false;
     refreshTrayTitle();
     tw.show();
@@ -465,12 +484,7 @@ ipcMain.handle('hotkey:register', (_event, accelerator: string) => {
     const tw = live(trayWindow);
     if (!tw) return;
     if (tw.isVisible()) { tw.hide(); return; }
-    const bounds = tray?.getBounds();
-    if (bounds) {
-      const { x, y, width: iconW, height: iconH } = bounds;
-      const { width: popW } = tw.getBounds();
-      tw.setPosition(Math.round(x - popW / 2 + iconW / 2), Math.round(y + iconH));
-    }
+    positionTrayPopup(tw, tray?.getBounds());
     trayIndicatorOn = false;
     refreshTrayTitle();
     tw.show();
