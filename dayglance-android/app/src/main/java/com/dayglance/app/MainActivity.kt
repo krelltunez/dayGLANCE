@@ -45,6 +45,7 @@ import com.dayglance.app.billing.BillingManager
 import com.dayglance.app.billing.SubscriptionBridge
 import com.dayglance.app.bridge.NativeBridge
 import com.dayglance.app.bridge.ObsidianBridge
+import com.dayglance.app.sse.VaultSseClient
 import com.dayglance.app.data.HealthRepository
 import com.dayglance.app.data.SharedDataStore
 import com.dayglance.app.databinding.ActivityMainBinding
@@ -67,6 +68,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var nativeBridge: NativeBridge
     private lateinit var obsidianBridge: ObsidianBridge
+    // Native GLANCEvault SSE reader (Path 2). Owns the /events socket + lifecycle;
+    // pushes frames into the WebView. Foreground/background is driven from onStart/
+    // onStop; the renderer drives enable/disable via the NativeBridge callbacks.
+    private lateinit var vaultSseClient: VaultSseClient
     private lateinit var healthRepository: HealthRepository
     private lateinit var dataStore: com.dayglance.app.data.SharedDataStore
     private lateinit var billingManager: BillingManager
@@ -227,6 +232,20 @@ class MainActivity : AppCompatActivity() {
         healthRepository = HealthRepository(this)
         subscriptionBridge = SubscriptionBridge(billingManager, dataStore, webView)
         obsidianBridge = ObsidianBridge(this, webView)
+
+        // Native SSE reader. frameSink hops to the main thread and pushes the JSON
+        // message into the renderer's bridge receiver. The message is already valid
+        // JSON (built with org.json), so it is also a valid JS object literal —
+        // window.__glanceVaultSseReceive(<obj>) — with no injection risk.
+        vaultSseClient = VaultSseClient(frameSink = { json ->
+            webView.post {
+                webView.evaluateJavascript(
+                    "window.__glanceVaultSseReceive && window.__glanceVaultSseReceive($json)",
+                    null
+                )
+            }
+        })
+
         nativeBridge = NativeBridge(
             context = this,
             healthRepository = healthRepository,
@@ -238,6 +257,12 @@ class MainActivity : AppCompatActivity() {
             },
             onAppReady = {
                 runOnUiThread { appReady = true }
+            },
+            onStartVaultSse = { url, token, accountId ->
+                vaultSseClient.enable(url, token, accountId)
+            },
+            onStopVaultSse = {
+                vaultSseClient.disable()
             }
         )
 
@@ -475,6 +500,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        // App is foreground → allow the native SSE reader to connect (it only opens
+        // if the renderer has also declared SSE desired via startVaultSse).
+        vaultSseClient.setForeground(true)
         if (BuildConfig.BILLING_ENABLED && !BuildConfig.DEBUG) {
             billingManager.activity = this
             billingManager.connect()
@@ -483,6 +511,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        // App backgrounded → drop the SSE socket (battery + no point streaming while
+        // hidden). Polling backstops the gap; on return onStart reconnects and the
+        // server's initial 'connected' frame reconciles anything missed.
+        vaultSseClient.setForeground(false)
         if (BuildConfig.BILLING_ENABLED && !BuildConfig.DEBUG) {
             billingManager.activity = null
             billingManager.disconnect()
@@ -490,6 +522,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        // Tear the SSE reader down cleanly — no leaked connection or coroutine.
+        vaultSseClient.shutdown()
         if (intentForwardReceiverRegistered) {
             unregisterReceiver(intentForwardReceiver)
             intentForwardReceiverRegistered = false
