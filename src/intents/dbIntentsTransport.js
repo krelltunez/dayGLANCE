@@ -507,6 +507,19 @@ async function poll(context, opts) {
   }
 }
 
+/**
+ * Locked drain for callers OUTSIDE the poll cadence (e.g. the SSE push client's
+ * nudge → instant drain). Shares the SAME module-level dbPollLock as the interval
+ * poller, so an SSE-triggered drain and a cadence poll can never run concurrently
+ * and double-process a row. This is the EXISTING drain — it advances the same
+ * receive cursor; it does not reimplement any intents logic. No-ops when DB
+ * intents isn't enabled.
+ */
+export async function drainDbIntents(context, opts) {
+  if (!isDbIntentsEnabled()) return;
+  await poll(context, opts);
+}
+
 // ─── hook ──────────────────────────────────────────────────────────────────────
 
 /**
