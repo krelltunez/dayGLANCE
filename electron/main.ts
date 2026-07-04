@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, net, Tray, Menu, nativeImage, globalShortcut, session } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, net, protocol, Tray, Menu, nativeImage, globalShortcut, session } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import dns from 'node:dns';
@@ -9,8 +9,23 @@ import { registerSubscriptionHandlers } from './subscription.js';
 import { registerCalendarHandlers } from './calendar.js';
 import { registerICloudHandlers } from './icloud.js';
 import { registerObsidianHandlers } from './obsidian.js';
+import { APP_SCHEME, APP_HOST, APP_BASE_URL, resolveAppRequest } from './appProtocol.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Register the custom app:// scheme as a proper web origin BEFORE app ready.
+// standard+secure gives it a real, allowlistable origin (app://dayglance) with a
+// secure context (streaming fetch, CSP, service-worker-grade trust) instead of
+// the opaque null origin file:// produced. supportFetchAPI/corsEnabled/stream let
+// the renderer fetch (incl. text/event-stream SSE) and let the handler stream
+// large asset bodies. Must run at module load — registerSchemesAsPrivileged is a
+// no-op once the app is ready.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: APP_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
+  },
+]);
 
 // Pin userData explicitly to the productName-derived path. Electron's default
 // derives from app.getName() (never the bundle ID), and this pin has shipped in
@@ -52,23 +67,20 @@ function openExternalSafe(url: string): void {
   } catch { /* malformed URL — ignore */ }
 }
 
-// The app's own bundled entry point — the ONLY file:// document navigations are
-// allowed to reach. Computed exactly as createWindow()/createTrayWindow() do via
-// loadFile() so the two stay in lock-step.
-const APP_INDEX_PATH = path.join(__dirname, '../dist/index.html');
+// The app's own built renderer directory — the root the app:// handler serves
+// from, and the only files renderer navigations may reach.
+const APP_DIST_DIR = path.join(__dirname, '../dist');
 
-// True if the navigation target is the app itself: the Vite dev server in dev,
-// or the app's own dist/index.html (any query/hash — the tray uses ?tray=1) in
-// production. Used to block renderer-initiated navigations to external origins
-// AND to arbitrary local files (defense-in-depth against XSS).
+// True if the navigation target is the app itself: the Vite dev server in dev, or
+// the app's own custom-scheme origin (app://dayglance, any path/query/hash — the
+// tray uses ?tray=1) in production. Used to block renderer-initiated navigations
+// to external origins (defense-in-depth against XSS). Production no longer loads
+// via file://, so that branch is gone; the app:// origin is the trusted one.
 function isSameAppOrigin(url: string): boolean {
   try {
     const parsed = new URL(url);
     if (DEV && parsed.origin === new URL(VITE_DEV_SERVER_URL).origin) return true;
-    if (parsed.protocol === 'file:') {
-      // Compare resolved filesystem paths; fileURLToPath drops query/hash.
-      return path.resolve(fileURLToPath(parsed)) === path.resolve(APP_INDEX_PATH);
-    }
+    if (parsed.protocol === `${APP_SCHEME}:` && parsed.host === APP_HOST) return true;
     return false;
   } catch { return false; }
 }
@@ -136,7 +148,7 @@ function createWindow(): BrowserWindow {
   if (DEV) {
     mainWindow.loadURL(VITE_DEV_SERVER_URL);
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    mainWindow.loadURL(APP_BASE_URL);
   }
 
   // Open external links in the system browser (https/http only).
@@ -172,7 +184,7 @@ function createTrayWindow(): BrowserWindow {
   if (DEV) {
     win.loadURL(`${VITE_DEV_SERVER_URL}?tray=1`);
   } else {
-    win.loadFile(path.join(__dirname, '../dist/index.html'), { query: { tray: '1' } });
+    win.loadURL(`${APP_BASE_URL}?tray=1`);
   }
 
   // After every (re)load, re-push cached reminders once React has mounted and
@@ -311,8 +323,13 @@ async function validateProxyUrl(urlString: string): Promise<void> {
   }
 }
 
-// Proxy outbound HTTP requests from the renderer so they aren't subject to
-// Chromium's CORS restrictions when the app is loaded from file://.
+// Proxy outbound HTTP requests from the renderer (via IPC, origin-independent) so
+// WebDAV/CalDAV/vault sync reach servers that don't send CORS headers for the
+// renderer origin. Invoked through ipcRenderer.invoke('proxy-fetch'), so it is
+// unaffected by the file:// → app:// origin switch — it never reads the origin.
+// (Vault SSE does NOT use this path: the proxy buffers the whole body via
+// response.text() below, which can't stream text/event-stream; SSE uses a direct
+// renderer fetch from the app:// origin instead.)
 ipcMain.handle('proxy-fetch', async (_event, method: string, url: string, headers: Record<string, string>, body: string | null) => {
   const upperMethod = (method ?? '').toUpperCase();
   if (!PROXY_ALLOWED_METHODS.has(upperMethod)) {
@@ -538,8 +555,13 @@ app.whenReady().then(() => {
 
   // Content Security Policy — applied to every response the renderer loads.
   // script-src 'self': only scripts from the app bundle (no inline scripts, no eval).
+  //   Under app://, 'self' is the app://dayglance origin (was the null file:// origin).
   // style-src 'self' 'unsafe-inline': Tailwind generates inline styles at runtime.
-  // connect-src 'self' https:: allows XHR/fetch to any https origin (AI APIs, CalDAV, etc.).
+  // connect-src 'self' https:: allows XHR/fetch/SSE to any https origin — the vault
+  //   (/sync, /intents, /events SSE, /salt, /blobs) on its direct renderer fetch,
+  //   plus AI APIs and CalDAV. (WebDAV/CalDAV/vault sync still go via the IPC proxy,
+  //   which is not subject to CSP; only vault SSE needs the direct-fetch allowance.)
+  //   Note: an http (non-TLS) vault would be blocked here — the vault must be https.
   // img-src 'self' data: blob:: covers favicons, base64 images, and blob URLs.
   // object-src / base-uri 'none': closes classic plugin and base-tag injection vectors.
   const CSP = [
@@ -560,6 +582,34 @@ app.whenReady().then(() => {
         'Content-Security-Policy': [CSP],
       },
     });
+  });
+
+  // Serve the built renderer from the custom app:// origin. Maps app://dayglance/…
+  // requests to files in dist/ (with SPA fallback to index.html for client
+  // routes), replacing the old file:// load. Custom-scheme responses do not pass
+  // through onHeadersReceived, so the CSP is set on the document response here too
+  // (belt-and-braces alongside the <meta> CSP baked into index.html). The IPC
+  // proxy (proxy-fetch) is untouched by this — it never depended on the origin.
+  protocol.handle(APP_SCHEME, async (request) => {
+    const isFile = (p: string): boolean => {
+      try { return fs.statSync(p).isFile(); } catch { return false; }
+    };
+    const resolved = resolveAppRequest(APP_DIST_DIR, request.url, isFile);
+    if (resolved.status !== 200 || !resolved.filePath) {
+      return new Response(resolved.status === 403 ? 'Forbidden' : 'Not found', {
+        status: resolved.status,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    }
+    try {
+      const data = await fs.promises.readFile(resolved.filePath);
+      const headers: Record<string, string> = { 'Content-Type': resolved.contentType || 'application/octet-stream' };
+      // Only the HTML document needs the CSP header; assets inherit nothing from it.
+      if (resolved.contentType?.startsWith('text/html')) headers['Content-Security-Policy'] = CSP;
+      return new Response(data, { status: 200, headers });
+    } catch {
+      return new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    }
   });
 
   const win = createWindow();
