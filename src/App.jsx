@@ -9,6 +9,7 @@ import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, 
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
 import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
+import { tombstoneHorizon } from './utils/tombstoneHorizon.js';
 import { stripHealthSourcedLogs } from './utils/healthLogFilter.js';
 import { webdavFetch } from './utils/cloudSyncProviders.js';
 import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
@@ -5819,9 +5820,12 @@ const DayPlanner = () => {
         multiUserEnabled,
         multiUserEnabledUpdatedAt: localStorage.getItem('dayglance-multi-user-enabled-updated-at') || null,
         users,
-        tombstonePrunedBefore: syncRetentionDays > 0
-          ? new Date(Date.now() - syncRetentionDays * 86400000).toISOString()
-          : null,
+        // Floored to the UTC day so this row is STABLE across sync cycles. A
+        // fresh Date.now() here changed the value every cycle, so the snapshot-
+        // diff re-pushed it every cycle → account seq advance → SSE self-nudge
+        // loop. See utils/tombstoneHorizon.js. (Pruning uses a fresh cutoff in
+        // the merge, so a day-granular fence changes nothing that gets pruned.)
+        tombstonePrunedBefore: tombstoneHorizon(syncRetentionDays),
       }
     };
   };

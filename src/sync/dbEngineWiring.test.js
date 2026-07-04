@@ -178,6 +178,57 @@ describe('Part B — end-to-end two-device sync via the REAL engine', () => {
     }
   });
 
+  it('CONVERGES with stable content — repeated cycles stop pushing (no self-nudge loop)', async () => {
+    // The heart of the loop fix: with no content change, the dirty set must drain
+    // to empty and STAY empty, so the device stops writing to the vault (no batch →
+    // no account-seq advance → no nudge). Real content changes still push.
+    const vault = createMemoryVault();
+    const batchSpy = vi.spyOn(vault, 'batch');
+    const A = makeDevice('A', vault, { ...EMPTY, tasks: [task(1, '2026-06-18T10:00:00.000Z')] });
+
+    // Let it settle (pull-then-push + HWM-on-pull take a couple cycles to quiesce).
+    for (let i = 0; i < 6; i++) await A.engine.dbSyncCycle();
+    const settled = batchSpy.mock.calls.length;
+
+    // Further no-change cycles must push NOTHING — this is what breaks the loop.
+    await A.engine.dbSyncCycle();
+    await A.engine.dbSyncCycle();
+    expect(batchSpy.mock.calls.length).toBe(settled);
+
+    // A genuine content change still pushes instantly (real nudges preserved).
+    A.data.tasks.push(task(2, '2026-06-18T11:00:00.000Z'));
+    await A.engine.dbSyncCycle();
+    expect(batchSpy.mock.calls.length).toBeGreaterThan(settled);
+  });
+
+  it('a field that CHANGES every cycle NEVER converges — re-pushed forever (the loop the horizon fix removes)', async () => {
+    // Reproduces the root cause: a synced singleton whose value moves each build
+    // (as tombstonePrunedBefore did via Date.now()) is dirty every cycle and
+    // re-pushed forever. This is why the horizon had to be made stable.
+    const vault = createMemoryVault();
+    const batchSpy = vi.spyOn(vault, 'batch');
+    let key = null;
+    let data = { ...EMPTY, tasks: [task(1, '2026-06-18T10:00:00.000Z')] };
+    let tick = 0;
+    const engine = createDbEngine({
+      vaultClient: vault,
+      storageKeyPrefix: 'dev-moving',
+      deviceId: 'device-moving',
+      nativeGetSyncKey: () => key,
+      nativeStoreSyncKey: (v) => { key = v; },
+      // A moving singleton value (stands in for the old Date.now()-per-build field).
+      getData: () => ({ ...clone(data), movingHorizon: new Date(tick * 3600000).toISOString() }),
+      commitData: (d) => { data = d; },
+    });
+
+    // Warm up so the initial full-seed settles, then advance the field every cycle.
+    for (let i = 0; i < 3; i++) { tick += 1; await engine.dbSyncCycle(); }
+    const before = batchSpy.mock.calls.length;
+    for (let i = 0; i < 4; i++) { tick += 1; await engine.dbSyncCycle(); }
+    // Every one of those 4 cycles re-pushed the moving row — it never quiesces.
+    expect(batchSpy.mock.calls.length).toBeGreaterThanOrEqual(before + 4);
+  });
+
   it('a cross-list move (unscheduled → scheduled) ends under exactly one kind on both devices', async () => {
     const vault = createMemoryVault();
     const start = { ...EMPTY, unscheduledTasks: [task(1003, '2026-06-18T10:00:00.000Z')] };

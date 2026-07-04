@@ -74,12 +74,9 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
     if (typeof window !== 'undefined') window.__glanceVaultSse = diag;
 
     const coalescer = createNudgeCoalescer({
-      // THROTTLE: never drain more than once every 5s, no matter how fast nudges
-      // arrive. A nudge for our OWN write echoes back from the server, and if a
-      // drain pushes again (or a backlog of intents keeps landing) that would loop
-      // and hammer the UI. The throttle caps it; polling remains the backstop and
-      // an idle account still drains near-instantly (debounce only).
-      minIntervalMs: 5000,
+      // Debounce-only (no throttle). The self-nudge loop is fixed at the root — a
+      // no-content sync cycle no longer pushes/nudges (utils/tombstoneHorizon.js) —
+      // so drains fire near-instantly on real changes, restoring SSE's low latency.
       onDrain: (kind) => {
         diag.drains += 1;
         console.info('[vault-sse] drain →', kind);

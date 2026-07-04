@@ -183,8 +183,6 @@ export async function openWebSseStream({ connection, signal, onOpen, onEvent, fe
  * @param {object} p
  * @param {(kind:'sync'|'intents') => void} p.onDrain
  * @param {number} [p.debounceMs]     coalesce a micro-burst before draining
- * @param {number} [p.minIntervalMs]  hard throttle: min gap between drains (0 = off)
- * @param {() => number} [p.now]      clock (injectable for tests)
  * @param {typeof setTimeout}  [p.setTimeoutFn]
  * @param {typeof clearTimeout}[p.clearTimeoutFn]
  * @param {(msg:string, err:any) => void} [p.onDrainError]
@@ -194,14 +192,11 @@ export function createNudgeCoalescer({
   debounceMs = 400,
   setTimeoutFn = setTimeout,
   clearTimeoutFn = clearTimeout,
-  minIntervalMs = 0,
-  now = () => Date.now(),
   onDrainError,
 } = {}) {
   let lastSeq = -Infinity;
   let timer = null;
   let pending = new Set();
-  let lastFlushAt = -Infinity;
 
   const runDrain = (kind) => {
     try {
@@ -213,7 +208,6 @@ export function createNudgeCoalescer({
 
   const flush = () => {
     timer = null;
-    lastFlushAt = now();
     const kinds = pending;
     pending = new Set();
     // Deterministic order: sync before intents.
@@ -221,19 +215,17 @@ export function createNudgeCoalescer({
     if (kinds.has('intents')) runDrain('intents');
   };
 
-  // Schedule a coalesced flush. THROTTLE: at most one flush per minIntervalMs.
-  // This is the hard cap that stops a drain→push→self-nudge→drain feedback loop
-  // (or a foreign-intent flood) from hammering the app many times per second and
-  // flickering the UI. When idle it stays near-instant (debounceMs); under a
-  // sustained nudge stream it drains at most once per minIntervalMs. Polling
-  // remains the backstop for anything a throttled/coalesced nudge defers.
+  // Coalesce a micro-burst of nudges into a single drain (debounce ONLY — no
+  // throttle). The self-nudge loop that once needed a 5s throttle is fixed at the
+  // root: a sync cycle with no content change no longer pushes anything, so it no
+  // longer advances the account seq or nudges (see utils/tombstoneHorizon.js).
+  // Drains therefore fire near-instantly on real changes, which is the point of
+  // SSE. Polling remains the backstop for any coalesced nudge.
   const schedule = (kind) => {
     if (kind === 'both') { pending.add('sync'); pending.add('intents'); }
     else pending.add(kind);
-    if (timer) return; // a flush is already scheduled — it will pick up this kind
-    const sinceFlush = now() - lastFlushAt;
-    const wait = Math.max(debounceMs, minIntervalMs - sinceFlush);
-    timer = setTimeoutFn(flush, wait);
+    if (timer) clearTimeoutFn(timer);
+    timer = setTimeoutFn(flush, debounceMs);
   };
 
   /**
