@@ -7,6 +7,7 @@ import { buildEnvelope, buildEncryptedEnvelope, deriveIntentsRootKey, deriveEnve
 vi.mock('./handleIntent.js', () => ({ handleIntent: vi.fn(async () => ({ success: true })) }));
 
 import { routeIncoming, KeyUnavailableError } from './dbIntentsTransport.js';
+import { ensureVaultIntentsKeyReady } from './vaultIntentsSetup.js';
 import { handleIntent } from './handleIntent.js';
 import { getActivityLog } from './intentLog.js';
 
@@ -80,5 +81,37 @@ describe('vault receive plaintext rejection', () => {
     await expect(routeIncoming(env, {}, { loadKey: async () => null }))
       .rejects.toBeInstanceOf(KeyUnavailableError);
     expect(handleIntent).not.toHaveBeenCalled();
+  });
+
+  it('(fix) after ensureVaultIntentsKeyReady derives the key, the SAME inbound row decrypts — no KeyUnavailableError', async () => {
+    const SALT = new Uint8Array(16).fill(7);
+    // The app://-origin store starts EMPTY; the self-heal wrapper derives + caches
+    // the vault intents key (as it now does on unlock and before each drain).
+    const slot = { key: null };
+    const ok = await ensureVaultIntentsKeyReady({
+      loadKey: async () => slot.key,
+      storeKey: async (k) => { slot.key = k; },
+      getSyncPassphrase: () => 'pw',
+      connection: { vaultUrl: 'https://v', vaultToken: 't', accountId: 'a' },
+      vaultClient: { getSalt: async () => SALT },
+    });
+    expect(ok).toBe(true);
+    expect(slot.key).not.toBeNull();
+
+    // A sender (another device) encrypts with the SAME passphrase + vault salt.
+    const senderKey = await deriveIntentsRootKey('pw', SALT);
+    const env = await buildEncryptedEnvelope({
+      action: 'notify', payload: validPayload(), emittedBy: 'app.lifeglance', eventId: '20260101T000000Z-ddd444',
+    }, (salt) => deriveEnvelopeKey(senderKey, salt));
+
+    // routeIncoming loads the now-derived vault key → decrypts and routes; NO throw.
+    let threw = null;
+    let outcome;
+    try { outcome = await routeIncoming(env, {}, { loadKey: async () => slot.key }); }
+    catch (e) { threw = e; }
+    expect(threw).toBeNull(); // not KeyUnavailableError anymore
+    expect(outcome).toBe('ok');
+    expect(handleIntent).toHaveBeenCalledTimes(1);
+    expect(handleIntent.mock.calls[0][1].title).toBe('inbound');
   });
 });

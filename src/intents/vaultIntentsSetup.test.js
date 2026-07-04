@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { deriveEnvelopeKey } from '@glance-apps/intents';
 import {
   ensureVaultIntentsKey,
+  ensureVaultIntentsKeyReady,
   setupVaultIntentsEncryption,
   VaultIntentsSetupError,
 } from './vaultIntentsSetup.js';
@@ -143,5 +144,54 @@ describe('setupVaultIntentsEncryption', () => {
     });
     expect(key).toBeDefined();
     expect(slot.peek()).toBe(key);
+  });
+});
+
+// The self-heal wrapper wired into unlock + before every inbound drain. It must
+// NEVER throw (can't break sync/unlock/the drain) and must be idempotent.
+describe('ensureVaultIntentsKeyReady (self-heal wrapper)', () => {
+  it('after unlock on a store lacking the key, derives it (returns true, key now loadable)', async () => {
+    const slot = memSlot(); // empty store, as after the file://→app:// migration
+    const ok = await ensureVaultIntentsKeyReady({
+      loadKey: slot.loadKey, storeKey: slot.storeKey,
+      getSyncPassphrase: () => 'correct horse battery staple',
+      connection: CONN, vaultClient: okVaultClient(),
+    });
+    expect(ok).toBe(true);
+    expect(slot.storeKey).toHaveBeenCalledTimes(1);
+    expect(await slot.loadKey()).not.toBeNull(); // loadVaultIntentsRootKey non-null
+  });
+
+  it('is idempotent — an already-present key is NOT clobbered and not re-derived', async () => {
+    const slot = memSlot({ alreadyCached: true }); // any truthy cached key
+    const vaultClient = okVaultClient();
+    const ok = await ensureVaultIntentsKeyReady({
+      loadKey: slot.loadKey, storeKey: slot.storeKey,
+      getSyncPassphrase: () => 'pw', connection: CONN, vaultClient,
+    });
+    expect(ok).toBe(true);
+    expect(slot.storeKey).not.toHaveBeenCalled();   // no clobber
+    expect(vaultClient.getSalt).not.toHaveBeenCalled(); // didn't even reach derivation
+  });
+
+  it('returns false and NEVER throws when the passphrase is unavailable (drain holds, retries later)', async () => {
+    const slot = memSlot();
+    const ok = await ensureVaultIntentsKeyReady({
+      loadKey: slot.loadKey, storeKey: slot.storeKey,
+      getSyncPassphrase: () => null, connection: CONN, vaultClient: okVaultClient(),
+    });
+    expect(ok).toBe(false);
+    expect(slot.storeKey).not.toHaveBeenCalled();
+  });
+
+  it('returns false and NEVER throws when the vault has no salt yet (does not invent one)', async () => {
+    const slot = memSlot();
+    const ok = await ensureVaultIntentsKeyReady({
+      loadKey: slot.loadKey, storeKey: slot.storeKey,
+      getSyncPassphrase: () => 'pw', connection: CONN,
+      vaultClient: { getSalt: vi.fn(async () => null) },
+    });
+    expect(ok).toBe(false);
+    expect(slot.storeKey).not.toHaveBeenCalled();
   });
 });

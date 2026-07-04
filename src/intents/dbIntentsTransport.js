@@ -529,10 +529,20 @@ export async function drainDbIntents(context, opts) {
  * on an interval. Receive-only — there is no push; sends happen at the emit sites.
  *
  * context shape: same as useIntentPoller (tasks, setters, goals, navigate, …).
+ *
+ * @param {object} context
+ * @param {object} [opts]
+ * @param {() => Promise<any>} [opts.ensureKey] best-effort hook run BEFORE each
+ *   drain so the vault intents key is (re-)derived if absent (e.g. after the
+ *   file://→app:// origin migration left an empty key store). Injected — not
+ *   imported here — to avoid a dbIntentsTransport↔vaultIntentsSetup import cycle.
+ *   Must never throw.
  */
-export function useDbIntentPoller(context) {
+export function useDbIntentPoller(context, opts = {}) {
   const contextRef = useRef(context);
   contextRef.current = context;
+  const ensureKeyRef = useRef(opts.ensureKey);
+  ensureKeyRef.current = opts.ensureKey;
 
   useEffect(() => {
     if (isTrayMode) return;
@@ -551,6 +561,9 @@ export function useDbIntentPoller(context) {
     const runPoll = async () => {
       if (destroyed) return;
       try {
+        // Self-heal the vault intents key before draining so inbound rows can
+        // decrypt instead of throwing KeyUnavailableError. Best-effort/no-throw.
+        try { await ensureKeyRef.current?.(); } catch { /* never blocks the drain */ }
         await poll(contextRef.current);
       } catch (err) {
         console.warn('[db-intent] poll error:', err.message);
