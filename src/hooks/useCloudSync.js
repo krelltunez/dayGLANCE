@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { initSessionKey } from '../utils/crypto.js';
 import { isVaultEnabled } from '../sync/vaultConfig.js';
 import { restoreDbRootKey } from '../sync/dbEngine.js';
+import { isDbIntentsEnabled } from '../intents/dbIntentsConfig.js';
+import { loadVaultIntentsRootKey } from '../intents/intentsKeyStore.js';
 
 const useCloudSync = () => {
   const [cloudSyncConfig, setCloudSyncConfig] = useState(() => {
@@ -84,8 +86,18 @@ const useCloudSync = () => {
 
     const needFileKey  = !!(config?.enabled && config?.encryptionEnabled);
     const needVaultKey = isVaultEnabled();
+    // The vault INTENTS key lives in its OWN origin-partitioned IndexedDB slot and
+    // ALSO needs the passphrase to derive. It must be in the readiness gate too:
+    // otherwise, when the DB SYNC key is already cached (so restoreDbRootKey
+    // succeeds and no prompt appears), a store MISSING the vault-intents key — e.g.
+    // after the file://→app:// origin migration — never gets a chance to derive it
+    // (the passphrase is never in memory), and inbound intents stay stuck on
+    // KeyUnavailableError. Gating on its presence makes the app prompt once; the
+    // entered passphrase then derives + caches it (App's derive-on-unlock effect),
+    // and it never prompts again for it.
+    const needVaultIntentsKey = isDbIntentsEnabled();
 
-    if (!needFileKey && !needVaultKey) {
+    if (!needFileKey && !needVaultKey && !needVaultIntentsKey) {
       // No encrypted transport active — no passphrase needed.
       setSyncKeyReady(true);
       return;
@@ -94,11 +106,14 @@ const useCloudSync = () => {
     Promise.all([
       needFileKey  ? initSessionKey()   : Promise.resolve(true),
       needVaultKey ? restoreDbRootKey() : Promise.resolve(true),
-    ]).then(([fileOk, vaultOk]) => {
+      // Presence check only (no derivation) — a cached key means ready; absent
+      // means prompt. Never throws.
+      needVaultIntentsKey ? loadVaultIntentsRootKey().then((k) => !!k).catch(() => false) : Promise.resolve(true),
+    ]).then(([fileOk, vaultOk, vaultIntentsOk]) => {
       // Ready only when every active tier restored its key; otherwise App shows
       // the passphrase prompt, and the entered passphrase re-derives + caches the
-      // missing key(s) on the next sync.
-      setSyncKeyReady(fileOk && vaultOk);
+      // missing key(s) on the next sync / on the derive-on-unlock effect.
+      setSyncKeyReady(fileOk && vaultOk && vaultIntentsOk);
     });
   }, []);
 

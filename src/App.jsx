@@ -81,7 +81,7 @@ import { getGlanceHGInstances, isHGSessionReachable } from './hooks/useHyperGlan
 import { useIntentPoller, INTENT_CONFIG_KEY } from './intents/useIntentPoller.js';
 import { useDbIntentPoller, drainDbIntents } from './intents/dbIntentsTransport.js';
 import { ensureVaultIntentsKeyReady } from './intents/vaultIntentsSetup.js';
-import { getDbIntentsConnection } from './intents/dbIntentsConfig.js';
+import { getDbIntentsConnection, isDbIntentsEnabled } from './intents/dbIntentsConfig.js';
 import { useVaultEventStream } from './hooks/useVaultEventStream.js';
 import { useNotifyEmitter } from './intents/useNotifyEmitter.js';
 import { useGoalNotifyEmitter } from './intents/useGoalNotifyEmitter.js';
@@ -10325,7 +10325,7 @@ const DayPlanner = () => {
       {/* Sync passphrase prompt — shown on app load when an encrypted transport
           (WebDAV encryption or GLANCEvault) is active but no cached key was found
           in device storage (e.g. new device, or first launch after key isolation). */}
-      {(cloudSyncConfig?.encryptionEnabled || isVaultEnabled()) && syncKeyReady === false && (
+      {(cloudSyncConfig?.encryptionEnabled || isVaultEnabled() || isDbIntentsEnabled()) && syncKeyReady === false && (
         <SyncPassphraseModal
           darkMode={darkMode}
           textPrimary={textPrimary}
