@@ -40,6 +40,44 @@ describe('stampTimestamps', () => {
     expect(out[0].lastModified).toBe(stored[0].lastModified); // NOT ISO(0)
   });
 
+  // ── Regression: cold-open re-stamp on `archived` (day-planner-unscheduled) ───
+  // Same class as the tombstonePrunedBefore false-diff: a never-archived task has
+  // no `archived` key in storage, but in-memory it carries `archived: false` (from
+  // an unarchive elsewhere or a merge). Absent ≡ false, so the stamper must treat
+  // them as equal and NOT fabricate a new lastModified on every cold-open.
+  it('does NOT re-stamp when storage lacks `archived` but memory has archived:false', () => {
+    const stored = [{ id: 1, title: 'Inbox item', completed: false, lastModified: ISO(100) }];
+    const inMemory = [{ id: 1, title: 'Inbox item', completed: false, notes: '', subtasks: [], archived: false, lastModified: ISO(100) }];
+    const out = stampTimestamps(inMemory, stored, ISO(0));
+    expect(out[0].lastModified).toBe(stored[0].lastModified); // stable — no false-diff
+  });
+
+  it('does NOT re-stamp the reverse: storage has archived:false, memory omits it', () => {
+    const stored = [{ id: 1, title: 'Inbox item', archived: false, lastModified: ISO(100) }];
+    const inMemory = [{ id: 1, title: 'Inbox item', lastModified: ISO(100) }];
+    expect(stampTimestamps(inMemory, stored, ISO(0))[0].lastModified).toBe(stored[0].lastModified);
+  });
+
+  it('round-trips: store→load leaves archived:false stable across repeated saves (no drift)', () => {
+    // Cold-open cycle: state carries archived:false; storage was written without it
+    // (older data). First save must not re-stamp, and the item stays stable on the
+    // next cycle too (idempotent — never dirties).
+    const t0 = ISO(100);
+    let stored = [{ id: 1, title: 'Item', completed: false, lastModified: t0 }];
+    const inMemory = [{ id: 1, title: 'Item', completed: false, notes: '', subtasks: [], archived: false, lastModified: t0 }];
+    for (let cycle = 0; cycle < 3; cycle++) {
+      const out = stampTimestamps(inMemory, stored, ISO(0));
+      expect(out[0].lastModified).toBe(t0); // never fabricated
+      stored = out; // persist and re-load next cycle
+    }
+  });
+
+  it('a REAL archive still re-stamps (archived:true vs absent is a genuine change)', () => {
+    const stored = [{ id: 1, title: 'Item', lastModified: ISO(100) }];
+    const inMemory = [{ id: 1, title: 'Item', archived: true, lastModified: ISO(100) }];
+    expect(stampTimestamps(inMemory, stored, 'NOW')[0].lastModified).toBe('NOW');
+  });
+
   describe('onRestamp diagnostic', () => {
     it('reports the changed fields when an existing task is re-stamped', () => {
       const prev = [{ id: 1, title: 'A', completed: false, lastModified: ISO(100) }];
@@ -56,6 +94,8 @@ describe('stampTimestamps', () => {
       stampTimestamps([{ id: 1, title: 'A', lastModified: ISO(100) }], [{ id: 1, title: 'A', lastModified: ISO(100) }], 'NOW', onRestamp);
       // default-only diff (the resurrection vector — must stay silent)
       stampTimestamps([{ id: 2, title: 'B', notes: '', subtasks: [], lastModified: ISO(100) }], [{ id: 2, title: 'B', lastModified: ISO(100) }], 'NOW', onRestamp);
+      // archived absent-vs-false (the cold-open re-stamp we fixed — must stay silent)
+      stampTimestamps([{ id: 4, title: 'D', archived: false, lastModified: ISO(100) }], [{ id: 4, title: 'D', lastModified: ISO(100) }], 'NOW', onRestamp);
       // new task
       stampTimestamps([{ id: 3, title: 'C' }], [], 'NOW', onRestamp);
       expect(calls).toEqual([]);
