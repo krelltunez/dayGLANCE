@@ -275,6 +275,59 @@ describe('createVaultEventClient — lifecycle, reconnect, reconcile', () => {
     client.stop();
   });
 
+  it('FLAP GUARD: a connection that opens then drops fast does NOT reset backoff (no 1s reconnect storm)', async () => {
+    const s = makeControllableStream();
+    const client = createVaultEventClient({
+      supported: true,
+      getConnection: () => ({ vaultUrl: 'https://v', vaultToken: 't', accountId: 'a' }),
+      openStream: s.openStream,
+      onEvent: () => {},
+      backoffBaseMs: 1000,
+      backoffMaxMs: 60000,
+      minStableMs: 5000,
+    });
+    client.start();
+    expect(s.calls).toHaveLength(1);
+
+    // Open→close instantly (duration 0 < minStableMs): backoff must GROW, not reset.
+    s.close();                                   // attempt 0 → delay 1000, attempt→1
+    await Promise.resolve(); await Promise.resolve();
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve(); await Promise.resolve();
+    expect(s.calls).toHaveLength(2);             // reconnected after 1s
+
+    s.close();                                   // still flapping → delay 2000, attempt→2
+    await Promise.resolve(); await Promise.resolve();
+    vi.advanceTimersByTime(1000);                // only 1s of the 2s elapsed
+    await Promise.resolve(); await Promise.resolve();
+    expect(s.calls).toHaveLength(2);             // NOT yet — backoff grew to 2s (no storm)
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve(); await Promise.resolve();
+    expect(s.calls).toHaveLength(3);             // reconnects only after the full 2s
+
+    client.stop();
+  });
+
+  it('a STABLE connection (open past minStableMs) resets backoff so a later drop reconnects fast', async () => {
+    const s = makeControllableStream();
+    const client = createVaultEventClient({
+      supported: true,
+      getConnection: () => ({ vaultUrl: 'https://v', vaultToken: 't', accountId: 'a' }),
+      openStream: s.openStream,
+      onEvent: () => {},
+      backoffBaseMs: 1000,
+      minStableMs: 5000,
+    });
+    client.start();
+    vi.advanceTimersByTime(5000);                // healthy: stayed open 5s
+    s.close();                                   // duration ≥ minStableMs → attempt resets to 0
+    await Promise.resolve(); await Promise.resolve();
+    vi.advanceTimersByTime(1000);                // so it reconnects after just 1s
+    await Promise.resolve(); await Promise.resolve();
+    expect(s.calls).toHaveLength(2);
+    client.stop();
+  });
+
   it('a stream error does NOT throw and does NOT stop the client from recovering', async () => {
     const s = makeControllableStream();
     const client = createVaultEventClient({
