@@ -27,6 +27,7 @@
 // per-completion remodeling.
 
 import { mergeHabitLogs, mergeRoutineDefinitions, mergeRoutineCompletions, mergeCompletedDates } from '../mergeSync.js';
+import { floorToUtcDayIso } from '../utils/tombstoneHorizon.js';
 
 // ── Collection kinds: each array element is one row, keyed by a stable id, with
 // entity-grain last-writer-wins on tsField (the same grain the file-tier merge
@@ -432,8 +433,15 @@ function mergeBundle(data, key, value, extra) {
       data.routinesDate = (data.routinesDate && data.routinesDate > value) ? data.routinesDate : value;
       return;
     case 'unscheduledOrderTimestamp':
-    case 'tombstonePrunedBefore':
       data[key] = newerIso(data[key], value);
+      return;
+    case 'tombstonePrunedBefore':
+      // Floor the merged value to the UTC day so it matches the day-floored value
+      // buildSyncPayload produces (utils/tombstoneHorizon.js). Without the floor,
+      // newerIso keeps a same-day FULL-PRECISION remote value (e.g. …18:25:50Z),
+      // which never equals the floored payload value (…00:00:00Z) → the singleton
+      // row is dirty every cycle → push → seq advance → SSE self-nudge loop.
+      data[key] = floorToUtcDayIso(newerIso(data[key], value));
       return;
     case 'syncUrl':
     case 'taskCalendarUrl':
