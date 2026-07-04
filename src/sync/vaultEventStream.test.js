@@ -137,6 +137,27 @@ describe('createNudgeCoalescer — seq cursor + debounce', () => {
     expect(c.getCursor()).toBe(4);
   });
 
+  it('THROTTLE: a continuous nudge stream drains at most once per minIntervalMs (no hammering)', () => {
+    const onDrain = vi.fn();
+    const c = createNudgeCoalescer({ onDrain, debounceMs: 400, minIntervalMs: 5000 });
+
+    // First nudge after idle drains near-instantly (debounce only).
+    c.handleEvent({ seq: 1, kind: 'sync' });
+    vi.advanceTimersByTime(400);
+    expect(onDrain).toHaveBeenCalledTimes(1);
+
+    // Now hammer: a nudge every 200ms for 4s (like the feedback loop). Without the
+    // throttle this would drain ~20 times; with it, at most once more in that window.
+    for (let t = 0; t < 4000; t += 200) {
+      c.handleEvent({ seq: 2 + t / 200, kind: 'sync' });
+      vi.advanceTimersByTime(200);
+    }
+    expect(onDrain).toHaveBeenCalledTimes(1); // still throttled (5s not yet elapsed)
+
+    vi.advanceTimersByTime(1200); // cross the 5s boundary
+    expect(onDrain).toHaveBeenCalledTimes(2); // exactly one more drain for the whole burst
+  });
+
   it("routes kind to the matching drain; a 'sync' nudge does not drain intents", () => {
     const onDrain = vi.fn();
     const c = createNudgeCoalescer({ onDrain, debounceMs: 100 });
