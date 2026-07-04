@@ -30,10 +30,30 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * @param {number} [nowMs]        current epoch ms (injectable for tests)
  * @returns {string|null}         ISO timestamp floored to the UTC day, or null
  */
+/**
+ * Floor an ISO timestamp to the start of its UTC day, as an ISO string.
+ * null/undefined/unparseable pass through unchanged. Idempotent.
+ *
+ * This is the CANONICAL form of tombstonePrunedBefore. It must be applied
+ * everywhere the value is produced (buildSyncPayload → tombstoneHorizon) AND
+ * everywhere it is merged/stored (dbAdapter's bundle merge) — otherwise the two
+ * sides disagree: buildSyncPayload emits the day-floored value while the merge
+ * keeps a same-day FULL-PRECISION remote value (newerIso picks the newer raw
+ * timestamp), so the singleton row is dirty on every cycle → push → account seq
+ * advance → SSE self-nudge loop. Flooring both sides makes floored == floored so
+ * an unchanged cycle produces no push.
+ *
+ * @param {string|null|undefined} iso
+ * @returns {string|null|undefined}
+ */
+export function floorToUtcDayIso(iso) {
+  if (!iso) return iso;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return iso;
+  return new Date(Math.floor(t / DAY_MS) * DAY_MS).toISOString();
+}
+
 export function tombstoneHorizon(retentionDays, nowMs = Date.now()) {
   if (!(retentionDays > 0)) return null;
-  const cutoff = nowMs - retentionDays * DAY_MS;
-  // Floor to the UTC-day boundary → identical output for every call within a day.
-  const floored = Math.floor(cutoff / DAY_MS) * DAY_MS;
-  return new Date(floored).toISOString();
+  return floorToUtcDayIso(new Date(nowMs - retentionDays * DAY_MS).toISOString());
 }

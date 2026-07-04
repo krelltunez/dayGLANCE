@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tombstoneHorizon } from './tombstoneHorizon.js';
+import { tombstoneHorizon, floorToUtcDayIso } from './tombstoneHorizon.js';
 
 // The horizon must be STABLE across the many sync cycles within a day. A value
 // that changed every call (the old `Date.now()`-per-build code) made the synced
@@ -43,5 +43,33 @@ describe('tombstoneHorizon', () => {
   it('returns null when retention is disabled (<= 0)', () => {
     expect(tombstoneHorizon(0, Date.now())).toBeNull();
     expect(tombstoneHorizon(-5, Date.now())).toBeNull();
+  });
+});
+
+describe('floorToUtcDayIso — the canonical form both sides must use', () => {
+  it('floors a full-precision timestamp to UTC midnight of the same day', () => {
+    // The exact case from the ground-truth push log.
+    expect(floorToUtcDayIso('2026-06-04T18:25:50.481Z')).toBe('2026-06-04T00:00:00.000Z');
+  });
+
+  it('is idempotent — flooring an already-floored value is a no-op (round-trip equal)', () => {
+    const floored = '2026-06-04T00:00:00.000Z';
+    expect(floorToUtcDayIso(floored)).toBe(floored);
+  });
+
+  it('makes a full-precision value ROUND-TRIP EQUAL to the floored payload value', () => {
+    // buildSyncPayload emits tombstoneHorizon() (floored); the merge stores
+    // floorToUtcDayIso(remote). Both must be equal for the same day so the
+    // snapshot-diff sees no change.
+    const now = new Date('2026-09-02T15:30:00.000Z').getTime();
+    const payloadValue = tombstoneHorizon(90, now);          // floored, e.g. 2026-06-04T00:00:00.000Z
+    const stuckFullPrecisionRemote = '2026-06-04T18:25:50.481Z'; // same day, full precision
+    expect(floorToUtcDayIso(stuckFullPrecisionRemote)).toBe(payloadValue);
+  });
+
+  it('passes null/undefined/unparseable through unchanged', () => {
+    expect(floorToUtcDayIso(null)).toBeNull();
+    expect(floorToUtcDayIso(undefined)).toBeUndefined();
+    expect(floorToUtcDayIso('not-a-date')).toBe('not-a-date');
   });
 });

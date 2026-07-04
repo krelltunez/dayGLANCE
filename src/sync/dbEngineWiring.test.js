@@ -229,6 +229,45 @@ describe('Part B — end-to-end two-device sync via the REAL engine', () => {
     expect(batchSpy.mock.calls.length).toBeGreaterThanOrEqual(before + 4);
   });
 
+  it('tombstonePrunedBefore CONVERGES — a floored payload vs a stuck full-precision vault value stops pushing', async () => {
+    // Reproduces the confirmed loop: buildSyncPayload emits the day-FLOORED horizon
+    // every cycle, but the vault/merge held a same-day FULL-PRECISION value, so the
+    // singleton row was dirty every cycle → push → SSE self-nudge. The fix floors
+    // BOTH sides (utils/tombstoneHorizon.js + dbAdapter bundle merge) so an
+    // unchanged cycle produces no push.
+    const vault = createMemoryVault();
+    const FULL = '2026-06-04T18:25:50.481Z';        // stuck pre-fix value
+    const FLOORED = '2026-06-04T00:00:00.000Z';     // what tombstoneHorizon() emits
+
+    // Seed the vault with the FULL-PRECISION value via another device.
+    const B = makeDevice('B', vault, { ...EMPTY, tombstonePrunedBefore: FULL });
+    await B.engine.dbSyncCycle();
+
+    // Device A's getData ALWAYS returns the floored value (as buildSyncPayload does).
+    let key = null;
+    let data = { ...EMPTY };
+    const engineA = createDbEngine({
+      vaultClient: vault,
+      storageKeyPrefix: 'dev-A-floor',
+      deviceId: 'device-A-floor',
+      nativeGetSyncKey: () => key,
+      nativeStoreSyncKey: (v) => { key = v; },
+      getData: () => ({ ...clone(data), tombstonePrunedBefore: FLOORED }),
+      commitData: (d) => { data = d; },
+    });
+
+    const batchSpy = vi.spyOn(vault, 'batch');
+    for (let i = 0; i < 6; i++) await engineA.dbSyncCycle();  // settle
+    const settled = batchSpy.mock.calls.length;
+
+    // Unchanged cycles now push NOTHING — floored payload == floored stored value.
+    await engineA.dbSyncCycle();
+    await engineA.dbSyncCycle();
+    expect(batchSpy.mock.calls.length).toBe(settled);
+    // And the merged/committed value is the floored form.
+    expect(data.tombstonePrunedBefore).toBe(FLOORED);
+  });
+
   it('a cross-list move (unscheduled → scheduled) ends under exactly one kind on both devices', async () => {
     const vault = createMemoryVault();
     const start = { ...EMPTY, unscheduledTasks: [task(1003, '2026-06-18T10:00:00.000Z')] };
