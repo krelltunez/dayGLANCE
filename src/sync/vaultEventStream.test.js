@@ -95,9 +95,13 @@ describe('detectSseTransport', () => {
     expect(detectSseTransport()).toBe('native-unsupported');
   });
 
-  it('returns electron-unsupported when electron proxy is present', () => {
+  it('returns web on Electron — Chromium renderer on app:// streams via direct fetch (no proxy)', () => {
     global.window = { electronAPI: { isElectron: true } };
-    expect(detectSseTransport()).toBe('electron-unsupported');
+    global.fetch = global.fetch || (() => {});
+    global.ReadableStream = global.ReadableStream || function () {};
+    // Electron is deliberately NOT short-circuited: it uses the same direct
+    // streaming fetch as web, so SSE push works on the desktop app.
+    expect(detectSseTransport()).toBe('web');
   });
 });
 

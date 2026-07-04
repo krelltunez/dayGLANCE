@@ -17,17 +17,24 @@
 // the SAME existing drain the poll triggers; the drain re-reads its own cursor
 // and no-ops when there is nothing new.
 //
-// WEB vs NATIVE consumption:
+// WEB vs NATIVE vs ELECTRON consumption:
 //   • WEB (browser/PWA): EventSource cannot set an Authorization header, and the
 //     vault authenticates with a device-token Bearer — so we use a fetch-based
 //     streaming reader (response.body.getReader()) that sets the Bearer header.
 //     See openWebSseStream.
-//   • NATIVE (Android/iOS WebView) and ELECTRON: the vault HTTP path is the
-//     synchronous, fully-BUFFERED bridge (window.DayGlanceNative.httpRequest /
-//     electronAPI.proxyFetch) — it returns the whole body as one string and
-//     cannot deliver incremental frames, so streaming SSE is structurally
-//     impossible there. detectSseTransport() reports this and the client simply
-//     does not open — the device degrades cleanly to exactly today's polling.
+//   • ELECTRON: the renderer is Chromium and, since it now loads from the custom
+//     app://dayglance origin (not file://), its direct fetch() streams
+//     text/event-stream natively exactly like the web path — so Electron uses the
+//     SAME openWebSseStream (direct fetch), NOT the IPC proxy (which buffers the
+//     whole body and cannot stream). The direct fetch presents Origin:
+//     app://dayglance to the vault, which must allowlist that exact origin in its
+//     CORS config; until it does, the SSE fetch is CORS-rejected and the client
+//     falls back to polling (SSE is additive, polling is the backstop).
+//   • NATIVE (Android/iOS WebView): the vault HTTP path is the synchronous,
+//     fully-BUFFERED bridge (window.DayGlanceNative.httpRequest) — it returns the
+//     whole body as one string and cannot deliver incremental frames, so
+//     streaming SSE is structurally impossible. detectSseTransport() reports this
+//     and the client does not open — the device degrades cleanly to polling.
 
 // ─── SSE frame parsing ────────────────────────────────────────────────────────
 
@@ -81,10 +88,12 @@ export function drainSseBuffer(buffer, onEvent) {
 
 /**
  * Which SSE consumption path this runtime supports:
- *   'web'                  — fetch streaming with a Bearer header (works).
- *   'native-unsupported'   — Android/iOS WebView: buffered synchronous bridge.
- *   'electron-unsupported' — Electron proxy: buffered IPC.
- *   'none'                 — no window / no streaming fetch (e.g. tests, SSR).
+ *   'web'                — fetch streaming with a Bearer header (works). Covers
+ *                          browsers/PWA AND Electron: Electron's renderer is
+ *                          Chromium loading from app://dayglance, so its direct
+ *                          fetch streams text/event-stream just like a browser.
+ *   'native-unsupported' — Android/iOS WebView: buffered synchronous bridge.
+ *   'none'               — no window / no streaming fetch (e.g. tests, SSR).
  * Only 'web' opens a stream; every other value degrades cleanly to polling.
  */
 export function detectSseTransport() {
@@ -92,8 +101,9 @@ export function detectSseTransport() {
   // The native WebView bridge (window.DayGlanceNative.httpRequest) is synchronous
   // and returns the whole body as one string — it cannot stream frames.
   if (window.DayGlanceNative?.httpRequest) return 'native-unsupported';
-  // Electron's proxyFetch is buffered IPC — also no streaming.
-  if (window.electronAPI?.isElectron) return 'electron-unsupported';
+  // Electron is intentionally NOT special-cased here: its renderer fetch streams
+  // like any Chromium fetch. The buffering IPC proxy is only for request/response
+  // vault/WebDAV/CalDAV calls; SSE uses the direct fetch below (openWebSseStream).
   if (typeof fetch === 'function' && typeof ReadableStream !== 'undefined') return 'web';
   return 'none';
 }

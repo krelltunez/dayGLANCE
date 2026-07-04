@@ -44,9 +44,10 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
 
     const transport = detectSseTransport();
     if (transport !== 'web') {
-      // Native WebView / Electron / SSR: the vault HTTP path is fully buffered and
-      // cannot stream frames, so SSE is unavailable — degrade cleanly to polling
-      // (which is already running). Nothing to open, nothing to clean up.
+      // Native WebView / SSR: the vault HTTP path is fully buffered and cannot
+      // stream frames, so SSE is unavailable — degrade cleanly to polling (which
+      // is already running). Nothing to open, nothing to clean up. (Electron is
+      // NOT here — it reports 'web' and streams directly from the app:// origin.)
       if (import.meta.env?.DEV) {
         console.info('[vault-sse] streaming unavailable on', transport, '— polling backstop only');
       }
