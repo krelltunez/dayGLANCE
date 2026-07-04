@@ -80,6 +80,8 @@ import useGTDFrames from './hooks/useGTDFrames.js';
 import { getGlanceHGInstances, isHGSessionReachable } from './hooks/useHyperGlance.js';
 import { useIntentPoller, INTENT_CONFIG_KEY } from './intents/useIntentPoller.js';
 import { useDbIntentPoller, drainDbIntents } from './intents/dbIntentsTransport.js';
+import { ensureVaultIntentsKeyReady } from './intents/vaultIntentsSetup.js';
+import { getDbIntentsConnection } from './intents/dbIntentsConfig.js';
 import { useVaultEventStream } from './hooks/useVaultEventStream.js';
 import { useNotifyEmitter } from './intents/useNotifyEmitter.js';
 import { useGoalNotifyEmitter } from './intents/useGoalNotifyEmitter.js';
@@ -1146,7 +1148,13 @@ const DayPlanner = () => {
       if (tab === 'glance' || tab === 'inbox') setTabletActiveTab(tab === 'glance' ? 'glance' : 'inbox');
     },
   };
-  useDbIntentPoller(dbIntentContext);
+  // ensureKey self-heals the vault INTENTS root key before each inbound drain: it
+  // lives in an origin-partitioned IndexedDB slot (vault-root-key), so the
+  // file://→app:// origin switch left the app:// store empty and inbound intents
+  // threw KeyUnavailableError. Best-effort/idempotent (no-op once cached). Stable
+  // ref so the poller effect isn't re-run.
+  const ensureVaultIntentsKeyCb = useCallback(() => ensureVaultIntentsKeyReady(), []);
+  useDbIntentPoller(dbIntentContext, { ensureKey: ensureVaultIntentsKeyCb });
   // Fresh handle on the intents drain context for the SSE push client (below),
   // which triggers the SAME drain outside the poll cadence.
   const dbIntentContextRef = useRef(dbIntentContext);
@@ -1160,8 +1168,27 @@ const DayPlanner = () => {
   useVaultEventStream({
     dataLoaded,
     drainSync: useCallback(() => dbEngineRef.current?.dbSyncCycle?.(), []),
-    drainIntents: useCallback(() => drainDbIntents(dbIntentContextRef.current), []),
+    // Ensure the vault intents key before the SSE-triggered inbound drain too, so a
+    // nudge that arrives before the poller's first drain still decrypts.
+    drainIntents: useCallback(async () => {
+      await ensureVaultIntentsKeyReady();
+      return drainDbIntents(dbIntentContextRef.current);
+    }, []),
   });
+  // Proactively (re-)derive the GLANCEvault INTENTS root key the moment sync is
+  // established with the passphrase in memory — the same trigger that re-derives
+  // the DB sync key. Closes the file://→app:// migration gap: the app:// origin's
+  // IndexedDB starts empty, so the SYNC key re-derived (restoreDbRootKey) but
+  // nothing re-derived the vault-intents key, and inbound intents threw
+  // KeyUnavailableError. Idempotent + best-effort; no-op without a vault connection
+  // or once the key is cached. (The passphrase is in memory right after the unlock
+  // modal, which is exactly when syncKeyReady flips true on a fresh/wiped store.)
+  useEffect(() => {
+    if (isTrayMode || !dataLoaded || !syncKeyReady) return;
+    if (!getDbIntentsConnection()) return;
+    ensureVaultIntentsKeyReady();
+  }, [dataLoaded, syncKeyReady]);
+
   // Guard the intent emitters against sync/remote-apply-driven state changes: a
   // setGoals/setTasks coming from applyEngineData (or any merge apply) must not
   // echo an outbound intent, mirroring how the cloud-upload effect bails on

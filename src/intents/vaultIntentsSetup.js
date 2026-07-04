@@ -117,3 +117,33 @@ export async function ensureVaultIntentsKey(opts = {}) {
   await setupVaultIntentsEncryption(passphrase, opts);
   return { ok: true };
 }
+
+/**
+ * Best-effort self-heal wrapper around ensureVaultIntentsKey for the app's
+ * unlock/drain wiring. NEVER throws — so it can be called before an intents drain,
+ * on passphrase unlock, or after the file://→app:// origin migration (which starts
+ * with an empty, origin-partitioned IndexedDB store) without risking sync, unlock,
+ * or the drain itself. Idempotent: a no-op when the vault intents key is already
+ * cached. Returns true iff the key is present after the call.
+ *
+ * @param {object} [opts] passed through to ensureVaultIntentsKey (injection seams)
+ * @returns {Promise<boolean>}
+ */
+export async function ensureVaultIntentsKeyReady(opts = {}) {
+  try {
+    const res = await ensureVaultIntentsKey(opts);
+    if (res.ok) {
+      if (!res.alreadySetUp) {
+        console.info('[vault-intents] root key derived + cached into the vault-root-key slot (inbound intents can now decrypt)');
+      }
+      return true;
+    }
+    // needsPassphrase — can't derive yet (passphrase not in memory). A later unlock
+    // or drain retries; the intents drain holds harmlessly until then.
+    return false;
+  } catch (err) {
+    // NO_CONNECTION / NO_VAULT_SALT / transient network — defer, never break.
+    console.warn('[vault-intents] key derivation deferred:', err?.code || err?.message || err);
+    return false;
+  }
+}
