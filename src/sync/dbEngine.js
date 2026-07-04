@@ -110,6 +110,38 @@ function snapshotShred(data) {
   return map;
 }
 
+// ─── TEMPORARY push diagnostic (gated) ────────────────────────────────────────
+// Set localStorage 'dayglance-debug-push' = '1' to log, every cycle that pushes,
+// exactly which rows are dirty and — for snapshot-diff rows — which field changed
+// (old -> new). Purpose: name the real per-cycle moving value driving the SSE
+// self-nudge loop, without assuming any particular field. Remove once diagnosed.
+function debugPushEnabled() {
+  try { return typeof localStorage !== 'undefined' && localStorage.getItem('dayglance-debug-push') === '1'; }
+  catch { return false; }
+}
+const debugShort = (v) => {
+  let s;
+  try { s = typeof v === 'string' ? v : JSON.stringify(v); } catch { s = String(v); }
+  if (s === undefined) s = 'undefined';
+  return s.length > 100 ? s.slice(0, 100) + '…' : s;
+};
+// Recursively list differing leaves between two parsed entities as "path: old -> new".
+function debugDiffLeaves(a, b, path = '', out = []) {
+  if (out.length >= 15) return out;
+  if (a === b) return out;
+  const oa = a && typeof a === 'object';
+  const ob = b && typeof b === 'object';
+  if (!oa || !ob) {
+    out.push(`${path || '(root)'}: ${debugShort(a)} -> ${debugShort(b)}`);
+    return out;
+  }
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    if (out.length >= 15) break;
+    debugDiffLeaves(a[k], b[k], path ? `${path}.${k}` : k, out);
+  }
+  return out;
+}
+
 /**
  * Build the dayGLANCE DB sync engine, or null when the vault is disabled.
  *
@@ -275,13 +307,29 @@ export function createDbEngine(callbacks = {}) {
       mirror = clone(callbacks.getData()) || {};
 
       // Seed the dirty set: full snapshot on first-ever sync, else the diff.
+      const pushDbg = debugPushEnabled();
+      const dbgChanges = pushDbg ? [] : null; // [{ id, kind, diff:[] }]
       if (engine.getHighWaterMark() === 0) {
         for (const row of shredState(mirror)) engine.markDirty(row.entityId);
+        if (pushDbg) console.log('[push] initial full-seed cycle (HWM=0) — every row dirty');
       } else {
         const prev = loadSnapshot();
         const cur = snapshotShred(mirror);
-        for (const [id, h] of Object.entries(cur)) if (prev[id] !== h) engine.markDirty(id);
-        for (const id of Object.keys(prev)) if (!(id in cur)) engine.markDirty(id); // deletes
+        for (const [id, h] of Object.entries(cur)) {
+          if (prev[id] === h) continue;
+          engine.markDirty(id);
+          if (dbgChanges) {
+            let a, b;
+            try { a = prev[id] === undefined ? undefined : JSON.parse(prev[id]); } catch { a = undefined; }
+            try { b = JSON.parse(h); } catch { b = undefined; }
+            dbgChanges.push({ id, kind: prev[id] === undefined ? 'new' : 'changed', diff: debugDiffLeaves(a, b) });
+          }
+        }
+        for (const id of Object.keys(prev)) {
+          if (id in cur) continue;
+          engine.markDirty(id); // deletes
+          if (dbgChanges) dbgChanges.push({ id, kind: 'deleted', diff: [] });
+        }
       }
 
       callbacks.onStatusChange?.('downloading');
@@ -291,7 +339,24 @@ export function createDbEngine(callbacks = {}) {
       if (pull && pull.skipped > 0) callbacks.onRowsSkipped?.(pull.skipped, pull.skippedEntityIds || []);
       reconcileCrossList(mirror, (id) => engine.markDirty(id));
       callbacks.onStatusChange?.('uploading');
-      await engine.pushDirtyRows();        // push merged superset + local changes
+      // TEMP diagnostic: capture the COMPLETE dirty set (snapshot-diff + pull
+      // re-push + cross-list reconcile) right before the push, then report what
+      // vault.batch actually wrote — so we can see if the client writes every
+      // cycle and which exact row/field is moving. Gated on dayglance-debug-push.
+      const dirtyBeforePush = pushDbg && typeof engine.getDirtySet === 'function' ? engine.getDirtySet() : null;
+      const pushRes = await engine.pushDirtyRows();        // push merged superset + local changes
+      if (pushDbg) {
+        const wrote = (pushRes?.written ?? 0) + (pushRes?.deleted ?? 0);
+        console.log(`[push] cycle → vault.batch written:${pushRes?.written ?? 0} deleted:${pushRes?.deleted ?? 0} — client ${wrote > 0 ? 'DID' : 'did NOT'} write this cycle`);
+        console.log('[push] dirty ids this cycle:', dirtyBeforePush ?? []);
+        if (dbgChanges && dbgChanges.length) {
+          for (const c of dbgChanges) {
+            console.log(`[push]   snapshot-diff ${c.kind} ${c.id}${c.diff.length ? ` — ${c.diff.join('; ')}` : ''}`);
+          }
+        } else {
+          console.log('[push]   snapshot-diff found NO changed rows → dirt came from pull re-push / cross-list reconcile (superset), not a moving payload field');
+        }
+      }
       await engine.updateDeviceCursor();
 
       callbacks.commitData?.(clone(mirror));
