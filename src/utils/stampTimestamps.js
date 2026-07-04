@@ -15,13 +15,31 @@
 // Strip `lastModified` and default the fields that are normalized into in-memory
 // tasks (see loadData / applyEngineData) but may be missing from the stored copy,
 // so a passive default-add doesn't register as a user edit.
+//
+// `archived` belongs here for the SAME reason as notes/subtasks: a task that was
+// never archived carries no `archived` key in storage, but an unarchive (or a
+// merge from a device that does set it) leaves `archived: false` in memory. Absent
+// and `false` are the SAME state ("not archived"), so they must compare equal —
+// otherwise every cold-open re-stamps `lastModified` on those items (changed:
+// ['archived']), which then dirties them for the DB-sync push. Canonicalising both
+// sides to `false` makes archived round-trip identically for the diff while a real
+// archive (`archived: true`) still reads as a genuine change.
 function normalizeField(task) {
   const { lastModified: _omit, ...rest } = task;
-  return { ...rest, notes: rest.notes ?? '', subtasks: rest.subtasks ?? [] };
+  return { ...rest, notes: rest.notes ?? '', subtasks: rest.subtasks ?? [], archived: rest.archived ?? false };
 }
 
+// Order-INSENSITIVE stringify of the normalized task. A defaulted field (archived,
+// notes, subtasks) lands at a different key position depending on whether it was
+// already present in the stored copy or added by normalizeField — so a plain
+// JSON.stringify would flag two semantically-equal objects as different purely on
+// key order. Sorting the top-level keys makes the comparison depend on VALUES, not
+// insertion order (diffKeys is already per-key, so it needs no change).
 function normalizedForCompare(task) {
-  return JSON.stringify(normalizeField(task));
+  const n = normalizeField(task);
+  const sorted = {};
+  for (const k of Object.keys(n).sort()) sorted[k] = n[k];
+  return JSON.stringify(sorted);
 }
 
 // Keys whose (normalized) values differ between the stored and in-memory copy.

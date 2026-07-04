@@ -33,8 +33,37 @@
 //   • NATIVE (Android/iOS WebView): the vault HTTP path is the synchronous,
 //     fully-BUFFERED bridge (window.DayGlanceNative.httpRequest) — it returns the
 //     whole body as one string and cannot deliver incremental frames, so
-//     streaming SSE is structurally impossible. detectSseTransport() reports this
-//     and the client does not open — the device degrades cleanly to polling.
+//     streaming SSE INSIDE THE WEBVIEW is structurally impossible. Instead the
+//     NATIVE SHELL opens the /events stream itself (a Kotlin/Swift SSE reader,
+//     over a native HTTP client — no browser origin, so NO vault CORS change) and
+//     pushes each raw SSE block into the renderer via a bridge callback
+//     (window.__glanceVaultSseReceive). The renderer reuses the SAME parseSseFrame
+//     + coalescer + drains — only the transport INPUT differs. This is the
+//     "bridge-fed" transport (see createBridgeSseClient). A shell that advertises
+//     the capability (DayGlanceNative.isVaultSseSupported() === true) reports
+//     'native-bridge'; an older shell without it stays 'native-unsupported' and
+//     degrades cleanly to polling.
+//
+// BRIDGE CONTRACT (renderer ↔ native shell), used by the 'native-bridge' path:
+//   JS → native (methods on window.DayGlanceNative):
+//     • isVaultSseSupported() → boolean   capability probe (detectSseTransport).
+//     • startVaultSse(vaultUrl, token, accountId)   "SSE desired ON" + connection
+//       params. The native reader owns the socket: it connects when foreground,
+//       drops on background, and reconnects with backoff — all transparent to JS.
+//     • stopVaultSse()                    "SSE desired OFF" — native tears down.
+//   native → JS (native invokes window.__glanceVaultSseReceive(msg), msg an object
+//   or JSON string):
+//     • {type:'open'}                     a native (re)connection was established.
+//     • {type:'frame', block:'<raw SSE event block>'}   one SSE event; the renderer
+//       runs it through the EXISTING parseSseFrame → {seq,kind} → coalescer. On a
+//       native reconnect the server's initial {seq,kind:'connected'} arrives as a
+//       frame here, so reconnect-reconcile is automatic (coalescer drains both).
+//     • {type:'closed'}                   the native stream dropped (native will
+//       reconnect); informational for diagnostics.
+//     • {type:'error', message}           a native connect/read error; native owns
+//       the retry, so this is informational only.
+//   POLLING stays the correctness backstop on native exactly as on web/Electron —
+//   bridge-fed nudges only ADD instant drains on top.
 
 // ─── SSE frame parsing ────────────────────────────────────────────────────────
 
@@ -92,20 +121,49 @@ export function drainSseBuffer(buffer, onEvent) {
  *                          browsers/PWA AND Electron: Electron's renderer is
  *                          Chromium loading from app://dayglance, so its direct
  *                          fetch streams text/event-stream just like a browser.
- *   'native-unsupported' — Android/iOS WebView: buffered synchronous bridge.
+ *   'native-bridge'      — Android/iOS WebView whose native shell advertises a
+ *                          native SSE reader (isVaultSseSupported() === true): the
+ *                          shell opens the stream and pushes frames in via the
+ *                          bridge (see createBridgeSseClient). No vault CORS change.
+ *   'native-unsupported' — a native WebView whose shell has the buffered bridge but
+ *                          NOT the SSE reader (older build) — degrade to polling.
  *   'none'               — no window / no streaming fetch (e.g. tests, SSR).
- * Only 'web' opens a stream; every other value degrades cleanly to polling.
+ * 'web' and 'native-bridge' open a stream; every other value degrades to polling.
  */
 export function detectSseTransport() {
   if (typeof window === 'undefined') return 'none';
-  // The native WebView bridge (window.DayGlanceNative.httpRequest) is synchronous
-  // and returns the whole body as one string — it cannot stream frames.
-  if (window.DayGlanceNative?.httpRequest) return 'native-unsupported';
+  // Native WebView: the vault HTTP path is the synchronous, whole-body bridge
+  // (window.DayGlanceNative.httpRequest) — it cannot stream frames. But the native
+  // SHELL can, and pushes them in. Use the bridge-fed transport when the shell
+  // advertises the capability; otherwise (older shell) fall back to polling.
+  const bridge = window.DayGlanceNative;
+  if (bridge?.httpRequest) {
+    return nativeSseSupported(bridge) ? 'native-bridge' : 'native-unsupported';
+  }
   // Electron is intentionally NOT special-cased here: its renderer fetch streams
   // like any Chromium fetch. The buffering IPC proxy is only for request/response
   // vault/WebDAV/CalDAV calls; SSE uses the direct fetch below (openWebSseStream).
   if (typeof fetch === 'function' && typeof ReadableStream !== 'undefined') return 'web';
   return 'none';
+}
+
+/**
+ * True only when the native shell exposes a working native SSE reader. Probed via
+ * an explicit capability method so:
+ *   • an OLDER Android shell (bridge present, no startVaultSse) → false → polling;
+ *   • the iOS shell whose bridge is a Proxy fabricating EVERY method name still
+ *     reports false until its handler actually returns true (its stubbed reply is
+ *     the string "null", not true), so iOS keeps polling until its reader ships.
+ * Only a literal boolean true (or the string 'true') counts as supported.
+ */
+function nativeSseSupported(bridge) {
+  if (typeof bridge.startVaultSse !== 'function') return false;
+  try {
+    const v = typeof bridge.isVaultSseSupported === 'function' ? bridge.isVaultSseSupported() : false;
+    return v === true || v === 'true';
+  } catch {
+    return false;
+  }
 }
 
 // ─── web streaming reader ─────────────────────────────────────────────────────
@@ -352,6 +410,96 @@ export function createVaultEventClient({
       onStateChange?.('stopped');
     },
     isRunning: () => !stopped,
+    isSupported: () => supported,
+  };
+}
+
+// ─── bridge-fed client (native shell owns the socket) ─────────────────────────
+
+/**
+ * The renderer half of the 'native-bridge' transport. Unlike createVaultEventClient
+ * (which owns a fetch stream + JS-side reconnect/backoff), here the NATIVE SHELL
+ * owns the socket and its whole lifecycle: it connects when foreground, drops on
+ * background, and reconnects with backoff — all invisible to JS. This client's job
+ * is only to (a) tell native "SSE desired on/off" with the connection params, and
+ * (b) funnel the raw SSE blocks native pushes back through the SAME parseSseFrame +
+ * onEvent (→ coalescer → drain) the web path uses. There is deliberately NO JS
+ * reconnect loop here — reconnect belongs to exactly ONE owner per transport, and
+ * for native that owner is the shell (see Stage 2). Polling remains the backstop.
+ *
+ * `receive` is the function the native shell invokes (as window.__glanceVaultSseReceive)
+ * — see the BRIDGE CONTRACT at the top of this file for the message shapes.
+ *
+ * @param {object} p
+ * @param {() => ({vaultUrl:string,vaultToken:string,accountId:string}|null)} p.getConnection
+ * @param {(c:object) => void} p.startNative  tell the shell to open (given the connection)
+ * @param {() => void}         p.stopNative   tell the shell to tear down
+ * @param {(evt:object) => void} p.onEvent    parsed {seq,kind} frame → coalescer.handleEvent
+ * @param {(state:string, detail?:any) => void} [p.onStateChange]
+ * @param {boolean} [p.supported]
+ * @param {(block:string, onEvent:(e:object)=>void) => void} [p.parseFrame] injectable (tests)
+ */
+export function createBridgeSseClient({
+  getConnection,
+  startNative,
+  stopNative,
+  onEvent,
+  onStateChange,
+  supported = true,
+} = {}) {
+  let running = false;
+
+  // The native shell pushes messages here. Accepts a parsed object OR a JSON
+  // string (evaluateJavascript with an object literal delivers an object; a shell
+  // that stringifies is handled too). Never throws — a malformed push is ignored
+  // so it can't break the bridge.
+  const receive = (msg) => {
+    if (typeof msg === 'string') {
+      try { msg = JSON.parse(msg); } catch { return; }
+    }
+    if (!msg || typeof msg !== 'object') return;
+    switch (msg.type) {
+      case 'open':
+        onStateChange?.('open');
+        break;
+      case 'frame': {
+        // Reuse the EXISTING parser: native did transport + frame boundary
+        // detection; {seq,kind} extraction stays in ONE place (parseSseFrame).
+        if (typeof msg.block === 'string') {
+          const evt = parseSseFrame(msg.block);
+          if (evt) onEvent?.(evt);
+        }
+        break;
+      }
+      case 'closed':
+        onStateChange?.('closed');
+        break;
+      case 'error':
+        onStateChange?.('error', msg.message);
+        break;
+      default:
+        break;
+    }
+  };
+
+  return {
+    receive,
+    start() {
+      if (!supported || running) return false;
+      const connection = getConnection?.();
+      if (!connection) return false; // nothing to connect to → polling covers it
+      running = true;
+      onStateChange?.('connecting');
+      try { startNative?.(connection); } catch (err) { onStateChange?.('error', err?.message || String(err)); }
+      return true;
+    },
+    stop() {
+      if (!running) return;
+      running = false;
+      try { stopNative?.(); } catch { /* ignore — teardown must not throw */ }
+      onStateChange?.('stopped');
+    },
+    isRunning: () => running,
     isSupported: () => supported,
   };
 }

@@ -1162,9 +1162,11 @@ const DayPlanner = () => {
 
   // GLANCEvault SSE push — instant drain on a server nudge, ADDED on top of the
   // permanent poll backstops (never replacing them). Opens only when vault sync
-  // is enabled and the app is active; web-only (fetch-stream), degrades to
-  // polling on native/electron. Nudges trigger the EXISTING drains: dbSyncCycle
-  // for sync, drainDbIntents for intents. See useVaultEventStream / vaultEventStream.
+  // is enabled and the app is active. Transport per platform: web/Electron stream
+  // via direct fetch; Android (and later iOS) via a NATIVE reader that pushes
+  // frames through the bridge (native-bridge); an older native shell without the
+  // reader degrades to polling. Nudges trigger the EXISTING drains: dbSyncCycle for
+  // sync, drainDbIntents for intents. See useVaultEventStream / vaultEventStream.
   useVaultEventStream({
     dataLoaded,
     drainSync: useCallback(() => dbEngineRef.current?.dbSyncCycle?.(), []),

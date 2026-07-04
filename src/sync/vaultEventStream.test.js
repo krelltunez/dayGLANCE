@@ -6,6 +6,7 @@ import {
   openWebSseStream,
   createNudgeCoalescer,
   createVaultEventClient,
+  createBridgeSseClient,
 } from './vaultEventStream.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -90,8 +91,36 @@ describe('detectSseTransport', () => {
     expect(detectSseTransport()).toBe('web');
   });
 
-  it('returns native-unsupported when the native bridge is present', () => {
+  it('returns native-unsupported when the native bridge lacks the SSE reader (older shell)', () => {
+    // Bridge present (httpRequest) but no startVaultSse / capability → polling.
     global.window = { DayGlanceNative: { httpRequest: () => {} } };
+    expect(detectSseTransport()).toBe('native-unsupported');
+  });
+
+  it('returns native-bridge when the shell advertises a native SSE reader', () => {
+    global.window = {
+      DayGlanceNative: {
+        httpRequest: () => {},
+        startVaultSse: () => {},
+        stopVaultSse: () => {},
+        isVaultSseSupported: () => true,
+      },
+    };
+    expect(detectSseTransport()).toBe('native-bridge');
+  });
+
+  it('stays native-unsupported when the shell fabricates methods but the probe is not true (iOS Proxy)', () => {
+    // Mirrors iOS's Proxy bridge: every method name resolves to a function, but the
+    // unimplemented capability probe replies with the string "null" — not true — so
+    // iOS keeps polling until its native reader ships.
+    global.window = {
+      DayGlanceNative: new Proxy({ httpRequest: () => {} }, {
+        get(target, prop) {
+          if (prop in target) return target[prop];
+          return () => 'null';
+        },
+      }),
+    };
     expect(detectSseTransport()).toBe('native-unsupported');
   });
 
@@ -459,5 +488,109 @@ describe('openWebSseStream — web fetch-stream path', () => {
       onEvent: () => {},
       fetchImpl,
     })).rejects.toThrow();
+  });
+});
+
+// ─── bridge-fed client (native shell owns the socket) ─────────────────────────
+
+describe('createBridgeSseClient — native bridge-fed transport', () => {
+  const conn = { vaultUrl: 'https://v', vaultToken: 't', accountId: 'a' };
+
+  it('start() hands the connection to native; stop() tears native down', () => {
+    const startNative = vi.fn();
+    const stopNative = vi.fn();
+    const client = createBridgeSseClient({
+      getConnection: () => conn, startNative, stopNative, onEvent: () => {},
+    });
+
+    expect(client.start()).toBe(true);
+    expect(startNative).toHaveBeenCalledWith(conn);
+    expect(client.isRunning()).toBe(true);
+    // Idempotent: a second start does not re-open.
+    expect(client.start()).toBe(false);
+    expect(startNative).toHaveBeenCalledTimes(1);
+
+    client.stop();
+    expect(stopNative).toHaveBeenCalledTimes(1);
+    expect(client.isRunning()).toBe(false);
+  });
+
+  it('does not start when there is no connection (nothing to connect to)', () => {
+    const startNative = vi.fn();
+    const client = createBridgeSseClient({
+      getConnection: () => null, startNative, stopNative: () => {}, onEvent: () => {},
+    });
+    expect(client.start()).toBe(false);
+    expect(startNative).not.toHaveBeenCalled();
+    expect(client.isRunning()).toBe(false);
+  });
+
+  it('a pushed {type:frame,block} is parsed by the SHARED parseSseFrame and reaches onEvent', () => {
+    const events = [];
+    const client = createBridgeSseClient({
+      getConnection: () => conn, startNative: () => {}, stopNative: () => {},
+      onEvent: (e) => events.push(e),
+    });
+    // native pushes a raw SSE block (its transport did frame-boundary detection).
+    client.receive({ type: 'frame', block: 'data: {"seq":11,"kind":"sync"}' });
+    // heartbeat/comment block → parseSseFrame returns null → ignored.
+    client.receive({ type: 'frame', block: ': keep-alive' });
+    client.receive({ type: 'frame', block: 'data: {"seq":12,"kind":"intents"}' });
+    expect(events).toEqual([{ seq: 11, kind: 'sync' }, { seq: 12, kind: 'intents' }]);
+  });
+
+  it('END-TO-END: a pushed frame drives the EXISTING coalescer → drain (reconnect-reconcile too)', () => {
+    vi.useFakeTimers();
+    const onDrain = vi.fn();
+    const coalescer = createNudgeCoalescer({ onDrain, debounceMs: 10 });
+    const client = createBridgeSseClient({
+      getConnection: () => conn, startNative: () => {}, stopNative: () => {},
+      onEvent: coalescer.handleEvent,
+    });
+    client.start();
+
+    // A real sync change nudged in from native → sync drain.
+    client.receive({ type: 'frame', block: 'data: {"seq":1,"kind":"sync"}' });
+    vi.advanceTimersByTime(10);
+    expect(onDrain).toHaveBeenCalledTimes(1);
+    expect(onDrain).toHaveBeenCalledWith('sync');
+    onDrain.mockClear();
+
+    // Native reconnects → server's initial 'connected' frame arrives here →
+    // reconcile drains BOTH (catches anything missed while the socket was down).
+    client.receive({ type: 'open' }); // informational
+    client.receive({ type: 'frame', block: 'data: {"seq":5,"kind":"connected"}' });
+    vi.advanceTimersByTime(10);
+    expect(onDrain).toHaveBeenCalledTimes(2); // sync + intents
+    vi.useRealTimers();
+  });
+
+  it('accepts a JSON-STRING push (shell that stringifies) and ignores malformed pushes', () => {
+    const events = [];
+    const client = createBridgeSseClient({
+      getConnection: () => conn, startNative: () => {}, stopNative: () => {},
+      onEvent: (e) => events.push(e),
+    });
+    client.receive(JSON.stringify({ type: 'frame', block: 'data: {"seq":3,"kind":"sync"}' }));
+    // Malformed pushes must never throw.
+    expect(() => client.receive('not json')).not.toThrow();
+    expect(() => client.receive(null)).not.toThrow();
+    expect(() => client.receive({ type: 'frame' })).not.toThrow(); // no block
+    expect(events).toEqual([{ seq: 3, kind: 'sync' }]);
+  });
+
+  it('routes lifecycle messages to onStateChange (open/closed/error)', () => {
+    const states = [];
+    const client = createBridgeSseClient({
+      getConnection: () => conn, startNative: () => {}, stopNative: () => {},
+      onEvent: () => {}, onStateChange: (s, d) => states.push([s, d]),
+    });
+    client.start(); // 'connecting'
+    client.receive({ type: 'open' });
+    client.receive({ type: 'closed' });
+    client.receive({ type: 'error', message: 'boom' });
+    client.stop(); // 'stopped'
+    expect(states.map((s) => s[0])).toEqual(['connecting', 'open', 'closed', 'error', 'stopped']);
+    expect(states.find((s) => s[0] === 'error')[1]).toBe('boom');
   });
 });

@@ -30,6 +30,12 @@ class NativeBridge(
     healthRepository: HealthRepository,
     onRequestHealthPermission: () -> Unit,
     private val onAppReady: (() -> Unit)? = null,
+    // GLANCEvault native SSE (Path 2). The renderer drives these to declare "SSE
+    // desired on/off" and hand over the vault connection; the Activity wires them
+    // to a VaultSseClient that owns the actual socket + lifecycle. Default no-ops so
+    // a shell that doesn't provide them simply reports SSE unsupported.
+    private val onStartVaultSse: ((url: String, token: String, accountId: String) -> Unit)? = null,
+    private val onStopVaultSse: (() -> Unit)? = null,
 ) {
 
     private val health = HealthBridge(healthRepository, onRequestHealthPermission)
@@ -288,6 +294,32 @@ class NativeBridge(
     @JavascriptInterface
     fun httpRequest(method: String, url: String, headersJson: String, body: String): String =
         http.request(method, url, headersJson, body)
+
+    // ── GLANCEvault native SSE (Path 2) ───────────────────────────────────────
+
+    /**
+     * Capability probe read by the renderer's `detectSseTransport()`. Returning
+     * true is what makes the renderer pick the 'native-bridge' transport (a native
+     * SSE reader feeding frames in) instead of degrading to polling-only.
+     */
+    @JavascriptInterface
+    fun isVaultSseSupported(): Boolean = true
+
+    /**
+     * Renderer → "SSE desired ON" with the vault connection. The native reader
+     * connects when the Activity is foreground and reconnects on drop; the renderer
+     * keeps polling as the backstop regardless.
+     */
+    @JavascriptInterface
+    fun startVaultSse(vaultUrl: String, token: String, accountId: String) {
+        onStartVaultSse?.invoke(vaultUrl, token, accountId)
+    }
+
+    /** Renderer → "SSE desired OFF" (vault disabled / teardown). */
+    @JavascriptInterface
+    fun stopVaultSse() {
+        onStopVaultSse?.invoke()
+    }
 
     // ── File sharing ─────────────────────────────────────────────────────────
 
