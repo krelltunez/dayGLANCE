@@ -13,5 +13,5 @@
     "types": ["node", "electron", "ws"]
   },
   "include": ["electron"],
-  "exclude": ["electron/preload.ts"]
+  "exclude": ["electron/preload.ts", "electron/**/*.test.ts"]
 }

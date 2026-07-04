@@ -78,7 +78,8 @@ import useBackup from './hooks/useBackup.js';
 import useGTDFrames from './hooks/useGTDFrames.js';
 import { getGlanceHGInstances, isHGSessionReachable } from './hooks/useHyperGlance.js';
 import { useIntentPoller, INTENT_CONFIG_KEY } from './intents/useIntentPoller.js';
-import { useDbIntentPoller } from './intents/dbIntentsTransport.js';
+import { useDbIntentPoller, drainDbIntents } from './intents/dbIntentsTransport.js';
+import { useVaultEventStream } from './hooks/useVaultEventStream.js';
 import { useNotifyEmitter } from './intents/useNotifyEmitter.js';
 import { useGoalNotifyEmitter } from './intents/useGoalNotifyEmitter.js';
 import { useOutboxFlush } from './intents/useOutboxFlush.js';
@@ -1134,7 +1135,7 @@ const DayPlanner = () => {
   // GLANCEvault DB intents transport — receive poller mounted alongside the
   // WebDAV poller; no-ops unless DB intents is enabled (its own flag + an
   // inherited vault connection). Same context shape as useIntentPoller.
-  useDbIntentPoller({
+  const dbIntentContext = {
     tasks, unscheduledTasks, recurringTasks, projects,
     setTasks, setUnscheduledTasks, setRecurringTasks,
     goals, addGoal, updateGoal, deleteGoal,
@@ -1143,6 +1144,22 @@ const DayPlanner = () => {
       setMobileActiveTab(mobileTab);
       if (tab === 'glance' || tab === 'inbox') setTabletActiveTab(tab === 'glance' ? 'glance' : 'inbox');
     },
+  };
+  useDbIntentPoller(dbIntentContext);
+  // Fresh handle on the intents drain context for the SSE push client (below),
+  // which triggers the SAME drain outside the poll cadence.
+  const dbIntentContextRef = useRef(dbIntentContext);
+  dbIntentContextRef.current = dbIntentContext;
+
+  // GLANCEvault SSE push — instant drain on a server nudge, ADDED on top of the
+  // permanent poll backstops (never replacing them). Opens only when vault sync
+  // is enabled and the app is active; web-only (fetch-stream), degrades to
+  // polling on native/electron. Nudges trigger the EXISTING drains: dbSyncCycle
+  // for sync, drainDbIntents for intents. See useVaultEventStream / vaultEventStream.
+  useVaultEventStream({
+    dataLoaded,
+    drainSync: useCallback(() => dbEngineRef.current?.dbSyncCycle?.(), []),
+    drainIntents: useCallback(() => drainDbIntents(dbIntentContextRef.current), []),
   });
   // Guard the intent emitters against sync/remote-apply-driven state changes: a
   // setGoals/setTasks coming from applyEngineData (or any merge apply) must not

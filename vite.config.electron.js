@@ -33,9 +33,13 @@ function electronCspMetaPlugin() {
   };
 }
 
-// Electron renderer build — no PWA, no dev proxy, base must be './' for file:// loading
+// Electron renderer build — no PWA, no dev proxy. base is '/' (absolute from the
+// origin root): the renderer now loads from the custom app://dayglance origin
+// (not file://), so assets resolve as app://dayglance/assets/… regardless of the
+// document's path — robust for the app:// protocol handler + any client route.
+// (Was './' when the app loaded via file://, where only relative paths worked.)
 export default defineConfig({
-  base: './',
+  base: '/',
   define: {
     __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
     __APP_VERSION__: JSON.stringify(pkg.version),
