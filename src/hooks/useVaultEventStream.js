@@ -74,6 +74,9 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
     if (typeof window !== 'undefined') window.__glanceVaultSse = diag;
 
     const coalescer = createNudgeCoalescer({
+      // Debounce-only (no throttle). The self-nudge loop is fixed at the root — a
+      // no-content sync cycle no longer pushes/nudges (utils/tombstoneHorizon.js) —
+      // so drains fire near-instantly on real changes, restoring SSE's low latency.
       onDrain: (kind) => {
         diag.drains += 1;
         console.info('[vault-sse] drain →', kind);

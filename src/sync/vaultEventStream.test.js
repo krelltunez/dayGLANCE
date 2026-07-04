@@ -137,6 +137,21 @@ describe('createNudgeCoalescer — seq cursor + debounce', () => {
     expect(c.getCursor()).toBe(4);
   });
 
+  it('NO THROTTLE: a real nudge drains after the light debounce (near-instant, not capped at 5s)', () => {
+    const onDrain = vi.fn();
+    const c = createNudgeCoalescer({ onDrain, debounceMs: 400 });
+
+    c.handleEvent({ seq: 1, kind: 'sync' });
+    vi.advanceTimersByTime(400);
+    expect(onDrain).toHaveBeenCalledTimes(1); // fired at the debounce, no 5s throttle
+
+    // A second real change a moment later drains again promptly — not withheld for
+    // any multi-second throttle window.
+    c.handleEvent({ seq: 2, kind: 'sync' });
+    vi.advanceTimersByTime(400);
+    expect(onDrain).toHaveBeenCalledTimes(2);
+  });
+
   it("routes kind to the matching drain; a 'sync' nudge does not drain intents", () => {
     const onDrain = vi.fn();
     const c = createNudgeCoalescer({ onDrain, debounceMs: 100 });

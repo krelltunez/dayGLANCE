@@ -182,7 +182,7 @@ export async function openWebSseStream({ connection, signal, onOpen, onEvent, fe
  *
  * @param {object} p
  * @param {(kind:'sync'|'intents') => void} p.onDrain
- * @param {number} [p.debounceMs]
+ * @param {number} [p.debounceMs]     coalesce a micro-burst before draining
  * @param {typeof setTimeout}  [p.setTimeoutFn]
  * @param {typeof clearTimeout}[p.clearTimeoutFn]
  * @param {(msg:string, err:any) => void} [p.onDrainError]
@@ -215,6 +215,12 @@ export function createNudgeCoalescer({
     if (kinds.has('intents')) runDrain('intents');
   };
 
+  // Coalesce a micro-burst of nudges into a single drain (debounce ONLY — no
+  // throttle). The self-nudge loop that once needed a 5s throttle is fixed at the
+  // root: a sync cycle with no content change no longer pushes anything, so it no
+  // longer advances the account seq or nudges (see utils/tombstoneHorizon.js).
+  // Drains therefore fire near-instantly on real changes, which is the point of
+  // SSE. Polling remains the backstop for any coalesced nudge.
   const schedule = (kind) => {
     if (kind === 'both') { pending.add('sync'); pending.add('intents'); }
     else pending.add(kind);
