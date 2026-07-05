@@ -10,7 +10,6 @@ import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORI
 import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { tombstoneHorizon } from './utils/tombstoneHorizon.js';
-import { installUnscheduledStoreProbe, probeSetter } from './utils/debugArchivedProbe.js';
 import { preserveArchived } from './utils/preserveArchived.js';
 import { stripHealthSourcedLogs } from './utils/healthLogFilter.js';
 import { webdavFetch } from './utils/cloudSyncProviders.js';
@@ -332,24 +331,16 @@ const DayPlanner = () => {
   const selectedDateRef = useRef(selectedDate);
   selectedDateRef.current = selectedDate;
   const [tasks, setTasks] = useState([]);
-  const [unscheduledTasks, _setUnscheduledTasks] = useState([]);
+  const [unscheduledTasks, setUnscheduledTasks] = useState([]);
   // Live refs to the current task state, reassigned every render. applyEngineData
   // runs from an async sync cycle and its closure can predate loadData / the heal
   // render, so reading `tasks`/`unscheduledTasks` directly there is STALE — the
-  // archived-preservation must read these refs (whose `.current` is always the
-  // latest committed state) or it back-fills from an empty/undefined baseline and
-  // the strip goes through anyway.
+  // archived-preservation reads these refs (whose `.current` is always the latest
+  // committed state) so its localStorage writes back-fill from a fresh baseline.
   const tasksLiveRef = useRef(tasks);
   tasksLiveRef.current = tasks;
   const unscheduledLiveRef = useRef(unscheduledTasks);
   unscheduledLiveRef.current = unscheduledTasks;
-  // DEBUG (gated by localStorage 'dayglance-debug-stamp'): wrap the inbox setter so
-  // the exact call that strips `archived` (true → undefined) logs a stack trace.
-  // Transparent passthrough otherwise — see utils/debugArchivedProbe.js. Stable
-  // identity via useRef so it isn't recreated on every render.
-  const setUnscheduledTasksRef = useRef(null);
-  if (!setUnscheduledTasksRef.current) setUnscheduledTasksRef.current = probeSetter('setUnscheduledTasks', _setUnscheduledTasks);
-  const setUnscheduledTasks = setUnscheduledTasksRef.current;
   const [unscheduledOrderTimestamp, setUnscheduledOrderTimestamp] = useState(null);
   // Call this instead of setUnscheduledTasks when the user explicitly reorders tasks
   // so the new order is timestamped and wins during cloud sync merges.
@@ -2397,7 +2388,7 @@ const DayPlanner = () => {
           : t
       );
     });
-  }, [dataLoaded, inboxAutoArchiveDays, setUnscheduledTasks]);
+  }, [dataLoaded, inboxAutoArchiveDays]);
 
   // Obsidian sync: restore vault handle on mount and do initial sync
   useEffect(() => {
@@ -8552,7 +8543,7 @@ const DayPlanner = () => {
       }
     } catch {}
     setAiSubtasksLoadingForTask(null);
-  }, [aiConfig, pushUndo, updateRecurringTemplate, setUnscheduledTasks]);
+  }, [aiConfig, pushUndo, updateRecurringTemplate]);
 
   // Focus mode: compute the current block tasks (used to snapshot when entering focus mode)
   const computeFocusBlockTasks = () => {
