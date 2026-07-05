@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { isNativeAndroid, isNativeApp } from '../native.js';
+import { installUnscheduledStoreProbe } from '../utils/debugArchivedProbe.js';
 
 const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
@@ -12,6 +13,10 @@ export default function useAppInit({
 }) {
   // Load data and fetch daily content on mount; rotate content every 15 minutes
   useEffect(() => {
+    // DEBUG (gated): watch every day-planner-unscheduled store write for an
+    // archived strip, with a stack trace. Installed before loadData so its
+    // write-back is covered. Inert unless dayglance-debug-stamp === '1'.
+    installUnscheduledStoreProbe();
     loadData();
     if (isTrayMode) return;
     if (dailyContentEnabled && !isNativeApp()) {

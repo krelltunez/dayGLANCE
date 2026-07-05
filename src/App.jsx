@@ -10,6 +10,7 @@ import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORI
 import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { tombstoneHorizon } from './utils/tombstoneHorizon.js';
+import { installUnscheduledStoreProbe, probeSetter } from './utils/debugArchivedProbe.js';
 import { stripHealthSourcedLogs } from './utils/healthLogFilter.js';
 import { webdavFetch } from './utils/cloudSyncProviders.js';
 import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
@@ -330,7 +331,14 @@ const DayPlanner = () => {
   const selectedDateRef = useRef(selectedDate);
   selectedDateRef.current = selectedDate;
   const [tasks, setTasks] = useState([]);
-  const [unscheduledTasks, setUnscheduledTasks] = useState([]);
+  const [unscheduledTasks, _setUnscheduledTasks] = useState([]);
+  // DEBUG (gated by localStorage 'dayglance-debug-stamp'): wrap the inbox setter so
+  // the exact call that strips `archived` (true → undefined) logs a stack trace.
+  // Transparent passthrough otherwise — see utils/debugArchivedProbe.js. Stable
+  // identity via useRef so it isn't recreated on every render.
+  const setUnscheduledTasksRef = useRef(null);
+  if (!setUnscheduledTasksRef.current) setUnscheduledTasksRef.current = probeSetter('setUnscheduledTasks', _setUnscheduledTasks);
+  const setUnscheduledTasks = setUnscheduledTasksRef.current;
   const [unscheduledOrderTimestamp, setUnscheduledOrderTimestamp] = useState(null);
   // Call this instead of setUnscheduledTasks when the user explicitly reorders tasks
   // so the new order is timestamped and wins during cloud sync merges.
