@@ -100,13 +100,13 @@ const MobileWelcomeModal = () => {
                 <span className="w-8 h-8 bg-teal-100 dark:bg-teal-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                   <RefreshCw size={16} className="text-teal-500" />
                 </span>
-                <span><strong className={textPrimary}>Routines</strong> — daily task templates for each day of the week</span>
+                <span><strong className={textPrimary}>Routines</strong> — things you need to do regularly, like eat, sleep and exercise</span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-8 h-8 bg-rose-100 dark:bg-rose-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                   <Target size={16} className="text-rose-500" />
                 </span>
-                <span><strong className={textPrimary}>Habits</strong> — track daily habits with visual progress rings and history</span>
+                <span><strong className={textPrimary}>Habits</strong> — track regular habits with visual progress rings and saved history</span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-8 h-8 bg-amber-100 dark:bg-amber-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
