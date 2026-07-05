@@ -46,6 +46,7 @@
     description: 'Publish, speak, and ship demos to build reputation as a product-minded indie dev.',
     status: 'active',
     color: 'bg-purple-500',
+    areaId: areaAppDev.id,
     targetDate: '2026-12-31',
     createdAt: now,
     updatedAt: now,

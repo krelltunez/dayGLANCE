@@ -6,19 +6,22 @@ and background styling on top of these.
 
 ## Contents
 
+The device type is baked into each filename (`phone-…`, `tablet-…`, `desktop-…`)
+so the images can be collated into a single directory without colliding.
+
 | File | View |
 |------|------|
-| `phone/01-glance-*.png` | Glance panel — live "now" block, upcoming tasks, habit rings, routines |
-| `phone/02-timeline-*.png` | Visual time-blocking timeline with the "Now" marker |
-| `phone/03-inbox-*.png` | Smart Inbox with priorities, tags, and project labels |
-| `phone/04-goals-*.png` | Goals & Projects with progress bars |
-| `phone/04b-roadmap-*.png` | Goals Roadmap (Gantt-style timeline) |
-| `phone/05-daily-summary-*.png` | Daily Summary sheet (completion %, time, habits) |
-| `phone/06-focus-*.png` | Focus Mode (Pomodoro) setup |
-| `phone/07-focus-active-*.png` | Focus Mode running session (timer + task) |
-| `tablet/01-overview-*.png` | Tablet Glance sidebar + single-day timeline |
-| `tablet/02-goals-*.png` | Tablet Goals flowchart (goal → child projects) |
-| `desktop/01-overview-*.png` | 3-column multi-day desktop overview |
+| `phone/phone-01-glance-*.png` | Glance panel — live "now" block, GTD frame sections, habit rings, routines |
+| `phone/phone-02-timeline-*.png` | Visual time-blocking timeline with the "Now" marker |
+| `phone/phone-03-inbox-*.png` | Smart Inbox with priorities, tags, and project labels |
+| `phone/phone-04-roadmap-*.png` | Goals Roadmap (Gantt-style timeline) with a goal's child projects |
+| `phone/phone-05-daily-summary-*.png` | Daily Summary sheet (completion %, time, habits) |
+| `phone/phone-06-focus-active-*.png` | Focus Mode running session (timer + task) |
+| `tablet/tablet-01-timeline-*.png` | Tablet Glance sidebar + timeline |
+| `tablet/tablet-02-goals-*.png` | Tablet Goals & Projects |
+| `tablet/tablet-03-focus-*.png` | Tablet Focus Mode session |
+| `desktop/desktop-01-timeline-*.png` | 3-column multi-day desktop overview |
+| `desktop/desktop-02-goals-*.png` | Desktop Goals & Projects (Roadmap view) |
 
 Each view is captured in both `-light` and `-dark`.
 
