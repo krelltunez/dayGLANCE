@@ -71,15 +71,21 @@ export function installUnscheduledStoreProbe() {
  * @param {Function} rawSetter  the useState setter to wrap
  */
 export function probeSetter(label, rawSetter) {
-  return (update) =>
-    rawSetter((prev) => {
+  return (update) => {
+    // Capture the stack at the CALL SITE (synchronously, now). The strip check has
+    // to run inside the functional updater — but that updater is invoked LATER by
+    // React during render, so a console.trace in there traces the render, not the
+    // caller. So we snapshot the call-site stack here and only print it if the
+    // resulting update turns out to strip archived.
+    const callSite = debugOn() ? new Error('call-site') : null;
+    return rawSetter((prev) => {
       const next = typeof update === 'function' ? update(prev) : update;
-      if (debugOn() && Array.isArray(next) && Array.isArray(prev)) {
+      if (callSite && Array.isArray(next) && Array.isArray(prev)) {
         try {
           const stripped = strippedIds(prev, next);
           if (stripped.length) {
             console.warn(`[archived-set] ${label} STRIPPED archived for`, stripped, '(true → undefined)');
-            console.trace(`[archived-set] ↑ stack of the ${label} call`);
+            console.warn(`[archived-set] ↑ CALL-SITE stack (the code that called ${label}):\n`, callSite.stack);
           }
         } catch {
           /* diagnostic must never throw */
@@ -87,4 +93,5 @@ export function probeSetter(label, rawSetter) {
       }
       return next;
     });
+  };
 }
