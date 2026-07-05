@@ -2,7 +2,7 @@ import React from 'react';
 import Wordmark from './Wordmark';
 import {
   BarChart3, Calendar, ChevronLeft, ChevronRight,
-  Cloud, Eye, Filter, Inbox, Mic, NotebookPen,
+  Cloud, Eye, Filter, Flag, Inbox, Mic, NotebookPen,
   RefreshCw, Search, Settings, Target, Trash2, Zap,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -60,7 +60,7 @@ const MobileWelcomeModal = () => {
               <li>Track your progress with <strong className={textPrimary}>daily</strong> and <strong className={textPrimary}>all-time summaries</strong> <BarChart3 size={14} className="inline mx-0.5" /></li>
               <li><strong className={textPrimary}>Search</strong> <Search size={14} className="inline mx-0.5" /> across all your tasks and events, and filter your day by <strong className={textPrimary}>#tags</strong> <Filter size={14} className="inline mx-0.5" /></li>
               <li>Deleted something by mistake? Restore it from the <strong className={textPrimary}>Recycle Bin</strong> <Trash2 size={14} className="inline mx-0.5" /></li>
-              <li>Tap <strong className={textPrimary}>Focus Mode</strong> <Target size={14} className="inline mx-0.5" /> on an in-progress task for a distraction-free deep work session with a Pomodoro timer</li>
+              <li>Tap <strong className={textPrimary}>Focus Mode</strong> <Target size={14} className="inline mx-0.5" /> on an in-progress task for a distraction-free deep work session</li>
             </ul>
           </div>
         )}
@@ -112,6 +112,12 @@ const MobileWelcomeModal = () => {
                   <Target size={16} className="text-rose-500" />
                 </span>
                 <span><strong className={textPrimary}>Habits</strong> — track regular habits with visual progress rings and saved history</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Flag size={16} className="text-blue-500" />
+                </span>
+                <span><strong className={textPrimary}>Goals &amp; Projects</strong> — track your long-term goals and progress toward completion</span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-8 h-8 bg-amber-100 dark:bg-amber-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
