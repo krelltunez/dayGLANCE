@@ -1,11 +1,14 @@
 import React from 'react';
+import Wordmark from './Wordmark';
 import {
   BarChart3, Calendar, ChevronLeft, ChevronRight,
-  Cloud, Eye, Filter, Inbox, Mic, NotebookPen,
+  Cloud, Eye, Filter, Flag, Inbox, Mic, NotebookPen,
   RefreshCw, Search, Settings, Target, Trash2, Zap,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { isFileSystemAccessSupported } from '../obsidian.js';
+import { isNativeApp } from '../native.js';
 
 const MobileWelcomeModal = () => {
   const { t } = useTranslation();
@@ -15,6 +18,9 @@ const MobileWelcomeModal = () => {
     setShowSettings,
     darkMode, textPrimary, textSecondary,
   } = useDayPlannerCtx();
+  // Obsidian needs the File System Access API (Chromium desktop) or a native
+  // bridge; hide the onboarding mention where it can't actually be enabled.
+  const obsidianAvailable = isFileSystemAccessSupported() || isNativeApp();
 
   return (
     <div className={`fixed inset-0 z-50 flex flex-col ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
@@ -32,14 +38,14 @@ const MobileWelcomeModal = () => {
       <div className="flex-1 flex flex-col items-center justify-center px-8 overflow-y-auto">
         {mobileWelcomeStep === 0 && (
           <div className="text-center">
-            <img
-              src={darkMode ? './dayglance-dark.svg' : './dayglance-light.svg'}
-              alt="dayGLANCE"
-              className="h-24 mx-auto mb-6"
-            />
-            <h1 className={`text-2xl font-bold ${textPrimary} mb-2`}>{t('onboarding.welcomeTitle')}</h1>
-            <p className={`${textSecondary}`}>{t('onboarding.welcomeSubtitle')}</p>
+            <div className="mb-6"><Wordmark className="text-5xl" darkMode={darkMode} /></div>
+            <p className={`text-lg ${textPrimary}`}>{t('onboarding.welcomeTitle')}</p>
             <p className={`${textSecondary} text-xs mt-4`}>{t('onboarding.welcomeLocal')}</p>
+            <div className={`mt-5 flex items-center justify-center gap-2 text-xs ${textSecondary}`}>
+              <a href="https://docs.dayglance.app/en/privacy-policy" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500 transition-colors">{t('onboarding.privacyPolicy')}</a>
+              <span className="opacity-50">·</span>
+              <a href="https://www.glance-apps.com/eula" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500 transition-colors">{t('onboarding.termsOfUse')}</a>
+            </div>
           </div>
         )}
         {mobileWelcomeStep === 1 && (
@@ -50,10 +56,11 @@ const MobileWelcomeModal = () => {
             <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>{t('onboarding.mobileGlance')}</h2>
             <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
               <li>Your <strong className={textPrimary}>smart agenda</strong> — see <strong className={textPrimary}>overdue</strong>, <strong className={textPrimary}>in-progress</strong>, and <strong className={textPrimary}>upcoming</strong> tasks in real time</li>
+              <li>When it&apos;s time, <strong className={textPrimary}><span className="italic">GLANCE</span>ahead</strong> to see what tomorrow holds</li>
               <li>Track your progress with <strong className={textPrimary}>daily</strong> and <strong className={textPrimary}>all-time summaries</strong> <BarChart3 size={14} className="inline mx-0.5" /></li>
               <li><strong className={textPrimary}>Search</strong> <Search size={14} className="inline mx-0.5" /> across all your tasks and events, and filter your day by <strong className={textPrimary}>#tags</strong> <Filter size={14} className="inline mx-0.5" /></li>
               <li>Deleted something by mistake? Restore it from the <strong className={textPrimary}>Recycle Bin</strong> <Trash2 size={14} className="inline mx-0.5" /></li>
-              <li>Tap <strong className={textPrimary}>Focus Mode</strong> <Target size={14} className="inline mx-0.5" /> on an in-progress task for a distraction-free deep work session with a Pomodoro timer</li>
+              <li>Tap <strong className={textPrimary}>Focus Mode</strong> <Target size={14} className="inline mx-0.5" /> on an in-progress task for a distraction-free deep work session</li>
             </ul>
           </div>
         )}
@@ -98,13 +105,19 @@ const MobileWelcomeModal = () => {
                 <span className="w-8 h-8 bg-teal-100 dark:bg-teal-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                   <RefreshCw size={16} className="text-teal-500" />
                 </span>
-                <span><strong className={textPrimary}>Routines</strong> — daily task templates for each day of the week</span>
+                <span><strong className={textPrimary}>Routines</strong> — things you need to do regularly, like eat, sleep and exercise</span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-8 h-8 bg-rose-100 dark:bg-rose-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                   <Target size={16} className="text-rose-500" />
                 </span>
-                <span><strong className={textPrimary}>Habits</strong> — track daily habits with visual progress rings and history</span>
+                <span><strong className={textPrimary}>Habits</strong> — track regular habits with visual progress rings and saved history</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Flag size={16} className="text-blue-500" />
+                </span>
+                <span><strong className={textPrimary}>Goals &amp; Projects</strong> — track your long-term goals and progress toward completion</span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-8 h-8 bg-amber-100 dark:bg-amber-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -122,20 +135,20 @@ const MobileWelcomeModal = () => {
             </div>
             <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>{t('onboarding.mobileSettingsTitle')}</h2>
             <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
-              <li><strong className={textPrimary}>Quick toggles</strong> for common settings</li>
+              <li><strong className={textPrimary}>Quick toggles</strong> for common settings and optional features</li>
               <li><strong className={textPrimary}>Sync</strong> your calendars</li>
               <li>Set up <strong className={textPrimary}>cloud sync</strong> between devices</li>
               <li><strong className={textPrimary}>Backup</strong> and restore your data</li>
+              <li><strong className={textPrimary}>Customize</strong> notification settings</li>
+              <li>Enable integration with <strong className={textPrimary}>other GLANCE apps</strong></li>
+              {obsidianAvailable && <li>Configure the optional <strong className={textPrimary}>Obsidian</strong> integration</li>}
+              <li>Set up <strong className={textPrimary}>multi-user</strong> for households</li>
             </ul>
           </div>
         )}
         {mobileWelcomeStep === 6 && (
           <div className="text-center">
-            <img
-              src={darkMode ? './dayglance-dark.svg' : './dayglance-light.svg'}
-              alt="dayGLANCE"
-              className="h-20 mx-auto mb-6"
-            />
+            <div className="mb-6"><Wordmark className="text-4xl" darkMode={darkMode} /></div>
             <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>{t('onboarding.allSetTitle')}</h2>
             <div className="space-y-3 w-full max-w-xs mx-auto">
               <button

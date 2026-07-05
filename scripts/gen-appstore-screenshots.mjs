@@ -76,110 +76,124 @@ async function seededPage(size, dark, extra = '') {
 
 const settle = async (ctx, p, ms = 1200) => { await ctx.clock.runFor(ms); await p.waitForTimeout(200); };
 
+// Enter Focus Mode and start a session, leaving a running-timer screen.
+async function focusActive(ctx, p) {
+  await p.getByRole('button', { name: 'Enter Focus Mode' }).click();
+  await settle(ctx, p, 1500);
+  await p.getByRole('button', { name: 'Start Focus Session' }).click();
+  await settle(ctx, p, 1500);
+  await ctx.clock.runFor(60000); // advance a minute so the timer shows elapsed time
+  await p.waitForTimeout(200);
+}
+
+// From an open goals view, switch to the Roadmap view with the v2.0 goal
+// selected so its child projects show below.
+async function roadmapSelect(ctx, p) {
+  await p.getByRole('button', { name: 'Roadmap' }).click();
+  await settle(ctx, p, 1200);
+  await p.getByText('Launch v2.0 client SaaS platform', { exact: false }).first().click();
+  await settle(ctx, p, 1500);
+}
+
+// Desktop/tablet: open the Goals & Projects modal, then the Roadmap view.
+async function goalsRoadmap(ctx, p) {
+  await p.getByRole('button', { name: 'Goals & Projects' }).click();
+  await settle(ctx, p, 1500);
+  await roadmapSelect(ctx, p);
+}
+
 async function run(mode) {
   const dark = mode === 'dark';
-  const tag = (n) => `${n}-${mode}.png`;
+  // Device type is baked into the filename (not just the folder) so the images
+  // can be collated into one directory without colliding.
+  const tag = (device, n) => path.join(OUT, device, `${device}-${n}-${mode}.png`);
   const phone = { w: 430, h: 932, dsf: 3, mobile: true };
+  const tablet = { w: 1024, h: 1366, dsf: 2, mobile: true };
+  const desktop = { w: 1680, h: 1050, dsf: 2, mobile: false };
 
-  // ---- Phone: tabbed views share one page ----
+  // ---- Phone: glance / timeline / inbox / roadmap (one page) ----
   {
     const { ctx, p } = await seededPage(phone, dark);
-    await p.screenshot({ path: path.join(OUT, 'phone', tag('01-glance')) });
-    console.log(mode, 'glance ok');
+    await p.screenshot({ path: tag('phone', '01-glance') });
+    console.log(mode, 'phone glance ok');
 
-    for (const [label, name] of [['Timeline', '02-timeline'], ['inbox', '03-inbox'], ['Goals', '04-goals']]) {
+    for (const [label, name] of [['Timeline', '02-timeline'], ['inbox', '03-inbox']]) {
       try {
         await p.getByText(label, { exact: true }).click();
         await settle(ctx, p);
-        await p.screenshot({ path: path.join(OUT, 'phone', tag(name)) });
-        console.log(mode, name, 'ok');
-      } catch (e) { console.log(mode, name, 'FAIL', e.message.split('\n')[0]); }
+        await p.screenshot({ path: tag('phone', name) });
+        console.log(mode, 'phone', name, 'ok');
+      } catch (e) { console.log(mode, 'phone', name, 'FAIL', e.message.split('\n')[0]); }
     }
 
-    // Goals -> Roadmap, with the v2.0 goal selected so its child projects show below
+    // Goals tab -> Roadmap view (v2.0 selected)
     try {
-      await p.getByRole('button', { name: 'Roadmap' }).click();
-      await settle(ctx, p, 1200);
-      await p.getByText('Launch v2.0 client SaaS platform', { exact: false }).first().click();
-      await settle(ctx, p, 1500);
-      await p.screenshot({ path: path.join(OUT, 'phone', tag('04b-roadmap')) });
-      console.log(mode, '04b-roadmap ok');
-    } catch (e) { console.log(mode, '04b-roadmap FAIL', e.message.split('\n')[0]); }
+      await p.getByText('Goals', { exact: true }).click();
+      await settle(ctx, p);
+      await roadmapSelect(ctx, p);
+      await p.screenshot({ path: tag('phone', '04-roadmap') });
+      console.log(mode, 'phone 04-roadmap ok');
+    } catch (e) { console.log(mode, 'phone 04-roadmap FAIL', e.message.split('\n')[0]); }
 
     await ctx.close();
   }
 
-  // ---- Phone: timeline in LIST view (fresh page, mobile-view-mode = list) ----
-  try {
-    const { ctx, p } = await seededPage(phone, dark, `localStorage.setItem('day-planner-mobile-view-mode', JSON.stringify('list'));`);
-    await p.getByText('Timeline', { exact: true }).click();
-    await settle(ctx, p);
-    await p.screenshot({ path: path.join(OUT, 'phone', tag('02b-timeline-list')) });
-    console.log(mode, '02b-timeline-list ok');
-    await ctx.close();
-  } catch (e) { console.log(mode, '02b-timeline-list FAIL', e.message.split('\n')[0]); }
-
-  // ---- Phone: Daily Summary overlay (fresh page) ----
+  // ---- Phone: Daily Summary overlay ----
   try {
     const { ctx, p } = await seededPage(phone, dark);
     await p.locator('button:has(svg[viewBox="0 0 36 36"])').first().click();
     await settle(ctx, p, 1500);
-    await p.screenshot({ path: path.join(OUT, 'phone', tag('05-daily-summary')) });
-    console.log(mode, 'daily-summary ok');
+    await p.screenshot({ path: tag('phone', '05-daily-summary') });
+    console.log(mode, 'phone daily-summary ok');
     await ctx.close();
-  } catch (e) { console.log(mode, 'daily-summary FAIL', e.message.split('\n')[0]); }
+  } catch (e) { console.log(mode, 'phone daily-summary FAIL', e.message.split('\n')[0]); }
 
-  // ---- Phone: Focus Mode overlay (fresh page) ----
+  // ---- Phone: Focus Mode (active session) ----
   try {
     const { ctx, p } = await seededPage(phone, dark);
-    await p.getByRole('button', { name: 'Enter Focus Mode' }).click();
-    await settle(ctx, p, 1500);
-    await p.screenshot({ path: path.join(OUT, 'phone', tag('06-focus')) });
-    console.log(mode, 'focus ok');
-    // Start the session -> running timer
-    try {
-      await p.getByRole('button', { name: 'Start Focus Session' }).click();
-      await settle(ctx, p, 1500);
-      await ctx.clock.runFor(60000); // advance a minute: timer reads 24:00, elapsed 1m
-      await p.waitForTimeout(200);
-      await p.screenshot({ path: path.join(OUT, 'phone', tag('07-focus-active')) });
-      console.log(mode, '07-focus-active ok');
-    } catch (e) { console.log(mode, '07-focus-active FAIL', e.message.split('\n')[0]); }
+    await focusActive(ctx, p);
+    await p.screenshot({ path: tag('phone', '06-focus-active') });
+    console.log(mode, 'phone 06-focus-active ok');
     await ctx.close();
-  } catch (e) { console.log(mode, 'focus FAIL', e.message.split('\n')[0]); }
+  } catch (e) { console.log(mode, 'phone focus FAIL', e.message.split('\n')[0]); }
 
-  // ---- Desktop hero: 3-column glance + timeline ----
+  // ---- Tablet: timeline / goals / focus ----
   {
-    const { ctx, p } = await seededPage({ w: 1680, h: 1050, dsf: 2, mobile: false }, dark);
-    await p.screenshot({ path: path.join(OUT, 'desktop', tag('01-overview')) });
-    console.log(mode, 'desktop overview ok');
-    await ctx.close();
-  }
-
-  // ---- Desktop: Goals & Projects modal ----
-  {
-    const { ctx, p } = await seededPage({ w: 1680, h: 1050, dsf: 2, mobile: false }, dark);
-    try {
-      await p.getByRole('button', { name: 'Goals & Projects' }).click();
-      await settle(ctx, p, 1500);
-      await p.screenshot({ path: path.join(OUT, 'desktop', tag('02-goals')) });
-      console.log(mode, 'desktop goals ok');
-    } catch (e) { console.log(mode, 'desktop goals FAIL', e.message.split('\n')[0]); }
-    await ctx.close();
-  }
-
-  // ---- Tablet: iPad 12.9" portrait (1024x1366 @2x = 2048x2732) ----
-  {
-    const tablet = { w: 1024, h: 1366, dsf: 2, mobile: true };
     const { ctx, p } = await seededPage(tablet, dark);
-    await p.screenshot({ path: path.join(OUT, 'tablet', tag('01-overview')) });
-    console.log(mode, 'tablet overview ok');
+    await p.screenshot({ path: tag('tablet', '01-timeline') });
+    console.log(mode, 'tablet timeline ok');
     try {
       await p.getByRole('button', { name: 'Goals & Projects' }).click();
       await settle(ctx, p, 1500);
-      await p.screenshot({ path: path.join(OUT, 'tablet', tag('02-goals')) });
+      await p.screenshot({ path: tag('tablet', '02-goals') });
       console.log(mode, 'tablet goals ok');
     } catch (e) { console.log(mode, 'tablet goals FAIL', e.message.split('\n')[0]); }
+    await ctx.close();
+  }
+  try {
+    const { ctx, p } = await seededPage(tablet, dark);
+    await focusActive(ctx, p);
+    await p.screenshot({ path: tag('tablet', '03-focus') });
+    console.log(mode, 'tablet 03-focus ok');
+    await ctx.close();
+  } catch (e) { console.log(mode, 'tablet focus FAIL', e.message.split('\n')[0]); }
+
+  // ---- Desktop: timeline hero ----
+  {
+    const { ctx, p } = await seededPage(desktop, dark);
+    await p.screenshot({ path: tag('desktop', '01-timeline') });
+    console.log(mode, 'desktop timeline ok');
+    await ctx.close();
+  }
+
+  // ---- Desktop: Goals & Projects (Roadmap view) ----
+  {
+    const { ctx, p } = await seededPage(desktop, dark);
+    try {
+      await goalsRoadmap(ctx, p);
+      await p.screenshot({ path: tag('desktop', '02-goals') });
+      console.log(mode, 'desktop goals (roadmap) ok');
+    } catch (e) { console.log(mode, 'desktop goals FAIL', e.message.split('\n')[0]); }
     await ctx.close();
   }
 }

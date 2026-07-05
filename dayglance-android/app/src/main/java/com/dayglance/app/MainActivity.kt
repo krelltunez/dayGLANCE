@@ -313,7 +313,7 @@ class MainActivity : AppCompatActivity() {
     private fun configureWebView() {
         val assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
-            // Serve root-relative paths (e.g. /dayglance-dark.svg) from assets/web/
+            // Serve root-relative paths (e.g. /icon-512.png) from assets/web/
             .addPathHandler("/", WebViewAssetLoader.PathHandler { path ->
                 try {
                     val stream = assets.open("web/$path")

@@ -17,6 +17,17 @@
   let idCounter = 0;
   const uid = () => `demo-${Date.now()}-${++idCounter}`;
 
+  // ── Areas ────────────────────────────────────────────────────────────
+  const areaAppDev = {
+    id: uid(),
+    name: 'App Development',
+    color: 'bg-indigo-500',
+    order: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const areas = [areaAppDev];
+
   // ── Goals ────────────────────────────────────────────────────────────
   const goalLaunch = {
     id: uid(),
@@ -24,6 +35,7 @@
     description: 'Ship billing, auth, and API milestones to production and hand off to the client.',
     status: 'active',
     color: 'bg-blue-500',
+    areaId: areaAppDev.id,
     targetDate: '2026-06-30',
     createdAt: now,
     updatedAt: now,
@@ -34,6 +46,7 @@
     description: 'Publish, speak, and ship demos to build reputation as a product-minded indie dev.',
     status: 'active',
     color: 'bg-purple-500',
+    areaId: areaAppDev.id,
     targetDate: '2026-12-31',
     createdAt: now,
     updatedAt: now,
@@ -87,6 +100,40 @@
     updatedAt: now,
   };
   const projects = [projBilling, projApiDocs, projAuth, projPortfolio, projBlog];
+
+  // ── GTD Frames ───────────────────────────────────────────────────────
+  // Recurring time blocks on today's weekday, so the timeline shows tasks
+  // nested inside them (Lunch & walk inside Work Break; Deep work inside
+  // Focus Time).
+  const frWorkBreak = {
+    id: uid(),
+    label: 'Work Break',
+    days: [TODAY.getDay()],
+    start: '12:30',
+    end: '13:30',
+    color: 'bg-green-200',
+    tagAffinity: ['health'],
+    energyLevel: 'low',
+    bufferMinutes: 5,
+    enabled: true,
+    exceptions: {},
+    lastModified: now,
+  };
+  const frFocusTime = {
+    id: uid(),
+    label: 'Focus Time',
+    days: [TODAY.getDay()],
+    start: '14:00',
+    end: '16:00',
+    color: 'bg-indigo-200',
+    tagAffinity: ['work'],
+    energyLevel: 'high',
+    bufferMinutes: 5,
+    enabled: true,
+    exceptions: {},
+    lastModified: now,
+  };
+  const gtdFrames = [frWorkBreak, frFocusTime];
 
   // ── Scheduled tasks (today) ──────────────────────────────────────────
   const tasks = [
@@ -315,7 +362,7 @@
     },
     {
       id: uid(),
-      title: 'Update portfolio site with new project screenshots',
+      title: 'Update portfolio screenshots',
       date: null,
       startTime: '00:00',
       duration: 45,
@@ -370,7 +417,7 @@
     },
     {
       id: uid(),
-      title: 'Handle subscription.cancelled webhook event #work',
+      title: 'Handle cancellation webhook #work',
       date: null,
       startTime: '00:00',
       duration: 45,
@@ -384,7 +431,7 @@
     },
     {
       id: uid(),
-      title: 'Draft blog post: lessons from the auth refactor #writing',
+      title: 'Draft auth refactor blog post #writing',
       date: null,
       startTime: '00:00',
       duration: 60,
@@ -463,7 +510,7 @@
   // Today is Tuesday — place everyday standup (done) + tuesday chip on the timeline.
   const todayRoutines = [
     { id: rStandup.id,    name: rStandup.name,    bucket: 'everyday', startTime: '09:30', duration: 15, isAllDay: false, completed: true,  lastModified: now },
-    { id: rEmailClear.id, name: rEmailClear.name, bucket: 'tuesday',  startTime: null,    duration: 15, isAllDay: true,  completed: false, lastModified: now },
+    { id: rEmailClear.id, name: rEmailClear.name, bucket: 'tuesday',  startTime: '15:30', duration: 15, isAllDay: false, completed: false, lastModified: now },
   ];
 
   // ── Habits ───────────────────────────────────────────────────────────
@@ -475,6 +522,7 @@
       color: 'green',
       description: '30 min of movement — run, yoga, or weights',
       frequency: 'daily',
+      type: 'doMore',
       target: 1,
       source: 'user',
       createdAt: '2026-01-01T08:00:00.000Z',
@@ -487,7 +535,34 @@
       color: 'purple',
       description: 'At least 20 pages',
       frequency: 'daily',
+      type: 'doMore',
       target: 1,
+      source: 'user',
+      createdAt: '2026-01-01T08:00:00.000Z',
+      archived: false,
+    },
+    {
+      id: '1710000000003',
+      name: 'Drink water',
+      icon: 'Droplets',
+      color: 'cyan',
+      description: '8 glasses a day',
+      frequency: 'daily',
+      type: 'doMore',
+      target: 8,
+      source: 'user',
+      createdAt: '2026-01-01T08:00:00.000Z',
+      archived: false,
+    },
+    {
+      id: '1710000000004',
+      name: 'Steps',
+      icon: 'Footprints',
+      color: 'orange',
+      description: '10k steps',
+      frequency: 'daily',
+      type: 'doMore',
+      target: 10,
       source: 'user',
       createdAt: '2026-01-01T08:00:00.000Z',
       archived: false,
@@ -503,6 +578,8 @@
     habitLogs[key] = {
       '1710000000001': i === 2 ? 0 : 1, // missed exercise 2 days ago
       '1710000000002': i === 0 || i === 1 || i === 3 || i === 5 ? 1 : 0,
+      '1710000000003': [5, 8, 6, 8, 4, 7, 6][i], // Drink water (target 8) — today 5/8
+      '1710000000004': [6, 10, 7, 9, 5, 8, 7][i], // Steps (target 10) — today 6/10
     };
   }
 
@@ -527,13 +604,21 @@
   localStorage.setItem('day-planner-daily-notes', JSON.stringify(dailyNotes));
   localStorage.setItem('day-planner-recycle-bin', JSON.stringify([]));
   localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify({}));
+  localStorage.setItem('day-planner-areas', JSON.stringify(areas));
   localStorage.setItem('day-planner-goals', JSON.stringify(goals));
   localStorage.setItem('day-planner-projects', JSON.stringify(projects));
   localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(true));
+  localStorage.setItem('day-planner-gtd-frames', JSON.stringify(gtdFrames));
   localStorage.setItem('day-planner-routine-definitions', JSON.stringify(routineDefinitions));
   localStorage.setItem('day-planner-today-routines', JSON.stringify(todayRoutines));
   localStorage.setItem('day-planner-routines-date', today);
   localStorage.setItem('day-planner-routines-enabled', JSON.stringify(true));
+
+  // Desktop view preferences — rolling day/week views starting at 7am read
+  // better than the fixed calendar-day / strict-week defaults.
+  localStorage.setItem('day-planner-day-view-mode', JSON.stringify('rolling-24'));
+  localStorage.setItem('day-planner-week-view-mode', JSON.stringify('rolling'));
+  localStorage.setItem('day-planner-week-timeline-start-hour', JSON.stringify(7));
 
   console.log('Seed data loaded — refresh the page');
 })();

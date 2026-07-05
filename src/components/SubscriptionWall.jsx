@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Wordmark from './Wordmark';
 import { Loader } from 'lucide-react';
 
 /**
@@ -94,12 +95,7 @@ export default function SubscriptionWall({
 
       {/* Logo */}
       <div className="mb-6 flex flex-col items-center gap-2">
-        <img
-          src="/dayglance-dark.svg"
-          alt="dayGLANCE"
-          className={`h-10 ${dark ? '' : 'invert'}`}
-          onError={e => { e.target.style.display = 'none'; }}
-        />
+        <Wordmark className="text-4xl" darkMode={dark} />
       </div>
 
       {/* Founder badge */}

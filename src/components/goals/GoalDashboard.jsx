@@ -2051,12 +2051,12 @@ const GoalControls = ({ onManageAreas }) => {
   const sorted = [...areas].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   return (
-    <div className="flex items-center gap-2 flex-wrap mb-4">
+    <div className="flex items-center gap-2 mb-4">
       {/* Area filter */}
       <select
         value={goalsAreaFilter}
         onChange={e => setGoalsAreaFilter(e.target.value)}
-        className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+        className={`min-w-0 shrink px-2.5 py-1.5 text-xs font-medium rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
           darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'
         }`}
       >
@@ -2069,15 +2069,16 @@ const GoalControls = ({ onManageAreas }) => {
       <button
         type="button"
         onClick={onManageAreas}
-        className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg ${textSecondary} border ${borderClass} ${
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg shrink-0 ${textSecondary} border ${borderClass} ${
           darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'
         } transition-colors`}
+        title={t('goals.manageAreas')}
       >
-        <FolderOpen size={13} /> {t('goals.manageAreas')}
+        <FolderOpen size={13} /> <span className="hidden sm:inline">{t('goals.manageAreas')}</span>
       </button>
 
       {/* View toggle */}
-      <div className={`ml-auto flex rounded-lg border ${borderClass} overflow-hidden`}>
+      <div className={`ml-auto shrink-0 flex rounded-lg border ${borderClass} overflow-hidden`}>
         {[
           { key: 'list', label: t('goals.list'), Icon: LayoutDashboard },
           { key: 'timeline', label: t('goals.roadmap'), Icon: LineChart },

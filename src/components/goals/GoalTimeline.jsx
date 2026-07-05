@@ -34,7 +34,7 @@ const PERIODS = [
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-const TOP_PAD = 24;     // space above the first row
+const TOP_PAD = 12;     // space above the first row
 const BOTTOM_PAD = 30;  // space for the month labels below the last row
 const ROW_H = 44;       // per-goal row height (px)
 const BAR_H = 28;       // bar height (px)

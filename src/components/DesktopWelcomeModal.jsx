@@ -1,7 +1,8 @@
 import React from 'react';
+import Wordmark from './Wordmark';
 import {
   BarChart3, Calendar, CalendarDays, ChevronLeft, ChevronRight,
-  Cloud, Eye, FileText, GripVertical, Inbox, Mic, Moon,
+  Cloud, Eye, FileText, Filter, Flag, Gauge, GripVertical, Inbox, LayoutGrid, Mic, Moon,
   NotebookPen, Plus, RefreshCw, Search, Settings, Sun,
   Target, Zap,
 } from 'lucide-react';
@@ -39,15 +40,15 @@ const DesktopWelcomeModal = () => {
         <div className="flex-1 flex flex-col items-center justify-center px-8 overflow-hidden">
           {desktopWelcomeStep === 0 && (
             <div className="text-center">
-              <img
-                src={darkMode ? './dayglance-dark.svg' : './dayglance-light.svg'}
-                alt="dayGLANCE"
-                className="h-24 mx-auto mb-6"
-              />
-              <h1 className={`text-2xl font-bold ${textPrimary} mb-2`}>{t('onboarding.welcomeTitle')}</h1>
-              <p className={`${textSecondary}`}>{t('onboarding.welcomeSubtitle')}</p>
+              <div className="mb-6"><Wordmark className="text-6xl" darkMode={darkMode} /></div>
+              <p className={`text-lg ${textPrimary}`}>{t('onboarding.welcomeTitle')}</p>
               <p className={`${textSecondary} text-xs mt-3`}>{t('onboarding.welcomeLocal')}</p>
               <p className={`${textSecondary} text-sm mt-4`}>{t('onboarding.welcomeTour')}</p>
+              <div className={`mt-5 flex items-center justify-center gap-2 text-xs ${textSecondary}`}>
+                <a href="https://docs.dayglance.app/en/privacy-policy" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500 transition-colors">{t('onboarding.privacyPolicy')}</a>
+                <span className="opacity-50">·</span>
+                <a href="https://www.glance-apps.com/eula" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500 transition-colors">{t('onboarding.termsOfUse')}</a>
+              </div>
             </div>
           )}
           {desktopWelcomeStep === 1 && (
@@ -61,19 +62,19 @@ const DesktopWelcomeModal = () => {
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Eye size={16} className="text-blue-500" />
                   </span>
-                  <span><strong className={textPrimary}>GLANCE</strong> — your smart agenda with overdue tasks and today&apos;s schedule</span>
+                  <span><strong className={textPrimary}>GLANCE</strong> — your smart agenda: overdue tasks, today&apos;s schedule, <span className="italic">GLANCE</span>ahead, optional habit rings and goal bars, and quick access to your daily note and progress stats</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Inbox size={16} className="text-blue-500" />
                   </span>
-                  <span><strong className={textPrimary}>Inbox</strong> — capture tasks to organize later, drag them to the timeline when ready</span>
+                  <span><strong className={textPrimary}>Inbox</strong> — capture tasks to organize later, drag them to the timeline when ready to schedule</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Calendar size={16} className="text-blue-500" />
                   </span>
-                  <span><strong className={textPrimary}>Timeline</strong> — your day&apos;s schedule, click or use the <Plus size={12} className="inline mx-0.5" /> button to add tasks</span>
+                  <span><strong className={textPrimary}>Timeline</strong> — switch between multi-day, 24-hour, and week views (grid or list view on tablet); click on the timeline or press <Plus size={12} className="inline mx-0.5" /> to add tasks</span>
                 </div>
               </div>
             </div>
@@ -91,9 +92,10 @@ const DesktopWelcomeModal = () => {
                 <li>Drag the bottom edge of a task to <strong className={textPrimary}>resize</strong> its duration</li>
                 <li>Set tasks to <strong className={textPrimary}>repeat</strong> daily, weekly, monthly, or yearly</li>
                 <li>Double-click a task title to <strong className={textPrimary}>edit</strong> it or add <strong className={textPrimary}>tags</strong></li>
-                <li>Expand a task to add <strong className={textPrimary}>notes</strong> <FileText size={14} className="inline mx-0.5" /> and <strong className={textPrimary}>subtasks</strong> for extra detail</li>
+                <li>Expand a task to add <strong className={textPrimary}>notes</strong> <FileText size={14} className="inline mx-0.5" /> and <strong className={textPrimary}>subtasks</strong></li>
                 <li>Click <NotebookPen size={14} className="inline mx-0.5" /> on a date header to write <strong className={textPrimary}>daily notes</strong></li>
-                <li>Use <strong className={textPrimary}>Focus Mode</strong> <Target size={14} className="inline mx-0.5" /> for distraction-free deep work with a Pomodoro timer</li>
+                <li>Designate productivity blocks with <strong className={textPrimary}>GTD Frames</strong> <LayoutGrid size={14} className="inline mx-0.5" /></li>
+                <li>Use <strong className={textPrimary}>Focus Mode</strong> <Target size={14} className="inline mx-0.5" /> for distraction-free deep work</li>
               </ul>
             </div>
           )}
@@ -103,7 +105,7 @@ const DesktopWelcomeModal = () => {
                 <Search size={32} className="text-blue-500" />
               </div>
               <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>{t('onboarding.spotlightTitle')}</h2>
-              <div className={`text-sm ${textSecondary} space-y-4 text-left`}>
+              <div className={`text-sm ${textSecondary} space-y-3 text-left`}>
                 <div className="flex items-start gap-3">
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
                     <Search size={16} className={textPrimary} />
@@ -112,9 +114,21 @@ const DesktopWelcomeModal = () => {
                 </div>
                 <div className="flex items-start gap-3">
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                    <Filter size={16} className={textPrimary} />
+                  </span>
+                  <span>Filter your day by <strong className={textPrimary}>#tags</strong> to focus on just what matters.</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                    <Gauge size={16} className={textPrimary} />
+                  </span>
+                  <span>Check the <strong className={textPrimary}>Daily Summary</strong> for today&apos;s completion and time stats.</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
                     <BarChart3 size={16} className={textPrimary} />
                   </span>
-                  <span>Click the <BarChart3 size={14} className="inline mx-0.5" /> button on the side panel to review your week — see completion stats, reflect on wins, and plan ahead.</span>
+                  <span>Click the <BarChart3 size={14} className="inline mx-0.5" /> button to review your week: see completion stats, reflect on wins, and plan ahead.</span>
                 </div>
               </div>
             </div>
@@ -139,6 +153,13 @@ const DesktopWelcomeModal = () => {
                   <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>T</kbd>
                 </div>
                 <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'}`}>
+                  <span>{t('onboarding.shortcutPrevNextDay')}</span>
+                  <span className="flex gap-1">
+                    <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>&larr;</kbd>
+                    <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>&rarr;</kbd>
+                  </span>
+                </div>
+                <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'}`}>
                   <span>{t('onboarding.shortcutUndoRedo')}</span>
                   <span className="flex gap-1">
                     <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>Ctrl+Z</kbd>
@@ -160,13 +181,13 @@ const DesktopWelcomeModal = () => {
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
                     <CalendarDays size={16} className={textPrimary} />
                   </span>
-                  <span><strong className={textPrimary}>Calendar sync</strong> — import CalDAV and iCal (.ics) events</span>
+                  <span><strong className={textPrimary}>Calendar sync</strong> — import CalDAV, iCal (.ics), and native device calendars</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
                     <Cloud size={16} className={textPrimary} />
                   </span>
-                  <span><strong className={textPrimary}>Cloud Sync</strong> — sync your data across devices via WebDAV</span>
+                  <span><strong className={textPrimary}>Cloud Sync</strong> — sync your data across devices via GLANCEvault or WebDAV</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
@@ -174,7 +195,7 @@ const DesktopWelcomeModal = () => {
                   </span>
                   <span><strong className={textPrimary}>Dark / Light mode</strong>, reminders, backup &amp; restore</span>
                 </div>
-                <p className="text-xs opacity-75 mt-2">Your data is stored locally in your browser. Use backup or cloud sync to transfer between devices.</p>
+                <p className="text-xs opacity-75 mt-2">Your data is stored locally on your device. Use backup or cloud sync to transfer between devices.</p>
               </div>
             </div>
           )}
@@ -190,13 +211,19 @@ const DesktopWelcomeModal = () => {
                   <span className="w-8 h-8 bg-teal-100 dark:bg-teal-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <RefreshCw size={16} className="text-teal-500" />
                   </span>
-                  <span><strong className={textPrimary}>Routines</strong> — daily task templates for each day of the week</span>
+                  <span><strong className={textPrimary}>Routines</strong> — things you need to do regularly, like eat, sleep and exercise</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-rose-100 dark:bg-rose-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Target size={16} className="text-rose-500" />
                   </span>
-                  <span><strong className={textPrimary}>Habits</strong> — track daily habits with visual progress rings and history</span>
+                  <span><strong className={textPrimary}>Habits</strong> — track regular habits with visual progress rings and saved history</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Flag size={16} className="text-blue-500" />
+                  </span>
+                  <span><strong className={textPrimary}>Goals &amp; Projects</strong> — track your long-term goals and progress toward completion</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-amber-100 dark:bg-amber-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -209,11 +236,7 @@ const DesktopWelcomeModal = () => {
           )}
           {desktopWelcomeStep === 7 && (
             <div className="text-center">
-              <img
-                src={darkMode ? './dayglance-dark.svg' : './dayglance-light.svg'}
-                alt="dayGLANCE"
-                className="h-20 mx-auto mb-6"
-              />
+              <div className="mb-6"><Wordmark className="text-5xl" darkMode={darkMode} /></div>
               <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>{t('onboarding.allSetTitle')}</h2>
               <div className="space-y-3 w-full max-w-xs mx-auto">
                 <button
