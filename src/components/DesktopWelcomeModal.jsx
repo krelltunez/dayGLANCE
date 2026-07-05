@@ -2,7 +2,7 @@ import React from 'react';
 import Wordmark from './Wordmark';
 import {
   BarChart3, Calendar, CalendarDays, ChevronLeft, ChevronRight,
-  Cloud, Eye, FileText, Flag, GripVertical, Inbox, LayoutGrid, Mic, Moon,
+  Cloud, Eye, FileText, Filter, Flag, Gauge, GripVertical, Inbox, LayoutGrid, Mic, Moon,
   NotebookPen, Plus, RefreshCw, Search, Settings, Sun,
   Target, Zap,
 } from 'lucide-react';
@@ -105,7 +105,7 @@ const DesktopWelcomeModal = () => {
                 <Search size={32} className="text-blue-500" />
               </div>
               <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>{t('onboarding.spotlightTitle')}</h2>
-              <div className={`text-sm ${textSecondary} space-y-4 text-left`}>
+              <div className={`text-sm ${textSecondary} space-y-3 text-left`}>
                 <div className="flex items-start gap-3">
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
                     <Search size={16} className={textPrimary} />
@@ -114,9 +114,21 @@ const DesktopWelcomeModal = () => {
                 </div>
                 <div className="flex items-start gap-3">
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                    <Filter size={16} className={textPrimary} />
+                  </span>
+                  <span>Filter your day by <strong className={textPrimary}>#tags</strong> to focus on just what matters.</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                    <Gauge size={16} className={textPrimary} />
+                  </span>
+                  <span>Check the <strong className={textPrimary}>Daily Summary</strong> for today&apos;s completion and time stats.</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
                     <BarChart3 size={16} className={textPrimary} />
                   </span>
-                  <span>Click the <BarChart3 size={14} className="inline mx-0.5" /> button on the GLANCE panel to review your week: see completion stats, reflect on wins, and plan ahead.</span>
+                  <span>Click the <BarChart3 size={14} className="inline mx-0.5" /> button to review your week: see completion stats, reflect on wins, and plan ahead.</span>
                 </div>
               </div>
             </div>
