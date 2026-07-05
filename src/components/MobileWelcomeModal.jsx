@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { isFileSystemAccessSupported } from '../obsidian.js';
+import { isNativeApp } from '../native.js';
 
 const MobileWelcomeModal = () => {
   const { t } = useTranslation();
@@ -16,6 +18,9 @@ const MobileWelcomeModal = () => {
     setShowSettings,
     darkMode, textPrimary, textSecondary,
   } = useDayPlannerCtx();
+  // Obsidian needs the File System Access API (Chromium desktop) or a native
+  // bridge; hide the onboarding mention where it can't actually be enabled.
+  const obsidianAvailable = isFileSystemAccessSupported() || isNativeApp();
 
   return (
     <div className={`fixed inset-0 z-50 flex flex-col ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
@@ -124,10 +129,14 @@ const MobileWelcomeModal = () => {
             </div>
             <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>{t('onboarding.mobileSettingsTitle')}</h2>
             <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
-              <li><strong className={textPrimary}>Quick toggles</strong> for common settings</li>
+              <li><strong className={textPrimary}>Quick toggles</strong> for common settings and optional features</li>
               <li><strong className={textPrimary}>Sync</strong> your calendars</li>
               <li>Set up <strong className={textPrimary}>cloud sync</strong> between devices</li>
               <li><strong className={textPrimary}>Backup</strong> and restore your data</li>
+              <li><strong className={textPrimary}>Customize</strong> notification settings</li>
+              <li>Enable integration with <strong className={textPrimary}>other GLANCE apps</strong></li>
+              {obsidianAvailable && <li>Configure the optional <strong className={textPrimary}>Obsidian</strong> integration</li>}
+              <li>Set up <strong className={textPrimary}>multi-user</strong> for households</li>
             </ul>
           </div>
         )}
