@@ -404,6 +404,7 @@
     "shortcutNewScheduled": "New scheduled task",
     "shortcutNewInbox": "New inbox task",
     "shortcutToday": "Jump to today",
+    "shortcutPrevNextDay": "Previous / next day",
     "shortcutUndoRedo": "Undo / Redo",
     "shortcutHint": "Press ? at any time to see all available shortcuts.",
     "settingsSyncTitle": "Settings & Sync",

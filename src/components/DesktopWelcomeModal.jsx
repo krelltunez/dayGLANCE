@@ -2,7 +2,7 @@ import React from 'react';
 import Wordmark from './Wordmark';
 import {
   BarChart3, Calendar, CalendarDays, ChevronLeft, ChevronRight,
-  Cloud, Eye, FileText, GripVertical, Inbox, LayoutGrid, Mic, Moon,
+  Cloud, Eye, FileText, Flag, GripVertical, Inbox, LayoutGrid, Mic, Moon,
   NotebookPen, Plus, RefreshCw, Search, Settings, Sun,
   Target, Zap,
 } from 'lucide-react';
@@ -62,13 +62,13 @@ const DesktopWelcomeModal = () => {
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Eye size={16} className="text-blue-500" />
                   </span>
-                  <span><strong className={textPrimary}>GLANCE</strong> — your smart agenda: overdue tasks, today&apos;s schedule, <span className="italic">GLANCE</span>ahead, optional habit rings and goal bars, and quick access to your daily note and your progress stats</span>
+                  <span><strong className={textPrimary}>GLANCE</strong> — your smart agenda: overdue tasks, today&apos;s schedule, <span className="italic">GLANCE</span>ahead, optional habit rings and goal bars, and quick access to your daily note and progress stats</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Inbox size={16} className="text-blue-500" />
                   </span>
-                  <span><strong className={textPrimary}>Inbox</strong> — capture tasks to organize later, drag them to the timeline when ready</span>
+                  <span><strong className={textPrimary}>Inbox</strong> — capture tasks to organize later, drag them to the timeline when ready to schedule</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -92,10 +92,10 @@ const DesktopWelcomeModal = () => {
                 <li>Drag the bottom edge of a task to <strong className={textPrimary}>resize</strong> its duration</li>
                 <li>Set tasks to <strong className={textPrimary}>repeat</strong> daily, weekly, monthly, or yearly</li>
                 <li>Double-click a task title to <strong className={textPrimary}>edit</strong> it or add <strong className={textPrimary}>tags</strong></li>
-                <li>Expand a task to add <strong className={textPrimary}>notes</strong> <FileText size={14} className="inline mx-0.5" /> and <strong className={textPrimary}>subtasks</strong> for extra detail</li>
+                <li>Expand a task to add <strong className={textPrimary}>notes</strong> <FileText size={14} className="inline mx-0.5" /> and <strong className={textPrimary}>subtasks</strong></li>
                 <li>Click <NotebookPen size={14} className="inline mx-0.5" /> on a date header to write <strong className={textPrimary}>daily notes</strong></li>
                 <li>Designate productivity blocks with <strong className={textPrimary}>GTD Frames</strong> <LayoutGrid size={14} className="inline mx-0.5" /></li>
-                <li>Use <strong className={textPrimary}>Focus Mode</strong> <Target size={14} className="inline mx-0.5" /> for distraction-free deep work with a Pomodoro timer</li>
+                <li>Use <strong className={textPrimary}>Focus Mode</strong> <Target size={14} className="inline mx-0.5" /> for distraction-free deep work</li>
               </ul>
             </div>
           )}
@@ -116,7 +116,7 @@ const DesktopWelcomeModal = () => {
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
                     <BarChart3 size={16} className={textPrimary} />
                   </span>
-                  <span>Click the <BarChart3 size={14} className="inline mx-0.5" /> button on the side panel to review your week — see completion stats, reflect on wins, and plan ahead.</span>
+                  <span>Click the <BarChart3 size={14} className="inline mx-0.5" /> button on the GLANCE panel to review your week: see completion stats, reflect on wins, and plan ahead.</span>
                 </div>
               </div>
             </div>
@@ -141,6 +141,13 @@ const DesktopWelcomeModal = () => {
                   <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>T</kbd>
                 </div>
                 <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'}`}>
+                  <span>{t('onboarding.shortcutPrevNextDay')}</span>
+                  <span className="flex gap-1">
+                    <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>&larr;</kbd>
+                    <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>&rarr;</kbd>
+                  </span>
+                </div>
+                <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-100'}`}>
                   <span>{t('onboarding.shortcutUndoRedo')}</span>
                   <span className="flex gap-1">
                     <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>Ctrl+Z</kbd>
@@ -162,13 +169,13 @@ const DesktopWelcomeModal = () => {
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
                     <CalendarDays size={16} className={textPrimary} />
                   </span>
-                  <span><strong className={textPrimary}>Calendar sync</strong> — import CalDAV and iCal (.ics) events</span>
+                  <span><strong className={textPrimary}>Calendar sync</strong> — import CalDAV, iCal (.ics), and native device calendars</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
                     <Cloud size={16} className={textPrimary} />
                   </span>
-                  <span><strong className={textPrimary}>Cloud Sync</strong> — sync your data across devices via WebDAV</span>
+                  <span><strong className={textPrimary}>Cloud Sync</strong> — sync your data across devices via GLANCEvault or WebDAV</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
@@ -176,7 +183,7 @@ const DesktopWelcomeModal = () => {
                   </span>
                   <span><strong className={textPrimary}>Dark / Light mode</strong>, reminders, backup &amp; restore</span>
                 </div>
-                <p className="text-xs opacity-75 mt-2">Your data is stored locally in your browser. Use backup or cloud sync to transfer between devices.</p>
+                <p className="text-xs opacity-75 mt-2">Your data is stored locally on your device. Use backup or cloud sync to transfer between devices.</p>
               </div>
             </div>
           )}
@@ -199,6 +206,12 @@ const DesktopWelcomeModal = () => {
                     <Target size={16} className="text-rose-500" />
                   </span>
                   <span><strong className={textPrimary}>Habits</strong> — track daily habits with visual progress rings and history</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Flag size={16} className="text-blue-500" />
+                  </span>
+                  <span><strong className={textPrimary}>Goals &amp; Projects</strong> — track your longer-term goals and progress toward completion</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-amber-100 dark:bg-amber-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">

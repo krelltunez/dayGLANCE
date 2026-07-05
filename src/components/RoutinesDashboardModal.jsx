@@ -40,8 +40,8 @@ const RoutinesDashboardModal = () => {
           {/* Header */}
           <div className={`p-6 border-b ${borderClass}`}>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Wordmark className="text-4xl" darkMode={darkMode} />
+              <div className="flex items-center gap-5">
+                <Wordmark className="text-5xl" darkMode={darkMode} />
                 <div>
                   <div className={`text-lg font-bold ${textPrimary}`}>
                     {new Date().toLocaleDateString('en-US', { weekday: 'long' })}, {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
