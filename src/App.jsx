@@ -2386,7 +2386,7 @@ const DayPlanner = () => {
           : t
       );
     });
-  }, [dataLoaded, inboxAutoArchiveDays]);
+  }, [dataLoaded, inboxAutoArchiveDays, setUnscheduledTasks]);
 
   // Obsidian sync: restore vault handle on mount and do initial sync
   useEffect(() => {
@@ -8525,7 +8525,7 @@ const DayPlanner = () => {
       }
     } catch {}
     setAiSubtasksLoadingForTask(null);
-  }, [aiConfig, pushUndo, updateRecurringTemplate]);
+  }, [aiConfig, pushUndo, updateRecurringTemplate, setUnscheduledTasks]);
 
   // Focus mode: compute the current block tasks (used to snapshot when entering focus mode)
   const computeFocusBlockTasks = () => {
