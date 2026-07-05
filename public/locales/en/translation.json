@@ -374,10 +374,12 @@
     "autoBackupHint": "Scheduled automatic backups"
   },
   "onboarding": {
-    "welcomeTitle": "Welcome to dayGLANCE",
+    "welcomeTitle": "Welcome to your minimalist day planner",
     "welcomeSubtitle": "Your minimalist day planner",
-    "welcomeLocal": "100% local: no accounts, no servers, no tracking.",
+    "welcomeLocal": "100% local by default: no accounts, no servers, no tracking.",
     "welcomeTour": "Let’s take a quick tour of the key features.",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfUse": "Terms of Use",
     "layoutTitle": "Your Layout",
     "glanceSection": "GLANCE",
     "glanceSectionDesc": "your smart agenda with overdue tasks and today’s schedule",
