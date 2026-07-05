@@ -54,7 +54,7 @@ const POLISH = `
 
 const browser = await chromium.launch(launchOpts);
 
-async function seededPage(size, dark) {
+async function seededPage(size, dark, extra = '') {
   const ctx = await browser.newContext({
     viewport: { width: size.w, height: size.h },
     deviceScaleFactor: size.dsf,
@@ -66,7 +66,7 @@ async function seededPage(size, dark) {
   const p = await ctx.newPage();
   await p.goto(URL, { waitUntil: 'domcontentloaded' });
   await p.evaluate(SEED);
-  await p.evaluate(`localStorage.setItem('day-planner-darkmode', ${JSON.stringify(dark)}); ${POLISH}`);
+  await p.evaluate(`localStorage.setItem('day-planner-darkmode', ${JSON.stringify(dark)}); ${POLISH} ${extra}`);
   await p.reload({ waitUntil: 'domcontentloaded' });
   await ctx.clock.runFor(3500);
   await p.waitForTimeout(300);
@@ -96,9 +96,11 @@ async function run(mode) {
       } catch (e) { console.log(mode, name, 'FAIL', e.message.split('\n')[0]); }
     }
 
-    // Goals -> Roadmap flowchart (still on the Goals tab from the loop above)
+    // Goals -> Roadmap, with the v2.0 goal selected so its child projects show below
     try {
       await p.getByRole('button', { name: 'Roadmap' }).click();
+      await settle(ctx, p, 1200);
+      await p.getByText('Launch v2.0 client SaaS platform', { exact: false }).first().click();
       await settle(ctx, p, 1500);
       await p.screenshot({ path: path.join(OUT, 'phone', tag('04b-roadmap')) });
       console.log(mode, '04b-roadmap ok');
@@ -106,6 +108,16 @@ async function run(mode) {
 
     await ctx.close();
   }
+
+  // ---- Phone: timeline in LIST view (fresh page, mobile-view-mode = list) ----
+  try {
+    const { ctx, p } = await seededPage(phone, dark, `localStorage.setItem('day-planner-mobile-view-mode', JSON.stringify('list'));`);
+    await p.getByText('Timeline', { exact: true }).click();
+    await settle(ctx, p);
+    await p.screenshot({ path: path.join(OUT, 'phone', tag('02b-timeline-list')) });
+    console.log(mode, '02b-timeline-list ok');
+    await ctx.close();
+  } catch (e) { console.log(mode, '02b-timeline-list FAIL', e.message.split('\n')[0]); }
 
   // ---- Phone: Daily Summary overlay (fresh page) ----
   try {
@@ -141,6 +153,18 @@ async function run(mode) {
     const { ctx, p } = await seededPage({ w: 1680, h: 1050, dsf: 2, mobile: false }, dark);
     await p.screenshot({ path: path.join(OUT, 'desktop', tag('01-overview')) });
     console.log(mode, 'desktop overview ok');
+    await ctx.close();
+  }
+
+  // ---- Desktop: Goals & Projects modal ----
+  {
+    const { ctx, p } = await seededPage({ w: 1680, h: 1050, dsf: 2, mobile: false }, dark);
+    try {
+      await p.getByRole('button', { name: 'Goals & Projects' }).click();
+      await settle(ctx, p, 1500);
+      await p.screenshot({ path: path.join(OUT, 'desktop', tag('02-goals')) });
+      console.log(mode, 'desktop goals ok');
+    } catch (e) { console.log(mode, 'desktop goals FAIL', e.message.split('\n')[0]); }
     await ctx.close();
   }
 
