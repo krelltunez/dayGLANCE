@@ -144,6 +144,18 @@ async function run(mode) {
     await ctx.close();
   }
 
+  // ---- Desktop: Goals & Projects modal ----
+  {
+    const { ctx, p } = await seededPage({ w: 1680, h: 1050, dsf: 2, mobile: false }, dark);
+    try {
+      await p.getByRole('button', { name: 'Goals & Projects' }).click();
+      await settle(ctx, p, 1500);
+      await p.screenshot({ path: path.join(OUT, 'desktop', tag('02-goals')) });
+      console.log(mode, 'desktop goals ok');
+    } catch (e) { console.log(mode, 'desktop goals FAIL', e.message.split('\n')[0]); }
+    await ctx.close();
+  }
+
   // ---- Tablet: iPad 12.9" portrait (1024x1366 @2x = 2048x2732) ----
   {
     const tablet = { w: 1024, h: 1366, dsf: 2, mobile: true };
