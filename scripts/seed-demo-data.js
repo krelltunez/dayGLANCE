@@ -522,6 +522,7 @@
       color: 'green',
       description: '30 min of movement — run, yoga, or weights',
       frequency: 'daily',
+      type: 'doMore',
       target: 1,
       source: 'user',
       createdAt: '2026-01-01T08:00:00.000Z',
@@ -534,6 +535,7 @@
       color: 'purple',
       description: 'At least 20 pages',
       frequency: 'daily',
+      type: 'doMore',
       target: 1,
       source: 'user',
       createdAt: '2026-01-01T08:00:00.000Z',
@@ -546,6 +548,7 @@
       color: 'cyan',
       description: '8 glasses a day',
       frequency: 'daily',
+      type: 'doMore',
       target: 8,
       source: 'user',
       createdAt: '2026-01-01T08:00:00.000Z',
@@ -558,6 +561,7 @@
       color: 'orange',
       description: '10k steps',
       frequency: 'daily',
+      type: 'doMore',
       target: 10,
       source: 'user',
       createdAt: '2026-01-01T08:00:00.000Z',
@@ -609,6 +613,12 @@
   localStorage.setItem('day-planner-today-routines', JSON.stringify(todayRoutines));
   localStorage.setItem('day-planner-routines-date', today);
   localStorage.setItem('day-planner-routines-enabled', JSON.stringify(true));
+
+  // Desktop view preferences — rolling day/week views starting at 7am read
+  // better than the fixed calendar-day / strict-week defaults.
+  localStorage.setItem('day-planner-day-view-mode', JSON.stringify('rolling-24'));
+  localStorage.setItem('day-planner-week-view-mode', JSON.stringify('rolling'));
+  localStorage.setItem('day-planner-week-timeline-start-hour', JSON.stringify(7));
 
   console.log('Seed data loaded — refresh the page');
 })();
