@@ -84,7 +84,9 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen:
-          UIColorName: ""
+          UIColorName: "LaunchBackground"
+          UIImageName: "LaunchImage"
+          UIImageRespectsSafeAreaInsets: false
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         "UISupportedInterfaceOrientations~ipad":
