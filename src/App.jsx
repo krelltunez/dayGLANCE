@@ -333,6 +333,16 @@ const DayPlanner = () => {
   selectedDateRef.current = selectedDate;
   const [tasks, setTasks] = useState([]);
   const [unscheduledTasks, _setUnscheduledTasks] = useState([]);
+  // Live refs to the current task state, reassigned every render. applyEngineData
+  // runs from an async sync cycle and its closure can predate loadData / the heal
+  // render, so reading `tasks`/`unscheduledTasks` directly there is STALE — the
+  // archived-preservation must read these refs (whose `.current` is always the
+  // latest committed state) or it back-fills from an empty/undefined baseline and
+  // the strip goes through anyway.
+  const tasksLiveRef = useRef(tasks);
+  tasksLiveRef.current = tasks;
+  const unscheduledLiveRef = useRef(unscheduledTasks);
+  unscheduledLiveRef.current = unscheduledTasks;
   // DEBUG (gated by localStorage 'dayglance-debug-stamp'): wrap the inbox setter so
   // the exact call that strips `archived` (true → undefined) logs a stack trace.
   // Transparent passthrough otherwise — see utils/debugArchivedProbe.js. Stable
@@ -5929,9 +5939,10 @@ const DayPlanner = () => {
     // items and re-stamps lastModified every sync (confirmed via the archived
     // probe: applyEngineData is the second-pass stripper). A real remote unarchive
     // sends archived:false explicitly and still propagates; only an ABSENT flag
-    // falls back to local. Keyed across both lists so a scheduled↔inbox move still
-    // matches. See utils/preserveArchived.js.
-    const existingArchivedList = [...tasks, ...unscheduledTasks];
+    // falls back to local. Read the LIVE refs (not the closure, which can predate
+    // the heal render) for the localStorage writes; the setState calls below use
+    // their own `prev` (the authoritative current state). See utils/preserveArchived.js.
+    const existingArchivedList = [...tasksLiveRef.current, ...unscheduledLiveRef.current];
 
     // Drop CalDAV-imported calendar events from the cloud sync payload — they are ephemeral
     // derivatives of the remote feed and must not be cloud-synced or the merge engine will
@@ -6104,13 +6115,19 @@ const DayPlanner = () => {
     // hasn't rendered yet.  Without this, those queued imported events are
     // silently discarded by the replacement, causing them to vanish until the
     // next calendar sync re-imports them.
+    // Preserve archived against `prev` — the ACTUAL current state at update time,
+    // which React guarantees is fresh (the closure/refs above can lag the very
+    // latest heal). This is what stops the setState from clobbering a locally-
+    // archived item when the merged copy omits the flag.
     if (normalizedTasks) setTasks(prev => {
-      const mergedIds = new Set(normalizedTasks.map(t => String(t.id)));
-      return [...normalizedTasks, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported || t._intentKey))];
+      const preserved = preserveArchived(normalizedTasks, prev);
+      const mergedIds = new Set(preserved.map(t => String(t.id)));
+      return [...preserved, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported || t._intentKey))];
     });
     if (normalizedUnsched) setUnscheduledTasks(prev => {
-      const mergedIds = new Set(normalizedUnsched.map(t => String(t.id)));
-      return [...normalizedUnsched, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported || t._intentKey))];
+      const preserved = preserveArchived(normalizedUnsched, prev);
+      const mergedIds = new Set(preserved.map(t => String(t.id)));
+      return [...preserved, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported || t._intentKey))];
     });
     if (data.unscheduledOrderTimestamp) {
       setUnscheduledOrderTimestamp(data.unscheduledOrderTimestamp);
