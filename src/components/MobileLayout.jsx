@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import Wordmark from './Wordmark';
 import {
   Activity, AlertCircle, AlertTriangle, Archive, BarChart3, Bell, BookOpen, BrainCircuit,
   Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
@@ -675,11 +676,7 @@ const MobileLayout = () => {
             {mobileActiveTab === 'dayglance' && (
               <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
                 <div className="flex items-center justify-center px-4 py-3">
-                  <img
-                    src={darkMode ? './dayglance-dark.svg' : './dayglance-light.svg'}
-                    alt="dayGLANCE"
-                    className="h-8"
-                  />
+                  <Wordmark className="text-3xl" darkMode={darkMode} />
                 </div>
               </div>
             )}

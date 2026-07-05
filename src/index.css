@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* dayGLANCE wordmark — self-hosted Lora (SIL OFL), latin subset only.
+   500 normal for "day", 700 italic for "GLANCE". */
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/lora-500-normal-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/lora-700-italic-latin.woff2') format('woff2');
+}
+
 :root {
   --header-row-h: 46px;
 }

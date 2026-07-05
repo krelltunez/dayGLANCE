@@ -1,4 +1,5 @@
 import React from 'react';
+import Wordmark from './Wordmark';
 import { X, Plus, Clock, Undo2, Sparkles, Trash2 } from 'lucide-react';
 import ClockTimePicker from './ClockTimePicker.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
@@ -40,11 +41,7 @@ const RoutinesDashboardModal = () => {
           <div className={`p-6 border-b ${borderClass}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <img
-                  src={darkMode ? './dayglance-dark.svg' : './dayglance-light.svg'}
-                  alt="dayGLANCE"
-                  className="h-[4.5rem]"
-                />
+                <Wordmark className="text-4xl" darkMode={darkMode} />
                 <div>
                   <div className={`text-lg font-bold ${textPrimary}`}>
                     {new Date().toLocaleDateString('en-US', { weekday: 'long' })}, {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}

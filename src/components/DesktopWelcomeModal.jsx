@@ -1,4 +1,5 @@
 import React from 'react';
+import Wordmark from './Wordmark';
 import {
   BarChart3, Calendar, CalendarDays, ChevronLeft, ChevronRight,
   Cloud, Eye, FileText, GripVertical, Inbox, Mic, Moon,
@@ -39,11 +40,7 @@ const DesktopWelcomeModal = () => {
         <div className="flex-1 flex flex-col items-center justify-center px-8 overflow-hidden">
           {desktopWelcomeStep === 0 && (
             <div className="text-center">
-              <img
-                src={darkMode ? './dayglance-dark.svg' : './dayglance-light.svg'}
-                alt="dayGLANCE"
-                className="h-24 mx-auto mb-6"
-              />
+              <div className="mb-6"><Wordmark className="text-6xl" darkMode={darkMode} /></div>
               <h1 className={`text-2xl font-bold ${textPrimary} mb-2`}>{t('onboarding.welcomeTitle')}</h1>
               <p className={`${textSecondary}`}>{t('onboarding.welcomeSubtitle')}</p>
               <p className={`${textSecondary} text-xs mt-3`}>{t('onboarding.welcomeLocal')}</p>
@@ -209,11 +206,7 @@ const DesktopWelcomeModal = () => {
           )}
           {desktopWelcomeStep === 7 && (
             <div className="text-center">
-              <img
-                src={darkMode ? './dayglance-dark.svg' : './dayglance-light.svg'}
-                alt="dayGLANCE"
-                className="h-20 mx-auto mb-6"
-              />
+              <div className="mb-6"><Wordmark className="text-5xl" darkMode={darkMode} /></div>
               <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>{t('onboarding.allSetTitle')}</h2>
               <div className="space-y-3 w-full max-w-xs mx-auto">
                 <button
