@@ -293,8 +293,25 @@ function upsertCollection(data, kind, value) {
   const idOf = (x) => String(x[cfg.idField] ?? x.id);
   const id = idOf(value);
   const idx = data[kind].findIndex((x) => x != null && idOf(x) === id);
-  if (idx >= 0) data[kind][idx] = value;
-  else data[kind].push(value);
+  if (idx >= 0) {
+    // Whole-entity LWW replaces the local row with the pulled winner. But a
+    // "sticky" app-only flag the winner never carried — `archived` — would be
+    // silently lost: archiving didn't always bump lastModified, so an older
+    // archived copy can be beaten by a newer copy from a device that never
+    // archived it. Carry archived forward when the winner OMITS it (undefined)
+    // but our local copy had archived:true. An explicit archived:false on the
+    // winner is a real unarchive and is honored (not undefined → not carried).
+    const local = data[kind][idx];
+    const merged = (value && value.archived === undefined && local && local.archived === true)
+      ? { ...value, archived: true }
+      : value;
+    data[kind][idx] = merged;
+    // Re-push when we enriched the pulled row so the vault converges to the
+    // superset (mirrors the bundle-superset re-push).
+    return merged !== value ? [makeEntityId(kind, id)] : [];
+  }
+  data[kind].push(value);
+  return [];
 }
 
 // Apply one pulled row, merging it into `data`. Returns an array of entityIds
@@ -314,8 +331,7 @@ export function applyRemoteEntity(data, entity) {
     return applyRemoteRecurring(data, entity.value);
   }
   if (COLLECTION_KINDS[kind]) {
-    upsertCollection(data, kind, entity.value);
-    return [];
+    return upsertCollection(data, kind, entity.value);
   }
   if (kind === DATE_MAP_KIND) {
     if (!data[DATE_MAP_KIND] || typeof data[DATE_MAP_KIND] !== 'object') data[DATE_MAP_KIND] = {};
