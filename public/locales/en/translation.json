@@ -601,7 +601,7 @@
     "tabMyFrames": "My Frames",
     "tabSmartSchedule": "Smart Schedule",
     "noFramesTitle": "No Frames Yet",
-    "noFramesDesc": "Frames are time blocks on your calendar where the AI scheduler can place tasks. Create your first frame to get started.",
+    "noFramesDesc": "Frames are time blocks on your calendar. Schedule tasks into them yourself, or let Smart Schedule place them for you. Create your first frame to get started.",
     "createFrame": "Create Frame",
     "addFrame": "Add Frame",
     "oneTime": "one-time",

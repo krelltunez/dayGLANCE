@@ -2,7 +2,7 @@ import React from 'react';
 import Wordmark from './Wordmark';
 import {
   BarChart3, Calendar, CalendarDays, ChevronLeft, ChevronRight,
-  Cloud, Eye, FileText, GripVertical, Inbox, Mic, Moon,
+  Cloud, Eye, FileText, GripVertical, Inbox, LayoutGrid, Mic, Moon,
   NotebookPen, Plus, RefreshCw, Search, Settings, Sun,
   Target, Zap,
 } from 'lucide-react';
@@ -62,7 +62,7 @@ const DesktopWelcomeModal = () => {
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Eye size={16} className="text-blue-500" />
                   </span>
-                  <span><strong className={textPrimary}>GLANCE</strong> — your smart agenda with overdue tasks and today&apos;s schedule</span>
+                  <span><strong className={textPrimary}>GLANCE</strong> — your smart agenda: overdue tasks, today&apos;s schedule, <span className="italic">GLANCE</span>ahead, optional habit rings and goal bars, and quick access to your daily note</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -74,7 +74,7 @@ const DesktopWelcomeModal = () => {
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Calendar size={16} className="text-blue-500" />
                   </span>
-                  <span><strong className={textPrimary}>Timeline</strong> — your day&apos;s schedule, click or use the <Plus size={12} className="inline mx-0.5" /> button to add tasks</span>
+                  <span><strong className={textPrimary}>Timeline</strong> — switch between <strong className={textPrimary}>Multi-day</strong>, <strong className={textPrimary}>Day</strong>, and <strong className={textPrimary}>Week</strong> views (<strong className={textPrimary}>Grid</strong> or <strong className={textPrimary}>List</strong> on tablet), or click or use <Plus size={12} className="inline mx-0.5" /> to add tasks</span>
                 </div>
               </div>
             </div>
@@ -94,6 +94,7 @@ const DesktopWelcomeModal = () => {
                 <li>Double-click a task title to <strong className={textPrimary}>edit</strong> it or add <strong className={textPrimary}>tags</strong></li>
                 <li>Expand a task to add <strong className={textPrimary}>notes</strong> <FileText size={14} className="inline mx-0.5" /> and <strong className={textPrimary}>subtasks</strong> for extra detail</li>
                 <li>Click <NotebookPen size={14} className="inline mx-0.5" /> on a date header to write <strong className={textPrimary}>daily notes</strong></li>
+                <li>Designate productivity blocks with <strong className={textPrimary}>GTD Frames</strong> <LayoutGrid size={14} className="inline mx-0.5" /></li>
                 <li>Use <strong className={textPrimary}>Focus Mode</strong> <Target size={14} className="inline mx-0.5" /> for distraction-free deep work with a Pomodoro timer</li>
               </ul>
             </div>
