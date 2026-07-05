@@ -11,6 +11,7 @@ import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { tombstoneHorizon } from './utils/tombstoneHorizon.js';
 import { installUnscheduledStoreProbe, probeSetter } from './utils/debugArchivedProbe.js';
+import { preserveArchived } from './utils/preserveArchived.js';
 import { stripHealthSourcedLogs } from './utils/healthLogFilter.js';
 import { webdavFetch } from './utils/cloudSyncProviders.js';
 import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
@@ -5923,6 +5924,15 @@ const DayPlanner = () => {
     // tasks appear newer than actual remote changes during merge.
     const normalizeTasks = (tasks) => tasks.map(t => ({ ...t, notes: t.notes ?? '', subtasks: t.subtasks ?? [] }));
 
+    // Preserve the app-only `archived` flag from the CURRENT in-memory copy when
+    // the merged/remote copy OMITS it — otherwise this apply silently un-archives
+    // items and re-stamps lastModified every sync (confirmed via the archived
+    // probe: applyEngineData is the second-pass stripper). A real remote unarchive
+    // sends archived:false explicitly and still propagates; only an ABSENT flag
+    // falls back to local. Keyed across both lists so a scheduled↔inbox move still
+    // matches. See utils/preserveArchived.js.
+    const existingArchivedList = [...tasks, ...unscheduledTasks];
+
     // Drop CalDAV-imported calendar events from the cloud sync payload — they are ephemeral
     // derivatives of the remote feed and must not be cloud-synced or the merge engine will
     // resurrect deleted events. On native, the OS bridge re-provides them; on PWA, CalDAV
@@ -5934,8 +5944,8 @@ const DayPlanner = () => {
       !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')
       && !(multiUserEnabled && t.imported && t.importSource === 'sync'));
 
-    const normalizedTasks = data.tasks ? filterTasks(normalizeTasks(data.tasks)) : null;
-    const normalizedUnsched = data.unscheduledTasks ? filterTasks(normalizeTasks(data.unscheduledTasks)) : null;
+    const normalizedTasks = data.tasks ? preserveArchived(filterTasks(normalizeTasks(data.tasks)), existingArchivedList) : null;
+    const normalizedUnsched = data.unscheduledTasks ? preserveArchived(filterTasks(normalizeTasks(data.unscheduledTasks)), existingArchivedList) : null;
 
     // Update localStorage
     if (normalizedTasks) localStorage.setItem('day-planner-tasks', JSON.stringify(normalizedTasks));
