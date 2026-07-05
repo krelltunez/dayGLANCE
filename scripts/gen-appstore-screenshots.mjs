@@ -96,9 +96,11 @@ async function run(mode) {
       } catch (e) { console.log(mode, name, 'FAIL', e.message.split('\n')[0]); }
     }
 
-    // Goals -> Roadmap flowchart (still on the Goals tab from the loop above)
+    // Goals -> Roadmap, with the v2.0 goal selected so its child projects show below
     try {
       await p.getByRole('button', { name: 'Roadmap' }).click();
+      await settle(ctx, p, 1200);
+      await p.getByText('Launch v2.0 client SaaS platform', { exact: false }).first().click();
       await settle(ctx, p, 1500);
       await p.screenshot({ path: path.join(OUT, 'phone', tag('04b-roadmap')) });
       console.log(mode, '04b-roadmap ok');
