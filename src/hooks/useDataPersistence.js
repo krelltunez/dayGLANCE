@@ -41,8 +41,23 @@ export default function useDataPersistence({
     let onRestamp;
     try {
       if (localStorage.getItem('dayglance-debug-stamp') === '1') {
-        onRestamp = ({ id, changedKeys }) =>
+        onRestamp = ({ id, changedKeys, changed, prev, cur }) => {
           console.warn(`[stamp] re-stamped ${storageKey} ${id} — changed:`, changedKeys);
+          // Ground truth: the ACTUAL old-vs-new value AND type for each changed
+          // field, so we can see EXACTLY what differs (undefined vs false vs true
+          // vs "false") rather than assuming. This is what pins the real mismatch.
+          (changed || []).forEach(({ key, prev: pv, cur: cv }) => {
+            console.warn(
+              `[stamp-debug] ${storageKey} ${id} ${key}: prev=`, pv, `(${typeof pv})`,
+              'cur=', cv, `(${typeof cv})`,
+            );
+          });
+          // Item context — reveals the auto-archive convergence path in one paste.
+          console.warn(`[stamp-debug] ${storageKey} ${id} context:`, {
+            prev: prev && { archived: prev.archived, completed: prev.completed, completedAt: prev.completedAt, lastModified: prev.lastModified },
+            cur: cur && { archived: cur.archived, completed: cur.completed, completedAt: cur.completedAt, lastModified: cur.lastModified },
+          });
+        };
       }
     } catch { /* ignore */ }
     return stampTimestamps(currentTasks, prev, new Date().toISOString(), onRestamp);

@@ -83,7 +83,16 @@ export function stampTimestamps(currentTasks, prevTasks, now, onRestamp) {
         return { ...t, lastModified: prevTask.lastModified };
       }
       if (onRestamp) {
-        try { onRestamp({ id: t.id, changedKeys: diffKeys(prevTask, t) }); } catch { /* diagnostic must never throw */ }
+        // Include the RAW (pre-normalization) prev/cur value for each changed key
+        // so a debug build can log EXACTLY what differs — undefined vs false vs
+        // true vs a string — instead of us guessing. `changed` carries the raw
+        // values (not the `?? false`-normalized ones) so absent shows as undefined.
+        const changedKeys = diffKeys(prevTask, t);
+        const changed = changedKeys.map((k) => ({ key: k, prev: prevTask[k], cur: t[k] }));
+        // Also hand over the raw prev/cur so the logger can print item context
+        // (completed/completedAt/lastModified) — enough to tell in ONE paste whether
+        // this is the auto-archive convergence path or something else.
+        try { onRestamp({ id: t.id, changedKeys, changed, prev: prevTask, cur: t }); } catch { /* diagnostic must never throw */ }
       }
     }
     if (!prevTask && t.lastModified) return t;
