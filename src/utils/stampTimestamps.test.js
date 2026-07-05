@@ -79,12 +79,19 @@ describe('stampTimestamps', () => {
   });
 
   describe('onRestamp diagnostic', () => {
-    it('reports the changed fields when an existing task is re-stamped', () => {
+    it('reports the changed fields (and raw prev/cur values) when a task is re-stamped', () => {
       const prev = [{ id: 1, title: 'A', completed: false, lastModified: ISO(100) }];
       const curr = [{ id: 1, title: 'A', completed: true, lastModified: ISO(100) }];
       const calls = [];
       stampTimestamps(curr, prev, 'NOW', (info) => calls.push(info));
-      expect(calls).toEqual([{ id: 1, changedKeys: ['completed'] }]);
+      expect(calls).toHaveLength(1);
+      expect(calls[0].id).toBe(1);
+      expect(calls[0].changedKeys).toEqual(['completed']);
+      // Raw per-key values for the debug log (undefined/false/true ground truth).
+      expect(calls[0].changed).toEqual([{ key: 'completed', prev: false, cur: true }]);
+      // Raw objects handed through for item-context logging.
+      expect(calls[0].prev).toBe(prev[0]);
+      expect(calls[0].cur).toBe(curr[0]);
     });
 
     it('does NOT fire for unchanged tasks, default-only diffs, or new tasks', () => {
