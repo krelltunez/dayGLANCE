@@ -338,5 +338,31 @@ export const mergeSyncData = (local, remote, retentionDays) => {
       if (Object.prototype.hasOwnProperty.call(local, tsKey)) result.data[tsKey] = local[tsKey];
     }
   }
+
+  // Preserve the "sticky" `archived` flag across whole-entity LWW. The upstream
+  // merge keeps the newer copy WHOLE, so if that copy simply never carried
+  // `archived` (a device that never archived the item, edited later), the archive
+  // is dropped — which then re-stamps lastModified on every cold-open (the DB-sync
+  // push churn). Restore archived:true when the merged winner OMITS it (undefined)
+  // but either original side had archived:true. An explicit archived:false is a
+  // real unarchive (present, not undefined) → left as-is so it still propagates.
+  for (const listKey of ['tasks', 'unscheduledTasks', 'recycleBin']) {
+    const mergedList = result.data[listKey];
+    if (!Array.isArray(mergedList)) continue;
+    const localById = new Map((local?.[listKey] || []).map((t) => [String(t.id), t]));
+    const remoteById = new Map((remote?.[listKey] || []).map((t) => [String(t.id), t]));
+    for (const item of mergedList) {
+      if (!item || item.archived !== undefined) continue;
+      const l = localById.get(String(item.id));
+      const r = remoteById.get(String(item.id));
+      if (l?.archived === true || r?.archived === true) {
+        item.archived = true;
+        // The side whose copy we enriched needs the corrected value written back.
+        if (l?.archived !== true) result.localChanged = true;
+        if (r?.archived !== true) result.remoteChanged = true;
+      }
+    }
+  }
+
   return result;
 };

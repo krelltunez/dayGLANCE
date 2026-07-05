@@ -2372,7 +2372,9 @@ const DayPlanner = () => {
       if (!hasChanges) return prev;
       return prev.map(t =>
         (t.completed && !t.archived && t.completedAt && new Date(t.completedAt).getTime() < cutoff)
-          ? { ...t, archived: true }
+          // Stamp lastModified so the archive wins whole-entity LWW and isn't
+          // dropped by a newer non-archived copy from another device.
+          ? { ...t, archived: true, lastModified: new Date().toISOString() }
           : t
       );
     });
@@ -3192,16 +3194,30 @@ const DayPlanner = () => {
         return next;
       });
 
+      // App-only fields that live in dayGLANCE but NOT in the Obsidian markdown,
+      // so a re-parse (parseTasksFromMarkdown) can't reproduce them. They must be
+      // carried over from the existing in-memory copy or every cold-open re-sync
+      // silently wipes them — which for `archived`/`completedAt` on a completed
+      // task looked like a phantom change and re-stamped lastModified every load
+      // (the DB-sync push churn). Only carry a value that is actually present so we
+      // never inject undefined keys.
+      const preserveObsidianAppFields = (old) => ({
+        ...(old.projectId ? { projectId: old.projectId } : {}),
+        ...(old.deadline ? { deadline: old.deadline } : {}),
+        ...(old.archived !== undefined ? { archived: old.archived } : {}),
+        ...(old.completedAt !== undefined ? { completedAt: old.completedAt } : {}),
+      });
+
       // Update tasks — remove old Obsidian imports, add fresh ones.
-      // Preserve app-only fields (projectId, deadline) that aren't stored in the
-      // Obsidian markdown and would otherwise be wiped on every re-sync.
+      // Preserve app-only fields that aren't stored in the Obsidian markdown and
+      // would otherwise be wiped on every re-sync.
       setTasks(prev => {
         const nonObsidian = prev.filter(t => t.importSource !== 'obsidian');
         const oldObsidianMap = new Map(prev.filter(t => t.importSource === 'obsidian').map(t => [String(t.id), t]));
         const merged = result.scheduledTasks.map(t => {
           const old = oldObsidianMap.get(String(t.id));
           if (!old) return t;
-          return { ...t, ...(old.projectId ? { projectId: old.projectId } : {}), ...(old.deadline ? { deadline: old.deadline } : {}) };
+          return { ...t, ...preserveObsidianAppFields(old) };
         });
         return [...nonObsidian, ...merged];
       });
@@ -3215,7 +3231,7 @@ const DayPlanner = () => {
         const merged = result.inboxTasks.map(t => {
           const old = oldObsidianMap.get(String(t.id));
           if (!old) return t;
-          return { ...t, ...(old.projectId ? { projectId: old.projectId } : {}), ...(old.deadline ? { deadline: old.deadline } : {}) };
+          return { ...t, ...preserveObsidianAppFields(old) };
         });
         return [...nonObsidian, ...merged];
       });
@@ -7528,11 +7544,17 @@ const DayPlanner = () => {
   clearDeadlineRef.current = clearDeadline;
   moveToInboxRef.current = moveToInbox;
 
+  // Archiving/unarchiving IS a modification, so it must bump lastModified — the
+  // sync engines resolve tasks by whole-entity last-writer-wins, so without a
+  // fresh timestamp the archived copy loses to any newer non-archived copy from
+  // another device and `archived` is silently dropped (habits already stamp on
+  // archive; tasks didn't). The stamp also lets an unarchive propagate instead of
+  // being clobbered by a stale archived:true elsewhere.
   const archiveInboxTask = (id) => {
-    setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, archived: true } : t));
+    setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, archived: true, lastModified: new Date().toISOString() } : t));
   };
   const restoreArchivedInboxTask = (id) => {
-    setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, archived: false } : t));
+    setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, archived: false, lastModified: new Date().toISOString() } : t));
   };
 
   // Focus mode availability: current task or back-to-back block >= 45 min remaining
