@@ -62,7 +62,7 @@ const DesktopWelcomeModal = () => {
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Eye size={16} className="text-blue-500" />
                   </span>
-                  <span><strong className={textPrimary}>GLANCE</strong> — your smart agenda: overdue tasks, today&apos;s schedule, <span className="italic">GLANCE</span>ahead, optional habit rings and goal bars, and quick access to your daily note</span>
+                  <span><strong className={textPrimary}>GLANCE</strong> — your smart agenda: overdue tasks, today&apos;s schedule, <span className="italic">GLANCE</span>ahead, optional habit rings and goal bars, and quick access to your daily note and your progress stats</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -74,7 +74,7 @@ const DesktopWelcomeModal = () => {
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Calendar size={16} className="text-blue-500" />
                   </span>
-                  <span><strong className={textPrimary}>Timeline</strong> — switch between <strong className={textPrimary}>Multi-day</strong>, <strong className={textPrimary}>Day</strong>, and <strong className={textPrimary}>Week</strong> views (<strong className={textPrimary}>Grid</strong> or <strong className={textPrimary}>List</strong> on tablet), or click or use <Plus size={12} className="inline mx-0.5" /> to add tasks</span>
+                  <span><strong className={textPrimary}>Timeline</strong> — switch between multi-day, 24-hour, and week views (grid or list view on tablet); click on the timeline or press <Plus size={12} className="inline mx-0.5" /> to add tasks</span>
                 </div>
               </div>
             </div>
