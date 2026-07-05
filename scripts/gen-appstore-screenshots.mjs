@@ -54,7 +54,7 @@ const POLISH = `
 
 const browser = await chromium.launch(launchOpts);
 
-async function seededPage(size, dark) {
+async function seededPage(size, dark, extra = '') {
   const ctx = await browser.newContext({
     viewport: { width: size.w, height: size.h },
     deviceScaleFactor: size.dsf,
@@ -66,7 +66,7 @@ async function seededPage(size, dark) {
   const p = await ctx.newPage();
   await p.goto(URL, { waitUntil: 'domcontentloaded' });
   await p.evaluate(SEED);
-  await p.evaluate(`localStorage.setItem('day-planner-darkmode', ${JSON.stringify(dark)}); ${POLISH}`);
+  await p.evaluate(`localStorage.setItem('day-planner-darkmode', ${JSON.stringify(dark)}); ${POLISH} ${extra}`);
   await p.reload({ waitUntil: 'domcontentloaded' });
   await ctx.clock.runFor(3500);
   await p.waitForTimeout(300);
@@ -106,6 +106,16 @@ async function run(mode) {
 
     await ctx.close();
   }
+
+  // ---- Phone: timeline in LIST view (fresh page, mobile-view-mode = list) ----
+  try {
+    const { ctx, p } = await seededPage(phone, dark, `localStorage.setItem('day-planner-mobile-view-mode', JSON.stringify('list'));`);
+    await p.getByText('Timeline', { exact: true }).click();
+    await settle(ctx, p);
+    await p.screenshot({ path: path.join(OUT, 'phone', tag('02b-timeline-list')) });
+    console.log(mode, '02b-timeline-list ok');
+    await ctx.close();
+  } catch (e) { console.log(mode, '02b-timeline-list FAIL', e.message.split('\n')[0]); }
 
   // ---- Phone: Daily Summary overlay (fresh page) ----
   try {
