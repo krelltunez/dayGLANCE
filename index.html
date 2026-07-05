@@ -25,6 +25,11 @@
   <meta name="color-scheme" content="light dark">
   <script src="/theme-init.js"></script>
 
+  <!-- Preload the wordmark font (Lora) so it's ready at first paint and the
+       fallback italic never flashes before it (pairs with font-display: block). -->
+  <link rel="preload" href="/fonts/lora-500-normal-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/lora-700-italic-latin.woff2" as="font" type="font/woff2" crossorigin>
+
   <!-- Favicon -->
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="icon" type="image/png" sizes="32x32" href="/icon-32x32.png">
