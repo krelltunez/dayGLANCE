@@ -7,7 +7,7 @@ import {
   unionNewerIso,
   pruneAllTombstones,
 } from './tombstoneRetention.js';
-import { applyRemoteEntity, SINGLETON_KIND, TOMBSTONE_BUNDLES } from './dbAdapter.js';
+import { applyRemoteEntity, makeEntityId, SINGLETON_KIND, TOMBSTONE_BUNDLES } from './dbAdapter.js';
 
 const DAY = 86400000;
 const daysAgo = (n) => new Date(Date.now() - n * DAY).toISOString();
@@ -143,5 +143,22 @@ describe('vault cycle — grow-union pull + 60-day prune is a stable no-op', () 
     applyRemoteEntity(mirror, singleton({ a: daysAgo(10), fresh: daysAgo(5) }));
     pruneAllTombstones(mirror, tombstoneCutoff());
     expect(mirror.deletedTaskIds.fresh).toBeDefined();
+  });
+
+  // The superset re-push (dbAdapter applyRemoteEntity → re-push entityId when the
+  // grow-union leaves local a SUPERSET of the pulled row) is the OTHER dirty
+  // source besides the snapshot-diff. Once both tiers converge on the same 60-day
+  // set it must stop emitting — otherwise it would keep writing every cycle.
+  it('emits NO superset re-push once local and remote agree (converged → no churn)', () => {
+    const steady = { a: daysAgo(10), b: daysAgo(50) };
+    const mirror = { deletedTaskIds: { ...steady } };
+    const rePush = applyRemoteEntity(mirror, singleton({ ...steady }));
+    expect(rePush).toEqual([]); // nothing to teach the vault → no write this cycle
+  });
+
+  it('emits a re-push ONLY when local genuinely holds a tombstone the vault lacks (legit propagation, terminates)', () => {
+    const mirror = { deletedTaskIds: { a: daysAgo(10), freshLocal: daysAgo(1) } };
+    const rePush = applyRemoteEntity(mirror, singleton({ a: daysAgo(10) }));
+    expect(rePush).toEqual([makeEntityId(SINGLETON_KIND, 'deletedTaskIds')]);
   });
 });
