@@ -1925,8 +1925,10 @@ describe('mergeSyncData — tombstone pruning', () => {
     minimizedSections: {}, use24HourClock: false
   });
 
-  it('prunes tombstones older than retention window', () => {
-    const oldTs = new Date(Date.now() - 100 * 86400000).toISOString(); // 100 days ago
+  const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
+
+  it('prunes tombstones older than the fixed 60-day window', () => {
+    const oldTs = daysAgo(100);
     const recentTs = ts(5); // 5 min ago
     const local = {
       ...emptyData(),
@@ -1945,16 +1947,55 @@ describe('mergeSyncData — tombstone pruning', () => {
     expect(data.removedTodayRoutineIds['old-routine']).toBeUndefined();
   });
 
-  it('keeps all tombstones when retentionDays is 0', () => {
-    const oldTs = new Date(Date.now() - 365 * 86400000).toISOString(); // 1 year ago
+  // ── The heartbeat-loop fix: tombstone GC is decoupled from "Keep past events".
+  // A tombstone inside the fixed 60-day window MUST survive even when the user set
+  // event retention as low as 30 days. Before the fix the file-tier pruned it at 30
+  // while the grow-only vault re-added it, oscillating the singleton every cycle.
+  it('KEEPS a 45-day tombstone even when event retention is 30 days', () => {
+    const local = { ...emptyData(), deletedTaskIds: { 'deleted-45d': daysAgo(45) } };
+    const { data } = mergeSyncData(local, emptyData(), 30);
+    expect(data.deletedTaskIds['deleted-45d']).toBeDefined();
+  });
+
+  it('prunes a 70-day tombstone regardless of a longer event-retention setting', () => {
+    const local = { ...emptyData(), deletedTaskIds: { 'deleted-70d': daysAgo(70) } };
+    const { data } = mergeSyncData(local, emptyData(), 365);
+    expect(data.deletedTaskIds['deleted-70d']).toBeUndefined();
+  });
+
+  it('retentionDays=0 keeps events forever but STILL GCs tombstones at 60 days', () => {
     const local = {
       ...emptyData(),
-      deletedTaskIds: { 'ancient': oldTs },
+      deletedTaskIds: { 'ancient': daysAgo(365), 'recent': daysAgo(10) },
+      completedTaskUids: ['evt::2020-01-01'], // 5+ years old imported event UID
     };
-    const remote = emptyData();
+    const { data } = mergeSyncData(local, emptyData(), 0);
+    // Events: "Keep past events = All" → the ancient UID survives.
+    expect(data.completedTaskUids).toContain('evt::2020-01-01');
+    // Tombstones: fixed 60-day GC, independent of the event setting.
+    expect(data.deletedTaskIds['ancient']).toBeUndefined();
+    expect(data.deletedTaskIds['recent']).toBeDefined();
+  });
 
-    const { data } = mergeSyncData(local, remote, 0);
-    expect(data.deletedTaskIds['ancient']).toBeDefined();
+  it('event retention (completedTaskUids) still honors the user setting, tombstones do not', () => {
+    // 40-day-old event UID + 40-day-old tombstone, event retention = 30 days.
+    const local = {
+      ...emptyData(),
+      deletedTaskIds: { 'deleted-40d': daysAgo(40) },
+      completedTaskUids: ['evt::' + daysAgo(40).slice(0, 10)],
+    };
+    const { data } = mergeSyncData(local, emptyData(), 30);
+    // Event dropped at 30 days (user setting); tombstone kept under the 60-day floor.
+    expect(data.completedTaskUids).toHaveLength(0);
+    expect(data.deletedTaskIds['deleted-40d']).toBeDefined();
+  });
+
+  it('a no-change cycle leaves the tombstone bundles byte-identical (no false-diff → no push)', () => {
+    // The core loop symptom: re-merging the same state must not mutate the bundles,
+    // otherwise the DB engine snapshot-diff flags them dirty every cycle.
+    const stable = { ...emptyData(), deletedTaskIds: { 'a': daysAgo(10), 'b': daysAgo(50) } };
+    const { data } = mergeSyncData(stable, stable, 30);
+    expect(data.deletedTaskIds).toEqual({ 'a': stable.deletedTaskIds.a, 'b': stable.deletedTaskIds.b });
   });
 });
 
