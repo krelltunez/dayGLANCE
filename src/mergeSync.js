@@ -3,6 +3,12 @@
 // mergeTaskArrays pins timestampField rather than re-exporting the alias
 // directly (which would default to `updatedAt`).
 import { mergeArrayById, mergeSyncData as upstreamMergeSyncData, pruneTombstones } from '@glance-apps/sync';
+import {
+  TOMBSTONE_BUNDLE_KEYS,
+  tombstoneCutoff,
+  pruneTombstoneMap,
+  unionNewerIso as unionTombstones,
+} from './sync/tombstoneRetention.js';
 
 export const mergeTaskArrays = (local, remote, deletedIds, syncHorizon = null) =>
   mergeArrayById(local, remote, deletedIds, syncHorizon, { timestampField: 'lastModified' });
@@ -241,6 +247,13 @@ const sameDateSet = (a = [], b = []) => {
   return sa.size === sb.size && [...sa].every((x) => sb.has(x));
 };
 
+// Same keys, same values (order-insensitive) — used to decide whether the
+// 60-day tombstone override actually changed a bundle vs one side.
+const tombstoneMapsEqual = (a = {}, b = {}) => {
+  const ak = Object.keys(a), bk = Object.keys(b);
+  return ak.length === bk.length && ak.every((k) => a[k] === b[k]);
+};
+
 /**
  * Full-sync merge. Delegates to the upstream merge, then overrides the
  * habit-log portion with the deterministic tie-break above so existing stuck
@@ -248,6 +261,11 @@ const sameDateSet = (a = [], b = []) => {
  */
 export const mergeSyncData = (local, remote, retentionDays) => {
   const result = upstreamMergeSyncData(local, remote, retentionDays);
+  // Tombstone GC is its OWN fixed 60-day policy (src/sync/tombstoneRetention.js),
+  // NOT the user's "Keep past events" window (retentionDays). retentionDays still
+  // prunes imported events (completedTaskUids) inside the upstream merge above;
+  // we override only the tombstone bundles below so both sync transports agree.
+  const tsCutoff = tombstoneCutoff();
   const habitLogsFix = mergeHabitLogs(
     local?.habitLogs || {},
     remote?.habitLogs || {},
@@ -320,8 +338,8 @@ export const mergeSyncData = (local, remote, retentionDays) => {
       { timestampField: 'updatedAt' },
     );
     result.data.areas = areasMerge.merged;
-    const cutoff = retentionDays > 0 ? new Date(Date.now() - retentionDays * 86400000) : null;
-    result.data.deletedAreaIds = pruneTombstones(allDeletedAreaIds, cutoff);
+    // Tombstones prune at the fixed 60-day window, not the event-retention setting.
+    result.data.deletedAreaIds = pruneTombstoneMap(allDeletedAreaIds, tsCutoff);
     if (areasMerge.localChanged) result.localChanged = true;
     if (areasMerge.remoteChanged) result.remoteChanged = true;
   }
@@ -362,6 +380,20 @@ export const mergeSyncData = (local, remote, retentionDays) => {
         if (r?.archived !== true) result.remoteChanged = true;
       }
     }
+  }
+
+  // Override the upstream tombstone pruning (which used `retentionDays`) with the
+  // fixed 60-day window so the file-tier and the vault DB tier keep the SAME set.
+  // Reconstruct each bundle from both sides' raw maps (grow-union, newest ts per
+  // id) then prune at 60 days. deletedAreaIds is handled in the areas block above.
+  for (const key of TOMBSTONE_BUNDLE_KEYS) {
+    if (key === 'deletedAreaIds') continue;
+    const merged = pruneTombstoneMap(unionTombstones(local?.[key], remote?.[key]), tsCutoff);
+    result.data[key] = merged;
+    // Only ever RAISE the change flags (never clear another writer's true): if the
+    // 60-day set differs from a side, that side needs the corrected bundle written.
+    if (!tombstoneMapsEqual(merged, local?.[key] || {})) result.localChanged = true;
+    if (!tombstoneMapsEqual(merged, remote?.[key] || {})) result.remoteChanged = true;
   }
 
   return result;

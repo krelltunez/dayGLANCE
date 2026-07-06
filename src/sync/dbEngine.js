@@ -35,6 +35,7 @@ import {
   getEntityLastModified,
   reconcileCrossList,
 } from './dbAdapter.js';
+import { pruneAllTombstones, tombstoneCutoff } from './tombstoneRetention.js';
 
 const APP_ID = 'dayglance';
 const CRYPTO_DB_NAME = 'dayglance-db-crypto';
@@ -338,6 +339,18 @@ export function createDbEngine(callbacks = {}) {
       // bypass — so surface undecryptable-row skips from the pull result here.
       if (pull && pull.skipped > 0) callbacks.onRowsSkipped?.(pull.skipped, pull.skippedEntityIds || []);
       reconcileCrossList(mirror, (id) => engine.markDirty(id));
+      // Age tombstones out at the fixed 60-day window (src/sync/tombstoneRetention.js).
+      // The vault bundle merge is grow-only (dbAdapter unionNewerIso), so a pull
+      // re-adds every tombstone a peer still holds; without this the mirror would
+      // never shed old tombstones and would disagree with the file-tier merge
+      // (which prunes at 60 days), leaving the singleton row oscillating pruned↔
+      // restored → push → seq advance → SSE self-nudge loop. Pruning HERE — after
+      // pull/reconcile, before the push+snapshot save — means the pushed bundle,
+      // the saved snapshot, and the committed state all carry the same pruned set,
+      // so an unchanged cycle stays clean. The cutoff is day-floored, so the pruned
+      // set only shifts once per day (one push), never every cycle. Local-only GC:
+      // an entry we drop but a peer keeps is simply re-dropped next cycle, no churn.
+      pruneAllTombstones(mirror, tombstoneCutoff());
       callbacks.onStatusChange?.('uploading');
       // TEMP diagnostic: capture the COMPLETE dirty set (snapshot-diff + pull
       // re-push + cross-list reconcile) right before the push, then report what

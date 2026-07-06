@@ -28,6 +28,7 @@
 
 import { mergeHabitLogs, mergeRoutineDefinitions, mergeRoutineCompletions, mergeCompletedDates } from '../mergeSync.js';
 import { floorToUtcDayIso } from '../utils/tombstoneHorizon.js';
+import { TOMBSTONE_BUNDLE_KEYS } from './tombstoneRetention.js';
 
 // ── Collection kinds: each array element is one row, keyed by a stable id, with
 // entity-grain last-writer-wins on tsField (the same grain the file-tier merge
@@ -376,10 +377,11 @@ const MERGE = {
   },
 };
 
-const TOMBSTONE_BUNDLES = new Set([
-  'deletedTaskIds', 'deletedRoutineChipIds', 'deletedFrameIds', 'removedTodayRoutineIds',
-  'deletedHabitIds', 'deletedGoalIds', 'deletedProjectIds', 'deletedAreaIds',
-]);
+// Grow-only during a single merge (unionNewerIso). Aging tombstones OUT to the
+// fixed 60-day window is a separate concern the DB engine handles on the mirror
+// (dbEngine.js) — see src/sync/tombstoneRetention.js — so this stays a pure,
+// order-independent union and never loses an entry mid-merge.
+export const TOMBSTONE_BUNDLES = new Set(TOMBSTONE_BUNDLE_KEYS);
 // Device-local prefs: the file-tier merge keeps the local value (merge.js:900-901
 // / weather not in merge output), so a pulled value never overwrites it. Listed
 // so the default branch doesn't LWW-clobber them. obsidianConfig is here
