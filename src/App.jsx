@@ -11,7 +11,8 @@ import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { tombstoneHorizon } from './utils/tombstoneHorizon.js';
 import { preserveArchived } from './utils/preserveArchived.js';
-import { preserveDailyNoteTimestamps } from './utils/preserveDailyNoteTimestamps.js';
+import { mergeObsidianDailyNotes } from './utils/mergeObsidianDailyNotes.js';
+import { mergeObsidianTasks } from './utils/mergeObsidianTasks.js';
 import { stripHealthSourcedLogs } from './utils/healthLogFilter.js';
 import { webdavFetch } from './utils/cloudSyncProviders.js';
 import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
@@ -3194,13 +3195,14 @@ const DayPlanner = () => {
             obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
           );
 
-      // Update daily notes — replace with Obsidian-sourced notes. Obsidian is the
-      // sole source when enabled, so the scan result fully defines the map. But the
-      // native bridge has no file mtime, so syncObsidianVaultNative stamps a fresh
-      // `lastModified` on every scan (src/obsidian.js) — which would re-push every
-      // note each scan and drive the SSE self-nudge loop. Carry the prior timestamp
-      // forward for notes whose text is unchanged so only genuine edits re-push.
-      setDailyNotes(prev => preserveDailyNoteTimestamps(prev, result.dailyNotes));
+      // Update daily notes — MERGE the scan in, don't replace. Replacing deletes
+      // any note this device's vault lacks (different vault, shorter retention, or
+      // no Obsidian at all), which another device then re-adds → an endless
+      // cross-device delete↔re-add loop in the vault (measured via [pull] DELETE
+      // dailyNotes:… ↔ new dailyNotes:…). Merge keeps other devices' dates and
+      // carries the prior lastModified forward for unchanged text (the native
+      // bridge restamps it every scan — src/obsidian.js). See mergeObsidianDailyNotes.
+      setDailyNotes(prev => mergeObsidianDailyNotes(prev, result.dailyNotes));
 
       // App-only fields that live in dayGLANCE but NOT in the Obsidian markdown,
       // so a re-parse (parseTasksFromMarkdown) can't reproduce them. They must be
@@ -3220,33 +3222,22 @@ const DayPlanner = () => {
         ...(old.assignedUserSyncIds !== undefined ? { assignedUserSyncIds: old.assignedUserSyncIds } : {}),
       });
 
-      // Update tasks — remove old Obsidian imports, add fresh ones.
-      // Preserve app-only fields that aren't stored in the Obsidian markdown and
-      // would otherwise be wiped on every re-sync.
-      setTasks(prev => {
-        const nonObsidian = prev.filter(t => t.importSource !== 'obsidian');
-        const oldObsidianMap = new Map(prev.filter(t => t.importSource === 'obsidian').map(t => [String(t.id), t]));
-        const merged = result.scheduledTasks.map(t => {
-          const old = oldObsidianMap.get(String(t.id));
-          if (!old) return t;
-          return { ...t, ...preserveObsidianAppFields(old) };
-        });
-        return [...nonObsidian, ...merged];
-      });
+      // IDs this device's scan produced, across BOTH lists — so a task that moved
+      // between scheduled/inbox is counted as "scanned" (and thus not retained as a
+      // stale duplicate in the list it left). Used to decide which prior Obsidian
+      // tasks to KEEP rather than delete (same cross-device loop as daily notes:
+      // deleting an Obsidian task this vault lacks makes another device re-add it).
+      const scannedObsidianIds = new Set([
+        ...result.scheduledTasks.map(t => String(t.id)),
+        ...result.inboxTasks.map(t => String(t.id)),
+      ]);
 
-      // Update inbox — remove old Obsidian imports, add fresh ones.
-      // Preserve app-only fields (projectId, deadline) that aren't stored in the
-      // Obsidian markdown and would otherwise be wiped on every re-sync.
-      setUnscheduledTasks(prev => {
-        const nonObsidian = prev.filter(t => t.importSource !== 'obsidian');
-        const oldObsidianMap = new Map(prev.filter(t => t.importSource === 'obsidian').map(t => [String(t.id), t]));
-        const merged = result.inboxTasks.map(t => {
-          const old = oldObsidianMap.get(String(t.id));
-          if (!old) return t;
-          return { ...t, ...preserveObsidianAppFields(old) };
-        });
-        return [...nonObsidian, ...merged];
-      });
+      // Update tasks/inbox — merge fresh Obsidian imports over old ones, preserve
+      // app-only fields, and RETAIN prior Obsidian tasks this scan didn't produce
+      // (they may belong to another device's vault — deleting them starts the
+      // resurrection loop). See mergeObsidianTasks.
+      setTasks(prev => mergeObsidianTasks(prev, result.scheduledTasks, scannedObsidianIds, preserveObsidianAppFields));
+      setUnscheduledTasks(prev => mergeObsidianTasks(prev, result.inboxTasks, scannedObsidianIds, preserveObsidianAppFields));
 
       // Snapshot the fresh task state so the writeback effect doesn't re-trigger
       const snapshot = {};
