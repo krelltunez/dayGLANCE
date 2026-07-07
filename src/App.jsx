@@ -10,7 +10,6 @@ import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORI
 import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { tombstoneHorizon } from './utils/tombstoneHorizon.js';
-import { TOMBSTONE_RETENTION_DAYS } from './sync/tombstoneRetention.js';
 import { preserveArchived } from './utils/preserveArchived.js';
 import { mergeObsidianDailyNotes } from './utils/mergeObsidianDailyNotes.js';
 import { mergeObsidianTasks } from './utils/mergeObsidianTasks.js';
@@ -5898,18 +5897,21 @@ const DayPlanner = () => {
         multiUserEnabled,
         multiUserEnabledUpdatedAt: localStorage.getItem('dayglance-multi-user-enabled-updated-at') || null,
         users,
-        // The resurrection FENCE. It MUST match the tombstone GC horizon, which is
-        // the FIXED 60-day window (TOMBSTONE_RETENTION_DAYS), NOT the user's "Keep
-        // past events" setting (syncRetentionDays). Tombstone GC was decoupled to a
-        // fixed 60 days; leaving the fence on syncRetentionDays left a resurrection
-        // gap: with retention > 60 the fence sat further back than the 60-day GC, so
-        // a zombie aged 60→retention days had its tombstone GC'd yet slipped under
-        // the fence and resurrected; with retention 0 the fence was null (no fence)
-        // while tombstones still GC'd at 60. Pinning the fence to 60 == GC closes
-        // both. Floored to the UTC day so the row is STABLE across cycles (a fresh
-        // Date.now() re-pushed it every cycle → seq advance → SSE self-nudge loop;
-        // see utils/tombstoneHorizon.js).
-        tombstonePrunedBefore: tombstoneHorizon(TOMBSTONE_RETENTION_DAYS),
+        // Floored to the UTC day so this row is STABLE across sync cycles. A
+        // fresh Date.now() here changed the value every cycle, so the snapshot-
+        // diff re-pushed it every cycle → account seq advance → SSE self-nudge
+        // loop. See utils/tombstoneHorizon.js. (Pruning uses a fresh cutoff in
+        // the merge, so a day-granular fence changes nothing that gets pruned.)
+        //
+        // NOTE: this is intentionally still syncRetentionDays, NOT the fixed 60-day
+        // horizon. The value is merged with newerIso (dbAdapter.js) — monotonic,
+        // keeps the newest — so all devices MUST compute the SAME value or the ones
+        // emitting an older value churn forever (getData recomputes a value newerIso
+        // won't accept back). A fixed-60 fence is OLDER than a retention<60 device's
+        // value, so it never converges. Aligning the fence with the fixed-60 GC
+        // (the resurrection gap at retention>60 / retention=0) needs the merge
+        // reconciled first — tracked as a follow-up, not a one-line swap.
+        tombstonePrunedBefore: tombstoneHorizon(syncRetentionDays),
       }
     };
   };
