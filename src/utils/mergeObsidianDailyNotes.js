@@ -1,38 +1,44 @@
+import { isObsidianTombstoned } from './obsidianDeletions.js';
+
 // Merge an Obsidian scan into the existing daily-notes map WITHOUT deleting notes
-// the scan didn't produce.
+// the scan didn't produce — unless a deletion tombstone says the note was really
+// removed from the vault.
 //
 // WHY (measured): with two devices on one GLANCEvault, `performObsidianSync` used
 // to REPLACE the whole dailyNotes map with the local scan. When the two devices'
-// Obsidian vaults differ (different notes, shorter retention window, or one device
-// has no vault at all), the device with fewer notes deletes the ones it lacks →
-// pushes per-row DELETEs to the vault → the other device's scan re-adds them →
-// pushes them back → the other device deletes them again. An endless cross-device
-// resurrection loop (the `[pull] DELETE dailyNotes:…` ↔ `new dailyNotes:…` churn
-// in the vault log).
+// scans differ (different notes, shorter retention, lazy-downloaded mobile vault,
+// or one device has no vault at all), the device with fewer notes deletes the ones
+// it lacks → per-row DELETEs → the other device's scan re-adds them → forever (the
+// `[pull] DELETE dailyNotes:… ↔ new dailyNotes:…` churn in the vault log).
 //
-// FIX: treat the scan as authoritative only for the dates it actually covers.
-//   - a date in the scan  → take the scanned note (its text is fresher), but carry
-//     the prior `lastModified` forward when the text is unchanged so an unedited
-//     note doesn't re-push every scan (the native bridge has no file mtime and
-//     restamps `lastModified: new Date()` each scan — see src/obsidian.js);
-//   - a date only in `prev` → KEEP it. It belongs to another device's vault (or is
-//     outside this device's retention window); deleting it is what caused the loop.
+// RULE:
+//   - a date in the scan  → take the scanned note (fresher text), carrying the
+//     prior `lastModified` forward when the text is unchanged so an unedited note
+//     doesn't re-push every scan (the native bridge restamps it each scan);
+//   - a date only in `prev` → KEEP it (belongs to another device's vault);
+//   - EXCEPT: a date whose deletion tombstone is at least as new as the note is
+//     dropped — a genuine vault deletion propagates. A note re-created in Obsidian
+//     later (newer lastModified than the tombstone) wins and comes back.
 //
-// TRADE-OFF: a note genuinely deleted in Obsidian is no longer removed across
-// devices by a scan alone (that needs a tombstone, like deletedTaskIds). This is
-// strictly safer than the previous behaviour, which both looped forever AND
-// deleted one device's notes from the other.
-//
-// @param {Record<string, {text:string, lastModified?:string}>} prev      current notes
-// @param {Record<string, {text:string, lastModified?:string}>} scanned   this device's scan
-// @returns {Record<string, object>} union of prev + scanned, timestamps preserved
-export function mergeObsidianDailyNotes(prev, scanned) {
-  const out = { ...(prev || {}) }; // start from existing → never drop another device's dates
+// @param {Record<string, {text:string, lastModified?:string}>} prev       current notes
+// @param {Record<string, {text:string, lastModified?:string}>} scanned    this device's scan
+// @param {Record<string, string>} [tombstones]  deletedObsidianKeys (date → deletedAt ISO)
+// @returns {Record<string, object>} merged map
+export function mergeObsidianDailyNotes(prev, scanned, tombstones = {}) {
+  const out = {};
+  // Retain existing dates (other devices' notes / out-of-window) unless tombstoned.
+  for (const [date, note] of Object.entries(prev || {})) {
+    if (isObsidianTombstoned(tombstones, date, note && note.lastModified)) continue;
+    out[date] = note;
+  }
+  // Apply the scan: override text, preserve timestamp when unchanged, honor deletes.
   for (const [date, note] of Object.entries(scanned || {})) {
     const old = prev && prev[date];
-    out[date] = (old && old.text === note.text && old.lastModified)
-      ? { ...note, lastModified: old.lastModified } // unchanged text → stable timestamp
+    const merged = (old && old.text === note.text && old.lastModified)
+      ? { ...note, lastModified: old.lastModified }
       : note;
+    if (isObsidianTombstoned(tombstones, date, merged.lastModified)) { delete out[date]; continue; }
+    out[date] = merged;
   }
   return out;
 }

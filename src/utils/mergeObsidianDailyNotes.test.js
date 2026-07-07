@@ -49,4 +49,24 @@ describe('mergeObsidianDailyNotes', () => {
     expect(mergeObsidianDailyNotes(undefined, { d: note('t', 'ts') })).toEqual({ d: note('t', 'ts') });
     expect(mergeObsidianDailyNotes({ d: note('t', 'ts') }, null)).toEqual({ d: note('t', 'ts') });
   });
+
+  it('drops a retained note when a deletion tombstone is newer (propagates a vault delete)', () => {
+    const prev = { '2026-04-06': note('a', '2026-04-06T10:00:00.000Z') };
+    const tombstones = { '2026-04-06': '2026-07-07T00:00:00.000Z' };
+    expect(mergeObsidianDailyNotes(prev, {}, tombstones)).toEqual({}); // gone
+  });
+
+  it('drops a scanned note that is tombstoned (deleted, not yet gone from this vault)', () => {
+    const prev = {};
+    const scanned = { '2026-04-06': note('a', '2026-04-06T10:00:00.000Z') };
+    const tombstones = { '2026-04-06': '2026-07-07T00:00:00.000Z' };
+    expect(mergeObsidianDailyNotes(prev, scanned, tombstones)).toEqual({});
+  });
+
+  it('resurrects a note re-created AFTER the tombstone (newer lastModified wins)', () => {
+    const scanned = { '2026-04-06': note('rewritten', '2026-07-08T00:00:00.000Z') };
+    const tombstones = { '2026-04-06': '2026-07-07T00:00:00.000Z' };
+    const out = mergeObsidianDailyNotes({}, scanned, tombstones);
+    expect(out['2026-04-06'].text).toBe('rewritten');
+  });
 });

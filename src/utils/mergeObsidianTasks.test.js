@@ -57,4 +57,25 @@ describe('mergeObsidianTasks', () => {
     expect(out.filter(t => t.id === 'a')).toHaveLength(1);
     expect(out[0].archived).toBe(true);
   });
+
+  it('drops a retained task when a deletion tombstone is newer', () => {
+    const prev = [obs('a', { lastModified: '2026-04-06T10:00:00.000Z' })];
+    const tombstones = { a: '2026-07-07T00:00:00.000Z' };
+    const out = mergeObsidianTasks(prev, [], new Set(), preserve, tombstones);
+    expect(out).toEqual([]);
+  });
+
+  it('drops a scanned task that is tombstoned', () => {
+    const scanned = [obs('a', { lastModified: '2026-04-06T10:00:00.000Z' })];
+    const tombstones = { a: '2026-07-07T00:00:00.000Z' };
+    const out = mergeObsidianTasks([], scanned, new Set(['a']), preserve, tombstones);
+    expect(out).toEqual([]);
+  });
+
+  it('keeps a task re-created after the tombstone (newer lastModified wins)', () => {
+    const scanned = [obs('a', { lastModified: '2026-07-08T00:00:00.000Z' })];
+    const tombstones = { a: '2026-07-07T00:00:00.000Z' };
+    const out = mergeObsidianTasks([], scanned, new Set(['a']), preserve, tombstones);
+    expect(out.map(t => t.id)).toEqual(['a']);
+  });
 });
