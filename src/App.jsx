@@ -10,8 +10,11 @@ import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORI
 import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { tombstoneHorizon } from './utils/tombstoneHorizon.js';
+import { TOMBSTONE_RETENTION_DAYS } from './sync/tombstoneRetention.js';
 import { preserveArchived } from './utils/preserveArchived.js';
-import { preserveDailyNoteTimestamps } from './utils/preserveDailyNoteTimestamps.js';
+import { mergeObsidianDailyNotes } from './utils/mergeObsidianDailyNotes.js';
+import { mergeObsidianTasks } from './utils/mergeObsidianTasks.js';
+import { detectObsidianDeletions, addObsidianTombstones } from './utils/obsidianDeletions.js';
 import { stripHealthSourcedLogs } from './utils/healthLogFilter.js';
 import { webdavFetch } from './utils/cloudSyncProviders.js';
 import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
@@ -3194,14 +3197,6 @@ const DayPlanner = () => {
             obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
           );
 
-      // Update daily notes — replace with Obsidian-sourced notes. Obsidian is the
-      // sole source when enabled, so the scan result fully defines the map. But the
-      // native bridge has no file mtime, so syncObsidianVaultNative stamps a fresh
-      // `lastModified` on every scan (src/obsidian.js) — which would re-push every
-      // note each scan and drive the SSE self-nudge loop. Carry the prior timestamp
-      // forward for notes whose text is unchanged so only genuine edits re-push.
-      setDailyNotes(prev => preserveDailyNoteTimestamps(prev, result.dailyNotes));
-
       // App-only fields that live in dayGLANCE but NOT in the Obsidian markdown,
       // so a re-parse (parseTasksFromMarkdown) can't reproduce them. They must be
       // carried over from the existing in-memory copy or every cold-open re-sync
@@ -3220,33 +3215,58 @@ const DayPlanner = () => {
         ...(old.assignedUserSyncIds !== undefined ? { assignedUserSyncIds: old.assignedUserSyncIds } : {}),
       });
 
-      // Update tasks — remove old Obsidian imports, add fresh ones.
-      // Preserve app-only fields that aren't stored in the Obsidian markdown and
-      // would otherwise be wiped on every re-sync.
-      setTasks(prev => {
-        const nonObsidian = prev.filter(t => t.importSource !== 'obsidian');
-        const oldObsidianMap = new Map(prev.filter(t => t.importSource === 'obsidian').map(t => [String(t.id), t]));
-        const merged = result.scheduledTasks.map(t => {
-          const old = oldObsidianMap.get(String(t.id));
-          if (!old) return t;
-          return { ...t, ...preserveObsidianAppFields(old) };
-        });
-        return [...nonObsidian, ...merged];
-      });
+      // Keys this device's scan produced: daily-note dates + task ids (across BOTH
+      // task lists, so a task that moved scheduled↔inbox counts as scanned and
+      // isn't retained as a stale duplicate in the list it left).
+      const scannedObsidianIds = new Set([
+        ...result.scheduledTasks.map(t => String(t.id)),
+        ...result.inboxTasks.map(t => String(t.id)),
+      ]);
+      const scannedKeys = [...Object.keys(result.dailyNotes), ...scannedObsidianIds];
 
-      // Update inbox — remove old Obsidian imports, add fresh ones.
-      // Preserve app-only fields (projectId, deadline) that aren't stored in the
-      // Obsidian markdown and would otherwise be wiped on every re-sync.
-      setUnscheduledTasks(prev => {
-        const nonObsidian = prev.filter(t => t.importSource !== 'obsidian');
-        const oldObsidianMap = new Map(prev.filter(t => t.importSource === 'obsidian').map(t => [String(t.id), t]));
-        const merged = result.inboxTasks.map(t => {
-          const old = oldObsidianMap.get(String(t.id));
-          if (!old) return t;
-          return { ...t, ...preserveObsidianAppFields(old) };
-        });
-        return [...nonObsidian, ...merged];
-      });
+      // Option 1 — DELETION DETECTION (conservative). Diff this device's current
+      // scan against what it scanned last time; keys it previously saw and no
+      // longer sees were genuinely removed from the vault → tombstone them (synced,
+      // so every device stops re-adding them). Only items THIS device scanned can
+      // be reported, and an empty/large-drop scan is treated as incomplete and
+      // reports nothing — so a not-yet-downloaded or partial vault can't delete
+      // real data. See utils/obsidianDeletions.js.
+      let tombstones = {};
+      try { tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-obsidian-keys') || '{}'); } catch { tombstones = {}; }
+      let lastScanned = [];
+      try { lastScanned = JSON.parse(localStorage.getItem('day-planner-obsidian-last-scanned') || '[]'); } catch { lastScanned = []; }
+      // The scan only reads notes/tasks within `syncRetentionDays` of today
+      // (src/obsidian.js), so notes aging out of that window must NOT be mistaken
+      // for deletions. Compute the same cutoff and pass it to the detector.
+      let obsidianCutoff = null;
+      if (syncRetentionDays && syncRetentionDays > 0) {
+        const c = new Date();
+        c.setDate(c.getDate() - syncRetentionDays);
+        obsidianCutoff = `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, '0')}-${String(c.getDate()).padStart(2, '0')}`;
+      }
+      const { deletions, skipped } = detectObsidianDeletions(lastScanned, scannedKeys, obsidianCutoff);
+      if (deletions.length) {
+        tombstones = addObsidianTombstones(tombstones, deletions, new Date().toISOString());
+        localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(tombstones));
+      }
+      // Only advance the baseline on a scan we trusted — a skipped (incomplete) scan
+      // leaves lastScanned intact so the next clean scan can still catch the delete.
+      if (!skipped) localStorage.setItem('day-planner-obsidian-last-scanned', JSON.stringify(scannedKeys));
+
+      // Update daily notes — MERGE the scan in, don't replace. Replacing deletes
+      // any note this device's vault lacks (different vault, shorter retention, or
+      // no Obsidian at all), which another device then re-adds → an endless
+      // cross-device delete↔re-add loop (measured via [pull] DELETE dailyNotes:… ↔
+      // new dailyNotes:…). Merge keeps other devices' dates, carries the prior
+      // lastModified forward for unchanged text, and honors deletion tombstones so
+      // a genuine vault deletion still propagates. See mergeObsidianDailyNotes.
+      setDailyNotes(prev => mergeObsidianDailyNotes(prev, result.dailyNotes, tombstones));
+
+      // Update tasks/inbox — same merge-not-replace + honor-tombstones rule; RETAIN
+      // prior Obsidian tasks this scan didn't produce (another device's vault),
+      // drop only those with a deletion tombstone. See mergeObsidianTasks.
+      setTasks(prev => mergeObsidianTasks(prev, result.scheduledTasks, scannedObsidianIds, preserveObsidianAppFields, tombstones));
+      setUnscheduledTasks(prev => mergeObsidianTasks(prev, result.inboxTasks, scannedObsidianIds, preserveObsidianAppFields, tombstones));
 
       // Snapshot the fresh task state so the writeback effect doesn't re-trigger
       const snapshot = {};
@@ -5853,6 +5873,7 @@ const DayPlanner = () => {
         deletedTaskIds: JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}'),
         deletedRoutineChipIds: JSON.parse(localStorage.getItem('day-planner-deleted-routine-chip-ids') || '{}'),
         deletedFrameIds: JSON.parse(localStorage.getItem('day-planner-deleted-frame-ids') || '{}'),
+        deletedObsidianKeys: JSON.parse(localStorage.getItem('day-planner-deleted-obsidian-keys') || '{}'),
         removedTodayRoutineIds,
         dailyNotes,
         habits,
@@ -5877,12 +5898,18 @@ const DayPlanner = () => {
         multiUserEnabled,
         multiUserEnabledUpdatedAt: localStorage.getItem('dayglance-multi-user-enabled-updated-at') || null,
         users,
-        // Floored to the UTC day so this row is STABLE across sync cycles. A
-        // fresh Date.now() here changed the value every cycle, so the snapshot-
-        // diff re-pushed it every cycle → account seq advance → SSE self-nudge
-        // loop. See utils/tombstoneHorizon.js. (Pruning uses a fresh cutoff in
-        // the merge, so a day-granular fence changes nothing that gets pruned.)
-        tombstonePrunedBefore: tombstoneHorizon(syncRetentionDays),
+        // The resurrection FENCE. It MUST match the tombstone GC horizon, which is
+        // the FIXED 60-day window (TOMBSTONE_RETENTION_DAYS), NOT the user's "Keep
+        // past events" setting (syncRetentionDays). Tombstone GC was decoupled to a
+        // fixed 60 days; leaving the fence on syncRetentionDays left a resurrection
+        // gap: with retention > 60 the fence sat further back than the 60-day GC, so
+        // a zombie aged 60→retention days had its tombstone GC'd yet slipped under
+        // the fence and resurrected; with retention 0 the fence was null (no fence)
+        // while tombstones still GC'd at 60. Pinning the fence to 60 == GC closes
+        // both. Floored to the UTC day so the row is STABLE across cycles (a fresh
+        // Date.now() re-pushed it every cycle → seq advance → SSE self-nudge loop;
+        // see utils/tombstoneHorizon.js).
+        tombstonePrunedBefore: tombstoneHorizon(TOMBSTONE_RETENTION_DAYS),
       }
     };
   };
@@ -5984,6 +6011,7 @@ const DayPlanner = () => {
     if (data.deletedTaskIds) localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(data.deletedTaskIds));
     if (data.deletedRoutineChipIds) localStorage.setItem('day-planner-deleted-routine-chip-ids', JSON.stringify(data.deletedRoutineChipIds));
     if (data.deletedFrameIds) localStorage.setItem('day-planner-deleted-frame-ids', JSON.stringify(data.deletedFrameIds));
+    if (data.deletedObsidianKeys) localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(data.deletedObsidianKeys));
     if (data.removedTodayRoutineIds) {
       localStorage.setItem('day-planner-removed-today-routine-ids', JSON.stringify(data.removedTodayRoutineIds));
       setRemovedTodayRoutineIds(data.removedTodayRoutineIds);

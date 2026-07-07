@@ -16,12 +16,13 @@
 // advances (once per day), so tombstones still age out.
 //
 // SAFETY: this value is only the resurrection FENCE (merge.js syncHorizon) and the
-// reported "pruned-before" marker. The ACTUAL tombstone pruning uses a fresh
-// `Date.now() - retention` computed inside the merge, independent of this field —
-// so a coarser fence does not change what gets pruned. Flooring makes the fence at
-// most 24h earlier at the ~90-day mark, which is conservative (keeps tombstones
-// slightly longer; suppresses resurrection marginally less) and well within the
-// field's inherently fuzzy semantics.
+// reported "pruned-before" marker. It MUST be computed from the SAME horizon the
+// tombstone GC uses — the fixed 60-day window (TOMBSTONE_RETENTION_DAYS), passed by
+// the caller — NOT the user's "Keep past events" setting. The fence tells peers
+// "I've pruned tombstones older than this, so don't resurrect items older than
+// this"; if it disagrees with the GC horizon a zombie in the gap resurrects (see
+// buildSyncPayload). Flooring to the UTC day keeps the row stable across the many
+// cycles within a day (an unstable value re-pushes every cycle → SSE self-nudge).
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

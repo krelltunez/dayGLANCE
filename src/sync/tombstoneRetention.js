@@ -42,6 +42,10 @@ export const TOMBSTONE_BUNDLE_KEYS = [
   'deletedGoalIds',
   'deletedProjectIds',
   'deletedAreaIds',
+  // Obsidian deletion tombstones: { key → deletedAt ISO }, key = daily-note date
+  // or Obsidian task id. Merges grow-only newest-per-key and prunes at 60 days
+  // like the rest; suppresses a scan re-adding a note/task deleted in the vault.
+  'deletedObsidianKeys',
 ];
 
 /**
