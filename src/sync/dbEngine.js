@@ -268,11 +268,22 @@ export function createDbEngine(callbacks = {}) {
     nativeStoreSyncKey,
     getLocalEntity: (entityId) => adapterGetLocalEntity(mirror, entityId),
     applyRemoteEntity: (entityId, entity) => {
+      // TEMP diagnostic (gated on dayglance-debug-push): a remote row that revives
+      // a row this device had dropped is the "re-created" half of a delete↔create
+      // ping-pong. Logging every applied entityId shows whether the churn arrives
+      // FROM the vault (another device re-pushing) vs originates locally.
+      if (debugPushEnabled()) console.log('[pull] apply', entityId);
       // Bundle merges may leave us richer than the clobbered vault row; re-push
       // the superset so it converges at the vault (see dbAdapter / stage-2 doc).
       for (const id of adapterApplyRemoteEntity(mirror, entity)) engine.markDirty(id);
     },
-    applyRemoteDelete: (entityId) => adapterApplyRemoteDelete(mirror, entityId),
+    applyRemoteDelete: (entityId) => {
+      // TEMP diagnostic (gated): a remote DELETE row for a row we still hold live
+      // is the "deleted" half of the ping-pong — it proves the delete came from
+      // the vault log (a peer's soft-delete), not from local state loss.
+      if (debugPushEnabled()) console.log('[pull] DELETE', entityId);
+      return adapterApplyRemoteDelete(mirror, entityId);
+    },
     isInsertOnly,
     getEntityLastModified,
     onStatusChange: callbacks.onStatusChange,
@@ -309,6 +320,16 @@ export function createDbEngine(callbacks = {}) {
 
       // Seed the dirty set: full snapshot on first-ever sync, else the diff.
       const pushDbg = debugPushEnabled();
+      // TEMP diagnostic (gated): log what getData() actually handed us this cycle.
+      // A collection that momentarily drops to 0 (then refills next cycle) is the
+      // "deleted → new" churn seen from the source side — it distinguishes a real
+      // state wipe (count goes 0) from a remote delete-row (count stays, [pull]
+      // DELETE fires instead).
+      if (pushDbg) {
+        const cnt = (k) => Array.isArray(mirror[k]) ? mirror[k].length
+          : (mirror[k] && typeof mirror[k] === 'object' ? Object.keys(mirror[k]).length : 0);
+        console.log(`[push] getData counts → tasks:${cnt('tasks')} unscheduled:${cnt('unscheduledTasks')} gtdFrames:${cnt('gtdFrames')} dailyNotes:${cnt('dailyNotes')} goals:${cnt('goals')} projects:${cnt('projects')}`);
+      }
       const dbgChanges = pushDbg ? [] : null; // [{ id, kind, diff:[] }]
       if (engine.getHighWaterMark() === 0) {
         for (const row of shredState(mirror)) engine.markDirty(row.entityId);
