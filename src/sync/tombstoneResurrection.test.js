@@ -152,3 +152,31 @@ describe('tombstone GC — the >60-day boundary is real (unchanged by the fix)',
     expect(data.tasks.find((t) => t.id === 'X')).toBeTruthy();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The resurrection FENCE must track the FIXED 60-day tombstone GC horizon, not the
+// user's "Keep past events" (syncRetentionDays). buildSyncPayload now emits
+// tombstonePrunedBefore = tombstoneHorizon(TOMBSTONE_RETENTION_DAYS) = 60 days. When
+// retention was wider (e.g. 90), the OLD retention-based fence sat further back than
+// the 60-day GC, so a local-only zombie aged 60→90 days had its tombstone GCd yet
+// slipped under the fence and resurrected. Pinning the fence to 60 closes the gap.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('resurrection fence tracks the fixed 60-day GC, independent of syncRetentionDays', () => {
+  const zombie70 = { id: 'X', title: 'buy milk', lastModified: daysAgo(70) };
+
+  it('a 70-day local-only zombie IS caught by the fixed 60-day fence (gap closed)', () => {
+    const localStale = { ...EMPTY, tasks: [zombie70], deletedTaskIds: {} };
+    // Fence at 60 days — what tombstoneHorizon(TOMBSTONE_RETENTION_DAYS) yields now,
+    // regardless of the retention arg (90 here).
+    const remoteUpToDate = { ...EMPTY, tasks: [], deletedTaskIds: {}, tombstonePrunedBefore: daysAgo(60) };
+    const { data } = mergeSyncData(localStale, remoteUpToDate, 90);
+    expect(data.tasks.find((t) => t.id === 'X')).toBeUndefined(); // 70d older than 60d fence → dropped
+  });
+
+  it('DISCRIMINATOR: the OLD retention-based fence (90d) let the same zombie through', () => {
+    const localStale = { ...EMPTY, tasks: [zombie70], deletedTaskIds: {} };
+    const remoteOldFence = { ...EMPTY, tasks: [], deletedTaskIds: {}, tombstonePrunedBefore: daysAgo(90) };
+    const { data } = mergeSyncData(localStale, remoteOldFence, 90);
+    expect(data.tasks.find((t) => t.id === 'X')).toBeTruthy(); // 70d newer than 90d fence → survived (the bug)
+  });
+});
