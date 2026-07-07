@@ -11,6 +11,7 @@ import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { tombstoneHorizon } from './utils/tombstoneHorizon.js';
 import { preserveArchived } from './utils/preserveArchived.js';
+import { partitionExpiredSingleDayFrames } from './utils/expiredFrames.js';
 import { mergeObsidianDailyNotes } from './utils/mergeObsidianDailyNotes.js';
 import { mergeObsidianTasks } from './utils/mergeObsidianTasks.js';
 import { detectObsidianDeletions, addObsidianTombstones } from './utils/obsidianDeletions.js';
@@ -1800,16 +1801,26 @@ const DayPlanner = () => {
     return () => clearTimeout(midnightTimer);
   }, []);
 
-  // Cleanup expired single-day frames (older than 7 days)
+  // Cleanup expired single-day frames (older than 7 days). Keyed on gtdFrames so it
+  // also cleans frames that arrive via sync; it self-limits (once the expired ones
+  // are gone a re-run finds nothing and returns).
   useEffect(() => {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const cutoff = dateToString(sevenDaysAgo);
-    setGtdFrames(prev => {
-      const filtered = prev.filter(f => !f.singleDate || f.singleDate >= cutoff);
-      return filtered.length === prev.length ? prev : filtered;
-    });
-  }, [setGtdFrames]); // Run once on app start (setGtdFrames is stable)
+    const { kept, removed } = partitionExpiredSingleDayFrames(gtdFrames, cutoff);
+    if (!removed.length) return;
+    setGtdFrames(kept);
+    // Tombstone the removed frames (like deleteFrame) so cloud sync doesn't
+    // resurrect them from another device or a stale sync file. Without this the
+    // expired frame was only dropped from local state while a live copy survived
+    // elsewhere → it came back on the next sync → delete↔re-create every app open.
+    const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-frame-ids') || '{}');
+    const now = new Date().toISOString();
+    for (const f of removed) tombstones[String(f.id)] = now;
+    localStorage.setItem('day-planner-deleted-frame-ids', JSON.stringify(tombstones));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gtdFrames]);
 
   // Auto-sync calendars on mount and then every 15 minutes when URLs are configured.
   // On native apps, only the task calendar matters — calendar events come from the native bridge.
