@@ -3234,7 +3234,16 @@ const DayPlanner = () => {
       try { tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-obsidian-keys') || '{}'); } catch { tombstones = {}; }
       let lastScanned = [];
       try { lastScanned = JSON.parse(localStorage.getItem('day-planner-obsidian-last-scanned') || '[]'); } catch { lastScanned = []; }
-      const { deletions, skipped } = detectObsidianDeletions(lastScanned, scannedKeys);
+      // The scan only reads notes/tasks within `syncRetentionDays` of today
+      // (src/obsidian.js), so notes aging out of that window must NOT be mistaken
+      // for deletions. Compute the same cutoff and pass it to the detector.
+      let obsidianCutoff = null;
+      if (syncRetentionDays && syncRetentionDays > 0) {
+        const c = new Date();
+        c.setDate(c.getDate() - syncRetentionDays);
+        obsidianCutoff = `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, '0')}-${String(c.getDate()).padStart(2, '0')}`;
+      }
+      const { deletions, skipped } = detectObsidianDeletions(lastScanned, scannedKeys, obsidianCutoff);
       if (deletions.length) {
         tombstones = addObsidianTombstones(tombstones, deletions, new Date().toISOString());
         localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(tombstones));

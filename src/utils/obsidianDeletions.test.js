@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectObsidianDeletions, isObsidianTombstoned, addObsidianTombstones } from './obsidianDeletions.js';
+import { detectObsidianDeletions, isObsidianTombstoned, addObsidianTombstones, obsidianKeyDate } from './obsidianDeletions.js';
 
 describe('detectObsidianDeletions (conservative)', () => {
   it('reports a key this device previously scanned and no longer sees', () => {
@@ -36,6 +36,36 @@ describe('detectObsidianDeletions (conservative)', () => {
   it('reports nothing when nothing disappeared', () => {
     expect(detectObsidianDeletions(['a', 'b'], ['a', 'b', 'c'])).toEqual({ deletions: [], skipped: false, reason: null });
   });
+
+  it('does NOT tombstone a note that aged out of the retention window', () => {
+    // 2026-04-06 fell below the cutoff — it left the scan because the window slid,
+    // not because it was deleted. Must not be reported.
+    const r = detectObsidianDeletions(['2026-04-06', '2026-07-01'], ['2026-07-01'], '2026-06-07');
+    expect(r.deletions).toEqual([]);
+    expect(r.skipped).toBe(false);
+  });
+
+  it('DOES tombstone an in-window note that vanished (real deletion)', () => {
+    const r = detectObsidianDeletions(['2026-06-22', '2026-07-01'], ['2026-07-01'], '2026-06-07');
+    expect(r.deletions).toEqual(['2026-06-22']);
+  });
+
+  it('applies the window cutoff to task ids too (date embedded in the id)', () => {
+    const last = ['obsidian-2026-04-06-abc', 'obsidian-2026-06-22-xyz'];
+    const r = detectObsidianDeletions(last, [], '2026-06-07'); // both missing…
+    // …but the April one aged out (excluded); the June one is a real deletion.
+    // Empty current with a non-empty last is normally 'empty-scan'; assert the
+    // date filter still governs which count as candidates by using a partial scan:
+    const r2 = detectObsidianDeletions(last, ['obsidian-2026-07-05-new'], '2026-06-07');
+    expect(r2.deletions).toEqual(['obsidian-2026-06-22-xyz']);
+    expect(r.skipped).toBe(true); // empty scan guard still fires first
+  });
+});
+
+describe('obsidianKeyDate', () => {
+  it('reads a daily-note date key', () => expect(obsidianKeyDate('2026-06-22')).toBe('2026-06-22'));
+  it('reads the date from a task id', () => expect(obsidianKeyDate('obsidian-2026-06-22-a9f')).toBe('2026-06-22'));
+  it('returns null for an undatable key', () => expect(obsidianKeyDate('weird-key')).toBeNull());
 });
 
 describe('isObsidianTombstoned', () => {

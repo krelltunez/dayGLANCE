@@ -29,11 +29,23 @@ const ts = (v) => {
   return Number.isNaN(t) ? 0 : t;
 };
 
+// Every Obsidian key carries a date: a daily-note key IS the date; a task id is
+// `obsidian-YYYY-MM-DD-hash`. Returns 'YYYY-MM-DD' or null.
+export function obsidianKeyDate(key) {
+  const s = String(key);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = /^obsidian-(\d{4}-\d{2}-\d{2})-/.exec(s);
+  return m ? m[1] : null;
+}
+
 /**
  * Decide which previously-scanned keys were genuinely deleted from the vault.
  *
  * @param {string[]} lastScanned  keys THIS device's previous scan produced
  * @param {string[]} current      keys THIS device's current scan produced
+ * @param {string|null} [cutoffDate]  the scan's retention cutoff 'YYYY-MM-DD'; keys
+ *   with an older date left the scan because the window slid forward, NOT because
+ *   they were deleted — they are excluded. null = no window (scan is unlimited).
  * @param {object}  [opts]
  * @param {number}  [opts.maxDropAbs=5]     absolute drop above which a scan is deemed incomplete
  * @param {number}  [opts.maxDropRatio=0.25] fractional drop above which a scan is deemed incomplete
@@ -42,14 +54,24 @@ const ts = (v) => {
  *   judged incomplete and NO deletions were inferred (caller should also NOT
  *   overwrite its stored `lastScanned`, so a clean scan can still catch up).
  */
-export function detectObsidianDeletions(lastScanned, current, opts = {}) {
+export function detectObsidianDeletions(lastScanned, current, cutoffDate = null, opts = {}) {
   const { maxDropAbs = 5, maxDropRatio = 0.25 } = opts;
   const last = new Set(lastScanned || []);
   const cur = new Set(current || []);
   if (last.size === 0) return { deletions: [], skipped: false, reason: null };
   // Empty result but we had rows before → almost certainly a failed/partial scan.
   if (cur.size === 0) return { deletions: [], skipped: true, reason: 'empty-scan' };
-  const missing = [...last].filter((k) => !cur.has(k));
+  let missing = [...last].filter((k) => !cur.has(k));
+  // Exclude keys that aged out of the retention scan window: they disappeared
+  // because the cutoff moved forward, not because the note/task was deleted.
+  // A key whose date can't be read is excluded too (conservative — never tombstone
+  // something we can't prove is in-window).
+  if (cutoffDate) {
+    missing = missing.filter((k) => {
+      const d = obsidianKeyDate(k);
+      return d != null && d >= cutoffDate;
+    });
+  }
   if (missing.length === 0) return { deletions: [], skipped: false, reason: null };
   // A large simultaneous disappearance reads as an incomplete scan, not that many
   // real deletions at once. Conservative: infer nothing this cycle.
