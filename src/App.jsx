@@ -11,6 +11,7 @@ import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { tombstoneHorizon } from './utils/tombstoneHorizon.js';
 import { preserveArchived } from './utils/preserveArchived.js';
+import { preserveDailyNoteTimestamps } from './utils/preserveDailyNoteTimestamps.js';
 import { stripHealthSourcedLogs } from './utils/healthLogFilter.js';
 import { webdavFetch } from './utils/cloudSyncProviders.js';
 import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
@@ -3193,16 +3194,13 @@ const DayPlanner = () => {
             obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
           );
 
-      // Update daily notes — replace with Obsidian-sourced notes
-      setDailyNotes(prev => {
-        const next = {};
-        // Keep non-Obsidian notes (from dates without Obsidian files, if integration was just enabled)
-        // Actually when Obsidian is enabled, Obsidian is the ONLY source — so just use the result
-        for (const [dateStr, note] of Object.entries(result.dailyNotes)) {
-          next[dateStr] = note;
-        }
-        return next;
-      });
+      // Update daily notes — replace with Obsidian-sourced notes. Obsidian is the
+      // sole source when enabled, so the scan result fully defines the map. But the
+      // native bridge has no file mtime, so syncObsidianVaultNative stamps a fresh
+      // `lastModified` on every scan (src/obsidian.js) — which would re-push every
+      // note each scan and drive the SSE self-nudge loop. Carry the prior timestamp
+      // forward for notes whose text is unchanged so only genuine edits re-push.
+      setDailyNotes(prev => preserveDailyNoteTimestamps(prev, result.dailyNotes));
 
       // App-only fields that live in dayGLANCE but NOT in the Obsidian markdown,
       // so a re-parse (parseTasksFromMarkdown) can't reproduce them. They must be
@@ -3216,6 +3214,10 @@ const DayPlanner = () => {
         ...(old.deadline ? { deadline: old.deadline } : {}),
         ...(old.archived !== undefined ? { archived: old.archived } : {}),
         ...(old.completedAt !== undefined ? { completedAt: old.completedAt } : {}),
+        // assignedUserSyncIds is an app-only synced field (user assignment) that
+        // the markdown re-parse can't reproduce; without this an assigned Obsidian
+        // task drops it on every re-scan → the same per-cycle false-diff/re-push.
+        ...(old.assignedUserSyncIds !== undefined ? { assignedUserSyncIds: old.assignedUserSyncIds } : {}),
       });
 
       // Update tasks — remove old Obsidian imports, add fresh ones.

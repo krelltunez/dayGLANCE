@@ -78,6 +78,27 @@ describe('stampTimestamps', () => {
     expect(stampTimestamps(inMemory, stored, 'NOW')[0].lastModified).toBe('NOW');
   });
 
+  // ── Round-trip: an archived:true inbox item stays archived and does NOT
+  // false-diff once the store also holds archived:true. This is the day-planner-
+  // unscheduled store→load→payload path an archived task takes every cycle: the
+  // load normalize adds notes/subtasks defaults, the stamper compares, and the
+  // item must round-trip byte-identical (archived kept, lastModified stable) so it
+  // never re-pushes on an unchanged cycle. Guards against a regression that would
+  // strip archived on this path.
+  it('round-trips archived:true store→load→save with NO false-diff across cycles', () => {
+    const t0 = ISO(100);
+    // Store already carries archived:true (written by a prior save).
+    let stored = [{ id: 1, title: 'Archived inbox', completed: true, archived: true, lastModified: t0 }];
+    for (let cycle = 0; cycle < 3; cycle++) {
+      // loadData adds notes/subtasks defaults into in-memory state (App normalize).
+      const inMemory = stored.map(t => ({ ...t, notes: t.notes ?? '', subtasks: t.subtasks ?? [] }));
+      const out = stampTimestamps(inMemory, stored, ISO(0));
+      expect(out[0].archived).toBe(true);          // archived survives the round-trip
+      expect(out[0].lastModified).toBe(t0);         // no fabricated timestamp → no re-push
+      stored = out;                                 // persist + reload next cycle
+    }
+  });
+
   describe('onRestamp diagnostic', () => {
     it('reports the changed fields when an existing task is re-stamped', () => {
       const prev = [{ id: 1, title: 'A', completed: false, lastModified: ISO(100) }];
