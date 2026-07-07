@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { dateToString } from '../utils/taskUtils.js';
 import { getDeviceId, isNativeIOS } from '../native.js';
+import { changedHealthHabitIds } from '../utils/healthHabitChanges.js';
 
 const useHabits = ({ playUISound, hrOwnerRef }) => {
   const [habits, setHabits] = useState([]);
@@ -226,31 +227,42 @@ const useHabits = ({ playUISound, hrOwnerRef }) => {
         } catch (e) { /* ignore parse errors */ }
       }
     }
-    if (Object.keys(updates).length > 0) {
-      setHabitLogs(prev => {
-        const next = { ...prev };
-        for (const [dateStr, entries] of Object.entries(updates)) {
-          const prevDay = next[dateStr] || {};
-          const merged = { ...prevDay };
-          for (const [habitId, count] of Object.entries(entries)) {
-            // Never downgrade a count already in state (e.g. a value that arrived
-            // via cloud sync from the other device's health platform).
-            merged[habitId] = Math.max(prevDay[habitId] || 0, count);
-          }
-          next[dateStr] = merged;
+    // Which habits actually got a NEW (higher) count this run. Only these touch
+    // state. Re-stamping every synced habit unconditionally was a self-perpetuating
+    // loop: this function runs from an effect keyed on `habits` (below), and it
+    // bumped lastModified + lastAutoSync.timestamp on every run → `habits` changed →
+    // the effect re-fired → it ran again → … forever, re-pushing the health habits
+    // to the vault every cycle (the SSE self-nudge loop). Math.max means a count
+    // only ever increases, so an idle device (no new steps/sleep) now makes NO
+    // change and the effect goes quiet. syncedTodayIds is kept only for the marker.
+    const changedHabitIds = changedHealthHabitIds(updates, habitLogs);
+    if (changedHabitIds.size === 0) return; // nothing new → don't touch state (breaks the loop)
+
+    setHabitLogs(prev => {
+      const next = { ...prev };
+      for (const [dateStr, entries] of Object.entries(updates)) {
+        const prevDay = next[dateStr] || {};
+        const merged = { ...prevDay };
+        for (const [habitId, count] of Object.entries(entries)) {
+          // Never downgrade a count already in state (e.g. a value that arrived
+          // via cloud sync from the other device's health platform).
+          merged[habitId] = Math.max(prevDay[habitId] || 0, count);
         }
-        return next;
-      });
-    }
-    if (syncedTodayIds.size > 0) {
-      const deviceId = getDeviceId();
-      const platform = isNativeIOS() ? 'iOS' : 'Android';
-      const timestamp = new Date().toISOString();
-      setHabits(prev => prev.map(h => {
-        if (!syncedTodayIds.has(h.id)) return h;
-        return { ...h, lastAutoSync: { deviceId, platform, timestamp }, lastModified: timestamp };
-      }));
-    }
+        next[dateStr] = merged;
+      }
+      return next;
+    });
+
+    // Stamp lastModified/lastAutoSync ONLY on habits whose data actually changed,
+    // and only when today's read succeeded (syncedTodayIds), so a re-sync of
+    // unchanged data never marks the row dirty.
+    const deviceId = getDeviceId();
+    const platform = isNativeIOS() ? 'iOS' : 'Android';
+    const timestamp = new Date().toISOString();
+    setHabits(prev => prev.map(h => {
+      if (!changedHabitIds.has(h.id) || !syncedTodayIds.has(h.id)) return h;
+      return { ...h, lastAutoSync: { deviceId, platform, timestamp }, lastModified: timestamp };
+    }));
   };
 
   // Keep ref current at render time (no stale closure in event listeners)
