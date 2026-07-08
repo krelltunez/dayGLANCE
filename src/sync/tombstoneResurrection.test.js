@@ -152,3 +152,57 @@ describe('tombstone GC — the >60-day boundary is real (unchanged by the fix)',
     expect(data.tasks.find((t) => t.id === 'X')).toBeTruthy();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FENCE REWORK safety, derived from the requirement (NOT retrofitted to output).
+//
+// The fence a peer now emits is the PRODUCED value tombstoneCutoff().toISOString()
+// (App.jsx buildSyncPayload / dbAdapter / mergeSync — all the same call), i.e.
+// today-60. merge.js:88 drops a LOCAL-only item strictly older than that fence.
+// The rework is safe iff the fence draws the zombie/live line at EXACTLY the
+// 60-day tombstone-GC window, in BOTH directions:
+//   • UP  (no resurrection):   a local-only item older than 60d whose tombstone
+//                              has been GC'd is dropped, not re-uploaded.
+//   • DOWN (no data loss):     a genuinely recent local-only item — a real edit on
+//                              a device that was merely offline — is NOT dropped.
+// The DOWN direction is the one that broke two days ago (PR #1142 churn / the
+// fear of eating live data); it is asserted here against the real produced fence.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('fence rework — the PRODUCED today-60 fence is safe in both directions', () => {
+  const producedFence = () => tombstoneCutoff().toISOString();
+
+  it('UP: drops a local-only zombie older than 60 days (deleted-and-pruned stays gone)', () => {
+    // Deleted >60d ago on a peer, tombstone since GC'd; this stale device still holds
+    // X live. The produced fence must suppress it rather than resurrect it.
+    const localStale = { ...EMPTY, tasks: [{ id: 'X', title: 'buy milk', lastModified: daysAgo(75) }], deletedTaskIds: {} };
+    const remoteUpToDate = { ...EMPTY, tasks: [], deletedTaskIds: {}, tombstonePrunedBefore: producedFence() };
+    const { data } = mergeSyncData(localStale, remoteUpToDate, 30);
+    expect(data.tasks.find((t) => t.id === 'X')).toBeUndefined(); // 75d > 60d → dropped
+  });
+
+  it('DOWN: KEEPS a genuinely recent local-only item (an offline edit is not eaten)', () => {
+    // A real task created on a device that was simply offline for a bit — never
+    // deleted, no tombstone. It must survive the fence, or the fix loses live data.
+    const recent = { id: 'R', title: 'new idea', lastModified: daysAgo(10) };
+    const localOffline = { ...EMPTY, tasks: [recent], deletedTaskIds: {} };
+    const remoteUpToDate = { ...EMPTY, tasks: [], deletedTaskIds: {}, tombstonePrunedBefore: producedFence() };
+    const { data } = mergeSyncData(localOffline, remoteUpToDate, 30);
+    expect(data.tasks.find((t) => t.id === 'R')).toBeTruthy(); // 10d < 60d → preserved
+  });
+
+  it('the zombie/live boundary is 60 days, INDEPENDENT of syncRetentionDays', () => {
+    // The whole point of the rework: retention no longer moves the fence. A 30d and
+    // a 90d device both draw the line at the identical 60-day point. (Floored
+    // cutoff ∈ [now-61d, now-60d], so 59d is always kept and 61d always dropped,
+    // regardless of the time of day the test runs.)
+    const keep = { id: 'A', title: 'keep', lastModified: daysAgo(59) };
+    const drop = { id: 'B', title: 'drop', lastModified: daysAgo(61) };
+    for (const retention of [30, 90]) {
+      const local = { ...EMPTY, tasks: [keep, drop], deletedTaskIds: {} };
+      const remote = { ...EMPTY, tasks: [], deletedTaskIds: {}, tombstonePrunedBefore: producedFence() };
+      const { data } = mergeSyncData(local, remote, retention);
+      expect(data.tasks.find((t) => t.id === 'A')).toBeTruthy();    // 59d < 60d → kept
+      expect(data.tasks.find((t) => t.id === 'B')).toBeUndefined(); // 61d > 60d → dropped
+    }
+  });
+});

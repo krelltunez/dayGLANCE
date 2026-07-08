@@ -23,10 +23,14 @@
 // slightly longer; suppresses resurrection marginally less) and well within the
 // field's inherently fuzzy semantics.
 //
-// NOTE: the value is passed by the caller (buildSyncPayload) as syncRetentionDays,
-// NOT the fixed-60 GC horizon. It's merged with newerIso (monotonic newest), so all
-// devices must compute the SAME value or the older-valued ones churn forever. See
-// the note at the buildSyncPayload call site.
+// NOTE: as of the fence rework, the production resurrection fence
+// (tombstonePrunedBefore) no longer flows through tombstoneHorizon(syncRetentionDays).
+// It is computed by tombstoneCutoff() (src/sync/tombstoneRetention.js) — the fixed
+// 60-day GC window — and RECOMPUTED-AND-OVERWRITTEN on merge (dbAdapter.js,
+// mergeSync.js) rather than newerIso/max()-merged, which is what escapes the
+// monotonic-max() trap (PR #1142). tombstoneHorizon() remains only as the tested
+// day-flooring helper; floorToUtcDayIso below is the shared flooring primitive that
+// tombstoneCutoff() builds on, so both sides floor identically.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

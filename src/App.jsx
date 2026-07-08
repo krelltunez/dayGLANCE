@@ -9,7 +9,7 @@ import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, 
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
 import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
-import { tombstoneHorizon } from './utils/tombstoneHorizon.js';
+import { tombstoneCutoff } from './sync/tombstoneRetention.js';
 import { preserveArchived } from './utils/preserveArchived.js';
 import { partitionExpiredSingleDayFrames } from './utils/expiredFrames.js';
 import { mergeObsidianDailyNotes } from './utils/mergeObsidianDailyNotes.js';
@@ -5908,21 +5908,25 @@ const DayPlanner = () => {
         multiUserEnabled,
         multiUserEnabledUpdatedAt: localStorage.getItem('dayglance-multi-user-enabled-updated-at') || null,
         users,
-        // Floored to the UTC day so this row is STABLE across sync cycles. A
-        // fresh Date.now() here changed the value every cycle, so the snapshot-
-        // diff re-pushed it every cycle → account seq advance → SSE self-nudge
-        // loop. See utils/tombstoneHorizon.js. (Pruning uses a fresh cutoff in
-        // the merge, so a day-granular fence changes nothing that gets pruned.)
+        // The resurrection fence: local-only items older than this are presumed
+        // pruned-and-deleted elsewhere and dropped rather than resurrected
+        // (merge.js syncHorizon). It MUST equal the tombstone-GC window, because a
+        // tombstone only lives 60 days (src/sync/tombstoneRetention.js): <60d-old
+        // deletions are caught by the surviving tombstone, >60d ones by this fence,
+        // and the two windows must abut with no gap. So the fence is the SAME fixed
+        // tombstoneCutoff() — NOT syncRetentionDays.
         //
-        // NOTE: this is intentionally still syncRetentionDays, NOT the fixed 60-day
-        // horizon. The value is merged with newerIso (dbAdapter.js) — monotonic,
-        // keeps the newest — so all devices MUST compute the SAME value or the ones
-        // emitting an older value churn forever (getData recomputes a value newerIso
-        // won't accept back). A fixed-60 fence is OLDER than a retention<60 device's
-        // value, so it never converges. Aligning the fence with the fixed-60 GC
-        // (the resurrection gap at retention>60 / retention=0) needs the merge
-        // reconciled first — tracked as a follow-up, not a one-line swap.
-        tombstonePrunedBefore: tombstoneHorizon(syncRetentionDays),
+        // Because it is now a pure function of the current UTC day, every device
+        // computes the identical value with no cross-device information, so the
+        // vault/file merges recompute-and-overwrite it (dbAdapter.js, mergeSync.js)
+        // instead of newerIso/max()-merging it. That is what escapes the monotonic-
+        // max() trap that made a fixed value churn forever (PR #1142): a peer's
+        // value can never be "newer" in a way we must preserve. Day-floored (via
+        // tombstoneCutoff) so the value is STABLE across the many cycles within a
+        // day — the snapshot-diff sees no change → no push → no SSE self-nudge.
+        // Residual: at UTC midnight the cutoff advances one day, so a single
+        // tombstonePrunedBefore change appears once and self-heals within a cycle.
+        tombstonePrunedBefore: tombstoneCutoff().toISOString(),
       }
     };
   };
