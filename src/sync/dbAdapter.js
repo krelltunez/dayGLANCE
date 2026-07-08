@@ -513,7 +513,7 @@ function mergeBundle(data, key, value, extra) {
 // lastModified, ties broken by CROSS_LIST_PRIORITY — and report each removed
 // copy via onLoser so the caller can soft-delete its stale ${kind}:${id} row,
 // converging the vault. Deterministic, so every device picks the same winner.
-export function reconcileCrossList(data, onLoser) {
+export function reconcileCrossList(data, onLoser, onCollision) {
   const byId = new Map();
   for (const kind of TASK_KINDS) {
     for (const item of (data[kind] || [])) {
@@ -530,6 +530,18 @@ export function reconcileCrossList(data, onLoser) {
       if (d !== 0) return d;
       return CROSS_LIST_PRIORITY.indexOf(a.kind) - CROSS_LIST_PRIORITY.indexOf(b.kind);
     });
+    // Optional diagnostic: report the collision (which kinds held this id, with
+    // their timestamps, and which won) BEFORE the losers are soft-deleted. This
+    // is how a cross-list-driven bare-delete war is caught even when the emitting
+    // device is a peer — the collision surfaces in every device's merged mirror.
+    if (onCollision) {
+      onCollision({
+        id,
+        kinds: entries.map((e) => ({ kind: e.kind, lastModified: e.item.lastModified })),
+        winner: entries[0].kind,
+        losers: entries.slice(1).map((e) => e.kind),
+      });
+    }
     for (const loser of entries.slice(1)) {
       data[loser.kind] = (data[loser.kind] || []).filter((x) => String(x.id) !== id);
       if (onLoser) onLoser(makeEntityId(loser.kind, id));

@@ -358,10 +358,16 @@ export function createDbEngine(callbacks = {}) {
           if (id in cur) continue;
           wantDelete.push(id);
         }
-        const { propagate, skipped } = partitionSnapshotDeletes(wantDelete, cur, mirror);
+        const { propagate, skipped, reasons } = partitionSnapshotDeletes(wantDelete, cur, mirror);
         for (const id of propagate) {
           engine.markDirty(id); // deletes
           if (dbgChanges) dbgChanges.push({ id, kind: 'deleted', diff: [] });
+        }
+        // Diagnostic: name WHY each delete is being propagated (tombstoned = real
+        // deletion; cross-list = the id survives under another kind). Catches a
+        // bare-delete this device emits and its cause. Gated on dayglance-debug-push.
+        if (debugPushEnabled() && propagate.length) {
+          console.warn('[push] propagating delete(s):', propagate.map((id) => `${id} (${reasons[id]})`));
         }
         if (skipped.length) {
           console.warn(
@@ -377,7 +383,17 @@ export function createDbEngine(callbacks = {}) {
       // The engine's onRowsSkipped fires from its own dbSyncCycle, which we
       // bypass — so surface undecryptable-row skips from the pull result here.
       if (pull && pull.skipped > 0) callbacks.onRowsSkipped?.(pull.skipped, pull.skippedEntityIds || []);
-      reconcileCrossList(mirror, (id) => engine.markDirty(id));
+      reconcileCrossList(
+        mirror,
+        (id) => engine.markDirty(id),
+        // Diagnostic: log every cross-list collision in the MERGED MIRROR (the
+        // shared vault state), so a bare-delete war driven by a peer's stale
+        // second-kind copy (e.g. a lingering recycleBin row) is visible on THIS
+        // device even though the peer emits the delete. Gated on dayglance-debug-push.
+        debugPushEnabled()
+          ? (c) => console.warn(`[reconcile] cross-list collision ${c.id} → keep ${c.winner}, delete [${c.losers.join(', ')}] |`, c.kinds)
+          : undefined,
+      );
       // Age tombstones out at the fixed 60-day window (src/sync/tombstoneRetention.js).
       // The vault bundle merge is grow-only (dbAdapter unionNewerIso), so a pull
       // re-adds every tombstone a peer still holds; without this the mirror would

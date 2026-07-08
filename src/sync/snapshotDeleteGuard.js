@@ -67,10 +67,16 @@ export function partitionSnapshotDeletes(deleteEntityIds, cur, mirror) {
 
   const propagate = [];
   const skipped = [];
+  // Why each entityId landed where it did — 'tombstoned' (a real deletion), a
+  // cross-list move ('cross-list', the id survives under another kind), or a
+  // suspected 'glitch' (skipped). Diagnostic only; callers that ignore it are
+  // unaffected.
+  const reasons = {};
   for (const eid of ids) {
     const id = bareId(eid);
-    if (tombstoned.has(id) || liveBareIds.has(id)) propagate.push(eid);
-    else skipped.push(eid);
+    if (tombstoned.has(id)) { propagate.push(eid); reasons[eid] = 'tombstoned'; }
+    else if (liveBareIds.has(id)) { propagate.push(eid); reasons[eid] = 'cross-list'; }
+    else { skipped.push(eid); reasons[eid] = 'glitch'; }
   }
-  return { propagate, skipped };
+  return { propagate, skipped, reasons };
 }
