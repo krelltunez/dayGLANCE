@@ -36,6 +36,7 @@ import {
   reconcileCrossList,
 } from './dbAdapter.js';
 import { pruneAllTombstones, tombstoneCutoff } from './tombstoneRetention.js';
+import { partitionSnapshotDeletes } from './snapshotDeleteGuard.js';
 
 const APP_ID = 'dayglance';
 const CRYPTO_DB_NAME = 'dayglance-db-crypto';
@@ -347,10 +348,27 @@ export function createDbEngine(callbacks = {}) {
             dbgChanges.push({ id, kind: prev[id] === undefined ? 'new' : 'changed', diff: debugDiffLeaves(a, b) });
           }
         }
+        // Deletes: an entity in the last snapshot but absent from getData(). Guard
+        // against a transient in-memory shrink (a bad merge / load-save race) being
+        // broadcast as permanent fleet-wide deletion — a real delete leaves a
+        // tombstone or moves the id to another list; a bare vanish with neither is a
+        // suspected glitch and is kept, not deleted. See snapshotDeleteGuard.js.
+        const wantDelete = [];
         for (const id of Object.keys(prev)) {
           if (id in cur) continue;
+          wantDelete.push(id);
+        }
+        const { propagate, skipped } = partitionSnapshotDeletes(wantDelete, cur, mirror);
+        for (const id of propagate) {
           engine.markDirty(id); // deletes
           if (dbgChanges) dbgChanges.push({ id, kind: 'deleted', diff: [] });
+        }
+        if (skipped.length) {
+          console.warn(
+            `[push] GUARD: skipped ${skipped.length} un-tombstoned vanish-delete(s) — ` +
+            `suspected local-state glitch, rows kept (would-be fleet-wide deletion). ` +
+            `Ids:`, skipped.slice(0, 25), skipped.length > 25 ? `(+${skipped.length - 25} more)` : ''
+          );
         }
       }
 
