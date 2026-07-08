@@ -11,6 +11,7 @@ import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { tombstoneCutoff } from './sync/tombstoneRetention.js';
 import { preserveArchived } from './utils/preserveArchived.js';
+import { rescueUnsyncedTasks } from './utils/rescueUnsyncedTasks.js';
 import { partitionExpiredSingleDayFrames } from './utils/expiredFrames.js';
 import { mergeObsidianDailyNotes } from './utils/mergeObsidianDailyNotes.js';
 import { mergeObsidianTasks } from './utils/mergeObsidianTasks.js';
@@ -6157,16 +6158,13 @@ const DayPlanner = () => {
     // which React guarantees is fresh (the closure/refs above can lag the very
     // latest heal). This is what stops the setState from clobbering a locally-
     // archived item when the merged copy omits the flag.
-    if (normalizedTasks) setTasks(prev => {
-      const preserved = preserveArchived(normalizedTasks, prev);
-      const mergedIds = new Set(preserved.map(t => String(t.id)));
-      return [...preserved, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported || t._intentKey))];
-    });
-    if (normalizedUnsched) setUnscheduledTasks(prev => {
-      const preserved = preserveArchived(normalizedUnsched, prev);
-      const mergedIds = new Set(preserved.map(t => String(t.id)));
-      return [...preserved, ...prev.filter(t => !mergedIds.has(String(t.id)) && (t._native || t.imported || t._intentKey))];
-    });
+    // Rescue local-only native/imported/intent tasks the merge didn't govern, but
+    // NEVER re-add a task the merge has tombstoned (deletedTaskIds, merged post-pull)
+    // — that resurrects a task deleted on another device (the seed-task ping-pong).
+    // See utils/rescueUnsyncedTasks.js.
+    const rescueDeletedIds = data.deletedTaskIds || {};
+    if (normalizedTasks) setTasks(prev => rescueUnsyncedTasks(preserveArchived(normalizedTasks, prev), prev, rescueDeletedIds));
+    if (normalizedUnsched) setUnscheduledTasks(prev => rescueUnsyncedTasks(preserveArchived(normalizedUnsched, prev), prev, rescueDeletedIds));
     if (data.unscheduledOrderTimestamp) {
       setUnscheduledOrderTimestamp(data.unscheduledOrderTimestamp);
       localStorage.setItem('day-planner-unscheduled-order-ts', data.unscheduledOrderTimestamp);
@@ -6175,10 +6173,8 @@ const DayPlanner = () => {
     if (!perUserCalendar && data.syncUrl !== undefined) setSyncUrl(data.syncUrl);
     if (!perUserCalendar && data.taskCalendarUrl !== undefined) setTaskCalendarUrl(data.taskCalendarUrl);
     if (data.completedTaskUids) setCompletedTaskUids(new Set(data.completedTaskUids));
-    if (data.recurringTasks) setRecurringTasks(prev => {
-      const mergedIds = new Set(data.recurringTasks.map(t => String(t.id)));
-      return [...data.recurringTasks, ...prev.filter(t => !mergedIds.has(String(t.id)) && t._intentKey)];
-    });
+    if (data.recurringTasks) setRecurringTasks(prev =>
+      rescueUnsyncedTasks(data.recurringTasks, prev, rescueDeletedIds, t => !!t._intentKey));
     if (data.routineDefinitions) setRoutineDefinitions(data.routineDefinitions);
     // Only apply today's routine state if the remote data is from today — matching
     // the localStorage guard above. If routinesDate is stale/off, applying it would
