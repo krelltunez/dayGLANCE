@@ -396,5 +396,22 @@ export const mergeSyncData = (local, remote, retentionDays) => {
     if (!tombstoneMapsEqual(merged, remote?.[key] || {})) result.remoteChanged = true;
   }
 
+  // Override the upstream resurrection fence (which was max(localFence, remoteFence)
+  // — the monotonic-max() trap that made a fixed fence churn forever, PR #1142)
+  // with the locally-recomputed cutoff. The fence must equal the 60-day tombstone-GC
+  // window (entries younger are caught by the surviving tombstone, older by the
+  // fence, the two abutting with no gap), and it is a pure function of the current
+  // UTC day, so every device recomputes the identical value — no cross-device
+  // information to preserve, hence overwrite rather than merge. Same canonical
+  // tombstoneCutoff() the payload (buildSyncPayload) and vault merge (dbAdapter.js)
+  // use — one flooring implementation, no skew.
+  //
+  // Deliberately does NOT raise localChanged/remoteChanged: the fence is a derived
+  // value every device recomputes for itself (buildSyncPayload emits it fresh, and
+  // this merge overwrites any pulled value), so a stored copy that differs is
+  // self-healing on read and needs no propagation. Flagging it would re-introduce a
+  // per-cycle write/upload — the very churn this rework removes.
+  result.data.tombstonePrunedBefore = tombstoneCutoff().toISOString();
+
   return result;
 };

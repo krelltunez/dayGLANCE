@@ -4,6 +4,7 @@ import { createDbEngine } from './dbEngine.js';
 import { getVaultConfig, setVaultConfig, isVaultEnabled } from './vaultConfig.js';
 import { getDeviceId } from './deviceId.js';
 import { registerDbEngine, markDirty, schedulePush } from './dirtyTracker.js';
+import { tombstoneCutoff } from './tombstoneRetention.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STAGE 2 PART B — live wiring. These exercise the REAL @glance-apps/sync
@@ -229,43 +230,47 @@ describe('Part B — end-to-end two-device sync via the REAL engine', () => {
     expect(batchSpy.mock.calls.length).toBeGreaterThanOrEqual(before + 4);
   });
 
-  it('tombstonePrunedBefore CONVERGES — a floored payload vs a stuck full-precision vault value stops pushing', async () => {
-    // Reproduces the confirmed loop: buildSyncPayload emits the day-FLOORED horizon
-    // every cycle, but the vault/merge held a same-day FULL-PRECISION value, so the
-    // singleton row was dirty every cycle → push → SSE self-nudge. The fix floors
-    // BOTH sides (utils/tombstoneHorizon.js + dbAdapter bundle merge) so an
-    // unchanged cycle produces no push.
+  it('tombstonePrunedBefore CONVERGES — a stuck-HIGH vault value is overwritten with the recomputed cutoff and pushing stops', async () => {
+    // Fence rework: the horizon is a pure function of the current UTC day
+    // (tombstoneCutoff() = the fixed 60-day GC window). getData emits it every cycle
+    // and the merge RECOMPUTES-and-OVERWRITES it, so a peer's value can never
+    // survive as "newer". This is the fix to the monotonic-max() trap that made a
+    // fixed value churn forever (PR #1142): max()/newerIso could never LOWER a
+    // stuck-high value, so the device emitting the correct (lower) value re-pushed
+    // it every cycle without converging. Here a peer seeds a FUTURE (stuck-high)
+    // fence; the real engine must drag it down to the cutoff and then quiesce.
     const vault = createMemoryVault();
-    const FULL = '2026-06-04T18:25:50.481Z';        // stuck pre-fix value
-    const FLOORED = '2026-06-04T00:00:00.000Z';     // what tombstoneHorizon() emits
+    const STUCK_HIGH = '2099-01-01T12:34:56.789Z'; // a value max() could never lower
+    const cutoff = tombstoneCutoff().toISOString(); // what buildSyncPayload emits
 
-    // Seed the vault with the FULL-PRECISION value via another device.
-    const B = makeDevice('B', vault, { ...EMPTY, tombstonePrunedBefore: FULL });
+    // Seed the vault with the stuck-high value via another device.
+    const B = makeDevice('B', vault, { ...EMPTY, tombstonePrunedBefore: STUCK_HIGH });
     await B.engine.dbSyncCycle();
 
-    // Device A's getData ALWAYS returns the floored value (as buildSyncPayload does).
+    // Device A's getData ALWAYS returns the recomputed cutoff (as buildSyncPayload does).
     let key = null;
     let data = { ...EMPTY };
     const engineA = createDbEngine({
       vaultClient: vault,
-      storageKeyPrefix: 'dev-A-floor',
-      deviceId: 'device-A-floor',
+      storageKeyPrefix: 'dev-A-fence',
+      deviceId: 'device-A-fence',
       nativeGetSyncKey: () => key,
       nativeStoreSyncKey: (v) => { key = v; },
-      getData: () => ({ ...clone(data), tombstonePrunedBefore: FLOORED }),
+      getData: () => ({ ...clone(data), tombstonePrunedBefore: cutoff }),
       commitData: (d) => { data = d; },
     });
 
     const batchSpy = vi.spyOn(vault, 'batch');
-    for (let i = 0; i < 6; i++) await engineA.dbSyncCycle();  // settle
+    for (let i = 0; i < 6; i++) await engineA.dbSyncCycle();  // settle (incl. the corrective re-push)
     const settled = batchSpy.mock.calls.length;
 
-    // Unchanged cycles now push NOTHING — floored payload == floored stored value.
+    // Unchanged cycles now push NOTHING — recomputed payload == overwritten stored value.
     await engineA.dbSyncCycle();
     await engineA.dbSyncCycle();
     expect(batchSpy.mock.calls.length).toBe(settled);
-    // And the merged/committed value is the floored form.
-    expect(data.tombstonePrunedBefore).toBe(FLOORED);
+    // The stuck-high value was overwritten with the local cutoff — NOT kept (which
+    // newerIso/max() would have done, churning forever).
+    expect(data.tombstonePrunedBefore).toBe(cutoff);
   });
 
   it('a cross-list move (unscheduled → scheduled) ends under exactly one kind on both devices', async () => {

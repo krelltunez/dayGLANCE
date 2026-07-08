@@ -27,8 +27,7 @@
 // per-completion remodeling.
 
 import { mergeHabitLogs, mergeRoutineDefinitions, mergeRoutineCompletions, mergeCompletedDates } from '../mergeSync.js';
-import { floorToUtcDayIso } from '../utils/tombstoneHorizon.js';
-import { TOMBSTONE_BUNDLE_KEYS } from './tombstoneRetention.js';
+import { TOMBSTONE_BUNDLE_KEYS, tombstoneCutoff } from './tombstoneRetention.js';
 
 // ── Collection kinds: each array element is one row, keyed by a stable id, with
 // entity-grain last-writer-wins on tsField (the same grain the file-tier merge
@@ -454,12 +453,16 @@ function mergeBundle(data, key, value, extra) {
       data[key] = newerIso(data[key], value);
       return;
     case 'tombstonePrunedBefore':
-      // Floor the merged value to the UTC day so it matches the day-floored value
-      // buildSyncPayload produces (utils/tombstoneHorizon.js). Without the floor,
-      // newerIso keeps a same-day FULL-PRECISION remote value (e.g. …18:25:50Z),
-      // which never equals the floored payload value (…00:00:00Z) → the singleton
-      // row is dirty every cycle → push → seq advance → SSE self-nudge loop.
-      data[key] = floorToUtcDayIso(newerIso(data[key], value));
+      // Recompute-and-overwrite, IGNORING the pulled value. The fence is a pure
+      // function of the current UTC day (= the fixed 60-day tombstone-GC window),
+      // so the peer's value carries no information we can't reproduce locally.
+      // newerIso/max()-merging it was the monotonic-max() trap: a stuck-high peer
+      // value could never be lowered, so a device emitting the correct (lower)
+      // value re-pushed forever without ever converging (PR #1142). Overwriting
+      // with the locally-recomputed cutoff converges in one cycle. Same canonical
+      // tombstoneCutoff() the payload (App.jsx buildSyncPayload) and the file-tier
+      // merge (mergeSync.js) use — one flooring implementation, no skew.
+      data[key] = tombstoneCutoff().toISOString();
       return;
     case 'syncUrl':
     case 'taskCalendarUrl':
