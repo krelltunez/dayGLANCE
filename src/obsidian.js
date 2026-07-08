@@ -14,6 +14,34 @@
 
 import { makeElectronVaultHandle } from './obsidianElectronHandle.js';
 
+// How far back the Obsidian daily-note scan reads, in days. DELIBERATELY FIXED and
+// decoupled from the calendar "Keep past events" retention (syncRetentionDays):
+// that dropdown governs how long IMPORTED CALENDAR EVENTS are kept, and wiring the
+// vault scan to it meant lowering calendar retention (e.g. to 7 days to save
+// storage) silently stopped importing older daily-note tasks. 90 days is a generous
+// "recent" window that never shrinks the scan for anyone on the common defaults.
+export const OBSIDIAN_IMPORT_WINDOW_DAYS = 90;
+
+/**
+ * Local-date cutoff string 'YYYY-MM-DD' for a scan window of `days` — notes/tasks
+ * dated before it are outside the window. Returns null for an unlimited window
+ * (days <= 0). Uses LOCAL date parts to match daily-note filenames, which are
+ * authored in the user's local timezone.
+ *
+ * Shared by the scan (which skips notes older than the cutoff) AND the deletion
+ * detector (which must NOT mistake a note that aged out of the SAME window for a
+ * vault deletion), so the two windows can never drift apart.
+ *
+ * @param {number} days   window size; <= 0 → unlimited (null)
+ * @param {Date}   [now]  reference "today" (injectable for tests)
+ * @returns {string|null} 'YYYY-MM-DD' cutoff, or null for no limit
+ */
+export function obsidianWindowCutoffDate(days, now = new Date()) {
+  if (!(days > 0)) return null;
+  const c = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
+  return `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, '0')}-${String(c.getDate()).padStart(2, '0')}`;
+}
+
 // All Electron builds route vault access through the main process (native picker +
 // security-scoped bookmark). Required under the MAS sandbox (a renderer FS Access
 // handle can't persist there); the unsandboxed Developer ID / dev builds simply get
@@ -872,16 +900,8 @@ export async function syncObsidianVault(
 ) {
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
 
-  // Compute cutoff date string
-  let cutoffStr = '0000-00-00';
-  if (retentionDays && retentionDays > 0) {
-    const today = new Date();
-    const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - retentionDays);
-    const yyyy = cutoff.getFullYear();
-    const mm = String(cutoff.getMonth() + 1).padStart(2, '0');
-    const dd = String(cutoff.getDate()).padStart(2, '0');
-    cutoffStr = `${yyyy}-${mm}-${dd}`;
-  }
+  // Cutoff date string; '0000-00-00' when the window is unlimited (reads everything).
+  const cutoffStr = obsidianWindowCutoffDate(retentionDays) ?? '0000-00-00';
 
   const dailyNotes = {};
   const allScheduled = [];
@@ -1172,13 +1192,8 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
   if (!bridge) throw new Error('Obsidian bridge unavailable');
 
-  // Compute cutoff date string
-  let cutoffStr = '0000-00-00';
-  if (retentionDays && retentionDays > 0) {
-    const today = new Date();
-    const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - retentionDays);
-    cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
-  }
+  // Cutoff date string; '0000-00-00' when the window is unlimited (reads everything).
+  const cutoffStr = obsidianWindowCutoffDate(retentionDays) ?? '0000-00-00';
 
   // Build lookup of existing Obsidian tasks to preserve app-controlled properties
   const existingTaskMap = {};
