@@ -282,7 +282,7 @@ class ObsidianRepository(private val context: Context) {
 
     /**
      * Returns a JSON array of all daily notes in [folder] at or after [cutoff] (yyyy-MM-dd).
-     * Each entry: { "date": "yyyy-MM-dd", "text": "<markdown content>" }.
+     * Each entry: { "date": "yyyy-MM-dd", "text": "<markdown content>", "lastModified": "<ISO-8601>" }.
      * Pass an empty [cutoff] to return all notes.
      * Returns "[]" if the vault isn't configured or the folder doesn't exist.
      *
@@ -303,6 +303,10 @@ class ObsidianRepository(private val context: Context) {
                 arr.put(JSONObject().apply {
                     put("date", dateStr)
                     put("text", readText(file))
+                    // The file's REAL modification time, so the web frontend's merge
+                    // uses a truthful last-writer-wins timestamp instead of stamping
+                    // every scanned note as "now". Mirrors getNote() below.
+                    put("lastModified", Instant.ofEpochMilli(file.lastModified()).toString())
                 })
             }
         // Pre-warm the note URI index on the same sync pass so bare-name

@@ -1188,6 +1188,25 @@ if (typeof window !== 'undefined' && !window.__obsidianDispatch) {
   };
 }
 
+/**
+ * Resolve the lastModified for a native daily-note scan entry.
+ *
+ * The native scan (getAllDailyNotes) carries each file's REAL modification time in
+ * `entry.lastModified` once the Kotlin bridge reports it (ObsidianRepository.kt).
+ * Older app/bridge builds omit it — fall back to `nowIso` so a scan still works
+ * during the rollout. Using the real mtime instead of a fresh "now" stops the native
+ * side from stamping every note as just-modified on every sync — the false-LWW /
+ * churn source the web (File System Access) path never had, since it always used the
+ * file's real `file.lastModified`.
+ *
+ * @param {{lastModified?: string}} entry  one native note entry
+ * @param {string} nowIso                  fallback timestamp (current time, ISO)
+ * @returns {string}
+ */
+export function nativeNoteLastModified(entry, nowIso) {
+  return (entry && entry.lastModified) || nowIso;
+}
+
 export async function syncObsidianVaultNative(folder, retentionDays, existingTasks, existingInbox) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
   if (!bridge) throw new Error('Obsidian bridge unavailable');
@@ -1222,7 +1241,7 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
 
   // Prefer the batch getAllDailyNotesAsync method (non-blocking: SAF I/O runs on a
   // background thread and callbacks back via JS) over the synchronous alternatives.
-  let noteEntries; // [{ date, text }]
+  let noteEntries; // [{ date, text, lastModified? }] — lastModified present from getAllDailyNotes
   if (bridge.getAllDailyNotesAsync) {
     // Non-blocking path: runs SAF I/O on a background thread, callbacks via JS
     if (!window.__obsidianCbs) window.__obsidianCbs = {};
@@ -1268,11 +1287,14 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
     throw new Error('Obsidian bridge is missing required methods (getAllDailyNotes or listNotes)');
   }
 
-  for (const { date: dateStr, text } of noteEntries) {
+  for (const entry of noteEntries) {
+    const { date: dateStr, text } = entry;
     if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) continue;
     if (text === null || text === undefined) continue;
 
-    dailyNotes[dateStr] = { text, lastModified: new Date().toISOString(), fromObsidian: true };
+    // Use the file's REAL mtime from the native scan; fall back to now for older
+    // bridge builds that don't report it yet. See nativeNoteLastModified.
+    dailyNotes[dateStr] = { text, lastModified: nativeNoteLastModified(entry, new Date().toISOString()), fromObsidian: true };
 
     const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(text, dateStr);
 
