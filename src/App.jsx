@@ -12,6 +12,7 @@ import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { tombstoneCutoff } from './sync/tombstoneRetention.js';
 import { preserveArchived } from './utils/preserveArchived.js';
 import { rescueUnsyncedTasks } from './utils/rescueUnsyncedTasks.js';
+import { dropResurrectedTasks } from './utils/dropResurrectedTasks.js';
 import { partitionExpiredSingleDayFrames } from './utils/expiredFrames.js';
 import { mergeObsidianDailyNotes } from './utils/mergeObsidianDailyNotes.js';
 import { mergeObsidianTasks } from './utils/mergeObsidianTasks.js';
@@ -5845,16 +5846,22 @@ const DayPlanner = () => {
     // migrated flag is already set, writing a leaked URL into this device's entry.
     let calendarConfigByUser = {};
     try { calendarConfigByUser = JSON.parse(localStorage.getItem('day-planner-calendar-config-by-user') || '{}'); } catch { calendarConfigByUser = {}; }
+    // Never push a task this device's own tombstones say is deleted — otherwise a
+    // stale local copy resurrects a genuinely-deleted task fleet-wide (the delete↔
+    // re-add war). Drops only tombstoned-and-older tasks; a restored task (newer than
+    // its tombstone) is kept. See utils/dropResurrectedTasks.js.
+    let payloadDeletedTaskIds = {};
+    try { payloadDeletedTaskIds = JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}'); } catch { payloadDeletedTaskIds = {}; }
     return {
       version: 2,
       lastModified: new Date().toISOString(),
       data: {
         tasks: stampTaskTimestamps(
-          tasks.filter(t => !t._native && keepImported(t)),
+          dropResurrectedTasks(tasks.filter(t => !t._native && keepImported(t)), payloadDeletedTaskIds),
           'day-planner-tasks'
         ),
         unscheduledTasks: stampTaskTimestamps(
-          unscheduledTasks.filter(keepImported),
+          dropResurrectedTasks(unscheduledTasks.filter(keepImported), payloadDeletedTaskIds),
           'day-planner-unscheduled'
         ),
         unscheduledOrderTimestamp,
