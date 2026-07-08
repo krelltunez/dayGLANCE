@@ -3,7 +3,7 @@ import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, Chev
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { hasNativeCalendar, electronGetCalendars, electronGetEventsByDate, electronRequestCalendarAccess, nativeEventToTask } from './utils/nativeCalendar.js';
 import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeGetVaultConfig, nativeIsVaultConfigured, nativeWriteDailyNote, nativeGetNote, nativeWriteNote, nativeOpenNote, nativeListNotes, nativeClearVault, nativeSetVaultSettings, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeStartRecording, nativeStopRecording, nativeGetWidgetPendingAction, triggerHaptic } from './native.js';
-import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, tryRestoreVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative, simpleHash as obsidianSimpleHash, readWikiNote, writeWikiNote, listVaultNotes, appendTaskToDailyNote, appendTaskToDailyNoteNative } from './obsidian.js';
+import { isFileSystemAccessSupported, requestVaultAccess, getVaultAccess, tryRestoreVaultAccess, disconnectVault, syncObsidianVault, syncObsidianVaultNative, writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, writeTaskStateToFile, writeTaskStateNative, simpleHash as obsidianSimpleHash, readWikiNote, writeWikiNote, listVaultNotes, appendTaskToDailyNote, appendTaskToDailyNoteNative, OBSIDIAN_IMPORT_WINDOW_DAYS, obsidianWindowCutoffDate } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, aiTranscribe, supportsTranscription, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt, taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, morningSummarySystemPrompt, morningSummaryUserPrompt, eveningReflectionSystemPrompt, eveningReflectionUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
@@ -3192,17 +3192,20 @@ const DayPlanner = () => {
       // not the stale closure from when the interval was set up.
       const currentTasks = obsidianTasksRef.current;
       const currentInbox = obsidianInboxRef.current;
+      // The Obsidian scan window is FIXED (OBSIDIAN_IMPORT_WINDOW_DAYS), decoupled
+      // from the calendar "Keep past events" retention (syncRetentionDays) — that
+      // setting is about imported calendar events, not the vault. See obsidian.js.
       const result = isNative
         ? await syncObsidianVaultNative(
             obsidianConfig?.dailyNotesPath || '',
-            syncRetentionDays,
+            OBSIDIAN_IMPORT_WINDOW_DAYS,
             currentTasks,
             currentInbox,
           )
         : await syncObsidianVault(
             obsidianVaultHandleRef.current,
             obsidianConfig?.dailyNotesPath || '',
-            syncRetentionDays,
+            OBSIDIAN_IMPORT_WINDOW_DAYS,
             currentTasks,
             currentInbox,
             obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
@@ -3246,15 +3249,11 @@ const DayPlanner = () => {
       try { tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-obsidian-keys') || '{}'); } catch { tombstones = {}; }
       let lastScanned = [];
       try { lastScanned = JSON.parse(localStorage.getItem('day-planner-obsidian-last-scanned') || '[]'); } catch { lastScanned = []; }
-      // The scan only reads notes/tasks within `syncRetentionDays` of today
-      // (src/obsidian.js), so notes aging out of that window must NOT be mistaken
-      // for deletions. Compute the same cutoff and pass it to the detector.
-      let obsidianCutoff = null;
-      if (syncRetentionDays && syncRetentionDays > 0) {
-        const c = new Date();
-        c.setDate(c.getDate() - syncRetentionDays);
-        obsidianCutoff = `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, '0')}-${String(c.getDate()).padStart(2, '0')}`;
-      }
+      // The scan only reads notes/tasks within the fixed Obsidian window of today
+      // (OBSIDIAN_IMPORT_WINDOW_DAYS, src/obsidian.js), so notes aging out of that
+      // window must NOT be mistaken for deletions. Use the SAME helper the scan uses
+      // so the two windows can't drift.
+      const obsidianCutoff = obsidianWindowCutoffDate(OBSIDIAN_IMPORT_WINDOW_DAYS);
       const { deletions, skipped } = detectObsidianDeletions(lastScanned, scannedKeys, obsidianCutoff);
       if (deletions.length) {
         tombstones = addObsidianTombstones(tombstones, deletions, new Date().toISOString());
