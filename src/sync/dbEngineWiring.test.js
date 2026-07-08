@@ -293,6 +293,39 @@ describe('Part B — end-to-end two-device sync via the REAL engine', () => {
       expect(inUnsched).toBe(false);
     }
   });
+
+  it('GUARD: a glitch-vanish is NOT propagated (kept), but a tombstoned delete IS', async () => {
+    // Reproduces the incident end-to-end through the REAL cycle: a device's in-memory
+    // task list transiently shrinks. Without the guard the diff broadcasts that as a
+    // permanent delete and the fleet loses a live, un-deleted task. 700 exercises the
+    // glitch path; 701 the genuine-deletion path.
+    const vault = createMemoryVault();
+    const A = makeDevice('A', vault, {
+      ...EMPTY,
+      tasks: [task(700, '2026-06-18T10:00:00.000Z'), task(701, '2026-06-18T10:00:00.000Z')],
+    });
+    const B = makeDevice('B', vault, { ...EMPTY });
+    await runRounds(A, B);
+    expect(B.data.tasks.map((t) => t.id).sort()).toEqual([700, 701]); // both converged
+
+    // GLITCH: A drops 700 from memory with NO tombstone (a transient shrink).
+    A.data.tasks = A.data.tasks.filter((t) => t.id !== 700);
+    await runRounds(A, B);
+    // The guard skips the un-tombstoned vanish → the deletion does NOT propagate:
+    // device B (which never glitched) still holds the live task. No fleet-wide loss.
+    // (The guard stops the SPREAD of a local glitch; it does not self-restore the
+    // glitched device — A stays locally short until the row is next re-pushed to it.)
+    expect(B.data.tasks.map((t) => t.id)).toContain(700);
+
+    // REAL DELETE: A removes 701 AND records its tombstone (what every delete path
+    // does). Now it is a genuine deletion, not a glitch.
+    A.data.tasks = A.data.tasks.filter((t) => t.id !== 701);
+    A.data.deletedTaskIds = { ...(A.data.deletedTaskIds || {}), 701: '2026-07-08T00:00:00.000Z' };
+    await runRounds(A, B);
+    // Tombstoned → the delete propagates and sticks; the glitch-kept 700 stays safe.
+    expect(B.data.tasks.map((t) => t.id)).not.toContain(701);
+    expect(B.data.tasks.map((t) => t.id)).toContain(700);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
