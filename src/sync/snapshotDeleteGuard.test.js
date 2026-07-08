@@ -62,8 +62,20 @@ describe('partitionSnapshotDeletes', () => {
     expect(skipped.sort()).toEqual(['tasks:glitch1', 'tasks:glitch2']);
   });
 
+  it('reports a reason per entityId (tombstoned / cross-list / glitch) for diagnostics', () => {
+    const mirror = { deletedTaskIds: { real: 't' } };
+    const cur = curOf('recycleBin:moved');
+    const del = ['tasks:real', 'tasks:moved', 'tasks:glitch1'];
+    const { reasons } = partitionSnapshotDeletes(del, cur, mirror);
+    expect(reasons).toEqual({
+      'tasks:real': 'tombstoned',
+      'tasks:moved': 'cross-list',
+      'tasks:glitch1': 'glitch',
+    });
+  });
+
   it('tolerates empty / missing inputs', () => {
-    expect(partitionSnapshotDeletes([], {}, {})).toEqual({ propagate: [], skipped: [] });
-    expect(partitionSnapshotDeletes(null, null, null)).toEqual({ propagate: [], skipped: [] });
+    expect(partitionSnapshotDeletes([], {}, {})).toEqual({ propagate: [], skipped: [], reasons: {} });
+    expect(partitionSnapshotDeletes(null, null, null)).toEqual({ propagate: [], skipped: [], reasons: {} });
   });
 });
