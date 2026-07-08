@@ -6,6 +6,7 @@ const imported = (id, extra = {}) => ({ id, title: id, imported: true, ...extra 
 const native = (id) => ({ id, title: id, _native: true });
 const intent = (id) => ({ id, title: id, _intentKey: `k-${id}` });
 const plain = (id) => ({ id, title: id });
+const obsidian = (id, lastModified) => ({ id, title: id, importSource: 'obsidian', lastModified });
 
 describe('rescueUnsyncedTasks', () => {
   it('preserves an untombstoned local-only imported task (the race-add rescue is intact)', () => {
@@ -68,11 +69,59 @@ describe('rescueUnsyncedTasks', () => {
     expect(rescueUnsyncedTasks(merged('a'), null).map((t) => t.id)).toEqual(['a']);
   });
 
-  it('isDefaultRescuable flags native / imported / intent, not plain', () => {
+  it('isDefaultRescuable flags native / imported / intent / obsidian, not plain', () => {
     expect(isDefaultRescuable(native('n'))).toBe(true);
     expect(isDefaultRescuable(imported('i'))).toBe(true);
     expect(isDefaultRescuable(intent('t'))).toBe(true);
+    expect(isDefaultRescuable(obsidian('o', '2026-05-01T00:00:00.000Z'))).toBe(true);
     expect(isDefaultRescuable(plain('p'))).toBe(false);
     expect(isDefaultRescuable(null)).toBe(false);
+  });
+
+  describe('Obsidian tasks (the ala7ur flicker fix)', () => {
+    it('RESCUES a live, note-backed Obsidian task the merge apply transiently omitted', () => {
+      // The Obsidian scan added obsidian-2026-04-23-ala7ur to state; a DB-sync apply
+      // then committed a merged set lacking it. It has no tombstone → keep it, so it
+      // does not flicker out of state every cycle.
+      const prev = [obsidian('obsidian-2026-04-23-ala7ur', '2026-04-23T09:30:00.000Z')];
+      const out = rescueUnsyncedTasks(merged('a'), prev, {}, undefined, {});
+      expect(out.map((t) => t.id)).toEqual(['a', 'obsidian-2026-04-23-ala7ur']);
+    });
+
+    it('does NOT rescue an Obsidian task deleted from the vault (deletedObsidianKeys wins)', () => {
+      // The note line was removed; detectObsidianDeletions tombstoned it with a
+      // deletion newer than the task. The rescue must leave it deleted.
+      const prev = [obsidian('obsidian-2026-04-23-ala7ur', '2026-04-23T09:30:00.000Z')];
+      const obsidianTombs = { 'obsidian-2026-04-23-ala7ur': '2026-06-01T00:00:00.000Z' };
+      const out = rescueUnsyncedTasks(merged('a'), prev, {}, undefined, obsidianTombs);
+      expect(out.map((t) => t.id)).toEqual(['a']); // stays deleted
+    });
+
+    it('RESCUES an Obsidian task re-created in the vault after its tombstone (LWW resurrect)', () => {
+      // The user re-added the line; the fresh copy is newer than the deletion, so it
+      // wins last-writer-wins and comes back — mirroring isObsidianTombstoned.
+      const prev = [obsidian('obsidian-2026-04-23-ala7ur', '2026-07-05T00:00:00.000Z')];
+      const obsidianTombs = { 'obsidian-2026-04-23-ala7ur': '2026-06-01T00:00:00.000Z' };
+      const out = rescueUnsyncedTasks(merged('a'), prev, {}, undefined, obsidianTombs);
+      expect(out.map((t) => t.id)).toEqual(['a', 'obsidian-2026-04-23-ala7ur']);
+    });
+
+    it('does NOT rescue an Obsidian task the user deleted in-app (deletedTaskIds guard still applies)', () => {
+      // Deleting inside dayGLANCE writes deletedTaskIds; that shared guard covers
+      // Obsidian tasks too, so an in-app delete is honored.
+      const prev = [obsidian('obsidian-2026-04-23-ala7ur', '2026-04-23T09:30:00.000Z')];
+      const out = rescueUnsyncedTasks(
+        merged('a'), prev,
+        { 'obsidian-2026-04-23-ala7ur': '2026-06-26T00:00:00.000Z' },
+        undefined, {},
+      );
+      expect(out.map((t) => t.id)).toEqual(['a']);
+    });
+
+    it('rescues an Obsidian task already present in merged? no — no duplication', () => {
+      const prev = [obsidian('dup', '2026-05-01T00:00:00.000Z')];
+      const out = rescueUnsyncedTasks(merged('dup'), prev, {}, undefined, {});
+      expect(out.map((t) => t.id)).toEqual(['dup']);
+    });
   });
 });

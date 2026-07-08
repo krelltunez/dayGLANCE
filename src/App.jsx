@@ -6169,8 +6169,12 @@ const DayPlanner = () => {
     // — that resurrects a task deleted on another device (the seed-task ping-pong).
     // See utils/rescueUnsyncedTasks.js.
     const rescueDeletedIds = data.deletedTaskIds || {};
-    if (normalizedTasks) setTasks(prev => rescueUnsyncedTasks(preserveArchived(normalizedTasks, prev), prev, rescueDeletedIds));
-    if (normalizedUnsched) setUnscheduledTasks(prev => rescueUnsyncedTasks(preserveArchived(normalizedUnsched, prev), prev, rescueDeletedIds));
+    // Obsidian tasks are rescuable (re-derived from the local vault), but a
+    // genuinely vault-deleted one must stay gone — honor its deletedObsidianKeys
+    // tombstone. See utils/rescueUnsyncedTasks.js (the ala7ur flicker fix).
+    const rescueObsidianTombstones = data.deletedObsidianKeys || {};
+    if (normalizedTasks) setTasks(prev => rescueUnsyncedTasks(preserveArchived(normalizedTasks, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones));
+    if (normalizedUnsched) setUnscheduledTasks(prev => rescueUnsyncedTasks(preserveArchived(normalizedUnsched, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones));
     if (data.unscheduledOrderTimestamp) {
       setUnscheduledOrderTimestamp(data.unscheduledOrderTimestamp);
       localStorage.setItem('day-planner-unscheduled-order-ts', data.unscheduledOrderTimestamp);
