@@ -326,10 +326,14 @@ export function createDbEngine(callbacks = {}) {
       // "deleted → new" churn seen from the source side — it distinguishes a real
       // state wipe (count goes 0) from a remote delete-row (count stays, [pull]
       // DELETE fires instead).
+      // Capture the seed-time payload counts, but DON'T log yet — only an ACTIVE
+      // cycle (wrote / deleted / pulled / had dirty rows) prints its summary, so a
+      // converged fleet's every-tick no-op cycles stay silent even with the flag on.
+      let pushCountsLine = null;
       if (pushDbg) {
         const cnt = (k) => Array.isArray(mirror[k]) ? mirror[k].length
           : (mirror[k] && typeof mirror[k] === 'object' ? Object.keys(mirror[k]).length : 0);
-        console.log(`[push] getData counts → tasks:${cnt('tasks')} unscheduled:${cnt('unscheduledTasks')} gtdFrames:${cnt('gtdFrames')} dailyNotes:${cnt('dailyNotes')} goals:${cnt('goals')} projects:${cnt('projects')}`);
+        pushCountsLine = `[push] getData counts → tasks:${cnt('tasks')} unscheduled:${cnt('unscheduledTasks')} gtdFrames:${cnt('gtdFrames')} dailyNotes:${cnt('dailyNotes')} goals:${cnt('goals')} projects:${cnt('projects')}`;
       }
       const dbgChanges = pushDbg ? [] : null; // [{ id, kind, diff:[] }]
       if (engine.getHighWaterMark() === 0) {
@@ -415,14 +419,21 @@ export function createDbEngine(callbacks = {}) {
       const pushRes = await engine.pushDirtyRows();        // push merged superset + local changes
       if (pushDbg) {
         const wrote = (pushRes?.written ?? 0) + (pushRes?.deleted ?? 0);
-        console.log(`[push] cycle → vault.batch written:${pushRes?.written ?? 0} deleted:${pushRes?.deleted ?? 0} — client ${wrote > 0 ? 'DID' : 'did NOT'} write this cycle`);
-        console.log('[push] dirty ids this cycle:', dirtyBeforePush ?? []);
-        if (dbgChanges && dbgChanges.length) {
-          for (const c of dbgChanges) {
-            console.log(`[push]   snapshot-diff ${c.kind} ${c.id}${c.diff.length ? ` — ${c.diff.join('; ')}` : ''}`);
+        // Only a cycle that actually moved data logs — wrote/deleted to the vault,
+        // pulled remote changes, or had a non-empty dirty set. A pure no-op tick
+        // (the common case in a converged fleet) stays silent.
+        const active = wrote > 0 || (pull?.applied ?? 0) > 0 || (dirtyBeforePush?.length ?? 0) > 0 || (dbgChanges?.length ?? 0) > 0;
+        if (active) {
+          if (pushCountsLine) console.log(pushCountsLine);
+          console.log(`[push] cycle → vault.batch written:${pushRes?.written ?? 0} deleted:${pushRes?.deleted ?? 0} — client ${wrote > 0 ? 'DID' : 'did NOT'} write this cycle`);
+          console.log('[push] dirty ids this cycle:', dirtyBeforePush ?? []);
+          if (dbgChanges && dbgChanges.length) {
+            for (const c of dbgChanges) {
+              console.log(`[push]   snapshot-diff ${c.kind} ${c.id}${c.diff.length ? ` — ${c.diff.join('; ')}` : ''}`);
+            }
+          } else {
+            console.log('[push]   dirt came from pull re-push / cross-list reconcile (superset), not a moving payload field');
           }
-        } else {
-          console.log('[push]   snapshot-diff found NO changed rows → dirt came from pull re-push / cross-list reconcile (superset), not a moving payload field');
         }
       }
       await engine.updateDeviceCursor();
