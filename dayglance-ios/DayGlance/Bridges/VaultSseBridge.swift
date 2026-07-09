@@ -58,25 +58,13 @@ final class VaultSseBridge {
     // notices it is no longer the current generation and exits.
     private var generation = 0
 
-    // ── TEMP diagnostic counters (read via debugState() / the vaultSseDebugState
-    // bridge method). They disambiguate a stuck reader without native-log access:
-    // reader-not-running vs connect-hang vs bad-status vs frames-not-reaching-JS.
-    // Strip once the iOS SSE path is confirmed healthy.
-    private var connectAttempts = 0
-    private var lastStatus: Int?
-    private var lastError: String?
-    private var opensPushed = 0
-    private var framesPushed = 0
-    private var pushDropped = 0
-    private var startCalls = 0
-    private var bytesReceived = 0
-
     // Dedicated session: a request-idle timeout longer than the ~25s server
     // heartbeat (a healthy idle stream never trips it, a silently-dead one is
     // detected within the window), and never a cached response. A stored `let`
     // (not lazy) so its first use from the reader Task can't race initialization.
-    // waitsForConnectivity is OFF so a stalled connect surfaces as an error/timeout
-    // (visible in debugState) rather than parking indefinitely.
+    // waitsForConnectivity is OFF: our own reconnect + backoff (SseBackoff) owns
+    // retries, matching Android's fail-and-reconnect model — so a drop surfaces
+    // promptly instead of parking the request on the connectivity monitor.
     private let session: URLSession = {
         let cfg = URLSessionConfiguration.default
         cfg.timeoutIntervalForRequest = 60
@@ -94,41 +82,12 @@ final class VaultSseBridge {
     /// Renderer → "SSE desired ON", with the vault connection params.
     func start(vaultUrl: String, token: String, accountId: String) {
         lock.lock()
-        startCalls += 1
         self.vaultUrl = trimTrailingSlashes(vaultUrl)
         self.token = token
         self.accountId = accountId
         self.desired = true
         reconcileLocked()
         lock.unlock()
-    }
-
-    /// TEMP diagnostic snapshot of the reader's internal state, as a JSON string.
-    /// Read from the web console via window.DayGlanceNative.vaultSseDebugState().
-    /// Disambiguates a stuck reader: reader-not-running vs connect-hang (attempts
-    /// but no status) vs bad-status vs frames-not-reaching-JS (hasWebView false /
-    /// pushDropped > 0). Strip once the iOS SSE path is confirmed healthy.
-    func debugState() -> String {
-        lock.lock(); defer { lock.unlock() }
-        let dict: [String: Any] = [
-            "startCalls": startCalls,
-            "desired": desired,
-            "foreground": foreground,
-            "readerRunning": readerTask != nil,
-            "generation": generation,
-            "hasWebView": webView != nil,
-            "haveParams": vaultUrl != nil && token != nil && accountId != nil,
-            "connectAttempts": connectAttempts,
-            "lastStatus": lastStatus as Any,
-            "lastError": lastError as Any,
-            "bytesReceived": bytesReceived,
-            "opensPushed": opensPushed,
-            "framesPushed": framesPushed,
-            "pushDropped": pushDropped,
-        ]
-        guard let data = try? JSONSerialization.data(withJSONObject: dict),
-              let json = String(data: data, encoding: .utf8) else { return "{}" }
-        return json
     }
 
     /// Renderer → "SSE desired OFF".
@@ -182,7 +141,6 @@ final class VaultSseBridge {
                 return
             } catch {
                 if Task.isCancelled || currentGeneration() != gen { return }
-                recordError(error.localizedDescription)
                 push(["type": "error", "message": error.localizedDescription])
             }
             if Task.isCancelled || currentGeneration() != gen { return }
@@ -206,10 +164,8 @@ final class VaultSseBridge {
         req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         req.timeoutInterval = 60
 
-        recordConnectAttempt()
         let (bytes, response) = try await session.bytes(for: req)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        recordStatus(status)
         guard (200...299).contains(status) else {
             throw NSError(domain: "VaultSse", code: status,
                           userInfo: [NSLocalizedDescriptionKey: "vault SSE connect failed: \(status)"])
@@ -232,7 +188,6 @@ final class VaultSseBridge {
             byteBuf.append(byte)
             guard byte == 0x0A else { continue }
             guard let chunk = String(bytes: byteBuf, encoding: .utf8) else { continue }
-            recordBytes(byteBuf.count)
             byteBuf.removeAll(keepingCapacity: true)
             pending += chunk.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
             while let boundary = pending.range(of: "\n\n") {
@@ -251,32 +206,16 @@ final class VaultSseBridge {
         guard JSONSerialization.isValidJSONObject(msg),
               let data = try? JSONSerialization.data(withJSONObject: msg),
               let json = String(data: data, encoding: .utf8) else { return }
-        // Count by type and detect a dropped push (weak webView gone) BEFORE the
-        // async hop, so debugState() reflects the real delivery outcome.
-        let type = msg["type"] as? String ?? "?"
-        lock.lock()
-        let wv = webView
-        if wv == nil { pushDropped += 1 }
-        else if type == "open" { opensPushed += 1 }
-        else if type == "frame" { framesPushed += 1 }
-        lock.unlock()
-        guard let webView = wv else { return }
         // JSON is valid JS object-literal syntax, so the renderer receives an object
         // (createBridgeSseClient.receive accepts an object OR a JSON string). Building
         // via JSONSerialization escapes quotes/newlines/unicode in the block safely.
-        DispatchQueue.main.async {
-            webView.evaluateJavaScript(
+        DispatchQueue.main.async { [weak self] in
+            self?.webView?.evaluateJavaScript(
                 "window.__glanceVaultSseReceive && window.__glanceVaultSseReceive(\(json))",
                 completionHandler: nil
             )
         }
     }
-
-    // TEMP diagnostic recorders (lock-guarded so debugState reads a consistent view).
-    private func recordConnectAttempt() { lock.lock(); connectAttempts += 1; lock.unlock() }
-    private func recordStatus(_ s: Int) { lock.lock(); lastStatus = s; lock.unlock() }
-    private func recordError(_ e: String) { lock.lock(); lastError = e; lock.unlock() }
-    private func recordBytes(_ n: Int) { lock.lock(); bytesReceived += n; lock.unlock() }
 
     // MARK: - Helpers
 

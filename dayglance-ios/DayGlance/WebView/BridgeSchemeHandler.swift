@@ -241,9 +241,6 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
         case "stopVaultSse":
             VaultSseBridge.shared.stop()
             return "null"
-        // TEMP diagnostic: reader internals as JSON (read from the web console).
-        case "vaultSseDebugState":
-            return VaultSseBridge.shared.debugState()
 
         default:
             return "null"
