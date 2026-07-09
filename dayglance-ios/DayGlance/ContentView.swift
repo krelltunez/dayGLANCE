@@ -31,6 +31,10 @@ struct ContentView: View {
                 lastCalendarStatus = EKEventStore.authorizationStatus(for: .event)
             }
             .onChange(of: scenePhase) { phase in
+                // Gate the native SSE reader on foreground: it holds a socket open,
+                // so it must drop on background and reopen on foreground (mirrors the
+                // Android Activity onStart/onStop wiring). Only .active is foreground.
+                VaultSseBridge.shared.setForeground(phase == .active)
                 guard phase == .active else { return }
                 // Always notify the web layer that the app came to foreground so
                 // cloud sync can pull any changes made while the app was backgrounded.

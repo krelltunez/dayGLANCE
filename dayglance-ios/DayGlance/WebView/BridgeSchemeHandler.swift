@@ -227,6 +227,21 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
             SpotlightBridge.shared.deindexItems(json)
             return "null"
 
+        // Phase 12 — GLANCEvault native SSE reader (bridge-fed transport). The shell
+        // owns the /events socket; frames arrive via window.__glanceVaultSseReceive.
+        case "isVaultSseSupported":
+            return VaultSseBridge.shared.isSupported() ? "true" : "false"
+        case "startVaultSse":
+            guard args.count >= 3,
+                  let url     = args[0] as? String,
+                  let token   = args[1] as? String,
+                  let account = args[2] as? String else { return "null" }
+            VaultSseBridge.shared.start(vaultUrl: url, token: token, accountId: account)
+            return "null"
+        case "stopVaultSse":
+            VaultSseBridge.shared.stop()
+            return "null"
+
         default:
             return "null"
         }
