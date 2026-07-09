@@ -69,6 +69,7 @@ final class VaultSseBridge {
     private var framesPushed = 0
     private var pushDropped = 0
     private var startCalls = 0
+    private var bytesReceived = 0
 
     // Dedicated session: a request-idle timeout longer than the ~25s server
     // heartbeat (a healthy idle stream never trips it, a silently-dead one is
@@ -120,6 +121,7 @@ final class VaultSseBridge {
             "connectAttempts": connectAttempts,
             "lastStatus": lastStatus as Any,
             "lastError": lastError as Any,
+            "bytesReceived": bytesReceived,
             "opensPushed": opensPushed,
             "framesPushed": framesPushed,
             "pushDropped": pushDropped,
@@ -214,24 +216,31 @@ final class VaultSseBridge {
         }
         push(["type": "open"])
 
-        // SSE framing: `.lines` decodes UTF-8 and splits on newlines; a blank line is
-        // the block delimiter (SSE dispatch boundary). We rebuild each block by
-        // joining its lines with "\n" so the renderer's parseSseFrame sees exactly
-        // the raw block it expects. Comment-only / heartbeat blocks (no `data:` line)
-        // are dropped here — matches Android's SseFraming.hasDataLine, saving a
-        // renderer wakeup for a frame it would only parse to null anyway.
-        var blockLines: [String] = []
-        for try await line in bytes.lines {
+        // SSE framing at the BYTE level. We deliberately do NOT use bytes.lines
+        // (AsyncLineSequence): it does not reliably yield the EMPTY lines that
+        // delimit SSE event blocks, so a blank-line boundary is never seen and no
+        // frame is ever emitted. Instead we accumulate the stream, normalize CRLF/CR
+        // to LF, and split on the "\n\n" blank-line boundary ourselves — exactly like
+        // Android's SseFraming and the renderer's drainSseBuffer. Decoding only at a
+        // "\n" byte (0x0A, never part of a multibyte UTF-8 sequence) keeps UTF-8 safe
+        // across chunk boundaries. Comment-only / heartbeat blocks (no data: line)
+        // are dropped — matches Android's SseFraming.hasDataLine.
+        var byteBuf = [UInt8]()
+        var pending = ""
+        for try await byte in bytes {
             if Task.isCancelled || currentGeneration() != gen { break }
-            if line.isEmpty {
-                if !blockLines.isEmpty {
-                    if blockLines.contains(where: { $0.hasPrefix("data:") }) {
-                        push(["type": "frame", "block": blockLines.joined(separator: "\n")])
-                    }
-                    blockLines.removeAll(keepingCapacity: true)
+            byteBuf.append(byte)
+            guard byte == 0x0A else { continue }
+            guard let chunk = String(bytes: byteBuf, encoding: .utf8) else { continue }
+            recordBytes(byteBuf.count)
+            byteBuf.removeAll(keepingCapacity: true)
+            pending += chunk.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+            while let boundary = pending.range(of: "\n\n") {
+                let block = String(pending[pending.startIndex..<boundary.lowerBound])
+                pending = String(pending[boundary.upperBound...])
+                if block.split(separator: "\n", omittingEmptySubsequences: false).contains(where: { $0.hasPrefix("data:") }) {
+                    push(["type": "frame", "block": block])
                 }
-            } else {
-                blockLines.append(line)
             }
         }
     }
@@ -267,6 +276,7 @@ final class VaultSseBridge {
     private func recordConnectAttempt() { lock.lock(); connectAttempts += 1; lock.unlock() }
     private func recordStatus(_ s: Int) { lock.lock(); lastStatus = s; lock.unlock() }
     private func recordError(_ e: String) { lock.lock(); lastError = e; lock.unlock() }
+    private func recordBytes(_ n: Int) { lock.lock(); bytesReceived += n; lock.unlock() }
 
     // MARK: - Helpers
 
