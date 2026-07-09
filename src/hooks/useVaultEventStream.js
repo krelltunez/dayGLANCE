@@ -64,9 +64,11 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
     // Observability: a live, inspectable snapshot so SSE health can be checked in
     // a packaged/MAS/native build with no devtools — run `window.__glanceVaultSse`
     // in the console (or read it from a diagnostics panel). Counters make a
-    // reconnect STORM (many connects, few events) immediately obvious. Logging is
-    // always-on (not DEV-gated) but low-volume: one line per lifecycle transition,
-    // not per heartbeat.
+    // reconnect STORM (many connects, few events) immediately obvious. The snapshot
+    // is ALWAYS live (updated every transition/drain); the per-transition CONSOLE
+    // lines are gated behind the `dayglance-debug-push` flag so production stays
+    // quiet — flip the flag to trace lifecycle, or just read window.__glanceVaultSse.
+    // Genuine errors still log unconditionally.
     const diag = {
       state: 'idle',
       connects: 0,
@@ -80,13 +82,20 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
     };
     if (typeof window !== 'undefined') window.__glanceVaultSse = diag;
 
+    // Console tracing is opt-in (the diag snapshot above is the always-on channel);
+    // gate on the same flag as the DB-sync push logging so one switch traces both.
+    const sseDebug = () => {
+      try { return typeof localStorage !== 'undefined' && localStorage.getItem('dayglance-debug-push') === '1'; }
+      catch { return false; }
+    };
+
     const coalescer = createNudgeCoalescer({
       // Debounce-only (no throttle). The self-nudge loop is fixed at the root — a
       // no-content sync cycle no longer pushes/nudges (utils/tombstoneHorizon.js) —
       // so drains fire near-instantly on real changes, restoring SSE's low latency.
       onDrain: (kind) => {
         diag.drains += 1;
-        console.info('[vault-sse] drain →', kind);
+        if (sseDebug()) console.info('[vault-sse] drain →', kind);
         if (kind === 'sync') drainSyncRef.current?.();
         else if (kind === 'intents') drainIntentsRef.current?.();
       },
@@ -105,7 +114,7 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
       if (state === 'connecting') diag.connects += 1;
       if (state === 'open') diag.lastConnectedAt = new Date().toISOString();
       if (state === 'error') { diag.lastError = detail?.message || String(detail || 'error'); console.warn('[vault-sse] error:', diag.lastError); }
-      else console.info('[vault-sse]', state, `(connects=${diag.connects} events=${diag.events} drains=${diag.drains})`);
+      else if (sseDebug()) console.info('[vault-sse]', state, `(connects=${diag.connects} events=${diag.events} drains=${diag.drains})`);
     };
     const getConnection = () => {
       const c = getVaultConfig();
