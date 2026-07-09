@@ -38,9 +38,18 @@ struct WebView: UIViewRepresentable {
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
 
-        #if DEBUG
-        if #available(iOS 16.4, *) { webView.isInspectable = true }
-        #endif
+        // Web Inspector (Safari → Develop). iOS 16.4+ defaults isInspectable to
+        // false, so a distribution build is otherwise un-inspectable. Enable it in
+        // Debug (Xcode runs) AND TestFlight (sandbox receipt) so beta test builds
+        // are debuggable — but NEVER in an App Store production build.
+        if #available(iOS 16.4, *) {
+            #if DEBUG
+            webView.isInspectable = true
+            #else
+            let isTestFlight = Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+            webView.isInspectable = isTestFlight
+            #endif
+        }
 
         // Reload the page after permission dialogs close so the web app can
         // re-fetch health and calendar data with fresh authorization.
