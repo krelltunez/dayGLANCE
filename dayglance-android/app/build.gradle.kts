@@ -114,7 +114,16 @@ androidComponents {
                 }
             }
         }
-        tasks.named("merge${capName}Assets").configure { dependsOn(verifyWebAssets) }
+        // The variant's tasks are NOT yet registered while onVariants runs (AGP
+        // creates them after the variant API callbacks), so tasks.named() here
+        // throws "Task with name 'mergeXxxAssets' not found" at configuration
+        // time and breaks every build. configureEach is lazy: it also applies to
+        // tasks created later, so the dependency attaches when AGP registers the
+        // merge task.
+        val mergeTaskName = "merge${capName}Assets"
+        tasks.configureEach {
+            if (name == mergeTaskName) dependsOn(verifyWebAssets)
+        }
     }
 }
 
