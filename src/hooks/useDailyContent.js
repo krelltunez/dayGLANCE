@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { getDailyQuote } from '../data/quotes.js';
 
 const useDailyContent = () => {
   const [dailyContent, setDailyContent] = useState({
@@ -48,14 +49,10 @@ const useDailyContent = () => {
       console.error('Failed to fetch fun fact:', error);
     }
 
-    // Fetch quote
-    try {
-      const response = await fetch('https://dummyjson.com/quotes/random');
-      const data = await response.json();
-      if (data.quote) content.quote = { text: decodeHTML(data.quote), author: decodeHTML(data.author) };
-    } catch (error) {
-      console.error('Failed to fetch quote:', error);
-    }
+    // Pick the daily quote from the bundled local list (deterministic by date, no
+    // network dependency).
+    const quote = getDailyQuote();
+    content.quote = { text: quote.text, author: quote.author };
 
     // Fetch this day in history
     try {

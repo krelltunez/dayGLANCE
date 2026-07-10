@@ -90,6 +90,34 @@ android {
     }
 }
 
+// Guard: a Release build without the bundled web assets (populated by
+// `npm run build:android` / build-and-install.sh into src/main/assets/web/, which
+// is gitignored) silently ships a blank-WebView app. Fail the release build early
+// with a clear pointer if index.html is missing. Debug builds are never blocked:
+// the verify task is wired only into release variants' merge-assets step, so it runs
+// on `bundleRelease` / `assembleRelease` but not on any debug build.
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        val capName = variant.name.replaceFirstChar { it.uppercase() }
+        val verifyWebAssets = tasks.register("verify${capName}WebAssets") {
+            group = "verification"
+            description = "Fails the $capName build when bundled web assets are missing."
+            doLast {
+                val indexHtml = layout.projectDirectory.file("src/main/assets/web/index.html").asFile
+                if (!indexHtml.exists()) {
+                    throw GradleException(
+                        "Bundled web assets not found at ${indexHtml.path}. " +
+                        "A Release build without them ships a blank-WebView app. " +
+                        "Run `npm run build:android` from the repo root (or build-and-install.sh) " +
+                        "to build and copy the web assets before building the release AAB/APK."
+                    )
+                }
+            }
+        }
+        tasks.named("merge${capName}Assets").configure { dependsOn(verifyWebAssets) }
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
