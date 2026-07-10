@@ -45,7 +45,7 @@ const DesktopWelcomeModal = () => {
               <p className={`${textSecondary} text-xs mt-3`}>{t('onboarding.welcomeLocal')}</p>
               <p className={`${textSecondary} text-sm mt-4`}>{t('onboarding.welcomeTour')}</p>
               <div className={`mt-5 flex items-center justify-center gap-2 text-xs ${textSecondary}`}>
-                <a href="https://docs.dayglance.app/en/privacy-policy" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500 transition-colors">{t('onboarding.privacyPolicy')}</a>
+                <a href="https://glance-apps.com/dayglance/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500 transition-colors">{t('onboarding.privacyPolicy')}</a>
                 <span className="opacity-50">·</span>
                 <a href="https://www.glance-apps.com/eula" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500 transition-colors">{t('onboarding.termsOfUse')}</a>
               </div>

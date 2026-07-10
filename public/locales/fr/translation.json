@@ -720,6 +720,7 @@
     "helpFeedback": "Aide & Retours",
     "documentation": "Documentation",
     "contactIssues": "Contact & Problèmes",
+    "legal": "Mentions légales",
     "gettingStartedChecklist": "Liste de démarrage",
     "gettingStartedChecklistHint": "Afficher la liste guidée dans le panneau latéral",
     "goalDueToday": "Objectif à rendre aujourd'hui : {{title}}",

@@ -181,7 +181,7 @@ export default function SubscriptionWall({
       {/* Legal links — required by App Store guideline 3.1.2 for auto-renewable subscriptions */}
       <div className={`mb-6 flex items-center justify-center gap-2 text-xs ${sub}`}>
         <button
-          onClick={() => window.open('https://docs.dayglance.app/en/privacy-policy', '_blank', 'noopener')}
+          onClick={() => window.open('https://glance-apps.com/dayglance/privacy', '_blank', 'noopener')}
           className="underline hover:opacity-80 transition-opacity"
         >
           Privacy Policy

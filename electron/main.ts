@@ -538,7 +538,14 @@ ipcMain.on('ws:push-state', (event) => {
 // build (CFBundleShortVersionString + CFBundleVersion).
 app.setAboutPanelOptions({
   copyright: 'Copyright © 2026 GLANCE Apps',
-  credits: 'Support: support@glance-apps.com\nWeb: https://www.glance-apps.com/',
+  // credits is a plain string (Electron doesn't accept an attributed/RTF value
+  // here), so the URLs render as readable, copyable text rather than links.
+  credits: [
+    'Support: support@glance-apps.com',
+    'Web: https://www.glance-apps.com/',
+    'Privacy: https://glance-apps.com/dayglance/privacy',
+    'Terms: https://www.glance-apps.com/eula',
+  ].join('\n'),
 });
 
 // Single-instance lock: only one dayGLANCE process may run at a time. A second
