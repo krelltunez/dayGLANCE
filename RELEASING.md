@@ -29,6 +29,16 @@ and `versionCode` (+1), and the README shields.io badge. iOS
 `package.json` at build time, so they need no manual edit. Review the diff and
 commit the bump before building.
 
+For an internal-test-track upload that needs a fresh `versionCode` without
+moving the marketing version (Play rejects a re-used `versionCode`), bump the
+code alone:
+
+```
+npm run bump -- --code-only   # Android versionCode +1, nothing else
+```
+
+Commit that one-line change before building the test AAB/APK.
+
 ### 1.2 Quality gates
 
 ```
