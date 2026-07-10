@@ -267,20 +267,27 @@ export function createDbEngine(callbacks = {}) {
         : undefined);
 
   // Diagnostic: wrap the transport so every vault request logs its method, full
-  // URL (which carries accountId + entityId) and HTTP status on failure. Turns a
-  // bare "get row failed: 400" into the exact request that produced it, so we can
-  // see at a glance whether accountId is populated and which entityId/route the
+  // URL path (which carries the entityId and route; the accountId query string is
+  // redacted below) and HTTP status on failure. Turns a bare "get row failed: 400"
+  // into the request that produced it, so we can see which entityId/route the
   // server rejected — instead of guessing across repos. Quiet on success.
   const rawFetch = fetchImpl || ((...a) => globalThis.fetch(...a));
+  // The query string is redacted from failure logs: it carries the accountId,
+  // which shouldn't be printed on every transient failure (console captures,
+  // attached debuggers). Origin + path keep the diagnostic value — the route and
+  // entityId — described above.
+  const redactedUrl = (url) => {
+    try { const u = new URL(String(url)); return u.origin + u.pathname; } catch { return '<vault url>'; }
+  };
   const loggingFetch = async (url, opts = {}) => {
     let res;
     try {
       res = await rawFetch(url, opts);
     } catch (e) {
-      console.warn('[dayglance vault]', opts.method || 'GET', String(url), '→ network error:', e?.message || e);
+      console.warn('[dayglance vault]', opts.method || 'GET', redactedUrl(url), '→ network error:', e?.message || e);
       throw e;
     }
-    if (!res || res.ok === false) console.warn('[dayglance vault]', opts.method || 'GET', String(url), '→', res?.status);
+    if (!res || res.ok === false) console.warn('[dayglance vault]', opts.method || 'GET', redactedUrl(url), '→', res?.status);
     return res;
   };
 
