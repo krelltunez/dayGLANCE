@@ -112,7 +112,7 @@ The Apple apps ship the full app natively on each device, with capabilities that
 |---|---|
 | 🛒 **Universal Purchase** | Buy once and run dayGLANCE on iPhone, iPad, and Mac, with no separate purchase per device |
 | ☁️ **iCloud sync** | Tasks, habits, and plans stay up to date between your Mac and iPhone automatically, with no setup |
-| 📅 **Calendar on the timeline** | Your Apple Calendar (and any iCal/CalDAV subscription) surfaces color-coded alongside your tasks |
+| 📅 **Native Apple Calendar** | Reads your device calendars directly through EventKit, so every calendar on your iPhone or Mac surfaces color-coded on the timeline (iCal/CalDAV subscriptions work too) |
 | 🔗 **Obsidian vault support** | Connect a local Obsidian vault to sync daily notes and tasks directly |
 | 📱 **Home Screen widgets** | Glanceable widgets for your day on iPhone and iPad, plus iOS 18 Control Center controls for new tasks and voice input |
 | 🔍 **Spotlight search** | Your tasks are indexed in Spotlight, so you can search from anywhere and jump straight into dayGLANCE |
