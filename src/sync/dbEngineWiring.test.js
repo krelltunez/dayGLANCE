@@ -741,6 +741,58 @@ describe('Wave A — glitch shrink: poisoned cycle withholds the snapshot; row r
     expect(B.data.tasks.map((t) => t.id).sort()).toEqual([810, 811, 812]);
   });
 
+  it('STALE TOMBSTONE: a revived task with a lingering tombstone survives a transient shrink (no delete pushed, row heals); a fresh re-delete still propagates', async () => {
+    // The revived-task window: delete (tombstone written) → task legitimately
+    // comes back with a NEWER lastModified (edit-beats-delete / recycle-bin
+    // restore) while the tombstone lingers for up to 60 days. A transient
+    // local-state shrink during that window must NOT be blessed by the stale
+    // tombstone — that would be a real, fleet-wide deletion of a live task.
+    const vault = createMemoryVault({ rowGet: true }); // heal available, as on the real client
+    const now = Date.now();
+    const iso = (ms) => new Date(ms).toISOString();
+    const A = makeDevice('A', vault, {
+      ...EMPTY,
+      tasks: [task(900, iso(now - 10 * 86400e3)), task(901, iso(now - 10 * 86400e3))],
+    });
+    const B = makeDevice('B', vault, { ...EMPTY });
+    await runRounds(A, B);
+    expect(B.data.tasks.map((t) => t.id).sort()).toEqual([900, 901]);
+
+    // GENUINE DELETE (5 days ago): tombstone + removal → propagates fleet-wide.
+    A.data.tasks = A.data.tasks.filter((t) => t.id !== 900);
+    A.data.deletedTaskIds = { ...(A.data.deletedTaskIds || {}), 900: iso(now - 5 * 86400e3) };
+    await runRounds(A, B);
+    expect(B.data.tasks.map((t) => t.id)).toEqual([901]);
+
+    // REVIVED: the task returns with a fresh lastModified; the tombstone lingers.
+    A.data.tasks.push(task(900, iso(now - 60e3), { title: 'revived' }));
+    await runRounds(A, B);
+    expect(B.data.tasks.find((t) => t.id === 900)?.title).toBe('revived');
+
+    const delSpy = vi.spyOn(vault, 'deleteRow');
+    // TRANSIENT SHRINK: A's live state drops the revived task with no fingerprint
+    // beyond the STALE tombstone.
+    A.data.tasks = A.data.tasks.filter((t) => t.id !== 900);
+    await A.engine.dbSyncCycle();
+
+    // No delete pushed to the vault, and the row-get heal re-injected the revived
+    // row into A's committed state; the clean (healed) cycle saved its snapshot,
+    // so the row persists in the diff baseline.
+    expect(deletedIds(delSpy)).not.toContain('tasks:900');
+    expect(A.data.tasks.find((t) => t.id === 900)?.title).toBe('revived');
+    expect(snapOf('A')['tasks:900']).toBeDefined();
+    await runRounds(A, B, 2);
+    expect(B.data.tasks.find((t) => t.id === 900)?.title).toBe('revived'); // fleet unaffected
+
+    // INVERSE: a genuine RE-DELETE with a FRESH tombstone still soft-deletes.
+    A.data.tasks = A.data.tasks.filter((t) => t.id !== 900);
+    A.data.deletedTaskIds = { ...(A.data.deletedTaskIds || {}), 900: iso(Date.now()) };
+    await runRounds(A, B);
+    expect(deletedIds(delSpy)).toContain('tasks:900');
+    expect(A.data.tasks.map((t) => t.id)).toEqual([901]);
+    expect(B.data.tasks.map((t) => t.id)).toEqual([901]);
+  });
+
   it('ABORT-ONLY persistent shrink never loop-propagates deletes; a REAL tombstoned delete still propagates (idempotently)', async () => {
     const vault = createMemoryVault(); // no getRow
     const A = makeDevice('A', vault, {

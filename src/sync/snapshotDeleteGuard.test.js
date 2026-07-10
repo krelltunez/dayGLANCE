@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { partitionSnapshotDeletes } from './snapshotDeleteGuard.js';
+import { partitionSnapshotDeletes, STALE_TOMBSTONE_EPSILON_MS } from './snapshotDeleteGuard.js';
 
 // cur is snapshotShred output: { entityId -> hash }. Only the KEYS matter here.
 const curOf = (...entityIds) => Object.fromEntries(entityIds.map((e) => [e, '#']));
@@ -77,5 +77,100 @@ describe('partitionSnapshotDeletes', () => {
   it('tolerates empty / missing inputs', () => {
     expect(partitionSnapshotDeletes([], {}, {})).toEqual({ propagate: [], skipped: [], reasons: {} });
     expect(partitionSnapshotDeletes(null, null, null)).toEqual({ propagate: [], skipped: [], reasons: {} });
+  });
+});
+
+describe('partitionSnapshotDeletes — stale-tombstone rule (tombstone vs lastModified)', () => {
+  const T = Date.parse('2026-07-08T12:00:00.000Z');
+  const iso = (ms) => new Date(ms).toISOString();
+  // getDeletedEntity stub: the wrapped copy being deleted, with a lastModified.
+  const deletedTaskAt = (lastModifiedMs) => () =>
+    ({ _kind: 'tasks', value: { id: 'X', title: 't', lastModified: iso(lastModifiedMs) } });
+
+  it('SKIPS a stale tombstone: the deleted copy is newer by more than the epsilon (revived task)', () => {
+    // Deleted long ago (lingering 60-day tombstone), then revived with a fresh
+    // edit; a transient shrink drops the revived copy. The stale tombstone must
+    // NOT bless the delete — this is the guard's core scenario.
+    const mirror = { deletedTaskIds: { X: iso(T) } };
+    const { propagate, skipped, reasons } = partitionSnapshotDeletes(
+      ['tasks:X'], curOf(), mirror, deletedTaskAt(T + STALE_TOMBSTONE_EPSILON_MS + 1),
+    );
+    expect(propagate).toEqual([]);
+    expect(skipped).toEqual(['tasks:X']);
+    expect(reasons['tasks:X']).toBe('stale-tombstone'); // distinct from bare 'glitch'
+  });
+
+  it('PROPAGATES a real delete: tombstone newer than the deleted copy', () => {
+    const mirror = { deletedTaskIds: { X: iso(T) } };
+    const { propagate, skipped, reasons } = partitionSnapshotDeletes(
+      ['tasks:X'], curOf(), mirror, deletedTaskAt(T - 60 * 60 * 1000),
+    );
+    expect(propagate).toEqual(['tasks:X']);
+    expect(skipped).toEqual([]);
+    expect(reasons['tasks:X']).toBe('tombstoned');
+  });
+
+  it('PROPAGATES within the epsilon: tombstone slightly BEFORE lastModified (same-operation stamping)', () => {
+    // moveToRecycleBin stamps the bin copy's lastModified up to ~1s into the
+    // future; an immediate empty-bin writes a tombstone up to ~1s older. That is
+    // a REAL delete and must still propagate — a false-stale would resurrect it.
+    const mirror = { deletedTaskIds: { X: iso(T) } };
+    const { propagate, skipped } = partitionSnapshotDeletes(
+      ['tasks:X'], curOf(), mirror, deletedTaskAt(T + STALE_TOMBSTONE_EPSILON_MS - 1000),
+    );
+    expect(propagate).toEqual(['tasks:X']);
+    expect(skipped).toEqual([]);
+  });
+
+  it('FALLBACK: a deleted copy with no parseable lastModified → the tombstone authorizes', () => {
+    const mirror = { deletedTaskIds: { X: iso(T) } };
+    for (const getDeleted of [
+      () => ({ _kind: 'tasks', value: { id: 'X', title: 'no ts' } }), // no lastModified
+      () => ({ _kind: 'tasks', value: { id: 'X', lastModified: 'not-a-date' } }),
+      () => null,           // copy not recoverable
+      () => { throw new Error('boom'); }, // lookup failure
+    ]) {
+      const { propagate, skipped } = partitionSnapshotDeletes(['tasks:X'], curOf(), mirror, getDeleted);
+      expect(propagate).toEqual(['tasks:X']);
+      expect(skipped).toEqual([]);
+    }
+  });
+
+  it('FALLBACK: an unparseable tombstone value → authorizes even a newer deleted copy', () => {
+    // Some historical bundle values may not be ISO; we cannot call a tombstone
+    // stale if we cannot date it (a false-stale resurrects a genuine delete).
+    const mirror = { deletedTaskIds: { X: 'not-a-date' } };
+    const { propagate, skipped, reasons } = partitionSnapshotDeletes(
+      ['tasks:X'], curOf(), mirror, deletedTaskAt(T + 10 * 60 * 1000),
+    );
+    expect(propagate).toEqual(['tasks:X']);
+    expect(skipped).toEqual([]);
+    expect(reasons['tasks:X']).toBe('tombstoned');
+  });
+
+  it('FALLBACK: no getDeletedEntity lookup at all → pre-rule behavior (tombstone authorizes)', () => {
+    const mirror = { deletedTaskIds: { X: iso(T) } };
+    const { propagate } = partitionSnapshotDeletes(['tasks:X'], curOf(), mirror);
+    expect(propagate).toEqual(['tasks:X']);
+  });
+
+  it('cross-list moves are unaffected: a stale tombstone + surviving copy under another kind still propagates', () => {
+    const mirror = { deletedTaskIds: { X: iso(T) } };
+    const { propagate, reasons } = partitionSnapshotDeletes(
+      ['tasks:X'], curOf('recycleBin:X'), mirror, deletedTaskAt(T + 10 * 60 * 1000),
+    );
+    expect(propagate).toEqual(['tasks:X']);
+    expect(reasons['tasks:X']).toBe('cross-list');
+  });
+
+  it('keeps the NEWEST tombstone per id across bundles (a re-delete re-stamps and wins)', () => {
+    // Revived at T+1h, then genuinely re-deleted at T+2h: the newer tombstone
+    // must authorize even though an older one lingers alongside.
+    const mirror = { deletedTaskIds: { X: iso(T) }, deletedFrameIds: { X: iso(T + 2 * 60 * 60 * 1000) } };
+    const { propagate, skipped } = partitionSnapshotDeletes(
+      ['tasks:X'], curOf(), mirror, deletedTaskAt(T + 60 * 60 * 1000),
+    );
+    expect(propagate).toEqual(['tasks:X']);
+    expect(skipped).toEqual([]);
   });
 });
