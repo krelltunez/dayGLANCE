@@ -45,6 +45,11 @@ final class VaultSseBridge {
 
     // ── State (guarded by `lock`, mirroring Android's @Synchronized) ─────────────
     private let lock = NSLock()
+    // Framing-buffer cap (both the raw byte buffer and the decoded remainder). Real
+    // vault events are tiny nudges; anything approaching 1 MB without a frame delimiter
+    // is a misbehaving/hostile server, so we drop the connection rather than grow
+    // unboundedly. Mirrors Android's SseFraming cap.
+    private static let maxBufferBytes = 1_048_576
     private var desired = false
     // Foreground defaults true: the WebView only runs (and thus only calls
     // startVaultSse) when the scene is active, and scenePhase.onChange won't fire
@@ -139,6 +144,14 @@ final class VaultSseBridge {
                 try await connectAndRead(url: url, bearer: bearer, account: account, generation: gen)
             } catch is CancellationError {
                 return
+            } catch let term as SseTerminalError {
+                // TERMINAL (auth failure / insecure URL): stop the reader entirely, no
+                // reconnect. Push a coded event so the renderer surfaces it exactly once
+                // instead of every 30s. A later start() (user fixed the token/URL) spins
+                // up a fresh reader normally.
+                if Task.isCancelled || currentGeneration() != gen { return }
+                push(["type": "error", "code": term.code, "message": term.message])
+                return
             } catch {
                 if Task.isCancelled || currentGeneration() != gen { return }
                 push(["type": "error", "message": error.localizedDescription])
@@ -158,6 +171,14 @@ final class VaultSseBridge {
         comps.queryItems = [URLQueryItem(name: "accountId", value: account)]
         guard let target = comps.url else { throw URLError(.badURL) }
 
+        // Belt-and-braces (the settings form is the primary gate): never send the
+        // Bearer token over cleartext http on the public internet. https is always
+        // fine; http is allowed only for loopback/LAN hosts. A refusal is TERMINAL —
+        // reconnecting can't fix a bad scheme — so it takes the no-retry path below.
+        guard Self.isSecureOrLanUrl(target) else {
+            throw SseTerminalError(code: "insecure", message: "vault SSE refused: insecure http URL")
+        }
+
         var req = URLRequest(url: target)
         req.httpMethod = "GET"
         req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
@@ -166,6 +187,14 @@ final class VaultSseBridge {
 
         let (bytes, response) = try await session.bytes(for: req)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        // 401/403 are auth failures — a revoked/invalid device token. Retrying can't
+        // fix them (it would just reconnect forever at the 30s cap and re-hit the same
+        // 401), so this is TERMINAL: stop the reader, push a distinct coded event so
+        // the renderer surfaces it once. A fresh start() (after the user fixes the
+        // token) begins a new reader normally.
+        if status == 401 || status == 403 {
+            throw SseTerminalError(code: "auth", message: "vault SSE auth failed: \(status)")
+        }
         guard (200...299).contains(status) else {
             throw NSError(domain: "VaultSse", code: status,
                           userInfo: [NSLocalizedDescriptionKey: "vault SSE connect failed: \(status)"])
@@ -186,8 +215,21 @@ final class VaultSseBridge {
         for try await byte in bytes {
             if Task.isCancelled || currentGeneration() != gen { break }
             byteBuf.append(byte)
+            // Cap the un-decoded byte buffer: a server that streams bytes but NEVER a
+            // 0x0A ('\n') would otherwise grow this without bound (memory exhaustion).
+            // Real events are tiny. Treat a breach as a stream failure (generic error →
+            // backoff/reconnect), NOT terminal — a transient bad peer may recover.
+            if byteBuf.count > Self.maxBufferBytes {
+                throw SseStreamOverflowError()
+            }
             guard byte == 0x0A else { continue }
-            guard let chunk = String(bytes: byteBuf, encoding: .utf8) else { continue }
+            // Decode with String(decoding:as:) which NEVER fails: invalid UTF-8 is
+            // replaced with U+FFFD (matching Android's InputStreamReader). The previous
+            // failable init returned nil and `continue`d WITHOUT clearing byteBuf, so a
+            // single bad byte permanently stalled the stream (every later '\n'
+            // re-decoded a growing buffer, no frame ever emitted, and the socket looked
+            // healthy so reconnect never fired). byteBuf is now ALWAYS cleared here.
+            let chunk = String(decoding: byteBuf, as: UTF8.self)
             byteBuf.removeAll(keepingCapacity: true)
             pending += chunk.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
             while let boundary = pending.range(of: "\n\n") {
@@ -196,6 +238,12 @@ final class VaultSseBridge {
                 if block.split(separator: "\n", omittingEmptySubsequences: false).contains(where: { $0.hasPrefix("data:") }) {
                     push(["type": "frame", "block": block])
                 }
+            }
+            // Cap the framing remainder too: a server that sends '\n' bytes but never
+            // the "\n\n" block delimiter would grow `pending` without bound. Same
+            // treatment: fail the stream into backoff/reconnect.
+            if pending.utf8.count > Self.maxBufferBytes {
+                throw SseStreamOverflowError()
             }
         }
     }
@@ -236,7 +284,52 @@ final class VaultSseBridge {
         while out.hasSuffix("/") { out.removeLast() }
         return out
     }
+
+    // MARK: - URL transport-security allowlist (mirrors src/sync/vaultUrlPolicy.js)
+
+    /// https is always allowed; http only for loopback/LAN hosts. Any other scheme is
+    /// rejected. Keep in agreement with classifyVaultUrl (renderer) and Android.
+    private static func isSecureOrLanUrl(_ url: URL) -> Bool {
+        let scheme = (url.scheme ?? "").lowercased()
+        if scheme == "https" { return true }
+        if scheme != "http" { return false }
+        return isLocalOrLanHost(url.host ?? "")
+    }
+
+    /// True for loopback / private-LAN / *.local hosts, for which cleartext http is
+    /// acceptable. Foundation's URL.host already strips IPv6 brackets; the bracket
+    /// strip below is defensive.
+    private static func isLocalOrLanHost(_ rawHost: String) -> Bool {
+        var host = rawHost.lowercased()
+        if host.hasPrefix("[") && host.hasSuffix("]") { host = String(host.dropFirst().dropLast()) }
+        if host.isEmpty { return false }
+        if host == "localhost" || host.hasSuffix(".localhost") { return true }
+        if host == "::1" { return true }
+        if host.hasSuffix(".local") { return true }
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count == 4 else { return false }
+        let octets = parts.compactMap { Int($0) }
+        guard octets.count == 4, octets.allSatisfy({ $0 >= 0 && $0 <= 255 }) else { return false }
+        let a = octets[0], b = octets[1]
+        if a == 127 { return true }              // 127.0.0.0/8 loopback
+        if a == 10 { return true }               // 10.0.0.0/8
+        if a == 192 && b == 168 { return true }  // 192.168.0.0/16
+        if a == 172 && (16...31).contains(b) { return true } // 172.16.0.0/12
+        return false
+    }
 }
+
+/// A TERMINAL stream error: the reader must stop and NOT reconnect (retrying can't
+/// help). `code` distinguishes the cause for the renderer ('auth' = revoked/invalid
+/// token; 'insecure' = refused cleartext URL). Mirrors Android's SseTerminalException.
+private struct SseTerminalError: Error {
+    let code: String
+    let message: String
+}
+
+/// A NON-terminal stream failure: the SSE framing buffer exceeded its cap. Handled
+/// like any read error — backoff + reconnect (a transient bad peer may recover).
+private struct SseStreamOverflowError: Error {}
 
 /// Capped exponential backoff with a stability reset — the Swift mirror of Android's
 /// `SseBackoff` and the renderer's reconnect policy in `createVaultEventClient`.

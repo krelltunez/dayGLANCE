@@ -618,14 +618,20 @@ async function migrateFileToAppStorage(): Promise<void> {
       return;
     }
 
-    // 2) WRITE into the app:// localStorage (file:// wins on conflict; app://-only
-    //    keys are left intact). Same session as the main window, so the writes are
-    //    visible to it immediately.
+    // 2) WRITE into the app:// localStorage. Only keys that do NOT already exist in
+    //    the target are set (app://-only keys are left intact regardless). This is
+    //    IDENTICAL to "file:// wins" on a true first run (the target bucket is empty,
+    //    so every file:// key is written), but makes a RETRY non-destructive: if a
+    //    previous launch migrated but crashed before writing the done-flag, the retry
+    //    must not clobber newer app:// data the running app has since written with the
+    //    stale file:// snapshot. Skipping already-present keys makes retries purely
+    //    additive. Same session as the main window, so the writes are visible to it
+    //    immediately.
     const writer = mkHidden();
     try {
       await writer.loadURL(APP_BASE_URL + 'storage-bridge.html'); // app://dayglance origin
       await writer.webContents.executeJavaScript(
-        `(function(){var d=${JSON.stringify(fileData)};for(var k in d){localStorage.setItem(k,d[k]);}return true;})()`,
+        `(function(){var d=${JSON.stringify(fileData)};for(var k in d){if(localStorage.getItem(k)===null){localStorage.setItem(k,d[k]);}}return true;})()`,
       );
     } finally {
       if (!writer.isDestroyed()) writer.destroy();

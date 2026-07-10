@@ -475,7 +475,12 @@ export function createBridgeSseClient({
         onStateChange?.('closed');
         break;
       case 'error':
-        onStateChange?.('error', msg.message);
+        // A native error may carry a terminal `code` (e.g. 'auth' for a revoked
+        // token, 'insecure' for a refused cleartext URL). Native stops reading and
+        // will NOT reconnect on a terminal code, so this surfaces exactly once —
+        // pass the code through so the consumer can distinguish it. Non-terminal
+        // errors keep the legacy string-detail shape (native owns the retry).
+        onStateChange?.('error', msg.code ? { message: msg.message, code: msg.code } : msg.message);
         break;
       default:
         break;
