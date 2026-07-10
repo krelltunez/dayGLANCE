@@ -17,6 +17,11 @@
       "vaultUnreachable": "Impossibile raggiungere GLANCEvault. Controlla l'URL del vault e il token del dispositivo. ({{detail}})",
       "requestFailed": "richiesta fallita",
       "iCloudUnavailable": "iCloud non disponibile: {{error}}"
+    },
+    "vaultUrl": {
+      "invalid": "Inserisci un URL del vault valido.",
+      "httpRejected": "Connessione non sicura. Usa https:// per un vault sulla rete internet pubblica. Il semplice http:// è consentito solo su una rete locale attendibile (localhost o un indirizzo LAN).",
+      "insecureLanWarning": "Connessione non cifrata: usala solo su una rete attendibile."
     }
   },
   "common": {

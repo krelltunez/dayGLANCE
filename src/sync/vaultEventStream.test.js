@@ -593,4 +593,28 @@ describe('createBridgeSseClient — native bridge-fed transport', () => {
     expect(states.map((s) => s[0])).toEqual(['connecting', 'open', 'closed', 'error', 'stopped']);
     expect(states.find((s) => s[0] === 'error')[1]).toBe('boom');
   });
+
+  it('passes a terminal error CODE through as a detail object (auth token revoked)', () => {
+    const states = [];
+    const client = createBridgeSseClient({
+      getConnection: () => conn, startNative: () => {}, stopNative: () => {},
+      onEvent: () => {}, onStateChange: (s, d) => states.push([s, d]),
+    });
+    // Native stops the reader on 401/403 and pushes a terminal, coded error ONCE.
+    client.receive({ type: 'error', code: 'auth', message: 'vault SSE auth failed: 401' });
+    const err = states.find((s) => s[0] === 'error');
+    expect(err[1]).toEqual({ message: 'vault SSE auth failed: 401', code: 'auth' });
+  });
+
+  it('passes an insecure-URL terminal code through the same way', () => {
+    const states = [];
+    const client = createBridgeSseClient({
+      getConnection: () => conn, startNative: () => {}, stopNative: () => {},
+      onEvent: () => {}, onStateChange: (s, d) => states.push([s, d]),
+    });
+    client.receive({ type: 'error', code: 'insecure', message: 'vault SSE refused: insecure http URL' });
+    expect(states.find((s) => s[0] === 'error')[1]).toEqual({
+      message: 'vault SSE refused: insecure http URL', code: 'insecure',
+    });
+  });
 });

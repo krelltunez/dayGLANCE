@@ -77,6 +77,7 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
       lastEventSeq: null,
       lastEventKind: null,
       lastError: null,
+      terminal: null,
       lastConnectedAt: null,
       transport,
     };
@@ -113,7 +114,16 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
       diag.state = state;
       if (state === 'connecting') diag.connects += 1;
       if (state === 'open') diag.lastConnectedAt = new Date().toISOString();
-      if (state === 'error') { diag.lastError = detail?.message || String(detail || 'error'); console.warn('[vault-sse] error:', diag.lastError); }
+      if (state === 'error') {
+        diag.lastError = detail?.message || String(detail || 'error');
+        // A terminal code (native-bridge only) means the native reader stopped and
+        // will NOT reconnect — e.g. a revoked token ('auth') or a refused cleartext
+        // URL ('insecure'). Record it and warn once (native won't re-emit every 30s);
+        // fixing the token in settings reloads the app and starts a fresh reader.
+        diag.terminal = detail?.code || null;
+        if (detail?.code) console.warn(`[vault-sse] terminal error (${detail.code}) — native stopped, not reconnecting:`, diag.lastError);
+        else console.warn('[vault-sse] error:', diag.lastError);
+      }
       else if (sseDebug()) console.info('[vault-sse]', state, `(connects=${diag.connects} events=${diag.events} drains=${diag.drains})`);
     };
     const getConnection = () => {

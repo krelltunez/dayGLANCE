@@ -56,6 +56,23 @@ class SseFramingTest {
         assertEquals(listOf("data: {\"seq\":2,\"kind\":\"sync\"}"), blocks)
     }
 
+    @Test(expected = SseFramingOverflowException::class)
+    fun `throws when a single undelimited frame exceeds the cap`() {
+        // A server that streams bytes but never the "\n\n" delimiter must not grow the
+        // buffer without bound — append throws once the retained partial exceeds the cap.
+        val f = SseFraming(maxBufferChars = 1024)
+        f.append("data: " + "x".repeat(2000)) // no blank-line boundary, over cap
+    }
+
+    @Test
+    fun `does not throw while the buffer stays under the cap and still drains`() {
+        val f = SseFraming(maxBufferChars = 1024)
+        // Under-cap partial is retained (no throw); a later delimiter completes it.
+        assertEquals(emptyList<String>(), f.append("data: {\"seq\":1,"))
+        val blocks = f.append("\"kind\":\"sync\"}\n\n")
+        assertEquals(listOf("data: {\"seq\":1,\"kind\":\"sync\"}"), blocks)
+    }
+
     @Test
     fun `handles several complete blocks in one chunk`() {
         val f = SseFraming()

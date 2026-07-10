@@ -5,6 +5,7 @@ import { setupEncryptionKey, setSyncPassphrase, clearEncryptionKey, getSyncPassp
 import { getVaultConfig, setVaultConfig } from '../sync/vaultConfig.js';
 import { createDbEngine, resetDbRootKey, resetVaultSyncCursor } from '../sync/dbEngine.js';
 import { testVaultConnection } from '../sync/vaultConnectionTest.js';
+import { classifyVaultUrl } from '../sync/vaultUrlPolicy.js';
 import { useTranslation } from 'react-i18next';
 
 // Cloud sync settings form (extracted to avoid hooks-in-conditional issues)
@@ -74,6 +75,11 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   // (re)enter it in the encryption field above. A passphrase setup must therefore
   // exist (encryption on, or already configured) and a passphrase must be in hand.
   const vaultFilled = vaultEnabled && !!vaultUrl.trim() && !!vaultToken.trim() && !!vaultAccountId.trim();
+  // Transport-security check on the vault URL: block cleartext http:// on the public
+  // internet (the Bearer token would travel unencrypted), allow it on localhost/LAN
+  // with a warning. Only meaningful once a URL is typed; empty is handled by vaultFilled.
+  const vaultUrlCheck = classifyVaultUrl(vaultUrl);
+  const vaultUrlOk = !vaultFilled || vaultUrlCheck.ok;
   const passphraseAvailable = !!getSyncPassphrase() || passphrase.length > 0;
   const vaultEncryptionReady = encryptionEnabled || alreadyEncrypted;
 
@@ -96,7 +102,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   // on the WebDAV connection) OR the user is turning the vault OFF — so a
   // vault-only device can disable it even though nothing remains configured.
   const vaultBeingDisabled = !!vaultOriginal?.enabled && !vaultEnabled;
-  const canSave = (webdavActive || vaultFilled || vaultBeingDisabled || webdavBeingDisabled) && passphraseValid && !passphraseMismatch && vaultReady;
+  const canSave = (webdavActive || vaultFilled || vaultBeingDisabled || webdavBeingDisabled) && passphraseValid && !passphraseMismatch && vaultReady && vaultUrlOk;
 
   const handleTest = async () => {
     setTesting(true);
@@ -108,6 +114,12 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
 
   const handleSave = async () => {
     setVaultBootstrapError(null);
+    // Refuse to save a vault whose URL would send the Bearer token over cleartext on
+    // the public internet (canSave already blocks this; this is the defensive guard).
+    if (vaultFilled && !vaultUrlCheck.ok) {
+      setVaultBootstrapError(t(vaultUrlCheck.messageKey));
+      return;
+    }
     // WebDAV is marked enabled only when the user toggled it on AND the connection is
     // configured — so enabling GLANCEvault alone never writes a bogus enabled WebDAV
     // config, and unchecking the toggle disables sync while keeping the credentials.
@@ -224,6 +236,13 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   // it just tells the user whether the credentials work, so bad vault credentials
   // no longer save silently and fail invisibly at first sync.
   const handleVaultTest = async () => {
+    // Enforce the same URL policy before probing: a cleartext public URL never
+    // reaches the network (the token would leak in the test request too).
+    const urlCheck = classifyVaultUrl(vaultUrl);
+    if (!urlCheck.ok) {
+      setVaultTestResult({ ok: false, message: t(urlCheck.messageKey) });
+      return;
+    }
     setVaultTesting(true);
     setVaultTestResult(null);
     try {
@@ -457,6 +476,12 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
                 onChange={(e) => setVaultUrl(e.target.value)}
                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
               />
+              {vaultUrl.trim() && !vaultUrlCheck.ok && (
+                <p className="text-xs text-red-500 mt-0.5">{t(vaultUrlCheck.messageKey)}</p>
+              )}
+              {vaultUrl.trim() && vaultUrlCheck.ok && vaultUrlCheck.warning && (
+                <p className="text-xs text-amber-500 mt-0.5">{t(vaultUrlCheck.messageKey)}</p>
+              )}
             </div>
             <div>
               <label className={`block text-sm ${textSecondary} mb-1`}>Device token</label>
