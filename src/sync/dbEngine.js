@@ -21,13 +21,17 @@
 //     React/localStorage state directly, and the merged mirror is handed to
 //     commitData once per cycle. commitData writes through the app's existing
 //     applyPayload (which sets the suppress flags), so a pulled row never bounces
-//     back out as a file-tier upload or a re-push.
+//     back out as a file-tier upload or a re-push. Because applyPayload has
+//     REPLACE semantics, the commit is MERGE-AWARE: user writes made during the
+//     async network window are folded into the mirror at commit time
+//     (src/sync/commitMerge.js) so they survive; the post-cycle snapshot stays
+//     the PRE-merge (vault-consistent) mirror so those survivors diff dirty and
+//     push next cycle. See the commit block in dbSyncCycle.
 
-import { createDbSyncEngine, clearDbRootKey, initDbRootKey } from '@glance-apps/sync';
+import { createDbSyncEngine, clearDbRootKey, initDbRootKey, decryptEntity } from '@glance-apps/sync';
 import { getVaultConfig, isVaultEnabled } from './vaultConfig.js';
 import { getDeviceId } from './deviceId.js';
 import {
-  shredState,
   getLocalEntity as adapterGetLocalEntity,
   applyRemoteEntity as adapterApplyRemoteEntity,
   applyRemoteDelete as adapterApplyRemoteDelete,
@@ -37,9 +41,51 @@ import {
 } from './dbAdapter.js';
 import { pruneAllTombstones, tombstoneCutoff } from './tombstoneRetention.js';
 import { partitionSnapshotDeletes } from './snapshotDeleteGuard.js';
+import { shredHashes, hashMapsEqual, mergeMidCycleEdits } from './commitMerge.js';
 
 const APP_ID = 'dayglance';
 const CRYPTO_DB_NAME = 'dayglance-db-crypto';
+
+// The storage prefix App.jsx's engine uses (tests override it per device).
+const DEFAULT_STORAGE_KEY_PREFIX = 'dayglance-vault';
+
+// Every persisted cursor/baseline the DB tier keeps between cycles:
+//   -db-sync-snapshot   the wrapper's post-cycle diff baseline (this file)
+//   -db-sync-hwm        the engine's PULL cursor (@glance-apps/sync dbEngine.js)
+//   -db-sync-push-ack   the engine's push idempotency marker
+//   -db-sync-dirty      the engine's persisted dirty set
+//   -db-sync-quarantine the engine's undecryptable-row retry set (seq-based,
+//                       meaningless after a cursor reset — the full re-pull
+//                       re-lists those rows anyway)
+const SYNC_CURSOR_KEY_SUFFIXES = [
+  '-db-sync-snapshot',
+  '-db-sync-hwm',
+  '-db-sync-push-ack',
+  '-db-sync-dirty',
+  '-db-sync-quarantine',
+];
+
+// Reset the DB tier's persisted sync-cursor state. MUST be called by every
+// full-state-replacement path (restore from a local/remote backup, restore from
+// a backup file, vault link/re-link/unlink) BEFORE the app reloads:
+//
+//  • The stale SNAPSHOT would diff the restored (older) rows as "changed" and
+//    push them over the vault's NEWER rows.
+//  • The stale pull HWM would skip forever every vault row whose seq is below
+//    it — rows the restored data no longer contains are never re-pulled.
+//  • The stale DIRTY set / push-ack refer to pre-restore state.
+//
+// After the reset the next cycle runs the first-sync path (HWM=0 + empty
+// snapshot): the wrapper full-seeds the dirty set and then pulls BEFORE it
+// pushes, and the engine's pull applies per-entity last-writer-wins — a vault
+// row newer than the restored copy wins AND removes that entity from the dirty
+// set (@glance-apps/sync dbEngine.js applyRemoteRow), so the full-seed MERGES;
+// it never blind-pushes restored-but-older rows over newer vault rows.
+export function resetVaultSyncCursor(storageKeyPrefix = DEFAULT_STORAGE_KEY_PREFIX) {
+  for (const suffix of SYNC_CURSOR_KEY_SUFFIXES) {
+    try { localStorage.removeItem(`${storageKeyPrefix}${suffix}`); } catch { /* ignore */ }
+  }
+}
 
 // Native keystore slot for the DB root key. On native shells the bridge exposes a
 // SINGLE legacy slot (getSyncKey/storeSyncKey) that the WebDAV file tier already
@@ -103,14 +149,9 @@ export async function restoreDbRootKey() {
 }
 
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
-const hashOf = (entity) => JSON.stringify(entity);
-
-// entityId → entity-hash for the whole current state. Used to diff for dirtiness.
-function snapshotShred(data) {
-  const map = {};
-  for (const row of shredState(data)) map[row.entityId] = hashOf(row.entity);
-  return map;
-}
+// entityId → entity-hash maps (shredHashes) are the diff/snapshot currency;
+// they live in commitMerge.js so the dirty diff and the commit merge are
+// guaranteed to hash identically.
 
 // ─── TEMPORARY push diagnostic (gated) ────────────────────────────────────────
 // Set localStorage 'dayglance-debug-push' = '1' to log, every cycle that pushes,
@@ -161,7 +202,7 @@ function debugDiffLeaves(a, b, path = '', out = []) {
 export function createDbEngine(callbacks = {}) {
   if (!callbacks.vaultClient && !isVaultEnabled()) return null;
   const cfg = getVaultConfig() || {};
-  const storageKeyPrefix = callbacks.storageKeyPrefix || 'dayglance-vault';
+  const storageKeyPrefix = callbacks.storageKeyPrefix || DEFAULT_STORAGE_KEY_PREFIX;
   const SNAPSHOT_KEY = `${storageKeyPrefix}-db-sync-snapshot`;
 
   // On native shells the root key is stored in the OS keystore (mirrors the file
@@ -226,20 +267,27 @@ export function createDbEngine(callbacks = {}) {
         : undefined);
 
   // Diagnostic: wrap the transport so every vault request logs its method, full
-  // URL (which carries accountId + entityId) and HTTP status on failure. Turns a
-  // bare "get row failed: 400" into the exact request that produced it, so we can
-  // see at a glance whether accountId is populated and which entityId/route the
+  // URL path (which carries the entityId and route; the accountId query string is
+  // redacted below) and HTTP status on failure. Turns a bare "get row failed: 400"
+  // into the request that produced it, so we can see which entityId/route the
   // server rejected — instead of guessing across repos. Quiet on success.
   const rawFetch = fetchImpl || ((...a) => globalThis.fetch(...a));
+  // The query string is redacted from failure logs: it carries the accountId,
+  // which shouldn't be printed on every transient failure (console captures,
+  // attached debuggers). Origin + path keep the diagnostic value — the route and
+  // entityId — described above.
+  const redactedUrl = (url) => {
+    try { const u = new URL(String(url)); return u.origin + u.pathname; } catch { return '<vault url>'; }
+  };
   const loggingFetch = async (url, opts = {}) => {
     let res;
     try {
       res = await rawFetch(url, opts);
     } catch (e) {
-      console.warn('[dayglance vault]', opts.method || 'GET', String(url), '→ network error:', e?.message || e);
+      console.warn('[dayglance vault]', opts.method || 'GET', redactedUrl(url), '→ network error:', e?.message || e);
       throw e;
     }
-    if (!res || res.ok === false) console.warn('[dayglance vault]', opts.method || 'GET', String(url), '→', res?.status);
+    if (!res || res.ok === false) console.warn('[dayglance vault]', opts.method || 'GET', redactedUrl(url), '→', res?.status);
     return res;
   };
 
@@ -294,6 +342,50 @@ export function createDbEngine(callbacks = {}) {
   // In-flight guard so a debounced push never overlaps a cadence-triggered cycle.
   let syncing = false;
 
+  // Re-fetch glitch-skipped rows by id and re-inject them into the mirror (see
+  // the call site in dbSyncCycle for the full rationale). Uses the vault's
+  // single-row GET — the same surface the engine's quarantine self-heal uses —
+  // and the package's decryptEntity, which reads the SAME per-account root key
+  // the engine's own pull just used (module-level key state in dbCrypto), so a
+  // row that pulled fine will heal fine. Resolution outcomes per entityId:
+  //   • row fetched + decrypted → re-injected into the mirror (recovered)
+  //   • row absent/deleted at the vault → nothing to recover; the local absence
+  //     matches the vault (convergence, not divergence) → resolved
+  //   • no row-get on this client / fetch or decrypt failed → UNRESOLVED,
+  //     returned to the caller (which withholds the snapshot and retries next
+  //     cycle).
+  const healGlitchSkips = async (skippedIds) => {
+    const unresolved = [];
+    const recovered = [];
+    const canGetRow = typeof engine.vault?.getRow === 'function';
+    for (const entityId of skippedIds) {
+      // Already back in the mirror — the pull happened to re-list the row (e.g.
+      // its seq sat above our cursor after all). Nothing to fetch.
+      if (adapterGetLocalEntity(mirror, entityId) != null) continue;
+      if (!canGetRow) { unresolved.push(entityId); continue; }
+      try {
+        const row = await engine.vault.getRow(APP_ID, entityId, cfg.accountId);
+        if (row == null || row.deleted || !row.envelope) continue; // vault agrees it's gone
+        const entity = await decryptEntity(row.envelope, entityId);
+        // Plain insert (the row is absent from the mirror by definition). Any
+        // enrichment re-push ids are ignored: the vault already holds this row,
+        // and the snapshot diff re-pushes any divergence next cycle anyway.
+        adapterApplyRemoteEntity(mirror, entity);
+        recovered.push(entityId);
+      } catch {
+        unresolved.push(entityId); // transient failure — retry next cycle
+      }
+    }
+    if (recovered.length) {
+      console.warn(
+        `[push] GUARD: recovered ${recovered.length} row(s) from the vault after a local-state vanish ` +
+        `(re-fetched by id and re-committed). Ids:`,
+        recovered.slice(0, 25), recovered.length > 25 ? `(+${recovered.length - 25} more)` : ''
+      );
+    }
+    return unresolved;
+  };
+
   // dayGLANCE wraps the engine's push/pull steps in its own cycle so it can
   // (1) seed the dirty set by diffing app state into the mirror, (2) commit the
   // merged mirror back to React/localStorage ONLY on success, and (3) run
@@ -336,12 +428,18 @@ export function createDbEngine(callbacks = {}) {
         pushCountsLine = `[push] getData counts → tasks:${cnt('tasks')} unscheduled:${cnt('unscheduledTasks')} gtdFrames:${cnt('gtdFrames')} dailyNotes:${cnt('dailyNotes')} goals:${cnt('goals')} projects:${cnt('projects')}`;
       }
       const dbgChanges = pushDbg ? [] : null; // [{ id, kind, diff:[] }]
+      // entityId → hash of the state as of cycle START. Reused three ways: the
+      // dirty diff below, the mid-cycle-edit detection in the commit merge, and
+      // (via the HWM=0 branch) the full seed.
+      const baseHashes = shredHashes(mirror);
+      // Bug-2 state: glitch-suspect vanish-deletes the guard skipped this cycle.
+      let glitchSkipped = [];
       if (engine.getHighWaterMark() === 0) {
-        for (const row of shredState(mirror)) engine.markDirty(row.entityId);
+        for (const id of Object.keys(baseHashes)) engine.markDirty(id);
         if (pushDbg) console.log('[push] initial full-seed cycle (HWM=0) — every row dirty');
       } else {
         const prev = loadSnapshot();
-        const cur = snapshotShred(mirror);
+        const cur = baseHashes;
         for (const [id, h] of Object.entries(cur)) {
           if (prev[id] === h) continue;
           engine.markDirty(id);
@@ -363,6 +461,7 @@ export function createDbEngine(callbacks = {}) {
           wantDelete.push(id);
         }
         const { propagate, skipped, reasons } = partitionSnapshotDeletes(wantDelete, cur, mirror);
+        glitchSkipped = skipped;
         for (const id of propagate) {
           engine.markDirty(id); // deletes
           if (dbgChanges) dbgChanges.push({ id, kind: 'deleted', diff: [] });
@@ -387,6 +486,20 @@ export function createDbEngine(callbacks = {}) {
       // The engine's onRowsSkipped fires from its own dbSyncCycle, which we
       // bypass — so surface undecryptable-row skips from the pull result here.
       if (pull && pull.skipped > 0) callbacks.onRowsSkipped?.(pull.skipped, pull.skippedEntityIds || []);
+      // Glitch-skip RECOVERY: a skipped (glitch-suspect) vanish-delete names a
+      // row that is missing from local state but still live in the vault, and
+      // whose seq sits BELOW the pull cursor (this device consumed it long ago)
+      // — an incremental pull will NEVER re-list it. Without recovery a
+      // PERSISTENT local shrink leaves this device permanently missing rows the
+      // rest of the fleet still has. Re-fetch each such row by id (the same
+      // row-get API the engine's quarantine self-heal uses) and re-inject it
+      // into the mirror, so the commit below restores it to live state. Runs
+      // BEFORE reconcile/prune/snapshot so the healed rows flow through the
+      // rest of the cycle like any pulled row. Ids that could NOT be resolved
+      // (no row-get on this client, network error, undecryptable) poison the
+      // snapshot save below.
+      let glitchUnresolved = [];
+      if (glitchSkipped.length) glitchUnresolved = await healGlitchSkips(glitchSkipped);
       reconcileCrossList(
         mirror,
         (id) => engine.markDirty(id),
@@ -438,8 +551,71 @@ export function createDbEngine(callbacks = {}) {
       }
       await engine.updateDeviceCursor();
 
-      callbacks.commitData?.(clone(mirror));
-      saveSnapshot(snapshotShred(mirror));
+      // ── MERGE-AWARE COMMIT ─────────────────────────────────────────────────
+      // The mirror was cloned from app state at cycle START; any user write made
+      // during the async pull/push window above exists only in LIVE state. A
+      // plain commitData(mirror) (which applyEngineData applies with replace
+      // semantics) would revert those writes — and snapshotting that same mirror
+      // made the loss permanent (never dirty, never pushed). So: capture the
+      // VAULT-CONSISTENT snapshot first (the mirror exactly as pushed/pulled),
+      // then merge mid-cycle live edits into the mirror (commitMerge.js) and
+      // commit THAT.
+      //
+      // WHY THE SNAPSHOT IS THE PRE-MERGE MIRROR — the surviving-edit trace:
+      //   cycle N   : task T@t1 everywhere. User edits T→T'@t2 during N's pull.
+      //               Commit merge: live T'@t2 vs mirror T@t1 → live wins →
+      //               commit contains T'. Snapshot saved = pushed mirror = T@t1.
+      //   cycle N+1 : diff live(T'@t2) vs snapshot(T@t1) → hash differs → T is
+      //               marked DIRTY → pushed. Snapshot now advances to T'.
+      // Snapshotting the post-merge (committed) state instead would put T' in
+      // the baseline, so cycle N+1 would see live == snapshot, never mark it
+      // dirty, and the surviving edit would sit locally forever without ever
+      // reaching the vault. The snapshot therefore always means "the state the
+      // vault knows"; any local deviation from it is exactly the dirt to push.
+      // (Same trace for a task CREATED mid-cycle: in the commit, absent from the
+      // snapshot → 'new' in cycle N+1's diff → pushed. And for a pulled remote
+      // change: in the snapshot AND in the commit → clean, no echo re-push.)
+      const vaultSnapshot = shredHashes(mirror);
+      const liveNow = clone(callbacks.getData()) || {};
+      const { survivors, honoredDeletes, liveHashes } = mergeMidCycleEdits(mirror, baseHashes, liveNow);
+      if (survivors.length || honoredDeletes.length) {
+        // An injected mid-cycle row can collide cross-list with a pulled copy of
+        // the same id under another kind — dedupe deterministically; the loser
+        // is marked dirty so its stale vault row is soft-deleted next push.
+        reconcileCrossList(mirror, (id) => engine.markDirty(id));
+        if (debugPushEnabled()) {
+          console.log('[commit] mid-cycle merge — survivors:', survivors, 'honored deletes:', honoredDeletes);
+        }
+      }
+      // Cheap safety net on top of the merge: when the pull applied nothing and
+      // the merged commit is byte-identical to current live state, commitData is
+      // a pure no-op replace — skip it entirely (no spurious re-render, and no
+      // window at all in which a replace could race a concurrent write).
+      const mergedHashes = (survivors.length || honoredDeletes.length) ? shredHashes(mirror) : vaultSnapshot;
+      const commitIsNoop = (pull?.applied ?? 0) === 0 && hashMapsEqual(mergedHashes, liveHashes);
+      if (!commitIsNoop) callbacks.commitData?.(clone(mirror));
+
+      // A cycle with UNRESOLVED glitch-skips is poisoned: saving its snapshot
+      // would drop the vanished rows from the diff baseline, silencing the guard
+      // forever (they sit below the pull HWM, so nothing would ever bring them
+      // back). Withholding the snapshot keeps them in the baseline: a TRANSIENT
+      // shrink self-heals next cycle (live regains the rows → hashes match the
+      // old snapshot → clean), and a PERSISTENT shrink re-triggers the guard +
+      // row-get heal next cycle. Withholding is safe for the push side: rows
+      // pushed this cycle were acked, so re-diffing them next cycle just re-sends
+      // idempotent upserts; propagated DELETES re-propagate only while their
+      // tombstone / cross-list fingerprint still holds (they can never enter the
+      // skipped/glitch set, so no guard loop) and a repeated soft-delete is
+      // idempotent at the vault.
+      if (glitchUnresolved.length === 0) {
+        saveSnapshot(vaultSnapshot);
+      } else {
+        console.warn(
+          `[push] GUARD: ${glitchUnresolved.length} glitch-suspect row(s) could not be re-fetched from the vault — ` +
+          `snapshot withheld this cycle so they stay in the diff baseline and recovery retries next cycle. Ids:`,
+          glitchUnresolved.slice(0, 25), glitchUnresolved.length > 25 ? `(+${glitchUnresolved.length - 25} more)` : ''
+        );
+      }
       callbacks.onStatusChange?.('success');
       return { applied: pull?.applied ?? 0, skipped: pull?.skipped ?? 0, skippedEntityIds: pull?.skippedEntityIds ?? [] };
     } catch (err) {

@@ -406,6 +406,12 @@ const MULTIUSER_DEVICE_LOCAL = new Set([
 const keptLocalBundle = (data, key) =>
   ALWAYS_DEVICE_LOCAL.has(key) || (MULTIUSER_DEVICE_LOCAL.has(key) && !!data.multiUserEnabled);
 
+// Exported for the commit merge (src/sync/commitMerge.js): for a device-local
+// bundle the pull merge keeps "local" — which at commit-merge time is the STALE
+// cycle-start mirror copy — so the commit must write the LIVE value through
+// directly instead.
+export const isDeviceLocalBundle = keptLocalBundle;
+
 function mergeBundle(data, key, value, extra) {
   if (TOMBSTONE_BUNDLES.has(key)) {
     data[key] = MERGE.unionNewerIso(data[key] || {}, value || {});

@@ -77,7 +77,7 @@ import useTrmnlSync from './hooks/useTrmnlSync.js';
 import useObsidian from './hooks/useObsidian.js';
 import useCloudSync from './hooks/useCloudSync.js';
 import { createDayGlanceEngine } from './sync/adapter.js';
-import { createDbEngine } from './sync/dbEngine.js';
+import { createDbEngine, resetVaultSyncCursor } from './sync/dbEngine.js';
 import { registerDbEngine } from './sync/dirtyTracker.js';
 import { isVaultEnabled } from './sync/vaultConfig.js';
 import { encryptData, decryptData, isEncryptedEnvelope, hasEncryptionReady } from './utils/crypto.js';
@@ -5148,6 +5148,12 @@ const DayPlanner = () => {
       const { data } = record.data;
       if (data.aiConfig) localStorage.setItem('day-planner-ai-config', JSON.stringify(data.aiConfig));
       if (data.obsidianConfig) localStorage.setItem('day-planner-obsidian-config', JSON.stringify(data.obsidianConfig));
+      // Restoring replaces the FULL local state, so the vault sync cursors no
+      // longer describe it: the stale snapshot would diff the restored (older)
+      // rows as dirty and push them OVER the vault's newer rows, and the stale
+      // pull HWM would skip forever every vault row the backup lacks. Clear them
+      // so the post-reload cycle full-pulls and LWW-merges (never blind-pushes).
+      resetVaultSyncCursor();
       applyEngineData(data);
       window.location.reload();
     } catch (err) {
@@ -5163,6 +5169,9 @@ const DayPlanner = () => {
       if (!backup?.data) throw new Error('Invalid backup file');
       if (backup.data.aiConfig) localStorage.setItem('day-planner-ai-config', JSON.stringify(backup.data.aiConfig));
       if (backup.data.obsidianConfig) localStorage.setItem('day-planner-obsidian-config', JSON.stringify(backup.data.obsidianConfig));
+      // Full-state replacement → invalidate the vault sync cursors (see
+      // restoreFromAutoBackup for the stale-snapshot/stale-HWM hazard).
+      resetVaultSyncCursor();
       applyEngineData(backup.data);
       window.location.reload();
     } catch (err) {
@@ -5261,6 +5270,10 @@ const DayPlanner = () => {
         if (data.projects) localStorage.setItem('day-planner-projects', JSON.stringify(data.projects));
         if (data.areas) localStorage.setItem('day-planner-areas', JSON.stringify(data.areas));
         if (data.goalsProjectsEnabled !== undefined) localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
+
+        // Full-state replacement → invalidate the vault sync cursors (see
+        // restoreFromAutoBackup for the stale-snapshot/stale-HWM hazard).
+        resetVaultSyncCursor();
 
         // Reload app to reflect changes
         // On Android WebView, use href assignment for a full reload; fall back to reload()

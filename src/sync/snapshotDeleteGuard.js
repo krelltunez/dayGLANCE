@@ -19,10 +19,15 @@
 //     DIFFERENT kind, so the id still appears somewhere in getData().
 // An entity that vanishes from memory with NEITHER a tombstone NOR a surviving copy
 // under another kind has no legitimate delete path — it is a suspected glitch. We
-// skip its delete: the row stays in the vault and is simply re-pulled next cycle
-// (fail-safe toward KEEPING data). A skipped glitch-delete costs at most a stale row
-// that resurrects; propagating it costs real, irreversible data loss — so we bias
-// hard toward keeping.
+// skip its delete: the row stays in the vault (fail-safe toward KEEPING data).
+// NOTE the row is NOT "simply re-pulled next cycle" — its seq sits below the pull
+// cursor, so an incremental pull never re-lists it. Recovery is the caller's job:
+// dbEngine.js re-fetches each skipped row by id (vault row-get) and re-injects it
+// into the commit, and withholds the cycle's snapshot while any skipped row remains
+// unrecovered so the row stays in the diff baseline (a transient shrink then
+// self-heals against the OLD snapshot). A skipped glitch-delete costs at most a
+// stale row that resurrects; propagating it costs real, irreversible data loss —
+// so we bias hard toward keeping.
 //
 // Real deletions (tombstoned) and real moves (id survives elsewhere) are unaffected
 // and still propagate exactly as before.
