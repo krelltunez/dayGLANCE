@@ -657,7 +657,17 @@
     "frameOff": "Desactivado",
     "tagAffinity": "Afinidad de etiqueta",
     "noActiveFrames": "No hay bloques activos",
-    "newFrame": "Nuevo bloque"
+    "newFrame": "Nuevo bloque",
+    "manualSchedule": "Programar manualmente",
+    "minAvailable": "{{minutes}} min disponibles",
+    "noInboxTasks": "No hay tareas en la bandeja de entrada para programar",
+    "matchingTags": "Etiquetas coincidentes",
+    "allTasks": "Todas las tareas",
+    "inboxFiltersApplied": "Filtros de bandeja de entrada aplicados",
+    "showAllInboxTasks": "Mostrar todas las tareas de la bandeja de entrada",
+    "noSlotLargeEnough": "No hay hueco suficiente para una tarea de {{minutes}} min",
+    "scheduleInFrame": "Programar en {{frame}}",
+    "taskMinutes": "{{minutes}} min"
   },
   "routines": {
     "whatsInRoutine": "¿Qué hay en la rutina de hoy?",

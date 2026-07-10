@@ -657,7 +657,17 @@
     "frameOff": "Aus",
     "tagAffinity": "Tag-Affinität",
     "noActiveFrames": "Keine aktiven Rahmen",
-    "newFrame": "Neuer Rahmen"
+    "newFrame": "Neuer Rahmen",
+    "manualSchedule": "Manuell planen",
+    "minAvailable": "{{minutes}} Min. verfügbar",
+    "noInboxTasks": "Keine Posteingangsaufgaben zum Einplanen",
+    "matchingTags": "Passende Tags",
+    "allTasks": "Alle Aufgaben",
+    "inboxFiltersApplied": "Posteingangsfilter angewendet",
+    "showAllInboxTasks": "Alle Posteingangsaufgaben anzeigen",
+    "noSlotLargeEnough": "Kein Zeitfenster ist groß genug für eine Aufgabe von {{minutes}} Min.",
+    "scheduleInFrame": "In {{frame}} einplanen",
+    "taskMinutes": "{{minutes}} Min."
   },
   "routines": {
     "whatsInRoutine": "Was enthält die heutige Routine?",

@@ -657,7 +657,17 @@
     "frameOff": "Off",
     "tagAffinity": "Tag Affinity",
     "noActiveFrames": "No Active Frames",
-    "newFrame": "New Frame"
+    "newFrame": "New Frame",
+    "manualSchedule": "Manually Schedule",
+    "minAvailable": "{{minutes}} min available",
+    "noInboxTasks": "No inbox tasks to schedule",
+    "matchingTags": "Matching tags",
+    "allTasks": "All tasks",
+    "inboxFiltersApplied": "Inbox filters applied",
+    "showAllInboxTasks": "Show all inbox tasks",
+    "noSlotLargeEnough": "No slot large enough for a {{minutes}} min task",
+    "scheduleInFrame": "Schedule in {{frame}}",
+    "taskMinutes": "{{minutes}} min"
   },
   "routines": {
     "whatsInRoutine": "What’s in today’s routine?",
