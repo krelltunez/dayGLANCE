@@ -231,6 +231,7 @@
     "multiUserMode": "Mehrbenutzer-Modus",
     "multiUserModeHint": "Aufgaben bestimmten Haushaltsmitgliedern zuweisen",
     "multiUserPeople": "Personen",
+    "multiUserRequiresSync": "Erfordert Cloud-Synchronisierung. Richten Sie zuerst GLANCEvault oder WebDAV-Synchronisierung ein.",
     "usersSyncPath": "Benutzer-Synchronisierungspfad",
     "syncFailed": "Fehlgeschlagen",
     "aiFeatures": "KI-Funktionen",

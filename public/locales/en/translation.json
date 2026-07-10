@@ -231,6 +231,7 @@
     "multiUserMode": "Multi-user mode",
     "multiUserModeHint": "Tag chores with specific household members",
     "multiUserPeople": "People",
+    "multiUserRequiresSync": "Requires cloud sync. Set up GLANCEvault or WebDAV sync first.",
     "usersSyncPath": "Users sync path",
     "syncFailed": "Failed",
     "aiFeatures": "AI Features",

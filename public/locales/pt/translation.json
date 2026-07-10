@@ -231,6 +231,7 @@
     "multiUserMode": "Modo multiutilizador",
     "multiUserModeHint": "Atribuir tarefas domésticas a membros da família",
     "multiUserPeople": "Pessoas",
+    "multiUserRequiresSync": "Requer sincronização na nuvem. Configure primeiro o GLANCEvault ou a sincronização WebDAV.",
     "usersSyncPath": "Caminho de sincronização de utilizadores",
     "syncFailed": "Falhou",
     "aiFeatures": "Funcionalidades de IA",

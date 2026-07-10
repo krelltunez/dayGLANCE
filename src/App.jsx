@@ -80,6 +80,7 @@ import { createDayGlanceEngine } from './sync/adapter.js';
 import { createDbEngine, resetVaultSyncCursor } from './sync/dbEngine.js';
 import { registerDbEngine } from './sync/dirtyTracker.js';
 import { isVaultEnabled } from './sync/vaultConfig.js';
+import { canEnableMultiUser } from './utils/multiUserGate.js';
 import { encryptData, decryptData, isEncryptedEnvelope, hasEncryptionReady } from './utils/crypto.js';
 import useCalendarSync from './hooks/useCalendarSync.js';
 import useBackup from './hooks/useBackup.js';
@@ -9229,6 +9230,15 @@ const DayPlanner = () => {
 
     // ── Multi-user ────────────────────────────────────────────────────────────
     multiUserEnabled, setMultiUserEnabled,
+    // Reactive: cloudSyncConfig is state, so this recomputes on every WebDAV
+    // config change. isVaultEnabled() reads localStorage, but a vault
+    // enable/disable always reloads the app (CloudSyncSettingsForm), so a
+    // render-time read is current. Multi-user is meaningless without one of
+    // these sync tiers, so settings gate the toggle on it.
+    cloudSyncConfigured: canEnableMultiUser({
+      cloudSyncEnabled: cloudSyncConfig?.enabled,
+      vaultEnabled: isVaultEnabled(),
+    }),
     users, setUsers,
     meUserSyncId, setMeUserSyncId,
     isVisibleForUser,
