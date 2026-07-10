@@ -336,7 +336,10 @@
     "glanceEncryption": "Crittografia",
     "glanceActivity": "Attività",
     "syncFolder": "Cartella di sincronizzazione",
-    "enableE2EEncryption": "Attiva crittografia end-to-end"
+    "enableE2EEncryption": "Attiva crittografia end-to-end",
+    "icloudIntents": "Intent di iCloud",
+    "icloudIntentsDesc": "Condividi gli intent delle attività con le altre app GLANCE tramite iCloud Drive. I file si sincronizzano automaticamente tra i tuoi dispositivi Apple.",
+    "icloudIntentsEnable": "Abilita gli intent di iCloud"
   },
   "task": {
     "newScheduled": "Nuova attività pianificata",

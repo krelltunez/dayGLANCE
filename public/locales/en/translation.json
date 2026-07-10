@@ -336,7 +336,10 @@
     "glanceEncryption": "Encryption",
     "glanceActivity": "Activity",
     "syncFolder": "Sync folder",
-    "enableE2EEncryption": "Enable end-to-end encryption"
+    "enableE2EEncryption": "Enable end-to-end encryption",
+    "icloudIntents": "iCloud intents",
+    "icloudIntentsDesc": "Share task intents with other GLANCE apps through iCloud Drive. Files sync automatically across your Apple devices.",
+    "icloudIntentsEnable": "Enable iCloud intents"
   },
   "task": {
     "newScheduled": "New Scheduled Task",

@@ -25,6 +25,7 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { isVaultEnabled } from '../sync/vaultConfig.js';
 import { multiUserToggleLocked } from '../utils/multiUserGate.js';
 import { getDbIntentsConfig, setDbIntentsConfig, getDbIntentsConnection } from '../intents/dbIntentsConfig.js';
+import { getIcloudIntentsEnabledFlag, setIcloudIntentsEnabled } from '../intents/icloudIntentsConfig.js';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from '../intents/useIntentPoller.js';
 import { syncSharedUsers, syncSharedUsersViaICloud } from '../intents/sharedUsers.js';
@@ -153,6 +154,10 @@ const MobileSettingsPanel = () => {
   // Vault intents key-setup phase: null | 'passphrase-needed' | 'running' | { error }.
   const [dbIntentsSetupPhase, setDbIntentsSetupPhase] = useState(null);
   const [dbIntentsPassphraseInput, setDbIntentsPassphraseInput] = useState('');
+  // iCloud intents opt-in gate. DEFAULT OFF — activation (emit + poll) only runs
+  // when the user flips this on, matching WebDAV/vault gating.
+  const [icloudIntentsEnabled, setIcloudIntentsEnabledState] = useState(() => getIcloudIntentsEnabledFlag());
+  const [icloudIntentsSaved, setIcloudIntentsSaved] = useState(false);
   // Android automation intents (Tasker) opt-in gate. DEFAULT OFF — the native
   // SharedPreferences flag is the source of truth; mirror it for the toggle.
   const [automationIntentsEnabled, setAutomationIntentsEnabled] = useState(
@@ -2137,6 +2142,54 @@ const MobileSettingsPanel = () => {
             );
           })()}
         </div>
+
+        {/* iCloud intents opt-in — Apple platforms only (isICloudAvailable() is
+            false on Android/web). Gates ACTIVATION of the iCloud intents transport
+            (emit + poll); default OFF so the path stays inert until the user opts in. */}
+        {isICloudAvailable() && (
+          <div>
+            <h5 className={sectionCls}>
+              <span className="flex items-center gap-2">
+                <Cloud size={14} className={textSecondary} />
+                {t('settings.icloudIntents')}
+              </span>
+            </h5>
+            <p className={`${textSecondary} text-xs mb-3`}>
+              {t('settings.icloudIntentsDesc')}
+            </p>
+            <div className={`flex items-start gap-3 p-3 rounded-lg border ${borderClass}`}>
+              <input
+                type="checkbox"
+                id="icloud-intents-toggle-mobile"
+                checked={icloudIntentsEnabled}
+                onChange={e => setIcloudIntentsEnabledState(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded"
+              />
+              <div>
+                <label htmlFor="icloud-intents-toggle-mobile" className={`text-sm font-medium ${textPrimary} cursor-pointer`}>
+                  {t('settings.icloudIntentsEnable')}
+                </label>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const wasEnabled = getIcloudIntentsEnabledFlag();
+                setIcloudIntentsEnabled(icloudIntentsEnabled);
+                // Reload so the intent poller remounts and re-reads the opt-in
+                // (mirrors the GLANCEvault intents toggle's reload-on-change).
+                if (wasEnabled !== icloudIntentsEnabled) {
+                  window.location.reload();
+                  return;
+                }
+                setIcloudIntentsSaved(true);
+                setTimeout(() => setIcloudIntentsSaved(false), 2000);
+              }}
+              className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              {icloudIntentsSaved ? 'Saved' : 'Save'}
+            </button>
+          </div>
+        )}
       </div>
     );
   })()}

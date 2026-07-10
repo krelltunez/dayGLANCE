@@ -336,7 +336,10 @@
     "glanceEncryption": "Verschlüsselung",
     "glanceActivity": "Aktivität",
     "syncFolder": "Synchronisierungsordner",
-    "enableE2EEncryption": "Ende-zu-Ende-Verschlüsselung aktivieren"
+    "enableE2EEncryption": "Ende-zu-Ende-Verschlüsselung aktivieren",
+    "icloudIntents": "iCloud-Intents",
+    "icloudIntentsDesc": "Teilen Sie Aufgaben-Intents über iCloud Drive mit anderen GLANCE-Apps. Die Dateien werden automatisch zwischen Ihren Apple-Geräten synchronisiert.",
+    "icloudIntentsEnable": "iCloud-Intents aktivieren"
   },
   "task": {
     "newScheduled": "Neue geplante Aufgabe",

@@ -17,6 +17,7 @@ import { getSyncPassphrase, setSyncPassphrase } from '../utils/crypto.js';
 import { isVaultEnabled } from '../sync/vaultConfig.js';
 import { multiUserToggleLocked } from '../utils/multiUserGate.js';
 import { getDbIntentsConfig, setDbIntentsConfig, getDbIntentsConnection } from '../intents/dbIntentsConfig.js';
+import { getIcloudIntentsEnabledFlag, setIcloudIntentsEnabled } from '../intents/icloudIntentsConfig.js';
 import { setupIntentsEncryption } from '../intents/intentsEncryptionSetup.js';
 import { ensureVaultIntentsKey, setupVaultIntentsEncryption } from '../intents/vaultIntentsSetup.js';
 import { flushOutboxNow } from '../intents/useOutboxFlush.js';
@@ -127,6 +128,10 @@ const SettingsModal = () => {
   // Vault intents key-setup phase: null | 'passphrase-needed' | 'running' | { error }.
   const [dbIntentsSetupPhase, setDbIntentsSetupPhase] = useState(null);
   const [dbIntentsPassphraseInput, setDbIntentsPassphraseInput] = useState('');
+  // iCloud intents opt-in gate. DEFAULT OFF — activation (emit + poll) only runs
+  // when the user flips this on, matching WebDAV/vault gating.
+  const [icloudIntentsEnabled, setIcloudIntentsEnabledState] = useState(() => getIcloudIntentsEnabledFlag());
+  const [icloudIntentsSaved, setIcloudIntentsSaved] = useState(false);
   // Android automation intents (Tasker) opt-in gate. DEFAULT OFF — the flag is
   // the single source of truth in native SharedPreferences; we mirror it here so
   // the toggle reflects the persisted value. Only shown on native Android.
@@ -2147,6 +2152,53 @@ const SettingsModal = () => {
                           );
                         })()}
                       </div>
+
+                      {/* iCloud intents opt-in — Apple platforms only (isICloudAvailable()
+                          is false on Android/web). Gates ACTIVATION of the iCloud intents
+                          transport (emit + poll); default OFF so the path stays inert
+                          until the user opts in. */}
+                      {isICloudAvailable() && (
+                        <div className={`mt-4 pt-4 border-t ${borderClass} space-y-3`}>
+                          <div className="flex items-center gap-2">
+                            <Cloud size={14} className={textSecondary} />
+                            <span className={`text-sm font-medium ${textPrimary}`}>{t('settings.icloudIntents')}</span>
+                          </div>
+                          <p className={`${textSecondary} text-xs`}>
+                            {t('settings.icloudIntentsDesc')}
+                          </p>
+                          <div className={`flex items-start gap-3 p-3 rounded-lg border ${borderClass}`}>
+                            <input
+                              type="checkbox"
+                              id="icloud-intents-toggle"
+                              checked={icloudIntentsEnabled}
+                              onChange={e => setIcloudIntentsEnabledState(e.target.checked)}
+                              className="mt-0.5 h-4 w-4 rounded"
+                            />
+                            <div>
+                              <label htmlFor="icloud-intents-toggle" className={`text-sm font-medium ${textPrimary} cursor-pointer`}>
+                                {t('settings.icloudIntentsEnable')}
+                              </label>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const wasEnabled = getIcloudIntentsEnabledFlag();
+                              setIcloudIntentsEnabled(icloudIntentsEnabled);
+                              // Reload so the intent poller remounts and re-reads the
+                              // opt-in (mirrors the GLANCEvault intents reload-on-change).
+                              if (wasEnabled !== icloudIntentsEnabled) {
+                                window.location.reload();
+                                return;
+                              }
+                              setIcloudIntentsSaved(true);
+                              setTimeout(() => setIcloudIntentsSaved(false), 2000);
+                            }}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                          >
+                            {icloudIntentsSaved ? t('common.saved') : t('common.save')}
+                          </button>
+                        </div>
+                      )}
                       </>)}
                     </div>
 

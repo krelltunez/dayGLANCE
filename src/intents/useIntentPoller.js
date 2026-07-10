@@ -5,6 +5,7 @@ import { webdavFetch } from '../utils/cloudSyncProviders.js';
 import { handleIntent } from './handleIntent.js';
 import { logActivity } from './intentLog.js';
 import * as iCloudTransport from './icloudFileTransport.js';
+import { isIcloudIntentsEnabled } from './icloudIntentsConfig.js';
 
 export const INTENT_CONFIG_KEY = 'dayglance-intent-config';
 export const MULTI_USER_CONFIG_KEY = 'dayglance-multi-user-config';
@@ -590,7 +591,7 @@ export function useIntentPoller(context) {
     })();
 
     const hasWebDAV = !!(config?.webdavUrl && config?.username && config?.appPassword);
-    const hasICloud = iCloudTransport.isAvailable();
+    const hasICloud = isIcloudIntentsEnabled();
     if (!hasWebDAV && !hasICloud) return;
 
     const fgMs = config?.foregroundInterval ?? DEFAULT_FG_MS;
@@ -610,7 +611,7 @@ export function useIntentPoller(context) {
       if (destroyed) return;
       try {
         await poll(config, contextRef.current);           // WebDAV (no-ops if not configured)
-        if (iCloudTransport.isAvailable()) {
+        if (isIcloudIntentsEnabled()) {
           await pollICloud(config, contextRef.current);   // iCloud (sequential, sees advanced cursor)
         }
       } catch (err) {
