@@ -336,7 +336,10 @@
     "glanceEncryption": "Cifrado",
     "glanceActivity": "Actividad",
     "syncFolder": "Carpeta de sincronización",
-    "enableE2EEncryption": "Activar cifrado de extremo a extremo"
+    "enableE2EEncryption": "Activar cifrado de extremo a extremo",
+    "icloudIntents": "Intents de iCloud",
+    "icloudIntentsDesc": "Comparte los intents de tareas con otras apps de GLANCE mediante iCloud Drive. Los archivos se sincronizan automáticamente entre tus dispositivos Apple.",
+    "icloudIntentsEnable": "Activar los intents de iCloud"
   },
   "task": {
     "newScheduled": "Nueva tarea programada",

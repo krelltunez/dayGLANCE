@@ -336,7 +336,10 @@
     "glanceEncryption": "Chiffrement",
     "glanceActivity": "Activité",
     "syncFolder": "Dossier de synchronisation",
-    "enableE2EEncryption": "Activer le chiffrement de bout en bout"
+    "enableE2EEncryption": "Activer le chiffrement de bout en bout",
+    "icloudIntents": "Intents iCloud",
+    "icloudIntentsDesc": "Partagez les intents de tâches avec les autres applications GLANCE via iCloud Drive. Les fichiers se synchronisent automatiquement entre vos appareils Apple.",
+    "icloudIntentsEnable": "Activer les intents iCloud"
   },
   "task": {
     "newScheduled": "Nouvelle tâche planifiée",
