@@ -3,7 +3,7 @@ import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { setupEncryptionKey, setSyncPassphrase, clearEncryptionKey, getSyncPassphrase } from '../utils/crypto.js';
 import { getVaultConfig, setVaultConfig } from '../sync/vaultConfig.js';
-import { createDbEngine, resetDbRootKey } from '../sync/dbEngine.js';
+import { createDbEngine, resetDbRootKey, resetVaultSyncCursor } from '../sync/dbEngine.js';
 import { testVaultConnection } from '../sync/vaultConnectionTest.js';
 import { useTranslation } from 'react-i18next';
 
@@ -147,7 +147,17 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
     // current passphrase + the server's account salt. Without this, a key cached
     // during an earlier attempt (wrong/old passphrase) stays locked in and pulling
     // another device's rows fails with "Decryption failed".
-    if (vaultChanged) await resetDbRootKey();
+    //
+    // Likewise drop the persisted sync cursors (snapshot / pull HWM / push-ack /
+    // dirty set): they describe the PREVIOUS link. Re-linking (possibly to a
+    // different vault/account) with a stale HWM would skip every existing vault
+    // row below it, and a stale snapshot would diff local rows as clean/dirty
+    // against the wrong baseline. Fresh cursors make the first cycle a full pull
+    // + full-seed, which merges per-entity LWW (see resetVaultSyncCursor).
+    if (vaultChanged) {
+      await resetDbRootKey();
+      resetVaultSyncCursor();
+    }
 
     // Run the first real sync NOW, while the passphrase is in memory: this caches
     // the DB root key (IndexedDB on web, OS keystore on native) AND uploads/downloads
