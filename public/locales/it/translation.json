@@ -657,7 +657,17 @@
     "frameOff": "Disattivo",
     "tagAffinity": "Affinità etichetta",
     "noActiveFrames": "Nessun blocco attivo",
-    "newFrame": "Nuovo blocco"
+    "newFrame": "Nuovo blocco",
+    "manualSchedule": "Pianifica manualmente",
+    "minAvailable": "{{minutes}} min disponibili",
+    "noInboxTasks": "Nessuna attività in arrivo da pianificare",
+    "matchingTags": "Etichette corrispondenti",
+    "allTasks": "Tutte le attività",
+    "inboxFiltersApplied": "Filtri della casella in arrivo applicati",
+    "showAllInboxTasks": "Mostra tutte le attività in arrivo",
+    "noSlotLargeEnough": "Nessuno spazio abbastanza grande per un'attività di {{minutes}} min",
+    "scheduleInFrame": "Pianifica in {{frame}}",
+    "taskMinutes": "{{minutes}} min"
   },
   "routines": {
     "whatsInRoutine": "Cosa c'è nella routine di oggi?",
