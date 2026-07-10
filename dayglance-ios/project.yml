@@ -106,6 +106,7 @@ targets:
         # Separately, file the annual BIS self-classification report.
         ITSAppUsesNonExemptEncryption: false
         NSHealthShareUsageDescription: "dayGLANCE reads your step count and sleep data to show your daily activity and recovery on the home screen."
+        NSHealthUpdateUsageDescription: "dayGLANCE only reads your step count and sleep data. It never writes data to Apple Health; this notice is required because the app links Health APIs."
         NSCalendarsUsageDescription: "dayGLANCE reads your calendars to show upcoming events on the home screen."
         NSCalendarsFullAccessUsageDescription: "dayGLANCE reads your calendars to show upcoming events on the home screen and can create calendar events from your tasks."
         NSCalendarsWriteOnlyAccessUsageDescription: "dayGLANCE can create calendar events from your tasks."
