@@ -35,9 +35,11 @@
 //   • An entity present in the mirror but gone from live either (a) was pulled
 //     in from a peer this cycle (absent at cycle start too) → keep it, or (b)
 //     was deleted locally mid-cycle → honor the deletion, but ONLY when it bears
-//     a real-deletion fingerprint (tombstone / cross-list survivor) per
-//     partitionSnapshotDeletes — a bare mid-cycle vanish is a glitch-suspect and
-//     the mirror copy is kept (same bias as snapshotDeleteGuard).
+//     a real-deletion fingerprint (a tombstone at least as new as the mirror
+//     copy being deleted, or a cross-list survivor) per partitionSnapshotDeletes
+//     — a bare mid-cycle vanish, or one blessed only by a STALE tombstone left
+//     over from before the entity was revived, is a glitch-suspect and the
+//     mirror copy is kept (same bias as snapshotDeleteGuard).
 //
 // WHY SURVIVORS STILL GET PUSHED (the snapshot contract): dbEngine saves the
 // post-cycle snapshot from the mirror AS PUSHED/PULLED (i.e. BEFORE this merge),
@@ -169,7 +171,13 @@ export function mergeMidCycleEdits(mirror, baseHashes, live) {
     if (getLocalEntity(mirror, id) == null) continue; // already gone from the mirror
     wantDelete.push(id);
   }
-  const { propagate, skipped } = partitionSnapshotDeletes(wantDelete, liveHashes, liveData);
+  // Same stale-tombstone rule as the push guard: the copy being deleted here is
+  // the MIRROR copy (possibly a pulled update newer than cycle start), so its
+  // lastModified is what the live tombstone must be at least as new as. A stale
+  // tombstone (revived entity) demotes the vanish to glitch-suspect → kept.
+  const { propagate, skipped } = partitionSnapshotDeletes(
+    wantDelete, liveHashes, liveData, (eid) => getLocalEntity(mirror, eid),
+  );
   for (const id of propagate) applyRemoteDelete(mirror, id);
 
   return { survivors, honoredDeletes: propagate, keptVanishes: skipped, liveHashes };

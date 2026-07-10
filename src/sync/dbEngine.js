@@ -460,7 +460,16 @@ export function createDbEngine(callbacks = {}) {
           if (id in cur) continue;
           wantDelete.push(id);
         }
-        const { propagate, skipped, reasons } = partitionSnapshotDeletes(wantDelete, cur, mirror);
+        // The deletion candidates' last-known copies live in the SNAPSHOT (prev):
+        // each value is hashEntity(entity) = JSON.stringify of the wrapped entity,
+        // so parsing it back recovers the copy being deleted — letting the guard
+        // compare its lastModified against the tombstone (stale-tombstone rule).
+        // wantDelete is a small set, so the parse cost is negligible.
+        const { propagate, skipped, reasons } = partitionSnapshotDeletes(wantDelete, cur, mirror, (eid) => {
+          const h = prev[eid];
+          if (typeof h !== 'string') return null;
+          try { return JSON.parse(h); } catch { return null; }
+        });
         glitchSkipped = skipped;
         for (const id of propagate) {
           engine.markDirty(id); // deletes
@@ -474,9 +483,12 @@ export function createDbEngine(callbacks = {}) {
         }
         if (skipped.length) {
           console.warn(
-            `[push] GUARD: skipped ${skipped.length} un-tombstoned vanish-delete(s) — ` +
+            `[push] GUARD: skipped ${skipped.length} vanish-delete(s) — ` +
             `suspected local-state glitch, rows kept (would-be fleet-wide deletion). ` +
-            `Ids:`, skipped.slice(0, 25), skipped.length > 25 ? `(+${skipped.length - 25} more)` : ''
+            // 'glitch' = un-tombstoned vanish; 'stale-tombstone' = tombstoned, but the
+            // deleted copy is newer than its lingering tombstone (revived entity).
+            `Ids:`, skipped.slice(0, 25).map((id) => `${id} (${reasons[id]})`),
+            skipped.length > 25 ? `(+${skipped.length - 25} more)` : ''
           );
         }
       }
