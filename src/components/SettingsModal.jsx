@@ -15,6 +15,7 @@ import { syncSharedUsers, syncSharedUsersViaICloud } from '../intents/sharedUser
 import { isAvailable as isICloudAvailable } from '../intents/icloudFileTransport.js';
 import { getSyncPassphrase, setSyncPassphrase } from '../utils/crypto.js';
 import { isVaultEnabled } from '../sync/vaultConfig.js';
+import { multiUserToggleLocked } from '../utils/multiUserGate.js';
 import { getDbIntentsConfig, setDbIntentsConfig, getDbIntentsConnection } from '../intents/dbIntentsConfig.js';
 import { setupIntentsEncryption } from '../intents/intentsEncryptionSetup.js';
 import { ensureVaultIntentsKey, setupVaultIntentsEncryption } from '../intents/vaultIntentsSetup.js';
@@ -80,9 +81,14 @@ const SettingsModal = () => {
     aiConnectionStatus, setAiConnectionStatus, aiConnectionMessage, setAiConnectionMessage,
     aiOllamaHelp, setAiOllamaHelp,
     multiUserEnabled, setMultiUserEnabled,
+    cloudSyncConfigured,
     users, setUsers,
     meUserSyncId, setMeUserSyncId,
   } = useFeaturesCtx();
+  // Multi-user only matters across synced devices; gate the toggle when sync is
+  // unconfigured. Never trap: an already-on toggle stays enabled so it can be
+  // turned off.
+  const multiUserLocked = multiUserToggleLocked({ cloudSyncConfigured, multiUserEnabled });
   const [addingUser, setAddingUser] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [editingUserId, setEditingUserId] = useState(null);
@@ -1014,18 +1020,22 @@ const SettingsModal = () => {
                             </div>
                             <button
                               type="button"
+                              disabled={multiUserLocked}
                               onClick={() => {
                                 const next = !multiUserEnabled;
                                 setMultiUserEnabled(next);
                                 localStorage.setItem('dayglance-multi-user-enabled', JSON.stringify(next));
                               }}
-                              className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors ${multiUserEnabled ? 'bg-green-500' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}
+                              className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors ${multiUserEnabled ? 'bg-green-500' : darkMode ? 'bg-gray-600' : 'bg-stone-300'} ${multiUserLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
                               role="switch"
                               aria-checked={multiUserEnabled}
                             >
                               <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform ${multiUserEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                             </button>
                           </div>
+                          {!cloudSyncConfigured && (
+                            <p className={`text-xs ${textSecondary} -mt-2`}>{t('settings.multiUserRequiresSync')}</p>
+                          )}
                           <div className="flex items-center justify-between gap-3">
                             <p className={`${textSecondary} text-xs`}>
                               Share dayGLANCE with your household. Tasks can be assigned to specific people; unassigned tasks are visible to everyone.

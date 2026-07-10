@@ -23,6 +23,7 @@ import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { isVaultEnabled } from '../sync/vaultConfig.js';
+import { multiUserToggleLocked } from '../utils/multiUserGate.js';
 import { getDbIntentsConfig, setDbIntentsConfig, getDbIntentsConnection } from '../intents/dbIntentsConfig.js';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from '../intents/useIntentPoller.js';
@@ -122,7 +123,10 @@ const MobileSettingsPanel = () => {
     applyReminderPreset, updateCategoryReminder,
     users, setUsers, meUserSyncId, setMeUserSyncId,
     multiUserEnabled, setMultiUserEnabled,
+    cloudSyncConfigured,
   } = useFeaturesCtx();
+  // Gate multi-user when sync is unconfigured; never trap an already-on toggle.
+  const multiUserLocked = multiUserToggleLocked({ cloudSyncConfigured, multiUserEnabled });
 
   const [intentForm, setIntentForm] = useState(() => {
     const raw = localStorage.getItem(INTENT_CONFIG_KEY);
@@ -2645,18 +2649,22 @@ const MobileSettingsPanel = () => {
         </div>
         <button
           type="button"
+          disabled={multiUserLocked}
           onClick={() => {
             const next = !multiUserEnabled;
             setMultiUserEnabled(next);
             localStorage.setItem('dayglance-multi-user-enabled', JSON.stringify(next));
           }}
-          className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors ${multiUserEnabled ? 'bg-green-500' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}
+          className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors ${multiUserEnabled ? 'bg-green-500' : darkMode ? 'bg-gray-600' : 'bg-stone-300'} ${multiUserLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
           role="switch"
           aria-checked={multiUserEnabled}
         >
           <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform ${multiUserEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
         </button>
       </div>
+      {!cloudSyncConfigured && (
+        <p className={`text-xs ${textSecondary} -mt-2`}>{t('settings.multiUserRequiresSync')}</p>
+      )}
       <div className="flex items-center justify-between gap-3">
         <p className={`text-xs ${textSecondary}`}>Share dayGLANCE with your household. Tasks can be assigned to specific people; unassigned tasks are visible to everyone.</p>
         {(cloudSyncConfig?.enabled || isICloudAvailable()) && (
