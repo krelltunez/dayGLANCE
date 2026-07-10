@@ -720,6 +720,7 @@
     "helpFeedback": "Ayuda y comentarios",
     "documentation": "Documentación",
     "contactIssues": "Contacto y problemas",
+    "legal": "Aviso legal",
     "gettingStartedChecklist": "Lista de primeros pasos",
     "gettingStartedChecklistHint": "Mostrar la lista guiada en la barra lateral",
     "goalDueToday": "Objetivo con fecha límite hoy: {{title}}",

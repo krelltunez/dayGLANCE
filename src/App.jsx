@@ -10355,6 +10355,29 @@ const DayPlanner = () => {
                 </a>
               </div>
 
+              {/* Legal */}
+              <div>
+                <p className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} mb-2`}>{t('app.legal')}</p>
+                <a
+                  href="https://glance-apps.com/dayglance/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-blue-500 hover:text-blue-400 transition-colors text-sm font-medium"
+                >
+                  <ExternalLink size={14} />
+                  {t('onboarding.privacyPolicy')}
+                </a>
+                <a
+                  href="https://www.glance-apps.com/eula"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-blue-500 hover:text-blue-400 transition-colors text-sm font-medium mt-1.5"
+                >
+                  <ExternalLink size={14} />
+                  {t('onboarding.termsOfUse')}
+                </a>
+              </div>
+
               {/* Getting Started toggle */}
               <div className={`pt-4 border-t ${borderClass}`}>
                 <div className="flex items-center justify-between">

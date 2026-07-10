@@ -720,6 +720,7 @@
     "helpFeedback": "Help & Feedback",
     "documentation": "Documentation",
     "contactIssues": "Contact & Issues",
+    "legal": "Legal",
     "gettingStartedChecklist": "Getting Started checklist",
     "gettingStartedChecklistHint": "Show the guided checklist in the sidebar",
     "goalDueToday": "Goal due today: {{title}}",
