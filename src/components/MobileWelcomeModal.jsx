@@ -55,7 +55,7 @@ const MobileWelcomeModal = () => {
             </div>
             <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>{t('onboarding.mobileGlance')}</h2>
             <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
-              <li>Your <strong className={textPrimary}>smart agenda</strong> — see <strong className={textPrimary}>overdue</strong>, <strong className={textPrimary}>in-progress</strong>, and <strong className={textPrimary}>upcoming</strong> tasks in real time</li>
+              <li>Your <strong className={textPrimary}>smart agenda</strong>: see <strong className={textPrimary}>overdue</strong>, <strong className={textPrimary}>in-progress</strong>, and <strong className={textPrimary}>upcoming</strong> tasks in real time</li>
               <li>When it&apos;s time, <strong className={textPrimary}><span className="italic">GLANCE</span>ahead</strong> to see what tomorrow holds</li>
               <li>Track your progress with <strong className={textPrimary}>daily</strong> and <strong className={textPrimary}>all-time summaries</strong> <BarChart3 size={14} className="inline mx-0.5" /></li>
               <li><strong className={textPrimary}>Search</strong> <Search size={14} className="inline mx-0.5" /> across all your tasks and events, and filter your day by <strong className={textPrimary}>#tags</strong> <Filter size={14} className="inline mx-0.5" /></li>
@@ -105,25 +105,25 @@ const MobileWelcomeModal = () => {
                 <span className="w-8 h-8 bg-teal-100 dark:bg-teal-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                   <RefreshCw size={16} className="text-teal-500" />
                 </span>
-                <span><strong className={textPrimary}>Routines</strong> — things you need to do regularly, like eat, sleep and exercise</span>
+                <span><strong className={textPrimary}>Routines</strong>: things you need to do regularly, like eat, sleep and exercise</span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-8 h-8 bg-rose-100 dark:bg-rose-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                   <Target size={16} className="text-rose-500" />
                 </span>
-                <span><strong className={textPrimary}>Habits</strong> — track regular habits with visual progress rings and saved history</span>
+                <span><strong className={textPrimary}>Habits</strong>: track regular habits with visual progress rings and saved history</span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                   <Flag size={16} className="text-blue-500" />
                 </span>
-                <span><strong className={textPrimary}>Goals &amp; Projects</strong> — track your long-term goals and progress toward completion</span>
+                <span><strong className={textPrimary}>Goals &amp; Projects</strong>: track your long-term goals and progress toward completion</span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-8 h-8 bg-amber-100 dark:bg-amber-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                   <Mic size={16} className="text-amber-500" />
                 </span>
-                <span><strong className={textPrimary}>AI Features</strong> — voice input, morning briefings, and smart task parsing (BYO API key)</span>
+                <span><strong className={textPrimary}>AI Features</strong>: voice input, morning briefings, and smart task parsing (BYO API key)</span>
               </div>
             </div>
           </div>

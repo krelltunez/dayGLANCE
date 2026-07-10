@@ -1405,6 +1405,7 @@ const DayPlanner = () => {
     completedTaskUids, recurringTasks, routineDefinitions, todayRoutines: allTodayRoutines, routinesDate,
     removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
     goals, projects, areas, goalsProjectsEnabled,
+    dailyNotes, users, routineCompletions, multiUserEnabled,
   });
 
   const { timelineScrolledAway, setTimelineScrolledAway, scrollToCurrentHour, scrollToHour } = useTimelineScroll({
