@@ -100,10 +100,22 @@ async function rcFetch(method: string, endpoint: string, body?: object): Promise
 // status. Using POST /receipts rather than GET /subscribers means RevenueCat derives
 // the customer identity from the Apple ID embedded in the receipt — no separate
 // persisted user ID is needed, and cross-device restore just works via Apple ID.
-async function fetchEntitlementStatus(): Promise<{ active: boolean; productId: string | null }> {
+// `indeterminate: true` means the check could NOT be completed — no App Store
+// receipt on disk yet (very common on a COLD LAUNCH: macOS often doesn't
+// materialize the receipt until a StoreKit refresh/restore runs, which is exactly
+// why "Restore Purchase" recovers access when a fresh launch showed the paywall),
+// or a network/RevenueCat failure. Callers MUST treat indeterminate as "unknown",
+// never as "inactive": a paying user must not be downgraded and shown the paywall
+// just because the receipt wasn't ready or the network hiccuped. A DEFINITIVE
+// inactive (RC validated the receipt and the entitlement is absent or expired) is
+// returned WITHOUT the flag, so a genuinely lapsed subscription still re-locks.
+async function fetchEntitlementStatus(): Promise<{ active: boolean; productId: string | null; indeterminate?: boolean }> {
+  let receiptPath: string | null = null;
+  try { receiptPath = inAppPurchase.getReceiptURL(); } catch { receiptPath = null; }
+  if (!receiptPath || !fs.existsSync(receiptPath)) {
+    return { active: false, productId: null, indeterminate: true };
+  }
   try {
-    const receiptPath = inAppPurchase.getReceiptURL();
-    if (!receiptPath || !fs.existsSync(receiptPath)) return { active: false, productId: null };
     const fetchToken = fs.readFileSync(receiptPath).toString('base64');
     const data = await rcFetch('POST', '/receipts', {
       app_user_id: getStableAnonymousId(),
@@ -111,7 +123,7 @@ async function fetchEntitlementStatus(): Promise<{ active: boolean; productId: s
       platform: 'macos',
     }) as any;
     const ent = data?.subscriber?.entitlements?.[ENTITLEMENT_ID];
-    if (!ent) return { active: false, productId: null };
+    if (!ent) return { active: false, productId: null }; // definitive: no entitlement
     // Subscriptions have expires_date; lifetime non-consumables do not.
     if (ent.expires_date) {
       const active = new Date(ent.expires_date) > new Date();
@@ -119,7 +131,8 @@ async function fetchEntitlementStatus(): Promise<{ active: boolean; productId: s
     }
     return { active: true, productId: ent.product_identifier ?? null };
   } catch {
-    return { active: false, productId: null };
+    // Network / RevenueCat / parse failure — couldn't determine. Fail open.
+    return { active: false, productId: null, indeterminate: true };
   }
 }
 
