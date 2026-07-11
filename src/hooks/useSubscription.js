@@ -237,6 +237,19 @@ export function useSubscription() {
     return unsub;
   }, []);
 
+  // Electron: also PULL cached prices on mount. The startup push can fire before
+  // this component registers its listener (Electron drops the message), which left
+  // the price stuck on "Loading…". The pull recovers prices already fetched; if the
+  // fetch hasn't finished yet, the push above still delivers them.
+  useEffect(() => {
+    if (!ELECTRON) return;
+    window.electronAPI.subscriptionPrices?.().then((p) => {
+      if (p && (p.yearly || p.lifetime)) {
+        setPrices({ yearly: p.yearly ?? null, lifetime: p.lifetime ?? null });
+      }
+    }).catch(() => {});
+  }, []);
+
   // On mount: background refresh for each platform.
   useEffect(() => {
     if (BILLING) {

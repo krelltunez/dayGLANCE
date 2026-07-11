@@ -101,6 +101,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('subscription:purchase', productId),
   subscriptionRestore: (): Promise<void> =>
     ipcRenderer.invoke('subscription:restore'),
+  subscriptionPrices: (): Promise<{ yearly: string | null; lifetime: string | null }> =>
+    ipcRenderer.invoke('subscription:prices'),
   onSubscriptionEvent: (callback: (event: unknown) => void) => {
     const handler = (_: Electron.IpcRendererEvent, event: unknown) => callback(event);
     ipcRenderer.on('subscription:event', handler);
