@@ -14,6 +14,13 @@ const ENTITLEMENT_ID   = 'pro';
 const PRODUCT_YEARLY   = 'com.dayglance.pro.yearly';
 const PRODUCT_LIFETIME = 'com.dayglance.pro.lifetime';
 
+// Cached StoreKit prices, populated once at startup. The renderer both receives a
+// 'subscription:prices-ready' push AND can pull via 'subscription:prices'. The pull
+// closes the race where the push fired before the paywall mounted its listener —
+// Electron drops renderer-directed messages sent before a listener exists, which
+// left the price stuck on "Loading…" even though the fetch succeeded.
+let cachedPrices: { yearly: string | null; lifetime: string | null } = { yearly: null, lifetime: null };
+
 // ── Anonymous app user ID ─────────────────────────────────────────────────────
 // Derived from a hash of the userData path — stable per user+app installation,
 // no file I/O required. Identity is validated against the MAS receipt rather than
@@ -144,11 +151,12 @@ export function registerSubscriptionHandlers(window: BrowserWindow): void {
   // Fetch prices once from StoreKit on startup and cache them.
   if (process.platform === 'darwin' && inAppPurchase.canMakePayments()) {
     inAppPurchase.getProducts([PRODUCT_YEARLY, PRODUCT_LIFETIME]).then((products) => {
-      const prices: Record<string, string> = {};
+      const prices: { yearly: string | null; lifetime: string | null } = { yearly: null, lifetime: null };
       for (const p of products) {
         if (p.productIdentifier === PRODUCT_YEARLY)   prices.yearly   = p.formattedPrice;
         if (p.productIdentifier === PRODUCT_LIFETIME) prices.lifetime = p.formattedPrice;
       }
+      cachedPrices = prices;
       live()?.webContents.send('subscription:prices-ready', prices);
     }).catch(() => {});
   }
@@ -193,12 +201,10 @@ export function registerSubscriptionHandlers(window: BrowserWindow): void {
     return fetchEntitlementStatus();
   });
 
-  // Return last-known cached prices (already fetched at startup above).
-  ipcMain.handle('subscription:prices', () => {
-    // Prices are delivered via 'subscription:prices-ready' push on startup;
-    // this handle is a fallback for late callers.
-    return {};
-  });
+  // Return last-known cached prices. The renderer pulls this on mount so a paywall
+  // that mounted after the startup 'subscription:prices-ready' push (dropped, since
+  // no listener existed yet) still gets prices instead of showing "Loading…".
+  ipcMain.handle('subscription:prices', () => cachedPrices);
 
   // Open the Mac App Store purchase sheet via StoreKit.
   ipcMain.handle('subscription:purchase', async (_event, productId: string) => {
