@@ -15,6 +15,8 @@ final class SubscriptionBridge {
     weak var webView: WKWebView?
 
     private let entitlementId = "pro"
+    private let productYearly = "com.dayglance.pro.yearly"
+    private let productLifetime = "com.dayglance.pro.lifetime"
 
     // MARK: - RevenueCat configuration
 
@@ -68,14 +70,27 @@ final class SubscriptionBridge {
     func purchase(productId: String) {
         Task {
             do {
-                let offerings = try await Purchases.shared.offerings()
-                guard let package = offerings.current?.availablePackages.first(where: {
-                    $0.storeProduct.productIdentifier == productId
-                }) else {
-                    fireBillingEvent(status: "error", code: 1, message: "Product not found", productId: productId)
-                    return
+                let result: PurchaseResultData
+                // Prefer the configured Offering package (preserves intro-offer
+                // metadata for the annual free trial), but fall back to the bare
+                // StoreKit product so a product that exists in App Store Connect but
+                // isn't attached to the current RevenueCat Offering — the usual case
+                // for the lifetime non-consumable — still purchases instead of
+                // dead-ending on "Product not found" (which surfaced as an endless
+                // spinner on the paywall: no StoreKit sheet, no login prompt).
+                if let offerings = try? await Purchases.shared.offerings(),
+                   let package = offerings.current?.availablePackages.first(where: {
+                       $0.storeProduct.productIdentifier == productId
+                   }) {
+                    result = try await Purchases.shared.purchase(package: package)
+                } else {
+                    let products = await Purchases.shared.products([productId])
+                    guard let product = products.first else {
+                        fireBillingEvent(status: "error", code: 1, message: "Product not found", productId: productId)
+                        return
+                    }
+                    result = try await Purchases.shared.purchase(product: product)
                 }
-                let result = try await Purchases.shared.purchase(package: package)
                 if result.userCancelled {
                     fireBillingEvent(status: "cancelled", code: -1, message: "User cancelled", productId: productId)
                 } else {
@@ -116,14 +131,16 @@ final class SubscriptionBridge {
 
     private func fetchPricesInBackground() {
         Task {
-            guard let offerings = try? await Purchases.shared.offerings(),
-                  let packages = offerings.current?.availablePackages else { return }
-            for pkg in packages {
-                let id    = pkg.storeProduct.productIdentifier
-                let price = pkg.storeProduct.localizedPriceString
-                if id.contains("yearly") || id.contains("annual") {
+            // Fetch prices by explicit product ID rather than only from the current
+            // Offering, so the lifetime price still populates even when the lifetime
+            // non-consumable isn't attached to the Offering in RevenueCat (otherwise
+            // the Lifetime card shows "Loading…" forever).
+            let products = await Purchases.shared.products([productYearly, productLifetime])
+            for product in products {
+                let price = product.localizedPriceString
+                if product.productIdentifier == productYearly {
                     UserDefaults.standard.set(price, forKey: "rc_price_yearly")
-                } else if id.contains("lifetime") {
+                } else if product.productIdentifier == productLifetime {
                     UserDefaults.standard.set(price, forKey: "rc_price_lifetime")
                 }
             }
