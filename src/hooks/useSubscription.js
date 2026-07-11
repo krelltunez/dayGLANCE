@@ -246,6 +246,12 @@ export function useSubscription() {
 
     if (ELECTRON) {
       window.electronAPI.subscriptionStatus().then(s => {
+        // Indeterminate = the main process couldn't verify (no receipt yet on a cold
+        // launch, or a network/RC failure). Keep the cached last-known-good state
+        // rather than downgrading to the paywall; "Restore Purchase" forces a receipt
+        // refresh for an authoritative answer. A determinate result (active OR a real
+        // expiry) is always applied.
+        if (!s || s.indeterminate) return;
         setStatus(s);
         try { localStorage.setItem('rc_electron_status', JSON.stringify(s)); } catch {}
       }).catch(() => {});
@@ -263,6 +269,12 @@ export function useSubscription() {
     }
     if (ELECTRON) {
       window.electronAPI.subscriptionStatus().then(s => {
+        // Indeterminate = the main process couldn't verify (no receipt yet on a cold
+        // launch, or a network/RC failure). Keep the cached last-known-good state
+        // rather than downgrading to the paywall; "Restore Purchase" forces a receipt
+        // refresh for an authoritative answer. A determinate result (active OR a real
+        // expiry) is always applied.
+        if (!s || s.indeterminate) return;
         setStatus(s);
         try { localStorage.setItem('rc_electron_status', JSON.stringify(s)); } catch {}
       }).catch(() => {});
