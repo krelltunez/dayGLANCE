@@ -36,6 +36,14 @@ final class SubscriptionBridge {
 
     // MARK: - Synchronous bridge calls
 
+    /// Set once this install has ever observed an active entitlement. Used to tell
+    /// "was entitled, now reads inactive" (worth a silent recovery attempt) apart
+    /// from "never purchased" (show the paywall immediately, no wasted network).
+    private let wasActiveKey = "rc_was_active"
+
+    /// Guards the silent recovery to one attempt per app launch.
+    private var autoSyncAttempted = false
+
     /// Returns `{"active":bool,"productId":string|null}` from RevenueCat's cached info.
     func getStatus() -> String {
         #if DEBUG
@@ -43,9 +51,39 @@ final class SubscriptionBridge {
         #endif
         let info = Purchases.shared.cachedCustomerInfo
         let active = info?.entitlements[entitlementId]?.isActive == true
+        if active {
+            UserDefaults.standard.set(true, forKey: wasActiveKey)
+        } else if UserDefaults.standard.bool(forKey: wasActiveKey) {
+            autoSyncRecover()
+        }
         let productId = info?.entitlements[entitlementId]?.productIdentifier
         let productJson = productId.map { "\"\(esc($0))\"" } ?? "null"
         return "{\"active\":\(active),\"productId\":\(productJson)}"
+    }
+
+    /// Silent entitlement recovery for RevenueCat's "Transfer to new App User ID"
+    /// behavior. The Mac app posts its receipt on every entitlement check, which
+    /// TRANSFERS the shared Apple-account entitlement to the Mac's anonymous
+    /// customer — leaving this install's cache inactive even though the user has
+    /// paid. Instead of showing a paywall the user must manually Restore through,
+    /// sync the local receipt (which transfers the entitlement back) and, if it
+    /// comes back active, fire the same restore_complete_active event the JS
+    /// layer already handles by dismissing the wall. A genuinely lapsed
+    /// subscription stays inactive — syncPurchases posts the receipt, so its
+    /// answer is authoritative. At most one attempt per launch.
+    private func autoSyncRecover() {
+        guard !autoSyncAttempted else { return }
+        autoSyncAttempted = true
+        Task {
+            guard let info = try? await Purchases.shared.syncPurchases() else { return }
+            let ent = info.entitlements[entitlementId]
+            if ent?.isActive == true {
+                UserDefaults.standard.set(true, forKey: wasActiveKey)
+                fireBillingEvent(status: "cancelled", code: 0,
+                                 message: "restore_complete_active",
+                                 productId: ent?.productIdentifier ?? "")
+            }
+        }
     }
 
     /// Returns `{"com.dayglance.pro.yearly": bool}` from the cached eligibility check.
