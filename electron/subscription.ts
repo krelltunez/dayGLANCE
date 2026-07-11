@@ -116,29 +116,58 @@ async function rcFetch(method: string, endpoint: string, body?: object): Promise
 // just because the receipt wasn't ready or the network hiccuped. A DEFINITIVE
 // inactive (RC validated the receipt and the entitlement is absent or expired) is
 // returned WITHOUT the flag, so a genuinely lapsed subscription still re-locks.
+// Parse RevenueCat's subscriber.entitlements[pro] into our status shape.
+// Returns a definitive { active } result, or null if the subscriber object itself
+// was missing/unparseable (caller treats that as indeterminate).
+function parseProEntitlement(subscriber: unknown): { active: boolean; productId: string | null } | null {
+  const ent = (subscriber as any)?.entitlements?.[ENTITLEMENT_ID];
+  if (subscriber == null) return null; // couldn't read a subscriber at all
+  if (!ent) return { active: false, productId: null }; // subscriber exists, no pro entitlement
+  // Subscriptions have expires_date; lifetime non-consumables do not.
+  if (ent.expires_date) {
+    const active = new Date(ent.expires_date) > new Date();
+    return { active, productId: active ? (ent.product_identifier ?? null) : null };
+  }
+  return { active: true, productId: ent.product_identifier ?? null };
+}
+
 async function fetchEntitlementStatus(): Promise<{ active: boolean; productId: string | null; indeterminate?: boolean }> {
+  const appUserId = getStableAnonymousId();
+
+  // Path 1: if a local App Store receipt exists, validate it. This also (re)establishes
+  // the RevenueCat alias between this app_user_id and the receipt's Apple ID.
   let receiptPath: string | null = null;
   try { receiptPath = inAppPurchase.getReceiptURL(); } catch { receiptPath = null; }
-  if (!receiptPath || !fs.existsSync(receiptPath)) {
-    return { active: false, productId: null, indeterminate: true };
-  }
-  try {
-    const fetchToken = fs.readFileSync(receiptPath).toString('base64');
-    const data = await rcFetch('POST', '/receipts', {
-      app_user_id: getStableAnonymousId(),
-      fetch_token: fetchToken,
-      platform: 'macos',
-    }) as any;
-    const ent = data?.subscriber?.entitlements?.[ENTITLEMENT_ID];
-    if (!ent) return { active: false, productId: null }; // definitive: no entitlement
-    // Subscriptions have expires_date; lifetime non-consumables do not.
-    if (ent.expires_date) {
-      const active = new Date(ent.expires_date) > new Date();
-      return { active, productId: active ? (ent.product_identifier ?? null) : null };
+  if (receiptPath && fs.existsSync(receiptPath)) {
+    try {
+      const fetchToken = fs.readFileSync(receiptPath).toString('base64');
+      const data = await rcFetch('POST', '/receipts', {
+        app_user_id: appUserId, fetch_token: fetchToken, platform: 'macos',
+      });
+      const parsed = parseProEntitlement((data as any)?.subscriber);
+      console.info('[subscription] receipt validated; pro active =', parsed?.active);
+      if (parsed) return parsed;
+    } catch (err) {
+      console.warn('[subscription] receipt validation failed, falling back to subscriber lookup:', err);
     }
-    return { active: true, productId: ent.product_identifier ?? null };
-  } catch {
-    // Network / RevenueCat / parse failure — couldn't determine. Fail open.
+  } else {
+    console.info('[subscription] no local receipt at launch — querying RevenueCat by app_user_id');
+  }
+
+  // Path 2: no usable receipt (the common cold-launch case: macOS often hasn't
+  // materialized the receipt yet). Ask RevenueCat's server directly by app_user_id.
+  // The alias created when the purchase was first posted means this returns the same
+  // customer's entitlements, so a previously-purchased user stays unlocked WITHOUT a
+  // local receipt on disk. This is the fix for the paywall returning on every relaunch.
+  try {
+    const data = await rcFetch('GET', `/subscribers/${encodeURIComponent(appUserId)}`);
+    const parsed = parseProEntitlement((data as any)?.subscriber);
+    console.info('[subscription] subscriber lookup; pro active =', parsed?.active);
+    if (parsed) return parsed; // determinate (active OR genuinely never purchased)
+    return { active: false, productId: null, indeterminate: true };
+  } catch (err) {
+    // Network / RevenueCat failure — couldn't determine. Fail open (keep cached).
+    console.warn('[subscription] subscriber lookup failed:', err);
     return { active: false, productId: null, indeterminate: true };
   }
 }
