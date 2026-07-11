@@ -107,6 +107,27 @@ function billingErrorMessage(code) {
 
 const REVIEWER_UNLOCK_KEY = 'day-planner-reviewer-unlock';
 
+// ── Entitlement downgrade grace ───────────────────────────────────────────────
+// A paying user must NEVER see the paywall, even for a second. Entitlement reads
+// can transiently report inactive on an entitled install (RevenueCat's transfer
+// behavior moves the shared entitlement to whichever device validated last; store
+// caches lag), and the native layers self-heal within a few seconds. So status
+// transitions are asymmetric: inactive→active applies INSTANTLY, while
+// active→inactive is held for a grace window and only applied if no recovery
+// (an active read or a purchase/restore event) lands first. A genuinely lapsed
+// subscription still locks — just GRACE ms later.
+const DOWNGRADE_GRACE_MS = 12_000;
+
+// Persisted "this install has been entitled" hint, so a stale native cache at
+// cold launch can't flash the wall at first paint either — the install starts
+// provisionally unlocked and the same grace window confirms or clears it.
+const LAST_ACTIVE_KEY = 'day-planner-entitlement-last-active';
+
+function readLastActiveHint() {
+  try { return JSON.parse(localStorage.getItem(LAST_ACTIVE_KEY) || 'null'); }
+  catch { return null; }
+}
+
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 /**
@@ -123,7 +144,14 @@ const REVIEWER_UNLOCK_KEY = 'day-planner-reviewer-unlock';
  * `prices` shape: Android → { annual, lifetime } | iOS/macOS → { monthly, yearly }
  */
 export function useSubscription() {
-  const [status, setStatus]               = useState(() => readStatus());
+  const [status, setStatus]               = useState(() => {
+    const s = readStatus();
+    if (s.active) return s;
+    // Native cache says inactive, but this install has been entitled before —
+    // start provisionally unlocked; the grace effect below confirms or clears it.
+    const hint = readLastActiveHint();
+    return hint ? { active: true, productId: hint.productId ?? null, provisional: true } : s;
+  });
   const [prices, setPrices]               = useState(() => readPrices());
   const [trialEligible, setTrialEligible] = useState(() => readTrialEligibility());
   const [isLoading, setIsLoading]         = useState(false);
@@ -157,29 +185,61 @@ export function useSubscription() {
 
   const isOnNativePlatform = !!(BILLING || IOS || ELECTRON);
 
-  // Re-read entitlement from the authoritative native source, but never
-  // downgrade an already-active state. A confirmed purchase/restore validates
-  // before the event fires, yet the native entitlement cache can briefly lag
-  // (StoreKit sandbox especially), so an immediate single read often comes back
-  // inactive. Re-read on a few short delays and only apply an ACTIVE result —
-  // this fills the accurate productId without ever re-locking the wall.
+  // Mirror of `status` for non-render decisions (grace scheduling).
+  const statusRef = useRef(status);
+  useEffect(() => { statusRef.current = status; }, [status]);
+  const downgradeRef = useRef(null);
+
+  // The single gate through which every entitlement reading is applied.
+  // Asymmetric on purpose (see DOWNGRADE_GRACE_MS): active applies instantly and
+  // cancels any pending downgrade; inactive on a currently-unlocked install is
+  // HELD for the grace window so native self-heal (Mac receipt re-post, iOS
+  // syncPurchases, purchase/restore events) can win without the wall ever
+  // mounting. Indeterminate readings are ignored outright.
+  const applyStatus = useCallback((next) => {
+    if (!next || next.indeterminate) return;
+    if (next.active) {
+      if (downgradeRef.current) { clearTimeout(downgradeRef.current); downgradeRef.current = null; }
+      setStatus(next);
+      try { localStorage.setItem(LAST_ACTIVE_KEY, JSON.stringify({ productId: next.productId ?? null })); } catch {}
+      if (ELECTRON) { try { localStorage.setItem('rc_electron_status', JSON.stringify(next)); } catch {} }
+      return;
+    }
+    if (!statusRef.current.active) { setStatus(next); return; } // already locked — apply freely
+    if (downgradeRef.current) return; // a downgrade is already pending confirmation
+    downgradeRef.current = setTimeout(() => {
+      downgradeRef.current = null;
+      setStatus(next);
+      try { localStorage.removeItem(LAST_ACTIVE_KEY); } catch {}
+      if (ELECTRON) { try { localStorage.setItem('rc_electron_status', JSON.stringify(next)); } catch {} }
+    }, DOWNGRADE_GRACE_MS);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Confirm or clear a provisional cold-launch unlock: re-read the native source
+  // after the grace window; applyStatus locks it only if still inactive then.
+  useEffect(() => {
+    if (!statusRef.current.provisional) return;
+    const t = setTimeout(() => { applyStatus(readStatus()); }, DOWNGRADE_GRACE_MS);
+    return () => clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-read entitlement from the authoritative native source after a CONFIRMED
+  // purchase or restore, purely to fill in the accurate productId. The native
+  // cache can briefly lag (StoreKit sandbox especially), so re-read on a few
+  // short delays and apply ONLY active results — a lagging cache right after
+  // someone paid must not even start a downgrade countdown.
   const reconcileStatus = useCallback(() => {
-    const applyIfActive = (s) => { if (s && s.active) setStatus(s); };
+    const applyIfActive = (s) => { if (s && s.active) applyStatus(s); };
     [0, 1200, 3000].forEach((delay) => setTimeout(() => {
       if (ELECTRON) {
-        window.electronAPI.subscriptionStatus().then((s) => {
-          if (s && s.active) {
-            setStatus(s);
-            try { localStorage.setItem('rc_electron_status', JSON.stringify(s)); } catch {}
-          }
-        }).catch(() => {});
+        window.electronAPI.subscriptionStatus().then(applyIfActive).catch(() => {});
       } else if (BILLING) {
         applyIfActive(readStatusAndroid());
       } else if (IOS) {
         applyIfActive(readStatusIOS());
       }
     }, delay));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [applyStatus]);
 
   // ── Billing event handler (shared by all platforms) ──────────────────────
   const handleBillingEvent = useCallback((ev) => {
@@ -192,19 +252,10 @@ export function useSubscription() {
       const purchased = parsed.status === 'success';
       const restoredActive = parsed.message === 'restore_complete_active';
       if (purchased || restoredActive) {
-        setStatus((prev) => (prev.active ? prev : { active: true, productId: parsed.productId || prev.productId || null }));
-        // Electron/macOS: PERSIST the unlock immediately, not just in React state.
-        // The cold-launch receipt check often comes back indeterminate (macOS hasn't
-        // materialized the App Store receipt yet), so the only thing that keeps the
-        // app unlocked across relaunches is this cached value. Previously the
-        // optimistic unlock lived only for the session and the paywall returned on
-        // every reopen; a later determinate check (real receipt) still corrects it.
-        if (ELECTRON) {
-          try {
-            localStorage.setItem('rc_electron_status',
-              JSON.stringify({ active: true, productId: parsed.productId || null }));
-          } catch {}
-        }
+        // Optimistic unlock through the gate: applies instantly, cancels any
+        // pending downgrade, and persists the unlock (LAST_ACTIVE hint + the
+        // Electron rc_electron_status cache) so it survives relaunch.
+        applyStatus({ active: true, productId: parsed.productId || statusRef.current.productId || null });
         if (BILLING) setPrices(readPricesAndroid());
         if (IOS)     setPrices(readPricesIOS());
         reconcileStatus(); // fill accurate productId; never re-locks
@@ -212,7 +263,7 @@ export function useSubscription() {
       setBillingEvent({ ...parsed, ts: Date.now() });
       if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
     } catch {}
-  }, [reconcileStatus]);
+  }, [reconcileStatus, applyStatus]);
 
   // Register window.__billingEvent — fired by Android and iOS bridges.
   useEffect(() => {
@@ -263,48 +314,36 @@ export function useSubscription() {
       // RevenueCat caches status; re-read after a short delay so it has
       // had time to refresh from its background network call.
       setTimeout(() => {
-        setStatus(readStatusIOS());
+        applyStatus(readStatusIOS());
         setPrices(readPricesIOS());
         setTrialEligible(readTrialEligibility());
       }, 3000);
     }
 
     if (ELECTRON) {
-      window.electronAPI.subscriptionStatus().then(s => {
-        // Indeterminate = the main process couldn't verify (no receipt yet on a cold
-        // launch, or a network/RC failure). Keep the cached last-known-good state
-        // rather than downgrading to the paywall; "Restore Purchase" forces a receipt
-        // refresh for an authoritative answer. A determinate result (active OR a real
-        // expiry) is always applied.
-        if (!s || s.indeterminate) return;
-        setStatus(s);
-        try { localStorage.setItem('rc_electron_status', JSON.stringify(s)); } catch {}
-      }).catch(() => {});
+      // applyStatus ignores indeterminate results (main process couldn't verify),
+      // applies active instantly, and holds a determinate inactive for the grace
+      // window before locking — so an entitled install never flashes the wall.
+      window.electronAPI.subscriptionStatus().then(applyStatus).catch(() => {});
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-read when the user returns from a purchase sheet (all platforms).
+  // Re-read when the user returns from a purchase sheet or the app regains
+  // visibility (all platforms). Routed through applyStatus: active applies
+  // instantly, inactive on an unlocked install waits out the grace window, and
+  // indeterminate is ignored — so backgrounding the app can never flash the wall.
   const refresh = useCallback(() => {
     if (BILLING) {
       BILLING.refresh?.();
-      setTimeout(() => { setStatus(readStatusAndroid()); setPrices(readPricesAndroid()); }, 2000);
+      setTimeout(() => { applyStatus(readStatusAndroid()); setPrices(readPricesAndroid()); }, 2000);
     }
     if (IOS) {
-      setTimeout(() => { setStatus(readStatusIOS()); setPrices(readPricesIOS()); }, 2000);
+      setTimeout(() => { applyStatus(readStatusIOS()); setPrices(readPricesIOS()); }, 2000);
     }
     if (ELECTRON) {
-      window.electronAPI.subscriptionStatus().then(s => {
-        // Indeterminate = the main process couldn't verify (no receipt yet on a cold
-        // launch, or a network/RC failure). Keep the cached last-known-good state
-        // rather than downgrading to the paywall; "Restore Purchase" forces a receipt
-        // refresh for an authoritative answer. A determinate result (active OR a real
-        // expiry) is always applied.
-        if (!s || s.indeterminate) return;
-        setStatus(s);
-        try { localStorage.setItem('rc_electron_status', JSON.stringify(s)); } catch {}
-      }).catch(() => {});
+      window.electronAPI.subscriptionStatus().then(applyStatus).catch(() => {});
     }
-  }, []);
+  }, [applyStatus]);
 
   useEffect(() => {
     if (!isOnNativePlatform) return;
@@ -346,7 +385,7 @@ export function useSubscription() {
       BILLING.refresh?.();
       setIsLoading(true);
       setTimeout(() => {
-        setStatus(readStatusAndroid());
+        applyStatus(readStatusAndroid());
         setPrices(readPricesAndroid());
         setIsLoading(false);
         setBillingEvent({ status: 'cancelled', code: 0, message: 'restore_complete', productId: '', ts: Date.now() });
@@ -366,7 +405,10 @@ export function useSubscription() {
     BILLING.consumeTestPurchase();
   }, []);
 
-  useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
+  useEffect(() => () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (downgradeRef.current) clearTimeout(downgradeRef.current);
+  }, []);
 
   return {
     isPro: status.active,
