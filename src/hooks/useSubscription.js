@@ -193,6 +193,18 @@ export function useSubscription() {
       const restoredActive = parsed.message === 'restore_complete_active';
       if (purchased || restoredActive) {
         setStatus((prev) => (prev.active ? prev : { active: true, productId: parsed.productId || prev.productId || null }));
+        // Electron/macOS: PERSIST the unlock immediately, not just in React state.
+        // The cold-launch receipt check often comes back indeterminate (macOS hasn't
+        // materialized the App Store receipt yet), so the only thing that keeps the
+        // app unlocked across relaunches is this cached value. Previously the
+        // optimistic unlock lived only for the session and the paywall returned on
+        // every reopen; a later determinate check (real receipt) still corrects it.
+        if (ELECTRON) {
+          try {
+            localStorage.setItem('rc_electron_status',
+              JSON.stringify({ active: true, productId: parsed.productId || null }));
+          } catch {}
+        }
         if (BILLING) setPrices(readPricesAndroid());
         if (IOS)     setPrices(readPricesIOS());
         reconcileStatus(); // fill accurate productId; never re-locks
