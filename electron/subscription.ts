@@ -1,5 +1,6 @@
 import { ipcMain, inAppPurchase, net, app, BrowserWindow } from 'electron';
 import fs from 'node:fs';
+import path from 'node:path';
 import crypto from 'node:crypto';
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -31,6 +32,32 @@ function getStableAnonymousId(): string {
     .update(app.getPath('userData'))
     .digest('hex')
     .slice(0, 32);
+}
+
+// ── Lifetime latch ────────────────────────────────────────────────────────────
+// A lifetime purchase is permanent: once Apple has confirmed one (StoreKit
+// transaction) or RevenueCat has validated one, record it locally and never let
+// any later server read re-lock this install. Server checks can fail or drift
+// (identity aliasing, receipt validation issues); a one-time purchase must not
+// be held hostage to them. Threat model is the same as the renderer's cached
+// status — a local file, no worse than the existing localStorage cache.
+
+function lifetimeLatchPath(): string {
+  return path.join(app.getPath('userData'), 'lifetime-purchased.json');
+}
+
+function isLifetimeLatched(): boolean {
+  try { return fs.existsSync(lifetimeLatchPath()); } catch { return false; }
+}
+
+function latchLifetime(source: string): void {
+  try {
+    if (isLifetimeLatched()) return;
+    fs.writeFileSync(lifetimeLatchPath(), JSON.stringify({
+      productId: PRODUCT_LIFETIME, latchedAt: new Date().toISOString(), source,
+    }));
+    console.info(`[subscription] lifetime purchase latched (${source})`);
+  } catch {}
 }
 
 // ── Distribution channel detection ───────────────────────────────────────────
@@ -100,7 +127,17 @@ async function rcFetch(method: string, endpoint: string, body?: object): Promise
   };
   if (body) opts.body = JSON.stringify(body);
   const res = await net.fetch(`${RC_BASE}${endpoint}`, opts);
-  return res.json();
+  const text = await res.text();
+  // An HTTP error is NOT an answer about the subscription — it must never be
+  // parsed into "no entitlement". Throw so callers treat it as indeterminate.
+  // (Previously a 4xx error body parsed as JSON with no `subscriber`, which
+  // downstream read as a definitive "not subscribed" and re-locked the paywall.)
+  if (!res.ok) {
+    throw new Error(`RevenueCat ${method} ${endpoint} → HTTP ${res.status}: ${text.slice(0, 300)}`);
+  }
+  try { return JSON.parse(text); } catch {
+    throw new Error(`RevenueCat ${method} ${endpoint} → HTTP ${res.status} with non-JSON body: ${text.slice(0, 120)}`);
+  }
 }
 
 // Validates the MAS receipt with RevenueCat (POST /receipts) and returns entitlement
@@ -131,45 +168,62 @@ function parseProEntitlement(subscriber: unknown): { active: boolean; productId:
   return { active: true, productId: ent.product_identifier ?? null };
 }
 
+// Trust rules, learned the hard way:
+//   - Only a well-formed HTTP-200 receipt validation may ever RE-LOCK (it is the
+//     one response proving RevenueCat actually examined this install's receipt).
+//   - The GET /subscribers fallback AUTO-CREATES an empty subscriber for unknown
+//     ids, so "no entitlement" from it is meaningless — it may only UNLOCK.
+//   - A latched lifetime purchase can never be re-locked by any server read.
+//   - Everything else (HTTP errors, malformed bodies, no receipt) is
+//     indeterminate: the renderer keeps its cached last-known-good state.
 async function fetchEntitlementStatus(): Promise<{ active: boolean; productId: string | null; indeterminate?: boolean }> {
   const appUserId = getStableAnonymousId();
+  const latched = isLifetimeLatched();
 
-  // Path 1: if a local App Store receipt exists, validate it. This also (re)establishes
-  // the RevenueCat alias between this app_user_id and the receipt's Apple ID.
   let receiptPath: string | null = null;
   try { receiptPath = inAppPurchase.getReceiptURL(); } catch { receiptPath = null; }
-  if (receiptPath && fs.existsSync(receiptPath)) {
+  const hasReceipt = !!(receiptPath && fs.existsSync(receiptPath));
+  console.info(`[subscription] check: app_user_id=${appUserId} receiptOnDisk=${hasReceipt} lifetimeLatched=${latched}`);
+
+  // Path 1: validate the local App Store receipt. This also (re)establishes the
+  // RevenueCat alias between this app_user_id and the receipt's Apple ID.
+  if (hasReceipt) {
     try {
-      const fetchToken = fs.readFileSync(receiptPath).toString('base64');
+      const fetchToken = fs.readFileSync(receiptPath!).toString('base64');
       const data = await rcFetch('POST', '/receipts', {
         app_user_id: appUserId, fetch_token: fetchToken, platform: 'macos',
       });
-      const parsed = parseProEntitlement((data as any)?.subscriber);
-      console.info('[subscription] receipt validated; pro active =', parsed?.active);
-      if (parsed) return parsed;
+      const sub = (data as any)?.subscriber;
+      console.info('[subscription] POST /receipts entitlements =',
+        JSON.stringify(sub?.entitlements ?? null)?.slice(0, 400));
+      if (sub && typeof sub.entitlements === 'object') {
+        const parsed = parseProEntitlement(sub)!;
+        if (parsed.active && parsed.productId === PRODUCT_LIFETIME) latchLifetime('rc-receipt-validation');
+        if (!parsed.active && latched) return { active: true, productId: PRODUCT_LIFETIME };
+        return parsed; // the ONLY response allowed to re-lock
+      }
+      console.warn('[subscription] 200 response without well-formed subscriber — indeterminate');
     } catch (err) {
-      console.warn('[subscription] receipt validation failed, falling back to subscriber lookup:', err);
+      console.warn('[subscription] receipt validation failed (indeterminate):',
+        err instanceof Error ? err.message : err);
     }
-  } else {
-    console.info('[subscription] no local receipt at launch — querying RevenueCat by app_user_id');
   }
 
-  // Path 2: no usable receipt (the common cold-launch case: macOS often hasn't
-  // materialized the receipt yet). Ask RevenueCat's server directly by app_user_id.
-  // The alias created when the purchase was first posted means this returns the same
-  // customer's entitlements, so a previously-purchased user stays unlocked WITHOUT a
-  // local receipt on disk. This is the fix for the paywall returning on every relaunch.
+  // Path 2: subscriber lookup by app user id — UNLOCK-ONLY (see trust rules).
   try {
     const data = await rcFetch('GET', `/subscribers/${encodeURIComponent(appUserId)}`);
     const parsed = parseProEntitlement((data as any)?.subscriber);
-    console.info('[subscription] subscriber lookup; pro active =', parsed?.active);
-    if (parsed) return parsed; // determinate (active OR genuinely never purchased)
-    return { active: false, productId: null, indeterminate: true };
+    console.info('[subscription] GET /subscribers pro active =', parsed?.active);
+    if (parsed?.active) {
+      if (parsed.productId === PRODUCT_LIFETIME) latchLifetime('rc-subscriber-lookup');
+      return parsed;
+    }
   } catch (err) {
-    // Network / RevenueCat failure — couldn't determine. Fail open (keep cached).
-    console.warn('[subscription] subscriber lookup failed:', err);
-    return { active: false, productId: null, indeterminate: true };
+    console.warn('[subscription] subscriber lookup failed:', err instanceof Error ? err.message : err);
   }
+
+  if (latched) return { active: true, productId: PRODUCT_LIFETIME };
+  return { active: false, productId: null, indeterminate: true };
 }
 
 // ── IPC handlers ──────────────────────────────────────────────────────────────
@@ -197,7 +251,10 @@ export function registerSubscriptionHandlers(window: BrowserWindow): void {
   inAppPurchase.on('transactions-updated', (async (_event: any, transactions: Electron.Transaction[]) => {
     for (const t of transactions) {
       if (t.transactionState === 'purchased' || t.transactionState === 'restored') {
-        const s = await fetchEntitlementStatus(); // validates receipt with RC; result delivered via subscription:status
+        // Apple itself confirmed this transaction — that is authoritative proof of
+        // purchase for a lifetime product, independent of RevenueCat bookkeeping.
+        if (t.payment.productIdentifier === PRODUCT_LIFETIME) latchLifetime('storekit-transaction');
+        const s = await fetchEntitlementStatus(); // posts receipt to RC (bookkeeping/alias)
         fireBillingEvent({
           status: 'success',
           code: 0,
@@ -205,9 +262,9 @@ export function registerSubscriptionHandlers(window: BrowserWindow): void {
           productId: t.payment.productIdentifier,
         });
         if (t.transactionState === 'restored') {
-          // Explicit Restore Purchases flow: the receipt has validated, so
-          // settle now instead of leaving it to the fallback timer.
-          settleRestore(s.active, s.productId ?? t.payment.productIdentifier);
+          // A restored transaction is proof the user owns something; don't let a
+          // failed RC read turn a successful Apple restore into "nothing restored".
+          settleRestore(s.active || isLifetimeLatched(), s.productId ?? t.payment.productIdentifier);
         }
         inAppPurchase.finishTransactionByDate(t.transactionDate);
       } else if (t.transactionState === 'failed') {
