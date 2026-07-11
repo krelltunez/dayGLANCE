@@ -164,6 +164,22 @@ const readmeText = sub(
   { file: 'README.md', label: 'version badge', to: version },
 );
 
+// ── 4. package-lock.json ──────────────────────────────────────────────────
+// npm records the app's own version in TWO places in the lockfile (the root
+// "version" and packages[""]."version"). If the bump doesn't update them,
+// the next `npm install` rewrites the lockfile to match package.json and
+// leaves an uncommitted diff. Edit via JSON, not regex: JSON.stringify(obj, 2)
+// reproduces npm's formatting byte-for-byte (verified), and it can only touch
+// the root package's version, never a dependency's.
+const lockRel = 'package-lock.json';
+const lock = read(lockRel);
+const lockObj = JSON.parse(lock.text);
+const oldLockVersion = lockObj.version;
+lockObj.version = version;
+if (lockObj.packages && lockObj.packages['']) lockObj.packages[''].version = version;
+const lockText = JSON.stringify(lockObj, null, 2) + '\n';
+changes.push({ file: lockRel, label: 'version', from: oldLockVersion, to: version });
+
 // ── Report ────────────────────────────────────────────────────────────────
 console.log(`bump-version: setting version to ${version}${dryRun ? '  (dry run — nothing written)' : ''}\n`);
 for (const c of changes) {
@@ -181,6 +197,7 @@ if (dryRun) {
 fs.writeFileSync(pkg.abs, pkgText);
 fs.writeFileSync(gradle.abs, gradleText);
 fs.writeFileSync(readme.abs, readmeText);
+fs.writeFileSync(lock.abs, lockText);
 
 console.log('Files written.\n');
 console.log('Next steps:');
