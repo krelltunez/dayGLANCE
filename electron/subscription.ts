@@ -190,8 +190,11 @@ async function fetchEntitlementStatus(): Promise<{ active: boolean; productId: s
   if (hasReceipt) {
     try {
       const fetchToken = fs.readFileSync(receiptPath!).toString('base64');
+      // Platform is conveyed via the X-Platform header (rcFetch). Putting it in the
+      // body is rejected: HTTP 400 {"code":7226,"message":"platform: Extra inputs
+      // are not permitted"} — which silently broke EVERY Mac receipt validation.
       const data = await rcFetch('POST', '/receipts', {
-        app_user_id: appUserId, fetch_token: fetchToken, platform: 'macos',
+        app_user_id: appUserId, fetch_token: fetchToken,
       });
       const sub = (data as any)?.subscriber;
       console.info('[subscription] POST /receipts entitlements =',
