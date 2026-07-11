@@ -157,25 +157,50 @@ export function useSubscription() {
 
   const isOnNativePlatform = !!(BILLING || IOS || ELECTRON);
 
+  // Re-read entitlement from the authoritative native source, but never
+  // downgrade an already-active state. A confirmed purchase/restore validates
+  // before the event fires, yet the native entitlement cache can briefly lag
+  // (StoreKit sandbox especially), so an immediate single read often comes back
+  // inactive. Re-read on a few short delays and only apply an ACTIVE result —
+  // this fills the accurate productId without ever re-locking the wall.
+  const reconcileStatus = useCallback(() => {
+    const applyIfActive = (s) => { if (s && s.active) setStatus(s); };
+    [0, 1200, 3000].forEach((delay) => setTimeout(() => {
+      if (ELECTRON) {
+        window.electronAPI.subscriptionStatus().then((s) => {
+          if (s && s.active) {
+            setStatus(s);
+            try { localStorage.setItem('rc_electron_status', JSON.stringify(s)); } catch {}
+          }
+        }).catch(() => {});
+      } else if (BILLING) {
+        applyIfActive(readStatusAndroid());
+      } else if (IOS) {
+        applyIfActive(readStatusIOS());
+      }
+    }, delay));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Billing event handler (shared by all platforms) ──────────────────────
   const handleBillingEvent = useCallback((ev) => {
     try {
       const parsed = typeof ev === 'string' ? JSON.parse(ev) : ev;
-      if (parsed.status === 'success') {
-        // Re-read entitlement after a confirmed purchase.
-        if (BILLING) { setStatus(readStatusAndroid()); setPrices(readPricesAndroid()); }
-        if (IOS)     { setStatus(readStatusIOS());     setPrices(readPricesIOS()); }
-        if (ELECTRON) {
-          window.electronAPI.subscriptionStatus().then(s => {
-            setStatus(s);
-            try { localStorage.setItem('rc_electron_status', JSON.stringify(s)); } catch {}
-          }).catch(() => {});
-        }
+      // A 'success' purchase event and an active restore ('restore_complete_active')
+      // are both only emitted AFTER the platform validates the entitlement, so
+      // unlock immediately rather than waiting on a possibly-stale cache read —
+      // that lag previously left the paywall up after a completed purchase.
+      const purchased = parsed.status === 'success';
+      const restoredActive = parsed.message === 'restore_complete_active';
+      if (purchased || restoredActive) {
+        setStatus((prev) => (prev.active ? prev : { active: true, productId: parsed.productId || prev.productId || null }));
+        if (BILLING) setPrices(readPricesAndroid());
+        if (IOS)     setPrices(readPricesIOS());
+        reconcileStatus(); // fill accurate productId; never re-locks
       }
       setBillingEvent({ ...parsed, ts: Date.now() });
       if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
     } catch {}
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [reconcileStatus]);
 
   // Register window.__billingEvent — fired by Android and iOS bridges.
   useEffect(() => {
