@@ -14,8 +14,8 @@ import { Loader } from 'lucide-react';
  *
  * `isIOSApp` (true for iOS and macOS) changes only the payment attribution line at the bottom.
  *
- * Founder pricing: both products launch at the founder price. No promo codes or intro offers.
- * The badge copy can be removed when the price is raised in App Store Connect / Play Console.
+ * Prices come from StoreKit / Play Billing at runtime; the hard-coded strings below are
+ * fallbacks shown only if the store price hasn't loaded yet.
  */
 export default function SubscriptionWall({
   isIOSApp,
@@ -98,19 +98,13 @@ export default function SubscriptionWall({
         <Wordmark className="text-4xl" darkMode={dark} />
       </div>
 
-      {/* Founder badge */}
-      <div className="mb-5 flex items-center gap-2 rounded-full bg-amber-500/15 border border-amber-500/30 px-4 py-1.5">
-        <span className="text-amber-500 text-xs font-semibold tracking-wide uppercase">Founder pricing</span>
-        <span className={`text-xs ${sub}`}>· thanks for supporting the app!</span>
-      </div>
-
       {/* Headline */}
       <h1 className={`text-xl font-semibold text-center mb-2 ${text}`}>
         {trialEligible ? 'Start your 14-day free trial' : 'Unlock dayGLANCE Pro'}
       </h1>
       <p className={`text-sm text-center mb-7 max-w-xs ${sub}`}>
         {trialEligible
-          ? 'Free for 14 days — nothing charged today. Cancel anytime, keep your data.'
+          ? 'Free for 14 days, nothing charged today. Cancel anytime, keep your data.'
           : 'Pick a plan to pick up where you left off. Your data is safe and waiting.'}
       </p>
 
@@ -139,8 +133,8 @@ export default function SubscriptionWall({
           </div>
           <div className={`text-xs mt-0.5 ${sub}`}>
             {trialEligible
-              ? `14-day free trial, then ${prices?.yearly ?? '$9.99'}/yr`
-              : `Billed yearly · ${prices?.yearly ?? '$9.99'}/yr`}
+              ? `14-day free trial, then ${prices?.yearly ?? '$19.99'}/yr`
+              : `Billed yearly · ${prices?.yearly ?? '$19.99'}/yr`}
           </div>
           {pending === 'yearly' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
         </button>
@@ -170,8 +164,8 @@ export default function SubscriptionWall({
       {/* Subscription disclosure — required by App Store guideline 3.1.2 and Play Subscriptions policy */}
       <p className={`text-xs text-center mb-3 max-w-xs leading-relaxed ${sub}`}>
         {trialEligible
-          ? `Your 14-day free trial automatically converts to a ${prices?.yearly ?? '$9.99'}/year subscription that renews annually until canceled. Cancel anytime in your ${isIOSApp ? 'App Store' : 'Google Play'} subscription settings.`
-          : `Your ${prices?.yearly ?? '$9.99'}/year subscription automatically renews annually until canceled. Cancel anytime in your ${isIOSApp ? 'App Store' : 'Google Play'} subscription settings.`}
+          ? `Your 14-day free trial automatically converts to a ${prices?.yearly ?? '$19.99'}/year subscription that renews annually until canceled. Cancel anytime in your ${isIOSApp ? 'App Store' : 'Google Play'} subscription settings.`
+          : `Your ${prices?.yearly ?? '$19.99'}/year subscription automatically renews annually until canceled. Cancel anytime in your ${isIOSApp ? 'App Store' : 'Google Play'} subscription settings.`}
       </p>
 
       <p className={`text-xs text-center mb-6 max-w-xs ${sub}`}>
