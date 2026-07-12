@@ -88,9 +88,11 @@ class SubscriptionBridge(
     /**
      * Returns the localized prices fetched from Play as JSON.
      * Values are null-safe empty strings until the billing client has connected
-     * and queried product details at least once.
+     * and queried product details at least once. annualTrialDays is the free
+     * trial length in days from the Play offer (null until known) — the web
+     * layer renders trial copy from it instead of a hardcoded number.
      *
-     * Response: `{"annual": "£19.99", "lifetime": "£49.99"}`
+     * Response: `{"annual": "£19.99", "lifetime": "£49.99", "annualTrialDays": 14}`
      */
     @JavascriptInterface
     fun getProductPrices(): String {
@@ -98,7 +100,9 @@ class SubscriptionBridge(
             .replace("\\", "\\\\").replace("\"", "\\\"")
         val lifetime = (dataStore.productPriceLifetime ?: "")
             .replace("\\", "\\\\").replace("\"", "\\\"")
-        return """{"annual":"$annual","lifetime":"$lifetime"}"""
+        val trialDays = dataStore.trialDaysAnnual
+        val trialJson = if (trialDays > 0) trialDays.toString() else "null"
+        return """{"annual":"$annual","lifetime":"$lifetime","annualTrialDays":$trialJson}"""
     }
 
     /**

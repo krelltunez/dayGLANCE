@@ -153,9 +153,16 @@ class BillingManager(
                     if (price != null) dataStore.productPriceAnnual = price
                     // A zero-price phase indicates a free trial. Play only surfaces this offer
                     // when the user is still eligible; absence means the trial has been used.
-                    dataStore.trialEligibleAnnual = offerDetails.any { offer ->
-                        offer.pricingPhases.pricingPhaseList.any { it.priceAmountMicros == 0L }
-                    }
+                    val trialPhase = offerDetails
+                        .flatMap { it.pricingPhases.pricingPhaseList }
+                        .firstOrNull { it.priceAmountMicros == 0L }
+                    dataStore.trialEligibleAnnual = trialPhase != null
+                    // Trial LENGTH comes from the store too (ISO-8601 billingPeriod,
+                    // e.g. "P14D"/"P2W") so the paywall never hardcodes a number.
+                    trialPhase?.billingPeriod
+                        ?.let { parseIsoPeriodToDays(it) }
+                        ?.takeIf { it > 0 }
+                        ?.let { dataStore.trialDaysAnnual = it }
                 }
             }
             billingClient.queryProductDetailsAsync(inappParams) { result, detailsList ->
@@ -170,6 +177,14 @@ class BillingManager(
 
     fun disconnect() {
         billingClient.endConnection()
+    }
+
+    /** "P14D" → 14, "P2W" → 14. Months/years approximated (unused for trials in practice). */
+    private fun parseIsoPeriodToDays(iso: String): Int? = try {
+        val p = java.time.Period.parse(iso)
+        p.years * 365 + p.months * 30 + p.days
+    } catch (_: Exception) {
+        null
     }
 
     private suspend fun queryPurchasesForType(productType: String): List<Purchase> =

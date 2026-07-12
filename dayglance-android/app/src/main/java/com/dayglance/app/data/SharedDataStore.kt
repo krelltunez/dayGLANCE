@@ -252,6 +252,16 @@ class SharedDataStore(context: Context) {
         get() = prefs.getBoolean(KEY_TRIAL_ELIGIBLE_ANNUAL, true)
         set(value) = prefs.edit { putBoolean(KEY_TRIAL_ELIGIBLE_ANNUAL, value) }
 
+    /**
+     * Free-trial length in days for the annual plan, parsed from the zero-price
+     * pricing phase's ISO-8601 billingPeriod (e.g. "P14D"/"P2W"). -1 until Play
+     * reports it — the paywall shows generic trial copy in that case rather
+     * than a hardcoded number.
+     */
+    var trialDaysAnnual: Int
+        get() = prefs.getInt(KEY_TRIAL_DAYS_ANNUAL, -1)
+        set(value) = prefs.edit { putInt(KEY_TRIAL_DAYS_ANNUAL, value) }
+
     // ── Step count cache ────────────────────────────────────────────────────
 
     /** Cached step count for today, updated by WidgetUpdateWorker. */
@@ -294,6 +304,7 @@ class SharedDataStore(context: Context) {
         private const val KEY_PRODUCT_PRICE_ANNUAL   = "product_price_annual"
         private const val KEY_PRODUCT_PRICE_LIFETIME = "product_price_lifetime"
         private const val KEY_TRIAL_ELIGIBLE_ANNUAL  = "trial_eligible_annual"
+        private const val KEY_TRIAL_DAYS_ANNUAL      = "trial_days_annual"
 
         const val DEFAULT_DAILY_NOTE_PATTERN = "yyyy-MM-dd"
         const val DEFAULT_NEW_NOTES_FOLDER = "dayGLANCE"

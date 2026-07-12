@@ -426,9 +426,9 @@ const MobileSettingsPanel = () => {
       )}
       {(isAndroidApp || isIOSApp || isElectronApp) && isPro && (
         <p onClick={() => setDevTapCount(c => c + 1)} className={`text-xs ${textSecondary} text-center pt-1`}>
-          {(isIOSApp || isElectronApp)
-            ? (subProductId?.includes('monthly') ? 'dayGLANCE Pro · Monthly' : 'dayGLANCE Pro · Annual')
-            : (subProductId === 'dayglance_pro_lifetime' ? 'dayGLANCE Pro · Lifetime' : 'dayGLANCE Pro · Annual')}
+          {/* Only two plans exist on every platform: annual and lifetime
+              (dayglance_pro_lifetime / com.dayglance.pro.lifetime). */}
+          {subProductId?.includes('lifetime') ? 'dayGLANCE Pro · Lifetime' : 'dayGLANCE Pro · Annual'}
         </p>
       )}
     </div>

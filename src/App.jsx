@@ -213,7 +213,7 @@ const SPOTLIGHT_NATIVE_FUTURE_DAYS = 365;
 
 const DayPlanner = () => {
   const { t } = useTranslation();
-  const { isPro, isLoading: subLoading, isAndroidApp, isIOSApp, isElectronApp, productId: subProductId, subscribe, restore, prices: subPrices, trialEligible, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase, isReviewerUnlocked, setReviewerUnlocked } = useSubscription();
+  const { isPro, isLoading: subLoading, isAndroidApp, isIOSApp, isElectronApp, productId: subProductId, subscribe, restore, prices: subPrices, trialEligible, trialDays, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase, isReviewerUnlocked, setReviewerUnlocked } = useSubscription();
   useEffect(() => { if (isReviewerUnlocked) console.info('[dayGLANCE] Reviewer unlock active'); }, [isReviewerUnlocked]);
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
@@ -10846,6 +10846,7 @@ const DayPlanner = () => {
           isLoading={subLoading}
           prices={subPrices}
           trialEligible={trialEligible}
+          trialDays={trialDays}
           onSubscribeYearly={() => subscribe(isAndroidApp ? 'dayglance_pro_annual' : 'com.dayglance.pro.yearly')}
           onSubscribeLifetime={() => subscribe(isAndroidApp ? 'dayglance_pro_lifetime' : 'com.dayglance.pro.lifetime')}
           onRestore={restore}

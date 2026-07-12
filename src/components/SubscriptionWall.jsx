@@ -14,8 +14,10 @@ import { Loader } from 'lucide-react';
  *
  * `isIOSApp` (true for iOS and macOS) changes only the payment attribution line at the bottom.
  *
- * Prices come from StoreKit / Play Billing at runtime; the hard-coded strings below are
- * fallbacks shown only if the store price hasn't loaded yet.
+ * Prices AND the trial length come from StoreKit / Play Billing at runtime —
+ * there are deliberately no hardcoded price or trial-length strings in this
+ * component. When the store hasn't answered yet, price copy shows a loading
+ * state and trial copy omits the length; it never invents a number.
  */
 export default function SubscriptionWall({
   isIOSApp,
@@ -26,6 +28,7 @@ export default function SubscriptionWall({
   isLoading,
   prices,
   trialEligible = true,
+  trialDays = null,
   billingEvent,
   clearBillingEvent,
   billingErrorMessage,
@@ -98,13 +101,17 @@ export default function SubscriptionWall({
         <Wordmark className="text-4xl" darkMode={dark} />
       </div>
 
-      {/* Headline */}
+      {/* Headline — trial length comes from the store; omit it when unknown */}
       <h1 className={`text-xl font-semibold text-center mb-2 ${text}`}>
-        {trialEligible ? 'Start your 14-day free trial' : 'Unlock dayGLANCE Pro'}
+        {trialEligible
+          ? (trialDays ? `Start your ${trialDays}-day free trial` : 'Start your free trial')
+          : 'Unlock dayGLANCE Pro'}
       </h1>
       <p className={`text-sm text-center mb-7 max-w-xs ${sub}`}>
         {trialEligible
-          ? 'Free for 14 days, nothing charged today. Cancel anytime, keep your data.'
+          ? (trialDays
+              ? `Free for ${trialDays} days, nothing charged today. Cancel anytime, keep your data.`
+              : 'Free to start, nothing charged today. Cancel anytime, keep your data.')
           : 'Pick a plan to pick up where you left off. Your data is safe and waiting.'}
       </p>
 
@@ -133,8 +140,10 @@ export default function SubscriptionWall({
           </div>
           <div className={`text-xs mt-0.5 ${sub}`}>
             {trialEligible
-              ? `14-day free trial, then ${prices?.yearly ?? '$19.99'}/yr`
-              : `Billed yearly · ${prices?.yearly ?? '$19.99'}/yr`}
+              ? (prices?.yearly
+                  ? `${trialDays ? `${trialDays}-day free trial` : 'Free trial'}, then ${prices.yearly}/yr`
+                  : (trialDays ? `${trialDays}-day free trial included` : 'Free trial included'))
+              : (prices?.yearly ? `Billed yearly · ${prices.yearly}/yr` : 'Billed yearly')}
           </div>
           {pending === 'yearly' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
         </button>
@@ -161,11 +170,14 @@ export default function SubscriptionWall({
 
       </div>
 
-      {/* Subscription disclosure — required by App Store guideline 3.1.2 and Play Subscriptions policy */}
+      {/* Subscription disclosure — required by App Store guideline 3.1.2 and Play
+          Subscriptions policy. The price figure is included once the store has
+          reported it; until then the disclosure makes no numeric claim rather
+          than asserting a price the store hasn't confirmed. */}
       <p className={`text-xs text-center mb-3 max-w-xs leading-relaxed ${sub}`}>
         {trialEligible
-          ? `Your 14-day free trial automatically converts to a ${prices?.yearly ?? '$19.99'}/year subscription that renews annually until canceled. Cancel anytime in your ${isIOSApp ? 'App Store' : 'Google Play'} subscription settings.`
-          : `Your ${prices?.yearly ?? '$19.99'}/year subscription automatically renews annually until canceled. Cancel anytime in your ${isIOSApp ? 'App Store' : 'Google Play'} subscription settings.`}
+          ? `Your ${trialDays ? `${trialDays}-day ` : ''}free trial automatically converts to a ${prices?.yearly ? `${prices.yearly}/year` : 'yearly'} subscription that renews annually until canceled. Cancel anytime in your ${isIOSApp ? 'App Store' : 'Google Play'} subscription settings.`
+          : `Your ${prices?.yearly ? `${prices.yearly}/year` : 'yearly'} subscription automatically renews annually until canceled. Cancel anytime in your ${isIOSApp ? 'App Store' : 'Google Play'} subscription settings.`}
       </p>
 
       <p className={`text-xs text-center mb-6 max-w-xs ${sub}`}>
