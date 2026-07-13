@@ -91,9 +91,20 @@ const parseTs = (v) => (v == null ? NaN : new Date(v).getTime());
  *   entity ({ _kind, value }) of the copy being deleted, so its lastModified can be
  *   compared against the tombstone (see THE TIMESTAMP RULE above). Omitted / null
  *   result / unparseable lastModified → the tombstone authorizes unconditionally.
- * @returns {{ propagate: string[], skipped: string[], reasons: Record<string,string> }}
+ * @returns {{ propagate: string[], skipped: string[], excluded: string[], reasons: Record<string,string> }}
+ * @param {(entityId: string) => boolean} [isExcludedDeletedEntity]  true when the
+ *   vanished copy belongs to a class the payload builder STRUCTURALLY excludes
+ *   (src/sync/payloadExclusions.js). Such a row can sit in the baseline while
+ *   being permanently unable to appear in `cur` — it is neither a delete (no
+ *   tombstone) nor a glitch (nothing transient about a deterministic filter),
+ *   so it lands in the `excluded` bucket: not propagated, not heal-fetched,
+ *   simply released from the baseline. Without this bucket a fresh device that
+ *   full-pulled legacy excluded-class vault rows re-fetches every one of them
+ *   EVERY cycle, forever (the observed recover loop that rate-limited the
+ *   vault). Only would-be 'glitch' rows are tested: tombstoned, stale-tombstone,
+ *   and cross-list classifications are unaffected. Omitted → prior behavior.
  */
-export function partitionSnapshotDeletes(deleteEntityIds, cur, mirror, getDeletedEntity) {
+export function partitionSnapshotDeletes(deleteEntityIds, cur, mirror, getDeletedEntity, isExcludedDeletedEntity) {
   const ids = Array.isArray(deleteEntityIds) ? deleteEntityIds : [];
 
   // Every bare id present anywhere in the current payload (any kind). A cross-list
@@ -130,13 +141,20 @@ export function partitionSnapshotDeletes(deleteEntityIds, cur, mirror, getDelete
 
   const propagate = [];
   const skipped = [];
+  const excluded = [];
   // Why each entityId landed where it did — 'tombstoned' (a real deletion), a
   // cross-list move ('cross-list', the id survives under another kind), a
-  // suspected 'glitch' (skipped, no fingerprint at all), or 'stale-tombstone'
+  // suspected 'glitch' (skipped, no fingerprint at all), 'stale-tombstone'
   // (skipped: tombstoned, but the deleted copy is clearly newer than the
-  // tombstone — a revived entity whose old tombstone lingers). Diagnostic only;
+  // tombstone — a revived entity whose old tombstone lingers), or
+  // 'payload-excluded' (released from the baseline: the vanished copy belongs
+  // to a class the payload builder structurally excludes). Diagnostic only;
   // callers that ignore it are unaffected.
   const reasons = {};
+  const isExcluded = (eid) => {
+    if (typeof isExcludedDeletedEntity !== 'function') return false;
+    try { return isExcludedDeletedEntity(eid) === true; } catch { return false; }
+  };
   for (const eid of ids) {
     const id = bareId(eid);
     if (tombstoned.has(id)) {
@@ -152,7 +170,8 @@ export function partitionSnapshotDeletes(deleteEntityIds, cur, mirror, getDelete
         skipped.push(eid); reasons[eid] = 'stale-tombstone';
       }
     } else if (liveBareIds.has(id)) { propagate.push(eid); reasons[eid] = 'cross-list'; }
+    else if (isExcluded(eid)) { excluded.push(eid); reasons[eid] = 'payload-excluded'; }
     else { skipped.push(eid); reasons[eid] = 'glitch'; }
   }
-  return { propagate, skipped, reasons };
+  return { propagate, skipped, excluded, reasons };
 }

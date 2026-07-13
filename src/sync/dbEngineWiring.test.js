@@ -5,6 +5,7 @@ import { getVaultConfig, setVaultConfig, isVaultEnabled } from './vaultConfig.js
 import { getDeviceId } from './deviceId.js';
 import { registerDbEngine, markDirty, schedulePush } from './dirtyTracker.js';
 import { tombstoneCutoff } from './tombstoneRetention.js';
+import { keepImportedTask } from './payloadExclusions.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STAGE 2 PART B — live wiring. These exercise the REAL @glance-apps/sync
@@ -884,5 +885,130 @@ describe('Wave A — restore/re-link: resetVaultSyncCursor forces a full LWW pul
     await B.engine.dbSyncCycle();
     expect(B.data.tasks.find((t) => t.id === 1).title).toBe('newer from B');
     expect(B.data.tasks.map((t) => t.id)).toContain(2);
+  });
+});
+
+describe('Wave B — payload-excluded baseline rows (the fresh-device churn loop) + heal load discipline', () => {
+  beforeEach(() => {
+    global.localStorage = memLocalStorage();
+    setVaultConfig({ enabled: true, vaultUrl: 'https://vault.test', vaultToken: 'tok', accountId: 'acct1' });
+    setSyncPassphrase('correct horse battery staple');
+  });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  const snapOf = (name) => JSON.parse(global.localStorage.getItem(`dev-${name}-db-sync-snapshot`) || 'null');
+
+  // A device whose getData applies buildSyncPayload's structural exclusions —
+  // the current-build analog (makeDevice's unfiltered getData is the old-build
+  // analog that put legacy rows into the vault in the first place).
+  function makeFilteringDevice(name, vault, initial) {
+    let data = clone(initial);
+    let nativeKey = null;
+    const engine = createDbEngine({
+      vaultClient: vault,
+      storageKeyPrefix: `dev-${name}`,
+      deviceId: `device-${name}`,
+      nativeGetSyncKey: () => nativeKey,
+      nativeStoreSyncKey: (v) => { nativeKey = v; },
+      getData: () => {
+        const d = clone(data);
+        d.tasks = d.tasks.filter((t) => !t._native && keepImportedTask(t, false));
+        d.unscheduledTasks = d.unscheduledTasks.filter((t) => keepImportedTask(t, false));
+        return d;
+      },
+      commitData: (d) => { data = d; },
+      isMultiUserEnabled: () => false,
+    });
+    return { engine, get data() { return data; } };
+  }
+
+  it('THE LOOP, end-to-end: a fresh device that full-pulls legacy excluded rows releases them ONCE — no heal fetches, no repeat, vault rows untouched', async () => {
+    const vault = createMemoryVault({ rowGet: true });
+    // Old-build analog pushes a legacy CalDAV-import row into the vault.
+    const legacy = task(900, '2026-06-18T10:00:00.000Z', { imported: true, importSource: 'caldav' });
+    const A = makeDevice('A', vault, { ...EMPTY, tasks: [legacy, task(901, '2026-06-18T10:00:00.000Z')] });
+    await A.engine.dbSyncCycle();
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const getRowSpy = vi.spyOn(vault, 'getRow');
+    const delSpy = vi.spyOn(vault, 'deleteRow');
+
+    // Fresh device (cursor 0) with the CURRENT payload exclusions.
+    const B = makeFilteringDevice('B', vault, { ...EMPTY });
+    await B.engine.dbSyncCycle(); // full pull ingests the legacy row into mirror + snapshot
+    expect(snapOf('B')['tasks:900']).toBeDefined();
+
+    await B.engine.dbSyncCycle(); // classification cycle: released from the baseline
+    await B.engine.dbSyncCycle(); // must already be clean
+    await B.engine.dbSyncCycle(); // and stay clean
+
+    // Released exactly once, then silence — the loop does not repeat.
+    const released = infoSpy.mock.calls.filter((c) => String(c[0]).includes('payload-excluded'));
+    expect(released).toHaveLength(1);
+    // No GUARD skip/recover churn, ever.
+    const guardWarns = warnSpy.mock.calls.filter((c) => String(c[0]).includes('GUARD'));
+    expect(guardWarns).toEqual([]);
+    // The heal never fetched the legacy row — this was the per-row request storm.
+    expect(getRowSpy.mock.calls.some((c) => c[1] === 'tasks:900')).toBe(false);
+    // Nothing was deleted from the vault; the legacy row is still live for old devices.
+    expect(delSpy.mock.calls.map((c) => c[1])).not.toContain('tasks:900');
+    expect(await vault.getRow('dayglance', 'tasks:900')).not.toBeNull();
+    // The baseline no longer tracks it; the synced row 901 is tracked normally.
+    expect(snapOf('B')['tasks:900']).toBeUndefined();
+    expect(snapOf('B')['tasks:901']).toBeDefined();
+    // And the fleet's normal data converged on B despite the released row.
+    expect(B.data.tasks.some((t) => t.id === 901)).toBe(true);
+  });
+
+  it('HEAL CAP: a huge glitch shrink recovers at most 40 rows per cycle and converges over following cycles', async () => {
+    const vault = createMemoryVault({ rowGet: true });
+    const many = [];
+    for (let i = 0; i < 50; i++) many.push(task(1000 + i, '2026-06-18T10:00:00.000Z'));
+    const A = makeDevice('A', vault, { ...EMPTY, tasks: many });
+    await A.engine.dbSyncCycle();
+    await A.engine.dbSyncCycle(); // settle the baseline
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const getRowSpy = vi.spyOn(vault, 'getRow');
+
+    // PERSISTENT glitch: all 50 vanish from live state, untombstoned.
+    A.data.tasks = [];
+    await A.engine.dbSyncCycle();
+    const taskGets1 = getRowSpy.mock.calls.filter((c) => String(c[1]).startsWith('tasks:')).length;
+    expect(taskGets1).toBeLessThanOrEqual(40); // capped — no request storm
+    expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('capped'))).toBe(true);
+
+    await A.engine.dbSyncCycle(); // heals the deferred remainder
+    expect(A.data.tasks).toHaveLength(50); // fully recovered, nothing lost
+  });
+
+  it('HEAL 429 BAIL: the first rate-limited row-get aborts the rest of the cycle instead of hammering the vault', async () => {
+    const vault = createMemoryVault({ rowGet: true });
+    const many = [];
+    for (let i = 0; i < 12; i++) many.push(task(1100 + i, '2026-06-18T10:00:00.000Z'));
+    const A = makeDevice('A', vault, { ...EMPTY, tasks: many });
+    await A.engine.dbSyncCycle();
+    await A.engine.dbSyncCycle();
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const realGetRow = vault.getRow;
+    let rateLimitedCalls = 0;
+    vault.getRow = async () => {
+      rateLimitedCalls++;
+      const err = new Error('row get failed: 429');
+      err.status = 429;
+      throw err;
+    };
+
+    A.data.tasks = []; // 12-row untombstoned shrink
+    await A.engine.dbSyncCycle();
+    expect(rateLimitedCalls).toBe(1); // bailed after the FIRST 429 — not 12 doomed attempts
+    expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('rate-limited'))).toBe(true);
+
+    // Limiter clears → the withheld snapshot retries and fully recovers.
+    vault.getRow = realGetRow;
+    await A.engine.dbSyncCycle();
+    expect(A.data.tasks).toHaveLength(12);
   });
 });

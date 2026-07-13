@@ -75,8 +75,8 @@ describe('partitionSnapshotDeletes', () => {
   });
 
   it('tolerates empty / missing inputs', () => {
-    expect(partitionSnapshotDeletes([], {}, {})).toEqual({ propagate: [], skipped: [], reasons: {} });
-    expect(partitionSnapshotDeletes(null, null, null)).toEqual({ propagate: [], skipped: [], reasons: {} });
+    expect(partitionSnapshotDeletes([], {}, {})).toEqual({ propagate: [], skipped: [], excluded: [], reasons: {} });
+    expect(partitionSnapshotDeletes(null, null, null)).toEqual({ propagate: [], skipped: [], excluded: [], reasons: {} });
   });
 });
 
@@ -172,5 +172,64 @@ describe('partitionSnapshotDeletes — stale-tombstone rule (tombstone vs lastMo
     );
     expect(propagate).toEqual(['tasks:X']);
     expect(skipped).toEqual([]);
+  });
+});
+
+describe('payload-excluded classification (the fresh-device churn fix)', () => {
+  const curOf = (...entityIds) => Object.fromEntries(entityIds.map((e) => [e, '#']));
+
+  it('an un-tombstoned vanish whose copy is payload-excluded is RELEASED — not skipped, not healed', () => {
+    const { propagate, skipped, excluded, reasons } = partitionSnapshotDeletes(
+      ['tasks:X'], curOf(), {}, undefined, () => true,
+    );
+    expect(propagate).toEqual([]);
+    expect(skipped).toEqual([]);
+    expect(excluded).toEqual(['tasks:X']);
+    expect(reasons['tasks:X']).toBe('payload-excluded');
+  });
+
+  it('a TOMBSTONED excluded row still propagates — real deletions always win', () => {
+    const mirror = { deletedTaskIds: { X: '2026-07-08T00:00:00.000Z' } };
+    const { propagate, excluded } = partitionSnapshotDeletes(
+      ['tasks:X'], curOf(), mirror, undefined, () => true,
+    );
+    expect(propagate).toEqual(['tasks:X']);
+    expect(excluded).toEqual([]);
+  });
+
+  it('a cross-list survivor still propagates even when excluded-class', () => {
+    const { propagate, excluded } = partitionSnapshotDeletes(
+      ['tasks:X'], curOf('recycleBin:X'), {}, undefined, () => true,
+    );
+    expect(propagate).toEqual(['tasks:X']);
+    expect(excluded).toEqual([]);
+  });
+
+  it('non-excluded vanishes still classify as glitch; a THROWING predicate fails safe to glitch', () => {
+    const notExcluded = partitionSnapshotDeletes(['tasks:X'], curOf(), {}, undefined, () => false);
+    expect(notExcluded.skipped).toEqual(['tasks:X']);
+    expect(notExcluded.excluded).toEqual([]);
+
+    const throwing = partitionSnapshotDeletes(['tasks:X'], curOf(), {}, undefined, () => { throw new Error('boom'); });
+    expect(throwing.skipped).toEqual(['tasks:X']);
+    expect(throwing.excluded).toEqual([]);
+  });
+
+  it('BACK-COMPAT: without the predicate, behavior is unchanged and excluded is empty', () => {
+    const res = partitionSnapshotDeletes(['tasks:X'], curOf(), {});
+    expect(res.skipped).toEqual(['tasks:X']);
+    expect(res.excluded).toEqual([]);
+  });
+
+  it('THE LOOP, classified: a 150-row legacy-excluded baseline is fully released — nothing left to heal', () => {
+    // The field incident's shape: 150 legacy excluded-class rows in a fresh
+    // device's baseline. All must land in `excluded` (released), leaving the
+    // heal path — one HTTP GET per skipped row — with NOTHING to fetch.
+    const del = [];
+    for (let i = 0; i < 150; i++) del.push(`tasks:t${i}`);
+    const { propagate, skipped, excluded } = partitionSnapshotDeletes(del, curOf(), {}, undefined, () => true);
+    expect(propagate).toEqual([]);
+    expect(skipped).toEqual([]);
+    expect(excluded).toHaveLength(150);
   });
 });
