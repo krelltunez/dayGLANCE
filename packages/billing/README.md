@@ -168,6 +168,30 @@ shapes (see `AndroidBillingBridge` / `IOSBillingBridge`):
 - `getTrialEligibility()` → `{"<yearlyProductId>": bool}`
 - terminal events → `window.__billingEvent({status, code, message, productId})`
 
+## Reconciliation with `paywall-billing-plan.md`
+
+This package implements the plan's contract with these mappings and two
+documented deltas (the plan was a proposal; the shipped, field-proven behavior
+was authoritative where they conflicted):
+
+| Plan concept | Here |
+|---|---|
+| `PaywallConfig.channel` / `unlockedChannels` | Structural: the app constructs an adapter only on gated channels (`VITE_BUILD_CHANNEL`-style flag decides at composition time); `adapter: null` → ungated, `gated`/`isUnlocked` expose it. |
+| `EntitlementState.source` | `entitlementSource` on the snapshot/hook (`'lifetime' | 'subscription' | 'channel' | 'reviewer' | 'none'`); pass `EngineConfig.products` to distinguish lifetime from subscription. |
+| `EntitlementState.lastVerifiedAt` | Persisted in the last-active hint (`verifiedAt`). |
+| `storageKey` (sync startup evaluation) | `storageKeys` + the provisional cold-launch unlock; entitlement is evaluated synchronously at startup from the cache, exactly per the plan's local-first constraint. |
+| `graceDays` | `offlineGraceDays` — see the two documented deltas in `EngineConfig`: anchored to last-verified (Play Billing exposes no client-side expiry, and the anchor works on every backend) and scoped to indeterminate readings only (a DETERMINATE lapsed subscription still locks; the plan's literal `subExpiresAt + graceDays > now` would keep a knowingly-expired sub unlocked even online, contradicting the proven behavior). Still disabled by default — enabling it and choosing the day count is a product decision. |
+| `manageSubscriptionUrl()` | `playManageSubscriptionUrl(pkg, sku?)` / `appleManageSubscriptionUrl()` pure helpers. |
+| `getProducts()` | `prices` + `trialEligible`/`trialDays` (the gate UI's actual needs). |
+| Headless core, per-app gate UI | Yes — no UI ships in this package. |
+| No RevenueCat on Android | Preserved: the Android/Capacitor path is Play Billing direct; purchase data stays between the app and Google Play. |
+| Pinned exact versions in consumers | Consumers depend on `"0.1.0"` exact, per family convention. |
+
+Still app-side per the plan (lastGLANCE/lifeGLANCE sessions): the
+`VITE_BUILD_CHANNEL` flag, the split build pipeline (github-APK ungated /
+play-AAB gated), the `PaywallModal` gate UI, the settings entitlement surface,
+Play Console product creation, and final product ids/prices.
+
 ## Provenance & verification status
 
 - Engine, WebView adapters, Electron renderer adapter, and the Electron

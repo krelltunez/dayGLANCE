@@ -57,6 +57,8 @@ export function useSubscription() {
   const billing = useBilling(() => ({
     adapter,
     reviewerSecret: REVIEWER_SECRET,
+    // Product-id hints for entitlementSource classification only.
+    products: BILLING ? ANDROID_PRODUCTS : APPLE_PRODUCTS,
     // Legacy keys from the pre-extraction integration — MUST stay so existing
     // installs keep their last-active hint and reviewer unlock.
     storageKeys: {

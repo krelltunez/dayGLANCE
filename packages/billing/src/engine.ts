@@ -1,7 +1,9 @@
 import type {
   BillingEvent,
+  EntitlementSource,
   LastActiveHint,
   Prices,
+  ProductIds,
   StatusReading,
   StorageLike,
   TrialInfo,
@@ -31,23 +33,44 @@ export interface EngineConfig {
    */
   reviewerSecret?: string | null;
   /**
-   * OFFLINE-EXPIRY GRACE — a different mechanism from the anti-flash
+   * OFFLINE-EXPIRY GRACE — the `graceDays` concept from
+   * paywall-billing-plan.md. A different mechanism from the anti-flash
    * downgrade grace (timings.downgradeGraceMs), and disabled by default.
    *
-   * When set, an install whose last DETERMINATE-ACTIVE reading is older than
-   * this many days stops fail-open behavior: an expired last-active hint no
-   * longer grants the provisional cold-launch unlock, and an indeterminate
-   * reading on an unlocked install is escalated into the normal downgrade
-   * path instead of being ignored. Within the window, behavior is unchanged:
+   * Plan intent: "A paying user is never locked out offline — the grace
+   * window absorbs airplane mode, dead zones, and Play outages." When set,
+   * an install whose last DETERMINATE-ACTIVE reading is older than this many
+   * days stops fail-open behavior: an expired last-active hint no longer
+   * grants the provisional cold-launch unlock, and an indeterminate reading
+   * on an unlocked install is escalated into the normal downgrade path
+   * instead of being ignored. Within the window, behavior is unchanged:
    * indeterminate never re-locks.
    *
-   * PROVISIONAL SEMANTICS: this implements the mechanism generically pending
-   * reconciliation with the product spec (paywall-billing-plan.md, not
-   * available at port time). Do not enable in a migrated app until that
-   * reconciliation happens — leaving it unset preserves the proven fail-open
-   * behavior exactly.
+   * Two deliberate deltas from the plan's literal rule
+   * (`unlocked = … || subExpiresAt + graceDays > now || …`):
+   *
+   * 1. ANCHOR: days since the last verified-active reading (lastVerifiedAt —
+   *    which the plan's own EntitlementState also records), not days past
+   *    subscription expiry. Play Billing does not expose a subscription's
+   *    expiry client-side (an expired sub simply stops appearing in
+   *    queryPurchases), so an expiry-anchored rule is not implementable on
+   *    the plan's own primary platform without a backend. The
+   *    last-verified anchor covers every backend uniformly.
+   * 2. SCOPE: grace applies only while the truth is UNKNOWN (indeterminate
+   *    readings / no reading). A DETERMINATE lapsed subscription still
+   *    re-locks after the anti-flash hold, exactly as the proven integration
+   *    behaves — the plan's literal rule would keep a knowingly-expired
+   *    subscription unlocked for graceDays even online, which contradicts
+   *    the authoritative shipped behavior this package preserves.
    */
   offlineGraceDays?: number;
+  /**
+   * Optional product-id hints, used ONLY to classify `entitlementSource`
+   * ('lifetime' vs 'subscription') in the snapshot. Without them, any active
+   * entitlement classifies as 'subscription'. No purchase/refresh behavior
+   * depends on these.
+   */
+  products?: Partial<ProductIds>;
   /** Clock injection for tests. */
   now?: () => number;
 }
@@ -68,6 +91,8 @@ export interface EngineSnapshot extends EngineState {
   isPro: boolean;
   /** The gate the app UI should use: ungated, entitled, or reviewer-unlocked. */
   isUnlocked: boolean;
+  /** Why the install is (or isn't) unlocked — see EntitlementSource. */
+  entitlementSource: EntitlementSource;
   productId: string | null;
   canConsumeTestPurchase: boolean;
 }
@@ -107,6 +132,7 @@ export class BillingEngine {
   private readonly timings: EngineTimings;
   private readonly reviewerSecret: string | null;
   private readonly offlineGraceDays: number | undefined;
+  private readonly products: Partial<ProductIds> | undefined;
   private readonly now: () => number;
 
   private state: EngineState;
@@ -130,6 +156,7 @@ export class BillingEngine {
     this.timings = { ...DEFAULT_TIMINGS, ...config.timings };
     this.reviewerSecret = config.reviewerSecret ?? null;
     this.offlineGraceDays = config.offlineGraceDays;
+    this.products = config.products;
     this.now = config.now ?? Date.now;
 
     this.state = {
@@ -442,12 +469,19 @@ export class BillingEngine {
   private buildSnapshot(): EngineSnapshot {
     const gated = this.adapter !== null;
     const isPro = this.state.status.active;
+    const productId = this.state.status.productId;
+    const entitlementSource: EntitlementSource =
+      !gated ? 'channel'
+      : isPro ? (this.products?.lifetime && productId === this.products.lifetime ? 'lifetime' : 'subscription')
+      : this.state.reviewerUnlocked ? 'reviewer'
+      : 'none';
     return {
       ...this.state,
       gated,
       isPro,
       isUnlocked: !gated || isPro || this.state.reviewerUnlocked,
-      productId: this.state.status.productId,
+      entitlementSource,
+      productId,
       canConsumeTestPurchase: typeof this.adapter?.consumeTestPurchase === 'function',
     };
   }

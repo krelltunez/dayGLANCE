@@ -84,6 +84,20 @@ export interface ProductIds {
   lifetime: string;
 }
 
+/**
+ * Why the install is (or isn't) unlocked — the plan-contract classification
+ * for settings surfaces ("entitlement state" rows) and analytics.
+ *
+ * 'channel'      — ungated distribution (web/PWA, GitHub sideload, dev build).
+ * 'lifetime'     — entitled via the one-time purchase (requires the engine to
+ *                  know the lifetime product id; see EngineConfig.products).
+ * 'subscription' — entitled via the auto-renewing plan (also the fallback when
+ *                  the engine has no product-id hints to tell the two apart).
+ * 'reviewer'     — store-review bypass code.
+ * 'none'         — gated and locked.
+ */
+export type EntitlementSource = 'lifetime' | 'subscription' | 'channel' | 'reviewer' | 'none';
+
 /** Minimal storage interface (window.localStorage satisfies it). */
 export interface StorageLike {
   getItem(key: string): string | null;

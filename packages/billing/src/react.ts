@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { BillingEngine, type EngineConfig, type EngineSnapshot } from './engine.js';
 import { billingErrorMessage } from './errors.js';
-import type { BillingEvent, Prices } from './types.js';
+import type { BillingEvent, EntitlementSource, Prices } from './types.js';
 
 export interface UseBillingResult {
   /** Entitlement only. For UI gating prefer `isUnlocked`. */
@@ -10,6 +10,8 @@ export interface UseBillingResult {
   gated: boolean;
   /** Ungated, entitled, or reviewer-unlocked. */
   isUnlocked: boolean;
+  /** Why the install is (or isn't) unlocked — for settings surfaces. */
+  entitlementSource: EntitlementSource;
   productId: string | null;
   prices: Prices;
   trialEligible: boolean;
@@ -67,6 +69,7 @@ export function useBilling(createConfig: () => EngineConfig): UseBillingResult {
     isPro: snapshot.isPro,
     gated: snapshot.gated,
     isUnlocked: snapshot.isUnlocked,
+    entitlementSource: snapshot.entitlementSource,
     productId: snapshot.productId,
     prices: snapshot.prices,
     trialEligible: snapshot.trial.eligible,

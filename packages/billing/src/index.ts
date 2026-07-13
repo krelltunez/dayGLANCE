@@ -18,6 +18,7 @@ export {
 export { SafeStorage } from './storage.js';
 export { deriveReviewerCode, sha256Hex } from './reviewer.js';
 export { billingErrorMessage } from './errors.js';
+export { playManageSubscriptionUrl, appleManageSubscriptionUrl } from './urls.js';
 
 export type { BillingAdapter, ApplyCallbacks } from './adapters/types.js';
 export {
