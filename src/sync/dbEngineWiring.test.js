@@ -1012,3 +1012,80 @@ describe('Wave B — payload-excluded baseline rows (the fresh-device churn loop
     expect(A.data.tasks).toHaveLength(12);
   });
 });
+
+describe('issue #1196 — the midnight rollover speaks the vanish-delete guard\'s language', () => {
+  beforeEach(() => {
+    global.localStorage = memLocalStorage();
+    setVaultConfig({ enabled: true, vaultUrl: 'https://vault.test', vaultToken: 'tok', accountId: 'acct1' });
+    setSyncPassphrase('correct horse battery staple');
+  });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  const routine = (id, lastModified) => ({
+    id, name: `routine ${id}`, bucket: 'everyday', startTime: '08:00',
+    duration: 15, isAllDay: false, lastModified,
+  });
+
+  it('a midnight clear WITH removal tombstones propagates real deletes — no guard skip, no heal, no resurrection', async () => {
+    const vault = createMemoryVault({ rowGet: true });
+    const A = makeDevice('A', vault, {
+      ...EMPTY,
+      todayRoutines: [routine('chipA', '2026-06-18T10:00:00.000Z'), routine('chipB', '2026-06-18T21:00:00.000Z')],
+      routinesDate: '2026-06-18',
+      removedTodayRoutineIds: {},
+    });
+    await A.engine.dbSyncCycle();
+    await A.engine.dbSyncCycle(); // settle the baseline
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const getRowSpy = vi.spyOn(vault, 'getRow');
+
+    // What useRoutines' FIXED rollover effect now writes at day change: rows
+    // cleared, removal tombstones stamped at local midnight of the new day.
+    const midnightIso = '2026-06-19T00:00:00.000Z';
+    A.data.removedTodayRoutineIds = { chipA: midnightIso, chipB: midnightIso };
+    A.data.todayRoutines = [];
+    A.data.routinesDate = '2026-06-19';
+    await A.engine.dbSyncCycle();
+
+    // Tombstone-authorized: no glitch classification, so no skip and no per-row
+    // heal fetches — the resurrection mechanics never engage.
+    expect(warnSpy.mock.calls.filter((c) => String(c[0]).includes('GUARD'))).toEqual([]);
+    expect(getRowSpy.mock.calls.some((c) => String(c[1]).startsWith('todayRoutines:'))).toBe(false);
+    // The vault rows are genuinely deleted (memory vault getRow → null when deleted).
+    expect(await vault.getRow('dayglance', 'todayRoutines:chipA')).toBeNull();
+    expect(await vault.getRow('dayglance', 'todayRoutines:chipB')).toBeNull();
+
+    // And they STAY gone across further cycles — yesterday's routines do not
+    // reappear on today's timeline.
+    await A.engine.dbSyncCycle();
+    await A.engine.dbSyncCycle();
+    expect(A.data.todayRoutines).toEqual([]);
+    const snap = JSON.parse(global.localStorage.getItem('dev-A-db-sync-snapshot') || '{}');
+    expect(snap['todayRoutines:chipA']).toBeUndefined();
+  });
+
+  it('CONTROL (the pre-fix bug): a bare clear with a WIPED tombstone map is skipped by the guard and resurrected by the heal', async () => {
+    const vault = createMemoryVault({ rowGet: true });
+    const A = makeDevice('A', vault, {
+      ...EMPTY,
+      todayRoutines: [routine('chipA', '2026-06-18T10:00:00.000Z')],
+      routinesDate: '2026-06-18',
+      removedTodayRoutineIds: {},
+    });
+    await A.engine.dbSyncCycle();
+    await A.engine.dbSyncCycle();
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    // The OLD rollover: rows cleared, tombstone map wiped — no removal signal.
+    A.data.todayRoutines = [];
+    A.data.routinesDate = '2026-06-19';
+    await A.engine.dbSyncCycle();
+
+    // Guard skips the un-tombstoned vanish and the heal resurrects the row —
+    // this is the reported symptom, pinned here so the fix's contract is clear.
+    expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('GUARD'))).toBe(true);
+    expect(A.data.todayRoutines.map((r) => r.id)).toContain('chipA');
+  });
+});

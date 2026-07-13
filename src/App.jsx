@@ -70,7 +70,7 @@ import useTagFilter from './hooks/useTagFilter.js';
 import useOnboarding from './hooks/useOnboarding.js';
 import useDailyContent from './hooks/useDailyContent.js';
 import useHabits from './hooks/useHabits.js';
-import useRoutines from './hooks/useRoutines.js';
+import useRoutines, { sanitizeMergedRoutineCompletions, startOfTodayIso } from './hooks/useRoutines.js';
 import useGoalsProjects from './hooks/useGoalsProjects.js';
 import useFocusMode from './hooks/useFocusMode.js';
 import useTrmnlSync from './hooks/useTrmnlSync.js';
@@ -6037,11 +6037,28 @@ const DayPlanner = () => {
     // Only apply todayRoutines/routinesDate if the remote data is from today.
     // If it's from a previous day, skip it — local state (already cleared by loadData) is correct.
     const todayStr = dateToString(new Date());
+    // Sanitize merged completions for today (#1196 symptom 2): a merged payload
+    // can carry a PRIOR-day completion this device never tombstoned (offline
+    // overnight while another device completed the routine), and the mirror's
+    // routinesDate merges to newest so the today-gate above always passes.
+    // Applying it verbatim renders the routine already-done. Drop stale entries
+    // and raise their timestamps to the midnight tombstone so the heal also
+    // propagates back to the fleet on the next push; genuine today-completions
+    // and un-complete markers pass through verbatim (see the helper's doc).
+    const sanitizedRoutineState = data.routineCompletions
+      ? sanitizeMergedRoutineCompletions(
+          data.routineCompletions, data.routineCompletionTimestamps || {}, todayStr, startOfTodayIso(),
+        )
+      : null;
     if (data.routinesDate === todayStr) {
       if (data.todayRoutines) localStorage.setItem('day-planner-today-routines', JSON.stringify(data.todayRoutines));
       localStorage.setItem('day-planner-routines-date', data.routinesDate);
-      if (data.routineCompletions) localStorage.setItem('day-planner-routine-completions', JSON.stringify(data.routineCompletions));
-      if (data.routineCompletionTimestamps) localStorage.setItem('day-planner-routine-completion-timestamps', JSON.stringify(data.routineCompletionTimestamps));
+      if (sanitizedRoutineState) {
+        localStorage.setItem('day-planner-routine-completions', JSON.stringify(sanitizedRoutineState.completions));
+        localStorage.setItem('day-planner-routine-completion-timestamps', JSON.stringify(sanitizedRoutineState.timestamps));
+      } else if (data.routineCompletionTimestamps) {
+        localStorage.setItem('day-planner-routine-completion-timestamps', JSON.stringify(data.routineCompletionTimestamps));
+      }
     }
     // selectedTags is a per-device UI preference and is not applied to state here.
     // minimizedSections is synced to localStorage so the same section layout follows the user across devices.
@@ -6206,11 +6223,16 @@ const DayPlanner = () => {
     // Only apply today's routine state if the remote data is from today — matching
     // the localStorage guard above. If routinesDate is stale/off, applying it would
     // trigger the auto-clear effect in useRoutines and wipe todayRoutines to [].
-    if (data.routinesDate === dateToString(new Date())) {
+    // Completions apply SANITIZED (#1196 symptom 2 — see sanitizedRoutineState above).
+    if (data.routinesDate === todayStr) {
       if (data.todayRoutines) setTodayRoutines(data.todayRoutines);
       setRoutinesDate(data.routinesDate);
-      if (data.routineCompletions) setRoutineCompletions(data.routineCompletions);
-      if (data.routineCompletionTimestamps) setRoutineCompletionTimestamps(data.routineCompletionTimestamps);
+      if (sanitizedRoutineState) {
+        setRoutineCompletions(sanitizedRoutineState.completions);
+        setRoutineCompletionTimestamps(sanitizedRoutineState.timestamps);
+      } else if (data.routineCompletionTimestamps) {
+        setRoutineCompletionTimestamps(data.routineCompletionTimestamps);
+      }
     }
     if (data.use24HourClock !== undefined) setUse24HourClock(data.use24HourClock);
     if (data.weatherZip !== undefined) setWeatherZip(data.weatherZip);
