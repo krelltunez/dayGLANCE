@@ -214,6 +214,33 @@ describe('optimistic unlock on validated events', () => {
     expect(engine.getSnapshot().isPro).toBe(true);
   });
 
+  it("a successful test-consume ('consumed') locks IMMEDIATELY — no anti-flash hold", () => {
+    const storage = new MemStorage();
+    const adapter = makeAdapter({ cached: { active: true, productId: 'p_lifetime' } });
+    const { engine } = makeEngine(adapter, { storage });
+    engine.start();
+    expect(engine.getSnapshot().isPro).toBe(true);
+
+    engine['applyCallbacks'].emitBillingEvent({
+      status: 'consumed', code: 0, message: 'test_consume', productId: 'p_lifetime',
+    });
+    // Deliberate revocation: wall must be showable NOW, not after the grace.
+    expect(engine.getSnapshot().isPro).toBe(false);
+    expect(storage.getItem('glance-billing.last-active')).toBeNull();
+    expect(adapter.persisted.at(-1)).toEqual({ active: false, productId: null });
+  });
+
+  it("'consume_failed' changes nothing", () => {
+    const adapter = makeAdapter({ cached: { active: true, productId: 'p_lifetime' } });
+    const { engine } = makeEngine(adapter);
+    engine.start();
+    engine['applyCallbacks'].emitBillingEvent({
+      status: 'consume_failed', code: 0, message: 'no_token', productId: '',
+    });
+    expect(engine.getSnapshot().isPro).toBe(true);
+    expect(engine.getSnapshot().billingEvent).toMatchObject({ status: 'consume_failed' });
+  });
+
   it('accepts string payloads (native bridges pass JSON strings)', () => {
     const adapter = makeAdapter();
     const { engine } = makeEngine(adapter);

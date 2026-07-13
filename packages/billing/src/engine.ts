@@ -299,6 +299,20 @@ export class BillingEngine {
       // on a possibly-stale cache read.
       const purchased = parsed.status === 'success';
       const restoredActive = parsed.message === 'restore_complete_active';
+      // A successful test-consume is a validated, deliberate revocation — as
+      // authoritative in the lock direction as a purchase is in the unlock
+      // direction. Apply it immediately, bypassing the anti-flash hold (whose
+      // whole purpose is protecting users from TRANSIENT inactive readings):
+      // the tester tapped "reset" precisely to see the wall now, not in 12s.
+      if (parsed.status === 'consumed') {
+        if (this.downgradeTimer) {
+          clearTimeout(this.downgradeTimer);
+          this.downgradeTimer = null;
+        }
+        this.setState({ status: INACTIVE });
+        this.storage.removeItem(this.keys.lastActive);
+        this.adapter?.persistStatusCache?.(INACTIVE);
+      }
       if (purchased || restoredActive) {
         // Optimistic unlock through the gate: applies instantly, cancels any
         // pending downgrade, and persists the unlock (last-active hint + the
