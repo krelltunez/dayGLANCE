@@ -42,6 +42,38 @@ export const resetRoutineCompletionsForToday = (
   return { completions, timestamps };
 };
 
+// Sanitize a MERGED (sync-apply) routine-completion payload for today (#1196
+// symptom 2). A merged payload can carry a PRIOR-day completion — e.g. this
+// device was offline overnight, so it never stamped a midnight tombstone for a
+// completion made yesterday evening on another device; the stale remote
+// timestamp then beats the absent local one in the LWW merge. Applying that
+// payload verbatim renders the routine already-done today (every render site
+// keys on presence in routineCompletions).
+//
+// Unlike resetRoutineCompletionsForToday (the LOAD-time reset), this must NOT
+// rewrite timestamps wholesale: an un-complete marker (timestamp present,
+// completion absent) carries its real recency and downgrading it to midnight
+// would let a stale remote complete win the next merge. So: keep today's
+// completions and ALL timestamps verbatim; only a dropped stale completion has
+// its timestamp raised to the midnight tombstone (midnight out-dates any
+// prior-day stamp, so the heal propagates back to the fleet instead of only
+// masking the symptom locally).
+export const sanitizeMergedRoutineCompletions = (
+  incomingCompletions = {}, incomingTimestamps = {}, todayStr, midnightIso,
+) => {
+  const completions = {};
+  const timestamps = { ...incomingTimestamps };
+  for (const [id, date] of Object.entries(incomingCompletions)) {
+    if (date === todayStr) {
+      completions[id] = date;
+    } else {
+      const t = timestamps[id];
+      if (!(typeof t === 'string' && t >= midnightIso)) timestamps[id] = midnightIso;
+    }
+  }
+  return { completions, timestamps };
+};
+
 const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, hrOwnerRef }) => {
   // The dashboard's active owner (multi-user) or null in single-user mode.
   const currentOwner = () => hrOwnerRef?.current ?? null;
@@ -107,9 +139,26 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, h
   useEffect(() => {
     const todayStr = dateToString(new Date());
     if (routinesDate && routinesDate !== todayStr) {
+      // Speak the vanish-delete guard's language (#1196 symptom 1): every row
+      // this clear removes gets a removal tombstone stamped at local midnight,
+      // MERGED into the map (never wipe it — mid-day removal tombstones must
+      // survive for offline peers; the 60-day tombstone retention prunes them).
+      // Without the tombstone the guard classifies the cleared rows as a
+      // suspected local-state glitch and its heal re-fetches them from the
+      // vault — yesterday's routines resurrect onto today's timeline. The
+      // midnight stamp satisfies the guard's stale-tombstone rule (cleared
+      // rows' lastModified predates midnight) while staying OLDER than any
+      // same-chip re-placement made later today (handleRoutinesDone also
+      // clears the tombstone on local re-add), so fresh placements still win.
+      const midnightIso = startOfTodayIso();
+      if (todayRoutines.length > 0) {
+        const withCleared = { ...removedTodayRoutineIds };
+        for (const r of todayRoutines) withCleared[String(r.id)] = midnightIso;
+        setRemovedTodayRoutineIds(withCleared);
+        localStorage.setItem('day-planner-removed-today-routine-ids', JSON.stringify(withCleared));
+      }
       setTodayRoutines([]);
       setRoutinesDate(todayStr);
-      setRemovedTodayRoutineIds({});
       setRoutineCompletions({});
       // Don't just drop the completion timestamps — a bare clear leaves no
       // signal, so any device/vault snapshot still holding yesterday's
@@ -122,7 +171,6 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, h
       // Stamp the reset at local midnight of the new day — the same instant the
       // load-time reset uses — so an un-complete made later today on another
       // device still out-dates this tombstone and wins the merge.
-      const midnightIso = startOfTodayIso();
       const tombstones = {};
       for (const id of new Set([
         ...Object.keys(routineCompletions),
@@ -131,13 +179,13 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, h
         tombstones[id] = midnightIso;
       }
       setRoutineCompletionTimestamps(tombstones);
-      localStorage.removeItem('day-planner-removed-today-routine-ids');
       localStorage.setItem('day-planner-routine-completions', '{}');
       localStorage.setItem('day-planner-routine-completion-timestamps', JSON.stringify(tombstones));
     }
-    // routineCompletions/routineCompletionTimestamps are read only to build the
-    // rollover tombstones; the guard above no-ops every other (toggle-driven) run.
-  }, [currentTime, routinesDate, routineCompletions, routineCompletionTimestamps]);
+    // routineCompletions/routineCompletionTimestamps/todayRoutines/
+    // removedTodayRoutineIds are read only to build the rollover tombstones;
+    // the guard above no-ops every other (toggle-driven) run.
+  }, [currentTime, routinesDate, routineCompletions, routineCompletionTimestamps, todayRoutines, removedTodayRoutineIds]);
 
   const toggleRoutineCompletion = (routineId) => {
     const todayStr = dateToString(new Date());
