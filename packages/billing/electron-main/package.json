@@ -1,0 +1,5 @@
+{
+  "//": "Subpath stub for classic (node10) module resolution — TypeScript configs using moduleResolution:'node' ignore the root exports map. Modern resolvers use the exports entry in the package root instead.",
+  "main": "../dist/electron-main/index.js",
+  "types": "../dist/electron-main/index.d.ts"
+}

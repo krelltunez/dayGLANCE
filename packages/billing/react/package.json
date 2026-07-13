@@ -1,0 +1,5 @@
+{
+  "//": "Subpath stub for classic (node10) module resolution — see electron-main/package.json.",
+  "main": "../dist/react.js",
+  "types": "../dist/react.d.ts"
+}

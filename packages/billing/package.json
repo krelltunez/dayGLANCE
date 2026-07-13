@@ -1,0 +1,64 @@
+{
+  "name": "@glance-apps/billing",
+  "version": "0.1.0",
+  "description": "Shared entitlement engine and store-billing adapters for the GLANCE family of apps (Play Billing, StoreKit/RevenueCat, Electron/RevenueCat REST)",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./electron-main": {
+      "types": "./dist/electron-main/index.d.ts",
+      "default": "./dist/electron-main/index.js"
+    },
+    "./capacitor": {
+      "types": "./dist/adapters/capacitor.d.ts",
+      "default": "./dist/adapters/capacitor.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "electron-main",
+    "react",
+    "capacitor",
+    "android",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "electron": ">=28",
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "electron": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^18.2.15",
+    "electron": "^43.0.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.0.18"
+  }
+}

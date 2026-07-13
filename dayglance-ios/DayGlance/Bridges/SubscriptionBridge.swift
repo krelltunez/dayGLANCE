@@ -94,13 +94,18 @@ final class SubscriptionBridge {
         return "{\"com.dayglance.pro.yearly\":\(eligible)}"
     }
 
-    /// Returns `{"yearly":string|null,"lifetime":string|null}` from cached StoreKit prices.
+    /// Returns `{"yearly":string|null,"lifetime":string|null,"yearlyTrialDays":number|null}`
+    /// from cached StoreKit prices. yearlyTrialDays is the free-trial length from
+    /// the store's introductory offer (null until known) — the web layer renders
+    /// trial copy from it instead of a hardcoded number.
     func getProductPrices() -> String {
         let yearly   = UserDefaults.standard.string(forKey: "rc_price_yearly")
         let lifetime = UserDefaults.standard.string(forKey: "rc_price_lifetime")
         let y = yearly.map   { "\"\(esc($0))\"" } ?? "null"
         let l = lifetime.map { "\"\(esc($0))\"" } ?? "null"
-        return "{\"yearly\":\(y),\"lifetime\":\(l)}"
+        let days = UserDefaults.standard.integer(forKey: "rc_trial_days_yearly")
+        let d = days > 0 ? String(days) : "null"
+        return "{\"yearly\":\(y),\"lifetime\":\(l),\"yearlyTrialDays\":\(d)}"
     }
 
     // MARK: - Async bridge calls (return null immediately, fire __billingEvent when done)
@@ -178,10 +183,31 @@ final class SubscriptionBridge {
                 let price = product.localizedPriceString
                 if product.productIdentifier == productYearly {
                     UserDefaults.standard.set(price, forKey: "rc_price_yearly")
+                    // Trial LENGTH comes from the store's introductory offer so the
+                    // paywall never hardcodes a number. Only a freeTrial payment mode
+                    // counts — payUpFront/payAsYouGo intro discounts are paid offers.
+                    if let intro = product.introductoryDiscount, intro.paymentMode == .freeTrial {
+                        let days = Self.days(from: intro.subscriptionPeriod)
+                        if days > 0 {
+                            UserDefaults.standard.set(days, forKey: "rc_trial_days_yearly")
+                        }
+                    }
                 } else if product.productIdentifier == productLifetime {
                     UserDefaults.standard.set(price, forKey: "rc_price_lifetime")
                 }
             }
+        }
+    }
+
+    /// Converts a StoreKit subscription period to whole days (weeks ×7, months
+    /// ×30, years ×365 — trials are day/week periods in practice).
+    private static func days(from period: RevenueCat.SubscriptionPeriod) -> Int {
+        switch period.unit {
+        case .day:   return period.value
+        case .week:  return period.value * 7
+        case .month: return period.value * 30
+        case .year:  return period.value * 365
+        @unknown default: return 0
         }
     }
 

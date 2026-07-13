@@ -88,9 +88,11 @@ class SubscriptionBridge(
     /**
      * Returns the localized prices fetched from Play as JSON.
      * Values are null-safe empty strings until the billing client has connected
-     * and queried product details at least once.
+     * and queried product details at least once. annualTrialDays is the free
+     * trial length in days from the Play offer (null until known) — the web
+     * layer renders trial copy from it instead of a hardcoded number.
      *
-     * Response: `{"annual": "£19.99", "lifetime": "£49.99"}`
+     * Response: `{"annual": "£19.99", "lifetime": "£49.99", "annualTrialDays": 14}`
      */
     @JavascriptInterface
     fun getProductPrices(): String {
@@ -98,7 +100,9 @@ class SubscriptionBridge(
             .replace("\\", "\\\\").replace("\"", "\\\"")
         val lifetime = (dataStore.productPriceLifetime ?: "")
             .replace("\\", "\\\\").replace("\"", "\\\"")
-        return """{"annual":"$annual","lifetime":"$lifetime"}"""
+        val trialDays = dataStore.trialDaysAnnual
+        val trialJson = if (trialDays > 0) trialDays.toString() else "null"
+        return """{"annual":"$annual","lifetime":"$lifetime","annualTrialDays":$trialJson}"""
     }
 
     /**
@@ -125,18 +129,16 @@ class SubscriptionBridge(
      * Consumes the stored lifetime purchase token so it can be bought again.
      * Only available on play builds (BILLING_ENABLED=true). Intended for testing.
      * Result is delivered via window.__billingEvent with status "consumed" or "consume_failed".
+     *
+     * Destructive: consuming the token revokes the purchase. This MUST run on
+     * release play builds — license-tester verification only works there, and
+     * debug builds never connect the billing client (MainActivity gates
+     * connect() on !DEBUG), so a debug-only gate makes the path dead in every
+     * variant. Exposure is controlled by the web layer's hidden dev menu
+     * (7 taps on the plan label) — that is the deliberate arming step.
      */
     @JavascriptInterface
     fun consumeTestPurchase() {
-        // Destructive test-only path: consuming the lifetime token revokes the user's
-        // purchase. Must never run in production Play builds — gate on debug builds only.
-        if (!BuildConfig.DEBUG) {
-            webView?.post {
-                webView.evaluateJavascript(
-                    """window.__billingEvent && window.__billingEvent({"status":"consume_failed","code":0,"message":"debug_only","productId":""});""", null)
-            }
-            return
-        }
         if (!BuildConfig.BILLING_ENABLED) return
         val token = dataStore.subscriptionToken ?: run {
             webView?.post {

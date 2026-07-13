@@ -1,0 +1,5 @@
+{
+  "//": "Subpath stub for classic (node10) module resolution — see electron-main/package.json.",
+  "main": "../dist/adapters/capacitor.js",
+  "types": "../dist/adapters/capacitor.d.ts"
+}
