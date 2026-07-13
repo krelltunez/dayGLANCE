@@ -22,8 +22,7 @@
     "build:helpers": "npm run build:calendar-helper",
     "build:electron": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs",
     "build:electron:release": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs --publish never",
-    "build:electron:mas": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && DAYGLANCE_APP_ID=com.dayglance electron-builder --config electron-builder.config.cjs --mac mas --universal --publish never",
-    "build:billing": "npm run build --workspace @glance-apps/billing"
+    "build:electron:mas": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && DAYGLANCE_APP_ID=com.dayglance electron-builder --config electron-builder.config.cjs --mac mas --universal --publish never"
   },
   "dependencies": {
     "@glance-apps/billing": "0.1.0",
@@ -65,8 +64,5 @@
     "vite": "5.4",
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.0.18"
-  },
-  "workspaces": [
-    "packages/*"
-  ]
+  }
 }
