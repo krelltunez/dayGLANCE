@@ -166,6 +166,12 @@ const MobileSettingsPanel = () => {
   const [muAddingUser, setMuAddingUser] = useState(false);
   const [muNewUserName, setMuNewUserName] = useState('');
   const [muEditingUserId, setMuEditingUserId] = useState(null);
+
+  // Two-step confirm for the hidden "Reset test purchase" action. The realistic
+  // misuse isn't discovery (7-tap gate) — it's a paying user misreading "reset"
+  // as "refresh my purchase state" while troubleshooting. The confirm converts
+  // that into informed consent: it names the real consequence before acting.
+  const [confirmingPurchaseReset, setConfirmingPurchaseReset] = useState(false);
   const [muEditingUserName, setMuEditingUserName] = useState('');
   const [muUsersPath, setMuUsersPath] = useState(() => {
     const raw = localStorage.getItem(MULTI_USER_CONFIG_KEY);
@@ -416,13 +422,36 @@ const MobileSettingsPanel = () => {
         <ChevronRight size={18} className={textSecondary} />
       </button>
       {canConsumeTestPurchase && devTapCount >= 7 && (
-        <button
-          onClick={consumeTestPurchase}
-          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-3 flex items-center gap-3 opacity-50`}
-        >
-          <RefreshCw size={16} className={textSecondary} />
-          <span className={`text-sm ${textSecondary} flex-1 text-left`}>Reset test purchase</span>
-        </button>
+        confirmingPurchaseReset ? (
+          <div className={`w-full ${cardBg} border border-red-500/40 rounded-xl p-3 space-y-2`}>
+            <p className={`text-xs ${textSecondary} leading-relaxed`}>
+              This permanently revokes this account&apos;s purchase from Google Play.
+              It is not a refresh and cannot be undone. For internal testing only.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmingPurchaseReset(false)}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border ${borderClass} ${textPrimary}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setConfirmingPurchaseReset(false); consumeTestPurchase(); }}
+                className="flex-1 py-2 rounded-lg text-sm font-medium bg-red-600 text-white"
+              >
+                Revoke purchase
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmingPurchaseReset(true)}
+            className={`w-full ${cardBg} border ${borderClass} rounded-xl p-3 flex items-center gap-3 opacity-50`}
+          >
+            <RefreshCw size={16} className={textSecondary} />
+            <span className={`text-sm ${textSecondary} flex-1 text-left`}>Reset test purchase</span>
+          </button>
+        )
       )}
       {(isAndroidApp || isIOSApp || isElectronApp) && isPro && (
         <p onClick={() => setDevTapCount(c => c + 1)} className={`text-xs ${textSecondary} text-center pt-1`}>
