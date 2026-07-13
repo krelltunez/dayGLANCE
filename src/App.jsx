@@ -80,6 +80,7 @@ import { createDayGlanceEngine } from './sync/adapter.js';
 import { createDbEngine, resetVaultSyncCursor } from './sync/dbEngine.js';
 import { registerDbEngine } from './sync/dirtyTracker.js';
 import { isVaultEnabled } from './sync/vaultConfig.js';
+import { keepImportedTask } from './sync/payloadExclusions.js';
 import { canEnableMultiUser } from './utils/multiUserGate.js';
 import { encryptData, decryptData, isEncryptedEnvelope, hasEncryptionReady } from './utils/crypto.js';
 import useCalendarSync from './hooks/useCalendarSync.js';
@@ -1896,6 +1897,10 @@ const DayPlanner = () => {
     const engine = createDbEngine({
       getData:    () => engineCallbacksRef.current.buildPayload?.()?.data,
       commitData: (data) => engineCallbacksRef.current.applyPayload?.(data, { allowEmpty: true }),
+      // Lets the snapshot-delete classifier apply the SAME imported-task
+      // exclusion rule buildSyncPayload uses (payloadExclusions.js) — a
+      // baseline row of an excluded class is neither a delete nor a glitch.
+      isMultiUserEnabled: () => engineCallbacksRef.current.multiUserEnabled === true,
       onStatusChange: (s) => {
         setVaultStatus(s);
         if (s === 'success') {
@@ -5845,14 +5850,11 @@ const DayPlanner = () => {
       const m = uid.match(/::(\d{4}-\d{2}-\d{2})$/);
       return !m || new Date(m[1]) >= uidCutoff;
     });
-    // Imported-task sync rule. Always drop read-only CalDAV events; keep
-    // isTaskCalendar to-dos and ICS file imports as first-class data. In
-    // multi-user, additionally drop ALL subscription-derived ('sync') items so a
-    // CalDAV feed never leaks to other users — each device re-fetches from its own
-    // per-user URL (completion still flows back through CalDAV).
-    const keepImported = (t) =>
-      !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')
-      && !(multiUserEnabled && t.imported && t.importSource === 'sync');
+    // Imported-task sync rule — the actual predicate lives in
+    // src/sync/payloadExclusions.js (single source of truth, shared with the
+    // DB engine's snapshot-delete classifier; see that module for the rule
+    // text and why the two sides must never drift).
+    const keepImported = (t) => keepImportedTask(t, multiUserEnabled);
 
     // Per-user calendar config (multi-user). Read-only here: the device's own
     // entry is maintained by an effect (see "maintain per-user calendar entry"),
@@ -6239,6 +6241,7 @@ const DayPlanner = () => {
     buildBackupPayload: buildAutoBackupPayload,
     applyPayload:       applyEngineData,
     syncRetentionDays,
+    multiUserEnabled,
   };
 
   // Flip cloudSyncInitialDoneRef once the engine reports a successful sync.
