@@ -232,4 +232,23 @@ describe('payload-excluded classification (the fresh-device churn fix)', () => {
     expect(skipped).toEqual([]);
     expect(excluded).toHaveLength(150);
   });
+
+  it('carries a SPECIFIC reason string from the predicate (e.g. retention-aged) into reasons', () => {
+    // The predicate may name WHY a row is released — the retention-aged branch
+    // returns 'retention-aged' so diagnostics distinguish it from payload-excluded.
+    const { excluded, reasons } = partitionSnapshotDeletes(
+      ['unscheduledTasks:X'], curOf(), {}, undefined, () => 'retention-aged',
+    );
+    expect(excluded).toEqual(['unscheduledTasks:X']);
+    expect(reasons['unscheduledTasks:X']).toBe('retention-aged');
+  });
+
+  it('an empty-string reason is falsy → keeps the glitch classification', () => {
+    const { skipped, excluded, reasons } = partitionSnapshotDeletes(
+      ['tasks:X'], curOf(), {}, undefined, () => '',
+    );
+    expect(excluded).toEqual([]);
+    expect(skipped).toEqual(['tasks:X']);
+    expect(reasons['tasks:X']).toBe('glitch');
+  });
 });

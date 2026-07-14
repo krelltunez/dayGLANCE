@@ -41,7 +41,7 @@ import {
 } from './dbAdapter.js';
 import { pruneAllTombstones, tombstoneCutoff } from './tombstoneRetention.js';
 import { partitionSnapshotDeletes } from './snapshotDeleteGuard.js';
-import { isPayloadExcludedEntity } from './payloadExclusions.js';
+import { isPayloadExcludedEntity, isRetentionReleasableEntity } from './payloadExclusions.js';
 import { shredHashes, hashMapsEqual, mergeMidCycleEdits } from './commitMerge.js';
 
 const APP_ID = 'dayglance';
@@ -503,14 +503,25 @@ export function createDbEngine(callbacks = {}) {
         };
         const { propagate, skipped, excluded, reasons } = partitionSnapshotDeletes(
           wantDelete, cur, mirror, getPrevEntity,
-          // Payload-excluded classification: a baseline row whose last-known copy
-          // belongs to a class buildSyncPayload structurally excludes can NEVER
-          // reappear in getData() — it is neither a delete nor a glitch, and
-          // healing it every cycle is the churn loop this closes. The predicate
-          // is the same one buildSyncPayload uses (payloadExclusions.js).
-          (eid) => isPayloadExcludedEntity(getPrevEntity(eid), {
-            multiUserEnabled: callbacks.isMultiUserEnabled?.() === true,
-          }),
+          // Baseline-release classification: a baseline row whose last-known copy
+          // can NEVER reappear in getData() is neither a delete nor a glitch, and
+          // healing it every cycle is the churn loop this closes. Two independent
+          // causes, each with its own reason string (payloadExclusions.js):
+          //   'payload-excluded' — a class buildSyncPayload structurally excludes
+          //     (native / non-synced imports); same predicate the payload uses.
+          //   'retention-aged'   — a completed task this device aged out of its
+          //     live list (auto-archived, or pruned past the retention window by
+          //     the file tier), invisibly to the vault.
+          (eid) => {
+            const ent = getPrevEntity(eid);
+            if (isPayloadExcludedEntity(ent, {
+              multiUserEnabled: callbacks.isMultiUserEnabled?.() === true,
+            })) return 'payload-excluded';
+            if (isRetentionReleasableEntity(ent, {
+              retentionDays: callbacks.getSyncRetentionDays?.() ?? 0,
+            })) return 'retention-aged';
+            return false;
+          },
         );
         glitchSkipped = skipped;
         if (excluded.length) {
@@ -518,11 +529,19 @@ export function createDbEngine(callbacks = {}) {
           // untouched in the vault; the next SAVED snapshot (hashed from the
           // mirror, which never contains them) simply stops tracking them. Info-
           // level on purpose — this is a one-time convergence, not a problem.
+          let nPayload = 0, nRetention = 0;
+          for (const eid of excluded) {
+            if (reasons[eid] === 'retention-aged') nRetention++; else nPayload++;
+          }
+          const breakdown = [
+            nPayload ? `${nPayload} payload-excluded (native / non-synced imports)` : '',
+            nRetention ? `${nRetention} retention-aged (completed tasks this device aged out)` : '',
+          ].filter(Boolean).join(', ');
           console.info(
-            `[push] baseline: released ${excluded.length} payload-excluded row(s) — ` +
-            `vault rows of classes this device's payload never lists (native / non-synced imports). ` +
+            `[push] baseline: released ${excluded.length} row(s) — ${breakdown}. ` +
             `Not deletes, not glitches; nothing was fetched or removed from the vault. Ids:`,
-            excluded.slice(0, 10), excluded.length > 10 ? `(+${excluded.length - 10} more)` : ''
+            excluded.slice(0, 10).map((id) => `${id} (${reasons[id]})`),
+            excluded.length > 10 ? `(+${excluded.length - 10} more)` : ''
           );
         }
         for (const id of propagate) {

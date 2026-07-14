@@ -92,17 +92,20 @@ const parseTs = (v) => (v == null ? NaN : new Date(v).getTime());
  *   compared against the tombstone (see THE TIMESTAMP RULE above). Omitted / null
  *   result / unparseable lastModified → the tombstone authorizes unconditionally.
  * @returns {{ propagate: string[], skipped: string[], excluded: string[], reasons: Record<string,string> }}
- * @param {(entityId: string) => boolean} [isExcludedDeletedEntity]  true when the
- *   vanished copy belongs to a class the payload builder STRUCTURALLY excludes
- *   (src/sync/payloadExclusions.js). Such a row can sit in the baseline while
- *   being permanently unable to appear in `cur` — it is neither a delete (no
- *   tombstone) nor a glitch (nothing transient about a deterministic filter),
- *   so it lands in the `excluded` bucket: not propagated, not heal-fetched,
- *   simply released from the baseline. Without this bucket a fresh device that
- *   full-pulled legacy excluded-class vault rows re-fetches every one of them
- *   EVERY cycle, forever (the observed recover loop that rate-limited the
- *   vault). Only would-be 'glitch' rows are tested: tombstoned, stale-tombstone,
- *   and cross-list classifications are unaffected. Omitted → prior behavior.
+ * @param {(entityId: string) => (boolean|string)} [isExcludedDeletedEntity]  called
+ *   for a would-be 'glitch' row; return a truthy value when the vanished copy is
+ *   one this device will NEVER reproduce in `cur`, so healing it every cycle is a
+ *   futile loop. Two independent causes qualify (src/sync/payloadExclusions.js):
+ *   a class the payload builder STRUCTURALLY excludes (native / non-synced
+ *   imports), or a task this device INTENTIONALLY AGED OUT (completed + archived,
+ *   or completed + older than the retention window — pruned locally / by the file
+ *   tier, invisibly to the vault). Either lands in the `excluded` bucket: not
+ *   propagated, not heal-fetched, simply released from the baseline (the vault
+ *   row is untouched; the next saved snapshot stops tracking it). Return a reason
+ *   STRING ('payload-excluded' | 'retention-aged') for accurate diagnostics, or
+ *   `true` for the default 'payload-excluded'. Only would-be 'glitch' rows are
+ *   tested — tombstoned, stale-tombstone, and cross-list are unaffected. Omitted
+ *   → prior behavior.
  */
 export function partitionSnapshotDeletes(deleteEntityIds, cur, mirror, getDeletedEntity, isExcludedDeletedEntity) {
   const ids = Array.isArray(deleteEntityIds) ? deleteEntityIds : [];
@@ -151,12 +154,20 @@ export function partitionSnapshotDeletes(deleteEntityIds, cur, mirror, getDelete
   // to a class the payload builder structurally excludes). Diagnostic only;
   // callers that ignore it are unaffected.
   const reasons = {};
-  const isExcluded = (eid) => {
-    if (typeof isExcludedDeletedEntity !== 'function') return false;
-    try { return isExcludedDeletedEntity(eid) === true; } catch { return false; }
+  // Release reason for a would-be 'glitch' row, or null to keep the glitch
+  // classification. The predicate may return a specific reason STRING (e.g.
+  // 'retention-aged') for accurate diagnostics, or `true` for the original
+  // 'payload-excluded' meaning (back-compat with the #1198 callers).
+  const releaseReason = (eid) => {
+    if (typeof isExcludedDeletedEntity !== 'function') return null;
+    let r;
+    try { r = isExcludedDeletedEntity(eid); } catch { return null; }
+    if (r === true) return 'payload-excluded';
+    return typeof r === 'string' && r ? r : null;
   };
   for (const eid of ids) {
     const id = bareId(eid);
+    let rr;
     if (tombstoned.has(id)) {
       const tombTs = tombstoned.get(id);
       const lastMod = deletedLastModified(eid);
@@ -170,7 +181,7 @@ export function partitionSnapshotDeletes(deleteEntityIds, cur, mirror, getDelete
         skipped.push(eid); reasons[eid] = 'stale-tombstone';
       }
     } else if (liveBareIds.has(id)) { propagate.push(eid); reasons[eid] = 'cross-list'; }
-    else if (isExcluded(eid)) { excluded.push(eid); reasons[eid] = 'payload-excluded'; }
+    else if ((rr = releaseReason(eid))) { excluded.push(eid); reasons[eid] = rr; }
     else { skipped.push(eid); reasons[eid] = 'glitch'; }
   }
   return { propagate, skipped, excluded, reasons };

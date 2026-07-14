@@ -44,3 +44,47 @@ export function isPayloadExcludedEntity(entity, { multiUserEnabled = false } = {
   if (entity._kind === 'unscheduledTasks') return !keepImportedTask(t, multiUserEnabled);
   return false;
 }
+
+const parseMs = (v) => {
+  if (v == null) return NaN;
+  const t = new Date(v).getTime();
+  return Number.isNaN(t) ? NaN : t;
+};
+
+/**
+ * True when [entity] — a mirror/snapshot wrap ({ _kind, value }) — is a task the
+ * DEVICE has intentionally aged out of its live list, so the vault delete guard
+ * should release it from the diff baseline rather than heal-fetch it forever.
+ *
+ * The file tier (WebDAV / iCloud) prunes old completed tasks per the retention
+ * window WITHOUT writing a vault tombstone. Those rows then vanish from getData()
+ * while still sitting in the vault, so the snapshot diff flags them as would-be
+ * deletes with no fingerprint → 'glitch' → per-row re-fetch → re-commit →
+ * re-vanish, every cycle (the observed 85-inbox + 150-scheduled churn on a device
+ * synced to a peer that keeps re-adding them). These are NOT glitches: the row is
+ * deterministically absent because the device aged it out. Two shapes qualify,
+ * both COMPLETED (never release an active task):
+ *   • completed && archived                          — auto-archived inbox item
+ *   • completed && (completedAt|lastModified older    — pruned by the retention
+ *     than retentionDays)                               window on the file tier
+ * Only `tasks` / `unscheduledTasks` kinds are eligible. retentionDays <= 0 (or
+ * unparseable timestamps) disables the age branch — archived still qualifies.
+ *
+ * @param {object} entity  wrapped entity ({ _kind, value })
+ * @param {{ retentionDays?: number, now?: number }} [opts]
+ * @returns {boolean}
+ */
+export function isRetentionReleasableEntity(entity, { retentionDays = 0, now = NaN } = {}) {
+  if (!entity || typeof entity !== 'object') return false;
+  if (entity._kind !== 'tasks' && entity._kind !== 'unscheduledTasks') return false;
+  const t = entity.value;
+  if (!t || typeof t !== 'object') return false;
+  if (!t.completed) return false;
+  if (t.archived === true) return true;
+  const days = Number(retentionDays);
+  if (!Number.isFinite(days) || days <= 0) return false;
+  const nowMs = Number.isFinite(now) ? now : Date.now();
+  const stamp = parseMs(t.completedAt) || parseMs(t.lastModified);
+  if (Number.isNaN(stamp) || !stamp) return false;
+  return stamp < nowMs - days * 24 * 60 * 60 * 1000;
+}
