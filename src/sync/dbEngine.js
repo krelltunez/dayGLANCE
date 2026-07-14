@@ -41,7 +41,7 @@ import {
 } from './dbAdapter.js';
 import { pruneAllTombstones, tombstoneCutoff } from './tombstoneRetention.js';
 import { partitionSnapshotDeletes } from './snapshotDeleteGuard.js';
-import { isPayloadExcludedEntity, isRetentionReleasableEntity } from './payloadExclusions.js';
+import { isPayloadExcludedEntity, agedOutReleaseReason } from './payloadExclusions.js';
 import { shredHashes, hashMapsEqual, mergeMidCycleEdits } from './commitMerge.js';
 
 const APP_ID = 'dayglance';
@@ -505,22 +505,20 @@ export function createDbEngine(callbacks = {}) {
           wantDelete, cur, mirror, getPrevEntity,
           // Baseline-release classification: a baseline row whose last-known copy
           // can NEVER reappear in getData() is neither a delete nor a glitch, and
-          // healing it every cycle is the churn loop this closes. Two independent
-          // causes, each with its own reason string (payloadExclusions.js):
-          //   'payload-excluded' — a class buildSyncPayload structurally excludes
-          //     (native / non-synced imports); same predicate the payload uses.
-          //   'retention-aged'   — a completed task this device aged out of its
-          //     live list (auto-archived, or pruned past the retention window by
-          //     the file tier), invisibly to the vault.
+          // healing it every cycle is the churn loop this closes. Causes, each
+          // with its own reason string (payloadExclusions.js):
+          //   'payload-excluded'        — a class buildSyncPayload structurally
+          //     excludes (native / non-synced imports); the payload's own rule.
+          //   'completed' / 'sync-horizon' — a task the file tier's zombie-drop
+          //     keeps out of getData() (completed & aged, or older than the sync
+          //     horizon), invisibly to the vault. The horizon is the SAME 60-day
+          //     tombstoneCutoff the file-tier merge uses as tombstonePrunedBefore.
           (eid) => {
             const ent = getPrevEntity(eid);
             if (isPayloadExcludedEntity(ent, {
               multiUserEnabled: callbacks.isMultiUserEnabled?.() === true,
             })) return 'payload-excluded';
-            if (isRetentionReleasableEntity(ent, {
-              retentionDays: callbacks.getSyncRetentionDays?.() ?? 0,
-            })) return 'retention-aged';
-            return false;
+            return agedOutReleaseReason(ent, { horizonMs: tombstoneCutoff().getTime() });
           },
         );
         glitchSkipped = skipped;
@@ -529,13 +527,14 @@ export function createDbEngine(callbacks = {}) {
           // untouched in the vault; the next SAVED snapshot (hashed from the
           // mirror, which never contains them) simply stops tracking them. Info-
           // level on purpose — this is a one-time convergence, not a problem.
-          let nPayload = 0, nRetention = 0;
+          const counts = { 'payload-excluded': 0, completed: 0, 'sync-horizon': 0 };
           for (const eid of excluded) {
-            if (reasons[eid] === 'retention-aged') nRetention++; else nPayload++;
+            if (reasons[eid] in counts) counts[reasons[eid]]++;
           }
           const breakdown = [
-            nPayload ? `${nPayload} payload-excluded (native / non-synced imports)` : '',
-            nRetention ? `${nRetention} retention-aged (completed tasks this device aged out)` : '',
+            counts['payload-excluded'] ? `${counts['payload-excluded']} payload-excluded (native / non-synced imports)` : '',
+            counts.completed ? `${counts.completed} completed (aged out of the working set)` : '',
+            counts['sync-horizon'] ? `${counts['sync-horizon']} sync-horizon (older than the file-tier zombie-drop fence)` : '',
           ].filter(Boolean).join(', ');
           console.info(
             `[push] baseline: released ${excluded.length} row(s) — ${breakdown}. ` +

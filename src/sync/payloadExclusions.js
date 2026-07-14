@@ -45,46 +45,50 @@ export function isPayloadExcludedEntity(entity, { multiUserEnabled = false } = {
   return false;
 }
 
-const parseMs = (v) => {
-  if (v == null) return NaN;
-  const t = new Date(v).getTime();
-  return Number.isNaN(t) ? NaN : t;
-};
-
 /**
- * True when [entity] — a mirror/snapshot wrap ({ _kind, value }) — is a task the
- * DEVICE has intentionally aged out of its live list, so the vault delete guard
- * should release it from the diff baseline rather than heal-fetch it forever.
+ * Reason to RELEASE a would-be-glitch vanish whose snapshot copy the FILE TIER
+ * (WebDAV / iCloud) will keep out of getData() every cycle — or null to keep the
+ * glitch classification. Healing such a row is FUTILE: the file tier re-drops it,
+ * the vault vanish-guard re-fetches it, forever (the observed endless GUARD churn
+ * — 85 completed inbox rows + 65 completed scheduled rows on a device whose file
+ * tier had aged them out while the vault kept resurrecting them).
  *
- * The file tier (WebDAV / iCloud) prunes old completed tasks per the retention
- * window WITHOUT writing a vault tombstone. Those rows then vanish from getData()
- * while still sitting in the vault, so the snapshot diff flags them as would-be
- * deletes with no fingerprint → 'glitch' → per-row re-fetch → re-commit →
- * re-vanish, every cycle (the observed 85-inbox + 150-scheduled churn on a device
- * synced to a peer that keeps re-adding them). These are NOT glitches: the row is
- * deterministically absent because the device aged it out. Two shapes qualify,
- * both COMPLETED (never release an active task):
- *   • completed && archived                          — auto-archived inbox item
- *   • completed && (completedAt|lastModified older    — pruned by the retention
- *     than retentionDays)                               window on the file tier
- * Only `tasks` / `unscheduledTasks` kinds are eligible. retentionDays <= 0 (or
- * unparseable timestamps) disables the age branch — archived still qualifies.
+ * The mechanism is the shared file-tier merge's ZOMBIE-DROP (@glance-apps/sync
+ * merge.js, mergeArrayById): a task that is local-only in the remote file AND
+ * whose `lastModified` predates the remote's `tombstonePrunedBefore` (dayGLANCE
+ * sets this to the 60-day tombstoneCutoff — see mergeSync.js) is SILENTLY dropped
+ * rather than re-uploaded, on the theory its tombstone was already GC'd. Such a
+ * row can therefore never reappear in getData(), yet it sits in the vault and the
+ * snapshot baseline — a permanent would-be-delete with no fingerprint. Two shapes
+ * qualify (tasks / unscheduledTasks only):
+ *   'completed'    — a completed task. Completed rows stop being touched, so their
+ *                    lastModified goes stale and the file tier zombie-drops them;
+ *                    and a completed row that PERSISTENTLY vanishes is being aged
+ *                    out, not glitching. (Every observed stuck row is completed.)
+ *   'sync-horizon' — ANY row (incl. incomplete) whose lastModified predates the
+ *                    sync horizon: this is exactly the zombie-drop condition, so
+ *                    the file tier will re-drop it every cycle.
  *
- * @param {object} entity  wrapped entity ({ _kind, value })
- * @param {{ retentionDays?: number, now?: number }} [opts]
- * @returns {boolean}
+ * Release = not propagated as a delete, not heal-fetched, dropped from the diff
+ * baseline. The vault row is UNTOUCHED (it survives for other devices); the next
+ * saved snapshot stops tracking it and the loop ends. Only would-be 'glitch' rows
+ * reach here — tombstoned / stale-tombstone / cross-list are decided first.
+ *
+ * @param {object} entity  wrapped entity ({ _kind, value }, see dbAdapter.js)
+ * @param {{ horizonMs?: number }} [opts]  horizonMs = the file-tier sync-horizon
+ *   epoch ms (tombstoneCutoff().getTime()); omit / non-finite → skip the horizon
+ *   branch (the 'completed' branch still applies).
+ * @returns {'completed'|'sync-horizon'|null}
  */
-export function isRetentionReleasableEntity(entity, { retentionDays = 0, now = NaN } = {}) {
-  if (!entity || typeof entity !== 'object') return false;
-  if (entity._kind !== 'tasks' && entity._kind !== 'unscheduledTasks') return false;
+export function agedOutReleaseReason(entity, { horizonMs = NaN } = {}) {
+  if (!entity || typeof entity !== 'object') return null;
+  if (entity._kind !== 'tasks' && entity._kind !== 'unscheduledTasks') return null;
   const t = entity.value;
-  if (!t || typeof t !== 'object') return false;
-  if (!t.completed) return false;
-  if (t.archived === true) return true;
-  const days = Number(retentionDays);
-  if (!Number.isFinite(days) || days <= 0) return false;
-  const nowMs = Number.isFinite(now) ? now : Date.now();
-  const stamp = parseMs(t.completedAt) || parseMs(t.lastModified);
-  if (Number.isNaN(stamp) || !stamp) return false;
-  return stamp < nowMs - days * 24 * 60 * 60 * 1000;
+  if (!t || typeof t !== 'object') return null;
+  if (t.completed === true) return 'completed';
+  if (Number.isFinite(horizonMs)) {
+    const lm = new Date(t.lastModified).getTime();
+    if (Number.isFinite(lm) && lm < horizonMs) return 'sync-horizon';
+  }
+  return null;
 }

@@ -95,15 +95,15 @@ const parseTs = (v) => (v == null ? NaN : new Date(v).getTime());
  * @param {(entityId: string) => (boolean|string)} [isExcludedDeletedEntity]  called
  *   for a would-be 'glitch' row; return a truthy value when the vanished copy is
  *   one this device will NEVER reproduce in `cur`, so healing it every cycle is a
- *   futile loop. Two independent causes qualify (src/sync/payloadExclusions.js):
- *   a class the payload builder STRUCTURALLY excludes (native / non-synced
- *   imports), or a task this device INTENTIONALLY AGED OUT (completed + archived,
- *   or completed + older than the retention window — pruned locally / by the file
- *   tier, invisibly to the vault). Either lands in the `excluded` bucket: not
- *   propagated, not heal-fetched, simply released from the baseline (the vault
- *   row is untouched; the next saved snapshot stops tracking it). Return a reason
- *   STRING ('payload-excluded' | 'retention-aged') for accurate diagnostics, or
- *   `true` for the default 'payload-excluded'. Only would-be 'glitch' rows are
+ *   futile loop. Independent causes qualify (src/sync/payloadExclusions.js): a
+ *   class the payload builder STRUCTURALLY excludes (native / non-synced imports),
+ *   or a task the FILE TIER's zombie-drop keeps out of getData() (completed, or
+ *   older than the sync horizon — dropped by WebDAV/iCloud merge, invisibly to
+ *   the vault). Either lands in the `excluded` bucket: not propagated, not
+ *   heal-fetched, simply released from the baseline (the vault row is untouched;
+ *   the next saved snapshot stops tracking it). Return a reason STRING
+ *   ('payload-excluded' | 'completed' | 'sync-horizon') for accurate diagnostics,
+ *   or `true` for the default 'payload-excluded'. Only would-be 'glitch' rows are
  *   tested — tombstoned, stale-tombstone, and cross-list are unaffected. Omitted
  *   → prior behavior.
  */

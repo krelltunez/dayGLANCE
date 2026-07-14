@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { keepImportedTask, isPayloadExcludedEntity, isRetentionReleasableEntity } from './payloadExclusions.js';
+import { keepImportedTask, isPayloadExcludedEntity, agedOutReleaseReason } from './payloadExclusions.js';
 
 describe('payloadExclusions — the shared buildSyncPayload rule', () => {
   it('drops read-only CalDAV imports; keeps task-calendar to-dos and ICS file imports', () => {
@@ -36,47 +36,50 @@ describe('payloadExclusions — the shared buildSyncPayload rule', () => {
   });
 });
 
-describe('isRetentionReleasableEntity — device-aged-out completed tasks', () => {
+describe('agedOutReleaseReason — the file-tier zombie-drop populations', () => {
   const NOW = Date.parse('2026-07-14T00:00:00Z');
+  const HORIZON = NOW - 60 * 86400000; // tombstoneCutoff() epoch ms (60-day fence)
   const daysAgo = (n) => new Date(NOW - n * 86400000).toISOString();
-  const rel = (kind, value, retentionDays = 30) =>
-    isRetentionReleasableEntity({ _kind: kind, value }, { retentionDays, now: NOW });
+  const rel = (kind, value, horizonMs = HORIZON) =>
+    agedOutReleaseReason({ _kind: kind, value }, { horizonMs });
 
-  it('releases completed + archived regardless of age (auto-archived inbox item)', () => {
-    // The 85-inbox population: completed + archived, no retention needed.
-    expect(rel('unscheduledTasks', { completed: true, archived: true, lastModified: daysAgo(78) })).toBe(true);
-    expect(rel('tasks', { completed: true, archived: true, lastModified: daysAgo(1) })).toBe(true);
-    // archived even disables the age gate: releases with retentionDays 0.
-    expect(rel('unscheduledTasks', { completed: true, archived: true }, 0)).toBe(true);
+  it("releases EVERY completed task as 'completed', at any age or archived state", () => {
+    // The observed stuck set is 100% completed (85 inbox archived + 65 scheduled
+    // not-archived) — the 'completed' branch covers both, no age needed.
+    expect(rel('unscheduledTasks', { completed: true, archived: true, lastModified: daysAgo(90) })).toBe('completed');
+    expect(rel('tasks', { completed: true, archived: false, lastModified: daysAgo(90) })).toBe('completed'); // the 65 scheduled
+    expect(rel('tasks', { completed: true, lastModified: daysAgo(1) })).toBe('completed'); // recent completed still releasable
+    expect(rel('unscheduledTasks', { completed: true })).toBe('completed'); // no timestamps needed
   });
 
-  it('releases completed tasks aged past the retention window even when not archived', () => {
-    // The 150-scheduled population: completed, past retention, NOT archived.
-    expect(rel('tasks', { completed: true, completedAt: daysAgo(45) })).toBe(true);
-    expect(rel('tasks', { completed: true, lastModified: daysAgo(45) })).toBe(true); // completedAt absent → lastModified
+  it("releases an incomplete task older than the sync horizon as 'sync-horizon' (the zombie-drop condition)", () => {
+    expect(rel('tasks', { completed: false, lastModified: daysAgo(61) })).toBe('sync-horizon');
+    expect(rel('unscheduledTasks', { lastModified: daysAgo(120) })).toBe('sync-horizon');
   });
 
-  it('keeps completed tasks still inside the retention window', () => {
-    expect(rel('tasks', { completed: true, completedAt: daysAgo(10) })).toBe(false);
-    expect(rel('unscheduledTasks', { completed: true, lastModified: daysAgo(29) })).toBe(false);
+  it('KEEPS an incomplete task newer than the horizon (a genuine transient glitch heals as before)', () => {
+    expect(rel('tasks', { completed: false, lastModified: daysAgo(59) })).toBeNull();
+    expect(rel('tasks', { lastModified: daysAgo(1) })).toBeNull();
   });
 
-  it('never releases an active (not-completed) task, however old', () => {
-    expect(rel('tasks', { completed: false, archived: true, lastModified: daysAgo(365) })).toBe(false);
-    expect(rel('tasks', { archived: true, lastModified: daysAgo(365) })).toBe(false);
-    expect(rel('tasks', { completed: true, lastModified: daysAgo(365) })).toBe(true); // control
+  it('mirrors the zombie-drop: no lastModified on an incomplete row → not horizon-releasable', () => {
+    // merge.js only drops a local-only task that HAS a timestamp predating the
+    // fence; a row with no lastModified is not a zombie, so we heal it.
+    expect(rel('tasks', { completed: false })).toBeNull();
+    expect(rel('tasks', { completed: false, lastModified: 'not-a-date' })).toBeNull();
   });
 
-  it('is scoped to task kinds and disables the age branch when retention is off', () => {
-    expect(rel('recycleBin', { completed: true, completedAt: daysAgo(365) })).toBe(false);
-    expect(rel('singleton', { completed: true, archived: true })).toBe(false);
-    // retentionDays <= 0 (or unset) → only archived qualifies; aged-but-unarchived does not.
-    expect(rel('tasks', { completed: true, completedAt: daysAgo(365) }, 0)).toBe(false);
+  it('is scoped to task kinds; the horizon branch is skipped without a finite horizon', () => {
+    expect(rel('recycleBin', { completed: true })).toBeNull();
+    expect(rel('singleton', { lastModified: daysAgo(365) })).toBeNull();
+    // No horizon supplied → the horizon branch is inert, but 'completed' still fires.
+    expect(agedOutReleaseReason({ _kind: 'tasks', value: { lastModified: daysAgo(365) } }, {})).toBeNull();
+    expect(agedOutReleaseReason({ _kind: 'tasks', value: { completed: true } }, {})).toBe('completed');
   });
 
-  it('fails safe on unparseable input / timestamps', () => {
-    expect(isRetentionReleasableEntity(null, { retentionDays: 30, now: NOW })).toBe(false);
-    expect(rel('tasks', null)).toBe(false);
-    expect(rel('tasks', { completed: true, completedAt: 'not-a-date' })).toBe(false); // unparseable, unarchived → keep
+  it('fails safe on unparseable input', () => {
+    expect(agedOutReleaseReason(null, { horizonMs: HORIZON })).toBeNull();
+    expect(rel('tasks', null)).toBeNull();
+    expect(rel('tasks', undefined)).toBeNull();
   });
 });

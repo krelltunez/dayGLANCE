@@ -1901,10 +1901,6 @@ const DayPlanner = () => {
       // exclusion rule buildSyncPayload uses (payloadExclusions.js) — a
       // baseline row of an excluded class is neither a delete nor a glitch.
       isMultiUserEnabled: () => engineCallbacksRef.current.multiUserEnabled === true,
-      // Feeds the retention-aged release branch: a completed task pruned past
-      // this window by the file tier vanishes from getData() with no tombstone;
-      // the classifier releases it from the baseline instead of healing forever.
-      getSyncRetentionDays: () => engineCallbacksRef.current.syncRetentionDays ?? 90,
       onStatusChange: (s) => {
         setVaultStatus(s);
         if (s === 'success') {
