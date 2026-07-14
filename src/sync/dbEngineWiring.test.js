@@ -1013,6 +1013,136 @@ describe('Wave B — payload-excluded baseline rows (the fresh-device churn loop
   });
 });
 
+describe('Wave C — file-tier aged-out release: the zombie-drop-vs-vault fight (wife\'s-Mac churn)', () => {
+  beforeEach(() => {
+    global.localStorage = memLocalStorage();
+    setVaultConfig({ enabled: true, vaultUrl: 'https://vault.test', vaultToken: 'tok', accountId: 'acct1' });
+    setSyncPassphrase('correct horse battery staple');
+  });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  const snapOf = (name) => JSON.parse(global.localStorage.getItem(`dev-${name}-db-sync-snapshot`) || 'null');
+
+  // A device whose getData models the FILE TIER's zombie-drop (@glance-apps/sync
+  // mergeArrayById): a local-only task that is completed, or whose lastModified
+  // predates the 60-day sync horizon (tombstonePrunedBefore), is silently dropped
+  // from React state — while its row still sits in the vault. This is the exact
+  // split-brain behind the observed churn: the file tier removes it, the vault
+  // vanish-guard keeps re-fetching it. No getSyncRetentionDays wiring — the
+  // classifier derives the horizon from tombstoneCutoff() itself.
+  const HORIZON = Date.now() - 60 * 86400e3;
+  function makeZombieDropDevice(name, vault, initial) {
+    let data = clone(initial);
+    let nativeKey = null;
+    const zombie = (t) => {
+      if (t.completed === true) return true; // completed rows the app aged out
+      const lm = Date.parse(t.lastModified || '');
+      return Number.isFinite(lm) && lm < HORIZON; // older than the sync horizon
+    };
+    const engine = createDbEngine({
+      vaultClient: vault,
+      storageKeyPrefix: `dev-${name}`,
+      deviceId: `device-${name}`,
+      nativeGetSyncKey: () => nativeKey,
+      nativeStoreSyncKey: (v) => { nativeKey = v; },
+      getData: () => {
+        const d = clone(data);
+        d.tasks = d.tasks.filter((t) => !zombie(t));
+        d.unscheduledTasks = d.unscheduledTasks.filter((t) => !zombie(t));
+        return d;
+      },
+      commitData: (d) => { data = d; },
+      isMultiUserEnabled: () => false,
+    });
+    return { engine, get data() { return data; } };
+  }
+
+  it('THE FIGHT ends: completed (inbox+scheduled) and horizon-aged rows are RELEASED once — no heal storm, vault untouched', async () => {
+    const vault = createMemoryVault({ rowGet: true });
+    // An old/peer device seeds the vault with the observed stuck populations plus
+    // one live synced task, as the wife's-Mac console showed.
+    const completedInbox = task(500, '2026-04-01T10:00:00.000Z', { completed: true, archived: true });
+    const completedScheduled = task(501, '2026-04-02T10:00:00.000Z', { completed: true, date: '2026-04-02' }); // the 65: completed, NOT archived
+    const staleIncomplete = task(503, '2026-01-05T10:00:00.000Z'); // >60d, incomplete → 'sync-horizon'
+    const live = task(502, new Date(Date.now() - 86400e3).toISOString()); // recent + incomplete → stays live for any run date
+    const A = makeDevice('A', vault, {
+      ...EMPTY,
+      unscheduledTasks: [completedInbox],
+      tasks: [completedScheduled, staleIncomplete, live],
+    });
+    await A.engine.dbSyncCycle();
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const getRowSpy = vi.spyOn(vault, 'getRow');
+    const delSpy = vi.spyOn(vault, 'deleteRow');
+
+    // The zombie-drop device full-pulls all rows into mirror + snapshot, but its
+    // payload never lists the three aged ones (the file tier dropped them).
+    const B = makeZombieDropDevice('B', vault, { ...EMPTY });
+    await B.engine.dbSyncCycle(); // full pull ingests all rows into the baseline
+    expect(snapOf('B')['unscheduledTasks:500']).toBeDefined();
+    expect(snapOf('B')['tasks:501']).toBeDefined();
+    expect(snapOf('B')['tasks:503']).toBeDefined();
+
+    await B.engine.dbSyncCycle(); // classification cycle: the three aged rows released
+    await B.engine.dbSyncCycle(); // must already be clean
+    await B.engine.dbSyncCycle(); // and STAY clean — no re-fight
+
+    // Released exactly once, then silence — and the log names both causes.
+    const released = infoSpy.mock.calls.filter((c) => /completed|sync-horizon/.test(String(c[0])));
+    expect(released).toHaveLength(1);
+    expect(String(released[0][0])).toContain('completed');
+    expect(String(released[0][0])).toContain('sync-horizon');
+    // No GUARD skip/recover churn — this was the endless stream of GUARD messages.
+    expect(warnSpy.mock.calls.filter((c) => String(c[0]).includes('GUARD'))).toEqual([]);
+    // The heal NEVER fetched the aged rows — that per-row storm pinned the count
+    // and rate-limited the vault.
+    for (const id of ['unscheduledTasks:500', 'tasks:501', 'tasks:503']) {
+      expect(getRowSpy.mock.calls.some((c) => c[1] === id)).toBe(false);
+    }
+    // NOTHING was deleted from the vault — the rows survive for other devices
+    // (the "deletes nothing" guarantee of the guard-side release).
+    const deleted = delSpy.mock.calls.map((c) => c[1]);
+    for (const id of ['unscheduledTasks:500', 'tasks:501', 'tasks:503']) {
+      expect(deleted).not.toContain(id);
+    }
+    expect(await vault.getRow('dayglance', 'unscheduledTasks:500')).not.toBeNull();
+    expect(await vault.getRow('dayglance', 'tasks:501')).not.toBeNull();
+    // The baseline stops tracking the aged rows; the live synced row is unaffected.
+    expect(snapOf('B')['unscheduledTasks:500']).toBeUndefined();
+    expect(snapOf('B')['tasks:501']).toBeUndefined();
+    expect(snapOf('B')['tasks:503']).toBeUndefined();
+    expect(snapOf('B')['tasks:502']).toBeDefined();
+    expect(B.data.tasks.some((t) => t.id === 502)).toBe(true);
+  });
+
+  it('CONTRAST: a RECENT active task that transiently vanishes is NOT released — it still heals', async () => {
+    // A live, recently-touched task that briefly drops out of getData must never
+    // be swept up as aged-out — it fails both branches (incomplete + fresh) and
+    // heals via the row re-fetch, exactly as before.
+    const vault = createMemoryVault({ rowGet: true });
+    const recent = new Date(Date.now() - 86400e3).toISOString(); // yesterday: inside the horizon for any wall-clock run
+    const A = makeDevice('A', vault, {
+      ...EMPTY,
+      tasks: [task(600, recent), task(601, recent)],
+    });
+    const B = makeZombieDropDevice('B', vault, { ...EMPTY });
+    await runRounds(A, B);
+    expect(B.data.tasks.map((t) => t.id).sort()).toEqual([600, 601]);
+
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const getRowSpy = vi.spyOn(vault, 'getRow');
+    // 600 is recent AND incomplete → neither branch fires; force a transient
+    // shrink on A and confirm it heals (not released).
+    A.data.tasks = A.data.tasks.filter((t) => t.id !== 600);
+    await A.engine.dbSyncCycle();
+    expect(getRowSpy.mock.calls.some((c) => c[1] === 'tasks:600')).toBe(true); // healed, not released
+    expect(infoSpy.mock.calls.filter((c) => /completed|sync-horizon/.test(String(c[0])))).toEqual([]);
+    expect(A.data.tasks.map((t) => t.id)).toContain(600);
+  });
+});
+
 describe('issue #1196 — the midnight rollover speaks the vanish-delete guard\'s language', () => {
   beforeEach(() => {
     global.localStorage = memLocalStorage();
