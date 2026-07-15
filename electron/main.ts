@@ -39,6 +39,11 @@ const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'] ?? 'http://localh
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+// True once the main window has been created for the first time. Guards the
+// window-all-closed → app.quit() handler so transient utility windows created
+// DURING startup (the file:// storage-migration reader/writer) can't trip it
+// before the real window exists. See the window-all-closed handler.
+let didCreateMainWindow = false;
 let trayWindow: BrowserWindow | null = null;
 let trayNeedsReload = false;
 let trayReloadTimer: ReturnType<typeof setTimeout> | null = null;
@@ -104,6 +109,7 @@ function saveWindowState(state: WindowState): void {
 
 function createWindow(): BrowserWindow {
   const saved = loadWindowState();
+  didCreateMainWindow = true;
 
   mainWindow = new BrowserWindow({
     width: saved.width,
@@ -744,5 +750,15 @@ app.on('will-quit', () => {
 
 app.on('window-all-closed', () => {
   // On macOS the app stays alive in the tray; the user can reopen from there or the dock.
-  if (process.platform !== 'darwin') app.quit();
+  //
+  // The didCreateMainWindow guard is critical on Windows/Linux: startup runs
+  // migrateFileToAppStorage() BEFORE the main window is created, and that
+  // migration briefly opens then destroys hidden BrowserWindows (the file://
+  // localStorage reader/writer). Destroying the last of those fires
+  // window-all-closed while zero real windows exist yet — without the guard we
+  // would app.quit() mid-startup and the process would exit before ever showing
+  // a window (the app installed but "never launched"). macOS was unaffected only
+  // because this branch is darwin-exempt. Once the main window has been created,
+  // a genuine all-windows-closed on Windows/Linux still quits as intended.
+  if (process.platform !== 'darwin' && didCreateMainWindow) app.quit();
 });
