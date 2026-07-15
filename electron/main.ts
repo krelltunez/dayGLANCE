@@ -10,6 +10,8 @@ import { registerCalendarHandlers } from './calendar.js';
 import { registerICloudHandlers } from './icloud.js';
 import { registerObsidianHandlers } from './obsidian.js';
 import { APP_SCHEME, APP_HOST, APP_BASE_URL, resolveAppRequest } from './appProtocol.js';
+import { shouldQuitOnAllWindowsClosed } from './startupQuit.js';
+import { initStartupLog, logStartup } from './startupLog.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -32,6 +34,19 @@ protocol.registerSchemesAsPrivileged([
 // every Electron build since main.ts was created, so existing users are already
 // here. The MAS build's distinct bundle ID (com.dayglance) does not move it either.
 app.setPath('userData', path.join(app.getPath('appData'), 'dayGLANCE'));
+
+// Startup logging — a bounded record in userData (dayglance-startup.log) that a
+// user can send after a bad launch. Initialized as early as possible (right
+// after userData is pinned) so it captures crashes that happen before app-ready.
+// Best-effort: it never throws into startup. See electron/startupLog.ts.
+initStartupLog(app.getPath('userData'));
+logStartup('main process module loaded');
+process.on('uncaughtException', (err) => {
+  logStartup(`uncaughtException: ${err instanceof Error ? err.stack ?? err.message : String(err)}`);
+});
+process.on('unhandledRejection', (reason) => {
+  logStartup(`unhandledRejection: ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}`);
+});
 
 const DEV = !app.isPackaged;
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'] ?? 'http://localhost:5173';
@@ -110,6 +125,7 @@ function saveWindowState(state: WindowState): void {
 function createWindow(): BrowserWindow {
   const saved = loadWindowState();
   didCreateMainWindow = true;
+  logStartup('createWindow: called');
 
   mainWindow = new BrowserWindow({
     width: saved.width,
@@ -149,7 +165,32 @@ function createWindow(): BrowserWindow {
   // Show the window only after the renderer has painted its first frame,
   // preventing the white screen that appears when the window is shown before
   // React has had a chance to render anything.
-  mainWindow.once('ready-to-show', () => { live(mainWindow)?.show(); });
+  //
+  // Safety net: if ready-to-show never fires (a renderer that fails to load or
+  // paint), force the window visible after a grace period rather than leaving an
+  // invisible process the user can only find in Task Manager. A visible window —
+  // even blank — is reportable; a silent one is the "installed but never
+  // launched" black hole. The timeout is long enough never to race a normal
+  // startup. Both paths are logged so dayglance-startup.log shows which fired.
+  const SHOW_FALLBACK_MS = 10_000;
+  let shown = false;
+  const showOnce = (why: string) => {
+    if (shown) return;
+    shown = true;
+    logStartup(`main window show (${why})`);
+    live(mainWindow)?.show();
+  };
+  const fallbackShow = setTimeout(() => showOnce('fallback-timeout'), SHOW_FALLBACK_MS);
+  mainWindow.once('ready-to-show', () => { clearTimeout(fallbackShow); showOnce('ready-to-show'); });
+
+  // Startup diagnostics — high-signal failure events written to the startup log.
+  mainWindow.webContents.on('did-finish-load', () => logStartup('main window did-finish-load'));
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) =>
+    logStartup(`did-fail-load: code=${code} "${desc}" url=${url}`));
+  mainWindow.webContents.on('render-process-gone', (_e, details) =>
+    logStartup(`render-process-gone: reason=${details.reason} exitCode=${details.exitCode}`));
+  mainWindow.webContents.on('preload-error', (_e, preloadPath, err) =>
+    logStartup(`preload-error: ${preloadPath}: ${err?.message ?? err}`));
 
   if (DEV) {
     mainWindow.loadURL(VITE_DEV_SERVER_URL);
@@ -662,6 +703,7 @@ app.whenReady().then(async () => {
   // A doomed second instance may still reach 'ready' before app.quit() takes
   // effect; bail before creating any windows so it never steals the port/state.
   if (!gotSingleInstanceLock) return;
+  logStartup('app ready');
 
   // Content Security Policy — applied to every response the renderer loads.
   // script-src 'self': only scripts from the app bundle (no inline scripts, no eval).
@@ -726,7 +768,9 @@ app.whenReady().then(async () => {
   // boots with the migrated localStorage. The protocol handler above must already
   // be registered (the writer window loads app://). Awaited so createWindow() sees
   // the migrated data; failures are swallowed inside and never block startup.
+  logStartup('storage migration: start');
   await migrateFileToAppStorage();
+  logStartup('storage migration: done');
 
   const win = createWindow();
   createWsServer(() => live(mainWindow));
@@ -760,5 +804,8 @@ app.on('window-all-closed', () => {
   // a window (the app installed but "never launched"). macOS was unaffected only
   // because this branch is darwin-exempt. Once the main window has been created,
   // a genuine all-windows-closed on Windows/Linux still quits as intended.
-  if (process.platform !== 'darwin' && didCreateMainWindow) app.quit();
+  if (shouldQuitOnAllWindowsClosed(process.platform, didCreateMainWindow)) {
+    logStartup('window-all-closed → app.quit()');
+    app.quit();
+  }
 });
