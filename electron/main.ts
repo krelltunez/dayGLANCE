@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createWsServer } from './ws-server.js';
 import { registerSubscriptionHandlers } from './subscription.js';
 import { registerCalendarHandlers } from './calendar.js';
+import { registerStorefrontHandlers } from './storefront.js';
 import { registerICloudHandlers } from './icloud.js';
 import { registerObsidianHandlers } from './obsidian.js';
 import { APP_SCHEME, APP_HOST, APP_BASE_URL, resolveAppRequest } from './appProtocol.js';
@@ -732,6 +733,7 @@ app.whenReady().then(async () => {
   createWsServer(() => live(mainWindow));
   registerSubscriptionHandlers(win);
   registerCalendarHandlers();
+  registerStorefrontHandlers();
   registerICloudHandlers(() => live(mainWindow));
   registerObsidianHandlers();
   if (process.platform === 'darwin') createTray();

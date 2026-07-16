@@ -79,10 +79,11 @@ module.exports = {
       NSCalendarsUsageDescription: 'dayGLANCE shows your calendar events alongside your tasks.',
       NSCalendarsFullAccessUsageDescription: 'dayGLANCE shows your calendar events alongside your tasks.',
     },
-    // Bundle the signed EventKit helper (built by scripts/build-calendar-helper.sh)
-    // into Contents/Resources/calendar-helper. electron-builder signs nested binaries.
+    // Bundle the signed EventKit + StoreKit-storefront helpers (built by
+    // scripts/build-helpers) into Contents/Resources. electron-builder signs nested binaries.
     extraResources: [
       { from: 'electron/native/calendar-helper/build/dayglance-calendar-helper', to: 'calendar-helper/dayglance-calendar-helper' },
+      { from: 'electron/native/storefront-helper/build/dayglance-storefront-helper', to: 'storefront-helper/dayglance-storefront-helper' },
     ],
     target: [
       { target: 'dmg', arch: ['x64', 'arm64'] },
@@ -110,6 +111,7 @@ module.exports = {
     },
     extraResources: [
       { from: 'electron/native/calendar-helper/build/dayglance-calendar-helper', to: 'calendar-helper/dayglance-calendar-helper' },
+      { from: 'electron/native/storefront-helper/build/dayglance-storefront-helper', to: 'storefront-helper/dayglance-storefront-helper' },
     ],
     // Universal (x86_64 + arm64) so the App Store accepts the build for every Mac.
     // Without this it defaults to the host arch only (arm64), which Apple rejects

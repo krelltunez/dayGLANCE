@@ -984,7 +984,7 @@ const DayPlanner = () => {
 
   // AI configuration, voice input, and weekly review state
   const {
-    aiConfig, setAiConfig,
+    aiConfig: rawAiConfig, setAiConfig,
     aiConnectionStatus, setAiConnectionStatus,
     aiConnectionMessage, setAiConnectionMessage,
     aiOllamaHelp, setAiOllamaHelp,
@@ -1025,6 +1025,36 @@ const DayPlanner = () => {
     weeklyAILoading, setWeeklyAILoading,
     weeklyAIError, setWeeklyAIError,
   } = useVoiceAI();
+
+  // Regional AI suppression: the Mac App Store build must deactivate its
+  // generative-AI features on the China (CN) storefront to comply with App Store
+  // Review Guideline 5 (Deep Synthesis / MIIT licensing). We ask the main process
+  // for the storefront country (StoreKit, with an OS-region fallback) and, when it
+  // resolves to China, force the AI config off and hide the AI settings section.
+  // Non-macOS platforms expose no such API, so this stays false there (no change).
+  const [aiSuppressed, setAiSuppressed] = useState(false);
+  useEffect(() => {
+    const api = typeof window !== 'undefined' ? window.electronAPI : null;
+    if (!api?.getStorefrontCountry) return;
+    let cancelled = false;
+    api.getStorefrontCountry()
+      .then((country) => {
+        if (cancelled) return;
+        const c = (country || '').toUpperCase();
+        if (c === 'CN' || c === 'CHN') setAiSuppressed(true);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // Effective AI config seen by every consumer (App effects + FeaturesContext).
+  // When suppressed we force `enabled: false` so all AI calls short-circuit, without
+  // mutating the user's stored config (they keep their settings if they ever leave
+  // the CN storefront). When not suppressed this is the raw config unchanged.
+  const aiConfig = useMemo(
+    () => (aiSuppressed ? { ...rawAiConfig, enabled: false } : rawAiConfig),
+    [rawAiConfig, aiSuppressed],
+  );
 
   // GTD Frames state
   const {
@@ -9175,7 +9205,7 @@ const DayPlanner = () => {
     wakeLockSentinel, focusModeAvailable,
 
     // ── AI / Voice ────────────────────────────────────────────────────────────
-    aiConfig, setAiConfig,
+    aiConfig, setAiConfig, aiSuppressed,
     aiConnectionStatus, setAiConnectionStatus,
     aiConnectionMessage, setAiConnectionMessage,
     aiOllamaHelp, setAiOllamaHelp,

@@ -78,7 +78,7 @@ const SettingsModal = () => {
     habitsEnabled, setHabitsEnabled,
     routinesEnabled, setRoutinesEnabled,
     goalsProjectsEnabled, setGoalsProjectsEnabled,
-    aiConfig, setAiConfig,
+    aiConfig, setAiConfig, aiSuppressed,
     aiConnectionStatus, setAiConnectionStatus, aiConnectionMessage, setAiConnectionMessage,
     aiOllamaHelp, setAiOllamaHelp,
     multiUserEnabled, setMultiUserEnabled,
@@ -1230,9 +1230,11 @@ const SettingsModal = () => {
                       )}
                     </div>
 
+                    {/* AI Features Section — hidden on the China App Store storefront
+                        to comply with App Store Review Guideline 5 (Deep Synthesis / MIIT). */}
+                    {!aiSuppressed && (<>
                     <hr className={borderClass} />
 
-                    {/* AI Features Section */}
                     <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('ai')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <BrainCircuit size={16} className={aiConfig.enabled ? 'text-purple-400' : textSecondary} />
@@ -1454,6 +1456,7 @@ const SettingsModal = () => {
                       )}
                       </>)}
                     </div>
+                    </>)}
 
                     {(!isMobile || isNativeAndroid()) && (<>
                     <hr className={borderClass} />
