@@ -19,7 +19,8 @@
     "dev:electron": "npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && concurrently -n renderer,main,preload,electron -c cyan,yellow,magenta,green \"vite\" \"npx tsc -p tsconfig.electron.json -w --preserveWatchOutput\" \"npx tsc -p tsconfig.electron.preload.json -w --preserveWatchOutput\" \"VITE_DEV_SERVER_URL=http://localhost:5173 electronmon .\"",
     "build:calendar-helper": "bash scripts/build-calendar-helper.sh",
     "build:icloud-helper": "bash scripts/build-icloud-helper.sh",
-    "build:helpers": "npm run build:calendar-helper",
+    "build:storefront-helper": "bash scripts/build-storefront-helper.sh",
+    "build:helpers": "npm run build:calendar-helper && npm run build:storefront-helper",
     "build:electron": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs",
     "build:electron:release": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs --publish never",
     "build:electron:mas": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && DAYGLANCE_APP_ID=com.dayglance electron-builder --config electron-builder.config.cjs --mac mas --universal --publish never"

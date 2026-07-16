@@ -115,7 +115,7 @@ const MobileSettingsPanel = () => {
     smartScheduleError, setSmartScheduleError,
     smartScheduleAccepted, setSmartScheduleAccepted,
     runSmartSchedule, applySmartSchedule,
-    aiConfig, setAiConfig,
+    aiConfig, setAiConfig, aiSuppressed,
     aiConnectionStatus, setAiConnectionStatus,
     aiConnectionMessage, setAiConnectionMessage,
     aiOllamaHelp, setAiOllamaHelp,
@@ -289,6 +289,8 @@ const MobileSettingsPanel = () => {
         <Activity size={24} className={mobileSettingsView === 'habits' ? 'text-green-500' : habitsEnabled ? 'text-green-500' : textSecondary} />
         <span className={`text-xs font-medium ${textPrimary}`}>{habitsEnabled ? t('settings.habitsOn') : t('settings.habitsOff')}</span>
       </button>
+      {/* AI tile hidden on the China App Store storefront (Guideline 5 / MIIT). */}
+      {!aiSuppressed && (
       <button
         onClick={() => setMobileSettingsView('ai')}
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
@@ -296,6 +298,7 @@ const MobileSettingsPanel = () => {
         {aiConfig.enabled ? <BrainCircuit size={24} className="text-purple-400" /> : <BrainCircuit size={24} className={textSecondary} />}
         <span className={`text-xs font-medium ${textPrimary}`}>{aiConfig.enabled ? t('settings.aiOn') : t('settings.aiOff')}</span>
       </button>
+      )}
     </div>
 
     {/* Sync buttons */}
@@ -1141,8 +1144,8 @@ const MobileSettingsPanel = () => {
     </div>
   )}
 
-  {/* AI settings sub-view */}
-  {mobileSettingsView === 'ai' && (
+  {/* AI settings sub-view — suppressed on the China App Store storefront (Guideline 5 / MIIT). */}
+  {mobileSettingsView === 'ai' && !aiSuppressed && (
     <div className="px-4 py-4 space-y-4">
       <button
         onClick={() => setMobileSettingsView('main')}
