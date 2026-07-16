@@ -56,32 +56,40 @@ function runHelper(args: string[]): Promise<unknown> {
 
 const norm = (code: string | null | undefined): string => (code || '').toUpperCase();
 
+// Where the resolved country came from — surfaced to the renderer so a tester can
+// confirm StoreKit actually resolved inside the helper ('storekit') rather than the
+// OS-region fallback carrying it ('locale'). 'none' means neither produced a value.
+export type StorefrontSource = 'storekit' | 'locale' | 'none';
+export interface StorefrontResult { country: string; source: StorefrontSource; }
+
 // Resolves the storefront country as an uppercase ISO code (alpha-2 or alpha-3),
-// or '' when unknown. StoreKit's alpha-3 is preferred; locale's alpha-2 is the
+// tagged with its source. StoreKit's alpha-3 is preferred; locale's alpha-2 is the
 // fallback. The renderer treats both "CN" and "CHN" as the China storefront.
-async function resolveStorefrontCountry(): Promise<string> {
+async function resolveStorefront(): Promise<StorefrontResult> {
   if (process.platform === 'darwin') {
     try {
       const res = await runHelper(['country']) as { countryCode?: string | null } | null;
       const sk = norm(res?.countryCode);
-      if (sk) return sk;
+      if (sk) return { country: sk, source: 'storekit' };
     } catch {
       // helper missing / errored / timed out — fall through to locale
     }
   }
   try {
-    return norm(app.getLocaleCountryCode());
+    const loc = norm(app.getLocaleCountryCode());
+    if (loc) return { country: loc, source: 'locale' };
   } catch {
-    return '';
+    // getLocaleCountryCode unavailable — fall through to 'none'
   }
+  return { country: '', source: 'none' };
 }
 
 export function registerStorefrontHandlers(): void {
   ipcMain.handle('storefront:country', async () => {
     try {
-      return await resolveStorefrontCountry();
+      return await resolveStorefront();
     } catch {
-      return '';
+      return { country: '', source: 'none' } as StorefrontResult;
     }
   });
 }

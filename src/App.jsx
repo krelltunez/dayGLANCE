@@ -1038,9 +1038,14 @@ const DayPlanner = () => {
     if (!api?.getStorefrontCountry) return;
     let cancelled = false;
     api.getStorefrontCountry()
-      .then((country) => {
+      .then((res) => {
         if (cancelled) return;
-        const c = (country || '').toUpperCase();
+        const c = (res?.country || '').toUpperCase();
+        const source = res?.source || 'none';
+        // Diagnostic (intentionally not DEV-gated so it's visible in the packaged
+        // MAS build's DevTools): confirms whether the storefront came from StoreKit
+        // inside the helper vs. the OS-region fallback.
+        console.info(`[storefront] country=${c || '(unknown)'} source=${source}`);
         if (c === 'CN' || c === 'CHN') setAiSuppressed(true);
       })
       .catch(() => {});

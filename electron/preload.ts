@@ -114,12 +114,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('subscription:prices-ready', handler);
   },
 
-  // App Store storefront country (uppercase ISO code, alpha-2 or alpha-3; '' if
-  // unknown). Prefers StoreKit's storefront, falls back to the OS region. Used to
-  // comply with regional legal requirements — e.g. suppressing generative-AI
-  // features on the China storefront (App Store Guideline 5 / MIIT). macOS only;
-  // other platforms have no such API and this channel returns ''.
-  getStorefrontCountry: (): Promise<string> => ipcRenderer.invoke('storefront:country'),
+  // App Store storefront country + the source that produced it:
+  //   { country: string, source: 'storekit' | 'locale' | 'none' }
+  // country is an uppercase ISO code (alpha-2 or alpha-3; '' if unknown). `source`
+  // lets a tester confirm StoreKit resolved inside the helper ('storekit') vs. the
+  // OS-region fallback ('locale'). Used to comply with regional legal requirements —
+  // e.g. suppressing generative-AI features on the China storefront (App Store
+  // Guideline 5 / MIIT). macOS only; other platforms return { country: '', source: 'none' }.
+  getStorefrontCountry: (): Promise<{ country: string; source: 'storekit' | 'locale' | 'none' }> =>
+    ipcRenderer.invoke('storefront:country'),
 
   // iCloud sync — reads/writes dayglance-sync.json in the shared ubiquitous container.
   // macOS only; returns null/false on other platforms.
