@@ -146,6 +146,7 @@ import DesktopWelcomeModal from './components/DesktopWelcomeModal.jsx';
 import SpotlightModal from './components/SpotlightModal.jsx';
 import HabitModal from './components/HabitModal.jsx';
 import SubscriptionWall from './components/SubscriptionWall.jsx';
+import ReviewerBanner from './components/ReviewerBanner.jsx';
 import { useSubscription } from './hooks/useSubscription.js';
 import { useTranslation } from 'react-i18next';
 import { syncErrorText } from './sync/syncErrors.js';
@@ -216,6 +217,13 @@ const DayPlanner = () => {
   const { t } = useTranslation();
   const { isPro, isLoading: subLoading, isAndroidApp, isIOSApp, isElectronApp, productId: subProductId, subscribe, restore, prices: subPrices, trialEligible, trialDays, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase, isReviewerUnlocked, setReviewerUnlocked } = useSubscription();
   useEffect(() => { if (isReviewerUnlocked) console.info('[dayGLANCE] Reviewer unlock active'); }, [isReviewerUnlocked]);
+  // Leave reviewer mode: clear the stored unlock and reload so the billing engine
+  // re-reads a now-absent key (there is no revoke method on the engine), which
+  // brings back the paywall — and therefore the in-app purchases — immediately.
+  const exitReviewerMode = () => {
+    try { localStorage.removeItem('day-planner-reviewer-unlock'); } catch { /* storage unavailable */ }
+    location.reload();
+  };
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
   const isLandscape = useIsLandscape();
@@ -10897,6 +10905,14 @@ const DayPlanner = () => {
       <VoiceInputModal />
       {/* GTD Frames Modal (Desktop/Tablet) */}
       {showFramesModal && !isMobile && <FramesModal />}
+
+      {/* Reviewer-mode banner — whenever the app is unlocked via the reviewer
+          bypass code, offer a one-tap way back to the paywall so App Review can
+          always locate the in-app purchases (Guideline 2.1(b)). Reviewer unlock
+          only, never genuine purchasers. */}
+      {isReviewerUnlocked && (
+        <ReviewerBanner darkMode={darkMode} onExit={exitReviewerMode} />
+      )}
 
       {/* Subscription wall — shown on Android, iOS, and macOS when subscription is inactive.
           In dev builds, ?wall in the URL forces it visible for local testing. */}
