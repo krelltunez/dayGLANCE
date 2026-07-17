@@ -24,6 +24,15 @@ const HabitModal = () => {
     meUserSyncId, managedBy, hasUnownedHabits, claimUnownedHabits,
   } = useFeaturesCtx();
 
+  // iOS reads HealthKit with lazy authorization — the permission sheet is presented
+  // by the native HealthBridge on the first getSteps/getSleep read, so there is no
+  // explicit permission check/request like Android's Health Connect. The health-habit
+  // tiles below gate on this: on iOS the "Add" button is always enabled and the
+  // "Authorize" button is hidden. Without it the button stays permanently disabled,
+  // because the iOS bridge exposes no checkStepsPermission (healthPerms never turns
+  // true), which is what made the HealthKit feature unreachable on iOS.
+  const isIOS = typeof window !== 'undefined' && !!window.DayGlanceIOS;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowHabitModal(false); setEditingHabit(null); }}>
       <div className={`${cardBg} rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[85vh] overflow-hidden flex flex-col`} onClick={(e) => e.stopPropagation()}>
@@ -336,8 +345,8 @@ const HabitModal = () => {
                 </button>
               )}
 
-              {/* Health Connect steps suggestion — only shown on Android with native bridge */}
-              {window.DayGlanceNative && !activeHabits.some(h => h.source === 'healthConnect' && h.unit === 'steps') && activeHabits.length < 8 && (
+              {/* Steps health-habit suggestion — iOS (HealthKit) and Android (Health Connect). */}
+              {window.DayGlanceNative && !activeHabits.some(h => (h.source === 'healthKit' || h.source === 'healthConnect') && h.unit === 'steps') && activeHabits.length < 8 && (
                 <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${darkMode ? 'border-green-800 bg-green-950/40' : 'border-green-200 bg-green-50'}`}>
                   <Footprints size={22} className="text-green-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -345,7 +354,7 @@ const HabitModal = () => {
                     <div className={`text-xs ${darkMode ? 'text-green-500' : 'text-green-600'} mt-0.5`}>{t('habit.trackStepsHint')}</div>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">
-                    {!healthPerms?.steps && (
+                    {!isIOS && !healthPerms?.steps && (
                       <button
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 active:bg-green-700 transition-colors"
@@ -354,9 +363,9 @@ const HabitModal = () => {
                       </button>
                     )}
                     <button
-                      onClick={healthPerms?.steps ? addStepsHabit : undefined}
-                      disabled={!healthPerms?.steps}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${healthPerms?.steps ? 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700' : 'bg-green-500/30 text-white/50 cursor-not-allowed'}`}
+                      onClick={(isIOS || healthPerms?.steps) ? addStepsHabit : undefined}
+                      disabled={!isIOS && !healthPerms?.steps}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${(isIOS || healthPerms?.steps) ? 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700' : 'bg-green-500/30 text-white/50 cursor-not-allowed'}`}
                     >
                       {t('common.add')}
                     </button>
@@ -364,8 +373,8 @@ const HabitModal = () => {
                 </div>
               )}
 
-              {/* Health Connect sleep suggestion — only shown on Android with native bridge */}
-              {window.DayGlanceNative && !activeHabits.some(h => h.source === 'healthConnect' && h.unit === 'min') && activeHabits.length < 8 && (
+              {/* Sleep health-habit suggestion — iOS (HealthKit) and Android (Health Connect). */}
+              {window.DayGlanceNative && !activeHabits.some(h => (h.source === 'healthKit' || h.source === 'healthConnect') && h.unit === 'min') && activeHabits.length < 8 && (
                 <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${darkMode ? 'border-indigo-800 bg-indigo-950/40' : 'border-indigo-200 bg-indigo-50'}`}>
                   <Moon size={22} className="text-indigo-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -373,7 +382,7 @@ const HabitModal = () => {
                     <div className={`text-xs ${darkMode ? 'text-indigo-500' : 'text-indigo-600'} mt-0.5`}>{t('habit.trackSleepHint')}</div>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">
-                    {!healthPerms?.sleep && (
+                    {!isIOS && !healthPerms?.sleep && (
                       <button
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700 transition-colors"
@@ -382,9 +391,9 @@ const HabitModal = () => {
                       </button>
                     )}
                     <button
-                      onClick={healthPerms?.sleep ? addSleepHabit : undefined}
-                      disabled={!healthPerms?.sleep}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${healthPerms?.sleep ? 'bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700' : 'bg-indigo-500/30 text-white/50 cursor-not-allowed'}`}
+                      onClick={(isIOS || healthPerms?.sleep) ? addSleepHabit : undefined}
+                      disabled={!isIOS && !healthPerms?.sleep}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${(isIOS || healthPerms?.sleep) ? 'bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700' : 'bg-indigo-500/30 text-white/50 cursor-not-allowed'}`}
                     >
                       {t('common.add')}
                     </button>
