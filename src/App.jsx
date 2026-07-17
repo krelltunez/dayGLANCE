@@ -1034,25 +1034,31 @@ const DayPlanner = () => {
     weeklyAIError, setWeeklyAIError,
   } = useVoiceAI();
 
-  // Regional AI suppression: the Mac App Store build must deactivate its
-  // generative-AI features on the China (CN) storefront to comply with App Store
-  // Review Guideline 5 (Deep Synthesis / MIIT licensing). We ask the main process
-  // for the region (OS locale country — see electron/storefront.ts for why the
-  // true StoreKit storefront isn't readable here) and, when it resolves to China,
-  // force the AI config off and hide the AI settings section. Non-macOS platforms
-  // expose no such API, so this stays false there (no change).
+  // Regional AI suppression: on the China (CN) App Store storefront the app must
+  // deactivate its generative-AI features to comply with App Store Review Guideline 5
+  // (Deep Synthesis / MIIT licensing). When the storefront is China we force the AI
+  // config off and hide the AI settings section. Signal by platform:
+  //   - macOS (Electron): async over IPC — StoreKit storefront with an OS-region
+  //     fallback (see electron/storefront.ts).
+  //   - iOS: synchronous StoreKit storefront via the native bridge — the app is the
+  //     App Store client, so the storefront resolves directly (no helper needed).
+  //   - Android / web: no App Store storefront, so suppression stays off.
   const [aiSuppressed, setAiSuppressed] = useState(false);
   useEffect(() => {
-    const api = typeof window !== 'undefined' ? window.electronAPI : null;
-    if (!api?.getStorefrontCountry) return;
     let cancelled = false;
-    api.getStorefrontCountry()
-      .then((res) => {
-        if (cancelled) return;
-        const c = (res?.country || '').toUpperCase();
-        if (c === 'CN' || c === 'CHN') setAiSuppressed(true);
-      })
-      .catch(() => {});
+    const isChina = (country) => {
+      const c = (country || '').toUpperCase();
+      return c === 'CN' || c === 'CHN';
+    };
+    const electron = typeof window !== 'undefined' ? window.electronAPI : null;
+    if (electron?.getStorefrontCountry) {
+      electron.getStorefrontCountry()
+        .then((res) => { if (!cancelled && isChina(res?.country)) setAiSuppressed(true); })
+        .catch(() => {});
+    } else if (typeof window !== 'undefined' && window.DayGlanceIOS && window.DayGlanceNative?.getStorefrontCountry) {
+      // Synchronous native bridge call — returns the alpha-3 storefront code.
+      try { if (isChina(window.DayGlanceNative.getStorefrontCountry())) setAiSuppressed(true); } catch {}
+    }
     return () => { cancelled = true; };
   }, []);
 
