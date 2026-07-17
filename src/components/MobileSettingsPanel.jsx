@@ -128,6 +128,11 @@ const MobileSettingsPanel = () => {
   } = useFeaturesCtx();
   // Gate multi-user when sync is unconfigured; never trap an already-on toggle.
   const multiUserLocked = multiUserToggleLocked({ cloudSyncConfigured, multiUserEnabled });
+  // iOS uses HealthKit lazy authorization (permission requested on first read), so
+  // it has no explicit permission check/request. On iOS the health-habit "Add"
+  // button is always enabled and the dead "Authorize" button is hidden — see the
+  // matching note in HabitModal.jsx and refreshHealthPerms in useHabits.js.
+  const isIOS = typeof window !== 'undefined' && !!window.DayGlanceIOS;
 
   const [intentForm, setIntentForm] = useState(() => {
     const raw = localStorage.getItem(INTENT_CONFIG_KEY);
@@ -2611,15 +2616,15 @@ const MobileSettingsPanel = () => {
                   {t('habit.addHabit')}
                 </button>
               )}
-              {window.DayGlanceNative && !activeHabits.some(h => h.source === 'healthConnect' && h.unit === 'steps') && activeHabits.length < 8 && (
+              {window.DayGlanceNative && !activeHabits.some(h => (h.source === 'healthKit' || h.source === 'healthConnect') && h.unit === 'steps') && activeHabits.length < 8 && (
                 <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${darkMode ? 'border-green-800 bg-green-950/40' : 'border-green-200 bg-green-50'}`}>
                   <Footprints size={22} className="text-green-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className={`text-sm font-semibold ${darkMode ? 'text-green-300' : 'text-green-800'}`}>Track steps automatically</div>
-                    <div className={`text-xs ${darkMode ? 'text-green-500' : 'text-green-600'} mt-0.5`}>Pulls from Health Connect — no manual tapping</div>
+                    <div className={`text-xs ${darkMode ? 'text-green-500' : 'text-green-600'} mt-0.5`}>Pulls from {isIOS ? 'Apple Health' : 'Health Connect'} — no manual tapping</div>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">
-                    {!healthPerms?.steps && (
+                    {!isIOS && !healthPerms?.steps && (
                       <button
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 active:bg-green-700 transition-colors"
@@ -2628,24 +2633,24 @@ const MobileSettingsPanel = () => {
                       </button>
                     )}
                     <button
-                      onClick={healthPerms?.steps ? addStepsHabit : undefined}
-                      disabled={!healthPerms?.steps}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${healthPerms?.steps ? 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700' : 'bg-green-500/30 text-white/50 cursor-not-allowed'}`}
+                      onClick={(isIOS || healthPerms?.steps) ? addStepsHabit : undefined}
+                      disabled={!isIOS && !healthPerms?.steps}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${(isIOS || healthPerms?.steps) ? 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700' : 'bg-green-500/30 text-white/50 cursor-not-allowed'}`}
                     >
                       Add
                     </button>
                   </div>
                 </div>
               )}
-              {window.DayGlanceNative && !activeHabits.some(h => h.source === 'healthConnect' && h.unit === 'min') && activeHabits.length < 8 && (
+              {window.DayGlanceNative && !activeHabits.some(h => (h.source === 'healthKit' || h.source === 'healthConnect') && h.unit === 'min') && activeHabits.length < 8 && (
                 <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${darkMode ? 'border-indigo-800 bg-indigo-950/40' : 'border-indigo-200 bg-indigo-50'}`}>
                   <Moon size={22} className="text-indigo-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className={`text-sm font-semibold ${darkMode ? 'text-indigo-300' : 'text-indigo-800'}`}>Track sleep automatically</div>
-                    <div className={`text-xs ${darkMode ? 'text-indigo-500' : 'text-indigo-600'} mt-0.5`}>Pulls from Health Connect — no manual tapping</div>
+                    <div className={`text-xs ${darkMode ? 'text-indigo-500' : 'text-indigo-600'} mt-0.5`}>Pulls from {isIOS ? 'Apple Health' : 'Health Connect'} — no manual tapping</div>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">
-                    {!healthPerms?.sleep && (
+                    {!isIOS && !healthPerms?.sleep && (
                       <button
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700 transition-colors"
@@ -2654,9 +2659,9 @@ const MobileSettingsPanel = () => {
                       </button>
                     )}
                     <button
-                      onClick={healthPerms?.sleep ? addSleepHabit : undefined}
-                      disabled={!healthPerms?.sleep}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${healthPerms?.sleep ? 'bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700' : 'bg-indigo-500/30 text-white/50 cursor-not-allowed'}`}
+                      onClick={(isIOS || healthPerms?.sleep) ? addSleepHabit : undefined}
+                      disabled={!isIOS && !healthPerms?.sleep}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${(isIOS || healthPerms?.sleep) ? 'bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700' : 'bg-indigo-500/30 text-white/50 cursor-not-allowed'}`}
                     >
                       Add
                     </button>
