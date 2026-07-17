@@ -49,6 +49,13 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
         switch method {
 
         // Phase 2 — HealthKit
+        case "requestHealthPermission":
+            HealthBridge.shared.requestAuthorization()
+            return "null"
+        case "checkStepsPermission", "checkSleepPermission":
+            // HealthKit exposes one combined status for the read set, so both map to
+            // the same "have we prompted yet" signal.
+            return HealthBridge.shared.permissionAsked()
         case "getSteps":
             guard let date = args.first as? String else { return #"{"steps":0,"goal":10000}"# }
             return HealthBridge.shared.getSteps(date: date)

@@ -2624,7 +2624,7 @@ const MobileSettingsPanel = () => {
                     <div className={`text-xs ${darkMode ? 'text-green-500' : 'text-green-600'} mt-0.5`}>Pulls from {isIOS ? 'Apple Health' : 'Health Connect'} — no manual tapping</div>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">
-                    {!isIOS && !healthPerms?.steps && (
+                    {!healthPerms?.steps && (
                       <button
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 active:bg-green-700 transition-colors"
@@ -2633,9 +2633,9 @@ const MobileSettingsPanel = () => {
                       </button>
                     )}
                     <button
-                      onClick={(isIOS || healthPerms?.steps) ? addStepsHabit : undefined}
-                      disabled={!isIOS && !healthPerms?.steps}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${(isIOS || healthPerms?.steps) ? 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700' : 'bg-green-500/30 text-white/50 cursor-not-allowed'}`}
+                      onClick={healthPerms?.steps ? addStepsHabit : undefined}
+                      disabled={!healthPerms?.steps}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${healthPerms?.steps ? 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700' : 'bg-green-500/30 text-white/50 cursor-not-allowed'}`}
                     >
                       Add
                     </button>
@@ -2650,7 +2650,7 @@ const MobileSettingsPanel = () => {
                     <div className={`text-xs ${darkMode ? 'text-indigo-500' : 'text-indigo-600'} mt-0.5`}>Pulls from {isIOS ? 'Apple Health' : 'Health Connect'} — no manual tapping</div>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">
-                    {!isIOS && !healthPerms?.sleep && (
+                    {!healthPerms?.sleep && (
                       <button
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700 transition-colors"
@@ -2659,9 +2659,9 @@ const MobileSettingsPanel = () => {
                       </button>
                     )}
                     <button
-                      onClick={(isIOS || healthPerms?.sleep) ? addSleepHabit : undefined}
-                      disabled={!isIOS && !healthPerms?.sleep}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${(isIOS || healthPerms?.sleep) ? 'bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700' : 'bg-indigo-500/30 text-white/50 cursor-not-allowed'}`}
+                      onClick={healthPerms?.sleep ? addSleepHabit : undefined}
+                      disabled={!healthPerms?.sleep}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${healthPerms?.sleep ? 'bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700' : 'bg-indigo-500/30 text-white/50 cursor-not-allowed'}`}
                     >
                       Add
                     </button>
