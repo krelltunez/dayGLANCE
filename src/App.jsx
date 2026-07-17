@@ -1037,9 +1037,10 @@ const DayPlanner = () => {
   // Regional AI suppression: the Mac App Store build must deactivate its
   // generative-AI features on the China (CN) storefront to comply with App Store
   // Review Guideline 5 (Deep Synthesis / MIIT licensing). We ask the main process
-  // for the storefront country (StoreKit, with an OS-region fallback) and, when it
-  // resolves to China, force the AI config off and hide the AI settings section.
-  // Non-macOS platforms expose no such API, so this stays false there (no change).
+  // for the region (OS locale country — see electron/storefront.ts for why the
+  // true StoreKit storefront isn't readable here) and, when it resolves to China,
+  // force the AI config off and hide the AI settings section. Non-macOS platforms
+  // expose no such API, so this stays false there (no change).
   const [aiSuppressed, setAiSuppressed] = useState(false);
   useEffect(() => {
     const api = typeof window !== 'undefined' ? window.electronAPI : null;
@@ -1051,8 +1052,7 @@ const DayPlanner = () => {
         const c = (res?.country || '').toUpperCase();
         const source = res?.source || 'none';
         // Diagnostic (intentionally not DEV-gated so it's visible in the packaged
-        // MAS build's DevTools): confirms whether the storefront came from StoreKit
-        // inside the helper vs. the OS-region fallback.
+        // MAS build's DevTools): shows the resolved region and its source ('locale').
         console.info(`[storefront] country=${c || '(unknown)'} source=${source}`);
         if (c === 'CN' || c === 'CHN') setAiSuppressed(true);
       })
