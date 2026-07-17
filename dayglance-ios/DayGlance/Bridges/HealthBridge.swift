@@ -11,11 +11,12 @@ final class HealthBridge {
 
     private let store = HKHealthStore()
 
+    // Only the two types the app actually reads. Heart-rate-variability and
+    // resting-heart-rate were previously declared here but never queried; unused
+    // HealthKit type references draw Guideline 2.5.1 scrutiny, so they are removed.
     private let readTypes: Set<HKObjectType> = [
         HKQuantityType(.stepCount),
         HKCategoryType(.sleepAnalysis),
-        HKQuantityType(.heartRateVariabilitySDNN),
-        HKQuantityType(.restingHeartRate),
     ]
 
     // MARK: - Authorization (deferred)
