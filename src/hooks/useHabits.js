@@ -277,12 +277,12 @@ const useHabits = ({ playUISound, hrOwnerRef }) => {
   const [healthPerms, setHealthPerms] = useState({ steps: null, sleep: null });
 
   const refreshHealthPerms = () => {
-    // iOS has no synchronous permission check — HealthKit authorization is lazy
-    // (the native bridge presents the sheet on the first getSteps/getSleep read).
-    // Leave healthPerms null on iOS so the sync below never skips a read (a skip
-    // would suppress the lazy prompt); getSteps/getSleep return 0 when access is
-    // denied. Android (Health Connect) reports real permission state.
-    if (!window.DayGlanceNative || window.DayGlanceIOS) return;
+    // checkStepsPermission/checkSleepPermission report whether the user has answered
+    // the health-permission prompt ('granted' once answered). On iOS this reflects
+    // "has the HealthKit sheet been responded to" — HealthKit can't reveal read-grant
+    // status, only that it was asked, which is enough to gate the "Add" button behind
+    // an explicit "Authorize" tap. Android (Health Connect) reports real grant state.
+    if (!window.DayGlanceNative) return;
     try {
       const steps = window.DayGlanceNative.checkStepsPermission() === 'granted';
       const sleep = window.DayGlanceNative.checkSleepPermission() === 'granted';

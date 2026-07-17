@@ -19,45 +19,51 @@ final class HealthBridge {
         HKCategoryType(.sleepAnalysis),
     ]
 
-    // MARK: - Authorization (deferred)
+    // MARK: - Authorization (explicit)
     //
-    // Authorization is NO LONGER requested at launch (guideline 5.1.1 — reviewers
-    // dislike an unprompted HealthKit dialog in the startup cascade). Instead it is
-    // requested lazily the first time the web layer actually reads health data
-    // (getSteps / getSleep), i.e. only when a health-linked habit exists and its
-    // count is being fetched.
-    //
-    // The request is fired asynchronously so it never blocks the synchronous bridge
-    // thread (getSteps/getSleep hold the main thread on a semaphore while the query
-    // runs; presenting the permission sheet from a blocked main thread would
-    // deadlock). When the sheet closes we post .dayGlanceReloadWebView — the same
+    // Authorization is requested only when the user taps "Authorize" on a health-
+    // habit tile — never at launch (guideline 5.1.1). requestAuthorization() presents
+    // the sheet from a clean, user-initiated context (not from inside a semaphore-
+    // blocked read, which is fragile), then posts .dayGlanceReloadWebView — the same
     // reload-after-permission mechanism the calendar flow uses — so the web layer
-    // re-runs its health sync and the counts load with access granted.
+    // re-reads permission state and health counts once access is determined.
     //
-    // If the user already responded in a previous session, getRequestStatusForAuthorization
-    // reports .unnecessary, no sheet is shown, and the query below runs immediately —
-    // startup behaviour is unchanged for already-authorized users.
+    // permissionAsked() is the UI gate. HealthKit deliberately does NOT reveal
+    // whether READ access was granted — only whether the app has already prompted:
+    // getRequestStatusForAuthorization reports .unnecessary once the user has
+    // responded (granted OR denied) and .shouldRequest before that. So "granted"
+    // here means "the user has answered the prompt", which is enough to enable the
+    // "Add" button. If they denied, reads simply return 0 (iOS exposes no way to
+    // detect a read denial or re-prompt; the user re-enables in Settings › Health).
 
-    private var authorizationRequested = false
-
-    /// Requests HealthKit authorization once, lazily, the first time health data is
-    /// read. No-op if health data is unavailable or a request has already been made
-    /// this session. Non-blocking.
-    private func ensureAuthorizationRequested() {
-        guard HKHealthStore.isHealthDataAvailable(), !authorizationRequested else { return }
-        authorizationRequested = true
-        store.getRequestStatusForAuthorization(toShare: [], read: readTypes) { [weak self] status, error in
-            guard let self, error == nil, status == .shouldRequest else { return }
-            DispatchQueue.main.async {
-                self.store.requestAuthorization(toShare: nil, read: self.readTypes) { _, _ in
-                    // Sheet dismissed (granted or denied): reload so the web layer
-                    // re-reads health data now that authorization is determined.
-                    DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: .dayGlanceReloadWebView, object: nil)
-                    }
+    /// Presents the HealthKit authorization sheet (user-initiated, from the Authorize
+    /// button). Non-blocking. Posts .dayGlanceReloadWebView when the sheet is
+    /// dismissed so the web layer re-reads permission state and health data.
+    func requestAuthorization() {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+        DispatchQueue.main.async {
+            self.store.requestAuthorization(toShare: nil, read: self.readTypes) { _, _ in
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .dayGlanceReloadWebView, object: nil)
                 }
             }
         }
+    }
+
+    /// "granted" once the user has responded to the authorization prompt (the only
+    /// signal HealthKit exposes for read types), "notDetermined" before that.
+    /// Synchronous: blocks on a semaphore while the status callback runs on its
+    /// background queue (bounded by a 3s timeout).
+    func permissionAsked() -> String {
+        guard HKHealthStore.isHealthDataAvailable() else { return "notDetermined" }
+        let semaphore = DispatchSemaphore(value: 0)
+        var result = "notDetermined"
+        store.getRequestStatusForAuthorization(toShare: [], read: readTypes) { status, _ in
+            if status == .unnecessary { result = "granted" }
+            semaphore.signal()
+        }
+        _ = semaphore.wait(timeout: .now() + 3)
+        return result
     }
 
     // MARK: - Steps
@@ -68,9 +74,6 @@ final class HealthBridge {
               let day = parseDate(date) else {
             return #"{"steps":0,"goal":10000}"#
         }
-
-        // Lazily request authorization on first actual read (see notes above).
-        ensureAuthorizationRequested()
 
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: day)
@@ -107,9 +110,6 @@ final class HealthBridge {
               let day = parseDate(date) else {
             return #"{"durationMinutes":0,"stages":[]}"#
         }
-
-        // Lazily request authorization on first actual read (see notes above).
-        ensureAuthorizationRequested()
 
         let calendar    = Calendar.current
         let noon        = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day)!
