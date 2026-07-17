@@ -63,6 +63,11 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
             guard let date = args.first as? String else { return #"{"durationMinutes":0,"stages":[]}"# }
             return HealthBridge.shared.getSleep(date: date)
 
+        // App Store storefront (region) — used to gate region-restricted features,
+        // e.g. suppressing generative-AI on the China storefront (Guideline 5 / MIIT).
+        case "getStorefrontCountry":
+            return StorefrontBridge.countryCode()
+
         // Phase 3 — EventKit
         case "getCalendarAuthStatus":
             return CalendarBridge.shared.getAuthStatus()
