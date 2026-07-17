@@ -11,9 +11,16 @@ import StoreKit
 /// this IS the App Store app, so the storefront resolves directly and reliably.
 enum StorefrontBridge {
 
-    /// The storefront country as an ISO 3166-1 alpha-3 code (e.g. "CHN"), or "" when
-    /// StoreKit has not resolved a storefront yet.
+    /// The storefront country (ISO alpha-3, e.g. "CHN"), or — if StoreKit hasn't
+    /// resolved a storefront yet (it can be nil momentarily at cold launch) — the
+    /// device region as a fallback (ISO alpha-2, e.g. "CN"). "" only if neither is
+    /// available. The web layer checks both "CN" and "CHN", so either form gates
+    /// correctly. This mirrors the macOS build's StoreKit-then-region approach and
+    /// ensures a timing gap can never silently leave AI active on the CN storefront.
     static func countryCode() -> String {
-        SKPaymentQueue.default().storefront?.countryCode ?? ""
+        if let code = SKPaymentQueue.default().storefront?.countryCode, !code.isEmpty {
+            return code
+        }
+        return Locale.current.region?.identifier ?? ""
     }
 }
