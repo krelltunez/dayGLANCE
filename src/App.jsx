@@ -1050,10 +1050,6 @@ const DayPlanner = () => {
       .then((res) => {
         if (cancelled) return;
         const c = (res?.country || '').toUpperCase();
-        const source = res?.source || 'none';
-        // Diagnostic (intentionally not DEV-gated so it's visible in the packaged
-        // MAS build's DevTools): shows the resolved region and its source ('locale').
-        console.info(`[storefront] country=${c || '(unknown)'} source=${source}`);
         if (c === 'CN' || c === 'CHN') setAiSuppressed(true);
       })
       .catch(() => {});
