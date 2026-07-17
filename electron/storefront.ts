@@ -1,95 +1,32 @@
 import { ipcMain, app } from 'electron';
-import { execFile } from 'node:child_process';
-import path from 'node:path';
-import fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
 
-// ── App Store storefront detection (macOS) ──────────────────────────────────
+// ── App Store region signal (macOS) ─────────────────────────────────────────
 //
-// Reports the storefront country the app is running under so the renderer can
-// suppress region-restricted features — specifically generative-AI on the China
-// (CN) storefront, per App Store Review Guideline 5 (Deep Synthesis / MIIT).
+// Reports the region used to gate features that are legally restricted on some
+// storefronts — specifically suppressing generative-AI on the China (CN)
+// storefront per App Store Review Guideline 5 (Deep Synthesis / MIIT).
 //
-// Two signals, in order of authority:
-//   1. StoreKit storefront via the signed Swift helper (dayglance-storefront-helper).
-//      This is the correct signal — it's the actual App Store storefront, not the
-//      device's region. Emits an ISO 3166-1 alpha-3 code (e.g. "CHN").
-//   2. OS region via app.getLocaleCountryCode() (ISO alpha-2, e.g. "CN"), used
-//      only when the helper is missing, times out, or returns nothing.
+// Signal: the OS region via app.getLocaleCountryCode() (ISO alpha-2, e.g. "CN").
 //
-// The fallback matters: it is unverified whether StoreKit resolves a storefront
-// inside a spawned (non-App-Store) helper process. If the helper returns null,
-// the locale fallback still catches a reviewer testing from a CN-configured Mac,
-// so the feature is never left visibly active in the China review environment —
-// and a null never disables AI worldwide (that would need the locale to be CN too).
+// Why not StoreKit's true storefront: it can only be read by the process that IS
+// the App Store app (with its receipt/identity). Electron's main process exposes
+// no StoreKit storefront API, and a spawned signed helper isn't "the app" to
+// StoreKit — Storefront.current / SKPaymentQueue.storefront return nil there
+// (verified in a shipped MAS build). A native addon could read it in-process, but
+// the OS region is a reliable enough proxy: App Review tests the China storefront
+// from a China-configured environment, so the region reads CN and the gate fires.
+// `source` is kept in the payload so the renderer log makes the signal explicit.
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-const HELPER_NAME = 'dayglance-storefront-helper';
-
-function helperPath(): string | null {
-  const candidates = app.isPackaged
-    ? [path.join(process.resourcesPath, 'storefront-helper', HELPER_NAME)]
-    : [path.join(__dirname, '..', 'electron', 'native', 'storefront-helper', 'build', HELPER_NAME)];
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return candidate;
-  }
-  return null;
-}
-
-// Spawns the helper and resolves its parsed JSON stdout. A hung StoreKit call is
-// bounded by the timeout, after which resolveStorefrontCountry falls back to locale.
-function runHelper(args: string[]): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const bin = helperPath();
-    if (!bin) { reject(new Error('storefront helper not found')); return; }
-    execFile(bin, args, { timeout: 10_000, maxBuffer: 1024 * 1024 }, (err, stdout) => {
-      if (err) { reject(err); return; }
-      try {
-        resolve(JSON.parse(stdout.toString().trim() || 'null'));
-      } catch (e) {
-        reject(e);
-      }
-    });
-  });
-}
-
-const norm = (code: string | null | undefined): string => (code || '').toUpperCase();
-
-// Where the resolved country came from — surfaced to the renderer so a tester can
-// confirm StoreKit actually resolved inside the helper ('storekit') rather than the
-// OS-region fallback carrying it ('locale'). 'none' means neither produced a value.
-export type StorefrontSource = 'storekit' | 'locale' | 'none';
+export type StorefrontSource = 'locale' | 'none';
 export interface StorefrontResult { country: string; source: StorefrontSource; }
 
-// Resolves the storefront country as an uppercase ISO code (alpha-2 or alpha-3),
-// tagged with its source. StoreKit's alpha-3 is preferred; locale's alpha-2 is the
-// fallback. The renderer treats both "CN" and "CHN" as the China storefront.
-async function resolveStorefront(): Promise<StorefrontResult> {
-  if (process.platform === 'darwin') {
-    try {
-      const res = await runHelper(['country']) as { countryCode?: string | null } | null;
-      const sk = norm(res?.countryCode);
-      if (sk) return { country: sk, source: 'storekit' };
-    } catch {
-      // helper missing / errored / timed out — fall through to locale
-    }
-  }
-  try {
-    const loc = norm(app.getLocaleCountryCode());
-    if (loc) return { country: loc, source: 'locale' };
-  } catch {
-    // getLocaleCountryCode unavailable — fall through to 'none'
-  }
-  return { country: '', source: 'none' };
-}
-
 export function registerStorefrontHandlers(): void {
-  ipcMain.handle('storefront:country', async () => {
+  ipcMain.handle('storefront:country', (): StorefrontResult => {
     try {
-      return await resolveStorefront();
+      const country = (app.getLocaleCountryCode() || '').toUpperCase();
+      return country ? { country, source: 'locale' } : { country: '', source: 'none' };
     } catch {
-      return { country: '', source: 'none' } as StorefrontResult;
+      return { country: '', source: 'none' };
     }
   });
 }
