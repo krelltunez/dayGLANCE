@@ -281,7 +281,7 @@ const useHabits = ({ playUISound, hrOwnerRef }) => {
     // the health-permission prompt ('granted' once answered). On iOS this reflects
     // "has the HealthKit sheet been responded to" — HealthKit can't reveal read-grant
     // status, only that it was asked, which is enough to gate the "Add" button behind
-    // an explicit "Authorize" tap. Android (Health Connect) reports real grant state.
+    // an explicit "Continue" tap. Android (Health Connect) reports real grant state.
     if (!window.DayGlanceNative) return;
     try {
       const steps = window.DayGlanceNative.checkStepsPermission() === 'granted';

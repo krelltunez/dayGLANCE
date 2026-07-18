@@ -21,7 +21,7 @@ final class HealthBridge {
 
     // MARK: - Authorization (explicit)
     //
-    // Authorization is requested only when the user taps "Authorize" on a health-
+    // Authorization is requested only when the user taps "Continue" on a health-
     // habit tile — never at launch (guideline 5.1.1). requestAuthorization() presents
     // the sheet from a clean, user-initiated context (not from inside a semaphore-
     // blocked read, which is fragile), then posts .dayGlanceReloadWebView — the same
@@ -36,7 +36,7 @@ final class HealthBridge {
     // "Add" button. If they denied, reads simply return 0 (iOS exposes no way to
     // detect a read denial or re-prompt; the user re-enables in Settings › Health).
 
-    /// Presents the HealthKit authorization sheet (user-initiated, from the Authorize
+    /// Presents the HealthKit authorization sheet (user-initiated, from the Continue
     /// button). Non-blocking. Posts .dayGlanceReloadWebView when the sheet is
     /// dismissed so the web layer re-reads permission state and health data.
     func requestAuthorization() {

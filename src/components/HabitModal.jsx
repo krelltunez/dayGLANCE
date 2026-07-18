@@ -350,7 +350,7 @@ const HabitModal = () => {
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 active:bg-green-700 transition-colors"
                       >
-                        {t('common.authorize')}
+                        {t('common.continue')}
                       </button>
                     )}
                     <button
@@ -378,7 +378,7 @@ const HabitModal = () => {
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700 transition-colors"
                       >
-                        {t('common.authorize')}
+                        {t('common.continue')}
                       </button>
                     )}
                     <button

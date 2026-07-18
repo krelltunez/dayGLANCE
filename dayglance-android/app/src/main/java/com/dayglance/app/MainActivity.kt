@@ -150,7 +150,7 @@ class MainActivity : AppCompatActivity() {
     private val requestHealthPermissions = registerForActivityResult(
         PermissionController.createRequestPermissionResultContract()
     ) { _ ->
-        // Notify JS so the Authorize/Add buttons update immediately without
+        // Notify JS so the Continue/Add buttons update immediately without
         // depending on visibilitychange (which is unreliable when webView.onPause
         // is intentionally skipped).
         webView.evaluateJavascript(

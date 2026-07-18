@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Wordmark from './Wordmark';
-import { Loader } from 'lucide-react';
+import { Check, Loader } from 'lucide-react';
 
 /**
  * Full-screen paywall shown on Android, iOS, and macOS when the user has no active subscription.
@@ -94,7 +94,11 @@ export default function SubscriptionWall({
   }
 
   return (
-    <div className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center px-6 ${bg}`}>
+    // Outer layer scrolls; the inner min-h-full wrapper keeps the content
+    // vertically centered on tall screens without clipping the top of the
+    // page on short ones (the classic justify-center + overflow pitfall).
+    <div className={`fixed inset-0 z-[9999] overflow-y-auto ${bg}`}>
+    <div className="min-h-full flex flex-col items-center justify-center px-6 py-8">
 
       {/* Logo */}
       <div className="mb-6 flex flex-col items-center gap-2">
@@ -114,6 +118,31 @@ export default function SubscriptionWall({
               : 'Free to start, nothing charged today. Cancel anytime, keep your data.')
           : 'Pick a plan to pick up where you left off. Your data is safe and waiting.'}
       </p>
+
+      {/* What the purchase includes — guideline 3.1.2(c) requires the paywall to
+          clearly describe what the user receives for the price. Both plans unlock
+          the identical feature set, so one list covers both. Keep bullets limited
+          to features that ship on every paywalled platform (iOS, Android, macOS). */}
+      <div className="w-full max-w-xs mb-6">
+        <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${sub}`}>
+          Every plan unlocks the full app
+        </p>
+        <ul className="space-y-1.5">
+          {[
+            'Visual day planner with time blocking',
+            'Tasks, projects, routines & goals',
+            'Sync with your device calendar',
+            'Habit tracking with streaks & stats',
+            'Reminders and notifications',
+            'Cross-device sync via your own cloud',
+          ].map(feature => (
+            <li key={feature} className="flex items-start gap-2">
+              <Check size={14} className="text-green-500 flex-shrink-0 mt-0.5" />
+              <span className={`text-xs leading-snug ${text}`}>{feature}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       {/* Error message */}
       {errorMsg && (
@@ -242,6 +271,7 @@ export default function SubscriptionWall({
         </div>
       )}
 
+    </div>
     </div>
   );
 }
