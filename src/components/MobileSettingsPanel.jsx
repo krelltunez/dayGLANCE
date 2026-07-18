@@ -130,7 +130,7 @@ const MobileSettingsPanel = () => {
   const multiUserLocked = multiUserToggleLocked({ cloudSyncConfigured, multiUserEnabled });
   // iOS uses HealthKit lazy authorization (permission requested on first read), so
   // it has no explicit permission check/request. On iOS the health-habit "Add"
-  // button is always enabled and the dead "Authorize" button is hidden — see the
+  // button is always enabled and the dead "Continue" button is hidden — see the
   // matching note in HabitModal.jsx and refreshHealthPerms in useHabits.js.
   const isIOS = typeof window !== 'undefined' && !!window.DayGlanceIOS;
 
@@ -2629,7 +2629,7 @@ const MobileSettingsPanel = () => {
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 active:bg-green-700 transition-colors"
                       >
-                        Authorize
+                        Continue
                       </button>
                     )}
                     <button
@@ -2655,7 +2655,7 @@ const MobileSettingsPanel = () => {
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700 transition-colors"
                       >
-                        Authorize
+                        Continue
                       </button>
                     )}
                     <button
