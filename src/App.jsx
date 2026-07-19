@@ -5352,11 +5352,14 @@ const DayPlanner = () => {
     if (data.autoBackupConfig) localStorage.setItem('day-planner-auto-backup-config', JSON.stringify(data.autoBackupConfig));
   };
 
-  // Restore data from backup file. `file` defaults to the staged pendingBackupFile
-  // (the confirm-modal flow); the welcome-modal restore passes the picked file
-  // directly since the app is empty there and needs no confirmation step.
-  const restoreBackup = (file = pendingBackupFile) => {
-    if (!file) return;
+  // Restore data from backup file. Falls back to the staged pendingBackupFile
+  // (the confirm-modal flow, where this is wired directly as a click handler and
+  // therefore receives the click EVENT — hence the Blob check, not a default
+  // parameter); the welcome-modal restore passes the picked File directly since
+  // the app is empty there and needs no confirmation step.
+  const restoreBackup = (file) => {
+    const backupFile = file instanceof Blob ? file : pendingBackupFile;
+    if (!backupFile) return;
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -5392,7 +5395,7 @@ const DayPlanner = () => {
       setPendingBackupFile(null);
       setShowRestoreConfirm(false);
     };
-    reader.readAsText(file);
+    reader.readAsText(backupFile);
   };
 
   // Restore from the folder backup's live file. Reuses the stored folder handle
