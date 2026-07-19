@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import {
   AlertCircle, AlertTriangle, BookOpen, BrainCircuit,
-  Calendar, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
+  Calendar, CalendarClock, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronUp, Clock, ExternalLink, FileText, Filter, Flag, Inbox, LayoutGrid,
   Loader, Mic, Minus, Moon, Plus, RefreshCw,
   Search, Settings, Sparkles, Sun, Target, Trash2, X, Zap,
@@ -112,6 +112,7 @@ const MobileGlanceSection = () => {
     openRoutinesDashboard,
     enterHyperGlanceMode,
     getFrameInstancesForDate, computeAvailableSlots,
+    openFrameSchedule,
     showVoiceInput, setShowVoiceInput,
     voiceCanRecord,
     healthPerms,
@@ -1036,11 +1037,19 @@ const MobileGlanceSection = () => {
                   <span className={`text-xs ${textSecondary}`}>{formatTime(section.frame.start)} – {formatTime(section.frame.end)}</span>
                 </div>
                 {section.totalAvail > 0 && (
-                  <p className="mt-1">
+                  <div className="mt-1 flex items-center gap-1">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>
                       {availStr} available
                     </span>
-                  </p>
+                    <button
+                      onClick={() => openFrameSchedule(section.frame.frameId, section.frame.date)}
+                      className={`p-1 rounded-full transition-colors ${darkMode ? 'text-blue-300 active:bg-blue-900/40' : 'text-blue-700 active:bg-blue-100'}`}
+                      title={t('frames.manualSchedule')}
+                      aria-label={t('frames.manualSchedule')}
+                    >
+                      <CalendarClock size={14} />
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="px-2 pb-1.5">
