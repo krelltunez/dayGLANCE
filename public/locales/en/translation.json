@@ -505,7 +505,9 @@
     "mobileSettingsSync": "Sync your calendars",
     "mobileSettingsCloud": "Set up cloud sync between devices",
     "mobileSettingsBackup": "Backup and restore your data",
-    "restoreFromBackup": "Restore from a backup"
+    "restoreFromBackup": "Restore from a backup",
+    "restoreFromFolder": "Restore from Backup Folder",
+    "restoreFromFile": "Restore from File"
   },
   "gettingStarted": {
     "title": "Getting Started",

@@ -504,7 +504,10 @@
     "mobileSettingsToggles": "Interruptores rápidos para ajustes comunes",
     "mobileSettingsSync": "Sincroniza tus calendarios",
     "mobileSettingsCloud": "Configura la sincronización en la nube entre dispositivos",
-    "mobileSettingsBackup": "Haz copia de seguridad y restaura tus datos"
+    "mobileSettingsBackup": "Haz copia de seguridad y restaura tus datos",
+    "restoreFromBackup": "Restaurar desde una copia de seguridad",
+    "restoreFromFolder": "Restaurar desde la carpeta de copias",
+    "restoreFromFile": "Restaurar desde un archivo"
   },
   "gettingStarted": {
     "title": "Primeros pasos",

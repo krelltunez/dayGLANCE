@@ -505,7 +505,9 @@
     "mobileSettingsSync": "Synchronisez vos calendriers",
     "mobileSettingsCloud": "Configurez la synchro cloud entre appareils",
     "mobileSettingsBackup": "Sauvegardez et restaurez vos données",
-    "restoreFromBackup": "Restaurer depuis une sauvegarde"
+    "restoreFromBackup": "Restaurer depuis une sauvegarde",
+    "restoreFromFolder": "Restaurer depuis le dossier de sauvegarde",
+    "restoreFromFile": "Restaurer depuis un fichier"
   },
   "gettingStarted": {
     "title": "Premiers pas",
