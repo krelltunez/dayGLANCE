@@ -2,7 +2,7 @@ import React from 'react';
 import Wordmark from './Wordmark';
 import {
   BarChart3, Calendar, ChevronLeft, ChevronRight,
-  Cloud, Eye, Filter, Flag, FolderOpen, Inbox, Mic, NotebookPen,
+  Cloud, Eye, FileUp, Filter, Flag, Inbox, Mic, NotebookPen,
   RefreshCw, Search, Settings, Target, Trash2, Zap,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -47,7 +47,7 @@ const MobileWelcomeModal = () => {
             <p className={`text-lg ${textPrimary}`}>{t('onboarding.welcomeTitle')}</p>
             <p className={`${textSecondary} text-xs mt-4`}>{t('onboarding.welcomeLocal')}</p>
             <label className={`mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg cursor-pointer ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary}`}>
-              <FolderOpen size={14} /> {t('onboarding.restoreFromBackup')}
+              <FileUp size={14} /> {t('onboarding.restoreFromBackup')}
               <input
                 type="file"
                 accept=".json"

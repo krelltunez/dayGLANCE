@@ -504,7 +504,10 @@
     "mobileSettingsToggles": "Schnellschalter für häufige Einstellungen",
     "mobileSettingsSync": "Kalender synchronisieren",
     "mobileSettingsCloud": "Cloud-Synchronisierung zwischen Geräten einrichten",
-    "mobileSettingsBackup": "Daten sichern und wiederherstellen"
+    "mobileSettingsBackup": "Daten sichern und wiederherstellen",
+    "restoreFromBackup": "Aus einem Backup wiederherstellen",
+    "restoreFromFolder": "Aus Backup-Ordner wiederherstellen",
+    "restoreFromFile": "Aus Datei wiederherstellen"
   },
   "gettingStarted": {
     "title": "Erste Schritte",

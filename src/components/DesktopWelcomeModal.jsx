@@ -2,7 +2,7 @@ import React from 'react';
 import Wordmark from './Wordmark';
 import {
   BarChart3, Calendar, CalendarDays, ChevronLeft, ChevronRight,
-  Cloud, Eye, FileText, Filter, Flag, FolderOpen, Gauge, GripVertical, Inbox, LayoutGrid, Mic, Moon,
+  Cloud, Eye, FileText, FileUp, Filter, Flag, FolderOpen, Gauge, GripVertical, Inbox, LayoutGrid, Mic, Moon,
   NotebookPen, Plus, RefreshCw, Search, Settings, Sun,
   Target, Zap,
 } from 'lucide-react';
@@ -51,15 +51,31 @@ const DesktopWelcomeModal = () => {
               <p className={`${textSecondary} text-xs mt-3`}>{t('onboarding.welcomeLocal')}</p>
               <p className={`${textSecondary} text-sm mt-4`}>{t('onboarding.welcomeTour')}</p>
               {folderBackup?.supported ? (
-                <button
-                  onClick={() => restoreFromBackupFolder()}
-                  className={`mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} transition-colors`}
-                >
-                  <FolderOpen size={14} /> {t('onboarding.restoreFromBackup')}
-                </button>
+                // Two distinct restore paths where Folder Backup exists: the
+                // folder flow (one dialog restores AND reconnects continuous
+                // folder backup) vs a plain exported-.json file restore. One
+                // combined button confused file-restore users with a directory
+                // picker their backup file can't be selected in.
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    onClick={() => restoreFromBackupFolder()}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} transition-colors`}
+                  >
+                    <FolderOpen size={14} /> {t('onboarding.restoreFromFolder')}
+                  </button>
+                  <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} transition-colors`}>
+                    <FileUp size={14} /> {t('onboarding.restoreFromFile')}
+                    <input
+                      type="file"
+                      accept=".json"
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files[0]; if (f) restoreBackup(f); e.target.value = ''; }}
+                    />
+                  </label>
+                </div>
               ) : (
                 <label className={`mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} transition-colors`}>
-                  <FolderOpen size={14} /> {t('onboarding.restoreFromBackup')}
+                  <FileUp size={14} /> {t('onboarding.restoreFromBackup')}
                   <input
                     type="file"
                     accept=".json"
