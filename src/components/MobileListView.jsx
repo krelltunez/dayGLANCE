@@ -1295,9 +1295,12 @@ const MobileListView = ({ hideInboxHandle = false }) => {
       } else {
         const cardH = seg.item._kind === 'routine'    ? ROUTINE_H
                     : seg.item._kind === 'hg-session' ? HG_SESSION_H
+                    : seg.item._kind === 'frame'      ? FRAME_H
                     : TASK_H;
         const rowH = cardH + 8;
-        ys.push(y + rowH / 2);
+        // Frame headers have no spine marker, so no fade hole — the spine
+        // runs straight through them.
+        if (seg.item._kind !== 'frame') ys.push(y + rowH / 2);
         y += rowH;
       }
     });
@@ -1635,22 +1638,23 @@ const MobileListView = ({ hideInboxHandle = false }) => {
                   <div
                     onClick={openMenu}
                     onContextMenu={openMenu}
-                    className="cursor-pointer"
-                    style={{ marginTop: 4, marginBottom: 4, display: 'flex', alignItems: 'stretch', gap: 8, opacity: isPast ? 0.5 : 1 }}
+                    className="cursor-pointer rounded-md"
+                    style={{
+                      marginTop: 4, marginBottom: 4, padding: '5px 10px',
+                      border: `1px solid ${borderColor}`,
+                      borderLeft: `4px solid ${borderColor}`,
+                      opacity: isPast ? 0.5 : 1,
+                    }}
                   >
-                    {/* Solid notch in the frame's timeline color */}
-                    <div style={{ width: 4, borderRadius: 2, background: borderColor, flexShrink: 0 }} />
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <LayoutGrid size={12} style={{ color: borderColor, flexShrink: 0 }} />
-                        <span className="text-xs font-semibold truncate" style={{ color: borderColor }}>{frame.label}</span>
-                        <span className={`text-[10px] ${textSecondary} flex-shrink-0`}>
-                          {formatTime(frame.start)} – {formatTime(frame.end)}
-                        </span>
-                      </div>
-                      <div className={`text-[10px] ${textSecondary} mt-1`}>
-                        {taskCount} task{taskCount === 1 ? '' : 's'} scheduled · {availStr} available
-                      </div>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <LayoutGrid size={12} style={{ color: borderColor, flexShrink: 0 }} />
+                      <span className="text-xs font-semibold truncate" style={{ color: borderColor }}>{frame.label}</span>
+                      <span className={`text-[10px] ${textSecondary} flex-shrink-0`}>
+                        {formatTime(frame.start)} – {formatTime(frame.end)}
+                      </span>
+                    </div>
+                    <div className={`text-[10px] ${textSecondary} mt-1`}>
+                      {taskCount} task{taskCount === 1 ? '' : 's'} scheduled · {availStr} available
                     </div>
                   </div>
                 </Row>
