@@ -104,7 +104,7 @@ The Android app ships the full web app in a WebView with native enhancements tha
 
 dayGLANCE is available on the **App Store** for iPhone, iPad, and Mac. Like the Android build, the Apple apps wrap the full dayGLANCE experience with native platform integrations, and a single purchase covers every Apple device you own.
 
-[<img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="60">](https://apps.apple.com/app/id6771540599)
+[<img src="screenshots/badges/app-store.svg" alt="Download on the App Store" height="60">](https://apps.apple.com/app/id6771540599)
 
 The Apple apps ship the full app natively on each device, with capabilities that only make sense on Apple hardware:
 
