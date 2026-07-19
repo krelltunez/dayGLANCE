@@ -25,9 +25,9 @@ const CONNECTOR_W    = 16;   // half of spine col — reaches spine centre
 const TASK_H         = 72;
 const ROUTINE_H      = 38;
 const HG_SESSION_H   = TASK_H;
-const FRAME_H        = 34;
+const FRAME_H        = 44;
 
-// Frame tint/border colors, mirroring the GLANCE agenda's frame section maps
+// Frame notch/text colors, mirroring the GLANCE agenda's frame border map
 // so a frame looks the same in LIST view as in the sidebar and the grid.
 const frameBorderColor = (color, darkMode) => (darkMode ? {
   'bg-indigo-200': 'rgba(165,180,252,0.4)',
@@ -48,26 +48,6 @@ const frameBorderColor = (color, darkMode) => (darkMode ? {
   'bg-teal-200': 'rgba(13,148,136,0.75)',
   'bg-orange-200': 'rgba(234,88,12,0.75)',
 })[color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)');
-
-const frameBgColor = (color, darkMode) => (darkMode ? {
-  'bg-indigo-200': 'rgba(165,180,252,0.08)',
-  'bg-amber-200': 'rgba(253,230,138,0.08)',
-  'bg-green-200': 'rgba(167,243,208,0.08)',
-  'bg-blue-200': 'rgba(191,219,254,0.08)',
-  'bg-rose-200': 'rgba(254,205,211,0.08)',
-  'bg-purple-200': 'rgba(221,214,254,0.08)',
-  'bg-teal-200': 'rgba(153,246,228,0.08)',
-  'bg-orange-200': 'rgba(254,215,170,0.08)',
-} : {
-  'bg-indigo-200': 'rgba(165,180,252,0.18)',
-  'bg-amber-200': 'rgba(253,230,138,0.18)',
-  'bg-green-200': 'rgba(167,243,208,0.18)',
-  'bg-blue-200': 'rgba(191,219,254,0.18)',
-  'bg-rose-200': 'rgba(254,205,211,0.18)',
-  'bg-purple-200': 'rgba(221,214,254,0.18)',
-  'bg-teal-200': 'rgba(153,246,228,0.18)',
-  'bg-orange-200': 'rgba(254,215,170,0.18)',
-})[color] || (darkMode ? 'rgba(165,180,252,0.08)' : 'rgba(165,180,252,0.18)');
 const ALLDAY_H       = 44;
 
 // ─── Spine colour gradient (orange→green→blue, 6 am→noon→6 pm) ───────────────
@@ -873,7 +853,9 @@ const MobileListView = ({ hideInboxHandle = false }) => {
     return futureItems.find(i => {
       if (timeToMinutes(i.startTime) <= nowMin) return false; // skip in-progress
       if (i._kind === 'routine')        return !routineCompletions[i._routineId];
-      if (i._kind === 'frame')          return true;
+      // Frames are blocks of time, not events — the Now marker counts down to
+      // the next actionable item, so frame headers are skipped.
+      if (i._kind === 'frame')          return false;
       if (i._kind === 'calendar-event') return true;
       return !i.completed;
     });
@@ -1620,12 +1602,17 @@ const MobileListView = ({ hideInboxHandle = false }) => {
           if (item._kind === 'frame') {
             const frame = item.frame;
             const borderColor = frameBorderColor(frame.color, darkMode);
-            const bgColor = frameBgColor(frame.color, darkMode);
             const availableSlots = computeAvailableSlots(frame, selectedDate);
             const totalAvail = availableSlots.reduce((sum, s) => sum + s.minutes, 0);
             const availH = Math.floor(totalAvail / 60);
             const availM = totalAvail % 60;
             const availStr = availH > 0 ? `${availH}h${availM > 0 ? ` ${availM}m` : ''}` : `${availM}m`;
+            const frameStartMin = timeToMinutes(frame.start);
+            const frameEndMin = timeToMinutes(frame.end);
+            const taskCount = scheduledTasks.filter(t => {
+              const s = timeToMinutes(t.startTime);
+              return s >= frameStartMin && s < frameEndMin;
+            }).length;
             const isPast = isItemPast(item);
             // Same menu as GRID's long-press. Tap opens it too — frames aren't
             // editable or draggable here, so tap is otherwise dead, and
@@ -1640,34 +1627,30 @@ const MobileListView = ({ hideInboxHandle = false }) => {
                   timeLabel={formatTime(item.startTime)}
                   spineColour={spineColorAt(startMin)}
                   spineStyle="solid"
-                  marker={<SpineMarker kind="calendar-event" colour={borderColor} pageBg={pageBg} />}
+                  marker={null}
                   cardHeight={FRAME_H}
-                  accentHex={borderColor}
                   pageBg={pageBg}
                   noConnector
                 >
                   <div
                     onClick={openMenu}
                     onContextMenu={openMenu}
-                    className="px-2.5 py-1.5 rounded-md cursor-pointer"
-                    style={{
-                      marginTop: 4, marginBottom: 4,
-                      borderLeft: `3px solid ${borderColor}`,
-                      background: bgColor,
-                      opacity: isPast ? 0.5 : 1,
-                    }}
+                    className="cursor-pointer"
+                    style={{ marginTop: 4, marginBottom: 4, display: 'flex', alignItems: 'stretch', gap: 8, opacity: isPast ? 0.5 : 1 }}
                   >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <LayoutGrid size={12} style={{ color: borderColor, flexShrink: 0 }} />
-                      <span className="text-xs font-semibold truncate" style={{ color: borderColor }}>{frame.label}</span>
-                      <span className={`text-[10px] ${textSecondary} flex-shrink-0`}>
-                        {formatTime(frame.start)} – {formatTime(frame.end)}
-                      </span>
-                      {totalAvail > 0 && (
-                        <span className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>
-                          {availStr} available
+                    {/* Solid notch in the frame's timeline color */}
+                    <div style={{ width: 4, borderRadius: 2, background: borderColor, flexShrink: 0 }} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <LayoutGrid size={12} style={{ color: borderColor, flexShrink: 0 }} />
+                        <span className="text-xs font-semibold truncate" style={{ color: borderColor }}>{frame.label}</span>
+                        <span className={`text-[10px] ${textSecondary} flex-shrink-0`}>
+                          {formatTime(frame.start)} – {formatTime(frame.end)}
                         </span>
-                      )}
+                      </div>
+                      <div className={`text-[10px] ${textSecondary} mt-1`}>
+                        {taskCount} task{taskCount === 1 ? '' : 's'} scheduled · {availStr} available
+                      </div>
                     </div>
                   </div>
                 </Row>
