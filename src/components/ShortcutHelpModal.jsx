@@ -31,8 +31,8 @@ const ShortcutHelpModal = () => {
               ['\u2190 / \u2192', t('shortcuts.prevNextDay')],
               ['M', t('shortcuts.toggleMonthView')],
               ...(canShowViewCycler ? [
-                ['1', t('shortcuts.viewDay')],
-                ['2', t('shortcuts.view3Day')],
+                ['1', t('shortcuts.view3Day')],
+                ['2', t('shortcuts.viewDay')],
                 ['3', t('shortcuts.viewWeek')],
               ] : []),
             ].map(([key, desc]) => (
@@ -52,6 +52,7 @@ const ShortcutHelpModal = () => {
                 ['H', t('shortcuts.habitsShortcut')],
                 ['L', t('shortcuts.intentLog')],
                 ['D', t('shortcuts.toggleDarkMode')],
+                ['S', t('common.settings')],
                 ['B', t('shortcuts.backupMenu')],
                 [',', t('shortcuts.sidePanelGlance')],
                 ['.', t('shortcuts.sidePanelInbox')],
@@ -82,7 +83,6 @@ const ShortcutHelpModal = () => {
             {[
               ['N', t('shortcuts.newScheduledTask')],
               ['I', t('shortcuts.newInboxTask')],
-              ['S', t('shortcuts.smartSchedule')],
               ['E', t('shortcuts.rescheduleTasks')],
               ['V', t('shortcuts.voiceTaskInput')],
               ['R', t('shortcuts.routinesDashboard')],

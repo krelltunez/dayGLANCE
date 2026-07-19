@@ -54,8 +54,8 @@ export default function useKeyboardShortcuts({
   goalsProjectsEnabled, setGoalsProjectsEnabled, setShowGoalsDashboard,
   // reschedule ('e')
   gtdFrames, setShowRescheduleModal, setRescheduleResults, setRescheduleError,
-  // smart schedule ('s')
-  setMobileActiveTab, setMobileSettingsView, setFramesModalTab, setEditingFrame, setShowFramesModal,
+  // settings ('s')
+  setMobileActiveTab, setMobileSettingsView, setShowSettings,
   // date navigation (arrows)
   changeDate, setSelectedDate,
   // view cycler (1/2/3)
@@ -240,18 +240,15 @@ export default function useKeyboardShortcuts({
         setRescheduleError('');
       }
 
-      // 's' for smart schedule (open frames modal on schedule tab)
-      if (e.key === 's' && noModifiers && aiConfig?.enabled && aiConfig.features?.smartScheduling && gtdFrames.filter(f => f.enabled).length > 0) {
+      // 's' for settings (Smart Schedule moved off the shortcut — it stays
+      // reachable via the Inbox button, GLANCE AI prompts, and the Frames FAB)
+      if (e.key === 's' && noModifiers) {
         e.preventDefault();
         if (isMobile) {
           setMobileActiveTab('settings');
-          setMobileSettingsView('frames');
-          setFramesModalTab('schedule');
-          setEditingFrame(null);
+          setMobileSettingsView('main');
         } else {
-          setShowFramesModal(true);
-          setFramesModalTab('schedule');
-          setEditingFrame(null);
+          setShowSettings(true);
         }
       }
 

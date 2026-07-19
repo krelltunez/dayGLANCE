@@ -3617,7 +3617,7 @@ const DayPlanner = () => {
     habitsEnabled, setHabitsEnabled, setShowHabitModal,
     goalsProjectsEnabled, setGoalsProjectsEnabled, showGoalsDashboard, setShowGoalsDashboard,
     gtdFrames: myFrames, setShowRescheduleModal, setRescheduleResults, setRescheduleError,
-    setMobileActiveTab, setMobileSettingsView, setFramesModalTab, setEditingFrame, setShowFramesModal,
+    setMobileActiveTab, setMobileSettingsView, setShowSettings,
     changeDate, setSelectedDate,
     setViewMode, canShowViewCycler,
   });
