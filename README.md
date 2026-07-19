@@ -396,7 +396,11 @@ Please open an issue before starting large changes so we can discuss approach. F
 
 ## License
 
-[MIT](LICENSE): free to use, self-host, modify, and distribute.
+The **source code** is [MIT-licensed](LICENSE): free to build, self-host, modify, and distribute. Free builds (the Android APK and the Electron desktop app) are available on the [releases page](https://github.com/krelltunez/dayglance/releases).
+
+The **paid Google Play and App Store builds** are a convenience distribution that funds continued development. When you buy those, you're paying for the packaged, signed, auto-updating binary and the store experience around it, not for the code itself, which remains free under the MIT license above.
+
+**Trademarks:** the dayGLANCE name, logo, and app icon are trademarks of the project and are **not** covered by the MIT license. The MIT license grants rights to the code only; it does not grant permission to use the dayGLANCE branding on your own builds or distributions.
 
 ---
 
