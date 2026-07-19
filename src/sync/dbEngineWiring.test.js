@@ -5,6 +5,7 @@ import { getVaultConfig, setVaultConfig, isVaultEnabled } from './vaultConfig.js
 import { getDeviceId } from './deviceId.js';
 import { registerDbEngine, markDirty, schedulePush } from './dirtyTracker.js';
 import { tombstoneCutoff } from './tombstoneRetention.js';
+import { keepImportedTask } from './payloadExclusions.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STAGE 2 PART B — live wiring. These exercise the REAL @glance-apps/sync
@@ -741,6 +742,58 @@ describe('Wave A — glitch shrink: poisoned cycle withholds the snapshot; row r
     expect(B.data.tasks.map((t) => t.id).sort()).toEqual([810, 811, 812]);
   });
 
+  it('STALE TOMBSTONE: a revived task with a lingering tombstone survives a transient shrink (no delete pushed, row heals); a fresh re-delete still propagates', async () => {
+    // The revived-task window: delete (tombstone written) → task legitimately
+    // comes back with a NEWER lastModified (edit-beats-delete / recycle-bin
+    // restore) while the tombstone lingers for up to 60 days. A transient
+    // local-state shrink during that window must NOT be blessed by the stale
+    // tombstone — that would be a real, fleet-wide deletion of a live task.
+    const vault = createMemoryVault({ rowGet: true }); // heal available, as on the real client
+    const now = Date.now();
+    const iso = (ms) => new Date(ms).toISOString();
+    const A = makeDevice('A', vault, {
+      ...EMPTY,
+      tasks: [task(900, iso(now - 10 * 86400e3)), task(901, iso(now - 10 * 86400e3))],
+    });
+    const B = makeDevice('B', vault, { ...EMPTY });
+    await runRounds(A, B);
+    expect(B.data.tasks.map((t) => t.id).sort()).toEqual([900, 901]);
+
+    // GENUINE DELETE (5 days ago): tombstone + removal → propagates fleet-wide.
+    A.data.tasks = A.data.tasks.filter((t) => t.id !== 900);
+    A.data.deletedTaskIds = { ...(A.data.deletedTaskIds || {}), 900: iso(now - 5 * 86400e3) };
+    await runRounds(A, B);
+    expect(B.data.tasks.map((t) => t.id)).toEqual([901]);
+
+    // REVIVED: the task returns with a fresh lastModified; the tombstone lingers.
+    A.data.tasks.push(task(900, iso(now - 60e3), { title: 'revived' }));
+    await runRounds(A, B);
+    expect(B.data.tasks.find((t) => t.id === 900)?.title).toBe('revived');
+
+    const delSpy = vi.spyOn(vault, 'deleteRow');
+    // TRANSIENT SHRINK: A's live state drops the revived task with no fingerprint
+    // beyond the STALE tombstone.
+    A.data.tasks = A.data.tasks.filter((t) => t.id !== 900);
+    await A.engine.dbSyncCycle();
+
+    // No delete pushed to the vault, and the row-get heal re-injected the revived
+    // row into A's committed state; the clean (healed) cycle saved its snapshot,
+    // so the row persists in the diff baseline.
+    expect(deletedIds(delSpy)).not.toContain('tasks:900');
+    expect(A.data.tasks.find((t) => t.id === 900)?.title).toBe('revived');
+    expect(snapOf('A')['tasks:900']).toBeDefined();
+    await runRounds(A, B, 2);
+    expect(B.data.tasks.find((t) => t.id === 900)?.title).toBe('revived'); // fleet unaffected
+
+    // INVERSE: a genuine RE-DELETE with a FRESH tombstone still soft-deletes.
+    A.data.tasks = A.data.tasks.filter((t) => t.id !== 900);
+    A.data.deletedTaskIds = { ...(A.data.deletedTaskIds || {}), 900: iso(Date.now()) };
+    await runRounds(A, B);
+    expect(deletedIds(delSpy)).toContain('tasks:900');
+    expect(A.data.tasks.map((t) => t.id)).toEqual([901]);
+    expect(B.data.tasks.map((t) => t.id)).toEqual([901]);
+  });
+
   it('ABORT-ONLY persistent shrink never loop-propagates deletes; a REAL tombstoned delete still propagates (idempotently)', async () => {
     const vault = createMemoryVault(); // no getRow
     const A = makeDevice('A', vault, {
@@ -832,5 +885,337 @@ describe('Wave A — restore/re-link: resetVaultSyncCursor forces a full LWW pul
     await B.engine.dbSyncCycle();
     expect(B.data.tasks.find((t) => t.id === 1).title).toBe('newer from B');
     expect(B.data.tasks.map((t) => t.id)).toContain(2);
+  });
+});
+
+describe('Wave B — payload-excluded baseline rows (the fresh-device churn loop) + heal load discipline', () => {
+  beforeEach(() => {
+    global.localStorage = memLocalStorage();
+    setVaultConfig({ enabled: true, vaultUrl: 'https://vault.test', vaultToken: 'tok', accountId: 'acct1' });
+    setSyncPassphrase('correct horse battery staple');
+  });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  const snapOf = (name) => JSON.parse(global.localStorage.getItem(`dev-${name}-db-sync-snapshot`) || 'null');
+
+  // A device whose getData applies buildSyncPayload's structural exclusions —
+  // the current-build analog (makeDevice's unfiltered getData is the old-build
+  // analog that put legacy rows into the vault in the first place).
+  function makeFilteringDevice(name, vault, initial) {
+    let data = clone(initial);
+    let nativeKey = null;
+    const engine = createDbEngine({
+      vaultClient: vault,
+      storageKeyPrefix: `dev-${name}`,
+      deviceId: `device-${name}`,
+      nativeGetSyncKey: () => nativeKey,
+      nativeStoreSyncKey: (v) => { nativeKey = v; },
+      getData: () => {
+        const d = clone(data);
+        d.tasks = d.tasks.filter((t) => !t._native && keepImportedTask(t, false));
+        d.unscheduledTasks = d.unscheduledTasks.filter((t) => keepImportedTask(t, false));
+        return d;
+      },
+      commitData: (d) => { data = d; },
+      isMultiUserEnabled: () => false,
+    });
+    return { engine, get data() { return data; } };
+  }
+
+  it('THE LOOP, end-to-end: a fresh device that full-pulls legacy excluded rows releases them ONCE — no heal fetches, no repeat, vault rows untouched', async () => {
+    const vault = createMemoryVault({ rowGet: true });
+    // Old-build analog pushes a legacy CalDAV-import row into the vault.
+    const legacy = task(900, '2026-06-18T10:00:00.000Z', { imported: true, importSource: 'caldav' });
+    const A = makeDevice('A', vault, { ...EMPTY, tasks: [legacy, task(901, '2026-06-18T10:00:00.000Z')] });
+    await A.engine.dbSyncCycle();
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const getRowSpy = vi.spyOn(vault, 'getRow');
+    const delSpy = vi.spyOn(vault, 'deleteRow');
+
+    // Fresh device (cursor 0) with the CURRENT payload exclusions.
+    const B = makeFilteringDevice('B', vault, { ...EMPTY });
+    await B.engine.dbSyncCycle(); // full pull ingests the legacy row into mirror + snapshot
+    expect(snapOf('B')['tasks:900']).toBeDefined();
+
+    await B.engine.dbSyncCycle(); // classification cycle: released from the baseline
+    await B.engine.dbSyncCycle(); // must already be clean
+    await B.engine.dbSyncCycle(); // and stay clean
+
+    // Released exactly once, then silence — the loop does not repeat.
+    const released = infoSpy.mock.calls.filter((c) => String(c[0]).includes('payload-excluded'));
+    expect(released).toHaveLength(1);
+    // No GUARD skip/recover churn, ever.
+    const guardWarns = warnSpy.mock.calls.filter((c) => String(c[0]).includes('GUARD'));
+    expect(guardWarns).toEqual([]);
+    // The heal never fetched the legacy row — this was the per-row request storm.
+    expect(getRowSpy.mock.calls.some((c) => c[1] === 'tasks:900')).toBe(false);
+    // Nothing was deleted from the vault; the legacy row is still live for old devices.
+    expect(delSpy.mock.calls.map((c) => c[1])).not.toContain('tasks:900');
+    expect(await vault.getRow('dayglance', 'tasks:900')).not.toBeNull();
+    // The baseline no longer tracks it; the synced row 901 is tracked normally.
+    expect(snapOf('B')['tasks:900']).toBeUndefined();
+    expect(snapOf('B')['tasks:901']).toBeDefined();
+    // And the fleet's normal data converged on B despite the released row.
+    expect(B.data.tasks.some((t) => t.id === 901)).toBe(true);
+  });
+
+  it('HEAL CAP: a huge glitch shrink recovers at most 40 rows per cycle and converges over following cycles', async () => {
+    const vault = createMemoryVault({ rowGet: true });
+    const many = [];
+    for (let i = 0; i < 50; i++) many.push(task(1000 + i, '2026-06-18T10:00:00.000Z'));
+    const A = makeDevice('A', vault, { ...EMPTY, tasks: many });
+    await A.engine.dbSyncCycle();
+    await A.engine.dbSyncCycle(); // settle the baseline
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const getRowSpy = vi.spyOn(vault, 'getRow');
+
+    // PERSISTENT glitch: all 50 vanish from live state, untombstoned.
+    A.data.tasks = [];
+    await A.engine.dbSyncCycle();
+    const taskGets1 = getRowSpy.mock.calls.filter((c) => String(c[1]).startsWith('tasks:')).length;
+    expect(taskGets1).toBeLessThanOrEqual(40); // capped — no request storm
+    expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('capped'))).toBe(true);
+
+    await A.engine.dbSyncCycle(); // heals the deferred remainder
+    expect(A.data.tasks).toHaveLength(50); // fully recovered, nothing lost
+  });
+
+  it('HEAL 429 BAIL: the first rate-limited row-get aborts the rest of the cycle instead of hammering the vault', async () => {
+    const vault = createMemoryVault({ rowGet: true });
+    const many = [];
+    for (let i = 0; i < 12; i++) many.push(task(1100 + i, '2026-06-18T10:00:00.000Z'));
+    const A = makeDevice('A', vault, { ...EMPTY, tasks: many });
+    await A.engine.dbSyncCycle();
+    await A.engine.dbSyncCycle();
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const realGetRow = vault.getRow;
+    let rateLimitedCalls = 0;
+    vault.getRow = async () => {
+      rateLimitedCalls++;
+      const err = new Error('row get failed: 429');
+      err.status = 429;
+      throw err;
+    };
+
+    A.data.tasks = []; // 12-row untombstoned shrink
+    await A.engine.dbSyncCycle();
+    expect(rateLimitedCalls).toBe(1); // bailed after the FIRST 429 — not 12 doomed attempts
+    expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('rate-limited'))).toBe(true);
+
+    // Limiter clears → the withheld snapshot retries and fully recovers.
+    vault.getRow = realGetRow;
+    await A.engine.dbSyncCycle();
+    expect(A.data.tasks).toHaveLength(12);
+  });
+});
+
+describe('Wave C — file-tier aged-out release: the zombie-drop-vs-vault fight (wife\'s-Mac churn)', () => {
+  beforeEach(() => {
+    global.localStorage = memLocalStorage();
+    setVaultConfig({ enabled: true, vaultUrl: 'https://vault.test', vaultToken: 'tok', accountId: 'acct1' });
+    setSyncPassphrase('correct horse battery staple');
+  });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  const snapOf = (name) => JSON.parse(global.localStorage.getItem(`dev-${name}-db-sync-snapshot`) || 'null');
+
+  // A device whose getData models the FILE TIER's zombie-drop (@glance-apps/sync
+  // mergeArrayById): a local-only task that is completed, or whose lastModified
+  // predates the 60-day sync horizon (tombstonePrunedBefore), is silently dropped
+  // from React state — while its row still sits in the vault. This is the exact
+  // split-brain behind the observed churn: the file tier removes it, the vault
+  // vanish-guard keeps re-fetching it. No getSyncRetentionDays wiring — the
+  // classifier derives the horizon from tombstoneCutoff() itself.
+  const HORIZON = Date.now() - 60 * 86400e3;
+  function makeZombieDropDevice(name, vault, initial) {
+    let data = clone(initial);
+    let nativeKey = null;
+    const zombie = (t) => {
+      if (t.completed === true) return true; // completed rows the app aged out
+      const lm = Date.parse(t.lastModified || '');
+      return Number.isFinite(lm) && lm < HORIZON; // older than the sync horizon
+    };
+    const engine = createDbEngine({
+      vaultClient: vault,
+      storageKeyPrefix: `dev-${name}`,
+      deviceId: `device-${name}`,
+      nativeGetSyncKey: () => nativeKey,
+      nativeStoreSyncKey: (v) => { nativeKey = v; },
+      getData: () => {
+        const d = clone(data);
+        d.tasks = d.tasks.filter((t) => !zombie(t));
+        d.unscheduledTasks = d.unscheduledTasks.filter((t) => !zombie(t));
+        return d;
+      },
+      commitData: (d) => { data = d; },
+      isMultiUserEnabled: () => false,
+    });
+    return { engine, get data() { return data; } };
+  }
+
+  it('THE FIGHT ends: completed (inbox+scheduled) and horizon-aged rows are RELEASED once — no heal storm, vault untouched', async () => {
+    const vault = createMemoryVault({ rowGet: true });
+    // An old/peer device seeds the vault with the observed stuck populations plus
+    // one live synced task, as the wife's-Mac console showed.
+    const completedInbox = task(500, '2026-04-01T10:00:00.000Z', { completed: true, archived: true });
+    const completedScheduled = task(501, '2026-04-02T10:00:00.000Z', { completed: true, date: '2026-04-02' }); // the 65: completed, NOT archived
+    const staleIncomplete = task(503, '2026-01-05T10:00:00.000Z'); // >60d, incomplete → 'sync-horizon'
+    const live = task(502, new Date(Date.now() - 86400e3).toISOString()); // recent + incomplete → stays live for any run date
+    const A = makeDevice('A', vault, {
+      ...EMPTY,
+      unscheduledTasks: [completedInbox],
+      tasks: [completedScheduled, staleIncomplete, live],
+    });
+    await A.engine.dbSyncCycle();
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const getRowSpy = vi.spyOn(vault, 'getRow');
+    const delSpy = vi.spyOn(vault, 'deleteRow');
+
+    // The zombie-drop device full-pulls all rows into mirror + snapshot, but its
+    // payload never lists the three aged ones (the file tier dropped them).
+    const B = makeZombieDropDevice('B', vault, { ...EMPTY });
+    await B.engine.dbSyncCycle(); // full pull ingests all rows into the baseline
+    expect(snapOf('B')['unscheduledTasks:500']).toBeDefined();
+    expect(snapOf('B')['tasks:501']).toBeDefined();
+    expect(snapOf('B')['tasks:503']).toBeDefined();
+
+    await B.engine.dbSyncCycle(); // classification cycle: the three aged rows released
+    await B.engine.dbSyncCycle(); // must already be clean
+    await B.engine.dbSyncCycle(); // and STAY clean — no re-fight
+
+    // Released exactly once, then silence — and the log names both causes.
+    const released = infoSpy.mock.calls.filter((c) => /completed|sync-horizon/.test(String(c[0])));
+    expect(released).toHaveLength(1);
+    expect(String(released[0][0])).toContain('completed');
+    expect(String(released[0][0])).toContain('sync-horizon');
+    // No GUARD skip/recover churn — this was the endless stream of GUARD messages.
+    expect(warnSpy.mock.calls.filter((c) => String(c[0]).includes('GUARD'))).toEqual([]);
+    // The heal NEVER fetched the aged rows — that per-row storm pinned the count
+    // and rate-limited the vault.
+    for (const id of ['unscheduledTasks:500', 'tasks:501', 'tasks:503']) {
+      expect(getRowSpy.mock.calls.some((c) => c[1] === id)).toBe(false);
+    }
+    // NOTHING was deleted from the vault — the rows survive for other devices
+    // (the "deletes nothing" guarantee of the guard-side release).
+    const deleted = delSpy.mock.calls.map((c) => c[1]);
+    for (const id of ['unscheduledTasks:500', 'tasks:501', 'tasks:503']) {
+      expect(deleted).not.toContain(id);
+    }
+    expect(await vault.getRow('dayglance', 'unscheduledTasks:500')).not.toBeNull();
+    expect(await vault.getRow('dayglance', 'tasks:501')).not.toBeNull();
+    // The baseline stops tracking the aged rows; the live synced row is unaffected.
+    expect(snapOf('B')['unscheduledTasks:500']).toBeUndefined();
+    expect(snapOf('B')['tasks:501']).toBeUndefined();
+    expect(snapOf('B')['tasks:503']).toBeUndefined();
+    expect(snapOf('B')['tasks:502']).toBeDefined();
+    expect(B.data.tasks.some((t) => t.id === 502)).toBe(true);
+  });
+
+  it('CONTRAST: a RECENT active task that transiently vanishes is NOT released — it still heals', async () => {
+    // A live, recently-touched task that briefly drops out of getData must never
+    // be swept up as aged-out — it fails both branches (incomplete + fresh) and
+    // heals via the row re-fetch, exactly as before.
+    const vault = createMemoryVault({ rowGet: true });
+    const recent = new Date(Date.now() - 86400e3).toISOString(); // yesterday: inside the horizon for any wall-clock run
+    const A = makeDevice('A', vault, {
+      ...EMPTY,
+      tasks: [task(600, recent), task(601, recent)],
+    });
+    const B = makeZombieDropDevice('B', vault, { ...EMPTY });
+    await runRounds(A, B);
+    expect(B.data.tasks.map((t) => t.id).sort()).toEqual([600, 601]);
+
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const getRowSpy = vi.spyOn(vault, 'getRow');
+    // 600 is recent AND incomplete → neither branch fires; force a transient
+    // shrink on A and confirm it heals (not released).
+    A.data.tasks = A.data.tasks.filter((t) => t.id !== 600);
+    await A.engine.dbSyncCycle();
+    expect(getRowSpy.mock.calls.some((c) => c[1] === 'tasks:600')).toBe(true); // healed, not released
+    expect(infoSpy.mock.calls.filter((c) => /completed|sync-horizon/.test(String(c[0])))).toEqual([]);
+    expect(A.data.tasks.map((t) => t.id)).toContain(600);
+  });
+});
+
+describe('issue #1196 — the midnight rollover speaks the vanish-delete guard\'s language', () => {
+  beforeEach(() => {
+    global.localStorage = memLocalStorage();
+    setVaultConfig({ enabled: true, vaultUrl: 'https://vault.test', vaultToken: 'tok', accountId: 'acct1' });
+    setSyncPassphrase('correct horse battery staple');
+  });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  const routine = (id, lastModified) => ({
+    id, name: `routine ${id}`, bucket: 'everyday', startTime: '08:00',
+    duration: 15, isAllDay: false, lastModified,
+  });
+
+  it('a midnight clear WITH removal tombstones propagates real deletes — no guard skip, no heal, no resurrection', async () => {
+    const vault = createMemoryVault({ rowGet: true });
+    const A = makeDevice('A', vault, {
+      ...EMPTY,
+      todayRoutines: [routine('chipA', '2026-06-18T10:00:00.000Z'), routine('chipB', '2026-06-18T21:00:00.000Z')],
+      routinesDate: '2026-06-18',
+      removedTodayRoutineIds: {},
+    });
+    await A.engine.dbSyncCycle();
+    await A.engine.dbSyncCycle(); // settle the baseline
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const getRowSpy = vi.spyOn(vault, 'getRow');
+
+    // What useRoutines' FIXED rollover effect now writes at day change: rows
+    // cleared, removal tombstones stamped at local midnight of the new day.
+    const midnightIso = '2026-06-19T00:00:00.000Z';
+    A.data.removedTodayRoutineIds = { chipA: midnightIso, chipB: midnightIso };
+    A.data.todayRoutines = [];
+    A.data.routinesDate = '2026-06-19';
+    await A.engine.dbSyncCycle();
+
+    // Tombstone-authorized: no glitch classification, so no skip and no per-row
+    // heal fetches — the resurrection mechanics never engage.
+    expect(warnSpy.mock.calls.filter((c) => String(c[0]).includes('GUARD'))).toEqual([]);
+    expect(getRowSpy.mock.calls.some((c) => String(c[1]).startsWith('todayRoutines:'))).toBe(false);
+    // The vault rows are genuinely deleted (memory vault getRow → null when deleted).
+    expect(await vault.getRow('dayglance', 'todayRoutines:chipA')).toBeNull();
+    expect(await vault.getRow('dayglance', 'todayRoutines:chipB')).toBeNull();
+
+    // And they STAY gone across further cycles — yesterday's routines do not
+    // reappear on today's timeline.
+    await A.engine.dbSyncCycle();
+    await A.engine.dbSyncCycle();
+    expect(A.data.todayRoutines).toEqual([]);
+    const snap = JSON.parse(global.localStorage.getItem('dev-A-db-sync-snapshot') || '{}');
+    expect(snap['todayRoutines:chipA']).toBeUndefined();
+  });
+
+  it('CONTROL (the pre-fix bug): a bare clear with a WIPED tombstone map is skipped by the guard and resurrected by the heal', async () => {
+    const vault = createMemoryVault({ rowGet: true });
+    const A = makeDevice('A', vault, {
+      ...EMPTY,
+      todayRoutines: [routine('chipA', '2026-06-18T10:00:00.000Z')],
+      routinesDate: '2026-06-18',
+      removedTodayRoutineIds: {},
+    });
+    await A.engine.dbSyncCycle();
+    await A.engine.dbSyncCycle();
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    // The OLD rollover: rows cleared, tombstone map wiped — no removal signal.
+    A.data.todayRoutines = [];
+    A.data.routinesDate = '2026-06-19';
+    await A.engine.dbSyncCycle();
+
+    // Guard skips the un-tombstoned vanish and the heal resurrects the row —
+    // this is the reported symptom, pinned here so the fix's contract is clear.
+    expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('GUARD'))).toBe(true);
+    expect(A.data.todayRoutines.map((r) => r.id)).toContain('chipA');
   });
 });

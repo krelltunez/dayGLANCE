@@ -15,6 +15,7 @@ const AutoBackupManagerModal = () => {
     loadAutoBackupHistory, performRemoteBackup,
     restoreFromAutoBackup, restoreFromRemoteBackup,
     deleteLocalAutoBackup, deleteRemoteAutoBackup,
+    folderBackup, restoreFromBackupFolder,
   } = useSyncCtx();
 
   const [localExpanded, setLocalExpanded] = useState(false);
@@ -78,6 +79,8 @@ const AutoBackupManagerModal = () => {
                   borderClass={borderClass}
                   hoverBg={hoverBg}
                   onRemoteBackupNow={performRemoteBackup}
+                  folderBackup={folderBackup}
+                  onFolderRestore={restoreFromBackupFolder}
                 />
               ) : (
                 <div className="space-y-6">

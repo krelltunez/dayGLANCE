@@ -101,16 +101,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('subscription:purchase', productId),
   subscriptionRestore: (): Promise<void> =>
     ipcRenderer.invoke('subscription:restore'),
+  subscriptionPrices: (): Promise<{ yearly: string | null; lifetime: string | null; yearlyTrialDays: number | null }> =>
+    ipcRenderer.invoke('subscription:prices'),
   onSubscriptionEvent: (callback: (event: unknown) => void) => {
     const handler = (_: Electron.IpcRendererEvent, event: unknown) => callback(event);
     ipcRenderer.on('subscription:event', handler);
     return () => ipcRenderer.removeListener('subscription:event', handler);
   },
-  onSubscriptionPricesReady: (callback: (prices: { yearly: string | null; lifetime: string | null }) => void) => {
-    const handler = (_: Electron.IpcRendererEvent, prices: { yearly: string | null; lifetime: string | null }) => callback(prices);
+  onSubscriptionPricesReady: (callback: (prices: { yearly: string | null; lifetime: string | null; yearlyTrialDays: number | null }) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, prices: { yearly: string | null; lifetime: string | null; yearlyTrialDays: number | null }) => callback(prices);
     ipcRenderer.on('subscription:prices-ready', handler);
     return () => ipcRenderer.removeListener('subscription:prices-ready', handler);
   },
+
+  // App Store region signal + the source that produced it:
+  //   { country: string, source: 'locale' | 'none' }
+  // country is an uppercase ISO code (alpha-2, e.g. "CN"; '' if unknown), read from
+  // the OS region (app.getLocaleCountryCode). Used to comply with regional legal
+  // requirements — e.g. suppressing generative-AI features on the China storefront
+  // (App Store Guideline 5 / MIIT). macOS only; other platforms return
+  // { country: '', source: 'none' }.
+  getStorefrontCountry: (): Promise<{ country: string; source: 'locale' | 'none' }> =>
+    ipcRenderer.invoke('storefront:country'),
 
   // iCloud sync — reads/writes dayglance-sync.json in the shared ubiquitous container.
   // macOS only; returns null/false on other platforms.

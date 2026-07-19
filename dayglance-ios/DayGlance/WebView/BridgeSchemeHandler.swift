@@ -49,12 +49,24 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
         switch method {
 
         // Phase 2 — HealthKit
+        case "requestHealthPermission":
+            HealthBridge.shared.requestAuthorization()
+            return "null"
+        case "checkStepsPermission", "checkSleepPermission":
+            // HealthKit exposes one combined status for the read set, so both map to
+            // the same "have we prompted yet" signal.
+            return HealthBridge.shared.permissionAsked()
         case "getSteps":
             guard let date = args.first as? String else { return #"{"steps":0,"goal":10000}"# }
             return HealthBridge.shared.getSteps(date: date)
         case "getSleep":
             guard let date = args.first as? String else { return #"{"durationMinutes":0,"stages":[]}"# }
             return HealthBridge.shared.getSleep(date: date)
+
+        // App Store storefront (region) — used to gate region-restricted features,
+        // e.g. suppressing generative-AI on the China storefront (Guideline 5 / MIIT).
+        case "getStorefrontCountry":
+            return StorefrontBridge.countryCode()
 
         // Phase 3 — EventKit
         case "getCalendarAuthStatus":

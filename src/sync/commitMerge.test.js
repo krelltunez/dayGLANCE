@@ -136,6 +136,53 @@ describe('mergeMidCycleEdits — mid-cycle live changes fold into the commit', (
     expect(survivors).toContain('unscheduledTasks:1');
   });
 
+  it('a MID-CYCLE vanish blessed only by a STALE tombstone is KEPT (revived task, lingering tombstone)', () => {
+    // Task 1 (lastModified 2026-07-01T10:00) was deleted and REVIVED days before
+    // this cycle; its tombstone from the original deletion lingers (60-day
+    // retention). A transient live-state shrink drops it mid-cycle. The stale
+    // tombstone must not bless the vanish — the mirror copy is kept.
+    const { mirror, keptVanishes, honoredDeletes } = run(
+      null,
+      (live) => {
+        live.tasks = [];
+        live.deletedTaskIds = { 1: '2026-06-20T12:00:00.000Z' }; // 11 days OLDER than the copy
+      },
+    );
+    expect(mirror.tasks.map((t) => t.id)).toEqual([1]);
+    expect(keptVanishes).toEqual(['tasks:1']);
+    expect(honoredDeletes).toEqual([]);
+  });
+
+  it('a MID-CYCLE delete compares the tombstone against the MIRROR copy (a newer pulled edit beats it)', () => {
+    // The pull updated task 1 to a strictly newer copy while the local user
+    // deleted it mid-cycle — but the tombstone predates the pulled edit by more
+    // than the epsilon, so edit-beats-delete: the pulled copy survives.
+    const { mirror, keptVanishes } = run(
+      (m) => { m.tasks[0] = task(1, '2026-07-01T13:00:00.000Z', { title: 'pulled newer' }); },
+      (live) => {
+        live.tasks = [];
+        live.deletedTaskIds = { 1: '2026-07-01T12:00:00.000Z' }; // older than the pulled copy
+      },
+    );
+    expect(mirror.tasks.map((t) => t.id)).toEqual([1]);
+    expect(mirror.tasks[0].title).toBe('pulled newer');
+    expect(keptVanishes).toEqual(['tasks:1']);
+  });
+
+  it('a MID-CYCLE delete with a tombstone within the epsilon BEFORE lastModified still lands (same-op stamping)', () => {
+    // moveToRecycleBin stamps the copy's lastModified up to ~1s ahead of the
+    // wall clock; a tombstone written moments earlier is still a REAL delete.
+    const { mirror, honoredDeletes } = run(
+      (m) => { m.tasks[0] = task(1, '2026-07-01T12:00:01.000Z'); },
+      (live) => {
+        live.tasks = [];
+        live.deletedTaskIds = { 1: '2026-07-01T12:00:00.000Z' }; // 1s before the copy's stamp
+      },
+    );
+    expect(mirror.tasks).toEqual([]);
+    expect(honoredDeletes).toEqual(['tasks:1']);
+  });
+
   it('a BARE mid-cycle vanish (no tombstone, no cross-list copy) is KEPT — glitch-suspect', () => {
     const { mirror, keptVanishes, honoredDeletes } = run(
       null,

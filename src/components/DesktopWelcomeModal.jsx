@@ -2,12 +2,13 @@ import React from 'react';
 import Wordmark from './Wordmark';
 import {
   BarChart3, Calendar, CalendarDays, ChevronLeft, ChevronRight,
-  Cloud, Eye, FileText, Filter, Flag, Gauge, GripVertical, Inbox, LayoutGrid, Mic, Moon,
+  Cloud, Eye, FileText, Filter, Flag, FolderOpen, Gauge, GripVertical, Inbox, LayoutGrid, Mic, Moon,
   NotebookPen, Plus, RefreshCw, Search, Settings, Sun,
   Target, Zap,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
 
 const DesktopWelcomeModal = () => {
   const { t } = useTranslation();
@@ -17,6 +18,11 @@ const DesktopWelcomeModal = () => {
     setShowSettings,
     darkMode, cardBg, borderClass, textPrimary, textSecondary,
   } = useDayPlannerCtx();
+  // The welcome modal shows exactly when the app has no data — which is also
+  // the state after a wiped browser profile. Offer restore right here: the
+  // folder flow (one dialog restores AND reconnects continuous folder backup)
+  // where the File System Access API exists, a plain backup-file picker elsewhere.
+  const { folderBackup, restoreFromBackupFolder, restoreBackup } = useSyncCtx();
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -44,8 +50,26 @@ const DesktopWelcomeModal = () => {
               <p className={`text-lg ${textPrimary}`}>{t('onboarding.welcomeTitle')}</p>
               <p className={`${textSecondary} text-xs mt-3`}>{t('onboarding.welcomeLocal')}</p>
               <p className={`${textSecondary} text-sm mt-4`}>{t('onboarding.welcomeTour')}</p>
+              {folderBackup?.supported ? (
+                <button
+                  onClick={() => restoreFromBackupFolder()}
+                  className={`mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} transition-colors`}
+                >
+                  <FolderOpen size={14} /> {t('onboarding.restoreFromBackup')}
+                </button>
+              ) : (
+                <label className={`mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} transition-colors`}>
+                  <FolderOpen size={14} /> {t('onboarding.restoreFromBackup')}
+                  <input
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    onChange={(e) => { const f = e.target.files[0]; if (f) restoreBackup(f); e.target.value = ''; }}
+                  />
+                </label>
+              )}
               <div className={`mt-5 flex items-center justify-center gap-2 text-xs ${textSecondary}`}>
-                <a href="https://docs.dayglance.app/en/privacy-policy" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500 transition-colors">{t('onboarding.privacyPolicy')}</a>
+                <a href="https://glance-apps.com/dayglance/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500 transition-colors">{t('onboarding.privacyPolicy')}</a>
                 <span className="opacity-50">·</span>
                 <a href="https://www.glance-apps.com/eula" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500 transition-colors">{t('onboarding.termsOfUse')}</a>
               </div>

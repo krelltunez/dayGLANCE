@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Wordmark from './Wordmark';
-import { Loader } from 'lucide-react';
+import { Check, Loader } from 'lucide-react';
 
 /**
  * Full-screen paywall shown on Android, iOS, and macOS when the user has no active subscription.
@@ -14,8 +14,10 @@ import { Loader } from 'lucide-react';
  *
  * `isIOSApp` (true for iOS and macOS) changes only the payment attribution line at the bottom.
  *
- * Founder pricing: both products launch at the founder price. No promo codes or intro offers.
- * The badge copy can be removed when the price is raised in App Store Connect / Play Console.
+ * Prices AND the trial length come from StoreKit / Play Billing at runtime —
+ * there are deliberately no hardcoded price or trial-length strings in this
+ * component. When the store hasn't answered yet, price copy shows a loading
+ * state and trial copy omits the length; it never invents a number.
  */
 export default function SubscriptionWall({
   isIOSApp,
@@ -26,6 +28,7 @@ export default function SubscriptionWall({
   isLoading,
   prices,
   trialEligible = true,
+  trialDays = null,
   billingEvent,
   clearBillingEvent,
   billingErrorMessage,
@@ -91,28 +94,55 @@ export default function SubscriptionWall({
   }
 
   return (
-    <div className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center px-6 ${bg}`}>
+    // Outer layer scrolls; the inner min-h-full wrapper keeps the content
+    // vertically centered on tall screens without clipping the top of the
+    // page on short ones (the classic justify-center + overflow pitfall).
+    <div className={`fixed inset-0 z-[9999] overflow-y-auto ${bg}`}>
+    <div className="min-h-full flex flex-col items-center justify-center px-6 py-8">
 
       {/* Logo */}
       <div className="mb-6 flex flex-col items-center gap-2">
         <Wordmark className="text-4xl" darkMode={dark} />
       </div>
 
-      {/* Founder badge */}
-      <div className="mb-5 flex items-center gap-2 rounded-full bg-amber-500/15 border border-amber-500/30 px-4 py-1.5">
-        <span className="text-amber-500 text-xs font-semibold tracking-wide uppercase">Founder pricing</span>
-        <span className={`text-xs ${sub}`}>· thanks for supporting the app!</span>
-      </div>
-
-      {/* Headline */}
+      {/* Headline — trial length comes from the store; omit it when unknown */}
       <h1 className={`text-xl font-semibold text-center mb-2 ${text}`}>
-        {trialEligible ? 'Start your 14-day free trial' : 'Unlock dayGLANCE Pro'}
+        {trialEligible
+          ? (trialDays ? `Start your ${trialDays}-day free trial` : 'Start your free trial')
+          : 'Unlock dayGLANCE Pro'}
       </h1>
       <p className={`text-sm text-center mb-7 max-w-xs ${sub}`}>
         {trialEligible
-          ? 'Free for 14 days — nothing charged today. Cancel anytime, keep your data.'
+          ? (trialDays
+              ? `Free for ${trialDays} days, nothing charged today. Cancel anytime, keep your data.`
+              : 'Free to start, nothing charged today. Cancel anytime, keep your data.')
           : 'Pick a plan to pick up where you left off. Your data is safe and waiting.'}
       </p>
+
+      {/* What the purchase includes — guideline 3.1.2(c) requires the paywall to
+          clearly describe what the user receives for the price. Both plans unlock
+          the identical feature set, so one list covers both. Keep bullets limited
+          to features that ship on every paywalled platform (iOS, Android, macOS). */}
+      <div className="w-full max-w-xs mb-6">
+        <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${sub}`}>
+          Every plan unlocks the full app
+        </p>
+        <ul className="space-y-1.5">
+          {[
+            'Visual day planner with time blocking',
+            'Tasks, projects, routines & goals',
+            'Sync with your device calendar',
+            'Habit tracking with streaks & stats',
+            'Reminders and notifications',
+            'Cross-device sync via your own cloud',
+          ].map(feature => (
+            <li key={feature} className="flex items-start gap-2">
+              <Check size={14} className="text-green-500 flex-shrink-0 mt-0.5" />
+              <span className={`text-xs leading-snug ${text}`}>{feature}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       {/* Error message */}
       {errorMsg && (
@@ -139,8 +169,10 @@ export default function SubscriptionWall({
           </div>
           <div className={`text-xs mt-0.5 ${sub}`}>
             {trialEligible
-              ? `14-day free trial, then ${prices?.yearly ?? '$9.99'}/yr`
-              : `Billed yearly · ${prices?.yearly ?? '$9.99'}/yr`}
+              ? (prices?.yearly
+                  ? `${trialDays ? `${trialDays}-day free trial` : 'Free trial'}, then ${prices.yearly}/yr`
+                  : (trialDays ? `${trialDays}-day free trial included` : 'Free trial included'))
+              : (prices?.yearly ? `Billed yearly · ${prices.yearly}/yr` : 'Billed yearly')}
           </div>
           {pending === 'yearly' && <Loader className={`w-4 h-4 mt-2 animate-spin ${sub}`} />}
         </button>
@@ -167,11 +199,14 @@ export default function SubscriptionWall({
 
       </div>
 
-      {/* Subscription disclosure — required by App Store guideline 3.1.2 and Play Subscriptions policy */}
+      {/* Subscription disclosure — required by App Store guideline 3.1.2 and Play
+          Subscriptions policy. The price figure is included once the store has
+          reported it; until then the disclosure makes no numeric claim rather
+          than asserting a price the store hasn't confirmed. */}
       <p className={`text-xs text-center mb-3 max-w-xs leading-relaxed ${sub}`}>
         {trialEligible
-          ? `Your 14-day free trial automatically converts to a ${prices?.yearly ?? '$9.99'}/year subscription that renews annually until canceled. Cancel anytime in your ${isIOSApp ? 'App Store' : 'Google Play'} subscription settings.`
-          : `Your ${prices?.yearly ?? '$9.99'}/year subscription automatically renews annually until canceled. Cancel anytime in your ${isIOSApp ? 'App Store' : 'Google Play'} subscription settings.`}
+          ? `Your ${trialDays ? `${trialDays}-day ` : ''}free trial automatically converts to a ${prices?.yearly ? `${prices.yearly}/year` : 'yearly'} subscription that renews annually until canceled. Cancel anytime in your ${isIOSApp ? 'App Store' : 'Google Play'} subscription settings.`
+          : `Your ${prices?.yearly ? `${prices.yearly}/year` : 'yearly'} subscription automatically renews annually until canceled. Cancel anytime in your ${isIOSApp ? 'App Store' : 'Google Play'} subscription settings.`}
       </p>
 
       <p className={`text-xs text-center mb-6 max-w-xs ${sub}`}>
@@ -181,7 +216,7 @@ export default function SubscriptionWall({
       {/* Legal links — required by App Store guideline 3.1.2 for auto-renewable subscriptions */}
       <div className={`mb-6 flex items-center justify-center gap-2 text-xs ${sub}`}>
         <button
-          onClick={() => window.open('https://docs.dayglance.app/en/privacy-policy', '_blank', 'noopener')}
+          onClick={() => window.open('https://glance-apps.com/dayglance/privacy', '_blank', 'noopener')}
           className="underline hover:opacity-80 transition-opacity"
         >
           Privacy Policy
@@ -236,6 +271,7 @@ export default function SubscriptionWall({
         </div>
       )}
 
+    </div>
     </div>
   );
 }

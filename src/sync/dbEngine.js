@@ -41,6 +41,7 @@ import {
 } from './dbAdapter.js';
 import { pruneAllTombstones, tombstoneCutoff } from './tombstoneRetention.js';
 import { partitionSnapshotDeletes } from './snapshotDeleteGuard.js';
+import { isPayloadExcludedEntity, agedOutReleaseReason } from './payloadExclusions.js';
 import { shredHashes, hashMapsEqual, mergeMidCycleEdits } from './commitMerge.js';
 
 const APP_ID = 'dayglance';
@@ -354,11 +355,32 @@ export function createDbEngine(callbacks = {}) {
   //   • no row-get on this client / fetch or decrypt failed → UNRESOLVED,
   //     returned to the caller (which withholds the snapshot and retries next
   //     cycle).
+  //
+  // LOAD DISCIPLINE: the heal is one HTTP GET per row, so a large skip set is a
+  // request storm. Observed in the field: ~213 per-row GETs per cycle (fresh
+  // device, legacy baseline rows) tripped the vault's rate limiter, whose 429s
+  // then failed part of the heal → snapshot withheld → the storm repeated at
+  // full size every cycle. Two brakes: a per-cycle cap (the remainder stays
+  // unresolved and retries next cycle — the withheld snapshot makes that safe
+  // and automatic), and a hard bail on the first 429 (every further row-get
+  // this cycle is doomed and only feeds the limiter).
+  const HEAL_MAX_PER_CYCLE = 40;
+  const isRateLimited = (err) => err?.status === 429 || /\b429\b/.test(String(err?.message || ''));
   const healGlitchSkips = async (skippedIds) => {
     const unresolved = [];
     const recovered = [];
     const canGetRow = typeof engine.vault?.getRow === 'function';
-    for (const entityId of skippedIds) {
+    const toHeal = skippedIds.slice(0, HEAL_MAX_PER_CYCLE);
+    if (skippedIds.length > HEAL_MAX_PER_CYCLE) {
+      const deferred = skippedIds.slice(HEAL_MAX_PER_CYCLE);
+      unresolved.push(...deferred);
+      console.warn(
+        `[push] GUARD: glitch-skip recovery capped at ${HEAL_MAX_PER_CYCLE} row-get(s) this cycle — ` +
+        `${deferred.length} deferred (snapshot withheld; they retry next cycle).`
+      );
+    }
+    for (let i = 0; i < toHeal.length; i++) {
+      const entityId = toHeal[i];
       // Already back in the mirror — the pull happened to re-list the row (e.g.
       // its seq sat above our cursor after all). Nothing to fetch.
       if (adapterGetLocalEntity(mirror, entityId) != null) continue;
@@ -372,8 +394,17 @@ export function createDbEngine(callbacks = {}) {
         // and the snapshot diff re-pushes any divergence next cycle anyway.
         adapterApplyRemoteEntity(mirror, entity);
         recovered.push(entityId);
-      } catch {
+      } catch (err) {
         unresolved.push(entityId); // transient failure — retry next cycle
+        if (isRateLimited(err)) {
+          const rest = toHeal.slice(i + 1);
+          unresolved.push(...rest);
+          console.warn(
+            `[push] GUARD: vault rate-limited (429) during glitch-skip recovery — ` +
+            `aborted the remaining ${rest.length} row-get(s) this cycle (snapshot withheld; retried next cycle).`
+          );
+          break;
+        }
       }
     }
     if (recovered.length) {
@@ -460,8 +491,58 @@ export function createDbEngine(callbacks = {}) {
           if (id in cur) continue;
           wantDelete.push(id);
         }
-        const { propagate, skipped, reasons } = partitionSnapshotDeletes(wantDelete, cur, mirror);
+        // The deletion candidates' last-known copies live in the SNAPSHOT (prev):
+        // each value is hashEntity(entity) = JSON.stringify of the wrapped entity,
+        // so parsing it back recovers the copy being deleted — letting the guard
+        // compare its lastModified against the tombstone (stale-tombstone rule).
+        // wantDelete is a small set, so the parse cost is negligible.
+        const getPrevEntity = (eid) => {
+          const h = prev[eid];
+          if (typeof h !== 'string') return null;
+          try { return JSON.parse(h); } catch { return null; }
+        };
+        const { propagate, skipped, excluded, reasons } = partitionSnapshotDeletes(
+          wantDelete, cur, mirror, getPrevEntity,
+          // Baseline-release classification: a baseline row whose last-known copy
+          // can NEVER reappear in getData() is neither a delete nor a glitch, and
+          // healing it every cycle is the churn loop this closes. Causes, each
+          // with its own reason string (payloadExclusions.js):
+          //   'payload-excluded'        — a class buildSyncPayload structurally
+          //     excludes (native / non-synced imports); the payload's own rule.
+          //   'completed' / 'sync-horizon' — a task the file tier's zombie-drop
+          //     keeps out of getData() (completed & aged, or older than the sync
+          //     horizon), invisibly to the vault. The horizon is the SAME 60-day
+          //     tombstoneCutoff the file-tier merge uses as tombstonePrunedBefore.
+          (eid) => {
+            const ent = getPrevEntity(eid);
+            if (isPayloadExcludedEntity(ent, {
+              multiUserEnabled: callbacks.isMultiUserEnabled?.() === true,
+            })) return 'payload-excluded';
+            return agedOutReleaseReason(ent, { horizonMs: tombstoneCutoff().getTime() });
+          },
+        );
         glitchSkipped = skipped;
+        if (excluded.length) {
+          // Released from the baseline, not deleted and not healed: the rows stay
+          // untouched in the vault; the next SAVED snapshot (hashed from the
+          // mirror, which never contains them) simply stops tracking them. Info-
+          // level on purpose — this is a one-time convergence, not a problem.
+          const counts = { 'payload-excluded': 0, completed: 0, 'sync-horizon': 0 };
+          for (const eid of excluded) {
+            if (reasons[eid] in counts) counts[reasons[eid]]++;
+          }
+          const breakdown = [
+            counts['payload-excluded'] ? `${counts['payload-excluded']} payload-excluded (native / non-synced imports)` : '',
+            counts.completed ? `${counts.completed} completed (aged out of the working set)` : '',
+            counts['sync-horizon'] ? `${counts['sync-horizon']} sync-horizon (older than the file-tier zombie-drop fence)` : '',
+          ].filter(Boolean).join(', ');
+          console.info(
+            `[push] baseline: released ${excluded.length} row(s) — ${breakdown}. ` +
+            `Not deletes, not glitches; nothing was fetched or removed from the vault. Ids:`,
+            excluded.slice(0, 10).map((id) => `${id} (${reasons[id]})`),
+            excluded.length > 10 ? `(+${excluded.length - 10} more)` : ''
+          );
+        }
         for (const id of propagate) {
           engine.markDirty(id); // deletes
           if (dbgChanges) dbgChanges.push({ id, kind: 'deleted', diff: [] });
@@ -474,9 +555,12 @@ export function createDbEngine(callbacks = {}) {
         }
         if (skipped.length) {
           console.warn(
-            `[push] GUARD: skipped ${skipped.length} un-tombstoned vanish-delete(s) — ` +
+            `[push] GUARD: skipped ${skipped.length} vanish-delete(s) — ` +
             `suspected local-state glitch, rows kept (would-be fleet-wide deletion). ` +
-            `Ids:`, skipped.slice(0, 25), skipped.length > 25 ? `(+${skipped.length - 25} more)` : ''
+            // 'glitch' = un-tombstoned vanish; 'stale-tombstone' = tombstoned, but the
+            // deleted copy is newer than its lingering tombstone (revived entity).
+            `Ids:`, skipped.slice(0, 25).map((id) => `${id} (${reasons[id]})`),
+            skipped.length > 25 ? `(+${skipped.length - 25} more)` : ''
           );
         }
       }

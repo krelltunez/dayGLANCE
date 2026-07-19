@@ -336,8 +336,8 @@ const HabitModal = () => {
                 </button>
               )}
 
-              {/* Health Connect steps suggestion — only shown on Android with native bridge */}
-              {window.DayGlanceNative && !activeHabits.some(h => h.source === 'healthConnect' && h.unit === 'steps') && activeHabits.length < 8 && (
+              {/* Steps health-habit suggestion — iOS (HealthKit) and Android (Health Connect). */}
+              {window.DayGlanceNative && !activeHabits.some(h => (h.source === 'healthKit' || h.source === 'healthConnect') && h.unit === 'steps') && activeHabits.length < 8 && (
                 <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${darkMode ? 'border-green-800 bg-green-950/40' : 'border-green-200 bg-green-50'}`}>
                   <Footprints size={22} className="text-green-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -350,7 +350,7 @@ const HabitModal = () => {
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 active:bg-green-700 transition-colors"
                       >
-                        {t('common.authorize')}
+                        {t('common.continue')}
                       </button>
                     )}
                     <button
@@ -364,8 +364,8 @@ const HabitModal = () => {
                 </div>
               )}
 
-              {/* Health Connect sleep suggestion — only shown on Android with native bridge */}
-              {window.DayGlanceNative && !activeHabits.some(h => h.source === 'healthConnect' && h.unit === 'min') && activeHabits.length < 8 && (
+              {/* Sleep health-habit suggestion — iOS (HealthKit) and Android (Health Connect). */}
+              {window.DayGlanceNative && !activeHabits.some(h => (h.source === 'healthKit' || h.source === 'healthConnect') && h.unit === 'min') && activeHabits.length < 8 && (
                 <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${darkMode ? 'border-indigo-800 bg-indigo-950/40' : 'border-indigo-200 bg-indigo-50'}`}>
                   <Moon size={22} className="text-indigo-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -378,7 +378,7 @@ const HabitModal = () => {
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700 transition-colors"
                       >
-                        {t('common.authorize')}
+                        {t('common.continue')}
                       </button>
                     )}
                     <button

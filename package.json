@@ -1,7 +1,7 @@
 {
   "name": "dayglance",
   "private": true,
-  "version": "3.10.0",
+  "version": "4.0.0",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -13,6 +13,7 @@
     "ios": "npm run build:ios && npm run ios:generate",
     "preview": "vite preview",
     "reviewer-code": "node scripts/reviewer-code.js",
+    "bump": "node scripts/bump-version.mjs",
     "lint": "eslint src --max-warnings 0",
     "test": "vitest run",
     "dev:electron": "npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && concurrently -n renderer,main,preload,electron -c cyan,yellow,magenta,green \"vite\" \"npx tsc -p tsconfig.electron.json -w --preserveWatchOutput\" \"npx tsc -p tsconfig.electron.preload.json -w --preserveWatchOutput\" \"VITE_DEV_SERVER_URL=http://localhost:5173 electronmon .\"",
@@ -24,8 +25,9 @@
     "build:electron:mas": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && DAYGLANCE_APP_ID=com.dayglance electron-builder --config electron-builder.config.cjs --mac mas --universal --publish never"
   },
   "dependencies": {
+    "@glance-apps/billing": "0.1.1",
     "@glance-apps/intents": "1.4.0",
-    "@glance-apps/sync": "1.5.2",
+    "@glance-apps/sync": "1.6.0",
     "i18next": "^26.3.1",
     "i18next-browser-languagedetector": "^8.2.1",
     "i18next-http-backend": "^4.0.0",
@@ -33,10 +35,10 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-i18next": "^17.0.8",
-    "ws": "^8.18.0"
+    "ws": "^8.21.0"
   },
   "overrides": {
-    "serialize-javascript": ">=7.0.3"
+    "serialize-javascript": ">=7.0.5"
   },
   "devDependencies": {
     "@electron/notarize": "^3.1.1",

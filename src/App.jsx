@@ -20,6 +20,8 @@ import { detectObsidianDeletions, addObsidianTombstones } from './utils/obsidian
 import { stripHealthSourcedLogs } from './utils/healthLogFilter.js';
 import { webdavFetch } from './utils/cloudSyncProviders.js';
 import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
+import { LIVE_BACKUP_FILENAME } from './utils/folderBackup.js';
+import useFolderBackup from './hooks/useFolderBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex } from './utils/colorUtils.js';
@@ -70,7 +72,7 @@ import useTagFilter from './hooks/useTagFilter.js';
 import useOnboarding from './hooks/useOnboarding.js';
 import useDailyContent from './hooks/useDailyContent.js';
 import useHabits from './hooks/useHabits.js';
-import useRoutines from './hooks/useRoutines.js';
+import useRoutines, { sanitizeMergedRoutineCompletions, startOfTodayIso } from './hooks/useRoutines.js';
 import useGoalsProjects from './hooks/useGoalsProjects.js';
 import useFocusMode from './hooks/useFocusMode.js';
 import useTrmnlSync from './hooks/useTrmnlSync.js';
@@ -80,6 +82,8 @@ import { createDayGlanceEngine } from './sync/adapter.js';
 import { createDbEngine, resetVaultSyncCursor } from './sync/dbEngine.js';
 import { registerDbEngine } from './sync/dirtyTracker.js';
 import { isVaultEnabled } from './sync/vaultConfig.js';
+import { keepImportedTask } from './sync/payloadExclusions.js';
+import { canEnableMultiUser } from './utils/multiUserGate.js';
 import { encryptData, decryptData, isEncryptedEnvelope, hasEncryptionReady } from './utils/crypto.js';
 import useCalendarSync from './hooks/useCalendarSync.js';
 import useBackup from './hooks/useBackup.js';
@@ -144,6 +148,7 @@ import DesktopWelcomeModal from './components/DesktopWelcomeModal.jsx';
 import SpotlightModal from './components/SpotlightModal.jsx';
 import HabitModal from './components/HabitModal.jsx';
 import SubscriptionWall from './components/SubscriptionWall.jsx';
+import ReviewerBanner from './components/ReviewerBanner.jsx';
 import { useSubscription } from './hooks/useSubscription.js';
 import { useTranslation } from 'react-i18next';
 import { syncErrorText } from './sync/syncErrors.js';
@@ -212,8 +217,15 @@ const SPOTLIGHT_NATIVE_FUTURE_DAYS = 365;
 
 const DayPlanner = () => {
   const { t } = useTranslation();
-  const { isPro, isLoading: subLoading, isAndroidApp, isIOSApp, isElectronApp, productId: subProductId, subscribe, restore, prices: subPrices, trialEligible, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase, isReviewerUnlocked, setReviewerUnlocked } = useSubscription();
+  const { isPro, isLoading: subLoading, isAndroidApp, isIOSApp, isElectronApp, productId: subProductId, subscribe, restore, prices: subPrices, trialEligible, trialDays, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase, isReviewerUnlocked, setReviewerUnlocked } = useSubscription();
   useEffect(() => { if (isReviewerUnlocked) console.info('[dayGLANCE] Reviewer unlock active'); }, [isReviewerUnlocked]);
+  // Leave reviewer mode: clear the stored unlock and reload so the billing engine
+  // re-reads a now-absent key (there is no revoke method on the engine), which
+  // brings back the paywall — and therefore the in-app purchases — immediately.
+  const exitReviewerMode = () => {
+    try { localStorage.removeItem('day-planner-reviewer-unlock'); } catch { /* storage unavailable */ }
+    location.reload();
+  };
   const _visibleDays = useVisibleDays();
   const { isPhone, isMobile, isTablet } = useDeviceType();
   const isLandscape = useIsLandscape();
@@ -645,16 +657,26 @@ const DayPlanner = () => {
   // Populated when the vault connects (native or FSA) and used by task-title inputs.
   const [wikilinkCandidates, setWikilinkCandidates] = useState([]);
 
-  // Auto-Backup state
+  // Auto-Backup state. Saved configs predating a section (e.g. `folder`) get
+  // that section's defaults merged in so downstream code can assume the shape.
   const [autoBackupConfig, setAutoBackupConfig] = useState(() => {
+    const defaults = {
+      local: { enabled: false, frequency: 'daily' },
+      remote: { enabled: false, frequency: 'daily', provider: 'nextcloud' },
+      folder: { enabled: false, snapshotFrequency: 'daily' },
+    };
     try {
       const saved = localStorage.getItem('day-planner-auto-backup-config');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          local: { ...defaults.local, ...parsed.local },
+          remote: { ...defaults.remote, ...parsed.remote },
+          folder: { ...defaults.folder, ...parsed.folder },
+        };
+      }
     } catch {}
-    return {
-      local: { enabled: false, frequency: 'daily' },
-      remote: { enabled: false, frequency: 'daily', provider: 'nextcloud' }
-    };
+    return defaults;
   });
   const [autoBackupStatus, setAutoBackupStatus] = useState(() => ({
     local: { lastBackup: localStorage.getItem('day-planner-auto-backup-local-last') || null, status: 'idle' },
@@ -982,7 +1004,7 @@ const DayPlanner = () => {
 
   // AI configuration, voice input, and weekly review state
   const {
-    aiConfig, setAiConfig,
+    aiConfig: rawAiConfig, setAiConfig,
     aiConnectionStatus, setAiConnectionStatus,
     aiConnectionMessage, setAiConnectionMessage,
     aiOllamaHelp, setAiOllamaHelp,
@@ -1023,6 +1045,43 @@ const DayPlanner = () => {
     weeklyAILoading, setWeeklyAILoading,
     weeklyAIError, setWeeklyAIError,
   } = useVoiceAI();
+
+  // Regional AI suppression: on the China (CN) App Store storefront the app must
+  // deactivate its generative-AI features to comply with App Store Review Guideline 5
+  // (Deep Synthesis / MIIT licensing). When the storefront is China we force the AI
+  // config off and hide the AI settings section. Signal by platform:
+  //   - macOS (Electron): async over IPC — StoreKit storefront with an OS-region
+  //     fallback (see electron/storefront.ts).
+  //   - iOS: synchronous StoreKit storefront via the native bridge — the app is the
+  //     App Store client, so the storefront resolves directly (no helper needed).
+  //   - Android / web: no App Store storefront, so suppression stays off.
+  const [aiSuppressed, setAiSuppressed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const isChina = (country) => {
+      const c = (country || '').toUpperCase();
+      return c === 'CN' || c === 'CHN';
+    };
+    const electron = typeof window !== 'undefined' ? window.electronAPI : null;
+    if (electron?.getStorefrontCountry) {
+      electron.getStorefrontCountry()
+        .then((res) => { if (!cancelled && isChina(res?.country)) setAiSuppressed(true); })
+        .catch(() => {});
+    } else if (typeof window !== 'undefined' && window.DayGlanceIOS && window.DayGlanceNative?.getStorefrontCountry) {
+      // Synchronous native bridge call — returns the alpha-3 storefront code.
+      try { if (isChina(window.DayGlanceNative.getStorefrontCountry())) setAiSuppressed(true); } catch {}
+    }
+    return () => { cancelled = true; };
+  }, []);
+
+  // Effective AI config seen by every consumer (App effects + FeaturesContext).
+  // When suppressed we force `enabled: false` so all AI calls short-circuit, without
+  // mutating the user's stored config (they keep their settings if they ever leave
+  // the CN storefront). When not suppressed this is the raw config unchanged.
+  const aiConfig = useMemo(
+    () => (aiSuppressed ? { ...rawAiConfig, enabled: false } : rawAiConfig),
+    [rawAiConfig, aiSuppressed],
+  );
 
   // GTD Frames state
   const {
@@ -1397,8 +1456,17 @@ const DayPlanner = () => {
     setUndoToast,
   });
 
+  // Set below once useFolderBackup is instantiated (it needs
+  // buildAutoBackupPayload, which is declared further down). Effects only run
+  // after the full render pass, so the ref is populated before first use.
+  const folderBackupWriteRef = useRef(null);
+
   useSaveOnChange({
-    saveData, checkConflicts,
+    // Piggyback the folder-backup write-through on the same debounce-free save
+    // pass that persists to localStorage: after saveData() the storage is
+    // fresh, which is exactly what buildAutoBackupPayload reads.
+    saveData: () => { saveData(); folderBackupWriteRef.current?.(); },
+    checkConflicts,
     dataLoaded,
     suppressClearPendingRef, suppressCloudUploadRef, suppressTimestampRef,
     tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays,
@@ -1407,6 +1475,16 @@ const DayPlanner = () => {
     goals, projects, areas, goalsProjectsEnabled,
     dailyNotes, users, routineCompletions, multiUserEnabled,
   });
+
+  // Onboarding flags aren't part of the useSaveOnChange data slices, so a
+  // checklist dismissal alone would never reach the folder backup — and the
+  // Getting Started checklist would reappear every session on wipe-on-exit
+  // machines. useOnboarding's own effects persist the flags to localStorage in
+  // the same commit, well before the debounced write builds its payload.
+  useEffect(() => {
+    if (!dataLoaded) return;
+    folderBackupWriteRef.current?.();
+  }, [dataLoaded, gettingStartedDismissed, onboardingProgress]);
 
   const { timelineScrolledAway, setTimelineScrolledAway, scrollToCurrentHour, scrollToHour } = useTimelineScroll({
     calendarRef, timeGridRef,
@@ -1895,6 +1973,10 @@ const DayPlanner = () => {
     const engine = createDbEngine({
       getData:    () => engineCallbacksRef.current.buildPayload?.()?.data,
       commitData: (data) => engineCallbacksRef.current.applyPayload?.(data, { allowEmpty: true }),
+      // Lets the snapshot-delete classifier apply the SAME imported-task
+      // exclusion rule buildSyncPayload uses (payloadExclusions.js) — a
+      // baseline row of an excluded class is neither a delete nor a glitch.
+      isMultiUserEnabled: () => engineCallbacksRef.current.multiUserEnabled === true,
       onStatusChange: (s) => {
         setVaultStatus(s);
         if (s === 'success') {
@@ -5036,6 +5118,9 @@ const DayPlanner = () => {
         projects: JSON.parse(localStorage.getItem('day-planner-projects') || '[]'),
         areas: JSON.parse(localStorage.getItem('day-planner-areas') || '[]'),
         goalsProjectsEnabled: JSON.parse(localStorage.getItem('day-planner-goals-projects-enabled') || 'false'),
+        autoBackupConfig: JSON.parse(localStorage.getItem('day-planner-auto-backup-config') || 'null'),
+        gettingStartedDismissed: localStorage.getItem('gettingStartedDismissed') === 'true',
+        onboardingProgress: JSON.parse(localStorage.getItem('onboardingProgress') || 'null'),
       }
     };
 
@@ -5086,8 +5171,27 @@ const DayPlanner = () => {
       projects: JSON.parse(localStorage.getItem('day-planner-projects') || '[]'),
       areas: JSON.parse(localStorage.getItem('day-planner-areas') || '[]'),
       goalsProjectsEnabled: JSON.parse(localStorage.getItem('day-planner-goals-projects-enabled') || 'false'),
+      autoBackupConfig: JSON.parse(localStorage.getItem('day-planner-auto-backup-config') || 'null'),
+      gettingStartedDismissed: localStorage.getItem('gettingStartedDismissed') === 'true',
+      onboardingProgress: JSON.parse(localStorage.getItem('onboardingProgress') || 'null'),
     }
   });
+
+  // Continuous write-through backup to a local folder (File System Access API).
+  // Feeds off the same payload as the other auto-backup flavors; scheduleWrite
+  // is invoked after every saveData() pass via folderBackupWriteRef.
+  const folderBackup = useFolderBackup({
+    enabled: autoBackupConfig.folder?.enabled ?? false,
+    snapshotFrequency: autoBackupConfig.folder?.snapshotFrequency || 'daily',
+    dataLoaded,
+    disabled: isTrayMode,
+    buildPayload: buildAutoBackupPayload,
+    onNeedsReconnect: () => setUndoToast({
+      message: 'Folder backup paused — reconnect it in Backup → Auto-Backup to resume.',
+      actionable: false,
+    }),
+  });
+  folderBackupWriteRef.current = folderBackup.scheduleWrite;
 
   const performLocalBackup = async (frequency) => {
     try {
@@ -5221,9 +5325,62 @@ const DayPlanner = () => {
     e.target.value = '';
   };
 
-  // Restore data from backup file
-  const restoreBackup = () => {
-    if (!pendingBackupFile) return;
+  // Write a backup payload's data section back into localStorage. Shared by
+  // the file-based restore (restoreBackup) and the folder-based restore
+  // (restoreFromBackupFolder); callers handle cursor reset + reload.
+  const applyBackupToLocalStorage = (data) => {
+    if (data.tasks) localStorage.setItem('day-planner-tasks', JSON.stringify(data.tasks));
+    if (data.unscheduledTasks) localStorage.setItem('day-planner-unscheduled', JSON.stringify(data.unscheduledTasks));
+    if (data.recycleBin) localStorage.setItem('day-planner-recycle-bin', JSON.stringify(data.recycleBin));
+    if (data.darkMode !== undefined) localStorage.setItem('day-planner-darkmode', JSON.stringify(data.darkMode));
+    if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', data.syncUrl);
+    if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
+    if (data.taskCalendarAuth) localStorage.setItem('day-planner-task-calendar-auth', JSON.stringify(data.taskCalendarAuth));
+    if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
+    if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
+    if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
+    if (data.selectedTags) localStorage.setItem('day-planner-selected-tags', JSON.stringify(data.selectedTags));
+    if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
+    if (data.cloudSyncConfig) localStorage.setItem('day-planner-cloud-sync-config', JSON.stringify(data.cloudSyncConfig));
+    if (data.reminderSettings) localStorage.setItem('day-planner-reminder-settings', JSON.stringify(data.reminderSettings));
+    if (data.use24HourClock !== undefined) localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(data.use24HourClock));
+    if (data.weatherZip !== undefined) localStorage.setItem('day-planner-weather-zip', data.weatherZip);
+    if (data.weatherTempUnit !== undefined) localStorage.setItem('day-planner-weather-temp-unit', data.weatherTempUnit);
+    if (data.habits) localStorage.setItem('day-planner-habits', JSON.stringify(data.habits));
+    if (data.habitLogs) localStorage.setItem('day-planner-habit-logs', JSON.stringify(data.habitLogs));
+    // If backup has habits data, always enable habits regardless of the backed-up toggle value
+    // (the toggle may have been incorrectly saved as false by an earlier bug)
+    const habitsEnabledVal = (data.habits && data.habits.filter(h => !h.archived).length > 0) ? true : (data.habitsEnabled ?? false);
+    localStorage.setItem('day-planner-habits-enabled', JSON.stringify(habitsEnabledVal));
+    // Same for routines
+    const hasRoutineDefs = data.routineDefinitions && Object.values(data.routineDefinitions).some(arr => arr.length > 0);
+    const routinesEnabledVal = hasRoutineDefs ? true : (data.routinesEnabled ?? false);
+    localStorage.setItem('day-planner-routines-enabled', JSON.stringify(routinesEnabledVal));
+    if (data.aiConfig) localStorage.setItem('day-planner-ai-config', JSON.stringify(data.aiConfig));
+    if (data.obsidianConfig) localStorage.setItem('day-planner-obsidian-config', JSON.stringify(data.obsidianConfig));
+    if (data.calendarFilter) localStorage.setItem('day-planner-calendar-filter', JSON.stringify(data.calendarFilter));
+    if (data.goals) localStorage.setItem('day-planner-goals', JSON.stringify(data.goals));
+    if (data.projects) localStorage.setItem('day-planner-projects', JSON.stringify(data.projects));
+    if (data.areas) localStorage.setItem('day-planner-areas', JSON.stringify(data.areas));
+    if (data.goalsProjectsEnabled !== undefined) localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
+    if (data.autoBackupConfig) localStorage.setItem('day-planner-auto-backup-config', JSON.stringify(data.autoBackupConfig));
+    // Onboarding flags: the Getting Started checklist can also be re-enabled
+    // from settings (key removed), so an explicit false must clear the key.
+    if (data.gettingStartedDismissed !== undefined) {
+      if (data.gettingStartedDismissed) localStorage.setItem('gettingStartedDismissed', 'true');
+      else localStorage.removeItem('gettingStartedDismissed');
+    }
+    if (data.onboardingProgress) localStorage.setItem('onboardingProgress', JSON.stringify(data.onboardingProgress));
+  };
+
+  // Restore data from backup file. Falls back to the staged pendingBackupFile
+  // (the confirm-modal flow, where this is wired directly as a click handler and
+  // therefore receives the click EVENT — hence the Blob check, not a default
+  // parameter); the welcome-modal restore passes the picked File directly since
+  // the app is empty there and needs no confirmation step.
+  const restoreBackup = (file) => {
+    const backupFile = file instanceof Blob ? file : pendingBackupFile;
+    if (!backupFile) return;
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -5235,42 +5392,7 @@ const DayPlanner = () => {
           throw new Error('Invalid backup file format');
         }
 
-        // Restore all data
-        const { data } = backup;
-        if (data.tasks) localStorage.setItem('day-planner-tasks', JSON.stringify(data.tasks));
-        if (data.unscheduledTasks) localStorage.setItem('day-planner-unscheduled', JSON.stringify(data.unscheduledTasks));
-        if (data.recycleBin) localStorage.setItem('day-planner-recycle-bin', JSON.stringify(data.recycleBin));
-        if (data.darkMode !== undefined) localStorage.setItem('day-planner-darkmode', JSON.stringify(data.darkMode));
-        if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', data.syncUrl);
-        if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
-        if (data.taskCalendarAuth) localStorage.setItem('day-planner-task-calendar-auth', JSON.stringify(data.taskCalendarAuth));
-        if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
-        if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
-        if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
-        if (data.selectedTags) localStorage.setItem('day-planner-selected-tags', JSON.stringify(data.selectedTags));
-        if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
-        if (data.cloudSyncConfig) localStorage.setItem('day-planner-cloud-sync-config', JSON.stringify(data.cloudSyncConfig));
-        if (data.reminderSettings) localStorage.setItem('day-planner-reminder-settings', JSON.stringify(data.reminderSettings));
-        if (data.use24HourClock !== undefined) localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(data.use24HourClock));
-        if (data.weatherZip !== undefined) localStorage.setItem('day-planner-weather-zip', data.weatherZip);
-        if (data.weatherTempUnit !== undefined) localStorage.setItem('day-planner-weather-temp-unit', data.weatherTempUnit);
-        if (data.habits) localStorage.setItem('day-planner-habits', JSON.stringify(data.habits));
-        if (data.habitLogs) localStorage.setItem('day-planner-habit-logs', JSON.stringify(data.habitLogs));
-        // If backup has habits data, always enable habits regardless of the backed-up toggle value
-        // (the toggle may have been incorrectly saved as false by an earlier bug)
-        const habitsEnabledVal = (data.habits && data.habits.filter(h => !h.archived).length > 0) ? true : (data.habitsEnabled ?? false);
-        localStorage.setItem('day-planner-habits-enabled', JSON.stringify(habitsEnabledVal));
-        // Same for routines
-        const hasRoutineDefs = data.routineDefinitions && Object.values(data.routineDefinitions).some(arr => arr.length > 0);
-        const routinesEnabledVal = hasRoutineDefs ? true : (data.routinesEnabled ?? false);
-        localStorage.setItem('day-planner-routines-enabled', JSON.stringify(routinesEnabledVal));
-        if (data.aiConfig) localStorage.setItem('day-planner-ai-config', JSON.stringify(data.aiConfig));
-        if (data.obsidianConfig) localStorage.setItem('day-planner-obsidian-config', JSON.stringify(data.obsidianConfig));
-        if (data.calendarFilter) localStorage.setItem('day-planner-calendar-filter', JSON.stringify(data.calendarFilter));
-        if (data.goals) localStorage.setItem('day-planner-goals', JSON.stringify(data.goals));
-        if (data.projects) localStorage.setItem('day-planner-projects', JSON.stringify(data.projects));
-        if (data.areas) localStorage.setItem('day-planner-areas', JSON.stringify(data.areas));
-        if (data.goalsProjectsEnabled !== undefined) localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
+        applyBackupToLocalStorage(backup.data);
 
         // Full-state replacement → invalidate the vault sync cursors (see
         // restoreFromAutoBackup for the stale-snapshot/stale-HWM hazard).
@@ -5294,7 +5416,37 @@ const DayPlanner = () => {
       setPendingBackupFile(null);
       setShowRestoreConfirm(false);
     };
-    reader.readAsText(pendingBackupFile);
+    reader.readAsText(backupFile);
+  };
+
+  // Restore from the folder backup's live file. Reuses the stored folder handle
+  // when permission can be (re-)granted, otherwise opens the folder picker —
+  // one dialog restores AND reconnects write-through. Used by the welcome
+  // modal's "Restore from a backup" and the Auto-Backup manager.
+  const restoreFromBackupFolder = async () => {
+    try {
+      const { payload } = await folderBackup.openForRestore();
+      if (!payload?.data) {
+        alert(`No ${LIVE_BACKUP_FILENAME} backup was found in that folder.`);
+        return;
+      }
+      applyBackupToLocalStorage(payload.data);
+      // Re-arm folder backup after the reload regardless of what the backed-up
+      // config said — the user just restored from this folder, so keep writing
+      // to it. The handle is already persisted by openForRestore.
+      try {
+        const cfg = JSON.parse(localStorage.getItem('day-planner-auto-backup-config') || '{}');
+        cfg.folder = { snapshotFrequency: 'daily', ...cfg.folder, enabled: true };
+        localStorage.setItem('day-planner-auto-backup-config', JSON.stringify(cfg));
+      } catch { /* ignore */ }
+      // Full-state replacement → invalidate the vault sync cursors (see
+      // restoreFromAutoBackup for the stale-snapshot/stale-HWM hazard).
+      resetVaultSyncCursor();
+      window.location.reload();
+    } catch (err) {
+      if (err?.name === 'AbortError') return; // user cancelled the picker
+      alert('Failed to restore from backup folder: ' + err.message);
+    }
   };
 
   // Fetches an ICS/CalDAV URL, routing through the Vercel proxy on web or via
@@ -5844,14 +5996,11 @@ const DayPlanner = () => {
       const m = uid.match(/::(\d{4}-\d{2}-\d{2})$/);
       return !m || new Date(m[1]) >= uidCutoff;
     });
-    // Imported-task sync rule. Always drop read-only CalDAV events; keep
-    // isTaskCalendar to-dos and ICS file imports as first-class data. In
-    // multi-user, additionally drop ALL subscription-derived ('sync') items so a
-    // CalDAV feed never leaks to other users — each device re-fetches from its own
-    // per-user URL (completion still flows back through CalDAV).
-    const keepImported = (t) =>
-      !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')
-      && !(multiUserEnabled && t.imported && t.importSource === 'sync');
+    // Imported-task sync rule — the actual predicate lives in
+    // src/sync/payloadExclusions.js (single source of truth, shared with the
+    // DB engine's snapshot-delete classifier; see that module for the rule
+    // text and why the two sides must never drift).
+    const keepImported = (t) => keepImportedTask(t, multiUserEnabled);
 
     // Per-user calendar config (multi-user). Read-only here: the device's own
     // entry is maintained by an effect (see "maintain per-user calendar entry"),
@@ -6034,11 +6183,28 @@ const DayPlanner = () => {
     // Only apply todayRoutines/routinesDate if the remote data is from today.
     // If it's from a previous day, skip it — local state (already cleared by loadData) is correct.
     const todayStr = dateToString(new Date());
+    // Sanitize merged completions for today (#1196 symptom 2): a merged payload
+    // can carry a PRIOR-day completion this device never tombstoned (offline
+    // overnight while another device completed the routine), and the mirror's
+    // routinesDate merges to newest so the today-gate above always passes.
+    // Applying it verbatim renders the routine already-done. Drop stale entries
+    // and raise their timestamps to the midnight tombstone so the heal also
+    // propagates back to the fleet on the next push; genuine today-completions
+    // and un-complete markers pass through verbatim (see the helper's doc).
+    const sanitizedRoutineState = data.routineCompletions
+      ? sanitizeMergedRoutineCompletions(
+          data.routineCompletions, data.routineCompletionTimestamps || {}, todayStr, startOfTodayIso(),
+        )
+      : null;
     if (data.routinesDate === todayStr) {
       if (data.todayRoutines) localStorage.setItem('day-planner-today-routines', JSON.stringify(data.todayRoutines));
       localStorage.setItem('day-planner-routines-date', data.routinesDate);
-      if (data.routineCompletions) localStorage.setItem('day-planner-routine-completions', JSON.stringify(data.routineCompletions));
-      if (data.routineCompletionTimestamps) localStorage.setItem('day-planner-routine-completion-timestamps', JSON.stringify(data.routineCompletionTimestamps));
+      if (sanitizedRoutineState) {
+        localStorage.setItem('day-planner-routine-completions', JSON.stringify(sanitizedRoutineState.completions));
+        localStorage.setItem('day-planner-routine-completion-timestamps', JSON.stringify(sanitizedRoutineState.timestamps));
+      } else if (data.routineCompletionTimestamps) {
+        localStorage.setItem('day-planner-routine-completion-timestamps', JSON.stringify(data.routineCompletionTimestamps));
+      }
     }
     // selectedTags is a per-device UI preference and is not applied to state here.
     // minimizedSections is synced to localStorage so the same section layout follows the user across devices.
@@ -6203,11 +6369,16 @@ const DayPlanner = () => {
     // Only apply today's routine state if the remote data is from today — matching
     // the localStorage guard above. If routinesDate is stale/off, applying it would
     // trigger the auto-clear effect in useRoutines and wipe todayRoutines to [].
-    if (data.routinesDate === dateToString(new Date())) {
+    // Completions apply SANITIZED (#1196 symptom 2 — see sanitizedRoutineState above).
+    if (data.routinesDate === todayStr) {
       if (data.todayRoutines) setTodayRoutines(data.todayRoutines);
       setRoutinesDate(data.routinesDate);
-      if (data.routineCompletions) setRoutineCompletions(data.routineCompletions);
-      if (data.routineCompletionTimestamps) setRoutineCompletionTimestamps(data.routineCompletionTimestamps);
+      if (sanitizedRoutineState) {
+        setRoutineCompletions(sanitizedRoutineState.completions);
+        setRoutineCompletionTimestamps(sanitizedRoutineState.timestamps);
+      } else if (data.routineCompletionTimestamps) {
+        setRoutineCompletionTimestamps(data.routineCompletionTimestamps);
+      }
     }
     if (data.use24HourClock !== undefined) setUse24HourClock(data.use24HourClock);
     if (data.weatherZip !== undefined) setWeatherZip(data.weatherZip);
@@ -6238,6 +6409,7 @@ const DayPlanner = () => {
     buildBackupPayload: buildAutoBackupPayload,
     applyPayload:       applyEngineData,
     syncRetentionDays,
+    multiUserEnabled,
   };
 
   // Flip cloudSyncInitialDoneRef once the engine reports a successful sync.
@@ -9083,6 +9255,7 @@ const DayPlanner = () => {
     buildAutoBackupPayload, loadAutoBackupHistory,
     deleteLocalAutoBackup, deleteRemoteAutoBackup,
     restoreFromAutoBackup, restoreFromRemoteBackup,
+    folderBackup, restoreFromBackupFolder,
     exportBackup, restoreBackup,
     handleFileUpload, handleBackupFileSelect, processImportFile,
     buildSyncPayload,
@@ -9149,7 +9322,7 @@ const DayPlanner = () => {
     wakeLockSentinel, focusModeAvailable,
 
     // ── AI / Voice ────────────────────────────────────────────────────────────
-    aiConfig, setAiConfig,
+    aiConfig, setAiConfig, aiSuppressed,
     aiConnectionStatus, setAiConnectionStatus,
     aiConnectionMessage, setAiConnectionMessage,
     aiOllamaHelp, setAiOllamaHelp,
@@ -9229,6 +9402,15 @@ const DayPlanner = () => {
 
     // ── Multi-user ────────────────────────────────────────────────────────────
     multiUserEnabled, setMultiUserEnabled,
+    // Reactive: cloudSyncConfig is state, so this recomputes on every WebDAV
+    // config change. isVaultEnabled() reads localStorage, but a vault
+    // enable/disable always reloads the app (CloudSyncSettingsForm), so a
+    // render-time read is current. Multi-user is meaningless without one of
+    // these sync tiers, so settings gate the toggle on it.
+    cloudSyncConfigured: canEnableMultiUser({
+      cloudSyncEnabled: cloudSyncConfig?.enabled,
+      vaultEnabled: isVaultEnabled(),
+    }),
     users, setUsers,
     meUserSyncId, setMeUserSyncId,
     isVisibleForUser,
@@ -10345,6 +10527,29 @@ const DayPlanner = () => {
                 </a>
               </div>
 
+              {/* Legal */}
+              <div>
+                <p className={`text-xs font-semibold uppercase tracking-wide ${textSecondary} mb-2`}>{t('app.legal')}</p>
+                <a
+                  href="https://glance-apps.com/dayglance/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-blue-500 hover:text-blue-400 transition-colors text-sm font-medium"
+                >
+                  <ExternalLink size={14} />
+                  {t('onboarding.privacyPolicy')}
+                </a>
+                <a
+                  href="https://www.glance-apps.com/eula"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-blue-500 hover:text-blue-400 transition-colors text-sm font-medium mt-1.5"
+                >
+                  <ExternalLink size={14} />
+                  {t('onboarding.termsOfUse')}
+                </a>
+              </div>
+
               {/* Getting Started toggle */}
               <div className={`pt-4 border-t ${borderClass}`}>
                 <div className="flex items-center justify-between">
@@ -10805,6 +11010,14 @@ const DayPlanner = () => {
       {/* GTD Frames Modal (Desktop/Tablet) */}
       {showFramesModal && !isMobile && <FramesModal />}
 
+      {/* Reviewer-mode banner — whenever the app is unlocked via the reviewer
+          bypass code, offer a one-tap way back to the paywall so App Review can
+          always locate the in-app purchases (Guideline 2.1(b)). Reviewer unlock
+          only, never genuine purchasers. */}
+      {isReviewerUnlocked && (
+        <ReviewerBanner darkMode={darkMode} onExit={exitReviewerMode} />
+      )}
+
       {/* Subscription wall — shown on Android, iOS, and macOS when subscription is inactive.
           In dev builds, ?wall in the URL forces it visible for local testing. */}
       {(import.meta.env.DEV && new URLSearchParams(location.search).has('wall') || (isAndroidApp || isIOSApp || isElectronApp)) && (subLoading || !isPro) && !isReviewerUnlocked && (
@@ -10813,6 +11026,7 @@ const DayPlanner = () => {
           isLoading={subLoading}
           prices={subPrices}
           trialEligible={trialEligible}
+          trialDays={trialDays}
           onSubscribeYearly={() => subscribe(isAndroidApp ? 'dayglance_pro_annual' : 'com.dayglance.pro.yearly')}
           onSubscribeLifetime={() => subscribe(isAndroidApp ? 'dayglance_pro_lifetime' : 'com.dayglance.pro.lifetime')}
           onRestore={restore}

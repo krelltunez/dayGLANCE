@@ -79,7 +79,7 @@ module.exports = {
       NSCalendarsUsageDescription: 'dayGLANCE shows your calendar events alongside your tasks.',
       NSCalendarsFullAccessUsageDescription: 'dayGLANCE shows your calendar events alongside your tasks.',
     },
-    // Bundle the signed EventKit helper (built by scripts/build-calendar-helper.sh)
+    // Bundle the signed EventKit calendar helper (built by scripts/build-calendar-helper.sh)
     // into Contents/Resources/calendar-helper. electron-builder signs nested binaries.
     extraResources: [
       { from: 'electron/native/calendar-helper/build/dayglance-calendar-helper', to: 'calendar-helper/dayglance-calendar-helper' },

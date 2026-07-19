@@ -23,7 +23,9 @@ import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { isVaultEnabled } from '../sync/vaultConfig.js';
+import { multiUserToggleLocked } from '../utils/multiUserGate.js';
 import { getDbIntentsConfig, setDbIntentsConfig, getDbIntentsConnection } from '../intents/dbIntentsConfig.js';
+import { getIcloudIntentsEnabledFlag, setIcloudIntentsEnabled } from '../intents/icloudIntentsConfig.js';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from '../intents/useIntentPoller.js';
 import { syncSharedUsers, syncSharedUsersViaICloud } from '../intents/sharedUsers.js';
@@ -113,7 +115,7 @@ const MobileSettingsPanel = () => {
     smartScheduleError, setSmartScheduleError,
     smartScheduleAccepted, setSmartScheduleAccepted,
     runSmartSchedule, applySmartSchedule,
-    aiConfig, setAiConfig,
+    aiConfig, setAiConfig, aiSuppressed,
     aiConnectionStatus, setAiConnectionStatus,
     aiConnectionMessage, setAiConnectionMessage,
     aiOllamaHelp, setAiOllamaHelp,
@@ -122,7 +124,15 @@ const MobileSettingsPanel = () => {
     applyReminderPreset, updateCategoryReminder,
     users, setUsers, meUserSyncId, setMeUserSyncId,
     multiUserEnabled, setMultiUserEnabled,
+    cloudSyncConfigured,
   } = useFeaturesCtx();
+  // Gate multi-user when sync is unconfigured; never trap an already-on toggle.
+  const multiUserLocked = multiUserToggleLocked({ cloudSyncConfigured, multiUserEnabled });
+  // iOS uses HealthKit lazy authorization (permission requested on first read), so
+  // it has no explicit permission check/request. On iOS the health-habit "Add"
+  // button is always enabled and the dead "Continue" button is hidden — see the
+  // matching note in HabitModal.jsx and refreshHealthPerms in useHabits.js.
+  const isIOS = typeof window !== 'undefined' && !!window.DayGlanceIOS;
 
   const [intentForm, setIntentForm] = useState(() => {
     const raw = localStorage.getItem(INTENT_CONFIG_KEY);
@@ -149,6 +159,10 @@ const MobileSettingsPanel = () => {
   // Vault intents key-setup phase: null | 'passphrase-needed' | 'running' | { error }.
   const [dbIntentsSetupPhase, setDbIntentsSetupPhase] = useState(null);
   const [dbIntentsPassphraseInput, setDbIntentsPassphraseInput] = useState('');
+  // iCloud intents opt-in gate. DEFAULT OFF — activation (emit + poll) only runs
+  // when the user flips this on, matching WebDAV/vault gating.
+  const [icloudIntentsEnabled, setIcloudIntentsEnabledState] = useState(() => getIcloudIntentsEnabledFlag());
+  const [icloudIntentsSaved, setIcloudIntentsSaved] = useState(false);
   // Android automation intents (Tasker) opt-in gate. DEFAULT OFF — the native
   // SharedPreferences flag is the source of truth; mirror it for the toggle.
   const [automationIntentsEnabled, setAutomationIntentsEnabled] = useState(
@@ -157,6 +171,12 @@ const MobileSettingsPanel = () => {
   const [muAddingUser, setMuAddingUser] = useState(false);
   const [muNewUserName, setMuNewUserName] = useState('');
   const [muEditingUserId, setMuEditingUserId] = useState(null);
+
+  // Two-step confirm for the hidden "Reset test purchase" action. The realistic
+  // misuse isn't discovery (7-tap gate) — it's a paying user misreading "reset"
+  // as "refresh my purchase state" while troubleshooting. The confirm converts
+  // that into informed consent: it names the real consequence before acting.
+  const [confirmingPurchaseReset, setConfirmingPurchaseReset] = useState(false);
   const [muEditingUserName, setMuEditingUserName] = useState('');
   const [muUsersPath, setMuUsersPath] = useState(() => {
     const raw = localStorage.getItem(MULTI_USER_CONFIG_KEY);
@@ -274,6 +294,8 @@ const MobileSettingsPanel = () => {
         <Activity size={24} className={mobileSettingsView === 'habits' ? 'text-green-500' : habitsEnabled ? 'text-green-500' : textSecondary} />
         <span className={`text-xs font-medium ${textPrimary}`}>{habitsEnabled ? t('settings.habitsOn') : t('settings.habitsOff')}</span>
       </button>
+      {/* AI tile hidden on the China App Store storefront (Guideline 5 / MIIT). */}
+      {!aiSuppressed && (
       <button
         onClick={() => setMobileSettingsView('ai')}
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
@@ -281,6 +303,7 @@ const MobileSettingsPanel = () => {
         {aiConfig.enabled ? <BrainCircuit size={24} className="text-purple-400" /> : <BrainCircuit size={24} className={textSecondary} />}
         <span className={`text-xs font-medium ${textPrimary}`}>{aiConfig.enabled ? t('settings.aiOn') : t('settings.aiOff')}</span>
       </button>
+      )}
     </div>
 
     {/* Sync buttons */}
@@ -407,19 +430,42 @@ const MobileSettingsPanel = () => {
         <ChevronRight size={18} className={textSecondary} />
       </button>
       {canConsumeTestPurchase && devTapCount >= 7 && (
-        <button
-          onClick={consumeTestPurchase}
-          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-3 flex items-center gap-3 opacity-50`}
-        >
-          <RefreshCw size={16} className={textSecondary} />
-          <span className={`text-sm ${textSecondary} flex-1 text-left`}>Reset test purchase</span>
-        </button>
+        confirmingPurchaseReset ? (
+          <div className={`w-full ${cardBg} border border-red-500/40 rounded-xl p-3 space-y-2`}>
+            <p className={`text-xs ${textSecondary} leading-relaxed`}>
+              This permanently revokes this account&apos;s purchase from Google Play.
+              It is not a refresh and cannot be undone. For internal testing only.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmingPurchaseReset(false)}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border ${borderClass} ${textPrimary}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setConfirmingPurchaseReset(false); consumeTestPurchase(); }}
+                className="flex-1 py-2 rounded-lg text-sm font-medium bg-red-600 text-white"
+              >
+                Revoke purchase
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmingPurchaseReset(true)}
+            className={`w-full ${cardBg} border ${borderClass} rounded-xl p-3 flex items-center gap-3 opacity-50`}
+          >
+            <RefreshCw size={16} className={textSecondary} />
+            <span className={`text-sm ${textSecondary} flex-1 text-left`}>Reset test purchase</span>
+          </button>
+        )
       )}
       {(isAndroidApp || isIOSApp || isElectronApp) && isPro && (
         <p onClick={() => setDevTapCount(c => c + 1)} className={`text-xs ${textSecondary} text-center pt-1`}>
-          {(isIOSApp || isElectronApp)
-            ? (subProductId?.includes('monthly') ? 'dayGLANCE Pro · Monthly' : 'dayGLANCE Pro · Annual')
-            : (subProductId === 'dayglance_pro_lifetime' ? 'dayGLANCE Pro · Lifetime' : 'dayGLANCE Pro · Annual')}
+          {/* Only two plans exist on every platform: annual and lifetime
+              (dayglance_pro_lifetime / com.dayglance.pro.lifetime). */}
+          {subProductId?.includes('lifetime') ? 'dayGLANCE Pro · Lifetime' : 'dayGLANCE Pro · Annual'}
         </p>
       )}
     </div>
@@ -1103,8 +1149,8 @@ const MobileSettingsPanel = () => {
     </div>
   )}
 
-  {/* AI settings sub-view */}
-  {mobileSettingsView === 'ai' && (
+  {/* AI settings sub-view — suppressed on the China App Store storefront (Guideline 5 / MIIT). */}
+  {mobileSettingsView === 'ai' && !aiSuppressed && (
     <div className="px-4 py-4 space-y-4">
       <button
         onClick={() => setMobileSettingsView('main')}
@@ -2133,6 +2179,54 @@ const MobileSettingsPanel = () => {
             );
           })()}
         </div>
+
+        {/* iCloud intents opt-in — Apple platforms only (isICloudAvailable() is
+            false on Android/web). Gates ACTIVATION of the iCloud intents transport
+            (emit + poll); default OFF so the path stays inert until the user opts in. */}
+        {isICloudAvailable() && (
+          <div>
+            <h5 className={sectionCls}>
+              <span className="flex items-center gap-2">
+                <Cloud size={14} className={textSecondary} />
+                {t('settings.icloudIntents')}
+              </span>
+            </h5>
+            <p className={`${textSecondary} text-xs mb-3`}>
+              {t('settings.icloudIntentsDesc')}
+            </p>
+            <div className={`flex items-start gap-3 p-3 rounded-lg border ${borderClass}`}>
+              <input
+                type="checkbox"
+                id="icloud-intents-toggle-mobile"
+                checked={icloudIntentsEnabled}
+                onChange={e => setIcloudIntentsEnabledState(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded"
+              />
+              <div>
+                <label htmlFor="icloud-intents-toggle-mobile" className={`text-sm font-medium ${textPrimary} cursor-pointer`}>
+                  {t('settings.icloudIntentsEnable')}
+                </label>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const wasEnabled = getIcloudIntentsEnabledFlag();
+                setIcloudIntentsEnabled(icloudIntentsEnabled);
+                // Reload so the intent poller remounts and re-reads the opt-in
+                // (mirrors the GLANCEvault intents toggle's reload-on-change).
+                if (wasEnabled !== icloudIntentsEnabled) {
+                  window.location.reload();
+                  return;
+                }
+                setIcloudIntentsSaved(true);
+                setTimeout(() => setIcloudIntentsSaved(false), 2000);
+              }}
+              className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              {icloudIntentsSaved ? 'Saved' : 'Save'}
+            </button>
+          </div>
+        )}
       </div>
     );
   })()}
@@ -2522,12 +2616,12 @@ const MobileSettingsPanel = () => {
                   {t('habit.addHabit')}
                 </button>
               )}
-              {window.DayGlanceNative && !activeHabits.some(h => h.source === 'healthConnect' && h.unit === 'steps') && activeHabits.length < 8 && (
+              {window.DayGlanceNative && !activeHabits.some(h => (h.source === 'healthKit' || h.source === 'healthConnect') && h.unit === 'steps') && activeHabits.length < 8 && (
                 <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${darkMode ? 'border-green-800 bg-green-950/40' : 'border-green-200 bg-green-50'}`}>
                   <Footprints size={22} className="text-green-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className={`text-sm font-semibold ${darkMode ? 'text-green-300' : 'text-green-800'}`}>Track steps automatically</div>
-                    <div className={`text-xs ${darkMode ? 'text-green-500' : 'text-green-600'} mt-0.5`}>Pulls from Health Connect — no manual tapping</div>
+                    <div className={`text-xs ${darkMode ? 'text-green-500' : 'text-green-600'} mt-0.5`}>Pulls from {isIOS ? 'Apple Health' : 'Health Connect'} — no manual tapping</div>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">
                     {!healthPerms?.steps && (
@@ -2535,7 +2629,7 @@ const MobileSettingsPanel = () => {
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 active:bg-green-700 transition-colors"
                       >
-                        Authorize
+                        Continue
                       </button>
                     )}
                     <button
@@ -2548,12 +2642,12 @@ const MobileSettingsPanel = () => {
                   </div>
                 </div>
               )}
-              {window.DayGlanceNative && !activeHabits.some(h => h.source === 'healthConnect' && h.unit === 'min') && activeHabits.length < 8 && (
+              {window.DayGlanceNative && !activeHabits.some(h => (h.source === 'healthKit' || h.source === 'healthConnect') && h.unit === 'min') && activeHabits.length < 8 && (
                 <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${darkMode ? 'border-indigo-800 bg-indigo-950/40' : 'border-indigo-200 bg-indigo-50'}`}>
                   <Moon size={22} className="text-indigo-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className={`text-sm font-semibold ${darkMode ? 'text-indigo-300' : 'text-indigo-800'}`}>Track sleep automatically</div>
-                    <div className={`text-xs ${darkMode ? 'text-indigo-500' : 'text-indigo-600'} mt-0.5`}>Pulls from Health Connect — no manual tapping</div>
+                    <div className={`text-xs ${darkMode ? 'text-indigo-500' : 'text-indigo-600'} mt-0.5`}>Pulls from {isIOS ? 'Apple Health' : 'Health Connect'} — no manual tapping</div>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">
                     {!healthPerms?.sleep && (
@@ -2561,7 +2655,7 @@ const MobileSettingsPanel = () => {
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700 transition-colors"
                       >
-                        Authorize
+                        Continue
                       </button>
                     )}
                     <button
@@ -2645,18 +2739,22 @@ const MobileSettingsPanel = () => {
         </div>
         <button
           type="button"
+          disabled={multiUserLocked}
           onClick={() => {
             const next = !multiUserEnabled;
             setMultiUserEnabled(next);
             localStorage.setItem('dayglance-multi-user-enabled', JSON.stringify(next));
           }}
-          className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors ${multiUserEnabled ? 'bg-green-500' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}
+          className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors ${multiUserEnabled ? 'bg-green-500' : darkMode ? 'bg-gray-600' : 'bg-stone-300'} ${multiUserLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
           role="switch"
           aria-checked={multiUserEnabled}
         >
           <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform ${multiUserEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
         </button>
       </div>
+      {!cloudSyncConfigured && (
+        <p className={`text-xs ${textSecondary} -mt-2`}>{t('settings.multiUserRequiresSync')}</p>
+      )}
       <div className="flex items-center justify-between gap-3">
         <p className={`text-xs ${textSecondary}`}>Share dayGLANCE with your household. Tasks can be assigned to specific people; unassigned tasks are visible to everyone.</p>
         {(cloudSyncConfig?.enabled || isICloudAvailable()) && (

@@ -15,7 +15,9 @@ import { syncSharedUsers, syncSharedUsersViaICloud } from '../intents/sharedUser
 import { isAvailable as isICloudAvailable } from '../intents/icloudFileTransport.js';
 import { getSyncPassphrase, setSyncPassphrase } from '../utils/crypto.js';
 import { isVaultEnabled } from '../sync/vaultConfig.js';
+import { multiUserToggleLocked } from '../utils/multiUserGate.js';
 import { getDbIntentsConfig, setDbIntentsConfig, getDbIntentsConnection } from '../intents/dbIntentsConfig.js';
+import { getIcloudIntentsEnabledFlag, setIcloudIntentsEnabled } from '../intents/icloudIntentsConfig.js';
 import { setupIntentsEncryption } from '../intents/intentsEncryptionSetup.js';
 import { ensureVaultIntentsKey, setupVaultIntentsEncryption } from '../intents/vaultIntentsSetup.js';
 import { flushOutboxNow } from '../intents/useOutboxFlush.js';
@@ -76,13 +78,18 @@ const SettingsModal = () => {
     habitsEnabled, setHabitsEnabled,
     routinesEnabled, setRoutinesEnabled,
     goalsProjectsEnabled, setGoalsProjectsEnabled,
-    aiConfig, setAiConfig,
+    aiConfig, setAiConfig, aiSuppressed,
     aiConnectionStatus, setAiConnectionStatus, aiConnectionMessage, setAiConnectionMessage,
     aiOllamaHelp, setAiOllamaHelp,
     multiUserEnabled, setMultiUserEnabled,
+    cloudSyncConfigured,
     users, setUsers,
     meUserSyncId, setMeUserSyncId,
   } = useFeaturesCtx();
+  // Multi-user only matters across synced devices; gate the toggle when sync is
+  // unconfigured. Never trap: an already-on toggle stays enabled so it can be
+  // turned off.
+  const multiUserLocked = multiUserToggleLocked({ cloudSyncConfigured, multiUserEnabled });
   const [addingUser, setAddingUser] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [editingUserId, setEditingUserId] = useState(null);
@@ -121,6 +128,10 @@ const SettingsModal = () => {
   // Vault intents key-setup phase: null | 'passphrase-needed' | 'running' | { error }.
   const [dbIntentsSetupPhase, setDbIntentsSetupPhase] = useState(null);
   const [dbIntentsPassphraseInput, setDbIntentsPassphraseInput] = useState('');
+  // iCloud intents opt-in gate. DEFAULT OFF — activation (emit + poll) only runs
+  // when the user flips this on, matching WebDAV/vault gating.
+  const [icloudIntentsEnabled, setIcloudIntentsEnabledState] = useState(() => getIcloudIntentsEnabledFlag());
+  const [icloudIntentsSaved, setIcloudIntentsSaved] = useState(false);
   // Android automation intents (Tasker) opt-in gate. DEFAULT OFF — the flag is
   // the single source of truth in native SharedPreferences; we mirror it here so
   // the toggle reflects the persisted value. Only shown on native Android.
@@ -1014,18 +1025,22 @@ const SettingsModal = () => {
                             </div>
                             <button
                               type="button"
+                              disabled={multiUserLocked}
                               onClick={() => {
                                 const next = !multiUserEnabled;
                                 setMultiUserEnabled(next);
                                 localStorage.setItem('dayglance-multi-user-enabled', JSON.stringify(next));
                               }}
-                              className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors ${multiUserEnabled ? 'bg-green-500' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}
+                              className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors ${multiUserEnabled ? 'bg-green-500' : darkMode ? 'bg-gray-600' : 'bg-stone-300'} ${multiUserLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
                               role="switch"
                               aria-checked={multiUserEnabled}
                             >
                               <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform ${multiUserEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                             </button>
                           </div>
+                          {!cloudSyncConfigured && (
+                            <p className={`text-xs ${textSecondary} -mt-2`}>{t('settings.multiUserRequiresSync')}</p>
+                          )}
                           <div className="flex items-center justify-between gap-3">
                             <p className={`${textSecondary} text-xs`}>
                               Share dayGLANCE with your household. Tasks can be assigned to specific people; unassigned tasks are visible to everyone.
@@ -1215,9 +1230,11 @@ const SettingsModal = () => {
                       )}
                     </div>
 
+                    {/* AI Features Section — hidden on the China App Store storefront
+                        to comply with App Store Review Guideline 5 (Deep Synthesis / MIIT). */}
+                    {!aiSuppressed && (<>
                     <hr className={borderClass} />
 
-                    {/* AI Features Section */}
                     <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('ai')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <BrainCircuit size={16} className={aiConfig.enabled ? 'text-purple-400' : textSecondary} />
@@ -1439,6 +1456,7 @@ const SettingsModal = () => {
                       )}
                       </>)}
                     </div>
+                    </>)}
 
                     {(!isMobile || isNativeAndroid()) && (<>
                     <hr className={borderClass} />
@@ -2137,6 +2155,53 @@ const SettingsModal = () => {
                           );
                         })()}
                       </div>
+
+                      {/* iCloud intents opt-in — Apple platforms only (isICloudAvailable()
+                          is false on Android/web). Gates ACTIVATION of the iCloud intents
+                          transport (emit + poll); default OFF so the path stays inert
+                          until the user opts in. */}
+                      {isICloudAvailable() && (
+                        <div className={`mt-4 pt-4 border-t ${borderClass} space-y-3`}>
+                          <div className="flex items-center gap-2">
+                            <Cloud size={14} className={textSecondary} />
+                            <span className={`text-sm font-medium ${textPrimary}`}>{t('settings.icloudIntents')}</span>
+                          </div>
+                          <p className={`${textSecondary} text-xs`}>
+                            {t('settings.icloudIntentsDesc')}
+                          </p>
+                          <div className={`flex items-start gap-3 p-3 rounded-lg border ${borderClass}`}>
+                            <input
+                              type="checkbox"
+                              id="icloud-intents-toggle"
+                              checked={icloudIntentsEnabled}
+                              onChange={e => setIcloudIntentsEnabledState(e.target.checked)}
+                              className="mt-0.5 h-4 w-4 rounded"
+                            />
+                            <div>
+                              <label htmlFor="icloud-intents-toggle" className={`text-sm font-medium ${textPrimary} cursor-pointer`}>
+                                {t('settings.icloudIntentsEnable')}
+                              </label>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const wasEnabled = getIcloudIntentsEnabledFlag();
+                              setIcloudIntentsEnabled(icloudIntentsEnabled);
+                              // Reload so the intent poller remounts and re-reads the
+                              // opt-in (mirrors the GLANCEvault intents reload-on-change).
+                              if (wasEnabled !== icloudIntentsEnabled) {
+                                window.location.reload();
+                                return;
+                              }
+                              setIcloudIntentsSaved(true);
+                              setTimeout(() => setIcloudIntentsSaved(false), 2000);
+                            }}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                          >
+                            {icloudIntentsSaved ? t('common.saved') : t('common.save')}
+                          </button>
+                        </div>
+                      )}
                       </>)}
                     </div>
 

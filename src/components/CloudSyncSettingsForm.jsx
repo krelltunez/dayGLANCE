@@ -250,7 +250,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
       setVaultTestResult(result);
     } catch {
       // testVaultConnection classifies every failure itself; this is defensive.
-      setVaultTestResult({ ok: false, message: 'Could not reach the vault at this URL.' });
+      setVaultTestResult({ ok: false, message: t('sync.form.vaultUnreachableSimple') });
     } finally {
       setVaultTesting(false);
     }
@@ -264,7 +264,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
   return (
     <div className="space-y-4">
       {/* ── WebDAV Sync ───────────────────────────────────────────────────── */}
-      <h3 className={sectionHeader}>WebDAV Sync</h3>
+      <h3 className={sectionHeader}>{t('sync.form.webdavTitle')}</h3>
 
       <label className="flex items-center gap-3 cursor-pointer select-none">
         <input
@@ -273,17 +273,16 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
           onChange={(e) => setWebdavEnabled(e.target.checked)}
           className="w-5 h-5 rounded flex-shrink-0"
         />
-        <span className={`text-sm font-medium ${textPrimary}`}>Sync via WebDAV</span>
+        <span className={`text-sm font-medium ${textPrimary}`}>{t('sync.form.webdavToggle')}</span>
       </label>
       <p className={`text-xs ${textSecondary} ml-7`}>
-        Sync to any WebDAV server (Nextcloud, ownCloud, etc.). Turn this off to keep your
-        connection details but stop syncing on this device — for example when moving fully to GLANCEvault.
+        {t('sync.form.webdavToggleHint')}
       </p>
 
       {webdavEnabled && (
         <div className="ml-7 space-y-4">
           <div>
-            <label className={`block text-sm font-medium ${textSecondary} mb-1`}>Provider</label>
+            <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('settings.aiProvider')}</label>
             <select
               value={formData.provider}
               onChange={(e) => setFormData(prev => ({ ...prev, provider: e.target.value }))}
@@ -320,7 +319,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
               onChange={(e) => setFormData(prev => ({ ...prev, syncFolder: e.target.value }))}
               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
             />
-            <p className={`text-xs ${textSecondary} mt-0.5`}>Path on your WebDAV server where sync files are stored.</p>
+            <p className={`text-xs ${textSecondary} mt-0.5`}>{t('sync.form.syncFolderHint')}</p>
           </div>
 
           {activeProvider.helpText && (
@@ -334,36 +333,36 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
               disabled={testing || !requiredFieldsFilled}
               className={secondaryBtn}
             >
-              {testing ? 'Testing...' : 'Test Connection'}
+              {testing ? t('settings.aiTesting') : t('settings.aiTestConnection')}
             </button>
             <button
               onClick={handleSyncNow}
               disabled={syncingNow || !cloudSyncConfig?.enabled}
-              title={!cloudSyncConfig?.enabled ? 'Enable WebDAV sync first' : 'Sync with WebDAV now'}
+              title={!cloudSyncConfig?.enabled ? t('sync.form.syncNowDisabledTitle') : t('sync.form.syncNowTitle')}
               className={secondaryBtn}
             >
-              {(syncingNow || cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? 'Syncing...' : 'Sync Now'}
+              {(syncingNow || cloudSyncStatus === 'uploading' || cloudSyncStatus === 'downloading') ? t('common.syncing') : t('common.syncNow')}
             </button>
           </div>
           {testResult && (
             <p className={`text-sm ${testResult.success ? 'text-green-500' : 'text-red-500'}`}>
-              {testResult.success ? 'Connection successful!' : testResult.error}
+              {testResult.success ? t('sync.form.connectionSuccess') : testResult.error}
             </p>
           )}
           {cloudSyncStatus === 'error' && cloudSyncError ? (
             <p className="text-xs text-red-500">{cloudSyncError}</p>
           ) : cloudSyncLastSynced ? (
             <p className={`text-xs ${textSecondary}`}>
-              Last synced: {new Date(cloudSyncLastSynced).toLocaleString()}
+              {t('common.lastSynced')}: {new Date(cloudSyncLastSynced).toLocaleString()}
             </p>
           ) : null}
 
           {migrationOldPath && (
             <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 space-y-1">
-              <p className="font-semibold">Optional: move sync folder</p>
-              <p>Your sync file is at the old location. You can move it for cleaner organization — sync will continue to work either way.</p>
+              <p className="font-semibold">{t('sync.form.migrationTitle')}</p>
+              <p>{t('sync.form.migrationBody')}</p>
               <p className="font-mono break-all">{migrationOldPath} → GLANCE/dayglance/</p>
-              <p>After moving the file, update your Sync folder setting above to <span className="font-mono">GLANCE/dayglance</span>.</p>
+              <p>{t('sync.form.migrationInstruction')} <span className="font-mono">GLANCE/dayglance</span>.</p>
               <button
                 onClick={() => {
                   localStorage.removeItem('dayglance-sync-migration-old-path');
@@ -371,7 +370,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
                 }}
                 className="text-amber-700 underline mt-1"
               >
-                Dismiss
+                {t('common.dismiss')}
               </button>
             </div>
           )}
@@ -397,23 +396,22 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
         {encryptionEnabled && (
           <div className="ml-7 space-y-3">
             <p className={`text-xs ${textSecondary}`}>
-              Your data is encrypted on-device before upload. The server never sees your plaintext.
-              Use a <strong>sync passphrase</strong> — not your WebDAV password.
+              {t('sync.form.encryptionExplainer')}
             </p>
 
             {alreadyEncrypted && !passphraseRequired && (
               <p className={`text-xs text-amber-500`}>
-                Encryption is already configured. Leave the passphrase field blank to keep your existing key, or enter it again to re-authenticate on this device.
+                {t('sync.form.encryptionAlreadyConfigured')}
               </p>
             )}
 
             <div>
               <label className={`block text-sm ${textSecondary} mb-1`}>
-                Sync passphrase{passphraseRequired ? '' : ' (optional)'}
+                {passphraseRequired ? t('sync.form.syncPassphraseLabel') : t('sync.form.syncPassphraseLabelOptional')}
               </label>
               <input
                 type="password"
-                placeholder={passphraseRequired ? 'Choose a strong passphrase' : 'Re-enter to re-authenticate'}
+                placeholder={passphraseRequired ? t('sync.form.passphrasePlaceholderNew') : t('sync.form.passphrasePlaceholderReenter')}
                 value={passphrase}
                 onChange={(e) => setPassphrase(e.target.value)}
                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
@@ -422,23 +420,23 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
 
             {passphraseRequired && (
               <div>
-                <label className={`block text-sm ${textSecondary} mb-1`}>Confirm passphrase</label>
+                <label className={`block text-sm ${textSecondary} mb-1`}>{t('sync.form.confirmPassphraseLabel')}</label>
                 <input
                   type="password"
-                  placeholder="Re-enter your passphrase"
+                  placeholder={t('sync.form.confirmPassphrasePlaceholder')}
                   value={passphraseConfirm}
                   onChange={(e) => setPassphraseConfirm(e.target.value)}
                   className={`w-full px-3 py-2 border ${passphraseMismatch ? 'border-red-500' : borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
                 />
                 {passphraseMismatch && (
-                  <p className="text-xs text-red-500 mt-0.5">Passphrases do not match.</p>
+                  <p className="text-xs text-red-500 mt-0.5">{t('sync.form.passphraseMismatch')}</p>
                 )}
               </div>
             )}
 
             <div className={`text-xs ${textSecondary} space-y-1 rounded-lg p-3 ${darkMode ? 'bg-gray-700' : 'bg-amber-50 border border-amber-200'}`}>
-              <p className="font-medium text-amber-600">Important — store your passphrase safely</p>
-              <p>This passphrase cannot be recovered. You will need it to set up sync on new devices. Store it in a password manager.</p>
+              <p className="font-medium text-amber-600">{t('sync.form.storePassphraseTitle')}</p>
+              <p>{t('sync.form.storePassphraseBody')}</p>
             </div>
           </div>
         )}
@@ -446,10 +444,10 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
 
       {/* ── GLANCEvault (Beta) ────────────────────────────────────────────── */}
       <div className={`border-t ${borderClass} pt-4 space-y-3`}>
-        <h3 className={sectionHeader}>GLANCEvault (Beta)</h3>
+        <h3 className={sectionHeader}>{t('sync.form.vaultTitle')}</h3>
         <p className="text-xs text-amber-500 flex items-start gap-1.5">
           <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
-          <span>Experimental. Requires a self-hosted GLANCEvault server. Not recommended for most users.</span>
+          <span>{t('sync.form.vaultExperimentalWarning')}</span>
         </p>
 
         <label className="flex items-center gap-3 cursor-pointer select-none">
@@ -459,16 +457,15 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
             onChange={(e) => setVaultEnabled(e.target.checked)}
             className="w-5 h-5 rounded flex-shrink-0"
           />
-          <span className={`text-sm font-medium ${textPrimary}`}>Sync via GLANCEvault</span>
+          <span className={`text-sm font-medium ${textPrimary}`}>{t('sync.form.vaultToggle')}</span>
         </label>
         <p className={`text-xs ${textSecondary} ml-7`}>
-          Row-grained database sync. Runs alongside your existing WebDAV sync. Your WebDAV data is never modified.
-          Uses the same encryption passphrase as above.
+          {t('sync.form.vaultToggleHint')}
         </p>
         {vaultEnabled && (
           <div className="ml-7 space-y-3">
             <div>
-              <label className={`block text-sm ${textSecondary} mb-1`}>Vault URL</label>
+              <label className={`block text-sm ${textSecondary} mb-1`}>{t('sync.form.vaultUrlLabel')}</label>
               <input
                 type="text"
                 placeholder="https://vault.glance-apps.com"
@@ -484,11 +481,11 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
               )}
             </div>
             <div>
-              <label className={`block text-sm ${textSecondary} mb-1`}>Device token</label>
+              <label className={`block text-sm ${textSecondary} mb-1`}>{t('sync.form.deviceTokenLabel')}</label>
               <div className="relative">
                 <input
                   type={showVaultToken ? 'text' : 'password'}
-                  placeholder="Device bearer token"
+                  placeholder={t('sync.form.deviceTokenPlaceholder')}
                   value={vaultToken}
                   onChange={(e) => setVaultToken(e.target.value)}
                   className={`w-full px-3 py-2 pr-10 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
@@ -496,7 +493,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
                 <button
                   type="button"
                   onClick={() => setShowVaultToken(v => !v)}
-                  aria-label={showVaultToken ? 'Hide device token' : 'Show device token'}
+                  aria-label={showVaultToken ? t('sync.form.hideDeviceToken') : t('sync.form.showDeviceToken')}
                   className={`absolute inset-y-0 right-0 flex items-center px-3 ${textSecondary}`}
                 >
                   {showVaultToken ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -504,10 +501,10 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
               </div>
             </div>
             <div>
-              <label className={`block text-sm ${textSecondary} mb-1`}>Account ID</label>
+              <label className={`block text-sm ${textSecondary} mb-1`}>{t('sync.form.accountIdLabel')}</label>
               <input
                 type="text"
-                placeholder="Household account id"
+                placeholder={t('sync.form.accountIdPlaceholder')}
                 value={vaultAccountId}
                 onChange={(e) => setVaultAccountId(e.target.value)}
                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none leading-normal text-base ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
@@ -523,7 +520,7 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
                 disabled={vaultTesting || !vaultFilled}
                 className={secondaryBtn}
               >
-                {vaultTesting ? 'Testing...' : 'Test Connection'}
+                {vaultTesting ? t('settings.aiTesting') : t('settings.aiTestConnection')}
               </button>
             </div>
             {vaultTestResult && (
@@ -531,15 +528,15 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
                 {vaultTestResult.message}
               </p>
             )}
-            <p className={`text-xs ${textSecondary}`}>Saving a GLANCEvault change reloads the app so the sync engines reconstruct.</p>
+            <p className={`text-xs ${textSecondary}`}>{t('sync.form.vaultReloadHint')}</p>
             {!vaultEncryptionReady && (
               <p className="text-xs text-amber-500">
-                GLANCEvault is always end-to-end encrypted. Turn on “{t('settings.enableE2EEncryption')}” above and set your sync passphrase to enable it.
+                {t('sync.form.vaultNeedsEncryption', { encryption: t('settings.enableE2EEncryption') })}
               </p>
             )}
             {vaultEncryptionReady && vaultChanged && !passphraseAvailable && (
               <p className="text-xs text-amber-500">
-                Enter your sync passphrase in the encryption section above to enable GLANCEvault on this device.
+                {t('sync.form.vaultNeedsPassphrase')}
               </p>
             )}
             {vaultBootstrapError && (
@@ -558,19 +555,19 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
                 disabled={vaultSyncing}
                 className={secondaryBtn}
               >
-                {(vaultSyncing || vaultStatus === 'uploading' || vaultStatus === 'downloading') ? 'Syncing...' : 'Sync Now'}
+                {(vaultSyncing || vaultStatus === 'uploading' || vaultStatus === 'downloading') ? t('common.syncing') : t('common.syncNow')}
               </button>
             </div>
             {vaultError ? (
               <p className="text-xs text-red-500">{vaultError}</p>
             ) : vaultLastSynced ? (
               <p className={`text-xs ${textSecondary}`}>
-                Last synced: {new Date(vaultLastSynced).toLocaleString()}
+                {t('common.lastSynced')}: {new Date(vaultLastSynced).toLocaleString()}
               </p>
             ) : null}
             {vaultSkipped > 0 && (
               <p className="text-xs text-amber-500">
-                {vaultSkipped} item{vaultSkipped === 1 ? '' : 's'} couldn’t be read (skipped). This usually means a different sync passphrase was used on another device.
+                {t('sync.form.vaultSkipped', { count: vaultSkipped })}
               </p>
             )}
           </>
@@ -582,14 +579,14 @@ const CloudSyncSettingsForm = ({ darkMode, textPrimary, textSecondary, borderCla
           onClick={onClose}
           className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors`}
         >
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           onClick={handleSave}
           disabled={!canSave || vaultBootstrapping}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
-          {vaultBootstrapping ? 'Enabling…' : ((cloudSyncConfig?.enabled || vaultOriginal?.enabled) ? 'Save' : 'Save & Enable')}
+          {vaultBootstrapping ? t('sync.form.enabling') : ((cloudSyncConfig?.enabled || vaultOriginal?.enabled) ? t('common.save') : t('sync.form.saveEnable'))}
         </button>
       </div>
     </div>

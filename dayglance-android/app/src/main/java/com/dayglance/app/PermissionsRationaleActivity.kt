@@ -55,7 +55,7 @@ class PermissionsRationaleActivity : AppCompatActivity() {
                         .build()
                 )
                 .build()
-                .launchUrl(this, Uri.parse("https://docs.dayglance.app/en/privacy-policy"))
+                .launchUrl(this, Uri.parse("https://glance-apps.com/dayglance/privacy"))
         }
     }
 

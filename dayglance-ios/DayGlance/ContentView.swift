@@ -14,8 +14,8 @@ struct ContentView: View {
 
                 // HealthKit authorization is intentionally NOT requested here
                 // (guideline 5.1.1 — no unprompted HealthKit dialog in the launch
-                // cascade). It is requested lazily on first health-data read; see
-                // HealthBridge.ensureAuthorizationRequested().
+                // cascade). It is requested only when the user taps "Continue" on a
+                // health-habit tile; see HealthBridge.requestAuthorization().
 
                 await withCheckedContinuation { continuation in
                     CalendarBridge.shared.requestAuthorization { continuation.resume() }
