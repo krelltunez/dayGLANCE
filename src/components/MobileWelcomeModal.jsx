@@ -2,11 +2,12 @@ import React from 'react';
 import Wordmark from './Wordmark';
 import {
   BarChart3, Calendar, ChevronLeft, ChevronRight,
-  Cloud, Eye, Filter, Flag, Inbox, Mic, NotebookPen,
+  Cloud, Eye, Filter, Flag, FolderOpen, Inbox, Mic, NotebookPen,
   RefreshCw, Search, Settings, Target, Trash2, Zap,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useSyncCtx } from '../context/SyncContext.jsx';
 import { isFileSystemAccessSupported } from '../obsidian.js';
 import { isNativeApp } from '../native.js';
 
@@ -18,6 +19,10 @@ const MobileWelcomeModal = () => {
     setShowSettings,
     darkMode, textPrimary, textSecondary,
   } = useDayPlannerCtx();
+  // Restore entry point for returning users (the welcome modal shows exactly
+  // when the app has no data). Mobile browsers lack the File System Access
+  // API, so this is always the plain backup-file picker here.
+  const { restoreBackup } = useSyncCtx();
   // Obsidian needs the File System Access API (Chromium desktop) or a native
   // bridge; hide the onboarding mention where it can't actually be enabled.
   const obsidianAvailable = isFileSystemAccessSupported() || isNativeApp();
@@ -41,6 +46,15 @@ const MobileWelcomeModal = () => {
             <div className="mb-6"><Wordmark className="text-5xl" darkMode={darkMode} /></div>
             <p className={`text-lg ${textPrimary}`}>{t('onboarding.welcomeTitle')}</p>
             <p className={`${textSecondary} text-xs mt-4`}>{t('onboarding.welcomeLocal')}</p>
+            <label className={`mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg cursor-pointer ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary}`}>
+              <FolderOpen size={14} /> {t('onboarding.restoreFromBackup')}
+              <input
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files[0]; if (f) restoreBackup(f); e.target.value = ''; }}
+              />
+            </label>
             <div className={`mt-5 flex items-center justify-center gap-2 text-xs ${textSecondary}`}>
               <a href="https://glance-apps.com/dayglance/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500 transition-colors">{t('onboarding.privacyPolicy')}</a>
               <span className="opacity-50">·</span>
