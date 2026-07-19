@@ -1,6 +1,7 @@
 {
   "name": "dayglance",
   "private": true,
+  "license": "MIT",
   "version": "4.0.0",
   "type": "module",
   "main": "dist-electron/main.js",
