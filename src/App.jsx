@@ -1476,6 +1476,16 @@ const DayPlanner = () => {
     dailyNotes, users, routineCompletions, multiUserEnabled,
   });
 
+  // Onboarding flags aren't part of the useSaveOnChange data slices, so a
+  // checklist dismissal alone would never reach the folder backup — and the
+  // Getting Started checklist would reappear every session on wipe-on-exit
+  // machines. useOnboarding's own effects persist the flags to localStorage in
+  // the same commit, well before the debounced write builds its payload.
+  useEffect(() => {
+    if (!dataLoaded) return;
+    folderBackupWriteRef.current?.();
+  }, [dataLoaded, gettingStartedDismissed, onboardingProgress]);
+
   const { timelineScrolledAway, setTimelineScrolledAway, scrollToCurrentHour, scrollToHour } = useTimelineScroll({
     calendarRef, timeGridRef,
     selectedDate,
@@ -5109,6 +5119,8 @@ const DayPlanner = () => {
         areas: JSON.parse(localStorage.getItem('day-planner-areas') || '[]'),
         goalsProjectsEnabled: JSON.parse(localStorage.getItem('day-planner-goals-projects-enabled') || 'false'),
         autoBackupConfig: JSON.parse(localStorage.getItem('day-planner-auto-backup-config') || 'null'),
+        gettingStartedDismissed: localStorage.getItem('gettingStartedDismissed') === 'true',
+        onboardingProgress: JSON.parse(localStorage.getItem('onboardingProgress') || 'null'),
       }
     };
 
@@ -5160,6 +5172,8 @@ const DayPlanner = () => {
       areas: JSON.parse(localStorage.getItem('day-planner-areas') || '[]'),
       goalsProjectsEnabled: JSON.parse(localStorage.getItem('day-planner-goals-projects-enabled') || 'false'),
       autoBackupConfig: JSON.parse(localStorage.getItem('day-planner-auto-backup-config') || 'null'),
+      gettingStartedDismissed: localStorage.getItem('gettingStartedDismissed') === 'true',
+      onboardingProgress: JSON.parse(localStorage.getItem('onboardingProgress') || 'null'),
     }
   });
 
@@ -5350,6 +5364,13 @@ const DayPlanner = () => {
     if (data.areas) localStorage.setItem('day-planner-areas', JSON.stringify(data.areas));
     if (data.goalsProjectsEnabled !== undefined) localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
     if (data.autoBackupConfig) localStorage.setItem('day-planner-auto-backup-config', JSON.stringify(data.autoBackupConfig));
+    // Onboarding flags: the Getting Started checklist can also be re-enabled
+    // from settings (key removed), so an explicit false must clear the key.
+    if (data.gettingStartedDismissed !== undefined) {
+      if (data.gettingStartedDismissed) localStorage.setItem('gettingStartedDismissed', 'true');
+      else localStorage.removeItem('gettingStartedDismissed');
+    }
+    if (data.onboardingProgress) localStorage.setItem('onboardingProgress', JSON.stringify(data.onboardingProgress));
   };
 
   // Restore data from backup file. Falls back to the staged pendingBackupFile
