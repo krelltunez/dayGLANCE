@@ -504,7 +504,8 @@
     "mobileSettingsToggles": "Quick toggles for common settings",
     "mobileSettingsSync": "Sync your calendars",
     "mobileSettingsCloud": "Set up cloud sync between devices",
-    "mobileSettingsBackup": "Backup and restore your data"
+    "mobileSettingsBackup": "Backup and restore your data",
+    "restoreFromBackup": "Restore from a backup"
   },
   "gettingStarted": {
     "title": "Getting Started",

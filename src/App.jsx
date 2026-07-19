@@ -20,6 +20,8 @@ import { detectObsidianDeletions, addObsidianTombstones } from './utils/obsidian
 import { stripHealthSourcedLogs } from './utils/healthLogFilter.js';
 import { webdavFetch } from './utils/cloudSyncProviders.js';
 import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
+import { LIVE_BACKUP_FILENAME } from './utils/folderBackup.js';
+import useFolderBackup from './hooks/useFolderBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex } from './utils/colorUtils.js';
@@ -655,16 +657,26 @@ const DayPlanner = () => {
   // Populated when the vault connects (native or FSA) and used by task-title inputs.
   const [wikilinkCandidates, setWikilinkCandidates] = useState([]);
 
-  // Auto-Backup state
+  // Auto-Backup state. Saved configs predating a section (e.g. `folder`) get
+  // that section's defaults merged in so downstream code can assume the shape.
   const [autoBackupConfig, setAutoBackupConfig] = useState(() => {
+    const defaults = {
+      local: { enabled: false, frequency: 'daily' },
+      remote: { enabled: false, frequency: 'daily', provider: 'nextcloud' },
+      folder: { enabled: false, snapshotFrequency: 'daily' },
+    };
     try {
       const saved = localStorage.getItem('day-planner-auto-backup-config');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          local: { ...defaults.local, ...parsed.local },
+          remote: { ...defaults.remote, ...parsed.remote },
+          folder: { ...defaults.folder, ...parsed.folder },
+        };
+      }
     } catch {}
-    return {
-      local: { enabled: false, frequency: 'daily' },
-      remote: { enabled: false, frequency: 'daily', provider: 'nextcloud' }
-    };
+    return defaults;
   });
   const [autoBackupStatus, setAutoBackupStatus] = useState(() => ({
     local: { lastBackup: localStorage.getItem('day-planner-auto-backup-local-last') || null, status: 'idle' },
@@ -1444,8 +1456,17 @@ const DayPlanner = () => {
     setUndoToast,
   });
 
+  // Set below once useFolderBackup is instantiated (it needs
+  // buildAutoBackupPayload, which is declared further down). Effects only run
+  // after the full render pass, so the ref is populated before first use.
+  const folderBackupWriteRef = useRef(null);
+
   useSaveOnChange({
-    saveData, checkConflicts,
+    // Piggyback the folder-backup write-through on the same debounce-free save
+    // pass that persists to localStorage: after saveData() the storage is
+    // fresh, which is exactly what buildAutoBackupPayload reads.
+    saveData: () => { saveData(); folderBackupWriteRef.current?.(); },
+    checkConflicts,
     dataLoaded,
     suppressClearPendingRef, suppressCloudUploadRef, suppressTimestampRef,
     tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays,
@@ -5087,6 +5108,7 @@ const DayPlanner = () => {
         projects: JSON.parse(localStorage.getItem('day-planner-projects') || '[]'),
         areas: JSON.parse(localStorage.getItem('day-planner-areas') || '[]'),
         goalsProjectsEnabled: JSON.parse(localStorage.getItem('day-planner-goals-projects-enabled') || 'false'),
+        autoBackupConfig: JSON.parse(localStorage.getItem('day-planner-auto-backup-config') || 'null'),
       }
     };
 
@@ -5137,8 +5159,25 @@ const DayPlanner = () => {
       projects: JSON.parse(localStorage.getItem('day-planner-projects') || '[]'),
       areas: JSON.parse(localStorage.getItem('day-planner-areas') || '[]'),
       goalsProjectsEnabled: JSON.parse(localStorage.getItem('day-planner-goals-projects-enabled') || 'false'),
+      autoBackupConfig: JSON.parse(localStorage.getItem('day-planner-auto-backup-config') || 'null'),
     }
   });
+
+  // Continuous write-through backup to a local folder (File System Access API).
+  // Feeds off the same payload as the other auto-backup flavors; scheduleWrite
+  // is invoked after every saveData() pass via folderBackupWriteRef.
+  const folderBackup = useFolderBackup({
+    enabled: autoBackupConfig.folder?.enabled ?? false,
+    snapshotFrequency: autoBackupConfig.folder?.snapshotFrequency || 'daily',
+    dataLoaded,
+    disabled: isTrayMode,
+    buildPayload: buildAutoBackupPayload,
+    onNeedsReconnect: () => setUndoToast({
+      message: 'Folder backup paused — reconnect it in Backup → Auto-Backup to resume.',
+      actionable: false,
+    }),
+  });
+  folderBackupWriteRef.current = folderBackup.scheduleWrite;
 
   const performLocalBackup = async (frequency) => {
     try {
@@ -5272,9 +5311,52 @@ const DayPlanner = () => {
     e.target.value = '';
   };
 
-  // Restore data from backup file
-  const restoreBackup = () => {
-    if (!pendingBackupFile) return;
+  // Write a backup payload's data section back into localStorage. Shared by
+  // the file-based restore (restoreBackup) and the folder-based restore
+  // (restoreFromBackupFolder); callers handle cursor reset + reload.
+  const applyBackupToLocalStorage = (data) => {
+    if (data.tasks) localStorage.setItem('day-planner-tasks', JSON.stringify(data.tasks));
+    if (data.unscheduledTasks) localStorage.setItem('day-planner-unscheduled', JSON.stringify(data.unscheduledTasks));
+    if (data.recycleBin) localStorage.setItem('day-planner-recycle-bin', JSON.stringify(data.recycleBin));
+    if (data.darkMode !== undefined) localStorage.setItem('day-planner-darkmode', JSON.stringify(data.darkMode));
+    if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', data.syncUrl);
+    if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
+    if (data.taskCalendarAuth) localStorage.setItem('day-planner-task-calendar-auth', JSON.stringify(data.taskCalendarAuth));
+    if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
+    if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
+    if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
+    if (data.selectedTags) localStorage.setItem('day-planner-selected-tags', JSON.stringify(data.selectedTags));
+    if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
+    if (data.cloudSyncConfig) localStorage.setItem('day-planner-cloud-sync-config', JSON.stringify(data.cloudSyncConfig));
+    if (data.reminderSettings) localStorage.setItem('day-planner-reminder-settings', JSON.stringify(data.reminderSettings));
+    if (data.use24HourClock !== undefined) localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(data.use24HourClock));
+    if (data.weatherZip !== undefined) localStorage.setItem('day-planner-weather-zip', data.weatherZip);
+    if (data.weatherTempUnit !== undefined) localStorage.setItem('day-planner-weather-temp-unit', data.weatherTempUnit);
+    if (data.habits) localStorage.setItem('day-planner-habits', JSON.stringify(data.habits));
+    if (data.habitLogs) localStorage.setItem('day-planner-habit-logs', JSON.stringify(data.habitLogs));
+    // If backup has habits data, always enable habits regardless of the backed-up toggle value
+    // (the toggle may have been incorrectly saved as false by an earlier bug)
+    const habitsEnabledVal = (data.habits && data.habits.filter(h => !h.archived).length > 0) ? true : (data.habitsEnabled ?? false);
+    localStorage.setItem('day-planner-habits-enabled', JSON.stringify(habitsEnabledVal));
+    // Same for routines
+    const hasRoutineDefs = data.routineDefinitions && Object.values(data.routineDefinitions).some(arr => arr.length > 0);
+    const routinesEnabledVal = hasRoutineDefs ? true : (data.routinesEnabled ?? false);
+    localStorage.setItem('day-planner-routines-enabled', JSON.stringify(routinesEnabledVal));
+    if (data.aiConfig) localStorage.setItem('day-planner-ai-config', JSON.stringify(data.aiConfig));
+    if (data.obsidianConfig) localStorage.setItem('day-planner-obsidian-config', JSON.stringify(data.obsidianConfig));
+    if (data.calendarFilter) localStorage.setItem('day-planner-calendar-filter', JSON.stringify(data.calendarFilter));
+    if (data.goals) localStorage.setItem('day-planner-goals', JSON.stringify(data.goals));
+    if (data.projects) localStorage.setItem('day-planner-projects', JSON.stringify(data.projects));
+    if (data.areas) localStorage.setItem('day-planner-areas', JSON.stringify(data.areas));
+    if (data.goalsProjectsEnabled !== undefined) localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
+    if (data.autoBackupConfig) localStorage.setItem('day-planner-auto-backup-config', JSON.stringify(data.autoBackupConfig));
+  };
+
+  // Restore data from backup file. `file` defaults to the staged pendingBackupFile
+  // (the confirm-modal flow); the welcome-modal restore passes the picked file
+  // directly since the app is empty there and needs no confirmation step.
+  const restoreBackup = (file = pendingBackupFile) => {
+    if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -5286,42 +5368,7 @@ const DayPlanner = () => {
           throw new Error('Invalid backup file format');
         }
 
-        // Restore all data
-        const { data } = backup;
-        if (data.tasks) localStorage.setItem('day-planner-tasks', JSON.stringify(data.tasks));
-        if (data.unscheduledTasks) localStorage.setItem('day-planner-unscheduled', JSON.stringify(data.unscheduledTasks));
-        if (data.recycleBin) localStorage.setItem('day-planner-recycle-bin', JSON.stringify(data.recycleBin));
-        if (data.darkMode !== undefined) localStorage.setItem('day-planner-darkmode', JSON.stringify(data.darkMode));
-        if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', data.syncUrl);
-        if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
-        if (data.taskCalendarAuth) localStorage.setItem('day-planner-task-calendar-auth', JSON.stringify(data.taskCalendarAuth));
-        if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
-        if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
-        if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
-        if (data.selectedTags) localStorage.setItem('day-planner-selected-tags', JSON.stringify(data.selectedTags));
-        if (data.minimizedSections) localStorage.setItem('minimizedSections', JSON.stringify(data.minimizedSections));
-        if (data.cloudSyncConfig) localStorage.setItem('day-planner-cloud-sync-config', JSON.stringify(data.cloudSyncConfig));
-        if (data.reminderSettings) localStorage.setItem('day-planner-reminder-settings', JSON.stringify(data.reminderSettings));
-        if (data.use24HourClock !== undefined) localStorage.setItem('day-planner-use-24h-clock', JSON.stringify(data.use24HourClock));
-        if (data.weatherZip !== undefined) localStorage.setItem('day-planner-weather-zip', data.weatherZip);
-        if (data.weatherTempUnit !== undefined) localStorage.setItem('day-planner-weather-temp-unit', data.weatherTempUnit);
-        if (data.habits) localStorage.setItem('day-planner-habits', JSON.stringify(data.habits));
-        if (data.habitLogs) localStorage.setItem('day-planner-habit-logs', JSON.stringify(data.habitLogs));
-        // If backup has habits data, always enable habits regardless of the backed-up toggle value
-        // (the toggle may have been incorrectly saved as false by an earlier bug)
-        const habitsEnabledVal = (data.habits && data.habits.filter(h => !h.archived).length > 0) ? true : (data.habitsEnabled ?? false);
-        localStorage.setItem('day-planner-habits-enabled', JSON.stringify(habitsEnabledVal));
-        // Same for routines
-        const hasRoutineDefs = data.routineDefinitions && Object.values(data.routineDefinitions).some(arr => arr.length > 0);
-        const routinesEnabledVal = hasRoutineDefs ? true : (data.routinesEnabled ?? false);
-        localStorage.setItem('day-planner-routines-enabled', JSON.stringify(routinesEnabledVal));
-        if (data.aiConfig) localStorage.setItem('day-planner-ai-config', JSON.stringify(data.aiConfig));
-        if (data.obsidianConfig) localStorage.setItem('day-planner-obsidian-config', JSON.stringify(data.obsidianConfig));
-        if (data.calendarFilter) localStorage.setItem('day-planner-calendar-filter', JSON.stringify(data.calendarFilter));
-        if (data.goals) localStorage.setItem('day-planner-goals', JSON.stringify(data.goals));
-        if (data.projects) localStorage.setItem('day-planner-projects', JSON.stringify(data.projects));
-        if (data.areas) localStorage.setItem('day-planner-areas', JSON.stringify(data.areas));
-        if (data.goalsProjectsEnabled !== undefined) localStorage.setItem('day-planner-goals-projects-enabled', JSON.stringify(data.goalsProjectsEnabled));
+        applyBackupToLocalStorage(backup.data);
 
         // Full-state replacement → invalidate the vault sync cursors (see
         // restoreFromAutoBackup for the stale-snapshot/stale-HWM hazard).
@@ -5345,7 +5392,37 @@ const DayPlanner = () => {
       setPendingBackupFile(null);
       setShowRestoreConfirm(false);
     };
-    reader.readAsText(pendingBackupFile);
+    reader.readAsText(file);
+  };
+
+  // Restore from the folder backup's live file. Reuses the stored folder handle
+  // when permission can be (re-)granted, otherwise opens the folder picker —
+  // one dialog restores AND reconnects write-through. Used by the welcome
+  // modal's "Restore from a backup" and the Auto-Backup manager.
+  const restoreFromBackupFolder = async () => {
+    try {
+      const { payload } = await folderBackup.openForRestore();
+      if (!payload?.data) {
+        alert(`No ${LIVE_BACKUP_FILENAME} backup was found in that folder.`);
+        return;
+      }
+      applyBackupToLocalStorage(payload.data);
+      // Re-arm folder backup after the reload regardless of what the backed-up
+      // config said — the user just restored from this folder, so keep writing
+      // to it. The handle is already persisted by openForRestore.
+      try {
+        const cfg = JSON.parse(localStorage.getItem('day-planner-auto-backup-config') || '{}');
+        cfg.folder = { snapshotFrequency: 'daily', ...cfg.folder, enabled: true };
+        localStorage.setItem('day-planner-auto-backup-config', JSON.stringify(cfg));
+      } catch { /* ignore */ }
+      // Full-state replacement → invalidate the vault sync cursors (see
+      // restoreFromAutoBackup for the stale-snapshot/stale-HWM hazard).
+      resetVaultSyncCursor();
+      window.location.reload();
+    } catch (err) {
+      if (err?.name === 'AbortError') return; // user cancelled the picker
+      alert('Failed to restore from backup folder: ' + err.message);
+    }
   };
 
   // Fetches an ICS/CalDAV URL, routing through the Vercel proxy on web or via
@@ -9154,6 +9231,7 @@ const DayPlanner = () => {
     buildAutoBackupPayload, loadAutoBackupHistory,
     deleteLocalAutoBackup, deleteRemoteAutoBackup,
     restoreFromAutoBackup, restoreFromRemoteBackup,
+    folderBackup, restoreFromBackupFolder,
     exportBackup, restoreBackup,
     handleFileUpload, handleBackupFileSelect, processImportFile,
     buildSyncPayload,

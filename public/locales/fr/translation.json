@@ -504,7 +504,8 @@
     "mobileSettingsToggles": "Boutons de réglage rapide",
     "mobileSettingsSync": "Synchronisez vos calendriers",
     "mobileSettingsCloud": "Configurez la synchro cloud entre appareils",
-    "mobileSettingsBackup": "Sauvegardez et restaurez vos données"
+    "mobileSettingsBackup": "Sauvegardez et restaurez vos données",
+    "restoreFromBackup": "Restaurer depuis une sauvegarde"
   },
   "gettingStarted": {
     "title": "Premiers pas",
