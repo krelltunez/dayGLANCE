@@ -4,10 +4,10 @@
 
 Part of the **GLANCE family**: focused, standalone apps connected through a shared intent protocol. See also dayGLANCE (today), [lastGLANCE](https://github.com/krelltunez/lastGLANCE) (recent upkeep), and [lifeGLANCE](https://github.com/krelltunez/lifeGLANCE) (your whole timeline).
 
-[<img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="75">](https://play.google.com/store/apps/details?id=com.dayglance.app)
+[<img src="screenshots/badges/google-play.png" alt="Get it on Google Play" height="60">](https://play.google.com/store/apps/details?id=com.dayglance.app) [<img src="screenshots/badges/app-store.svg" alt="Download on the App Store" height="60">](https://apps.apple.com/app/id6771540599)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-3.10.0-green.svg)](https://github.com/krelltunez/dayglance/releases)
+[![Version](https://img.shields.io/badge/version-4.0.0-green.svg)](https://github.com/krelltunez/dayglance/releases)
 
 [**Live App**](https://dayglance.app) · [**Documentation**](https://docs.dayglance.app) · [**Releases**](https://github.com/krelltunez/dayglance/releases)
 
@@ -102,10 +102,9 @@ The Android app ships the full web app in a WebView with native enhancements tha
 
 ## iOS & macOS App Store
 
-dayGLANCE is coming to the **App Store** for iPhone, iPad, and Mac. Like the Android build, the Apple apps wrap the full dayGLANCE experience with native platform integrations, and a single purchase covers every Apple device you own.
+dayGLANCE is available on the **App Store** for iPhone, iPad, and Mac. Like the Android build, the Apple apps wrap the full dayGLANCE experience with native platform integrations, and a single purchase covers every Apple device you own.
 
-<!-- TODO: replace APPLE_APP_ID with the real App Store ID before the announcement -->
-[<img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="60">](https://apps.apple.com/app/idAPPLE_APP_ID)
+[<img src="screenshots/badges/app-store.svg" alt="Download on the App Store" height="60">](https://apps.apple.com/app/id6771540599)
 
 The Apple apps ship the full app natively on each device, with capabilities that only make sense on Apple hardware:
 
@@ -113,15 +112,13 @@ The Apple apps ship the full app natively on each device, with capabilities that
 |---|---|
 | 🛒 **Universal Purchase** | Buy once and run dayGLANCE on iPhone, iPad, and Mac, with no separate purchase per device |
 | ☁️ **iCloud sync** | Tasks, habits, and plans stay up to date between your Mac and iPhone automatically, with no setup |
-| 📅 **Calendar on the timeline** | Your Apple Calendar (and any iCal/CalDAV subscription) surfaces color-coded alongside your tasks |
+| 📅 **Native Apple Calendar** | Reads your device calendars directly through EventKit, so every calendar on your iPhone or Mac surfaces color-coded on the timeline (iCal/CalDAV subscriptions work too) |
 | 🔗 **Obsidian vault support** | Connect a local Obsidian vault to sync daily notes and tasks directly |
 | 📱 **Home Screen widgets** | Glanceable widgets for your day on iPhone and iPad, plus iOS 18 Control Center controls for new tasks and voice input |
 | 🔍 **Spotlight search** | Your tasks are indexed in Spotlight, so you can search from anywhere and jump straight into dayGLANCE |
 | ⚡ **Quick actions** | Long-press the app icon to create a scheduled or inbox task, start a focus session, or queue voice input |
 | 📌 **Menu-bar tray mode (Mac)** | Keep dayGLANCE one click away in the menu bar, with a live focus countdown in the tray |
 | 🖥️ **Native on Apple Silicon & Intel** | A true native Mac build that runs on both Apple Silicon and Intel Macs |
-
-*Preparing for release: the App Store link above is a placeholder until the listing goes live.*
 
 ---
 
@@ -399,7 +396,11 @@ Please open an issue before starting large changes so we can discuss approach. F
 
 ## License
 
-[MIT](LICENSE): free to use, self-host, modify, and distribute.
+The **source code** is [MIT-licensed](LICENSE): free to build, self-host, modify, and distribute. Free builds (the Android APK and the Electron desktop app) are available on the [releases page](https://github.com/krelltunez/dayglance/releases).
+
+The **paid Google Play and App Store builds** are a convenience distribution that funds continued development. When you buy those, you're paying for the packaged, signed, auto-updating binary and the store experience around it, not for the code itself, which remains free under the MIT license above.
+
+**Trademarks:** the dayGLANCE name, logo, and app icon are trademarks of the project and are **not** covered by the MIT license. The MIT license grants rights to the code only; it does not grant permission to use the dayGLANCE branding on your own builds or distributions.
 
 ---
 
