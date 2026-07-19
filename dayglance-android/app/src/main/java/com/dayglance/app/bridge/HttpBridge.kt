@@ -49,6 +49,13 @@ class HttpBridge {
             connection.readTimeout = 20_000
             connection.instanceFollowRedirects = true
 
+            // Without this, HttpURLConnection silently adds Accept-Encoding: gzip,
+            // and Apache mod_deflate rewrites the ETag on encoded responses
+            // ("xyz" -> "xyz-gzip"), so every If-Match PUT 412s and WebDAV sync
+            // wedges (lastGLANCE #232). Set before caller headers so an explicit
+            // Accept-Encoding from JS still wins.
+            connection.setRequestProperty("Accept-Encoding", "identity")
+
             // Apply request headers
             try {
                 val headers = JSONObject(headersJson)

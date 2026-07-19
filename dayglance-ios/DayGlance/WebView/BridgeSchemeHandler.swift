@@ -142,6 +142,16 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
             }
             return HttpBridge.shared.request(method: method, url: url, headersJson: headers, body: body)
 
+        // Backup export — system share sheet (the WKWebView never handles
+        // <a download> on blob URLs, same reason Android has shareFile).
+        case "shareFile":
+            guard args.count >= 2,
+                  let filename = args[0] as? String,
+                  let content  = args[1] as? String else {
+                return #"{"success":false,"error":"missing args"}"#
+            }
+            return ShareBridge.shared.shareFile(filename: filename, content: content)
+
         // Phase 7 — iCloud Sync
         case "readICloudSync":
             return ICloudBridge.shared.readSync()

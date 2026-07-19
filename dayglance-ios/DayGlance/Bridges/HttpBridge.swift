@@ -28,6 +28,13 @@ final class HttpBridge {
         // current file on the server, not a URLSession-cached copy.
         req.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
 
+        // Without this, URLSession silently adds Accept-Encoding: gzip, and
+        // Apache mod_deflate rewrites the ETag on encoded responses
+        // ("xyz" -> "xyz-gzip"), so every If-Match PUT 412s and WebDAV sync
+        // wedges (lastGLANCE #232). Set before caller headers so an explicit
+        // Accept-Encoding from JS still wins.
+        req.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+
         // Apply caller-supplied headers
         if let data = headersJson.data(using: .utf8),
            let headers = try? JSONSerialization.jsonObject(with: data) as? [String: String] {

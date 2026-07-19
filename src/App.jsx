@@ -19,6 +19,7 @@ import { mergeObsidianTasks } from './utils/mergeObsidianTasks.js';
 import { detectObsidianDeletions, addObsidianTombstones } from './utils/obsidianDeletions.js';
 import { stripHealthSourcedLogs } from './utils/healthLogFilter.js';
 import { webdavFetch } from './utils/cloudSyncProviders.js';
+import { normalizeEtag } from '@glance-apps/sync';
 import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
 import { LIVE_BACKUP_FILENAME } from './utils/folderBackup.js';
 import useFolderBackup from './hooks/useFolderBackup.js';
@@ -2405,7 +2406,7 @@ const DayPlanner = () => {
       const base = cloudSyncConfig.nextcloudUrl.replace(/\/+$/, '');
       const user = encodeURIComponent(cloudSyncConfig.username);
       oldFolderPath = `${base}/remote.php/dav/files/${user}/dayglance/`;
-    } else if (provider === 'generic' && cloudSyncConfig.webdavUrl) {
+    } else if (provider === 'webdav' && cloudSyncConfig.webdavUrl) {
       const base = cloudSyncConfig.webdavUrl.replace(/\/+$/, '');
       oldFolderPath = `${base}/dayglance/`;
     }
@@ -5127,10 +5128,16 @@ const DayPlanner = () => {
     const filename = `dayglance-backup-${dateToString(new Date())}.json`;
     const jsonStr = JSON.stringify(backup, null, 2);
 
-    // On Android the <a download> trick is silently ignored inside a WebView.
-    // Use the native share sheet instead so the user can save to Files / Drive.
-    if (isNativeAndroid()) {
-      nativeShareFile(filename, jsonStr);
+    // In both native WebViews the <a download> trick is silently ignored
+    // (Android WebView has no DownloadListener; WKWebView never handles blob
+    // downloads). Use the native share sheet instead so the user can save to
+    // Files / Drive. A null result means the share sheet was dismissed or the
+    // bridge is missing — dismissal is a cancel, but success:false is an error.
+    if (isNativeApp()) {
+      const result = nativeShareFile(filename, jsonStr);
+      if (result && result.success === false) {
+        setSyncNotification({ type: 'error', title: 'Backup Export', message: `Could not export backup: ${result.error || 'unknown error'}` });
+      }
       return;
     }
 
@@ -5672,7 +5679,10 @@ const DayPlanner = () => {
         return;
       }
 
-      const icsEtag = getRes.headers.get('etag') || null;
+      // Normalize before If-Match: Apache mod_deflate rewrites ETags on
+      // gzip-encoded responses ("xyz" -> "xyz-gzip") and nginx downgrades them
+      // to weak (W/"xyz"), either of which makes the PUT below 412 forever.
+      const icsEtag = normalizeEtag(getRes.headers.get('etag')) || null;
       let icsContent = await getRes.text();
       // RFC 5545 §3.1 unfold: remove CRLF/LF followed by a whitespace continuation
       // so that line-folded properties match our single-line regexes reliably.

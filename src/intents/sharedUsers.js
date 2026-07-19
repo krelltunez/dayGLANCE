@@ -6,10 +6,10 @@ const DEFAULT_USERS_PATH = '/GLANCE/users/';
 
 /**
  * Derive the WebDAV base URL and auth from a cloudSyncConfig object.
- * Supports both 'nextcloud' and 'generic' provider shapes.
+ * Supports the 'nextcloud', 'koofr', and 'webdav' provider shapes.
  * Returns null if the config is missing required fields.
  */
-function resolveWebDAV(cloudSyncConfig) {
+export function resolveWebDAV(cloudSyncConfig) {
   if (!cloudSyncConfig?.enabled) return null;
   const provider = cloudSyncConfig.provider || 'nextcloud';
   if (provider === 'nextcloud') {
@@ -18,6 +18,12 @@ function resolveWebDAV(cloudSyncConfig) {
     const base = nextcloudUrl.replace(/\/+$/, '');
     const user = encodeURIComponent(username);
     return { baseUrl: `${base}/remote.php/dav/files/${user}`, username, appPassword };
+  } else if (provider === 'koofr') {
+    // Koofr configs carry no URL key — the WebDAV root is fixed (mirrors the
+    // koofr provider in @glance-apps/sync providers.js).
+    const { username, appPassword } = cloudSyncConfig;
+    if (!username || !appPassword) return null;
+    return { baseUrl: 'https://app.koofr.net/dav/Koofr', username, appPassword };
   } else {
     const { webdavUrl, username, appPassword } = cloudSyncConfig;
     if (!webdavUrl || !username || !appPassword) return null;
