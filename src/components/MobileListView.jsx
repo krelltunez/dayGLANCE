@@ -5,7 +5,7 @@ import React, {
 import ReactDOM from 'react-dom';
 import {
   BookOpen, Check, CheckSquare, ChevronDown, ChevronRight, ChevronUp,
-  Clock, Edit2, ExternalLink, FileText, Inbox, RefreshCw, SkipForward, Zap,
+  Clock, Edit2, ExternalLink, FileText, Inbox, LayoutGrid, RefreshCw, SkipForward, Zap,
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { renderTitle, isLinkOnlyTask, getLinkUrl, hasNotesOrSubtasks, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
@@ -25,6 +25,49 @@ const CONNECTOR_W    = 16;   // half of spine col — reaches spine centre
 const TASK_H         = 72;
 const ROUTINE_H      = 38;
 const HG_SESSION_H   = TASK_H;
+const FRAME_H        = 34;
+
+// Frame tint/border colors, mirroring the GLANCE agenda's frame section maps
+// so a frame looks the same in LIST view as in the sidebar and the grid.
+const frameBorderColor = (color, darkMode) => (darkMode ? {
+  'bg-indigo-200': 'rgba(165,180,252,0.4)',
+  'bg-amber-200': 'rgba(253,230,138,0.4)',
+  'bg-green-200': 'rgba(167,243,208,0.4)',
+  'bg-blue-200': 'rgba(191,219,254,0.4)',
+  'bg-rose-200': 'rgba(254,205,211,0.4)',
+  'bg-purple-200': 'rgba(221,214,254,0.4)',
+  'bg-teal-200': 'rgba(153,246,228,0.4)',
+  'bg-orange-200': 'rgba(254,215,170,0.4)',
+} : {
+  'bg-indigo-200': 'rgba(79,70,229,0.75)',
+  'bg-amber-200': 'rgba(217,119,6,0.75)',
+  'bg-green-200': 'rgba(22,163,74,0.75)',
+  'bg-blue-200': 'rgba(37,99,235,0.75)',
+  'bg-rose-200': 'rgba(225,29,72,0.75)',
+  'bg-purple-200': 'rgba(147,51,234,0.75)',
+  'bg-teal-200': 'rgba(13,148,136,0.75)',
+  'bg-orange-200': 'rgba(234,88,12,0.75)',
+})[color] || (darkMode ? 'rgba(165,180,252,0.4)' : 'rgba(79,70,229,0.75)');
+
+const frameBgColor = (color, darkMode) => (darkMode ? {
+  'bg-indigo-200': 'rgba(165,180,252,0.08)',
+  'bg-amber-200': 'rgba(253,230,138,0.08)',
+  'bg-green-200': 'rgba(167,243,208,0.08)',
+  'bg-blue-200': 'rgba(191,219,254,0.08)',
+  'bg-rose-200': 'rgba(254,205,211,0.08)',
+  'bg-purple-200': 'rgba(221,214,254,0.08)',
+  'bg-teal-200': 'rgba(153,246,228,0.08)',
+  'bg-orange-200': 'rgba(254,215,170,0.08)',
+} : {
+  'bg-indigo-200': 'rgba(165,180,252,0.18)',
+  'bg-amber-200': 'rgba(253,230,138,0.18)',
+  'bg-green-200': 'rgba(167,243,208,0.18)',
+  'bg-blue-200': 'rgba(191,219,254,0.18)',
+  'bg-rose-200': 'rgba(254,205,211,0.18)',
+  'bg-purple-200': 'rgba(221,214,254,0.18)',
+  'bg-teal-200': 'rgba(153,246,228,0.18)',
+  'bg-orange-200': 'rgba(254,215,170,0.18)',
+})[color] || (darkMode ? 'rgba(165,180,252,0.08)' : 'rgba(165,180,252,0.18)');
 const ALLDAY_H       = 44;
 
 // ─── Spine colour gradient (orange→green→blue, 6 am→noon→6 pm) ───────────────
@@ -698,6 +741,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
   const {
     routinesEnabled, todayRoutines, setTodayRoutines, routineCompletions, toggleRoutineCompletion,
     projects, hgVisibleProjects, enterHyperGlanceMode, setPendingEditProjectId, updateProject,
+    getFrameInstancesForDate, computeAvailableSlots, setFrameContextMenu,
   } = useFeaturesCtx();
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -769,9 +813,26 @@ const MobileListView = ({ hideInboxHandle = false }) => {
     return getHGBarsForDate(hgVisibleProjects || [], dateStr, nowMin);
   }, [hgVisibleProjects, dateStr, isToday, currentTime]);
 
-  // Combine and sort all scheduled items
+  // Frame range markers. Each renders as a compact header card at the frame's
+  // start time; the tasks inside the frame stay ordinary list rows that simply
+  // sort after it. duration spans the whole frame so past-hiding tracks the
+  // frame's END (the segment builder never advances the cursor past the start).
+  const frameItems = useMemo(() =>
+    getFrameInstancesForDate(selectedDate).map(f => ({
+      _kind: 'frame',
+      id: `frame-${f.frameId}`,
+      frame: f,
+      label: f.label,
+      startTime: f.start,
+      duration: Math.max(0, timeToMinutes(f.end) - timeToMinutes(f.start)),
+    })),
+  [getFrameInstancesForDate, selectedDate, timeToMinutes]);
+
+  // Combine and sort all scheduled items. Frames come first so the stable sort
+  // places a frame header BEFORE tasks that start at the same minute.
   const allItems = useMemo(() => {
     const items = [
+      ...frameItems,
       ...scheduledTasks.map(t => ({ ...t, _kind: t.imported && !t.isTaskCalendar ? 'calendar-event' : 'task' })),
       ...scheduledRoutines.map(r => ({ ...r, _kind: 'routine', _routineId: r.id, id: `routine-${r.id}`, title: r.name, startTime: r.startTime })),
       ...hgBars.map(bar => {
@@ -784,7 +845,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
       }),
     ];
     return items.sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
-  }, [scheduledTasks, scheduledRoutines, hgBars, timeToMinutes]);
+  }, [frameItems, scheduledTasks, scheduledRoutines, hgBars, timeToMinutes]);
 
   const isItemPast = useCallback((item) => {
     if (!isToday) return false;
@@ -796,10 +857,12 @@ const MobileListView = ({ hideInboxHandle = false }) => {
   const futureItems = useMemo(() => allItems.filter(i => !isItemPast(i)), [allItems, isItemPast]);
   const visibleItems = showPast ? allItems : futureItems;
 
-  // Item currently in progress (overlaps nowMin)
+  // Item currently in progress (overlaps nowMin). Frames span hours and would
+  // otherwise shadow the actual in-progress task, so they're excluded.
   const inProgressItem = useMemo(() => {
     if (!isToday) return null;
     return allItems.find(item => {
+      if (item._kind === 'frame') return false;
       const s = timeToMinutes(item.startTime);
       return nowMin >= s && nowMin < s + (item.duration || 30);
     });
@@ -964,7 +1027,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
 
   // ── List-item drag handlers ────────────────────────────────────────────────
   const handleListItemTouchStart = useCallback((e, item) => {
-    if (item._kind === 'calendar-event') return;
+    if (item._kind === 'calendar-event' || item._kind === 'frame') return;
     const t = e.touches[0];
     const ref = listDragRef.current;
     ref.item = item;
@@ -1165,6 +1228,19 @@ const MobileListView = ({ hideInboxHandle = false }) => {
 
       // Flush any pending multi-routine group before processing this item
       flushMultiRoutine();
+
+      // Frame header: emit at its start but advance the cursor only TO the
+      // start, never past it. The frame's interior must stay "unoccupied" so
+      // its free spans keep rendering as schedulable gap/drag targets. No
+      // overlap segment either — a frame doesn't occupy time.
+      if (item._kind === 'frame') {
+        if (startMin - cursor >= 5) {
+          segs.push({ type: 'gap', id: `gap-${idx}`, fromMin: cursor, toMin: startMin });
+        }
+        segs.push({ type: 'item', id: item.id, item, startMin, endMin: startMin });
+        cursor = Math.max(cursor, startMin);
+        return;
+      }
 
       const gapMin = startMin - cursor;
       if (gapMin >= 5) {
@@ -1540,6 +1616,65 @@ const MobileListView = ({ hideInboxHandle = false }) => {
 
         if (seg.type === 'item') {
           const { item, startMin } = seg;
+
+          if (item._kind === 'frame') {
+            const frame = item.frame;
+            const borderColor = frameBorderColor(frame.color, darkMode);
+            const bgColor = frameBgColor(frame.color, darkMode);
+            const availableSlots = computeAvailableSlots(frame, selectedDate);
+            const totalAvail = availableSlots.reduce((sum, s) => sum + s.minutes, 0);
+            const availH = Math.floor(totalAvail / 60);
+            const availM = totalAvail % 60;
+            const availStr = availH > 0 ? `${availH}h${availM > 0 ? ` ${availM}m` : ''}` : `${availM}m`;
+            const isPast = isItemPast(item);
+            // Same menu as GRID's long-press. Tap opens it too — frames aren't
+            // editable or draggable here, so tap is otherwise dead, and
+            // long-press alone is undiscoverable.
+            const openMenu = (e) => {
+              e.preventDefault();
+              setFrameContextMenu({ x: e.clientX, y: e.clientY, frameId: frame.frameId, dateStr });
+            };
+            return (
+              <div key={seg.id}>
+                <Row
+                  timeLabel={formatTime(item.startTime)}
+                  spineColour={spineColorAt(startMin)}
+                  spineStyle="solid"
+                  marker={<SpineMarker kind="calendar-event" colour={borderColor} pageBg={pageBg} />}
+                  cardHeight={FRAME_H}
+                  accentHex={borderColor}
+                  pageBg={pageBg}
+                  noConnector
+                >
+                  <div
+                    onClick={openMenu}
+                    onContextMenu={openMenu}
+                    className="px-2.5 py-1.5 rounded-md cursor-pointer"
+                    style={{
+                      marginTop: 4, marginBottom: 4,
+                      borderLeft: `3px solid ${borderColor}`,
+                      background: bgColor,
+                      opacity: isPast ? 0.5 : 1,
+                    }}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <LayoutGrid size={12} style={{ color: borderColor, flexShrink: 0 }} />
+                      <span className="text-xs font-semibold truncate" style={{ color: borderColor }}>{frame.label}</span>
+                      <span className={`text-[10px] ${textSecondary} flex-shrink-0`}>
+                        {formatTime(frame.start)} – {formatTime(frame.end)}
+                      </span>
+                      {totalAvail > 0 && (
+                        <span className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>
+                          {availStr} available
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </Row>
+              </div>
+            );
+          }
+
           const accentHex = getAccentHex(item);
           const sc = spineColorAt(startMin);
 
