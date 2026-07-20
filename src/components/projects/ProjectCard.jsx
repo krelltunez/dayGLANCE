@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import ConfirmDialog from '../ConfirmDialog.jsx';
 import {
   AlertTriangle, BookOpen, Calendar, CheckCircle2, CheckSquare, ChevronDown,
-  Edit2, ExternalLink, FileText, GripVertical, LogIn, Plus,
+  Edit2, ExternalLink, Eye, EyeOff, FileText, GripVertical, LogIn, Plus,
   Square, Trash2, X, Zap,
 } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
@@ -57,7 +57,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     mobileActiveTab,
   } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
-  const { goals, deleteProject, generateAISubtasks, aiSubtasksLoadingForTask, aiConfig, showGoalsDashboard, enterHyperGlanceMode, isVisibleForUser } = useFeaturesCtx();
+  const { goals, deleteProject, updateProject, generateAISubtasks, aiSubtasksLoadingForTask, aiConfig, showGoalsDashboard, enterHyperGlanceMode, isVisibleForUser } = useFeaturesCtx();
 
   const isScheduled = (t) => !!tasks.find(s => s.id === t.id);
 
@@ -97,11 +97,13 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   const handleDelete = () => setShowConfirm(true);
 
   const parentGoal = project.goalId ? goals.find(g => g.id === project.goalId) : null;
-  // Effective project color (own color → goal color → blue). Standalone cards
-  // keep goalHex null for now — the colored treatment for them lands with the
-  // standalone-card UI pass.
+  // Effective project color (own color → goal color → blue); standalone cards
+  // are colored the same way as goal children.
   const projectColor = getProjectColor(project, parentGoal);
-  const goalHex = parentGoal ? toHex(projectColor) : null;
+  const projectHex = toHex(projectColor);
+  // Eyeball toggle (standalone cards only): hides task count, progress bars,
+  // and completed tasks. Persisted on the project so it syncs and survives reloads.
+  const detailsHidden = !parentGoal && !!project.detailsHidden;
 
   // Multi-user: only count/show the current user's tasks within the project.
   const allTasks = [...tasks, ...unscheduledTasks].filter(isVisibleForUser);
@@ -110,7 +112,8 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   const totalCount = projectTasks.length;
   const progress = calculateProjectProgress(project.id, allTasks);
   const hasHGSession = !!getActiveHGInstance(project, currentTimeMinutes);
-  const stalled = !!project.goalId && !hasHGSession && isProjectStalled(project.id, allTasks, project);
+  // Per-goal opt-out: a goal with hideStalled suppresses the badge on its projects.
+  const stalled = !!project.goalId && !parentGoal?.hideStalled && !hasHGSession && isProjectStalled(project.id, allTasks, project);
 
   // All project tasks: unscheduled (in array order) then scheduled (by date), completed last
   const projectUnscheduled = unscheduledTasks.filter(t => t.projectId === project.id && !t.archived && isVisibleForUser(t));
@@ -123,8 +126,11 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     ...projectUnscheduled.filter(t => t.completed),
   ];
   const VISIBLE_COUNT = 3;
-  const hasMore = allProjectDisplayTasks.length > VISIBLE_COUNT;
-  const visibleTasks = tasksExpanded ? allProjectDisplayTasks : allProjectDisplayTasks.slice(0, VISIBLE_COUNT);
+  const displayableTasks = detailsHidden
+    ? allProjectDisplayTasks.filter(t => !t.completed)
+    : allProjectDisplayTasks;
+  const hasMore = displayableTasks.length > VISIBLE_COUNT;
+  const visibleTasks = tasksExpanded ? displayableTasks : displayableTasks.slice(0, VISIBLE_COUNT);
   const expandedTask = allProjectDisplayTasks.find(t => t.id === expandedNotesTaskId) ?? null;
 
   // ── Drag-to-reorder ────────────────────────────────────────────────────────
@@ -263,7 +269,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
           className={`flex flex-col rounded-xl border overflow-hidden ${
             darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'
           } ${isMobile ? 'w-full' : 'min-w-[180px] max-w-[260px] w-full'}`}
-          style={goalHex ? { borderLeft: `3px solid ${goalHex}88` } : {}}
+          style={{ borderLeft: `3px solid ${projectHex}88` }}
         >
           {/* Row 1: title + edit/delete */}
           <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-1 dnd-no-select">
@@ -347,10 +353,8 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
         darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-stone-200'
       } ${isMobile ? 'w-full' : 'min-w-[180px] max-w-[260px] w-full'}`}
     >
-      {/* Goal color bar */}
-      {goalHex && (
-        <div className="h-1.5 flex-shrink-0" style={{ background: goalHex + 'bb' }} />
-      )}
+      {/* Project color bar */}
+      <div className="h-1.5 flex-shrink-0" style={{ background: projectHex + 'bb' }} />
       {/* Card body */}
       <div className="flex flex-col gap-2 p-3">
         {/* Header: title + badges + edit + delete */}
@@ -434,6 +438,18 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                 Stalled
               </span>
             )}
+            {!parentGoal && (
+              <button
+                onClick={() => updateProject(project.id, { detailsHidden: !project.detailsHidden })}
+                className={`p-1 rounded-lg transition-colors ${
+                  darkMode ? 'text-gray-600 hover:text-gray-300 hover:bg-gray-700' : 'text-stone-300 hover:text-stone-600 hover:bg-stone-100'
+                }`}
+                title={detailsHidden ? 'Show details' : 'Hide details'}
+                aria-label={detailsHidden ? 'Show project details' : 'Hide project details'}
+              >
+                {detailsHidden ? <EyeOff size={12} /> : <Eye size={12} />}
+              </button>
+            )}
             <button
               onClick={() => onEditClick?.()}
               className={`p-1 rounded-lg transition-colors ${
@@ -455,16 +471,18 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
           </div>
         </div>
 
-        {/* Task count */}
-        <span className={`text-xs ${textSecondary}`}>
-          {completedCount}/{totalCount} task{totalCount !== 1 ? 's' : ''}
-        </span>
+        {/* Task count — hidden by the standalone-card eyeball toggle */}
+        {!detailsHidden && (
+          <span className={`text-xs ${textSecondary}`}>
+            {completedCount}/{totalCount} task{totalCount !== 1 ? 's' : ''}
+          </span>
+        )}
 
-        {/* Progress bar */}
-        <ProjectProgress progress={progress} compact />
+        {/* Progress bar — hidden by the standalone-card eyeball toggle */}
+        {!detailsHidden && <ProjectProgress progress={progress} compact />}
 
         {/* Unscheduled task list */}
-        {allProjectDisplayTasks.length > 0 && (
+        {displayableTasks.length > 0 && (
           <div className={`flex flex-col gap-0.5 pt-2 border-t ${borderClass}`}>
             {visibleTasks.map((t) => {
               const scheduled = isScheduled(t);
@@ -491,7 +509,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                       ? darkMode ? 'border-t-2 border-blue-400' : 'border-t-2 border-blue-500'
                       : ''
                   }`}
-                  style={goalHex ? { borderLeft: `2px solid ${goalHex}99` } : {}}
+                  style={{ borderLeft: `2px solid ${projectHex}99` }}
                 >
                   <button
                     onClick={() => toggleTaskComplete(t.id)}

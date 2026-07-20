@@ -138,6 +138,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
   const [colorTouched, setColorTouched] = useState(!!initial);
   const [status, setStatus] = useState(initial?.status || 'active');
   const [assignedUserSyncIds, setAssignedUserSyncIds] = useState(initial?.assignedUserSyncIds || []);
+  const [hideStalled, setHideStalled] = useState(initial?.hideStalled || false);
   const [trackInLifeGlance, setTrackInLifeGlance] = useState(false);
 
   // "Completed" only available when all child projects are completed (or none exist)
@@ -155,7 +156,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onSave({ title: title.trim(), description: description.trim(), areaId: areaId || undefined, startDate: startDate || undefined, targetDate: targetDate || undefined, color, status, assignedUserSyncIds, trackInLifeGlance: showLifeGlanceCheckbox && !alreadyShared && trackInLifeGlance });
+    onSave({ title: title.trim(), description: description.trim(), areaId: areaId || undefined, startDate: startDate || undefined, targetDate: targetDate || undefined, color, status, assignedUserSyncIds, hideStalled, trackInLifeGlance: showLifeGlanceCheckbox && !alreadyShared && trackInLifeGlance });
   };
 
   return (
@@ -318,6 +319,19 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
           )}
         </div>
       )}
+
+      {/* Hide Stalled flags — per-goal opt-out for slow-burn goals. Suppresses
+          the Stalled badge on this goal's projects and the goal's stalled-based
+          caution indicator (overdue caution is unaffected). */}
+      <label className="flex items-center gap-2 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={hideStalled}
+          onChange={e => setHideStalled(e.target.checked)}
+          className="w-4 h-4 rounded accent-blue-500"
+        />
+        <span className={`text-sm ${textSecondary}`}>Hide Stalled flags for this goal</span>
+      </label>
 
       {/* Track in lifeGLANCE — checkbox when not yet shared (new OR existing goal),
           read-only indicator once it already lives in lifeGLANCE. */}
