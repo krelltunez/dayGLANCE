@@ -8,7 +8,7 @@ import { taskColorToHex } from '../../utils/colorUtils.js';
  * Color accent on the left, completion toggle, title, time/duration line.
  * Imported calendar events render read-only (no editor on tap).
  */
-const SchedTaskCard = ({ task }) => {
+const SchedTaskCard = ({ task, isInbox = false }) => {
   const {
     darkMode, cardBg, borderClass, textPrimary, textSecondary,
     formatTime, toggleComplete, openMobileEditTask,
@@ -26,7 +26,7 @@ const SchedTaskCard = ({ task }) => {
 
   return (
     <div
-      onClick={() => { if (!isEvent) openMobileEditTask(task, false); }}
+      onClick={() => { if (!isEvent) openMobileEditTask(task, isInbox); }}
       className={`flex items-center gap-2.5 rounded-xl border ${borderClass} ${cardBg} px-3 py-2.5 ${
         isEvent ? '' : 'cursor-pointer active:opacity-70'
       } ${task.completed ? 'opacity-55' : ''}`}
@@ -34,7 +34,7 @@ const SchedTaskCard = ({ task }) => {
     >
       {!isEvent && (
         <button
-          onClick={e => { e.stopPropagation(); toggleComplete(task.id); }}
+          onClick={e => { e.stopPropagation(); toggleComplete(task.id, isInbox); }}
           className="flex-shrink-0 p-0.5"
           aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
         >
