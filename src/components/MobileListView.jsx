@@ -436,19 +436,22 @@ const HGSessionCard = React.memo(({
 HGSessionCard.displayName = 'HGSessionCard';
 
 // ─── MarkerHalo ───────────────────────────────────────────────────────────────
-// A soft page-background disc rendered between the global spine line and a
+// A soft page-background strip rendered between the global spine line and a
 // marker. The line runs unbroken behind every row; each marker locally erases
 // it with a soft edge — so the "fade around markers" is positioned by the
 // marker itself and can never drift out of sync with row layout.
+//
+// A narrow vertical strip, not a disc: the spine is only 2px wide, so the
+// occluder needs no horizontal reach — a disc large enough for a gentle
+// vertical fade was washing over card edges and time labels.
 
 function MarkerHalo({ pageBg }) {
   return (
     <div
       style={{
         position: 'absolute', left: '50%', top: '50%',
-        width: 48, height: 48, marginLeft: -24, marginTop: -24,
-        borderRadius: '50%',
-        background: `radial-gradient(circle, ${pageBg} 45%, transparent 75%)`,
+        width: 10, height: 48, marginLeft: -5, marginTop: -24,
+        background: `linear-gradient(to bottom, transparent 0%, ${pageBg} 38%, ${pageBg} 62%, transparent 100%)`,
         zIndex: 1, pointerEvents: 'none',
       }}
     />
