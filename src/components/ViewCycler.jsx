@@ -1,8 +1,8 @@
 import React from 'react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
-const STATES = ['multi', 'day', 'week'];
-const LABELS = { multi: 'MULTI', day: 'DAY', week: 'WEEK' };
+const STATES = ['multi', 'day', 'week', 'sched'];
+const LABELS = { multi: 'MULTI', day: 'DAY', week: 'WEEK', sched: 'SCHED' };
 const ORANGE = '#fe8b00';
 
 const MultiIcon = () => (
@@ -36,7 +36,17 @@ const WeekIcon = () => (
   </svg>
 );
 
-const ICONS = { multi: MultiIcon, day: DayIcon, week: WeekIcon };
+const SchedIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    {/* Day-group headers with task blocks beneath — the agenda silhouette */}
+    <rect x="2" y="2"    width="9"  height="2.5" rx="1" fill={ORANGE} />
+    <rect x="2" y="6"    width="16" height="3.5" rx="1" fill={ORANGE} fillOpacity="0.7" />
+    <rect x="2" y="11.5" width="9"  height="2.5" rx="1" fill={ORANGE} />
+    <rect x="2" y="15.5" width="16" height="3.5" rx="1" fill={ORANGE} fillOpacity="0.7" />
+  </svg>
+);
+
+const ICONS = { multi: MultiIcon, day: DayIcon, week: WeekIcon, sched: SchedIcon };
 
 const ViewCycler = () => {
   const { viewMode, setViewMode, textSecondary } = useDayPlannerCtx();
@@ -52,7 +62,7 @@ const ViewCycler = () => {
     <button
       onClick={cycle}
       className="flex flex-col items-center justify-center gap-0.5 w-full h-full py-1 hover:bg-black/5 dark:hover:bg-white/5 transition-colors rounded"
-      title={`View: ${LABELS[viewMode]} (1/2/3 to switch)`}
+      title={`View: ${LABELS[viewMode]} (1/2/3/4 to switch)`}
       aria-label={`Current view: ${LABELS[viewMode]}. Click to cycle view.`}
     >
       <Icon />

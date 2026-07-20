@@ -252,7 +252,7 @@ export default function useKeyboardShortcuts({
         }
       }
 
-      // 1/2/3 to jump directly to multi/day/week view
+      // 1/2/3/4 to jump directly to multi/day/week/sched view
       if (e.key === '1' && noModifiers && canShowViewCycler) {
         e.preventDefault();
         setViewMode('multi');
@@ -264,6 +264,10 @@ export default function useKeyboardShortcuts({
       if (e.key === '3' && noModifiers && canShowViewCycler) {
         e.preventDefault();
         setViewMode('week');
+      }
+      if (e.key === '4' && noModifiers && canShowViewCycler) {
+        e.preventDefault();
+        setViewMode('sched');
       }
 
       // Arrow left/right to navigate dates

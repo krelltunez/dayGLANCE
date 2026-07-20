@@ -29,6 +29,7 @@ const CalendarHeader = () => {
     visibleDates,
     selectedDate,
     canShowViewCycler, effectiveViewMode,
+    goToDate,
     mobileViewMode,
     use24HourClock, dayViewColumns,
     weekViewDates,
@@ -157,7 +158,39 @@ const CalendarHeader = () => {
   className={`border-b ${borderClass} ${cardBg} flex`}
   style={effectiveViewMode === 'day' ? { display: 'grid', gridTemplateColumns: `repeat(${dayViewColumns.length}, 1fr)` } : undefined}
 >
-  {effectiveViewMode === 'week' ? (
+  {effectiveViewMode === 'sched' ? (
+    /* SCHED view: gutter cell + 7 clickable dates that set the agenda's starting day */
+    <>
+      <div
+        className={`flex-shrink-0 border-r ${borderClass} flex items-center justify-center`}
+        style={{ width: WEEK_GUTTER_W, minHeight: 'var(--header-row-h)' }}
+      >
+        {isTablet && !isLandscape ? <MobileViewToggle /> : (canShowViewCycler && <ViewCycler />)}
+      </div>
+      {weekViewDates.map((date, idx) => {
+        const dateStr = dateToString(date);
+        const isDateToday = dateStr === dateToString(new Date());
+        const isSelected = dateStr === dateToString(selectedDate);
+        return (
+          <button
+            key={dateStr}
+            onClick={() => goToDate(date)}
+            className={`flex-1 flex items-center justify-center py-1.5 px-1 text-center transition-colors ${idx > 0 ? `border-l ${borderClass}` : ''}
+              ${isSelected ? (darkMode ? 'bg-blue-900/40' : 'bg-blue-100') : isDateToday ? (darkMode ? 'bg-blue-900/20' : 'bg-blue-50') : ''}`}
+            style={{ minHeight: 'var(--header-row-h)' }}
+            title={`Start agenda at ${dateStr}`}
+          >
+            <div className={`font-bold flex items-center justify-center gap-1.5 ${isDateToday || isSelected ? 'text-blue-600' : textPrimary}`}>
+              <span>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][date.getDay()]}</span>
+              <span className={`font-normal ${isDateToday || isSelected ? 'text-blue-500' : textSecondary}`}>
+                {date.getMonth() + 1}/{date.getDate()}
+              </span>
+            </div>
+          </button>
+        );
+      })}
+    </>
+  ) : effectiveViewMode === 'week' ? (
     /* Week view: gutter cell + 7 day-header cells */
     <>
       <div
