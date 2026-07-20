@@ -140,11 +140,42 @@ final class SubscriptionBridge {
                     fireBillingEvent(status: "success", code: 0, message: "ok", productId: productId)
                 }
             } catch {
-                let rcError = error as? RevenueCat.ErrorCode
-                let code = rcError?.rawValue ?? 0
-                fireBillingEvent(status: "error", code: code, message: error.localizedDescription, productId: productId)
+                fireBillingError(error, productId: productId)
             }
         }
+    }
+
+    /// Delivers a thrown purchase/restore error to JS in the shared billing-event
+    /// code space (Play Billing response codes) that @glance-apps/billing's
+    /// billingErrorMessage understands. RevenueCat's raw ErrorCode values collide
+    /// with that vocabulary — e.g. productAlreadyPurchased is raw value 6, which
+    /// the paywall would render as "Network error" — so translate instead of
+    /// passing rawValue through.
+    private func fireBillingError(_ error: Error, productId: String) {
+        guard let rcError = error as? RevenueCat.ErrorCode else {
+            fireBillingEvent(status: "error", code: 0, message: error.localizedDescription, productId: productId)
+            return
+        }
+        // A dismissed StoreKit sheet can surface as a thrown purchaseCancelledError
+        // rather than result.userCancelled — not an error the user should see.
+        if rcError == .purchaseCancelledError {
+            fireBillingEvent(status: "cancelled", code: -1, message: "User cancelled", productId: productId)
+            return
+        }
+        let code: Int
+        switch rcError {
+        case .purchaseNotAllowedError:
+            code = 3 // "Billing is not available on this device."
+        case .storeProblemError, .productNotAvailableForPurchaseError:
+            code = 4 // "This subscription isn't available right now. Please try again later."
+        case .networkError, .offlineConnectionError, .productRequestTimedOut:
+            code = 6 // "Network error. Please check your connection and try again."
+        case .productAlreadyPurchasedError, .receiptAlreadyInUseError:
+            code = 7 // "You already own this item."
+        default:
+            code = 0 // "Something went wrong with the purchase. Please try again."
+        }
+        fireBillingEvent(status: "error", code: code, message: error.localizedDescription, productId: productId)
     }
 
     func restorePurchases() {
@@ -159,7 +190,7 @@ final class SubscriptionBridge {
                                  message: active ? "restore_complete_active" : "restore_complete",
                                  productId: productId)
             } catch {
-                fireBillingEvent(status: "error", code: 0, message: error.localizedDescription, productId: "")
+                fireBillingError(error, productId: "")
             }
         }
     }
