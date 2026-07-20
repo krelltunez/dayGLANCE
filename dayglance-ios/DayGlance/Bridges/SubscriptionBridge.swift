@@ -243,7 +243,7 @@ final class SubscriptionBridge {
     }
 
     private func checkTrialEligibilityInBackground() {
-        Purchases.shared.checkTrialOrIntroDiscountEligibility(["com.dayglance.pro.yearly"]) { results in
+        Purchases.shared.checkTrialOrIntroDiscountEligibility(productIdentifiers: ["com.dayglance.pro.yearly"]) { results in
             guard let status = results["com.dayglance.pro.yearly"]?.status else { return }
             switch status {
             case .eligible:
