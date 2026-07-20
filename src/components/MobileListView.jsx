@@ -435,6 +435,29 @@ const HGSessionCard = React.memo(({
 });
 HGSessionCard.displayName = 'HGSessionCard';
 
+// ─── MarkerHalo ───────────────────────────────────────────────────────────────
+// A soft page-background strip rendered between the global spine line and a
+// marker. The line runs unbroken behind every row; each marker locally erases
+// it with a soft edge — so the "fade around markers" is positioned by the
+// marker itself and can never drift out of sync with row layout.
+//
+// A narrow vertical strip, not a disc: the spine is only 2px wide, so the
+// occluder needs no horizontal reach — a disc large enough for a gentle
+// vertical fade was washing over card edges and time labels.
+
+function MarkerHalo({ pageBg }) {
+  return (
+    <div
+      style={{
+        position: 'absolute', left: '50%', top: '50%',
+        width: 10, height: 48, marginLeft: -5, marginTop: -24,
+        background: `linear-gradient(to bottom, transparent 0%, ${pageBg} 38%, ${pageBg} 62%, transparent 100%)`,
+        zIndex: 1, pointerEvents: 'none',
+      }}
+    />
+  );
+}
+
 // ─── Row wrapper (3 columns) ──────────────────────────────────────────────────
 
 function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeight, accentHex, children, isNow, pageBg, onMarkerClick, noConnector, connectorOpacity }) {
@@ -461,9 +484,10 @@ function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeigh
 
       {/* Col 2 — spine marker; tappable for completion when onMarkerClick is provided */}
       <div
-        style={{ width: SPINE_COL_W, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: onMarkerClick ? 'pointer' : undefined }}
+        style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: onMarkerClick ? 'pointer' : undefined }}
         onClick={onMarkerClick}
       >
+        {marker && pageBg && <MarkerHalo pageBg={pageBg} />}
         {marker}
       </div>
 
@@ -604,7 +628,8 @@ function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24Ho
         <span className="text-[11px] font-bold" style={{ color: '#ef4444' }}>{nowLabel}</span>
       </div>
       {/* Spine col: bare Clock icon with line emerging from its right edge */}
-      <div style={{ width: SPINE_COL_W, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: SPINE_COL_W, flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {pageBg && <MarkerHalo pageBg={pageBg} />}
         <div style={{ width: 16, height: 16, flexShrink: 0, position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
           <div style={{
             position: 'absolute', left: 'calc(100% - 2px)', top: '50%', marginTop: -1,
@@ -1270,66 +1295,10 @@ const MobileListView = ({ hideInboxHandle = false }) => {
     return `linear-gradient(to bottom, ${stops.join(', ')})`;
   }, [segments, isToday, nowMin]);
 
-  // Compute the y-offset (px from timed-body top) of each spine marker so we can
-  // build a CSS mask that genuinely fades the spine to transparent at those positions.
-  const spineMarkerYs = useMemo(() => {
-    let y = 0;
-    const ys = [];
-    if (isToday && !inProgressItem) {
-      y += 16;           // height-16 padding div
-      ys.push(y + 20);  // NowRow minHeight=40, marker at vertical centre
-      y += 40;
-      if (visibleItems.length > 0) y += 12; // height-12 padding div
-    }
-    segments.forEach(seg => {
-      if (seg.type === 'gap') {
-        y += gapHeight(seg.toMin - seg.fromMin);
-      } else if (seg.type === 'overlap') {
-        y += 20;
-      } else if (seg.type === 'multi-routine') {
-        const rowH = ROUTINE_H + 8;
-        for (let i = 0; i < seg.rowCount; i++) {
-          ys.push(y + rowH / 2);
-          y += rowH;
-        }
-      } else {
-        const cardH = seg.item._kind === 'routine'    ? ROUTINE_H
-                    : seg.item._kind === 'hg-session' ? HG_SESSION_H
-                    : seg.item._kind === 'frame'      ? FRAME_H
-                    : TASK_H;
-        const rowH = cardH + 8;
-        // Frame headers have no spine marker, so no fade hole — the spine
-        // runs straight through them.
-        if (seg.item._kind !== 'frame') ys.push(y + rowH / 2);
-        y += rowH;
-      }
-    });
-    return ys;
-  }, [segments, isToday, inProgressItem, visibleItems]);
-
-  // CSS mask: spine fades to transparent BEFORE each marker's top edge, holds
-  // invisible through the marker, then fades back after the marker's bottom edge.
-  const bgSpineMask = useMemo(() => {
-    if (spineMarkerYs.length === 0) return undefined;
-    const MARKER_R  = 8;  // half of 16px marker height
-    const PRE_FADE  = 12; // fade-out distance ending at marker top edge
-    const POST_FADE = 12; // fade-in distance starting at marker bottom edge
-    const stops = ['black 0px'];
-    let prev = 0;
-    spineMarkerYs.forEach(cy => {
-      const fadeOutStart = cy - MARKER_R - PRE_FADE;  // where spine starts fading
-      const fadeOutEnd   = cy - MARKER_R;              // fully transparent by here
-      const fadeInStart  = cy + MARKER_R;              // starts returning after marker
-      const fadeInEnd    = cy + MARKER_R + POST_FADE;  // back to opaque
-      if (fadeOutStart > prev) stops.push(`black ${fadeOutStart}px`);
-      stops.push(`transparent ${fadeOutEnd}px`);
-      stops.push(`transparent ${fadeInStart}px`);
-      stops.push(`black ${fadeInEnd}px`);
-      prev = fadeInEnd;
-    });
-    stops.push('black 9999px');
-    return `linear-gradient(to bottom, ${stops.join(', ')})`;
-  }, [spineMarkerYs]);
+  // The fade around each marker is NOT computed here: every marker renders a
+  // MarkerHalo (a soft pageBg disc) between the spine line and itself, so the
+  // fade is positioned by the marker's own layout. No y-offset bookkeeping —
+  // rows of any height, in any order, can't desync the spine.
 
   // ── Render helpers ─────────────────────────────────────────────────────────
   const getAccentHex = (item) => {
@@ -1472,7 +1441,6 @@ const MobileListView = ({ hideInboxHandle = false }) => {
               left: TIME_COL_W + SPINE_COL_W / 2 - 1,
               width: 2,
               background: bgSpineGradient,
-              ...(bgSpineMask ? { WebkitMaskImage: bgSpineMask, maskImage: bgSpineMask } : {}),
             }}
           />
         )}
