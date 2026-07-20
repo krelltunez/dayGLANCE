@@ -1117,7 +1117,7 @@ const MobileGlanceSection = () => {
       tomorrow.setDate(tomorrow.getDate() + 1);
       setMobileActiveTab('timeline');
       goToDate(tomorrow);
-      if (mobileViewMode === 'list') {
+      if (mobileViewMode === 'list' || mobileViewMode === 'sched') {
         setTimeout(() => calendarRef.current?.scrollTo({ top: 0, behavior: 'smooth' }), 150);
       } else if (firstStartTime) {
         setTimeout(() => scrollToHour(firstStartTime), 150);

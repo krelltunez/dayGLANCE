@@ -35,6 +35,7 @@ import MobileBottomSheets from './MobileBottomSheets.jsx';
 import MobileGlanceSection from './MobileGlanceSection.jsx';
 import MobileViewToggle from './MobileViewToggle.jsx';
 import MobileListView from './MobileListView.jsx';
+import SchedView from './sched/SchedView.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -785,6 +786,7 @@ const MobileLayout = () => {
 
                   {mobileViewMode === 'grid' && <MobileTimeGrid />}
                   {mobileViewMode === 'list' && <MobileListView />}
+                  {mobileViewMode === 'sched' && <SchedView />}
                 </div>
 
                 {/* Mobile notes panel overlay for timeline tasks (including deadline tasks) */}

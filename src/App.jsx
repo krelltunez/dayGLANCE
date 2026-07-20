@@ -311,7 +311,7 @@ const DayPlanner = () => {
   // uses the two-column timeline (and hides the LIST/GRID toggle). This mirrors
   // how wider Android tablets behave, where landscape drops out of tablet mode
   // entirely. (On phones, list view is independent of orientation.)
-  const tabletListView = isTablet && !isLandscape && mobileViewMode === 'list';
+  const tabletListView = isTablet && !isLandscape && (mobileViewMode === 'list' || mobileViewMode === 'sched');
   const [glancePage, setGlancePage] = useState(() => {
     const saved = localStorage.getItem('day-planner-glance-page');
     return saved !== null ? parseInt(saved, 10) : 0;
@@ -8950,7 +8950,7 @@ const DayPlanner = () => {
       )}
 
       {/* Refocus timeline toast — all form factors except mobile list view */}
-      {timelineScrolledAway && effectiveViewMode === 'multi' && !((isMobile && mobileViewMode === 'list') || tabletListView) && (
+      {timelineScrolledAway && effectiveViewMode === 'multi' && !((isMobile && (mobileViewMode === 'list' || mobileViewMode === 'sched')) || tabletListView) && (
         <div className="fixed left-1/2 -translate-x-1/2 z-50 pointer-events-auto" style={{ bottom: isMobile ? 'calc(5rem + env(safe-area-inset-bottom, 0px))' : '1.5rem' }}>
           <button
             onClick={() => { setTimelineScrolledAway(false); scrollToCurrentHour(true); }}

@@ -491,7 +491,7 @@ const MobileSettingsPanel = () => {
         </div>
         <p className={`text-xs ${textSecondary}`}>{t('settings.viewDefaultDesc')}</p>
         <div className="flex gap-2">
-          {['grid', 'list'].map(mode => (
+          {['grid', 'list', 'sched'].map(mode => (
             <button
               key={mode}
               onClick={() => setMobileViewMode(mode)}
@@ -501,7 +501,7 @@ const MobileSettingsPanel = () => {
                   : `${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-stone-300'} ${textPrimary}`
               }`}
             >
-              {mode === 'grid' ? 'GRID' : 'LIST'}
+              {mode.toUpperCase()}
             </button>
           ))}
         </div>
