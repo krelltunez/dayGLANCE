@@ -1,6 +1,6 @@
 import React, { useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Calendar, X } from 'lucide-react';
-import { dateToString } from '../utils/taskUtils.js';
+import { dateToString, formatDeadlineDate } from '../utils/taskUtils.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 const DeadlinePickerPopover = ({ taskId, currentDeadline, onClose }) => {
@@ -222,6 +222,10 @@ const DeadlinePickerPopover = ({ taskId, currentDeadline, onClose }) => {
           {currentDeadline && (
             <>
               <div className={`border-t ${borderClass} my-1`}></div>
+              <div className={`px-3 py-1 text-sm font-medium ${darkMode ? 'text-blue-400' : 'text-blue-600'} flex items-center gap-2`}>
+                <Calendar size={14} />
+                Due {formatDeadlineDate(currentDeadline)}
+              </div>
               <button
                 onClick={() => clearDeadline(taskId)}
                 className={`w-full text-left px-3 py-2 rounded text-sm text-red-500 ${hoverBg} flex items-center gap-2`}
