@@ -23,7 +23,7 @@ import useFolderBackup from './hooks/useFolderBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
 import { parseICS, parseDatetime, filterByDateWindow, expandMultiDayEvent } from './utils/icsParser.js';
-import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex } from './utils/colorUtils.js';
+import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex, getProjectColor } from './utils/colorUtils.js';
 import { calculateGoalProgress } from './utils/goalProgress.js';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from './constants/habits.js';
 import { FRAME_COLORS, DAY_LABELS } from './constants/frames.js';
@@ -3857,12 +3857,13 @@ const DayPlanner = () => {
     );
     if (alreadyInstantiated) return;
     const parentGoal = project.goalId ? goals.find(g => g.id === project.goalId) : null;
-    const taskColor = parentGoal?.color || 'bg-blue-500';
+    const taskColor = getProjectColor(project, parentGoal);
     const newTasks = templates.map(tmpl => ({
       id: `hg-${project.id}-${sessionDate}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       title: tmpl.name,
       ...(tmpl.notes ? { notes: tmpl.notes } : {}),
       color: taskColor,
+      ...(project.assignedUserSyncIds?.length ? { assignedUserSyncIds: project.assignedUserSyncIds } : {}),
       projectId: project.id,
       hyperglanceSessionDate: sessionDate,
       completed: false,

@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
-import { TASK_COLORS, TAILWIND_TO_HEX, hexToRgba } from '../../utils/colorUtils.js';
+import { TASK_COLORS, TAILWIND_TO_HEX, hexToRgba, PROJECT_FALLBACK_COLOR } from '../../utils/colorUtils.js';
 import { HG_ICON_GROUPS, HG_COLORS, HG_DAYS } from '../../hooks/useHyperGlance.js';
 import { dateToString } from '../../utils/taskUtils.js';
 import { calculateGoalProgress } from '../../utils/goalProgress.js';
@@ -133,6 +133,9 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
   );
   const [targetDate, setTargetDate] = useState(initial?.targetDate || '');
   const [color, setColor] = useState(initial?.color || TASK_COLORS[0].class);
+  // New goals inherit the selected area's color until the user explicitly
+  // picks one (copy-at-creation: editing an existing goal never auto-changes).
+  const [colorTouched, setColorTouched] = useState(!!initial);
   const [status, setStatus] = useState(initial?.status || 'active');
   const [assignedUserSyncIds, setAssignedUserSyncIds] = useState(initial?.assignedUserSyncIds || []);
   const [trackInLifeGlance, setTrackInLifeGlance] = useState(false);
@@ -198,7 +201,14 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
         <label className={`text-xs font-medium ${textSecondary}`}>{t('goals.area')}</label>
         <select
           value={areaId}
-          onChange={e => setAreaId(e.target.value)}
+          onChange={e => {
+            const nextAreaId = e.target.value;
+            setAreaId(nextAreaId);
+            if (!colorTouched) {
+              const area = nextAreaId ? areas.find(a => a.id === nextAreaId) : null;
+              setColor(area?.color || TASK_COLORS[0].class);
+            }
+          }}
           className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
             darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'
           }`}
@@ -247,7 +257,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
             <button
               key={c.class}
               type="button"
-              onClick={() => setColor(c.class)}
+              onClick={() => { setColor(c.class); setColorTouched(true); }}
               className={`w-7 h-7 rounded-full ${c.class} transition-transform ${
                 color === c.class ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : 'hover:scale-110'
               }`}
@@ -387,7 +397,19 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
   const [description, setDescription] = useState(initial?.description || '');
   const [goalId, setGoalId] = useState(initial?.goalId || defaultGoalId || '');
   const [status, setStatus] = useState(initial?.status || 'active');
-  const [assignedUserSyncIds, setAssignedUserSyncIds] = useState(initial?.assignedUserSyncIds || []);
+  // Copy-at-creation inheritance: a new project defaults its color and assigned
+  // users from the selected goal (standalone default: blue / nobody) and keeps
+  // following the goal picker until the user explicitly overrides. Editing an
+  // existing project never auto-changes either field.
+  const initialGoal = (initial?.goalId || defaultGoalId)
+    ? goals.find(g => g.id === (initial?.goalId || defaultGoalId))
+    : null;
+  const [color, setColor] = useState(initial?.color || initialGoal?.color || PROJECT_FALLBACK_COLOR);
+  const [colorTouched, setColorTouched] = useState(!!initial);
+  const [assignedUserSyncIds, setAssignedUserSyncIds] = useState(
+    initial?.assignedUserSyncIds || (initial ? [] : initialGoal?.assignedUserSyncIds || [])
+  );
+  const [usersTouched, setUsersTouched] = useState(!!initial);
 
   // ── hyperGLANCE state ────────────────────────────────────────────────────
   const initHG = initial?.hyperglance || {};
@@ -446,7 +468,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
       completions: initHG.completions || [],
       createdAt: initHG.createdAt || new Date().toISOString(),
     } : null;
-    onSave({ title: title.trim(), description: description.trim(), goalId: goalId || undefined, status, assignedUserSyncIds, hyperglance });
+    onSave({ title: title.trim(), description: description.trim(), goalId: goalId || undefined, status, color, assignedUserSyncIds, hyperglance });
   };
 
   const activeGoals = goals.filter(g => g.status !== 'archived');
@@ -494,7 +516,13 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
         <label className={`text-xs font-medium ${textSecondary}`}>{t('goals.goalOptional')}</label>
         <select
           value={goalId}
-          onChange={e => setGoalId(e.target.value)}
+          onChange={e => {
+            const nextGoalId = e.target.value;
+            setGoalId(nextGoalId);
+            const goal = nextGoalId ? goals.find(g => g.id === nextGoalId) : null;
+            if (!colorTouched) setColor(goal?.color || PROJECT_FALLBACK_COLOR);
+            if (!usersTouched) setAssignedUserSyncIds(goal?.assignedUserSyncIds || []);
+          }}
           className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
             darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'
           }`}
@@ -506,12 +534,30 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
         </select>
       </div>
 
+      {/* Color — defaults to the goal's color (blue when standalone) until overridden */}
+      <div className="flex flex-col gap-1.5">
+        <label className={`text-xs font-medium ${textSecondary}`}>{t('common.color')}</label>
+        <div className="grid grid-cols-9 gap-2 w-full">
+          {TASK_COLORS.map(c => (
+            <button
+              key={c.class}
+              type="button"
+              onClick={() => { setColor(c.class); setColorTouched(true); }}
+              className={`w-7 h-7 rounded-full ${c.class} transition-transform ${
+                color === c.class ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : 'hover:scale-110'
+              }`}
+              aria-label={c.name}
+            />
+          ))}
+        </div>
+      </div>
+
       {/* Assigned users — multi-user only */}
       <UserAssignmentPicker
         enabled={multiUserEnabled}
         users={users}
         value={assignedUserSyncIds}
-        onChange={setAssignedUserSyncIds}
+        onChange={ids => { setAssignedUserSyncIds(ids); setUsersTouched(true); }}
         darkMode={darkMode}
         borderClass={borderClass}
         textSecondary={textSecondary}
