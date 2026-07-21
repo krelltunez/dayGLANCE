@@ -51,9 +51,11 @@ export default function useTimelineScroll({
       if (calendarRef.current) calendarRef.current.scrollTop = 0;
       return;
     }
-    // Skip scroll-to-now when in list view (no time grid to scroll) — on phones
-    // whenever list mode is active, and on tablets in portrait list mode.
-    if ((isMobile && mobileViewMode === 'list') || tabletListView) return;
+    // Skip scroll-to-now when there's no time grid to scroll — on phones
+    // whenever a non-grid mode (list, sched) is active, and on tablets in
+    // portrait list mode. Without this, switching to SCHED schedules a
+    // scroll-to-now that lands after SchedView's own scroll-to-top.
+    if ((isMobile && mobileViewMode !== 'grid') || tabletListView) return;
     const isToday = dateToString(selectedDate) === dateToString(new Date());
     if (isToday && calendarRef.current && (!isMobile || mobileActiveTab === 'timeline')) {
       const timerId = setTimeout(() => scrollToCurrentHour(false), 100);

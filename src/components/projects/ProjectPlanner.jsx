@@ -44,6 +44,9 @@ const ProjectPlanner = ({ project, onClose }) => {
   const [editingNotes, setEditingNotes] = useState(!(project.description || '').trim());
   const [quickAddTitle, setQuickAddTitle] = useState('');
   const [showCompleted, setShowCompleted] = useState(true);
+  // Mobile shows the two task columns as tabs (they'd otherwise stack, hiding
+  // Unscheduled below the fold); desktop keeps them side by side.
+  const [activeTab, setActiveTab] = useState('scheduled');
   const [dragIdx, setDragIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
   const touchDragRef = useRef({ active: false, fromIdx: null, overIdx: null });
@@ -301,13 +304,36 @@ const ProjectPlanner = ({ project, onClose }) => {
             )}
           </div>
 
-          {/* Task columns */}
+          {/* Task columns — tabbed on mobile, side by side on desktop */}
+          {isMobile && (
+            <div className={`flex rounded-lg border ${borderClass} p-0.5 gap-0.5`}>
+              {[
+                { key: 'scheduled', label: 'Scheduled', count: scheduledDays.reduce((n, g) => n + (g.dateStr ? g.tasks.length : 0), 0) },
+                { key: 'unscheduled', label: 'Unscheduled', count: incompleteUnscheduled.length },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wide transition-colors ${
+                    activeTab === tab.key ? 'text-white' : `${textSecondary} ${hoverBg}`
+                  }`}
+                  style={activeTab === tab.key ? { background: projectHex } : undefined}
+                >
+                  {tab.label}
+                  {tab.count > 0 && <span className="opacity-70">{tab.count}</span>}
+                </button>
+              ))}
+            </div>
+          )}
           <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-2'}`}>
             {/* Scheduled */}
+            {(!isMobile || activeTab === 'scheduled') && (
             <div className="flex flex-col gap-2 min-w-0">
-              <span className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>
-                Scheduled
-              </span>
+              {!isMobile && (
+                <span className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>
+                  Scheduled
+                </span>
+              )}
               {scheduledDays.length > 0 ? scheduledDays.map(group => (
                 <div key={group.dateStr ?? 'completed'} className="flex flex-col gap-1">
                   <span className={`text-[11px] font-semibold ${group.dateStr === todayStr ? 'text-blue-500' : textSecondary} ${group.dateStr ? '' : 'opacity-60'}`}>
@@ -319,12 +345,16 @@ const ProjectPlanner = ({ project, onClose }) => {
                 <p className={`text-xs ${textSecondary} opacity-70 py-2`}>Nothing scheduled yet.</p>
               )}
             </div>
+            )}
 
             {/* Unscheduled */}
+            {(!isMobile || activeTab === 'unscheduled') && (
             <div className="flex flex-col gap-2 min-w-0">
-              <span className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>
-                Unscheduled
-              </span>
+              {!isMobile && (
+                <span className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>
+                  Unscheduled
+                </span>
+              )}
               {unscheduled.length > 0 ? (
                 unscheduled.map(task => {
                   const idx = incompleteUnscheduled.findIndex(u => u.id === task.id);
@@ -373,6 +403,7 @@ const ProjectPlanner = ({ project, onClose }) => {
                 </button>
               </form>
             </div>
+            )}
           </div>
 
           {/* hyperGLANCE settings (moved here from the Edit Project form) */}

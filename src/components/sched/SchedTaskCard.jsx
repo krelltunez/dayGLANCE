@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarPlus, CheckCircle2, CheckSquare, ChevronsRight, Circle, ExternalLink, FileText, GripVertical, Repeat } from 'lucide-react';
+import { CalendarPlus, CheckCircle2, CheckSquare, Circle, ExternalLink, FileText, GripVertical, Repeat, SkipForward } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { useSyncCtx } from '../../context/SyncContext.jsx';
@@ -219,7 +219,8 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
           title="Postpone to tomorrow"
           aria-label="Postpone to tomorrow"
         >
-          <ChevronsRight size={14} />
+          {/* Same icon as the timeline's postpone button — same action. */}
+          <SkipForward size={14} />
         </button>
       )}
 
