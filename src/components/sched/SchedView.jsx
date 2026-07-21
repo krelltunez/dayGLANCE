@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronDown, Eye, EyeOff, ListFilter, Plus } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useTranslation } from 'react-i18next';
@@ -13,9 +13,16 @@ import SchedFilterPopup from './SchedFilterPopup.jsx';
  * the desktop dashboard (SchedDashboard) shares the same agenda state.
  */
 const SchedView = () => {
-  const { borderClass, textSecondary, hoverBg } = useDayPlannerCtx();
+  const { borderClass, textSecondary, hoverBg, calendarRef } = useDayPlannerCtx();
   const { t } = useTranslation();
   const [showFilters, setShowFilters] = useState(false);
+
+  // The shared scroll container keeps GRID/LIST's scroll offset (e.g. the
+  // timeline's scroll-to-now); SCHED starts at the top of the agenda.
+  useEffect(() => {
+    calendarRef?.current?.scrollTo?.({ top: 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const {
     visibleDays, filtersActive,
@@ -68,7 +75,7 @@ const SchedView = () => {
             {dayLabel(day)}
           </div>
           {day.tasks.length > 0 ? (
-            day.tasks.map(task => <SchedTaskCard key={task.id} task={task} />)
+            day.tasks.map(task => <SchedTaskCard key={task.id} task={task} showProject />)
           ) : (
             <button
               onClick={() => addTaskOnDay(day.dateStr)}

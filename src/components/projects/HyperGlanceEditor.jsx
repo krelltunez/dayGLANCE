@@ -37,7 +37,7 @@ const nextQuarterHour = () => {
  * every user change; the initial value never triggers an emit, so mounting
  * the editor can't dirty the project.
  */
-const HyperGlanceEditor = ({ value, onChange }) => {
+const HyperGlanceEditor = ({ value, onChange, wide = false }) => {
   const { darkMode, borderClass, textPrimary, textSecondary, hoverBg, use24HourClock, isTablet } =
     useDayPlannerCtx();
   const { t } = useTranslation();
@@ -121,9 +121,11 @@ const HyperGlanceEditor = ({ value, onChange }) => {
       </button>
 
       {hgEnabled && (
-        <div className={`px-3 pb-4 pt-1 space-y-4 border-t ${borderClass}`}>
-          {/* Icon picker */}
-          <div className="flex flex-col gap-1.5">
+        <div className={wide
+          ? `px-4 pb-4 pt-2 border-t ${borderClass} grid grid-cols-2 gap-x-6 gap-y-4 items-start`
+          : `px-3 pb-4 pt-1 space-y-4 border-t ${borderClass}`}>
+          {/* Icon picker — spans the left column in the wide (planner) layout */}
+          <div className={`flex flex-col gap-1.5 ${wide ? 'row-span-4' : ''}`}>
             <label className={`text-xs font-medium ${textSecondary}`}>Icon</label>
             {HG_ICON_GROUPS.map(({ group, icons }) => (
               <div key={group}>
@@ -283,7 +285,7 @@ const HyperGlanceEditor = ({ value, onChange }) => {
 
           {/* Template tasks */}
           {hgIsRecurring && (
-            <div className="flex flex-col gap-1.5">
+            <div className={`flex flex-col gap-1.5 ${wide ? 'col-span-2' : ''}`}>
               <label className={`text-xs font-medium ${textSecondary}`}>
                 Template tasks <span className="opacity-50 font-normal">(instantiated each session)</span>
               </label>

@@ -38,7 +38,10 @@ export default function useSchedAgendaState() {
     for (let i = 0; i < daysShown; i++) {
       const date = new Date(selectedDate);
       date.setDate(date.getDate() + i);
-      const dayTasks = getTasksForDate(date)
+      // Second arg opts out of the app-wide tag filter — SCHED has its own
+      // filter panel, and the invisible global filter made freshly-tagged
+      // tasks vanish from the agenda.
+      const dayTasks = getTasksForDate(date, false)
         .filter(task => !task.isExample)
         .sort((a, b) =>
           ((a.isAllDay ? 0 : 1) - (b.isAllDay ? 0 : 1)) ||

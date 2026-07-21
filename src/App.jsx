@@ -292,9 +292,14 @@ const DayPlanner = () => {
   });
   // Only expose the cycler (and honour viewMode) when the 3-day breakpoint is active
   const canShowViewCycler = !isTablet && !isMobile && _visibleDays === 3;
+  // Narrow desktop (1-2 columns): DAY/WEEK don't fit, but SCHED does — the
+  // cycler still shows there, restricted to MULTI and SCHED.
+  const schedOnlyCycler = !isTablet && !isMobile && _visibleDays < 3;
   // Below 1600px the cycler is hidden and the stored mode is ignored until the
   // viewport grows back; the app behaves as 'multi' in the meantime.
-  const effectiveViewMode = canShowViewCycler ? viewMode : 'multi';
+  const effectiveViewMode = canShowViewCycler ? viewMode
+    : schedOnlyCycler && viewMode === 'sched' ? 'sched'
+    : 'multi';
   const [defaultView, setDefaultView] = useState(() => {
     const saved = localStorage.getItem('day-planner-default-view');
     return saved ? JSON.parse(saved) : 'multi';
@@ -3041,7 +3046,7 @@ const DayPlanner = () => {
     gtdFrames: myFrames, setShowRescheduleModal, setRescheduleResults, setRescheduleError,
     setMobileActiveTab, setMobileSettingsView, setShowSettings,
     changeDate, setSelectedDate,
-    setViewMode, canShowViewCycler,
+    setViewMode, canShowViewCycler, schedOnlyCycler,
   });
 
   const changeViewedMonth = (delta) => {
@@ -6047,9 +6052,10 @@ const DayPlanner = () => {
   // Helper to get tasks for a specific date (must be after filterByTags).
   // Memoized so downstream useCallback/useMemo consumers stay stable; only
   // re-created when the tag filter or the date-grouped task map changes.
-  const getTasksForDate = useCallback((date) => {
+  const getTasksForDate = useCallback((date, applyTagFilter = true) => {
     const dateStr = dateToString(date);
-    return filterByTags(tasksByDate[dateStr] || []);
+    const dayTasks = tasksByDate[dateStr] || [];
+    return applyTagFilter ? filterByTags(dayTasks) : dayTasks;
   }, [filterByTags, tasksByDate]);
 
   // --- GTD Frames: Instance computation + Available time calculation ---
@@ -7445,7 +7451,7 @@ const DayPlanner = () => {
     // ── Device & layout ──────────────────────────────────────────────────────
     isPhone, isMobile, isTablet, isLandscape,
     visibleDays, visibleDates,
-    viewMode, setViewMode, canShowViewCycler, effectiveViewMode,
+    viewMode, setViewMode, canShowViewCycler, schedOnlyCycler, effectiveViewMode,
     defaultView, setDefaultView,
     dayViewMode, setDayViewMode,
     dayViewColumns,

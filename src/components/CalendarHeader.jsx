@@ -28,7 +28,7 @@ const CalendarHeader = () => {
     isTablet, isLandscape,
     visibleDates,
     selectedDate,
-    canShowViewCycler, effectiveViewMode,
+    canShowViewCycler, schedOnlyCycler, effectiveViewMode,
     goToDate,
     mobileViewMode,
     use24HourClock, dayViewColumns,
@@ -165,7 +165,7 @@ const CalendarHeader = () => {
         className={`flex-shrink-0 border-r ${borderClass} flex items-center justify-center`}
         style={{ width: WEEK_GUTTER_W, minHeight: 'var(--header-row-h)' }}
       >
-        {isTablet && !isLandscape ? <MobileViewToggle /> : (canShowViewCycler && <ViewCycler />)}
+        {isTablet && !isLandscape ? <MobileViewToggle /> : ((canShowViewCycler || schedOnlyCycler) && <ViewCycler />)}
       </div>
       {weekViewDates.map((date, idx) => {
         const dateStr = dateToString(date);
@@ -197,7 +197,7 @@ const CalendarHeader = () => {
         className={`flex-shrink-0 border-r ${borderClass} flex items-center justify-center`}
         style={{ width: WEEK_GUTTER_W, minHeight: 'var(--header-row-h)' }}
       >
-        {isTablet && !isLandscape ? <MobileViewToggle /> : (canShowViewCycler && <ViewCycler />)}
+        {isTablet && !isLandscape ? <MobileViewToggle /> : ((canShowViewCycler || schedOnlyCycler) && <ViewCycler />)}
       </div>
       {weekViewDates.map((date, idx) => {
         const dateStr = dateToString(date);
@@ -237,7 +237,7 @@ const CalendarHeader = () => {
     <>
     {/* Top-left cell: hosts ViewCycler on large screens */}
     <div className={`w-16 flex-shrink-0 border-r ${borderClass} flex items-center justify-center`} style={{ minHeight: 'var(--header-row-h)' }}>
-      {isTablet && !isLandscape ? <MobileViewToggle /> : (canShowViewCycler && <ViewCycler />)}
+      {isTablet && !isLandscape ? <MobileViewToggle /> : ((canShowViewCycler || schedOnlyCycler) && <ViewCycler />)}
     </div>
     {visibleDates.map((date, idx) => {
     const isDateToday = dateToString(date) === dateToString(new Date());

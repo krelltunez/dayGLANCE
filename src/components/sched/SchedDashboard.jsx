@@ -5,7 +5,7 @@ import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
 import { dateToString } from '../../utils/taskUtils.js';
 import { TASK_COLORS } from '../../utils/colorUtils.js';
-import { EMPTY_SCHED_FILTERS, toggleSchedFilter } from '../../utils/schedAgenda.js';
+import { EMPTY_SCHED_FILTERS, toggleSchedFilter, groupProjectsForFilter } from '../../utils/schedAgenda.js';
 import useSchedAgendaState, { LOAD_MORE_DAYS } from './useSchedAgendaState.js';
 import SchedTaskCard from './SchedTaskCard.jsx';
 
@@ -36,7 +36,7 @@ const RailSection = ({ title, count, children, defaultOpen = true }) => {
  */
 const SchedDashboard = () => {
   const { cardBg, borderClass, textPrimary, textSecondary, hoverBg } = useDayPlannerCtx();
-  const { projects, goalsProjectsEnabled } = useFeaturesCtx();
+  const { projects, goals, goalsProjectsEnabled } = useFeaturesCtx();
   const { t } = useTranslation();
 
   const {
@@ -59,9 +59,7 @@ const SchedDashboard = () => {
   };
 
   const colorOptions = TASK_COLORS.filter(c => availableColors.has(c.class));
-  const activeProjects = goalsProjectsEnabled
-    ? projects.filter(p => p.status !== 'archived' && p.status !== 'completed')
-    : [];
+  const projectGroups = goalsProjectsEnabled ? groupProjectsForFilter(projects, goals) : [];
 
   const chip = (selected) => `px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${
     selected
@@ -90,7 +88,7 @@ const SchedDashboard = () => {
                 </button>
               </div>
               {day.tasks.length > 0 ? (
-                day.tasks.map(task => <SchedTaskCard key={task.id} task={task} />)
+                day.tasks.map(task => <SchedTaskCard key={task.id} task={task} showProject />)
               ) : (
                 <button
                   onClick={() => addTaskOnDay(day.dateStr)}
@@ -119,10 +117,10 @@ const SchedDashboard = () => {
         </div>
       </div>
 
-      {/* Filter rail */}
+      {/* Filter panel — floats in the space right of the agenda */}
       <div
-        className={`w-64 flex-shrink-0 border-l ${borderClass} ${cardBg} px-3 py-3 flex flex-col gap-3`}
-        style={{ position: 'sticky', top: 'calc(var(--header-row-h, 40px) + 4px)' }}
+        className={`w-64 flex-shrink-0 rounded-xl border ${borderClass} ${cardBg} shadow-sm px-3 py-3 mr-6 my-4 flex flex-col gap-3`}
+        style={{ position: 'sticky', top: 'calc(var(--header-row-h, 40px) + 12px)' }}
       >
         <div className="flex items-center justify-between px-1">
           <span className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>Filters</span>
@@ -168,16 +166,21 @@ const SchedDashboard = () => {
 
         {goalsProjectsEnabled && (
           <RailSection title="Projects" count={filters.projectIds.length}>
-            {activeProjects.length > 0 ? (
-              <div className="flex flex-col gap-1 px-1">
-                {activeProjects.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => setFilters(f => toggleSchedFilter(f, 'projectIds', p.id))}
-                    className={`text-left ${chip(filters.projectIds.includes(p.id))} truncate`}
-                  >
-                    {p.title}
-                  </button>
+            {projectGroups.length > 0 ? (
+              <div className="flex flex-col gap-2 px-1">
+                {projectGroups.map(group => (
+                  <div key={group.label} className="flex flex-col gap-1">
+                    <span className={`text-[10px] font-semibold uppercase tracking-wide ${textSecondary} opacity-60`}>{group.label}</span>
+                    {group.projects.map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => setFilters(f => toggleSchedFilter(f, 'projectIds', p.id))}
+                        className={`text-left ${chip(filters.projectIds.includes(p.id))} truncate`}
+                      >
+                        {p.title}
+                      </button>
+                    ))}
+                  </div>
                 ))}
                 <button
                   onClick={() => setFilters(f => toggleSchedFilter(f, 'projectIds', 'none'))}

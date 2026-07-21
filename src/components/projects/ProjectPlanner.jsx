@@ -1,24 +1,26 @@
-import React, { useMemo, useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Eye, EyeOff, Plus, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
 import { dateToString } from '../../utils/taskUtils.js';
 import { getProjectColor, taskColorToHex, hexToRgba } from '../../utils/colorUtils.js';
+import { renderFormattedText } from '../../utils/textFormatting.jsx';
 import SchedTaskCard from '../sched/SchedTaskCard.jsx';
 import HyperGlanceEditor from './HyperGlanceEditor.jsx';
 
 /**
  * PLANNER — a per-project planning dashboard, themed to the project's color.
  * Bottom sheet on mobile, centered modal on desktop. Hosts the project's
- * description and hyperGLANCE settings (both moved here from the Edit Project
- * form) plus scheduled/unscheduled task columns with a quick-add.
+ * notes and hyperGLANCE settings (both moved here from the Edit Project form)
+ * plus scheduled/unscheduled task columns with a quick-add.
  */
 const ProjectPlanner = ({ project, onClose }) => {
   const {
     isMobile,
     darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     tasks, unscheduledTasks, setUnscheduledTasks,
+    openMobileEditTask,
   } = useDayPlannerCtx();
   const { goals, updateProject, isVisibleForUser } = useFeaturesCtx();
   const { t } = useTranslation();
@@ -27,13 +29,44 @@ const ProjectPlanner = ({ project, onClose }) => {
   const projectColor = getProjectColor(project, parentGoal);
   const projectHex = taskColorToHex(projectColor);
 
-  const [description, setDescription] = useState(project.description || '');
+  const [notes, setNotes] = useState(project.description || '');
+  // Notes behave like the app's other notes panels: Shift+Enter (or clicking
+  // away) saves and switches to the formatted preview; clicking the preview
+  // returns to editing. Starts in preview when notes already exist.
+  const [editingNotes, setEditingNotes] = useState(!(project.description || '').trim());
   const [quickAddTitle, setQuickAddTitle] = useState('');
+  const [showCompleted, setShowCompleted] = useState(true);
 
-  const saveDescription = () => {
-    if ((project.description || '') !== description) {
-      updateProject(project.id, { description: description.trim() });
+  const saveNotes = () => {
+    if ((project.description || '') !== notes) {
+      updateProject(project.id, { description: notes.trim() });
     }
+  };
+
+  const closePlanner = () => { saveNotes(); onClose(); };
+
+  // ESC closes the planner ONLY — capture phase + stopImmediatePropagation so
+  // the Goals & Projects dashboard underneath doesn't also dismiss (same
+  // pattern as FormOverlay in GoalDashboard).
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key !== 'Escape') return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      closePlanner();
+    };
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+    // closePlanner reads current notes state at call time via closure re-created each render.
+  });
+
+  // Tapping a task closes the planner first, then opens the project-flavored
+  // task editor (isInbox=false, matching ProjectCard's task rows) — so the
+  // editor never fights the planner for stacking order.
+  const editTask = (task) => {
+    saveNotes();
+    onClose();
+    openMobileEditTask(task, false);
   };
 
   // Project tasks, split into the two columns. Completed tasks sink to the
@@ -52,10 +85,15 @@ const ProjectPlanner = ({ project, onClose }) => {
       else byDay.push({ dateStr: task.date, tasks: [task] });
     }
     const completedScheduled = scheduled.filter(task => task.completed);
-    if (completedScheduled.length) byDay.push({ dateStr: null, tasks: completedScheduled });
-    const inbox = mine(unscheduledTasks).sort((a, b) => (a.completed ? 1 : 0) - (b.completed ? 1 : 0));
+    if (showCompleted && completedScheduled.length) byDay.push({ dateStr: null, tasks: completedScheduled });
+    let inbox = mine(unscheduledTasks).sort((a, b) => (a.completed ? 1 : 0) - (b.completed ? 1 : 0));
+    if (!showCompleted) inbox = inbox.filter(task => !task.completed);
     return { scheduledDays: byDay, unscheduled: inbox };
-  }, [tasks, unscheduledTasks, project.id, isVisibleForUser]);
+  }, [tasks, unscheduledTasks, project.id, isVisibleForUser, showCompleted]);
+
+  const hasAnyCompleted = useMemo(() =>
+    [...tasks, ...unscheduledTasks].some(task => task.projectId === project.id && !task.archived && task.completed),
+    [tasks, unscheduledTasks, project.id]);
 
   const todayStr = dateToString(new Date());
   const dayHeading = (dateStr) => {
@@ -91,7 +129,7 @@ const ProjectPlanner = ({ project, onClose }) => {
   return (
     <div
       className={`fixed inset-0 z-[70] flex ${isMobile ? 'flex-col justify-end' : 'items-center justify-center p-6'}`}
-      onClick={() => { saveDescription(); onClose(); }}
+      onClick={closePlanner}
     >
       <div className="absolute inset-0 bg-black/45" />
       <div
@@ -114,31 +152,61 @@ const ProjectPlanner = ({ project, onClose }) => {
               {parentGoal ? parentGoal.title : 'Standalone project'} · Planner
             </span>
           </div>
-          <button
-            onClick={() => { saveDescription(); onClose(); }}
-            className={`p-1.5 rounded-lg ${hoverBg} flex-shrink-0`}
-            aria-label="Close planner"
-          >
-            <X size={16} className={textSecondary} />
-          </button>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {hasAnyCompleted && (
+              <button
+                onClick={() => setShowCompleted(v => !v)}
+                className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1.5 rounded-lg ${hoverBg} ${textSecondary} transition-colors`}
+                title={showCompleted ? 'Hide completed tasks' : 'Show completed tasks'}
+              >
+                {showCompleted ? <Eye size={13} /> : <EyeOff size={13} />}
+                Completed
+              </button>
+            )}
+            <button
+              onClick={closePlanner}
+              className={`p-1.5 rounded-lg ${hoverBg}`}
+              aria-label="Close planner"
+            >
+              <X size={16} className={textSecondary} />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
-        <div className="overflow-y-auto p-4 flex flex-col gap-4">
-          {/* Description / notes */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4">
+          {/* Notes — same interaction model as task notes panels */}
           <div className="flex flex-col gap-1">
             <label className={`text-xs font-medium ${textSecondary}`}>Notes</label>
-            <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              onBlur={saveDescription}
-              placeholder="What is this project about? Plans, links, context…"
-              rows={3}
-              className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 resize-none ${
-                darkMode ? 'bg-gray-700 text-gray-100 placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'
-              }`}
-              style={{ '--tw-ring-color': projectHex }}
-            />
+            {editingNotes ? (
+              <textarea
+                autoFocus={!!(project.description || '').trim()}
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                onBlur={() => { saveNotes(); if (notes.trim()) setEditingNotes(false); }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && e.shiftKey) {
+                    e.preventDefault();
+                    saveNotes();
+                    if (notes.trim()) setEditingNotes(false);
+                  }
+                }}
+                placeholder="Add notes... (**bold**, *italic*, __underline__, URLs) - Shift+Enter to save"
+                rows={3}
+                className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 resize-none ${
+                  darkMode ? 'bg-gray-700 text-gray-100 placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'
+                }`}
+                style={{ '--tw-ring-color': projectHex }}
+              />
+            ) : (
+              <div
+                onClick={() => setEditingNotes(true)}
+                className={`px-3 py-2 text-sm rounded-lg border ${borderClass} cursor-text whitespace-pre-wrap ${textPrimary} ${hoverBg}`}
+                title="Click to edit notes"
+              >
+                {renderFormattedText(notes)}
+              </div>
+            )}
           </div>
 
           {/* Task columns */}
@@ -153,7 +221,7 @@ const ProjectPlanner = ({ project, onClose }) => {
                   <span className={`text-[11px] font-semibold ${group.dateStr === todayStr ? 'text-blue-500' : textSecondary} ${group.dateStr ? '' : 'opacity-60'}`}>
                     {dayHeading(group.dateStr)}
                   </span>
-                  {group.tasks.map(task => <SchedTaskCard key={task.id} task={task} />)}
+                  {group.tasks.map(task => <SchedTaskCard key={task.id} task={task} onEdit={editTask} />)}
                 </div>
               )) : (
                 <p className={`text-xs ${textSecondary} opacity-70 py-2`}>Nothing scheduled yet.</p>
@@ -166,7 +234,7 @@ const ProjectPlanner = ({ project, onClose }) => {
                 Unscheduled
               </span>
               {unscheduled.length > 0 ? (
-                unscheduled.map(task => <SchedTaskCard key={task.id} task={task} isInbox />)
+                unscheduled.map(task => <SchedTaskCard key={task.id} task={task} isInbox onEdit={editTask} />)
               ) : (
                 <p className={`text-xs ${textSecondary} opacity-70 py-2`}>No unscheduled tasks.</p>
               )}
@@ -196,6 +264,7 @@ const ProjectPlanner = ({ project, onClose }) => {
           <HyperGlanceEditor
             value={project.hyperglance}
             onChange={hg => updateProject(project.id, { hyperglance: hg })}
+            wide={!isMobile}
           />
         </div>
       </div>

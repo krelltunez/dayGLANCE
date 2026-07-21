@@ -59,7 +59,7 @@ export default function useKeyboardShortcuts({
   // date navigation (arrows)
   changeDate, setSelectedDate,
   // view cycler (1/2/3)
-  setViewMode, canShowViewCycler,
+  setViewMode, canShowViewCycler, schedOnlyCycler,
 }) {
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
@@ -252,8 +252,9 @@ export default function useKeyboardShortcuts({
         }
       }
 
-      // 1/2/3/4 to jump directly to multi/day/week/sched view
-      if (e.key === '1' && noModifiers && canShowViewCycler) {
+      // 1/2/3/4 to jump directly to multi/day/week/sched view. On narrow
+      // desktop (schedOnlyCycler) only MULTI and SCHED are available.
+      if (e.key === '1' && noModifiers && (canShowViewCycler || schedOnlyCycler)) {
         e.preventDefault();
         setViewMode('multi');
       }
@@ -265,7 +266,7 @@ export default function useKeyboardShortcuts({
         e.preventDefault();
         setViewMode('week');
       }
-      if (e.key === '4' && noModifiers && canShowViewCycler) {
+      if (e.key === '4' && noModifiers && (canShowViewCycler || schedOnlyCycler)) {
         e.preventDefault();
         setViewMode('sched');
       }

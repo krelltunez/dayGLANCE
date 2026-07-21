@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { EMPTY_SCHED_FILTERS, hasActiveSchedFilters, taskMatchesSchedFilters, toggleSchedFilter } from './schedAgenda.js';
+import { EMPTY_SCHED_FILTERS, hasActiveSchedFilters, taskMatchesSchedFilters, toggleSchedFilter, groupProjectsForFilter } from './schedAgenda.js';
 
 const task = { title: 'Write report #work #deep', color: 'bg-red-500', projectId: 'p1' };
 
@@ -40,5 +40,26 @@ describe('toggleSchedFilter', () => {
     expect(withRed.colors).toEqual(['bg-red-500']);
     expect(EMPTY_SCHED_FILTERS.colors).toEqual([]);
     expect(toggleSchedFilter(withRed, 'colors', 'bg-red-500').colors).toEqual([]);
+  });
+});
+
+describe('groupProjectsForFilter', () => {
+  const goals = [
+    { id: 'g1', title: 'Fitness', status: 'active' },
+    { id: 'g2', title: 'Archived goal', status: 'archived' },
+    { id: 'g3', title: 'Empty goal', status: 'active' },
+  ];
+  const projects = [
+    { id: 'p1', title: 'Run', goalId: 'g1', status: 'active' },
+    { id: 'p2', title: 'Old', goalId: 'g1', status: 'completed' },
+    { id: 'p3', title: 'Solo', status: 'active' },
+    { id: 'p4', title: 'In archived goal', goalId: 'g2', status: 'active' },
+  ];
+
+  it('groups by goal title with a trailing Standalone group', () => {
+    const groups = groupProjectsForFilter(projects, goals);
+    expect(groups.map(g => g.label)).toEqual(['Fitness', 'Standalone']);
+    expect(groups[0].projects.map(p => p.id)).toEqual(['p1']);
+    expect(groups[1].projects.map(p => p.id)).toEqual(['p3', 'p4']);
   });
 });

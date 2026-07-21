@@ -49,11 +49,15 @@ const SchedIcon = () => (
 const ICONS = { multi: MultiIcon, day: DayIcon, week: WeekIcon, sched: SchedIcon };
 
 const ViewCycler = () => {
-  const { viewMode, setViewMode, textSecondary } = useDayPlannerCtx();
+  const { viewMode, setViewMode, textSecondary, canShowViewCycler } = useDayPlannerCtx();
+
+  // Narrow desktop (1-2 columns) only offers MULTI and SCHED — DAY/WEEK need
+  // the full 3-column breakpoint.
+  const states = canShowViewCycler ? STATES : ['multi', 'sched'];
 
   const cycle = () => {
-    const idx = STATES.indexOf(viewMode);
-    setViewMode(STATES[(idx + 1) % STATES.length]);
+    const idx = states.indexOf(viewMode);
+    setViewMode(states[(idx + 1) % states.length]);
   };
 
   const Icon = ICONS[viewMode] || MultiIcon;
