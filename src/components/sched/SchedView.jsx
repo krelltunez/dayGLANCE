@@ -29,6 +29,7 @@ const SchedView = () => {
     filters, setFilters,
     availableColors, availableTags,
     showEmptyDays, toggleEmptyDays,
+    nextInstanceOnly, toggleNextInstanceOnly,
     showMoreDays,
     addTaskOnDay,
   } = useSchedAgendaState();
@@ -109,6 +110,8 @@ const SchedView = () => {
           setFilters={setFilters}
           availableColors={availableColors}
           availableTags={availableTags}
+          nextInstanceOnly={nextInstanceOnly}
+          toggleNextInstanceOnly={toggleNextInstanceOnly}
           onClose={() => setShowFilters(false)}
         />
       )}

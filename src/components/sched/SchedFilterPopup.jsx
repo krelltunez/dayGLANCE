@@ -11,7 +11,7 @@ import { hasActiveSchedFilters, toggleSchedFilter, EMPTY_SCHED_FILTERS, groupPro
  * `availableColors`/`availableTags` come from the visible agenda window so the
  * sheet never offers options that can't match anything.
  */
-const SchedFilterPopup = ({ filters, setFilters, availableColors, availableTags, onClose }) => {
+const SchedFilterPopup = ({ filters, setFilters, availableColors, availableTags, nextInstanceOnly, toggleNextInstanceOnly, onClose }) => {
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg } = useDayPlannerCtx();
   const { projects, goals, goalsProjectsEnabled } = useFeaturesCtx();
 
@@ -102,6 +102,19 @@ const SchedFilterPopup = ({ filters, setFilters, availableColors, availableTags,
             </button>
           </div>
         )}
+
+        {/* Recurring tasks — view preference, not part of the filter badge */}
+        <div className="flex flex-col gap-1.5">
+          <span className={`text-xs font-medium ${textSecondary}`}>Recurring tasks</span>
+          <div className="flex gap-1.5">
+            <button onClick={() => nextInstanceOnly && toggleNextInstanceOnly()} className={chip(!nextInstanceOnly)}>
+              All instances
+            </button>
+            <button onClick={() => !nextInstanceOnly && toggleNextInstanceOnly()} className={chip(nextInstanceOnly)}>
+              Next only
+            </button>
+          </div>
+        </div>
 
         {colorOptions.length === 0 && availableTags.length === 0 && projectGroups.length === 0 && (
           <p className={`text-sm ${textSecondary}`}>Nothing to filter yet — schedule some tasks first.</p>

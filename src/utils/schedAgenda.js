@@ -55,3 +55,27 @@ export const groupProjectsForFilter = (projects, goals) => {
   if (standalone.length) groups.push({ label: 'Standalone', projects: standalone });
   return groups;
 };
+
+/** Matches expanded recurring-occurrence ids: recurring-<templateId>-YYYY-MM-DD */
+const RECURRING_OCCURRENCE_RE = /^recurring-(.+)-\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * "Next instance only" mode for the SCHED agenda: collapses each recurring
+ * series to its first incomplete occurrence in the window, dropping all other
+ * occurrences (including already-completed ones) so daily/weekly tasks don't
+ * flood the list. Non-recurring tasks pass through untouched.
+ */
+export const limitRecurringToNextInstance = (days) => {
+  const seen = new Set();
+  return days.map(day => ({
+    ...day,
+    tasks: day.tasks.filter(task => {
+      const m = typeof task.id === 'string' && task.id.match(RECURRING_OCCURRENCE_RE);
+      if (!m) return true;
+      if (seen.has(m[1])) return false;
+      if (task.completed) return false; // done — the next incomplete one represents the series
+      seen.add(m[1]);
+      return true;
+    }),
+  }));
+};

@@ -44,6 +44,7 @@ const SchedDashboard = () => {
     filters, setFilters,
     availableColors, availableTags,
     showEmptyDays, toggleEmptyDays,
+    nextInstanceOnly, toggleNextInstanceOnly,
     showMoreDays,
     addTaskOnDay,
   } = useSchedAgendaState();
@@ -192,6 +193,17 @@ const SchedDashboard = () => {
             ) : <p className={`text-xs ${textSecondary} px-1`}>No active projects.</p>}
           </RailSection>
         )}
+
+        <RailSection title="Recurring" count={nextInstanceOnly ? 1 : 0}>
+          <div className="flex gap-1.5 px-1">
+            <button onClick={() => nextInstanceOnly && toggleNextInstanceOnly()} className={chip(!nextInstanceOnly)}>
+              All instances
+            </button>
+            <button onClick={() => !nextInstanceOnly && toggleNextInstanceOnly()} className={chip(nextInstanceOnly)}>
+              Next only
+            </button>
+          </div>
+        </RailSection>
 
         <button
           onClick={toggleEmptyDays}
