@@ -323,15 +323,20 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
       {/* Hide Stalled flags — per-goal opt-out for slow-burn goals. Suppresses
           the Stalled badge on this goal's projects and the goal's stalled-based
           caution indicator (overdue caution is unaffected). */}
-      <label className="flex items-center gap-2 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={hideStalled}
-          onChange={e => setHideStalled(e.target.checked)}
-          className="w-4 h-4 rounded accent-blue-500"
-        />
-        <span className={`text-sm ${textSecondary}`}>Hide Stalled flags for this goal</span>
-      </label>
+      <div className="flex flex-col gap-1">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={hideStalled}
+            onChange={e => setHideStalled(e.target.checked)}
+            className="w-4 h-4 rounded accent-blue-500"
+          />
+          <span className={`text-sm ${textSecondary}`}>Hide Stalled flags for this goal</span>
+        </label>
+        <p className={`text-xs ${textSecondary} opacity-60 ml-6`}>
+          Hides the Stalled badge on this goal and all of its child projects.
+        </p>
+      </div>
 
       {/* Track in lifeGLANCE — checkbox when not yet shared (new OR existing goal),
           read-only indicator once it already lives in lifeGLANCE. */}
