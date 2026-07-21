@@ -293,10 +293,12 @@ const DayPlanner = () => {
   });
   // Only expose the cycler (and honour viewMode) when the 3-day breakpoint is active
   const canShowViewCycler = !isTablet && !isMobile && _visibleDays === 3;
-  // Narrow desktop (1-2 columns): DAY/WEEK don't fit, but SCHED does — the
-  // cycler still shows there, restricted to MULTI and SCHED.
-  const schedOnlyCycler = !isTablet && !isMobile && _visibleDays < 3;
-  // Below 1600px the cycler is hidden and the stored mode is ignored until the
+  // Narrow desktop (1-2 columns) and tablet landscape: DAY/WEEK don't fit,
+  // but SCHED does — the cycler still shows there, restricted to MULTI and
+  // SCHED. Landscape tablets get the desktop SCHED dashboard (rail filters);
+  // portrait keeps the mobile toggle + SchedView bottom-sheet variant.
+  const schedOnlyCycler = (!isTablet && !isMobile && _visibleDays < 3) || (isTablet && isLandscape);
+  // Otherwise the cycler is hidden and the stored mode is ignored until the
   // viewport grows back; the app behaves as 'multi' in the meantime.
   const effectiveViewMode = canShowViewCycler ? viewMode
     : schedOnlyCycler && viewMode === 'sched' ? 'sched'
