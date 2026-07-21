@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Eye, EyeOff, Plus, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
@@ -20,7 +20,7 @@ const ProjectPlanner = ({ project, onClose }) => {
     isMobile,
     darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     tasks, unscheduledTasks, setUnscheduledTasks,
-    openMobileEditTask, showAddTask,
+    openMobileEditTask,
   } = useDayPlannerCtx();
   const { goals, updateProject, isVisibleForUser } = useFeaturesCtx();
   const { t } = useTranslation();
@@ -45,22 +45,19 @@ const ProjectPlanner = ({ project, onClose }) => {
 
   const closePlanner = () => { saveNotes(); onClose(); };
 
-  // ESC closes the planner ONLY — capture phase + stopImmediatePropagation so
-  // the Goals & Projects dashboard underneath doesn't also dismiss (same
-  // pattern as FormOverlay in GoalDashboard). While the task editor is open
-  // on top, ESC is left alone so the editor closes first.
-  useEffect(() => {
-    const handler = (e) => {
-      if (e.key !== 'Escape') return;
-      if (showAddTask) return; // editor is above the planner — it handles ESC
-      e.stopImmediatePropagation();
-      e.preventDefault();
-      closePlanner();
-    };
-    document.addEventListener('keydown', handler, true);
-    return () => document.removeEventListener('keydown', handler, true);
-    // closePlanner reads current notes state at call time via closure re-created each render.
-  });
+  // ESC is owned by GoalDashboard's capture-phase priority chain (notes panel
+  // → task editor → PLANNER → forms → dashboard) — see its Escape handler.
+  // The planner deliberately has no ESC listener of its own; it just needs to
+  // flush unsaved notes when the chain unmounts it.
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
+  useEffect(() => () => {
+    if ((project.description || '') !== notesRef.current) {
+      updateProject(project.id, { description: notesRef.current.trim() });
+    }
+    // Unmount-only flush; project identity is fixed for a mounted planner.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Tapping a task opens the project-flavored editor (isInbox=false, matching
   // ProjectCard's task rows) ON TOP of the planner, which stays open. The

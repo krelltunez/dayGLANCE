@@ -2165,6 +2165,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
     areas = [], goalsAreaFilter, setGoalsAreaFilter, goalsViewMode,
     addGoal, updateGoal, deleteGoal,
     addProject, updateProject,
+    plannerProjectId, setPlannerProjectId,
     isVisibleForUser,
   } = useFeaturesCtx();
   const { t } = useTranslation();
@@ -2320,6 +2321,9 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
     if (!showGoalsDashboard && !embedded) return;
     const handler = (e) => {
       if (e.key !== 'Escape') return;
+      // A task notes/subtasks overlay (e.g. opened from a SCHED/planner card)
+      // sits above everything and closes itself — leave ESC to it.
+      if (document.querySelector('.sched-notes-panel')) return;
       e.stopImmediatePropagation(); // prevent all other keydown listeners
       e.preventDefault();
       if (expandedNotesTaskId) { setExpandedNotesTaskId(null); return; }
@@ -2329,6 +2333,9 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
         setShowNewTaskDeadlinePicker(false);
         return;
       }
+      // The PLANNER (z-70) sits above the dashboard, below the editor: it
+      // closes after the editor and before the dashboard/forms.
+      if (plannerProjectId) { setPlannerProjectId(null); return; }
       if (goalForm) { setGoalForm(null); return; }
       if (projectForm) { setProjectForm(null); return; }
       if (areaForm) { setAreaForm(null); return; }
@@ -2338,6 +2345,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
     document.addEventListener('keydown', handler, true); // capture phase
     return () => document.removeEventListener('keydown', handler, true);
   }, [showGoalsDashboard, embedded, goalForm, projectForm, areaForm, showManageAreas, showAddTask, expandedNotesTaskId,
+      plannerProjectId, setPlannerProjectId,
       setShowAddTask, setShowNewTaskDeadlinePicker, setShowGoalsDashboard, setExpandedNotesTaskId]);
 
   if (!showGoalsDashboard && !embedded) return null;
