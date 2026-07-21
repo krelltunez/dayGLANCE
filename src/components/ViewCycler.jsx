@@ -66,7 +66,7 @@ const ViewCycler = () => {
     <button
       onClick={cycle}
       className="flex flex-col items-center justify-center gap-0.5 w-full h-full py-1 hover:bg-black/5 dark:hover:bg-white/5 transition-colors rounded"
-      title={`View: ${LABELS[viewMode]} (1/2/3/4 to switch)`}
+      title={`View: ${LABELS[viewMode]} (${canShowViewCycler ? '1/2/3/4' : '1/4'} or C to switch)`}
       aria-label={`Current view: ${LABELS[viewMode]}. Click to cycle view.`}
     >
       <Icon />

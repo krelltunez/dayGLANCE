@@ -270,6 +270,13 @@ export default function useKeyboardShortcuts({
         e.preventDefault();
         setViewMode('sched');
       }
+      // C cycles through whichever views the current width offers — always
+      // valid, unlike the direct-jump numbers (2/3 need the 3-column grid).
+      if ((e.key === 'c' || e.key === 'C') && noModifiers && (canShowViewCycler || schedOnlyCycler)) {
+        e.preventDefault();
+        const states = canShowViewCycler ? ['multi', 'day', 'week', 'sched'] : ['multi', 'sched'];
+        setViewMode(prev => states[(states.indexOf(prev) + 1) % states.length] || 'multi');
+      }
 
       // Arrow left/right to navigate dates
       if (e.key === 'ArrowLeft' && noModifiers) {
