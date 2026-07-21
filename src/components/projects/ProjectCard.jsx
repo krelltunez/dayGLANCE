@@ -699,10 +699,10 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
       document.body
     )}
 
-    {showPlanner && createPortal(
-      <ProjectPlanner project={project} onClose={() => setShowPlanner(false)} />,
-      document.body
-    )}
+    {/* Rendered inline (NOT portaled to body) on purpose: the planner must sit
+        in the same stacking context as the task-edit modal (z-80) so the editor
+        opens above it, while still covering the dashboard beneath. */}
+    {showPlanner && <ProjectPlanner project={project} onClose={() => setShowPlanner(false)} />}
 
     {showConfirm && createPortal(
       <ConfirmDialog

@@ -20,7 +20,7 @@ const ProjectPlanner = ({ project, onClose }) => {
     isMobile,
     darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     tasks, unscheduledTasks, setUnscheduledTasks,
-    openMobileEditTask,
+    openMobileEditTask, showAddTask,
   } = useDayPlannerCtx();
   const { goals, updateProject, isVisibleForUser } = useFeaturesCtx();
   const { t } = useTranslation();
@@ -47,10 +47,12 @@ const ProjectPlanner = ({ project, onClose }) => {
 
   // ESC closes the planner ONLY — capture phase + stopImmediatePropagation so
   // the Goals & Projects dashboard underneath doesn't also dismiss (same
-  // pattern as FormOverlay in GoalDashboard).
+  // pattern as FormOverlay in GoalDashboard). While the task editor is open
+  // on top, ESC is left alone so the editor closes first.
   useEffect(() => {
     const handler = (e) => {
       if (e.key !== 'Escape') return;
+      if (showAddTask) return; // editor is above the planner — it handles ESC
       e.stopImmediatePropagation();
       e.preventDefault();
       closePlanner();
@@ -60,12 +62,12 @@ const ProjectPlanner = ({ project, onClose }) => {
     // closePlanner reads current notes state at call time via closure re-created each render.
   });
 
-  // Tapping a task closes the planner first, then opens the project-flavored
-  // task editor (isInbox=false, matching ProjectCard's task rows) — so the
-  // editor never fights the planner for stacking order.
+  // Tapping a task opens the project-flavored editor (isInbox=false, matching
+  // ProjectCard's task rows) ON TOP of the planner, which stays open — the
+  // planner renders inline in the app's stacking context so the editor's
+  // higher z-index wins.
   const editTask = (task) => {
     saveNotes();
-    onClose();
     openMobileEditTask(task, false);
   };
 
