@@ -231,7 +231,10 @@ const ProjectPlanner = ({ project, onClose }) => {
         onClick={e => e.stopPropagation()}
         className={`relative ${cardBg} shadow-2xl flex flex-col overflow-hidden ${
           isMobile
-            ? 'rounded-t-2xl max-h-[92vh] w-full'
+            // dvh, not vh: on iOS 92vh (large-viewport unit) can exceed the
+            // visible viewport, pushing the bottom of the scroll container
+            // off-screen so the last card can never be scrolled into view.
+            ? 'rounded-t-2xl max-h-[92dvh] w-full'
             : 'rounded-2xl w-full max-w-3xl max-h-[85vh]'
         }`}
       >
@@ -268,8 +271,12 @@ const ProjectPlanner = ({ project, onClose }) => {
           </div>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4">
+        {/* Body — bottom padding clears the iOS home indicator, like the
+            app's other mobile bottom sheets */}
+        <div
+          className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4"
+          style={isMobile ? { paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' } : undefined}
+        >
           {/* Notes — same interaction model as task notes panels */}
           <div className="flex flex-col gap-1">
             <label className={`text-xs font-medium ${textSecondary}`}>Notes</label>
