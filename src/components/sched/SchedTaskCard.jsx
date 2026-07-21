@@ -1,24 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle2, CheckSquare, Circle, ExternalLink, FileText, Repeat } from 'lucide-react';
+import { CheckCircle2, CheckSquare, Circle, ExternalLink, FileText, GripVertical, Repeat } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { useSyncCtx } from '../../context/SyncContext.jsx';
 import { taskColorToHex, hexToRgba } from '../../utils/colorUtils.js';
-import { renderTitle, URL_REGEX } from '../../utils/textFormatting.jsx';
-import { extractWikilinks } from '../../utils/taskUtils.js';
+import { renderTitleWithoutTags, URL_REGEX } from '../../utils/textFormatting.jsx';
+import { extractTags, extractWikilinks } from '../../utils/taskUtils.js';
 import NotesSubtasksPanel from '../NotesSubtasksPanel.jsx';
 
 /**
  * Task card for the SCHED agenda and the Project Planner columns.
- * Color accent on the left, completion toggle, title rendered through the
- * app-wide renderTitle (wikilinks hidden, tags small/italic), and a meta line
- * surfacing time, notes, subtask progress, links, and (optionally) the
- * project the task belongs to. The notes/subtasks indicators open the real
- * notes panel; tapping anywhere else opens the editor. Imported calendar
+ *
+ * Uniform two-line layout: title row (wikilinks and tags stripped), then a
+ * meta row with time, a notes/subtasks button (always present on editable
+ * tasks so notes/subtasks/links can be ADDED, not just viewed), link icon,
+ * tags (small, italic), and optionally the project pill. Imported calendar
  * events render read-only.
+ *
+ * Optional `dnd` prop wires the card into a drag-to-reorder list (the
+ * planner's unscheduled column) using the same pattern as ProjectCard:
+ * whole-card HTML5 drag off-iOS, grip-only touch drag on iOS.
  */
-const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = null }) => {
+const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = null, dnd = null }) => {
   const {
     darkMode, cardBg, borderClass, textPrimary, textSecondary,
     formatTime, toggleComplete, openMobileEditTask,
@@ -56,10 +60,12 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
   const subtasks = task.subtasks || [];
   const subtasksDone = subtasks.filter(s => s.completed).length;
   const linkUrl = (task.title?.match(URL_REGEX) || task.notes?.match(URL_REGEX) || [])[0] || null;
+  const tags = extractTags(task.title || '');
   const project = showProject && goalsProjectsEnabled && task.projectId
     ? projects.find(p => p.id === task.projectId)
     : null;
   const wikilinks = extractWikilinks(task.title || '');
+  const hasNotesContent = !!(task.notes || subtasks.length > 0);
 
   const handleTap = () => {
     if (isEvent) return;
@@ -75,11 +81,28 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
   return (
     <div
       onClick={handleTap}
-      className={`flex items-center gap-2.5 rounded-xl border ${borderClass} ${cardBg} px-3 py-2 ${
+      data-drag-idx={dnd ? dnd.idx : undefined}
+      draggable={!!dnd?.rowDraggable}
+      onDragStart={dnd?.rowDraggable ? e => dnd.onDragStart(e, dnd.idx) : undefined}
+      onDragEnd={dnd?.rowDraggable ? dnd.onDragEnd : undefined}
+      onDragOver={dnd ? e => dnd.onDragOver(e, dnd.idx) : undefined}
+      onDrop={dnd ? e => dnd.onDrop(e, dnd.idx) : undefined}
+      className={`flex items-center gap-2 rounded-xl border ${borderClass} ${cardBg} px-3 py-2 ${
         isEvent ? '' : 'cursor-pointer active:opacity-70'
-      } ${task.completed ? 'opacity-55' : ''}`}
+      } ${task.completed ? 'opacity-55' : ''} ${dnd ? 'select-none dnd-no-select' : ''} ${
+        dnd?.isSource ? 'opacity-40' : ''
+      } ${dnd?.isTarget ? (darkMode ? 'border-t-2 border-t-blue-400' : 'border-t-2 border-t-blue-500') : ''}`}
       style={{ borderLeft: `4px solid ${hex}` }}
     >
+      {dnd && (
+        <div
+          onTouchStart={dnd.onGripTouchStart ? e => dnd.onGripTouchStart(e, dnd.idx) : undefined}
+          className={`flex-shrink-0 p-1.5 -m-1 cursor-grab active:cursor-grabbing touch-none select-none ${textSecondary} opacity-30`}
+          aria-label="Drag to reorder"
+        >
+          <GripVertical size={13} />
+        </div>
+      )}
       {!isEvent && (
         <button
           onClick={e => { e.stopPropagation(); toggleComplete(task.id, isInbox); }}
@@ -93,31 +116,29 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
       )}
       <div className="flex flex-col min-w-0 flex-1 gap-0.5">
         <span className={`text-sm font-medium ${textPrimary} truncate ${task.completed ? 'line-through' : ''}`}>
-          {renderTitle(task.title || '')}
+          {renderTitleWithoutTags(task.title || '') || task.title}
         </span>
-        {(timeLabel || task.notes || subtasks.length > 0 || linkUrl || project || isRecurring) && (
-          <span className={`text-xs ${textSecondary} flex items-center gap-1.5 min-w-0`}>
+        {/* Meta row — always rendered on editable tasks so cards stay uniform */}
+        {(!isEvent || timeLabel) && (
+          <span className={`text-xs ${textSecondary} flex items-center gap-1.5 min-w-0`} style={{ minHeight: '1rem' }}>
             {timeLabel && <span className="flex-shrink-0">{timeLabel}</span>}
             {isRecurring && <Repeat size={10} className="opacity-60 flex-shrink-0" />}
-            {task.notes && (
+            {!isEvent && (
               <button
                 onClick={openNotesPanel}
-                className="flex-shrink-0 p-0.5 -m-0.5 opacity-70 hover:opacity-100 hover:text-blue-500"
-                title="View notes"
-                aria-label="View notes"
+                className={`flex items-center gap-0.5 flex-shrink-0 p-0.5 -m-0.5 hover:opacity-100 hover:text-blue-500 ${
+                  hasNotesContent ? 'opacity-70' : 'opacity-35'
+                }`}
+                title={hasNotesContent ? 'Notes & subtasks' : 'Add notes or subtasks'}
+                aria-label={hasNotesContent ? 'View notes and subtasks' : 'Add notes or subtasks'}
               >
                 <FileText size={10} />
-              </button>
-            )}
-            {subtasks.length > 0 && (
-              <button
-                onClick={openNotesPanel}
-                className="flex items-center gap-0.5 flex-shrink-0 p-0.5 -m-0.5 opacity-70 hover:opacity-100 hover:text-blue-500"
-                title={`${subtasksDone}/${subtasks.length} subtasks`}
-                aria-label="View subtasks"
-              >
-                <CheckSquare size={10} />
-                {subtasksDone}/{subtasks.length}
+                {subtasks.length > 0 && (
+                  <span className="flex items-center gap-0.5">
+                    <CheckSquare size={10} />
+                    {subtasksDone}/{subtasks.length}
+                  </span>
+                )}
               </button>
             )}
             {linkUrl && (
@@ -132,9 +153,14 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
                 <ExternalLink size={10} />
               </a>
             )}
+            {tags.length > 0 && (
+              <span className="italic opacity-75 truncate min-w-0" title={tags.map(t => `#${t}`).join(' ')}>
+                {tags.map(t => `#${t}`).join(' ')}
+              </span>
+            )}
             {project && (
               <span
-                className="px-1.5 py-px rounded-full text-[10px] font-medium truncate"
+                className="px-1.5 py-px rounded-full text-[10px] font-medium truncate flex-shrink-0 max-w-[10rem] ml-auto"
                 style={{
                   backgroundColor: hexToRgba(hex, darkMode ? 0.22 : 0.12),
                   color: hex,

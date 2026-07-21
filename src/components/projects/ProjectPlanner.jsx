@@ -6,6 +6,14 @@ import { useTranslation } from 'react-i18next';
 import { dateToString } from '../../utils/taskUtils.js';
 import { getProjectColor, taskColorToHex, hexToRgba } from '../../utils/colorUtils.js';
 import { renderFormattedText } from '../../utils/textFormatting.jsx';
+
+// Same iOS detection as ProjectCard: grip-only touch drag on iOS, where
+// whole-row HTML5 drag hijacks the gesture (see ProjectCard's IS_IOS note).
+const IS_IOS = typeof navigator !== 'undefined' && (
+  /iP(hone|ad|od)/.test(navigator.platform || '') ||
+  (/Mac/.test(navigator.platform || '') && (navigator.maxTouchPoints || 0) > 1) ||
+  (typeof window !== 'undefined' && !!window.DayGlanceIOS)
+);
 import SchedTaskCard from '../sched/SchedTaskCard.jsx';
 import HyperGlanceEditor from './HyperGlanceEditor.jsx';
 
@@ -19,7 +27,7 @@ const ProjectPlanner = ({ project, onClose }) => {
   const {
     isMobile,
     darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
-    tasks, unscheduledTasks, setUnscheduledTasks,
+    tasks, unscheduledTasks, setUnscheduledTasks, reorderUnscheduledTasks,
     openMobileEditTask,
   } = useDayPlannerCtx();
   const { goals, updateProject, isVisibleForUser } = useFeaturesCtx();
@@ -36,6 +44,9 @@ const ProjectPlanner = ({ project, onClose }) => {
   const [editingNotes, setEditingNotes] = useState(!(project.description || '').trim());
   const [quickAddTitle, setQuickAddTitle] = useState('');
   const [showCompleted, setShowCompleted] = useState(true);
+  const [dragIdx, setDragIdx] = useState(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
+  const touchDragRef = useRef({ active: false, fromIdx: null, overIdx: null });
 
   const saveNotes = () => {
     if ((project.description || '') !== notes) {
@@ -102,6 +113,86 @@ const ProjectPlanner = ({ project, onClose }) => {
     const d = new Date(dateStr + 'T00:00:00');
     const base = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
     return dateStr === todayStr ? `${t('common.today', 'Today')} · ${base}` : base;
+  };
+
+  // ── Drag-to-reorder (unscheduled column) — mirrors ProjectCard ────────────
+  const incompleteUnscheduled = unscheduled.filter(task => !task.completed);
+
+  const applyReorder = (fromIdx, toIdx) => {
+    const fromId = incompleteUnscheduled[fromIdx]?.id;
+    const toId = incompleteUnscheduled[toIdx]?.id;
+    if (!fromId || !toId) return;
+    const next = [...unscheduledTasks];
+    const fromFull = next.findIndex(task => task.id === fromId);
+    const toFull = next.findIndex(task => task.id === toId);
+    const [moved] = next.splice(fromFull, 1);
+    next.splice(toFull, 0, moved);
+    reorderUnscheduledTasks(next);
+  };
+
+  const handleDragStart = (e, idx) => {
+    setDragIdx(idx);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, idx) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (idx !== dragOverIdx) setDragOverIdx(idx);
+  };
+
+  const handleDrop = (e, idx) => {
+    e.preventDefault();
+    if (dragIdx !== null && dragIdx !== idx) applyReorder(dragIdx, idx);
+    setDragIdx(null);
+    setDragOverIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragIdx(null);
+    setDragOverIdx(null);
+  };
+
+  // Grip-only touch drag for iOS — document-level non-passive listeners, and
+  // dragstart cancelled for the gesture so native HTML5 drag can't hijack it
+  // (ProjectCard's proven pattern).
+  const handleGripTouchStart = (e, idx) => {
+    touchDragRef.current = { active: true, fromIdx: idx, overIdx: null };
+    setDragIdx(idx);
+
+    const onMove = (moveEvent) => {
+      if (!touchDragRef.current.active) return;
+      moveEvent.preventDefault(); // honoured: this listener is non-passive
+      const touch = moveEvent.touches[0];
+      if (!touch) return;
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const taskEl = el?.closest('[data-drag-idx]');
+      if (taskEl) {
+        const overIdx = parseInt(taskEl.getAttribute('data-drag-idx'), 10);
+        if (!isNaN(overIdx)) {
+          touchDragRef.current.overIdx = overIdx;
+          setDragOverIdx(overIdx);
+        }
+      }
+    };
+    const preventDrag = (de) => de.preventDefault();
+    const onEnd = () => {
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onEnd);
+      document.removeEventListener('dragstart', preventDrag);
+      const { active, fromIdx, overIdx } = touchDragRef.current;
+      touchDragRef.current = { active: false, fromIdx: null, overIdx: null };
+      if (active && fromIdx !== null && overIdx !== null && fromIdx !== overIdx) {
+        applyReorder(fromIdx, overIdx);
+      }
+      setDragIdx(null);
+      setDragOverIdx(null);
+    };
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+    document.addEventListener('touchcancel', onEnd);
+    document.addEventListener('dragstart', preventDrag);
   };
 
   // Quick-add an unscheduled project task — same inheritance as the card
@@ -235,7 +326,29 @@ const ProjectPlanner = ({ project, onClose }) => {
                 Unscheduled
               </span>
               {unscheduled.length > 0 ? (
-                unscheduled.map(task => <SchedTaskCard key={task.id} task={task} isInbox onEdit={editTask} />)
+                unscheduled.map(task => {
+                  const idx = incompleteUnscheduled.findIndex(u => u.id === task.id);
+                  const draggable = idx !== -1 && incompleteUnscheduled.length > 1;
+                  return (
+                    <SchedTaskCard
+                      key={task.id}
+                      task={task}
+                      isInbox
+                      onEdit={editTask}
+                      dnd={draggable ? {
+                        idx,
+                        rowDraggable: !IS_IOS,
+                        onDragStart: handleDragStart,
+                        onDragEnd: handleDragEnd,
+                        onDragOver: handleDragOver,
+                        onDrop: handleDrop,
+                        isSource: dragIdx === idx,
+                        isTarget: dragOverIdx === idx && dragIdx !== idx,
+                        onGripTouchStart: IS_IOS ? handleGripTouchStart : null,
+                      } : null}
+                    />
+                  );
+                })
               ) : (
                 <p className={`text-xs ${textSecondary} opacity-70 py-2`}>No unscheduled tasks.</p>
               )}
