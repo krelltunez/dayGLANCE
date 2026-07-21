@@ -229,14 +229,18 @@ const ProjectPlanner = ({ project, onClose }) => {
       <div className="absolute inset-0 bg-black/45" />
       <div
         onClick={e => e.stopPropagation()}
-        className={`relative ${cardBg} shadow-2xl flex flex-col overflow-hidden ${
+        className={`relative ${cardBg} shadow-2xl flex flex-col ${
           isMobile
-            // dvh, not vh: on iOS 92vh (large-viewport unit) can exceed the
-            // visible viewport, pushing the bottom of the scroll container
-            // off-screen so the last card can never be scrolled into view.
-            ? 'rounded-t-2xl max-h-[92dvh] w-full'
-            : 'rounded-2xl w-full max-w-3xl max-h-[85vh]'
+            // On mobile the SHEET is the scroll container (like
+            // MobileNewTaskModal) — an inner flex-child scroller doesn't
+            // respond to touch here because the momentum-scrolling CSS is
+            // scoped to .mobile-timeline-layout and this overlay lives
+            // outside it. dvh, not vh, so the sheet can't extend below the
+            // visible viewport.
+            ? 'rounded-t-2xl max-h-[92dvh] w-full overflow-y-auto overscroll-contain'
+            : 'rounded-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden'
         }`}
+        style={isMobile ? { WebkitOverflowScrolling: 'touch' } : undefined}
       >
         {/* Project color bar + header */}
         <div className="h-1.5 flex-shrink-0" style={{ background: projectHex }} />
@@ -271,10 +275,10 @@ const ProjectPlanner = ({ project, onClose }) => {
           </div>
         </div>
 
-        {/* Body — bottom padding clears the iOS home indicator, like the
-            app's other mobile bottom sheets */}
+        {/* Body — scrolls itself on desktop; on mobile the sheet scrolls (see
+            above) and the bottom padding clears the iOS home indicator */}
         <div
-          className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4"
+          className={`p-4 flex flex-col gap-4 ${isMobile ? '' : 'flex-1 min-h-0 overflow-y-auto'}`}
           style={isMobile ? { paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' } : undefined}
         >
           {/* Notes — same interaction model as task notes panels */}
