@@ -242,11 +242,14 @@ const ProjectPlanner = ({ project, onClose }) => {
         }`}
         style={isMobile ? { WebkitOverflowScrolling: 'touch' } : undefined}
       >
-        {/* Project color bar + header */}
-        <div className="h-1.5 flex-shrink-0" style={{ background: projectHex }} />
+        {/* Project color bar + header — sticky while the mobile sheet scrolls.
+            The tint goes on backgroundImage so cardBg keeps the header opaque
+            (content must not show through when stuck). */}
+        <div className={isMobile ? 'sticky top-0 z-10' : 'flex-shrink-0'}>
+        <div className="h-1.5" style={{ background: projectHex }} />
         <div
-          className={`flex items-center justify-between px-4 py-3 border-b ${borderClass} flex-shrink-0`}
-          style={{ background: hexToRgba(projectHex, darkMode ? 0.12 : 0.07) }}
+          className={`flex items-center justify-between px-4 py-3 border-b ${borderClass} ${cardBg}`}
+          style={{ backgroundImage: `linear-gradient(${hexToRgba(projectHex, darkMode ? 0.12 : 0.07)}, ${hexToRgba(projectHex, darkMode ? 0.12 : 0.07)})` }}
         >
           <div className="flex flex-col min-w-0">
             <span className={`text-base font-semibold ${textPrimary} truncate`}>{project.title}</span>
@@ -273,6 +276,7 @@ const ProjectPlanner = ({ project, onClose }) => {
               <X size={16} className={textSecondary} />
             </button>
           </div>
+        </div>
         </div>
 
         {/* Body — scrolls itself on desktop; on mobile the sheet scrolls (see
