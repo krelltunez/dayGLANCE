@@ -6,7 +6,7 @@ import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { useSyncCtx } from '../../context/SyncContext.jsx';
 import { taskColorToHex, hexToRgba } from '../../utils/colorUtils.js';
 import { renderTitleWithoutTags, URL_REGEX } from '../../utils/textFormatting.jsx';
-import { extractTags, extractWikilinks } from '../../utils/taskUtils.js';
+import { dateToString, extractTags, extractWikilinks } from '../../utils/taskUtils.js';
 import NotesSubtasksPanel from '../NotesSubtasksPanel.jsx';
 
 /**
@@ -25,7 +25,7 @@ import NotesSubtasksPanel from '../NotesSubtasksPanel.jsx';
 const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = null, dnd = null, showOverdueDate = false, onSchedule = null }) => {
   const {
     darkMode, cardBg, borderClass, textPrimary, textSecondary,
-    formatTime, toggleComplete, openMobileEditTask,
+    formatTime, toggleComplete, openMobileEditTask, currentTime,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
   } = useDayPlannerCtx();
   const { projects, goalsProjectsEnabled, generateAISubtasks, aiSubtasksLoadingForTask, aiConfig } = useFeaturesCtx();
@@ -56,6 +56,22 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
     : task.startTime
       ? `${formatTime(task.startTime)}${task.duration ? ` · ${task.duration}m` : ''}`
       : '';
+
+  // Past-time treatment (Todoist model): a task whose start time has passed
+  // stays in place with a red time label; a calendar event that has ENDED
+  // fades like a completed task. All-day items don't go stale until the day
+  // ends.
+  const todayStr = dateToString(currentTime);
+  const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+  const startMin = task.startTime
+    ? parseInt(task.startTime.slice(0, 2), 10) * 60 + parseInt(task.startTime.slice(3, 5), 10)
+    : null;
+  const timePassed = !task.isAllDay && !!task.date && startMin !== null && (
+    task.date < todayStr ||
+    (task.date === todayStr && (startMin + (isEvent ? (task.duration || 0) : 0)) < nowMin)
+  );
+  const isPastDueTask = timePassed && !isEvent && !task.completed;
+  const isFinishedEvent = timePassed && isEvent;
 
   const subtasks = task.subtasks || [];
   const subtasksDone = subtasks.filter(s => s.completed).length;
@@ -89,7 +105,7 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
       onDrop={dnd ? e => dnd.onDrop(e, dnd.idx) : undefined}
       className={`flex items-center gap-2 rounded-xl border ${borderClass} ${cardBg} px-3 py-2 ${
         isEvent ? '' : 'cursor-pointer active:opacity-70'
-      } ${task.completed ? 'opacity-55' : ''} ${dnd ? 'select-none dnd-no-select' : ''} ${
+      } ${task.completed || isFinishedEvent ? 'opacity-55' : ''} ${dnd ? 'select-none dnd-no-select' : ''} ${
         dnd?.isSource ? 'opacity-40' : ''
       } ${dnd?.isTarget ? (darkMode ? 'border-t-2 border-t-blue-400' : 'border-t-2 border-t-blue-500') : ''}`}
       style={{ borderLeft: `4px solid ${hex}` }}
@@ -126,7 +142,9 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
                 {new Date(task.date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
               </span>
             )}
-            {timeLabel && <span className="flex-shrink-0">{timeLabel}</span>}
+            {timeLabel && (
+              <span className={`flex-shrink-0 ${isPastDueTask ? 'text-red-400 font-medium' : ''}`}>{timeLabel}</span>
+            )}
             {isRecurring && <Repeat size={10} className="opacity-60 flex-shrink-0" />}
             {!isEvent && (
               <button
