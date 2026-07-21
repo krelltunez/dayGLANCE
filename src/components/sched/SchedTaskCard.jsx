@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarPlus, CheckCircle2, CheckSquare, Circle, ExternalLink, FileText, GripVertical, Repeat } from 'lucide-react';
+import { CalendarPlus, CheckCircle2, CheckSquare, ChevronsRight, Circle, ExternalLink, FileText, GripVertical, Repeat } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { useSyncCtx } from '../../context/SyncContext.jsx';
@@ -26,6 +26,7 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
   const {
     darkMode, cardBg, borderClass, textPrimary, textSecondary,
     formatTime, toggleComplete, openMobileEditTask, currentTime,
+    postponeTask,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
   } = useDayPlannerCtx();
   const { projects, goalsProjectsEnabled, generateAISubtasks, aiSubtasksLoadingForTask, aiConfig } = useFeaturesCtx();
@@ -93,6 +94,11 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
     e.stopPropagation();
     if (!isEvent) setShowNotes(true);
   };
+
+  // Postpone (same action as the timeline's button): dated, editable,
+  // incomplete cards only. Hidden when a schedule-for-today action is present
+  // (overdue cards) — postponing an already-past date would stay in the past.
+  const canPostpone = !isEvent && !task.completed && !!task.date && !isInbox && !onSchedule;
 
   return (
     <div
@@ -204,6 +210,16 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
           aria-label="Schedule for today"
         >
           <CalendarPlus size={14} />
+        </button>
+      )}
+      {canPostpone && (
+        <button
+          onClick={e => { e.stopPropagation(); postponeTask(task.id); }}
+          className={`flex-shrink-0 p-1.5 rounded-lg opacity-60 hover:opacity-100 hover:text-blue-500 ${textSecondary}`}
+          title="Postpone to tomorrow"
+          aria-label="Postpone to tomorrow"
+        >
+          <ChevronsRight size={14} />
         </button>
       )}
 
