@@ -63,9 +63,11 @@ const ProjectPlanner = ({ project, onClose }) => {
   });
 
   // Tapping a task opens the project-flavored editor (isInbox=false, matching
-  // ProjectCard's task rows) ON TOP of the planner, which stays open — the
-  // planner renders inline in the app's stacking context so the editor's
-  // higher z-index wins.
+  // ProjectCard's task rows) ON TOP of the planner, which stays open. The
+  // planner is rendered at the app top level (App.jsx, beside the task modals)
+  // so plain z-index ordering applies: dashboard 60 < planner 70 < editor 80.
+  // Do NOT portal it to document.body or nest it inside dashboard DOM — both
+  // put it in a different stacking context and break this ordering.
   const editTask = (task) => {
     saveNotes();
     openMobileEditTask(task, false);

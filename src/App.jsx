@@ -60,6 +60,7 @@ import EditRecurrenceModal from './components/EditRecurrenceModal.jsx';
 import ReminderToasts from './components/ReminderToasts.jsx';
 import ObsidianSyncToast from './components/ObsidianSyncToast.jsx';
 import MobileNewTaskModal from './components/MobileNewTaskModal.jsx';
+import ProjectPlanner from './components/projects/ProjectPlanner.jsx';
 import DesktopNewTaskModal from './components/DesktopNewTaskModal.jsx';
 import useVisibleDays from './hooks/useVisibleDays.js';
 import useDeviceType from './hooks/useDeviceType.js';
@@ -326,6 +327,9 @@ const DayPlanner = () => {
     return localStorage.getItem('day-planner-list-end-of-day') || null;
   });
   const [goalsDashboardFocusId, setGoalsDashboardFocusId] = useState(null);
+  // Project whose PLANNER dashboard is open — rendered at the app top level so
+  // it stacks between the G&P dashboard (z-60) and the task editor (z-80).
+  const [plannerProjectId, setPlannerProjectId] = useState(null);
   const [weekViewMode, setWeekViewMode] = useState(() => {
     const saved = localStorage.getItem('day-planner-week-view-mode');
     return saved ? JSON.parse(saved) : 'strict';
@@ -8003,6 +8007,7 @@ const DayPlanner = () => {
     addGoal, updateGoal, deleteGoal,
     addArea, updateArea, deleteArea, reorderAreas,
     addProject, updateProject, deleteProject, moveProject,
+    plannerProjectId, setPlannerProjectId,
     projectFilter, setProjectFilter,
 
     // ── Multi-user ────────────────────────────────────────────────────────────
@@ -8978,6 +8983,12 @@ const DayPlanner = () => {
 
 
       {/* New Task Modals */}
+      {plannerProjectId && (() => {
+        const plannerProject = projects.find(p => p.id === plannerProjectId);
+        return plannerProject
+          ? <ProjectPlanner project={plannerProject} onClose={() => setPlannerProjectId(null)} />
+          : null;
+      })()}
       <MobileNewTaskModal />
       <DesktopNewTaskModal />
 
