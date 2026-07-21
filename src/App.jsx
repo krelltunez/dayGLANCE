@@ -3050,7 +3050,7 @@ const DayPlanner = () => {
     gtdFrames: myFrames, setShowRescheduleModal, setRescheduleResults, setRescheduleError,
     setMobileActiveTab, setMobileSettingsView, setShowSettings,
     changeDate, setSelectedDate,
-    setViewMode, canShowViewCycler, schedOnlyCycler,
+    setViewMode, canShowViewCycler, schedOnlyCycler, effectiveViewMode,
   });
 
   const changeViewedMonth = (delta) => {

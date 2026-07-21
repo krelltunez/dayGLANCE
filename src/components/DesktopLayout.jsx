@@ -14,6 +14,7 @@ import TimeGrid from './TimeGrid.jsx';
 import DayView from './DayView.jsx';
 import WeekView from './WeekView.jsx';
 import SchedDashboard from './sched/SchedDashboard.jsx';
+import SchedView from './sched/SchedView.jsx';
 import InboxArchivedBar from './InboxArchivedBar.jsx';
 import GlanceSidebar from './GlanceSidebar.jsx';
 import InboxSidebar from './InboxSidebar.jsx';
@@ -60,7 +61,7 @@ const DesktopLayout = () => {
     hours, firstHour,
     tabletActiveTab, setTabletActiveTab,
     mobileActiveTab, setMobileActiveTab,
-    tabletListView,
+    tabletListView, mobileViewMode,
     mobileWelcomeStep, setMobileWelcomeStep,
     desktopWelcomeStep, setDesktopWelcomeStep,
     showMonthView, setShowMonthView,
@@ -824,10 +825,12 @@ const DesktopLayout = () => {
               <CalendarHeader />
               </div>
 
-              {/* Main calendar grid — switches between multi/day/week views, or list
-                  view on tablet (portrait only; landscape uses the two-column timeline) */}
+              {/* Main calendar grid — switches between multi/day/week views, or
+                  list/sched view on tablet (portrait only; landscape uses the
+                  two-column timeline). tabletListView covers both LIST and
+                  SCHED; the toggle's mode picks which one renders. */}
               {tabletListView
-                ? <MobileListView hideInboxHandle />
+                ? (mobileViewMode === 'sched' ? <SchedView /> : <MobileListView hideInboxHandle />)
                 : <>
                     {effectiveViewMode === 'multi' && <TimeGrid />}
                     {effectiveViewMode === 'day' && <DayView />}

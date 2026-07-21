@@ -59,7 +59,7 @@ export default function useKeyboardShortcuts({
   // date navigation (arrows)
   changeDate, setSelectedDate,
   // view cycler (1/2/3)
-  setViewMode, canShowViewCycler, schedOnlyCycler,
+  setViewMode, canShowViewCycler, schedOnlyCycler, effectiveViewMode,
 }) {
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
@@ -275,7 +275,10 @@ export default function useKeyboardShortcuts({
       if ((e.key === 'c' || e.key === 'C') && noModifiers && (canShowViewCycler || schedOnlyCycler)) {
         e.preventDefault();
         const states = canShowViewCycler ? ['multi', 'day', 'week', 'sched'] : ['multi', 'sched'];
-        setViewMode(prev => states[(states.indexOf(prev) + 1) % states.length] || 'multi');
+        // Cycle from the EFFECTIVE mode, matching the ViewCycler: a stored
+        // DAY/WEEK renders as MULTI at narrow widths, so cycling must start
+        // from what's on screen, not the raw stored mode.
+        setViewMode(states[(states.indexOf(effectiveViewMode) + 1) % states.length] || 'multi');
       }
 
       // Arrow left/right to navigate dates
@@ -309,5 +312,5 @@ export default function useKeyboardShortcuts({
     // action callbacks (changeDate/goToToday/performUndo/performRedo/playUISound),
     // all stable or read through refs — listing them would needlessly re-bind.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showHabitModal, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, hoverPreviewTime, hoverPreviewDate, isMobile, tabletActiveTab, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames, canShowViewCycler]);
+  }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showHabitModal, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, hoverPreviewTime, hoverPreviewDate, isMobile, tabletActiveTab, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames, canShowViewCycler, effectiveViewMode]);
 }
