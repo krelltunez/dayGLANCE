@@ -10,6 +10,143 @@
 
 import { dateToString } from './taskUtils.js';
 
+// ── Time zone handling ────────────────────────────────────────────────────────
+// Outlook (and other Exchange-backed feeds) export event times as local wall
+// clock in a named zone: DTSTART;TZID=Eastern Standard Time:20260721T090000.
+// The TZID is usually a WINDOWS zone name, not IANA, so we map the Windows
+// names to IANA (CLDR windowsZones primary mappings) and convert the wall time
+// to the viewer's local time via Intl. Unknown TZIDs fall back to the old
+// behavior (treat as local time) rather than dropping the event.
+
+const WINDOWS_TZ_MAP = {
+  'Dateline Standard Time': 'Etc/GMT+12', 'UTC-11': 'Etc/GMT+11',
+  'Aleutian Standard Time': 'America/Adak', 'Hawaiian Standard Time': 'Pacific/Honolulu',
+  'Marquesas Standard Time': 'Pacific/Marquesas', 'Alaskan Standard Time': 'America/Anchorage',
+  'UTC-09': 'Etc/GMT+9', 'Pacific Standard Time (Mexico)': 'America/Tijuana',
+  'UTC-08': 'Etc/GMT+8', 'Pacific Standard Time': 'America/Los_Angeles',
+  'US Mountain Standard Time': 'America/Phoenix',
+  'Mountain Standard Time (Mexico)': 'America/Mazatlan',
+  'Mountain Standard Time': 'America/Denver', 'Yukon Standard Time': 'America/Whitehorse',
+  'Central America Standard Time': 'America/Guatemala', 'Central Standard Time': 'America/Chicago',
+  'Easter Island Standard Time': 'Pacific/Easter',
+  'Central Standard Time (Mexico)': 'America/Mexico_City',
+  'Canada Central Standard Time': 'America/Regina', 'SA Pacific Standard Time': 'America/Bogota',
+  'Eastern Standard Time (Mexico)': 'America/Cancun', 'Eastern Standard Time': 'America/New_York',
+  'Haiti Standard Time': 'America/Port-au-Prince', 'Cuba Standard Time': 'America/Havana',
+  'US Eastern Standard Time': 'America/Indiana/Indianapolis',
+  'Turks And Caicos Standard Time': 'America/Grand_Turk',
+  'Paraguay Standard Time': 'America/Asuncion', 'Atlantic Standard Time': 'America/Halifax',
+  'Venezuela Standard Time': 'America/Caracas',
+  'Central Brazilian Standard Time': 'America/Cuiaba', 'SA Western Standard Time': 'America/La_Paz',
+  'Pacific SA Standard Time': 'America/Santiago', 'Newfoundland Standard Time': 'America/St_Johns',
+  'Tocantins Standard Time': 'America/Araguaina', 'E. South America Standard Time': 'America/Sao_Paulo',
+  'SA Eastern Standard Time': 'America/Cayenne', 'Argentina Standard Time': 'America/Buenos_Aires',
+  'Greenland Standard Time': 'America/Godthab', 'Montevideo Standard Time': 'America/Montevideo',
+  'Magallanes Standard Time': 'America/Punta_Arenas', 'Saint Pierre Standard Time': 'America/Miquelon',
+  'Bahia Standard Time': 'America/Bahia', 'UTC-02': 'Etc/GMT+2',
+  'Azores Standard Time': 'Atlantic/Azores', 'Cape Verde Standard Time': 'Atlantic/Cape_Verde',
+  'UTC': 'Etc/UTC', 'GMT Standard Time': 'Europe/London',
+  'Greenwich Standard Time': 'Atlantic/Reykjavik', 'Sao Tome Standard Time': 'Africa/Sao_Tome',
+  'Morocco Standard Time': 'Africa/Casablanca', 'W. Europe Standard Time': 'Europe/Berlin',
+  'Central Europe Standard Time': 'Europe/Budapest', 'Romance Standard Time': 'Europe/Paris',
+  'Central European Standard Time': 'Europe/Warsaw',
+  'W. Central Africa Standard Time': 'Africa/Lagos', 'Jordan Standard Time': 'Asia/Amman',
+  'GTB Standard Time': 'Europe/Bucharest', 'Middle East Standard Time': 'Asia/Beirut',
+  'Egypt Standard Time': 'Africa/Cairo', 'E. Europe Standard Time': 'Europe/Chisinau',
+  'Syria Standard Time': 'Asia/Damascus', 'West Bank Standard Time': 'Asia/Hebron',
+  'South Africa Standard Time': 'Africa/Johannesburg', 'FLE Standard Time': 'Europe/Kiev',
+  'Israel Standard Time': 'Asia/Jerusalem', 'South Sudan Standard Time': 'Africa/Juba',
+  'Kaliningrad Standard Time': 'Europe/Kaliningrad', 'Sudan Standard Time': 'Africa/Khartoum',
+  'Libya Standard Time': 'Africa/Tripoli', 'Namibia Standard Time': 'Africa/Windhoek',
+  'Arabic Standard Time': 'Asia/Baghdad', 'Turkey Standard Time': 'Europe/Istanbul',
+  'Arab Standard Time': 'Asia/Riyadh', 'Belarus Standard Time': 'Europe/Minsk',
+  'Russian Standard Time': 'Europe/Moscow', 'E. Africa Standard Time': 'Africa/Nairobi',
+  'Iran Standard Time': 'Asia/Tehran', 'Arabian Standard Time': 'Asia/Dubai',
+  'Astrakhan Standard Time': 'Europe/Astrakhan', 'Azerbaijan Standard Time': 'Asia/Baku',
+  'Russia Time Zone 3': 'Europe/Samara', 'Mauritius Standard Time': 'Indian/Mauritius',
+  'Saratov Standard Time': 'Europe/Saratov', 'Georgian Standard Time': 'Asia/Tbilisi',
+  'Volgograd Standard Time': 'Europe/Volgograd', 'Caucasus Standard Time': 'Asia/Yerevan',
+  'Afghanistan Standard Time': 'Asia/Kabul', 'West Asia Standard Time': 'Asia/Tashkent',
+  'Ekaterinburg Standard Time': 'Asia/Yekaterinburg', 'Pakistan Standard Time': 'Asia/Karachi',
+  'Qyzylorda Standard Time': 'Asia/Qyzylorda', 'India Standard Time': 'Asia/Calcutta',
+  'Sri Lanka Standard Time': 'Asia/Colombo', 'Nepal Standard Time': 'Asia/Katmandu',
+  'Central Asia Standard Time': 'Asia/Almaty', 'Bangladesh Standard Time': 'Asia/Dhaka',
+  'Omsk Standard Time': 'Asia/Omsk', 'Myanmar Standard Time': 'Asia/Rangoon',
+  'SE Asia Standard Time': 'Asia/Bangkok', 'Altai Standard Time': 'Asia/Barnaul',
+  'W. Mongolia Standard Time': 'Asia/Hovd', 'North Asia Standard Time': 'Asia/Krasnoyarsk',
+  'N. Central Asia Standard Time': 'Asia/Novosibirsk', 'Tomsk Standard Time': 'Asia/Tomsk',
+  'China Standard Time': 'Asia/Shanghai', 'North Asia East Standard Time': 'Asia/Irkutsk',
+  'Singapore Standard Time': 'Asia/Singapore', 'W. Australia Standard Time': 'Australia/Perth',
+  'Taipei Standard Time': 'Asia/Taipei', 'Ulaanbaatar Standard Time': 'Asia/Ulaanbaatar',
+  'Aus Central W. Standard Time': 'Australia/Eucla', 'Transbaikal Standard Time': 'Asia/Chita',
+  'Tokyo Standard Time': 'Asia/Tokyo', 'North Korea Standard Time': 'Asia/Pyongyang',
+  'Korea Standard Time': 'Asia/Seoul', 'Yakutsk Standard Time': 'Asia/Yakutsk',
+  'Cen. Australia Standard Time': 'Australia/Adelaide',
+  'AUS Central Standard Time': 'Australia/Darwin',
+  'E. Australia Standard Time': 'Australia/Brisbane', 'AUS Eastern Standard Time': 'Australia/Sydney',
+  'West Pacific Standard Time': 'Pacific/Port_Moresby', 'Tasmania Standard Time': 'Australia/Hobart',
+  'Vladivostok Standard Time': 'Asia/Vladivostok', 'Lord Howe Standard Time': 'Australia/Lord_Howe',
+  'Bougainville Standard Time': 'Pacific/Bougainville',
+  'Russia Time Zone 10': 'Asia/Srednekolymsk', 'Magadan Standard Time': 'Asia/Magadan',
+  'Norfolk Standard Time': 'Pacific/Norfolk', 'Sakhalin Standard Time': 'Asia/Sakhalin',
+  'Central Pacific Standard Time': 'Pacific/Guadalcanal', 'Russia Time Zone 11': 'Asia/Kamchatka',
+  'New Zealand Standard Time': 'Pacific/Auckland', 'UTC+12': 'Etc/GMT-12',
+  'Fiji Standard Time': 'Pacific/Fiji', 'Chatham Islands Standard Time': 'Pacific/Chatham',
+  'UTC+13': 'Etc/GMT-13', 'Tonga Standard Time': 'Pacific/Tongatapu',
+  'Samoa Standard Time': 'Pacific/Apia', 'Line Islands Standard Time': 'Pacific/Kiritimati',
+};
+
+/** Extracts the TZID parameter from an ICS property line, unquoted, or null. */
+const extractTzid = (line) => {
+  const m = line.match(/;TZID=("([^"]+)"|[^;:]+)/);
+  if (!m) return null;
+  return (m[2] ?? m[1]).trim();
+};
+
+/**
+ * Resolves an ICS TZID to a usable IANA zone: Windows names via the CLDR map,
+ * IANA names pass through (validated against Intl). Returns null when the
+ * zone can't be resolved — callers then fall back to local-time parsing.
+ */
+const resolveTzid = (tzid) => {
+  if (!tzid) return null;
+  const zone = WINDOWS_TZ_MAP[tzid] || tzid;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone });
+    return zone;
+  } catch {
+    return null;
+  }
+};
+
+/** Offset of `zone` from UTC in minutes at the given UTC instant. */
+const tzOffsetMinutes = (zone, utcMs) => {
+  const parts = {};
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: zone, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(new Date(utcMs)).forEach(p => { if (p.type !== 'literal') parts[p.type] = p.value; });
+  const asUTC = Date.UTC(
+    +parts.year, +parts.month - 1, +parts.day,
+    parts.hour === '24' ? 0 : +parts.hour, +parts.minute, +parts.second,
+  );
+  return (asUTC - utcMs) / 60000;
+};
+
+/**
+ * Converts wall-clock components in an IANA zone to a local Date. Two-pass
+ * offset lookup so instants near DST transitions resolve correctly.
+ */
+const zonedWallTimeToDate = (year, month, day, hour, minute, zone) => {
+  const utcGuess = Date.UTC(year, month, day, hour, minute);
+  const offset1 = tzOffsetMinutes(zone, utcGuess);
+  let utc = utcGuess - offset1 * 60000;
+  const offset2 = tzOffsetMinutes(zone, utc);
+  if (offset2 !== offset1) utc = utcGuess - offset2 * 60000;
+  return new Date(utc);
+};
+
 export const parseICS = (icsContent) => {
   // Unfold iCal line continuations (RFC 5545: lines starting with space/tab are continuations)
   const rawLines = icsContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
@@ -40,6 +177,7 @@ export const parseICS = (icsContent) => {
       if (currentType === 'todo' && !currentEvent.dtstart && currentEvent.due) {
         currentEvent.dtstart = currentEvent.due;
         currentEvent.isAllDay = currentEvent.dueIsAllDay;
+        if (currentEvent.dueTzid) currentEvent.dtstartTzid = currentEvent.dueTzid;
       }
       // RECURRENCE-ID overrides modify (move/cancel) a single occurrence of a
       // recurring series. For VTODOs we keep the long-standing behaviour of
@@ -75,9 +213,13 @@ export const parseICS = (icsContent) => {
         }
         const dateStr = line.split(':')[1];
         currentEvent.dtstart = dateStr;
+        const tzid = extractTzid(line);
+        if (tzid) currentEvent.dtstartTzid = tzid;
       } else if (line.startsWith('DTEND')) {
         const dateStr = line.split(':')[1];
         currentEvent.dtend = dateStr;
+        const tzid = extractTzid(line);
+        if (tzid) currentEvent.dtendTzid = tzid;
       } else if (line.startsWith('DUE')) {
         // Handle VTODO due dates
         if (line.includes('VALUE=DATE') || line.split(':')[1]?.length === 8) {
@@ -85,6 +227,8 @@ export const parseICS = (icsContent) => {
         }
         const dateStr = line.split(':')[1];
         currentEvent.due = dateStr;
+        const tzid = extractTzid(line);
+        if (tzid) currentEvent.dueTzid = tzid;
       } else if (line.startsWith('UID')) {
         const colonIdx = line.indexOf(':');
         if (colonIdx !== -1) {
@@ -347,7 +491,7 @@ export const parseICS = (icsContent) => {
   return expandedEvents;
 };
 
-export const parseDatetime = (dtstr) => {
+export const parseDatetime = (dtstr, tzid = null) => {
   if (dtstr.length === 8) {
     return new Date(
       parseInt(dtstr.substr(0, 4)),
@@ -366,6 +510,22 @@ export const parseDatetime = (dtstr) => {
         parseInt(dtstr.substr(9, 2)),
         parseInt(dtstr.substr(11, 2))
       ));
+    }
+    // TZID-qualified wall time (the Outlook case): convert from the named zone
+    // to the viewer's local time. Unresolvable TZIDs fall through to the old
+    // treat-as-local behavior.
+    const zone = tzid ? resolveTzid(tzid) : null;
+    if (zone) {
+      try {
+        return zonedWallTimeToDate(
+          parseInt(dtstr.substr(0, 4)),
+          parseInt(dtstr.substr(4, 2)) - 1,
+          parseInt(dtstr.substr(6, 2)),
+          parseInt(dtstr.substr(9, 2)),
+          parseInt(dtstr.substr(11, 2)),
+          zone,
+        );
+      } catch { /* fall through to local parsing */ }
     }
     return new Date(
       parseInt(dtstr.substr(0, 4)),
@@ -391,8 +551,8 @@ export const filterByDateWindow = (importedTasks, retentionDays) => {
 // Helper to expand multi-day events into separate tasks for each day
 export const expandMultiDayEvent = (event, options = {}) => {
   const { asTaskCalendar = false, freshCompletedUids = new Set(), color: customColor, importSource = 'sync' } = options;
-  const startDate = parseDatetime(event.dtstart);
-  const endDate = event.dtend ? parseDatetime(event.dtend) : new Date(startDate.getTime() + 60 * 60 * 1000);
+  const startDate = parseDatetime(event.dtstart, event.dtstartTzid);
+  const endDate = event.dtend ? parseDatetime(event.dtend, event.dtendTzid || event.dtstartTzid) : new Date(startDate.getTime() + 60 * 60 * 1000);
   const duration = Math.round((endDate - startDate) / (1000 * 60));
 
   const isAllDay = event.isAllDay ||
