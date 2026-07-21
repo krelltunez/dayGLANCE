@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { dateToString, extractTags } from '../../utils/taskUtils.js';
 import { EMPTY_SCHED_FILTERS, hasActiveSchedFilters, taskMatchesSchedFilters, limitRecurringToNextInstance } from '../../utils/schedAgenda.js';
 
@@ -17,7 +18,9 @@ export default function useSchedAgendaState() {
     selectedDate, tasks, expandedRecurringTasks,
     getTasksForDate,
     setNewTask, setShowAddTask,
+    scheduleTaskAtNextSlot,
   } = useDayPlannerCtx();
+  const { isVisibleForUser } = useFeaturesCtx();
 
   const [daysShown, setDaysShown] = useState(INITIAL_DAYS);
   const [filters, setFilters] = useState(EMPTY_SCHED_FILTERS);
@@ -84,6 +87,25 @@ export default function useSchedAgendaState() {
   const filtersActive = hasActiveSchedFilters(filters);
   const visibleDays = days.filter(d => showEmptyDays || d.tasks.length > 0);
 
+  // Incomplete tasks scheduled before today AND before the visible window, so
+  // they never duplicate a rendered day group. Plain tasks only: imported
+  // events just passed (nothing actionable), and recurring occurrences are
+  // generated per-day rather than lingering in the tasks list.
+  const overdueTasks = useMemo(() => {
+    const todayStr = dateToString(new Date());
+    const windowStartStr = dateToString(selectedDate);
+    return tasks
+      .filter(task =>
+        task.date && task.date < todayStr && task.date < windowStartStr &&
+        !task.completed && !task.archived && !task.isExample && !task.imported &&
+        isVisibleForUser(task))
+      .filter(task => taskMatchesSchedFilters(task, filters))
+      .sort((a, b) => a.date.localeCompare(b.date) || (a.startTime || '').localeCompare(b.startTime || ''));
+  }, [tasks, selectedDate, filters, isVisibleForUser]);
+
+  // Moves an overdue/agenda task to today's next open quarter-hour slot.
+  const rescheduleToToday = (task) => scheduleTaskAtNextSlot(task.id, false);
+
   const addTaskOnDay = (dateStr) => {
     setNewTask({ title: '', startTime: '09:00', duration: 30, date: dateStr, isAllDay: false, recurrence: null });
     setShowAddTask(true);
@@ -91,6 +113,7 @@ export default function useSchedAgendaState() {
 
   return {
     days, visibleDays, filtersActive,
+    overdueTasks, rescheduleToToday,
     filters, setFilters,
     availableColors, availableTags,
     showEmptyDays, toggleEmptyDays,

@@ -41,6 +41,7 @@ const SchedDashboard = () => {
 
   const {
     visibleDays, filtersActive,
+    overdueTasks, rescheduleToToday,
     filters, setFilters,
     availableColors, availableTags,
     showEmptyDays, toggleEmptyDays,
@@ -73,6 +74,20 @@ const SchedDashboard = () => {
       {/* Agenda */}
       <div className="flex-1 min-w-0 px-6 py-4">
         <div className="max-w-2xl mx-auto flex flex-col gap-4">
+          {/* Overdue — incomplete tasks from before the visible window */}
+          {overdueTasks.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <div className={`flex items-center justify-between border-b ${borderClass} pb-1`}>
+                <span className="text-sm font-semibold text-amber-500">
+                  Overdue · {overdueTasks.length}
+                </span>
+              </div>
+              {overdueTasks.map(task => (
+                <SchedTaskCard key={task.id} task={task} showProject showOverdueDate onSchedule={rescheduleToToday} />
+              ))}
+            </div>
+          )}
+
           {visibleDays.map(day => (
             <div key={day.dateStr} className="flex flex-col gap-1.5">
               <div className={`flex items-center justify-between border-b ${borderClass} pb-1`}>

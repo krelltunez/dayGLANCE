@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle2, CheckSquare, Circle, ExternalLink, FileText, GripVertical, Repeat } from 'lucide-react';
+import { CalendarPlus, CheckCircle2, CheckSquare, Circle, ExternalLink, FileText, GripVertical, Repeat } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { useSyncCtx } from '../../context/SyncContext.jsx';
@@ -22,7 +22,7 @@ import NotesSubtasksPanel from '../NotesSubtasksPanel.jsx';
  * planner's unscheduled column) using the same pattern as ProjectCard:
  * whole-card HTML5 drag off-iOS, grip-only touch drag on iOS.
  */
-const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = null, dnd = null }) => {
+const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = null, dnd = null, showOverdueDate = false, onSchedule = null }) => {
   const {
     darkMode, cardBg, borderClass, textPrimary, textSecondary,
     formatTime, toggleComplete, openMobileEditTask,
@@ -121,6 +121,11 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
         {/* Meta row — always rendered on editable tasks so cards stay uniform */}
         {(!isEvent || timeLabel) && (
           <span className={`text-xs ${textSecondary} flex items-center gap-1.5 min-w-0`} style={{ minHeight: '1rem' }}>
+            {showOverdueDate && task.date && (
+              <span className="flex-shrink-0 font-medium text-amber-500">
+                {new Date(task.date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+              </span>
+            )}
             {timeLabel && <span className="flex-shrink-0">{timeLabel}</span>}
             {isRecurring && <Repeat size={10} className="opacity-60 flex-shrink-0" />}
             {!isEvent && (
@@ -173,6 +178,16 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
           </span>
         )}
       </div>
+      {onSchedule && !task.completed && !isEvent && (
+        <button
+          onClick={e => { e.stopPropagation(); onSchedule(task); }}
+          className={`flex-shrink-0 p-1.5 rounded-lg opacity-60 hover:opacity-100 hover:text-blue-500 ${textSecondary}`}
+          title="Schedule for today (next open slot)"
+          aria-label="Schedule for today"
+        >
+          <CalendarPlus size={14} />
+        </button>
+      )}
 
       {/* Notes/subtasks overlay — portaled to body at z-90 so it tops the
           planner (70) and the task editor (80) regardless of where the card

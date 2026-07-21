@@ -28,7 +28,7 @@ const ProjectPlanner = ({ project, onClose }) => {
     isMobile,
     darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     tasks, unscheduledTasks, setUnscheduledTasks, reorderUnscheduledTasks,
-    openMobileEditTask,
+    openMobileEditTask, scheduleTaskAtNextSlot,
   } = useDayPlannerCtx();
   const { goals, updateProject, isVisibleForUser } = useFeaturesCtx();
   const { t } = useTranslation();
@@ -335,6 +335,7 @@ const ProjectPlanner = ({ project, onClose }) => {
                       task={task}
                       isInbox
                       onEdit={editTask}
+                      onSchedule={task.completed ? null : (t) => scheduleTaskAtNextSlot(t.id, true)}
                       dnd={draggable ? {
                         idx,
                         rowDraggable: !IS_IOS,

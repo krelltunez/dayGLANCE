@@ -26,6 +26,7 @@ const SchedView = () => {
 
   const {
     visibleDays, filtersActive,
+    overdueTasks, rescheduleToToday,
     filters, setFilters,
     availableColors, availableTags,
     showEmptyDays, toggleEmptyDays,
@@ -68,6 +69,18 @@ const SchedView = () => {
           Empty days
         </button>
       </div>
+
+      {/* Overdue — incomplete tasks from before the visible window */}
+      {overdueTasks.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <div className="text-xs font-semibold uppercase tracking-wide text-amber-500 pt-1">
+            Overdue · {overdueTasks.length}
+          </div>
+          {overdueTasks.map(task => (
+            <SchedTaskCard key={task.id} task={task} showProject showOverdueDate onSchedule={rescheduleToToday} />
+          ))}
+        </div>
+      )}
 
       {/* Day groups */}
       {visibleDays.map(day => (
