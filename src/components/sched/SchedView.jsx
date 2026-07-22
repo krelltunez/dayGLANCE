@@ -6,6 +6,7 @@ import { dateToString } from '../../utils/taskUtils.js';
 import useSchedAgendaState, { LOAD_MORE_DAYS } from './useSchedAgendaState.js';
 import SchedTaskCard from './SchedTaskCard.jsx';
 import SchedFilterPopup from './SchedFilterPopup.jsx';
+import { SchedDeadlineCard, SchedRoutinePills } from './SchedDayExtras.jsx';
 
 /**
  * SCHED — scrollable day-grouped agenda of scheduled tasks, starting at the
@@ -89,6 +90,10 @@ const SchedView = () => {
           <div className={`text-xs font-semibold uppercase tracking-wide ${day.dateStr === todayStr ? 'text-blue-500' : textSecondary} pt-1`}>
             {dayLabel(day)}
           </div>
+          {day.deadlineTasks.map(task => (
+            <SchedDeadlineCard key={`deadline-${task.id}`} task={task} dateStr={day.dateStr} />
+          ))}
+          {day.dateStr === todayStr && <SchedRoutinePills />}
           {day.tasks.length > 0 ? (
             day.tasks.map(task => <SchedTaskCard key={task.id} task={task} showProject />)
           ) : (

@@ -51,6 +51,7 @@ const SettingsModal = () => {
     canShowViewCycler, schedOnlyCycler, setViewMode,
     glancePage, setGlancePage,
     mobileViewMode, setMobileViewMode,
+    mobileDefaultView, setMobileDefaultView,
     listEndOfDayTime, setListEndOfDayTime,
     formatTime,
   } = useDayPlannerCtx();
@@ -395,9 +396,9 @@ const SettingsModal = () => {
                               {['grid', 'list', 'sched'].map(mode => (
                                 <button
                                   key={mode}
-                                  onClick={() => setMobileViewMode(mode)}
+                                  onClick={() => { setMobileDefaultView(mode); setMobileViewMode(mode); }}
                                   className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                                    mobileViewMode === mode
+                                    mobileDefaultView === mode
                                       ? 'bg-blue-600 text-white border-blue-600'
                                       : `${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-stone-300'} ${textPrimary}`
                                   }`}

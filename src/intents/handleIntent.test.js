@@ -579,6 +579,7 @@ function makeCapture(initial = {}) {
     get _tasks() { return state.tasks; },
     get _inbox() { return state.unscheduledTasks; },
     get _recurring() { return state.recurringTasks; },
+    ...(initial.deletedTaskIds ? { deletedTaskIds: initial.deletedTaskIds } : {}),
   };
   return ctx;
 }
@@ -692,6 +693,66 @@ describe('handleIntent create execution', () => {
     await handleIntent('create', { title: 'Quick task' }, ctx);
     expect(ctx._inbox[0].color).toBe('bg-blue-500');
     expect(ctx._inbox[0].duration).toBe(30);
+  });
+
+  // ── Re-delivery guards: a transport re-presenting an old create event must
+  //    never resurrect a task whose completion synced through another channel ──
+
+  it('no-ops a re-delivered create whose task is already completed', async () => {
+    const key = await createKey('app.lastglance', 'chore_42', '2026-06-01');
+    const existing = { id: 'tsk_1', title: 'Chore', _intentKey: key, completed: true };
+    const ctx = makeCapture({ tasks: [existing] });
+
+    const r = await handleIntent('create', {
+      title: 'Chore',
+      source_app: 'app.lastglance',
+      source_entity_id: 'chore_42',
+      due: '2026-06-01',
+    }, ctx);
+
+    expect(r.success).toBe(true);
+    expect(r.task_id).toBe('tsk_1');
+    expect(r.warning).toContain('already completed');
+    expect(ctx._tasks).toHaveLength(1);
+    expect(ctx._tasks[0].completed).toBe(true);
+    expect(ctx._inbox).toHaveLength(0);
+  });
+
+  it('no-ops a re-delivered create when the completed copy lives in the other list', async () => {
+    const key = await createKey('app.lastglance', 'chore_43', null);
+    const existing = { id: 'tsk_2', title: 'Chore', _intentKey: key, completed: true };
+    // Original was created unscheduled (no due) but was later scheduled — the
+    // completed copy now lives in tasks while the redelivered create targets inbox.
+    const ctx = makeCapture({ tasks: [existing] });
+
+    const r = await handleIntent('create', {
+      title: 'Chore',
+      source_app: 'app.lastglance',
+      source_entity_id: 'chore_43',
+    }, ctx);
+
+    expect(r.success).toBe(true);
+    expect(r.warning).toContain('already completed');
+    expect(ctx._inbox).toHaveLength(0);
+  });
+
+  it('no-ops a re-delivered create whose deterministic id is tombstoned', async () => {
+    const key = await createKey('app.lastglance', 'chore_44', '2026-06-01');
+    const { deterministicTaskId } = await import('./handleIntent.js');
+    const doomedId = await deterministicTaskId(key);
+    const ctx = makeCapture({ deletedTaskIds: { [doomedId]: '2026-07-01T00:00:00Z' } });
+
+    const r = await handleIntent('create', {
+      title: 'Chore',
+      source_app: 'app.lastglance',
+      source_entity_id: 'chore_44',
+      due: '2026-06-01',
+    }, ctx);
+
+    expect(r.success).toBe(true);
+    expect(r.warning).toContain('ignored re-delivered create');
+    expect(ctx._tasks).toHaveLength(0);
+    expect(ctx._inbox).toHaveLength(0);
   });
 });
 

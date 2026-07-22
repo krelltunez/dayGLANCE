@@ -211,32 +211,32 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
         </select>
       </div>
 
-      {/* Start date */}
-      <div className="flex flex-col gap-1">
-        <label className={`text-xs font-medium ${textSecondary}`}>{t('goals.startDate')}</label>
-        <input
-          type="date"
-          value={startDate}
-          onChange={e => setStartDate(e.target.value)}
-          className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-            darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'
-          }`}
-        />
-      </div>
-
-      {/* Target date */}
-      <div className="flex flex-col gap-1">
-        <label className={`text-xs font-medium ${textSecondary}`}>{t('common.targetDate')}</label>
-        <input
-          type="date"
-          value={targetDate}
-          onChange={e => setTargetDate(e.target.value)}
-          className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-            darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'
-          }`}
-        />
+      {/* Start / Target dates — one row */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1 min-w-0">
+          <label className={`text-xs font-medium ${textSecondary}`}>{t('goals.startDate')}</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+            className={`w-full min-w-0 px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'
+            }`}
+          />
+        </div>
+        <div className="flex flex-col gap-1 min-w-0">
+          <label className={`text-xs font-medium ${textSecondary}`}>{t('common.targetDate')}</label>
+          <input
+            type="date"
+            value={targetDate}
+            onChange={e => setTargetDate(e.target.value)}
+            className={`w-full min-w-0 px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'
+            }`}
+          />
+        </div>
         {startAfterTarget && (
-          <p className="text-xs text-amber-500">{t('goals.startAfterTarget')}</p>
+          <p className="text-xs text-amber-500 col-span-2">{t('goals.startAfterTarget')}</p>
         )}
       </div>
 
@@ -630,7 +630,10 @@ const GoalMiniCard = ({ goal, onClick }) => {
 
   const allTasks = useMemo(() => [...tasks, ...unscheduledTasks].filter(isVisibleForUser), [tasks, unscheduledTasks, isVisibleForUser]);
   const childProjects = useMemo(() => projects.filter(p => p.goalId === goal.id && p.status !== 'archived'), [projects, goal.id]);
-  const hasStalledProject = useMemo(() => childProjects.some(p => isProjectStalled(p.id, allTasks, p)), [childProjects, allTasks]);
+  const hasStalledProject = useMemo(
+    () => !goal.hideStalled && childProjects.some(p => isProjectStalled(p.id, allTasks, p)),
+    [childProjects, allTasks, goal.hideStalled]
+  );
   const showCaution = isOverdue || hasStalledProject;
   const goalProgress = useMemo(() => calculateGoalProgress(goal.id, childProjects, allTasks), [goal.id, childProjects, allTasks]);
   const allProjectsDone = childProjects.length > 0 && goalProgress >= 1;
@@ -1482,7 +1485,7 @@ const MobileDashboard = ({
                   const nonArchivedProjects = activeProjects.filter(p => p.goalId === goal.id);
                   const isCompleted = goal.status === 'completed';
                   const allProjectsDone = nonArchivedProjects.length > 0 && goalProgress >= 1;
-                  const hasStalledProject = nonArchivedProjects.some(p => isProjectStalled(p.id, allTasks, p));
+                  const hasStalledProject = !goal.hideStalled && nonArchivedProjects.some(p => isProjectStalled(p.id, allTasks, p));
                   let daysLabel = null, daysUrgent = false, isOverdue = false;
                   if (goal.targetDate) {
                     const today = new Date(); today.setHours(0, 0, 0, 0);

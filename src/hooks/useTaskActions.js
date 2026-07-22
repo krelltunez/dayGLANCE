@@ -757,6 +757,26 @@ export default function useTaskActions({
     });
   };
 
+  // SCHED: give a deadline task a concrete slot on a given day (deadline card
+  // → scheduled task). Deadline and priority are stripped, matching what
+  // dragging a deadline chip onto the time grid does.
+  const scheduleDeadlineTaskAt = (taskId, dateStr, startTime) => {
+    const task = unscheduledTasks.find(t => t.id === taskId);
+    if (!task) return;
+    pushUndo();
+    const { priority, deadline, ...preserved } = task;
+    setUnscheduledTasks(prev => prev.filter(t => t.id !== taskId));
+    setTasks(prev => [...prev, {
+      ...preserved,
+      date: dateStr,
+      startTime,
+      duration: task.duration || 30,
+      isAllDay: false,
+      lastModified: new Date().toISOString(),
+    }]);
+    playUISound('pop');
+  };
+
   // ── Focus mode wrappers ──────────────────────────────────────────────────
 
   const focusCompleteTask = (taskId) => {
@@ -847,6 +867,7 @@ export default function useTaskActions({
     // Schedule
     scheduleTaskAtNextSlot,
     manuallyScheduleTask,
+    scheduleDeadlineTaskAt,
     // HG wrapper
     hgCompleteTask,
     // Focus wrappers

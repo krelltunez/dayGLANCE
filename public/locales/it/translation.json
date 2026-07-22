@@ -869,7 +869,10 @@
     "viewTooltip": "Vista: {{view}} ({{keys}} o C per cambiare)",
     "viewAria": "Vista attuale: {{view}}. Fai clic per cambiare.",
     "switchToView": "Passa alla vista {{view}}",
-    "currentViewTap": "Vista attuale: {{view}}. Tocca per cambiare."
+    "currentViewTap": "Vista attuale: {{view}}. Tocca per cambiare.",
+    "deadline": "Scadenza",
+    "deadlineTapToSchedule": "Scadenza — tocca per scegliere un orario",
+    "routineTapToSchedule": "Routine — tocca per scegliere un orario"
   },
   "planner": {
     "standaloneProject": "Progetto indipendente",

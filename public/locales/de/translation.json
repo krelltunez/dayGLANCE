@@ -869,7 +869,10 @@
     "viewTooltip": "Ansicht: {{view}} ({{keys}} oder C zum Wechseln)",
     "viewAria": "Aktuelle Ansicht: {{view}}. Klicken zum Wechseln.",
     "switchToView": "Zur Ansicht {{view}} wechseln",
-    "currentViewTap": "Aktuelle Ansicht: {{view}}. Tippen zum Wechseln."
+    "currentViewTap": "Aktuelle Ansicht: {{view}}. Tippen zum Wechseln.",
+    "deadline": "Frist",
+    "deadlineTapToSchedule": "Frist — tippen, um eine Uhrzeit zu wählen",
+    "routineTapToSchedule": "Routine — tippen, um eine Uhrzeit zu wählen"
   },
   "planner": {
     "standaloneProject": "Eigenständiges Projekt",

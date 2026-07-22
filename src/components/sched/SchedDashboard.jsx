@@ -9,15 +9,25 @@ import { EMPTY_SCHED_FILTERS, toggleSchedFilter, groupProjectsForFilter } from '
 import useSchedAgendaState, { LOAD_MORE_DAYS } from './useSchedAgendaState.js';
 import SchedTaskCard from './SchedTaskCard.jsx';
 import SchedFilterPresets from './SchedFilterPresets.jsx';
+import { SchedDeadlineCard, SchedRoutinePills } from './SchedDayExtras.jsx';
 
-/** One collapsible section of the desktop filter rail. */
-const RailSection = ({ title, count, children, defaultOpen = true }) => {
+/** One collapsible section of the desktop filter rail. Collapsed state is
+    persisted per section (storageKey, stable across locales) so the rail
+    survives reloads the way the user left it. */
+const RailSection = ({ title, storageKey, count, children, defaultOpen = true }) => {
   const { borderClass, textPrimary, textSecondary, hoverBg } = useDayPlannerCtx();
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpen] = useState(() => {
+    const saved = localStorage.getItem(`day-planner-sched-rail-${storageKey}`);
+    return saved === null ? defaultOpen : saved === 'true';
+  });
+  const toggle = () => setOpen(o => {
+    localStorage.setItem(`day-planner-sched-rail-${storageKey}`, String(!o));
+    return !o;
+  });
   return (
     <div className={`border-b ${borderClass} pb-3`}>
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={toggle}
         className={`w-full flex items-center justify-between py-1.5 px-1 rounded ${hoverBg} transition-colors`}
       >
         <span className={`text-xs font-semibold uppercase tracking-wide ${textPrimary}`}>
@@ -105,6 +115,10 @@ const SchedDashboard = () => {
                   <Plus size={14} />
                 </button>
               </div>
+              {day.deadlineTasks.map(task => (
+                <SchedDeadlineCard key={`deadline-${task.id}`} task={task} dateStr={day.dateStr} />
+              ))}
+              {day.dateStr === todayStr && <SchedRoutinePills />}
               {day.tasks.length > 0 ? (
                 day.tasks.map(task => <SchedTaskCard key={task.id} task={task} showProject />)
               ) : (
@@ -154,7 +168,7 @@ const SchedDashboard = () => {
         </div>
 
         {(filterPresets.length > 0 || filtersActive) && (
-          <RailSection title={t('sched.presets', 'Presets')} count={0}>
+          <RailSection title={t('sched.presets', 'Presets')} storageKey="presets" count={0}>
             <div className="px-1">
               <SchedFilterPresets
                 filters={filters}
@@ -167,7 +181,7 @@ const SchedDashboard = () => {
           </RailSection>
         )}
 
-        <RailSection title={t('sched.colors', 'Colors')} count={filters.colors.length}>
+        <RailSection title={t('sched.colors', 'Colors')} storageKey="colors" count={filters.colors.length}>
           {colorOptions.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 px-1">
               {colorOptions.map(c => (
@@ -184,7 +198,7 @@ const SchedDashboard = () => {
           ) : <p className={`text-xs ${textSecondary} px-1`}>{t('sched.noColorsInView', 'No colors in view.')}</p>}
         </RailSection>
 
-        <RailSection title={t('sched.tags', 'Tags')} count={filters.tags.length}>
+        <RailSection title={t('sched.tags', 'Tags')} storageKey="tags" count={filters.tags.length}>
           {availableTags.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 px-1">
               {availableTags.map(tag => (
@@ -197,7 +211,7 @@ const SchedDashboard = () => {
         </RailSection>
 
         {goalsProjectsEnabled && (
-          <RailSection title={t('sched.projects', 'Projects')} count={filters.projectIds.length}>
+          <RailSection title={t('sched.projects', 'Projects')} storageKey="projects" count={filters.projectIds.length}>
             {projectGroups.length > 0 ? (
               <div className="flex flex-col gap-2 px-1">
                 {projectGroups.map(group => (
@@ -227,7 +241,7 @@ const SchedDashboard = () => {
           </RailSection>
         )}
 
-        <RailSection title={t('sched.recurring', 'Recurring')} count={nextInstanceOnly ? 1 : 0}>
+        <RailSection title={t('sched.recurring', 'Recurring')} storageKey="recurring" count={nextInstanceOnly ? 1 : 0}>
           <div className="flex gap-1.5 px-1">
             <button onClick={() => nextInstanceOnly && toggleNextInstanceOnly()} className={chip(!nextInstanceOnly)}>
               {t('sched.allInstances', 'All instances')}
