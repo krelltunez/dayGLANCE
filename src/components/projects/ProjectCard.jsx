@@ -1,10 +1,11 @@
 import React, { forwardRef, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import ConfirmDialog from '../ConfirmDialog.jsx';
+import ProjectPlanner from './ProjectPlanner.jsx';
 import {
   AlertTriangle, BookOpen, Calendar, CheckCircle2, CheckSquare, ChevronDown,
-  Edit2, ExternalLink, Eye, EyeOff, FileText, GripVertical, LogIn, Plus,
-  Square, Trash2, X, Zap,
+  Edit2, ExternalLink, Eye, EyeOff, FileText, GripVertical, LayoutDashboard,
+  LogIn, Plus, Square, Trash2, X, Zap,
 } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../../context/SyncContext.jsx';
@@ -93,6 +94,8 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   const [dragIdx, setDragIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
   const touchDragRef = useRef({ active: false, fromIdx: null, overIdx: null });
+
+  const [showPlanner, setShowPlanner] = useState(false);
 
   const handleDelete = () => setShowConfirm(true);
 
@@ -654,6 +657,16 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
             Add task
           </button>
         )}
+
+        {/* PLANNER — per-project planning dashboard (notes, hyperGLANCE, task columns) */}
+        <button
+          onClick={() => setShowPlanner(true)}
+          className={`flex items-center justify-center gap-1.5 text-[11px] font-semibold tracking-widest uppercase rounded-lg px-2 py-1.5 border ${borderClass} ${hoverBg} transition-colors w-full`}
+          style={{ color: projectHex }}
+        >
+          <LayoutDashboard size={12} />
+          Planner
+        </button>
       </div>
     </div>
 
@@ -683,6 +696,11 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
           onOpenInObsidian={extractWikilinks(expandedTask.title).length > 0 ? openInObsidian : undefined}
         />
       </div>,
+      document.body
+    )}
+
+    {showPlanner && createPortal(
+      <ProjectPlanner project={project} onClose={() => setShowPlanner(false)} />,
       document.body
     )}
 
