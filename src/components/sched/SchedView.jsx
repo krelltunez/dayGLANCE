@@ -28,6 +28,7 @@ const SchedView = () => {
     visibleDays, filtersActive,
     overdueTasks, rescheduleToToday,
     filters, setFilters,
+    filterPresets, saveFilterPreset, deleteFilterPreset, applyFilterPreset,
     availableColors, availableTags,
     showEmptyDays, toggleEmptyDays,
     nextInstanceOnly, toggleNextInstanceOnly,
@@ -121,6 +122,10 @@ const SchedView = () => {
         <SchedFilterPopup
           filters={filters}
           setFilters={setFilters}
+          filterPresets={filterPresets}
+          saveFilterPreset={saveFilterPreset}
+          deleteFilterPreset={deleteFilterPreset}
+          applyFilterPreset={applyFilterPreset}
           availableColors={availableColors}
           availableTags={availableTags}
           nextInstanceOnly={nextInstanceOnly}

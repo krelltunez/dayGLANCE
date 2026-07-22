@@ -8,6 +8,7 @@ import { TASK_COLORS } from '../../utils/colorUtils.js';
 import { EMPTY_SCHED_FILTERS, toggleSchedFilter, groupProjectsForFilter } from '../../utils/schedAgenda.js';
 import useSchedAgendaState, { LOAD_MORE_DAYS } from './useSchedAgendaState.js';
 import SchedTaskCard from './SchedTaskCard.jsx';
+import SchedFilterPresets from './SchedFilterPresets.jsx';
 
 /** One collapsible section of the desktop filter rail. */
 const RailSection = ({ title, count, children, defaultOpen = true }) => {
@@ -43,6 +44,7 @@ const SchedDashboard = () => {
     visibleDays, filtersActive,
     overdueTasks, rescheduleToToday,
     filters, setFilters,
+    filterPresets, saveFilterPreset, deleteFilterPreset, applyFilterPreset,
     availableColors, availableTags,
     showEmptyDays, toggleEmptyDays,
     nextInstanceOnly, toggleNextInstanceOnly,
@@ -150,6 +152,20 @@ const SchedDashboard = () => {
             </button>
           )}
         </div>
+
+        {(filterPresets.length > 0 || filtersActive) && (
+          <RailSection title="Presets" count={0}>
+            <div className="px-1">
+              <SchedFilterPresets
+                filters={filters}
+                filterPresets={filterPresets}
+                applyFilterPreset={applyFilterPreset}
+                deleteFilterPreset={deleteFilterPreset}
+                saveFilterPreset={saveFilterPreset}
+              />
+            </div>
+          </RailSection>
+        )}
 
         <RailSection title="Colors" count={filters.colors.length}>
           {colorOptions.length > 0 ? (

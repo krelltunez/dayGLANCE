@@ -27,6 +27,19 @@ export const taskMatchesSchedFilters = (task, filters) => {
   return true;
 };
 
+/**
+ * Order-insensitive equality of two filter combos — used to detect which saved
+ * preset (if any) matches the live filters, and to toggle it off on re-tap.
+ */
+export const schedFiltersEqual = (a, b) => {
+  if (!a || !b) return false;
+  return ['colors', 'tags', 'projectIds'].every(key => {
+    const av = [...(a[key] || [])].sort();
+    const bv = [...(b[key] || [])].sort();
+    return av.length === bv.length && av.every((v, i) => v === bv[i]);
+  });
+};
+
 /** Toggles a value in one filter dimension, returning a new filters object. */
 export const toggleSchedFilter = (filters, dimension, value) => {
   const list = filters[dimension];

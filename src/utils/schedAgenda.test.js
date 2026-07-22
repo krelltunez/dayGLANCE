@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { EMPTY_SCHED_FILTERS, hasActiveSchedFilters, taskMatchesSchedFilters, toggleSchedFilter, groupProjectsForFilter, limitRecurringToNextInstance } from './schedAgenda.js';
+import { EMPTY_SCHED_FILTERS, hasActiveSchedFilters, taskMatchesSchedFilters, toggleSchedFilter, groupProjectsForFilter, limitRecurringToNextInstance, schedFiltersEqual } from './schedAgenda.js';
 
 const task = { title: 'Write report #work #deep', color: 'bg-red-500', projectId: 'p1' };
 
@@ -40,6 +40,32 @@ describe('toggleSchedFilter', () => {
     expect(withRed.colors).toEqual(['bg-red-500']);
     expect(EMPTY_SCHED_FILTERS.colors).toEqual([]);
     expect(toggleSchedFilter(withRed, 'colors', 'bg-red-500').colors).toEqual([]);
+  });
+});
+
+describe('schedFiltersEqual', () => {
+  it('matches regardless of selection order', () => {
+    const a = { colors: ['bg-red-500', 'bg-blue-500'], tags: ['work'], projectIds: [] };
+    const b = { colors: ['bg-blue-500', 'bg-red-500'], tags: ['work'], projectIds: [] };
+    expect(schedFiltersEqual(a, b)).toBe(true);
+  });
+
+  it('detects differences in any dimension', () => {
+    const a = { colors: ['bg-red-500'], tags: ['work'], projectIds: [] };
+    expect(schedFiltersEqual(a, { colors: ['bg-red-500'], tags: ['work'], projectIds: ['p1'] })).toBe(false);
+    expect(schedFiltersEqual(a, { colors: ['bg-red-500'], tags: [], projectIds: [] })).toBe(false);
+    expect(schedFiltersEqual(a, { colors: [], tags: ['work'], projectIds: [] })).toBe(false);
+  });
+
+  it('treats empty combos as equal and handles missing args', () => {
+    expect(schedFiltersEqual(EMPTY_SCHED_FILTERS, { colors: [], tags: [], projectIds: [] })).toBe(true);
+    expect(schedFiltersEqual(null, EMPTY_SCHED_FILTERS)).toBe(false);
+    expect(schedFiltersEqual(EMPTY_SCHED_FILTERS, undefined)).toBe(false);
+  });
+
+  it('tolerates missing dimension keys (older stored presets)', () => {
+    expect(schedFiltersEqual({ colors: [], tags: [] }, EMPTY_SCHED_FILTERS)).toBe(true);
+    expect(schedFiltersEqual({ tags: ['work'] }, { colors: [], tags: ['work'], projectIds: [] })).toBe(true);
   });
 });
 

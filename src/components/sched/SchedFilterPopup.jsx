@@ -4,6 +4,7 @@ import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { TASK_COLORS } from '../../utils/colorUtils.js';
 import { hasActiveSchedFilters, toggleSchedFilter, EMPTY_SCHED_FILTERS, groupProjectsForFilter } from '../../utils/schedAgenda.js';
+import SchedFilterPresets from './SchedFilterPresets.jsx';
 
 /**
  * SCHED filter sheet: colors, tags, projects. Empty selection in a section
@@ -11,7 +12,11 @@ import { hasActiveSchedFilters, toggleSchedFilter, EMPTY_SCHED_FILTERS, groupPro
  * `availableColors`/`availableTags` come from the visible agenda window so the
  * sheet never offers options that can't match anything.
  */
-const SchedFilterPopup = ({ filters, setFilters, availableColors, availableTags, nextInstanceOnly, toggleNextInstanceOnly, onClose }) => {
+const SchedFilterPopup = ({
+  filters, setFilters,
+  filterPresets, saveFilterPreset, deleteFilterPreset, applyFilterPreset,
+  availableColors, availableTags, nextInstanceOnly, toggleNextInstanceOnly, onClose,
+}) => {
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg } = useDayPlannerCtx();
   const { projects, goals, goalsProjectsEnabled } = useFeaturesCtx();
 
@@ -47,6 +52,20 @@ const SchedFilterPopup = ({ filters, setFilters, availableColors, availableTags,
             </button>
           </div>
         </div>
+
+        {/* Saved presets */}
+        {(filterPresets.length > 0 || hasActiveSchedFilters(filters)) && (
+          <div className="flex flex-col gap-1.5">
+            <span className={`text-xs font-medium ${textSecondary}`}>Presets</span>
+            <SchedFilterPresets
+              filters={filters}
+              filterPresets={filterPresets}
+              applyFilterPreset={applyFilterPreset}
+              deleteFilterPreset={deleteFilterPreset}
+              saveFilterPreset={saveFilterPreset}
+            />
+          </div>
+        )}
 
         {/* Colors */}
         {colorOptions.length > 0 && (

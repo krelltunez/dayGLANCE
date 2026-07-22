@@ -2,10 +2,12 @@ import { useMemo, useState } from 'react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { dateToString, extractTags } from '../../utils/taskUtils.js';
-import { EMPTY_SCHED_FILTERS, hasActiveSchedFilters, taskMatchesSchedFilters, limitRecurringToNextInstance } from '../../utils/schedAgenda.js';
+import { EMPTY_SCHED_FILTERS, hasActiveSchedFilters, taskMatchesSchedFilters, limitRecurringToNextInstance, schedFiltersEqual } from '../../utils/schedAgenda.js';
 
 export const INITIAL_DAYS = 14;
 export const LOAD_MORE_DAYS = 14;
+
+const PRESETS_KEY = 'day-planner-sched-filter-presets';
 
 /**
  * Shared state for the SCHED agenda (mobile SchedView + desktop
@@ -33,6 +35,39 @@ export default function useSchedAgendaState() {
   const [nextInstanceOnly, setNextInstanceOnly] = useState(
     () => localStorage.getItem('day-planner-sched-next-instance-only') === 'true'
   );
+
+  // Saved filter presets — named color/tag/project combos, persisted across
+  // sessions and shared by the mobile sheet and the desktop rail.
+  const [filterPresets, setFilterPresets] = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(PRESETS_KEY) || '[]');
+      return Array.isArray(raw)
+        ? raw
+            .filter(p => p && p.id && p.name && p.filters)
+            .map(p => ({ ...p, filters: { ...EMPTY_SCHED_FILTERS, ...p.filters } }))
+        : [];
+    } catch { return []; }
+  });
+
+  const persistPresets = (next) => {
+    localStorage.setItem(PRESETS_KEY, JSON.stringify(next));
+    return next;
+  };
+
+  const saveFilterPreset = (name) => {
+    const trimmed = (name || '').trim();
+    if (!trimmed || !hasActiveSchedFilters(filters)) return;
+    setFilterPresets(prev => persistPresets([...prev, { id: crypto.randomUUID(), name: trimmed, filters }]));
+  };
+
+  const deleteFilterPreset = (id) =>
+    setFilterPresets(prev => persistPresets(prev.filter(p => p.id !== id)));
+
+  // Tapping the already-active preset clears the filters (toggle semantics).
+  const applyFilterPreset = (preset) =>
+    setFilters(f => schedFiltersEqual(preset.filters, f)
+      ? EMPTY_SCHED_FILTERS
+      : { ...EMPTY_SCHED_FILTERS, ...preset.filters });
 
   const toggleEmptyDays = () => setShowEmptyDays(v => {
     localStorage.setItem('day-planner-sched-show-empty', String(!v));
@@ -115,6 +150,7 @@ export default function useSchedAgendaState() {
     days, visibleDays, filtersActive,
     overdueTasks, rescheduleToToday,
     filters, setFilters,
+    filterPresets, saveFilterPreset, deleteFilterPreset, applyFilterPreset,
     availableColors, availableTags,
     showEmptyDays, toggleEmptyDays,
     nextInstanceOnly, toggleNextInstanceOnly,
