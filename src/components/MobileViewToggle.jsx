@@ -23,21 +23,34 @@ const ListIcon = () => (
   </svg>
 );
 
+const SchedIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+    {/* Day-group headers with task blocks beneath — the agenda silhouette */}
+    <rect x="1" y="1"  width="8"  height="2.5" rx="1" fill={ORANGE} />
+    <rect x="1" y="5"  width="16" height="3.5" rx="1" fill={ORANGE} fillOpacity="0.7" />
+    <rect x="1" y="10.5" width="8"  height="2.5" rx="1" fill={ORANGE} />
+    <rect x="1" y="14.5" width="16" height="3.5" rx="1" fill={ORANGE} fillOpacity="0.7" />
+  </svg>
+);
+
+// GRID → LIST → SCHED → GRID
+const NEXT_MODE = { grid: 'list', list: 'sched', sched: 'grid' };
+
 const MobileViewToggle = () => {
   const { mobileViewMode, setMobileViewMode, textSecondary } = useDayPlannerCtx();
 
-  const toggle = () => setMobileViewMode(prev => prev === 'grid' ? 'list' : 'grid');
+  const toggle = () => setMobileViewMode(prev => NEXT_MODE[prev] || 'grid');
 
   return (
     <button
       onClick={toggle}
       className="flex flex-col items-center justify-center gap-0.5 w-full h-full py-1 hover:bg-black/5 dark:hover:bg-white/5 active:bg-black/10 dark:active:bg-white/10 transition-colors"
-      aria-label={`Switch to ${mobileViewMode === 'grid' ? 'list' : 'grid'} view`}
+      aria-label={`Switch to ${(NEXT_MODE[mobileViewMode] || 'grid').toUpperCase()} view`}
       title={`Current view: ${mobileViewMode.toUpperCase()}. Tap to switch.`}
     >
-      {mobileViewMode === 'grid' ? <GridIcon /> : <ListIcon />}
+      {mobileViewMode === 'grid' ? <GridIcon /> : mobileViewMode === 'sched' ? <SchedIcon /> : <ListIcon />}
       <span className={`text-[9px] font-semibold tracking-widest uppercase ${textSecondary} leading-none`}>
-        {mobileViewMode === 'grid' ? 'GRID' : 'LIST'}
+        {mobileViewMode.toUpperCase()}
       </span>
     </button>
   );
