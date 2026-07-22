@@ -55,7 +55,9 @@ const GoalCard = forwardRef(
     }
 
     // Caution: goal is overdue or has at least one stalled child project
-    const hasStalledProject = projects.some(p => isProjectStalled(p.id, allTasks, p));
+    // Per-goal opt-out: hideStalled suppresses the stalled contribution to the
+    // caution indicator (overdue-based caution is unaffected).
+    const hasStalledProject = !goal.hideStalled && projects.some(p => isProjectStalled(p.id, allTasks, p));
     const showCaution = isOverdue || hasStalledProject;
     // All non-archived projects complete → offer one-click completion
     const nonArchivedProjects = projects.filter(p => p.status !== 'archived');
