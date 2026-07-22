@@ -4092,6 +4092,29 @@ const DayPlanner = () => {
     reader.readAsText(pendingImportFile);
   };
 
+  // Delete every file-imported calendar EVENT (importSource 'file', not task
+  // calendar). URL-subscribed events are replaced wholesale on every sync, but
+  // file imports are first-class synced data with no other removal path — the
+  // only way to change them was importing another file over them. Tombstones
+  // are written so the cloud merge doesn't resurrect the removed copies.
+  const removeFileImportedEvents = () => {
+    const isFileEvent = (t) => t.imported && !t.isTaskCalendar && t.importSource === 'file';
+    const targets = tasks.filter(isFileEvent);
+    if (targets.length === 0) return;
+    try {
+      const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}');
+      const nowIso = new Date().toISOString();
+      for (const t of targets) tombstones[t.id] = nowIso;
+      localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(tombstones));
+    } catch { /* removal still proceeds; worst case a copy syncs back */ }
+    setTasks(prev => prev.filter(t => !isFileEvent(t)));
+    setSyncNotification({
+      type: 'success',
+      title: 'iCal Import',
+      message: `Removed ${targets.length} file-imported event${targets.length !== 1 ? 's' : ''}`
+    });
+  };
+
   // Export all app data as a JSON backup file
   const exportBackup = () => {
     const backup = {
@@ -7880,7 +7903,7 @@ const DayPlanner = () => {
     restoreFromAutoBackup, restoreFromRemoteBackup,
     folderBackup, restoreFromBackupFolder,
     exportBackup, restoreBackup,
-    handleFileUpload, handleBackupFileSelect, processImportFile,
+    handleFileUpload, handleBackupFileSelect, processImportFile, removeFileImportedEvents,
     buildSyncPayload,
     fetchAllDailyContent, fetchWeather,
   };

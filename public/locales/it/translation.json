@@ -344,7 +344,9 @@
     "icloudIntentsEnable": "Abilita gli intent di iCloud",
     "viewSched": "SCHED",
     "portraitViewDefault": "Vista verticale",
-    "landscapeViewDefault": "Vista orizzontale"
+    "landscapeViewDefault": "Vista orizzontale",
+    "removeFileImported": "Rimuovi gli eventi importati da file",
+    "removeFileImportedConfirm": "Rimuovere tutti i {{n}} eventi importati da file? Reimportando il file verranno ripristinati."
   },
   "task": {
     "newScheduled": "Nuova attività pianificata",

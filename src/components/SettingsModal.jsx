@@ -43,7 +43,7 @@ const SettingsModal = () => {
     weatherZip, setWeatherZip, fetchWeather, weatherTempUnit, setWeatherTempUnit,
     weatherEnabled, setWeatherEnabled,
     dailyContentEnabled, setDailyContentEnabled,
-    setTasks, setUnscheduledTasks,
+    tasks, setTasks, setUnscheduledTasks,
     dailyNoteTemplate, setDailyNoteTemplate,
     defaultView, setDefaultView,
     dayViewMode, setDayViewMode,
@@ -73,7 +73,12 @@ const SettingsModal = () => {
     performObsidianSync,
     trmnlConfig, setTrmnlConfig, trmnlSyncStatus, trmnlLastSynced, performTrmnlSync,
     setShowIntentActivityLog,
+    removeFileImportedEvents,
   } = useSyncCtx();
+
+  const fileImportedEventCount = tasks.filter(
+    t => t.imported && !t.isTaskCalendar && t.importSource === 'file'
+  ).length;
   const {
     habitsEnabled, setHabitsEnabled,
     routinesEnabled, setRoutinesEnabled,
@@ -1027,6 +1032,18 @@ const SettingsModal = () => {
                           <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setShowSettings(false); }} className="hidden" />
                         </label>
                         <p className={`text-xs ${textSecondary}`}>{t('settings.importIcsDesc')}</p>
+                        {fileImportedEventCount > 0 && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm(t('settings.removeFileImportedConfirm', 'Remove all {{n}} file-imported events? Re-importing the file brings them back.', { n: fileImportedEventCount }))) {
+                                removeFileImportedEvents();
+                              }
+                            }}
+                            className="text-xs font-medium text-red-500 hover:text-red-600 transition-colors"
+                          >
+                            {t('settings.removeFileImported', 'Remove file-imported events')} ({fileImportedEventCount})
+                          </button>
+                        )}
                       </div>
                       </>)}
                     </div>

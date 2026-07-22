@@ -41,7 +41,7 @@ const MobileSettingsPanel = () => {
   const {
     isPro, isAndroidApp, isIOSApp, isElectronApp, subProductId,
     consumeTestPurchase, canConsumeTestPurchase,
-    setTasks, setUnscheduledTasks,
+    tasks, setTasks, setUnscheduledTasks,
     darkMode, setDarkMode,
     mobileSettingsView, setMobileSettingsView,
     use24HourClock, setUse24HourClock,
@@ -92,6 +92,7 @@ const MobileSettingsPanel = () => {
     deleteLocalAutoBackup, deleteRemoteAutoBackup,
     exportBackup, handleFileUpload, handleBackupFileSelect,
     setShowIntentActivityLog,
+    removeFileImportedEvents,
   } = useSyncCtx();
   const {
     routinesEnabled, setRoutinesEnabled,
@@ -812,6 +813,21 @@ const MobileSettingsPanel = () => {
           {t('settings.chooseIcsFile')}
           <input type="file" accept=".ics" onChange={(e) => { handleFileUpload(e); setMobileSettingsView('main'); }} className="hidden" />
         </label>
+        {(() => {
+          const count = tasks.filter(t2 => t2.imported && !t2.isTaskCalendar && t2.importSource === 'file').length;
+          return count > 0 && (
+            <button
+              onClick={() => {
+                if (window.confirm(t('settings.removeFileImportedConfirm', 'Remove all {{n}} file-imported events? Re-importing the file brings them back.', { n: count }))) {
+                  removeFileImportedEvents();
+                }
+              }}
+              className="block text-xs font-medium text-red-500"
+            >
+              {t('settings.removeFileImported', 'Remove file-imported events')} ({count})
+            </button>
+          );
+        })()}
       </div>
 
     </div>
