@@ -13,6 +13,7 @@ import CalendarHeader from './CalendarHeader.jsx';
 import TimeGrid from './TimeGrid.jsx';
 import DayView from './DayView.jsx';
 import WeekView from './WeekView.jsx';
+import SchedDashboard from './sched/SchedDashboard.jsx';
 import InboxArchivedBar from './InboxArchivedBar.jsx';
 import GlanceSidebar from './GlanceSidebar.jsx';
 import InboxSidebar from './InboxSidebar.jsx';
@@ -831,6 +832,7 @@ const DesktopLayout = () => {
                     {effectiveViewMode === 'multi' && <TimeGrid />}
                     {effectiveViewMode === 'day' && <DayView />}
                     {effectiveViewMode === 'week' && <WeekView />}
+                    {effectiveViewMode === 'sched' && <SchedDashboard />}
                   </>
               }
             </div>

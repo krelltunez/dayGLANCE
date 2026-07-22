@@ -286,7 +286,7 @@ const DayPlanner = () => {
   const [viewMode, setViewMode] = useState(() => {
     // URL ?view= param takes priority over defaultView on cold load.
     const urlView = new URLSearchParams(window.location.search).get('view');
-    if (urlView && ['multi', 'day', 'week'].includes(urlView)) return urlView;
+    if (urlView && ['multi', 'day', 'week', 'sched'].includes(urlView)) return urlView;
     const def = localStorage.getItem('day-planner-default-view');
     return def ? JSON.parse(def) : 'multi';
   });
@@ -5588,7 +5588,8 @@ const DayPlanner = () => {
   // Seven dates for week view — strict (calendar week) or rolling (today + 6 days).
   // Empty array when not in week mode so it doesn't affect other views.
   const weekViewDates = useMemo(() => {
-    if (effectiveViewMode !== 'week') return [];
+    // The week strip drives both WEEK view columns and the SCHED date navigation.
+    if (effectiveViewMode !== 'week' && effectiveViewMode !== 'sched') return [];
     const base = new Date(selectedDate);
     base.setHours(0, 0, 0, 0);
     const todayStr = dateToString(new Date());
