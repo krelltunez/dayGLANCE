@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CalendarPlus } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
+import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
 import { taskColorToHex } from '../../utils/colorUtils.js';
 import { renderTitleWithoutTags } from '../../utils/textFormatting.jsx';
@@ -63,9 +64,12 @@ export const SchedDeadlineCard = ({ task, dateStr }) => {
     first; placed ones show their time. Tapping opens the time picker. */
 export const SchedRoutinePills = () => {
   const {
-    darkMode, routinesEnabled, todayRoutines, routineCompletions,
-    scheduleRoutineAt, formatTime, use24HourClock, isTablet,
+    darkMode, scheduleRoutineAt, formatTime, use24HourClock, isTablet,
   } = useDayPlannerCtx();
+  // Routine state lives in the FEATURES context (same as TimeGrid), not the
+  // day-planner one — destructuring it from the wrong context reads undefined
+  // and silently renders nothing.
+  const { routinesEnabled, todayRoutines, routineCompletions } = useFeaturesCtx();
   const { t } = useTranslation();
   const [pickerFor, setPickerFor] = useState(null);
 

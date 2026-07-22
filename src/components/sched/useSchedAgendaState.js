@@ -21,12 +21,12 @@ export default function useSchedAgendaState() {
     getTasksForDate, getDeadlineTasksForDate,
     setNewTask, setShowAddTask,
     scheduleTaskAtNextSlot,
-    routinesEnabled, todayRoutines,
     // Window length lives in App state so expandedRecurringTasks can expand
     // recurring occurrences across the agenda's whole rolling window.
     schedDaysShown: daysShown, setSchedDaysShown: setDaysShown,
   } = useDayPlannerCtx();
-  const { isVisibleForUser } = useFeaturesCtx();
+  // Routine state lives in the FEATURES context (same as TimeGrid).
+  const { isVisibleForUser, routinesEnabled, todayRoutines } = useFeaturesCtx();
   const [filters, setFilters] = useState(EMPTY_SCHED_FILTERS);
   const [showEmptyDays, setShowEmptyDays] = useState(
     () => localStorage.getItem('day-planner-sched-show-empty') === 'true'
