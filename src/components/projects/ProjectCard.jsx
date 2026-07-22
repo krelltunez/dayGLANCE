@@ -10,7 +10,7 @@ import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { calculateProjectProgress, isProjectStalled } from '../../utils/projectProgress.js';
-import { TAILWIND_TO_HEX, hexToRgba } from '../../utils/colorUtils.js';
+import { TAILWIND_TO_HEX, hexToRgba, getProjectColor } from '../../utils/colorUtils.js';
 import ProjectProgress from './ProjectProgress.jsx';
 import NotesSubtasksPanel from '../NotesSubtasksPanel.jsx';
 import { renderTitle, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, getLinkUrl, isObsidianNoteOnlyTask } from '../../utils/textFormatting.jsx';
@@ -97,7 +97,11 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   const handleDelete = () => setShowConfirm(true);
 
   const parentGoal = project.goalId ? goals.find(g => g.id === project.goalId) : null;
-  const goalHex = parentGoal ? toHex(parentGoal.color || 'bg-blue-500') : null;
+  // Effective project color (own color → goal color → blue). Standalone cards
+  // keep goalHex null for now — the colored treatment for them lands with the
+  // standalone-card UI pass.
+  const projectColor = getProjectColor(project, parentGoal);
+  const goalHex = parentGoal ? toHex(projectColor) : null;
 
   // Multi-user: only count/show the current user's tasks within the project.
   const allTasks = [...tasks, ...unscheduledTasks].filter(isVisibleForUser);
@@ -232,13 +236,14 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
       id: crypto.randomUUID(),
       title,
       duration: 30,
-      color: parentGoal?.color || 'bg-blue-500',
+      color: projectColor,
       completed: false,
       isAllDay: false,
       notes: '',
       subtasks: [],
       priority: 0,
       projectId: project.id,
+      ...(project.assignedUserSyncIds?.length ? { assignedUserSyncIds: project.assignedUserSyncIds } : {}),
       lastModified: new Date().toISOString(),
     };
     setUnscheduledTasks(prev => [...prev, newTask]);

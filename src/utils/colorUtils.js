@@ -82,3 +82,16 @@ export const taskColorToHex = (color, nativeCalendarColor) => {
   if (color.startsWith('#')) return color;
   return TAILWIND_TO_HEX[color] || '#3b82f6';
 };
+
+/** Default color for projects with no explicit color and no parent goal. */
+export const PROJECT_FALLBACK_COLOR = 'bg-blue-500';
+
+/**
+ * Effective display color for a project: its own color if one was picked,
+ * else the parent goal's color, else the standalone default (blue).
+ * Colors are copied at creation (a later goal-color change does not ripple
+ * into existing projects that saved their own color), but projects created
+ * before the color field existed fall through to the goal here.
+ */
+export const getProjectColor = (project, parentGoal) =>
+  project?.color || parentGoal?.color || PROJECT_FALLBACK_COLOR;

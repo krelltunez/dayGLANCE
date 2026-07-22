@@ -8,6 +8,7 @@ import { SOURCE_APPS } from '../native.js';
 import LastGlanceBadge from './LastGlanceBadge.jsx';
 import { dateToString, extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
 import { getRecurrencePresets } from '../utils/recurrenceEngine.js';
+import { getProjectColor } from '../utils/colorUtils.js';
 
 const MobileNewTaskModal = () => {
   const { t } = useTranslation();
@@ -170,7 +171,15 @@ const MobileNewTaskModal = () => {
                       const pid = e.target.value || null;
                       const proj = pid ? projects.find(p => p.id === pid) : null;
                       const parentGoal = proj?.goalId ? goals.find(g => g.id === proj.goalId) : null;
-                      setNewTask({ ...newTask, projectId: pid, ...(parentGoal?.color ? { color: parentGoal.color } : {}) });
+                      // Copy-at-creation inheritance: adopting a project stamps its
+                      // effective color and assigned users onto the draft task
+                      // (deselecting clears the inherited users).
+                      setNewTask({
+                        ...newTask,
+                        projectId: pid,
+                        ...(proj ? { color: getProjectColor(proj, parentGoal) } : {}),
+                        assignedUserSyncIds: proj?.assignedUserSyncIds || [],
+                      });
                     }}
                     className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
                   >
