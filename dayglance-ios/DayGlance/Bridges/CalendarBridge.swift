@@ -56,7 +56,11 @@ final class CalendarBridge {
             case .restricted:    status = "restricted"
             case .denied:        status = "denied"
             case .authorized:    status = "authorized"
-            @unknown default:    status = "unknown"
+            // Plain default (not @unknown) on purpose: it absorbs the iOS 17+
+            // cases (.fullAccess/.writeOnly), which can never be returned on the
+            // OS versions this branch runs on, without tripping the
+            // switch-must-be-exhaustive warning.
+            default:             status = "unknown"
             }
         }
         return #"{"status":"\#(status)"}"#
