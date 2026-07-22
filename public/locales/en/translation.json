@@ -344,7 +344,9 @@
     "enableE2EEncryption": "Enable end-to-end encryption",
     "icloudIntents": "iCloud intents",
     "icloudIntentsDesc": "Share task intents with other GLANCE apps through iCloud Drive. Files sync automatically across your Apple devices.",
-    "icloudIntentsEnable": "Enable iCloud intents"
+    "icloudIntentsEnable": "Enable iCloud intents",
+    "removeFileImported": "Remove file-imported events",
+    "removeFileImportedConfirm": "Remove all {{n}} file-imported events? Re-importing the file brings them back."
   },
   "task": {
     "newScheduled": "New Scheduled Task",

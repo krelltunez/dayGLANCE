@@ -344,7 +344,9 @@
     "icloudIntentsEnable": "iCloud-Intents aktivieren",
     "viewSched": "SCHED",
     "portraitViewDefault": "Hochformat-Ansicht",
-    "landscapeViewDefault": "Querformat-Ansicht"
+    "landscapeViewDefault": "Querformat-Ansicht",
+    "removeFileImported": "Aus Datei importierte Termine entfernen",
+    "removeFileImportedConfirm": "Alle {{n}} aus Datei importierten Termine entfernen? Ein erneuter Datei-Import stellt sie wieder her."
   },
   "task": {
     "newScheduled": "Neue geplante Aufgabe",
