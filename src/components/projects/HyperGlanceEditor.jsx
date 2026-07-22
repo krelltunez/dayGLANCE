@@ -37,7 +37,7 @@ const nextQuarterHour = () => {
  * every user change; the initial value never triggers an emit, so mounting
  * the editor can't dirty the project.
  */
-const HyperGlanceEditor = ({ value, onChange }) => {
+const HyperGlanceEditor = ({ value, onChange, wide = false }) => {
   const { darkMode, borderClass, textPrimary, textSecondary, hoverBg, use24HourClock, isTablet } =
     useDayPlannerCtx();
   const { t } = useTranslation();
@@ -121,10 +121,12 @@ const HyperGlanceEditor = ({ value, onChange }) => {
       </button>
 
       {hgEnabled && (
-        <div className={`px-3 pb-4 pt-1 space-y-4 border-t ${borderClass}`}>
-          {/* Icon picker */}
-          <div className="flex flex-col gap-1.5">
-            <label className={`text-xs font-medium ${textSecondary}`}>Icon</label>
+        <div className={wide
+          ? `px-4 pb-4 pt-2 border-t ${borderClass} grid grid-cols-2 gap-x-6 gap-y-4 items-start`
+          : `px-3 pb-4 pt-1 space-y-4 border-t ${borderClass}`}>
+          {/* Icon picker — spans the left column in the wide (planner) layout */}
+          <div className={`flex flex-col gap-1.5 ${wide ? 'row-span-4' : ''}`}>
+            <label className={`text-xs font-medium ${textSecondary}`}>{t('common.icon', 'Icon')}</label>
             {HG_ICON_GROUPS.map(({ group, icons }) => (
               <div key={group}>
                 <div className={`text-[10px] font-medium ${textSecondary} opacity-60 mb-1`}>{group}</div>
@@ -156,7 +158,7 @@ const HyperGlanceEditor = ({ value, onChange }) => {
 
           {/* Color picker */}
           <div className="flex flex-col gap-1.5">
-            <label className={`text-xs font-medium ${textSecondary}`}>Color</label>
+            <label className={`text-xs font-medium ${textSecondary}`}>{t('common.color', 'Color')}</label>
             <div className="flex flex-wrap gap-2">
               {HG_COLORS.map(c => (
                 <button
@@ -173,9 +175,9 @@ const HyperGlanceEditor = ({ value, onChange }) => {
 
           {/* Schedule type */}
           <div className="flex flex-col gap-1.5">
-            <label className={`text-xs font-medium ${textSecondary}`}>Schedule</label>
+            <label className={`text-xs font-medium ${textSecondary}`}>{t('goals.hgSchedule', 'Schedule')}</label>
             <div className={`flex rounded-lg border ${borderClass} overflow-hidden`}>
-              {[{ value: true, label: 'Recurring' }, { value: false, label: 'One-off' }].map(opt => (
+              {[{ value: true, label: t('goals.hgRecurring', 'Recurring') }, { value: false, label: t('goals.hgOneOff', 'One-off') }].map(opt => (
                 <button
                   key={String(opt.value)}
                   type="button"
@@ -193,7 +195,7 @@ const HyperGlanceEditor = ({ value, onChange }) => {
           {/* Recurring: day picker */}
           {hgIsRecurring && (
             <div className="flex flex-col gap-1.5">
-              <label className={`text-xs font-medium ${textSecondary}`}>Days</label>
+              <label className={`text-xs font-medium ${textSecondary}`}>{t('common.days', 'Days')}</label>
               <div className="flex gap-1 flex-wrap">
                 {HG_DAYS.slice(1).concat(HG_DAYS[0]).map(day => (
                   <button
@@ -217,7 +219,7 @@ const HyperGlanceEditor = ({ value, onChange }) => {
           {/* One-off: date picker */}
           {!hgIsRecurring && (
             <div className="flex flex-col gap-1.5">
-              <label className={`text-xs font-medium ${textSecondary}`}>Date</label>
+              <label className={`text-xs font-medium ${textSecondary}`}>{t('common.date', 'Date')}</label>
               <button
                 type="button"
                 onClick={() => setShowHgDatePicker(true)}
@@ -225,7 +227,7 @@ const HyperGlanceEditor = ({ value, onChange }) => {
               >
                 {hgScheduledDate
                   ? new Date(hgScheduledDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                  : 'Select date…'}
+                  : t('goals.selectDate', 'Select date…')}
               </button>
               {showHgDatePicker && (
                 <DatePicker
@@ -240,7 +242,7 @@ const HyperGlanceEditor = ({ value, onChange }) => {
           {/* Time + Duration row */}
           <div className="flex gap-3">
             <div className="flex flex-col gap-1.5 flex-1">
-              <label className={`text-xs font-medium ${textSecondary}`}>Start time</label>
+              <label className={`text-xs font-medium ${textSecondary}`}>{t('common.startTime', 'Start time')}</label>
               <button
                 type="button"
                 onClick={() => setShowHgTimePicker(true)}
@@ -264,7 +266,7 @@ const HyperGlanceEditor = ({ value, onChange }) => {
               )}
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className={`text-xs font-medium ${textSecondary}`}>Duration</label>
+              <label className={`text-xs font-medium ${textSecondary}`}>{t('common.duration', 'Duration')}</label>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
@@ -283,9 +285,9 @@ const HyperGlanceEditor = ({ value, onChange }) => {
 
           {/* Template tasks */}
           {hgIsRecurring && (
-            <div className="flex flex-col gap-1.5">
+            <div className={`flex flex-col gap-1.5 ${wide ? 'col-span-2' : ''}`}>
               <label className={`text-xs font-medium ${textSecondary}`}>
-                Template tasks <span className="opacity-50 font-normal">(instantiated each session)</span>
+                {t('goals.templateTasks', 'Template tasks')} <span className="opacity-50 font-normal">{t('goals.templateTasksHint', '(instantiated each session)')}</span>
               </label>
               {hgTemplateTasks.map(tt => (
                 <div key={tt.id} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
@@ -305,7 +307,7 @@ const HyperGlanceEditor = ({ value, onChange }) => {
                   value={hgNewTask}
                   onChange={e => setHgNewTask(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addHGTemplateTask(); } }}
-                  placeholder="Add task…"
+                  placeholder={t('goals.addTaskPlaceholder', 'Add task…')}
                   className={`flex-1 px-2 py-1.5 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     darkMode ? 'bg-gray-700 text-gray-100 placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'
                   }`}
@@ -331,7 +333,7 @@ const HyperGlanceEditor = ({ value, onChange }) => {
             <h4 className={`text-sm font-semibold ${textPrimary} mb-3`}>{t('goals.editTemplateTask')}</h4>
             <div className="space-y-3">
               <div>
-                <label className={`text-xs font-medium ${textSecondary} mb-1 block`}>Name</label>
+                <label className={`text-xs font-medium ${textSecondary} mb-1 block`}>{t('common.name', 'Name')}</label>
                 <input
                   type="text"
                   value={editingTemplateTask.name}
@@ -341,19 +343,19 @@ const HyperGlanceEditor = ({ value, onChange }) => {
                 />
               </div>
               <div>
-                <label className={`text-xs font-medium ${textSecondary} mb-1 block`}>Note <span className="font-normal opacity-60">(carried into each session)</span></label>
+                <label className={`text-xs font-medium ${textSecondary} mb-1 block`}>{t('goals.templateTaskNote', 'Note')} <span className="font-normal opacity-60">{t('goals.templateTaskNoteHint', '(carried into each session)')}</span></label>
                 <textarea
                   value={editingTemplateTask.notes}
                   onChange={e => setEditingTemplateTask(prev => ({ ...prev, notes: e.target.value }))}
                   rows={3}
-                  placeholder="Optional note…"
+                  placeholder={t('goals.optionalNote', 'Optional note…')}
                   className={`w-full px-2 py-1.5 text-sm rounded-lg border resize-none ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-500' : 'bg-white border-stone-300 text-stone-900 placeholder-stone-400'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                 />
               </div>
             </div>
             <div className="flex gap-2 justify-end mt-4">
-              <button type="button" onClick={() => setEditingTemplateTask(null)} className={`px-3 py-1.5 text-sm rounded-lg ${hoverBg} ${textSecondary} transition-colors`}>Cancel</button>
-              <button type="button" onClick={saveEditingTemplateTask} disabled={!editingTemplateTask.name.trim()} className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium disabled:opacity-50">Save</button>
+              <button type="button" onClick={() => setEditingTemplateTask(null)} className={`px-3 py-1.5 text-sm rounded-lg ${hoverBg} ${textSecondary} transition-colors`}>{t('common.cancel', 'Cancel')}</button>
+              <button type="button" onClick={saveEditingTemplateTask} disabled={!editingTemplateTask.name.trim()} className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium disabled:opacity-50">{t('common.save', 'Save')}</button>
             </div>
           </div>
         </div>

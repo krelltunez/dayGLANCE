@@ -8,7 +8,7 @@ const ShortcutHelpModal = () => {
   const {
     setShowShortcutHelp,
     cardBg, borderClass, textPrimary, textSecondary, darkMode,
-    canShowViewCycler,
+    canShowViewCycler, schedOnlyCycler,
   } = useDayPlannerCtx();
 
   return (
@@ -34,6 +34,12 @@ const ShortcutHelpModal = () => {
                 ['1', t('shortcuts.view3Day')],
                 ['2', t('shortcuts.viewDay')],
                 ['3', t('shortcuts.viewWeek')],
+                ['4', t('shortcuts.viewSched', 'SCHED view')],
+                ['C', t('shortcuts.cycleViews', 'Cycle views')],
+              ] : schedOnlyCycler ? [
+                ['1', t('shortcuts.view3Day')],
+                ['4', t('shortcuts.viewSched', 'SCHED view')],
+                ['C', t('shortcuts.cycleViews', 'Cycle views')],
               ] : []),
             ].map(([key, desc]) => (
               <div key={key} className={`flex items-center gap-3 py-1 ${textSecondary}`}>

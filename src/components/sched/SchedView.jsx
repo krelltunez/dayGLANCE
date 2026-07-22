@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronDown, Eye, EyeOff, ListFilter, Plus } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useTranslation } from 'react-i18next';
@@ -13,15 +13,25 @@ import SchedFilterPopup from './SchedFilterPopup.jsx';
  * the desktop dashboard (SchedDashboard) shares the same agenda state.
  */
 const SchedView = () => {
-  const { borderClass, textSecondary, hoverBg } = useDayPlannerCtx();
+  const { borderClass, textSecondary, hoverBg, calendarRef } = useDayPlannerCtx();
   const { t } = useTranslation();
   const [showFilters, setShowFilters] = useState(false);
 
+  // The shared scroll container keeps GRID/LIST's scroll offset (e.g. the
+  // timeline's scroll-to-now); SCHED starts at the top of the agenda.
+  useEffect(() => {
+    calendarRef?.current?.scrollTo?.({ top: 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const {
     visibleDays, filtersActive,
+    overdueTasks, rescheduleToToday,
     filters, setFilters,
+    filterPresets, saveFilterPreset, deleteFilterPreset, applyFilterPreset,
     availableColors, availableTags,
     showEmptyDays, toggleEmptyDays,
+    nextInstanceOnly, toggleNextInstanceOnly,
     showMoreDays,
     addTaskOnDay,
   } = useSchedAgendaState();
@@ -49,17 +59,29 @@ const SchedView = () => {
           }`}
         >
           <ListFilter size={13} />
-          Filter{filtersActive ? ` · ${filters.colors.length + filters.tags.length + filters.projectIds.length}` : ''}
+          {t('sched.filter', 'Filter')}{filtersActive ? ` · ${filters.colors.length + filters.tags.length + filters.projectIds.length}` : ''}
         </button>
         <button
           onClick={toggleEmptyDays}
           className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${borderClass} ${textSecondary} ${hoverBg} transition-colors`}
-          title={showEmptyDays ? 'Hide empty days' : 'Show empty days'}
+          title={showEmptyDays ? t('sched.hideEmptyDays', 'Hide empty days') : t('sched.showEmptyDays', 'Show empty days')}
         >
           {showEmptyDays ? <Eye size={13} /> : <EyeOff size={13} />}
-          Empty days
+          {t('sched.emptyDays', 'Empty days')}
         </button>
       </div>
+
+      {/* Overdue — incomplete tasks from before the visible window */}
+      {overdueTasks.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <div className="text-xs font-semibold uppercase tracking-wide text-amber-500 pt-1">
+            {t('common.overdue', 'Overdue')} · {overdueTasks.length}
+          </div>
+          {overdueTasks.map(task => (
+            <SchedTaskCard key={task.id} task={task} showProject showOverdueDate onSchedule={rescheduleToToday} />
+          ))}
+        </div>
+      )}
 
       {/* Day groups */}
       {visibleDays.map(day => (
@@ -68,7 +90,7 @@ const SchedView = () => {
             {dayLabel(day)}
           </div>
           {day.tasks.length > 0 ? (
-            day.tasks.map(task => <SchedTaskCard key={task.id} task={task} />)
+            day.tasks.map(task => <SchedTaskCard key={task.id} task={task} showProject />)
           ) : (
             <button
               onClick={() => addTaskOnDay(day.dateStr)}
@@ -83,7 +105,7 @@ const SchedView = () => {
 
       {visibleDays.length === 0 && (
         <p className={`text-sm ${textSecondary} text-center py-8`}>
-          {filtersActive ? 'No tasks match the current filters.' : 'Nothing scheduled in this window.'}
+          {filtersActive ? t('sched.noMatchingTasks', 'No tasks match the current filters.') : t('sched.nothingScheduled', 'Nothing scheduled in this window.')}
         </p>
       )}
 
@@ -93,15 +115,21 @@ const SchedView = () => {
         className={`flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium ${textSecondary} ${hoverBg} rounded-xl border ${borderClass} transition-colors`}
       >
         <ChevronDown size={13} />
-        Show {LOAD_MORE_DAYS} more days
+        {t('sched.showMoreDays', 'Show {{days}} more days', { days: LOAD_MORE_DAYS })}
       </button>
 
       {showFilters && (
         <SchedFilterPopup
           filters={filters}
           setFilters={setFilters}
+          filterPresets={filterPresets}
+          saveFilterPreset={saveFilterPreset}
+          deleteFilterPreset={deleteFilterPreset}
+          applyFilterPreset={applyFilterPreset}
           availableColors={availableColors}
           availableTags={availableTags}
+          nextInstanceOnly={nextInstanceOnly}
+          toggleNextInstanceOnly={toggleNextInstanceOnly}
           onClose={() => setShowFilters(false)}
         />
       )}

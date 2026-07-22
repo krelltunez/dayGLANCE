@@ -48,7 +48,7 @@ const SettingsModal = () => {
     defaultView, setDefaultView,
     dayViewMode, setDayViewMode,
     weekViewMode, setWeekViewMode,
-    canShowViewCycler,
+    canShowViewCycler, schedOnlyCycler, setViewMode,
     glancePage, setGlancePage,
     mobileViewMode, setMobileViewMode,
     listEndOfDayTime, setListEndOfDayTime,
@@ -252,8 +252,10 @@ const SettingsModal = () => {
                   {/* Left column */}
                   <div className="space-y-6">
 
-                    {/* View Defaults Section (only when the cycler is available) */}
-                    {canShowViewCycler && (
+                    {/* View Defaults Section — desktop only (tablet has its own
+                        section below). Wide desktop offers all four views;
+                        narrow desktop offers MULTI/SCHED, matching the cycler. */}
+                    {(canShowViewCycler || schedOnlyCycler) && !isTablet && (
                       <div className="space-y-3">
                         <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                           <LayoutGrid size={16} className={textSecondary} />
@@ -262,7 +264,7 @@ const SettingsModal = () => {
                         <div>
                           <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.defaultViewOnLoad')}</label>
                           <div className="flex gap-2">
-                            {['multi', 'day', 'week'].map(v => (
+                            {(canShowViewCycler ? ['multi', 'day', 'week', 'sched'] : ['multi', 'sched']).map(v => (
                               <button
                                 key={v}
                                 onClick={() => setDefaultView(v)}
@@ -272,11 +274,12 @@ const SettingsModal = () => {
                                     : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                                 }`}
                               >
-                                {v === 'multi' ? t('settings.viewMultiDay') : v === 'day' ? t('settings.viewDay') : t('settings.viewWeek')}
+                                {v === 'multi' ? t('settings.viewMultiDay') : v === 'day' ? t('settings.viewDay') : v === 'week' ? t('settings.viewWeek') : t('settings.viewSched', 'SCHED')}
                               </button>
                             ))}
                           </div>
                         </div>
+                        {canShowViewCycler && (<>
                         <div>
                           <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.dayViewMode')}</label>
                           <div className="flex gap-2">
@@ -365,34 +368,57 @@ const SettingsModal = () => {
                             </div>
                           </div>
                         )}
+                        </>)}
                       </div>
                     )}
 
-                    {canShowViewCycler && <hr className={borderClass} />}
+                    {(canShowViewCycler || schedOnlyCycler) && !isTablet && <hr className={borderClass} />}
 
-                    {/* Tablet timeline view */}
+                    {/* Tablet view defaults — portrait (GRID/LIST/SCHED, shared
+                        with the phone toggle) and landscape (MULTI/SCHED via
+                        the desktop cycler) are independent view states */}
                     {isTablet && (
                       <>
                         <div className="space-y-3">
                           <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
                             <LayoutGrid size={16} className={textSecondary} />
-                            {t('settings.timelineView')}
+                            {t('settings.viewDefaults')}
                           </h4>
-                          <p className={`text-xs ${textSecondary}`}>{t('settings.timelineViewHint')}</p>
-                          <div className="flex gap-2">
-                            {['grid', 'list'].map(mode => (
-                              <button
-                                key={mode}
-                                onClick={() => setMobileViewMode(mode)}
-                                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                                  mobileViewMode === mode
-                                    ? 'bg-blue-600 text-white border-blue-600'
-                                    : `${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-stone-300'} ${textPrimary}`
-                                }`}
-                              >
-                                {mode === 'grid' ? t('settings.viewGrid') : t('settings.viewList')}
-                              </button>
-                            ))}
+                          <div>
+                            <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.portraitViewDefault', 'Portrait view')}</label>
+                            <div className="flex gap-2">
+                              {['grid', 'list', 'sched'].map(mode => (
+                                <button
+                                  key={mode}
+                                  onClick={() => setMobileViewMode(mode)}
+                                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                                    mobileViewMode === mode
+                                      ? 'bg-blue-600 text-white border-blue-600'
+                                      : `${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-stone-300'} ${textPrimary}`
+                                  }`}
+                                >
+                                  {mode === 'grid' ? t('settings.viewGrid') : mode === 'list' ? t('settings.viewList') : t('settings.viewSched', 'SCHED')}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.landscapeViewDefault', 'Landscape view')}</label>
+                            <div className="flex gap-2">
+                              {['multi', 'sched'].map(v => (
+                                <button
+                                  key={v}
+                                  onClick={() => { setDefaultView(v); setViewMode(v); }}
+                                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                                    defaultView === v
+                                      ? 'bg-blue-600 text-white border-blue-600'
+                                      : `${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-stone-300'} ${textPrimary}`
+                                  }`}
+                                >
+                                  {v === 'multi' ? t('settings.viewMultiDay') : t('settings.viewSched', 'SCHED')}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                           {mobileViewMode === 'list' && (
                             <div className="mt-3 space-y-1.5">

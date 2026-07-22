@@ -5,9 +5,10 @@ import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
 import { dateToString } from '../../utils/taskUtils.js';
 import { TASK_COLORS } from '../../utils/colorUtils.js';
-import { EMPTY_SCHED_FILTERS, toggleSchedFilter } from '../../utils/schedAgenda.js';
+import { EMPTY_SCHED_FILTERS, toggleSchedFilter, groupProjectsForFilter } from '../../utils/schedAgenda.js';
 import useSchedAgendaState, { LOAD_MORE_DAYS } from './useSchedAgendaState.js';
 import SchedTaskCard from './SchedTaskCard.jsx';
+import SchedFilterPresets from './SchedFilterPresets.jsx';
 
 /** One collapsible section of the desktop filter rail. */
 const RailSection = ({ title, count, children, defaultOpen = true }) => {
@@ -36,14 +37,17 @@ const RailSection = ({ title, count, children, defaultOpen = true }) => {
  */
 const SchedDashboard = () => {
   const { cardBg, borderClass, textPrimary, textSecondary, hoverBg } = useDayPlannerCtx();
-  const { projects, goalsProjectsEnabled } = useFeaturesCtx();
+  const { projects, goals, goalsProjectsEnabled } = useFeaturesCtx();
   const { t } = useTranslation();
 
   const {
     visibleDays, filtersActive,
+    overdueTasks, rescheduleToToday,
     filters, setFilters,
+    filterPresets, saveFilterPreset, deleteFilterPreset, applyFilterPreset,
     availableColors, availableTags,
     showEmptyDays, toggleEmptyDays,
+    nextInstanceOnly, toggleNextInstanceOnly,
     showMoreDays,
     addTaskOnDay,
   } = useSchedAgendaState();
@@ -59,9 +63,7 @@ const SchedDashboard = () => {
   };
 
   const colorOptions = TASK_COLORS.filter(c => availableColors.has(c.class));
-  const activeProjects = goalsProjectsEnabled
-    ? projects.filter(p => p.status !== 'archived' && p.status !== 'completed')
-    : [];
+  const projectGroups = goalsProjectsEnabled ? groupProjectsForFilter(projects, goals) : [];
 
   const chip = (selected) => `px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${
     selected
@@ -74,6 +76,20 @@ const SchedDashboard = () => {
       {/* Agenda */}
       <div className="flex-1 min-w-0 px-6 py-4">
         <div className="max-w-2xl mx-auto flex flex-col gap-4">
+          {/* Overdue — incomplete tasks from before the visible window */}
+          {overdueTasks.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <div className={`flex items-center justify-between border-b ${borderClass} pb-1`}>
+                <span className="text-sm font-semibold text-amber-500">
+                  {t('common.overdue', 'Overdue')} · {overdueTasks.length}
+                </span>
+              </div>
+              {overdueTasks.map(task => (
+                <SchedTaskCard key={task.id} task={task} showProject showOverdueDate onSchedule={rescheduleToToday} />
+              ))}
+            </div>
+          )}
+
           {visibleDays.map(day => (
             <div key={day.dateStr} className="flex flex-col gap-1.5">
               <div className={`flex items-center justify-between border-b ${borderClass} pb-1`}>
@@ -84,13 +100,13 @@ const SchedDashboard = () => {
                   onClick={() => addTaskOnDay(day.dateStr)}
                   className={`p-1 rounded ${hoverBg} ${textSecondary} transition-colors`}
                   title={t('task.addTask', 'Add task')}
-                  aria-label={`Add task on ${day.dateStr}`}
+                  aria-label={t('sched.addTaskOnDate', 'Add task on {{date}}', { date: day.dateStr })}
                 >
                   <Plus size={14} />
                 </button>
               </div>
               {day.tasks.length > 0 ? (
-                day.tasks.map(task => <SchedTaskCard key={task.id} task={task} />)
+                day.tasks.map(task => <SchedTaskCard key={task.id} task={task} showProject />)
               ) : (
                 <button
                   onClick={() => addTaskOnDay(day.dateStr)}
@@ -105,7 +121,7 @@ const SchedDashboard = () => {
 
           {visibleDays.length === 0 && (
             <p className={`text-sm ${textSecondary} text-center py-10`}>
-              {filtersActive ? 'No tasks match the current filters.' : 'Nothing scheduled in this window.'}
+              {filtersActive ? t('sched.noMatchingTasks', 'No tasks match the current filters.') : t('sched.nothingScheduled', 'Nothing scheduled in this window.')}
             </p>
           )}
 
@@ -114,30 +130,44 @@ const SchedDashboard = () => {
             className={`flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${textSecondary} ${hoverBg} rounded-xl border ${borderClass} transition-colors`}
           >
             <ChevronDown size={13} />
-            Show {LOAD_MORE_DAYS} more days
+            {t('sched.showMoreDays', 'Show {{days}} more days', { days: LOAD_MORE_DAYS })}
           </button>
         </div>
       </div>
 
-      {/* Filter rail */}
+      {/* Filter panel — floats in the space right of the agenda */}
       <div
-        className={`w-64 flex-shrink-0 border-l ${borderClass} ${cardBg} px-3 py-3 flex flex-col gap-3`}
-        style={{ position: 'sticky', top: 'calc(var(--header-row-h, 40px) + 4px)' }}
+        className={`w-64 flex-shrink-0 rounded-xl border ${borderClass} ${cardBg} shadow-sm px-3 py-3 mr-6 my-4 flex flex-col gap-3`}
+        style={{ position: 'sticky', top: 'calc(var(--header-row-h, 40px) + 12px)' }}
       >
         <div className="flex items-center justify-between px-1">
-          <span className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>Filters</span>
+          <span className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>{t('sched.filters', 'Filters')}</span>
           {filtersActive && (
             <button
               onClick={() => setFilters(EMPTY_SCHED_FILTERS)}
               className="flex items-center gap-1 text-xs font-medium text-blue-500"
             >
               <X size={11} />
-              Clear
+              {t('common.clear', 'Clear')}
             </button>
           )}
         </div>
 
-        <RailSection title="Colors" count={filters.colors.length}>
+        {(filterPresets.length > 0 || filtersActive) && (
+          <RailSection title={t('sched.presets', 'Presets')} count={0}>
+            <div className="px-1">
+              <SchedFilterPresets
+                filters={filters}
+                filterPresets={filterPresets}
+                applyFilterPreset={applyFilterPreset}
+                deleteFilterPreset={deleteFilterPreset}
+                saveFilterPreset={saveFilterPreset}
+              />
+            </div>
+          </RailSection>
+        )}
+
+        <RailSection title={t('sched.colors', 'Colors')} count={filters.colors.length}>
           {colorOptions.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 px-1">
               {colorOptions.map(c => (
@@ -151,10 +181,10 @@ const SchedDashboard = () => {
                 />
               ))}
             </div>
-          ) : <p className={`text-xs ${textSecondary} px-1`}>No colors in view.</p>}
+          ) : <p className={`text-xs ${textSecondary} px-1`}>{t('sched.noColorsInView', 'No colors in view.')}</p>}
         </RailSection>
 
-        <RailSection title="Tags" count={filters.tags.length}>
+        <RailSection title={t('sched.tags', 'Tags')} count={filters.tags.length}>
           {availableTags.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 px-1">
               {availableTags.map(tag => (
@@ -163,39 +193,57 @@ const SchedDashboard = () => {
                 </button>
               ))}
             </div>
-          ) : <p className={`text-xs ${textSecondary} px-1`}>No tags in view.</p>}
+          ) : <p className={`text-xs ${textSecondary} px-1`}>{t('sched.noTagsInView', 'No tags in view.')}</p>}
         </RailSection>
 
         {goalsProjectsEnabled && (
-          <RailSection title="Projects" count={filters.projectIds.length}>
-            {activeProjects.length > 0 ? (
-              <div className="flex flex-col gap-1 px-1">
-                {activeProjects.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => setFilters(f => toggleSchedFilter(f, 'projectIds', p.id))}
-                    className={`text-left ${chip(filters.projectIds.includes(p.id))} truncate`}
-                  >
-                    {p.title}
-                  </button>
+          <RailSection title={t('sched.projects', 'Projects')} count={filters.projectIds.length}>
+            {projectGroups.length > 0 ? (
+              <div className="flex flex-col gap-2 px-1">
+                {projectGroups.map(group => (
+                  <div key={group.label} className="flex flex-col gap-1">
+                    <span className={`text-[10px] font-semibold uppercase tracking-wide ${textSecondary} opacity-60`}>
+                      {group.isStandalone ? t('sched.standalone', 'Standalone') : group.label}
+                    </span>
+                    {group.projects.map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => setFilters(f => toggleSchedFilter(f, 'projectIds', p.id))}
+                        className={`text-left ${chip(filters.projectIds.includes(p.id))} truncate`}
+                      >
+                        {p.title}
+                      </button>
+                    ))}
+                  </div>
                 ))}
                 <button
                   onClick={() => setFilters(f => toggleSchedFilter(f, 'projectIds', 'none'))}
                   className={`text-left ${chip(filters.projectIds.includes('none'))}`}
                 >
-                  No project
+                  {t('sched.noProject', 'No project')}
                 </button>
               </div>
-            ) : <p className={`text-xs ${textSecondary} px-1`}>No active projects.</p>}
+            ) : <p className={`text-xs ${textSecondary} px-1`}>{t('sched.noActiveProjects', 'No active projects.')}</p>}
           </RailSection>
         )}
+
+        <RailSection title={t('sched.recurring', 'Recurring')} count={nextInstanceOnly ? 1 : 0}>
+          <div className="flex gap-1.5 px-1">
+            <button onClick={() => nextInstanceOnly && toggleNextInstanceOnly()} className={chip(!nextInstanceOnly)}>
+              {t('sched.allInstances', 'All instances')}
+            </button>
+            <button onClick={() => !nextInstanceOnly && toggleNextInstanceOnly()} className={chip(nextInstanceOnly)}>
+              {t('sched.nextOnly', 'Next only')}
+            </button>
+          </div>
+        </RailSection>
 
         <button
           onClick={toggleEmptyDays}
           className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1.5 rounded-lg border ${borderClass} ${textSecondary} ${hoverBg} transition-colors`}
         >
           {showEmptyDays ? <Eye size={13} /> : <EyeOff size={13} />}
-          {showEmptyDays ? 'Hide empty days' : 'Show empty days'}
+          {showEmptyDays ? t('sched.hideEmptyDays', 'Hide empty days') : t('sched.showEmptyDays', 'Show empty days')}
         </button>
       </div>
     </div>

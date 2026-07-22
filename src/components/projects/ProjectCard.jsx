@@ -1,12 +1,12 @@
 import React, { forwardRef, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import ConfirmDialog from '../ConfirmDialog.jsx';
-import ProjectPlanner from './ProjectPlanner.jsx';
 import {
   AlertTriangle, BookOpen, Calendar, CheckCircle2, CheckSquare, ChevronDown,
   Edit2, ExternalLink, Eye, EyeOff, FileText, GripVertical, LayoutDashboard,
   LogIn, Plus, Square, Trash2, X, Zap,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
@@ -45,6 +45,7 @@ const IS_IOS = typeof navigator !== 'undefined' && (
  *   onEditClick  — called to open the project edit form
  */
 const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps, onMoveToClick }, ref) => {
+  const { t } = useTranslation();
   const {
     tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks, reorderUnscheduledTasks,
@@ -58,7 +59,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     mobileActiveTab,
   } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
-  const { goals, deleteProject, updateProject, generateAISubtasks, aiSubtasksLoadingForTask, aiConfig, showGoalsDashboard, enterHyperGlanceMode, isVisibleForUser } = useFeaturesCtx();
+  const { goals, deleteProject, updateProject, setPlannerProjectId, generateAISubtasks, aiSubtasksLoadingForTask, aiConfig, showGoalsDashboard, enterHyperGlanceMode, isVisibleForUser } = useFeaturesCtx();
 
   const isScheduled = (t) => !!tasks.find(s => s.id === t.id);
 
@@ -94,8 +95,6 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   const [dragIdx, setDragIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
   const touchDragRef = useRef({ active: false, fromIdx: null, overIdx: null });
-
-  const [showPlanner, setShowPlanner] = useState(false);
 
   const handleDelete = () => setShowConfirm(true);
 
@@ -438,7 +437,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                 darkMode ? 'bg-yellow-900/50 text-yellow-400' : 'bg-yellow-50 text-yellow-600'
               }`}>
                 <AlertTriangle size={10} />
-                Stalled
+                {t('goals.stalled', 'Stalled')}
               </span>
             )}
             {!parentGoal && (
@@ -447,8 +446,8 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                 className={`p-1 rounded-lg transition-colors ${
                   darkMode ? 'text-gray-600 hover:text-gray-300 hover:bg-gray-700' : 'text-stone-300 hover:text-stone-600 hover:bg-stone-100'
                 }`}
-                title={detailsHidden ? 'Show details' : 'Hide details'}
-                aria-label={detailsHidden ? 'Show project details' : 'Hide project details'}
+                title={detailsHidden ? t('goals.showDetails', 'Show details') : t('goals.hideDetails', 'Hide details')}
+                aria-label={detailsHidden ? t('goals.showProjectDetails', 'Show project details') : t('goals.hideProjectDetails', 'Hide project details')}
               >
                 {detailsHidden ? <EyeOff size={12} /> : <Eye size={12} />}
               </button>
@@ -654,13 +653,13 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
             className={`flex items-center gap-1.5 text-xs ${textSecondary} ${hoverBg} rounded-lg px-2 py-1.5 transition-colors w-full`}
           >
             <Plus size={12} />
-            Add task
+            {t('task.addTask', 'Add task')}
           </button>
         )}
 
         {/* PLANNER — per-project planning dashboard (notes, hyperGLANCE, task columns) */}
         <button
-          onClick={() => setShowPlanner(true)}
+          onClick={() => setPlannerProjectId(project.id)}
           className={`flex items-center justify-center gap-1.5 text-[11px] font-semibold tracking-widest uppercase rounded-lg px-2 py-1.5 border ${borderClass} ${hoverBg} transition-colors w-full`}
           style={{ color: projectHex }}
         >
@@ -696,11 +695,6 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
           onOpenInObsidian={extractWikilinks(expandedTask.title).length > 0 ? openInObsidian : undefined}
         />
       </div>,
-      document.body
-    )}
-
-    {showPlanner && createPortal(
-      <ProjectPlanner project={project} onClose={() => setShowPlanner(false)} />,
       document.body
     )}
 

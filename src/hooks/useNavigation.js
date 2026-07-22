@@ -17,7 +17,7 @@ export default function useNavigation({
 }) {
   const changeDate = useCallback((direction) => {
     const stride = effectiveViewMode === 'day' ? 1
-      : effectiveViewMode === 'week' ? 7
+      : effectiveViewMode === 'week' || effectiveViewMode === 'sched' ? 7
       : visibleDays;
     setSelectedDate(prev => {
       const newDate = new Date(prev);

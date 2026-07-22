@@ -60,6 +60,7 @@ import EditRecurrenceModal from './components/EditRecurrenceModal.jsx';
 import ReminderToasts from './components/ReminderToasts.jsx';
 import ObsidianSyncToast from './components/ObsidianSyncToast.jsx';
 import MobileNewTaskModal from './components/MobileNewTaskModal.jsx';
+import ProjectPlanner from './components/projects/ProjectPlanner.jsx';
 import DesktopNewTaskModal from './components/DesktopNewTaskModal.jsx';
 import useVisibleDays from './hooks/useVisibleDays.js';
 import useDeviceType from './hooks/useDeviceType.js';
@@ -292,9 +293,16 @@ const DayPlanner = () => {
   });
   // Only expose the cycler (and honour viewMode) when the 3-day breakpoint is active
   const canShowViewCycler = !isTablet && !isMobile && _visibleDays === 3;
-  // Below 1600px the cycler is hidden and the stored mode is ignored until the
+  // Narrow desktop (1-2 columns) and tablet landscape: DAY/WEEK don't fit,
+  // but SCHED does — the cycler still shows there, restricted to MULTI and
+  // SCHED. Landscape tablets get the desktop SCHED dashboard (rail filters);
+  // portrait keeps the mobile toggle + SchedView bottom-sheet variant.
+  const schedOnlyCycler = (!isTablet && !isMobile && _visibleDays < 3) || (isTablet && isLandscape);
+  // Otherwise the cycler is hidden and the stored mode is ignored until the
   // viewport grows back; the app behaves as 'multi' in the meantime.
-  const effectiveViewMode = canShowViewCycler ? viewMode : 'multi';
+  const effectiveViewMode = canShowViewCycler ? viewMode
+    : schedOnlyCycler && viewMode === 'sched' ? 'sched'
+    : 'multi';
   const [defaultView, setDefaultView] = useState(() => {
     const saved = localStorage.getItem('day-planner-default-view');
     return saved ? JSON.parse(saved) : 'multi';
@@ -321,6 +329,9 @@ const DayPlanner = () => {
     return localStorage.getItem('day-planner-list-end-of-day') || null;
   });
   const [goalsDashboardFocusId, setGoalsDashboardFocusId] = useState(null);
+  // Project whose PLANNER dashboard is open — rendered at the app top level so
+  // it stacks between the G&P dashboard (z-60) and the task editor (z-80).
+  const [plannerProjectId, setPlannerProjectId] = useState(null);
   const [weekViewMode, setWeekViewMode] = useState(() => {
     const saved = localStorage.getItem('day-planner-week-view-mode');
     return saved ? JSON.parse(saved) : 'strict';
@@ -3041,7 +3052,7 @@ const DayPlanner = () => {
     gtdFrames: myFrames, setShowRescheduleModal, setRescheduleResults, setRescheduleError,
     setMobileActiveTab, setMobileSettingsView, setShowSettings,
     changeDate, setSelectedDate,
-    setViewMode, canShowViewCycler,
+    setViewMode, canShowViewCycler, schedOnlyCycler, effectiveViewMode,
   });
 
   const changeViewedMonth = (delta) => {
@@ -6047,9 +6058,10 @@ const DayPlanner = () => {
   // Helper to get tasks for a specific date (must be after filterByTags).
   // Memoized so downstream useCallback/useMemo consumers stay stable; only
   // re-created when the tag filter or the date-grouped task map changes.
-  const getTasksForDate = useCallback((date) => {
+  const getTasksForDate = useCallback((date, applyTagFilter = true) => {
     const dateStr = dateToString(date);
-    return filterByTags(tasksByDate[dateStr] || []);
+    const dayTasks = tasksByDate[dateStr] || [];
+    return applyTagFilter ? filterByTags(dayTasks) : dayTasks;
   }, [filterByTags, tasksByDate]);
 
   // --- GTD Frames: Instance computation + Available time calculation ---
@@ -7445,7 +7457,7 @@ const DayPlanner = () => {
     // ── Device & layout ──────────────────────────────────────────────────────
     isPhone, isMobile, isTablet, isLandscape,
     visibleDays, visibleDates,
-    viewMode, setViewMode, canShowViewCycler, effectiveViewMode,
+    viewMode, setViewMode, canShowViewCycler, schedOnlyCycler, effectiveViewMode,
     defaultView, setDefaultView,
     dayViewMode, setDayViewMode,
     dayViewColumns,
@@ -7997,6 +8009,7 @@ const DayPlanner = () => {
     addGoal, updateGoal, deleteGoal,
     addArea, updateArea, deleteArea, reorderAreas,
     addProject, updateProject, deleteProject, moveProject,
+    plannerProjectId, setPlannerProjectId,
     projectFilter, setProjectFilter,
 
     // ── Multi-user ────────────────────────────────────────────────────────────
@@ -8972,6 +8985,12 @@ const DayPlanner = () => {
 
 
       {/* New Task Modals */}
+      {plannerProjectId && (() => {
+        const plannerProject = projects.find(p => p.id === plannerProjectId);
+        return plannerProject
+          ? <ProjectPlanner project={plannerProject} onClose={() => setPlannerProjectId(null)} />
+          : null;
+      })()}
       <MobileNewTaskModal />
       <DesktopNewTaskModal />
 

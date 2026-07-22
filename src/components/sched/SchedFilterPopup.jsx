@@ -2,8 +2,10 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
+import { useTranslation } from 'react-i18next';
 import { TASK_COLORS } from '../../utils/colorUtils.js';
-import { hasActiveSchedFilters, toggleSchedFilter, EMPTY_SCHED_FILTERS } from '../../utils/schedAgenda.js';
+import { hasActiveSchedFilters, toggleSchedFilter, EMPTY_SCHED_FILTERS, groupProjectsForFilter } from '../../utils/schedAgenda.js';
+import SchedFilterPresets from './SchedFilterPresets.jsx';
 
 /**
  * SCHED filter sheet: colors, tags, projects. Empty selection in a section
@@ -11,14 +13,17 @@ import { hasActiveSchedFilters, toggleSchedFilter, EMPTY_SCHED_FILTERS } from '.
  * `availableColors`/`availableTags` come from the visible agenda window so the
  * sheet never offers options that can't match anything.
  */
-const SchedFilterPopup = ({ filters, setFilters, availableColors, availableTags, onClose }) => {
+const SchedFilterPopup = ({
+  filters, setFilters,
+  filterPresets, saveFilterPreset, deleteFilterPreset, applyFilterPreset,
+  availableColors, availableTags, nextInstanceOnly, toggleNextInstanceOnly, onClose,
+}) => {
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg } = useDayPlannerCtx();
-  const { projects, goalsProjectsEnabled } = useFeaturesCtx();
+  const { projects, goals, goalsProjectsEnabled } = useFeaturesCtx();
+  const { t } = useTranslation();
 
   const colorOptions = TASK_COLORS.filter(c => availableColors.has(c.class));
-  const activeProjects = goalsProjectsEnabled
-    ? projects.filter(p => p.status !== 'archived' && p.status !== 'completed')
-    : [];
+  const projectGroups = goalsProjectsEnabled ? groupProjectsForFilter(projects, goals) : [];
 
   const chip = (selected) => `px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
     selected
@@ -34,26 +39,40 @@ const SchedFilterPopup = ({ filters, setFilters, availableColors, availableTags,
         className={`relative ${cardBg} rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md max-h-[75vh] overflow-y-auto p-5 flex flex-col gap-4`}
       >
         <div className="flex items-center justify-between">
-          <h3 className={`text-base font-semibold ${textPrimary}`}>Filter tasks</h3>
+          <h3 className={`text-base font-semibold ${textPrimary}`}>{t('sched.filterTasks', 'Filter tasks')}</h3>
           <div className="flex items-center gap-2">
             {hasActiveSchedFilters(filters) && (
               <button
                 onClick={() => setFilters(EMPTY_SCHED_FILTERS)}
                 className="text-xs font-medium text-blue-500"
               >
-                Clear all
+                {t('sched.clearAll', 'Clear all')}
               </button>
             )}
-            <button onClick={onClose} className={`p-1 rounded-lg ${hoverBg}`} aria-label="Close filters">
+            <button onClick={onClose} className={`p-1 rounded-lg ${hoverBg}`} aria-label={t('sched.closeFilters', 'Close filters')}>
               <X size={16} className={textSecondary} />
             </button>
           </div>
         </div>
 
+        {/* Saved presets */}
+        {(filterPresets.length > 0 || hasActiveSchedFilters(filters)) && (
+          <div className="flex flex-col gap-1.5">
+            <span className={`text-xs font-medium ${textSecondary}`}>{t('sched.presets', 'Presets')}</span>
+            <SchedFilterPresets
+              filters={filters}
+              filterPresets={filterPresets}
+              applyFilterPreset={applyFilterPreset}
+              deleteFilterPreset={deleteFilterPreset}
+              saveFilterPreset={saveFilterPreset}
+            />
+          </div>
+        )}
+
         {/* Colors */}
         {colorOptions.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <span className={`text-xs font-medium ${textSecondary}`}>Colors</span>
+            <span className={`text-xs font-medium ${textSecondary}`}>{t('sched.colors', 'Colors')}</span>
             <div className="flex flex-wrap gap-2">
               {colorOptions.map(c => (
                 <button
@@ -72,7 +91,7 @@ const SchedFilterPopup = ({ filters, setFilters, availableColors, availableTags,
         {/* Tags */}
         {availableTags.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <span className={`text-xs font-medium ${textSecondary}`}>Tags</span>
+            <span className={`text-xs font-medium ${textSecondary}`}>{t('sched.tags', 'Tags')}</span>
             <div className="flex flex-wrap gap-1.5">
               {availableTags.map(tag => (
                 <button key={tag} onClick={() => setFilters(f => toggleSchedFilter(f, 'tags', tag))} className={chip(filters.tags.includes(tag))}>
@@ -84,28 +103,48 @@ const SchedFilterPopup = ({ filters, setFilters, availableColors, availableTags,
         )}
 
         {/* Projects */}
-        {goalsProjectsEnabled && activeProjects.length > 0 && (
-          <div className="flex flex-col gap-1.5">
-            <span className={`text-xs font-medium ${textSecondary}`}>Projects</span>
-            <div className="flex flex-wrap gap-1.5">
-              {activeProjects.map(p => (
-                <button key={p.id} onClick={() => setFilters(f => toggleSchedFilter(f, 'projectIds', p.id))} className={chip(filters.projectIds.includes(p.id))}>
-                  {p.title}
-                </button>
-              ))}
-              <button onClick={() => setFilters(f => toggleSchedFilter(f, 'projectIds', 'none'))} className={chip(filters.projectIds.includes('none'))}>
-                No project
-              </button>
-            </div>
+        {goalsProjectsEnabled && projectGroups.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <span className={`text-xs font-medium ${textSecondary}`}>{t('sched.projects', 'Projects')}</span>
+            {projectGroups.map(group => (
+              <div key={group.label} className="flex flex-col gap-1">
+                <span className={`text-[10px] font-semibold uppercase tracking-wide ${textSecondary} opacity-60`}>
+                  {group.isStandalone ? t('sched.standalone', 'Standalone') : group.label}
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {group.projects.map(p => (
+                    <button key={p.id} onClick={() => setFilters(f => toggleSchedFilter(f, 'projectIds', p.id))} className={chip(filters.projectIds.includes(p.id))}>
+                      {p.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <button onClick={() => setFilters(f => toggleSchedFilter(f, 'projectIds', 'none'))} className={`self-start ${chip(filters.projectIds.includes('none'))}`}>
+              {t('sched.noProject', 'No project')}
+            </button>
           </div>
         )}
 
-        {colorOptions.length === 0 && availableTags.length === 0 && (!goalsProjectsEnabled || activeProjects.length === 0) && (
-          <p className={`text-sm ${textSecondary}`}>Nothing to filter yet — schedule some tasks first.</p>
+        {/* Recurring tasks — view preference, not part of the filter badge */}
+        <div className="flex flex-col gap-1.5">
+          <span className={`text-xs font-medium ${textSecondary}`}>{t('sched.recurringTasks', 'Recurring tasks')}</span>
+          <div className="flex gap-1.5">
+            <button onClick={() => nextInstanceOnly && toggleNextInstanceOnly()} className={chip(!nextInstanceOnly)}>
+              {t('sched.allInstances', 'All instances')}
+            </button>
+            <button onClick={() => !nextInstanceOnly && toggleNextInstanceOnly()} className={chip(nextInstanceOnly)}>
+              {t('sched.nextOnly', 'Next only')}
+            </button>
+          </div>
+        </div>
+
+        {colorOptions.length === 0 && availableTags.length === 0 && projectGroups.length === 0 && (
+          <p className={`text-sm ${textSecondary}`}>{t('sched.nothingToFilter', 'Nothing to filter yet — schedule some tasks first.')}</p>
         )}
 
         <p className={`text-[11px] ${textSecondary} ${darkMode ? 'opacity-50' : 'opacity-60'}`}>
-          Selections within a section match any; sections combine.
+          {t('sched.filterHint', 'Selections within a section match any; sections combine.')}
         </p>
       </div>
     </div>

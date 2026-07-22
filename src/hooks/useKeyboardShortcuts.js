@@ -59,7 +59,7 @@ export default function useKeyboardShortcuts({
   // date navigation (arrows)
   changeDate, setSelectedDate,
   // view cycler (1/2/3)
-  setViewMode, canShowViewCycler,
+  setViewMode, canShowViewCycler, schedOnlyCycler, effectiveViewMode,
 }) {
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
@@ -252,8 +252,9 @@ export default function useKeyboardShortcuts({
         }
       }
 
-      // 1/2/3/4 to jump directly to multi/day/week/sched view
-      if (e.key === '1' && noModifiers && canShowViewCycler) {
+      // 1/2/3/4 to jump directly to multi/day/week/sched view. On narrow
+      // desktop (schedOnlyCycler) only MULTI and SCHED are available.
+      if (e.key === '1' && noModifiers && (canShowViewCycler || schedOnlyCycler)) {
         e.preventDefault();
         setViewMode('multi');
       }
@@ -265,9 +266,19 @@ export default function useKeyboardShortcuts({
         e.preventDefault();
         setViewMode('week');
       }
-      if (e.key === '4' && noModifiers && canShowViewCycler) {
+      if (e.key === '4' && noModifiers && (canShowViewCycler || schedOnlyCycler)) {
         e.preventDefault();
         setViewMode('sched');
+      }
+      // C cycles through whichever views the current width offers — always
+      // valid, unlike the direct-jump numbers (2/3 need the 3-column grid).
+      if ((e.key === 'c' || e.key === 'C') && noModifiers && (canShowViewCycler || schedOnlyCycler)) {
+        e.preventDefault();
+        const states = canShowViewCycler ? ['multi', 'day', 'week', 'sched'] : ['multi', 'sched'];
+        // Cycle from the EFFECTIVE mode, matching the ViewCycler: a stored
+        // DAY/WEEK renders as MULTI at narrow widths, so cycling must start
+        // from what's on screen, not the raw stored mode.
+        setViewMode(states[(states.indexOf(effectiveViewMode) + 1) % states.length] || 'multi');
       }
 
       // Arrow left/right to navigate dates
@@ -301,5 +312,5 @@ export default function useKeyboardShortcuts({
     // action callbacks (changeDate/goToToday/performUndo/performRedo/playUISound),
     // all stable or read through refs — listing them would needlessly re-bind.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showHabitModal, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, hoverPreviewTime, hoverPreviewDate, isMobile, tabletActiveTab, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames, canShowViewCycler]);
+  }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showHabitModal, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, hoverPreviewTime, hoverPreviewDate, isMobile, tabletActiveTab, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames, canShowViewCycler, effectiveViewMode]);
 }

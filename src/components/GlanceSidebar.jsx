@@ -24,6 +24,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
   const {
     isTablet,
     visibleDates,
+    weekViewDates,
     tagFilterBtnRef, calendarRef,
     darkMode,
     currentTime,
@@ -211,7 +212,8 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
               </div>
               <div className="py-1 max-h-[300px] overflow-y-auto">
                 {allTags.map(tag => {
-                  const visibleDateStrs = new Set(visibleDates.map(d => dateToString(d)));
+                  const highlightDates = effectiveViewMode === 'sched' && weekViewDates.length ? weekViewDates : visibleDates;
+                  const visibleDateStrs = new Set(highlightDates.map(d => dateToString(d)));
                   const regularCount = tasks.filter(t => !t.imported && visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
                   const recurringCount = expandedRecurringTasks.filter(t => visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
                   const tagCount = regularCount + recurringCount;
