@@ -58,7 +58,9 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
     ? t('task.allDay', 'All day')
     : task.startTime
       ? `${formatTime(task.startTime)}${task.duration ? ` · ${task.duration}m` : ''}`
-      : '';
+      // Unscheduled (planner column): no time yet, but the duration is still
+      // useful planning information — show it where the time would sit.
+      : task.duration ? `${task.duration}m` : '';
 
   // Past-time treatment (Todoist model): a task whose start time has passed
   // stays in place with a red time label; a calendar event that has ENDED

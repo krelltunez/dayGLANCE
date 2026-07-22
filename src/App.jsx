@@ -312,10 +312,27 @@ const DayPlanner = () => {
     const saved = localStorage.getItem('day-planner-day-view-mode');
     return saved ? JSON.parse(saved) : 'calendar-day';
   });
-  const [mobileViewMode, setMobileViewMode] = useState(() => {
-    const saved = localStorage.getItem('day-planner-mobile-view-mode');
-    return saved ? JSON.parse(saved) : 'grid';
+  // Mobile view DEFAULT (what the app opens in) vs the LIVE mode (what the
+  // header toggle switches during a session). Previously one persisted value
+  // played both roles, so using SCHED for a while silently became the new
+  // default. The live mode is now session-only; only the settings pickers
+  // write the default. Legacy fallback: the old live-mode key seeds the
+  // default once for existing installs.
+  const [mobileDefaultView, _setMobileDefaultView] = useState(() => {
+    const saved = localStorage.getItem('day-planner-mobile-default-view')
+      || localStorage.getItem('day-planner-mobile-view-mode');
+    try { return saved ? JSON.parse(saved) : 'grid'; } catch { return 'grid'; }
   });
+  const setMobileDefaultView = (mode) => {
+    _setMobileDefaultView(mode);
+    localStorage.setItem('day-planner-mobile-default-view', JSON.stringify(mode));
+  };
+  const [mobileViewMode, setMobileViewMode] = useState(mobileDefaultView);
+  // SCHED agenda rolling-window length (days). Lives here, not in
+  // useSchedAgendaState, because expandedRecurringTasks must expand recurring
+  // occurrences across the agenda's whole window — the hook's consumers all
+  // read through getTasksForDate.
+  const [schedDaysShown, setSchedDaysShown] = useState(14);
   // LIST view is a portrait-only tablet feature; in landscape the tablet always
   // uses the two-column timeline (and hides the LIST/GRID toggle). This mirrors
   // how wider Android tablets behave, where landscape drops out of tablet mode
@@ -919,6 +936,15 @@ const DayPlanner = () => {
     () => allTodayRoutines.filter(r => ownedBy(r, meUserSyncId)),
     [allTodayRoutines, ownedBy, meUserSyncId]
   );
+
+  // SCHED: give a routine a concrete time today (pill → placed timeline block),
+  // the tap-a-time equivalent of dragging the pill onto the grid.
+  const scheduleRoutineAt = (routineId, startTime) => {
+    setTodayRoutines(prev => prev.map(r => r.id === routineId
+      ? { ...r, startTime, isAllDay: false, duration: r.duration || 15, lastModified: new Date().toISOString() }
+      : r));
+    playUISound('tick');
+  };
 
   // Legacy unowned habits / routine chips / today-routines / frames are
   // intentionally NOT auto-migrated to the current user. Claiming is explicit
@@ -1604,9 +1630,8 @@ const DayPlanner = () => {
   useEffect(() => {
     localStorage.setItem('day-planner-week-view-mode', JSON.stringify(weekViewMode));
   }, [weekViewMode]);
-  useEffect(() => {
-    localStorage.setItem('day-planner-mobile-view-mode', JSON.stringify(mobileViewMode));
-  }, [mobileViewMode]);
+  // mobileViewMode is deliberately NOT persisted — the session opens in
+  // mobileDefaultView (settings picker) and header toggling is ephemeral.
   useEffect(() => {
     if (listEndOfDayTime === null) {
       localStorage.removeItem('day-planner-list-end-of-day');
@@ -5676,7 +5701,14 @@ const DayPlanner = () => {
   // In week view, expand over the full week range (which may extend beyond visibleDates).
   const expandedRecurringTasks = useMemo(() => {
     if (recurringTasks.length === 0) return [];
-    const allDateStrs = [...visibleDates, ...weekViewDates].map(d => dateToString(d)).sort();
+    // The SCHED agenda window (mobile SchedView / desktop SchedDashboard)
+    // reads days well beyond visibleDates/weekViewDates — on phones weekViewDates
+    // is even empty (effectiveViewMode is 'multi'). Always include the agenda's
+    // full rolling window so recurring occurrences exist for every rendered day.
+    const schedWindowEnd = new Date(selectedDate);
+    schedWindowEnd.setDate(schedWindowEnd.getDate() + schedDaysShown - 1);
+    const allDateStrs = [...visibleDates, ...weekViewDates, selectedDate, schedWindowEnd]
+      .map(d => dateToString(d)).sort();
     const rangeStart = allDateStrs[0];
     const rangeEnd = allDateStrs[allDateStrs.length - 1];
     const today = getTodayStr();
@@ -5710,7 +5742,7 @@ const DayPlanner = () => {
       }
     }
     return instances;
-  }, [recurringTasks, visibleDates, weekViewDates]);
+  }, [recurringTasks, visibleDates, weekViewDates, selectedDate, schedDaysShown]);
   expandedRecurringTasksRef.current = expandedRecurringTasks;
 
   // Build today's non-overdue HG sessions for the reminder engine.
@@ -6347,6 +6379,7 @@ const DayPlanner = () => {
     recordDeletedTaskTombstone,
     scheduleTaskAtNextSlot,
     manuallyScheduleTask,
+    scheduleDeadlineTaskAt,
     hgCompleteTask,
     focusCompleteTask,
     focusUpdateTaskNotes,
@@ -7550,6 +7583,8 @@ const DayPlanner = () => {
     tabletActiveTab, setTabletActiveTab,
     mobileActiveTab, setMobileActiveTab,
     mobileViewMode, setMobileViewMode, tabletListView,
+    mobileDefaultView, setMobileDefaultView,
+    schedDaysShown, setSchedDaysShown,
     listEndOfDayTime, setListEndOfDayTime,
     glancePage, setGlancePage,
     mobileWelcomeStep, setMobileWelcomeStep,
@@ -7740,7 +7775,7 @@ const DayPlanner = () => {
     applySuggestionForEdit, handleEditKeyDown, handleEditInputChange,
     handleNewTaskInputChange, handleNewTaskInputKeyDown, applySuggestionForNewTask,
     buildSuggestions,
-    manuallyScheduleTask, scheduleTaskAtNextSlot,
+    manuallyScheduleTask, scheduleTaskAtNextSlot, scheduleDeadlineTaskAt, scheduleRoutineAt,
     openNewTaskAtTime, openNewTaskForm, openNewInboxTask,
     recordDeletedTaskTombstone, parseRecurringId,
     expandMultiDayEvent,

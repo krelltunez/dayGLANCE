@@ -869,7 +869,10 @@
     "viewTooltip": "View: {{view}} ({{keys}} or C to switch)",
     "viewAria": "Current view: {{view}}. Click to cycle view.",
     "switchToView": "Switch to {{view}} view",
-    "currentViewTap": "Current view: {{view}}. Tap to switch."
+    "currentViewTap": "Current view: {{view}}. Tap to switch.",
+    "deadline": "Deadline",
+    "deadlineTapToSchedule": "Deadline — tap to pick a time",
+    "routineTapToSchedule": "Routine — tap to pick a time"
   },
   "planner": {
     "standaloneProject": "Standalone project",

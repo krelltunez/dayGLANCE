@@ -51,7 +51,7 @@ function clearGoalTombstone(goalId) {
 // Derive a deterministic UUID from a seed string so that two devices
 // processing the same intent create tasks with the same ID, letting the sync
 // engine deduplicate them naturally rather than keeping both copies.
-async function deterministicTaskId(seed) {
+export async function deterministicTaskId(seed) {
   const data = new TextEncoder().encode(seed);
   const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', data));
   hash[6] = (hash[6] & 0x0f) | 0x40; // version 4
@@ -260,6 +260,7 @@ async function handleCreate(payload, context) {
     goals = [],
     addGoal,
     eventId,
+    deletedTaskIds, // optional override for the tombstone lookup (tests)
   } = context;
 
   const v = validate(CreateSchema, payload);
@@ -355,6 +356,38 @@ async function handleCreate(payload, context) {
     : eventId
       ? await deterministicTaskId(eventId)
       : crypto.randomUUID();
+
+  // Re-delivery guards: transports can re-present old create events (a file
+  // transport whose files outlive the local cursor, a wiped cursor after a
+  // reinstall/restore). The incomplete-match branch above upgrades live
+  // copies; here we make the create a NO-OP instead of a resurrection when:
+  //   (a) the same intentKey already exists COMPLETED in either list — the
+  //       completion synced through another channel and must stand;
+  //   (b) the deterministic id already exists anywhere (cross-list — e.g. the
+  //       task was created unscheduled and later scheduled) or is tombstoned
+  //       (completed copy deleted or aged past the retention window).
+  if (intentKey) {
+    const completedExisting =
+      tasks.find(t => t._intentKey === intentKey && t.completed) ||
+      unscheduledTasks.find(t => t._intentKey === intentKey && t.completed);
+    if (completedExisting) {
+      return ok({ task_id: completedExisting.id, warning: 'Task already completed; ignored re-delivered create' });
+    }
+  }
+  const idExists =
+    tasks.some(t => t.id === taskId) ||
+    unscheduledTasks.some(t => t.id === taskId) ||
+    recurringTasks.some(t => t.id === taskId);
+  const isTombstoned = (() => {
+    if (deletedTaskIds) return !!deletedTaskIds[taskId];
+    try {
+      return !!JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}')[taskId];
+    } catch { return false; }
+  })();
+  if (idExists || isTombstoned) {
+    return ok({ task_id: taskId, warning: 'Task already exists or was deleted; ignored re-delivered create' });
+  }
+
   const projectId = resolveProjectId(normalized.project, projects);
   const taskTitle = rebuildTitle(cleanedTitle, tags);
 

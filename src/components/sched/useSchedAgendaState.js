@@ -17,14 +17,16 @@ const PRESETS_KEY = 'day-planner-sched-filter-presets';
  */
 export default function useSchedAgendaState() {
   const {
-    selectedDate, tasks, expandedRecurringTasks,
-    getTasksForDate,
+    selectedDate, tasks, unscheduledTasks, expandedRecurringTasks,
+    getTasksForDate, getDeadlineTasksForDate,
     setNewTask, setShowAddTask,
     scheduleTaskAtNextSlot,
+    routinesEnabled, todayRoutines,
+    // Window length lives in App state so expandedRecurringTasks can expand
+    // recurring occurrences across the agenda's whole rolling window.
+    schedDaysShown: daysShown, setSchedDaysShown: setDaysShown,
   } = useDayPlannerCtx();
   const { isVisibleForUser } = useFeaturesCtx();
-
-  const [daysShown, setDaysShown] = useState(INITIAL_DAYS);
   const [filters, setFilters] = useState(EMPTY_SCHED_FILTERS);
   const [showEmptyDays, setShowEmptyDays] = useState(
     () => localStorage.getItem('day-planner-sched-show-empty') === 'true'
@@ -96,12 +98,14 @@ export default function useSchedAgendaState() {
           ((a.isAllDay ? 0 : 1) - (b.isAllDay ? 0 : 1)) ||
           (a.startTime || '').localeCompare(b.startTime || '')
         );
-      out.push({ date, dateStr: dateToString(date), tasks: dayTasks });
+      const dateStr = dateToString(date);
+      out.push({ date, dateStr, tasks: dayTasks, deadlineTasks: getDeadlineTasksForDate(dateStr) });
     }
     return out;
-    // getTasksForDate reads tasks + expandedRecurringTasks internally.
+    // getTasksForDate reads tasks + expandedRecurringTasks internally;
+    // getDeadlineTasksForDate reads unscheduledTasks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, daysShown, tasks, expandedRecurringTasks]);
+  }, [selectedDate, daysShown, tasks, unscheduledTasks, expandedRecurringTasks]);
 
   // Filter options offered in the UI come from the visible window.
   const { availableColors, availableTags } = useMemo(() => {
@@ -116,11 +120,20 @@ export default function useSchedAgendaState() {
 
   const days = useMemo(() => {
     const base = nextInstanceOnly ? limitRecurringToNextInstance(rawDays) : rawDays;
-    return base.map(d => ({ ...d, tasks: d.tasks.filter(task => taskMatchesSchedFilters(task, filters)) }));
+    return base.map(d => ({
+      ...d,
+      tasks: d.tasks.filter(task => taskMatchesSchedFilters(task, filters)),
+      deadlineTasks: d.deadlineTasks.filter(task => taskMatchesSchedFilters(task, filters)),
+    }));
   }, [rawDays, filters, nextInstanceOnly]);
 
   const filtersActive = hasActiveSchedFilters(filters);
-  const visibleDays = days.filter(d => showEmptyDays || d.tasks.length > 0);
+  // Today never counts as empty while routine pills are pending on it.
+  const todayHasRoutines = routinesEnabled && todayRoutines.length > 0;
+  const agendaTodayStr = dateToString(new Date());
+  const visibleDays = days.filter(d =>
+    showEmptyDays || d.tasks.length > 0 || d.deadlineTasks.length > 0 ||
+    (d.dateStr === agendaTodayStr && todayHasRoutines));
 
   // Incomplete tasks scheduled before today AND before the visible window, so
   // they never duplicate a rendered day group. Plain tasks only: imported
