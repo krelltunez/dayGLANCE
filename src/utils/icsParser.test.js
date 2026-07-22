@@ -200,3 +200,73 @@ describe('expandMultiDayEvent', () => {
     expect(tasks[0]).toMatchObject({ completed: true, isTaskCalendar: true, color: 'task-calendar', duration: 15 });
   });
 });
+
+describe('TZID time zone handling', () => {
+  it('converts IANA TZID wall times to the correct instant (DST-aware)', () => {
+    // July: America/New_York is UTC-4 → 09:00 EDT = 13:00 UTC
+    expect(parseDatetime('20260721T090000', 'America/New_York').getTime())
+      .toBe(Date.UTC(2026, 6, 21, 13, 0));
+    // January: UTC-5 → 09:00 EST = 14:00 UTC
+    expect(parseDatetime('20260121T090000', 'America/New_York').getTime())
+      .toBe(Date.UTC(2026, 0, 21, 14, 0));
+  });
+
+  it('maps Windows time zone names (the Outlook case)', () => {
+    expect(parseDatetime('20260721T090000', 'Eastern Standard Time').getTime())
+      .toBe(Date.UTC(2026, 6, 21, 13, 0));
+    expect(parseDatetime('20260721T090000', 'W. Europe Standard Time').getTime())
+      .toBe(Date.UTC(2026, 6, 21, 7, 0)); // Berlin CEST = UTC+2
+  });
+
+  it('falls back to local parsing for unknown TZIDs', () => {
+    const withBadTz = parseDatetime('20260721T090000', 'Customized Time Zone 1');
+    const local = parseDatetime('20260721T090000');
+    expect(withBadTz.getTime()).toBe(local.getTime());
+  });
+
+  it('parseICS captures TZID params, including quoted values', () => {
+    const events = parseICS(wrap([
+      vevent([
+        'UID:tz-1',
+        'SUMMARY:Outlook meeting',
+        'DTSTART;TZID=Eastern Standard Time:20260721T090000',
+        'DTEND;TZID=Eastern Standard Time:20260721T100000',
+      ]),
+      vevent([
+        'UID:tz-2',
+        'SUMMARY:Quoted zone',
+        'DTSTART;TZID="America/Denver":20260721T090000',
+      ]),
+    ].join('\r\n')));
+    expect(events[0].dtstartTzid).toBe('Eastern Standard Time');
+    expect(events[0].dtendTzid).toBe('Eastern Standard Time');
+    expect(events[1].dtstartTzid).toBe('America/Denver');
+  });
+
+  it('expandMultiDayEvent converts TZID events into correct local start times', () => {
+    // 09:00 New York = 13:00 UTC; the produced task's startTime must be the
+    // viewer-local rendering of that instant, whatever zone the test runs in.
+    const [task] = expandMultiDayEvent({
+      uid: 'tz-3', summary: 'Cross-zone',
+      dtstart: '20260721T090000', dtend: '20260721T100000',
+      dtstartTzid: 'Eastern Standard Time', dtendTzid: 'Eastern Standard Time',
+    });
+    const instant = new Date(Date.UTC(2026, 6, 21, 13, 0));
+    const hh = String(instant.getHours()).padStart(2, '0');
+    const mm = String(instant.getMinutes()).padStart(2, '0');
+    expect(task.startTime).toBe(`${hh}:${mm}`);
+    expect(task.duration).toBe(60);
+    expect(task.date).toBe(dateToString(instant));
+  });
+
+  it('carries TZIDs through RRULE expansion', () => {
+    const events = parseICS(wrap(vevent([
+      'UID:tz-weekly',
+      'SUMMARY:Weekly cross-zone',
+      'DTSTART;TZID=Eastern Standard Time:20260706T140000',
+      'RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=3',
+    ])));
+    expect(events.length).toBe(3);
+    expect(events.every(e => e.dtstartTzid === 'Eastern Standard Time')).toBe(true);
+  });
+});
