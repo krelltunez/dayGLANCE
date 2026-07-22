@@ -19,6 +19,7 @@ import { webdavFetch } from './utils/cloudSyncProviders.js';
 import { normalizeEtag } from '@glance-apps/sync';
 import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
 import { LIVE_BACKUP_FILENAME } from './utils/folderBackup.js';
+import { collectDeviceSettings, applyDeviceSettings } from './utils/deviceSettings.js';
 import useFolderBackup from './hooks/useFolderBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
@@ -4186,6 +4187,12 @@ const DayPlanner = () => {
       autoBackupConfig: JSON.parse(localStorage.getItem('day-planner-auto-backup-config') || 'null'),
       gettingStartedDismissed: localStorage.getItem('gettingStartedDismissed') === 'true',
       onboardingProgress: JSON.parse(localStorage.getItem('onboardingProgress') || 'null'),
+      // Everything device-scoped that the fields above don't carry (view
+      // defaults, weather, daily content, SCHED prefs, daily notes, frames,
+      // focus log, tombstones, …). Local backups only — cloud sync stays
+      // device-agnostic by design; these payloads exist to resurrect ONE
+      // device after a profile wipe.
+      deviceSettings: collectDeviceSettings(),
     }
   });
 
@@ -4341,6 +4348,11 @@ const DayPlanner = () => {
   // the file-based restore (restoreBackup) and the folder-based restore
   // (restoreFromBackupFolder); callers handle cursor reset + reload.
   const applyBackupToLocalStorage = (data) => {
+    // Device-scoped settings snapshot (present in folder/auto backups, absent
+    // from manual exports). Applied first so the explicit fields below — which
+    // carry their own normalization (habits/routines enable logic) — win any
+    // overlap.
+    if (data.deviceSettings) applyDeviceSettings(data.deviceSettings);
     if (data.tasks) localStorage.setItem('day-planner-tasks', JSON.stringify(data.tasks));
     if (data.unscheduledTasks) localStorage.setItem('day-planner-unscheduled', JSON.stringify(data.unscheduledTasks));
     if (data.recycleBin) localStorage.setItem('day-planner-recycle-bin', JSON.stringify(data.recycleBin));
