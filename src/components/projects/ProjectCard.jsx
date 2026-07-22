@@ -6,6 +6,7 @@ import {
   Edit2, ExternalLink, Eye, EyeOff, FileText, GripVertical, LayoutDashboard,
   LogIn, Plus, Square, Trash2, X, Zap,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
@@ -44,6 +45,7 @@ const IS_IOS = typeof navigator !== 'undefined' && (
  *   onEditClick  — called to open the project edit form
  */
 const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps, onMoveToClick }, ref) => {
+  const { t } = useTranslation();
   const {
     tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks, reorderUnscheduledTasks,
@@ -435,7 +437,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                 darkMode ? 'bg-yellow-900/50 text-yellow-400' : 'bg-yellow-50 text-yellow-600'
               }`}>
                 <AlertTriangle size={10} />
-                Stalled
+                {t('goals.stalled', 'Stalled')}
               </span>
             )}
             {!parentGoal && (
@@ -444,8 +446,8 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                 className={`p-1 rounded-lg transition-colors ${
                   darkMode ? 'text-gray-600 hover:text-gray-300 hover:bg-gray-700' : 'text-stone-300 hover:text-stone-600 hover:bg-stone-100'
                 }`}
-                title={detailsHidden ? 'Show details' : 'Hide details'}
-                aria-label={detailsHidden ? 'Show project details' : 'Hide project details'}
+                title={detailsHidden ? t('goals.showDetails', 'Show details') : t('goals.hideDetails', 'Hide details')}
+                aria-label={detailsHidden ? t('goals.showProjectDetails', 'Show project details') : t('goals.hideProjectDetails', 'Hide project details')}
               >
                 {detailsHidden ? <EyeOff size={12} /> : <Eye size={12} />}
               </button>
@@ -651,7 +653,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
             className={`flex items-center gap-1.5 text-xs ${textSecondary} ${hoverBg} rounded-lg px-2 py-1.5 transition-colors w-full`}
           >
             <Plus size={12} />
-            Add task
+            {t('task.addTask', 'Add task')}
           </button>
         )}
 

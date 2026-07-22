@@ -4,6 +4,7 @@ import { CalendarPlus, CheckCircle2, CheckSquare, Circle, ExternalLink, FileText
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { useSyncCtx } from '../../context/SyncContext.jsx';
+import { useTranslation } from 'react-i18next';
 import { taskColorToHex, hexToRgba } from '../../utils/colorUtils.js';
 import { renderTitleWithoutTags, URL_REGEX } from '../../utils/textFormatting.jsx';
 import { dateToString, extractTags, extractWikilinks } from '../../utils/taskUtils.js';
@@ -31,6 +32,7 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
   } = useDayPlannerCtx();
   const { projects, goalsProjectsEnabled, generateAISubtasks, aiSubtasksLoadingForTask, aiConfig } = useFeaturesCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
+  const { t } = useTranslation();
 
   const [showNotes, setShowNotes] = useState(false);
 
@@ -53,7 +55,7 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
   const isRecurring = typeof task.id === 'string' && task.id.startsWith('recurring-');
 
   const timeLabel = task.isAllDay
-    ? 'All day'
+    ? t('task.allDay', 'All day')
     : task.startTime
       ? `${formatTime(task.startTime)}${task.duration ? ` · ${task.duration}m` : ''}`
       : '';
@@ -120,7 +122,7 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
         <div
           onTouchStart={dnd.onGripTouchStart ? e => dnd.onGripTouchStart(e, dnd.idx) : undefined}
           className={`flex-shrink-0 p-1.5 -m-1 cursor-grab active:cursor-grabbing touch-none select-none ${textSecondary} opacity-30`}
-          aria-label="Drag to reorder"
+          aria-label={t('sched.dragToReorder', 'Drag to reorder')}
         >
           <GripVertical size={13} />
         </div>
@@ -129,7 +131,7 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
         <button
           onClick={e => { e.stopPropagation(); toggleComplete(task.id, isInbox); }}
           className="flex-shrink-0 p-0.5"
-          aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
+          aria-label={task.completed ? t('sched.markIncomplete', 'Mark incomplete') : t('sched.markComplete', 'Mark complete')}
         >
           {task.completed
             ? <CheckCircle2 size={18} className="text-green-500" />
@@ -158,8 +160,8 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
                 className={`flex items-center gap-0.5 flex-shrink-0 p-0.5 -m-0.5 hover:opacity-100 hover:text-blue-500 ${
                   hasNotesContent ? 'opacity-70' : 'opacity-35'
                 }`}
-                title={hasNotesContent ? 'Notes & subtasks' : 'Add notes or subtasks'}
-                aria-label={hasNotesContent ? 'View notes and subtasks' : 'Add notes or subtasks'}
+                title={hasNotesContent ? t('sched.notesSubtasks', 'Notes & subtasks') : t('sched.addNotesSubtasks', 'Add notes or subtasks')}
+                aria-label={hasNotesContent ? t('sched.viewNotesSubtasks', 'View notes and subtasks') : t('sched.addNotesSubtasks', 'Add notes or subtasks')}
               >
                 <FileText size={10} />
                 {subtasks.length > 0 && (
@@ -206,8 +208,8 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
         <button
           onClick={e => { e.stopPropagation(); onSchedule(task); }}
           className={`flex-shrink-0 p-1.5 rounded-lg opacity-60 hover:opacity-100 hover:text-blue-500 ${textSecondary}`}
-          title="Schedule for today (next open slot)"
-          aria-label="Schedule for today"
+          title={t('sched.scheduleForTodaySlot', 'Schedule for today (next open slot)')}
+          aria-label={t('sched.scheduleForToday', 'Schedule for today')}
         >
           <CalendarPlus size={14} />
         </button>
@@ -216,8 +218,8 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
         <button
           onClick={e => { e.stopPropagation(); postponeTask(task.id); }}
           className={`flex-shrink-0 p-1.5 rounded-lg opacity-60 hover:opacity-100 hover:text-blue-500 ${textSecondary}`}
-          title="Postpone to tomorrow"
-          aria-label="Postpone to tomorrow"
+          title={t('sched.postponeTomorrow', 'Postpone to tomorrow')}
+          aria-label={t('sched.postponeTomorrow', 'Postpone to tomorrow')}
         >
           {/* Same icon as the timeline's postpone button — same action. */}
           <SkipForward size={14} />

@@ -65,7 +65,8 @@ export const groupProjectsForFilter = (projects, goals) => {
   // so they stay filterable.
   const goalIds = new Set(visibleGoals.map(g => g.id));
   const standalone = active.filter(p => !p.goalId || !goalIds.has(p.goalId));
-  if (standalone.length) groups.push({ label: 'Standalone', projects: standalone });
+  // isStandalone lets the UI swap the label for its translation.
+  if (standalone.length) groups.push({ label: 'Standalone', isStandalone: true, projects: standalone });
   return groups;
 };
 

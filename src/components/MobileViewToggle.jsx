@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 const ORANGE = '#fe8b00';
@@ -38,6 +39,7 @@ const NEXT_MODE = { grid: 'list', list: 'sched', sched: 'grid' };
 
 const MobileViewToggle = () => {
   const { mobileViewMode, setMobileViewMode, textSecondary } = useDayPlannerCtx();
+  const { t } = useTranslation();
 
   const toggle = () => setMobileViewMode(prev => NEXT_MODE[prev] || 'grid');
 
@@ -45,8 +47,8 @@ const MobileViewToggle = () => {
     <button
       onClick={toggle}
       className="flex flex-col items-center justify-center gap-0.5 w-full h-full py-1 hover:bg-black/5 dark:hover:bg-white/5 active:bg-black/10 dark:active:bg-white/10 transition-colors"
-      aria-label={`Switch to ${(NEXT_MODE[mobileViewMode] || 'grid').toUpperCase()} view`}
-      title={`Current view: ${mobileViewMode.toUpperCase()}. Tap to switch.`}
+      aria-label={t('sched.switchToView', 'Switch to {{view}} view', { view: (NEXT_MODE[mobileViewMode] || 'grid').toUpperCase() })}
+      title={t('sched.currentViewTap', 'Current view: {{view}}. Tap to switch.', { view: mobileViewMode.toUpperCase() })}
     >
       {mobileViewMode === 'grid' ? <GridIcon /> : mobileViewMode === 'sched' ? <SchedIcon /> : <ListIcon />}
       <span className={`text-[9px] font-semibold tracking-widest uppercase ${textSecondary} leading-none`}>

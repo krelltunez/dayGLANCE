@@ -321,10 +321,10 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
             onChange={e => setHideStalled(e.target.checked)}
             className="w-4 h-4 rounded accent-blue-500"
           />
-          <span className={`text-sm ${textSecondary}`}>Hide Stalled flags for this goal</span>
+          <span className={`text-sm ${textSecondary}`}>{t('goals.hideStalledLabel', 'Hide Stalled flags for this goal')}</span>
         </label>
         <p className={`text-xs ${textSecondary} opacity-60 ml-6`}>
-          Hides the Stalled badge on this goal and all of its child projects.
+          {t('goals.hideStalledHint', 'Hides the Stalled badge on this goal and all of its child projects.')}
         </p>
       </div>
 

@@ -59,15 +59,15 @@ const SchedView = () => {
           }`}
         >
           <ListFilter size={13} />
-          Filter{filtersActive ? ` · ${filters.colors.length + filters.tags.length + filters.projectIds.length}` : ''}
+          {t('sched.filter', 'Filter')}{filtersActive ? ` · ${filters.colors.length + filters.tags.length + filters.projectIds.length}` : ''}
         </button>
         <button
           onClick={toggleEmptyDays}
           className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${borderClass} ${textSecondary} ${hoverBg} transition-colors`}
-          title={showEmptyDays ? 'Hide empty days' : 'Show empty days'}
+          title={showEmptyDays ? t('sched.hideEmptyDays', 'Hide empty days') : t('sched.showEmptyDays', 'Show empty days')}
         >
           {showEmptyDays ? <Eye size={13} /> : <EyeOff size={13} />}
-          Empty days
+          {t('sched.emptyDays', 'Empty days')}
         </button>
       </div>
 
@@ -75,7 +75,7 @@ const SchedView = () => {
       {overdueTasks.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <div className="text-xs font-semibold uppercase tracking-wide text-amber-500 pt-1">
-            Overdue · {overdueTasks.length}
+            {t('common.overdue', 'Overdue')} · {overdueTasks.length}
           </div>
           {overdueTasks.map(task => (
             <SchedTaskCard key={task.id} task={task} showProject showOverdueDate onSchedule={rescheduleToToday} />
@@ -105,7 +105,7 @@ const SchedView = () => {
 
       {visibleDays.length === 0 && (
         <p className={`text-sm ${textSecondary} text-center py-8`}>
-          {filtersActive ? 'No tasks match the current filters.' : 'Nothing scheduled in this window.'}
+          {filtersActive ? t('sched.noMatchingTasks', 'No tasks match the current filters.') : t('sched.nothingScheduled', 'Nothing scheduled in this window.')}
         </p>
       )}
 
@@ -115,7 +115,7 @@ const SchedView = () => {
         className={`flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium ${textSecondary} ${hoverBg} rounded-xl border ${borderClass} transition-colors`}
       >
         <ChevronDown size={13} />
-        Show {LOAD_MORE_DAYS} more days
+        {t('sched.showMoreDays', 'Show {{days}} more days', { days: LOAD_MORE_DAYS })}
       </button>
 
       {showFilters && (

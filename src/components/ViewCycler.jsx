@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 const STATES = ['multi', 'day', 'week', 'sched'];
@@ -50,6 +51,7 @@ const ICONS = { multi: MultiIcon, day: DayIcon, week: WeekIcon, sched: SchedIcon
 
 const ViewCycler = () => {
   const { setViewMode, effectiveViewMode, textSecondary, canShowViewCycler } = useDayPlannerCtx();
+  const { t } = useTranslation();
 
   // Narrow desktop (1-2 columns) only offers MULTI and SCHED — DAY/WEEK need
   // the full 3-column breakpoint.
@@ -69,8 +71,8 @@ const ViewCycler = () => {
     <button
       onClick={cycle}
       className="flex flex-col items-center justify-center gap-0.5 w-full h-full py-1 hover:bg-black/5 dark:hover:bg-white/5 transition-colors rounded"
-      title={`View: ${LABELS[effectiveViewMode]} (${canShowViewCycler ? '1/2/3/4' : '1/4'} or C to switch)`}
-      aria-label={`Current view: ${LABELS[effectiveViewMode]}. Click to cycle view.`}
+      title={t('sched.viewTooltip', 'View: {{view}} ({{keys}} or C to switch)', { view: LABELS[effectiveViewMode], keys: canShowViewCycler ? '1/2/3/4' : '1/4' })}
+      aria-label={t('sched.viewAria', 'Current view: {{view}}. Click to cycle view.', { view: LABELS[effectiveViewMode] })}
     >
       <Icon />
       <span

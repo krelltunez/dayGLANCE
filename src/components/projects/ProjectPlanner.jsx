@@ -112,7 +112,7 @@ const ProjectPlanner = ({ project, onClose }) => {
 
   const todayStr = dateToString(new Date());
   const dayHeading = (dateStr) => {
-    if (!dateStr) return 'Completed';
+    if (!dateStr) return t('common.completed', 'Completed');
     const d = new Date(dateStr + 'T00:00:00');
     const base = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
     return dateStr === todayStr ? `${t('common.today', 'Today')} · ${base}` : base;
@@ -254,7 +254,7 @@ const ProjectPlanner = ({ project, onClose }) => {
           <div className="flex flex-col min-w-0">
             <span className={`text-base font-semibold ${textPrimary} truncate`}>{project.title}</span>
             <span className={`text-xs ${textSecondary}`}>
-              {parentGoal ? parentGoal.title : 'Standalone project'} · Planner
+              {parentGoal ? parentGoal.title : t('planner.standaloneProject', 'Standalone project')} · Planner
             </span>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
@@ -262,16 +262,16 @@ const ProjectPlanner = ({ project, onClose }) => {
               <button
                 onClick={() => setShowCompleted(v => !v)}
                 className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1.5 rounded-lg ${hoverBg} ${textSecondary} transition-colors`}
-                title={showCompleted ? 'Hide completed tasks' : 'Show completed tasks'}
+                title={showCompleted ? t('planner.hideCompleted', 'Hide completed tasks') : t('planner.showCompleted', 'Show completed tasks')}
               >
                 {showCompleted ? <Eye size={13} /> : <EyeOff size={13} />}
-                Completed
+                {t('common.completed', 'Completed')}
               </button>
             )}
             <button
               onClick={closePlanner}
               className={`p-1.5 rounded-lg ${hoverBg}`}
-              aria-label="Close planner"
+              aria-label={t('planner.close', 'Close planner')}
             >
               <X size={16} className={textSecondary} />
             </button>
@@ -287,7 +287,7 @@ const ProjectPlanner = ({ project, onClose }) => {
         >
           {/* Notes — same interaction model as task notes panels */}
           <div className="flex flex-col gap-1">
-            <label className={`text-xs font-medium ${textSecondary}`}>Notes</label>
+            <label className={`text-xs font-medium ${textSecondary}`}>{t('task.notes', 'Notes')}</label>
             {editingNotes ? (
               <textarea
                 autoFocus={!!(project.description || '').trim()}
@@ -301,7 +301,7 @@ const ProjectPlanner = ({ project, onClose }) => {
                     if (notes.trim()) setEditingNotes(false);
                   }
                 }}
-                placeholder="Add notes... (**bold**, *italic*, __underline__, URLs) - Shift+Enter to save"
+                placeholder={t('planner.notesPlaceholder', 'Add notes... (**bold**, *italic*, __underline__, URLs) - Shift+Enter to save')}
                 rows={3}
                 className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 resize-none ${
                   darkMode ? 'bg-gray-700 text-gray-100 placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'
@@ -312,7 +312,7 @@ const ProjectPlanner = ({ project, onClose }) => {
               <div
                 onClick={() => setEditingNotes(true)}
                 className={`px-3 py-2 text-sm rounded-lg border ${borderClass} cursor-text whitespace-pre-wrap ${textPrimary} ${hoverBg}`}
-                title="Click to edit notes"
+                title={t('planner.clickToEditNotes', 'Click to edit notes')}
               >
                 {renderFormattedText(notes)}
               </div>
@@ -323,8 +323,8 @@ const ProjectPlanner = ({ project, onClose }) => {
           {isMobile && (
             <div className={`flex rounded-lg border ${borderClass} p-0.5 gap-0.5`}>
               {[
-                { key: 'scheduled', label: 'Scheduled', count: scheduledDays.reduce((n, g) => n + (g.dateStr ? g.tasks.length : 0), 0) },
-                { key: 'unscheduled', label: 'Unscheduled', count: incompleteUnscheduled.length },
+                { key: 'scheduled', label: t('planner.scheduled', 'Scheduled'), count: scheduledDays.reduce((n, g) => n + (g.dateStr ? g.tasks.length : 0), 0) },
+                { key: 'unscheduled', label: t('task.unscheduled', 'Unscheduled'), count: incompleteUnscheduled.length },
               ].map(tab => (
                 <button
                   key={tab.key}
@@ -346,7 +346,7 @@ const ProjectPlanner = ({ project, onClose }) => {
             <div className="flex flex-col gap-2 min-w-0">
               {!isMobile && (
                 <span className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>
-                  Scheduled
+                  {t('planner.scheduled', 'Scheduled')}
                 </span>
               )}
               {scheduledDays.length > 0 ? scheduledDays.map(group => (
@@ -357,7 +357,7 @@ const ProjectPlanner = ({ project, onClose }) => {
                   {group.tasks.map(task => <SchedTaskCard key={task.id} task={task} onEdit={editTask} />)}
                 </div>
               )) : (
-                <p className={`text-xs ${textSecondary} opacity-70 py-2`}>Nothing scheduled yet.</p>
+                <p className={`text-xs ${textSecondary} opacity-70 py-2`}>{t('planner.nothingScheduledYet', 'Nothing scheduled yet.')}</p>
               )}
             </div>
             )}
@@ -367,7 +367,7 @@ const ProjectPlanner = ({ project, onClose }) => {
             <div className="flex flex-col gap-2 min-w-0">
               {!isMobile && (
                 <span className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>
-                  Unscheduled
+                  {t('task.unscheduled', 'Unscheduled')}
                 </span>
               )}
               {unscheduled.length > 0 ? (
@@ -396,13 +396,13 @@ const ProjectPlanner = ({ project, onClose }) => {
                   );
                 })
               ) : (
-                <p className={`text-xs ${textSecondary} opacity-70 py-2`}>No unscheduled tasks.</p>
+                <p className={`text-xs ${textSecondary} opacity-70 py-2`}>{t('planner.noUnscheduledTasks', 'No unscheduled tasks.')}</p>
               )}
               <form onSubmit={handleQuickAdd} className="flex gap-2">
                 <input
                   value={quickAddTitle}
                   onChange={e => setQuickAddTitle(e.target.value)}
-                  placeholder="Add a task…"
+                  placeholder={t('planner.addTaskPlaceholder', 'Add a task…')}
                   className={`flex-1 min-w-0 px-2.5 py-1.5 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     darkMode ? 'bg-gray-700 text-gray-100 placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'
                   }`}
@@ -412,7 +412,7 @@ const ProjectPlanner = ({ project, onClose }) => {
                   disabled={!quickAddTitle.trim()}
                   className="px-2.5 py-1.5 rounded-lg text-white disabled:opacity-40 transition-opacity"
                   style={{ background: projectHex }}
-                  aria-label="Add task to project"
+                  aria-label={t('planner.addTaskToProject', 'Add task to project')}
                 >
                   <Plus size={14} />
                 </button>
