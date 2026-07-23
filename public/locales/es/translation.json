@@ -872,7 +872,7 @@
     "currentViewTap": "Vista actual: {{view}}. Toca para cambiar.",
     "deadline": "Fecha límite",
     "deadlineTapToSchedule": "Fecha límite: toca para elegir una hora",
-    "routineTapToSchedule": "Rutina: toca para elegir una hora"
+    "routineTapHint": "Toca para completar · mantén pulsado para elegir una hora"
   },
   "planner": {
     "standaloneProject": "Proyecto independiente",
