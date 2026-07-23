@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { CalendarPlus } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
@@ -60,8 +60,13 @@ export const SchedDeadlineCard = ({ task, dateStr }) => {
   );
 };
 
+/** How long a press must be held before it means "pick a time" instead of
+    "toggle complete". Matches typical platform long-press timing. */
+const LONG_PRESS_MS = 500;
+
 /** Today's routines as the familiar teal pills. All-day (unplaced) pills come
-    first; placed ones show their time. Tapping opens the time picker. */
+    first; placed ones show their time. Tap toggles completion (like routine
+    chips everywhere else); press-and-hold opens the time picker. */
 export const SchedRoutinePills = () => {
   const {
     darkMode, scheduleRoutineAt, formatTime, use24HourClock, isTablet,
@@ -69,11 +74,24 @@ export const SchedRoutinePills = () => {
   // Routine state lives in the FEATURES context (same as TimeGrid), not the
   // day-planner one — destructuring it from the wrong context reads undefined
   // and silently renders nothing.
-  const { routinesEnabled, todayRoutines, routineCompletions } = useFeaturesCtx();
+  const { routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion } = useFeaturesCtx();
   const { t } = useTranslation();
   const [pickerFor, setPickerFor] = useState(null);
+  // { timer, longFired } — longFired swallows the click that follows a
+  // completed long-press so it doesn't ALSO toggle completion.
+  const pressRef = useRef({ timer: null, longFired: false });
 
   if (!routinesEnabled || todayRoutines.length === 0) return null;
+
+  const startPress = (routine) => {
+    pressRef.current.longFired = false;
+    clearTimeout(pressRef.current.timer);
+    pressRef.current.timer = setTimeout(() => {
+      pressRef.current.longFired = true;
+      setPickerFor(routine);
+    }, LONG_PRESS_MS);
+  };
+  const cancelPress = () => clearTimeout(pressRef.current.timer);
 
   const sorted = [...todayRoutines].sort((a, b) =>
     ((a.isAllDay || !a.startTime) ? 0 : 1) - ((b.isAllDay || !b.startTime) ? 0 : 1) ||
@@ -84,11 +102,21 @@ export const SchedRoutinePills = () => {
       {sorted.map(r => (
         <button
           key={r.id}
-          onClick={() => setPickerFor(r)}
-          className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-opacity ${
+          onPointerDown={() => startPress(r)}
+          onPointerUp={cancelPress}
+          onPointerLeave={cancelPress}
+          onPointerCancel={cancelPress}
+          onTouchMove={cancelPress}
+          onContextMenu={e => e.preventDefault()}
+          onClick={() => {
+            if (pressRef.current.longFired) { pressRef.current.longFired = false; return; }
+            cancelPress();
+            toggleRoutineCompletion(r.id);
+          }}
+          className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-opacity select-none dnd-no-select ${
             darkMode ? 'bg-teal-700/80 text-teal-100' : 'bg-teal-600/80 text-white'
           } ${routineCompletions[r.id] ? 'line-through opacity-75' : ''}`}
-          title={t('sched.routineTapToSchedule', 'Routine — tap to pick a time')}
+          title={t('sched.routineTapHint', 'Tap to complete · hold to pick a time')}
         >
           {r.startTime && !r.isAllDay ? `${formatTime(r.startTime)} · ` : ''}{r.name}
         </button>

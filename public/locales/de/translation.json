@@ -872,7 +872,7 @@
     "currentViewTap": "Aktuelle Ansicht: {{view}}. Tippen zum Wechseln.",
     "deadline": "Frist",
     "deadlineTapToSchedule": "Frist — tippen, um eine Uhrzeit zu wählen",
-    "routineTapToSchedule": "Routine — tippen, um eine Uhrzeit zu wählen"
+    "routineTapHint": "Tippen zum Abhaken · halten, um eine Uhrzeit zu wählen"
   },
   "planner": {
     "standaloneProject": "Eigenständiges Projekt",

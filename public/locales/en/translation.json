@@ -872,7 +872,7 @@
     "currentViewTap": "Current view: {{view}}. Tap to switch.",
     "deadline": "Deadline",
     "deadlineTapToSchedule": "Deadline — tap to pick a time",
-    "routineTapToSchedule": "Routine — tap to pick a time"
+    "routineTapHint": "Tap to complete · hold to pick a time"
   },
   "planner": {
     "standaloneProject": "Standalone project",
