@@ -1,4 +1,11 @@
-# Build stage - pinned to amd64 because the output is static files (arch-independent)
+# check=skip=FromPlatformFlagConstDisallowed
+# ^ Must be the first line to take effect (a parser directive). The builder
+#   stage is deliberately pinned to amd64, which trips that check; the pin is
+#   intentional, so skip the check rather than emulate the JS build on arm64.
+
+# Build stage - pinned to amd64 because the output is static files (arch-independent).
+# The arm64 image reuses this stage's output and only builds its own production
+# stage (nginx + nodejs) under emulation, so the heavy npm build never runs under QEMU.
 FROM --platform=linux/amd64 node:20-alpine AS builder
 
 WORKDIR /app
