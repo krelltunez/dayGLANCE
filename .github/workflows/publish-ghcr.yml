@@ -52,6 +52,12 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
+          # Emit a clean manifest list (just the amd64 + arm64 images). Without
+          # these, buildx adds provenance/SBOM attestation manifests as extra
+          # "unknown/unknown" entries in the index, which older Docker/containerd
+          # clients can choke on when resolving a platform (see #1257).
+          provenance: false
+          sbom: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
