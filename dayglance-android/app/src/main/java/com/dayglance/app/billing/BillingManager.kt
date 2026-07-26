@@ -117,7 +117,7 @@ class BillingManager(
      * Fetches prices for all products and caches them in SharedPreferences.
      *
      * Annual (SUBS): filters for the INFINITE_RECURRING phase (recurrenceMode 1).
-     * Lifetime (INAPP): reads oneTimePurchaseOfferDetails.formattedPrice directly.
+     * Lifetime (INAPP): reads oneTimePurchaseOfferDetailsList[0].formattedPrice directly.
      */
     fun queryProductPrices() {
         if (!billingClient.isReady) return
@@ -141,9 +141,9 @@ class BillingManager(
             .build()
 
         scope.launch {
-            billingClient.queryProductDetailsAsync(subsParams) { result, detailsList ->
+            billingClient.queryProductDetailsAsync(subsParams) { result, queryResult ->
                 if (result.responseCode != BillingClient.BillingResponseCode.OK) return@queryProductDetailsAsync
-                for (details in detailsList) {
+                for (details in queryResult.productDetailsList) {
                     if (details.productId != PRODUCT_ANNUAL) continue
                     val offerDetails = details.subscriptionOfferDetails ?: continue
                     val price = offerDetails
@@ -165,10 +165,12 @@ class BillingManager(
                         ?.let { dataStore.trialDaysAnnual = it }
                 }
             }
-            billingClient.queryProductDetailsAsync(inappParams) { result, detailsList ->
+            billingClient.queryProductDetailsAsync(inappParams) { result, queryResult ->
                 if (result.responseCode != BillingClient.BillingResponseCode.OK) return@queryProductDetailsAsync
-                for (details in detailsList) {
-                    val price = details.oneTimePurchaseOfferDetails?.formattedPrice ?: continue
+                for (details in queryResult.productDetailsList) {
+                    // PBL 8 replaced the singular oneTimePurchaseOfferDetails with a list
+                    // (one-time products can carry multiple offers now); take the base offer.
+                    val price = details.oneTimePurchaseOfferDetailsList?.firstOrNull()?.formattedPrice ?: continue
                     if (details.productId == PRODUCT_LIFETIME) dataStore.productPriceLifetime = price
                 }
             }
@@ -251,7 +253,10 @@ class BillingManager(
             .build()
 
         scope.launch {
-            billingClient.queryProductDetailsAsync(params) { result, detailsList ->
+            billingClient.queryProductDetailsAsync(params) { result, queryResult ->
+                // PBL 8: the callback now delivers a QueryProductDetailsResult; the fetched
+                // items live on .productDetailsList (unfetched products are reported separately).
+                val detailsList = queryResult.productDetailsList
                 logd("launchPurchaseFlow($productId): queryProductDetailsAsync code=${result.responseCode} msg='${result.debugMessage}' count=${detailsList.size} ts=${System.currentTimeMillis()}")
 
                 // Verbose product details — debug builds only
