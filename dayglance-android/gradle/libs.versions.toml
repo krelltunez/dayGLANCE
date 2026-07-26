@@ -52,8 +52,12 @@ androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscree
 # DocumentFile (Storage Access Framework — Obsidian vault file I/O)
 androidx-documentfile = { group = "androidx.documentfile", name = "documentfile", version.ref = "documentfile" }
 
-# Google Play Billing
-billing-ktx = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "billing" }
+# Google Play Billing — use the plain Java artifact, NOT billing-ktx. The 8.x
+# -ktx artifact ships Kotlin 2.1 metadata, which this project's Kotlin 1.9
+# compiler can't read ("incompatible version of Kotlin ... metadata is 2.1.0").
+# We only call base BillingClient callback APIs (suspend wrapping is done locally
+# with kotlinx-coroutines), so the ktx extensions aren't needed.
+billing = { group = "com.android.billingclient", name = "billing", version.ref = "billing" }
 
 # Chrome Custom Tabs (Health Connect permission rationale — privacy policy link)
 browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
