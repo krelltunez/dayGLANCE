@@ -160,8 +160,8 @@ dependencies {
     // DocumentFile — Storage Access Framework wrapper for Obsidian vault file I/O
     implementation(libs.androidx.documentfile)
 
-    // Google Play Billing
-    implementation(libs.billing.ktx)
+    // Google Play Billing (base Java artifact — see note in libs.versions.toml)
+    implementation(libs.billing)
 
     // Chrome Custom Tabs — privacy policy link in PermissionsRationaleActivity
     implementation(libs.browser)
