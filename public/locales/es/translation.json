@@ -889,7 +889,7 @@
   },
   "bucket": {
     "title": "Bucket List",
-    "subtitle": "Algún día / quizás — sin fechas límite, sin presiones",
+    "subtitle": "Algún día / quizás. Sin fechas límite, sin presiones.",
     "sendToBucket": "Enviar a la Bucket List",
     "sendToInbox": "Enviar a la bandeja de entrada",
     "scheduleNextSlot": "Programar en el próximo hueco libre",
@@ -900,7 +900,7 @@
     "showList": "Mostrar {{list}}",
     "addToList": "Añadir a {{list}}…",
     "empty": "Aún no hay nada aquí.",
-    "notesPlaceholder": "Notas para este espacio — sueños, criterios, enlaces…",
+    "notesPlaceholder": "Notas para este espacio: sueños, criterios, enlaces…",
     "showCompleted": "Mostrar completadas",
     "hideCompleted": "Ocultar completadas"
   }

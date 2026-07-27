@@ -69,8 +69,8 @@ const BucketListModal = () => {
   }, [unscheduledTasks, isVisibleForUser, showCompleted]);
 
   const hasAnyCompleted = useMemo(
-    () => unscheduledTasks.some(t => t.bucketId && !t.archived && t.completed),
-    [unscheduledTasks]
+    () => unscheduledTasks.some(t => t.bucketId && !t.archived && t.completed && isVisibleForUser(t)),
+    [unscheduledTasks, isVisibleForUser]
   );
   const hiddenCount = useMemo(
     () => unscheduledTasks.filter(t => t.bucketId === 'b2' && !t.archived && !t.completed && isVisibleForUser(t)).length,

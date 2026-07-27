@@ -889,7 +889,7 @@
   },
   "bucket": {
     "title": "Bucket List",
-    "subtitle": "Someday / maybe — no deadlines, no nags",
+    "subtitle": "Someday / maybe. No deadlines, no nags.",
     "sendToBucket": "Send to Bucket List",
     "sendToInbox": "Send to Inbox",
     "scheduleNextSlot": "Schedule at next open slot",
@@ -900,7 +900,7 @@
     "showList": "Show {{list}}",
     "addToList": "Add to {{list}}…",
     "empty": "Nothing here yet.",
-    "notesPlaceholder": "Notes for this space — dreams, criteria, links…",
+    "notesPlaceholder": "Notes for this space: dreams, criteria, links…",
     "showCompleted": "Show completed",
     "hideCompleted": "Hide completed"
   }

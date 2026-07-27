@@ -889,7 +889,7 @@
   },
   "bucket": {
     "title": "Bucket List",
-    "subtitle": "Irgendwann / vielleicht — keine Fristen, kein Drängeln",
+    "subtitle": "Irgendwann / vielleicht. Keine Fristen, kein Drängeln.",
     "sendToBucket": "Auf die Bucket List",
     "sendToInbox": "In den Posteingang verschieben",
     "scheduleNextSlot": "Im nächsten freien Slot einplanen",
@@ -900,7 +900,7 @@
     "showList": "{{list}} anzeigen",
     "addToList": "Zu {{list}} hinzufügen…",
     "empty": "Noch nichts hier.",
-    "notesPlaceholder": "Notizen für diesen Bereich — Träume, Kriterien, Links…",
+    "notesPlaceholder": "Notizen für diesen Bereich: Träume, Kriterien, Links…",
     "showCompleted": "Erledigte anzeigen",
     "hideCompleted": "Erledigte ausblenden"
   }
