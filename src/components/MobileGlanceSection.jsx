@@ -76,6 +76,7 @@ const MobileGlanceSection = () => {
     goToDate, scrollToHour,
     glancePage, setGlancePage,
     mobileViewMode,
+    setShowBucketList,
   } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
   const {
@@ -115,7 +116,6 @@ const MobileGlanceSection = () => {
     getFrameInstancesForDate, computeAvailableSlots,
     openFrameSchedule,
     showVoiceInput, setShowVoiceInput,
-    setShowBucketList,
     voiceCanRecord,
     healthPerms,
     isVisibleForUser,

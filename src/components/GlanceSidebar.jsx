@@ -71,6 +71,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     setHideProjectTasksInbox, setHideStandaloneTasksInbox,
     goToDate, scrollToHour, effectiveViewMode,
     glancePage, setGlancePage,
+    setShowBucketList,
   } = useDayPlannerCtx();
   const {
     habitLongPressTimer,
@@ -107,7 +108,6 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     computeAvailableSlots,
     openFrameSchedule,
     showVoiceInput, setShowVoiceInput,
-    setShowBucketList,
     voiceCanRecord,
     healthPerms,
     isVisibleForUser,
