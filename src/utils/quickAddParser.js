@@ -598,12 +598,14 @@ export const parseQuickAdd = (text, { now = new Date() } = {}) => {
 
 /**
  * Remove accepted NL spans from a title (called at save, before cleanTitle).
- * Tag spans are kept — tags live inline in the title by app convention.
+ * Tag spans are kept by default — tags live inline in the title by app
+ * convention. The voice pipeline passes includeTags: true because it carries
+ * tags as a separate array and re-appends them on apply.
  */
-export const stripSpans = (title, spans) => {
+export const stripSpans = (title, spans, { includeTags = false } = {}) => {
   if (!spans || !spans.length) return title;
   const remove = spans
-    .filter((s) => s.type !== 'tag')
+    .filter((s) => includeTags || s.type !== 'tag')
     .sort((a, b) => b.start - a.start);
   let out = title;
   for (const s of remove) {
