@@ -190,6 +190,17 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
         case "stopRecording":
             return AudioBridge.shared.stopRecording()
 
+        // On-device speech recognition (no-AI voice quick-add). Results are
+        // delivered asynchronously via window.__speechEvent.
+        case "supportsSpeechRecognition":
+            return SpeechBridge.shared.isAvailable()
+        case "startSpeechRecognition":
+            return SpeechBridge.shared.start()
+        case "stopSpeechRecognition":
+            return SpeechBridge.shared.stop()
+        case "cancelSpeechRecognition":
+            return SpeechBridge.shared.cancel()
+
         // Phase 9 — Subscriptions (RevenueCat / StoreKit 2)
         case "getSubscriptionStatus":
             return SubscriptionBridge.shared.getStatus()
