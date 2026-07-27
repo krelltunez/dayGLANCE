@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   AlertCircle, Archive, BookOpen, BrainCircuit,
   Calendar, Check, CheckSquare, ExternalLink,
-  FileText, Filter, Inbox, Pencil, Plus, Settings,
+  FileText, Filter, Inbox, Pencil, Plus, Settings, Telescope,
 } from 'lucide-react';
 import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
 import { dateToString, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
@@ -14,6 +14,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
+import { notBucketed } from '../utils/bucketList.js';
 
 const InboxSidebar = ({ variant = 'desktop' }) => {
   const {
@@ -41,6 +42,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
     applySuggestionForEdit,
     cyclePriority,
     archiveInboxTask,
+    sendTaskToBucket,
     openMobileEditTask,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
     handleDragStart, handleDragEnd,
@@ -97,7 +99,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
           <Plus size={14} strokeWidth={3} />
           <span className="text-xs font-medium">{t('common.newTask')}</span>
         </button>
-        {aiConfig?.enabled && aiConfig.features?.smartScheduling && myFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
+        {aiConfig?.enabled && aiConfig.features?.smartScheduling && myFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample).length > 0 && (
           <button
             onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
             className="px-2.5 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -109,7 +111,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
         )}
       </div>
       <div className="flex items-center gap-0.5">
-        {unscheduledTasks.filter(t => !t.deadline).length > 0 && (
+        {unscheduledTasks.filter(t => notBucketed(t) && !t.deadline).length > 0 && (
           <>
             <button
               ref={node => { if (node) inboxFilterBtnRef.current = node; }}
@@ -323,6 +325,15 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                   >
                     <Pencil size={14} />
                   </button>
+                  {!task.completed && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); sendTaskToBucket(task.id); }}
+                      className="hover:bg-white/20 rounded p-1 transition-colors opacity-40 hover:opacity-100"
+                      title={t('bucket.sendToBucket')}
+                    >
+                      <Telescope size={14} />
+                    </button>
+                  )}
                 </div>
                 <div className="flex items-center justify-between mt-1">
                   {task.completed ? (
@@ -400,7 +411,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
       >
         <Plus size={16} strokeWidth={3} />
       </button>
-      {aiConfig?.enabled && aiConfig.features?.smartScheduling && myFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
+      {aiConfig?.enabled && aiConfig.features?.smartScheduling && myFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample).length > 0 && (
         <button
           onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
           className="p-2 flex items-center justify-center bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
@@ -445,25 +456,25 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
       <div className="flex flex-col items-center justify-center py-12 px-6">
         <div className={`relative w-16 h-16 rounded-2xl ${darkMode ? 'bg-emerald-500/15' : 'bg-emerald-50'} flex items-center justify-center mb-4`}>
           <Inbox size={28} className={`${darkMode ? 'text-emerald-400' : 'text-emerald-500'}`} />
-          {unscheduledTasks.filter(t => !t.isExample).length === 0 && (
+          {unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0 && (
             <Check size={14} className={`absolute -top-1 -right-1 ${darkMode ? 'text-emerald-400' : 'text-emerald-500'}`} />
           )}
         </div>
         <p className={`text-base font-semibold ${textPrimary} mb-1`}>
-          {unscheduledTasks.filter(t => !t.isExample).length === 0
+          {unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0
             ? "Inbox zero"
-            : unscheduledTasks.filter(t => !t.isExample).length === 0
+            : unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0
               ? "All overdue"
               : "No matches"}
         </p>
         <p className={`text-sm ${textSecondary} text-center mb-5`}>
-          {unscheduledTasks.filter(t => !t.isExample).length === 0
+          {unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0
             ? "Add tasks here to schedule later"
-            : unscheduledTasks.filter(t => !t.isExample).length === 0
+            : unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0
               ? "All inbox tasks have overdue deadlines"
               : "No tasks match the current filter"}
         </p>
-        {unscheduledTasks.filter(t => !t.isExample).length === 0 && (
+        {unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0 && (
           <button
             onClick={openNewInboxTask}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-emerald-500 text-white active:bg-emerald-600' : 'bg-emerald-500 text-white active:bg-emerald-600'} transition-colors`}
@@ -603,6 +614,15 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                         />
                       )}
                     </div>
+                    {!task.completed && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); sendTaskToBucket(task.id); }}
+                        className="hover:bg-white/20 rounded p-1 transition-colors opacity-40 hover:opacity-100"
+                        title={t('bucket.sendToBucket')}
+                      >
+                        <Telescope size={14} />
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-center justify-between w-full">
                     {task.completed ? (

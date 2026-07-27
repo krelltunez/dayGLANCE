@@ -7,6 +7,7 @@ import SmartSchedulePanel from './SmartSchedulePanel.jsx';
 import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { notBucketed } from '../utils/bucketList.js';
 
 const FramesModal = () => {
   const { t } = useTranslation();
@@ -170,7 +171,7 @@ const FramesModal = () => {
           {aiConfig?.enabled && aiConfig.features?.smartScheduling && framesModalTab === 'schedule' && (
             <SmartSchedulePanel
               aiConfig={aiConfig}
-              inboxTasks={unscheduledTasks.filter(t => !t.completed && !t.isExample)}
+              inboxTasks={unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample)}
               smartScheduleResults={smartScheduleResults}
               smartScheduleLoading={smartScheduleLoading}
               smartScheduleError={smartScheduleError}

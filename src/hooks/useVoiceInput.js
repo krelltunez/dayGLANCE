@@ -3,6 +3,7 @@ import { aiTranscribe, aiJSON, supportsTranscription } from '../ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt } from '../ai-prompts.js';
 import { nativeStartRecording, nativeStopRecording, triggerHaptic } from '../native.js';
 import { dateToString } from '../utils/taskUtils.js';
+import { notBucketed } from '../utils/bucketList.js';
 
 /**
  * Voice input pipeline — extracted from App.jsx (see "App.jsx — Ongoing
@@ -234,7 +235,7 @@ export default function useVoiceInput({
       lines.push(d);
     });
     // Inbox tasks (uncompleted)
-    unscheduledTasks.filter(t => !t.completed && !t.isExample).slice(0, 20).forEach(t => {
+    unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample).slice(0, 20).forEach(t => {
       let d = `"${t.title}" — inbox, ${t.duration || 30}min`;
       if (t.priority > 0) d += `, priority: ${['none', 'low', 'medium', 'high'][t.priority]}`;
       if (t.deadline) d += `, deadline: ${t.deadline}`;

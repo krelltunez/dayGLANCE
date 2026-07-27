@@ -5,6 +5,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { extractTags } from '../utils/taskUtils.js';
 import { useTranslation } from 'react-i18next';
+import { notBucketed } from '../utils/bucketList.js';
 
 /**
  * Popover for inbox filtering. Attach a ref to the trigger button and pass it
@@ -57,7 +58,7 @@ const InboxFilterPopover = ({ open, onClose, buttonRef }) => {
   // Tags and projects present in inbox tasks
   const inboxTags = useMemo(() => {
     const tagSet = new Set();
-    unscheduledTasks.forEach(t => extractTags(t.title).forEach(tag => tagSet.add(tag)));
+    unscheduledTasks.filter(notBucketed).forEach(t => extractTags(t.title).forEach(tag => tagSet.add(tag)));
     return Array.from(tagSet).sort();
   }, [unscheduledTasks]);
 

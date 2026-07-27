@@ -36,6 +36,7 @@ import { ensureVaultIntentsKey, setupVaultIntentsEncryption } from '../intents/v
 import { flushOutboxNow } from '../intents/useOutboxFlush.js';
 import { loadIntentsRootKey, clearIntentsRootKey } from '../intents/intentsKeyStore.js';
 import { useTranslation } from 'react-i18next';
+import { notBucketed } from '../utils/bucketList.js';
 
 const MobileSettingsPanel = () => {
   const {
@@ -2354,7 +2355,7 @@ const MobileSettingsPanel = () => {
       {aiConfig?.enabled && aiConfig.features?.smartScheduling && framesModalTab === 'schedule' && (
         <SmartSchedulePanel
           aiConfig={aiConfig}
-          inboxTasks={unscheduledTasks.filter(t => !t.completed && !t.isExample)}
+          inboxTasks={unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample)}
           smartScheduleResults={smartScheduleResults}
           smartScheduleLoading={smartScheduleLoading}
           smartScheduleError={smartScheduleError}

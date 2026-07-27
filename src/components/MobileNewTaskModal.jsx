@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Calendar, Check, Loader, Sparkles, X } from 'lucide-react';
+import { BookOpen, Calendar, Check, Loader, Sparkles, Telescope, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -28,6 +28,7 @@ const MobileNewTaskModal = () => {
     setShowDatePicker, setShowTimePicker, setShowRecurrenceEndDatePicker,
     addTask, saveMobileEditTask, saveMobileEditNativeEvent,
     moveToRecycleBin, clearNativeEventOverride,
+    sendTaskToBucket,
     handleNewTaskInputChange,
   } = useDayPlannerCtx();
   const { aiConfig, taskAISuggestion, setTaskAISuggestion, taskAISuggestionLoading, triggerTaskAISuggestion, goals, projects, goalsProjectsEnabled, multiUserEnabled, users } = useFeaturesCtx();
@@ -546,6 +547,23 @@ const MobileNewTaskModal = () => {
                   {mobileEditingTask ? t('task.saveChanges') : newTask.openInInbox ? (newTask.projectId ? t('task.addToProject') : t('task.addToInbox')) : newTask.projectId && newTask.keepUnscheduled ? t('task.addToProject') : newTask.projectId ? t('task.addToProjectAndSchedule') : t('task.addToSchedule')}
                 </button>
               </div>
+
+              {/* Send-to-Bucket for inbox tasks in edit mode */}
+              {mobileEditingTask && mobileEditIsInbox && !mobileEditingTask.bucketId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    sendTaskToBucket(mobileEditingTask.id);
+                    setShowAddTask(false);
+                    setMobileEditingTask(null);
+                    setMobileEditIsInbox(false);
+                  }}
+                  className={`w-full px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 ${darkMode ? 'bg-sky-900/40 text-sky-300 hover:bg-sky-900/60' : 'bg-sky-50 text-sky-700 hover:bg-sky-100'}`}
+                >
+                  <Telescope size={16} />
+                  {t('bucket.sendToBucket')}
+                </button>
+              )}
 
               {/* Delete button for edit mode */}
               {mobileEditingTask && (

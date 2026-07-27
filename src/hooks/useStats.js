@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { dateToString } from '../utils/taskUtils.js';
 import { getOccurrencesInRange } from '../utils/recurrenceEngine.js';
+import { notBucketed } from '../utils/bucketList.js';
 
 export default function useStats({ tasks: rawTasks, unscheduledTasks: rawUnscheduled, recurringTasks: rawRecurring, goals: rawGoals = [], projects: rawProjects = [], isVisibleForUser = () => true }) {
   const todayStr = dateToString(new Date());
@@ -22,7 +23,7 @@ export default function useStats({ tasks: rawTasks, unscheduledTasks: rawUnsched
   );
 
   const deadlineInboxTasks = useMemo(
-    () => unscheduledTasks.filter(t => t.deadline && t.deadline <= todayStr),
+    () => unscheduledTasks.filter(t => notBucketed(t) && t.deadline && t.deadline <= todayStr),
     [unscheduledTasks, todayStr]
   );
 
@@ -71,7 +72,7 @@ export default function useStats({ tasks: rawTasks, unscheduledTasks: rawUnsched
       isRecurring: true,
     }));
   });
-  const todayDeadlineInboxTasks = unscheduledTasks.filter(t => t.deadline === actualTodayStr);
+  const todayDeadlineInboxTasks = unscheduledTasks.filter(t => notBucketed(t) && t.deadline === actualTodayStr);
   const actualTodayTasks = [
     ...tasks.filter(t => t.date === actualTodayStr),
     ...todayRecurringInstances,
@@ -87,10 +88,10 @@ export default function useStats({ tasks: rawTasks, unscheduledTasks: rawUnsched
     + deadlineInboxTasks.reduce((sum, t) => sum + (t.focusMinutes || 0), 0);
 
   // Inbox completion stats — pure inbox only (no projectId, no deadline)
-  const inboxCompletedToday = unscheduledTasks.filter(t => t.completed && !t.deadline && !t.projectId && t.completedAt && t.completedAt.startsWith(todayStr));
+  const inboxCompletedToday = unscheduledTasks.filter(t => notBucketed(t) && t.completed && !t.deadline && !t.projectId && t.completedAt && t.completedAt.startsWith(todayStr));
   const inboxCompletedTodayCount = inboxCompletedToday.length;
   const inboxCompletedTodayMinutes = inboxCompletedToday.reduce((sum, t) => sum + (t.duration || 0), 0);
-  const allTimeInboxCompleted = unscheduledTasks.filter(t => t.completed && !t.deadline && !t.projectId);
+  const allTimeInboxCompleted = unscheduledTasks.filter(t => notBucketed(t) && t.completed && !t.deadline && !t.projectId);
   const allTimeInboxCompletedCount = allTimeInboxCompleted.length;
   const allTimeInboxCompletedMinutes = allTimeInboxCompleted.reduce((sum, t) => sum + (t.duration || 0), 0);
 
@@ -185,7 +186,7 @@ export default function useStats({ tasks: rawTasks, unscheduledTasks: rawUnsched
         }
       });
     });
-    const deadlineInboxIncomplete = unscheduledTasks.filter(t => t.deadline && t.deadline <= todayStr && !t.completed && !isTodayAndFuture(t));
+    const deadlineInboxIncomplete = unscheduledTasks.filter(t => notBucketed(t) && t.deadline && t.deadline <= todayStr && !t.completed && !isTodayAndFuture(t));
     return [...regularIncomplete, ...recurringIncomplete, ...deadlineInboxIncomplete]
       .sort((a, b) => ((a.date || a.deadline || '').localeCompare(b.date || b.deadline || '')) || (a.startTime || '').localeCompare(b.startTime || ''));
   }, [nonImportedTasks, recurringTasks, todayStr, unscheduledTasks]);

@@ -1,4 +1,5 @@
 import { extractTags } from './taskUtils.js';
+import { notBucketed } from './bucketList.js';
 
 // Builds the task list for the Manually Schedule (frame schedule) modal.
 //
@@ -27,6 +28,7 @@ export function filterFrameScheduleTasks(unscheduledTasks, {
   affinityOnly = false,
 } = {}) {
   return (unscheduledTasks || [])
+    .filter(notBucketed)
     .filter(t => !t.completed && !t.isExample && (!t.deadline || t.deadline === dateStr))
     .filter(t => isVisibleForUser(t))
     .filter(t => {

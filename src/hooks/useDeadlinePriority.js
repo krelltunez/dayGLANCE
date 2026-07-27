@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { dateToString } from '../utils/taskUtils.js';
+import { notBucketed } from '../utils/bucketList.js';
 
 export default function useDeadlinePriority({
   unscheduledTasks,
@@ -19,7 +20,7 @@ export default function useDeadlinePriority({
   const getDeadlineTasksForDate = (dateStr) => {
     const todayStr = dateToString(new Date());
     return unscheduledTasks.filter(t =>
-      t.deadline === dateStr && (t.deadline >= todayStr || t.completed) && isVisibleForUser(t)
+      notBucketed(t) && t.deadline === dateStr && (t.deadline >= todayStr || t.completed) && isVisibleForUser(t)
     );
   };
 

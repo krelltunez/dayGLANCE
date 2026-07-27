@@ -23,6 +23,7 @@ import { collectDeviceSettings, applyDeviceSettings } from './utils/deviceSettin
 import useFolderBackup from './hooks/useFolderBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
+import { notBucketed, demoteToBucket, normalizeBucketConfig } from './utils/bucketList.js';
 import { parseICS, parseDatetime, filterByDateWindow, expandMultiDayEvent } from './utils/icsParser.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex, getProjectColor } from './utils/colorUtils.js';
 import { calculateGoalProgress } from './utils/goalProgress.js';
@@ -150,6 +151,7 @@ import FramesModal from './components/FramesModal.jsx';
 import MobileWelcomeModal from './components/MobileWelcomeModal.jsx';
 import DesktopWelcomeModal from './components/DesktopWelcomeModal.jsx';
 import SpotlightModal from './components/SpotlightModal.jsx';
+import BucketListModal from './components/BucketListModal.jsx';
 import HabitModal from './components/HabitModal.jsx';
 import SubscriptionWall from './components/SubscriptionWall.jsx';
 import ReviewerBanner from './components/ReviewerBanner.jsx';
@@ -544,6 +546,19 @@ const DayPlanner = () => {
   const [priorityPromptDismissed, setPriorityPromptDismissed] = useState(() => {
     return localStorage.getItem('priorityPromptDismissed') === 'true';
   });
+  // Bucket List — someday/maybe space (see utils/bucketList.js). Config
+  // (headings, second-list hidden, shared notes) is synced via the cloud
+  // payload like gtdFrames; bucket ITEMS are unscheduledTasks with a bucketId.
+  const [bucketConfig, setBucketConfig] = useState(() => {
+    try { return normalizeBucketConfig(JSON.parse(localStorage.getItem('day-planner-bucket-config') || 'null')); }
+    catch { return normalizeBucketConfig(null); }
+  });
+  useEffect(() => {
+    localStorage.setItem('day-planner-bucket-config', JSON.stringify(bucketConfig));
+  }, [bucketConfig]);
+  const updateBucketConfig = (patch) =>
+    setBucketConfig(prev => normalizeBucketConfig({ ...prev, ...patch, updatedAt: new Date().toISOString() }));
+  const [showBucketList, setShowBucketList] = useState(false);
   // Tablet layout state
   // Mobile layout state
   const [mobileActiveTab, setMobileActiveTab] = useState('dayglance');
@@ -1996,7 +2011,7 @@ const DayPlanner = () => {
       cloudSyncEngineRef.current.upload();
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, allTodayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, cloudSyncConfig?.enabled, syncKeyReady, multiUserEnabled, users, cloudSyncDebounceRef, dataLoaded, suppressCloudUploadRef]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, allTodayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, bucketConfig, cloudSyncConfig?.enabled, syncKeyReady, multiUserEnabled, users, cloudSyncDebounceRef, dataLoaded, suppressCloudUploadRef]);
 
   // ── GLANCEvault DB transport ─────────────────────────────────────────────
   // Row-grained sync that runs ALONGSIDE the file-tier WebDAV engine (it shares
@@ -2515,10 +2530,12 @@ const DayPlanner = () => {
     if (isTrayMode || !dataLoaded || inboxAutoArchiveDays === 0) return;
     const cutoff = Date.now() - inboxAutoArchiveDays * 86400000;
     setUnscheduledTasks(prev => {
-      const hasChanges = prev.some(t => t.completed && !t.archived && t.completedAt && new Date(t.completedAt).getTime() < cutoff);
+      // Bucket List items are exempt — the Bucket is a parking lot, not a queue
+      // to be swept. Completed bucket items stay until the user deletes them.
+      const hasChanges = prev.some(t => notBucketed(t) && t.completed && !t.archived && t.completedAt && new Date(t.completedAt).getTime() < cutoff);
       if (!hasChanges) return prev;
       return prev.map(t =>
-        (t.completed && !t.archived && t.completedAt && new Date(t.completedAt).getTime() < cutoff)
+        (notBucketed(t) && t.completed && !t.archived && t.completedAt && new Date(t.completedAt).getTime() < cutoff)
           // Stamp lastModified so the archive wins whole-entity LWW and isn't
           // dropped by a newer non-archived copy from another device.
           ? { ...t, archived: true, lastModified: new Date().toISOString() }
@@ -2786,9 +2803,9 @@ const DayPlanner = () => {
       }
     }
 
-    // Inbox tasks with past deadlines
+    // Inbox tasks with past deadlines (bucket items never nag)
     const overdueDeadlines = unscheduledTasks.filter(t =>
-      t.deadline && t.deadline < todayStr && !t.completed && !t.isExample && isVisibleForUser(t)
+      notBucketed(t) && t.deadline && t.deadline < todayStr && !t.completed && !t.isExample && isVisibleForUser(t)
     ).map(t => ({ ...t, _overdueType: 'deadline' }));
 
     return [...overdueScheduled, ...todayRecurring, ...overdueRecurringAllDay, ...overdueDeadlines];
@@ -2985,7 +3002,7 @@ const DayPlanner = () => {
       // calendar events carry no assignment and remain included.
       const mergeVars = gatherTrmnlData({
         tasks: tasks.filter(isVisibleForUser),
-        unscheduledTasks: unscheduledTasks.filter(isVisibleForUser),
+        unscheduledTasks: unscheduledTasks.filter(t => notBucketed(t) && isVisibleForUser(t)),
         recurringTasks: recurringTasks.filter(isVisibleForUser),
         selectedDate: today,
         use24HourClock: use24HourClock,
@@ -3053,6 +3070,7 @@ const DayPlanner = () => {
     showAddTask, setShowAddTask, setShowNewTaskDeadlinePicker,
     showRecurrencePicker, setShowRecurrencePicker,
     focusLogModalDate, setFocusLogModalDate,
+    showBucketList, setShowBucketList,
   });
 
   useKeyboardShortcuts({
@@ -5140,6 +5158,7 @@ const DayPlanner = () => {
         routinesEnabled,
         routinesEnabledUpdatedAt: localStorage.getItem('day-planner-routines-enabled-updated-at') || null,
         gtdFrames,
+        bucketConfig,
         goals,
         deletedGoalIds: JSON.parse(localStorage.getItem('day-planner-deleted-goal-ids') || '{}'),
         projects,
@@ -5330,6 +5349,11 @@ const DayPlanner = () => {
     if (data.gtdFrames) {
       localStorage.setItem('day-planner-gtd-frames', JSON.stringify(data.gtdFrames));
       setGtdFrames(data.gtdFrames);
+    }
+    if (data.bucketConfig) {
+      const normalized = normalizeBucketConfig(data.bucketConfig);
+      localStorage.setItem('day-planner-bucket-config', JSON.stringify(normalized));
+      setBucketConfig(normalized);
     }
     if (data.goals) {
       localStorage.setItem('day-planner-goals', JSON.stringify(data.goals));
@@ -5973,7 +5997,7 @@ const DayPlanner = () => {
     const allTodayTasks = [...tasks, ...todayRecurring];
 
     const allDay = allTodayTasks.filter(t => t.date === today && t.isAllDay && !t.completed && isVisibleForUser(t));
-    const deadlines = unscheduledTasks.filter(t => t.deadline === today && t.deadline >= today && !t.completed && isVisibleForUser(t));
+    const deadlines = unscheduledTasks.filter(t => notBucketed(t) && t.deadline === today && t.deadline >= today && !t.completed && isVisibleForUser(t));
     const scheduled = allTodayTasks.filter(t => {
       if (t.date !== today || t.isAllDay || !isVisibleForUser(t)) return false;
       const [h, m] = (t.startTime || '0:0').split(':').map(Number);
@@ -6040,7 +6064,7 @@ const DayPlanner = () => {
       // No more scheduled tasks — gap is rest of day (cap at a large number)
       gapMinutes = 24 * 60 - nowMin;
     }
-    const incompleteInbox = unscheduledTasks.filter(t => !t.completed && !t.isExample && isVisibleForUser(t));
+    const incompleteInbox = unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample && isVisibleForUser(t));
     const showNudge = gapMinutes >= 60 && incompleteInbox.length > 0;
     return { insertAfterIndex, nowTimeStr, showNudge, inboxCount: incompleteInbox.length, gapMinutes, insideTask };
   }, [todayAgenda, currentTime, unscheduledTasks, isVisibleForUser]);
@@ -6076,7 +6100,7 @@ const DayPlanner = () => {
     const allTasks = [...regularTasks, ...recurringInstances];
     const userTasks = allTasks.filter(t => !t.imported || t.isTaskCalendar);
     const calendarEvents = allTasks.filter(t => t.imported && !t.isTaskCalendar);
-    const deadlines = unscheduledTasks.filter(t => t.deadline === tomorrowStr && !t.completed && !t.isExample && isVisibleForUser(t));
+    const deadlines = unscheduledTasks.filter(t => notBucketed(t) && t.deadline === tomorrowStr && !t.completed && !t.isExample && isVisibleForUser(t));
     const scheduledItems = allTasks.filter(t => t.startTime && !t.isAllDay);
 
     // First start time (earliest scheduled item)
@@ -6216,7 +6240,7 @@ const DayPlanner = () => {
         }
         return true;
       });
-      const inboxItems = unscheduledTasks.filter(t => !t.completed && !t.isExample && isVisibleForUser(t));
+      const inboxItems = unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample && isVisibleForUser(t));
       // Only include tasks that can actually fit in the available slot.
       // Tasks with no duration are always included (we don't know how long they take).
       const candidates = [
@@ -6499,6 +6523,17 @@ const DayPlanner = () => {
   };
   const restoreArchivedInboxTask = (id) => {
     setUnscheduledTasks(prev => prev.map(t => t.id === id ? { ...t, archived: false, lastModified: new Date().toISOString() } : t));
+  };
+
+  // Demote an Inbox task to the Bucket List (first list). Strips deadline and
+  // priority — the Bucket is deliberately pressure-free — so this goes through
+  // undo rather than trying to restore them on promote.
+  const sendTaskToBucket = (taskId) => {
+    const task = unscheduledTasks.find(t => t.id === taskId);
+    if (!task) return;
+    pushUndo();
+    setUnscheduledTasks(prev => prev.map(t => t.id === taskId ? demoteToBucket(t) : t));
+    setUndoToast({ message: `"${task.title}" sent to Bucket List`, actionable: true });
   };
 
   // Focus mode availability: current task or back-to-back block >= 45 min remaining
@@ -7203,7 +7238,7 @@ const DayPlanner = () => {
       const todayStr = dateToString(today);
       // Gather inbox tasks (non-completed, non-example, non-project)
       // Project tasks belong to their project cards and shouldn't be auto-scheduled from here
-      const inboxTasks = unscheduledTasks.filter(t => !t.completed && !t.isExample && (!goalsProjectsEnabled || !t.projectId) && isVisibleForUser(t));
+      const inboxTasks = unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample && (!goalsProjectsEnabled || !t.projectId) && isVisibleForUser(t));
       if (inboxTasks.length === 0) {
         setSmartScheduleError('No inbox tasks to schedule.');
         setSmartScheduleLoading(false);
@@ -7664,6 +7699,11 @@ const DayPlanner = () => {
     spotlightQuery, setSpotlightQuery,
     spotlightSelectedIndex, setSpotlightSelectedIndex,
     spotlightResults,
+
+    // ── Bucket List ───────────────────────────────────────────────────────────
+    bucketConfig, updateBucketConfig,
+    showBucketList, setShowBucketList,
+    sendTaskToBucket,
 
     // ── Daily notes ───────────────────────────────────────────────────────────
     dailyNotes, setDailyNotes,
@@ -9152,6 +9192,7 @@ const DayPlanner = () => {
 
       {/* Spotlight Search */}
       {showSpotlight && <SpotlightModal />}
+      {showBucketList && <BucketListModal />}
 
       {/* Settings Modal */}
       {showSettings && <SettingsModal />}

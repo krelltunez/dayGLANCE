@@ -23,6 +23,7 @@ export default function useModalClose({
   showAddTask, setShowAddTask, setShowNewTaskDeadlinePicker,
   showRecurrencePicker, setShowRecurrencePicker,
   focusLogModalDate, setFocusLogModalDate,
+  showBucketList, setShowBucketList,
 }) {
   useEffect(() => {
     const handleEscape = (e) => {
@@ -141,6 +142,12 @@ export default function useModalClose({
         }
         return;
       }
+      // After showAddTask so a task editor opened from the Bucket List closes first.
+      if (showBucketList) {
+        e.preventDefault();
+        setShowBucketList(false);
+        return;
+      }
     };
 
     document.addEventListener('keydown', handleEscape);
@@ -148,5 +155,5 @@ export default function useModalClose({
     // Deps list the open-modal flags the Escape handler branches on. The only
     // omitted names are the setX state setters, which React guarantees are stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusLogModalDate, taskContextMenu, timelineContextMenu, quickAddFrameModal, frameContextMenu, frameAdjustModal, frameScheduleModal, showFramesModal, showSpotlight, showHelpModal, showShortcutHelp, editingRecurrenceTaskId, showMonthView, showAutoBackupManager, showBackupMenu, showVoiceInput, showSettings, showRemindersSettings, showWeeklyReview, showMobileDailySummary, showAddTask, showRecurrencePicker]);
+  }, [focusLogModalDate, taskContextMenu, timelineContextMenu, quickAddFrameModal, frameContextMenu, frameAdjustModal, frameScheduleModal, showFramesModal, showSpotlight, showHelpModal, showShortcutHelp, editingRecurrenceTaskId, showMonthView, showAutoBackupManager, showBackupMenu, showVoiceInput, showSettings, showRemindersSettings, showWeeklyReview, showMobileDailySummary, showAddTask, showRecurrencePicker, showBucketList]);
 }

@@ -4,7 +4,7 @@ import {
   Calendar, CalendarClock, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronUp, Clock, Filter, Flag, Hash, Inbox, LayoutGrid, Loader,
   Mic, Minus, Moon, Plus, RefreshCw, Search,
-  Settings, Sparkles, Sun, Target, Trash2, X, Zap,
+  Settings, Sparkles, Sun, Target, Telescope, Trash2, X, Zap,
 } from 'lucide-react';
 import { renderTitle } from '../utils/textFormatting.jsx';
 import GoalRing from './GoalRing.jsx';
@@ -19,6 +19,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getGlanceHGInstances, isHGSessionReachable } from '../hooks/useHyperGlance.js';
 import { useTranslation } from 'react-i18next';
+import { notBucketed } from '../utils/bucketList.js';
 
 const GlanceSidebar = ({ variant = 'desktop' }) => {
   const {
@@ -106,6 +107,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     computeAvailableSlots,
     openFrameSchedule,
     showVoiceInput, setShowVoiceInput,
+    setShowBucketList,
     voiceCanRecord,
     healthPerms,
     isVisibleForUser,
@@ -256,6 +258,13 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
         <Mic size={16} />
       </button>
     )}
+    <button
+      onClick={() => setShowBucketList(true)}
+      className={`flex-shrink-0 self-stretch flex items-center px-2.5 rounded-lg transition-colors ${darkMode ? 'bg-white/10 text-sky-400' : 'bg-black/5 text-sky-600'} hover:opacity-80`}
+      title={t('bucket.title')}
+    >
+      <Telescope size={16} />
+    </button>
   </div>}
 
   {/* Habits / Goals carousel */}
@@ -531,7 +540,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
         {morningGlanceText && !morningGlanceLoading && (
           <p className={`text-sm leading-relaxed ${textPrimary}`}>{morningGlanceText}</p>
         )}
-        {morningGlanceText && !morningGlanceLoading && aiConfig?.enabled && aiConfig.features?.smartScheduling && myFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
+        {morningGlanceText && !morningGlanceLoading && aiConfig?.enabled && aiConfig.features?.smartScheduling && myFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample).length > 0 && (
           <button
             onClick={() => isTray ? openMainAt({ action: 'schedule-inbox' }) : (setShowFramesModal(true), setFramesModalTab('schedule'), setEditingFrame(null))}
             className={`mt-2 flex items-center gap-1.5 text-xs font-medium transition-colors ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-700'}`}
