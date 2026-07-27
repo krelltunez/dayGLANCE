@@ -14,13 +14,13 @@ val keystoreProperties: Properties? = if (hasKeystore) {
 
 android {
     namespace = "com.dayglance.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.dayglance.app"
         minSdk = 26  // Android 8.0 — required for Health Connect
-        targetSdk = 35
-        versionCode = 182
+        targetSdk = 36
+        versionCode = 183
         versionName = "4.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
