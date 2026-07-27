@@ -45,6 +45,7 @@ import com.dayglance.app.billing.BillingManager
 import com.dayglance.app.billing.SubscriptionBridge
 import com.dayglance.app.bridge.NativeBridge
 import com.dayglance.app.bridge.ObsidianBridge
+import com.dayglance.app.bridge.SpeechBridge
 import com.dayglance.app.sse.VaultSseClient
 import com.dayglance.app.data.HealthRepository
 import com.dayglance.app.data.SharedDataStore
@@ -451,6 +452,11 @@ class MainActivity : AppCompatActivity() {
         webView.addJavascriptInterface(obsidianBridge, "DayGlanceObsidian")
         // Expose subscription/billing methods — window.DayGlanceBilling
         webView.addJavascriptInterface(subscriptionBridge, "DayGlanceBilling")
+
+        // On-device speech recognition for the no-AI voice quick-add. Attached
+        // here (not in the NativeBridge constructor) because the bridge needs
+        // the WebView to deliver window.__speechEvent callbacks.
+        nativeBridge.attachSpeechBridge(SpeechBridge(this, webView))
     }
 
     private fun requestRuntimePermissions() {
@@ -522,6 +528,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        // Release the platform speech recognizer (no-op if never attached).
+        if (::nativeBridge.isInitialized) nativeBridge.destroySpeechBridge()
         // Tear the SSE reader down cleanly — no leaked connection or coroutine.
         vaultSseClient.shutdown()
         if (intentForwardReceiverRegistered) {
