@@ -1386,7 +1386,8 @@ const DayPlanner = () => {
     handleNewTaskInputChange,
     handleNewTaskInputKeyDown,
     applySuggestionForNewTask,
-  } = useNewTaskInput({ allTags, showAddTask });
+    dismissNlChip,
+  } = useNewTaskInput({ allTags, showAddTask, isEditing: !!(mobileEditingTask || mobileEditingNativeEvent) });
 
   // Show all 24 hours (full day) - scrollable
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -7774,6 +7775,7 @@ const DayPlanner = () => {
     startEditingTask, saveTaskTitle, cancelEditingTask,
     applySuggestionForEdit, handleEditKeyDown, handleEditInputChange,
     handleNewTaskInputChange, handleNewTaskInputKeyDown, applySuggestionForNewTask,
+    dismissNlChip,
     buildSuggestions,
     manuallyScheduleTask, scheduleTaskAtNextSlot, scheduleDeadlineTaskAt, scheduleRoutineAt,
     openNewTaskAtTime, openNewTaskForm, openNewInboxTask,
