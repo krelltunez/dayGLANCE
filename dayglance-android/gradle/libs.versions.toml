@@ -1,12 +1,12 @@
 [versions]
-agp = "8.4.0"
+agp = "8.9.1" # first attempt for compileSdk 36; if the build names a different min AGP, use that
 kotlin = "1.9.24"
 ksp = "1.9.24-1.0.20"
 coreKtx = "1.13.1"
 appcompat = "1.7.0"
 material = "1.12.0"
 constraintlayout = "2.1.4"
-healthConnect = "1.1.0-alpha12" # 1.1.0 stable requires compileSdk 36 + AGP 8.9.1; bump with the post-v4 toolchain upgrade
+healthConnect = "1.1.0" # stable — unblocked by the compileSdk 36 + AGP bump
 workManager = "2.9.0"
 room = "2.6.1"
 coroutines = "1.8.1"
