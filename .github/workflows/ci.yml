@@ -1,7 +1,8 @@
 name: CI
 
-# Lint, test, and build on every PR and on pushes to main. Gates on ESLint
-# errors (not warnings) and the Vitest suite.
+# Lint, test, build, and dependency-audit on every PR and on pushes to main.
+# Gates on ESLint errors (not warnings), the Vitest suite, and any untriaged
+# npm advisory (`npm run audit` — see scripts/audit-check.mjs).
 on:
   pull_request:
   push:
@@ -22,6 +23,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # Fails only on advisories not already triaged in scripts/audit-check.mjs
+      # (deferred or accepted). A genuinely new vulnerability fails the PR.
+      - name: Audit dependencies
+        run: npm run audit
 
       - name: Lint
         run: npm run lint
