@@ -872,7 +872,16 @@
     "currentViewTap": "Vista actual: {{view}}. Toca para cambiar.",
     "deadline": "Fecha límite",
     "deadlineTapToSchedule": "Fecha límite: toca para elegir una hora",
-    "routineTapHint": "Toca para completar · mantén pulsado para elegir una hora"
+    "routineTapHint": "Toca para completar · mantén pulsado para elegir una hora",
+    "completedTasks": "Tareas completadas",
+    "pastEvents": "Eventos pasados",
+    "show": "Mostrar",
+    "hide": "Ocultar",
+    "showCompleted": "Mostrar completadas",
+    "hideCompleted": "Ocultar completadas",
+    "showPastEvents": "Mostrar eventos pasados",
+    "hidePastEvents": "Ocultar eventos pasados",
+    "happeningNow": "En curso"
   },
   "planner": {
     "standaloneProject": "Proyecto independiente",

@@ -872,7 +872,16 @@
     "currentViewTap": "Aktuelle Ansicht: {{view}}. Tippen zum Wechseln.",
     "deadline": "Frist",
     "deadlineTapToSchedule": "Frist — tippen, um eine Uhrzeit zu wählen",
-    "routineTapHint": "Tippen zum Abhaken · halten, um eine Uhrzeit zu wählen"
+    "routineTapHint": "Tippen zum Abhaken · halten, um eine Uhrzeit zu wählen",
+    "completedTasks": "Erledigte Aufgaben",
+    "pastEvents": "Vergangene Termine",
+    "show": "Anzeigen",
+    "hide": "Ausblenden",
+    "showCompleted": "Erledigte anzeigen",
+    "hideCompleted": "Erledigte ausblenden",
+    "showPastEvents": "Vergangene Termine anzeigen",
+    "hidePastEvents": "Vergangene Termine ausblenden",
+    "happeningNow": "Läuft gerade"
   },
   "planner": {
     "standaloneProject": "Eigenständiges Projekt",
