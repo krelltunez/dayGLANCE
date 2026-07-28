@@ -562,7 +562,7 @@ const MobileNewTaskModal = () => {
               {/* Notes & subtasks for Bucket List items — their only surface,
                   since bucket rows have no expandable panel */}
               {isBucketItem && liveBucketTask && (
-                <div className={`border ${borderClass} rounded-lg overflow-hidden`}>
+                <div>
                   <NotesSubtasksPanel
                     task={liveBucketTask}
                     isInbox={true}
