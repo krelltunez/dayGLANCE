@@ -23,7 +23,7 @@ const IS_IOS = typeof navigator !== 'undefined' && (
  */
 const BucketListModal = () => {
   const {
-    isMobile,
+    isMobile, isTablet,
     darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     unscheduledTasks, setUnscheduledTasks, reorderUnscheduledTasks,
     scheduleTaskAtNextSlot, moveToRecycleBin, openMobileEditTask,
@@ -259,7 +259,9 @@ const BucketListModal = () => {
               : <FileText size={11} className={`flex-shrink-0 ${textSecondary} opacity-60`} />
           )}
         </button>
-        <div className={`flex items-center gap-0.5 flex-shrink-0 ${isMobile ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}>
+        {/* Hover-reveal is desktop-only: tablets share the desktop layout but
+            have no hover, which left these buttons permanently invisible. */}
+        <div className={`flex items-center gap-0.5 flex-shrink-0 ${(isMobile || isTablet) ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}>
           {!task.completed && (
             <>
               <button type="button" onClick={() => sendToInbox(task)} title={t('bucket.sendToInbox')} className={`p-1 rounded ${hoverBg}`}>
