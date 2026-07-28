@@ -27,6 +27,8 @@ export default function useKeyboardShortcuts({
   showAddTask, showFocusMode, showRoutinesDashboard, showShortcutHelp, showSpotlight,
   showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput,
   showHabitModal, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard,
+  // bucket list ('u')
+  showBucketList, setShowBucketList,
   // new task ('n' / 'i')
   selectedDate, hoverPreviewTime, hoverPreviewDate,
   setNewTask, setShowAddTask, setHoverPreviewTime, setHoverPreviewDate,
@@ -108,7 +110,7 @@ export default function useKeyboardShortcuts({
       }
 
       // Don't trigger shortcuts when a modal is open (except Escape and ? handled above)
-      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight || showSettings || showRemindersSettings || showWeeklyReview || showVoiceInput || showHabitModal || showFramesModal || frameAdjustModal || showRescheduleModal || showGoalsDashboard) {
+      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight || showSettings || showRemindersSettings || showWeeklyReview || showVoiceInput || showHabitModal || showFramesModal || frameAdjustModal || showRescheduleModal || showGoalsDashboard || showBucketList) {
         return;
       }
 
@@ -208,10 +210,17 @@ export default function useKeyboardShortcuts({
         setShowMobileTagFilter(false);
       }
 
-      // 'v' for voice task input
-      if (e.key === 'v' && noModifiers && aiConfig.enabled && aiConfig.features.voiceTaskInput) {
+      // 'v' for voice task input — same gate as the mic buttons (default on,
+      // no AI required: platform speech + deterministic parse cover the rest)
+      if (e.key === 'v' && noModifiers && aiConfig.features?.voiceTaskInput !== false) {
         e.preventDefault();
         setShowVoiceInput(true);
+      }
+
+      // 'u' for the bUcket List
+      if (e.key === 'u' && noModifiers) {
+        e.preventDefault();
+        setShowBucketList(true);
       }
 
       // 'g' for goals & projects dashboard (also auto-enables the feature on first use)
@@ -312,5 +321,5 @@ export default function useKeyboardShortcuts({
     // action callbacks (changeDate/goToToday/performUndo/performRedo/playUISound),
     // all stable or read through refs — listing them would needlessly re-bind.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showHabitModal, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, hoverPreviewTime, hoverPreviewDate, isMobile, tabletActiveTab, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames, canShowViewCycler, effectiveViewMode]);
+  }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showHabitModal, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, showBucketList, hoverPreviewTime, hoverPreviewDate, isMobile, tabletActiveTab, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames, canShowViewCycler, effectiveViewMode]);
 }

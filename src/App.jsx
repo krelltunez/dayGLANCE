@@ -3092,6 +3092,7 @@ const DayPlanner = () => {
     setShowBackupMenu,
     isMobile, tabletActiveTab, setTabletActiveTab,
     aiConfig, setShowVoiceInput,
+    showBucketList, setShowBucketList,
     habitsEnabled, setHabitsEnabled, setShowHabitModal,
     goalsProjectsEnabled, setGoalsProjectsEnabled, showGoalsDashboard, setShowGoalsDashboard,
     gtdFrames: myFrames, setShowRescheduleModal, setRescheduleResults, setRescheduleError,

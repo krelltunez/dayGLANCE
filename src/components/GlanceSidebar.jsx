@@ -264,7 +264,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     <button
       onClick={() => setShowBucketList(true)}
       className={`flex-shrink-0 self-stretch flex items-center px-2.5 rounded-lg transition-colors ${darkMode ? 'bg-white/10 text-sky-400' : 'bg-black/5 text-sky-600'} hover:opacity-80`}
-      title={t('bucket.title')}
+      title={`${t('bucket.title')} (U)`}
     >
       <Telescope size={16} />
     </button>
