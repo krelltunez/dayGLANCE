@@ -247,7 +247,10 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
         })()}
       </div>
     )}
-    {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
+    {/* Voice quick-add works without AI (deterministic parsing + platform
+        speech recognition), so the button is no longer gated on AI being
+        enabled — only on the feature toggle (default on). */}
+    {aiConfig.features?.voiceTaskInput !== false && (
       <button
         onClick={() => setShowVoiceInput(true)}
         className={`flex-shrink-0 self-stretch flex items-center px-2.5 rounded-lg transition-colors ${darkMode ? 'bg-white/10 text-purple-400' : 'bg-black/5 text-purple-600'} hover:opacity-80`}

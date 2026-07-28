@@ -49,8 +49,8 @@ const VoiceInputModal = () => {
 
               {!voiceParsedTasks && !voiceParsedEdits ? (
                 <>
-                  {/* Recording UI — uses MediaRecorder + AI transcription (works in all browsers) */}
-                  {!voiceManualMode && voiceCanRecord && voiceHasTranscription ? (
+                  {/* Recording UI — AI transcription, native on-device STT, or Web Speech */}
+                  {!voiceManualMode && voiceHasTranscription ? (
                     <div className="text-center space-y-4">
                       {/* Processing spinner (transcribe + parse) */}
                       {voiceIsTranscribing ? (
@@ -96,13 +96,11 @@ const VoiceInputModal = () => {
                   ) : (
                     <div className="space-y-3">
                       {/* Text input — shown when voice not available or user chose to type */}
-                      {!voiceCanRecord || !voiceHasTranscription ? (
+                      {!voiceHasTranscription ? (
                         <p className={`text-xs ${textSecondary}`}>
-                          {!aiConfig.enabled
-                            ? 'Configure an AI provider in settings to enable voice recording. Type your tasks below.'
-                            : !supportsTranscription(aiConfig)
-                            ? `${PROVIDER_LABELS[aiConfig.provider] || aiConfig.provider} doesn't support voice transcription. Use OpenAI or Gemini for voice, or type below.`
-                            : 'Voice recording is not available. Type your tasks below.'}
+                          {aiConfig.enabled && !supportsTranscription(aiConfig)
+                            ? `Voice recording isn't available here, and ${PROVIDER_LABELS[aiConfig.provider] || aiConfig.provider} doesn't support transcription. Type your tasks below — dates, times, and repeats are still understood.`
+                            : 'Voice recording is not available on this device. Type your tasks below — dates, times, and repeats are still understood.'}
                         </p>
                       ) : null}
                       <textarea
@@ -114,7 +112,7 @@ const VoiceInputModal = () => {
                         rows={3}
                         autoFocus
                       />
-                      {voiceCanRecord && voiceHasTranscription && (
+                      {voiceHasTranscription && (
                         <button
                           onClick={() => { setVoiceManualMode(false); setVoiceTranscript(''); }}
                           className={`text-xs ${textSecondary} hover:underline`}
@@ -140,7 +138,7 @@ const VoiceInputModal = () => {
                         ) : (
                           <Plus size={14} />
                         )}
-                        {voiceIsParsing ? 'Parsing...' : aiConfig.enabled ? 'Parse with AI' : 'Add as Task'}
+                        {voiceIsParsing ? 'Parsing...' : aiConfig.enabled ? 'Parse with AI' : 'Parse'}
                         {!voiceIsParsing && <kbd className="ml-1 px-1 py-0.5 rounded bg-white/20 text-[10px] font-mono">↵</kbd>}
                       </button>
                     </div>
@@ -150,7 +148,7 @@ const VoiceInputModal = () => {
                     <p className="text-xs text-amber-500 mt-2">
                       {voiceManualMode
                         ? voiceParseError
-                        : `AI parsing error: ${voiceParseError}. Added as plain task.`}
+                        : `AI parsing error: ${voiceParseError}. Parsed without AI instead.`}
                     </p>
                   )}
                 </>
@@ -228,6 +226,9 @@ const VoiceInputModal = () => {
                                   {task.date && <span>{task.date}</span>}
                                   {task.time && <span>{task.time}</span>}
                                   <span>{task.duration}min</span>
+                                  {task.recurrenceDisplay && (
+                                    <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">{task.recurrenceDisplay}</span>
+                                  )}
                                   {task.priority > 0 && (
                                     <span className={priorityColors[task.priority]}>
                                       {'!'.repeat(task.priority)} {priorityLabels[task.priority]}

@@ -520,6 +520,45 @@ export const nativeStopRecording = () => {
   return new Blob([arr], { type: 'audio/m4a' });
 };
 
+// ── Speech recognition (on-device STT — no AI provider required) ─────────────
+//
+// Contract implemented by the native apps (Android SpeechRecognizer, iOS
+// SFSpeechRecognizer):
+//   bridge.supportsSpeechRecognition() → 'true' | 'false'
+//   bridge.startSpeechRecognition()    → 'ok' | '{"error": "..."}'
+//   bridge.stopSpeechRecognition()     → 'ok'   (final text arrives via event)
+//   bridge.cancelSpeechRecognition()   → 'ok'   (no final event)
+// Results are delivered to the WebView via the global callback:
+//   window.__speechEvent({ status: 'partial'|'final'|'error', text?, message? })
+
+/** True when the native layer offers on-device speech recognition. */
+export const nativeSupportsSpeech = () => {
+  const bridge = nativeBridge();
+  if (!bridge?.supportsSpeechRecognition) return false;
+  try { return bridge.supportsSpeechRecognition() === 'true'; } catch { return false; }
+};
+
+/** Starts native speech recognition. Returns 'ok', { error }, or null (no bridge). */
+export const nativeStartSpeech = () => {
+  const bridge = nativeBridge();
+  if (!bridge?.startSpeechRecognition) return null;
+  const result = bridge.startSpeechRecognition();
+  if (result === 'ok') return 'ok';
+  try { return JSON.parse(result); } catch { return { error: result }; }
+};
+
+/** Stops recognition; the final transcript arrives via window.__speechEvent. */
+export const nativeStopSpeech = () => {
+  const bridge = nativeBridge();
+  bridge?.stopSpeechRecognition?.();
+};
+
+/** Cancels recognition without a final result event. */
+export const nativeCancelSpeech = () => {
+  const bridge = nativeBridge();
+  bridge?.cancelSpeechRecognition?.();
+};
+
 // ── Focus mode ────────────────────────────────────────────────────────────────
 
 /**

@@ -1,8 +1,12 @@
 import { useEffect, useCallback } from 'react';
 import { aiTranscribe, aiJSON, supportsTranscription } from '../ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt } from '../ai-prompts.js';
-import { nativeStartRecording, nativeStopRecording, triggerHaptic } from '../native.js';
+import {
+  nativeStartRecording, nativeStopRecording, triggerHaptic,
+  nativeSupportsSpeech, nativeStartSpeech, nativeStopSpeech, nativeCancelSpeech,
+} from '../native.js';
 import { dateToString } from '../utils/taskUtils.js';
+import { parseTranscriptTasks } from '../utils/voiceQuickAdd.js';
 
 /**
  * Voice input pipeline — extracted from App.jsx (see "App.jsx — Ongoing
@@ -23,6 +27,7 @@ export default function useVoiceInput({
   aiConfig, allTags, colors,
   tasks, setTasks,
   unscheduledTasks, setUnscheduledTasks,
+  setRecurringTasks,
   isVisibleForUser,
   pushUndo, moveToRecycleBin,
   showVoiceInput, setShowVoiceInput,
@@ -42,6 +47,66 @@ export default function useVoiceInput({
   // Always-fresh tag list for the inline parse in voiceStopRecording.
   voiceAllTagsRef.current = allTags;
 
+  // ── Capability matrix ──────────────────────────────────────────────────────
+  // Transcription (speech → text), in priority order:
+  //   1. AI transcription (Whisper/Gemini)     — needs a configured provider
+  //   2. Native on-device STT (Android/iOS)    — free, no AI required
+  //   3. Web Speech API (browser/PWA)          — free, no AI required
+  //   4. Typing fallback                        — always available
+  // Parsing (text → tasks): AI when configured, else the deterministic
+  // quickAddParser (parseTranscriptTasks) — voice no longer requires AI.
+  const aiKeyed = !!(aiConfig.apiKey || aiConfig.provider === 'ollama');
+  const canWhisper = aiConfig.enabled && supportsTranscription(aiConfig) && aiKeyed;
+  const canAIParse = aiConfig.enabled && aiKeyed;
+  const webSpeechAvailable = typeof window !== 'undefined' &&
+    !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  // ── Shared parse: transcript → parsed tasks/edits ──────────────────────────
+  // AI parse when available (multi-task + edit commands), deterministic
+  // quickAddParser otherwise — and as the fallback when the AI call fails.
+  const parseTranscriptNow = useCallback(async (text) => {
+    const trimmed = (text || '').trim();
+    if (!trimmed) return;
+    if (!canAIParse) {
+      setVoiceParsedTasks(parseTranscriptTasks(trimmed));
+      setVoiceParsedEdits([]);
+      return;
+    }
+    setVoiceIsParsing(true);
+    try {
+      const context = {
+        todayDate: dateToString(new Date()),
+        existingTags: voiceAllTagsRef.current,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        existingTasks: voiceBuildTaskContextRef.current(),
+      };
+      const result = await aiJSON(voiceParseSystemPrompt(context), voiceParseUserPrompt(trimmed), aiConfig);
+      const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+      let newTasks = [];
+      let edits = [];
+      if (Array.isArray(result)) {
+        newTasks = result;
+      } else if (result && typeof result === 'object') {
+        newTasks = Array.isArray(result.newTasks) ? result.newTasks : [];
+        edits = Array.isArray(result.edits) ? result.edits : [];
+      }
+      setVoiceParsedTasks(newTasks.map(t => ({ ...t, title: cap(t.title) })));
+      setVoiceParsedEdits(edits.map(edit => {
+        const match = voiceResolveTaskMatchRef.current(edit.taskMatch);
+        return { ...edit, resolvedTask: match?.task || null, source: match?.source || null };
+      }));
+    } catch (parseErr) {
+      // AI parse failed — fall back to the deterministic parser instead of a
+      // bare title-only task.
+      setVoiceParseError(parseErr.message);
+      setVoiceParsedTasks(parseTranscriptTasks(trimmed));
+      setVoiceParsedEdits([]);
+    }
+    setVoiceIsParsing(false);
+    // Omitted names are stable setters and *Ref values; keyed on the AI config.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiConfig, canAIParse]);
+
   // Voice input — reset state when modal opens, cleanup on close
   useEffect(() => {
     if (showVoiceInput) {
@@ -56,11 +121,17 @@ export default function useVoiceInput({
       setVoiceManualMode(false);
       setVoiceMicError(null);
     } else {
-      // Cleanup MediaRecorder on modal close
+      // Cleanup recording/recognition on modal close
       const ref = voiceRecorderRef.current;
       if (ref) {
-        if (ref.recorder.state !== 'inactive') ref.recorder.stop();
-        ref.stream.getTracks().forEach(t => t.stop());
+        if (ref.speech) {
+          try { ref.speech.abort(); } catch { /* already stopped */ }
+        } else if (ref.nativeSpeech) {
+          nativeCancelSpeech();
+        } else if (ref.recorder) {
+          if (ref.recorder.state !== 'inactive') ref.recorder.stop();
+          ref.stream.getTracks().forEach(t => t.stop());
+        }
         voiceRecorderRef.current = null;
       }
       voiceAudioChunksRef.current = [];
@@ -71,12 +142,86 @@ export default function useVoiceInput({
   }, [showVoiceInput]);
 
   const voiceStartRecording = useCallback(async () => {
-    if (!voiceCanRecord) return;
     setVoiceMicError(null);
     setVoiceParseError('');
     setVoiceTranscript('');
     setVoiceParsedTasks(null);
     setVoiceParsedEdits(null);
+
+    // No AI transcription configured → platform speech recognition. The final
+    // transcript is parsed by parseTranscriptNow (AI if a non-transcribing
+    // provider is configured, deterministic otherwise).
+    if (!canWhisper) {
+      // Native on-device STT (Android SpeechRecognizer / iOS SFSpeechRecognizer)
+      if (nativeSupportsSpeech()) {
+        const result = nativeStartSpeech();
+        if (result === 'ok') {
+          voiceRecorderRef.current = { nativeSpeech: true };
+          setVoiceIsRecording(true);
+        } else {
+          setVoiceParseError(`Speech recognition error: ${result?.error ?? 'unknown'}`);
+          setVoiceMicError('error');
+        }
+        return;
+      }
+      // Web Speech API (browser / PWA)
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SR) {
+        const recognition = new SR();
+        recognition.lang = navigator.language || 'en-US';
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        let finalText = '';
+        recognition.onresult = (e) => {
+          let interim = '';
+          finalText = '';
+          for (const res of e.results) {
+            if (res.isFinal) finalText += res[0].transcript;
+            else interim += res[0].transcript;
+          }
+          setVoiceTranscript((finalText + interim).trim());
+        };
+        recognition.onerror = (e) => {
+          voiceRecorderRef.current = null;
+          setVoiceIsRecording(false);
+          if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+            setVoiceParseError('Microphone access denied. Please allow microphone permissions in your browser settings.');
+            setVoiceMicError('error');
+          } else if (e.error === 'network') {
+            // The browser streams speech to its vendor's recognition service;
+            // 'network' means that service is unreachable. Some browsers fail
+            // instantly on certain platforms (e.g. Edge outside Windows).
+            setVoiceParseError("This browser couldn't reach its speech recognition service, so voice input isn't available here. You can type instead, or try a different browser.");
+            setVoiceMicError('error');
+          } else if (e.error !== 'aborted' && e.error !== 'no-speech') {
+            setVoiceParseError(`Speech recognition error: ${e.error}`);
+            setVoiceMicError('error');
+          }
+        };
+        recognition.onend = () => {
+          // Fires after stop() or when the engine decides speech ended.
+          if (voiceRecorderRef.current?.speech === recognition) {
+            voiceRecorderRef.current = null;
+            setVoiceIsRecording(false);
+            const text = finalText.trim();
+            setVoiceTranscript(text);
+            if (text) parseTranscriptNow(text);
+          }
+        };
+        try {
+          recognition.start();
+          voiceRecorderRef.current = { speech: recognition };
+          setVoiceIsRecording(true);
+        } catch (err) {
+          setVoiceParseError(`Speech recognition error: ${err.message}`);
+          setVoiceMicError('error');
+        }
+        return;
+      }
+      return; // no speech path available — the modal shows typing mode instead
+    }
+
+    if (!voiceCanRecord) return;
 
     // On Android, use the native MediaRecorder bridge instead of WebView getUserMedia,
     // which is unreliable and produces NotReadableError on many devices/WebView versions.
@@ -124,6 +269,34 @@ export default function useVoiceInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voiceCanRecord]);
 
+  // Native STT event channel: partial transcripts stream in live, the final
+  // transcript triggers the parse, and errors fall back to typing mode.
+  useEffect(() => {
+    if (!showVoiceInput) return;
+    window.__speechEvent = (ev) => {
+      const e = typeof ev === 'string' ? JSON.parse(ev) : ev;
+      if (e.status === 'partial') {
+        setVoiceTranscript(e.text || '');
+      } else if (e.status === 'final') {
+        voiceRecorderRef.current = null;
+        setVoiceIsRecording(false);
+        setVoiceIsTranscribing(false);
+        const text = (e.text || '').trim();
+        setVoiceTranscript(text);
+        if (text) parseTranscriptNow(text);
+      } else if (e.status === 'error') {
+        voiceRecorderRef.current = null;
+        setVoiceIsRecording(false);
+        setVoiceIsTranscribing(false);
+        setVoiceParseError(`Speech recognition error: ${e.message || 'unknown'}`);
+        setVoiceMicError('error');
+      }
+    };
+    return () => { delete window.__speechEvent; };
+    // Omitted names are stable state setters / refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showVoiceInput, parseTranscriptNow]);
+
   // When the voice modal is opened via the Android launcher shortcut, auto-start recording.
   useEffect(() => {
     if (showVoiceInput && voiceAutoStartRef.current) {
@@ -135,6 +308,21 @@ export default function useVoiceInput({
   const voiceStopRecording = useCallback(async () => {
     const ref = voiceRecorderRef.current;
     if (!ref) return;
+
+    // Platform speech-recognition paths — no audio blob involved.
+    if (ref.speech) {
+      // Web Speech: onend clears state, sets the final transcript, and parses.
+      try { ref.speech.stop(); } catch { /* already stopped */ }
+      return;
+    }
+    if (ref.nativeSpeech) {
+      // Native STT: the final transcript arrives via window.__speechEvent.
+      voiceRecorderRef.current = null;
+      setVoiceIsRecording(false);
+      setVoiceIsTranscribing(true);
+      nativeStopSpeech();
+      return;
+    }
 
     let blob;
 
@@ -174,36 +362,8 @@ export default function useVoiceInput({
       try {
         const text = (await aiTranscribe(blob, aiConfig)).trim();
         setVoiceTranscript(text);
-        // Immediately parse into tasks
-        if (text && aiConfig.enabled && (aiConfig.apiKey || aiConfig.provider === 'ollama')) {
-          setVoiceIsParsing(true);
-          try {
-            const context = { todayDate: dateToString(new Date()), existingTags: voiceAllTagsRef.current, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, existingTasks: voiceBuildTaskContextRef.current() };
-            const result = await aiJSON(voiceParseSystemPrompt(context), voiceParseUserPrompt(text), aiConfig);
-            const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-            let newTasks = [];
-            let edits = [];
-            if (Array.isArray(result)) {
-              newTasks = result;
-            } else if (result && typeof result === 'object') {
-              newTasks = Array.isArray(result.newTasks) ? result.newTasks : [];
-              edits = Array.isArray(result.edits) ? result.edits : [];
-            }
-            setVoiceParsedTasks(newTasks.map(t => ({ ...t, title: cap(t.title) })));
-            const resolved = edits.map(edit => {
-              const match = voiceResolveTaskMatchRef.current(edit.taskMatch);
-              return { ...edit, resolvedTask: match?.task || null, source: match?.source || null };
-            });
-            setVoiceParsedEdits(resolved);
-          } catch (parseErr) {
-            setVoiceParseError(parseErr.message);
-            setVoiceParsedTasks([{ title: text.charAt(0).toUpperCase() + text.slice(1), tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
-            setVoiceParsedEdits([]);
-          }
-          setVoiceIsParsing(false);
-        } else {
-          setVoiceParsedTasks([{ title: text.charAt(0).toUpperCase() + text.slice(1), tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
-        }
+        // Immediately parse into tasks — AI when available, deterministic otherwise.
+        if (text) await parseTranscriptNow(text);
       } catch (err) {
         console.error('Transcription error:', err);
         setVoiceParseError(`Transcription failed: ${err.message}`);
@@ -213,7 +373,7 @@ export default function useVoiceInput({
     }
     // Omitted names are all stable state setters and *Ref values; keyed on aiConfig.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aiConfig]);
+  }, [aiConfig, parseTranscriptNow]);
 
   // Voice input — parse and add callbacks (must be after allTags is defined)
   // Build a text summary of existing tasks for AI context
@@ -264,51 +424,15 @@ export default function useVoiceInput({
   }, [tasks, unscheduledTasks, isVisibleForUser]);
   voiceResolveTaskMatchRef.current = resolveTaskMatch;
 
+  // Parse the current transcript (typed or transcribed). Despite the legacy
+  // name, this uses AI only when a provider is configured — otherwise the
+  // deterministic quickAddParser handles it (see parseTranscriptNow).
   const voiceParseWithAI = useCallback(async () => {
     const text = voiceTranscript.trim();
     if (!text) return;
-    const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-    if (!aiConfig.enabled || (!aiConfig.apiKey && aiConfig.provider !== 'ollama')) {
-      setVoiceParsedTasks([{ title: cap(text), tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
-      setVoiceParsedEdits([]);
-      return;
-    }
-    setVoiceIsParsing(true);
     setVoiceParseError('');
-    try {
-      const context = {
-        todayDate: dateToString(new Date()),
-        existingTags: allTags,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        existingTasks: buildTaskContextForAI(),
-      };
-      const result = await aiJSON(voiceParseSystemPrompt(context), voiceParseUserPrompt(text), aiConfig);
-
-      // Handle both old format (array) and new format ({ newTasks, edits })
-      let newTasks = [];
-      let edits = [];
-      if (Array.isArray(result)) {
-        newTasks = result;
-      } else if (result && typeof result === 'object') {
-        newTasks = Array.isArray(result.newTasks) ? result.newTasks : [];
-        edits = Array.isArray(result.edits) ? result.edits : [];
-      }
-
-      setVoiceParsedTasks(newTasks.map(t => ({ ...t, title: cap(t.title) })));
-
-      // Resolve each edit command to an actual task
-      const resolved = edits.map(edit => {
-        const match = resolveTaskMatch(edit.taskMatch);
-        return { ...edit, resolvedTask: match?.task || null, source: match?.source || null };
-      });
-      setVoiceParsedEdits(resolved);
-    } catch (err) {
-      setVoiceParseError(err.message);
-      setVoiceParsedTasks([{ title: cap(text), tags: [], date: null, time: null, duration: 30, priority: 0, deadline: null, notes: '' }]);
-      setVoiceParsedEdits([]);
-    }
-    setVoiceIsParsing(false);
-  }, [voiceTranscript, aiConfig, allTags, buildTaskContextForAI, resolveTaskMatch, setVoiceIsParsing, setVoiceParseError, setVoiceParsedEdits, setVoiceParsedTasks]);
+    await parseTranscriptNow(text);
+  }, [voiceTranscript, parseTranscriptNow, setVoiceParseError]);
 
   // Apply all parsed changes (new tasks + edit commands)
   const voiceApplyAllChanges = useCallback(() => {
@@ -324,7 +448,24 @@ export default function useVoiceInput({
         const tagStr = (parsed.tags || []).map(t => ` #${t}`).join('');
         const rawTitle = parsed.title + tagStr;
         const title = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1);
-        if (parsed.date && parsed.time) {
+        if (parsed.recurrence && parsed.date && setRecurringTasks) {
+          // Deterministic parse can carry a recurrence ("every 2 weeks") —
+          // create a recurring template, mirroring addTask's template shape.
+          setRecurringTasks(prev => [...prev, {
+            id: taskId,
+            title,
+            startTime: parsed.time || '00:00',
+            duration: parsed.duration || 30,
+            color: colors[0].class,
+            isAllDay: !parsed.time,
+            notes: parsed.notes || '',
+            subtasks: [],
+            recurrence: { ...parsed.recurrence, startDate: parsed.date },
+            completedDates: [],
+            exceptions: {},
+            lastModified: new Date().toISOString(),
+          }]);
+        } else if (parsed.date && parsed.time) {
           setTasks(prev => [...prev, { id: taskId, title, startTime: parsed.time, duration: parsed.duration || 30, date: parsed.date, color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [] }]);
         } else {
           const inboxTask = { id: taskId, title, duration: parsed.duration || 30, color: colors[0].class, completed: false, isAllDay: false, notes: parsed.notes || '', subtasks: [], priority: parsed.priority || 0 };
@@ -422,7 +563,9 @@ export default function useVoiceInput({
   }, [voiceParsedTasks, voiceParsedEdits]);
 
   // Voice input keyboard shortcuts (SPACE to hold-record, T for typing, ENTER to parse/accept)
-  const voiceHasTranscription = aiConfig.enabled && supportsTranscription(aiConfig);
+  // "Can we turn speech into text at all?" — any of: AI transcription (needs
+  // the MediaRecorder pipeline), native on-device STT, or the Web Speech API.
+  const voiceHasTranscription = (canWhisper && voiceCanRecord) || nativeSupportsSpeech() || webSpeechAvailable;
   useEffect(() => {
     if (!showVoiceInput) return;
 
@@ -442,7 +585,7 @@ export default function useVoiceInput({
       if (isTextInput) return;
 
       // SPACE hold-to-record (desktop only, not on parsed/transcribing screen)
-      if (e.key === ' ' && !isTouchDevice && !voiceParsedTasks && !voiceManualMode && !voiceIsTranscribing && voiceCanRecord && voiceHasTranscription) {
+      if (e.key === ' ' && !isTouchDevice && !voiceParsedTasks && !voiceManualMode && !voiceIsTranscribing && voiceHasTranscription) {
         e.preventDefault();
         if (!voiceIsRecording && !e.repeat) {
           voiceStartRecording();

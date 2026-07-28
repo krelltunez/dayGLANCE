@@ -6472,6 +6472,7 @@ const DayPlanner = () => {
     aiConfig, allTags, colors,
     tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks,
+    setRecurringTasks,
     isVisibleForUser,
     pushUndo, moveToRecycleBin,
     showVoiceInput, setShowVoiceInput,
