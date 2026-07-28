@@ -8,6 +8,7 @@
  */
 
 import { getOccurrencesInRange } from './utils/recurrenceEngine.js';
+import { notBucketed } from './utils/bucketList.js';
 
 // ---------------------------------------------------------------------------
 // Data helpers
@@ -144,7 +145,7 @@ export function gatherTrmnlData({
   const nextTask = upcoming[0] || null;
 
   // Inbox count — standalone tasks only (exclude those tied to a project)
-  const inboxCount = unscheduledTasks.filter((t) => !t.completed && !t.projectId).length;
+  const inboxCount = unscheduledTasks.filter((t) => notBucketed(t) && !t.completed && !t.projectId).length;
 
   // Habits summary
   const todayLogs = habitLogs[today] || {};

@@ -1,4 +1,5 @@
 import { cleanTitle } from '../utils/suggestionParser.js';
+import { stripBucketId } from '../utils/bucketList.js';
 import { stripSpans } from '../utils/quickAddParser.js';
 import { dateToString, extractTags, formatDeadlineDate } from '../utils/taskUtils.js';
 import { TASK_COLORS } from '../utils/colorUtils.js';
@@ -717,7 +718,7 @@ export default function useTaskActions({
       const task = unscheduledTasks.find(t => t.id === taskId);
       if (!task) return;
       setUnscheduledTasks(prev => prev.filter(t => t.id !== taskId));
-      setTasks(prev => [...prev, { ...task, startTime: nextSlotTime, date: todayStr, isAllDay: false }]);
+      setTasks(prev => [...prev, { ...stripBucketId(task), startTime: nextSlotTime, date: todayStr, isAllDay: false }]);
     } else {
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, startTime: nextSlotTime, date: todayStr } : t));
     }

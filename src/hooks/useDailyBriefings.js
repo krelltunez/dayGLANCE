@@ -6,6 +6,7 @@ import {
 } from '../ai-prompts.js';
 import { dateToString, localDateStr } from '../utils/taskUtils.js';
 import { getOccurrencesInRange } from '../utils/recurrenceEngine.js';
+import { notBucketed } from '../utils/bucketList.js';
 
 /**
  * AI daily briefings — extracted from App.jsx (see "App.jsx — Ongoing
@@ -55,18 +56,18 @@ export default function useDailyBriefings({
         return occs.map(() => ({ title: t.title, time: t.startTime, completed: (t.completedDates || []).includes(todayStr) }));
       }).filter(t => !t.completed);
       // Inbox count — split into free inbox tasks vs project-assigned tasks
-      const activeUnscheduled = unscheduledTasks.filter(t => !t.completed && !t.isExample && isVisibleForUser(t));
+      const activeUnscheduled = unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample && isVisibleForUser(t));
       const inboxCount = activeUnscheduled.filter(t => !goalsProjectsEnabled || !t.projectId).length;
       const projectTaskCount = goalsProjectsEnabled ? activeUnscheduled.filter(t => t.projectId).length : 0;
       // Overdue tasks
       const overdue = getOverdueTasks();
       const overdueTasks = overdue.filter(t => t.date !== todayStr).slice(0, 5);
       // Deadlines
-      const deadlinesToday = unscheduledTasks.filter(t => t.deadline === todayStr && !t.completed && isVisibleForUser(t));
+      const deadlinesToday = unscheduledTasks.filter(t => notBucketed(t) && t.deadline === todayStr && !t.completed && isVisibleForUser(t));
       const nextWeek = new Date(todayDate);
       nextWeek.setDate(nextWeek.getDate() + 7);
       const nextWeekStr = dateToString(nextWeek);
-      const upcomingDeadlines = unscheduledTasks.filter(t => t.deadline && t.deadline > todayStr && t.deadline <= nextWeekStr && !t.completed && isVisibleForUser(t)).slice(0, 5);
+      const upcomingDeadlines = unscheduledTasks.filter(t => notBucketed(t) && t.deadline && t.deadline > todayStr && t.deadline <= nextWeekStr && !t.completed && isVisibleForUser(t)).slice(0, 5);
       // Total minutes
       const totalMinutes = scheduledToday.reduce((s, t) => s + (t.duration || 0), 0)
         + todayRecurring.reduce((s, t) => s + 30, 0) // recurring default 30
@@ -154,7 +155,7 @@ export default function useDailyBriefings({
         .map(t => ({ title: t.title, time: t.startTime, isAllDay: t.isAllDay || false }))
         .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
       // For suggestions, only surface free inbox tasks — project tasks have their own home
-      const inboxItems = unscheduledTasks.filter(t => !t.completed && !t.isExample && (!goalsProjectsEnabled || !t.projectId) && isVisibleForUser(t))
+      const inboxItems = unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample && (!goalsProjectsEnabled || !t.projectId) && isVisibleForUser(t))
         .sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
       const total = completedToday.length + incompleteToday.length;

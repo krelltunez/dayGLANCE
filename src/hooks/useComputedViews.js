@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react';
 import { dateToString, extractTags } from '../utils/taskUtils.js';
+import { notBucketed } from '../utils/bucketList.js';
 
 export default function useComputedViews({
   tasks,
@@ -64,6 +65,10 @@ export default function useComputedViews({
   // If the feature is toggled off, the exclusion is lifted so nothing is hidden.
   const filteredUnscheduledTasks = useMemo(
     () => unscheduledTasks
+      // Bucket List items never appear in the Inbox — unconditional (unlike
+      // the user-toggleable project exclusion below). The Inbox nags; the
+      // Bucket doesn't.
+      .filter(notBucketed)
       .filter(task => !task.archived)
       // Multi-user: only show tasks assigned to "me" (or unassigned). Other
       // surfaces already filter via isVisibleForUser; the inbox list was the

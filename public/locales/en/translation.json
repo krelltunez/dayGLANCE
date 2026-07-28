@@ -886,5 +886,22 @@
     "noUnscheduledTasks": "No unscheduled tasks.",
     "addTaskPlaceholder": "Add a task…",
     "addTaskToProject": "Add task to project"
+  },
+  "bucket": {
+    "title": "Bucket List",
+    "subtitle": "Someday / maybe. No deadlines, no nags.",
+    "sendToBucket": "Send to Bucket List",
+    "sendToInbox": "Send to Inbox",
+    "scheduleNextSlot": "Schedule at next open slot",
+    "moveToList": "Move to {{list}}",
+    "delete": "Delete",
+    "renameList": "Rename list",
+    "hideList": "Hide this list",
+    "showList": "Show {{list}}",
+    "addToList": "Add to {{list}}…",
+    "empty": "Nothing here yet.",
+    "notesPlaceholder": "Notes for this space: dreams, criteria, links…",
+    "showCompleted": "Show completed",
+    "hideCompleted": "Hide completed"
   }
 }

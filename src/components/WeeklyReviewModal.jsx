@@ -7,6 +7,7 @@ import { getOccurrencesInRange } from '../utils/recurrenceEngine.js';
 import { calculateProjectProgress, isProjectStalled } from '../utils/projectProgress.js';
 import { calculateGoalProgress } from '../utils/goalProgress.js';
 import { useTranslation } from 'react-i18next';
+import { notBucketed } from '../utils/bucketList.js';
 
 const WeeklyReviewModal = () => {
   const {
@@ -477,7 +478,7 @@ const WeeklyReviewModal = () => {
           bestDayCount,
           incompleteCount: pastIncomplete.length,
           tagBreakdown,
-          inboxCount: unscheduledTasks.filter(t => !t.completed && !t.isExample && (!goalsProjectsEnabled || !t.projectId)).length,
+          inboxCount: unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample && (!goalsProjectsEnabled || !t.projectId)).length,
           projectTaskCount: goalsProjectsEnabled ? unscheduledTasks.filter(t => !t.completed && !t.isExample && t.projectId).length : 0,
           nextWeekTaskCount: nextScheduled,
           nextWeekTopTasks,

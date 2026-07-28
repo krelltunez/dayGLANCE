@@ -886,5 +886,22 @@
     "noUnscheduledTasks": "Sem tarefas não agendadas.",
     "addTaskPlaceholder": "Adicionar uma tarefa…",
     "addTaskToProject": "Adicionar tarefa ao projeto"
+  },
+  "bucket": {
+    "title": "Bucket List",
+    "subtitle": "Um dia / talvez. Sem prazos, sem cobranças.",
+    "sendToBucket": "Enviar para a Bucket List",
+    "sendToInbox": "Enviar para a caixa de entrada",
+    "scheduleNextSlot": "Agendar no próximo espaço livre",
+    "moveToList": "Mover para {{list}}",
+    "delete": "Eliminar",
+    "renameList": "Renomear lista",
+    "hideList": "Ocultar esta lista",
+    "showList": "Mostrar {{list}}",
+    "addToList": "Adicionar a {{list}}…",
+    "empty": "Ainda não há nada aqui.",
+    "notesPlaceholder": "Notas para este espaço: sonhos, critérios, links…",
+    "showCompleted": "Mostrar concluídas",
+    "hideCompleted": "Ocultar concluídas"
   }
 }

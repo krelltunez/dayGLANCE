@@ -4,7 +4,7 @@ import {
   Calendar, CalendarClock, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronUp, Clock, ExternalLink, FileText, Filter, Flag, Inbox, LayoutGrid,
   Loader, Mic, Minus, Moon, Plus, RefreshCw,
-  Search, Settings, Sparkles, Sun, Target, Trash2, X, Zap,
+  Search, Settings, Sparkles, Sun, Target, Telescope, Trash2, X, Zap,
 } from 'lucide-react';
 import { renderTitle, renderFormattedText, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
@@ -21,6 +21,7 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getGlanceHGInstances, isHGSessionReachable } from '../hooks/useHyperGlance.js';
 import { useTranslation } from 'react-i18next';
+import { notBucketed } from '../utils/bucketList.js';
 
 const MobileGlanceSection = () => {
   const {
@@ -75,6 +76,7 @@ const MobileGlanceSection = () => {
     goToDate, scrollToHour,
     glancePage, setGlancePage,
     mobileViewMode,
+    setShowBucketList,
   } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
   const {
@@ -165,6 +167,13 @@ const MobileGlanceSection = () => {
         <Mic size={16} />
       </button>
     )}
+    <button
+      onClick={() => setShowBucketList(true)}
+      className={`flex-shrink-0 px-2.5 self-stretch flex items-center rounded-lg transition-colors ${darkMode ? 'bg-white/10 text-sky-400' : 'bg-black/5 text-sky-600'}`}
+      title={t('bucket.title')}
+    >
+      <Telescope size={16} />
+    </button>
   </div>
   {/* Habits / Goals carousel */}
   {(() => {
@@ -439,7 +448,7 @@ const MobileGlanceSection = () => {
         {morningGlanceText && !morningGlanceLoading && (
           <p className={`text-sm leading-relaxed ${textPrimary}`}>{morningGlanceText}</p>
         )}
-        {morningGlanceText && !morningGlanceLoading && aiConfig?.enabled && aiConfig.features?.smartScheduling && myFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => !t.completed && !t.isExample).length > 0 && (
+        {morningGlanceText && !morningGlanceLoading && aiConfig?.enabled && aiConfig.features?.smartScheduling && myFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample).length > 0 && (
           <button
             onClick={() => { setMobileActiveTab('settings'); setMobileSettingsView('frames'); setFramesModalTab('schedule'); }}
             className={`mt-2 flex items-center gap-1.5 text-xs font-medium transition-colors ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-700'}`}

@@ -2,6 +2,7 @@ import React from 'react';
 import { Archive, ChevronDown, RotateCcw } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { notBucketed } from '../utils/bucketList.js';
 
 const InboxArchivedBar = () => {
   const {
@@ -13,7 +14,7 @@ const InboxArchivedBar = () => {
   } = useDayPlannerCtx();
   const { goalsProjectsEnabled, projects } = useFeaturesCtx();
 
-  const archivedTasks = unscheduledTasks.filter(t => t.archived && !t.imported);
+  const archivedTasks = unscheduledTasks.filter(t => notBucketed(t) && t.archived && !t.imported);
 
   if (archivedTasks.length === 0) return null;
 

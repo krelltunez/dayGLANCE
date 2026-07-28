@@ -6,6 +6,7 @@ import {
   nativeSupportsSpeech, nativeStartSpeech, nativeStopSpeech, nativeCancelSpeech,
 } from '../native.js';
 import { dateToString } from '../utils/taskUtils.js';
+import { notBucketed } from '../utils/bucketList.js';
 import { parseTranscriptTasks } from '../utils/voiceQuickAdd.js';
 
 /**
@@ -394,7 +395,7 @@ export default function useVoiceInput({
       lines.push(d);
     });
     // Inbox tasks (uncompleted)
-    unscheduledTasks.filter(t => !t.completed && !t.isExample).slice(0, 20).forEach(t => {
+    unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample).slice(0, 20).forEach(t => {
       let d = `"${t.title}" — inbox, ${t.duration || 30}min`;
       if (t.priority > 0) d += `, priority: ${['none', 'low', 'medium', 'high'][t.priority]}`;
       if (t.deadline) d += `, deadline: ${t.deadline}`;
