@@ -6,6 +6,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { SOURCE_APPS } from '../native.js';
 import LastGlanceBadge from './LastGlanceBadge.jsx';
+import QuickAddChips from './QuickAddChips.jsx';
 import { dateToString, extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
 import { getRecurrencePresets } from '../utils/recurrenceEngine.js';
 import { getProjectColor } from '../utils/colorUtils.js';
@@ -30,6 +31,7 @@ const MobileNewTaskModal = () => {
     moveToRecycleBin, clearNativeEventOverride,
     sendTaskToBucket,
     handleNewTaskInputChange,
+    dismissNlChip,
   } = useDayPlannerCtx();
   const { aiConfig, taskAISuggestion, setTaskAISuggestion, taskAISuggestionLoading, triggerTaskAISuggestion, goals, projects, goalsProjectsEnabled, multiUserEnabled, users } = useFeaturesCtx();
   const { wikilinkCandidates = [] } = useSyncCtx() || {};
@@ -94,6 +96,10 @@ const MobileNewTaskModal = () => {
                   autoFocus={!mobileEditingTask && !newTask.title}
                   className={`w-full px-3 py-3 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} text-base`}
                 />
+                {/* Natural-language parse chips — tap to undo a parse */}
+                {!mobileEditingTask && !mobileEditingNativeEvent && (
+                  <QuickAddChips chips={newTask.nlChips} onDismiss={dismissNlChip} darkMode={darkMode} />
+                )}
                 {/* Wikilink autocomplete dropdown */}
                 {wikilinkSuggestions.length > 0 && (
                   <div className={`absolute top-full left-0 mt-1 ${cardBg} rounded-lg p-1 z-50 shadow-xl border ${borderClass} w-full max-h-48 overflow-y-auto`}>

@@ -6,6 +6,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { SOURCE_APPS } from '../native.js';
 import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
+import QuickAddChips from './QuickAddChips.jsx';
 import LastGlanceBadge from './LastGlanceBadge.jsx';
 import { dateToString, extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
 import { getRecurrencePresets } from '../utils/recurrenceEngine.js';
@@ -35,6 +36,7 @@ const DesktopNewTaskModal = () => {
     addTask, saveMobileEditTask, moveToRecycleBin,
     applySuggestionForNewTask,
     handleNewTaskInputChange, handleNewTaskInputKeyDown,
+    dismissNlChip,
   } = useDayPlannerCtx();
   const { aiConfig, taskAISuggestion, setTaskAISuggestion, taskAISuggestionLoading, triggerTaskAISuggestion, goals, projects, goalsProjectsEnabled, multiUserEnabled, users } = useFeaturesCtx();
   const { wikilinkCandidates = [] } = useSyncCtx() || {};
@@ -127,6 +129,10 @@ const DesktopNewTaskModal = () => {
                     textPrimary={textPrimary}
                     hoverBg={hoverBg}
                   />
+                )}
+                {/* Natural-language parse chips — tap to undo a parse */}
+                {!mobileEditingTask && (
+                  <QuickAddChips chips={newTask.nlChips} onDismiss={dismissNlChip} darkMode={darkMode} />
                 )}
                 {/* Wikilink autocomplete dropdown */}
                 {wikilinkSuggestions.length > 0 && (

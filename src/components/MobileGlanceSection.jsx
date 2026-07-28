@@ -158,7 +158,8 @@ const MobileGlanceSection = () => {
         <Filter size={16} />
       </button>
     )}
-    {aiConfig.enabled && aiConfig.features.voiceTaskInput && (
+    {/* Voice quick-add works without AI — gated only on the feature toggle. */}
+    {aiConfig.features?.voiceTaskInput !== false && (
       <button
         onClick={() => setShowVoiceInput(true)}
         className={`flex-shrink-0 px-2.5 self-stretch flex items-center rounded-lg transition-colors ${darkMode ? 'bg-white/10 text-purple-400' : 'bg-black/5 text-purple-600'}`}

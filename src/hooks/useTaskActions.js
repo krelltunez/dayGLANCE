@@ -1,5 +1,6 @@
 import { cleanTitle } from '../utils/suggestionParser.js';
 import { stripBucketId } from '../utils/bucketList.js';
+import { stripSpans } from '../utils/quickAddParser.js';
 import { dateToString, extractTags, formatDeadlineDate } from '../utils/taskUtils.js';
 import { TASK_COLORS } from '../utils/colorUtils.js';
 import { triggerHaptic } from '../native.js';
@@ -128,6 +129,12 @@ export default function useTaskActions({
     if (newTask.title.trim()) {
       pushUndo();
 
+      // Remove natural-language phrases the quick-add layer parsed into task
+      // fields ("tomorrow 3pm every 2 weeks"); their values already live on
+      // newTask. Dismissed chips are not in nlSpans, so their text survives.
+      // cleanTitle then strips sigil shorthand as before.
+      const savedTitle = cleanTitle(stripSpans(newTask.title, newTask.nlSpans));
+
       // Determine whether this task should be linked to an Obsidian daily note.
       // Recurring and swipe-scheduling paths are excluded: recurring tasks use
       // their own ID scheme; swipe-scheduling preserves an existing task's ID.
@@ -135,7 +142,7 @@ export default function useTaskActions({
       const hasObsidianTag = tags.includes('obsidian');
       const isRecurring = !!newTask.recurrence;
       const isSwipeSchedule = !!swipeSchedulingInboxTaskId.current;
-      const rawObsidianTitle = hasObsidianTag ? stripTag(cleanTitle(newTask.title), 'obsidian') : null;
+      const rawObsidianTitle = hasObsidianTag ? stripTag(savedTitle, 'obsidian') : null;
       // Skip if stripping the tag leaves an empty title (e.g. task titled only "#obsidian")
       const obsidianMeta = (hasObsidianTag && rawObsidianTitle && !isRecurring && !isSwipeSchedule && getObsidianTaskMeta)
         ? getObsidianTaskMeta(rawObsidianTitle)
@@ -147,7 +154,7 @@ export default function useTaskActions({
       let scheduledAdjustedStartTime = newTask.startTime || null;
       const task = {
         id: taskId,
-        title: cleanTitle(newTask.title),
+        title: savedTitle,
         duration: newTask.duration,
         color: newTask.color || colors[0].class,
         completed: false,
@@ -173,7 +180,7 @@ export default function useTaskActions({
         const taskDate = newTask.date || dateToString(selectedDate);
         const template = {
           id: taskId,
-          title: cleanTitle(newTask.title),
+          title: savedTitle,
           startTime: newTask.isAllDay ? '00:00' : newTask.startTime,
           duration: newTask.duration,
           color: newTask.color || colors[0].class,
@@ -206,7 +213,7 @@ export default function useTaskActions({
           const { priority, deadline, ...preserved } = inboxTask;
           setTasks(prev => [...prev, {
             ...preserved,
-            title: cleanTitle(newTask.title),
+            title: savedTitle,
             duration: newTask.duration,
             color: newTask.color || colors[0].class,
             isAllDay: newTask.isAllDay || false,
