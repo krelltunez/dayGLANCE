@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { dateToString, extractTags } from '../../utils/taskUtils.js';
-import { EMPTY_SCHED_FILTERS, hasActiveSchedFilters, taskMatchesSchedFilters, limitRecurringToNextInstance, schedFiltersEqual } from '../../utils/schedAgenda.js';
+import { EMPTY_SCHED_FILTERS, hasActiveSchedFilters, taskMatchesSchedFilters, limitRecurringToNextInstance, schedFiltersEqual, isPastEvent } from '../../utils/schedAgenda.js';
 
 export const INITIAL_DAYS = 14;
 export const LOAD_MORE_DAYS = 14;
@@ -21,6 +21,7 @@ export default function useSchedAgendaState() {
     getTasksForDate, getDeadlineTasksForDate,
     setNewTask, setShowAddTask,
     scheduleTaskAtNextSlot,
+    currentTime,
     // Window length lives in App state so expandedRecurringTasks can expand
     // recurring occurrences across the agenda's whole rolling window.
     schedDaysShown: daysShown, setSchedDaysShown: setDaysShown,
@@ -36,6 +37,15 @@ export default function useSchedAgendaState() {
   // it doesn't count toward the active-filter badge.
   const [nextInstanceOnly, setNextInstanceOnly] = useState(
     () => localStorage.getItem('day-planner-sched-next-instance-only') === 'true'
+  );
+  // Visibility preferences (same persistence pattern as nextInstanceOnly):
+  // hide completed tasks, and hide imported calendar events that have ended.
+  // View preferences, not filters — they don't count toward the filter badge.
+  const [hideCompleted, setHideCompleted] = useState(
+    () => localStorage.getItem('day-planner-sched-hide-completed') === 'true'
+  );
+  const [hidePastEvents, setHidePastEvents] = useState(
+    () => localStorage.getItem('day-planner-sched-hide-past-events') === 'true'
   );
 
   // Saved filter presets — named color/tag/project combos, persisted across
@@ -81,6 +91,16 @@ export default function useSchedAgendaState() {
     return !v;
   });
 
+  const toggleHideCompleted = () => setHideCompleted(v => {
+    localStorage.setItem('day-planner-sched-hide-completed', String(!v));
+    return !v;
+  });
+
+  const toggleHidePastEvents = () => setHidePastEvents(v => {
+    localStorage.setItem('day-planner-sched-hide-past-events', String(!v));
+    return !v;
+  });
+
   const showMoreDays = () => setDaysShown(n => n + LOAD_MORE_DAYS);
 
   // Unfiltered agenda window (day → tasks), all-day first then by start time.
@@ -122,10 +142,15 @@ export default function useSchedAgendaState() {
     const base = nextInstanceOnly ? limitRecurringToNextInstance(rawDays) : rawDays;
     return base.map(d => ({
       ...d,
-      tasks: d.tasks.filter(task => taskMatchesSchedFilters(task, filters)),
-      deadlineTasks: d.deadlineTasks.filter(task => taskMatchesSchedFilters(task, filters)),
+      tasks: d.tasks.filter(task =>
+        taskMatchesSchedFilters(task, filters) &&
+        (!hideCompleted || !task.completed) &&
+        (!hidePastEvents || !isPastEvent(task, currentTime))),
+      deadlineTasks: d.deadlineTasks.filter(task =>
+        taskMatchesSchedFilters(task, filters) &&
+        (!hideCompleted || !task.completed)),
     }));
-  }, [rawDays, filters, nextInstanceOnly]);
+  }, [rawDays, filters, nextInstanceOnly, hideCompleted, hidePastEvents, currentTime]);
 
   const filtersActive = hasActiveSchedFilters(filters);
   // Today never counts as empty while routine pills are pending on it.
@@ -167,6 +192,8 @@ export default function useSchedAgendaState() {
     availableColors, availableTags,
     showEmptyDays, toggleEmptyDays,
     nextInstanceOnly, toggleNextInstanceOnly,
+    hideCompleted, toggleHideCompleted,
+    hidePastEvents, toggleHidePastEvents,
     showMoreDays,
     addTaskOnDay,
   };

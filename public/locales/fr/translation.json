@@ -872,7 +872,16 @@
     "currentViewTap": "Vue actuelle : {{view}}. Touchez pour changer.",
     "deadline": "Échéance",
     "deadlineTapToSchedule": "Échéance — touchez pour choisir une heure",
-    "routineTapHint": "Touchez pour terminer · maintenez pour choisir une heure"
+    "routineTapHint": "Touchez pour terminer · maintenez pour choisir une heure",
+    "completedTasks": "Tâches terminées",
+    "pastEvents": "Événements passés",
+    "show": "Afficher",
+    "hide": "Masquer",
+    "showCompleted": "Afficher les terminées",
+    "hideCompleted": "Masquer les terminées",
+    "showPastEvents": "Afficher les événements passés",
+    "hidePastEvents": "Masquer les événements passés",
+    "happeningNow": "En cours"
   },
   "planner": {
     "standaloneProject": "Projet indépendant",

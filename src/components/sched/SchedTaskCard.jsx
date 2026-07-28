@@ -75,7 +75,14 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
     task.date < todayStr ||
     (task.date === todayStr && (startMin + (isEvent ? (task.duration || 0) : 0)) < nowMin)
   );
-  const isPastDueTask = timePassed && !isEvent && !task.completed;
+  // Happening right now: today's timed card whose window contains the current
+  // minute. Tasks default to 30 min (matching the scheduler); events with no
+  // duration are instantaneous. In-progress tasks are NOT past-due — the red
+  // label starts when the window ends, the dot covers the window itself.
+  const durationMin = task.duration || (isEvent ? 0 : 30);
+  const inProgress = !task.isAllDay && !task.completed && startMin !== null &&
+    task.date === todayStr && startMin <= nowMin && nowMin < startMin + durationMin;
+  const isPastDueTask = timePassed && !isEvent && !task.completed && !inProgress;
   const isFinishedEvent = timePassed && isEvent;
 
   const subtasks = task.subtasks || [];
@@ -151,6 +158,12 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
               <span className="flex-shrink-0 font-medium text-amber-500">
                 {new Date(task.date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
               </span>
+            )}
+            {inProgress && (
+              <span
+                className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0"
+                title={t('sched.happeningNow', 'Happening now')}
+              />
             )}
             {timeLabel && (
               <span className={`flex-shrink-0 ${isPastDueTask ? 'text-red-400 font-medium' : ''}`}>{timeLabel}</span>

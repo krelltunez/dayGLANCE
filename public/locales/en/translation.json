@@ -872,7 +872,16 @@
     "currentViewTap": "Current view: {{view}}. Tap to switch.",
     "deadline": "Deadline",
     "deadlineTapToSchedule": "Deadline — tap to pick a time",
-    "routineTapHint": "Tap to complete · hold to pick a time"
+    "routineTapHint": "Tap to complete · hold to pick a time",
+    "completedTasks": "Completed tasks",
+    "pastEvents": "Past events",
+    "show": "Show",
+    "hide": "Hide",
+    "showCompleted": "Show completed",
+    "hideCompleted": "Hide completed",
+    "showPastEvents": "Show past events",
+    "hidePastEvents": "Hide past events",
+    "happeningNow": "Happening now"
   },
   "planner": {
     "standaloneProject": "Standalone project",

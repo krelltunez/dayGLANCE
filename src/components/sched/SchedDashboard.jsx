@@ -58,6 +58,8 @@ const SchedDashboard = () => {
     availableColors, availableTags,
     showEmptyDays, toggleEmptyDays,
     nextInstanceOnly, toggleNextInstanceOnly,
+    hideCompleted, toggleHideCompleted,
+    hidePastEvents, toggleHidePastEvents,
     showMoreDays,
     addTaskOnDay,
   } = useSchedAgendaState();
@@ -258,6 +260,20 @@ const SchedDashboard = () => {
         >
           {showEmptyDays ? <Eye size={13} /> : <EyeOff size={13} />}
           {showEmptyDays ? t('sched.hideEmptyDays', 'Hide empty days') : t('sched.showEmptyDays', 'Show empty days')}
+        </button>
+        <button
+          onClick={toggleHideCompleted}
+          className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1.5 rounded-lg border ${borderClass} ${textSecondary} ${hoverBg} transition-colors`}
+        >
+          {hideCompleted ? <EyeOff size={13} /> : <Eye size={13} />}
+          {hideCompleted ? t('sched.showCompleted', 'Show completed') : t('sched.hideCompleted', 'Hide completed')}
+        </button>
+        <button
+          onClick={toggleHidePastEvents}
+          className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1.5 rounded-lg border ${borderClass} ${textSecondary} ${hoverBg} transition-colors`}
+        >
+          {hidePastEvents ? <EyeOff size={13} /> : <Eye size={13} />}
+          {hidePastEvents ? t('sched.showPastEvents', 'Show past events') : t('sched.hidePastEvents', 'Hide past events')}
         </button>
       </div>
     </div>

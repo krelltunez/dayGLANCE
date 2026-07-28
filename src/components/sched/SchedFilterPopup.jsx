@@ -16,7 +16,10 @@ import SchedFilterPresets from './SchedFilterPresets.jsx';
 const SchedFilterPopup = ({
   filters, setFilters,
   filterPresets, saveFilterPreset, deleteFilterPreset, applyFilterPreset,
-  availableColors, availableTags, nextInstanceOnly, toggleNextInstanceOnly, onClose,
+  availableColors, availableTags, nextInstanceOnly, toggleNextInstanceOnly,
+  hideCompleted, toggleHideCompleted,
+  hidePastEvents, toggleHidePastEvents,
+  onClose,
 }) => {
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg } = useDayPlannerCtx();
   const { projects, goals, goalsProjectsEnabled } = useFeaturesCtx();
@@ -135,6 +138,30 @@ const SchedFilterPopup = ({
             </button>
             <button onClick={() => !nextInstanceOnly && toggleNextInstanceOnly()} className={chip(nextInstanceOnly)}>
               {t('sched.nextOnly', 'Next only')}
+            </button>
+          </div>
+        </div>
+
+        {/* Completed / past events — view preferences like Recurring above */}
+        <div className="flex flex-col gap-1.5">
+          <span className={`text-xs font-medium ${textSecondary}`}>{t('sched.completedTasks', 'Completed tasks')}</span>
+          <div className="flex gap-1.5">
+            <button onClick={() => hideCompleted && toggleHideCompleted()} className={chip(!hideCompleted)}>
+              {t('sched.show', 'Show')}
+            </button>
+            <button onClick={() => !hideCompleted && toggleHideCompleted()} className={chip(hideCompleted)}>
+              {t('sched.hide', 'Hide')}
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <span className={`text-xs font-medium ${textSecondary}`}>{t('sched.pastEvents', 'Past events')}</span>
+          <div className="flex gap-1.5">
+            <button onClick={() => hidePastEvents && toggleHidePastEvents()} className={chip(!hidePastEvents)}>
+              {t('sched.show', 'Show')}
+            </button>
+            <button onClick={() => !hidePastEvents && toggleHidePastEvents()} className={chip(hidePastEvents)}>
+              {t('sched.hide', 'Hide')}
             </button>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { EMPTY_SCHED_FILTERS, hasActiveSchedFilters, taskMatchesSchedFilters, toggleSchedFilter, groupProjectsForFilter, limitRecurringToNextInstance, schedFiltersEqual } from './schedAgenda.js';
+import { EMPTY_SCHED_FILTERS, hasActiveSchedFilters, taskMatchesSchedFilters, toggleSchedFilter, groupProjectsForFilter, limitRecurringToNextInstance, schedFiltersEqual, isPastEvent } from './schedAgenda.js';
 
 const task = { title: 'Write report #work #deep', color: 'bg-red-500', projectId: 'p1' };
 
@@ -124,5 +124,48 @@ describe('limitRecurringToNextInstance', () => {
     const out = limitRecurringToNextInstance(days);
     expect(out[0].tasks).toHaveLength(1);
     expect(out[1].tasks).toHaveLength(0);
+  });
+});
+
+describe('isPastEvent', () => {
+  // 2026-07-28 at 14:00
+  const now = new Date('2026-07-28T14:00:00');
+  const event = (over) => ({ imported: true, date: '2026-07-28', startTime: '09:00', duration: 60, ...over });
+
+  it('ignores non-imported tasks entirely, even past-dated ones', () => {
+    expect(isPastEvent({ date: '2026-07-01', startTime: '09:00', duration: 30 }, now)).toBe(false);
+  });
+
+  it('ignores task-calendar imports (they behave like tasks)', () => {
+    expect(isPastEvent(event({ isTaskCalendar: true }), now)).toBe(false);
+  });
+
+  it('ignores events without a date', () => {
+    expect(isPastEvent(event({ date: undefined }), now)).toBe(false);
+  });
+
+  it('marks events on earlier days as past', () => {
+    expect(isPastEvent(event({ date: '2026-07-27' }), now)).toBe(true);
+  });
+
+  it('never marks events on later days', () => {
+    expect(isPastEvent(event({ date: '2026-07-29' }), now)).toBe(false);
+  });
+
+  it("today: past once the event's end has been reached", () => {
+    expect(isPastEvent(event({ startTime: '09:00', duration: 60 }), now)).toBe(true);   // ended 10:00
+    expect(isPastEvent(event({ startTime: '13:00', duration: 60 }), now)).toBe(true);   // ends exactly 14:00
+    expect(isPastEvent(event({ startTime: '13:30', duration: 60 }), now)).toBe(false);  // in progress
+    expect(isPastEvent(event({ startTime: '15:00', duration: 60 }), now)).toBe(false);  // upcoming
+  });
+
+  it('all-day events last until the day ends', () => {
+    expect(isPastEvent(event({ isAllDay: true, startTime: '00:00' }), now)).toBe(false);
+    expect(isPastEvent(event({ isAllDay: true, startTime: '00:00', date: '2026-07-27' }), now)).toBe(true);
+  });
+
+  it('zero-duration events are past once their start time passes', () => {
+    expect(isPastEvent(event({ startTime: '13:00', duration: 0 }), now)).toBe(true);
+    expect(isPastEvent(event({ startTime: '14:30', duration: 0 }), now)).toBe(false);
   });
 });
