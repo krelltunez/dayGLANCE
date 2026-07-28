@@ -710,6 +710,7 @@ const DesktopNewTaskModal = () => {
                     task={liveBucketTask}
                     isInbox={true}
                     darkMode={darkMode}
+                    noAutoFocus
                     updateTaskNotes={updateTaskNotes}
                     addSubtask={addSubtask}
                     toggleSubtask={toggleSubtask}

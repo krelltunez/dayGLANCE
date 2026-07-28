@@ -567,6 +567,7 @@ const MobileNewTaskModal = () => {
                     task={liveBucketTask}
                     isInbox={true}
                     darkMode={darkMode}
+                    noAutoFocus
                     updateTaskNotes={updateTaskNotes}
                     addSubtask={addSubtask}
                     toggleSubtask={toggleSubtask}
