@@ -20,7 +20,11 @@ android {
         applicationId = "com.dayglance.app"
         minSdk = 26  // Android 8.0 — required for Health Connect
         targetSdk = 36
-        versionCode = 185
+        // Overridable per-build from the command line (build-and-install.sh
+        // passes -PversionCode=N for release builds); the literal is the
+        // fallback for plain gradle/IDE builds and no longer needs a commit
+        // per Play upload.
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 185
         versionName = "4.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
