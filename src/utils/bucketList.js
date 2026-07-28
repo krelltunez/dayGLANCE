@@ -13,7 +13,11 @@
 export const BUCKET_LIST_IDS = ['b1', 'b2'];
 
 export const DEFAULT_BUCKET_CONFIG = {
-  headings: { b1: 'Someday', b2: 'Anytime' },
+  // b1 is the demote target and always visible; b2 is hideable. "Anytime"
+  // leads (actionable whenever, just not scheduled — where a demoted Inbox
+  // task naturally lands) with "Someday" as the further-out, review-
+  // occasionally list (the Things 3 convention).
+  headings: { b1: 'Anytime', b2: 'Someday' },
   secondListHidden: false,
   notes: '',
 };
