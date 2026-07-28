@@ -73,6 +73,12 @@ const DesktopNewTaskModal = () => {
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 e.preventDefault();
+                // Consume the event: without this it bubbles on to useModalClose's
+                // document listener, which by then sees showAddTask already false
+                // (React flushes before the event reaches document) and closes the
+                // next open modal underneath — e.g. the Bucket List this editor
+                // was opened from.
+                e.stopPropagation();
                 if (showRecurrencePicker) {
                   setShowRecurrencePicker(false);
                 } else if (showNewTaskDeadlinePicker) {
