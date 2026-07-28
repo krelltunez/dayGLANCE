@@ -6,9 +6,25 @@ import {
   getDateCandidates, getTimeCandidates,
   completeShortcutText,
 } from '../utils/suggestionParser.js';
+import { parseQuickAdd, spanSignature } from '../utils/quickAddParser.js';
 
-export default function useNewTaskInput({ allTags, showAddTask }) {
+// Deep-enough equality for NL-applied values (strings, numbers, small
+// recurrence objects). Used to detect whether the user manually changed a
+// field after the NL layer set it.
+const sameVal = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+export default function useNewTaskInput({ allTags, showAddTask, isEditing = false }) {
   const [newTask, setNewTask] = useState({ title: '', startTime: '09:00', duration: 30 });
+  // Natural-language layer bookkeeping:
+  // - dismissedNlRef: span signatures the user rejected via chip tap — those
+  //   phrases stay plain text until the input is next reset.
+  // - nlAppliedRef / nlBaselineRef: per-field record of what the NL layer set
+  //   and what the field held before, so removing a chip (dismiss OR editing
+  //   the phrase away) reverts the field — unless the user changed it manually
+  //   in the meantime (then the user's value wins).
+  const dismissedNlRef = useRef(new Set());
+  const nlAppliedRef = useRef({});
+  const nlBaselineRef = useRef({});
   const [showNewTaskDeadlinePicker, setShowNewTaskDeadlinePicker] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
@@ -134,14 +150,106 @@ export default function useNewTaskInput({ allTags, showAddTask }) {
     return allSuggestions;
   };
 
+  // ── Natural-language layer ────────────────────────────────────────────────
+  // Parses bare phrases ("tomorrow 3pm every 2 weeks") into chips + task
+  // fields. Runs alongside the sigil system: sigil regions are masked inside
+  // parseQuickAdd, and sigil auto-apply runs AFTER (explicit syntax wins).
+
+  // Parse `title`, drop dismissed/mode-inapplicable spans, and return the
+  // task patched with applied fields + chip/strip metadata.
+  const applyNlLayer = (prev, title) => {
+    // NL parsing is for CREATING tasks only. When editing an existing task,
+    // typing "tomorrow" into a title must never silently reschedule it.
+    if (isEditing) {
+      return { ...prev, title, nlChips: [], nlSpans: [] };
+    }
+    const isInbox = !!prev.openInInbox;
+    let spans = parseQuickAdd(title).spans
+      .filter(s => !dismissedNlRef.current.has(spanSignature(s)));
+    // Inbox tasks aren't scheduled or recurring: only tags, a deadline-style
+    // date, and duration make sense there.
+    if (isInbox) spans = spans.filter(s => ['tag', 'date', 'duration'].includes(s.type));
+
+    const bySpanType = (t) => spans.find(s => s.type === t);
+    const dateSpan = bySpanType('date');
+    const timeSpan = bySpanType('time');
+    const rangeSpan = bySpanType('timerange');
+    const durSpan = bySpanType('duration');
+    const recSpan = bySpanType('recurrence');
+
+    // Desired field values from the current spans.
+    const desired = {};
+    if (isInbox) {
+      if (dateSpan) desired.deadline = dateSpan.value;
+      if (durSpan) desired.duration = durSpan.value;
+    } else {
+      if (dateSpan) desired.date = dateSpan.value;
+      if (rangeSpan) {
+        desired.startTime = rangeSpan.value.startTime;
+        desired.duration = rangeSpan.value.duration;
+      }
+      if (timeSpan) desired.startTime = timeSpan.value;
+      else if (!rangeSpan) {
+        const implied = dateSpan?.impliedTime || recSpan?.impliedTime;
+        if (implied) desired.startTime = implied;
+      }
+      if (durSpan) desired.duration = durSpan.value;
+      if (recSpan) desired.recurrence = recSpan.value;
+    }
+
+    // Apply new values / revert vanished ones. A field is only touched while
+    // it still holds what the NL layer last wrote — manual edits win.
+    const next = { ...prev, title };
+    const applied = nlAppliedRef.current;
+    const baselines = nlBaselineRef.current;
+    for (const f of ['date', 'startTime', 'duration', 'recurrence', 'deadline']) {
+      if (f in desired) {
+        if (!(f in applied)) baselines[f] = prev[f]; // first claim → remember what to restore
+        if (!(f in applied) || sameVal(prev[f], applied[f])) {
+          next[f] = desired[f];
+          applied[f] = desired[f];
+        }
+      } else if (f in applied) {
+        if (sameVal(prev[f], applied[f])) next[f] = baselines[f];
+        delete applied[f];
+        delete baselines[f];
+      }
+    }
+    if ('startTime' in desired && prev.isAllDay) next.isAllDay = false;
+
+    // Chips for the UI (tags included); spans to strip from the title at save
+    // (tags excluded — tag text stays in the title by app convention).
+    next.nlChips = spans.map(s => ({ ...s, sig: spanSignature(s), inboxDate: isInbox && s.type === 'date' }));
+    next.nlSpans = spans.filter(s => s.type !== 'tag');
+    return next;
+  };
+
+  // Chip tap = undo that parse. Non-tag chips: remember the dismissal (the
+  // phrase stays plain text) and revert the field. Tag chips: delete the #tag
+  // token from the title itself.
+  const dismissNlChip = (chip) => {
+    if (chip.type === 'tag') {
+      setNewTask(prev => {
+        const title = (prev.title.slice(0, chip.start) + prev.title.slice(chip.end))
+          .replace(/\s{2,}/g, ' ').trimStart();
+        return applyNlLayer(prev, title);
+      });
+      newTaskInputRef.current?.focus();
+      return;
+    }
+    dismissedNlRef.current.add(chip.sig);
+    setNewTask(prev => applyNlLayer(prev, prev.title));
+    newTaskInputRef.current?.focus();
+  };
+
   // Handle suggestions for new task input
   const handleNewTaskInputChange = (e) => {
     const value = e.target.value;
     const cursorPos = e.target.selectionStart;
     const allSuggestions = buildSuggestions(value, cursorPos, newTask.openInInbox);
 
-    // Auto-apply attribute suggestions in real-time as the user types
-    const updates = { title: value };
+    // Auto-apply sigil suggestions in real-time as the user types
+    const updates = {};
     for (const s of allSuggestions) {
       // Use first (best) match per type, not last
       if (s.type === 'date' && !('date' in updates)) updates.date = s.value;
@@ -150,7 +258,8 @@ export default function useNewTaskInput({ allTags, showAddTask }) {
       else if (s.type === 'priority' && !('priority' in updates)) updates.priority = s.value;
       else if (s.type === 'duration' && !('duration' in updates)) updates.duration = s.value;
     }
-    setNewTask(prev => ({ ...prev, ...updates }));
+    // NL layer first, sigil updates second — explicit sigil syntax wins.
+    setNewTask(prev => ({ ...applyNlLayer(prev, value), ...updates }));
 
     if (allSuggestions.length > 0) {
       setSuggestions(allSuggestions);
@@ -267,12 +376,15 @@ export default function useNewTaskInput({ allTags, showAddTask }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showSuggestions]);
 
-  // Reset tag suggestions when add task modal closes
+  // Reset tag suggestions and NL-layer bookkeeping when add task modal closes
   useEffect(() => {
     if (!showAddTask) {
       setShowSuggestions(false);
       setSuggestions([]);
       setSelectedSuggestionIndex(0);
+      dismissedNlRef.current = new Set();
+      nlAppliedRef.current = {};
+      nlBaselineRef.current = {};
     }
   }, [showAddTask]);
 
@@ -294,5 +406,6 @@ export default function useNewTaskInput({ allTags, showAddTask }) {
     handleNewTaskInputChange,
     handleNewTaskInputKeyDown,
     applySuggestionForNewTask,
+    dismissNlChip,
   };
 }
