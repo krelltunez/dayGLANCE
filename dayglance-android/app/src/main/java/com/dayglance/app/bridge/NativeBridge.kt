@@ -50,6 +50,41 @@ class NativeBridge(
     private var mediaRecorder: MediaRecorder? = null
     private var recordingFile: File? = null
 
+    // On-device speech recognition — attached after the WebView exists
+    // (SpeechBridge needs it to deliver __speechEvent callbacks) and detached
+    // from Activity.onDestroy. Null until then; the JS side feature-detects
+    // via supportsSpeechRecognition().
+    private var speech: SpeechBridge? = null
+
+    fun attachSpeechBridge(bridge: SpeechBridge) { speech = bridge }
+
+    fun destroySpeechBridge() {
+        speech?.destroy()
+        speech = null
+    }
+
+    // ── Speech recognition (on-device STT — no AI provider required) ────────
+
+    @JavascriptInterface
+    fun supportsSpeechRecognition(): String =
+        if (speech?.isAvailable() == true) "true" else "false"
+
+    @JavascriptInterface
+    fun startSpeechRecognition(): String =
+        speech?.start() ?: """{"error":"speech bridge unavailable"}"""
+
+    @JavascriptInterface
+    fun stopSpeechRecognition(): String {
+        speech?.stop()
+        return "ok"
+    }
+
+    @JavascriptInterface
+    fun cancelSpeechRecognition(): String {
+        speech?.cancel()
+        return "ok"
+    }
+
     // ── Audio recording ─────────────────────────────────────────────────────
 
     /**
