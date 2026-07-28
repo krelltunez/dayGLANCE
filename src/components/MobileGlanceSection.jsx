@@ -144,7 +144,9 @@ const MobileGlanceSection = () => {
       className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'} transition-colors`}
     >
       <Search size={16} />
-      <span className="text-sm">{t('spotlight.searchPlaceholder')}</span>
+      {/* "Search", not "Search tasks..." — Spotlight searches more than tasks,
+          and this matches the desktop/tablet GLANCE button. */}
+      <span className="text-sm">{t('common.search')}</span>
     </button>
     {allTags.length > 0 && (
       <button
