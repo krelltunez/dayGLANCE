@@ -76,7 +76,12 @@ export function useSubscription() {
     isAndroidApp:  !!BILLING,
     isIOSApp:      IOS,
     isElectronApp: ELECTRON,
-    canConsumeTestPurchase: billing.canConsumeTestPurchase,
+    // The dev-only "reset test purchase" tool goes through Play's consumeAsync,
+    // which only works on INAPP (lifetime) purchases — never subscriptions.
+    // Hide the tool when the active entitlement is the subscription so it
+    // can't offer a revoke that silently no-ops (subscriptions reset by
+    // cancelling in Play and waiting for expiry).
+    canConsumeTestPurchase: billing.canConsumeTestPurchase && billing.productId !== ANDROID_PRODUCTS.yearly,
     isLoading: billing.isLoading,
     subscribe: billing.subscribe,
     restore: billing.restore,

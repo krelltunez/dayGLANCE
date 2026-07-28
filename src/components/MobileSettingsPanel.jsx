@@ -436,8 +436,10 @@ const MobileSettingsPanel = () => {
         confirmingPurchaseReset ? (
           <div className={`w-full ${cardBg} border border-red-500/40 rounded-xl p-3 space-y-2`}>
             <p className={`text-xs ${textSecondary} leading-relaxed`}>
-              This permanently revokes this account&apos;s purchase from Google Play.
-              It is not a refresh and cannot be undone. For internal testing only.
+              This permanently revokes this account&apos;s lifetime purchase from
+              Google Play. It is not a refresh and cannot be undone. It has no
+              effect on subscriptions: cancel in Google Play and let the
+              subscription expire instead. For internal testing only.
             </p>
             <div className="flex gap-2">
               <button
