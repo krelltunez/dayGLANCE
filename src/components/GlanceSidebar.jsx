@@ -172,7 +172,9 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'} transition-colors ${interactionClass}`}
     >
       <Search size={16} />
-      <span className="text-sm">{t('spotlight.searchPlaceholder')}</span>
+      {/* Short label — the row also holds filter/voice/bucket buttons, and
+          "Search tasks..." wraps to two lines in the remaining width. */}
+      <span className="text-sm truncate">{t('common.search')}</span>
       {isDesktop && <span className={`ml-auto text-xs ${textSecondary}`}>Ctrl+K</span>}
     </button>
     {allTags.length > 0 && (
