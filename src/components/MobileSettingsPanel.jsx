@@ -73,7 +73,7 @@ const MobileSettingsPanel = () => {
     taskCalendarAuth, setTaskCalendarAuth,
     syncCalendarCreds, setSyncCalendarCreds,
     syncRetentionDays, setSyncRetentionDays,
-    calSyncStatus, calSyncLastSynced, calSyncConfigured,
+    calSyncStatus, calSyncLastSynced, calSyncConfigured, calendarSourceActive,
     availableCalendars, setAvailableCalendars,
     calendarFilter, setCalendarFilter,
     calendarUrlAuth, setCalendarUrlAuth,
@@ -599,7 +599,7 @@ const MobileSettingsPanel = () => {
         <button onClick={() => toggleSettingsSection('calSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
           <RefreshCw size={16} className={textSecondary} />
           {t('settings.calendarSync')}
-          {calSyncConfigured && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+          {calendarSourceActive && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
           <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
         </button>
         {!collapsedSettings.calSync && (<>
