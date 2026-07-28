@@ -8,13 +8,57 @@ OUT_DIR="$SCRIPT_DIR/outputs"
 # Flags
 FULL_CLEAN=false
 RELEASE=false
+BUILD_NUMBER=""
+prev_arg=""
 for arg in "$@"; do
+  if [ "$prev_arg" = "--build" ]; then
+    BUILD_NUMBER="$arg"
+    prev_arg=""
+    continue
+  fi
   case "$arg" in
     --clean)   FULL_CLEAN=true ;;
     --release) RELEASE=true ;;
-    *) echo "Unknown flag: $arg (valid flags: --clean, --release)" && exit 1 ;;
+    --build)   prev_arg="--build" ;;
+    *) echo "Unknown flag: $arg (valid flags: --clean, --release, --build N)" && exit 1 ;;
   esac
 done
+if [ "$prev_arg" = "--build" ]; then
+  echo "--build requires a number (e.g. --build 186)" && exit 1
+fi
+if [ -n "$BUILD_NUMBER" ] && ! [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
+  echo "--build must be a positive integer, got: $BUILD_NUMBER" && exit 1
+fi
+
+# ── Android versionCode (release builds) ───────────────────────────────────
+# The versionCode is set per-build here instead of via a commit per upload:
+# build.gradle.kts reads -PversionCode when provided. The last number used is
+# recorded in outputs/.last-versioncode (gitignored) so the suggested next
+# code stays correct even when the checked-in gradle fallback goes stale.
+VERSIONCODE_FILE="$OUT_DIR/.last-versioncode"
+resolve_versioncode() {
+  if [ -n "$BUILD_NUMBER" ]; then
+    VERSION_CODE="$BUILD_NUMBER"
+    return
+  fi
+  local last="" gradle_default suggested
+  [ -f "$VERSIONCODE_FILE" ] && last="$(cat "$VERSIONCODE_FILE" 2>/dev/null | tr -dc '0-9')"
+  gradle_default="$(grep -o '?: [0-9]*' "$ANDROID_DIR/app/build.gradle.kts" | head -1 | tr -dc '0-9')"
+  if [ -n "$last" ]; then
+    suggested=$((last + 1))
+  else
+    suggested=$(( ${gradle_default:-0} + 1 ))
+  fi
+  if [ -t 0 ]; then
+    read -r -p "==> Android versionCode for this release [$suggested]: " VERSION_CODE
+    VERSION_CODE="${VERSION_CODE:-$suggested}"
+  else
+    VERSION_CODE="$suggested"
+  fi
+  if ! [[ "$VERSION_CODE" =~ ^[0-9]+$ ]]; then
+    echo "versionCode must be a positive integer, got: $VERSION_CODE" && exit 1
+  fi
+}
 
 # ── Clean ──────────────────────────────────────────────────────────────────
 if $FULL_CLEAN; then
@@ -38,13 +82,17 @@ mkdir -p "$OUT_DIR"
 
 if $RELEASE; then
   # ── Android ────────────────────────────────────────────────────────────
+  resolve_versioncode
+  echo "==> Using Android versionCode $VERSION_CODE"
+
   echo "==> Building Android web assets..."
   cd "$SCRIPT_DIR"
   npm run build:android
 
   echo "==> Building Android APK + AAB (play) and GitHub APK..."
   cd "$ANDROID_DIR"
-  ./gradlew assemblePlayRelease bundlePlayRelease assembleGithubRelease
+  ./gradlew -PversionCode="$VERSION_CODE" assemblePlayRelease bundlePlayRelease assembleGithubRelease
+  echo "$VERSION_CODE" > "$VERSIONCODE_FILE"
 
   cp "app/build/outputs/apk/play/release/dayglance.apk" "$OUT_DIR/dayglance.apk"
   echo "    APK (Play)   → outputs/dayglance.apk"
@@ -54,7 +102,7 @@ if $RELEASE; then
   echo "    APK (GitHub) → outputs/dayglance-github.apk"
 
   echo ""
-  echo "==> Android release build complete. outputs/:"
+  echo "==> Android release build complete (versionCode $VERSION_CODE). outputs/:"
   ls -lh "$OUT_DIR"
 
 else
