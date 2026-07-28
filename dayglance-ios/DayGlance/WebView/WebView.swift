@@ -81,6 +81,7 @@ struct WebView: UIViewRepresentable {
         // Relative refs in index.html (./assets/…) resolve to dg:///assets/…
         // Give SubscriptionBridge a weak reference so it can fire __billingEvent callbacks.
         SubscriptionBridge.shared.webView = webView
+        SpeechBridge.shared.webView = webView
         // Same for the native SSE reader — it pushes frames via __glanceVaultSseReceive.
         VaultSseBridge.shared.webView = webView
 
