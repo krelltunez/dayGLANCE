@@ -213,8 +213,14 @@ const NotesSubtasksPanel = ({
     if (localNotes !== (task.notes || '')) updateTaskNotes(task.id, localNotes, isInbox);
   };
 
+  // Called from the add-subtask input's Enter keydown and nothing else.
+  // preventDefault matters when the panel renders inside the task editor's
+  // <form> (bucket items): the input's form owner is that outer form, so an
+  // unhandled Enter would implicitly submit it — saving and closing the
+  // editor. stopPropagation keeps the keydown from the editor's onKeyDown.
   const handleAddSubtask = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     if (localSubtaskText.trim()) {
       addSubtask(task.id, localSubtaskText, isInbox);
       setLocalSubtaskText('');
@@ -386,6 +392,7 @@ const NotesSubtasksPanel = ({
             {task.subtasks.map((subtask) => (
               <div key={subtask.id} className="flex items-center gap-2 group">
                 <button
+                  type="button"
                   onClick={() => toggleSubtask(task.id, subtask.id, isInbox)}
                   className={`rounded flex-shrink-0 border-2 w-4 h-4 flex items-center justify-center transition-colors ${th.checkbox} ${subtask.completed ? 'opacity-60' : ''}`}
                 >
@@ -418,6 +425,7 @@ const NotesSubtasksPanel = ({
                   </span>
                 )}
                 <button
+                  type="button"
                   onClick={() => deleteSubtask(task.id, subtask.id, isInbox)}
                   className={`md:opacity-0 md:group-hover:opacity-100 opacity-60 rounded p-0.5 transition-opacity ${th.deleteBtn}`}
                   title="Delete subtask"
@@ -429,17 +437,23 @@ const NotesSubtasksPanel = ({
           </div>
         )}
 
-        {/* Add subtask input */}
-        <form onSubmit={handleAddSubtask} className="flex items-center gap-2">
+        {/* Add subtask input. Deliberately NOT a <form>: the panel can render
+            inside the task editor's <form> (bucket items), and a nested form
+            is invalid HTML whose submit bypasses React entirely — the browser
+            performs a native GET submission and reloads the whole app. Enter
+            is handled on the input instead (preventDefault also stops the
+            outer form's implicit submission). */}
+        <div className="flex items-center gap-2">
           <Plus size={14} className={th.addIcon} />
           <input
             type="text"
             value={localSubtaskText}
             onChange={(e) => setLocalSubtaskText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubtask(e); }}
             placeholder="Add subtask..."
             className={`flex-1 bg-transparent text-sm px-1 py-0.5 outline-none border-b ${th.addInput} ${th.addBorder}`}
           />
-        </form>
+        </div>
       </div>
 
     </div>
