@@ -7,7 +7,7 @@ import {
   Eye, FileText, Filter, Flag, Flame, FolderOpen, GitBranch, Globe, GripVertical, Hash, HelpCircle,
   Inbox, Key, Layers, LayoutGrid, Link, Loader, Menu, Mic, Minus, Moon, MoreHorizontal,
   NotebookPen, Plus, RefreshCw, Save, Search, Settings, SkipForward, Sparkles,
-  Sun, Target, Trash2, TrendingUp, Trophy, Undo2, Upload, Volume2, VolumeX,
+  Sun, Target, Telescope, Trash2, TrendingUp, Trophy, Undo2, Upload, Volume2, VolumeX,
   Wifi, X, Zap,
 } from 'lucide-react';
 import { isNativeAndroid, isNativeApp, nativeUpdateEvent } from '../native.js';
@@ -255,6 +255,7 @@ const MobileLayout = () => {
     confirmEmptyBin, emptyRecycleBin,
     hideStandaloneTasksInbox, inboxTagFilter, inboxProjectFilter, setInboxProjectFilter,
     archiveInboxTask,
+    sendTaskToBucket,
   } = useDayPlannerCtx();
   const { t } = useTranslation();
 
@@ -1039,6 +1040,15 @@ const MobileLayout = () => {
                                       />
                                     )}
                                   </div>
+                                  {!task.completed && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); sendTaskToBucket(task.id); }}
+                                      className="hover:bg-white/20 rounded p-1 transition-colors opacity-40"
+                                      title={t('bucket.sendToBucket')}
+                                    >
+                                      <Telescope size={14} />
+                                    </button>
+                                  )}
                                 </div>
                                 <div className="flex items-center justify-between w-full">
                                   {task.completed ? (
