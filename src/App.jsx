@@ -511,6 +511,13 @@ const DayPlanner = () => {
   // When a native calendar source is present (mobile bridge or macOS EventKit),
   // calendar events come from there — only the task calendar URL matters for sync.
   const calSyncConfigured = hasNativeCalendar() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
+  // The settings-panel "configured" dot: green when ANY calendar source is
+  // live — CalDAV/task URLs, or the native calendar actually delivering
+  // (availableCalendars only populates once access is granted and calendars
+  // exist). Distinct from calSyncConfigured, which gates the CalDAV sync
+  // machinery and must stay false-for-native-only so the sync button doesn't
+  // offer to sync events that don't sync.
+  const calendarSourceActive = calSyncConfigured || availableCalendars.length > 0;
   const [calendarUrlAuth, setCalendarUrlAuth] = useState(() => {
     const saved = localStorage.getItem('day-planner-calendar-url-auth');
     return saved ? JSON.parse(saved) : { username: '', password: '' };
@@ -7877,7 +7884,7 @@ const DayPlanner = () => {
     syncRetentionDays, setSyncRetentionDays,
     calSyncStatus, setCalSyncStatus,
     calSyncLastSynced, setCalSyncLastSynced,
-    calSyncConfigured,
+    calSyncConfigured, calendarSourceActive,
     showCalendarUrlHint, setShowCalendarUrlHint,
     availableCalendars, setAvailableCalendars,
     calendarFilter, setCalendarFilter,

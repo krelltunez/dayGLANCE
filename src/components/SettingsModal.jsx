@@ -61,7 +61,7 @@ const SettingsModal = () => {
     cloudSyncStatus, cloudSyncError, cloudSyncNow,
     vaultSyncNow, vaultBootstrapSync, vaultStatus, vaultError, vaultLastSynced, vaultSkipped,
     syncKeyReady, setSyncKeyReady,
-    calSyncConfigured, syncUrl, setSyncUrl,
+    calSyncConfigured, calendarSourceActive, syncUrl, setSyncUrl,
     showCalendarUrlHint, setShowCalendarUrlHint,
     calendarUrlAuth, setCalendarUrlAuth,
     taskCalendarUrl, setTaskCalendarUrl, taskCalendarAuth, setTaskCalendarAuth,
@@ -820,7 +820,7 @@ const SettingsModal = () => {
                       <button onClick={() => toggleSettingsSection('calSync')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <RefreshCw size={16} className={textSecondary} />
                         {t('settings.calendarSync')}
-                        {calSyncConfigured && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                        {calendarSourceActive && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.calSync && (<>
