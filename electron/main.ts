@@ -194,6 +194,18 @@ function createWindow(): BrowserWindow {
     logStartup(`preload-error: ${preloadPath}: ${err?.message ?? err}`));
 
   if (DEV) {
+    // concurrently starts vite and electron together, so the first load can
+    // beat the dev server and fail with ERR_CONNECTION_REFUSED. A failed dev
+    // load used to leave the window white forever; keep retrying until the
+    // server comes up (also covers vite restarts). ERR_ABORTED (-3) is a
+    // superseded navigation, not a server failure — never retry those.
+    mainWindow.webContents.on('did-fail-load', (_e, code, _desc, url) => {
+      if (code === -3 || !url?.startsWith(VITE_DEV_SERVER_URL)) return;
+      setTimeout(() => {
+        logStartup(`dev server load failed (${code}) — retrying`);
+        mainWindow?.loadURL(VITE_DEV_SERVER_URL);
+      }, 1000);
+    });
     mainWindow.loadURL(VITE_DEV_SERVER_URL);
   } else {
     mainWindow.loadURL(APP_BASE_URL);
@@ -729,6 +741,16 @@ app.whenReady().then(async () => {
   ].join('; ');
 
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    // DEV: leave the vite dev server's responses alone. The strict CSP breaks
+    // dev in two ways — script-src 'self' blocks the inline react-refresh
+    // preamble ("@vitejs/plugin-react can't detect preamble" → every module
+    // throws → permanent white screen), and connect-src without ws: would
+    // block the HMR websocket. The dev origin is trusted localhost only;
+    // packaged builds never hit this branch and keep the full CSP.
+    if (DEV && details.url.startsWith(VITE_DEV_SERVER_URL)) {
+      callback({ responseHeaders: details.responseHeaders });
+      return;
+    }
     callback({
       responseHeaders: {
         ...details.responseHeaders,
