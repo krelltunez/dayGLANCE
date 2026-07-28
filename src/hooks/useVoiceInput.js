@@ -187,6 +187,12 @@ export default function useVoiceInput({
           if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
             setVoiceParseError('Microphone access denied. Please allow microphone permissions in your browser settings.');
             setVoiceMicError('error');
+          } else if (e.error === 'network') {
+            // The browser streams speech to its vendor's recognition service;
+            // 'network' means that service is unreachable. Some browsers fail
+            // instantly on certain platforms (e.g. Edge outside Windows).
+            setVoiceParseError("This browser couldn't reach its speech recognition service, so voice input isn't available here. You can type instead, or try a different browser.");
+            setVoiceMicError('error');
           } else if (e.error !== 'aborted' && e.error !== 'no-speech') {
             setVoiceParseError(`Speech recognition error: ${e.error}`);
             setVoiceMicError('error');
