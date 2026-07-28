@@ -3337,9 +3337,12 @@ const DayPlanner = () => {
         title: cleanTitle(newTask.title),
         duration: newTask.duration,
         color: newTask.color || colors[0].class,
-        deadline: newTask.deadline || null,
-        priority: newTask.priority || 0,
-        projectId: newTask.projectId || undefined,
+        // Bucket items stay pressure-free: the editor hides these controls for
+        // them, but sigils typed in the title ($fri, !2) could still seed
+        // newTask — force the stripped state at the source of truth.
+        deadline: t.bucketId ? null : (newTask.deadline || null),
+        priority: t.bucketId ? 0 : (newTask.priority || 0),
+        projectId: t.bucketId ? undefined : (newTask.projectId || undefined),
         assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds ?? t.assignedUserSyncIds,
         transitionId: crypto.randomUUID(),
       } : t));

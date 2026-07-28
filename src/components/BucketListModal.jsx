@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRightLeft, CalendarClock, Eye, EyeOff, GripVertical, Inbox, Plus, Telescope, Trash2, X } from 'lucide-react';
+import { ArrowRightLeft, CalendarClock, CheckSquare, Eye, EyeOff, FileText, GripVertical, Inbox, Plus, Telescope, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { BUCKET_LIST_IDS, promoteToInbox } from '../utils/bucketList.js';
-import { renderFormattedText } from '../utils/textFormatting.jsx';
+import { renderFormattedText, hasNotesOrSubtasks, hasOnlySubtasks } from '../utils/textFormatting.jsx';
 
 // Same iOS detection as ProjectPlanner/ProjectCard: grip-only touch drag on
 // iOS, where whole-row HTML5 drag hijacks the gesture.
@@ -249,9 +249,15 @@ const BucketListModal = () => {
         <button
           type="button"
           onClick={() => editItem(task)}
-          className={`flex-1 min-w-0 text-left text-sm truncate ${task.completed ? `line-through ${textSecondary}` : textPrimary}`}
+          className={`flex-1 min-w-0 text-left text-sm truncate flex items-center gap-1.5 ${task.completed ? `line-through ${textSecondary}` : textPrimary}`}
         >
-          {task.title}
+          <span className="truncate">{task.title}</span>
+          {/* Passive has-notes glyph (not a button — the editor is the surface) */}
+          {hasNotesOrSubtasks(task) && (
+            hasOnlySubtasks(task)
+              ? <CheckSquare size={11} className={`flex-shrink-0 ${textSecondary} opacity-60`} />
+              : <FileText size={11} className={`flex-shrink-0 ${textSecondary} opacity-60`} />
+          )}
         </button>
         <div className={`flex items-center gap-0.5 flex-shrink-0 ${isMobile ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'}`}>
           {!task.completed && (

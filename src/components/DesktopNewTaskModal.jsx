@@ -8,6 +8,8 @@ import { SOURCE_APPS } from '../native.js';
 import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
 import QuickAddChips from './QuickAddChips.jsx';
 import LastGlanceBadge from './LastGlanceBadge.jsx';
+import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
+import { extractWikilinks } from '../utils/taskUtils.js';
 import { dateToString, extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
 import { getRecurrencePresets } from '../utils/recurrenceEngine.js';
 import { getProjectColor } from '../utils/colorUtils.js';
@@ -37,8 +39,10 @@ const DesktopNewTaskModal = () => {
     applySuggestionForNewTask,
     handleNewTaskInputChange, handleNewTaskInputKeyDown,
     dismissNlChip,
+    unscheduledTasks,
+    updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
   } = useDayPlannerCtx();
-  const { aiConfig, taskAISuggestion, setTaskAISuggestion, taskAISuggestionLoading, triggerTaskAISuggestion, goals, projects, goalsProjectsEnabled, multiUserEnabled, users } = useFeaturesCtx();
+  const { aiConfig, taskAISuggestion, setTaskAISuggestion, taskAISuggestionLoading, triggerTaskAISuggestion, goals, projects, goalsProjectsEnabled, multiUserEnabled, users, aiSubtasksLoadingForTask, generateAISubtasks } = useFeaturesCtx();
   const { wikilinkCandidates = [] } = useSyncCtx() || {};
 
   // Wikilink autocomplete: detect [[partial at end of title
@@ -52,6 +56,17 @@ const DesktopNewTaskModal = () => {
     setNewTask(prev => ({ ...prev, title: newTitle }));
     newTaskInputRef.current?.focus();
   };
+
+  // Bucket List items use this editor in inbox flavor, but the Bucket is
+  // deliberately pressure-free: no deadline, no priority, no project. Those
+  // controls are hidden (a stored deadline would be inert anyway — every
+  // deadline/priority consumer excludes bucket items), and the freed space
+  // hosts the notes & subtasks panel, which has no other surface in the
+  // Bucket List UI.
+  const isBucketItem = !!mobileEditingTask?.bucketId;
+  const liveBucketTask = isBucketItem
+    ? unscheduledTasks.find(t => t.id === mobileEditingTask.id)
+    : null;
 
   if (!showAddTask || isMobile) return null;
 
@@ -207,8 +222,9 @@ const DesktopNewTaskModal = () => {
                   )
                 )}
               </div>
-              {/* Project assignment (only when Goals & Projects is enabled) */}
-              {goalsProjectsEnabled && (
+              {/* Project assignment (only when Goals & Projects is enabled;
+                  never for Bucket List items — a PLANNER without a project) */}
+              {goalsProjectsEnabled && !isBucketItem && (
                 <div>
                   <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.project')}</label>
                   <select
@@ -355,6 +371,23 @@ const DesktopNewTaskModal = () => {
                         )}
                       </div>
                     </div>
+                    {/* Bucket items: duration instead of priority/deadline (the
+                        desktop inbox flavor otherwise has no duration control) */}
+                    {isBucketItem && (
+                      <div>
+                        <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.duration')}</label>
+                        <select
+                          value={newTask.duration}
+                          onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
+                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
+                        >
+                          {durationOptions.map(minutes => (
+                            <option key={minutes} value={minutes}>{minutes} min</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {!isBucketItem && (<>
                     <div>
                       <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.priority')}</label>
                       <button
@@ -459,6 +492,7 @@ const DesktopNewTaskModal = () => {
                         )}
                       </div>
                     </div>
+                    </>)}
                   </>
                 ) : (
                   <>
@@ -668,6 +702,26 @@ const DesktopNewTaskModal = () => {
                   </>
                 )}
               </div>
+              {/* Notes & subtasks for Bucket List items — their only surface,
+                  since bucket rows have no expandable panel */}
+              {isBucketItem && liveBucketTask && (
+                <div className={`border ${borderClass} rounded-lg overflow-hidden`}>
+                  <NotesSubtasksPanel
+                    task={liveBucketTask}
+                    isInbox={true}
+                    darkMode={darkMode}
+                    updateTaskNotes={updateTaskNotes}
+                    addSubtask={addSubtask}
+                    toggleSubtask={toggleSubtask}
+                    deleteSubtask={deleteSubtask}
+                    updateSubtaskTitle={updateSubtaskTitle}
+                    aiConfig={aiConfig}
+                    aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+                    onGenerateSubtasks={generateAISubtasks}
+                    wikilinks={extractWikilinks(liveBucketTask.title).length > 0 ? extractWikilinks(liveBucketTask.title) : undefined}
+                  />
+                </div>
+              )}
               <div className="flex gap-2 pt-2">
                 <button
                   type="submit"
