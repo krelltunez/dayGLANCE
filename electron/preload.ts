@@ -33,6 +33,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Sets the macOS dock badge to the number of incomplete tasks today.
   setBadgeCount: (count: number) => ipcRenderer.send('set-badge-count', count),
+  // Reports the app's dark-mode choice so the next launch's window backing
+  // surface matches the theme instead of flashing white (see main.ts).
+  setWindowTheme: (darkMode: boolean) => ipcRenderer.send('window:set-theme', darkMode),
 
   // Tray popup tells the main process to show the main window and navigate to a location.
   openMainAt: (payload: unknown) => ipcRenderer.send('tray:open-main', payload),

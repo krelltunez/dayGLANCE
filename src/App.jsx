@@ -1624,6 +1624,9 @@ const DayPlanner = () => {
     document.documentElement.classList.toggle('dark', darkMode);
     document.documentElement.style.colorScheme = darkMode ? 'dark' : 'light';
     document.documentElement.style.backgroundColor = darkMode ? '#1f2937' : '#ffffff';
+    // Electron: report the theme so the next launch's window surface is created
+    // in the matching color instead of flashing the default white.
+    window.electronAPI?.setWindowTheme?.(darkMode);
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     if (themeColorMeta) themeColorMeta.setAttribute('content', darkMode ? '#1f2937' : '#ffffff');
     // Sync status-bar icon colour with the app's own theme.  The app has its own
