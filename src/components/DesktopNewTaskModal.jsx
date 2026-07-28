@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Calendar, Check, Loader, Sparkles, X } from 'lucide-react';
+import { BookOpen, Calendar, Check, Loader, Sparkles, Telescope, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -35,7 +35,7 @@ const DesktopNewTaskModal = () => {
     deadlinePickerTaskId, setDeadlinePickerTaskId,
     tasks,
     suggestions, showSuggestions, selectedSuggestionIndex, suggestionContext,
-    addTask, saveMobileEditTask, moveToRecycleBin,
+    addTask, saveMobileEditTask, moveToRecycleBin, sendTaskToBucket,
     applySuggestionForNewTask,
     handleNewTaskInputChange, handleNewTaskInputKeyDown,
     dismissNlChip,
@@ -730,6 +730,22 @@ const DesktopNewTaskModal = () => {
                 >
                   {mobileEditingTask ? t('task.saveChanges') : newTask.openInInbox ? (newTask.projectId ? t('task.addToProject') : t('task.addToInbox')) : newTask.projectId && newTask.keepUnscheduled ? t('task.addToProject') : newTask.projectId ? t('task.addToProjectAndSchedule') : t('task.addToSchedule')}
                 </button>
+                {/* Send-to-Bucket for inbox tasks — parity with the mobile editor */}
+                {mobileEditingTask && mobileEditIsInbox && !mobileEditingTask.bucketId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sendTaskToBucket(mobileEditingTask.id);
+                      setShowAddTask(false);
+                      setMobileEditingTask(null);
+                      setMobileEditIsInbox(false);
+                    }}
+                    title={t('bucket.sendToBucket')}
+                    className={`px-3 py-2 rounded-lg transition-colors ${darkMode ? 'bg-sky-900/40 text-sky-300 hover:bg-sky-900/60' : 'bg-sky-50 text-sky-700 hover:bg-sky-100'}`}
+                  >
+                    <Telescope size={16} />
+                  </button>
+                )}
                 {mobileEditingTask && (
                   <button
                     type="button"
