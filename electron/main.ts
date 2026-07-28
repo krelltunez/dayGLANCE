@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, net, protocol, Tray, Menu, nativeImage, globalShortcut, session, screen } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, net, protocol, Tray, Menu, nativeImage, nativeTheme, globalShortcut, session, screen } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import dns from 'node:dns';
@@ -123,6 +123,38 @@ function saveWindowState(state: WindowState): void {
   try { fs.writeFileSync(winStatePath(), JSON.stringify(state)); } catch { /* ignore */ }
 }
 
+// ── Window background theme ──────────────────────────────────────────────────
+// A BrowserWindow's backing surface is WHITE by default, and it shows whenever
+// the window is visible before the renderer's first paint — the startup white
+// flash (worst when the 10s fallback show fires before ready-to-show on a slow
+// cold start). Dark-mode is renderer state (localStorage), which the main
+// process can't read, so the renderer reports theme changes over IPC and we
+// persist them here for the NEXT launch's window creation. First launch ever
+// falls back to the OS theme. Colors match theme-init.js / the app shell.
+const WINDOW_THEME_FILE = () => path.join(app.getPath('userData'), 'window-theme.json');
+const DARK_BG = '#1f2937';
+const LIGHT_BG = '#ffffff';
+
+function windowBackgroundColor(): string {
+  try {
+    const raw = fs.readFileSync(WINDOW_THEME_FILE(), 'utf-8');
+    const parsed = JSON.parse(raw) as { darkMode?: boolean };
+    if (typeof parsed.darkMode === 'boolean') return parsed.darkMode ? DARK_BG : LIGHT_BG;
+  } catch { /* first launch or unreadable — fall through to OS theme */ }
+  return nativeTheme.shouldUseDarkColors ? DARK_BG : LIGHT_BG;
+}
+
+ipcMain.on('window:set-theme', (_event, darkMode: unknown) => {
+  const dark = !!darkMode;
+  try {
+    fs.writeFileSync(WINDOW_THEME_FILE(), JSON.stringify({ darkMode: dark }));
+  } catch { /* best-effort — worst case the next launch uses the OS theme */ }
+  // Update live surfaces too, so resize exposure mid-session matches the theme.
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.setBackgroundColor(dark ? DARK_BG : LIGHT_BG);
+  }
+});
+
 function createWindow(): BrowserWindow {
   const saved = loadWindowState();
   didCreateMainWindow = true;
@@ -133,6 +165,7 @@ function createWindow(): BrowserWindow {
     height: saved.height,
     ...(saved.x != null && saved.y != null ? { x: saved.x, y: saved.y } : {}),
     show: false,
+    backgroundColor: windowBackgroundColor(),
     minWidth: 800,
     minHeight: 600,
     titleBarStyle: 'hiddenInset',
@@ -218,6 +251,7 @@ function createTrayWindow(): BrowserWindow {
     width: 320,
     height: 560,
     show: false,
+    backgroundColor: windowBackgroundColor(),
     frame: false,
     resizable: false,
     skipTaskbar: true,
