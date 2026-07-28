@@ -81,13 +81,13 @@ describe('normalizeBucketConfig', () => {
   it('keeps valid values and fills gaps', () => {
     const cfg = normalizeBucketConfig({ headings: { b1: 'Dreams' }, secondListHidden: true });
     expect(cfg.headings.b1).toBe('Dreams');
-    expect(cfg.headings.b2).toBe('Anytime');
+    expect(cfg.headings.b2).toBe('Someday');
     expect(cfg.secondListHidden).toBe(true);
     expect(cfg.notes).toBe('');
   });
 
   it('rejects blank headings', () => {
-    expect(normalizeBucketConfig({ headings: { b1: '   ' } }).headings.b1).toBe('Someday');
+    expect(normalizeBucketConfig({ headings: { b1: '   ' } }).headings.b1).toBe('Anytime');
   });
 
   it('preserves updatedAt for sync merges', () => {
