@@ -7,6 +7,8 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { SOURCE_APPS } from '../native.js';
 import LastGlanceBadge from './LastGlanceBadge.jsx';
 import QuickAddChips from './QuickAddChips.jsx';
+import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
+import { extractWikilinks } from '../utils/taskUtils.js';
 import { dateToString, extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
 import { getRecurrencePresets } from '../utils/recurrenceEngine.js';
 import { getProjectColor } from '../utils/colorUtils.js';
@@ -32,8 +34,10 @@ const MobileNewTaskModal = () => {
     sendTaskToBucket,
     handleNewTaskInputChange,
     dismissNlChip,
+    unscheduledTasks,
+    updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
   } = useDayPlannerCtx();
-  const { aiConfig, taskAISuggestion, setTaskAISuggestion, taskAISuggestionLoading, triggerTaskAISuggestion, goals, projects, goalsProjectsEnabled, multiUserEnabled, users } = useFeaturesCtx();
+  const { aiConfig, taskAISuggestion, setTaskAISuggestion, taskAISuggestionLoading, triggerTaskAISuggestion, goals, projects, goalsProjectsEnabled, multiUserEnabled, users, aiSubtasksLoadingForTask, generateAISubtasks } = useFeaturesCtx();
   const { wikilinkCandidates = [] } = useSyncCtx() || {};
 
   // Wikilink autocomplete: detect [[partial at end of title
@@ -47,6 +51,14 @@ const MobileNewTaskModal = () => {
     setNewTask(prev => ({ ...prev, title: newTitle }));
     newTaskInputRef.current?.focus();
   };
+
+  // Bucket List items: no priority/deadline/project (pressure-free by design —
+  // stored values would be inert anyway), and the editor is the only surface
+  // for their notes & subtasks.
+  const isBucketItem = !!mobileEditingTask?.bucketId;
+  const liveBucketTask = isBucketItem
+    ? unscheduledTasks.find(t => t.id === mobileEditingTask.id)
+    : null;
 
   return (
     <>
@@ -168,8 +180,9 @@ const MobileNewTaskModal = () => {
                 )}
               </div>
 
-              {/* Project assignment (only when Goals & Projects is enabled) */}
-              {goalsProjectsEnabled && (
+              {/* Project assignment (only when Goals & Projects is enabled;
+                  never for Bucket List items — a PLANNER without a project) */}
+              {goalsProjectsEnabled && !isBucketItem && (
                 <div>
                   <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.project')}</label>
                   <select
@@ -307,6 +320,7 @@ const MobileNewTaskModal = () => {
               {/* Fields grid */}
               {newTask.openInInbox ? (
                 <div className="grid grid-cols-2 gap-3">
+                  {!isBucketItem && (<>
                   <div>
                     <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.priority')}</label>
                     <button
@@ -354,6 +368,7 @@ const MobileNewTaskModal = () => {
                       )}
                     </div>
                   </div>
+                  </>)}
                   <div className="col-span-2">
                     <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.duration')}</label>
                     <select
@@ -541,6 +556,27 @@ const MobileNewTaskModal = () => {
                       </div>
                     )}
                   </>)}
+                </div>
+              )}
+
+              {/* Notes & subtasks for Bucket List items — their only surface,
+                  since bucket rows have no expandable panel */}
+              {isBucketItem && liveBucketTask && (
+                <div className={`border ${borderClass} rounded-lg overflow-hidden`}>
+                  <NotesSubtasksPanel
+                    task={liveBucketTask}
+                    isInbox={true}
+                    darkMode={darkMode}
+                    updateTaskNotes={updateTaskNotes}
+                    addSubtask={addSubtask}
+                    toggleSubtask={toggleSubtask}
+                    deleteSubtask={deleteSubtask}
+                    updateSubtaskTitle={updateSubtaskTitle}
+                    aiConfig={aiConfig}
+                    aiSubtasksLoadingForTask={aiSubtasksLoadingForTask}
+                    onGenerateSubtasks={generateAISubtasks}
+                    wikilinks={extractWikilinks(liveBucketTask.title).length > 0 ? extractWikilinks(liveBucketTask.title) : undefined}
+                  />
                 </div>
               )}
 
