@@ -39,7 +39,7 @@ const MobileGlanceSection = () => {
     recurringTasks, setRecurringTasks,
     selectedTags,
     showMobileTagFilter, setShowMobileTagFilter,
-    allTags,
+    filterableTags,
     taskContextMenu, setTaskContextMenu,
     expandedNotesTaskId, setExpandedNotesTaskId,
     showDeadlinePicker, setShowDeadlinePicker,
@@ -148,11 +148,11 @@ const MobileGlanceSection = () => {
           and this matches the desktop/tablet GLANCE button. */}
       <span className="text-sm">{t('common.search')}</span>
     </button>
-    {allTags.length > 0 && (
+    {filterableTags.length > 0 && (
       <button
         onClick={() => setShowMobileTagFilter(true)}
         className={`relative flex-shrink-0 px-2.5 self-stretch flex items-center rounded-lg transition-colors ${
-          !allTags.every(tag => selectedTags.includes(tag))
+          !filterableTags.every(tag => selectedTags.includes(tag))
             ? 'bg-blue-500 text-white'
             : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'
         }`}

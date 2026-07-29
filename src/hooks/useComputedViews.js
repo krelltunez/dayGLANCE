@@ -38,6 +38,24 @@ export default function useComputedViews({
     return Array.from(tagSet).sort();
   }, [tasks, unscheduledTasks, recurringTasks]);
 
+  // Tags offered by the GLANCE tag-filter UIs. Bucket List items are excluded:
+  // their tasks never appear in the filtered views, so a bucket-only tag would
+  // be a filter option that matches nothing. allTags stays complete for the
+  // #-autocomplete and AI context, where bucket vocabulary is useful.
+  const filterableTags = useMemo(() => {
+    const tagSet = new Set();
+    tasks.filter(t => !t.imported).forEach(task => {
+      extractTags(task.title).forEach(tag => tagSet.add(tag));
+    });
+    unscheduledTasks.filter(t => !t.imported && notBucketed(t)).forEach(task => {
+      extractTags(task.title).forEach(tag => tagSet.add(tag));
+    });
+    recurringTasks.forEach(template => {
+      extractTags(template.title).forEach(tag => tagSet.add(tag));
+    });
+    return Array.from(tagSet).sort();
+  }, [tasks, unscheduledTasks, recurringTasks]);
+
   // Incomplete scheduled tasks from today (used by rescheduling feature)
   const incompleteTodayTasks = useMemo(() => {
     const todayStr = dateToString(new Date());
@@ -110,6 +128,7 @@ export default function useComputedViews({
   return {
     todayTasks,
     allTags,
+    filterableTags,
     incompleteTodayTasks,
     filterByTags,
     filteredUnscheduledTasks,

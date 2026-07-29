@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { BUCKET_LIST_IDS, promoteToInbox } from '../utils/bucketList.js';
-import { renderFormattedText, hasNotesOrSubtasks, hasOnlySubtasks } from '../utils/textFormatting.jsx';
+import { renderFormattedText, renderTitleWithoutTags, hasNotesOrSubtasks, hasOnlySubtasks } from '../utils/textFormatting.jsx';
 
 // Same iOS detection as ProjectPlanner/ProjectCard: grip-only touch drag on
 // iOS, where whole-row HTML5 drag hijacks the gesture.
@@ -251,7 +251,9 @@ const BucketListModal = () => {
           onClick={() => editItem(task)}
           className={`flex-1 min-w-0 text-left text-sm truncate flex items-center gap-1.5 ${task.completed ? `line-through ${textSecondary}` : textPrimary}`}
         >
-          <span className="truncate">{task.title}</span>
+          {/* Tags stay in the stored title (searchable, editable in the task
+              editor) but are visual noise in the pressure-free Bucket rows. */}
+          <span className="truncate">{renderTitleWithoutTags(task.title || '') || task.title}</span>
           {/* Passive has-notes glyph (not a button — the editor is the surface) */}
           {hasNotesOrSubtasks(task) && (
             hasOnlySubtasks(task)

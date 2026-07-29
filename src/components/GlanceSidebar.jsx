@@ -38,7 +38,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     recurringTasks, setRecurringTasks,
     selectedTags,
     showMobileTagFilter, setShowMobileTagFilter,
-    allTags,
+    filterableTags,
     taskContextMenu, setTaskContextMenu,
     minimizedSections,
     activeFrameForNudge, activeFrameNudgeKey,
@@ -177,13 +177,13 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       <span className="text-sm truncate">{t('common.search')}</span>
       {isDesktop && <span className={`ml-auto text-xs ${textSecondary}`}>Ctrl+K</span>}
     </button>
-    {allTags.length > 0 && (
+    {filterableTags.length > 0 && (
       <div className="flex-shrink-0 self-stretch flex items-center">
         <button
           ref={tagFilterBtnRef}
           onClick={() => setShowMobileTagFilter(v => !v)}
           className={`px-2.5 h-full flex items-center rounded-lg transition-colors ${
-            !allTags.every(tag => selectedTags.includes(tag))
+            !filterableTags.every(tag => selectedTags.includes(tag))
               ? 'bg-blue-500 text-white'
               : darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'
           } ${interactionClass}`}
@@ -207,7 +207,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                   <span className={`text-sm font-semibold ${textPrimary}`}>{t('common.filterByTag')}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {allTags.every(tag => selectedTags.includes(tag)) ? (
+                  {filterableTags.every(tag => selectedTags.includes(tag)) ? (
                     <button onClick={clearTagFilter} className="text-xs text-blue-500 hover:text-blue-600 font-medium">Clear</button>
                   ) : (
                     <button onClick={selectAllTags} className="text-xs text-blue-500 hover:text-blue-600 font-medium">Select All</button>
@@ -215,7 +215,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                 </div>
               </div>
               <div className="py-1 max-h-[300px] overflow-y-auto">
-                {allTags.map(tag => {
+                {filterableTags.map(tag => {
                   const highlightDates = effectiveViewMode === 'sched' && weekViewDates.length ? weekViewDates : visibleDates;
                   const visibleDateStrs = new Set(highlightDates.map(d => dateToString(d)));
                   const regularCount = tasks.filter(t => !t.imported && visibleDateStrs.has(t.date) && extractTags(t.title).includes(tag)).length;
