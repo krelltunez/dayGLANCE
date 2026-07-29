@@ -23,7 +23,7 @@ const MobileBottomSheets = () => {
     recycleBin, setRecycleBin,
     completedTaskUids,
     selectedTags,
-    allTags,
+    filterableTags,
     showUntagged, setShowUntagged,
     showMobileTagFilter, setShowMobileTagFilter,
     showMobileDailySummary, setShowMobileDailySummary,
@@ -162,7 +162,7 @@ const MobileBottomSheets = () => {
           <span className={`font-semibold ${textPrimary}`}>{t('common.filterByTag')}</span>
         </div>
         <div className="flex items-center gap-3">
-          {allTags.every(tag => selectedTags.includes(tag)) ? (
+          {filterableTags.every(tag => selectedTags.includes(tag)) ? (
             <button
               onClick={clearTagFilter}
               className="text-sm text-blue-500 hover:text-blue-600 active:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 dark:active:text-blue-200 font-medium transition-colors"
@@ -199,7 +199,7 @@ const MobileBottomSheets = () => {
             if (!visibleDateStrs.has(t.date)) continue;
             for (const tag of extractTags(t.title)) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
           }
-          return allTags.map(tag => {
+          return filterableTags.map(tag => {
           const tagCount = tagCounts[tag] || 0;
           return (
             <button

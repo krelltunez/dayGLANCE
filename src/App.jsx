@@ -1356,6 +1356,7 @@ const DayPlanner = () => {
   const {
     todayTasks,
     allTags,
+    filterableTags,
     incompleteTodayTasks,
     filterByTags,
     filteredUnscheduledTasks,
@@ -7673,7 +7674,7 @@ const DayPlanner = () => {
     selectedTags, setSelectedTags,
     showUntagged, setShowUntagged,
     showMobileTagFilter, setShowMobileTagFilter,
-    allTags,
+    allTags, filterableTags,
 
     // ── Task modals & editing ─────────────────────────────────────────────────
     showAddTask, setShowAddTask,
