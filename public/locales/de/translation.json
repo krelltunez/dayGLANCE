@@ -881,7 +881,8 @@
     "hideCompleted": "Erledigte ausblenden",
     "showPastEvents": "Vergangene Termine anzeigen",
     "hidePastEvents": "Vergangene Termine ausblenden",
-    "happeningNow": "Läuft gerade"
+    "happeningNow": "Läuft gerade",
+    "nowLabel": "Jetzt"
   },
   "planner": {
     "standaloneProject": "Eigenständiges Projekt",

@@ -161,9 +161,14 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
             )}
             {inProgress && (
               <span
-                className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0"
+                className="flex items-center gap-1 animate-pulse flex-shrink-0"
                 title={t('sched.happeningNow', 'Happening now')}
-              />
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-red-500">
+                  {t('sched.nowLabel', 'Now')}
+                </span>
+              </span>
             )}
             {timeLabel && (
               <span className={`flex-shrink-0 ${isPastDueTask ? 'text-red-400 font-medium' : ''}`}>{timeLabel}</span>
