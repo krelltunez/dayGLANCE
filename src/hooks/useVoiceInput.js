@@ -265,10 +265,13 @@ export default function useVoiceInput({
       setVoiceParseError(msg);
       setVoiceMicError('error');
     }
-    // Omitted names are all stable state setters and *Ref values; keyed on
-    // voiceCanRecord.
+    // Omitted names are all stable state setters and *Ref values. canWhisper
+    // MUST be a dependency: it routes between platform speech and the
+    // record-then-transcribe path, and a stale closure after toggling AI off
+    // mid-session kept recording audio for a transcriber that no longer
+    // existed ("Transcription failed: AI is not configured").
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voiceCanRecord]);
+  }, [voiceCanRecord, canWhisper]);
 
   // Native STT event channel: partial transcripts stream in live, the final
   // transcript triggers the parse, and errors fall back to typing mode.
