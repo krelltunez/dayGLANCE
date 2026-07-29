@@ -881,7 +881,8 @@
     "hideCompleted": "Ocultar concluídas",
     "showPastEvents": "Mostrar eventos passados",
     "hidePastEvents": "Ocultar eventos passados",
-    "happeningNow": "A decorrer"
+    "happeningNow": "A decorrer",
+    "nowLabel": "Agora"
   },
   "planner": {
     "standaloneProject": "Projeto independente",
