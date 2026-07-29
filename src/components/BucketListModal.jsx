@@ -32,7 +32,7 @@ const BucketListModal = () => {
     pushUndo, setUndoToast,
     colors,
   } = useDayPlannerCtx();
-  const { isVisibleForUser } = useFeaturesCtx();
+  const { isVisibleForUser, multiUserEnabled, meUserSyncId } = useFeaturesCtx();
   const { t } = useTranslation();
 
   const [notes, setNotes] = useState(bucketConfig.notes || '');
@@ -132,6 +132,11 @@ const BucketListModal = () => {
       subtasks: [],
       priority: 0,
       bucketId: listId,
+      // Unlike inbox quick-add (unassigned = visible to everyone), new bucket
+      // items default to their creator: the Bucket is a personal
+      // someday/maybe space, not a shared work queue. Reassignable in the
+      // editor as usual.
+      ...(multiUserEnabled && meUserSyncId ? { assignedUserSyncIds: [meUserSyncId] } : {}),
       lastModified: stamp(),
     }]);
     setQuickAdd(prev => ({ ...prev, [listId]: '' }));
