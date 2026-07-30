@@ -23,21 +23,15 @@ Use the bumper, never hand-edit the numbers:
 npm run bump 4.0.0            # preview with --dry-run first if unsure
 ```
 
-This updates `package.json` "version", the Android `versionName` (full x.y.z)
-and `versionCode` (+1), and the README shields.io badge. iOS
-`MARKETING_VERSION` and the Electron `CFBundleShortVersionString` derive from
-`package.json` at build time, so they need no manual edit. Review the diff and
-commit the bump before building.
+This updates `package.json` "version", the Android `versionName` (full x.y.z),
+and the README shields.io badge. iOS `MARKETING_VERSION` and the Electron
+`CFBundleShortVersionString` derive from `package.json` at build time, so they
+need no manual edit. Review the diff and commit the bump before building.
 
-For an internal-test-track upload that needs a fresh `versionCode` without
-moving the marketing version (Play rejects a re-used `versionCode`), bump the
-code alone:
-
-```
-npm run bump -- --code-only   # Android versionCode +1, nothing else
-```
-
-Commit that one-line change before building the test AAB/APK.
+The Android `versionCode` is no longer part of the bump (and `--code-only` is
+gone): `build-and-install.sh --release` supplies it per build via
+`-PversionCode`, suggesting last-used + 1 from `outputs/.last-versioncode`, or
+takes an explicit `--build N`. No commit is needed per Play upload.
 
 ### 1.2 Quality gates
 

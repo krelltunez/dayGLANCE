@@ -14,26 +14,22 @@
 //
 //   1. package.json               "version"      (the source of truth)
 //   2. dayglance-android build.gradle.kts  versionName  (string, set to x.y.z)
-//                                          versionCode  (integer, +1 each bump)
 //   3. README.md                  shields.io version badge URL
+//
+// The Android versionCode is NOT handled here anymore: build.gradle.kts reads
+// -PversionCode per release build, supplied by build-and-install.sh (which
+// tracks the last-used code in outputs/.last-versioncode). The old --code-only
+// mode is gone with it.
 //
 // Behavior:
 //   node scripts/bump-version.mjs 4.0.0            # bump for real
 //   node scripts/bump-version.mjs 4.0.0 --dry-run  # print, write nothing
-//   node scripts/bump-version.mjs --code-only      # bump ONLY the Android
-//                                                  # versionCode (+1), for
-//                                                  # test-track uploads
-//
-// --code-only takes no version argument and touches nothing but the Android
-// versionCode. Use it for internal-test-track builds that need a fresh
-// versionCode without disturbing the marketing version across platforms.
 //
 // It validates the arg is semver x.y.z, prints every change old -> new, and
 // ERRORS loudly if any expected pattern is missing rather than silently
 // no-op'ing. It does NOT git-commit or tag — that stays a human step.
 //
 // Usage:  npm run bump 4.0.0   (alias for this script)
-//         npm run bump -- --code-only
 
 import fs from 'fs';
 import path from 'path';
@@ -45,7 +41,6 @@ const ROOT = path.resolve(__dirname, '..');
 // ── Args ────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
-const codeOnly = args.includes('--code-only');
 const version = args.find((a) => !a.startsWith('--'));
 
 function die(msg) {
@@ -53,18 +48,17 @@ function die(msg) {
   process.exit(1);
 }
 
-if (codeOnly) {
-  if (version) {
-    die('--code-only bumps only the Android versionCode and takes no version argument.');
-  }
-} else {
-  if (!version) {
-    die('missing version argument. Usage: node scripts/bump-version.mjs X.Y.Z [--dry-run] | --code-only');
-  }
-  // Strict semver x.y.z — no prerelease/build metadata, no leading "v".
-  if (!/^\d+\.\d+\.\d+$/.test(version)) {
-    die(`"${version}" is not a valid X.Y.Z version (expected e.g. 4.0.0).`);
-  }
+if (args.includes('--code-only')) {
+  die('--code-only was removed: the Android versionCode is no longer stored in ' +
+      'build.gradle.kts. build-and-install.sh --release sets it per build via ' +
+      '-PversionCode (tracked in outputs/.last-versioncode), or pass --build N.');
+}
+if (!version) {
+  die('missing version argument. Usage: node scripts/bump-version.mjs X.Y.Z [--dry-run]');
+}
+// Strict semver x.y.z — no prerelease/build metadata, no leading "v".
+if (!/^\d+\.\d+\.\d+$/.test(version)) {
+  die(`"${version}" is not a valid X.Y.Z version (expected e.g. 4.0.0).`);
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -90,45 +84,6 @@ function sub(text, re, replacer, { file, label, to }) {
   return next;
 }
 
-// Bump the Android versionCode (monotonic integer for the Play Store) by 1.
-// Shared by the full bump and --code-only. Returns the rewritten gradle text.
-const codeRe = /(versionCode\s*=\s*)(\d+)/;
-function bumpVersionCode(gradleRel, gradleTextIn) {
-  const codeMatch = gradleTextIn.match(codeRe);
-  if (!codeMatch) {
-    die(`could not find versionCode in ${gradleRel}. Aborting — no files written.`);
-  }
-  const oldCode = parseInt(codeMatch[2], 10);
-  const newCode = oldCode + 1;
-  changes.push({ file: gradleRel, label: 'versionCode', from: String(oldCode), to: String(newCode) });
-  return gradleTextIn.replace(codeRe, (_all, pre) => `${pre}${newCode}`);
-}
-
-// ── --code-only: bump the Android versionCode and stop ────────────────────
-const gradleRel = 'dayglance-android/app/build.gradle.kts';
-
-if (codeOnly) {
-  const gradle = read(gradleRel);
-  const gradleText = bumpVersionCode(gradleRel, gradle.text);
-
-  console.log(`bump-version: bumping Android versionCode only${dryRun ? '  (dry run — nothing written)' : ''}\n`);
-  for (const c of changes) {
-    console.log(`  ${c.file}`);
-    console.log(`    ${c.label}: ${c.from} -> ${c.to}`);
-  }
-  console.log('');
-
-  if (dryRun) {
-    console.log('Dry run complete. Re-run without --dry-run to write this change.');
-    process.exit(0);
-  }
-  fs.writeFileSync(gradle.abs, gradleText);
-  console.log('File written.\n');
-  console.log('The marketing version is unchanged; only the Android versionCode moved.');
-  console.log('Build the release AAB/APK for your internal test track as usual.');
-  process.exit(0);
-}
-
 // ── 1. package.json ──────────────────────────────────────────────────────
 const pkg = read('package.json');
 const pkgText = sub(
@@ -142,17 +97,17 @@ const pkgText = sub(
 // versionName is unified to the full x.y.z. It had previously been "3.10"
 // (no patch component), which drifts from package.json's x.y.z and makes the
 // Play Store listing look out of step with iOS/Electron. Always write x.y.z.
+// (versionCode is deliberately untouched: it's supplied per release build via
+// -PversionCode — see build-and-install.sh — and the literal in the gradle
+// file is only a stale-tolerant fallback for IDE/debug builds.)
+const gradleRel = 'dayglance-android/app/build.gradle.kts';
 const gradle = read(gradleRel);
-let gradleText = sub(
+const gradleText = sub(
   gradle.text,
   /(versionName\s*=\s*")([^"]+)(")/,
   (_all, pre, _old, post) => `${pre}${version}${post}`,
   { file: gradleRel, label: 'versionName', to: version },
 );
-
-// versionCode is a monotonically increasing integer for the Play Store;
-// increment it by 1 rather than deriving it from the marketing version.
-gradleText = bumpVersionCode(gradleRel, gradleText);
 
 // ── 3. README.md shields.io badge ─────────────────────────────────────────
 // e.g.  https://img.shields.io/badge/version-3.10.0-green.svg
