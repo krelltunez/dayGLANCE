@@ -188,7 +188,17 @@ function createWindow(): BrowserWindow {
   mainWindow.on('close', (event) => {
     if (process.platform === 'darwin' && !isQuitting) {
       event.preventDefault();
-      live(mainWindow)?.hide();
+      const win = live(mainWindow);
+      if (!win) return;
+      // Hiding a window that's in native macOS fullscreen strands its fullscreen
+      // Space as an empty black screen — leave fullscreen first, then hide once
+      // the transition completes.
+      if (win.isFullScreen()) {
+        win.once('leave-full-screen', () => live(mainWindow)?.hide());
+        win.setFullScreen(false);
+      } else {
+        win.hide();
+      }
       return;
     }
     saveWindowState({ ...normalBounds, maximized: live(mainWindow)?.isMaximized() ?? false });
@@ -505,6 +515,14 @@ ipcMain.handle('proxy-fetch', async (_event, method: string, url: string, header
 // Dock badge — macOS only
 ipcMain.on('set-badge-count', (_event, count: number) => {
   if (process.platform === 'darwin') app.setBadgeCount(count);
+});
+
+// Escape → leave native (green-button) fullscreen. macOS doesn't do this by
+// default; the renderer sends this only for an Escape no modal/editor consumed
+// (see src/hooks/useFullscreenEscape.js). No-op when the window isn't fullscreen.
+ipcMain.on('window:exit-fullscreen', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win && !win.isDestroyed() && win.isFullScreen()) win.setFullScreen(false);
 });
 
 // Tray popup requests the main window to show and navigate to a specific location.

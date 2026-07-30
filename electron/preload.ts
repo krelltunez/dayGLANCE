@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Sets the macOS dock badge to the number of incomplete tasks today.
   setBadgeCount: (count: number) => ipcRenderer.send('set-badge-count', count),
+  // Asks the main process to leave native fullscreen (no-op when not fullscreen).
+  exitFullscreen: () => ipcRenderer.send('window:exit-fullscreen'),
   // Reports the app's dark-mode choice so the next launch's window backing
   // surface matches the theme instead of flashing white (see main.ts).
   setWindowTheme: (darkMode: boolean) => ipcRenderer.send('window:set-theme', darkMode),

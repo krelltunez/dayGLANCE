@@ -127,6 +127,7 @@ import useAppInit from './hooks/useAppInit.js';
 import useSaveOnChange from './hooks/useSaveOnChange.js';
 import useTimelineScroll from './hooks/useTimelineScroll.js';
 import useModalClose from './hooks/useModalClose.js';
+import useFullscreenEscape from './hooks/useFullscreenEscape.js';
 import useMobileInteractions from './hooks/useMobileInteractions.js';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts.js';
 import { DayPlannerContext } from './context/DayPlannerContext.jsx';
@@ -3084,6 +3085,10 @@ const DayPlanner = () => {
     focusLogModalDate, setFocusLogModalDate,
     showBucketList, setShowBucketList,
   });
+
+  // Escape leaves macOS fullscreen — but only an Escape that useModalClose (and
+  // every other document-level handler) left unconsumed; see the hook.
+  useFullscreenEscape();
 
   useKeyboardShortcuts({
     performUndo, performRedo,
