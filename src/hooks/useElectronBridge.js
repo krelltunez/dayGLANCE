@@ -400,6 +400,12 @@ export default function useElectronBridge({
   // Push state snapshot whenever relevant state changes.
   useEffect(() => {
     if (!window.electronAPI) return;
+    // Main window only. Guarded up here rather than just before the send: the
+    // tray runs this same effect on its own 15 s clock tick, and used to build
+    // the entire payload — goal/project progress, habit rings, tomorrow's
+    // agenda — only to discard it, four times a minute in a background-throttled
+    // renderer. Nothing between here and the send has a side effect.
+    if (isTrayMode) return;
 
     const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
     const hgSessions = (todayHGSessions || []);
@@ -526,8 +532,6 @@ export default function useElectronBridge({
       ...activeProjects.filter(p => p.goalId).map(mapProject).sort(sortByProgressAsc),
       ...activeProjects.filter(p => !p.goalId).map(mapProject).sort(sortByProgressAsc),
     ];
-
-    if (isTrayMode) return;
 
     // Dock badge: incomplete scheduled tasks today, excluding imported calendar events
     // (imported events can't be "completed" by the user and shouldn't inflate the badge)

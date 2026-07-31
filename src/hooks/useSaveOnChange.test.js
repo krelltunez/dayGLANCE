@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Capture what useSaveOnChange passes to useEffect (callback + dependency array)
 // without needing a DOM renderer. React re-runs an effect whenever any value in
@@ -67,5 +67,54 @@ describe('useSaveOnChange dependency wiring', () => {
     useSaveOnChange(baseProps({ suppressCloudUploadRef: { current: true } }));
     captured.fn();
     expect(schedulePush).not.toHaveBeenCalled();
+  });
+});
+
+// The tray popup holds a snapshot of localStorage as of its last reload, so it
+// needs a nudge once a save pass has committed. That nudge rides the save pass
+// (not the Stream Deck ws:push-state broadcast, which re-fires every 15 s off
+// the clock tick and omits several slices the tray renders), so it must fire
+// exactly once per save and never when the save is skipped.
+describe('useSaveOnChange tray notification', () => {
+  const notifyDataChanged = vi.fn();
+
+  beforeEach(() => {
+    captured.fn = null;
+    captured.deps = null;
+    notifyDataChanged.mockClear();
+    globalThis.window = { electronAPI: { notifyDataChanged } };
+  });
+
+  afterEach(() => {
+    delete globalThis.window;
+  });
+
+  it('notifies the tray once after saveData() completes', () => {
+    const saveData = vi.fn();
+    useSaveOnChange(baseProps({ saveData }));
+    captured.fn();
+
+    expect(saveData).toHaveBeenCalledTimes(1);
+    expect(notifyDataChanged).toHaveBeenCalledTimes(1);
+    // Ordering matters: the tray re-reads localStorage on reload, so the nudge
+    // is only meaningful once saveData() has committed. saveData is synchronous,
+    // so "after it returns" is sufficient.
+    expect(saveData.mock.invocationCallOrder[0])
+      .toBeLessThan(notifyDataChanged.mock.invocationCallOrder[0]);
+  });
+
+  it('does not notify the tray when the save pass is skipped (data not loaded)', () => {
+    const saveData = vi.fn();
+    useSaveOnChange(baseProps({ saveData, dataLoaded: false }));
+    captured.fn();
+
+    expect(saveData).not.toHaveBeenCalled();
+    expect(notifyDataChanged).not.toHaveBeenCalled();
+  });
+
+  it('does not throw when the bridge is absent (web build, no electronAPI)', () => {
+    globalThis.window = {};
+    useSaveOnChange(baseProps());
+    expect(() => captured.fn()).not.toThrow();
   });
 });

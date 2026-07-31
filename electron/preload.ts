@@ -58,6 +58,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('tray:background-action', handler);
   },
 
+  // Main window signals that persisted data changed, so the tray popup can
+  // reload its snapshot. Deliberately payload-free and on its OWN channel:
+  // ws:push-state is the Stream Deck broadcast and re-fires every 15 s from the
+  // clock tick, which would reload the tray four times a minute for nothing.
+  notifyDataChanged: () => ipcRenderer.send('tray:data-changed'),
+
   // Show or clear the reminder dot (●) next to the tray icon.
   setTrayIndicator: (on: boolean) => ipcRenderer.send('tray:set-indicator', on),
 

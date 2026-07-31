@@ -18,6 +18,12 @@ export default function useSaveOnChange({
   useEffect(() => {
     if (isTrayMode || !dataLoaded) return;
     saveData();
+    // Tell the tray popup its snapshot is stale, now that saveData() has
+    // committed every key it owns (it is synchronous, so storage is fresh on
+    // return). Payload-free: the tray re-reads localStorage on reload. Reached
+    // only from the main window — the isTrayMode bail above guarantees it — so
+    // the popup can never trigger its own reload loop.
+    if (typeof window !== 'undefined') window.electronAPI?.notifyDataChanged?.();
     checkConflicts();
     // Push-on-write to the GLANCEvault DB transport (debounced 3 s, vault-only).
     // Off-safe no-op when the vault is disabled; skipped while applying remote

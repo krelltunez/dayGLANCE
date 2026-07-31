@@ -627,8 +627,15 @@ ipcMain.handle('hotkey:register-main-window', (_event, accelerator: string) => {
   return ok;
 });
 
-// Keep tray popup in sync: reload it in the background whenever state changes
-ipcMain.on('ws:push-state', (event) => {
+// Keep tray popup in sync: reload it in the background whenever persisted data
+// changes. Driven by 'tray:data-changed' — emitted once per save pass from the
+// main window — and NOT by 'ws:push-state', which is the Stream Deck broadcast.
+// That channel re-fires every 15 s off the renderer's clock tick (currentTime is
+// in its dependency array), so it reloaded the popup four times a minute with
+// identical data; it also omits slices the tray renders (recycle bin, daily
+// notes, areas, GTD frames), so some real edits never reached the tray at all.
+// The save pass covers both, and carries no clock dependency.
+ipcMain.on('tray:data-changed', (event) => {
   const tw = live(trayWindow);
   if (!tw) return;
   if (event.sender === tw.webContents) return;
