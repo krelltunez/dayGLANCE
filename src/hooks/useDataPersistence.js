@@ -12,6 +12,13 @@ import { stampTimestamps } from '../utils/stampTimestamps.js';
 const isSubscriptionImport = (t) =>
   !t._native && t.imported && !t.isTaskCalendar && t.importSource !== 'file';
 
+// The tray popup must never write to localStorage — it holds a snapshot of
+// state as of the last reload and would overwrite fresher main-window data
+// (same invariant as useSaveOnChange.js). loadData's normalization write-back
+// runs on every tray mount and reload, so it needs the guard too: the tray
+// still reads and normalizes for its own render, it just never persists.
+const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+
 export default function useDataPersistence({
   // setters for loadData
   setTasks, setUnscheduledTasks, setRecycleBin, setRecurringTasks,
@@ -70,14 +77,14 @@ export default function useDataPersistence({
         notes: t.notes ?? '',
         subtasks: t.subtasks ?? []
       })) : [];
-      if (tasksData) localStorage.setItem('day-planner-tasks', JSON.stringify(parsedTasks));
+      if (tasksData && !isTrayMode) localStorage.setItem('day-planner-tasks', JSON.stringify(parsedTasks));
 
       const parsedUnscheduled = unscheduledData ? JSON.parse(unscheduledData).map(t => ({
         ...t,
         notes: t.notes ?? '',
         subtasks: t.subtasks ?? []
       })) : [];
-      if (unscheduledData) localStorage.setItem('day-planner-unscheduled', JSON.stringify(parsedUnscheduled));
+      if (unscheduledData && !isTrayMode) localStorage.setItem('day-planner-unscheduled', JSON.stringify(parsedUnscheduled));
 
       // Load tasks normally; preserve any _native events already queued by Effect B
       // if it raced ahead of loadData in React's state update batch. On native-
@@ -128,7 +135,7 @@ export default function useDataPersistence({
         setTodayRoutines([]);
         setRoutinesDate(todayStr);
         setRemovedTodayRoutineIds({});
-        localStorage.removeItem('day-planner-removed-today-routine-ids');
+        if (!isTrayMode) localStorage.removeItem('day-planner-removed-today-routine-ids');
       }
 
       // Load habit tracking data
@@ -137,7 +144,7 @@ export default function useDataPersistence({
         const parsedHabits = JSON.parse(habitsData).map(h =>
           h.scheduledDays ? h : { ...h, scheduledDays: [0, 1, 2, 3, 4, 5, 6] }
         );
-        localStorage.setItem('day-planner-habits', JSON.stringify(parsedHabits));
+        if (!isTrayMode) localStorage.setItem('day-planner-habits', JSON.stringify(parsedHabits));
         setHabits(parsedHabits);
       }
       const habitLogsData = localStorage.getItem('day-planner-habit-logs');
