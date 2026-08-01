@@ -1,6 +1,7 @@
-import { ipcMain, app, dialog, BrowserWindow } from 'electron';
+import { ipcMain, app, dialog, shell, BrowserWindow } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
+import { buildObsidianOpenUri } from './obsidianUri.js';
 
 // ── Obsidian vault access (Electron) ─────────────────────────────────────────
 //
@@ -99,6 +100,30 @@ export function registerObsidianHandlers(): void {
     vaultBasePath = cfg.path;
     beginAccess(cfg.bookmark);
     return { path: cfg.path, name: path.basename(cfg.path) };
+  });
+
+  // Opens a vault note in the Obsidian app.
+  //
+  // The renderer cannot do this itself: window.open('obsidian://…') is caught by
+  // setWindowOpenHandler and dropped by openExternalSafe, which only permits
+  // http/https so a renderer compromise can't launch arbitrary schemes. Keeping
+  // that allowlist intact, the renderer sends only a note NAME and the URL is
+  // built here from the vault path we already hold — which is also the only
+  // place the real vault name exists (the renderer's handle shim reports the
+  // placeholder 'vault').
+  ipcMain.handle('obsidian:open-note', async (_event, noteName: unknown) => {
+    if (typeof noteName !== 'string') return false;
+    const cfg = loadConfig();
+    if (!cfg?.path) return false;
+    const uri = buildObsidianOpenUri(path.basename(cfg.path), noteName);
+    if (!uri) return false;
+    try {
+      await shell.openExternal(uri);
+      return true;
+    } catch {
+      // Obsidian not installed, or no handler registered for the scheme.
+      return false;
+    }
   });
 
   ipcMain.handle('obsidian:disconnect', async () => {

@@ -195,6 +195,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     pick: (): Promise<{ path: string; name: string } | null> => ipcRenderer.invoke('obsidian:pick'),
     restore: (): Promise<{ path: string; name: string } | null> => ipcRenderer.invoke('obsidian:restore'),
     disconnect: (): Promise<boolean> => ipcRenderer.invoke('obsidian:disconnect'),
+    // Opens a note in the Obsidian app. The main process builds the obsidian://
+    // URL from the vault path it holds — the renderer passes only a note name,
+    // so the http/https-only external-URL allowlist stays intact.
+    openNote: (noteName: string): Promise<boolean> =>
+      ipcRenderer.invoke('obsidian:open-note', noteName),
     stat: (relativePath: string): Promise<{ kind: 'file' | 'directory' } | null> =>
       ipcRenderer.invoke('obsidian:stat', relativePath),
     listDir: (relativePath: string): Promise<Array<{ name: string; kind: 'file' | 'directory' }>> =>
