@@ -77,14 +77,6 @@ export default function SummaryStrip({ phone = false }) {
         </button>
       ) : (
         <div className={`pointer-events-auto w-fit max-w-full flex items-center gap-1.5 overflow-x-auto text-xs ${darkMode ? 'dark-scrollbar' : ''}`}>
-          {/* Collapse control leads the row: on phone the row scrolls
-              horizontally, and a trailing control would need a scroll to
-              reach every time. */}
-          {phone && (
-            <button onClick={toggle} className={`${pill} ${textSecondary}`} aria-label="Collapse summary">
-              <ChevronDown size={13} />
-            </button>
-          )}
           {/* Day/date heading — pins which day the numbers describe, which the
               multi-day desktop view otherwise leaves ambiguous. The phone
               timeline shows exactly one day, so there it is dropped. */}
@@ -93,7 +85,14 @@ export default function SummaryStrip({ phone = false }) {
               <span className={`font-medium ${textPrimary}`}>{formatShortDate(selectedDate)}</span>
             </span>
           )}
-          <span className={pill}>{unblockedLabel}</span>
+          <span className={pill}>
+            {phone && (
+              <button onClick={toggle} className={`-ml-1 p-0.5 rounded-full ${textSecondary} hover:opacity-70`} aria-label="Collapse summary">
+                <ChevronDown size={13} />
+              </button>
+            )}
+            {unblockedLabel}
+          </span>
           {summary.categories.map((c) => (
             <span key={c.tag} className={pill}>
               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.colorHex }} />
