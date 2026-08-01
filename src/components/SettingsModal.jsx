@@ -992,7 +992,9 @@ const SettingsModal = () => {
                           <div className="flex items-center justify-between">
                             <p className={`text-sm font-medium ${textPrimary}`}>{t('settings.deviceCalendars')}</p>
                             <button onClick={async () => {
-                              const cals = electronCalendarAvailable() ? await electronGetCalendars() : nativeGetCalendars();
+                              // force: this button is the documented recovery path for an
+                              // empty list, so it must bypass the main-process cache.
+                              const cals = electronCalendarAvailable() ? await electronGetCalendars({ force: true }) : nativeGetCalendars();
                               if (cals.length > 0) setAvailableCalendars(cals);
                             }} className={`text-xs ${textSecondary} underline`}>{t('common.refresh')}</button>
                           </div>

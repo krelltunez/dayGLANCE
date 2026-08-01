@@ -163,8 +163,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // All return empty/false on non-macOS platforms.
   requestCalendarAccess: (): Promise<{ granted: boolean }> =>
     ipcRenderer.invoke('calendar:request-access'),
-  getCalendars: (): Promise<Array<{ id: string; name: string; accountName: string; color: string }>> =>
-    ipcRenderer.invoke('calendar:get-calendars'),
+  // The main process caches this list (5 min TTL) so both renderers don't each
+  // spawn the helper. `force` bypasses that cache for an explicit user refresh.
+  getCalendars: (force?: boolean): Promise<Array<{ id: string; name: string; accountName: string; color: string }>> =>
+    ipcRenderer.invoke('calendar:get-calendars', force === true),
   // Returns a per-day map { "YYYY-MM-DD": Event[] } covering [startDate, endDate] inclusive.
   getCalendarEvents: (startDate: string, endDate: string): Promise<Record<string, unknown[]>> =>
     ipcRenderer.invoke('calendar:get-events', startDate, endDate),
