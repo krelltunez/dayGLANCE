@@ -139,6 +139,34 @@ describe('computeDaySummary — unblocked time', () => {
   });
 });
 
+describe('computeDaySummary — energy axis', () => {
+  it('partitions block minutes into effort and restore', () => {
+    const s = computeDaySummary([
+      block('09:00', 120, 'Deep work #work'),
+      block('12:00', 45, 'Lunch'),
+      block('17:00', 60, 'Evening run'),
+    ]);
+    expect(s.effortMinutes).toBe(120);
+    expect(s.restoreMinutes).toBe(105);
+    // A partition: every timed block lands on exactly one side.
+    expect(s.effortMinutes + s.restoreMinutes).toBe(225);
+  });
+
+  it('honors the per-block override over the derived default', () => {
+    const s = computeDaySummary([
+      block('12:00', 60, 'Lunch with investors', { energy: 'effort' }),
+    ]);
+    expect(s.effortMinutes).toBe(60);
+    expect(s.restoreMinutes).toBe(0);
+  });
+
+  it('reports zeros for an empty day', () => {
+    const s = computeDaySummary([], null, { start: '08:00', stop: '22:00' });
+    expect(s.effortMinutes).toBe(0);
+    expect(s.restoreMinutes).toBe(0);
+  });
+});
+
 describe('computeDaySummary — START/STOP day-window markers', () => {
   it('the start marker opens the window before the first block, so morning slack counts', () => {
     // Day starts 07:00, first block 09:00–10:00 → 2h of morning now count.

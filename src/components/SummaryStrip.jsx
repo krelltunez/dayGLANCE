@@ -183,6 +183,20 @@ export default function SummaryStrip({ phone = false }) {
               <MoreHorizontal size={13} />
             </button>
           </span>
+          {/* Energy axis — one combined pill so it reads as a ratio, not a
+              scorecard. Dots reuse the day-window marker palette (indigo/teal)
+              for one coherent color family. Hidden when the day has no blocks
+              (an empty declared window has nothing to classify). */}
+          {summary.blockedMinutes > 0 && (
+            <span className={pill}>
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#6366f1' }} />
+              <span className={textPrimary}>Effort</span>
+              <span className={textSecondary}>{formatMinutes(summary.effortMinutes)}</span>
+              <span className="w-2 h-2 rounded-full flex-shrink-0 ml-0.5" style={{ backgroundColor: '#14b8a6' }} />
+              <span className={textPrimary}>Restore</span>
+              <span className={textSecondary}>{formatMinutes(summary.restoreMinutes)}</span>
+            </span>
+          )}
           {summary.categories.map((c) => (
             <span key={c.tag} className={pill}>
               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.colorHex }} />

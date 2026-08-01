@@ -1,8 +1,9 @@
 import { extractTags } from './taskUtils.js';
 import { taskColorToHex } from './colorUtils.js';
+import { deriveBlockEnergy, ENERGY_RESTORE } from './energyAxis.js';
 
-// Summary-strip rollup for one day of timeline blocks (phase 1: category totals
-// + unblocked time). Pure — takes the day's task list and returns numbers, so
+// Summary-strip rollup for one day of timeline blocks (category totals,
+// unblocked time, and the effort/restore energy axis). Pure — takes the day's task list and returns numbers, so
 // the strip UI stays presentational and the math is testable in isolation. This
 // same function is the future Live Activity projection: the widget needs exactly
 // this output, no rendering attached.
@@ -75,6 +76,10 @@ export function formatMinutes(min) {
  * @returns {{
  *   categories: Array<{tag: string, minutes: number, colorHex: string}>,
  *   untaggedMinutes: number,
+ *   effortMinutes: number,   // raw per-block sums — a partition of block
+ *   restoreMinutes: number,  // minutes (see energyAxis.js), so like the
+ *                            // category totals they can exceed wall-clock
+ *                            // time when blocks overlap.
  *   blockedMinutes: number,
  *   unblockedMinutes: number|null,  // null = no timed blocks, nothing to measure
  *   windowStartMin: number|null,
@@ -97,6 +102,8 @@ export function computeDaySummary(dayTasks, endOfDayTime = null, dayWindow = nul
     return {
       categories: [],
       untaggedMinutes: 0,
+      effortMinutes: 0,
+      restoreMinutes: 0,
       blockedMinutes: 0,
       unblockedMinutes: hasFullWindow ? markerStop - markerStart : null,
       windowStartMin: hasFullWindow ? markerStart : null,
@@ -111,12 +118,17 @@ export function computeDaySummary(dayTasks, endOfDayTime = null, dayWindow = nul
   const tagMinutes = new Map();
   const tagColorMinutes = new Map();
   let untaggedMinutes = 0;
+  let effortMinutes = 0;
+  let restoreMinutes = 0;
   const intervals = [];
 
   for (const t of timed) {
     const start = timeToMin(t.startTime);
     const minutes = t.duration || 0;
     intervals.push([start, start + minutes]);
+
+    if (deriveBlockEnergy(t) === ENERGY_RESTORE) restoreMinutes += minutes;
+    else effortMinutes += minutes;
 
     const tags = extractTags(t.title || '');
     if (tags.length === 0) {
@@ -161,5 +173,5 @@ export function computeDaySummary(dayTasks, endOfDayTime = null, dayWindow = nul
   const blockedMinutes = mergedCoverage(intervals);
   const unblockedMinutes = Math.max(0, windowEndMin - windowStartMin - blockedMinutes);
 
-  return { categories, untaggedMinutes, blockedMinutes, unblockedMinutes, windowStartMin, windowEndMin };
+  return { categories, untaggedMinutes, effortMinutes, restoreMinutes, blockedMinutes, unblockedMinutes, windowStartMin, windowEndMin };
 }

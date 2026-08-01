@@ -314,6 +314,26 @@ export default function useTaskActions({
 
   // ── Task update ──────────────────────────────────────────────────────────
 
+  // Energy-axis override (summary strip): 'restore' | 'effort' | null (null =
+  // back to auto-derivation, see utils/energyAxis.js). Same routing as
+  // changeTaskColor: a recurring instance stores the override on its SERIES —
+  // energy is a property of the block's nature, which recurs with it.
+  const setTaskEnergy = (taskId, energy, fromInbox = false) => {
+    pushUndo();
+    if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
+      const parsed = parseRecurringId(taskId);
+      if (parsed) {
+        setRecurringTasks(prev => prev.map(t =>
+          t.id === parsed.templateId ? { ...t, energy: energy ?? undefined, lastModified: new Date().toISOString() } : t
+        ));
+      }
+      return;
+    }
+    const apply = (task) => (task.id === taskId ? { ...task, energy: energy ?? undefined } : task);
+    if (fromInbox) setUnscheduledTasks(prev => prev.map(apply));
+    else setTasks(prev => prev.map(apply));
+  };
+
   const changeTaskColor = (taskId, newColor, fromInbox = false) => {
     pushUndo();
     if (typeof taskId === 'string' && taskId.startsWith('recurring-')) {
@@ -854,6 +874,7 @@ export default function useTaskActions({
     openNewInboxTask,
     // Update
     changeTaskColor,
+    setTaskEnergy,
     updateTaskNotes,
     updateRecurringTemplate,
     updateRecurrencePattern,
