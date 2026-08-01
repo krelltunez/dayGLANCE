@@ -11,6 +11,7 @@ import { hasNativeCalendar } from '../utils/nativeCalendar.js';
 import DesktopHeader from './DesktopHeader.jsx';
 import CalendarHeader from './CalendarHeader.jsx';
 import TimeGrid from './TimeGrid.jsx';
+import SummaryStrip from './SummaryStrip.jsx';
 import DayView from './DayView.jsx';
 import WeekView from './WeekView.jsx';
 import SchedDashboard from './sched/SchedDashboard.jsx';
@@ -836,6 +837,10 @@ const DesktopLayout = () => {
                     {effectiveViewMode === 'day' && <DayView />}
                     {effectiveViewMode === 'week' && <WeekView />}
                     {effectiveViewMode === 'sched' && <SchedDashboard />}
+                    {/* Summary strip — sticky over the timeline's own scroll
+                        container so it stays visible without reserving layout
+                        height. Timeline views only; sched is a dashboard. */}
+                    {effectiveViewMode !== 'sched' && <SummaryStrip />}
                   </>
               }
             </div>
