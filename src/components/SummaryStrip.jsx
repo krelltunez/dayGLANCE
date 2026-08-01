@@ -1,29 +1,35 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { formatShortDate } from '../utils/taskUtils.js';
 import { computeDaySummary, formatMinutes } from '../utils/daySummary.js';
 
 // Collapse choice is a per-window view preference, same class as
 // minimizedSections. Default collapsed: the strip only collapses on phone,
-// where timeline vertical space is tightest, and the collapsed line still
+// where timeline vertical space is tightest, and the collapsed pill still
 // carries the headline number.
 const COLLAPSE_KEY = 'day-planner-summary-strip-collapsed';
 
 /**
- * Summary strip (phase 1): rolls the viewed day's timeline blocks into one
- * glanceable row — unblocked time plus total time per #tag. Sticks to the
- * bottom of the timeline's scroll container, so it stays visible over the grid
- * without costing the layout any fixed height.
+ * Summary strip (phase 1): rolls the viewed day's timeline blocks into a row of
+ * pills floating over the bottom of the timeline — the day/date, unblocked
+ * time, and total time per #tag. Sticky inside the timeline's scroll container,
+ * so it costs no layout height; the pill row is width-fit with pointer events
+ * scoped to itself, so the grid stays clickable around it.
+ *
+ * Each pill carries its own opaque-ish blurred background instead of the row
+ * having one — floating over arbitrary block colors, per-pill backdrop-blur +
+ * border + shadow is what keeps the text legible.
  *
  * All data comes from context; the math lives in utils/daySummary.js.
  *
- * @param collapsible Phone only — renders a one-line summary that expands on
- *                    tap. Desktop/tablet pass nothing and are always expanded.
+ * @param collapsible Phone only — collapses to a single pill (date + unblocked
+ *                    time) that expands on tap. Desktop/tablet pass nothing.
  */
 export default function SummaryStrip({ collapsible = false }) {
   const {
     selectedDate, getTasksForDate, listEndOfDayTime,
-    darkMode, cardBg, borderClass, textPrimary, textSecondary,
+    darkMode, textPrimary, textSecondary,
   } = useDayPlannerCtx();
 
   const [collapsed, setCollapsed] = useState(
@@ -45,52 +51,52 @@ export default function SummaryStrip({ collapsible = false }) {
   );
 
   // Empty day: nothing to summarize, and "0m unblocked" would claim the
-  // opposite of the truth. Render nothing rather than an empty bar.
+  // opposite of the truth. Render nothing rather than an empty row.
   if (summary.unblockedMinutes === null) return null;
 
-  const chipBg = darkMode ? 'bg-white/10' : 'bg-black/5';
-  const topCategory = summary.categories[0];
+  const pill = `flex items-center gap-1.5 px-2.5 py-1 rounded-full flex-shrink-0 border shadow-sm backdrop-blur-sm ${
+    darkMode ? 'bg-gray-900/85 border-gray-700' : 'bg-white/90 border-stone-200'
+  }`;
 
   const unblockedLabel = (
-    <span className="flex items-baseline gap-1 flex-shrink-0">
+    <span className="flex items-baseline gap-1">
       <span className={`font-semibold ${textPrimary}`}>{formatMinutes(summary.unblockedMinutes)}</span>
       <span className={textSecondary}>unblocked</span>
     </span>
   );
 
   return (
-    <div className={`sticky bottom-0 z-30 ${cardBg} border-t ${borderClass} px-3 py-1.5 text-xs`}>
+    <div className="sticky bottom-0 z-30 px-2 pb-2 pointer-events-none">
       {collapsible && collapsed ? (
-        <button onClick={toggle} className="w-full flex items-center gap-2 text-left">
-          <ChevronUp size={14} className={`flex-shrink-0 ${textSecondary}`} />
+        <button onClick={toggle} className={`${pill} pointer-events-auto max-w-full text-xs`}>
+          <ChevronUp size={13} className={`flex-shrink-0 ${textSecondary}`} />
           {unblockedLabel}
-          {topCategory && (
-            <span className={`truncate ${textSecondary}`}>
-              · #{topCategory.tag} {formatMinutes(topCategory.minutes)}
-            </span>
-          )}
+          <span className={`truncate ${textSecondary}`}>· {formatShortDate(selectedDate)}</span>
         </button>
       ) : (
-        <div className="flex items-center gap-2">
-          <div className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto whitespace-nowrap">
-            {unblockedLabel}
-            {summary.categories.map((c) => (
-              <span key={c.tag} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full flex-shrink-0 ${chipBg}`}>
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.colorHex }} />
-                <span className={textPrimary}>#{c.tag}</span>
-                <span className={textSecondary}>{formatMinutes(c.minutes)}</span>
-              </span>
-            ))}
-            {summary.untaggedMinutes > 0 && (
-              <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full flex-shrink-0 ${chipBg}`}>
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${darkMode ? 'bg-gray-500' : 'bg-stone-400'}`} />
-                <span className={textSecondary}>untagged {formatMinutes(summary.untaggedMinutes)}</span>
-              </span>
-            )}
-          </div>
+        <div className={`pointer-events-auto w-fit max-w-full flex items-center gap-1.5 overflow-x-auto text-xs ${darkMode ? 'dark-scrollbar' : ''}`}>
+          {/* Day/date heading — pins which day the numbers describe, which the
+              multi-day desktop view otherwise leaves ambiguous. */}
+          <span className={pill}>
+            <span className={`font-medium ${textPrimary}`}>{formatShortDate(selectedDate)}</span>
+          </span>
+          <span className={pill}>{unblockedLabel}</span>
+          {summary.categories.map((c) => (
+            <span key={c.tag} className={pill}>
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.colorHex }} />
+              <span className={textPrimary}>#{c.tag}</span>
+              <span className={textSecondary}>{formatMinutes(c.minutes)}</span>
+            </span>
+          ))}
+          {summary.untaggedMinutes > 0 && (
+            <span className={pill}>
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${darkMode ? 'bg-gray-500' : 'bg-stone-400'}`} />
+              <span className={textSecondary}>untagged {formatMinutes(summary.untaggedMinutes)}</span>
+            </span>
+          )}
           {collapsible && (
-            <button onClick={toggle} className={`flex-shrink-0 p-0.5 ${textSecondary}`} aria-label="Collapse summary">
-              <ChevronDown size={14} />
+            <button onClick={toggle} className={`${pill} ${textSecondary}`} aria-label="Collapse summary">
+              <ChevronDown size={13} />
             </button>
           )}
         </div>
