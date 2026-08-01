@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { loadAIConfig, saveAIConfig } from '../ai.js';
 import { localDateStr } from '../utils/taskUtils.js';
+import { useNotifyTrayOnChange } from '../utils/trayNotify.js';
 
 const useVoiceAI = () => {
   // AI configuration state
@@ -92,6 +93,13 @@ const useVoiceAI = () => {
   useEffect(() => {
     saveAIConfig(aiConfig);
   }, [aiConfig]);
+
+  // The tray popup gates its voice button on aiConfig.enabled /
+  // features.voiceTaskInput (TrayHeader) and its morning-glance card on
+  // features.smartScheduling (GlanceSidebar), reading both from
+  // day-planner-ai-config on mount — so toggling AI in Settings has to
+  // invalidate the popup's snapshot.
+  useNotifyTrayOnChange(aiConfig);
 
   return {
     aiConfig, setAiConfig,

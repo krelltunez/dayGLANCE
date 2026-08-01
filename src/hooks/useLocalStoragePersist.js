@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useNotifyTrayOnChange } from '../utils/trayNotify.js';
 
 export default function useLocalStoragePersist({
   minimizedSections,
@@ -98,4 +99,17 @@ export default function useLocalStoragePersist({
   useEffect(() => {
     localStorage.setItem('day-planner-calendar-filter', JSON.stringify(calendarFilter));
   }, [calendarFilter]);
+
+  // ── Tray popup invalidation ───────────────────────────────────────────────
+  // Only for keys the tray actually re-reads on mount. The tray renders its
+  // agenda through formatTime (use24HourClock) and shows native calendar events
+  // filtered by calendarFilter, so a change to either leaves the popup rendering
+  // a stale snapshot until something else happens to reload it.
+  //
+  // Everything else this hook persists is a main-window view preference —
+  // inbox filters, minimizedSections, onboarding dismissals, note template —
+  // which the tray either does not render or is better off keeping its own copy
+  // of, so those deliberately do NOT nudge the tray.
+  useNotifyTrayOnChange(use24HourClock);
+  useNotifyTrayOnChange(calendarFilter);
 }
