@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -112,17 +113,19 @@ export default function SummaryStrip({ phone = false }) {
               the <span className={`font-semibold ${textPrimary}`}>Starts</span> and{' '}
               <span className={`font-semibold ${textPrimary}`}>Ends</span> window.
             </p>
-            <div className="flex items-center justify-between gap-2">
-              <span className={textSecondary}>Starts</span>
-              <button onClick={() => setPickerField('start')} className={timeBtnCls}>
-                {dayWindow?.start ? formatTime(dayWindow.start) : 'Set…'}
-              </button>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <span className={textSecondary}>Ends</span>
-              <button onClick={() => setPickerField('stop')} className={timeBtnCls}>
-                {dayWindow?.stop ? formatTime(dayWindow.stop) : 'Set…'}
-              </button>
+            <div className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-1.5">
+                <span className={textSecondary}>Starts</span>
+                <button onClick={() => setPickerField('start')} className={timeBtnCls}>
+                  {dayWindow?.start ? formatTime(dayWindow.start) : 'Set…'}
+                </button>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className={textSecondary}>Ends</span>
+                <button onClick={() => setPickerField('stop')} className={timeBtnCls}>
+                  {dayWindow?.stop ? formatTime(dayWindow.stop) : 'Set…'}
+                </button>
+              </span>
             </div>
             <button
               onClick={() => { clearDayWindow(dateStr); setMenuOpen(false); }}
@@ -131,16 +134,22 @@ export default function SummaryStrip({ phone = false }) {
               Clear for this day
             </button>
           </div>
-          {/* Same clock picker as FrameEditor/reminders/routines — full-screen
-              overlay at z-[90], above the menu. Unset bounds seed with a
-              sensible default so the clock has a hand to start from. */}
-          {pickerField && (
+          {/* Same clock picker as FrameEditor/reminders/routines. PORTALED to
+              document.body (established pattern: ProjectCard, SchedTaskCard),
+              for two reasons this container creates: pointer-events-none is
+              inherited, which made an in-place picker click-transparent (taps
+              fell through to the menu backdrop and closed everything), and the
+              sticky z-30 stacking context would cap the picker's z-[90] below
+              root-level chrome like the phone FAB. Unset bounds seed the clock
+              at 08:00 / 22:00 so it has a hand to start from. */}
+          {pickerField && createPortal(
             <ClockTimePicker
               value={(pickerField === 'start' ? dayWindow?.start : dayWindow?.stop) ?? (pickerField === 'start' ? '08:00' : '22:00')}
               onChange={(t) => { updateWindow(pickerField, t); setPickerField(null); }}
               onClose={() => setPickerField(null)}
               darkMode={darkMode} isTablet={isTablet ?? false} use24HourClock={use24HourClock}
-            />
+            />,
+            document.body,
           )}
         </>
       )}
