@@ -106,7 +106,7 @@ export default function SummaryStrip({ phone = false }) {
         <>
           {/* Backdrop closes on any outside tap/click. */}
           <div className="fixed inset-0 z-40 pointer-events-auto" onClick={() => setMenuOpen(false)} />
-          <div className={`absolute bottom-full mb-1 left-2 z-50 pointer-events-auto w-60 rounded-lg border shadow-xl p-3 space-y-2.5 text-xs ${cardBg} ${borderClass}`}>
+          <div className={`absolute bottom-full mb-1 left-2 z-50 pointer-events-auto w-72 rounded-lg border shadow-xl p-3 space-y-2.5 text-xs ${cardBg} ${borderClass}`}>
             <div className={`font-semibold ${textPrimary}`}>Day window</div>
             <p className={textSecondary}>
               Applies to this and future days. Unblocked time is measured between
