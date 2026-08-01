@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { isNativeAndroid, isNativeApp } from '../native.js';
 
-const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+import { isTrayMode } from '../utils/trayMode.js';
 
 export default function useAppInit({
   loadData, fetchAllDailyContent, setContentRotation,

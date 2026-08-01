@@ -5,7 +5,7 @@ import { enabledIntentTargets } from './emitTargets.js';
 import { enqueueAndFlush } from './outboxEmit.js';
 import { logActivity } from './intentLog.js';
 
-const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+import { isTrayMode } from '../utils/trayMode.js';
 
 function shouldEmit(goal) {
   return !!(goal.source_app && goal.source_entity_id);

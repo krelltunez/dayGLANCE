@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+import { isTrayMode } from '../utils/trayMode.js';
 
 const getWeatherCondition = (code) => {
   if (code === 0) return 'Clear';

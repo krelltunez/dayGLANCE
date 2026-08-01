@@ -13,7 +13,7 @@ import { flush } from './outbox.js';
 import { deliverers } from './deliverers.js';
 import { reconcileOutboxActivity } from './intentLog.js';
 
-const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+import { isTrayMode } from '../utils/trayMode.js';
 
 // Match the WebDAV poller's foreground cadence (2 minutes).
 const FLUSH_INTERVAL_MS = 2 * 60 * 1000;

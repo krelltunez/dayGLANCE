@@ -80,7 +80,7 @@ export class KeyUnavailableError extends Error {
 
 // The tray popup holds a read-only snapshot and must never poll — processing an
 // event would consume it before the main window can act (mirrors useIntentPoller).
-const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+import { isTrayMode } from '../utils/trayMode.js';
 
 // Module-level lock: prevents React StrictMode's double-mount from running two
 // concurrent polls, which would both read the same cursor and double-process.

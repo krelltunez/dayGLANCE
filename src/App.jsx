@@ -160,11 +160,11 @@ import ReviewerBanner from './components/ReviewerBanner.jsx';
 import { useSubscription } from './hooks/useSubscription.js';
 import { useTranslation } from 'react-i18next';
 import { syncErrorText } from './sync/syncErrors.js';
+import { isTrayMode } from './utils/trayMode.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
 const toBase64 = (str) => btoa(String.fromCharCode(...new TextEncoder().encode(str)));
-
 
 
 // Cloud sync provider abstraction
@@ -214,8 +214,6 @@ const TimePicker = ({ value, onChange, use24HourClock, borderClass, darkMode }) 
 // Smart Schedule panel — shows AI scheduling UI
 // FrameNudgeCard extracted to src/components/FrameNudgeCard.jsx
 
-
-const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
 // How far back/forward the spotlight search fetches native (device) calendar events.
 // The timeline only loads a ±2-day window, so a broader range is fetched on demand
@@ -1753,7 +1751,6 @@ const DayPlanner = () => {
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, [mobileActiveTab, mobileSettingsView, isMobile]);
-
 
 
   // Track for onboarding when sync is set up

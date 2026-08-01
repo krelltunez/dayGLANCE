@@ -9,7 +9,7 @@ import { isNativeAndroid } from '../native';
 // The tray holds a read-only state snapshot. Any task-state changes in tray
 // mode (e.g. from an iCloud sync download) were already handled by the main
 // window. Emitting here would produce duplicate WebDAV notify events.
-const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+import { isTrayMode } from '../utils/trayMode.js';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 

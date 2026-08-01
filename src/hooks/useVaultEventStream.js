@@ -23,13 +23,13 @@ import {
   detectSseTransport,
   openWebSseStream,
 } from '../sync/vaultEventStream.js';
+import { isTrayMode } from '../utils/trayMode.js';
 
 // The global the native shell invokes to push SSE messages into the renderer
 // (see the BRIDGE CONTRACT in vaultEventStream.js). Kept as a named constant so
 // the Android/iOS shells and this file can't drift.
 const NATIVE_SSE_RECEIVE = '__glanceVaultSseReceive';
 
-const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
 /**
  * @param {object} p
