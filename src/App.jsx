@@ -125,6 +125,7 @@ import useDataPersistence from './hooks/useDataPersistence.js';
 import useLocalStoragePersist from './hooks/useLocalStoragePersist.js';
 import useAppInit from './hooks/useAppInit.js';
 import useSaveOnChange from './hooks/useSaveOnChange.js';
+import { useNotifyTrayOnChange } from './utils/trayNotify.js';
 import useTimelineScroll from './hooks/useTimelineScroll.js';
 import useModalClose from './hooks/useModalClose.js';
 import useFullscreenEscape from './hooks/useFullscreenEscape.js';
@@ -1626,6 +1627,12 @@ const DayPlanner = () => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [expandedNotesTaskId]);
+
+  // The tray popup reads day-planner-darkmode on mount and derives every one of
+  // its colour classes from it, so a theme change has to invalidate its snapshot
+  // or the popup stays light while the app is dark. Persisted here rather than
+  // in useLocalStoragePersist, hence the nudge lives here too.
+  useNotifyTrayOnChange(darkMode);
 
   // Persist darkMode to localStorage and update theme-color meta tag
   useEffect(() => {

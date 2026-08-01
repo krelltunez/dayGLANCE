@@ -6,8 +6,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // in the deps AND that running the effect calls schedulePush is equivalent to
 // proving "editing that slice schedules a vault push".
 const captured = { fn: null, deps: null };
+// useRef is needed because useSaveOnChange pulls in utils/trayNotify.js, which
+// imports both hooks; a mock missing an export fails at import time.
 vi.mock('react', () => ({
   useEffect: (fn, deps) => { captured.fn = fn; captured.deps = deps; },
+  useRef: (init) => ({ current: init }),
 }));
 
 const schedulePush = vi.fn();

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { schedulePush as scheduleVaultPush } from '../sync/dirtyTracker.js';
+import { notifyTrayDataChanged } from '../utils/trayNotify.js';
 
 // The tray popup must never write to localStorage — it holds a snapshot of
 // state as of the last reload and would overwrite fresher main-window data.
@@ -20,10 +21,11 @@ export default function useSaveOnChange({
     saveData();
     // Tell the tray popup its snapshot is stale, now that saveData() has
     // committed every key it owns (it is synchronous, so storage is fresh on
-    // return). Payload-free: the tray re-reads localStorage on reload. Reached
-    // only from the main window — the isTrayMode bail above guarantees it — so
-    // the popup can never trigger its own reload loop.
-    if (typeof window !== 'undefined') window.electronAPI?.notifyDataChanged?.();
+    // return). Deliberately not mount-skipped: the dataLoaded gate above means
+    // the first run is the first REAL save pass (post-loadData), which does
+    // rewrite the keys the tray reads, so one reload per main-window launch is
+    // correct rather than spurious.
+    notifyTrayDataChanged();
     checkConflicts();
     // Push-on-write to the GLANCEvault DB transport (debounced 3 s, vault-only).
     // Off-safe no-op when the vault is disabled; skipped while applying remote
