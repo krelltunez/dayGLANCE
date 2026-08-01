@@ -138,3 +138,55 @@ describe('computeDaySummary — unblocked time', () => {
     expect(s.unblockedMinutes).toBe(0);
   });
 });
+
+describe('computeDaySummary — START/STOP day-window markers', () => {
+  it('the start marker opens the window before the first block, so morning slack counts', () => {
+    // Day starts 07:00, first block 09:00–10:00 → 2h of morning now count.
+    const s = computeDaySummary([block('09:00', 60, 'a')], null, { start: '07:00', stop: null });
+    expect(s.windowStartMin).toBe(7 * 60);
+    expect(s.unblockedMinutes).toBe(2 * 60);
+  });
+
+  it('the stop marker bounds the evening', () => {
+    const s = computeDaySummary([block('09:00', 60, 'a')], null, { start: null, stop: '21:00' });
+    expect(s.windowEndMin).toBe(21 * 60);
+    expect(s.unblockedMinutes).toBe(11 * 60);
+  });
+
+  it('the stop marker supersedes the list-view end-of-day setting', () => {
+    // Markers are an explicit per-day declaration; endOfDayTime is a borrowed
+    // list-view global. When both exist the marker wins.
+    const s = computeDaySummary([block('09:00', 60, 'a')], '23:00', { start: null, stop: '21:00' });
+    expect(s.windowEndMin).toBe(21 * 60);
+  });
+
+  it('a block outside the markers extends the window rather than going negative', () => {
+    // 6am run with a 07:00 start marker: same clamp rule as past-end-of-day.
+    const s = computeDaySummary(
+      [block('06:00', 60, 'run'), block('09:00', 60, 'work')],
+      null,
+      { start: '07:00', stop: '10:30' },
+    );
+    expect(s.windowStartMin).toBe(6 * 60);
+    expect(s.blockedMinutes).toBe(120);
+    expect(s.unblockedMinutes).toBe(4.5 * 60 - 120);
+  });
+
+  it('an empty day with both markers reports the whole window as unblocked', () => {
+    // Markers make an empty day measurable — the strip can finally render for
+    // a day with nothing scheduled yet.
+    const s = computeDaySummary([], null, { start: '08:00', stop: '22:00' });
+    expect(s.unblockedMinutes).toBe(14 * 60);
+    expect(s.windowStartMin).toBe(8 * 60);
+    expect(s.windowEndMin).toBe(22 * 60);
+  });
+
+  it('an empty day with only one marker still reports null', () => {
+    expect(computeDaySummary([], null, { start: '08:00', stop: null }).unblockedMinutes).toBeNull();
+    expect(computeDaySummary([], null, { start: null, stop: '22:00' }).unblockedMinutes).toBeNull();
+  });
+
+  it('an inverted empty-day window (stop before start) reports null rather than negative', () => {
+    expect(computeDaySummary([], null, { start: '22:00', stop: '08:00' }).unblockedMinutes).toBeNull();
+  });
+});

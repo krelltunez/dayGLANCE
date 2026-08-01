@@ -4,6 +4,7 @@ import { formatHourLabel } from '../utils/timeFormatting.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { columnTimeFromEvent } from '../utils/dragUtils.js';
 import TimelineTaskCardContent from './TimelineTaskCardContent.jsx';
+import DayWindowMarkers from './DayWindowMarkers.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import useDayViewHourHeight from '../hooks/useDayViewHourHeight.js';
@@ -264,6 +265,16 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
             </div>
           </div>
         )}
+
+        {/* Day-window START/END marker lines */}
+        <div className="absolute top-0 left-16 right-0 bottom-0 pointer-events-none">
+          <DayWindowMarkers
+            dateStr={col.dateStr}
+            minToTop={(m) => (m - colStartMin) * hourHeight / 60}
+            clipStartMin={colStartMin}
+            clipEndMin={colEndMin}
+          />
+        </div>
 
         {/* GTD Frame background zones — behind tasks */}
         {(() => {
