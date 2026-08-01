@@ -4,7 +4,7 @@ import { isNativeAndroid, isNativeApp, nativeShowNotification, nativeShowTaskNot
 
 // The tray popup runs the same App tree — skip the reminder engine there so
 // sounds and notifications don't fire twice (once per renderer process).
-const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+import { isTrayMode } from '../utils/trayMode.js';
 
 // Pure local helpers
 const timeToMinutes = (time) => {

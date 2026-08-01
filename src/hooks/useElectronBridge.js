@@ -23,6 +23,7 @@ import {
   MSG_DAY_HG_COMPLETE,
   MSG_DAY_HG_TASK_COMPLETE,
 } from '../../electron/protocol';
+import { isTrayMode } from '../utils/trayMode.js';
 
 const timeToMinutes = (time) => {
   if (!time) return 0;
@@ -30,7 +31,6 @@ const timeToMinutes = (time) => {
   return h * 60 + (m || 0);
 };
 
-const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
 
 // Inline habit color map (mirrors HABIT_COLORS ring values from src/constants/habits.js)
 const HABIT_COLOR_HEX = {

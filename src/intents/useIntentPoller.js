@@ -20,7 +20,7 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 // The tray popup holds a read-only state snapshot; it must never poll for
 // intents because processing an event would advance the cursor and consume
 // the event before the main window can act on it.
-const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+import { isTrayMode } from '../utils/trayMode.js';
 
 // Module-level lock: prevents React StrictMode's double-mount from running two
 // concurrent poll() calls, which would both see cursor=null and duplicate tasks.

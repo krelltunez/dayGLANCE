@@ -4,7 +4,7 @@ import { notifyTrayDataChanged } from '../utils/trayNotify.js';
 
 // The tray popup must never write to localStorage — it holds a snapshot of
 // state as of the last reload and would overwrite fresher main-window data.
-const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+import { isTrayMode } from '../utils/trayMode.js';
 
 export default function useSaveOnChange({
   saveData, checkConflicts,

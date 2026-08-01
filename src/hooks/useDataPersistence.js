@@ -17,7 +17,7 @@ const isSubscriptionImport = (t) =>
 // (same invariant as useSaveOnChange.js). loadData's normalization write-back
 // runs on every tray mount and reload, so it needs the guard too: the tray
 // still reads and normalizes for its own render, it just never persists.
-const isTrayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tray');
+import { isTrayMode } from '../utils/trayMode.js';
 
 export default function useDataPersistence({
   // setters for loadData
