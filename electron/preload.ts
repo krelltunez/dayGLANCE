@@ -87,6 +87,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('tray:reminders', handler);
   },
 
+  // Tray popup receives its own on-screen visibility from the main process,
+  // which owns every show/hide call site. Re-sent after each reload, so the
+  // popup knows its current state immediately rather than at the next
+  // transition. Used to skip work that is pointless while it is off screen.
+  onTrayVisibility: (callback: (visible: boolean) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, visible: boolean) => callback(visible);
+    ipcRenderer.on('tray:visibility', handler);
+    return () => ipcRenderer.removeListener('tray:visibility', handler);
+  },
+
   // Main window pushes the currently-in-progress task to the tray popup.
   pushCurrentTask: (task: unknown) => ipcRenderer.send('tray:push-current-task', task),
 

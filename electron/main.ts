@@ -295,7 +295,7 @@ function createTrayWindow(): BrowserWindow {
   // registered its onReminders listener. 800ms is enough for the renderer to
   // finish hydrating; focus state self-corrects within 1s so no re-push needed.
   win.webContents.on('did-finish-load', () => {
-    setTimeout(() => { pushRemindersToTray(); pushCurrentTaskToTray(); }, 800);
+    setTimeout(() => { pushRemindersToTray(); pushCurrentTaskToTray(); pushTrayVisibilityToTray(); }, 800);
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -311,6 +311,7 @@ function createTrayWindow(): BrowserWindow {
   win.on('blur', () => {
     if (win.isDestroyed()) return;
     win.hide();
+    setTrayVisible(false);
     if (trayNeedsReload) {
       trayNeedsReload = false;
       win.webContents.reload();
@@ -359,12 +360,13 @@ function createTray(): void {
   tray.on('click', (_event, bounds) => {
     const tw = live(trayWindow);
     if (!tw) return;
-    if (tw.isVisible()) { tw.hide(); return; }
+    if (tw.isVisible()) { tw.hide(); setTrayVisible(false); return; }
     positionTrayPopup(tw, bounds);
     trayIndicatorOn = false;
     refreshTrayTitle();
     tw.show();
     tw.focus();
+    setTrayVisible(true);
     pushRemindersToTray();
     pushCurrentTaskToTray();
   });
@@ -528,6 +530,7 @@ ipcMain.on('window:exit-fullscreen', (event) => {
 // Tray popup requests the main window to show and navigate to a specific location.
 ipcMain.on('tray:open-main', (_event, payload: unknown) => {
   live(trayWindow)?.hide();
+  setTrayVisible(false);
   const mw = live(mainWindow);
   if (mw) { mw.show(); mw.focus(); mw.webContents.send('tray:navigate', payload); }
 });
@@ -558,6 +561,28 @@ let lastKnownCurrentTask: unknown = null;
 
 function pushCurrentTaskToTray() {
   live(trayWindow)?.webContents.send('tray:current-task', lastKnownCurrentTask);
+}
+
+// Last-known popup visibility. The main process is the authority here — it owns
+// every show/hide call site below — so the renderer never has to infer it from
+// document.visibilityState.
+//
+// The popup is created hidden (createTrayWindow passes show: false), so false is
+// the correct initial value. Cached and re-pushed on did-finish-load for the
+// same reason as the reminder list: the popup reloads in the background, and a
+// reload that lands while it is open must not leave the renderer believing it is
+// hidden until the next transition.
+let lastKnownTrayVisible = false;
+
+function pushTrayVisibilityToTray() {
+  live(trayWindow)?.webContents.send('tray:visibility', lastKnownTrayVisible);
+}
+
+// Single choke point for the popup's visibility so no show/hide path can update
+// the window without telling the renderer.
+function setTrayVisible(visible: boolean) {
+  lastKnownTrayVisible = visible;
+  pushTrayVisibilityToTray();
 }
 
 // Reminder list: cache + forward to tray popup whenever it changes.
@@ -595,12 +620,13 @@ ipcMain.handle('hotkey:register', (_event, accelerator: string) => {
   const ok = globalShortcut.register(accelerator, () => {
     const tw = live(trayWindow);
     if (!tw) return;
-    if (tw.isVisible()) { tw.hide(); return; }
+    if (tw.isVisible()) { tw.hide(); setTrayVisible(false); return; }
     positionTrayPopup(tw, tray?.getBounds());
     trayIndicatorOn = false;
     refreshTrayTitle();
     tw.show();
     tw.focus();
+    setTrayVisible(true);
     pushRemindersToTray();
     pushCurrentTaskToTray();
     tw.webContents.send('tray:focus-quick-add');

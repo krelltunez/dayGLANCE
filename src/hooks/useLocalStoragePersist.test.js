@@ -107,3 +107,65 @@ describe('useLocalStoragePersist tray invalidation', () => {
       .toHaveBeenCalledWith('hideCompletedInbox', VIEW_PREF.toString());
   });
 });
+
+// isTrayMode is derived once at module load from window.location.search, so the
+// tray needs its own module instance — set the URL, then import.
+async function loadHookAs(mode) {
+  vi.resetModules();
+  effects.length = 0;
+  globalThis.window = { location: { search: mode === 'tray' ? '?tray=1' : '' } };
+  const mod = await import('./useLocalStoragePersist.js');
+  return mod.default;
+}
+
+describe('calendarFilter persistence — tray guard', () => {
+  const FILTER = ['work-cal'];
+  let setItem;
+
+  beforeEach(() => {
+    setItem = vi.fn();
+    globalThis.localStorage = { setItem, getItem: vi.fn(() => null), removeItem: vi.fn() };
+  });
+
+  afterEach(() => {
+    delete globalThis.localStorage;
+    delete globalThis.window;
+  });
+
+  it('the main window persists the calendar filter', () => {
+    // The negative test below is only meaningful if this one holds — otherwise
+    // "tray does not write" could pass because nobody writes.
+    return loadHookAs('main').then((hook) => {
+      hook(baseProps({ calendarFilter: FILTER }));
+      mount();
+      expect(setItem).toHaveBeenCalledWith('day-planner-calendar-filter', JSON.stringify(FILTER));
+    });
+  });
+
+  it('the tray does not persist the calendar filter', async () => {
+    const hook = await loadHookAs('tray');
+    hook(baseProps({ calendarFilter: FILTER }));
+    mount();
+
+    // The tray holds a snapshot as of its last reload and must never write to
+    // localStorage (same invariant as loadData/saveData). This key is the one
+    // the tray can actively CHANGE, via applyEvents → setCalendarFilter when a
+    // fetched event names a calendar getCalendars() did not report.
+    const keys = setItem.mock.calls.map(([k]) => k);
+    expect(keys).not.toContain('day-planner-calendar-filter');
+  });
+
+  it('the tray still stops writing it when the value changes, not just on mount', async () => {
+    const hook = await loadHookAs('tray');
+    hook(baseProps({ calendarFilter: FILTER }));
+    mount();
+    setItem.mockClear();
+
+    // Simulate applyEvents discovering a calendar and extending the filter.
+    change(FILTER);
+
+    expect(setItem).not.toHaveBeenCalledWith(
+      'day-planner-calendar-filter', expect.anything(),
+    );
+  });
+});

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNotifyTrayOnChange } from '../utils/trayNotify.js';
+import { isTrayMode } from '../utils/trayMode.js';
 
 export default function useLocalStoragePersist({
   minimizedSections,
@@ -95,8 +96,17 @@ export default function useLocalStoragePersist({
     localStorage.setItem('day-planner-auto-backup-config', JSON.stringify(autoBackupConfig));
   }, [autoBackupConfig]);
 
-  // Persist calendar filter whenever it changes
+  // Persist calendar filter whenever it changes.
+  //
+  // Tray-guarded, matching the invariant enforced in loadData and saveData: the
+  // popup holds a snapshot as of its last reload and must never write to
+  // localStorage. This key is not merely written on mount like the others — the
+  // tray can actively CHANGE it, because applyEvents calls setCalendarFilter
+  // when it finds an event whose calendar getCalendars() did not report, and
+  // the tray runs that same fetch. The popup still holds the value in state for
+  // its own render; it just stops persisting it.
   useEffect(() => {
+    if (isTrayMode) return;
     localStorage.setItem('day-planner-calendar-filter', JSON.stringify(calendarFilter));
   }, [calendarFilter]);
 

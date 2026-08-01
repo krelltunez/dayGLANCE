@@ -161,6 +161,8 @@ import { useSubscription } from './hooks/useSubscription.js';
 import { useTranslation } from 'react-i18next';
 import { syncErrorText } from './sync/syncErrors.js';
 import { isTrayMode } from './utils/trayMode.js';
+import { shouldFetchNativeEvents } from './utils/trayFetchGate.js';
+import useTrayPopupVisible from './hooks/useTrayPopupVisible.js';
 
 // Encode a string that may contain non-ASCII characters as Base64.
 // btoa() throws InvalidCharacterError for codepoints > 255 (CJK, emoji, etc.).
@@ -577,6 +579,10 @@ const DayPlanner = () => {
   } = useMobileEdit();
   const [mobileEditingNativeEvent, setMobileEditingNativeEvent] = useState(null);
   const [nativeCalendarKey, setNativeCalendarKey] = useState(0);
+  // Tray popup on-screen state, pushed from the main process. Always false in
+  // the main window, which is never gated on it. Gates the native-calendar
+  // event fetch below so a hidden popup doesn't spawn the EventKit helper.
+  const trayPopupVisible = useTrayPopupVisible();
   const [mobileSettingsView, setMobileSettingsView] = useState('main');
   const { showWelcome, setShowWelcome, gettingStartedDismissed, setGettingStartedDismissed, onboardingComplete, setOnboardingComplete, onboardingProgress, setOnboardingProgress } = useOnboarding();
   const [sectionInfoDismissed, setSectionInfoDismissed] = useState(() => {
@@ -3594,6 +3600,11 @@ const DayPlanner = () => {
 
   useEffect(() => {
     if (!hasNativeCalendar()) return;
+    // Tray popup only: skip while it is off screen. Each run spawns the EventKit
+    // helper, and the popup's reloads are scheduled precisely when it is hidden.
+    // trayPopupVisible is in the deps below, so the fetch runs as soon as it is
+    // shown rather than waiting for an unrelated dependency to change.
+    if (!shouldFetchNativeEvents({ isTrayMode, popupVisible: trayPopupVisible })) return;
 
     const dates = [];
     for (let offset = -2; offset <= 2; offset++) {
@@ -3700,7 +3711,7 @@ const DayPlanner = () => {
       return () => { cancelled = true; };
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, calendarFilter, nativeCalendarKey]);
+  }, [selectedDate, calendarFilter, nativeCalendarKey, trayPopupVisible]);
 
   // Wider native-calendar fetch for the spotlight search. The timeline effect above
   // only loads a ±2-day window, so device-calendar events on other dates never reach
