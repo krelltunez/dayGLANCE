@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import ClockTimePicker from './ClockTimePicker.jsx';
 import { dateToString, formatShortDate } from '../utils/taskUtils.js';
 import { computeDaySummary, formatMinutes } from '../utils/daySummary.js';
 
@@ -39,6 +40,7 @@ export default function SummaryStrip({ phone = false }) {
   const {
     selectedDate, getTasksForDate, listEndOfDayTime,
     darkMode, textPrimary, textSecondary, borderClass, cardBg,
+    use24HourClock, isTablet, formatTime,
   } = useDayPlannerCtx();
   const { getDayWindow, setDayWindow, clearDayWindow } = useFeaturesCtx();
 
@@ -53,6 +55,8 @@ export default function SummaryStrip({ phone = false }) {
   };
 
   const [menuOpen, setMenuOpen] = useState(false);
+  // Which bound the clock picker is editing: 'start' | 'stop' | null.
+  const [pickerField, setPickerField] = useState(null);
 
   const dateStr = dateToString(selectedDate);
   const dayWindow = getDayWindow?.(dateStr) ?? null;
@@ -84,7 +88,9 @@ export default function SummaryStrip({ phone = false }) {
     });
   };
 
-  const inputCls = `px-1.5 py-0.5 rounded border text-xs ${darkMode ? 'bg-gray-800 border-gray-600 text-gray-200' : 'bg-white border-stone-300 text-stone-800'}`;
+  // Trigger buttons open the same clock picker used everywhere else in the app
+  // (FrameEditor, reminders, routines) instead of a bare native time input.
+  const timeBtnCls = `px-2.5 py-1 rounded-lg border text-xs font-medium ${darkMode ? 'bg-gray-800 border-gray-600 text-gray-200 hover:bg-gray-700' : 'bg-white border-stone-300 text-stone-800 hover:bg-stone-50'}`;
 
   const unblockedLabel = (
     <span className="flex items-baseline gap-1">
@@ -99,30 +105,25 @@ export default function SummaryStrip({ phone = false }) {
         <>
           {/* Backdrop closes on any outside tap/click. */}
           <div className="fixed inset-0 z-40 pointer-events-auto" onClick={() => setMenuOpen(false)} />
-          <div className={`absolute bottom-full mb-1 left-2 z-50 pointer-events-auto w-56 rounded-lg border shadow-xl p-3 space-y-2 text-xs ${cardBg} ${borderClass}`}>
+          <div className={`absolute bottom-full mb-1 left-2 z-50 pointer-events-auto w-60 rounded-lg border shadow-xl p-3 space-y-2.5 text-xs ${cardBg} ${borderClass}`}>
             <div className={`font-semibold ${textPrimary}`}>Day window</div>
-            <div className={textSecondary}>{formatShortDate(selectedDate)}</div>
+            <p className={textSecondary}>
+              Applies to this and future days. Unblocked time is measured between
+              the <span className={`font-semibold ${textPrimary}`}>Starts</span> and{' '}
+              <span className={`font-semibold ${textPrimary}`}>Ends</span> window.
+            </p>
             <div className="flex items-center justify-between gap-2">
               <span className={textSecondary}>Starts</span>
-              <input
-                type="time"
-                value={dayWindow?.start ?? ''}
-                onChange={(e) => updateWindow('start', e.target.value)}
-                className={inputCls}
-              />
+              <button onClick={() => setPickerField('start')} className={timeBtnCls}>
+                {dayWindow?.start ? formatTime(dayWindow.start) : 'Set…'}
+              </button>
             </div>
             <div className="flex items-center justify-between gap-2">
               <span className={textSecondary}>Ends</span>
-              <input
-                type="time"
-                value={dayWindow?.stop ?? ''}
-                onChange={(e) => updateWindow('stop', e.target.value)}
-                className={inputCls}
-              />
+              <button onClick={() => setPickerField('stop')} className={timeBtnCls}>
+                {dayWindow?.stop ? formatTime(dayWindow.stop) : 'Set…'}
+              </button>
             </div>
-            <p className={`${textSecondary} opacity-70`}>
-              Applies to this and future days. Unblocked time is measured inside it.
-            </p>
             <button
               onClick={() => { clearDayWindow(dateStr); setMenuOpen(false); }}
               className={`w-full py-1 rounded border ${borderClass} ${textSecondary} hover:opacity-80`}
@@ -130,6 +131,17 @@ export default function SummaryStrip({ phone = false }) {
               Clear for this day
             </button>
           </div>
+          {/* Same clock picker as FrameEditor/reminders/routines — full-screen
+              overlay at z-[90], above the menu. Unset bounds seed with a
+              sensible default so the clock has a hand to start from. */}
+          {pickerField && (
+            <ClockTimePicker
+              value={(pickerField === 'start' ? dayWindow?.start : dayWindow?.stop) ?? (pickerField === 'start' ? '08:00' : '22:00')}
+              onChange={(t) => { updateWindow(pickerField, t); setPickerField(null); }}
+              onClose={() => setPickerField(null)}
+              darkMode={darkMode} isTablet={isTablet ?? false} use24HourClock={use24HourClock}
+            />
+          )}
         </>
       )}
       {phone && collapsed ? (
