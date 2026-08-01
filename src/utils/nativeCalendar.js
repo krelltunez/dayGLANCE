@@ -59,11 +59,19 @@ export const electronRequestCalendarAccess = async () => {
   }
 };
 
-/** Fetches the device calendar list from the Electron helper. */
-export const electronGetCalendars = async () => {
+/**
+ * Fetches the device calendar list from the Electron helper.
+ *
+ * The main process caches the list (5 min TTL) so a tray-popup reload doesn't
+ * re-spawn the helper for a list the main window already fetched. Pass
+ * `{ force: true }` for an explicit user-initiated refresh, which must always
+ * re-query EventKit — an empty list is never cached, but a stale non-empty one
+ * would otherwise hide a calendar the user just added.
+ */
+export const electronGetCalendars = async ({ force = false } = {}) => {
   if (!window.electronAPI?.getCalendars) return [];
   try {
-    return (await window.electronAPI.getCalendars()) ?? [];
+    return (await window.electronAPI.getCalendars(force)) ?? [];
   } catch {
     return [];
   }

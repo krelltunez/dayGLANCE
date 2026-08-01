@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { createCalendarCache } from './calendarCache.js';
 
 // ── macOS native calendar (EventKit) ───────────────────────────────────────────
 //
@@ -51,25 +52,36 @@ function runHelper(args: string[]): Promise<unknown> {
   });
 }
 
+// Module scope, so the cache is shared by every renderer rather than per-sender:
+// the tray popup runs the same App tree as the main window and would otherwise
+// repeat the access + calendar-list spawns on each of its reloads.
+const cache = createCalendarCache();
+
 export function registerCalendarHandlers(): void {
   ipcMain.handle('calendar:request-access', async () => {
     if (!calendarSupported()) return { granted: false };
-    try {
-      const res = await runHelper(['request-access']) as { granted?: boolean } | null;
-      return { granted: !!res?.granted };
-    } catch {
-      return { granted: false };
-    }
+    return cache.requestAccess(async () => {
+      try {
+        const res = await runHelper(['request-access']) as { granted?: boolean } | null;
+        return { granted: !!res?.granted };
+      } catch {
+        return { granted: false };
+      }
+    });
   });
 
-  ipcMain.handle('calendar:get-calendars', async () => {
+  // `force` is passed by the Settings › Device calendars "Refresh" button, which
+  // exists to recover from an empty list; it must always re-query EventKit.
+  ipcMain.handle('calendar:get-calendars', async (_event, force?: boolean) => {
     if (!calendarSupported()) return [];
-    try {
-      const res = await runHelper(['calendars']);
-      return Array.isArray(res) ? res : [];
-    } catch {
-      return [];
-    }
+    return cache.getCalendars(async () => {
+      try {
+        const res = await runHelper(['calendars']);
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    }, force === true);
   });
 
   // Returns a per-day map { "YYYY-MM-DD": Event[] } inclusive of [startDate, endDate].
