@@ -12,6 +12,7 @@ import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import TimelineTaskCardContent from './TimelineTaskCardContent.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import DayWindowMarkers from './DayWindowMarkers.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getHGBarsForDate } from '../hooks/useHyperGlance.js';
@@ -167,6 +168,9 @@ const TimeGrid = () => {
           data-date-column={dateStr}
           className={`flex-1 relative ${dayIndex > 0 ? `border-l ${borderClass}` : ''}`}
         >
+          {/* Day-window START/END marker lines */}
+          <DayWindowMarkers dateStr={dateStr} />
+
           {/* GTD Frame background zones */}
           {frameInstances.map(frame => {
             const frameStartMin = timeToMinutes(frame.start);

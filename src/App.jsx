@@ -111,6 +111,7 @@ import useStats from './hooks/useStats.js';
 import useComputedViews from './hooks/useComputedViews.js';
 import useTaskDerived from './hooks/useTaskDerived.js';
 import useDeadlinePriority from './hooks/useDeadlinePriority.js';
+import useDayWindows from './hooks/useDayWindows.js';
 import useConflictDetection from './hooks/useConflictDetection.js';
 import useNewTaskInput from './hooks/useNewTaskInput.js';
 import useTaskFormHelpers from './hooks/useTaskFormHelpers.js';
@@ -1388,6 +1389,11 @@ const DayPlanner = () => {
     visibleDays,
     mobileActiveTab,
   });
+  // Per-day START/STOP timeline markers (sticky-forward, device-local) — the
+  // summary strip measures unblocked time against them and the grids render
+  // them as marker lines. See src/hooks/useDayWindows.js.
+  const { getDayWindow, setDayWindow, clearDayWindow } = useDayWindows();
+
   const { pendingPriorities, cyclePriority, getDeadlineTasksForDate } = useDeadlinePriority({
     unscheduledTasks,
     setUnscheduledTasks,
@@ -8229,6 +8235,7 @@ const DayPlanner = () => {
     saveFrame, deleteFrame, skipFrameForDay,
     openFrameAdjust, openFrameSchedule, saveFrameAdjust,
     getFrameInstancesForDate,
+    getDayWindow, setDayWindow, clearDayWindow,
     runSmartSchedule, applySmartSchedule,
     runReschedule, applyReschedule,
     computeAvailableSlots,

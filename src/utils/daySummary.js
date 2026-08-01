@@ -64,6 +64,14 @@ export function formatMinutes(min) {
  *                     null, the window is just the span of the blocks and
  *                     unblocked time means gaps between them — no bedtime is
  *                     assumed on the user's behalf.
+ * @param dayWindow    Optional user-set START/STOP markers for this day:
+ *                     {start: 'HH:MM'|null, stop: 'HH:MM'|null}. An explicit
+ *                     declaration of the day's bounds, so it takes precedence:
+ *                     start opens the window before the first block (morning
+ *                     slack finally counts), stop supersedes endOfDayTime.
+ *                     Blocks OUTSIDE the markers still extend the window —
+ *                     same rule as the past-end-of-day clamp, a 6am run with a
+ *                     7am start marker must never yield negative numbers.
  * @returns {{
  *   categories: Array<{tag: string, minutes: number, colorHex: string}>,
  *   untaggedMinutes: number,
@@ -73,19 +81,26 @@ export function formatMinutes(min) {
  *   windowEndMin: number|null,
  * }}
  */
-export function computeDaySummary(dayTasks, endOfDayTime = null) {
+export function computeDaySummary(dayTasks, endOfDayTime = null, dayWindow = null) {
   const timed = (dayTasks || []).filter(
     (t) => t && !t.isAllDay && t.startTime && (t.duration || 0) > 0,
   );
 
+  const markerStart = dayWindow?.start ? timeToMin(dayWindow.start) : null;
+  const markerStop = dayWindow?.stop ? timeToMin(dayWindow.stop) : null;
+
   if (timed.length === 0) {
+    // With BOTH markers set, an empty day is finally measurable: the whole
+    // declared window is unblocked. Without them there is still no honest
+    // window, so null keeps meaning "nothing to measure".
+    const hasFullWindow = markerStart !== null && markerStop !== null && markerStop > markerStart;
     return {
       categories: [],
       untaggedMinutes: 0,
       blockedMinutes: 0,
-      unblockedMinutes: null,
-      windowStartMin: null,
-      windowEndMin: null,
+      unblockedMinutes: hasFullWindow ? markerStop - markerStart : null,
+      windowStartMin: hasFullWindow ? markerStart : null,
+      windowEndMin: hasFullWindow ? markerStop : null,
     };
   }
 
@@ -128,13 +143,20 @@ export function computeDaySummary(dayTasks, endOfDayTime = null) {
     })
     .sort((a, b) => b.minutes - a.minutes || a.tag.localeCompare(b.tag));
 
-  const windowStartMin = Math.min(...intervals.map(([s]) => s));
+  const earliestStart = Math.min(...intervals.map(([s]) => s));
   const latestEnd = Math.max(...intervals.map(([, e]) => e));
-  // A block running past the configured end-of-day extends the window rather
-  // than producing negative unblocked time.
-  const windowEndMin = endOfDayTime
-    ? Math.max(latestEnd, timeToMin(endOfDayTime))
-    : latestEnd;
+  // Left edge: the start marker opens the window ahead of the first block, so
+  // morning slack counts; a block earlier than the marker extends it further.
+  const windowStartMin = markerStart !== null
+    ? Math.min(markerStart, earliestStart)
+    : earliestStart;
+  // Right edge precedence: stop marker (an explicit declaration) supersedes the
+  // list-view end-of-day setting. Either way a block running past the edge
+  // extends the window rather than producing negative unblocked time.
+  const rightEdge = markerStop !== null
+    ? markerStop
+    : (endOfDayTime ? timeToMin(endOfDayTime) : null);
+  const windowEndMin = rightEdge !== null ? Math.max(latestEnd, rightEdge) : latestEnd;
 
   const blockedMinutes = mergedCoverage(intervals);
   const unblockedMinutes = Math.max(0, windowEndMin - windowStartMin - blockedMinutes);
