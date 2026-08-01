@@ -23,17 +23,20 @@ const COLLAPSE_KEY = 'day-planner-summary-strip-collapsed';
  *
  * All data comes from context; the math lives in utils/daySummary.js.
  *
- * @param collapsible Phone only — collapses to a single pill (date + unblocked
- *                    time) that expands on tap. Desktop/tablet pass nothing.
+ * @param phone Phone timeline variant: collapsible to a single pill, no date
+ *              pill (the phone timeline shows exactly one day, so the heading
+ *              would restate the header), and right clearance for the new-task
+ *              FAB (fixed right-4 w-14, z-40 — above this row's z-30) so pills
+ *              never slide underneath it. Desktop/tablet pass nothing.
  */
-export default function SummaryStrip({ collapsible = false }) {
+export default function SummaryStrip({ phone = false }) {
   const {
     selectedDate, getTasksForDate, listEndOfDayTime,
     darkMode, textPrimary, textSecondary,
   } = useDayPlannerCtx();
 
   const [collapsed, setCollapsed] = useState(
-    () => collapsible && localStorage.getItem(COLLAPSE_KEY) !== '0',
+    () => phone && localStorage.getItem(COLLAPSE_KEY) !== '0',
   );
   const toggle = () => {
     setCollapsed((c) => {
@@ -66,20 +69,22 @@ export default function SummaryStrip({ collapsible = false }) {
   );
 
   return (
-    <div className="sticky bottom-0 z-30 px-2 pb-2 pointer-events-none">
-      {collapsible && collapsed ? (
+    <div className={`sticky bottom-0 z-30 pl-2 pb-2 pointer-events-none ${phone ? 'pr-20' : 'pr-2'}`}>
+      {phone && collapsed ? (
         <button onClick={toggle} className={`${pill} pointer-events-auto max-w-full text-xs`}>
           <ChevronUp size={13} className={`flex-shrink-0 ${textSecondary}`} />
           {unblockedLabel}
-          <span className={`truncate ${textSecondary}`}>· {formatShortDate(selectedDate)}</span>
         </button>
       ) : (
         <div className={`pointer-events-auto w-fit max-w-full flex items-center gap-1.5 overflow-x-auto text-xs ${darkMode ? 'dark-scrollbar' : ''}`}>
           {/* Day/date heading — pins which day the numbers describe, which the
-              multi-day desktop view otherwise leaves ambiguous. */}
-          <span className={pill}>
-            <span className={`font-medium ${textPrimary}`}>{formatShortDate(selectedDate)}</span>
-          </span>
+              multi-day desktop view otherwise leaves ambiguous. The phone
+              timeline shows exactly one day, so there it is dropped. */}
+          {!phone && (
+            <span className={pill}>
+              <span className={`font-medium ${textPrimary}`}>{formatShortDate(selectedDate)}</span>
+            </span>
+          )}
           <span className={pill}>{unblockedLabel}</span>
           {summary.categories.map((c) => (
             <span key={c.tag} className={pill}>
@@ -94,7 +99,7 @@ export default function SummaryStrip({ collapsible = false }) {
               <span className={textSecondary}>untagged {formatMinutes(summary.untaggedMinutes)}</span>
             </span>
           )}
-          {collapsible && (
+          {phone && (
             <button onClick={toggle} className={`${pill} ${textSecondary}`} aria-label="Collapse summary">
               <ChevronDown size={13} />
             </button>

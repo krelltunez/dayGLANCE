@@ -791,9 +791,10 @@ const MobileLayout = () => {
                   {mobileViewMode === 'list' && <MobileListView />}
                   {mobileViewMode === 'sched' && <SchedView />}
                   {/* Summary strip — sticky bottom of the timeline scroll
-                      container, so it sits above the tab bar. Collapsible on
-                      phone, where timeline vertical space is tightest. */}
-                  {mobileViewMode !== 'sched' && <SummaryStrip collapsible />}
+                      container, so it sits above the tab bar. Phone variant:
+                      collapsible (vertical space is tightest here), no date
+                      pill, and clearance for the new-task FAB. */}
+                  {mobileViewMode !== 'sched' && <SummaryStrip phone />}
                 </div>
 
                 {/* Mobile notes panel overlay for timeline tasks (including deadline tasks) */}
