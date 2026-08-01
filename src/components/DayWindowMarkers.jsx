@@ -7,8 +7,9 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 // to integrate with both the desktop and the phone drag systems.
 //
 // Dashed teal/indigo, deliberately distinct from the solid red current-time
-// line and from the GTD frame bands. Labels sit at the right edge, away from
-// the frame labels that occupy the left.
+// line and from the GTD frame bands. Labels sit centered on the line — both
+// along it and straddling it — clear of the frame labels (top-left) and the
+// current-time dot (left edge).
 
 const START_COLOR = '#14b8a6'; // teal-500
 const STOP_COLOR = '#6366f1'; // indigo-500
@@ -18,7 +19,7 @@ function MarkerLine({ topPx, color, label }) {
     <div className="absolute left-0 right-0 pointer-events-none z-[5]" style={{ top: `${topPx}px` }}>
       <div className="border-t-2 border-dashed" style={{ borderColor: color }} />
       <span
-        className="absolute right-1 -top-2 px-1 rounded text-[9px] font-semibold uppercase tracking-wide text-white"
+        className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 px-1 rounded text-[9px] font-semibold uppercase tracking-wide text-white"
         style={{ backgroundColor: color }}
       >
         {label}
