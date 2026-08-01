@@ -83,7 +83,17 @@ export default function useObsidianSync({
       nativeOpenNote(noteName);
       return;
     }
-    // Web/desktop: construct obsidian:// deep link using the vault folder name
+    // Electron: hand the note name to the main process, which builds the
+    // obsidian:// URL and opens it. The renderer's own window.open() below never
+    // works here — setWindowOpenHandler routes it to openExternalSafe, which
+    // only permits http/https — and `handle` is the shim from
+    // obsidianElectronHandle.js, whose name is the placeholder 'vault' rather
+    // than the real folder name. The main process has both capabilities.
+    if (window.electronAPI?.obsidian?.openNote) {
+      window.electronAPI.obsidian.openNote(noteName);
+      return;
+    }
+    // Web: construct obsidian:// deep link using the vault folder name
     const vaultName = handle.name;
     if (vaultName) {
       window.open(
