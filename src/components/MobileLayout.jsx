@@ -30,6 +30,7 @@ import MobileTabBar from './MobileTabBar.jsx';
 import MobileSettingsPanel from './MobileSettingsPanel.jsx';
 import GoalDashboard from './goals/GoalDashboard.jsx';
 import MobileTimeGrid from './MobileTimeGrid.jsx';
+import SummaryStrip from './SummaryStrip.jsx';
 import MobileAllDaySection from './MobileAllDaySection.jsx';
 import MobileBottomSheets from './MobileBottomSheets.jsx';
 import MobileGlanceSection from './MobileGlanceSection.jsx';
@@ -789,6 +790,10 @@ const MobileLayout = () => {
                   {mobileViewMode === 'grid' && <MobileTimeGrid />}
                   {mobileViewMode === 'list' && <MobileListView />}
                   {mobileViewMode === 'sched' && <SchedView />}
+                  {/* Summary strip — sticky bottom of the timeline scroll
+                      container, so it sits above the tab bar. Collapsible on
+                      phone, where timeline vertical space is tightest. */}
+                  {mobileViewMode !== 'sched' && <SummaryStrip collapsible />}
                 </div>
 
                 {/* Mobile notes panel overlay for timeline tasks (including deadline tasks) */}
