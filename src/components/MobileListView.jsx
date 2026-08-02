@@ -1181,12 +1181,22 @@ const MobileListView = ({ hideInboxHandle = false }) => {
       setTasks, setTodayRoutines, updateProject, dateStr, playUISound, setListDragTargetAllDay]);
 
   // ── Scroll to "now" on mount / date change ─────────────────────────────────
+  // The scroll container is SHARED with the grid view, whose 24h canvas is far
+  // taller than the list — a view switch inherits the grid's scrollTop, which
+  // the shorter list clamps to its bottom. So this must always normalize, not
+  // just when a dedicated now row exists: without one (a block is in progress,
+  // so the list STARTS with it — or another day, which starts at its first
+  // item), the top of the list already is "now" and 0 is the right target.
   useEffect(() => {
-    if (!isToday || !nowRowRef.current || !calendarRef?.current) return;
+    if (!calendarRef?.current) return;
     const timer = setTimeout(() => {
       const container = calendarRef.current;
-      const nowEl     = nowRowRef.current;
-      if (!container || !nowEl) return;
+      if (!container) return;
+      const nowEl = isToday ? nowRowRef.current : null;
+      if (!nowEl) {
+        container.scrollTo({ top: 0, behavior: 'auto' });
+        return;
+      }
       const cRect  = container.getBoundingClientRect();
       const nRect  = nowEl.getBoundingClientRect();
       const target = container.scrollTop + (nRect.top - cRect.top) - 32;
