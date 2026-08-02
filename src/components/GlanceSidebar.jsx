@@ -1,12 +1,14 @@
 import React, { useRef } from 'react';
 import {
-  AlertCircle, AlertTriangle, BookOpen, BrainCircuit,
+  AlarmClock, AlertCircle, AlertTriangle, BookOpen, BrainCircuit,
   Calendar, CalendarClock, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronUp, Clock, Filter, Flag, Hash, Inbox, LayoutGrid, Loader,
   Mic, Minus, Moon, Plus, RefreshCw, Search,
   Settings, Sparkles, Sun, Target, Telescope, Trash2, X, Zap,
 } from 'lucide-react';
 import { renderTitle } from '../utils/textFormatting.jsx';
+import { nativeGetNextAlarm } from '../native.js';
+import { nextAlarmWithinTomorrow, alarmHHMM } from '../utils/nextAlarm.js';
 import GoalRing from './GoalRing.jsx';
 import { dateToString, extractTags, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
 import { calculateGoalProgress } from '../utils/goalProgress.js';
@@ -1278,6 +1280,17 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     const committedH = Math.floor(committedMinutes / 60);
     const committedM = committedMinutes % 60;
     const committedStr = committedH > 0 ? `${committedH}h${committedM > 0 ? ` ${committedM}m` : ''}` : committedM > 0 ? `${committedM}m` : null;
+    // Device's next alarm clock (Android bridge; null everywhere else — iOS
+    // has no API for Clock alarms, and desktop/tray have no bridge). Read per
+    // render: this section re-renders every minute via currentTime, so the
+    // line tracks alarm edits without any subscription machinery.
+    const alarmMs = nextAlarmWithinTomorrow(currentTime.getTime(), nativeGetNextAlarm());
+    const alarmLine = alarmMs ? (
+      <div className="flex items-center gap-2">
+        <AlarmClock size={13} className={textSecondary} />
+        <span className={`text-sm ${textPrimary}`}>Alarm at <span className="font-medium">{formatTime(alarmHHMM(alarmMs))}</span></span>
+      </div>
+    ) : null;
     const handleGlanceAheadClick = () => {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -1297,9 +1310,13 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
           </span>
         </div>
         {isEmpty ? (
-          <p className={`text-sm ${textSecondary} italic`}>{t('app.tomorrowWideOpen')}</p>
+          <div className="space-y-1">
+            <p className={`text-sm ${textSecondary} italic`}>{t('app.tomorrowWideOpen')}</p>
+            {alarmLine}
+          </div>
         ) : (
           <div className="space-y-1">
+            {alarmLine}
             {firstStartTime && (
               <div className="flex items-center gap-2">
                 <Clock size={13} className={textSecondary} />
