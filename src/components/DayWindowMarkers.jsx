@@ -23,7 +23,13 @@ function MarkerLine({ topPx, color, label, onOpenMenu }) {
           reachable. Dragging is deliberately not offered; the popover is the
           editor until real use proves drag is worth its integration cost. */}
       <button
-        onClick={onOpenMenu}
+        onClick={(e) => {
+          // The chip sits inside a grid column whose own onClick opens the
+          // new-task form at the tapped time — without stopping propagation a
+          // chip tap opened BOTH the popover and that modal.
+          e.stopPropagation();
+          onOpenMenu();
+        }}
         className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 px-1 rounded text-[9px] font-semibold uppercase tracking-wide text-white pointer-events-auto cursor-pointer"
         style={{ backgroundColor: color }}
       >

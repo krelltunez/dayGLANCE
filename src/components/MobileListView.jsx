@@ -538,6 +538,14 @@ function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minute
             <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', marginLeft: -1, width: 2, background: dashedGradient(spineColour), zIndex: 2, pointerEvents: 'none' }} />
           </>
         )}
+        {/* The spine ends AT the end-of-day line: occlude everything below it
+            in this row (the global line runs unbroken behind all rows, and the
+            trail deliberately extends past eod for breathing room — without
+            this the tail reads as connecting to whatever sits below the list,
+            e.g. the summary strip). Same local-erasure pattern as MarkerHalo. */}
+        {eodFrac !== null && pageBg && (
+          <div style={{ position: 'absolute', top: `${eodFrac * 100}%`, bottom: 0, left: '50%', marginLeft: -1, width: 2, background: pageBg, zIndex: 3, pointerEvents: 'none' }} />
+        )}
         {eodFrac !== null && (
           <div style={{
             position: 'absolute', top: `${eodFrac * 100}%`, left: 0, right: 0,
