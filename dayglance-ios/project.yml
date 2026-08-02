@@ -34,6 +34,9 @@ targets:
       - path: DayGlance
         excludes:
           - Resources/web/**
+      # ActivityKit attributes shared with the widget extension (the app
+      # starts/updates the Live Activity; the extension renders it).
+      - path: Shared
     dependencies:
       - package: RevenueCat
         product: RevenueCat
@@ -83,6 +86,8 @@ targets:
         CFBundleDisplayName: dayGLANCE
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # Day-summary Live Activity (Dynamic Island + lock screen).
+        NSSupportsLiveActivities: true
         UILaunchScreen:
           UIColorName: "LaunchBackground"
           UIImageName: "LaunchImage"
@@ -149,6 +154,7 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: DayGlanceWidget
+      - path: Shared
     entitlements:
       path: DayGlanceWidget/DayGlanceWidget.entitlements
       properties:

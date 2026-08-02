@@ -14,6 +14,11 @@ final class WidgetBridge {
               let defaults = UserDefaults(suiteName: "group.com.dayglance.app") else { return }
         defaults.set(data, forKey: "widgetSnapshot")
         WidgetCenter.shared.reloadAllTimelines()
+        // Same JSON drives the day-summary Live Activity — one entry point,
+        // no separate JS bridge call to keep in sync.
+        if #available(iOS 16.2, *) {
+            LiveActivityBridge.shared.sync(fromSnapshotJSON: json)
+        }
     }
 
     func getPendingAction() -> String {
