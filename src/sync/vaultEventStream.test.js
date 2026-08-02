@@ -26,27 +26,33 @@ import {
 //     unit-tested below by faking window.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Frame-level tests use the server's REAL wire blocks: named events `ready`
+// (once per successful connection) and `activity` (seq advanced), data exactly
+// {"seq":N}, comment-line heartbeats. There is no kind/scope field on the wire.
 describe('parseSseFrame', () => {
-  it('parses a data: line as JSON into {seq, kind}', () => {
-    expect(parseSseFrame('data: {"seq":5,"kind":"sync"}')).toEqual({ seq: 5, kind: 'sync' });
+  it('parses a real ready frame — the event name is ignored, data is the contract', () => {
+    expect(parseSseFrame('event: ready\ndata: {"seq":3}')).toEqual({ seq: 3 });
+  });
+
+  it('parses a real activity frame', () => {
+    expect(parseSseFrame('event: activity\ndata: {"seq":7}')).toEqual({ seq: 7 });
   });
 
   it('ignores heartbeat/comment lines (leading colon) → null', () => {
-    expect(parseSseFrame(': keep-alive')).toBeNull();
+    expect(parseSseFrame(': heartbeat')).toBeNull();
   });
 
-  it('ignores event:/id: fields and reads only data:', () => {
-    const block = 'event: intents\nid: 9\ndata: {"seq":9,"kind":"intents"}';
-    expect(parseSseFrame(block)).toEqual({ seq: 9, kind: 'intents' });
+  it('tolerates id:/retry: fields the server never sends today (SSE-spec hygiene)', () => {
+    const block = 'event: activity\nid: 9\nretry: 3000\ndata: {"seq":9}';
+    expect(parseSseFrame(block)).toEqual({ seq: 9 });
   });
 
   it('concatenates multiple data: lines before JSON.parse', () => {
-    const block = 'data: {"seq":3,\ndata: "kind":"connected"}';
-    expect(parseSseFrame(block)).toEqual({ seq: 3, kind: 'connected' });
+    expect(parseSseFrame('data: {"seq":\ndata: 3}')).toEqual({ seq: 3 });
   });
 
   it('returns null for a block with no data', () => {
-    expect(parseSseFrame('event: ping')).toBeNull();
+    expect(parseSseFrame('event: ready')).toBeNull();
   });
 
   it('returns null for unparseable data', () => {
@@ -58,23 +64,23 @@ describe('drainSseBuffer', () => {
   it('emits complete frames and returns the partial remainder', () => {
     const events = [];
     const rest = drainSseBuffer(
-      'data: {"seq":1,"kind":"sync"}\n\ndata: {"seq":2,"kind":"intents"}\n\ndata: {"seq":3',
+      'event: ready\ndata: {"seq":1}\n\nevent: activity\ndata: {"seq":2}\n\nevent: activity\ndata: {"seq":3',
       (e) => events.push(e),
     );
-    expect(events).toEqual([{ seq: 1, kind: 'sync' }, { seq: 2, kind: 'intents' }]);
-    expect(rest).toBe('data: {"seq":3'); // partial frame carried forward
+    expect(events).toEqual([{ seq: 1 }, { seq: 2 }]);
+    expect(rest).toBe('event: activity\ndata: {"seq":3'); // partial frame carried forward
   });
 
   it('normalizes CRLF frame boundaries', () => {
     const events = [];
-    drainSseBuffer('data: {"seq":7,"kind":"sync"}\r\n\r\n', (e) => events.push(e));
-    expect(events).toEqual([{ seq: 7, kind: 'sync' }]);
+    drainSseBuffer('event: activity\r\ndata: {"seq":7}\r\n\r\n', (e) => events.push(e));
+    expect(events).toEqual([{ seq: 7 }]);
   });
 
   it('skips heartbeat frames', () => {
     const events = [];
-    const rest = drainSseBuffer(': hb\n\ndata: {"seq":4,"kind":"sync"}\n\n', (e) => events.push(e));
-    expect(events).toEqual([{ seq: 4, kind: 'sync' }]);
+    const rest = drainSseBuffer(': heartbeat\n\nevent: activity\ndata: {"seq":4}\n\n', (e) => events.push(e));
+    expect(events).toEqual([{ seq: 4 }]);
     expect(rest).toBe('');
   });
 });
@@ -110,9 +116,10 @@ describe('detectSseTransport', () => {
   });
 
   it('stays native-unsupported when the shell fabricates methods but the probe is not true (iOS Proxy)', () => {
-    // Mirrors iOS's Proxy bridge: every method name resolves to a function, but the
-    // unimplemented capability probe replies with the string "null" — not true — so
-    // iOS keeps polling until its native reader ships.
+    // Mirrors the iOS Proxy bridge PATTERN: every method name resolves to a
+    // function, so mere presence proves nothing. An unimplemented capability
+    // probe replies the string "null" — not true — so a shell without a real
+    // reader (an older build, or a stub) stays on polling.
     global.window = {
       DayGlanceNative: new Proxy({ httpRequest: () => {} }, {
         get(target, prop) {
@@ -142,27 +149,28 @@ describe('createNudgeCoalescer — seq cursor + debounce', () => {
     const onDrain = vi.fn();
     const c = createNudgeCoalescer({ onDrain, debounceMs: 100 });
 
-    expect(c.handleEvent({ seq: 5, kind: 'sync' })).toBe(true); // ahead → act
-    expect(c.handleEvent({ seq: 5, kind: 'sync' })).toBe(false); // equal → ignore
-    expect(c.handleEvent({ seq: 4, kind: 'sync' })).toBe(false); // behind → ignore
+    expect(c.handleEvent({ seq: 5 })).toBe(true); // ahead → act
+    expect(c.handleEvent({ seq: 5 })).toBe(false); // equal → ignore
+    expect(c.handleEvent({ seq: 4 })).toBe(false); // behind → ignore
 
     vi.advanceTimersByTime(100);
-    expect(onDrain).toHaveBeenCalledTimes(1);
-    expect(onDrain).toHaveBeenCalledWith('sync');
+    // The wire carries no scope, and the shared account counter means none could
+    // safely narrow a drain → every accepted nudge drains BOTH sides.
+    expect(onDrain.mock.calls.map((a) => a[0])).toEqual(['sync', 'intents']);
   });
 
-  it('coalesces a rapid burst of nudges into a single drain', () => {
+  it('coalesces a rapid burst of nudges into a single drain pair', () => {
     const onDrain = vi.fn();
     const c = createNudgeCoalescer({ onDrain, debounceMs: 100 });
 
-    c.handleEvent({ seq: 1, kind: 'sync' });
-    c.handleEvent({ seq: 2, kind: 'sync' });
-    c.handleEvent({ seq: 3, kind: 'sync' });
+    c.handleEvent({ seq: 1 });
+    c.handleEvent({ seq: 2 });
+    c.handleEvent({ seq: 3 });
     vi.advanceTimersByTime(50); // still within debounce
-    c.handleEvent({ seq: 4, kind: 'sync' });
+    c.handleEvent({ seq: 4 });
     vi.advanceTimersByTime(100);
 
-    expect(onDrain).toHaveBeenCalledTimes(1); // one drain for the whole burst
+    expect(onDrain).toHaveBeenCalledTimes(2); // ONE sync + ONE intents for the whole burst
     expect(c.getCursor()).toBe(4);
   });
 
@@ -170,31 +178,29 @@ describe('createNudgeCoalescer — seq cursor + debounce', () => {
     const onDrain = vi.fn();
     const c = createNudgeCoalescer({ onDrain, debounceMs: 400 });
 
-    c.handleEvent({ seq: 1, kind: 'sync' });
+    c.handleEvent({ seq: 1 });
     vi.advanceTimersByTime(400);
-    expect(onDrain).toHaveBeenCalledTimes(1); // fired at the debounce, no 5s throttle
+    expect(onDrain).toHaveBeenCalledTimes(2); // fired at the debounce, no 5s throttle
 
     // A second real change a moment later drains again promptly — not withheld for
     // any multi-second throttle window.
-    c.handleEvent({ seq: 2, kind: 'sync' });
+    c.handleEvent({ seq: 2 });
     vi.advanceTimersByTime(400);
-    expect(onDrain).toHaveBeenCalledTimes(2);
+    expect(onDrain).toHaveBeenCalledTimes(4);
   });
 
-  it("routes kind to the matching drain; a 'sync' nudge does not drain intents", () => {
+  it('drains sync BEFORE intents on every flush (deterministic order)', () => {
     const onDrain = vi.fn();
     const c = createNudgeCoalescer({ onDrain, debounceMs: 100 });
-    c.handleEvent({ seq: 10, kind: 'sync' });
+    c.handleEvent({ seq: 10 });
     vi.advanceTimersByTime(100);
-    expect(onDrain).toHaveBeenCalledTimes(1);
-    expect(onDrain).toHaveBeenCalledWith('sync');
-    expect(onDrain).not.toHaveBeenCalledWith('intents');
+    expect(onDrain.mock.calls.map((a) => a[0])).toEqual(['sync', 'intents']);
   });
 
-  it("drains BOTH on a 'connected' reconcile and on unknown kinds", () => {
+  it('the ready reconcile frame is just a nudge — an advanced seq drains both sides', () => {
     const onDrain = vi.fn();
     const c = createNudgeCoalescer({ onDrain, debounceMs: 100 });
-    c.handleEvent({ seq: 20, kind: 'connected' });
+    c.handleEvent({ seq: 20 }); // ready delivers {"seq":N} like any activity frame
     vi.advanceTimersByTime(100);
     expect(onDrain.mock.calls.map((a) => a[0])).toEqual(['sync', 'intents']);
   });
@@ -203,13 +209,13 @@ describe('createNudgeCoalescer — seq cursor + debounce', () => {
     const onDrain = vi.fn(() => { throw new Error('boom'); });
     const onDrainError = vi.fn();
     const c = createNudgeCoalescer({ onDrain, onDrainError, debounceMs: 50 });
-    c.handleEvent({ seq: 1, kind: 'sync' });
+    c.handleEvent({ seq: 1 });
     expect(() => vi.advanceTimersByTime(50)).not.toThrow();
-    expect(onDrainError).toHaveBeenCalled();
+    expect(onDrainError).toHaveBeenCalledTimes(2); // both throwing drains surfaced
     // A later nudge still acts — the coalescer self-heals.
-    c.handleEvent({ seq: 2, kind: 'intents' });
+    c.handleEvent({ seq: 2 });
     vi.advanceTimersByTime(50);
-    expect(onDrain).toHaveBeenCalledTimes(2);
+    expect(onDrain).toHaveBeenCalledTimes(4);
   });
 });
 
@@ -276,8 +282,8 @@ describe('createVaultEventClient — lifecycle, reconnect, reconcile', () => {
     });
     client.start();
     expect(s.calls).toHaveLength(1);
-    s.push({ seq: 1, kind: 'sync' });
-    expect(events).toEqual([{ seq: 1, kind: 'sync' }]);
+    s.push({ seq: 1 });
+    expect(events).toEqual([{ seq: 1 }]);
     client.stop();
   });
 
@@ -296,8 +302,9 @@ describe('createVaultEventClient — lifecycle, reconnect, reconcile', () => {
     });
 
     client.start();
-    // First connect: server reports current account seq 5 → reconcile drains both.
-    s.calls[0].onEvent({ seq: 5, kind: 'connected' });
+    // First connect: the server's `ready` frame reports account seq 5 →
+    // reconcile drains both.
+    s.calls[0].onEvent({ seq: 5 });
     vi.advanceTimersByTime(10);
     expect(onDrain).toHaveBeenCalledTimes(2); // sync + intents
     onDrain.mockClear();
@@ -312,7 +319,7 @@ describe('createVaultEventClient — lifecycle, reconnect, reconcile', () => {
     await Promise.resolve(); await Promise.resolve();
     expect(s.calls.length).toBeGreaterThanOrEqual(2);
     const reconnected = s.calls[s.calls.length - 1];
-    reconnected.onEvent({ seq: 7, kind: 'connected' }); // catches the missed change
+    reconnected.onEvent({ seq: 7 }); // fresh ready seq catches the missed change
     vi.advanceTimersByTime(10);
     expect(onDrain).toHaveBeenCalledTimes(2); // reconcile drain on reconnect
 
@@ -449,9 +456,9 @@ describe('createVaultEventClient — lifecycle, reconnect, reconcile', () => {
 describe('openWebSseStream — web fetch-stream path', () => {
   it('sets the Bearer header + accountId, and pumps parsed frames', async () => {
     const chunks = [
-      'data: {"seq":1,"kind":"connected"}\n\n',
+      'event: ready\ndata: {"seq":1}\n\n',
       ': heartbeat\n\n',
-      'data: {"seq":2,"kind":"sync"}\n\n',
+      'event: activity\ndata: {"seq":2}\n\n',
     ];
     let i = 0;
     const reader = {
@@ -478,7 +485,7 @@ describe('openWebSseStream — web fetch-stream path', () => {
     expect(capturedInit.headers.Authorization).toBe('Bearer tok-9');
     expect(capturedInit.headers.Accept).toBe('text/event-stream');
     expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(events).toEqual([{ seq: 1, kind: 'connected' }, { seq: 2, kind: 'sync' }]);
+    expect(events).toEqual([{ seq: 1 }, { seq: 2 }]);
   });
 
   it('throws on a non-OK response so the client reconnects (never a silent hang)', async () => {
@@ -532,11 +539,11 @@ describe('createBridgeSseClient — native bridge-fed transport', () => {
       onEvent: (e) => events.push(e),
     });
     // native pushes a raw SSE block (its transport did frame-boundary detection).
-    client.receive({ type: 'frame', block: 'data: {"seq":11,"kind":"sync"}' });
+    client.receive({ type: 'frame', block: 'event: activity\ndata: {"seq":11}' });
     // heartbeat/comment block → parseSseFrame returns null → ignored.
-    client.receive({ type: 'frame', block: ': keep-alive' });
-    client.receive({ type: 'frame', block: 'data: {"seq":12,"kind":"intents"}' });
-    expect(events).toEqual([{ seq: 11, kind: 'sync' }, { seq: 12, kind: 'intents' }]);
+    client.receive({ type: 'frame', block: ': heartbeat' });
+    client.receive({ type: 'frame', block: 'event: activity\ndata: {"seq":12}' });
+    expect(events).toEqual([{ seq: 11 }, { seq: 12 }]);
   });
 
   it('END-TO-END: a pushed frame drives the EXISTING coalescer → drain (reconnect-reconcile too)', () => {
@@ -549,17 +556,16 @@ describe('createBridgeSseClient — native bridge-fed transport', () => {
     });
     client.start();
 
-    // A real sync change nudged in from native → sync drain.
-    client.receive({ type: 'frame', block: 'data: {"seq":1,"kind":"sync"}' });
+    // A real change nudged in from native → both drains (nudges carry no scope).
+    client.receive({ type: 'frame', block: 'event: activity\ndata: {"seq":1}' });
     vi.advanceTimersByTime(10);
-    expect(onDrain).toHaveBeenCalledTimes(1);
-    expect(onDrain).toHaveBeenCalledWith('sync');
+    expect(onDrain.mock.calls.map((a) => a[0])).toEqual(['sync', 'intents']);
     onDrain.mockClear();
 
-    // Native reconnects → server's initial 'connected' frame arrives here →
-    // reconcile drains BOTH (catches anything missed while the socket was down).
+    // Native reconnects → the server's `ready` frame arrives here → reconcile
+    // drains BOTH (catches anything missed while the socket was down).
     client.receive({ type: 'open' }); // informational
-    client.receive({ type: 'frame', block: 'data: {"seq":5,"kind":"connected"}' });
+    client.receive({ type: 'frame', block: 'event: ready\ndata: {"seq":5}' });
     vi.advanceTimersByTime(10);
     expect(onDrain).toHaveBeenCalledTimes(2); // sync + intents
     vi.useRealTimers();
@@ -571,12 +577,12 @@ describe('createBridgeSseClient — native bridge-fed transport', () => {
       getConnection: () => conn, startNative: () => {}, stopNative: () => {},
       onEvent: (e) => events.push(e),
     });
-    client.receive(JSON.stringify({ type: 'frame', block: 'data: {"seq":3,"kind":"sync"}' }));
+    client.receive(JSON.stringify({ type: 'frame', block: 'event: activity\ndata: {"seq":3}' }));
     // Malformed pushes must never throw.
     expect(() => client.receive('not json')).not.toThrow();
     expect(() => client.receive(null)).not.toThrow();
     expect(() => client.receive({ type: 'frame' })).not.toThrow(); // no block
-    expect(events).toEqual([{ seq: 3, kind: 'sync' }]);
+    expect(events).toEqual([{ seq: 3 }]);
   });
 
   it('routes lifecycle messages to onStateChange (open/closed/error)', () => {
