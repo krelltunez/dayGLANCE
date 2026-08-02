@@ -85,6 +85,7 @@ import useVoiceInput from './hooks/useVoiceInput.js';
 import useCloudSync from './hooks/useCloudSync.js';
 import { createDayGlanceEngine } from './sync/adapter.js';
 import { createDbEngine, resetVaultSyncCursor } from './sync/dbEngine.js';
+import { deriveBlockEnergy } from './utils/energyAxis.js';
 import { registerDbEngine } from './sync/dirtyTracker.js';
 import { isVaultEnabled } from './sync/vaultConfig.js';
 import { keepImportedTask } from './sync/payloadExclusions.js';
@@ -1393,6 +1394,9 @@ const DayPlanner = () => {
   // summary strip measures unblocked time against them and the grids render
   // them as marker lines. See src/hooks/useDayWindows.js.
   const { getDayWindow, setDayWindow, clearDayWindow } = useDayWindows();
+  // Day-window menu visibility lives here (not in SummaryStrip) so the START/
+  // END marker chips on the grid can open the same popover the strip owns.
+  const [dayWindowMenuOpen, setDayWindowMenuOpen] = useState(false);
 
   const { pendingPriorities, cyclePriority, getDeadlineTasksForDate } = useDeadlinePriority({
     unscheduledTasks,
@@ -2823,6 +2827,10 @@ const DayPlanner = () => {
           isAllDay: true,
           notes: template.notes || '',
           subtasks: template.subtasks || [],
+          // Energy-axis override is series-level (see setTaskEnergy); the
+          // expansion is an explicit field list, so it must be carried here or
+          // instances silently fall back to auto-derivation.
+          energy: template.energy,
           date: dateStr,
           isRecurring: true,
           recurringTemplateId: template.id,
@@ -5799,6 +5807,10 @@ const DayPlanner = () => {
           assignedUserSyncIds: exception?.assignedUserSyncIds ?? template.assignedUserSyncIds,
           notes: template.notes || '',
           subtasks: template.subtasks || [],
+          // Energy-axis override is series-level (see setTaskEnergy); the
+          // expansion is an explicit field list, so it must be carried here or
+          // instances silently fall back to auto-derivation.
+          energy: template.energy,
           date: dateStr,
           isRecurring: true,
           recurringTemplateId: template.id,
@@ -6429,6 +6441,7 @@ const DayPlanner = () => {
     openNewTaskForm,
     openNewInboxTask,
     changeTaskColor,
+    setTaskEnergy,
     updateTaskNotes,
     updateRecurringTemplate,
     updateRecurrencePattern,
@@ -8236,6 +8249,7 @@ const DayPlanner = () => {
     openFrameAdjust, openFrameSchedule, saveFrameAdjust,
     getFrameInstancesForDate,
     getDayWindow, setDayWindow, clearDayWindow,
+    dayWindowMenuOpen, setDayWindowMenuOpen,
     runSmartSchedule, applySmartSchedule,
     runReschedule, applyReschedule,
     computeAvailableSlots,
@@ -9487,11 +9501,12 @@ const DayPlanner = () => {
         const hasMoveInbox = !isRecurring && !isImported && !isAllDay && !isInbox;
         const hasComplete = !isImported || isTaskCalendar;
         const hasDelete = !isImported;
+        const hasEnergy = !isImported;
         if (!hasEdit && !hasNotes && !hasMoveTomorrow && !hasMoveInbox && !hasComplete && !hasDelete) return null;
         // Clamp menu position to stay within viewport
         const menuWidth = 180;
         const menuItemHeight = 36;
-        const menuItems = [hasEdit, hasNotes, hasMoveTomorrow, hasMoveInbox, hasComplete, hasDelete].filter(Boolean).length;
+        const menuItems = [hasEdit, hasNotes, hasEnergy, hasMoveTomorrow, hasMoveInbox, hasComplete, hasDelete].filter(Boolean).length;
         const menuHeight = menuItems * menuItemHeight + 8;
         const clampedX = Math.min(x, window.innerWidth - menuWidth - 8);
         const clampedY = Math.min(y, window.innerHeight - menuHeight - 8);
@@ -9540,6 +9555,25 @@ const DayPlanner = () => {
                   Notes / subtasks
                 </button>
               )}
+              {/* Energy-axis override (summary strip): cycles auto → Restore →
+                  Effort → auto. The label always names the CURRENT state, with
+                  the auto-derived value shown so the user knows what "Auto"
+                  resolves to before deciding to override it. */}
+              {hasEnergy && (() => {
+                const override = ctxTask?.energy === 'restore' || ctxTask?.energy === 'effort' ? ctxTask.energy : null;
+                const derived = ctxTask ? deriveBlockEnergy(ctxTask) : 'effort';
+                const pretty = (e) => (e === 'restore' ? 'Restore' : 'Effort');
+                const next = override === null ? 'restore' : override === 'restore' ? 'effort' : null;
+                return (
+                  <button
+                    className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
+                    onClick={() => { setTaskEnergy(taskId, next, isInbox); setTaskContextMenu(null); }}
+                  >
+                    <Zap size={14} />
+                    {override ? `Energy: ${pretty(override)}` : `Energy: Auto (${pretty(derived)})`}
+                  </button>
+                );
+              })()}
               {!isImported && aiConfig?.enabled && aiConfig.features?.aiSubtasks && (
                 <button
                   className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}

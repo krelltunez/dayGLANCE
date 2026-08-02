@@ -790,11 +790,13 @@ const MobileLayout = () => {
                   {mobileViewMode === 'grid' && <MobileTimeGrid />}
                   {mobileViewMode === 'list' && <MobileListView />}
                   {mobileViewMode === 'sched' && <SchedView />}
-                  {/* Summary strip — sticky bottom of the timeline scroll
-                      container, so it sits above the tab bar. Phone variant:
-                      collapsible (vertical space is tightest here), no date
-                      pill, and clearance for the new-task FAB. */}
-                  {mobileViewMode !== 'sched' && <SummaryStrip phone />}
+                  {/* Summary strip. Phone variant: collapsible, no date pill,
+                      FAB clearance. GRID floats it sticky over the timeline;
+                      LIST places it statically after the day's content — a
+                      sticky overlay there reads as an extension of the list's
+                      spine, so it sits below the day as its own element. */}
+                  {mobileViewMode === 'grid' && <SummaryStrip phone />}
+                  {mobileViewMode === 'list' && <SummaryStrip phone staticPlacement />}
                 </div>
 
                 {/* Mobile notes panel overlay for timeline tasks (including deadline tasks) */}
