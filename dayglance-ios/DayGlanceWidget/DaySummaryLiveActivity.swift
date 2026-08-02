@@ -2,24 +2,38 @@ import ActivityKit
 import WidgetKit
 import SwiftUI
 
-// Day-summary Live Activity: the summary strip's four numbers on the lock
-// screen and in the Dynamic Island. Pure metadata plane — four short strings,
-// no media — rendered from ContentState pushed by the app's
-// LiveActivityBridge; this extension never reads the App Group or computes
-// anything.
+// Day-summary Live Activity: schedule facts in the Dynamic Island, the
+// summary strip's numbers on the lock screen. Pure metadata plane — short
+// strings and a countdown interval, no media — rendered from ContentState
+// pushed by the app's LiveActivityBridge; this extension never reads the App
+// Group or computes anything.
 //
-// Iconography mirrors the in-app strip: bolt (lucide Zap) for Effort, leaf for
-// Restore, in the same indigo/green family. System colors are used rather than
-// exact hexes so the island adapts to its always-dark rendering correctly.
+// The island leads with the current-or-next block ("Deep work until 2:00 PM")
+// plus a live countdown. The countdown is Text(timerInterval:) — the OS ticks
+// it every second with no updates and no pushes, so the most glanceable
+// element is also the one that can never go stale. The labels are phrased as
+// schedule facts that stay true after a boundary passes; `context.isStale`
+// dims everything else instead of presenting old state as current.
 //
-// Staleness: the bridge sets a staleDate on every update. When the app hasn't
-// refreshed the numbers (completions made on another device sync in only when
-// the iOS app next wakes), `context.isStale` dims the content instead of
-// presenting old numbers as current — honesty over polish.
+// Iconography mirrors the in-app strip: bolt (lucide Zap) for Effort, leaf
+// for Restore, in the same indigo/green family. System colors are used rather
+// than exact hexes so the island adapts to its always-dark rendering.
 
 private let effortColor = Color.indigo
 private let restoreColor = Color.green
 private let unblockedColor = Color.teal
+
+// The live countdown: the OS renders the remaining time in the interval,
+// showing 0:00 once it has passed (next to a label that is still factual).
+// Falls back to the given string when there is no interval to count.
+@ViewBuilder
+private func countdownText(_ state: DaySummaryAttributes.ContentState, fallback: String) -> some View {
+    if let start = state.countdownStart, let end = state.countdownEnd, start < end {
+        Text(timerInterval: start...end, countsDown: true)
+    } else {
+        Text(fallback)
+    }
+}
 
 struct DaySummaryLiveActivity: Widget {
     var body: some WidgetConfiguration {
@@ -33,20 +47,28 @@ struct DaySummaryLiveActivity: Widget {
                 // ── Expanded ─────────────────────────────────────────────
                 DynamicIslandExpandedRegion(.leading) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(context.state.unblocked)
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(unblockedColor)
-                        Text("unblocked")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        Text(context.state.blockTitle ?? "No more blocks today")
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(2)
+                        if let time = context.state.blockTime {
+                            Text(time)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .padding(.leading, 4)
+                    .opacity(context.isStale ? 0.55 : 1)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(context.state.done)
+                        countdownText(context.state, fallback: context.state.done)
                             .font(.title3.weight(.semibold))
-                        Text("done")
+                            .monospacedDigit()
+                            .foregroundStyle(unblockedColor)
+                            .frame(maxWidth: 72)
+                            .multilineTextAlignment(.trailing)
+                        Text(context.state.blockTitle == nil ? "done"
+                             : context.state.inProgress ? "remaining" : "starts in")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -54,6 +76,9 @@ struct DaySummaryLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack(spacing: 14) {
+                        Label("\(context.state.done) done", systemImage: "checkmark.circle")
+                            .foregroundStyle(.secondary)
+                        Spacer()
                         Label(context.state.effort, systemImage: "bolt.fill")
                             .foregroundStyle(effortColor)
                         Label(context.state.restore, systemImage: "leaf.fill")
@@ -67,9 +92,12 @@ struct DaySummaryLiveActivity: Widget {
                 Image(systemName: "hourglass")
                     .foregroundStyle(unblockedColor)
             } compactTrailing: {
-                Text(context.state.unblocked)
+                countdownText(context.state, fallback: context.state.done)
                     .font(.caption2.weight(.semibold))
+                    .monospacedDigit()
                     .foregroundStyle(unblockedColor)
+                    .frame(maxWidth: 56)
+                    .multilineTextAlignment(.trailing)
                     .opacity(context.isStale ? 0.5 : 1)
             } minimal: {
                 Image(systemName: "hourglass")

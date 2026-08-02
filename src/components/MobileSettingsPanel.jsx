@@ -46,6 +46,7 @@ const MobileSettingsPanel = () => {
     darkMode, setDarkMode,
     mobileSettingsView, setMobileSettingsView,
     use24HourClock, setUse24HourClock,
+    liveActivityEnabled, setLiveActivityEnabled,
     inboxAutoArchiveDays, setInboxAutoArchiveDays,
     weekStartDay, setWeekStartDay,
     homeTimezone, setHomeTimezone,
@@ -864,6 +865,30 @@ const MobileSettingsPanel = () => {
         </div>
         <span className={`text-sm ${textPrimary}`}>{t('settings.enableReminders')}</span>
       </label>
+
+      {/* Live Activity (iOS only) — opt-in, default off: the compact island
+          hides the cellular/wifi status icons, so it has to be a choice. */}
+      {isIOSApp && (
+        <label className="flex items-center gap-3 cursor-pointer">
+          <div className="relative">
+            <input
+              type="checkbox"
+              checked={liveActivityEnabled}
+              onChange={(e) => setLiveActivityEnabled(e.target.checked)}
+              className="sr-only"
+            />
+            <div className={`w-10 h-6 rounded-full transition-colors ${liveActivityEnabled ? 'bg-blue-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+              <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${liveActivityEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+            </div>
+          </div>
+          <div>
+            <span className={`text-sm ${textPrimary}`}>Live Activity</span>
+            <p className={`text-xs ${textSecondary}`}>
+              Today's plan in the Dynamic Island and on the Lock Screen. Widens the island, which hides the signal icons next to the clock.
+            </p>
+          </div>
+        </label>
+      )}
 
       {reminderSettings.enabled && (
         <div className="space-y-4">
