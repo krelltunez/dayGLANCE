@@ -41,7 +41,10 @@ describe('computeDaySummary — scope rules', () => {
 
   it('counts completed blocks — completing a meeting does not un-spend the hour', () => {
     const s = computeDaySummary([block('09:00', 60, '#work', { completed: true })]);
-    expect(s.categories).toEqual([{ tag: 'work', minutes: 60, colorHex: '#3b82f6' }]);
+    expect(s.categories).toEqual([{
+      tag: 'work', minutes: 60, colorHex: '#3b82f6',
+      doneMinutes: 60, completableMinutes: 60,
+    }]);
     expect(s.blockedMinutes).toBe(60);
   });
 });
@@ -136,6 +139,60 @@ describe('computeDaySummary — unblocked time', () => {
     const s = computeDaySummary([block('21:00', 120, 'late')], '22:00');
     expect(s.windowEndMin).toBe(23 * 60);
     expect(s.unblockedMinutes).toBe(0);
+  });
+});
+
+describe('computeDaySummary — planned vs done', () => {
+  it('sums done minutes per category from completion state', () => {
+    const s = computeDaySummary([
+      block('09:00', 90, 'Deep block #work', { completed: true }),
+      block('11:00', 60, 'Emails #work'),
+      block('12:00', 30, 'Walk #health', { completed: true }),
+    ]);
+    const work = s.categories.find((c) => c.tag === 'work');
+    expect(work.doneMinutes).toBe(90);
+    expect(work.completableMinutes).toBe(150);
+    expect(s.doneMinutes).toBe(120);
+    expect(s.completableMinutes).toBe(180);
+  });
+
+  it('read-only calendar events are fixtures: excluded from BOTH sides of the metric', () => {
+    // A native event can never be completed; counting it would permanently
+    // depress the done fraction. It still counts toward the category total.
+    const s = computeDaySummary([
+      block('09:00', 60, 'Standup #work', { imported: true, _native: true }),
+      block('10:00', 60, 'Prep #work', { completed: true }),
+    ]);
+    const work = s.categories.find((c) => c.tag === 'work');
+    expect(work.minutes).toBe(120);           // total keeps the fixture
+    expect(work.completableMinutes).toBe(60); // the metric does not
+    expect(work.doneMinutes).toBe(60);
+    expect(s.completableMinutes).toBe(60);
+  });
+
+  it('task-calendar to-dos CAN complete, so they are in the metric', () => {
+    const s = computeDaySummary([
+      block('09:00', 30, 'Errand', { imported: true, isTaskCalendar: true, completed: true }),
+    ]);
+    expect(s.doneMinutes).toBe(30);
+    expect(s.completableMinutes).toBe(30);
+  });
+
+  it('tracks the untagged bucket with the same rules', () => {
+    const s = computeDaySummary([
+      block('09:00', 45, 'errands', { completed: true }),
+      block('10:00', 30, 'more errands'),
+      block('11:00', 60, 'Dentist', { imported: true, _native: true }),
+    ]);
+    expect(s.untaggedMinutes).toBe(135);
+    expect(s.untaggedDoneMinutes).toBe(45);
+    expect(s.untaggedCompletableMinutes).toBe(75);
+  });
+
+  it('a day with nothing done reports zero done, full completable', () => {
+    const s = computeDaySummary([block('09:00', 60, '#work')]);
+    expect(s.doneMinutes).toBe(0);
+    expect(s.completableMinutes).toBe(60);
   });
 });
 

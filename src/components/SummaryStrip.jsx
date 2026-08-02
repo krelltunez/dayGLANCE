@@ -242,19 +242,31 @@ export default function SummaryStrip({ phone = false, staticPlacement = false })
           </span>
         );
 
+        // Planned-vs-done, quiet until there is progress: with nothing done a
+        // chip reads exactly as before (total minutes — no "0m/4h" scolding at
+        // 8am). Once something completes it becomes done/planned. Denominator
+        // is COMPLETABLE minutes: read-only calendar events are fixtures with
+        // no completion to track, so a tag whose total includes them shows a
+        // smaller denominator than its headline total — that is the honest
+        // number, not a bug.
+        const chipValue = (total, done, completable) =>
+          done > 0 ? `${formatMinutes(done)}/${formatMinutes(completable)}` : formatMinutes(total);
+
         const tagChips = (
           <>
             {summary.categories.map((c) => (
               <span key={c.tag} className={pill}>
                 <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.colorHex }} />
                 <span className={textPrimary}>#{c.tag}</span>
-                <span className={textSecondary}>{formatMinutes(c.minutes)}</span>
+                <span className={textSecondary}>{chipValue(c.minutes, c.doneMinutes, c.completableMinutes)}</span>
               </span>
             ))}
             {summary.untaggedMinutes > 0 && (
               <span className={pill}>
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${darkMode ? 'bg-gray-500' : 'bg-stone-400'}`} />
-                <span className={textSecondary}>untagged {formatMinutes(summary.untaggedMinutes)}</span>
+                <span className={textSecondary}>
+                  untagged {chipValue(summary.untaggedMinutes, summary.untaggedDoneMinutes, summary.untaggedCompletableMinutes)}
+                </span>
               </span>
             )}
           </>
