@@ -201,62 +201,96 @@ export default function SummaryStrip({ phone = false, staticPlacement = false })
           {energyCompact && <span className={textSecondary}>·</span>}
           {energyCompact}
         </button>
-      ) : (
-        <div className={`pointer-events-auto w-fit max-w-full flex items-center gap-1.5 text-xs ${
-          phone ? 'flex-wrap' : `overflow-x-auto ${darkMode ? 'dark-scrollbar' : ''}`
-        }`}>
-          {/* Day/date heading — pins which day the numbers describe, which the
-              multi-day desktop view otherwise leaves ambiguous. The phone
-              timeline shows exactly one day, so there it is dropped. */}
-          {!phone && (
-            <span className={pill}>
-              <span className={`font-medium ${textPrimary}`}>{formatShortDate(selectedDate)}</span>
-            </span>
-          )}
-          <span className={pill}>
-            {phone && (
-              <button onClick={toggle} className={`-ml-1 p-0.5 rounded-full ${textSecondary} hover:opacity-70`} aria-label="Collapse summary">
-                <ChevronDown size={13} />
-              </button>
-            )}
+      ) : (() => {
+        // On phone, the whole unblocked pill toggles the collapse — symmetric
+        // with the collapsed pill, which expands from a tap anywhere on it.
+        // Only the three-dot menu opts out (stopPropagation). The caret stays
+        // as a visual indicator, not the sole target.
+        const unblockedPill = (
+          <span
+            className={`${pill} ${phone ? 'cursor-pointer' : ''}`}
+            onClick={phone ? toggle : undefined}
+          >
+            {phone && <ChevronDown size={13} className={`-ml-1 flex-shrink-0 ${textSecondary}`} />}
             {unblockedLabel}
             <button
-              onClick={() => setMenuOpen(!menuOpen)}
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
               className={`-mr-1 p-0.5 rounded-full ${textSecondary} hover:opacity-70`}
               aria-label="Day window options"
             >
               <MoreHorizontal size={13} />
             </button>
           </span>
-          {/* Energy axis — one combined pill so it reads as a ratio, not a
-              scorecard. Dots reuse the day-window marker palette (indigo/teal)
-              for one coherent color family. Hidden when the day has no blocks
-              (an empty declared window has nothing to classify). */}
-          {summary.blockedMinutes > 0 && (
-            <span className={pill}>
-              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: EFFORT_DOT }} />
-              <span className={textPrimary}>Effort</span>
-              <span className={textSecondary}>{formatMinutes(summary.effortMinutes)}</span>
-              <span className="w-2 h-2 rounded-full flex-shrink-0 ml-0.5" style={{ backgroundColor: RESTORE_DOT }} />
-              <span className={textPrimary}>Restore</span>
-              <span className={textSecondary}>{formatMinutes(summary.restoreMinutes)}</span>
-            </span>
-          )}
-          {summary.categories.map((c) => (
-            <span key={c.tag} className={pill}>
-              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.colorHex }} />
-              <span className={textPrimary}>#{c.tag}</span>
-              <span className={textSecondary}>{formatMinutes(c.minutes)}</span>
-            </span>
-          ))}
-          {summary.untaggedMinutes > 0 && (
-            <span className={pill}>
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${darkMode ? 'bg-gray-500' : 'bg-stone-400'}`} />
-              <span className={textSecondary}>untagged {formatMinutes(summary.untaggedMinutes)}</span>
-            </span>
-          )}
-        </div>
-      )}
+        );
+
+        // Energy axis — one combined pill so it reads as a ratio, not a
+        // scorecard. Dots reuse the day-window marker palette (indigo/teal)
+        // for one coherent color family. Hidden when the day has no blocks
+        // (an empty declared window has nothing to classify).
+        const energyPill = summary.blockedMinutes > 0 && (
+          <span className={pill}>
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: EFFORT_DOT }} />
+            <span className={textPrimary}>Effort</span>
+            <span className={textSecondary}>{formatMinutes(summary.effortMinutes)}</span>
+            <span className="w-2 h-2 rounded-full flex-shrink-0 ml-0.5" style={{ backgroundColor: RESTORE_DOT }} />
+            <span className={textPrimary}>Restore</span>
+            <span className={textSecondary}>{formatMinutes(summary.restoreMinutes)}</span>
+          </span>
+        );
+
+        const tagChips = (
+          <>
+            {summary.categories.map((c) => (
+              <span key={c.tag} className={pill}>
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.colorHex }} />
+                <span className={textPrimary}>#{c.tag}</span>
+                <span className={textSecondary}>{formatMinutes(c.minutes)}</span>
+              </span>
+            ))}
+            {summary.untaggedMinutes > 0 && (
+              <span className={pill}>
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${darkMode ? 'bg-gray-500' : 'bg-stone-400'}`} />
+                <span className={textSecondary}>untagged {formatMinutes(summary.untaggedMinutes)}</span>
+              </span>
+            )}
+          </>
+        );
+
+        // Floating phone strip: the anchor row (unblocked + energy) keeps the
+        // exact position it has when collapsed — the container is stuck to the
+        // bottom, so the tag chips FAN OUT UPWARD above it and the collapse
+        // target never moves. The in-flow LIST strip reads top-down instead,
+        // so there everything stays one wrapping row growing downward.
+        if (phone && !staticPlacement) {
+          return (
+            <div className="pointer-events-auto w-fit max-w-full flex flex-col items-start gap-1.5 text-xs">
+              <div className="flex flex-wrap items-center gap-1.5">{tagChips}</div>
+              <div className="flex items-center gap-1.5">
+                {unblockedPill}
+                {energyPill}
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className={`pointer-events-auto w-fit max-w-full flex items-center gap-1.5 text-xs ${
+            phone ? 'flex-wrap' : `overflow-x-auto ${darkMode ? 'dark-scrollbar' : ''}`
+          }`}>
+            {/* Day/date heading — pins which day the numbers describe, which
+                the multi-day desktop view otherwise leaves ambiguous. The
+                phone timeline shows exactly one day, so there it is dropped. */}
+            {!phone && (
+              <span className={pill}>
+                <span className={`font-medium ${textPrimary}`}>{formatShortDate(selectedDate)}</span>
+              </span>
+            )}
+            {unblockedPill}
+            {energyPill}
+            {tagChips}
+          </div>
+        );
+      })()}
     </div>
   );
 }
