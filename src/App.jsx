@@ -86,6 +86,7 @@ import useCloudSync from './hooks/useCloudSync.js';
 import { createDayGlanceEngine } from './sync/adapter.js';
 import { createDbEngine, resetVaultSyncCursor } from './sync/dbEngine.js';
 import { deriveBlockEnergy } from './utils/energyAxis.js';
+import { computeDaySummary, formatMinutes } from './utils/daySummary.js';
 import { registerDbEngine } from './sync/dirtyTracker.js';
 import { isVaultEnabled } from './sync/vaultConfig.js';
 import { keepImportedTask } from './sync/payloadExclusions.js';
@@ -7159,6 +7160,32 @@ const DayPlanner = () => {
       nextTask: nextTaskItem,
       upcomingTasks: upcomingTaskItems,
       nextUpNext,
+      // ── Day-summary projection (Live Activity / Dynamic Island) ────────
+      // The strip's numbers for TODAY, precomputed here so the native side
+      // never re-implements the math: the projection IS computeDaySummary.
+      // Raw minutes plus preformatted strings (formatMinutes keeps the
+      // wording identical to the in-app strip); metadata only, no media
+      // bytes. unblockedMinutes is null on an empty day with no declared
+      // window — the native side should show nothing rather than "0m".
+      daySummary: (() => {
+        const win = getDayWindow(todayStr);
+        const sum = computeDaySummary(getTasksForDate(today, false), listEndOfDayTime, win);
+        return {
+          date: todayStr,
+          windowStart: win?.start ?? null,
+          windowEnd: win?.stop ?? null,
+          unblockedMinutes: sum.unblockedMinutes,
+          blockedMinutes: sum.blockedMinutes,
+          effortMinutes: sum.effortMinutes,
+          restoreMinutes: sum.restoreMinutes,
+          doneMinutes: sum.doneMinutes,
+          completableMinutes: sum.completableMinutes,
+          unblocked: sum.unblockedMinutes === null ? null : formatMinutes(sum.unblockedMinutes),
+          effort: formatMinutes(sum.effortMinutes),
+          restore: formatMinutes(sum.restoreMinutes),
+          done: `${formatMinutes(sum.doneMinutes)}/${formatMinutes(sum.completableMinutes)}`,
+        };
+      })(),
       updatedAt: Date.now(),
     };
 
@@ -7186,6 +7213,10 @@ const DayPlanner = () => {
     hgVisibleProjects,
     goals,
     goalsProjectsEnabled,
+    // Day-summary projection inputs (getTasksForDate is the same per-render
+    // helper class as the omissions noted above).
+    dayWindows,
+    listEndOfDayTime,
   ]);
 
   // Phase 11 — Spotlight indexing: keep Spotlight in sync with non-archived,
