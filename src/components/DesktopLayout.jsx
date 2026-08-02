@@ -12,6 +12,7 @@ import DesktopHeader from './DesktopHeader.jsx';
 import CalendarHeader from './CalendarHeader.jsx';
 import TimeGrid from './TimeGrid.jsx';
 import SummaryStrip from './SummaryStrip.jsx';
+import TitlebarSummaryStrip from './TitlebarSummaryStrip.jsx';
 import DayView from './DayView.jsx';
 import WeekView from './WeekView.jsx';
 import SchedDashboard from './sched/SchedDashboard.jsx';
@@ -450,7 +451,9 @@ const DesktopLayout = () => {
 
   return (
       <>
-      {/* macOS traffic-light drag region — doubles as the NOW bar when a task is running */}
+      {/* macOS traffic-light drag region — the NOW bar when a task is running,
+          today's summary-strip pills otherwise (TitlebarSummaryStrip). Both are
+          display-only, so the whole bar stays a drag area. */}
       {isElectronMac && (() => {
         const todayStr = dateToString(new Date());
         const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
@@ -469,11 +472,13 @@ const DesktopLayout = () => {
                 : ''
             }`}
           >
-            {runningTask && (
+            {runningTask ? (
               <>
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
                 <span className="truncate">{t('common.now')}: {runningTask.title}</span>
               </>
+            ) : (
+              <TitlebarSummaryStrip />
             )}
           </div>
         );
