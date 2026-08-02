@@ -35,6 +35,29 @@ private func countdownText(_ state: DaySummaryAttributes.ContentState, fallback:
     }
 }
 
+// The live block-progress RING: same OS-animated mechanism as the countdown
+// text (ProgressView over the interval ticks with zero updates and zero
+// pushes), so the compact leading slot shows shape while the trailing shows
+// number. In progress it drains as the block runs down; upcoming it drains
+// toward the start. Labels are empty on purpose — the numeric countdown
+// already lives on the trailing side, and the empty currentValueLabel is the
+// slot where a per-block energy glyph could later sit inside the ring.
+// Falls back to the hourglass when there is nothing to animate (no more
+// blocks today).
+@ViewBuilder
+private func countdownRing(_ state: DaySummaryAttributes.ContentState) -> some View {
+    if let start = state.countdownStart, let end = state.countdownEnd, start < end {
+        ProgressView(timerInterval: start...end, countsDown: true,
+                     label: { EmptyView() }, currentValueLabel: { EmptyView() })
+            .progressViewStyle(.circular)
+            .tint(unblockedColor)
+    } else {
+        Image(systemName: "hourglass")
+            .foregroundStyle(unblockedColor)
+            .imageScale(.small)
+    }
+}
+
 struct DaySummaryLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: DaySummaryAttributes.self) { context in
@@ -89,8 +112,8 @@ struct DaySummaryLiveActivity: Widget {
                     .opacity(context.isStale ? 0.5 : 1)
                 }
             } compactLeading: {
-                Image(systemName: "hourglass")
-                    .foregroundStyle(unblockedColor)
+                countdownRing(context.state)
+                    .opacity(context.isStale ? 0.5 : 1)
             } compactTrailing: {
                 countdownText(context.state, fallback: context.state.done)
                     .font(.caption2.weight(.semibold))
@@ -100,8 +123,7 @@ struct DaySummaryLiveActivity: Widget {
                     .multilineTextAlignment(.trailing)
                     .opacity(context.isStale ? 0.5 : 1)
             } minimal: {
-                Image(systemName: "hourglass")
-                    .foregroundStyle(unblockedColor)
+                countdownRing(context.state)
             }
         }
     }
