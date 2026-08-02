@@ -14,7 +14,7 @@ import { computeDaySummary, formatMinutes } from '../utils/daySummary.js';
 const COLLAPSE_KEY = 'day-planner-summary-strip-collapsed';
 
 const EFFORT_DOT = '#6366f1'; // indigo — matches the END marker
-const RESTORE_DOT = '#14b8a6'; // teal — matches the START marker
+const RESTORE_DOT = '#22c55e'; // green-500 — leaf-green per review; the START marker keeps its teal
 
 /**
  * Summary strip: rolls the viewed day's timeline blocks into a row of pills —
