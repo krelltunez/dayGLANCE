@@ -28,6 +28,7 @@
 
 import { mergeHabitLogs, mergeRoutineDefinitions, mergeRoutineCompletions, mergeCompletedDates } from '../mergeSync.js';
 import { TOMBSTONE_BUNDLE_KEYS, tombstoneCutoff } from './tombstoneRetention.js';
+import { mergeDayWindowMaps } from './dayWindowSync.js';
 
 // ── Collection kinds: each array element is one row, keyed by a stable id, with
 // entity-grain last-writer-wins on tsField (the same grain the file-tier merge
@@ -479,6 +480,14 @@ function mergeBundle(data, key, value, extra) {
       // (mirrors merge.js:810-815).
       data[key] = value || data[key] || '';
       return;
+    case 'dayWindows': {
+      // {date|'defaults' → {start, stop, lastModified}}: union by key, newer
+      // lastModified wins per entry — concurrent edits to DIFFERENT days never
+      // collide, and the sticky-forward 'defaults' entry merges like any date.
+      // Same shared merge as the file tier (sync/dayWindowSync.js).
+      data.dayWindows = mergeDayWindowMaps(data.dayWindows || {}, value || {});
+      return;
+    }
     case 'calendarConfigByUser': {
       // {syncId → {syncUrl, taskCalendarUrl, auth?, updatedAt}}: union by syncId,
       // keep the newer entry per user (LWW). Each device reads only its own

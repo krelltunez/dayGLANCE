@@ -1393,7 +1393,9 @@ const DayPlanner = () => {
   // Per-day START/STOP timeline markers (sticky-forward, device-local) — the
   // summary strip measures unblocked time against them and the grids render
   // them as marker lines. See src/hooks/useDayWindows.js.
-  const { getDayWindow, setDayWindow, clearDayWindow } = useDayWindows();
+  const {
+    dayWindows, dayWindowsRef, getDayWindow, setDayWindow, clearDayWindow, applyRemoteDayWindows,
+  } = useDayWindows();
   // Day-window menu visibility lives here (not in SummaryStrip) so the START/
   // END marker chips on the grid can open the same popover the strip owns.
   const [dayWindowMenuOpen, setDayWindowMenuOpen] = useState(false);
@@ -2044,7 +2046,7 @@ const DayPlanner = () => {
       cloudSyncEngineRef.current.upload();
     }, 5000);
     return () => { if (cloudSyncDebounceRef.current) clearTimeout(cloudSyncDebounceRef.current); };
-  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, allTodayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, gtdFrames, bucketConfig, cloudSyncConfig?.enabled, syncKeyReady, multiUserEnabled, users, cloudSyncDebounceRef, dataLoaded, suppressCloudUploadRef]);
+  }, [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, allTodayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, dayWindows, gtdFrames, bucketConfig, cloudSyncConfig?.enabled, syncKeyReady, multiUserEnabled, users, cloudSyncDebounceRef, dataLoaded, suppressCloudUploadRef]);
 
   // ── GLANCEvault DB transport ─────────────────────────────────────────────
   // Row-grained sync that runs ALONGSIDE the file-tier WebDAV engine (it shares
@@ -5199,6 +5201,10 @@ const DayPlanner = () => {
         deletedObsidianKeys: JSON.parse(localStorage.getItem('day-planner-deleted-obsidian-keys') || '{}'),
         removedTodayRoutineIds,
         dailyNotes,
+        // Per-day START/STOP timeline markers (flat date map + 'defaults',
+        // per-entry lastModified). Read through the ref: the engine can call
+        // this closure a beat after a render.
+        dayWindows: dayWindowsRef.current,
         habits,
         habitLogs,
         habitLogTimestamps: JSON.parse(localStorage.getItem('day-planner-habit-log-timestamps') || '{}'),
@@ -5368,6 +5374,10 @@ const DayPlanner = () => {
       localStorage.setItem('day-planner-daily-notes', JSON.stringify(data.dailyNotes));
       setDailyNotes(data.dailyNotes);
     }
+    // Day windows MERGE (per-entry LWW) rather than overwrite like the slices
+    // above: applyRemoteDayWindows also persists, and is a no-op (no write, no
+    // state change) when nothing pulled is newer.
+    if (data.dayWindows) applyRemoteDayWindows(data.dayWindows);
     if (data.habits) {
       localStorage.setItem('day-planner-habits', JSON.stringify(data.habits));
       setHabits(data.habits);
