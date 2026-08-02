@@ -24,7 +24,7 @@ import WebKit
 /// native → JS (window.__glanceVaultSseReceive(msg)):
 ///   • {type:"open"}                  a (re)connection was established.
 ///   • {type:"frame", block:"<raw SSE event block>"}   one SSE event; the renderer
-///     runs it through parseSseFrame → {seq,kind} → coalescer.
+///     runs it through parseSseFrame → {seq} → coalescer.
 ///   • {type:"closed"}                the stream dropped (we will reconnect).
 ///   • {type:"error", message}        a connect/read error (we own the retry).
 ///
@@ -33,9 +33,9 @@ import WebKit
 /// ContentView's scenePhase). It drops on background and reconnects with capped
 /// exponential backoff on any drop. Every transition funnels through [reconcile],
 /// which starts or cancels the SINGLE reader Task, so there is never more than one
-/// connection. On each (re)connect the vault sends an initial `{seq,kind:"connected"}`
-/// frame; it flows through as a normal frame, so the coalescer reconciles anything
-/// missed while disconnected.
+/// connection. On each (re)connect the vault sends its `ready` frame carrying the
+/// account's latest seq (`{"seq":N}`); it flows through as a normal frame, so the
+/// coalescer reconciles anything missed while disconnected.
 final class VaultSseBridge {
 
     static let shared = VaultSseBridge()

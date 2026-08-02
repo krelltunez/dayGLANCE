@@ -39,9 +39,10 @@ import kotlin.coroutines.coroutineContext
  * ([SseBackoff]). Every transition funnels through [reconcile], which starts or
  * stops the SINGLE reader coroutine, so there is never more than one connection.
  *
- * RECONNECT-RECONCILE — on each (re)connect the vault sends an initial
- * `{seq, kind:"connected"}` frame; it flows through [frameSink] like any other, so
- * the renderer's coalescer drains and catches anything missed while disconnected.
+ * RECONNECT-RECONCILE — on each (re)connect the vault sends its `ready` frame
+ * carrying the account's latest seq (`{"seq":N}`); it flows through [frameSink]
+ * like any other, so the renderer's coalescer drains and catches anything missed
+ * while disconnected.
  */
 class VaultSseClient(
     private val frameSink: (String) -> Unit,

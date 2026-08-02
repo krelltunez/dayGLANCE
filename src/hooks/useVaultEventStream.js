@@ -2,9 +2,9 @@
 //
 // Opens the authenticated /events stream when the vault is enabled AND the app is
 // active, turns nudges into instant drains of the EXISTING sync/intents drains
-// (debounced), reconnects with backoff on any drop, reconciles via the initial
-// {seq, kind:'connected'} on (re)connect, and tears the connection down cleanly
-// on background / unmount / vault-disabled. The pure transport lives in
+// (debounced), reconnects with backoff on any drop, reconciles via the server's
+// initial `ready` frame (the account's latest seq) on (re)connect, and tears the
+// connection down cleanly on background / unmount / vault-disabled. The pure transport lives in
 // ../sync/vaultEventStream.js; this file only wires it to React + the app.
 //
 // CORE INVARIANT: this is purely ADDITIVE. It never starts, stops, or slows the
@@ -75,7 +75,6 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
       events: 0,
       drains: 0,
       lastEventSeq: null,
-      lastEventKind: null,
       lastError: null,
       terminal: null,
       lastConnectedAt: null,
@@ -107,7 +106,7 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
     // socket owner differs (JS fetch loop vs native shell).
     const onEvent = (evt) => {
       diag.events += 1;
-      if (evt && typeof evt.seq === 'number') { diag.lastEventSeq = evt.seq; diag.lastEventKind = evt.kind; }
+      if (evt && typeof evt.seq === 'number') diag.lastEventSeq = evt.seq;
       coalescer.handleEvent(evt);
     };
     const onStateChange = (state, detail) => {
@@ -169,7 +168,7 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
     });
 
     // Drop SSE on background, reopen on foreground. The (re)connect delivers a
-    // fresh {seq, kind:'connected'} that reconciles anything missed while hidden;
+    // fresh `ready` seq that reconciles anything missed while hidden;
     // polling/foreground-drain covers the gap regardless.
     const onVisibility = () => {
       if (document.visibilityState === 'visible') client.start();

@@ -6,10 +6,11 @@ package com.dayglance.app.sse
  *
  * It does ONLY transport-level framing: accumulate stream text across reads, split
  * complete event blocks on the blank-line delimiter, and hand each block back
- * verbatim. It deliberately does NOT parse `{seq,kind}` — that extraction stays in
- * the renderer's single `parseSseFrame`, which this shell feeds each block through
- * via the bridge. Keeping ONE `{seq,kind}` parser (in the renderer) is the whole
- * point of the bridge-fed design: the native side is a dumb, robust byte framer.
+ * verbatim. It deliberately does NOT parse the `{seq}` nudge — that extraction
+ * stays in the renderer's single `parseSseFrame`, which this shell feeds each
+ * block through via the bridge. Keeping ONE nudge parser (in the renderer) is the
+ * whole point of the bridge-fed design: the native side is a dumb, robust byte
+ * framer.
  *
  * Stateful per instance (holds the partial-block remainder between reads) and pure
  * otherwise, so it is unit-testable with no network.

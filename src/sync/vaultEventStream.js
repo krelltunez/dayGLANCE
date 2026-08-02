@@ -1,9 +1,18 @@
 // GLANCEvault SSE push client (Phase 9, client step 1).
 //
-// The glance-vault server emits authenticated per-account Server-Sent Events at
-// GET {vaultUrl}/events: an initial {seq, kind:'connected'} on connect, then
-// {seq, kind:'sync'|'intents'} nudges when the account's seq advances, plus ~25s
-// heartbeat comments. A nudge carries ONLY the latest account seq — no payload.
+// WIRE CONTRACT (verified against the glance-vault server source — routes/events.ts
+// frame(), realtime/hub.ts Nudge): the server emits authenticated per-account
+// named SSE events at GET {vaultUrl}/events whose data is exactly {"seq":N}:
+//   • `event: ready`    — once per successful connection, carrying the account's
+//     latest seq (0 for a never-written account); the reconnect reconcile point.
+//   • `event: activity` — whenever the account seq advances.
+// plus comment-line heartbeats (`: ...`) every ~20s. Nothing else is on the wire:
+// no kind/scope discriminator, no `id:`, no `retry:` (reconnect timing is entirely
+// client-owned; the server never reads Last-Event-ID). A nudge carries ONLY the
+// latest account seq — no payload, and no hint of WHAT advanced: sync writes,
+// intent landings, and blob bookkeeping all draw from the one per-account counter
+// (blob bookkeeping without even emitting), so the only correct response to any
+// nudge is to drain everything.
 //
 // This module is the PURE, transport-level core (no React). It exists to let
 // dayGLANCE drain INSTANTLY on a nudge instead of waiting for the poll, while the
@@ -55,9 +64,10 @@
 //   or JSON string):
 //     • {type:'open'}                     a native (re)connection was established.
 //     • {type:'frame', block:'<raw SSE event block>'}   one SSE event; the renderer
-//       runs it through the EXISTING parseSseFrame → {seq,kind} → coalescer. On a
-//       native reconnect the server's initial {seq,kind:'connected'} arrives as a
-//       frame here, so reconnect-reconcile is automatic (coalescer drains both).
+//       runs it through the EXISTING parseSseFrame → {seq} → coalescer. On a
+//       native reconnect the server's `ready` frame (latest account seq) arrives
+//       as a frame here, so reconnect-reconcile is automatic (an advanced seq
+//       drains everything).
 //     • {type:'closed'}                   the native stream dropped (native will
 //       reconnect); informational for diagnostics.
 //     • {type:'error', message}           a native connect/read error; native owns
@@ -69,12 +79,15 @@
 
 /**
  * Parse ONE SSE event block (the text between blank-line boundaries) into the
- * nudge object {seq, kind}, or null if the block carries no usable data.
+ * nudge object {seq}, or null if the block carries no usable data.
  *
- * Ignores comment lines (leading ':', used for heartbeats) and non-data fields
- * (event:, id:, retry:). Concatenates multiple data: lines per the SSE spec, then
- * JSON-parses. Returns null on a heartbeat-only block or unparseable data so the
- * caller can skip it.
+ * The event NAME (`ready` | `activity`) is deliberately not surfaced: both carry
+ * the same instruction — the account seq advanced past what we knew — so the
+ * data line is the whole contract. Ignores comment lines (leading ':', used for
+ * heartbeats) and non-data fields (event:, id:, retry: — the server sends only
+ * event: and data: today; tolerating the rest is plain SSE-spec hygiene).
+ * Concatenates multiple data: lines per the SSE spec, then JSON-parses. Returns
+ * null on a heartbeat-only block or unparseable data so the caller can skip it.
  */
 export function parseSseFrame(block) {
   if (!block) return null;
@@ -148,12 +161,14 @@ export function detectSseTransport() {
 }
 
 /**
- * True only when the native shell exposes a working native SSE reader. Probed via
- * an explicit capability method so:
+ * True only when the native shell exposes a working native SSE reader. Both
+ * shells ship one today (Android VaultSseClient.kt, iOS VaultSseBridge.swift),
+ * but the probe stays strict because a bridge's mere method presence proves
+ * nothing:
  *   • an OLDER Android shell (bridge present, no startVaultSse) → false → polling;
- *   • the iOS shell whose bridge is a Proxy fabricating EVERY method name still
- *     reports false until its handler actually returns true (its stubbed reply is
- *     the string "null", not true), so iOS keeps polling until its reader ships.
+ *   • the iOS bridge is a Proxy that fabricates EVERY method name — an
+ *     unimplemented probe there replies the string "null", not true — so only a
+ *     shell whose handler genuinely implements the reader can probe true.
  * Only a literal boolean true (or the string 'true') counts as supported.
  */
 function nativeSseSupported(bridge) {
@@ -170,7 +185,7 @@ function nativeSseSupported(bridge) {
 
 /**
  * Open the vault /events SSE stream over a fetch streaming body (WEB path) and
- * pump parsed {seq, kind} nudges to onEvent until the stream ends or the signal
+ * pump parsed {seq} nudges to onEvent until the stream ends or the signal
  * aborts. Authenticates with the same device-token Bearer the other vault calls
  * use and scopes to accountId (query param, mirroring the sync/intents endpoints).
  *
@@ -223,20 +238,23 @@ export async function openWebSseStream({ connection, signal, onOpen, onEvent, fe
  * Turns a stream of nudge events into debounced drain calls, with a seq cursor so
  * stale/duplicate nudges are ignored.
  *
- * The account seq is a single unified monotonic counter on the server (a sync
- * write and an intent landing both advance it), so ONE cursor across kinds is
+ * The account seq is a single unified monotonic counter on the server — sync
+ * writes, intent landings, and blob bookkeeping all advance it — so ONE cursor is
  * correct: an event is "behind" (worth acting on) only when its seq exceeds the
  * highest we've already reacted to. A nudge whose seq is <= the cursor is a
  * duplicate/stale signal and is ignored.
  *
- * On acting, we schedule the drain implied by kind: 'sync' -> sync drain,
- * 'intents' -> intents drain, anything else (incl. the 'connected' reconcile) ->
- * BOTH, since we can't tell which side advanced. Rapid nudges within debounceMs
- * coalesce into a single drain per kind.
+ * Every accepted nudge drains BOTH sides. The wire carries no scope (data is
+ * exactly {"seq":N}), and the shared counter means a scope couldn't safely
+ * narrow a drain even if one existed — the client can never tell which side
+ * advanced, and blob bookkeeping advances the seq while emitting nothing at all.
+ * Rapid nudges within debounceMs coalesce into a single drain pair.
  *
- * onDrain(kind) is called with 'sync' or 'intents' (never 'both' — 'both' fans
- * out to one 'sync' + one 'intents' call). It is invoked inside a try/catch so a
- * throwing drain can never break the debounce timer or the SSE loop.
+ * onDrain(kind) is called with 'sync' then 'intents' on each flush. The split
+ * callback is kept deliberately: it is the ONE seam where routing would slot in
+ * if a future server ever scoped its nudges — no such protocol exists or is
+ * planned today. It is invoked inside a try/catch so a throwing drain can never
+ * break the debounce timer or the SSE loop.
  *
  * @param {object} p
  * @param {(kind:'sync'|'intents') => void} p.onDrain
@@ -254,7 +272,6 @@ export function createNudgeCoalescer({
 } = {}) {
   let lastSeq = -Infinity;
   let timer = null;
-  let pending = new Set();
 
   const runDrain = (kind) => {
     try {
@@ -266,11 +283,9 @@ export function createNudgeCoalescer({
 
   const flush = () => {
     timer = null;
-    const kinds = pending;
-    pending = new Set();
     // Deterministic order: sync before intents.
-    if (kinds.has('sync')) runDrain('sync');
-    if (kinds.has('intents')) runDrain('intents');
+    runDrain('sync');
+    runDrain('intents');
   };
 
   // Coalesce a micro-burst of nudges into a single drain (debounce ONLY — no
@@ -279,9 +294,7 @@ export function createNudgeCoalescer({
   // longer advances the account seq or nudges (see utils/tombstoneHorizon.js).
   // Drains therefore fire near-instantly on real changes, which is the point of
   // SSE. Polling remains the backstop for any coalesced nudge.
-  const schedule = (kind) => {
-    if (kind === 'both') { pending.add('sync'); pending.add('intents'); }
-    else pending.add(kind);
+  const schedule = () => {
     if (timer) clearTimeoutFn(timer);
     timer = setTimeoutFn(flush, debounceMs);
   };
@@ -294,17 +307,15 @@ export function createNudgeCoalescer({
     if (!evt || typeof evt.seq !== 'number' || Number.isNaN(evt.seq)) return false;
     if (evt.seq <= lastSeq) return false; // not behind — coalesced/stale, ignore
     lastSeq = evt.seq;
-    if (evt.kind === 'sync') schedule('sync');
-    else if (evt.kind === 'intents') schedule('intents');
-    else schedule('both'); // 'connected' reconcile or unknown kind → drain both
+    schedule();
     return true;
   };
 
   return {
     handleEvent,
     getCursor: () => lastSeq,
-    // Flush any pending debounce immediately (used on teardown if desired).
-    cancel: () => { if (timer) { clearTimeoutFn(timer); timer = null; } pending = new Set(); },
+    // Cancel any pending debounce (used on teardown).
+    cancel: () => { if (timer) { clearTimeoutFn(timer); timer = null; } },
   };
 }
 
@@ -434,7 +445,7 @@ export function createVaultEventClient({
  * @param {() => ({vaultUrl:string,vaultToken:string,accountId:string}|null)} p.getConnection
  * @param {(c:object) => void} p.startNative  tell the shell to open (given the connection)
  * @param {() => void}         p.stopNative   tell the shell to tear down
- * @param {(evt:object) => void} p.onEvent    parsed {seq,kind} frame → coalescer.handleEvent
+ * @param {(evt:object) => void} p.onEvent    parsed {seq} frame → coalescer.handleEvent
  * @param {(state:string, detail?:any) => void} [p.onStateChange]
  * @param {boolean} [p.supported]
  * @param {(block:string, onEvent:(e:object)=>void) => void} [p.parseFrame] injectable (tests)
@@ -464,7 +475,7 @@ export function createBridgeSseClient({
         break;
       case 'frame': {
         // Reuse the EXISTING parser: native did transport + frame boundary
-        // detection; {seq,kind} extraction stays in ONE place (parseSseFrame).
+        // detection; {seq} extraction stays in ONE place (parseSseFrame).
         if (typeof msg.block === 'string') {
           const evt = parseSseFrame(msg.block);
           if (evt) onEvent?.(evt);
