@@ -1,5 +1,6 @@
 package com.dayglance.app.bridge
 
+import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
 import android.media.MediaRecorder
@@ -204,6 +205,19 @@ class NativeBridge(
 
     @JavascriptInterface
     fun getTasksFromNote(path: String): String = obsidian.getTasksFromNote(path)
+
+    // ── Next alarm (GLANCEahead) ────────────────────────────────────────────
+
+    /**
+     * Epoch millis of the device's next alarm clock, or -1 when none is set.
+     * AlarmManager.getNextAlarmClock() needs no permission — it only exposes
+     * what the status bar alarm icon already shows. GLANCEahead uses this for
+     * its "when am I waking up?" line.
+     */
+    @JavascriptInterface
+    fun getNextAlarm(): Long =
+        (context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager)
+            ?.nextAlarmClock?.triggerTime ?: -1L
 
     // ── Notifications ───────────────────────────────────────────────────────
 

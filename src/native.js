@@ -133,6 +133,23 @@ export const nativeGetSleep = async (date) => {
   }
 };
 
+/**
+ * Epoch ms of the device's next alarm clock, or null when none is set or the
+ * platform can't say. Android-only: AlarmManager.getNextAlarmClock() needs no
+ * permission; iOS has no API for reading the user's Clock alarms, so the iOS
+ * bridge simply never implements this and callers fall through to null.
+ */
+export const nativeGetNextAlarm = () => {
+  const bridge = nativeBridge();
+  if (!bridge?.getNextAlarm) return null;
+  try {
+    const ms = Number(bridge.getNextAlarm());
+    return Number.isFinite(ms) && ms > 0 ? ms : null;
+  } catch {
+    return null;
+  }
+};
+
 export const nativeGetCalendars = () => {
   const bridge = nativeBridge();
   if (!bridge?.getCalendars) return [];
