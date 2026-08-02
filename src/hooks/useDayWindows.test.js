@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { DEFAULTS_KEY } from '../sync/dayWindowSync.js';
 
 // Single-useState harness: the hook keeps all state in one useState, so a box
 // that applies functional updates lets each useDayWindows() call see current
@@ -14,6 +15,12 @@ vi.mock('react', () => ({
     return [box, (up) => { box = typeof up === 'function' ? up(box) : up; }];
   },
   useCallback: (fn) => fn,
+  useRef: (init) => ({ current: init }),
+}));
+
+const schedulePush = vi.fn();
+vi.mock('../sync/dirtyTracker.js', () => ({
+  schedulePush: (...args) => schedulePush(...args),
 }));
 
 const { default: useDayWindows } = await import('./useDayWindows.js');
@@ -25,6 +32,7 @@ describe('useDayWindows', () => {
     initialized = false;
     box = undefined;
     setItem = vi.fn();
+    schedulePush.mockClear();
     globalThis.localStorage = { getItem: vi.fn(() => null), setItem, removeItem: vi.fn() };
   });
 
@@ -41,7 +49,6 @@ describe('useDayWindows', () => {
     useDayWindows().setDayWindow('2026-08-06', { start: '07:00', stop: '22:00' });
     const { getDayWindow } = useDayWindows();
 
-    // The day itself.
     expect(getDayWindow('2026-08-06')).toEqual({ start: '07:00', stop: '22:00' });
     // A day never touched — past or future — inherits the default.
     expect(getDayWindow('2026-08-20')).toEqual({ start: '07:00', stop: '22:00' });
@@ -52,8 +59,6 @@ describe('useDayWindows', () => {
     useDayWindows().setDayWindow('2026-08-07', { start: '09:00', stop: '21:00' });
     const { getDayWindow } = useDayWindows();
 
-    // The alarm-clock model: Wednesday keeps its own entry; untouched days
-    // follow the most recent edit.
     expect(getDayWindow('2026-08-06')).toEqual({ start: '07:00', stop: '22:00' });
     expect(getDayWindow('2026-08-07')).toEqual({ start: '09:00', stop: '21:00' });
     expect(getDayWindow('2026-08-15')).toEqual({ start: '09:00', stop: '21:00' });
@@ -64,25 +69,66 @@ describe('useDayWindows', () => {
     useDayWindows().clearDayWindow('2026-08-09');
     const { getDayWindow } = useDayWindows();
 
-    // One quiet Sunday off does not erase the standing window.
     expect(getDayWindow('2026-08-09')).toBeNull();
     expect(getDayWindow('2026-08-10')).toEqual({ start: '07:00', stop: '22:00' });
   });
 
-  it('a single-bound window resolves with the other bound null', () => {
-    useDayWindows().setDayWindow('2026-08-06', { start: '07:00' });
-    expect(useDayWindows().getDayWindow('2026-08-06')).toEqual({ start: '07:00', stop: null });
+  it('persists the SYNCED v2 shape: flat map, per-entry lastModified stamps', () => {
+    useDayWindows().setDayWindow('2026-08-06', { start: '07:00', stop: '22:00' });
+    const [key, value] = setItem.mock.calls.at(-1);
+    expect(key).toBe('day-planner-day-windows');
+    const stored = JSON.parse(value);
+    expect(Object.keys(stored).sort()).toEqual(['2026-08-06', DEFAULTS_KEY].sort());
+    for (const e of Object.values(stored)) {
+      expect(e.start).toBe('07:00');
+      expect(e.stop).toBe('22:00');
+      // A real timestamp, not the epoch — the edit must win LWW elsewhere.
+      expect(new Date(e.lastModified).getTime()).toBeGreaterThan(0);
+    }
   });
 
-  it('persists on every mutation', () => {
-    useDayWindows().setDayWindow('2026-08-06', { start: '07:00', stop: '22:00' });
-    expect(setItem).toHaveBeenCalledTimes(1);
-    const [key, value] = setItem.mock.calls[0];
-    expect(key).toBe('day-planner-day-windows');
-    expect(JSON.parse(value)).toEqual({
-      defaults: { start: '07:00', stop: '22:00' },
-      byDate: { '2026-08-06': { start: '07:00', stop: '22:00' } },
+  it('schedules a vault push on every mutation, never on remote apply', () => {
+    const hook = useDayWindows();
+    hook.setDayWindow('2026-08-06', { start: '07:00', stop: '22:00' });
+    hook.clearDayWindow('2026-08-07');
+    expect(schedulePush).toHaveBeenCalledTimes(2);
+
+    schedulePush.mockClear();
+    useDayWindows().applyRemoteDayWindows({
+      '2026-08-08': { start: '06:00', stop: '20:00', lastModified: '2026-08-06T00:00:00Z' },
     });
+    // A pulled change is not a user edit; pushing here would echo every apply.
+    expect(schedulePush).not.toHaveBeenCalled();
+  });
+
+  it('applyRemoteDayWindows merges per-entry LWW and persists only on change', () => {
+    useDayWindows().setDayWindow('2026-08-06', { start: '07:00', stop: '22:00' });
+    const writesBefore = setItem.mock.calls.length;
+
+    // Older remote entry for the same day: nothing changes, nothing persists.
+    useDayWindows().applyRemoteDayWindows({
+      '2026-08-06': { start: '01:00', stop: '02:00', lastModified: '2000-01-01T00:00:00Z' },
+    });
+    expect(setItem.mock.calls.length).toBe(writesBefore);
+    expect(useDayWindows().getDayWindow('2026-08-06')).toEqual({ start: '07:00', stop: '22:00' });
+
+    // A new day from another device lands and persists.
+    useDayWindows().applyRemoteDayWindows({
+      '2026-08-08': { start: '06:00', stop: '20:00', lastModified: '2026-08-06T00:00:00Z' },
+    });
+    expect(setItem.mock.calls.length).toBe(writesBefore + 1);
+    expect(useDayWindows().getDayWindow('2026-08-08')).toEqual({ start: '06:00', stop: '20:00' });
+  });
+
+  it('migrates the phase-A v1 shape on load, preserving semantics', () => {
+    globalThis.localStorage.getItem = vi.fn(() => JSON.stringify({
+      defaults: { start: '08:00', stop: '21:00' },
+      byDate: { '2026-08-05': { start: null, stop: null } },
+    }));
+    const { getDayWindow } = useDayWindows();
+
+    expect(getDayWindow('2026-08-05')).toBeNull(); // explicit off survived
+    expect(getDayWindow('2026-08-06')).toEqual({ start: '08:00', stop: '21:00' });
   });
 
   it('survives corrupt storage by starting fresh', () => {

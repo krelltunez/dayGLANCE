@@ -9,6 +9,7 @@ import {
   pruneTombstoneMap,
   unionNewerIso as unionTombstones,
 } from './sync/tombstoneRetention.js';
+import { mergeDayWindowMaps, dayWindowMapsEqual, migrateDayWindows } from './sync/dayWindowSync.js';
 
 export const mergeTaskArrays = (local, remote, deletedIds, syncHorizon = null) =>
   mergeArrayById(local, remote, deletedIds, syncHorizon, { timestampField: 'lastModified' });
@@ -290,6 +291,24 @@ export const mergeSyncData = (local, remote, retentionDays) => {
     if (rcFix.localChanged) result.localChanged = true;
     if (rcFix.remoteChanged) result.remoteChanged = true;
   }
+  // Day windows (per-day START/STOP timeline markers): per-entry LWW over a
+  // flat map of dates plus the 'defaults' key — same grain as the vault bundle
+  // (dbAdapter.js), through the same shared merge, so the tiers cannot drift.
+  // The upstream merge predates this slice and drops unknown keys, hence the
+  // wrapper. migrateDayWindows also absorbs a phase-A-shaped map arriving from
+  // a device that wrote the slice before it synced.
+  if (local?.dayWindows || remote?.dayWindows) {
+    const lw = migrateDayWindows(local?.dayWindows);
+    const rw = migrateDayWindows(remote?.dayWindows);
+    const mergedW = mergeDayWindowMaps(lw, rw);
+    result.data.dayWindows = mergedW;
+    // Same change-flag contract as habitLogs above: localChanged triggers the
+    // local write/apply, remoteChanged triggers the re-upload that heals a
+    // remote file missing our entries (e.g. one written by an older client).
+    if (mergedW !== lw) result.localChanged = true;
+    if (!dayWindowMapsEqual(mergedW, rw)) result.remoteChanged = true;
+  }
+
   // Recurring completions ride inside the shared template row, which the upstream
   // merge resolves by whole-row LWW — re-merge each series' completedDates by date
   // so a completion is never clobbered by a concurrent edit to the same series
