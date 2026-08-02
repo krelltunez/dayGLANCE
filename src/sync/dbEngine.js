@@ -424,16 +424,24 @@ export function createDbEngine(callbacks = {}) {
   // package version — it is the bridge between the engine and dayGLANCE's
   // non-Dexie state, not a transport workaround.
   //
-  // Cycle ORDER is pull-then-push. As of @glance-apps/sync 1.4.0 this is NOT a
-  // correctness requirement and NOT a data-loss mitigation: the engine split the
-  // cursor so a push never advances the pull cursor (getHighWaterMark is
-  // pull-only; getPushAck tracks push idempotency), making push-then-pull and
-  // pull-then-push equally safe. We keep pull-first only for marginal freshness —
-  // merging remote before the push lets a bundle superset and any cross-list
-  // reconcile flush in the SAME cycle instead of the next one. It is free, since
-  // we compose the cycle from pullRemoteChanges/pushDirtyRows anyway to get
-  // commit-only-on-success (the engine's own dbSyncCycle swallows errors, which
-  // would let a failed cycle commit a partial mirror).
+  // Cycle ORDER is pull-then-push, and the ordering is LOAD-BEARING — though not
+  // for the cursor: as of @glance-apps/sync 1.4.0 the engine split the cursor so
+  // a push never advances the pull cursor (getHighWaterMark is pull-only;
+  // getPushAck tracks push idempotency). What pull-first actually protects is
+  // the HWM=0 full-seed gate below, which re-fires every cycle until a pull
+  // succeeds. Because the pull runs BEFORE the push inside the SAME try, a
+  // failing pull throws past the push: a cycle that cannot advance HWM also
+  // cannot write or nudge. Reorder to push-first, move the push out of this try,
+  // or catch a pull failure and continue, and every cycle would push → advance
+  // the account seq → SSE nudge (wired to drainSync, i.e. this exact wrapper) →
+  // re-seed → push again: a silent full-dataset re-upload loop that only a
+  // successful pull ends. Backoff is no brake here — the loop is made of
+  // SUCCESSFUL pushes; the failing pull is what pins HWM at 0. Pull-first also
+  // buys marginal freshness (a bundle superset and any cross-list reconcile
+  // flush in the SAME cycle instead of the next one), and we compose the cycle
+  // from pullRemoteChanges/pushDirtyRows anyway to get commit-only-on-success
+  // (the engine's own dbSyncCycle swallows errors, which would let a failed
+  // cycle commit a partial mirror).
   const dbSyncCycle = async () => {
     if (typeof callbacks.getData !== 'function') return;
     if (syncing) return;
@@ -465,6 +473,15 @@ export function createDbEngine(callbacks = {}) {
       const baseHashes = shredHashes(mirror);
       // Bug-2 state: glitch-suspect vanish-deletes the guard skipped this cycle.
       let glitchSkipped = [];
+      // FULL-SEED GATE — re-fires EVERY cycle while HWM is 0, not just once:
+      // HWM advances only when a pull succeeds and lists something. Safe solely
+      // because this cycle pulls before it pushes inside one try (catch at the
+      // bottom of dbSyncCycle): a failing pull throws past the push, so a
+      // stuck-at-0 cycle writes nothing and emits no nudge. If a push ever ran
+      // with HWM still 0, each one would advance the account seq → SSE nudge →
+      // drainSync → re-seed → push again, re-uploading the full local dataset
+      // until a pull finally succeeded. See the cycle-order note in the wrapper
+      // header above.
       if (engine.getHighWaterMark() === 0) {
         for (const id of Object.keys(baseHashes)) engine.markDirty(id);
         if (pushDbg) console.log('[push] initial full-seed cycle (HWM=0) — every row dirty');
@@ -566,6 +583,9 @@ export function createDbEngine(callbacks = {}) {
       }
 
       callbacks.onStatusChange?.('downloading');
+      // LOAD-BEARING ORDER: this pull must stay ahead of pushDirtyRows, in the
+      // same try, with its failure left to throw — it is what keeps the HWM=0
+      // seed gate above from turning into a push/nudge/re-seed loop.
       const pull = await engine.pullRemoteChanges();   // merge remote into mirror first
       // The engine's onRowsSkipped fires from its own dbSyncCycle, which we
       // bypass — so surface undecryptable-row skips from the pull result here.
