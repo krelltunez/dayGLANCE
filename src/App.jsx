@@ -87,6 +87,7 @@ import { createDayGlanceEngine } from './sync/adapter.js';
 import { createDbEngine, resetVaultSyncCursor } from './sync/dbEngine.js';
 import { deriveBlockEnergy } from './utils/energyAxis.js';
 import { computeDaySummary, formatMinutes } from './utils/daySummary.js';
+import { buildUpNextFact } from './utils/liveActivity.js';
 import { registerDbEngine } from './sync/dirtyTracker.js';
 import { isVaultEnabled } from './sync/vaultConfig.js';
 import { keepImportedTask } from './sync/payloadExclusions.js';
@@ -443,6 +444,15 @@ const DayPlanner = () => {
     return saved !== null ? JSON.parse(saved) : 14;
   });
   useEffect(() => { localStorage.setItem('day-planner-inbox-auto-archive-days', JSON.stringify(inboxAutoArchiveDays)); }, [inboxAutoArchiveDays]);
+  // Live Activity (iOS): OPT-IN, default off — the compact island widens the
+  // sensor housing enough to hide the cellular/wifi status icons, so an
+  // all-day ambient activity must be the user's choice. Device-local (not
+  // synced): each device decides for its own island.
+  const [liveActivityEnabled, setLiveActivityEnabled] = useState(() => {
+    const saved = localStorage.getItem('day-planner-live-activity');
+    return saved !== null ? JSON.parse(saved) : false;
+  });
+  useEffect(() => { localStorage.setItem('day-planner-live-activity', JSON.stringify(liveActivityEnabled)); }, [liveActivityEnabled]);
   const [weekStartDay, setWeekStartDay] = useState(() => {
     const saved = localStorage.getItem('day-planner-week-start-day');
     return saved !== null ? JSON.parse(saved) : 0; // 0=Sunday, 1=Monday
@@ -6746,6 +6756,11 @@ const DayPlanner = () => {
     setShowHabitModal,
   });
 
+  // Bumped by a timer set inside the snapshot effect to re-push at the next
+  // block boundary (advances the Up Next widget / Live Activity label while
+  // the app is open).
+  const [widgetSnapshotTick, setWidgetSnapshotTick] = useState(0);
+
   // ── Native Android widget snapshot sync ──────────────────────────────────
   // Pushes a rich snapshot of today's agenda to the native widget via NativeBridge.
   // Runs whenever tasks, habits, routines, or frames change so the widget is always
@@ -6758,6 +6773,7 @@ const DayPlanner = () => {
   useEffect(() => {
     if (!dataLoaded) return;
     if ((!isNativeAndroid() && !isNativeIOS()) || !window.DayGlanceNative?.updateWidgetSnapshot) return;
+    void widgetSnapshotTick; // re-push scheduled at the next block boundary below
 
     const today = new Date();
     const todayStr = getTodayStr();
@@ -7160,6 +7176,9 @@ const DayPlanner = () => {
       nextTask: nextTaskItem,
       upcomingTasks: upcomingTaskItems,
       nextUpNext,
+      // Opt-in flag for the iOS Live Activity; the bridge ends any live
+      // activity when this is false (or absent, for old snapshots).
+      liveActivityEnabled,
       // ── Day-summary projection (Live Activity / Dynamic Island) ────────
       // The strip's numbers for TODAY, precomputed here so the native side
       // never re-implements the math: the projection IS computeDaySummary.
@@ -7184,6 +7203,18 @@ const DayPlanner = () => {
           effort: formatMinutes(sum.effortMinutes),
           restore: formatMinutes(sum.restoreMinutes),
           done: `${formatMinutes(sum.doneMinutes)}/${formatMinutes(sum.completableMinutes)}`,
+          // The island's schedule-fact pair, built from the same unified
+          // current-or-next entry (task or HG session) the Android Up Next
+          // notification uses. Labels stay factual when stale ("until 2:00
+          // PM" / "at 3:30 PM"); the countdown interval feeds SwiftUI's
+          // Text(timerInterval:), which ticks live with no updates.
+          upNext: nextUpNext
+            ? buildUpNextFact(
+                nextUpNext.bodyPrefix
+                  ? { ...nextUpNext, title: `${nextUpNext.bodyPrefix}${nextUpNext.title}` }
+                  : nextUpNext,
+                Date.now(), formatTime)
+            : null,
         };
       })(),
       updatedAt: Date.now(),
@@ -7192,6 +7223,17 @@ const DayPlanner = () => {
     try {
       window.DayGlanceNative.updateWidgetSnapshot(JSON.stringify(snapshot));
     } catch (_) {}
+
+    // Re-push at the next block boundary so "at 3:30 PM" flips to "until
+    // 5:00 PM" (and the Up Next widget advances) while the app is open. iOS
+    // suspends JS timers in the background; a suspended timer fires on the
+    // next foreground, which is the first moment a refresh is possible anyway.
+    const fact = snapshot.daySummary.upNext;
+    if (fact && fact.countdownEndMs > Date.now()) {
+      const delay = Math.min(fact.countdownEndMs - Date.now() + 2000, 6 * 3600000);
+      const boundaryTimer = setTimeout(() => setWidgetSnapshotTick(t => t + 1), delay);
+      return () => clearTimeout(boundaryTimer);
+    }
     // Keyed on the state that composes the widget snapshot. The omitted names are
     // unstable per-render helpers (computeAvailableSlots/getFrameInstancesForDate/
     // getOverdueTasks/getTodayHabitCount) plus stable isVisibleForUser and the
@@ -7217,6 +7259,8 @@ const DayPlanner = () => {
     // helper class as the omissions noted above).
     dayWindows,
     listEndOfDayTime,
+    liveActivityEnabled,
+    widgetSnapshotTick,
   ]);
 
   // Phase 11 — Spotlight indexing: keep Spotlight in sync with non-archived,
@@ -7729,6 +7773,7 @@ const DayPlanner = () => {
 
     // ── Settings / preferences ────────────────────────────────────────────────
     use24HourClock, setUse24HourClock,
+    liveActivityEnabled, setLiveActivityEnabled,
     inboxAutoArchiveDays, setInboxAutoArchiveDays,
     weekStartDay, setWeekStartDay,
     homeTimezone, setHomeTimezone,
