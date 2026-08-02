@@ -2,8 +2,9 @@ import ActivityKit
 import WidgetKit
 import SwiftUI
 
-// Day-summary Live Activity: schedule facts in the Dynamic Island, the
-// summary strip's numbers on the lock screen. Pure metadata plane — short
+// Day-summary Live Activity: schedule facts in the Dynamic Island, and a
+// lock-screen banner that mirrors the expanded island (block + done on the
+// left, countdown + energy on the right). Pure metadata plane — short
 // strings and a countdown interval, no media — rendered from ContentState
 // pushed by the app's LiveActivityBridge; this extension never reads the App
 // Group or computes anything.
@@ -143,18 +144,43 @@ private struct LockScreenView: View {
     let state: DaySummaryAttributes.ContentState
     let isStale: Bool
 
+    // Mirrors the EXPANDED island: block title + time + done progress on the
+    // left, live countdown + energy split on the right. Unblocked time is
+    // in-app currency, not glance currency — it lives in the summary strip,
+    // not here.
     var body: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(state.unblocked)
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(unblockedColor)
-                Text("unblocked")
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(state.blockTitle ?? "No more blocks today")
+                    .font(.headline)
+                    .lineLimit(2)
+                if let time = state.blockTime {
+                    Text(time)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Label("\(state.done) done", systemImage: "checkmark.circle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            Spacer()
+            Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 4) {
+                // Same live countdown as the island; when there is nothing to
+                // count (no more blocks), the right side is just the energy
+                // split — done already sits on the left, so no fallback text.
+                if let start = state.countdownStart, let end = state.countdownEnd, start < end {
+                    Text(timerInterval: start...end, countsDown: true)
+                        .font(.title2.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(unblockedColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.55)
+                        .frame(maxWidth: 96, alignment: .trailing)
+                    Text(state.inProgress ? "remaining" : "starts in")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 HStack(spacing: 10) {
                     Label(state.effort, systemImage: "bolt.fill")
                         .foregroundStyle(effortColor)
@@ -164,9 +190,6 @@ private struct LockScreenView: View {
                 .font(.footnote.weight(.medium))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                Text("\(state.done) done")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
         .padding(14)

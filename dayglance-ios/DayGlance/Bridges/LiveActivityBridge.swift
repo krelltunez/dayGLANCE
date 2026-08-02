@@ -72,7 +72,9 @@ final class LiveActivityBridge {
 
         guard let payload = envelope?.daySummary,
               let date = payload.date,
-              let unblocked = payload.unblocked,
+              // unblocked is the empty-day sentinel, not display data: null
+              // means nothing to measure (the strip shows nothing) → end.
+              payload.unblocked != nil,
               let effort = payload.effort,
               let restore = payload.restore,
               let done = payload.done else {
@@ -88,7 +90,7 @@ final class LiveActivityBridge {
             countdownStart: msToDate(up?.countdownStartMs),
             countdownEnd: msToDate(up?.countdownEndMs),
             inProgress: up?.inProgress ?? false,
-            done: done, unblocked: unblocked, effort: effort, restore: restore)
+            done: done, effort: effort, restore: restore)
         let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(Self.staleAfter))
 
         Task {
