@@ -41,9 +41,10 @@ struct DaySummaryAttributes: ActivityAttributes {
         var inProgress: Bool
         /// "1h 30m/7h" — done/planned.
         var done: String
-        /// "3h 20m" — lock screen only; in-app currency, not glance currency.
-        var unblocked: String
-        /// "5h 30m" effort / "2h 30m" restore — the energy split.
+        /// "5h 30m" effort / "2h 30m" restore — the energy split. Unblocked
+        /// time is deliberately NOT carried: no Live Activity surface renders
+        /// it (in-app currency, not glance currency) — though the bridge still
+        /// reads it from the snapshot as the empty-day end signal.
         var effort: String
         var restore: String
     }
