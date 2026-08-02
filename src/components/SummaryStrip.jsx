@@ -13,8 +13,15 @@ import { computeDaySummary, formatMinutes } from '../utils/daySummary.js';
 // carries the headline numbers.
 const COLLAPSE_KEY = 'day-planner-summary-strip-collapsed';
 
-const EFFORT_DOT = '#6366f1'; // indigo — matches the END marker
-const RESTORE_DOT = '#22c55e'; // green-500 — leaf-green per review; the START marker keeps its teal
+// Exported (with summaryPillClass) so TitlebarSummaryStrip renders the exact
+// same pills — one definition, no drift between the strip and the title bar.
+export const EFFORT_DOT = '#6366f1'; // indigo — matches the END marker
+export const RESTORE_DOT = '#22c55e'; // green-500 — leaf-green per review; the START marker keeps its teal
+
+export const summaryPillClass = (darkMode) =>
+  `flex items-center gap-1.5 px-2.5 py-1 rounded-full flex-shrink-0 border shadow-sm backdrop-blur-sm ${
+    darkMode ? 'bg-gray-900/85 border-gray-700' : 'bg-white/90 border-stone-200'
+  }`;
 
 /**
  * Summary strip: rolls the viewed day's timeline blocks into a row of pills —
@@ -86,9 +93,7 @@ export default function SummaryStrip({ phone = false, staticPlacement = false })
     [getTasksForDate, selectedDate, listEndOfDayTime, dayWindow],
   );
 
-  const pill = `flex items-center gap-1.5 px-2.5 py-1 rounded-full flex-shrink-0 border shadow-sm backdrop-blur-sm ${
-    darkMode ? 'bg-gray-900/85 border-gray-700' : 'bg-white/90 border-stone-200'
-  }`;
+  const pill = summaryPillClass(darkMode);
 
   // Menu edits act on the RESOLVED window (day entry or inherited default) —
   // what the user sees in the inputs is what gets stored. Setting either bound
