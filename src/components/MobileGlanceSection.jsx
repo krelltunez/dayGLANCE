@@ -396,7 +396,7 @@ const MobileGlanceSection = () => {
                 <Flag size={13} className="text-amber-400 flex-shrink-0" />
                 <span className={`text-sm font-medium ${textPrimary} truncate`}>{g.title}</span>
               </div>
-              <span className={`text-xs flex-shrink-0 font-medium px-1.5 py-0.5 rounded ${darkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-100 text-amber-700'}`}>{t('app.goalDueToday')}</span>
+              <span className={`text-xs flex-shrink-0 font-medium px-1.5 py-0.5 rounded ${darkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-100 text-amber-700'}`}>{t('goals.dueToday')}</span>
             </div>
             <div className="flex items-center gap-2">
               <div className={`flex-1 h-1.5 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-200'}`}>

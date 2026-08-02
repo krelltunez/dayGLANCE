@@ -129,8 +129,10 @@ export default function SummaryStrip({ phone = false, staticPlacement = false })
   // cover every future day and this state never recurs.
   const isEmptyHint = summary.unblockedMinutes === null;
 
+  // Static (LIST) gets real top padding: it sits right under the day's
+  // closing "Good work" line and needs visible separation from it.
   const container = staticPlacement
-    ? `relative pt-1 pb-2 pl-2 pointer-events-none ${phone ? 'pr-20' : 'pr-2'}`
+    ? `relative pt-4 pb-2 pl-2 pointer-events-none ${phone ? 'pr-20' : 'pr-2'}`
     : `sticky bottom-0 z-30 pl-2 pb-2 pointer-events-none ${phone ? 'pr-20' : 'pr-2'}`;
 
   return (
@@ -272,19 +274,21 @@ export default function SummaryStrip({ phone = false, staticPlacement = false })
           </>
         );
 
-        // Floating phone strip: the anchor row (unblocked + energy) keeps the
-        // exact position it has when collapsed — the container is stuck to the
-        // bottom, so the tag chips FAN OUT UPWARD above it and the collapse
-        // target never moves. The in-flow LIST strip reads top-down instead,
-        // so there everything stays one wrapping row growing downward.
+        // Floating phone strip: the unblocked pill is the ANCHOR — it keeps
+        // the exact bottom-left position it has when collapsed, so the
+        // collapse target never moves. Everything else fans out UPWARD in its
+        // own row: energy directly above, tag chips above that. One pill per
+        // row on the anchor levels also keeps the fan-out clear of the
+        // new-task FAB — unblocked + energy side by side could not wrap
+        // (anchor stability) and slid underneath it on narrow phones. The
+        // in-flow LIST strip reads top-down instead, so there everything
+        // stays one wrapping row growing downward.
         if (phone && !staticPlacement) {
           return (
             <div className="pointer-events-auto w-fit max-w-full flex flex-col items-start gap-1.5 text-xs">
               <div className="flex flex-wrap items-center gap-1.5">{tagChips}</div>
-              <div className="flex items-center gap-1.5">
-                {unblockedPill}
-                {energyPill}
-              </div>
+              {energyPill && <div className="flex items-center">{energyPill}</div>}
+              <div className="flex items-center">{unblockedPill}</div>
             </div>
           );
         }
