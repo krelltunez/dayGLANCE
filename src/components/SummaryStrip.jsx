@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react';
+import { ChevronDown, ChevronUp, Leaf, MoreHorizontal, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import ClockTimePicker from './ClockTimePicker.jsx';
@@ -117,9 +117,9 @@ export default function SummaryStrip({ phone = false, staticPlacement = false })
   // buy nothing.
   const energyCompact = summary.blockedMinutes > 0 && (
     <span className="flex items-center gap-1">
-      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: EFFORT_DOT }} />
+      <Zap size={12} className="flex-shrink-0" style={{ color: EFFORT_DOT }} />
       <span className={textSecondary}>{formatMinutes(summary.effortMinutes)}</span>
-      <span className="w-2 h-2 rounded-full flex-shrink-0 ml-0.5" style={{ backgroundColor: RESTORE_DOT }} />
+      <Leaf size={12} className="flex-shrink-0 ml-0.5" style={{ color: RESTORE_DOT }} />
       <span className={textSecondary}>{formatMinutes(summary.restoreMinutes)}</span>
     </span>
   );
@@ -227,12 +227,16 @@ export default function SummaryStrip({ phone = false, staticPlacement = false })
         // scorecard. Dots reuse the day-window marker palette (indigo/teal)
         // for one coherent color family. Hidden when the day has no blocks
         // (an empty declared window has nothing to classify).
+        // Zap deliberately matches the Energy item in the task context menu, so
+        // the readout and its override control share a glyph. Leaf is the calm
+        // side; an exercise glyph would be wrong here — the classifier files
+        // running/gym under RESTORE, and icons must not contradict the numbers.
         const energyPill = summary.blockedMinutes > 0 && (
           <span className={pill}>
-            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: EFFORT_DOT }} />
+            <Zap size={13} className="flex-shrink-0" style={{ color: EFFORT_DOT }} />
             <span className={textPrimary}>Effort</span>
             <span className={textSecondary}>{formatMinutes(summary.effortMinutes)}</span>
-            <span className="w-2 h-2 rounded-full flex-shrink-0 ml-0.5" style={{ backgroundColor: RESTORE_DOT }} />
+            <Leaf size={13} className="flex-shrink-0 ml-0.5" style={{ color: RESTORE_DOT }} />
             <span className={textPrimary}>Restore</span>
             <span className={textSecondary}>{formatMinutes(summary.restoreMinutes)}</span>
           </span>
