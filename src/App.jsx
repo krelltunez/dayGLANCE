@@ -1394,6 +1394,9 @@ const DayPlanner = () => {
   // summary strip measures unblocked time against them and the grids render
   // them as marker lines. See src/hooks/useDayWindows.js.
   const { getDayWindow, setDayWindow, clearDayWindow } = useDayWindows();
+  // Day-window menu visibility lives here (not in SummaryStrip) so the START/
+  // END marker chips on the grid can open the same popover the strip owns.
+  const [dayWindowMenuOpen, setDayWindowMenuOpen] = useState(false);
 
   const { pendingPriorities, cyclePriority, getDeadlineTasksForDate } = useDeadlinePriority({
     unscheduledTasks,
@@ -8246,6 +8249,7 @@ const DayPlanner = () => {
     openFrameAdjust, openFrameSchedule, saveFrameAdjust,
     getFrameInstancesForDate,
     getDayWindow, setDayWindow, clearDayWindow,
+    dayWindowMenuOpen, setDayWindowMenuOpen,
     runSmartSchedule, applySmartSchedule,
     runReschedule, applyReschedule,
     computeAvailableSlots,

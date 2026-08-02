@@ -31,6 +31,7 @@ export const RESTORE_KEYWORDS = new Set([
   'health', 'gym', 'workout', 'exercise', 'run', 'running', 'walk', 'yoga',
   'meditate', 'meditation', 'breakfast', 'lunch', 'dinner', 'meal', 'eat',
   'break', 'rest', 'nap', 'sleep', 'recharge', 'recovery',
+  'relax', 'relaxation', 'unwind', 'chill',
 ]);
 
 /**

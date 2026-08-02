@@ -12,6 +12,7 @@ describe('deriveBlockEnergy', () => {
   it('classifies restore from a #tag', () => {
     expect(deriveBlockEnergy({ title: 'Morning session #gym' })).toBe(ENERGY_RESTORE);
     expect(deriveBlockEnergy({ title: 'Steps #health' })).toBe(ENERGY_RESTORE);
+    expect(deriveBlockEnergy({ title: 'Evening #relax' })).toBe(ENERGY_RESTORE);
   });
 
   it('classifies restore from a plain title word — no tagging required', () => {

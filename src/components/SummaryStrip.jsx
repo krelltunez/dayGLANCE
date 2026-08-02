@@ -10,20 +10,29 @@ import { computeDaySummary, formatMinutes } from '../utils/daySummary.js';
 // Collapse choice is a per-window view preference, same class as
 // minimizedSections. Default collapsed: the strip only collapses on phone,
 // where timeline vertical space is tightest, and the collapsed pill still
-// carries the headline number.
+// carries the headline numbers.
 const COLLAPSE_KEY = 'day-planner-summary-strip-collapsed';
 
+const EFFORT_DOT = '#6366f1'; // indigo — matches the END marker
+const RESTORE_DOT = '#14b8a6'; // teal — matches the START marker
+
 /**
- * Summary strip (phase 1): rolls the viewed day's timeline blocks into a row of
- * pills floating over the bottom of the timeline — the day/date, unblocked
- * time, and total time per #tag. Sticky inside the timeline's scroll container,
- * so it costs no layout height; the pill row is width-fit with pointer events
- * scoped to itself, so the grid stays clickable around it.
+ * Summary strip: rolls the viewed day's timeline blocks into a row of pills —
+ * the day/date, unblocked time, the Effort/Restore split, and total time per
+ * #tag. Normally sticky inside the timeline's scroll container so it costs no
+ * layout height, with pointer events scoped to the pills so the grid stays
+ * clickable around them.
  *
  * The unblocked pill carries a three-dot menu for the day's START/STOP window
- * (useDayWindows): set or clear the day's bounds, sticky-forward. The menu is a
- * sibling of the pill row, not a child — the row scrolls horizontally and would
- * clip anything popping out of it.
+ * (useDayWindows). The open state lives in featuresCtx, not here, so the
+ * START/END marker chips on the grid can open the same popover. The menu is a
+ * sibling of the pill row, not a child — the row scrolls/wraps and would clip
+ * anything popping out of it.
+ *
+ * On a day with no blocks AND no declared window there are no numbers to show,
+ * so the strip renders a single quiet "Set day window" pill instead — the
+ * entry point for the one-time setup (sticky-forward defaults mean that once
+ * set, future days inherit it and the hint never reappears).
  *
  * Each pill carries its own opaque-ish blurred background instead of the row
  * having one — floating over arbitrary block colors, per-pill backdrop-blur +
@@ -33,17 +42,25 @@ const COLLAPSE_KEY = 'day-planner-summary-strip-collapsed';
  *
  * @param phone Phone timeline variant: collapsible to a single pill, no date
  *              pill (the phone timeline shows exactly one day, so the heading
- *              would restate the header), and right clearance for the new-task
- *              FAB (fixed right-4 w-14, z-40 — above this row's z-30) so pills
- *              never slide underneath it. Desktop/tablet pass nothing.
+ *              would restate the header), right clearance for the new-task FAB
+ *              (fixed right-4 w-14, z-40 — above this row's z-30), and the
+ *              expanded row WRAPS to more lines instead of scrolling
+ *              horizontally. Desktop/tablet pass nothing.
+ * @param staticPlacement In-flow instead of sticky — used by mobile LIST view,
+ *              where a sticky overlay reads as an extension of the list's
+ *              spine. Static places the strip after the day's content as its
+ *              own element.
  */
-export default function SummaryStrip({ phone = false }) {
+export default function SummaryStrip({ phone = false, staticPlacement = false }) {
   const {
     selectedDate, getTasksForDate, listEndOfDayTime,
     darkMode, textPrimary, textSecondary, borderClass, cardBg,
     use24HourClock, isTablet, formatTime,
   } = useDayPlannerCtx();
-  const { getDayWindow, setDayWindow, clearDayWindow } = useFeaturesCtx();
+  const {
+    getDayWindow, setDayWindow, clearDayWindow,
+    dayWindowMenuOpen: menuOpen, setDayWindowMenuOpen: setMenuOpen,
+  } = useFeaturesCtx();
 
   const [collapsed, setCollapsed] = useState(
     () => phone && localStorage.getItem(COLLAPSE_KEY) !== '0',
@@ -55,7 +72,6 @@ export default function SummaryStrip({ phone = false }) {
     });
   };
 
-  const [menuOpen, setMenuOpen] = useState(false);
   // Which bound the clock picker is editing: 'start' | 'stop' | null.
   const [pickerField, setPickerField] = useState(null);
 
@@ -69,11 +85,6 @@ export default function SummaryStrip({ phone = false }) {
     () => computeDaySummary(getTasksForDate(selectedDate, false), listEndOfDayTime, dayWindow),
     [getTasksForDate, selectedDate, listEndOfDayTime, dayWindow],
   );
-
-  // Empty day with no declared window: nothing to summarize, and "0m unblocked"
-  // would claim the opposite of the truth. Render nothing rather than an empty
-  // row. (With START/STOP set, an empty day IS measurable and renders.)
-  if (summary.unblockedMinutes === null) return null;
 
   const pill = `flex items-center gap-1.5 px-2.5 py-1 rounded-full flex-shrink-0 border shadow-sm backdrop-blur-sm ${
     darkMode ? 'bg-gray-900/85 border-gray-700' : 'bg-white/90 border-stone-200'
@@ -95,13 +106,35 @@ export default function SummaryStrip({ phone = false }) {
 
   const unblockedLabel = (
     <span className="flex items-baseline gap-1">
-      <span className={`font-semibold ${textPrimary}`}>{formatMinutes(summary.unblockedMinutes)}</span>
+      <span className={`font-semibold ${textPrimary}`}>{formatMinutes(summary.unblockedMinutes ?? 0)}</span>
       <span className={textSecondary}>unblocked</span>
     </span>
   );
 
+  // Compact Effort/Restore readout for the collapsed pill: dots + values, no
+  // words. Always included rather than fit-detected — at ~90px it fits beside
+  // the unblocked figure on any phone ≥320px, so measurement machinery would
+  // buy nothing.
+  const energyCompact = summary.blockedMinutes > 0 && (
+    <span className="flex items-center gap-1">
+      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: EFFORT_DOT }} />
+      <span className={textSecondary}>{formatMinutes(summary.effortMinutes)}</span>
+      <span className="w-2 h-2 rounded-full flex-shrink-0 ml-0.5" style={{ backgroundColor: RESTORE_DOT }} />
+      <span className={textSecondary}>{formatMinutes(summary.restoreMinutes)}</span>
+    </span>
+  );
+
+  // Empty day, no declared window: no numbers to show, so the strip becomes the
+  // one-time setup hint. Once a window is set anywhere, sticky-forward defaults
+  // cover every future day and this state never recurs.
+  const isEmptyHint = summary.unblockedMinutes === null;
+
+  const container = staticPlacement
+    ? `relative pt-1 pb-2 pl-2 pointer-events-none ${phone ? 'pr-20' : 'pr-2'}`
+    : `sticky bottom-0 z-30 pl-2 pb-2 pointer-events-none ${phone ? 'pr-20' : 'pr-2'}`;
+
   return (
-    <div className={`sticky bottom-0 z-30 pl-2 pb-2 pointer-events-none ${phone ? 'pr-20' : 'pr-2'}`}>
+    <div className={container}>
       {menuOpen && (
         <>
           {/* Backdrop closes on any outside tap/click. */}
@@ -153,13 +186,25 @@ export default function SummaryStrip({ phone = false }) {
           )}
         </>
       )}
-      {phone && collapsed ? (
+      {isEmptyHint ? (
+        <button
+          onClick={() => setMenuOpen(true)}
+          className={`${pill} pointer-events-auto text-xs ${textSecondary} hover:opacity-80`}
+        >
+          <MoreHorizontal size={13} className="flex-shrink-0" />
+          Set day window…
+        </button>
+      ) : phone && collapsed ? (
         <button onClick={toggle} className={`${pill} pointer-events-auto max-w-full text-xs`}>
           <ChevronUp size={13} className={`flex-shrink-0 ${textSecondary}`} />
           {unblockedLabel}
+          {energyCompact && <span className={textSecondary}>·</span>}
+          {energyCompact}
         </button>
       ) : (
-        <div className={`pointer-events-auto w-fit max-w-full flex items-center gap-1.5 overflow-x-auto text-xs ${darkMode ? 'dark-scrollbar' : ''}`}>
+        <div className={`pointer-events-auto w-fit max-w-full flex items-center gap-1.5 text-xs ${
+          phone ? 'flex-wrap' : `overflow-x-auto ${darkMode ? 'dark-scrollbar' : ''}`
+        }`}>
           {/* Day/date heading — pins which day the numbers describe, which the
               multi-day desktop view otherwise leaves ambiguous. The phone
               timeline shows exactly one day, so there it is dropped. */}
@@ -176,7 +221,7 @@ export default function SummaryStrip({ phone = false }) {
             )}
             {unblockedLabel}
             <button
-              onClick={() => setMenuOpen((o) => !o)}
+              onClick={() => setMenuOpen(!menuOpen)}
               className={`-mr-1 p-0.5 rounded-full ${textSecondary} hover:opacity-70`}
               aria-label="Day window options"
             >
@@ -189,10 +234,10 @@ export default function SummaryStrip({ phone = false }) {
               (an empty declared window has nothing to classify). */}
           {summary.blockedMinutes > 0 && (
             <span className={pill}>
-              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#6366f1' }} />
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: EFFORT_DOT }} />
               <span className={textPrimary}>Effort</span>
               <span className={textSecondary}>{formatMinutes(summary.effortMinutes)}</span>
-              <span className="w-2 h-2 rounded-full flex-shrink-0 ml-0.5" style={{ backgroundColor: '#14b8a6' }} />
+              <span className="w-2 h-2 rounded-full flex-shrink-0 ml-0.5" style={{ backgroundColor: RESTORE_DOT }} />
               <span className={textPrimary}>Restore</span>
               <span className={textSecondary}>{formatMinutes(summary.restoreMinutes)}</span>
             </span>
