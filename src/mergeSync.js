@@ -309,6 +309,28 @@ export const mergeSyncData = (local, remote, retentionDays) => {
     if (!dayWindowMapsEqual(mergedW, rw)) result.remoteChanged = true;
   }
 
+  // Bucket List config (headings / secondListHidden / notes): whole-object LWW
+  // by its embedded updatedAt (stamped on every setBucketConfig edit). The
+  // upstream merge predates this slice and DROPS unknown keys, so without this
+  // wrapper the merged file silently lost bucketConfig on every file-tier
+  // merge — heading edits never propagated between devices, and each re-upload
+  // removed the slice from the file. Remote wins ties (pickConfigByTs
+  // convention), matching the vault bundle's mergeBundle case exactly so the
+  // two tiers cannot disagree.
+  if (local?.bucketConfig || remote?.bucketConfig) {
+    const lb = local?.bucketConfig || null;
+    const rb = remote?.bucketConfig || null;
+    const bts = (v) => { const t = new Date(v ?? 0).getTime(); return Number.isNaN(t) ? 0 : t; };
+    const winner = bts(rb?.updatedAt) >= bts(lb?.updatedAt) ? (rb || lb) : lb;
+    result.data.bucketConfig = winner;
+    // Same change-flag contract as dayWindows above: localChanged triggers the
+    // local apply, remoteChanged the re-upload that heals a remote file
+    // missing the slice (one written by an older client — or by any client
+    // before this fix existed).
+    if (winner !== lb) result.localChanged = true;
+    if (winner !== rb) result.remoteChanged = true;
+  }
+
   // Recurring completions ride inside the shared template row, which the upstream
   // merge resolves by whole-row LWW — re-merge each series' completedDates by date
   // so a completion is never clobbered by a concurrent edit to the same series

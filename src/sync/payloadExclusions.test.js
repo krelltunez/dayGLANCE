@@ -83,3 +83,33 @@ describe('agedOutReleaseReason — the file-tier zombie-drop populations', () =>
     expect(rel('tasks', undefined)).toBeNull();
   });
 });
+
+describe('agedOutReleaseReason — routine-rollover (prior-day chips)', () => {
+  const DAY_START = new Date('2026-08-03T00:00:00').getTime();
+  const rel = (value, opts = { dayStartMs: DAY_START }) =>
+    agedOutReleaseReason({ _kind: 'todayRoutines', value }, opts);
+
+  it('RELEASES a chip last touched before today — the midnight rollover cleared it by design', () => {
+    expect(rel({ id: '1770477319151', lastModified: '2026-02-07T14:00:00Z' })).toBe('routine-rollover');
+    expect(rel({ id: 'x', lastModified: '2026-08-02T23:59:00' })).toBe('routine-rollover');
+  });
+
+  it("KEEPS a chip touched today — a same-day vanish is still a glitch-suspect and heals", () => {
+    expect(rel({ id: 'x', lastModified: '2026-08-03T08:00:00' })).toBeNull();
+  });
+
+  it('fails safe: no dayStartMs, or no parseable lastModified → keep the glitch classification', () => {
+    expect(rel({ id: 'x', lastModified: '2026-02-07T14:00:00Z' }, {})).toBeNull();
+    expect(rel({ id: 'x' })).toBeNull();
+    expect(rel({ id: 'x', lastModified: 'not-a-date' })).toBeNull();
+  });
+
+  it('routine-rollover is scoped to todayRoutines; task kinds never take the branch', () => {
+    expect(agedOutReleaseReason(
+      { _kind: 'tasks', value: { lastModified: '2026-02-07T14:00:00Z' } },
+      { dayStartMs: DAY_START },
+    )).toBeNull();
+    // And a todayRoutines chip never takes the task branches ('completed').
+    expect(rel({ id: 'x', completed: true, lastModified: '2026-08-03T08:00:00' })).toBeNull();
+  });
+});

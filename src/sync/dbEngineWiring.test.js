@@ -1195,10 +1195,11 @@ describe('issue #1196 — the midnight rollover speaks the vanish-delete guard\'
     expect(snap['todayRoutines:chipA']).toBeUndefined();
   });
 
-  it('CONTROL (the pre-fix bug): a bare clear with a WIPED tombstone map is skipped by the guard and resurrected by the heal', async () => {
+  it('CONTROL (the pre-fix shape): a bare clear with a WIPED tombstone map — PRIOR-DAY chips are released, not healed', async () => {
     const vault = createMemoryVault({ rowGet: true });
     const A = makeDevice('A', vault, {
       ...EMPTY,
+      // lastModified predates the REAL test-run day's midnight → prior-day.
       todayRoutines: [routine('chipA', '2026-06-18T10:00:00.000Z')],
       routinesDate: '2026-06-18',
       removedTodayRoutineIds: {},
@@ -1213,8 +1214,38 @@ describe('issue #1196 — the midnight rollover speaks the vanish-delete guard\'
     A.data.routinesDate = '2026-06-19';
     await A.engine.dbSyncCycle();
 
-    // Guard skips the un-tombstoned vanish and the heal resurrects the row —
-    // this is the reported symptom, pinned here so the fix's contract is clear.
+    // Pre-release-classifier, this was the reported #1196 symptom: guard skips
+    // the un-tombstoned vanish and the heal resurrects the row. The
+    // 'routine-rollover' baseline release now catches it instead: a prior-day
+    // chip can never legitimately reappear in getData(), so it is neither
+    // deleted fleet-wide nor healed back — no GUARD churn, no resurrection,
+    // and the baseline stops tracking it.
+    expect(warnSpy.mock.calls.filter((c) => String(c[0]).includes('GUARD'))).toEqual([]);
+    expect(A.data.todayRoutines).toEqual([]);
+    const snap = JSON.parse(global.localStorage.getItem('dev-A-db-sync-snapshot') || '{}');
+    expect(snap['todayRoutines:chipA']).toBeUndefined();
+  });
+
+  it('CONTROL (guard machinery intact): a SAME-DAY chip vanishing without a tombstone is still glitch-skipped and healed', async () => {
+    const vault = createMemoryVault({ rowGet: true });
+    // Stamped "now": at or after the current day's midnight, so the
+    // routine-rollover release must NOT claim it — a same-day vanish with no
+    // fingerprint is a genuine glitch-suspect and heals exactly as before.
+    const A = makeDevice('A', vault, {
+      ...EMPTY,
+      todayRoutines: [routine('chipA', new Date().toISOString())],
+      routinesDate: '2026-06-18',
+      removedTodayRoutineIds: {},
+    });
+    await A.engine.dbSyncCycle();
+    await A.engine.dbSyncCycle();
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    A.data.todayRoutines = [];
+    A.data.routinesDate = '2026-06-19';
+    await A.engine.dbSyncCycle();
+
     expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('GUARD'))).toBe(true);
     expect(A.data.todayRoutines.map((r) => r.id)).toContain('chipA');
   });

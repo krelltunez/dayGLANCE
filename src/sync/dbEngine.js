@@ -535,7 +535,13 @@ export function createDbEngine(callbacks = {}) {
             if (isPayloadExcludedEntity(ent, {
               multiUserEnabled: callbacks.isMultiUserEnabled?.() === true,
             })) return 'payload-excluded';
-            return agedOutReleaseReason(ent, { horizonMs: tombstoneCutoff().getTime() });
+            return agedOutReleaseReason(ent, {
+              horizonMs: tombstoneCutoff().getTime(),
+              // Local midnight: a todayRoutines chip last touched before it is
+              // a prior-day chip the rollover cleared by design ('routine-
+              // rollover'), not a glitch to heal.
+              dayStartMs: new Date().setHours(0, 0, 0, 0),
+            });
           },
         );
         glitchSkipped = skipped;
@@ -544,7 +550,7 @@ export function createDbEngine(callbacks = {}) {
           // untouched in the vault; the next SAVED snapshot (hashed from the
           // mirror, which never contains them) simply stops tracking them. Info-
           // level on purpose — this is a one-time convergence, not a problem.
-          const counts = { 'payload-excluded': 0, completed: 0, 'sync-horizon': 0 };
+          const counts = { 'payload-excluded': 0, completed: 0, 'sync-horizon': 0, 'routine-rollover': 0 };
           for (const eid of excluded) {
             if (reasons[eid] in counts) counts[reasons[eid]]++;
           }
@@ -552,6 +558,7 @@ export function createDbEngine(callbacks = {}) {
             counts['payload-excluded'] ? `${counts['payload-excluded']} payload-excluded (native / non-synced imports)` : '',
             counts.completed ? `${counts.completed} completed (aged out of the working set)` : '',
             counts['sync-horizon'] ? `${counts['sync-horizon']} sync-horizon (older than the file-tier zombie-drop fence)` : '',
+            counts['routine-rollover'] ? `${counts['routine-rollover']} routine-rollover (prior-day chips the midnight rollover cleared)` : '',
           ].filter(Boolean).join(', ');
           console.info(
             `[push] baseline: released ${excluded.length} row(s) — ${breakdown}. ` +
