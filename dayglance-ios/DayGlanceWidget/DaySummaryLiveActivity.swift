@@ -49,13 +49,17 @@ private func countdownText(_ state: DaySummaryAttributes.ContentState, fallback:
 private func countdownRing(_ state: DaySummaryAttributes.ContentState) -> some View {
     if let start = state.countdownStart, let end = state.countdownEnd, start < end {
         // Explicitly sized: the circular gauge's natural size over-claims the
-        // compact slot, leaving a dead gap between the ring and the sensor
-        // housing. 18pt keeps the slot as tight as the system margins allow.
+        // compact slot. 15pt matches the ink of the system Timer's compact
+        // glyph — the tightest the slot gets from our side. What remains is
+        // ActivityKit's own inner margin around the sensor housing (not ours
+        // to shrink; Apple's first-party island surfaces are system-rendered
+        // and not bound by it, which is why Timer sits closer than any
+        // ActivityKit app can).
         ProgressView(timerInterval: start...end, countsDown: true,
                      label: { EmptyView() }, currentValueLabel: { EmptyView() })
             .progressViewStyle(.circular)
             .tint(unblockedColor)
-            .frame(width: 18, height: 18)
+            .frame(width: 15, height: 15)
     } else {
         Image(systemName: "hourglass")
             .foregroundStyle(unblockedColor)
