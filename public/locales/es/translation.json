@@ -346,7 +346,9 @@
     "portraitViewDefault": "Vista en vertical",
     "landscapeViewDefault": "Vista en horizontal",
     "removeFileImported": "Eliminar eventos importados de archivo",
-    "removeFileImportedConfirm": "¿Eliminar los {{n}} eventos importados de archivo? Volver a importar el archivo los restaura."
+    "removeFileImportedConfirm": "¿Eliminar los {{n}} eventos importados de archivo? Volver a importar el archivo los restaura.",
+    "liveActivity": "Actividad en Vivo",
+    "liveActivityDesc": "El plan de hoy en la Dynamic Island y en la pantalla de bloqueo. Ensancha la isla y oculta los iconos de señal junto al reloj."
   },
   "task": {
     "newScheduled": "Nueva tarea programada",
@@ -758,7 +760,9 @@
     "proposedSchedule": "Horario propuesto",
     "couldNotBePlaced": "No se pudo colocar",
     "incompleteTasks": "Tareas incompletas",
-    "allTasksCompleted": "¡Todas las tareas completadas!"
+    "allTasksCompleted": "¡Todas las tareas completadas!",
+    "alarmAt": "Alarma a las",
+    "dayStartsAt": "El día empieza a las"
   },
   "goals": {
     "goalOptional": "Objetivo (opcional)",
@@ -913,5 +917,28 @@
     "notesPlaceholder": "Notas para este espacio: sueños, criterios, enlaces…",
     "showCompleted": "Mostrar completadas",
     "hideCompleted": "Ocultar completadas"
+  },
+  "strip": {
+    "unblocked": "libre",
+    "effort": "Esfuerzo",
+    "restore": "Descanso",
+    "untagged": "sin etiqueta",
+    "setDayWindow": "Definir ventana del día…",
+    "dayWindow": "Ventana del día",
+    "dayWindowDesc": "Se aplica a este día y a los siguientes. El tiempo libre se mide entre el inicio y el fin de la ventana.",
+    "starts": "Empieza",
+    "ends": "Termina",
+    "set": "Definir…",
+    "clearForDay": "Borrar para este día",
+    "markerStart": "inicio",
+    "markerEnd": "fin",
+    "energyLabel": "Energía: {{value}}",
+    "energyAuto": "Energía: Auto ({{value}})",
+    "until": "hasta las",
+    "at": "a las",
+    "done": "hecho",
+    "remaining": "restante",
+    "startsIn": "empieza en",
+    "noMoreBlocks": "No quedan bloques hoy"
   }
 }

@@ -346,7 +346,9 @@
     "portraitViewDefault": "Vista vertical",
     "landscapeViewDefault": "Vista horizontal",
     "removeFileImported": "Remover eventos importados de ficheiro",
-    "removeFileImportedConfirm": "Remover os {{n}} eventos importados de ficheiro? Reimportar o ficheiro irá restaurá-los."
+    "removeFileImportedConfirm": "Remover os {{n}} eventos importados de ficheiro? Reimportar o ficheiro irá restaurá-los.",
+    "liveActivity": "Atividade ao Vivo",
+    "liveActivityDesc": "O plano de hoje na Dynamic Island e na tela de bloqueio. Alarga a ilha e oculta os ícones de sinal ao lado do relógio."
   },
   "task": {
     "newScheduled": "Nova tarefa agendada",
@@ -758,7 +760,9 @@
     "proposedSchedule": "Horário proposto",
     "couldNotBePlaced": "Não foi possível colocar",
     "incompleteTasks": "Tarefas incompletas",
-    "allTasksCompleted": "Todas as tarefas concluídas!"
+    "allTasksCompleted": "Todas as tarefas concluídas!",
+    "alarmAt": "Alarme às",
+    "dayStartsAt": "O dia começa às"
   },
   "goals": {
     "goalOptional": "Objetivo (opcional)",
@@ -913,5 +917,28 @@
     "notesPlaceholder": "Notas para este espaço: sonhos, critérios, links…",
     "showCompleted": "Mostrar concluídas",
     "hideCompleted": "Ocultar concluídas"
+  },
+  "strip": {
+    "unblocked": "livre",
+    "effort": "Esforço",
+    "restore": "Descanso",
+    "untagged": "sem etiqueta",
+    "setDayWindow": "Definir janela do dia…",
+    "dayWindow": "Janela do dia",
+    "dayWindowDesc": "Aplica-se a este dia e aos seguintes. O tempo livre é medido entre o início e o fim da janela.",
+    "starts": "Começa",
+    "ends": "Termina",
+    "set": "Definir…",
+    "clearForDay": "Limpar para este dia",
+    "markerStart": "início",
+    "markerEnd": "fim",
+    "energyLabel": "Energia: {{value}}",
+    "energyAuto": "Energia: Auto ({{value}})",
+    "until": "até",
+    "at": "às",
+    "done": "feito",
+    "remaining": "restante",
+    "startsIn": "começa em",
+    "noMoreBlocks": "Sem mais blocos hoje"
   }
 }

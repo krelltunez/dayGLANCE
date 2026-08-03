@@ -346,7 +346,9 @@
     "portraitViewDefault": "Vue en portrait",
     "landscapeViewDefault": "Vue en paysage",
     "removeFileImported": "Supprimer les événements importés depuis un fichier",
-    "removeFileImportedConfirm": "Supprimer les {{n}} événements importés depuis un fichier ? Réimporter le fichier les restaurera."
+    "removeFileImportedConfirm": "Supprimer les {{n}} événements importés depuis un fichier ? Réimporter le fichier les restaurera.",
+    "liveActivity": "Activité en direct",
+    "liveActivityDesc": "Le plan du jour dans la Dynamic Island et sur l'écran verrouillé. Élargit l'île et masque les icônes de signal près de l'horloge."
   },
   "task": {
     "newScheduled": "Nouvelle tâche planifiée",
@@ -758,7 +760,9 @@
     "proposedSchedule": "Planning proposé",
     "couldNotBePlaced": "Impossible à placer",
     "incompleteTasks": "Tâches incomplètes",
-    "allTasksCompleted": "Toutes les tâches sont terminées !"
+    "allTasksCompleted": "Toutes les tâches sont terminées !",
+    "alarmAt": "Réveil à",
+    "dayStartsAt": "La journée commence à"
   },
   "goals": {
     "goalOptional": "Objectif (optionnel)",
@@ -913,5 +917,28 @@
     "notesPlaceholder": "Notes pour cet espace : rêves, critères, liens…",
     "showCompleted": "Afficher les terminées",
     "hideCompleted": "Masquer les terminées"
+  },
+  "strip": {
+    "unblocked": "libre",
+    "effort": "Effort",
+    "restore": "Repos",
+    "untagged": "sans tag",
+    "setDayWindow": "Définir la fenêtre du jour…",
+    "dayWindow": "Fenêtre du jour",
+    "dayWindowDesc": "S'applique à ce jour et aux suivants. Le temps libre est mesuré entre le début et la fin de la fenêtre.",
+    "starts": "Début",
+    "ends": "Fin",
+    "set": "Définir…",
+    "clearForDay": "Effacer pour ce jour",
+    "markerStart": "début",
+    "markerEnd": "fin",
+    "energyLabel": "Énergie : {{value}}",
+    "energyAuto": "Énergie : Auto ({{value}})",
+    "until": "jusqu'à",
+    "at": "à",
+    "done": "fait",
+    "remaining": "restant",
+    "startsIn": "commence dans",
+    "noMoreBlocks": "Plus de blocs aujourd'hui"
   }
 }

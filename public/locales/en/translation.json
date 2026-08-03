@@ -346,7 +346,9 @@
     "icloudIntentsDesc": "Share task intents with other GLANCE apps through iCloud Drive. Files sync automatically across your Apple devices.",
     "icloudIntentsEnable": "Enable iCloud intents",
     "removeFileImported": "Remove file-imported events",
-    "removeFileImportedConfirm": "Remove all {{n}} file-imported events? Re-importing the file brings them back."
+    "removeFileImportedConfirm": "Remove all {{n}} file-imported events? Re-importing the file brings them back.",
+    "liveActivity": "Live Activity",
+    "liveActivityDesc": "Today's plan in the Dynamic Island and on the Lock Screen. Widens the island, which hides the signal icons next to the clock."
   },
   "task": {
     "newScheduled": "New Scheduled Task",
@@ -758,7 +760,9 @@
     "proposedSchedule": "Proposed Schedule",
     "couldNotBePlaced": "Could not be placed",
     "incompleteTasks": "Incomplete Tasks",
-    "allTasksCompleted": "All tasks completed!"
+    "allTasksCompleted": "All tasks completed!",
+    "alarmAt": "Alarm at",
+    "dayStartsAt": "Day starts at"
   },
   "goals": {
     "goalOptional": "Goal (optional)",
@@ -913,5 +917,28 @@
     "notesPlaceholder": "Notes for this space: dreams, criteria, links…",
     "showCompleted": "Show completed",
     "hideCompleted": "Hide completed"
+  },
+  "strip": {
+    "unblocked": "unblocked",
+    "effort": "Effort",
+    "restore": "Restore",
+    "untagged": "untagged",
+    "setDayWindow": "Set day window…",
+    "dayWindow": "Day window",
+    "dayWindowDesc": "Applies to this and future days. Unblocked time is measured between the Starts and Ends window.",
+    "starts": "Starts",
+    "ends": "Ends",
+    "set": "Set…",
+    "clearForDay": "Clear for this day",
+    "markerStart": "start",
+    "markerEnd": "end",
+    "energyLabel": "Energy: {{value}}",
+    "energyAuto": "Energy: Auto ({{value}})",
+    "until": "until",
+    "at": "at",
+    "done": "done",
+    "remaining": "remaining",
+    "startsIn": "starts in",
+    "noMoreBlocks": "No more blocks today"
   }
 }

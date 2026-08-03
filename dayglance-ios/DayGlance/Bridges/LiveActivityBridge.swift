@@ -49,6 +49,15 @@ final class LiveActivityBridge {
         var restore: String?
         var done: String?
         var upNext: UpNextPayload?
+        var labels: LabelsPayload?
+    }
+    // The island's Swift-rendered words, localized by the JS side (see the
+    // snapshot's daySummary.labels). English fallbacks cover old snapshots.
+    private struct LabelsPayload: Decodable {
+        var done: String?
+        var remaining: String?
+        var startsIn: String?
+        var noMoreBlocks: String?
     }
     private struct UpNextPayload: Decodable {
         var title: String?
@@ -83,6 +92,7 @@ final class LiveActivityBridge {
         }
 
         let up = payload.upNext
+        let labels = payload.labels
         let msToDate: (Double?) -> Date? = { ms in ms.map { Date(timeIntervalSince1970: $0 / 1000) } }
         let state = DaySummaryAttributes.ContentState(
             blockTitle: up?.title,
@@ -90,7 +100,11 @@ final class LiveActivityBridge {
             countdownStart: msToDate(up?.countdownStartMs),
             countdownEnd: msToDate(up?.countdownEndMs),
             inProgress: up?.inProgress ?? false,
-            done: done, effort: effort, restore: restore)
+            done: done, effort: effort, restore: restore,
+            doneLabel: labels?.done ?? "done",
+            remainingLabel: labels?.remaining ?? "remaining",
+            startsInLabel: labels?.startsIn ?? "starts in",
+            noMoreBlocksLabel: labels?.noMoreBlocks ?? "No more blocks today")
         let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(Self.staleAfter))
 
         Task {

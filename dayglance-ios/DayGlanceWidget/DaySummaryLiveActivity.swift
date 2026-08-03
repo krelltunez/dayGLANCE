@@ -80,7 +80,7 @@ struct DaySummaryLiveActivity: Widget {
                 // ── Expanded ─────────────────────────────────────────────
                 DynamicIslandExpandedRegion(.leading) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(context.state.blockTitle ?? "No more blocks today")
+                        Text(context.state.blockTitle ?? context.state.noMoreBlocksLabel)
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(2)
                         if let time = context.state.blockTime {
@@ -108,8 +108,8 @@ struct DaySummaryLiveActivity: Widget {
                             .minimumScaleFactor(0.55)
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 84, alignment: .trailing)
-                        Text(context.state.blockTitle == nil ? "done"
-                             : context.state.inProgress ? "remaining" : "starts in")
+                        Text(context.state.blockTitle == nil ? context.state.doneLabel
+                             : context.state.inProgress ? context.state.remainingLabel : context.state.startsInLabel)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -120,7 +120,7 @@ struct DaySummaryLiveActivity: Widget {
                     // restore values clipped the leaf's number at the edge):
                     // one line each, shrink together before anything clips.
                     HStack(spacing: 10) {
-                        Label("\(context.state.done) done", systemImage: "checkmark.circle")
+                        Label("\(context.state.done) \(context.state.doneLabel)", systemImage: "checkmark.circle")
                             .foregroundStyle(.secondary)
                         Spacer(minLength: 6)
                         Label(context.state.effort, systemImage: "bolt.fill")
@@ -171,7 +171,7 @@ private struct LockScreenView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(state.blockTitle ?? "No more blocks today")
+                    Text(state.blockTitle ?? state.noMoreBlocksLabel)
                         .font(.headline)
                         .lineLimit(2)
                     if let time = state.blockTime {
@@ -197,14 +197,14 @@ private struct LockScreenView: View {
                             .minimumScaleFactor(0.55)
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 84, alignment: .trailing)
-                        Text(state.inProgress ? "remaining" : "starts in")
+                        Text(state.inProgress ? state.remainingLabel : state.startsInLabel)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 }
             }
             HStack(spacing: 10) {
-                Label("\(state.done) done", systemImage: "checkmark.circle")
+                Label("\(state.done) \(state.doneLabel)", systemImage: "checkmark.circle")
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 6)
                 Label(state.effort, systemImage: "bolt.fill")
