@@ -69,22 +69,43 @@ export function isPayloadExcludedEntity(entity, { multiUserEnabled = false } = {
  *                    sync horizon: this is exactly the zombie-drop condition, so
  *                    the file tier will re-drop it every cycle.
  *
+ * A third shape covers routine chips ('todayRoutines' only):
+ *   'routine-rollover' — a chip whose lastModified predates the CURRENT day's
+ *                    start. Chips live for exactly one day: the midnight
+ *                    rollover rebuilds todayRoutines for the new date, so a
+ *                    prior-day ad-hoc chip vanishes with no tombstone by
+ *                    design (removedTodayRoutineIds marks user removals,
+ *                    deletedRoutineChipIds deleted definitions — rollover
+ *                    marks nothing). The file tier understands this via
+ *                    routinesDate (@glance-apps/sync mergeSyncData); the
+ *                    vanish-guard cannot, so without this release a stale
+ *                    chip is glitch-flagged and heal-fetched forever. A chip
+ *                    touched TODAY stays a glitch-suspect and heals normally.
+ *
  * Release = not propagated as a delete, not heal-fetched, dropped from the diff
  * baseline. The vault row is UNTOUCHED (it survives for other devices); the next
  * saved snapshot stops tracking it and the loop ends. Only would-be 'glitch' rows
  * reach here — tombstoned / stale-tombstone / cross-list are decided first.
  *
  * @param {object} entity  wrapped entity ({ _kind, value }, see dbAdapter.js)
- * @param {{ horizonMs?: number }} [opts]  horizonMs = the file-tier sync-horizon
- *   epoch ms (tombstoneCutoff().getTime()); omit / non-finite → skip the horizon
- *   branch (the 'completed' branch still applies).
- * @returns {'completed'|'sync-horizon'|null}
+ * @param {{ horizonMs?: number, dayStartMs?: number }} [opts]
+ *   horizonMs = the file-tier sync-horizon epoch ms (tombstoneCutoff().getTime());
+ *   dayStartMs = epoch ms of the current day's local midnight. Either omitted /
+ *   non-finite → its branch is skipped (fail toward keeping).
+ * @returns {'completed'|'sync-horizon'|'routine-rollover'|null}
  */
-export function agedOutReleaseReason(entity, { horizonMs = NaN } = {}) {
+export function agedOutReleaseReason(entity, { horizonMs = NaN, dayStartMs = NaN } = {}) {
   if (!entity || typeof entity !== 'object') return null;
-  if (entity._kind !== 'tasks' && entity._kind !== 'unscheduledTasks') return null;
   const t = entity.value;
   if (!t || typeof t !== 'object') return null;
+  if (entity._kind === 'todayRoutines') {
+    if (Number.isFinite(dayStartMs)) {
+      const lm = new Date(t.lastModified).getTime();
+      if (Number.isFinite(lm) && lm < dayStartMs) return 'routine-rollover';
+    }
+    return null;
+  }
+  if (entity._kind !== 'tasks' && entity._kind !== 'unscheduledTasks') return null;
   if (t.completed === true) return 'completed';
   if (Number.isFinite(horizonMs)) {
     const lm = new Date(t.lastModified).getTime();

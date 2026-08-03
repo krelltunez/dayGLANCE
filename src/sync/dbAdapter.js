@@ -488,6 +488,14 @@ function mergeBundle(data, key, value, extra) {
       data.dayWindows = mergeDayWindowMaps(data.dayWindows || {}, value || {});
       return;
     }
+    case 'bucketConfig': {
+      // Whole-object LWW by the config's embedded updatedAt (stamped on every
+      // setBucketConfig edit); remote wins ties via pickByTs, matching the
+      // file tier's wrapper (mergeSync.js) so the tiers cannot disagree.
+      // Field grain isn't warranted for three rarely-edited fields.
+      data.bucketConfig = pickByTs(data.bucketConfig, data.bucketConfig?.updatedAt, value, value?.updatedAt);
+      return;
+    }
     case 'calendarConfigByUser': {
       // {syncId → {syncUrl, taskCalendarUrl, auth?, updatedAt}}: union by syncId,
       // keep the newer entry per user (LWW). Each device reads only its own
