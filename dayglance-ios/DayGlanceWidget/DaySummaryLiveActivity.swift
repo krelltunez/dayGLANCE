@@ -48,10 +48,14 @@ private func countdownText(_ state: DaySummaryAttributes.ContentState, fallback:
 @ViewBuilder
 private func countdownRing(_ state: DaySummaryAttributes.ContentState) -> some View {
     if let start = state.countdownStart, let end = state.countdownEnd, start < end {
+        // Explicitly sized: the circular gauge's natural size over-claims the
+        // compact slot, leaving a dead gap between the ring and the sensor
+        // housing. 18pt keeps the slot as tight as the system margins allow.
         ProgressView(timerInterval: start...end, countsDown: true,
                      label: { EmptyView() }, currentValueLabel: { EmptyView() })
             .progressViewStyle(.circular)
             .tint(unblockedColor)
+            .frame(width: 18, height: 18)
     } else {
         Image(systemName: "hourglass")
             .foregroundStyle(unblockedColor)
@@ -88,12 +92,16 @@ struct DaySummaryLiveActivity: Widget {
                         // Timer text must never wrap: an hours-long countdown
                         // ("2:02:01") overflows a fixed width at title3, and a
                         // wrapped timer splits mid-digit. One line, scale down.
+                        // multilineTextAlignment is what right-aligns the DIGITS —
+                        // timer text reserves its max width and centers its glyphs
+                        // inside it; frame(alignment:) only moves the box.
                         countdownText(context.state, fallback: context.state.done)
                             .font(.title3.weight(.semibold))
                             .monospacedDigit()
                             .foregroundStyle(unblockedColor)
                             .lineLimit(1)
                             .minimumScaleFactor(0.55)
+                            .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 84, alignment: .trailing)
                         Text(context.state.blockTitle == nil ? "done"
                              : context.state.inProgress ? "remaining" : "starts in")
@@ -119,6 +127,10 @@ struct DaySummaryLiveActivity: Widget {
                     .labelStyle(.titleAndIcon)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
+                    // The region clips at the island's curved edge rather than
+                    // constraining the row (so scale-down alone never kicked in
+                    // for the last label) — pull the row in from the edge.
+                    .padding(.trailing, 8)
                     .opacity(context.isStale ? 0.5 : 1)
                 }
             } compactLeading: {
@@ -131,6 +143,7 @@ struct DaySummaryLiveActivity: Widget {
                     .foregroundStyle(unblockedColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
+                    .multilineTextAlignment(.trailing)
                     .frame(maxWidth: 56, alignment: .trailing)
                     .opacity(context.isStale ? 0.5 : 1)
             } minimal: {
@@ -144,53 +157,59 @@ private struct LockScreenView: View {
     let state: DaySummaryAttributes.ContentState
     let isStale: Bool
 
-    // Mirrors the EXPANDED island: block title + time + done progress on the
-    // left, live countdown + energy split on the right. Unblocked time is
-    // in-app currency, not glance currency — it lives in the summary strip,
-    // not here.
+    // Mirrors the EXPANDED island as two clean rows: block title + time on the
+    // left with the live countdown + caption right-flush opposite them, then a
+    // spaced-out footer row of done progress (left) and the energy split
+    // (right). Unblocked time is in-app currency, not glance currency — it
+    // lives in the summary strip, not here.
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(state.blockTitle ?? "No more blocks today")
-                    .font(.headline)
-                    .lineLimit(2)
-                if let time = state.blockTime {
-                    Text(time)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(state.blockTitle ?? "No more blocks today")
+                        .font(.headline)
+                        .lineLimit(2)
+                    if let time = state.blockTime {
+                        Text(time)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                Label("\(state.done) done", systemImage: "checkmark.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 4) {
-                // Same live countdown as the island; when there is nothing to
-                // count (no more blocks), the right side is just the energy
-                // split — done already sits on the left, so no fallback text.
+                Spacer(minLength: 8)
+                // Same live countdown as the island (title3, matching it —
+                // title2 dominated the banner). multilineTextAlignment is what
+                // right-aligns the DIGITS: timer text reserves its max width
+                // and centers its glyphs inside it; frame(alignment:) only
+                // moves the box. Absent countdown (no more blocks) → the row
+                // is just the title; the footer still carries done + energy.
                 if let start = state.countdownStart, let end = state.countdownEnd, start < end {
-                    Text(timerInterval: start...end, countsDown: true)
-                        .font(.title2.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(unblockedColor)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.55)
-                        .frame(maxWidth: 96, alignment: .trailing)
-                    Text(state.inProgress ? "remaining" : "starts in")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(timerInterval: start...end, countsDown: true)
+                            .font(.title3.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(unblockedColor)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.55)
+                            .multilineTextAlignment(.trailing)
+                            .frame(maxWidth: 84, alignment: .trailing)
+                        Text(state.inProgress ? "remaining" : "starts in")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                HStack(spacing: 10) {
-                    Label(state.effort, systemImage: "bolt.fill")
-                        .foregroundStyle(effortColor)
-                    Label(state.restore, systemImage: "leaf.fill")
-                        .foregroundStyle(restoreColor)
-                }
-                .font(.footnote.weight(.medium))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
             }
+            HStack(spacing: 10) {
+                Label("\(state.done) done", systemImage: "checkmark.circle")
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 6)
+                Label(state.effort, systemImage: "bolt.fill")
+                    .foregroundStyle(effortColor)
+                Label(state.restore, systemImage: "leaf.fill")
+                    .foregroundStyle(restoreColor)
+            }
+            .font(.footnote.weight(.medium))
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
         }
         .padding(14)
         .opacity(isStale ? 0.55 : 1)
