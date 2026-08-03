@@ -323,7 +323,7 @@
     "restoreBackupDesc": "Load data from a backup file",
     "autoBackup": "Auto-Backup",
     "loadBackupHistory": "Load Backup History",
-    "aiApiKeyHint": "Stored in browser localStorage. Keep your device secure.",
+    "aiApiKeyHint": "Stored locally on your device. Keep your device secure.",
     "aiByoApiKey": "BYO API key. All calls go directly from your browser to your provider.",
     "importIcs": "iCal Import",
     "weekStartSun": "Week: Sun",
