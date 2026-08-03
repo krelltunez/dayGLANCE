@@ -5802,11 +5802,19 @@ const DayPlanner = () => {
     // full rolling window so recurring occurrences exist for every rendered day.
     const schedWindowEnd = new Date(selectedDate);
     schedWindowEnd.setDate(schedWindowEnd.getDate() + schedDaysShown - 1);
-    const allDateStrs = [...visibleDates, ...weekViewDates, selectedDate, schedWindowEnd]
-      .map(d => dateToString(d)).sort();
+    const today = getTodayStr();
+    // TODAY is anchored into the range unconditionally: plenty of consumers ask
+    // about today regardless of where the user has navigated — todayAgenda (and
+    // through it GLANCE and the widget snapshot / Live Activity), the macOS NOW
+    // bar and title-bar strip. Without the anchor, navigating wholly past (or
+    // before) today silently dropped today's recurring instances from all of
+    // them — visible as tag pills vanishing from the title bar when paging
+    // forward off a weekend-only recurring task's day.
+    const allDateStrs = [...visibleDates.map(d => dateToString(d)),
+      ...weekViewDates.map(d => dateToString(d)),
+      dateToString(selectedDate), dateToString(schedWindowEnd), today].sort();
     const rangeStart = allDateStrs[0];
     const rangeEnd = allDateStrs[allDateStrs.length - 1];
-    const today = getTodayStr();
     const instances = [];
     for (const template of recurringTasks) {
       const occurrences = getOccurrencesInRange(template, rangeStart, rangeEnd);
