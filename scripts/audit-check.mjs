@@ -20,16 +20,10 @@
 import { spawnSync } from 'node:child_process';
 
 const ACK = {
-  'GHSA-mh99-v99m-4gvg': {
-    disposition: 'accept',
-    pkg: 'brace-expansion',
-    reason:
-      'Dev/build-only DoS, pulled transitively by eslint + electron-builder ' +
-      '(via minimatch/glob). No in-major patch exists (fix requires eslint 10 / ' +
-      'electron-builder majors, or a cross-major override we judged too risky). ' +
-      'Not in production.',
-    review: '2026-12-31',
-  },
+  // GHSA-mh99-v99m-4gvg (brace-expansion) was accepted here while no in-major
+  // patch existed. Its bypass advisory (GHSA-rgw5-rvv9-x895) shipped in-major
+  // fixes for BOTH (1.1.18 / 2.1.4 / 5.0.9), now forced via package.json
+  // per-major overrides — so both advisories are FIXED, not acknowledged.
   'GHSA-fx2h-pf6j-xcff': {
     disposition: 'defer', pkg: 'vite',
     reason: 'Dev-server `server.fs.deny` bypass (Windows only). Fix with the vite 5->8 upgrade.',
