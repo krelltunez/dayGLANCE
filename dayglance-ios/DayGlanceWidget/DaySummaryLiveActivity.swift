@@ -48,21 +48,19 @@ private func countdownText(_ state: DaySummaryAttributes.ContentState, fallback:
 @ViewBuilder
 private func countdownRing(_ state: DaySummaryAttributes.ContentState) -> some View {
     if let start = state.countdownStart, let end = state.countdownEnd, start < end {
-        // 18pt ring (15 read as shrunken, and shrinking the claim proved the
-        // cutout gap is ActivityKit's own inner margin, not our width). The
-        // negative trailing padding is the one lever against that margin: it
-        // narrows the LAYOUT claim on the cutout side so the system's fixed
-        // margin is measured from a line 5pt inside the ring, letting the
-        // visual spill that far toward the housing. Apple's first-party
-        // surfaces (Timer) are system-rendered and sit tighter than any
-        // ActivityKit app can by honest means; if this overlaps the cutout on
-        // some model, dial the -5 down rather than up.
+        // 18pt, and the visible gap to the sensor housing is the FLOOR — do
+        // not re-run these experiments (both tested on device): shrinking the
+        // frame (15pt) left the gap unchanged, proving it is ActivityKit's
+        // fixed inner margin, not our layout claim; negative trailing padding
+        // (-5pt) CLIPPED the ring, because the compact region clips at the
+        // claimed bounds instead of letting content spill into the margin.
+        // Apple's first-party surfaces (Timer) sit tighter only because they
+        // are system-rendered, not ActivityKit extensions.
         ProgressView(timerInterval: start...end, countsDown: true,
                      label: { EmptyView() }, currentValueLabel: { EmptyView() })
             .progressViewStyle(.circular)
             .tint(unblockedColor)
             .frame(width: 18, height: 18)
-            .padding(.trailing, -5)
     } else {
         Image(systemName: "hourglass")
             .foregroundStyle(unblockedColor)
