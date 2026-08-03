@@ -7221,8 +7221,18 @@ const DayPlanner = () => {
                 nextUpNext.bodyPrefix
                   ? { ...nextUpNext, title: `${nextUpNext.bodyPrefix}${nextUpNext.title}` }
                   : nextUpNext,
-                Date.now(), formatTime)
+                Date.now(), formatTime,
+                { until: t('strip.until'), at: t('strip.at') })
             : null,
+          // The island's four Swift-rendered words, localized HERE like every
+          // other island string — the JS side owns all wording, so the iOS
+          // project needs no localization infrastructure of its own.
+          labels: {
+            done: t('strip.done'),
+            remaining: t('strip.remaining'),
+            startsIn: t('strip.startsIn'),
+            noMoreBlocks: t('strip.noMoreBlocks'),
+          },
         };
       })(),
       updatedAt: Date.now(),
@@ -7269,6 +7279,7 @@ const DayPlanner = () => {
     listEndOfDayTime,
     liveActivityEnabled,
     widgetSnapshotTick,
+    t,
   ]);
 
   // Phase 11 — Spotlight indexing: keep Spotlight in sync with non-archived,
@@ -9656,7 +9667,7 @@ const DayPlanner = () => {
               {hasEnergy && (() => {
                 const override = ctxTask?.energy === 'restore' || ctxTask?.energy === 'effort' ? ctxTask.energy : null;
                 const derived = ctxTask ? deriveBlockEnergy(ctxTask) : 'effort';
-                const pretty = (e) => (e === 'restore' ? 'Restore' : 'Effort');
+                const pretty = (e) => (e === 'restore' ? t('strip.restore') : t('strip.effort'));
                 const next = override === null ? 'restore' : override === 'restore' ? 'effort' : null;
                 return (
                   <button
@@ -9664,7 +9675,7 @@ const DayPlanner = () => {
                     onClick={() => { setTaskEnergy(taskId, next, isInbox); setTaskContextMenu(null); }}
                   >
                     <Zap size={14} />
-                    {override ? `Energy: ${pretty(override)}` : `Energy: Auto (${pretty(derived)})`}
+                    {override ? t('strip.energyLabel', { value: pretty(override) }) : t('strip.energyAuto', { value: pretty(derived) })}
                   </button>
                 );
               })()}

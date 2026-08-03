@@ -882,10 +882,8 @@ const MobileSettingsPanel = () => {
             </div>
           </div>
           <div>
-            <span className={`text-sm ${textPrimary}`}>Live Activity</span>
-            <p className={`text-xs ${textSecondary}`}>
-              Today's plan in the Dynamic Island and on the Lock Screen. Widens the island, which hides the signal icons next to the clock.
-            </p>
+            <span className={`text-sm ${textPrimary}`}>{t('settings.liveActivity')}</span>
+            <p className={`text-xs ${textSecondary}`}>{t('settings.liveActivityDesc')}</p>
           </div>
         </label>
       )}

@@ -346,7 +346,9 @@
     "portraitViewDefault": "Vista verticale",
     "landscapeViewDefault": "Vista orizzontale",
     "removeFileImported": "Rimuovi gli eventi importati da file",
-    "removeFileImportedConfirm": "Rimuovere tutti i {{n}} eventi importati da file? Reimportando il file verranno ripristinati."
+    "removeFileImportedConfirm": "Rimuovere tutti i {{n}} eventi importati da file? Reimportando il file verranno ripristinati.",
+    "liveActivity": "Attività in tempo reale",
+    "liveActivityDesc": "Il piano di oggi nella Dynamic Island e nella schermata di blocco. Allarga l'isola e nasconde le icone del segnale accanto all'orologio."
   },
   "task": {
     "newScheduled": "Nuova attività pianificata",
@@ -758,7 +760,9 @@
     "proposedSchedule": "Programma proposto",
     "couldNotBePlaced": "Non è stato possibile posizionare",
     "incompleteTasks": "Attività incomplete",
-    "allTasksCompleted": "Tutte le attività completate!"
+    "allTasksCompleted": "Tutte le attività completate!",
+    "alarmAt": "Sveglia alle",
+    "dayStartsAt": "La giornata inizia alle"
   },
   "goals": {
     "goalOptional": "Obiettivo (opzionale)",
@@ -913,5 +917,28 @@
     "notesPlaceholder": "Note per questo spazio: sogni, criteri, link…",
     "showCompleted": "Mostra completate",
     "hideCompleted": "Nascondi completate"
+  },
+  "strip": {
+    "unblocked": "libero",
+    "effort": "Sforzo",
+    "restore": "Recupero",
+    "untagged": "senza tag",
+    "setDayWindow": "Imposta finestra del giorno…",
+    "dayWindow": "Finestra del giorno",
+    "dayWindowDesc": "Vale per questo giorno e per i successivi. Il tempo libero è misurato tra l'inizio e la fine della finestra.",
+    "starts": "Inizia",
+    "ends": "Termina",
+    "set": "Imposta…",
+    "clearForDay": "Cancella per questo giorno",
+    "markerStart": "inizio",
+    "markerEnd": "fine",
+    "energyLabel": "Energia: {{value}}",
+    "energyAuto": "Energia: Auto ({{value}})",
+    "until": "fino alle",
+    "at": "alle",
+    "done": "fatto",
+    "remaining": "rimanente",
+    "startsIn": "inizia tra",
+    "noMoreBlocks": "Nessun altro blocco oggi"
   }
 }

@@ -47,6 +47,14 @@ struct DaySummaryAttributes: ActivityAttributes {
         /// reads it from the snapshot as the empty-day end signal.
         var effort: String
         var restore: String
+        /// The four words this extension renders itself, LOCALIZED BY JS and
+        /// delivered in the snapshot's `labels` — the JS side owns all island
+        /// wording, so the iOS project needs no localization infrastructure.
+        /// The bridge falls back to English when an old snapshot lacks them.
+        var doneLabel: String
+        var remainingLabel: String
+        var startsInLabel: String
+        var noMoreBlocksLabel: String
     }
 
     /// 'YYYY-MM-DD' this activity describes. Fixed for the activity's lifetime.

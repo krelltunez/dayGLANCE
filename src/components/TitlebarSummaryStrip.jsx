@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Leaf, MoreHorizontal, Zap } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString, formatShortDate } from '../utils/taskUtils.js';
@@ -37,6 +38,7 @@ export default function TitlebarSummaryStrip() {
     darkMode, textPrimary, textSecondary,
   } = useDayPlannerCtx();
   const { getDayWindow } = useFeaturesCtx();
+  const { t } = useTranslation();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuLeft, setMenuLeft] = useState(12);
@@ -81,7 +83,7 @@ export default function TitlebarSummaryStrip() {
         onClick={openMenu}
       >
         <span className={`font-semibold ${textPrimary}`}>{formatMinutes(summary.unblockedMinutes)}</span>
-        <span className={textSecondary}>unblocked</span>
+        <span className={textSecondary}>{t('strip.unblocked')}</span>
         <MoreHorizontal size={13} className={`-mr-1 flex-shrink-0 ${textSecondary}`} />
       </span>
       {summary.blockedMinutes > 0 && (

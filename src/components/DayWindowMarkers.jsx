@@ -1,5 +1,6 @@
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { useTranslation } from 'react-i18next';
 
 // START/STOP day-window marker lines on the timeline grid. Render-only in
 // phase A — the window is set and moved from the summary strip's day-window
@@ -50,6 +51,7 @@ function MarkerLine({ topPx, color, label, onOpenMenu }) {
 export default function DayWindowMarkers({ dateStr, minToTop, clipStartMin = 0, clipEndMin = 1440 }) {
   const { minutesToPosition, timeToMinutes } = useDayPlannerCtx();
   const { getDayWindow, setDayWindowMenuOpen } = useFeaturesCtx();
+  const { t } = useTranslation();
 
   const window = getDayWindow?.(dateStr);
   if (!window) return null;
@@ -59,13 +61,13 @@ export default function DayWindowMarkers({ dateStr, minToTop, clipStartMin = 0, 
   if (window.start) {
     const min = timeToMinutes(window.start);
     if (min >= clipStartMin && min < clipEndMin) {
-      lines.push(<MarkerLine key="start" topPx={Math.round(toTop(min))} color={START_COLOR} label="start" onOpenMenu={() => setDayWindowMenuOpen?.(true)} />);
+      lines.push(<MarkerLine key="start" topPx={Math.round(toTop(min))} color={START_COLOR} label={t('strip.markerStart')} onOpenMenu={() => setDayWindowMenuOpen?.(true)} />);
     }
   }
   if (window.stop) {
     const min = timeToMinutes(window.stop);
     if (min >= clipStartMin && min < clipEndMin) {
-      lines.push(<MarkerLine key="stop" topPx={Math.round(toTop(min))} color={STOP_COLOR} label="end" onOpenMenu={() => setDayWindowMenuOpen?.(true)} />);
+      lines.push(<MarkerLine key="stop" topPx={Math.round(toTop(min))} color={STOP_COLOR} label={t('strip.markerEnd')} onOpenMenu={() => setDayWindowMenuOpen?.(true)} />);
     }
   }
   return lines.length > 0 ? <>{lines}</> : null;

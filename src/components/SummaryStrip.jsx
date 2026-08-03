@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, Leaf, MoreHorizontal, Zap } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import DayWindowMenu from './DayWindowMenu.jsx';
@@ -66,6 +67,7 @@ export default function SummaryStrip({ phone = false, staticPlacement = false })
     getDayWindow,
     dayWindowMenuOpen: menuOpen, setDayWindowMenuOpen: setMenuOpen,
   } = useFeaturesCtx();
+  const { t } = useTranslation();
 
   const [collapsed, setCollapsed] = useState(
     () => phone && localStorage.getItem(COLLAPSE_KEY) !== '0',
@@ -93,7 +95,7 @@ export default function SummaryStrip({ phone = false, staticPlacement = false })
   const unblockedLabel = (
     <span className="flex items-baseline gap-1">
       <span className={`font-semibold ${textPrimary}`}>{formatMinutes(summary.unblockedMinutes ?? 0)}</span>
-      <span className={textSecondary}>unblocked</span>
+      <span className={textSecondary}>{t('strip.unblocked')}</span>
     </span>
   );
 
@@ -136,7 +138,7 @@ export default function SummaryStrip({ phone = false, staticPlacement = false })
           className={`${pill} pointer-events-auto text-xs ${textSecondary} hover:opacity-80`}
         >
           <MoreHorizontal size={13} className="flex-shrink-0" />
-          Set day window…
+          {t('strip.setDayWindow')}
         </button>
       ) : phone && collapsed ? (
         <button onClick={toggle} className={`${pill} pointer-events-auto max-w-full text-xs`}>
@@ -178,10 +180,10 @@ export default function SummaryStrip({ phone = false, staticPlacement = false })
         const energyPill = summary.blockedMinutes > 0 && (
           <span className={pill}>
             <Zap size={13} className="flex-shrink-0" style={{ color: EFFORT_DOT }} />
-            <span className={textPrimary}>Effort</span>
+            <span className={textPrimary}>{t('strip.effort')}</span>
             <span className={textSecondary}>{formatMinutes(summary.effortMinutes)}</span>
             <Leaf size={13} className="flex-shrink-0 ml-0.5" style={{ color: RESTORE_DOT }} />
-            <span className={textPrimary}>Restore</span>
+            <span className={textPrimary}>{t('strip.restore')}</span>
             <span className={textSecondary}>{formatMinutes(summary.restoreMinutes)}</span>
           </span>
         );
@@ -209,7 +211,7 @@ export default function SummaryStrip({ phone = false, staticPlacement = false })
               <span className={pill}>
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${darkMode ? 'bg-gray-500' : 'bg-stone-400'}`} />
                 <span className={textSecondary}>
-                  untagged {chipValue(summary.untaggedMinutes, summary.untaggedDoneMinutes, summary.untaggedCompletableMinutes)}
+                  {t('strip.untagged')} {chipValue(summary.untaggedMinutes, summary.untaggedDoneMinutes, summary.untaggedCompletableMinutes)}
                 </span>
               </span>
             )}

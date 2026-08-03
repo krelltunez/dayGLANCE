@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import ClockTimePicker from './ClockTimePicker.jsx';
@@ -29,6 +30,7 @@ export default function DayWindowMenu({ dateStr, onClose, anchorClass = '', anch
     use24HourClock, isTablet, formatTime,
   } = useDayPlannerCtx();
   const { getDayWindow, setDayWindow, clearDayWindow } = useFeaturesCtx();
+  const { t } = useTranslation();
 
   // Which bound the clock picker is editing: 'start' | 'stop' | null.
   const [pickerField, setPickerField] = useState(null);
@@ -54,23 +56,19 @@ export default function DayWindowMenu({ dateStr, onClose, anchorClass = '', anch
         className={`${anchorClass} z-50 pointer-events-auto w-72 rounded-lg border shadow-xl p-3 space-y-2.5 text-xs ${cardBg} ${borderClass}`}
         style={anchorStyle}
       >
-        <div className={`font-semibold ${textPrimary}`}>Day window</div>
-        <p className={textSecondary}>
-          Applies to this and future days. Unblocked time is measured between
-          the <span className={`font-semibold ${textPrimary}`}>Starts</span> and{' '}
-          <span className={`font-semibold ${textPrimary}`}>Ends</span> window.
-        </p>
+        <div className={`font-semibold ${textPrimary}`}>{t('strip.dayWindow')}</div>
+        <p className={textSecondary}>{t('strip.dayWindowDesc')}</p>
         <div className="flex items-center justify-between gap-3">
           <span className="flex items-center gap-1.5">
-            <span className={textSecondary}>Starts</span>
+            <span className={textSecondary}>{t('strip.starts')}</span>
             <button onClick={() => setPickerField('start')} className={timeBtnCls}>
-              {dayWindow?.start ? formatTime(dayWindow.start) : 'Set…'}
+              {dayWindow?.start ? formatTime(dayWindow.start) : t('strip.set')}
             </button>
           </span>
           <span className="flex items-center gap-1.5">
-            <span className={textSecondary}>Ends</span>
+            <span className={textSecondary}>{t('strip.ends')}</span>
             <button onClick={() => setPickerField('stop')} className={timeBtnCls}>
-              {dayWindow?.stop ? formatTime(dayWindow.stop) : 'Set…'}
+              {dayWindow?.stop ? formatTime(dayWindow.stop) : t('strip.set')}
             </button>
           </span>
         </div>
@@ -78,7 +76,7 @@ export default function DayWindowMenu({ dateStr, onClose, anchorClass = '', anch
           onClick={() => { clearDayWindow(dateStr); onClose(); }}
           className={`w-full py-1 rounded border ${borderClass} ${textSecondary} hover:opacity-80`}
         >
-          Clear for this day
+          {t('strip.clearForDay')}
         </button>
       </div>
       {pickerField && createPortal(

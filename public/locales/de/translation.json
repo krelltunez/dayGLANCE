@@ -346,7 +346,9 @@
     "portraitViewDefault": "Hochformat-Ansicht",
     "landscapeViewDefault": "Querformat-Ansicht",
     "removeFileImported": "Aus Datei importierte Termine entfernen",
-    "removeFileImportedConfirm": "Alle {{n}} aus Datei importierten Termine entfernen? Ein erneuter Datei-Import stellt sie wieder her."
+    "removeFileImportedConfirm": "Alle {{n}} aus Datei importierten Termine entfernen? Ein erneuter Datei-Import stellt sie wieder her.",
+    "liveActivity": "Live-Aktivität",
+    "liveActivityDesc": "Der heutige Plan in der Dynamic Island und auf dem Sperrbildschirm. Verbreitert die Island und verdeckt die Signalsymbole neben der Uhr."
   },
   "task": {
     "newScheduled": "Neue geplante Aufgabe",
@@ -758,7 +760,9 @@
     "proposedSchedule": "Vorgeschlagener Zeitplan",
     "couldNotBePlaced": "Konnte nicht platziert werden",
     "incompleteTasks": "Unerledigte Aufgaben",
-    "allTasksCompleted": "Alle Aufgaben abgeschlossen!"
+    "allTasksCompleted": "Alle Aufgaben abgeschlossen!",
+    "alarmAt": "Wecker um",
+    "dayStartsAt": "Tag beginnt um"
   },
   "goals": {
     "goalOptional": "Ziel (optional)",
@@ -913,5 +917,28 @@
     "notesPlaceholder": "Notizen für diesen Bereich: Träume, Kriterien, Links…",
     "showCompleted": "Erledigte anzeigen",
     "hideCompleted": "Erledigte ausblenden"
+  },
+  "strip": {
+    "unblocked": "frei",
+    "effort": "Einsatz",
+    "restore": "Erholung",
+    "untagged": "ohne Tags",
+    "setDayWindow": "Tagesfenster festlegen…",
+    "dayWindow": "Tagesfenster",
+    "dayWindowDesc": "Gilt für diesen und alle folgenden Tage. Die freie Zeit wird zwischen Beginn und Ende des Fensters gemessen.",
+    "starts": "Beginnt",
+    "ends": "Endet",
+    "set": "Festlegen…",
+    "clearForDay": "Für diesen Tag löschen",
+    "markerStart": "start",
+    "markerEnd": "ende",
+    "energyLabel": "Energie: {{value}}",
+    "energyAuto": "Energie: Auto ({{value}})",
+    "until": "bis",
+    "at": "um",
+    "done": "erledigt",
+    "remaining": "verbleibend",
+    "startsIn": "beginnt in",
+    "noMoreBlocks": "Keine weiteren Blöcke heute"
   }
 }

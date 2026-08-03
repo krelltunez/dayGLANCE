@@ -1134,7 +1134,7 @@ const MobileGlanceSection = () => {
     const alarmLine = alarmMs ? (
       <div className="flex items-center gap-2">
         <AlarmClock size={13} className={textSecondary} />
-        <span className={`text-sm ${textPrimary}`}>Alarm at <span className="font-medium">{formatTime(alarmHHMM(alarmMs))}</span></span>
+        <span className={`text-sm ${textPrimary}`}>{t('app.alarmAt')} <span className="font-medium">{formatTime(alarmHHMM(alarmMs))}</span></span>
       </div>
     ) : null;
     const handleGlanceAheadClick = () => {
@@ -1167,7 +1167,7 @@ const MobileGlanceSection = () => {
             {firstStartTime && (
               <div className="flex items-center gap-2">
                 <Clock size={13} className={textSecondary} />
-                <span className={`text-sm ${textPrimary}`}>Day starts at <span className="font-medium">{formatTime(firstStartTime)}</span></span>
+                <span className={`text-sm ${textPrimary}`}>{t('app.dayStartsAt')} <span className="font-medium">{formatTime(firstStartTime)}</span></span>
               </div>
             )}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

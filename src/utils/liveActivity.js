@@ -25,12 +25,15 @@ const toHHMM = (ms) => {
  *   today's current-or-next block ('HH:MM' start, minutes duration)
  * @param {number} nowMs epoch ms "now" (startTime is resolved against its day)
  * @param {(hhmm: string) => string} formatTime display formatter (12h/24h)
+ * @param {{until?: string, at?: string}} [words] localized label words
+ *   (defaults are English so tests and non-localized callers stay stable)
  * @returns {{title, inProgress, timeLabel, countdownStartMs, countdownEndMs}|null}
  */
-export function buildUpNextFact(entry, nowMs, formatTime) {
+export function buildUpNextFact(entry, nowMs, formatTime, words) {
   if (!entry || !entry.startTime) return null;
   const parts = String(entry.startTime).split(':').map(Number);
   if (parts.length < 2 || !Number.isFinite(parts[0]) || !Number.isFinite(parts[1])) return null;
+  const w = { until: 'until', at: 'at', ...(words || {}) };
   const d = new Date(nowMs);
   d.setHours(parts[0], parts[1], 0, 0);
   const startMs = d.getTime();
@@ -39,7 +42,7 @@ export function buildUpNextFact(entry, nowMs, formatTime) {
   return {
     title: entry.title || '',
     inProgress,
-    timeLabel: inProgress ? `until ${formatTime(toHHMM(endMs))}` : `at ${formatTime(toHHMM(startMs))}`,
+    timeLabel: inProgress ? `${w.until} ${formatTime(toHHMM(endMs))}` : `${w.at} ${formatTime(toHHMM(startMs))}`,
     countdownStartMs: inProgress ? startMs : nowMs,
     countdownEndMs: inProgress ? endMs : startMs,
   };

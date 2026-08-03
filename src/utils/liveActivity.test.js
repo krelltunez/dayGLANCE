@@ -48,6 +48,13 @@ describe('buildUpNextFact', () => {
     expect(buildUpNextFact({ title: 'x', startTime: 'junk' }, at(9, 0), fmt)).toBeNull();
   });
 
+  it('localized label words replace the English defaults', () => {
+    const upcoming = buildUpNextFact({ title: 'x', startTime: '15:30', duration: 30 }, at(14, 0), fmt, { until: 'bis', at: 'um' });
+    expect(upcoming.timeLabel).toBe('um 15:30');
+    const running = buildUpNextFact({ title: 'x', startTime: '13:00', duration: 120 }, at(14, 0), fmt, { until: 'bis', at: 'um' });
+    expect(running.timeLabel).toBe('bis 15:00');
+  });
+
   it('label wording goes through the caller-provided formatter', () => {
     const twelveHour = (t) => {
       const [h, m] = t.split(':').map(Number);
