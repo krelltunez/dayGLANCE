@@ -20,6 +20,7 @@ import { normalizeEtag } from '@glance-apps/sync';
 import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION, AUTO_BACKUP_INTERVALS } from './utils/autoBackup.js';
 import { LIVE_BACKUP_FILENAME } from './utils/folderBackup.js';
 import { collectDeviceSettings, applyDeviceSettings } from './utils/deviceSettings.js';
+import { isResetInProgress } from './utils/resetAppData.js';
 import useFolderBackup from './hooks/useFolderBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
@@ -2331,6 +2332,11 @@ const DayPlanner = () => {
     const onMac = !onIOS && isElectronMac();
     if (!onIOS && !onMac) return;
     if (!dataLoaded) return;
+    // A reset in flight has already deleted the snapshot (scope 'everywhere') or
+    // deliberately left it alone (scope 'device'). Either way this cycle must not
+    // run: React state still holds the pre-reset data, so seeding or merging from
+    // it would write every task straight back into iCloud. Cleared by the reload.
+    if (isResetInProgress()) return;
     // iCloud and WebDAV are independent transports — don't gate iCloud on the
     // WebDAV engine's isSyncing() state. If WebDAV is stuck in a retry loop
     // (e.g. persistent 412), iCloud sync would be permanently blocked.

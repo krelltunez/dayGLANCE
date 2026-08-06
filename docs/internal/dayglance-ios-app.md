@@ -143,6 +143,22 @@ iCloud sync is enabled by default (if available) and requires no settings UI. We
 - The macOS Electron app's `entitlements.plist` (already used for notarization) gets the two iCloud keys added.
 - `PrivacyInfo.xcprivacy` (required for iOS 17+ App Store) must declare use of `NSPrivacyAccessedAPICategoryFileTimestamp` for the container file access.
 
+### Deleting the app does not delete the data
+
+Worth knowing before debugging a "my data came back after a reinstall" report. dayGLANCE's iOS data lives in two places with different lifetimes:
+
+| Store | Contents | Survives app deletion? |
+|---|---|---|
+| WKWebView default website data store (app sandbox) | localStorage, IndexedDB | No — iOS removes it |
+| `iCloud.com.dayglance` ubiquity container | `Documents/dayglance-sync.json` | **Yes** |
+| App Group `group.com.dayglance.app` | widget snapshot, share-extension queue | Derived data, rewritten from state on next launch |
+
+`WebView.swift` builds its `WKWebViewConfiguration` with the **default** data store — nothing is relocated into the App Group — so local web storage really is sandbox-scoped and really is deleted. But iOS does not clear a ubiquity container when the app is removed, and iCloud sync here is zero-config and always-on, so a fresh install reads the surviving snapshot on its first cycle and merges everything back. From the user's side that is indistinguishable from the uninstall having done nothing.
+
+The in-app path back to empty is Settings → Backups → **Reset App Data** (`utils/resetAppData.js`), which is why it offers a scope: "this device only" leaves the snapshot (and this device will re-pull it), "this device and iCloud" deletes `dayglance-sync.json` so nothing restores it. It deliberately does not touch `GLANCE/users/` or `GLANCE/events/` in the same container — those are shared with the other GLANCE apps.
+
+Outside the app, the equivalent is Settings → Apple ID → iCloud → Manage Account Storage → dayGLANCE → Delete Data.
+
 ---
 
 ## Bridge parity: Android → iOS

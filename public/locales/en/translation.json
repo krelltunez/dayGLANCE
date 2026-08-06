@@ -940,5 +940,18 @@
     "remaining": "remaining",
     "startsIn": "starts in",
     "noMoreBlocks": "No more blocks today"
+  },
+  "reset": {
+    "title": "Reset App Data",
+    "subtitle": "Erase everything and start from empty",
+    "warning": "This erases all tasks, notes, habits, goals, projects and settings on this device, and cannot be undone. Export a backup first if you want to keep a copy.",
+    "exportFirst": "Export a backup first",
+    "scopeDevice": "This device only",
+    "scopeDeviceHint": "Your iCloud copy is kept — this device will sync it back down, so use this only to fix a bad local state.",
+    "scopeEverywhere": "This device and iCloud",
+    "scopeEverywhereHint": "Also deletes the iCloud copy, so nothing restores it here or on a reinstall. Other devices signed in to the same iCloud account lose their data too.",
+    "confirm": "Erase everything",
+    "working": "Erasing…",
+    "partialFailure": "Some data could not be cleared:"
   }
 }

@@ -940,5 +940,18 @@
     "remaining": "restant",
     "startsIn": "commence dans",
     "noMoreBlocks": "Plus de blocs aujourd'hui"
+  },
+  "reset": {
+    "title": "Réinitialiser les données",
+    "subtitle": "Tout effacer et repartir de zéro",
+    "warning": "Cette action efface toutes les tâches, notes, habitudes, objectifs, projets et réglages de cet appareil, et est irréversible. Exportez une sauvegarde d'abord si vous voulez en garder une copie.",
+    "exportFirst": "Exporter une sauvegarde d'abord",
+    "scopeDevice": "Cet appareil uniquement",
+    "scopeDeviceHint": "Votre copie iCloud est conservée — cet appareil la resynchronisera, à n'utiliser que pour corriger un état local défectueux.",
+    "scopeEverywhere": "Cet appareil et iCloud",
+    "scopeEverywhereHint": "Supprime aussi la copie iCloud, afin que rien ne la restaure ici ni après une réinstallation. Les autres appareils connectés au même compte iCloud perdent également leurs données.",
+    "confirm": "Tout effacer",
+    "working": "Effacement…",
+    "partialFailure": "Certaines données n'ont pas pu être effacées :"
   }
 }
