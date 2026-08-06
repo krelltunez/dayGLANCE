@@ -153,9 +153,21 @@ Worth knowing before debugging a "my data came back after a reinstall" report. d
 | `iCloud.com.dayglance` ubiquity container | `Documents/dayglance-sync.json` | **Yes** |
 | App Group `group.com.dayglance.app` | widget snapshot, share-extension queue | Derived data, rewritten from state on next launch |
 
-`WebView.swift` builds its `WKWebViewConfiguration` with the **default** data store — nothing is relocated into the App Group — so local web storage really is sandbox-scoped and really is deleted. But iOS does not clear a ubiquity container when the app is removed, and iCloud sync here is zero-config and always-on, so a fresh install reads the surviving snapshot on its first cycle and merges everything back. From the user's side that is indistinguishable from the uninstall having done nothing.
+`WebView.swift` builds its `WKWebViewConfiguration` with the **default** data store — nothing is relocated into the App Group — so local web storage really is sandbox-scoped and really is deleted.
 
-The in-app path back to empty is Settings → Backups → **Reset App Data** (`utils/resetAppData.js`), which is why it offers a scope: "this device only" leaves the snapshot (and this device will re-pull it), "this device and iCloud" deletes `dayglance-sync.json` so nothing restores it. It deliberately does not touch `GLANCE/users/` or `GLANCE/events/` in the same container — those are shared with the other GLANCE apps.
+The ubiquity container is the one that outlives the app. It lives at `~/Library/Mobile Documents/iCloud~com~dayglance/`, **outside the app sandbox**, so deleting the app does not remove it. A fresh install reads the surviving `dayglance-sync.json` on its first sync cycle and merges everything back, which from the user's side is indistinguishable from the uninstall having done nothing.
+
+Note the invariant carefully: **the file survives app deletion and is read back on next launch. That is a property of where the file lives, not of whether cloud syncing is switched on.** Do not describe this as "iCloud sync restored it" — the read is a local file read, and it happens whether or not anything is reaching the network.
+
+That distinction has teeth, because `ICloudBridge.isAvailable()` is a bare path lookup:
+
+```swift
+FileManager.default.url(forUbiquityContainerIdentifier: containerID) != nil
+```
+
+which answers "can I get a path", not "is iCloud enabled for this app". If iOS still vends the local container path when the user has turned the app's iCloud toggle off, then `readSync()` finds the surviving file, `ubiquitousItemDownloadingStatus` reports `.current` (there is nothing to download — it is already local), and the app repopulates from a store the user believes they disabled. There is an open report matching exactly that: iCloud off for dayGLANCE on two devices, app deleted, reinstalled, data back, sync confirmed inactive. **Unverified on-device as of this writing** — the quickest check is a TestFlight/Debug build (`isInspectable`, `WebView.swift`) plus Safari Web Inspector: if `DayGlanceNative.iCloudAvailable()` returns `{"available":true}` while the toggle is off, that is the confirmation. If it returns false and `localStorage.length` is non-zero on a fresh install, the surviving store is the website data store instead and this whole section is wrong.
+
+The in-app path back to empty is Settings → Backups → **Reset App Data** (`utils/resetAppData.js`), which is why it offers a scope: "this device only" leaves the snapshot in place, "this device and iCloud" deletes `dayglance-sync.json`. The delete goes through the file bridge rather than any sync cycle, so it removes the surviving local copy regardless of whether syncing is enabled. It deliberately does not touch `GLANCE/users/` or `GLANCE/events/` in the same container — those are shared with the other GLANCE apps.
 
 Outside the app, the equivalent is Settings → Apple ID → iCloud → Manage Account Storage → dayGLANCE → Delete Data.
 

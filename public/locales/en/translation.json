@@ -947,9 +947,9 @@
     "warning": "This erases all tasks, notes, habits, goals, projects and settings on this device, and cannot be undone. Export a backup first if you want to keep a copy.",
     "exportFirst": "Export a backup first",
     "scopeDevice": "This device only",
-    "scopeDeviceHint": "Your iCloud copy is kept — this device will sync it back down, so use this only to fix a bad local state.",
+    "scopeDeviceHint": "The copy in iCloud is kept, and this device can read it straight back — even if syncing is off. Use this only to fix a bad local state, not to start over.",
     "scopeEverywhere": "This device and iCloud",
-    "scopeEverywhereHint": "Also deletes the iCloud copy, so nothing restores it here or on a reinstall. Other devices signed in to the same iCloud account lose their data too.",
+    "scopeEverywhereHint": "Also deletes the copy in iCloud, so nothing restores it here or on a reinstall. Other devices syncing with the same iCloud account lose their data too.",
     "confirm": "Erase everything",
     "working": "Erasing…",
     "partialFailure": "Some data could not be cleared:"

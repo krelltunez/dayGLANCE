@@ -8,19 +8,26 @@
  *
  *   • localStorage / IndexedDB live in the WKWebView's default website data
  *     store, inside the sandbox — iOS DOES delete these on uninstall.
- *   • dayglance-sync.json lives in the iCloud ubiquity container
- *     (iCloud.com.dayglance/Documents/). iOS does NOT delete a ubiquity
- *     container when the app is deleted, and iCloud sync is zero-config and
- *     always-on for the iOS build (App.jsx iCloudSync). So a fresh install finds
- *     an empty localStorage, reads the surviving sync file on its first cycle,
- *     merges it in, and every task is back — indistinguishable from "delete did
- *     nothing".
+ *   • dayglance-sync.json lives in the iCloud ubiquity container, at
+ *     ~/Library/Mobile Documents/iCloud~com~dayglance/ — OUTSIDE the app
+ *     sandbox. iOS does not remove it when the app is deleted. So a fresh
+ *     install finds an empty localStorage, reads the surviving file on its first
+ *     sync cycle, merges it in, and every task is back — indistinguishable from
+ *     "delete did nothing".
  *
- * A reset therefore has to reach the cloud snapshot too, or it is not a reset.
- * That is the `scope` parameter: 'device' wipes local state only (the cloud copy
- * survives, so other devices are untouched — but note this device will re-pull
- * it on the next sync cycle, which is why the UI says so plainly), 'everywhere'
- * also deletes the iCloud snapshot so nothing pulls the data back.
+ * Be precise about that second one: the file survives because of WHERE IT LIVES,
+ * not because cloud syncing is on. The read is a local file read. A user who has
+ * turned the app's iCloud toggle off, deleted the app, and reinstalled can still
+ * get all their data back, because ICloudBridge.isAvailable() only checks that a
+ * container path resolves — which is not the same question as "is iCloud enabled
+ * for this app". (Reported in the field, not yet confirmed on-device.)
+ *
+ * A reset therefore has to reach that file too, or it is not a reset. That is the
+ * `scope` parameter: 'device' wipes local state only and leaves the file (so
+ * other devices are untouched — but this device can read it straight back, which
+ * is why the UI says so plainly), 'everywhere' also deletes it. The delete goes
+ * through the file bridge rather than a sync cycle, so it removes the surviving
+ * local copy whether or not syncing is enabled.
  *
  * ── Shape ─────────────────────────────────────────────────────────────────
  * Every dependency is injected via `deps` so the whole thing is testable without

@@ -8,10 +8,11 @@ import { resetAppData, reloadAfterReset } from '../utils/resetAppData.js';
  * "Reset app data" — the way back to an empty app.
  *
  * Deleting the iOS app does not do this: the iCloud snapshot lives outside the
- * app sandbox and survives an uninstall, so a reinstall syncs everything back
- * (see utils/resetAppData.js for the full story). Hence the scope choice —
- * clearing this device is not the same as clearing the copy in iCloud, and on a
- * synced device only the second one actually sticks.
+ * app sandbox and survives an uninstall, so a reinstall reads it straight back
+ * (see utils/resetAppData.js for the full story — including why that happens
+ * even with the app's iCloud toggle off). Hence the scope choice — clearing this
+ * device is not the same as clearing the copy in iCloud, and where that file
+ * exists only the second one actually sticks.
  *
  * Destructive and irreversible, so it is deliberately three deliberate taps:
  * open → choose scope → confirm. Rendered in both the mobile settings Backups
