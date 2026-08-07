@@ -973,7 +973,6 @@
     "lastModified": "File modified",
     "remoteCounts": "In file (tasks / inbox)",
     "localCounts": "On device (tasks / inbox)",
-    "lastSynced": "Last synced",
     "never": "never",
     "copy": "Copy report",
     "copied": "Copied",
@@ -984,6 +983,13 @@
       "downloading": "downloading from iCloud",
       "error": "error",
       "unsupported": "no iCloud on this platform"
-    }
+    },
+    "webdav": "WebDAV sync",
+    "webdavSynced": "WebDAV last synced",
+    "vault": "GLANCEvault",
+    "vaultSynced": "GLANCEvault last synced",
+    "configured": "configured",
+    "notConfigured": "not configured",
+    "none": "(none)"
   }
 }

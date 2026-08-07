@@ -99,24 +99,42 @@ const ICloudDiagnostics = ({ darkMode, textPrimary, textSecondary, borderClass }
               <Row label={t('icloudDiag.containerError')} value={report.available.error} />
             )}
             <Row label={t('icloudDiag.snapshot')} value={snapshotLabel(report.snapshot)} />
-            {report.snapshot.state !== 'absent' && report.snapshot.state !== 'unsupported' && (
+            {/* Only when there are real file bytes. A sentinel response is the
+                bridge's status object, not a file, and showing its length as a
+                size reads as though a tiny file exists. */}
+            {(report.snapshot.state === 'present' || report.snapshot.bytes > 0) && (
               <>
                 <Row label={t('icloudDiag.size')} value={formatBytes(report.snapshot.bytes)} />
-                <Row label={t('icloudDiag.lastModified')} value={report.snapshot.lastModified ?? '—'} />
+                <Row label={t('icloudDiag.lastModified')} value={report.snapshot.lastModified ?? t('icloudDiag.none')} />
                 <Row
                   label={t('icloudDiag.remoteCounts')}
-                  value={`${report.snapshot.taskCount ?? '—'} / ${report.snapshot.inboxCount ?? '—'}`}
+                  value={`${report.snapshot.taskCount ?? t('icloudDiag.none')} / ${report.snapshot.inboxCount ?? t('icloudDiag.none')}`}
                 />
               </>
             )}
             {report.snapshot.error && (
               <Row label={t('icloudDiag.snapshotError')} value={report.snapshot.error} />
             )}
+
+            {/* The other transports. Without these, an unavailable container
+                leaves "so where did this data come from?" unanswerable. */}
+            <Row
+              label={t('icloudDiag.webdav')}
+              value={report.transports.webdav.configured
+                ? `${t('icloudDiag.configured')} (${report.transports.webdav.provider ?? '?'})`
+                : t('icloudDiag.notConfigured')}
+            />
+            <Row label={t('icloudDiag.webdavSynced')} value={report.transports.webdav.lastSynced ?? t('icloudDiag.never')} />
+            <Row
+              label={t('icloudDiag.vault')}
+              value={report.transports.vault.configured ? t('icloudDiag.configured') : t('icloudDiag.notConfigured')}
+            />
+            <Row label={t('icloudDiag.vaultSynced')} value={report.transports.vault.lastSynced ?? t('icloudDiag.never')} />
+
             <Row
               label={t('icloudDiag.localCounts')}
               value={`${report.local.taskCount} / ${report.local.inboxCount}`}
             />
-            <Row label={t('icloudDiag.lastSynced')} value={report.local.lastSynced ?? t('icloudDiag.never')} />
           </div>
 
           {/* The finding worth calling out: a resolvable container is exactly what
