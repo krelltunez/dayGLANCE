@@ -17,6 +17,7 @@ import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, listV
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import ICloudDiagnostics from './ICloudDiagnostics.jsx';
 import AutoBackupSettingsForm from './AutoBackupSettingsForm.jsx';
+import ResetAppDataSection from './ResetAppDataSection.jsx';
 import FrameEditor from './FrameEditor.jsx';
 import SmartSchedulePanel from './SmartSchedulePanel.jsx';
 import MobileRoutinesTab from './MobileRoutinesTab.jsx';
@@ -1190,6 +1191,16 @@ const MobileSettingsPanel = () => {
           </div>
         )}
       </div>
+
+      <hr className={borderClass} />
+
+      {/* Reset — lives next to Export/Restore so a backup is one tap away first. */}
+      <ResetAppDataSection
+        darkMode={darkMode}
+        textPrimary={textPrimary}
+        textSecondary={textSecondary}
+        onExportBackup={exportBackup}
+      />
     </div>
   )}
 

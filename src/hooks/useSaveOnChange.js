@@ -6,6 +6,12 @@ import { notifyTrayDataChanged } from '../utils/trayNotify.js';
 // state as of the last reload and would overwrite fresher main-window data.
 import { isTrayMode } from '../utils/trayMode.js';
 
+// A reset wipes storage while this component tree is still mounted and still
+// holding every task in state. Without this gate the next state change would
+// re-run saveData() and write the whole lot back, undoing the wipe before the
+// reload lands. The flag is only cleared by that reload.
+import { isResetInProgress } from '../utils/resetAppData.js';
+
 export default function useSaveOnChange({
   saveData, checkConflicts,
   dataLoaded,
@@ -17,7 +23,7 @@ export default function useSaveOnChange({
   dailyNotes, users, routineCompletions, multiUserEnabled,
 }) {
   useEffect(() => {
-    if (isTrayMode || !dataLoaded) return;
+    if (isTrayMode || !dataLoaded || isResetInProgress()) return;
     saveData();
     // Tell the tray popup its snapshot is stale, now that saveData() has
     // committed every key it owns (it is synchronous, so storage is fresh on

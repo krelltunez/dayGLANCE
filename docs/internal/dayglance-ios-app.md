@@ -143,6 +143,42 @@ iCloud sync is enabled by default (if available) and requires no settings UI. We
 - The macOS Electron app's `entitlements.plist` (already used for notarization) gets the two iCloud keys added.
 - `PrivacyInfo.xcprivacy` (required for iOS 17+ App Store) must declare use of `NSPrivacyAccessedAPICategoryFileTimestamp` for the container file access.
 
+### Deleting the app does not delete the data
+
+Worth knowing before debugging a "my data came back after a reinstall" report. dayGLANCE's iOS data lives in two places with different lifetimes:
+
+| Store | Contents | Survives app deletion? |
+|---|---|---|
+| WKWebView default website data store (app sandbox) | localStorage, IndexedDB | No — iOS removes it |
+| `iCloud.com.dayglance` ubiquity container | `Documents/dayglance-sync.json` | **Yes** |
+| App Group `group.com.dayglance.app` | widget snapshot, share-extension queue | Derived data, rewritten from state on next launch |
+
+`WebView.swift` builds its `WKWebViewConfiguration` with the **default** data store — nothing is relocated into the App Group — so local web storage really is sandbox-scoped and really is deleted.
+
+The ubiquity container is the one that outlives the app. It lives at `~/Library/Mobile Documents/iCloud~com~dayglance/`, **outside the app sandbox**, so deleting the app does not remove it. A fresh install reads the surviving `dayglance-sync.json` on its first sync cycle and merges everything back, which from the user's side is indistinguishable from the uninstall having done nothing.
+
+Note the invariant carefully: **the file survives app deletion and is read back on next launch. That is a property of where the file lives, not of whether cloud syncing is switched on.** Do not describe this as "iCloud sync restored it" — the read is a local file read, and it happens whether or not anything is reaching the network.
+
+That distinction has teeth, because `ICloudBridge.isAvailable()` is a bare path lookup:
+
+```swift
+FileManager.default.url(forUbiquityContainerIdentifier: containerID) != nil
+```
+
+which answers "can I get a path", not "is iCloud enabled for this app". If iOS still vends the local container path when the user has turned the app's iCloud toggle off, then `readSync()` finds the surviving file, `ubiquitousItemDownloadingStatus` reports `.current` (there is nothing to download — it is already local), and the app repopulates from a store the user believes they disabled. There is an open report matching exactly that: iCloud off for dayGLANCE on two devices, app deleted, reinstalled, data back, sync confirmed inactive. **Unverified on-device as of this writing** — the quickest check is a TestFlight/Debug build (`isInspectable`, `WebView.swift`) plus Safari Web Inspector: if `DayGlanceNative.iCloudAvailable()` returns `{"available":true}` while the toggle is off, that is the confirmation. If it returns false and `localStorage.length` is non-zero on a fresh install, the surviving store is the website data store instead and this whole section is wrong.
+
+The in-app path back to empty is Settings → Backups → **Reset App Data** (`utils/resetAppData.js`), which is why it offers a scope: "this device only" leaves the snapshot in place, "this device and iCloud" deletes `dayglance-sync.json`. The delete goes through the file bridge rather than any sync cycle, so it removes the surviving local copy regardless of whether syncing is enabled. It deliberately does not touch `GLANCE/users/` or `GLANCE/events/` in the same container — those are shared with the other GLANCE apps.
+
+**A reset on one device does not clear a fleet.** Deleting the file is necessary but not sufficient while another device is running: the reset device seeds a fresh empty snapshot (its sync record was wiped along with localStorage), the other device merges that empty snapshot — `mergeArrayById` keeps every local-only row when the remote is empty and carries no tombstones — and writes its full dataset back. Note the lever is the **merge**, not the seed: the `onIOS &&` guard in `App.jsx` `iCloudSync` looks like the culprit but tightening it changes nothing, because step three is a merge. Propagating a wipe would need a reset tombstone in the payload (a `resetAt` other devices honour by wiping instead of merging) — a new destructive broadcast primitive in an engine deliberately biased toward keeping data (see `sync/snapshotDeleteGuard.js`), so it is a considered change rather than a patch. Quitting the other devices is not a workaround: a closed device still holds its full localStorage and republishes the moment it is reopened, so quitting only avoids the immediate race. Operationally, the only route to a clean fleet is to reset every device and leave the others closed until you have.
+
+### The macOS app is invisible to macOS's iCloud settings
+
+`electron/icloud.ts` resolves the container by raw filesystem path (`~/Library/Mobile Documents/iCloud~com~dayglance/Documents`) and never calls `url(forUbiquityContainerIdentifier:)` — the file's own comment explains why (a sandboxed helper cannot inherit the iCloud developer entitlement). A consequence worth knowing: macOS only lists apps under "Apps syncing to iCloud Drive" when they register a ubiquity container through that API, so **dayGLANCE-mac never appears there and cannot be switched off from System Settings**. It reads and writes that directory as long as the folder exists. iOS, which does go through the API, does get a per-app toggle.
+
+That asymmetry matters when debugging a "data came back" report: a Mac running dayGLANCE republishes `dayglance-sync.json` continuously and there is no OS-level way for the user to stop it. Rule out the Mac before concluding anything about the iOS device.
+
+Outside the app, the equivalent is Settings → Apple ID → iCloud → Manage Account Storage → dayGLANCE → Delete Data.
+
 ---
 
 ## Bridge parity: Android → iOS
