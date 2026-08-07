@@ -940,5 +940,19 @@
     "remaining": "remaining",
     "startsIn": "starts in",
     "noMoreBlocks": "No more blocks today"
+  },
+  "reset": {
+    "title": "Reset App Data",
+    "subtitle": "Erase everything and start from empty",
+    "warning": "This erases all tasks, notes, habits, goals, projects and settings on this device, and cannot be undone. Export a backup first if you want to keep a copy.",
+    "exportFirst": "Export a backup first",
+    "scopeDevice": "This device only",
+    "scopeDeviceHint": "The copy in iCloud is kept, and this device can read it straight back — even if syncing is off. Use this only to fix a bad local state, not to start over.",
+    "scopeEverywhere": "This device and iCloud",
+    "scopeEverywhereHint": "Also deletes the copy in iCloud, so nothing restores it here or on a reinstall.",
+    "confirm": "Erase everything",
+    "working": "Erasing…",
+    "partialFailure": "Some data could not be cleared:",
+    "otherDevices": "Quitting dayGLANCE elsewhere is not enough — a device that is closed restores its copy the next time you open it, and one left running restores it within seconds. To actually start over, reset every device, and do not reopen the others until you have."
   }
 }

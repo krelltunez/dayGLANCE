@@ -3,6 +3,7 @@ import { Clock, Save, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
+import ResetAppDataSection from './ResetAppDataSection.jsx';
 
 const BackupMenuModal = () => {
   const { cardBg, borderClass, textPrimary, textSecondary, darkMode } = useDayPlannerCtx();
@@ -63,6 +64,14 @@ const BackupMenuModal = () => {
                 </div>
                 <div className={`text-sm ${textSecondary}`}>{t('backup.autoBackupHint')}</div>
               </button>
+              {/* Reset sits under the backup actions on purpose: exporting first
+                  is the adjacent, obvious step before wiping everything. */}
+              <ResetAppDataSection
+                darkMode={darkMode}
+                textPrimary={textPrimary}
+                textSecondary={textSecondary}
+                onExportBackup={exportBackup}
+              />
             </div>
             <div className="flex justify-end mt-4">
               <button
