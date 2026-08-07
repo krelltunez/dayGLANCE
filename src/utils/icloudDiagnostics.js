@@ -112,8 +112,13 @@ export function classifySnapshot(raw, deps = {}) {
     return { ...empty, state: 'error', bytes, error: `unparseable JSON (${err?.message ?? err})` };
   }
 
-  if (parsed?.downloading) return { ...empty, state: 'downloading', bytes };
-  if (parsed?.error) return { ...empty, state: 'error', bytes, error: String(parsed.error) };
+  // Sentinels are the bridge's own status objects, NOT file content, so they get
+  // no size. Reporting one read as "32 B" invites the reader to believe a 32-byte
+  // file exists — it does not; that is the length of {"error":"iCloud not
+  // available"}. The corrupt case above keeps its byte count, because there the
+  // bytes really are the file.
+  if (parsed?.downloading) return { ...empty, state: 'downloading' };
+  if (parsed?.error) return { ...empty, state: 'error', error: String(parsed.error) };
 
   return {
     state: 'present',
@@ -123,6 +128,47 @@ export function classifySnapshot(raw, deps = {}) {
     taskCount: Array.isArray(parsed?.data?.tasks) ? parsed.data.tasks.length : null,
     inboxCount: Array.isArray(parsed?.data?.unscheduledTasks) ? parsed.data.unscheduledTasks.length : null,
     error: null,
+  };
+}
+
+/**
+ * The OTHER sync transports, so the report can rule them in or out.
+ *
+ * The first version of this module reported only iCloud, which left a hole: on a
+ * device where the container is unavailable, "where did this data come from?" has
+ * two remaining answers — local storage survived, or a network tier restored it —
+ * and the report could not distinguish them. Any network restore needs config that
+ * itself lives in localStorage, so showing whether that config is present is what
+ * closes the loop.
+ *
+ * Note the two tiers keep separate records under different prefixes:
+ * `day-planner-cloud-sync-*` for the WebDAV file tier (@glance-apps/sync engine.js)
+ * and `dayglance-vault-db-sync-*` for GLANCEvault (dbEngine.js). iCloud writes
+ * NEITHER, which is why a device syncing only over iCloud reports "never" for both.
+ */
+export function readSyncTransports({ localStorage } = {}) {
+  const get = (k) => {
+    try { return localStorage?.getItem(k) ?? null; } catch { return null; }
+  };
+  const json = (k) => {
+    try { return JSON.parse(get(k) || 'null'); } catch { return null; }
+  };
+
+  const webdavCfg = json('day-planner-cloud-sync-config');
+  const vaultCfg = json('dayglance-vault-config');
+
+  return {
+    webdav: {
+      configured: !!webdavCfg?.enabled,
+      provider: webdavCfg?.provider ?? null,
+      lastSynced: get('day-planner-cloud-sync-last-synced'),
+    },
+    vault: {
+      // Mirrors isVaultEnabled() in sync/vaultConfig.js — read directly rather
+      // than imported so this module stays injectable and testable.
+      configured: !!(vaultCfg?.enabled && vaultCfg?.vaultUrl && vaultCfg?.vaultToken && vaultCfg?.accountId),
+      lastSynced: get('dayglance-vault-db-sync-last-synced'),
+    },
   };
 }
 
@@ -188,14 +234,21 @@ export async function collectICloudDiagnostics(deps = defaultDeps()) {
     ? { state: UNSUPPORTED, bytes: 0, lastModified: null, version: null, taskCount: null, inboxCount: null, error: null }
     : classifySnapshot(raw, deps);
 
-  return { platform, available, snapshot, local: readLocalState(deps) };
+  return {
+    platform,
+    available,
+    snapshot,
+    local: readLocalState(deps),
+    transports: readSyncTransports(deps),
+  };
 }
 
 /**
  * Plain-text report for the copy-to-clipboard button, so a user can paste the
  * findings into an issue without retyping or screenshotting them.
  */
-export function formatDiagnosticsReport({ platform, available, snapshot, local }) {
+export function formatDiagnosticsReport({ platform, available, snapshot, local, transports }) {
+  const none = '(none)';
   const lines = [
     'dayGLANCE iCloud diagnostics',
     `platform:        ${platform}`,
@@ -203,17 +256,26 @@ export function formatDiagnosticsReport({ platform, available, snapshot, local }
   ];
   if (available.raw) lines.push(`  raw:           ${available.raw}`);
   if (available.error) lines.push(`  error:         ${available.error}`);
-  lines.push(
-    `snapshot file:   ${snapshot.state}`,
-    `  size:          ${formatBytes(snapshot.bytes)}`,
-    `  lastModified:  ${snapshot.lastModified ?? '—'}`,
-    `  tasks/inbox:   ${snapshot.taskCount ?? '—'} / ${snapshot.inboxCount ?? '—'}`,
-  );
+  lines.push(`snapshot file:   ${snapshot.state}`);
+  // Size/mtime/counts only mean something when there are real file bytes; for a
+  // sentinel state they would all read as blanks or, worse, as a tiny file.
+  if (snapshot.state === 'present' || snapshot.bytes > 0) {
+    lines.push(
+      `  size:          ${formatBytes(snapshot.bytes)}`,
+      `  lastModified:  ${snapshot.lastModified ?? none}`,
+      `  tasks/inbox:   ${snapshot.taskCount ?? none} / ${snapshot.inboxCount ?? none}`,
+    );
+  }
   if (snapshot.error) lines.push(`  error:         ${snapshot.error}`);
+
+  const t = transports ?? { webdav: {}, vault: {} };
   lines.push(
+    `webdav sync:     ${t.webdav.configured ? `configured (${t.webdav.provider ?? 'unknown'})` : 'not configured'}`,
+    `  last synced:   ${t.webdav.lastSynced ?? 'never'}`,
+    `glancevault:     ${t.vault.configured ? 'configured' : 'not configured'}`,
+    `  last synced:   ${t.vault.lastSynced ?? 'never'}`,
     `local tasks:     ${local.taskCount}`,
     `local inbox:     ${local.inboxCount}`,
-    `last synced:     ${local.lastSynced ?? 'never'}`,
   );
   return lines.join('\n');
 }

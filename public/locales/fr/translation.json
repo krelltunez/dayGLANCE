@@ -972,7 +972,6 @@
     "lastModified": "Fichier modifié",
     "remoteCounts": "Dans le fichier (tâches / boîte)",
     "localCounts": "Sur l'appareil (tâches / boîte)",
-    "lastSynced": "Dernière synchro",
     "never": "jamais",
     "copy": "Copier le rapport",
     "copied": "Copié",
@@ -983,6 +982,13 @@
       "downloading": "téléchargement depuis iCloud",
       "error": "erreur",
       "unsupported": "pas d'iCloud sur cette plateforme"
-    }
+    },
+    "webdav": "Synchro WebDAV",
+    "webdavSynced": "Dernière synchro WebDAV",
+    "vault": "GLANCEvault",
+    "vaultSynced": "Dernière synchro GLANCEvault",
+    "configured": "configuré",
+    "notConfigured": "non configuré",
+    "none": "(aucun)"
   }
 }

@@ -7,6 +7,7 @@ import {
   readLocalState,
   formatBytes,
   formatDiagnosticsReport,
+  readSyncTransports,
   utf8Bytes,
 } from './icloudDiagnostics.js';
 
@@ -107,6 +108,13 @@ describe('classifySnapshot', () => {
     expect(s.error).toBe('iCloud not available');
   });
 
+  // Regression: a sentinel is the bridge's status object, not file content.
+  // Reporting its length made an unavailable container look like a 32-byte file.
+  it('reports no size for sentinel responses', () => {
+    expect(classifySnapshot('{"error":"iCloud not available"}').bytes).toBe(0);
+    expect(classifySnapshot('{"downloading":true}').bytes).toBe(0);
+  });
+
   // A corrupt file still means the file EXISTS, which is the fact under
   // investigation — so it must not be reported as absent.
   it('reports unparseable bytes as an error while still counting them', () => {
@@ -151,6 +159,56 @@ describe('readLocalState', () => {
   it('survives storage access throwing', () => {
     const r = readLocalState({ localStorage: { getItem: () => { throw new Error('denied'); } } });
     expect(r).toEqual({ taskCount: 0, inboxCount: 0, lastSynced: null });
+  });
+});
+
+// ── readSyncTransports ─────────────────────────────────────────────────────
+
+describe('readSyncTransports', () => {
+  it('reports both tiers unconfigured on a bare store', () => {
+    const r = readSyncTransports({ localStorage: fakeLocalStorage() });
+    expect(r.webdav).toEqual({ configured: false, provider: null, lastSynced: null });
+    expect(r.vault).toEqual({ configured: false, lastSynced: null });
+  });
+
+  it('reports a configured WebDAV tier with provider and record', () => {
+    const r = readSyncTransports({
+      localStorage: fakeLocalStorage({
+        'day-planner-cloud-sync-config': '{"enabled":true,"provider":"nextcloud"}',
+        'day-planner-cloud-sync-last-synced': '2026-08-08T09:00:00.000Z',
+      }),
+    });
+    expect(r.webdav).toEqual({
+      configured: true, provider: 'nextcloud', lastSynced: '2026-08-08T09:00:00.000Z',
+    });
+  });
+
+  it('does not count a WebDAV config that exists but is disabled', () => {
+    const r = readSyncTransports({
+      localStorage: fakeLocalStorage({ 'day-planner-cloud-sync-config': '{"enabled":false,"provider":"koofr"}' }),
+    });
+    expect(r.webdav.configured).toBe(false);
+  });
+
+  // Mirrors isVaultEnabled(): every field must be present, not just `enabled`.
+  it('requires a complete vault config, not just the enabled flag', () => {
+    const partial = readSyncTransports({
+      localStorage: fakeLocalStorage({ 'dayglance-vault-config': '{"enabled":true,"vaultUrl":"https://v"}' }),
+    });
+    expect(partial.vault.configured).toBe(false);
+
+    const complete = readSyncTransports({
+      localStorage: fakeLocalStorage({
+        'dayglance-vault-config': '{"enabled":true,"vaultUrl":"https://v","vaultToken":"t","accountId":"a"}',
+        'dayglance-vault-db-sync-last-synced': '2026-08-08T10:00:00.000Z',
+      }),
+    });
+    expect(complete.vault).toEqual({ configured: true, lastSynced: '2026-08-08T10:00:00.000Z' });
+  });
+
+  it('survives corrupt config JSON and throwing storage', () => {
+    expect(readSyncTransports({ localStorage: fakeLocalStorage({ 'dayglance-vault-config': '{oops' }) }).vault.configured).toBe(false);
+    expect(readSyncTransports({ localStorage: { getItem: () => { throw new Error('denied'); } } }).webdav.configured).toBe(false);
   });
 });
 
@@ -268,7 +326,30 @@ describe('formatDiagnosticsReport', () => {
     expect(text).toMatch(/container:\s+AVAILABLE/);
     expect(text).toMatch(/snapshot file:\s+present/);
     expect(text).toMatch(/tasks\/inbox:\s+2 \/ 1/);
-    expect(text).toMatch(/last synced:\s+never/);
+    expect(text).toMatch(/webdav sync:\s+not configured/);
+    expect(text).toMatch(/glancevault:\s+not configured/);
+  });
+
+  // The shape of the real report that closed this investigation: container
+  // unavailable, no network tier configured, yet a full local dataset.
+  it('shows an unavailable container with no transports and local data intact', async () => {
+    const r = await collectICloudDiagnostics({
+      nativeBridge: {
+        iCloudAvailable: () => '{"available":false}',
+        readICloudSync: () => '{"error":"iCloud not available"}',
+      },
+      localStorage: fakeLocalStorage({
+        'day-planner-tasks': JSON.stringify(Array.from({ length: 543 }, (_, i) => ({ id: i }))),
+        'day-planner-unscheduled': JSON.stringify(Array.from({ length: 373 }, (_, i) => ({ id: i }))),
+      }),
+    });
+    const text = formatDiagnosticsReport(r);
+    expect(text).toMatch(/container:\s+unavailable/);
+    expect(text).toMatch(/webdav sync:\s+not configured/);
+    expect(text).toMatch(/glancevault:\s+not configured/);
+    expect(text).toMatch(/local tasks:\s+543/);
+    // No size line: the sentinel is not a file.
+    expect(text).not.toMatch(/size:/);
   });
 
   it('says so plainly when the platform cannot probe availability', () => {
