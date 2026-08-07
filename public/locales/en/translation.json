@@ -348,7 +348,8 @@
     "removeFileImported": "Remove file-imported events",
     "removeFileImportedConfirm": "Remove all {{n}} file-imported events? Re-importing the file brings them back.",
     "liveActivity": "Live Activity",
-    "liveActivityDesc": "Today's plan in the Dynamic Island and on the Lock Screen. Widens the island, which hides the signal icons next to the clock."
+    "liveActivityDesc": "Today's plan in the Dynamic Island and on the Lock Screen. Widens the island, which hides the signal icons next to the clock.",
+    "multiUserICloudOnly": "Requires a shared sync destination. iCloud syncs your own devices under one Apple ID, so it cannot give two people a shared list — set up GLANCEvault or WebDAV sync for that."
   },
   "task": {
     "newScheduled": "New Scheduled Task",
