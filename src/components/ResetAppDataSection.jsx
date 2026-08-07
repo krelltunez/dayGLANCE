@@ -115,6 +115,17 @@ const ResetAppDataSection = ({ darkMode, textPrimary, textSecondary, onExportBac
         </div>
       )}
 
+      {/* The delete is necessary but not sufficient on a multi-device setup: any
+          other device still running merges its own copy back (mergeArrayById keeps
+          local-only rows when the remote is empty), so the file reappears in full
+          within a poll cycle. Nothing in the file tier can propagate a wipe, so the
+          honest fix is to say so rather than imply the delete is fleet-wide. */}
+      {cloudAvailable && scope === 'everywhere' && (
+        <p className="text-sm text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded p-2">
+          {t('reset.otherDevices')}
+        </p>
+      )}
+
       {errors && (
         <div className="text-sm text-red-700 dark:text-red-400 space-y-1">
           <div className="font-medium">{t('reset.partialFailure')}</div>

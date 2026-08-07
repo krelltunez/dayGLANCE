@@ -949,9 +949,10 @@
     "scopeDevice": "Cet appareil uniquement",
     "scopeDeviceHint": "La copie dans iCloud est conservée, et cet appareil peut la relire directement — même si la synchronisation est désactivée. À n'utiliser que pour corriger un état local défectueux, pas pour repartir de zéro.",
     "scopeEverywhere": "Cet appareil et iCloud",
-    "scopeEverywhereHint": "Supprime aussi la copie dans iCloud, afin que rien ne la restaure ici ni après une réinstallation. Les autres appareils synchronisés avec le même compte iCloud perdent également leurs données.",
+    "scopeEverywhereHint": "Supprime aussi la copie dans iCloud, afin que rien ne la restaure ici ni après une réinstallation.",
     "confirm": "Tout effacer",
     "working": "Effacement…",
-    "partialFailure": "Certaines données n'ont pas pu être effacées :"
+    "partialFailure": "Certaines données n'ont pas pu être effacées :",
+    "otherDevices": "Quittez d'abord dayGLANCE sur votre Mac et sur tout autre appareil. Un appareil resté ouvert refusionne sa propre copie en quelques secondes et restaure tout — y compris sur cet appareil. Pour tout effacer, réinitialisez chaque appareil."
   }
 }

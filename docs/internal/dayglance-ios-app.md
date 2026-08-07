@@ -169,6 +169,14 @@ which answers "can I get a path", not "is iCloud enabled for this app". If iOS s
 
 The in-app path back to empty is Settings → Backups → **Reset App Data** (`utils/resetAppData.js`), which is why it offers a scope: "this device only" leaves the snapshot in place, "this device and iCloud" deletes `dayglance-sync.json`. The delete goes through the file bridge rather than any sync cycle, so it removes the surviving local copy regardless of whether syncing is enabled. It deliberately does not touch `GLANCE/users/` or `GLANCE/events/` in the same container — those are shared with the other GLANCE apps.
 
+**A reset on one device does not clear a fleet.** Deleting the file is necessary but not sufficient while another device is running: the reset device seeds a fresh empty snapshot (its sync record was wiped along with localStorage), the other device merges that empty snapshot — `mergeArrayById` keeps every local-only row when the remote is empty and carries no tombstones — and writes its full dataset back. Note the lever is the **merge**, not the seed: the `onIOS &&` guard in `App.jsx` `iCloudSync` looks like the culprit but tightening it changes nothing, because step three is a merge. Propagating a wipe would need a reset tombstone in the payload (a `resetAt` other devices honour by wiping instead of merging) — a new destructive broadcast primitive in an engine deliberately biased toward keeping data (see `sync/snapshotDeleteGuard.js`), so it is a considered change rather than a patch. Operationally: quit dayGLANCE everywhere else first, and reset each device you want cleared.
+
+### The macOS app is invisible to macOS's iCloud settings
+
+`electron/icloud.ts` resolves the container by raw filesystem path (`~/Library/Mobile Documents/iCloud~com~dayglance/Documents`) and never calls `url(forUbiquityContainerIdentifier:)` — the file's own comment explains why (a sandboxed helper cannot inherit the iCloud developer entitlement). A consequence worth knowing: macOS only lists apps under "Apps syncing to iCloud Drive" when they register a ubiquity container through that API, so **dayGLANCE-mac never appears there and cannot be switched off from System Settings**. It reads and writes that directory as long as the folder exists. iOS, which does go through the API, does get a per-app toggle.
+
+That asymmetry matters when debugging a "data came back" report: a Mac running dayGLANCE republishes `dayglance-sync.json` continuously and there is no OS-level way for the user to stop it. Rule out the Mac before concluding anything about the iOS device.
+
 Outside the app, the equivalent is Settings → Apple ID → iCloud → Manage Account Storage → dayGLANCE → Delete Data.
 
 ---

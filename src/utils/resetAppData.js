@@ -29,6 +29,29 @@
  * through the file bridge rather than a sync cycle, so it removes the surviving
  * local copy whether or not syncing is enabled.
  *
+ * ── What 'everywhere' does NOT do ──────────────────────────────────────────
+ * It does not wipe a fleet. Deleting the file is necessary but not sufficient
+ * while another device is running:
+ *
+ *   1. this device deletes the file and clears its own storage, including
+ *      day-planner-cloud-sync-last-synced;
+ *   2. with no sync record it seeds a fresh EMPTY snapshot on its next cycle;
+ *   3. another running device reads that empty snapshot and merges — and
+ *      mergeArrayById keeps every local-only row when the remote side is empty
+ *      and carries no tombstones — so it writes its FULL dataset straight back;
+ *   4. this device pulls it down again.
+ *
+ * The seeding guard in App.jsx iCloudSync is not the lever here; step 3 is a
+ * merge, not a seed, so tightening the seed path would not change the outcome.
+ * Propagating a wipe would need a reset tombstone carried in the payload itself
+ * (a `resetAt` other devices honour by wiping instead of merging). That is a new
+ * destructive broadcast primitive in a sync engine deliberately biased toward
+ * KEEPING data — see the hazard write-up at the top of sync/snapshotDeleteGuard.js
+ * — so it is a considered change, not a patch, and is deliberately not done here.
+ *
+ * Until then the UI states the operational requirement plainly: quit dayGLANCE
+ * everywhere else first, and reset each device you want cleared.
+ *
  * ── Shape ─────────────────────────────────────────────────────────────────
  * Every dependency is injected via `deps` so the whole thing is testable without
  * a browser: no direct references to window/localStorage/indexedDB outside the

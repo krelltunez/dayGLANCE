@@ -949,9 +949,10 @@
     "scopeDevice": "This device only",
     "scopeDeviceHint": "The copy in iCloud is kept, and this device can read it straight back — even if syncing is off. Use this only to fix a bad local state, not to start over.",
     "scopeEverywhere": "This device and iCloud",
-    "scopeEverywhereHint": "Also deletes the copy in iCloud, so nothing restores it here or on a reinstall. Other devices syncing with the same iCloud account lose their data too.",
+    "scopeEverywhereHint": "Also deletes the copy in iCloud, so nothing restores it here or on a reinstall.",
     "confirm": "Erase everything",
     "working": "Erasing…",
-    "partialFailure": "Some data could not be cleared:"
+    "partialFailure": "Some data could not be cleared:",
+    "otherDevices": "Quit dayGLANCE on your Mac and any other device first. A device left running merges its own copy back within seconds and restores everything — including on this device. To clear them all, reset each one."
   }
 }
