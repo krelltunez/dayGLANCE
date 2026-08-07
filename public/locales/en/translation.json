@@ -984,5 +984,19 @@
       "error": "error",
       "unsupported": "no iCloud on this platform"
     }
+  },
+  "icloudFirstRun": {
+    "title": "Data found in iCloud",
+    "body": "iCloud has a copy of your dayGLANCE data: {{tasks}} tasks and {{inbox}} inbox items. This device has none yet.",
+    "lastModified": "Last updated {{when}}",
+    "restore": "Restore from iCloud",
+    "restoreHint": "Bring this data onto this device and keep syncing.",
+    "startFresh": "Start fresh on this device",
+    "startFreshHint": "Begin empty and turn iCloud sync off here. The iCloud copy and your other devices are left alone. You can turn it back on in Settings."
+  },
+  "icloudSync": {
+    "title": "iCloud sync",
+    "onHint": "On. This device syncs with your other Apple devices automatically.",
+    "offHint": "Off on this device. The iCloud copy and your other devices are unaffected."
   }
 }

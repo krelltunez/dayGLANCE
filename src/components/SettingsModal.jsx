@@ -6,6 +6,7 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import ICloudDiagnostics from './ICloudDiagnostics.jsx';
+import ICloudSyncToggle from './ICloudSyncToggle.jsx';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
 import { isNativeAndroid, nativeGetCalendars, nativeGetAutomationIntentsEnabled, nativeSetAutomationIntentsEnabled } from '../native.js';
@@ -814,12 +815,20 @@ const SettingsModal = () => {
                       {/* Apple platforms only — on Android/web every probe reports
                           unsupported, so the panel would be an empty box. */}
                       {isICloudAvailable() && (
-                        <ICloudDiagnostics
-                          darkMode={darkMode}
-                          textPrimary={textPrimary}
-                          textSecondary={textSecondary}
-                          borderClass={borderClass}
-                        />
+                        <>
+                          <ICloudSyncToggle
+                            darkMode={darkMode}
+                            textPrimary={textPrimary}
+                            textSecondary={textSecondary}
+                            borderClass={borderClass}
+                          />
+                          <ICloudDiagnostics
+                            darkMode={darkMode}
+                            textPrimary={textPrimary}
+                            textSecondary={textSecondary}
+                            borderClass={borderClass}
+                          />
+                        </>
                       )}
                       </>)}
                     </div>

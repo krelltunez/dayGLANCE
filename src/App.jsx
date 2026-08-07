@@ -21,6 +21,10 @@ import { autoBackupDB, createAutoBackupProvidersForFolder, AUTO_BACKUP_RETENTION
 import { LIVE_BACKUP_FILENAME } from './utils/folderBackup.js';
 import { collectDeviceSettings, applyDeviceSettings } from './utils/deviceSettings.js';
 import { isResetInProgress } from './utils/resetAppData.js';
+import {
+  isICloudSyncEnabled, setICloudSyncEnabled, getICloudSyncPref,
+  shouldPromptFirstRun, payloadHasData,
+} from './utils/icloudSyncPref.js';
 import useFolderBackup from './hooks/useFolderBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
@@ -52,6 +56,7 @@ import GoalDashboard from './components/goals/GoalDashboard.jsx';
 import WeeklyReviewReminderCard from './components/WeeklyReviewReminderCard.jsx';
 import IncompleteTasksModal from './components/IncompleteTasksModal.jsx';
 import BackupMenuModal from './components/BackupMenuModal.jsx';
+import ICloudFirstRunModal from './components/ICloudFirstRunModal.jsx';
 import RestoreConfirmModal from './components/RestoreConfirmModal.jsx';
 import AutoBackupManagerModal from './components/AutoBackupManagerModal.jsx';
 import ImportCalendarModal from './components/ImportCalendarModal.jsx';
@@ -2302,6 +2307,11 @@ const DayPlanner = () => {
   const openNewInboxTaskRef = useRef(null);
   const openNewTaskFormRef = useRef(null);
   const iCloudLastWriteAtRef = useRef(0);
+  // First-run restore choice. The ref gates the sync loop synchronously (state
+  // lands a render too late to stop the next 15-second tick); the state drives the
+  // modal. Null when nothing is pending.
+  const icloudFirstRunPromptRef = useRef(false);
+  const [icloudFirstRun, setICloudFirstRun] = useState(null);
 
   const isElectronMac = () =>
     !!(window.electronAPI?.isElectron && window.electronAPI?.platform === 'darwin');
@@ -2337,6 +2347,15 @@ const DayPlanner = () => {
     // run: React state still holds the pre-reset data, so seeding or merging from
     // it would write every task straight back into iCloud. Cleared by the reload.
     if (isResetInProgress()) return;
+    // The user chose "start fresh on this device" at first run (or switched iCloud
+    // off in settings). Fully inert: nothing read is applied, nothing is written,
+    // so the container copy and every other device are untouched. Absence of a
+    // decision still means ON — zero-config stays the default for everyone.
+    if (!isICloudSyncEnabled()) return;
+    // A pending first-run choice must not be pre-empted by the 15-second poll:
+    // merging now is precisely the silent restore the prompt exists to offer a way
+    // out of.
+    if (icloudFirstRunPromptRef.current) return;
     // iCloud and WebDAV are independent transports — don't gate iCloud on the
     // WebDAV engine's isSyncing() state. If WebDAV is stuck in a retry loop
     // (e.g. persistent 412), iCloud sync would be permanently blocked.
@@ -2423,6 +2442,27 @@ const DayPlanner = () => {
       }
       if (!remote?.data) return;
 
+      // First launch on a device with no data of its own, facing a cloud copy that
+      // survived an uninstall. Ask instead of restoring silently — see
+      // utils/icloudSyncPref.js for why the toggle cannot be remembered across a
+      // reinstall. Returning here leaves the snapshot untouched; the choice
+      // handler resumes or disables sync.
+      const localDataForPrompt = buildSyncPayload().data;
+      if (shouldPromptFirstRun({
+        decided: getICloudSyncPref() !== null,
+        remoteHasData: payloadHasData(remote.data),
+        localHasData: payloadHasData(localDataForPrompt),
+        icloudAvailable: true,
+      })) {
+        icloudFirstRunPromptRef.current = true;
+        setICloudFirstRun({
+          taskCount: remote.data.tasks?.length ?? 0,
+          inboxCount: remote.data.unscheduledTasks?.length ?? 0,
+          lastModified: remote.lastModified ?? null,
+        });
+        return;
+      }
+
       const localData = buildSyncPayload().data;
       const { data: mergedData, localChanged, remoteChanged } = mergeSyncData(localData, remote.data, syncRetentionDays);
 
@@ -2447,6 +2487,26 @@ const DayPlanner = () => {
 
   // Keep ref fresh so interval and event listeners always call the latest closure.
   iCloudSyncRef.current = iCloudSync;
+
+  // First-run choice handlers. Both record a decision so the prompt never returns;
+  // that is what setICloudSyncEnabled(true) is for on the restore path, where the
+  // sync behaviour itself is unchanged.
+  const acceptICloudRestore = () => {
+    setICloudSyncEnabled(true);
+    setICloudFirstRun(null);
+    icloudFirstRunPromptRef.current = false;
+    // Run immediately rather than waiting up to 15 seconds for the next tick.
+    iCloudSyncRef.current?.();
+  };
+
+  const declineICloudRestore = () => {
+    setICloudSyncEnabled(false);
+    setICloudFirstRun(null);
+    icloudFirstRunPromptRef.current = false;
+    // Nothing else to do: the gate at the top of iCloudSync now returns early, so
+    // the container copy is never read or written from this device. Other devices
+    // keep theirs. Reversible from Settings → Cloud Sync.
+  };
 
   // Run once on startup after data is loaded.
   useEffect(() => {
@@ -8629,6 +8689,19 @@ const DayPlanner = () => {
       {/* Import Calendar Modal */}
       <ImportCalendarModal />
 
+
+      {/* First-run iCloud restore choice. Sits alongside the WebDAV conflict
+          dialog below, which covers the same moment for the file tier. */}
+      <ICloudFirstRunModal
+        info={icloudFirstRun}
+        onRestore={acceptICloudRestore}
+        onStartFresh={declineICloudRestore}
+        cardBg={cardBg}
+        borderClass={borderClass}
+        textPrimary={textPrimary}
+        textSecondary={textSecondary}
+        darkMode={darkMode}
+      />
 
       {cloudSyncConflict && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
