@@ -349,7 +349,7 @@
     "removeFileImportedConfirm": "Remove all {{n}} file-imported events? Re-importing the file brings them back.",
     "liveActivity": "Live Activity",
     "liveActivityDesc": "Today's plan in the Dynamic Island and on the Lock Screen. Widens the island, which hides the signal icons next to the clock.",
-    "multiUserICloudOnly": "Requires a shared sync destination. iCloud syncs your own devices under one Apple ID, so it cannot give two people a shared list — set up GLANCEvault or WebDAV sync for that."
+    "multiUserICloudOnly": "Requires a shared sync destination. iCloud syncs your own devices under one Apple ID, so it cannot give two people a shared list. Set up GLANCEvault or WebDAV sync for that."
   },
   "task": {
     "newScheduled": "New Scheduled Task",
@@ -948,17 +948,17 @@
     "warning": "This erases all tasks, notes, habits, goals, projects and settings on this device, and cannot be undone. Export a backup first if you want to keep a copy.",
     "exportFirst": "Export a backup first",
     "scopeDevice": "This device only",
-    "scopeDeviceHint": "The copy in iCloud is kept, and this device can read it straight back — even if syncing is off. Use this only to fix a bad local state, not to start over.",
+    "scopeDeviceHint": "The copy in iCloud is kept, and this device can read it straight back even if syncing is off. Use this only to fix a bad local state, not to start over.",
     "scopeEverywhere": "This device and iCloud",
     "scopeEverywhereHint": "Also deletes the copy in iCloud, so nothing restores it here or on a reinstall.",
     "confirm": "Erase everything",
     "working": "Erasing…",
     "partialFailure": "Some data could not be cleared:",
-    "otherDevices": "Quitting dayGLANCE elsewhere is not enough — a device that is closed restores its copy the next time you open it, and one left running restores it within seconds. To actually start over, reset every device, and do not reopen the others until you have."
+    "otherDevices": "Quitting dayGLANCE elsewhere is not enough. A device that is closed restores its copy the next time you open it, and one left running restores it within seconds. To actually start over, reset every device, and do not reopen the others until you have."
   },
   "icloudDiag": {
     "title": "iCloud diagnostics",
-    "hint": "Read-only. Reports what this device currently sees in the iCloud container — nothing is written, deleted or synced.",
+    "hint": "Read-only. Reports what this device currently sees in the iCloud container. Nothing is written, deleted or synced.",
     "run": "Run check",
     "running": "Checking…",
     "platform": "Platform",
