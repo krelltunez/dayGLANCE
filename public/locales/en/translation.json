@@ -953,6 +953,6 @@
     "confirm": "Erase everything",
     "working": "Erasing…",
     "partialFailure": "Some data could not be cleared:",
-    "otherDevices": "Quit dayGLANCE on your Mac and any other device first. A device left running merges its own copy back within seconds and restores everything — including on this device. To clear them all, reset each one."
+    "otherDevices": "Quitting dayGLANCE elsewhere is not enough — a device that is closed restores its copy the next time you open it, and one left running restores it within seconds. To actually start over, reset every device, and do not reopen the others until you have."
   }
 }

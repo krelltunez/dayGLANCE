@@ -49,8 +49,11 @@
  * KEEPING data — see the hazard write-up at the top of sync/snapshotDeleteGuard.js
  * — so it is a considered change, not a patch, and is deliberately not done here.
  *
- * Until then the UI states the operational requirement plainly: quit dayGLANCE
- * everywhere else first, and reset each device you want cleared.
+ * Note that quitting the other devices is NOT a workaround. A closed device still
+ * holds its full localStorage, so it re-merges and republishes the moment it is
+ * reopened — quitting only avoids the immediate race, it does not make the reset
+ * stick. The only way to a clean fleet is to reset every device, leaving the
+ * others closed until you have. The UI says exactly that.
  *
  * ── Shape ─────────────────────────────────────────────────────────────────
  * Every dependency is injected via `deps` so the whole thing is testable without
