@@ -940,5 +940,35 @@
     "remaining": "remaining",
     "startsIn": "starts in",
     "noMoreBlocks": "No more blocks today"
+  },
+  "icloudDiag": {
+    "title": "iCloud diagnostics",
+    "hint": "Read-only. Reports what this device currently sees in the iCloud container — nothing is written, deleted or synced.",
+    "run": "Run check",
+    "running": "Checking…",
+    "platform": "Platform",
+    "container": "Container",
+    "containerError": "Container error",
+    "available": "AVAILABLE",
+    "unavailable": "unavailable",
+    "notProbeable": "not probeable on this platform",
+    "snapshot": "Snapshot file",
+    "snapshotError": "Snapshot error",
+    "size": "Size",
+    "lastModified": "File modified",
+    "remoteCounts": "In file (tasks / inbox)",
+    "localCounts": "On device (tasks / inbox)",
+    "lastSynced": "Last synced",
+    "never": "never",
+    "copy": "Copy report",
+    "copied": "Copied",
+    "readingNote": "This device resolves an iCloud container and found a populated snapshot in it. If you have turned iCloud off for dayGLANCE, that is the bug: the app is reading a store you disabled, and a reinstall will read it too.",
+    "state": {
+      "present": "present",
+      "absent": "not found",
+      "downloading": "downloading from iCloud",
+      "error": "error",
+      "unsupported": "no iCloud on this platform"
+    }
   }
 }

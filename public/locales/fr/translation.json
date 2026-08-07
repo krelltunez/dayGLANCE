@@ -940,5 +940,35 @@
     "remaining": "restant",
     "startsIn": "commence dans",
     "noMoreBlocks": "Plus de blocs aujourd'hui"
+  },
+  "icloudDiag": {
+    "title": "Diagnostic iCloud",
+    "hint": "Lecture seule. Indique ce que cet appareil voit actuellement dans le conteneur iCloud — rien n'est écrit, supprimé ni synchronisé.",
+    "run": "Lancer le test",
+    "running": "Vérification…",
+    "platform": "Plateforme",
+    "container": "Conteneur",
+    "containerError": "Erreur de conteneur",
+    "available": "DISPONIBLE",
+    "unavailable": "indisponible",
+    "notProbeable": "non vérifiable sur cette plateforme",
+    "snapshot": "Fichier de synchronisation",
+    "snapshotError": "Erreur de fichier",
+    "size": "Taille",
+    "lastModified": "Fichier modifié",
+    "remoteCounts": "Dans le fichier (tâches / boîte)",
+    "localCounts": "Sur l'appareil (tâches / boîte)",
+    "lastSynced": "Dernière synchro",
+    "never": "jamais",
+    "copy": "Copier le rapport",
+    "copied": "Copié",
+    "readingNote": "Cet appareil résout un conteneur iCloud et y a trouvé un instantané rempli. Si vous avez désactivé iCloud pour dayGLANCE, c'est le bug : l'application lit un stockage que vous avez désactivé, et une réinstallation le lira aussi.",
+    "state": {
+      "present": "présent",
+      "absent": "introuvable",
+      "downloading": "téléchargement depuis iCloud",
+      "error": "erreur",
+      "unsupported": "pas d'iCloud sur cette plateforme"
+    }
   }
 }

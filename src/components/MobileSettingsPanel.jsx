@@ -15,6 +15,7 @@ import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, listVaultNotes } from '../obsidian.js';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
+import ICloudDiagnostics from './ICloudDiagnostics.jsx';
 import AutoBackupSettingsForm from './AutoBackupSettingsForm.jsx';
 import FrameEditor from './FrameEditor.jsx';
 import SmartSchedulePanel from './SmartSchedulePanel.jsx';
@@ -1458,6 +1459,16 @@ const MobileSettingsPanel = () => {
         vaultSkipped={vaultSkipped}
         onSyncKeyReady={(ready) => setSyncKeyReady(ready)}
       />
+      {/* Apple platforms only — on Android/web every probe reports unsupported,
+          so the panel would be an empty box. */}
+      {isICloudAvailable() && (
+        <ICloudDiagnostics
+          darkMode={darkMode}
+          textPrimary={textPrimary}
+          textSecondary={textSecondary}
+          borderClass={borderClass}
+        />
+      )}
     </div>
     );
   })()}
