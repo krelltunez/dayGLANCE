@@ -39,6 +39,13 @@ struct DaySummaryAttributes: ActivityAttributes {
         /// Whether the block had started when this state was pushed — picks
         /// the caption ("remaining" vs "starts in"), nothing else.
         var inProgress: Bool
+        /// "effort" | "restore" for the current-or-next block, resolved by JS
+        /// (deriveBlockEnergy — per-block override, then #tag/title keywords).
+        /// Tints the countdown ring and picks the glyph inside it. Optional and
+        /// unvalidated on purpose: an old snapshot, or any value this build does
+        /// not know, falls back to the neutral ring rather than asserting an
+        /// energy the app never sent.
+        var blockEnergy: String?
         /// "1h 30m/7h" — done/planned.
         var done: String
         /// "5h 30m" effort / "2h 30m" restore — the energy split. Unblocked
