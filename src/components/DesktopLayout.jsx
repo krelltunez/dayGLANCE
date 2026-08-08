@@ -5,6 +5,7 @@ import {
   RefreshCw, Save, Settings, Sun, Trash2, X,
 } from 'lucide-react';
 import { dateToString, extractWikilinks, formatDateRange } from '../utils/taskUtils.js';
+import { findRunningTask } from '../utils/runningTask.js';
 import { renderTitle } from '../utils/textFormatting.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { hasNativeCalendar } from '../utils/nativeCalendar.js';
@@ -211,7 +212,7 @@ const DesktopLayout = () => {
     weekStartDay,
     getTodayStr, getOverdueTasks,
     getTaskCalendarStyle,
-    timeToMinutes, minutesToTime,
+    minutesToTime,
     selectAllTags, clearTagFilter, toggleTag,
     handleSpotlightSelect,
     updateDailyNote,
@@ -449,40 +450,38 @@ const DesktopLayout = () => {
   const isElectronMac = window.electronAPI?.isElectron && window.electronAPI?.platform === 'darwin';
   const titlebarH = isElectronMac ? 28 : 0;
 
+  // The title bar shows the NOW bar while a task is running and today's pills
+  // otherwise, so this one lookup decides both what the bar renders and whether
+  // the in-timeline strip is redundant. Skipped off macOS, where there is no bar.
+  const titlebarRunningTask = isElectronMac
+    ? findRunningTask([...tasks, ...expandedRecurringTasks])
+    : undefined;
+  const titlebarPills = isElectronMac && !titlebarRunningTask;
+
   return (
       <>
       {/* macOS traffic-light drag region — the NOW bar when a task is running,
           today's summary-strip pills otherwise (TitlebarSummaryStrip). Both are
           display-only, so the whole bar stays a drag area. */}
-      {isElectronMac && (() => {
-        const todayStr = dateToString(new Date());
-        const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-        const runningTask = [...tasks, ...expandedRecurringTasks].find(t =>
-          t.date === todayStr && !t.isAllDay && !t.completed &&
-          !(t.imported && !t.isTaskCalendar) &&
-          nowMin >= timeToMinutes(t.startTime || '0:00') &&
-          nowMin < timeToMinutes(t.startTime || '0:00') + (t.duration || 0)
-        );
-        return (
-          <div
-            style={{ height: titlebarH, WebkitAppRegion: 'drag', flexShrink: 0, paddingLeft: '85px', paddingRight: '85px' }}
-            className={`flex items-center justify-center gap-2 text-xs font-semibold overflow-hidden ${
-              runningTask
-                ? (darkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-50 text-amber-800')
-                : ''
-            }`}
-          >
-            {runningTask ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-                <span className="truncate">{t('common.now')}: {runningTask.title}</span>
-              </>
-            ) : (
-              <TitlebarSummaryStrip />
-            )}
-          </div>
-        );
-      })()}
+      {isElectronMac && (
+        <div
+          style={{ height: titlebarH, WebkitAppRegion: 'drag', flexShrink: 0, paddingLeft: '85px', paddingRight: '85px' }}
+          className={`flex items-center justify-center gap-2 text-xs font-semibold overflow-hidden ${
+            titlebarRunningTask
+              ? (darkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-50 text-amber-800')
+              : ''
+          }`}
+        >
+          {titlebarRunningTask ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+              <span className="truncate">{t('common.now')}: {titlebarRunningTask.title}</span>
+            </>
+          ) : (
+            <TitlebarSummaryStrip />
+          )}
+        </div>
+      )}
       {/* Desktop & Tablet Layout */}
       {!isTablet && <DesktopHeader />}
 
@@ -844,8 +843,10 @@ const DesktopLayout = () => {
                     {effectiveViewMode === 'sched' && <SchedDashboard />}
                     {/* Summary strip — sticky over the timeline's own scroll
                         container so it stays visible without reserving layout
-                        height. Timeline views only; sched is a dashboard. */}
-                    {effectiveViewMode !== 'sched' && <SummaryStrip />}
+                        height. Timeline views only; sched is a dashboard.
+                        titlebarPills lets it stand down for today while the
+                        macOS title bar carries the same numbers. */}
+                    {effectiveViewMode !== 'sched' && <SummaryStrip titlebarPills={titlebarPills} />}
                   </>
               }
             </div>

@@ -13,6 +13,7 @@ import {
 import { isNativeAndroid, isNativeApp, nativeUpdateEvent } from '../native.js';
 import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask, renderFormattedText } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags, extractWikilinks, formatDate, formatDateRange, formatDeadlineDate, formatShortDate } from '../utils/taskUtils.js';
+import { findRunningTask } from '../utils/runningTask.js';
 import { HABIT_COLORS, HABIT_ICONS } from '../constants/habits.js';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
@@ -713,14 +714,7 @@ const MobileLayout = () => {
                   <div ref={mobileDateHeaderRef} className={`sticky top-0 z-40 ${cardBg}`}>
                   {/* Current task banner */}
                   {(() => {
-                    const todayStr = dateToString(new Date());
-                    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-                    const runningTask = [...tasks, ...expandedRecurringTasks].find(t =>
-                      t.date === todayStr && !t.isAllDay && !t.completed &&
-                      !(t.imported && !t.isTaskCalendar) &&
-                      nowMin >= timeToMinutes(t.startTime || '0:00') &&
-                      nowMin < timeToMinutes(t.startTime || '0:00') + (t.duration || 0)
-                    );
+                    const runningTask = findRunningTask([...tasks, ...expandedRecurringTasks]);
                     if (!runningTask) return null;
                     return (
                       <div className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold ${darkMode ? 'bg-amber-900/40 text-amber-300 border-b border-amber-700/40' : 'bg-amber-50 text-amber-800 border-b border-amber-200'}`}>
