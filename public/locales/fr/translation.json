@@ -991,5 +991,19 @@
     "configured": "configuré",
     "notConfigured": "non configuré",
     "none": "(aucun)"
+  },
+  "icloudFirstRun": {
+    "title": "Données trouvées dans iCloud",
+    "body": "iCloud contient une copie de vos données dayGLANCE : {{tasks}} tâches et {{inbox}} éléments de boîte de réception. Cet appareil n'en a pas encore.",
+    "lastModified": "Dernière mise à jour {{when}}",
+    "restore": "Restaurer depuis iCloud",
+    "restoreHint": "Récupérer ces données sur cet appareil et continuer la synchronisation.",
+    "startFresh": "Repartir de zéro sur cet appareil",
+    "startFreshHint": "Commencer à vide et désactiver la synchronisation iCloud ici. La copie iCloud et vos autres appareils ne sont pas touchés. Vous pouvez la réactiver dans les réglages."
+  },
+  "icloudSync": {
+    "title": "Synchronisation iCloud",
+    "onHint": "Activée. Cet appareil se synchronise automatiquement avec vos autres appareils Apple.",
+    "offHint": "Désactivée sur cet appareil. La copie iCloud et vos autres appareils ne sont pas affectés."
   }
 }

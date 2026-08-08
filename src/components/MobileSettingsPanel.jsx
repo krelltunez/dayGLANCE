@@ -16,6 +16,7 @@ import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, listVaultNotes } from '../obsidian.js';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import ICloudDiagnostics from './ICloudDiagnostics.jsx';
+import ICloudSyncToggle from './ICloudSyncToggle.jsx';
 import AutoBackupSettingsForm from './AutoBackupSettingsForm.jsx';
 import ResetAppDataSection from './ResetAppDataSection.jsx';
 import FrameEditor from './FrameEditor.jsx';
@@ -1485,12 +1486,20 @@ const MobileSettingsPanel = () => {
       {/* Apple platforms only — on Android/web every probe reports unsupported,
           so the panel would be an empty box. */}
       {isICloudAvailable() && (
-        <ICloudDiagnostics
-          darkMode={darkMode}
-          textPrimary={textPrimary}
-          textSecondary={textSecondary}
-          borderClass={borderClass}
-        />
+        <>
+          <ICloudSyncToggle
+            darkMode={darkMode}
+            textPrimary={textPrimary}
+            textSecondary={textSecondary}
+            borderClass={borderClass}
+          />
+          <ICloudDiagnostics
+            darkMode={darkMode}
+            textPrimary={textPrimary}
+            textSecondary={textSecondary}
+            borderClass={borderClass}
+          />
+        </>
       )}
     </div>
     );
