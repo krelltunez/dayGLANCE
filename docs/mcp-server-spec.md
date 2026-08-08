@@ -547,7 +547,7 @@ Privacy policy updates per §9. Umbrella paragraph. ToU confirmation. MAS descri
 
 ## 13. References
 
-1. MCP transports specification, revision 2025-11-25. stdio and Streamable HTTP are the two standard transports; HTTP+SSE deprecated as of 2025-03-26.
+1. MCP transports specification, revision 2026-07-28 (the spec baseline per the header). stdio and Streamable HTTP are the two standard transports; HTTP+SSE deprecated as of 2025-03-26.
 2. Claude Desktop local MCP configuration accepts stdio servers only; `url` and `type: "http"` entries are dropped and the config is silently rewritten.
 3. Claude Desktop Custom Connectors are brokered through Anthropic infrastructure and cannot reach loopback addresses.
 4. MCPB (`.mcpb`) bundle format for single-click local MCP server installation in Claude Desktop.
