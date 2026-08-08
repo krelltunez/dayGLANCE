@@ -1,9 +1,11 @@
 # dayGLANCE MCP Server: Technical Specification
 
-**Status:** Draft for review, revision 2
+**Status:** Draft for review, revision 3
 **Target:** dayGLANCE Electron builds (macOS, Windows, Linux)
 **Sequencing:** After the 4.1.2 tray release ships
-**Spec baseline:** MCP specification 2025-11-25
+**Spec baseline:** MCP specification 2026-07-28
+
+**Changes from revision 2:** All changes in this revision come from the Phase 0 spike findings (see `docs/mcp-phase0-findings.md`). Spec baseline moved from 2025-11-25 to 2026-07-28; SDK pinned to v2 (rationale recorded in §10 Phase 1). §3.5 notes what the SDK now provides and closes open question 5 (parallel auth scheme, shared idioms). New §3.7 on main-process state. §3.4 and §7 flip MAS discovery: manual token configuration is primary, container discovery best-effort. New Phase 0.5 (TCC container-protection experiment). Two risks added to §11.
 
 **Changes from revision 1:** Corrected the storage assumption underlying §3.1 (task data is localStorage, not IndexedDB). Replaced §3.3 entirely — the renderer availability problem is resolved, not deferred. Added §3.6 on propagation, which did not exist in r1. Added the test coverage gap to the risk register. Phasing shortened from nine phases to eight.
 
@@ -125,8 +127,9 @@ This shares a root cause with open item "tray mutations silently dropped when no
   - Windows: `%APPDATA%\dayGLANCE\mcp.json`
   - Linux: `$XDG_CONFIG_HOME/dayglance/mcp.json`, falling back to `~/.config/dayglance/mcp.json`
   - macOS (direct download): `~/Library/Application Support/dayGLANCE/mcp.json`
-  - macOS (MAS): inside the app container
-- **Fallback:** the bridge accepts `--port` and `--token`, and reads `DAYGLANCE_MCP_TOKEN`. Required for the MAS case if container discovery proves unreliable.
+  - macOS (MAS): inside the app container — **best-effort only, see below**
+- **Manual configuration:** the bridge accepts `--port` and `--token`, and reads `DAYGLANCE_MCP_TOKEN`. On Windows, Linux, and macOS direct-download this is the fallback; **on MAS it is the primary path** (Phase 0 finding).
+- **MAS container discovery is best-effort, not primary.** The file lands at `~/Library/Containers/com.dayglance/Data/Library/Application Support/dayGLANCE/mcp.json` (derived from the `userData` pin in `main.ts:37` and the container-home shape confirmed by `icloud.ts:31-33`). The App Sandbox does not block outside readers and POSIX permissions pass for same-user processes, but macOS 15 introduced TCC app container protection: a process reading another app's container triggers a one-time consent prompt attributed to the responsible process. For a bridge spawned by Claude Desktop, the user sees a prompt naming Claude Desktop, about dayGLANCE's data, with no context; a denial is sticky and subsequent reads fail silently. The same-Team-ID exemption keys off the requester (Anthropic's team, not GLANCE Apps) and does not apply. macOS 14 and earlier are unaffected. Phase 0.5 confirms the exact behavior on hardware.
 - File permissions `0600` on POSIX. It contains a bearer token.
 
 ### 3.5 Authentication and origin validation
@@ -143,7 +146,9 @@ This shares a root cause with open item "tray mutations silently dropped when no
 - Bind to `127.0.0.1` explicitly
 - Enforce the `MCP-Protocol-Version` header on requests after initialization
 
-**Precedent:** the Stream Deck WebSocket server already implements a token handshake with a 5-second auth timeout (`ws-server.ts`, `AUTH_TIMEOUT_MS`), issuing tokens to Origin-less native clients on connect. Read `electron/protocol.ts` before designing the MCP equivalent; consistency between the two local listeners is worth more than novelty.
+**What the SDK provides (Phase 0 finding):** SDK v2 ships `localhostOriginValidation()` and `localhostHostValidation()` (from `@modelcontextprotocol/node`), so Origin and Host validation are configuration, not hand-rolled code. Protocol-version enforcement (`MCP-Protocol-Version` in the 2025 era, the `_meta` envelope in the 2026-07-28 era) is handled inside the SDK transport — Phase 1 must not duplicate it. Only the bearer token check is ours, verified in front of the handler; v2 deliberately verifies no tokens itself and takes the result as pass-through `authInfo`.
+
+**Resolved (Phase 0): parallel scheme, shared idioms.** This closes former open question 5 (whether MCP reuses the Stream Deck token handshake). The Stream Deck handshake (`ws-server.ts`, `AUTH_TIMEOUT_MS`) trusts every Origin-less local process with zero authentication and issues its token only so a browser-context property inspector can inherit that trust; the first requirement above is stopping arbitrary local processes, so reusing the handshake would nullify it. Token direction is inverted — server-to-client, ephemeral, socket-lifetime versus client-to-server, pre-shared, persistent, rotatable — and per-request HTTP auth has no analog to the 5-second first-frame window. What carries over is the idioms: `randomBytes(32).toString('hex')` token generation, the Origin posture (reject browser origins; expect Origin-less native clients), the explicit `127.0.0.1` bind, the `EADDRINUSE` handling posture (handle the error, don't crash the app — but surfaced loudly per §3.4, not log-only), and `protocol.ts` as the model for a single-definition contract file.
 
 ### 3.6 Propagation: `tray:data-changed`
 
@@ -159,6 +164,14 @@ Two things to verify during implementation:
 2. **Reload volume under agent load.** Every MCP write produces a tray popup reload. The 4.1.2 work reduced idle reloads from roughly 240/hour to near zero, and the write rate limiter (§4.3) bounds the MCP contribution, but the interaction should be measured rather than assumed.
 
 If reload volume proves problematic, the fix is a longer debounce on the MCP path specifically, not a bypass of the emit.
+
+### 3.7 Main-process state
+
+**New in revision 3, from Phase 0.** Nothing app-level may live on the `McpServer` instance: it is disposable and per-request (see the SDK pin rationale in §10 Phase 1). The bearer token, consent tier, rate-limiter buckets, write journal, and the renderer IPC and health-check plumbing live at module scope in the main process and are closed over by the `createMcpHandler` factory. The only long-lived objects are the `node:http` server (created on enable, torn down on disable or the kill switch) and the handler wrapper.
+
+There are no sessions — v2's 2026-07-28 era has no `Mcp-Session-Id`, and 2025-era clients are served statelessly from the same factory — so rate limiting keys on the token and idempotency keys on `idempotency_key` (§5.2), never on a session.
+
+This shape favors the pure-function extraction pattern already used by `startupQuit.ts` and `calendarCache.ts`: the module-scope state and the functions that operate on it are exactly the pieces Phase 1 extracts and unit-tests.
 
 ---
 
@@ -305,7 +318,7 @@ A network listener that runs invisibly is the wrong default for a privacy-first 
 |---|---|---|---|---|
 | Listener bind | Trivial | Trivial | Trivial | Needs `network.server`, already held |
 | Renderer alive when listening | Yes (app quits otherwise) | Yes | Yes (hidden, not destroyed) | Yes |
-| Discovery file | `%APPDATA%` | XDG | App Support | Container path |
+| Discovery file | `%APPDATA%` | XDG | App Support | Container path, best-effort — **manual token is the primary path** (§3.4) |
 | Bridge | Bundled + button | Bundled + button | Bundled + button | **Documentation link only** |
 | Claude Desktop available | Yes | No | Yes | Yes |
 | Claude Code available | Yes | Yes | Yes | Yes |
@@ -313,7 +326,7 @@ A network listener that runs invisibly is the wrong default for a privacy-first 
 
 **Direct-download builds** bundle the bridge and offer a setup button that writes the Claude Desktop config entry pointing at the bundled binary's path. No download, no Node requirement. The config edit must read, modify the one key, and write back with a backup — never rewrite the whole file. Claude Desktop is known to silently rewrite that file when it dislikes an entry; treat it as contested territory.
 
-**MAS builds** link to documentation. Nothing else. See §8.2.
+**MAS builds** link to documentation. Nothing else. See §8.2. The documented MAS setup leads with manual token configuration — container discovery is best-effort, per §3.4.
 
 **Build-time separation, not runtime gating.** The download/install path must be compiled out of the MAS binary, not hidden behind `if (isMAS)`. Dormant capability in a shipped App Store build is its own violation (hidden or undocumented functionality) independent of 2.5.2. The existing China-locale suppression establishes the per-build pattern; this is stricter.
 
@@ -415,8 +428,26 @@ Verify, do not assume:
 
 *(r1 had a third spike item on renderer liveness. Resolved — see §3.3.)*
 
+**Done.** Findings in `docs/mcp-phase0-findings.md`; the revision-3 changes to this spec apply them.
+
+### Phase 0.5: TCC container-protection experiment
+**Repo:** none (hardware experiment, findings only)
+
+Runnable in parallel with Phase 1 — nothing in Phase 1 depends on it. A `mas-dev` signed build is sufficient; App Store distribution is not required, because container creation and TCC container protection key off the app being sandboxed, not off App Store distribution.
+
+Method:
+1. On macOS 15 or 26: build the existing `mas` target dev-signed (`mas-dev` provisioning, already supported by `electron-builder.config.cjs`), launch it once so `~/Library/Containers/com.dayglance` exists, and place a test `mcp.json` at the §3.4 userData path.
+2. Configure Claude Desktop with a stdio entry running a trivial node script that `readFileSync`s that path and logs contents or `errno` — this reproduces the exact responsible-process chain the real bridge would have.
+3. Observe: whether a prompt appears, its wording and which app it names, that Allow → read succeeds, Deny → the specific error code, and where the toggle lands in System Settings.
+4. Re-run the same script from Terminal and from a second GUI app to confirm attribution follows the responsible process.
+5. Repeat on macOS 14 to confirm the unprotected baseline.
+
+**Exit:** written findings. The outcome shapes Phase 6 (whether the bridge attempts container discovery on MAS at all) and the Phase 7 docs (what the MAS setup page tells users to expect).
+
 ### Phase 1: Listener skeleton
 **Repo:** dayGLANCE
+
+**SDK: pin v2 — the scoped `@modelcontextprotocol/*` packages at 2.0.0** (`server`, `node`; `client` for tests). Why, from Phase 0: v1's maintenance window closes around October 2026, mid-project. v1's stateless mode accepts a second client's `initialize` silently and routes responses by JSON-RPC request id (`_requestToStreamMapping`), producing cross-client leakage with no error when an instance is shared. v2 makes per-request instancing structural via `createMcpHandler(factory)` — a fresh server per request is the API shape, not a convention to remember. v2 also supplies the localhost Origin/Host guards and protocol-version enforcement per §3.5.
 
 Main-process Streamable HTTP listener on 7893, `/mcp` endpoint, `initialize` and `tools/list` handshake, one hardcoded tool returning static data. Token auth, Origin validation, `MCP-Protocol-Version` enforcement. Bound only when explicitly started; dev flag only, no UI.
 
@@ -493,7 +524,8 @@ Privacy policy updates per §9. Umbrella paragraph. ToU confirmation. MAS descri
 | **Stream Deck regression from the new toggle** | High without the migration flag | High | Existing installs migrate to on. This breaks the most engaged users silently, with no error. Blocking exit criterion on Phase 5. |
 | Renderer crash leaves a `mainWindow` that `live()` considers healthy | Low | Medium | Health check, not existence check. Shares a root cause with the open tray-mutation-dropped item; fixing `render-process-gone` closes both. |
 | MAS rejection on 2.5.2 for bridge distribution | Low if the app only links | High if it happens | App never fetches or executes the bridge. Path compiled out, not runtime-gated. Review notes state it explicitly. |
-| MAS container discovery unreadable by the bridge | Medium | Medium | Phase 0 verifies. Manual token paste is the designed fallback. |
+| MAS container read denied or prompt-gated (macOS 15+ TCC container protection; consent prompt attributed to the client app, sticky denial) | Medium | Medium | Manual token paste is the **primary** MAS path (§3.4); container discovery is best-effort. Phase 0.5 confirms the behavior on hardware. |
+| SDK v1 maintenance window closes mid-project (~October 2026) | Certain if v1 is pinned | Medium | Pin SDK v2 (§10 Phase 1). |
 | Client transport confusion (users pasting a URL into Claude Desktop's config and losing their `mcpServers` block) | High | Medium, and it is someone else's bug arriving as a dayGLANCE support request | Docs lead with the bridge for Claude Desktop and never show a `url` field in a `claude_desktop_config.json` example, not even as a counterexample. |
 | Tray reload volume under agent load | Medium | Low | Rate limiter bounds it. Verify debounce coalescing per §3.6. Fix is a longer debounce on the MCP path, never a bypass of the emit. |
 | Device calendar data exposed without the user connecting it to MCP | Medium | Medium | Name device calendar events explicitly in the consent copy (§6.4) and flag them distinctly in tool output (§5.1). |
@@ -508,7 +540,8 @@ Privacy policy updates per §9. Umbrella paragraph. ToU confirmation. MAS descri
 2. **Naming.** `GLANCEmcp` fits the `GLANCEintents` / `GLANCEvault` pattern, but MCP is already an acronym and the doubling reads awkwardly. "dayGLANCE MCP server" is plain and searchable. Weak preference for plain.
 3. **Should the `.mcpb` be submitted to the Connectors Directory?** Discoverable to a well-matched audience, but it is a listed artifact that assumes dayGLANCE is installed and running, which is a poor first experience for anyone who finds it cold. Probably defer past v1.
 4. **Does the write journal persist across restarts?** Session-scoped is simpler and covers the runaway-loop case. Persistent is better for "what changed my schedule last Tuesday," but that is arguably a general audit-log feature rather than an MCP one.
-5. **Does MCP reuse the Stream Deck token handshake or implement a parallel scheme?** Phase 0 decides. Consistency between the two local listeners is probably worth more than a cleaner MCP-native design.
+
+*(r2 had a fifth question — reuse the Stream Deck token handshake or build a parallel scheme? Resolved by Phase 0: parallel scheme, shared idioms. See §3.5.)*
 
 ---
 
