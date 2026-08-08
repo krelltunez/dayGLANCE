@@ -1,6 +1,7 @@
 import { ipcMain, app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
+import { retryTransientFs } from './fsRetry.js';
 
 // ── iCloud sync (macOS) ─────────────────────────────────────────────────────
 //
@@ -62,7 +63,7 @@ export function registerICloudHandlers(getWindow: () => BrowserWindow | null): v
         }
         return null;
       }
-      return fs.readFileSync(filePath, 'utf-8');
+      return retryTransientFs(() => fs.readFileSync(filePath, 'utf-8'));
     } catch (e: unknown) {
       // Return a structured error so the renderer can distinguish "iCloud not
       // available / not signed in" from "no remote file yet" (null).
@@ -82,7 +83,7 @@ export function registerICloudHandlers(getWindow: () => BrowserWindow | null): v
       // those xattrs bird does not recognise the file as needing re-upload.
       // Writing to the existing fd preserves the inode (and all xattrs) so bird
       // sees a normal modification event and queues the upload.
-      fs.writeFileSync(filePath, json, { encoding: 'utf-8' });
+      retryTransientFs(() => fs.writeFileSync(filePath, json, { encoding: 'utf-8' }));
       lastMacOSWriteTime = Date.now();
       return true;
     } catch { return false; }
@@ -112,7 +113,7 @@ export function registerICloudHandlers(getWindow: () => BrowserWindow | null): v
         }
         return null;
       }
-      return fs.readFileSync(filePath, 'utf-8');
+      return retryTransientFs(() => fs.readFileSync(filePath, 'utf-8'));
     } catch { return null; }
   });
 
@@ -122,7 +123,7 @@ export function registerICloudHandlers(getWindow: () => BrowserWindow | null): v
       const filePath = path.join(await iCloudDocumentsDir(), relativePath);
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       // Write in-place (not rename) to preserve iCloud xattrs so bird queues the upload.
-      fs.writeFileSync(filePath, content, { encoding: 'utf-8' });
+      retryTransientFs(() => fs.writeFileSync(filePath, content, { encoding: 'utf-8' }));
       return true;
     } catch { return false; }
   });
@@ -173,7 +174,7 @@ async function startICloudWatch(getWindow: () => BrowserWindow | null): Promise<
         debounce = setTimeout(() => {
           try {
             if (!fs.existsSync(syncPath)) return;
-            const content = fs.readFileSync(syncPath, 'utf-8');
+            const content = retryTransientFs(() => fs.readFileSync(syncPath, 'utf-8'));
             const win = getWindow();
             win?.webContents.send('icloud:changed', content);
           } catch {}
