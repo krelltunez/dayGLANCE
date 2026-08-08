@@ -239,8 +239,8 @@ describe('utf8Bytes / formatBytes', () => {
     expect(formatBytes(512)).toBe('512 B');
     expect(formatBytes(2048)).toBe('2.0 KB');
     expect(formatBytes(3 * 1024 * 1024)).toBe('3.0 MB');
-    expect(formatBytes(-1)).toBe('—');
-    expect(formatBytes(NaN)).toBe('—');
+    expect(formatBytes(-1)).toBe('(none)');
+    expect(formatBytes(NaN)).toBe('(none)');
   });
 });
 
@@ -276,6 +276,28 @@ describe('collectICloudDiagnostics', () => {
     expect(r.snapshot.state).toBe('present');
     expect(r.snapshot.taskCount).toBeGreaterThan(0);
     expect(r.local.taskCount).toBe(0);
+  });
+
+  // A device can resolve the container perfectly and still be deliberately not
+  // syncing (#1333's "start fresh"). Reporting only availability shows that as
+  // healthy, which is the state the panel most needs to distinguish.
+  it('reports the in-app sync preference alongside availability', async () => {
+    const bridge = {
+      iCloudAvailable: () => '{"available":true}',
+      readICloudSync: () => payload(),
+    };
+    const on = await collectICloudDiagnostics({
+      nativeBridge: bridge, localStorage: fakeLocalStorage(),
+    });
+    expect(on.syncEnabled).toBe(true);          // absence of a preference means on
+
+    const off = await collectICloudDiagnostics({
+      nativeBridge: bridge,
+      localStorage: fakeLocalStorage({ 'dayglance-icloud-sync-enabled': 'false' }),
+    });
+    expect(off.syncEnabled).toBe(false);
+    expect(off.available.value).toBe(true);     // container fine, sync off anyway
+    expect(formatDiagnosticsReport(off)).toMatch(/sync on device:\s+OFF/);
   });
 
   it('gathers a macOS report and awaits the async read', async () => {

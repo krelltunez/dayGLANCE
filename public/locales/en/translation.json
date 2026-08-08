@@ -852,7 +852,7 @@
     "recurringTasks": "Recurring tasks",
     "allInstances": "All instances",
     "nextOnly": "Next only",
-    "nothingToFilter": "Nothing to filter yet — schedule some tasks first.",
+    "nothingToFilter": "Nothing to filter yet. Schedule some tasks first.",
     "filterHint": "Selections within a section match any; sections combine.",
     "addTaskOnDate": "Add task on {{date}}",
     "closeFilters": "Close filters",
@@ -876,7 +876,7 @@
     "switchToView": "Switch to {{view}} view",
     "currentViewTap": "Current view: {{view}}. Tap to switch.",
     "deadline": "Deadline",
-    "deadlineTapToSchedule": "Deadline — tap to pick a time",
+    "deadlineTapToSchedule": "Deadline: tap to pick a time",
     "routineTapHint": "Tap to complete · hold to pick a time",
     "completedTasks": "Completed tasks",
     "pastEvents": "Past events",
@@ -976,7 +976,6 @@
     "never": "never",
     "copy": "Copy report",
     "copied": "Copied",
-    "readingNote": "This device resolves an iCloud container and found a populated snapshot in it. If you have turned iCloud off for dayGLANCE, that is the bug: the app is reading a store you disabled, and a reinstall will read it too.",
     "state": {
       "present": "present",
       "absent": "not found",
@@ -991,7 +990,11 @@
     "configured": "configured",
     "notConfigured": "not configured",
     "none": "(none)",
-    "icloudSynced": "iCloud last synced"
+    "icloudSynced": "iCloud last synced",
+    "syncPref": "Sync on this device",
+    "on": "on",
+    "off": "off",
+    "notSyncingNote": "This device is not syncing with iCloud, so its data stays here only. Other devices will not see changes made here, and changes made elsewhere will not arrive."
   },
   "icloudFirstRun": {
     "title": "Data found in iCloud",

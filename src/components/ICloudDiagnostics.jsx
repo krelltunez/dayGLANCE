@@ -116,6 +116,16 @@ const ICloudDiagnostics = ({ darkMode, textPrimary, textSecondary, borderClass }
               <Row label={t('icloudDiag.snapshotError')} value={report.snapshot.error} />
             )}
 
+            {/* The in-app preference, which #1333's "start fresh on this device"
+                sets. Without this row a device with a perfectly reachable
+                container but sync deliberately switched off looks identical to a
+                healthy one. */}
+            <Row
+              label={t('icloudDiag.syncPref')}
+              value={report.syncEnabled ? t('icloudDiag.on') : t('icloudDiag.off')}
+              tone={report.syncEnabled ? undefined : 'text-amber-600 dark:text-amber-400'}
+            />
+
             {/* iCloud's own sync record. Until it existed this panel could only
                 show the WebDAV key, so an iCloud-only device always read "never"
                 — true of WebDAV, and silent about the tier it actually used. */}
@@ -142,11 +152,18 @@ const ICloudDiagnostics = ({ darkMode, textPrimary, textSecondary, borderClass }
             />
           </div>
 
-          {/* The finding worth calling out: a resolvable container is exactly what
-              a user who has switched iCloud off does not expect to see. */}
-          {report.available.value === true && report.snapshot.state === 'present' && (
+          {/* Flag the state the user would want to know about but cannot see:
+              this device holds data and is NOT syncing it anywhere.
+
+              The previous version fired on `available && snapshot present`, which
+              is the NORMAL working state for every iCloud user — it dated from the
+              hypothesis that the app read containers the user had disabled, and
+              on-device testing disproved that (the probe correctly reports false
+              when iCloud is off). So it told healthy users their setup was broken.
+              Warn about sync being off, not about sync working. */}
+          {report.local.taskCount > 0 && (report.available.value === false || !report.syncEnabled) && (
             <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded p-2">
-              {t('icloudDiag.readingNote')}
+              {t('icloudDiag.notSyncingNote')}
             </p>
           )}
 

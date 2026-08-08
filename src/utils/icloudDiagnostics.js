@@ -14,12 +14,16 @@
  * and it needs a Mac, a cable, and two settings toggles. This module answers the
  * same question from inside the app on any build.
  *
- * The reading that matters most: ICloudBridge.isAvailable() is a bare
- * `containerURL() != nil`, which answers "can I resolve a path", NOT "is iCloud
- * enabled for this app". If `available` reports true on a device where the user
- * has switched dayGLANCE's iCloud toggle OFF, that is the bug — the app is
- * reading a store the user believes they disabled. If it reports false, the
- * iCloud theory is dead and the surviving store is something else.
+ * What it found, on device: the container reported `unavailable` before the app
+ * was deleted and `AVAILABLE` after it was reinstalled, with nothing touched in
+ * between. Reinstalling re-grants the iCloud entitlement, so the per-app toggle
+ * comes back on and the surviving snapshot is read again.
+ *
+ * Note what that ruled OUT, since an earlier version of this file asserted it:
+ * isAvailable() is a bare `containerURL() != nil`, and the theory was that it
+ * reported true for containers the user had disabled. It does not — with iCloud
+ * off for dayGLANCE it correctly returned `{"available":false}`. Availability is
+ * honest; the toggle resetting on reinstall is the actual mechanism.
  *
  * Read-only by construction: nothing here writes, deletes, or triggers a sync.
  * Every platform API is injected so the whole thing is testable without a device.
@@ -29,6 +33,7 @@
 // second copy of the string literal is exactly how this module ended up reporting
 // a key that belonged to a different sync tier.
 import { ICLOUD_LAST_SYNCED_KEY } from './icloudSeedGuard.js';
+import { isICloudSyncEnabled } from './icloudSyncPref.js';
 
 /** Shape returned when a probe cannot run on this platform. */
 const UNSUPPORTED = 'unsupported';
@@ -46,7 +51,7 @@ export function utf8Bytes(str, TextEncoderImpl = typeof TextEncoder !== 'undefin
 
 /** Human-readable byte count. Diagnostics are read by people, not parsers. */
 export function formatBytes(n) {
-  if (!Number.isFinite(n) || n < 0) return '—';
+  if (!Number.isFinite(n) || n < 0) return '(none)';
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
@@ -248,6 +253,11 @@ export async function collectICloudDiagnostics(deps = defaultDeps()) {
     platform,
     available,
     snapshot,
+    // The in-app preference is separate from container availability: a device can
+    // resolve the container perfectly and still be deliberately not syncing,
+    // because the user chose "start fresh" at first run or switched it off in
+    // settings. Reporting only availability would show those as healthy.
+    syncEnabled: isICloudSyncEnabled(deps.localStorage),
     local: readLocalState(deps),
     transports: readSyncTransports(deps),
   };
@@ -257,7 +267,7 @@ export async function collectICloudDiagnostics(deps = defaultDeps()) {
  * Plain-text report for the copy-to-clipboard button, so a user can paste the
  * findings into an issue without retyping or screenshotting them.
  */
-export function formatDiagnosticsReport({ platform, available, snapshot, local, transports }) {
+export function formatDiagnosticsReport({ platform, available, snapshot, local, transports, syncEnabled }) {
   const none = '(none)';
   const lines = [
     'dayGLANCE iCloud diagnostics',
@@ -280,6 +290,7 @@ export function formatDiagnosticsReport({ platform, available, snapshot, local, 
 
   const t = transports ?? { icloud: {}, webdav: {}, vault: {} };
   lines.push(
+    `sync on device:  ${syncEnabled === false ? 'OFF' : 'on'}`,
     `icloud synced:   ${t.icloud?.lastSynced ?? 'never'}`,
     `webdav sync:     ${t.webdav.configured ? `configured (${t.webdav.provider ?? 'unknown'})` : 'not configured'}`,
     `  last synced:   ${t.webdav.lastSynced ?? 'never'}`,
