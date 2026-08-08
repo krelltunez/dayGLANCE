@@ -8,9 +8,9 @@ import { dateToString, formatShortDate } from '../utils/taskUtils.js';
 import { computeDaySummary, formatMinutes } from '../utils/daySummary.js';
 
 // Collapse choice is a per-window view preference, same class as
-// minimizedSections. Default collapsed: the strip only collapses on phone,
-// where timeline vertical space is tightest, and the collapsed pill still
-// carries the headline numbers.
+// minimizedSections. Default collapsed: the strip only collapses on touch
+// devices, where timeline vertical space is the scarce resource, and the
+// collapsed pill still carries the headline numbers.
 const COLLAPSE_KEY = 'day-planner-summary-strip-collapsed';
 
 // Exported (with summaryPillClass) so TitlebarSummaryStrip renders the exact
@@ -47,26 +47,31 @@ export const summaryPillClass = (darkMode) =>
  *
  * All data comes from context; the math lives in utils/daySummary.js.
  *
- * @param phone Phone timeline variant: collapsible to a single pill, no date
- *              pill (the phone timeline shows exactly one day, so the heading
- *              would restate the header), right clearance for the new-task FAB
- *              (fixed right-4 w-14, z-40 — above this row's z-30), and the
- *              expanded row WRAPS to more lines instead of scrolling
- *              horizontally. Desktop/tablet pass nothing.
- * @param staticPlacement In-flow instead of sticky — used by mobile LIST view,
- *              where a sticky overlay reads as an extension of the list's
- *              spine. Static places the strip after the day's content as its
- *              own element.
+ * @param compact Touch timeline variant — phone AND tablet, which share this
+ *              component with desktop but not its input model: collapsible to a
+ *              single pill (a tap target, and timeline vertical space is the
+ *              scarce resource on a touch device), and the expanded row STACKS
+ *              instead of scrolling horizontally, because a horizontally
+ *              scrollable row inside a vertically scrolling timeline is a
+ *              gesture conflict. Desktop passes nothing.
+ * @param fabClearance Right padding for the phone's new-task FAB (fixed
+ *              right-4 w-14, z-40 — above this row's z-30). Phone only: tablet
+ *              and desktop have no floating button over the timeline, and the
+ *              gap would just be dead space.
+ * @param staticPlacement In-flow instead of sticky — used by LIST view, where a
+ *              sticky overlay reads as an extension of the list's spine. Static
+ *              places the strip after the day's content as its own element.
  * @param titlebarPills The macOS title bar is currently carrying today's pills
  *              (DesktopLayout, Electron on darwin, no task running). The bar is
  *              pinned to TODAY, so when today is also the viewed day the two
  *              readouts say the same thing — the strip then hides its pills and
  *              leaves the numbers to the bar. Any other day still needs the
- *              strip, since the bar cannot describe it.
+ *              strip, since the bar cannot describe it. Never set alongside
+ *              compact: the title bar only exists on macOS desktop.
  */
-export default function SummaryStrip({ phone = false, staticPlacement = false, titlebarPills = false }) {
+export default function SummaryStrip({ compact = false, fabClearance = false, staticPlacement = false, titlebarPills = false }) {
   const {
-    selectedDate, getTasksForDate, listEndOfDayTime, isToday,
+    selectedDate, getTasksForDate, listEndOfDayTime, visibleDays, isToday,
     darkMode, textPrimary, textSecondary,
   } = useDayPlannerCtx();
   const {
@@ -76,7 +81,7 @@ export default function SummaryStrip({ phone = false, staticPlacement = false, t
   const { t } = useTranslation();
 
   const [collapsed, setCollapsed] = useState(
-    () => phone && localStorage.getItem(COLLAPSE_KEY) !== '0',
+    () => compact && localStorage.getItem(COLLAPSE_KEY) !== '0',
   );
   const toggle = () => {
     setCollapsed((c) => {
@@ -118,6 +123,16 @@ export default function SummaryStrip({ phone = false, staticPlacement = false, t
     </span>
   );
 
+  // The date pill pins which day the numbers describe — only worth its place
+  // when the timeline shows more than one day. Every compact caller today is a
+  // single-day timeline (phone, and portrait tablet at visibleDays 1), where it
+  // would just restate the date already in the header; the visibleDays test is
+  // what keeps that true rather than assuming it, since the compact layouts
+  // have no room to spare and would otherwise carry a redundant row. Desktop
+  // keeps it unconditionally — a horizontal row has the width, and narrowing
+  // that is not this change's business.
+  const showDatePill = !compact || visibleDays > 1;
+
   // Empty day, no declared window: no numbers to show, so the strip becomes the
   // one-time setup hint. Once a window is set anywhere, sticky-forward defaults
   // cover every future day and this state never recurs.
@@ -132,8 +147,8 @@ export default function SummaryStrip({ phone = false, staticPlacement = false, t
   // Static (LIST) gets real top padding: it sits right under the day's
   // closing "Good work" line and needs visible separation from it.
   const container = staticPlacement
-    ? `relative pt-4 pb-2 pl-2 pointer-events-none ${phone ? 'pr-20' : 'pr-2'}`
-    : `sticky bottom-0 z-30 pl-2 pb-2 pointer-events-none ${phone ? 'pr-20' : 'pr-2'}`;
+    ? `relative pt-4 pb-2 pl-2 pointer-events-none ${fabClearance ? 'pr-20' : 'pr-2'}`
+    : `sticky bottom-0 z-30 pl-2 pb-2 pointer-events-none ${fabClearance ? 'pr-20' : 'pr-2'}`;
 
   return (
     <div className={container}>
@@ -155,7 +170,7 @@ export default function SummaryStrip({ phone = false, staticPlacement = false, t
           <MoreHorizontal size={13} className="flex-shrink-0" />
           {t('strip.setDayWindow')}
         </button>
-      ) : phone && collapsed ? (
+      ) : compact && collapsed ? (
         <button onClick={toggle} className={`${pill} pointer-events-auto max-w-full text-xs`}>
           <ChevronUp size={13} className={`flex-shrink-0 ${textSecondary}`} />
           {unblockedLabel}
@@ -163,16 +178,23 @@ export default function SummaryStrip({ phone = false, staticPlacement = false, t
           {energyCompact}
         </button>
       ) : (() => {
-        // On phone, the whole unblocked pill toggles the collapse — symmetric
-        // with the collapsed pill, which expands from a tap anywhere on it.
-        // Only the three-dot menu opts out (stopPropagation). The caret stays
-        // as a visual indicator, not the sole target.
+        // On a touch device the whole unblocked pill toggles the collapse —
+        // symmetric with the collapsed pill, which expands from a tap anywhere
+        // on it. Only the three-dot menu opts out (stopPropagation). The caret
+        // stays as a visual indicator, not the sole target.
+        // Day/date heading — see showDatePill for when it earns its place.
+        const datePill = showDatePill && (
+          <span className={pill}>
+            <span className={`font-medium ${textPrimary}`}>{formatShortDate(selectedDate)}</span>
+          </span>
+        );
+
         const unblockedPill = (
           <span
-            className={`${pill} ${phone ? 'cursor-pointer' : ''}`}
-            onClick={phone ? toggle : undefined}
+            className={`${pill} ${compact ? 'cursor-pointer' : ''}`}
+            onClick={compact ? toggle : undefined}
           >
-            {phone && <ChevronDown size={13} className={`-ml-1 flex-shrink-0 ${textSecondary}`} />}
+            {compact && <ChevronDown size={13} className={`-ml-1 flex-shrink-0 ${textSecondary}`} />}
             {unblockedLabel}
             <button
               onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
@@ -233,7 +255,7 @@ export default function SummaryStrip({ phone = false, staticPlacement = false, t
           </>
         );
 
-        // Floating phone strip: the unblocked pill is the ANCHOR — it keeps
+        // Floating touch strip: the unblocked pill is the ANCHOR — it keeps
         // the exact bottom-left position it has when collapsed, so the
         // collapse target never moves. Everything else fans out UPWARD in its
         // own row: energy directly above, tag chips above that. One pill per
@@ -242,7 +264,7 @@ export default function SummaryStrip({ phone = false, staticPlacement = false, t
         // (anchor stability) and slid underneath it on narrow phones. The
         // in-flow LIST strip reads top-down instead, so there everything
         // stays one wrapping row growing downward.
-        if (phone && !staticPlacement) {
+        if (compact && !staticPlacement) {
           return (
             <div className="pointer-events-auto w-fit max-w-full flex flex-col items-start gap-1.5 text-xs">
               <div className="flex flex-wrap items-center gap-1.5">{tagChips}</div>
@@ -254,16 +276,9 @@ export default function SummaryStrip({ phone = false, staticPlacement = false, t
 
         return (
           <div className={`pointer-events-auto w-fit max-w-full flex items-center gap-1.5 text-xs ${
-            phone ? 'flex-wrap' : `overflow-x-auto ${darkMode ? 'dark-scrollbar' : ''}`
+            compact ? 'flex-wrap' : `overflow-x-auto ${darkMode ? 'dark-scrollbar' : ''}`
           }`}>
-            {/* Day/date heading — pins which day the numbers describe, which
-                the multi-day desktop view otherwise leaves ambiguous. The
-                phone timeline shows exactly one day, so there it is dropped. */}
-            {!phone && (
-              <span className={pill}>
-                <span className={`font-medium ${textPrimary}`}>{formatShortDate(selectedDate)}</span>
-              </span>
-            )}
+            {datePill}
             {unblockedPill}
             {energyPill}
             {tagChips}
