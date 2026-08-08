@@ -1,17 +1,51 @@
 import Foundation
 import WidgetKit
+import os
 
 /// Receives the widget snapshot JSON from the JS bridge, writes it to the
 /// App Group container, and asks WidgetKit to reload all timelines.
 final class WidgetBridge {
     static let shared = WidgetBridge()
 
+    /// Shared with the widget extension and the share extension. Was repeated as a
+    /// literal in every method here; a single definition is one fewer place for a
+    /// typo to silently disable the App Group.
+    static let appGroup = "group.com.dayglance.app"
+
+    /// Widgets are killed at 30 MB with no warning. 200 KB is safely under that
+    /// even with the full snapshot structure.
+    private static let snapshotCapBytes = 200_000
+
+    /// First logging in this target. os.Logger costs nothing when nothing is
+    /// listening and surfaces in Console.app filtered by subsystem, so a dropped
+    /// snapshot is diagnosable without attaching a debugger.
+    private static let log = Logger(subsystem: "com.dayglance.app", category: "widget")
+
     func updateSnapshot(_ json: String) {
-        // Widgets are killed at 30 MB with no warning. Cap stored JSON at 200 KB —
-        // safely under that limit even with the full snapshot structure.
-        guard json.utf8.count <= 200_000,
-              let data = json.data(using: .utf8),
-              let defaults = UserDefaults(suiteName: "group.com.dayglance.app") else { return }
+        // These three were one compound `guard ... else { return }`, which made
+        // every failure mode silent AND indistinguishable: an oversized snapshot,
+        // an encoding failure and a missing App Group all looked identical from
+        // the outside. The widget simply froze at its last good snapshot, with no
+        // signal in the app, the console, or anywhere else. Split so each failure
+        // says which one it was.
+        let byteCount = json.utf8.count
+        guard byteCount <= Self.snapshotCapBytes else {
+            // Single-line OSLogMessage literals throughout: the interpolation is
+            // compile-time checked against a narrow set of forms, so a wrapped
+            // multi-line literal is a needless risk for a diagnostic line.
+            Self.log.error("Widget snapshot dropped: \(byteCount, privacy: .public) bytes exceeds the \(Self.snapshotCapBytes, privacy: .public) byte cap. Widgets and the Live Activity keep their previous data.")
+            return
+        }
+        guard let data = json.data(using: .utf8) else {
+            Self.log.error("Widget snapshot dropped: JSON could not be encoded as UTF-8.")
+            return
+        }
+        guard let defaults = UserDefaults(suiteName: Self.appGroup) else {
+            // Not a data problem — the App Group is unreachable, so widgets are
+            // broken outright rather than stale. Worth its own message.
+            Self.log.error("Widget snapshot dropped: App Group \(Self.appGroup, privacy: .public) is unavailable. Check the application-groups entitlement.")
+            return
+        }
         defaults.set(data, forKey: "widgetSnapshot")
         WidgetCenter.shared.reloadAllTimelines()
         // Same JSON drives the day-summary Live Activity — one entry point,
@@ -22,7 +56,7 @@ final class WidgetBridge {
     }
 
     func getPendingAction() -> String {
-        guard let defaults = UserDefaults(suiteName: "group.com.dayglance.app"),
+        guard let defaults = UserDefaults(suiteName: Self.appGroup),
               let action = defaults.dictionary(forKey: "widgetPendingAction") else {
             return "null"
         }
@@ -33,7 +67,7 @@ final class WidgetBridge {
     }
 
     func getPendingShares() -> String {
-        guard let defaults = UserDefaults(suiteName: "group.com.dayglance.app") else { return "[]" }
+        guard let defaults = UserDefaults(suiteName: Self.appGroup) else { return "[]" }
         let items = defaults.stringArray(forKey: "shareExtensionPending") ?? []
         defaults.removeObject(forKey: "shareExtensionPending")
         let json = items.map { "\"\($0.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\"" }.joined(separator: ",")
