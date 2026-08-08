@@ -141,7 +141,9 @@
     "dailyNote": "Note du jour",
     "filterInbox": "Filtrer la boîte de réception",
     "today": "Aujourd'hui",
-    "tomorrow": "Demain"
+    "tomorrow": "Demain",
+    "showActions": "Afficher les actions",
+    "hideActions": "Masquer les actions"
   },
   "errorBoundary": {
     "title": "Une erreur est survenue",

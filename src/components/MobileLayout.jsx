@@ -44,9 +44,12 @@ import InboxFilterPopover from './InboxFilterPopover.jsx';
 import InboxArchivedBar from './InboxArchivedBar.jsx';
 import { useTranslation } from 'react-i18next';
 import { notBucketed } from '../utils/bucketList.js';
+import useGlanceFabs from '../hooks/useGlanceFabs.js';
+import { glanceFabStagger, glanceFabVisibilityClass } from '../utils/glanceFabs.js';
 
 const MobileLayout = () => {
   const [tzBannerDismissed, setTzBannerDismissed] = useState(false);
+  const { collapsed: glanceFabsCollapsed, toggle: toggleGlanceFabs } = useGlanceFabs();
   const {
     isPhone, isMobile, isTablet, isLandscape,
     visibleDays, visibleDates,
@@ -1165,74 +1168,107 @@ const MobileLayout = () => {
             </>
           )}
 
-          {/* Glance tab FABs - stacked on right: Weekly Review (bottom), Daily Stats (above weekly), Recycle Bin (top) */}
-          {mobileActiveTab === 'dayglance' && (
-            <>
-              {/* Daily Note FAB — bottom-left */}
-              <button
-                onClick={() => setDailyNotesModalDate(getTodayStr())}
-                className={`fixed left-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
-                style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
-                title="Today's daily note"
-              >
-                {obsidianConfig?.enabled ? <BookOpen size={22} /> : <NotebookPen size={22} />}
-              </button>
-              {/* Daily summary ring FAB */}
-              {(() => {
-                const pct = actualTodayNonImportedTasks.length > 0 ? Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100) : 0;
-                const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
-                return (
-                  <button
-                    onClick={() => setShowMobileDailySummary(true)}
-                    className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-stone-200 active:bg-stone-300'}`}
-                    style={{ bottom: 'calc(8.5rem + env(safe-area-inset-bottom, 0px))' }}
-                  >
-                    <div className="relative w-11 h-11">
-                      <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
-                        <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-600' : 'stroke-gray-200'} />
-                        <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" strokeLinecap="round" className={ringColor}
-                          strokeDasharray={`${(pct / 100) * 87.96} 87.96`}
-                        />
-                      </svg>
-                      <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textPrimary}`}>
-                        <ChevronUp size={16} />
-                      </span>
-                    </div>
-                  </button>
-                );
-              })()}
-              {/* Weekly review FAB */}
-              <button
-                onClick={() => {
-                  if (showWeeklyReviewReminder) {
-                    weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current;
-                    localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current);
-                    setShowWeeklyReviewReminder(false);
-                  }
-                  setShowWeeklyReview(true);
-                }}
-                className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
-                style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
-              >
-                <BarChart3 size={22} />
-              </button>
-              {/* Recycle bin FAB */}
-              {recycleBin.filter(t => !t.isExample).length > 0 && (
+          {/* Glance tab FABs — Daily Note bottom-left, and a right-hand column
+              of Weekly Review (bottom), Daily Stats, Recycle Bin (top) sitting
+              on the collapse handle. All four fold into that one handle; see
+              utils/glanceFabs.js, which the desktop/tablet panel shares. */}
+          {mobileActiveTab === 'dayglance' && (() => {
+            const binCount = recycleBin.filter(t => !t.isExample).length;
+            // Column height drives the stagger: index 0 is the button beside the
+            // handle, and the recycle bin only exists when the bin is non-empty.
+            const stackCount = binCount > 0 ? 3 : 2;
+            const fabClass = (extra) => `w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 ease-out ${extra} ${glanceFabVisibilityClass(glanceFabsCollapsed)}`;
+            const delay = (index) => ({ transitionDelay: `${glanceFabStagger(glanceFabsCollapsed, index, stackCount)}ms` });
+            return (
+              <>
+                {/* Daily Note FAB — bottom-left. Its own element rather than a
+                    column member: it is the lone left-hand button, level with
+                    the handle, so it animates on the handle's own beat (0). */}
                 <button
-                  onClick={() => setShowMobileRecycleBin(true)}
-                  className={`fixed right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
-                  style={{ bottom: 'calc(12.5rem + env(safe-area-inset-bottom, 0px))' }}
+                  onClick={() => setDailyNotesModalDate(getTodayStr())}
+                  className={`fixed left-4 z-40 ${fabClass(darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300')}`}
+                  style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))', ...delay(0) }}
+                  title="Today's daily note"
                 >
-                  <div className="relative">
-                    <Trash2 size={22} />
-                    <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
-                      {recycleBin.filter(t => !t.isExample).length > 9 ? '9+' : recycleBin.filter(t => !t.isExample).length}
-                    </span>
-                  </div>
+                  {obsidianConfig?.enabled ? <BookOpen size={22} /> : <NotebookPen size={22} />}
                 </button>
-              )}
-            </>
-          )}
+                {/* Right-hand column. A flex stack rather than four separately
+                    positioned FABs: it keeps the narrower handle centred under
+                    the 56px buttons, and closes the gap by itself when the
+                    recycle-bin button comes and goes. pointer-events-none on
+                    the wrapper — it is taller than the buttons it holds. */}
+                <div
+                  className="fixed right-4 z-40 flex flex-col items-center gap-2 pointer-events-none"
+                  style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' }}
+                >
+                  {/* Recycle bin FAB */}
+                  {binCount > 0 && (
+                    <button
+                      onClick={() => setShowMobileRecycleBin(true)}
+                      className={fabClass(darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300')}
+                      style={delay(2)}
+                    >
+                      <div className="relative">
+                        <Trash2 size={22} />
+                        <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                          {binCount > 9 ? '9+' : binCount}
+                        </span>
+                      </div>
+                    </button>
+                  )}
+                  {/* Daily summary ring FAB */}
+                  {(() => {
+                    const pct = actualTodayNonImportedTasks.length > 0 ? Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100) : 0;
+                    const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
+                    return (
+                      <button
+                        onClick={() => setShowMobileDailySummary(true)}
+                        className={fabClass(darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-stone-200 active:bg-stone-300')}
+                        style={delay(1)}
+                      >
+                        <div className="relative w-11 h-11">
+                          <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
+                            <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-600' : 'stroke-gray-200'} />
+                            <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" strokeLinecap="round" className={ringColor}
+                              strokeDasharray={`${(pct / 100) * 87.96} 87.96`}
+                            />
+                          </svg>
+                          <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textPrimary}`}>
+                            <ChevronUp size={16} />
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })()}
+                  {/* Weekly review FAB */}
+                  <button
+                    onClick={() => {
+                      if (showWeeklyReviewReminder) {
+                        weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current;
+                        localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current);
+                        setShowWeeklyReviewReminder(false);
+                      }
+                      setShowWeeklyReview(true);
+                    }}
+                    className={fabClass(showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300')}
+                    style={delay(0)}
+                  >
+                    <BarChart3 size={22} />
+                  </button>
+                  {/* The handle — always present, never collapsed: it is the
+                      only way back once the rest have folded away. */}
+                  <button
+                    onClick={toggleGlanceFabs}
+                    aria-expanded={!glanceFabsCollapsed}
+                    aria-label={glanceFabsCollapsed ? t('common.showActions') : t('common.hideActions')}
+                    className={`pointer-events-auto w-11 h-11 rounded-full shadow-lg flex items-center justify-center backdrop-blur-sm transition-colors ${darkMode ? 'bg-gray-700/90 text-gray-400 active:bg-gray-600' : 'bg-stone-200/90 text-stone-500 active:bg-stone-300'}`}
+                  >
+                    {glanceFabsCollapsed ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </button>
+                </div>
+              </>
+            );
+          })()}
 
           {/* Trash FAB — visible during mobile long-press drag, hidden for routines */}
           {mobileDragTaskIdState !== null && !mobileDragIsRoutine && (
