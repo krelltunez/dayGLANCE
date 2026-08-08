@@ -24,10 +24,12 @@
  * millisecond timestamp is always 13 digits.) The comparison has to exclude that
  * field, which is what this module is for.
  *
- * Everything else in the snapshot is stable between block boundaries:
- * computeDaySummary takes no clock argument, and buildUpNextFact's output is a
- * boundary-derived label plus an absolute countdownEndMs that SwiftUI counts
- * down on its own. So excluding `updatedAt` is sufficient, not merely necessary.
+ * `updatedAt` is not the only such field, which the first version of this module
+ * got wrong: buildUpNextFact sets `countdownStartMs: inProgress ? startMs : nowMs`,
+ * so for an upcoming entry it is Date.now() too. Both are excluded below. Every
+ * other input is stable between block boundaries — computeDaySummary takes no
+ * clock argument, and the rest of buildUpNextFact's output is derived from the
+ * entry's own times.
  */
 
 /**
@@ -43,9 +45,29 @@
 export function snapshotFingerprint(snapshot) {
   if (!snapshot || typeof snapshot !== 'object') return '';
   // eslint-disable-next-line no-unused-vars
-  const { updatedAt, ...rest } = snapshot;
+  const { updatedAt, daySummary, ...rest } = snapshot;
+
+  // daySummary.upNext.countdownStartMs is the second wall-clock stamp, and it is
+  // easy to miss: buildUpNextFact returns `inProgress ? startMs : nowMs`, so for
+  // an UPCOMING entry it is Date.now() and changes on every call. Leaving it in
+  // made the fingerprint differ every time and the dedupe inert — the first
+  // version of this module shipped that way and changed nothing on device.
+  //
+  // Excluding it is right, not just expedient. The field feeds SwiftUI's
+  // Text(timerInterval:), which animates the countdown itself with no further
+  // pushes; re-sending a moved start actually restarts that animation. And when
+  // the entry genuinely changes — a boundary crossing flipping inProgress —
+  // timeLabel, inProgress and countdownEndMs all change with it, so the push
+  // still happens.
+  let ds = daySummary;
+  if (ds && typeof ds === 'object' && ds.upNext && typeof ds.upNext === 'object') {
+    // eslint-disable-next-line no-unused-vars
+    const { countdownStartMs, ...upNext } = ds.upNext;
+    ds = { ...ds, upNext };
+  }
+
   try {
-    return JSON.stringify(rest);
+    return JSON.stringify({ ...rest, daySummary: ds });
   } catch {
     // A cyclic or otherwise unserialisable snapshot cannot be fingerprinted.
     // Return '' so the caller pushes rather than silently suppressing an update
