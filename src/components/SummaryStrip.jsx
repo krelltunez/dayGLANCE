@@ -61,10 +61,17 @@ export const summaryPillClass = (darkMode) =>
  * @param staticPlacement In-flow instead of sticky — used by LIST view, where a
  *              sticky overlay reads as an extension of the list's spine. Static
  *              places the strip after the day's content as its own element.
+ * @param titlebarPills The macOS title bar is currently carrying today's pills
+ *              (DesktopLayout, Electron on darwin, no task running). The bar is
+ *              pinned to TODAY, so when today is also the viewed day the two
+ *              readouts say the same thing — the strip then hides its pills and
+ *              leaves the numbers to the bar. Any other day still needs the
+ *              strip, since the bar cannot describe it. Never set alongside
+ *              compact: the title bar only exists on macOS desktop.
  */
-export default function SummaryStrip({ compact = false, fabClearance = false, staticPlacement = false }) {
+export default function SummaryStrip({ compact = false, fabClearance = false, staticPlacement = false, titlebarPills = false }) {
   const {
-    selectedDate, getTasksForDate, listEndOfDayTime, visibleDays,
+    selectedDate, getTasksForDate, listEndOfDayTime, visibleDays, isToday,
     darkMode, textPrimary, textSecondary,
   } = useDayPlannerCtx();
   const {
@@ -131,6 +138,12 @@ export default function SummaryStrip({ compact = false, fabClearance = false, st
   // cover every future day and this state never recurs.
   const isEmptyHint = summary.unblockedMinutes === null;
 
+  // Redundant with the macOS title bar: same day, same numbers, and the bar is
+  // actually rendering them. The empty-day hint is deliberately excluded — the
+  // title bar omits it (setup lives in the timeline), so hiding here would leave
+  // a fresh day with no way to set the window at all.
+  const pillsHidden = titlebarPills && isToday && !isEmptyHint;
+
   // Static (LIST) gets real top padding: it sits right under the day's
   // closing "Good work" line and needs visible separation from it.
   const container = staticPlacement
@@ -146,7 +159,10 @@ export default function SummaryStrip({ compact = false, fabClearance = false, st
           anchorClass="absolute bottom-full mb-1 left-2"
         />
       )}
-      {isEmptyHint ? (
+      {/* Pills hidden, popover still mounted: the grid's START/END marker chips
+          open it through the shared featuresCtx flag and this is its only host
+          on the timeline, so unmounting the whole strip would leave them dead. */}
+      {pillsHidden ? null : isEmptyHint ? (
         <button
           onClick={() => setMenuOpen(true)}
           className={`${pill} pointer-events-auto text-xs ${textSecondary} hover:opacity-80`}

@@ -1,14 +1,16 @@
 import React, { useState, useRef } from 'react';
 import {
   Bell, BookOpen, ChevronLeft, ChevronRight, Cloud,
-  Eye, GitBranch, HelpCircle, Inbox, Moon, NotebookPen,
+  Eye, HelpCircle, Inbox, Moon,
   RefreshCw, Save, Settings, Sun, Trash2, X,
 } from 'lucide-react';
 import { dateToString, extractWikilinks, formatDateRange } from '../utils/taskUtils.js';
+import { findRunningTask } from '../utils/runningTask.js';
 import { renderTitle } from '../utils/textFormatting.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { hasNativeCalendar } from '../utils/nativeCalendar.js';
 import DesktopHeader from './DesktopHeader.jsx';
+import GlanceFabs from './GlanceFabs.jsx';
 import CalendarHeader from './CalendarHeader.jsx';
 import TimeGrid from './TimeGrid.jsx';
 import SummaryStrip from './SummaryStrip.jsx';
@@ -120,7 +122,7 @@ const DesktopLayout = () => {
     spotlightResults,
     dailyNotes, setDailyNotes,
     dailyNoteTemplate, setDailyNoteTemplate,
-    dailyNotesModalDate, setDailyNotesModalDate,
+    dailyNotesModalDate,
     weather, setWeather,
     weatherZip, setWeatherZip,
     weatherTempUnit, setWeatherTempUnit,
@@ -209,9 +211,9 @@ const DesktopLayout = () => {
     getTasksForDate, getDateIndicators, hasTasksOnDate,
     getDayName, getMonthDays, getNextQuarterHour,
     weekStartDay,
-    getTodayStr, getOverdueTasks,
+    getOverdueTasks,
     getTaskCalendarStyle,
-    timeToMinutes, minutesToTime,
+    minutesToTime,
     selectAllTags, clearTagFilter, toggleTag,
     handleSpotlightSelect,
     updateDailyNote,
@@ -413,8 +415,7 @@ const DesktopLayout = () => {
     frameNudgeLoading, setFrameNudgeLoading,
     frameNudgeError, setFrameNudgeError,
     frameNudgeDismissedKey, setFrameNudgeDismissedKey,
-    goals, projects, goalsProjectsEnabled,
-    setShowGoalsDashboard,
+    goals, projects,
     projectFilter, setProjectFilter,
     reminderSettings, setReminderSettings,
     showRemindersSettings, setShowRemindersSettings,
@@ -449,40 +450,38 @@ const DesktopLayout = () => {
   const isElectronMac = window.electronAPI?.isElectron && window.electronAPI?.platform === 'darwin';
   const titlebarH = isElectronMac ? 28 : 0;
 
+  // The title bar shows the NOW bar while a task is running and today's pills
+  // otherwise, so this one lookup decides both what the bar renders and whether
+  // the in-timeline strip is redundant. Skipped off macOS, where there is no bar.
+  const titlebarRunningTask = isElectronMac
+    ? findRunningTask([...tasks, ...expandedRecurringTasks])
+    : undefined;
+  const titlebarPills = isElectronMac && !titlebarRunningTask;
+
   return (
       <>
       {/* macOS traffic-light drag region — the NOW bar when a task is running,
           today's summary-strip pills otherwise (TitlebarSummaryStrip). Both are
           display-only, so the whole bar stays a drag area. */}
-      {isElectronMac && (() => {
-        const todayStr = dateToString(new Date());
-        const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-        const runningTask = [...tasks, ...expandedRecurringTasks].find(t =>
-          t.date === todayStr && !t.isAllDay && !t.completed &&
-          !(t.imported && !t.isTaskCalendar) &&
-          nowMin >= timeToMinutes(t.startTime || '0:00') &&
-          nowMin < timeToMinutes(t.startTime || '0:00') + (t.duration || 0)
-        );
-        return (
-          <div
-            style={{ height: titlebarH, WebkitAppRegion: 'drag', flexShrink: 0, paddingLeft: '85px', paddingRight: '85px' }}
-            className={`flex items-center justify-center gap-2 text-xs font-semibold overflow-hidden ${
-              runningTask
-                ? (darkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-50 text-amber-800')
-                : ''
-            }`}
-          >
-            {runningTask ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-                <span className="truncate">{t('common.now')}: {runningTask.title}</span>
-              </>
-            ) : (
-              <TitlebarSummaryStrip />
-            )}
-          </div>
-        );
-      })()}
+      {isElectronMac && (
+        <div
+          style={{ height: titlebarH, WebkitAppRegion: 'drag', flexShrink: 0, paddingLeft: '85px', paddingRight: '85px' }}
+          className={`flex items-center justify-center gap-2 text-xs font-semibold overflow-hidden ${
+            titlebarRunningTask
+              ? (darkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-50 text-amber-800')
+              : ''
+          }`}
+        >
+          {titlebarRunningTask ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+              <span className="truncate">{t('common.now')}: {titlebarRunningTask.title}</span>
+            </>
+          ) : (
+            <TitlebarSummaryStrip />
+          )}
+        </div>
+      )}
       {/* Desktop & Tablet Layout */}
       {!isTablet && <DesktopHeader />}
 
@@ -721,28 +720,8 @@ const DesktopLayout = () => {
                 )}
               </div>
               {tabletActiveTab === 'inbox' && <InboxArchivedBar />}
-              {/* Daily Note FAB — above Goals & Projects FAB */}
-              {tabletActiveTab === 'glance' && (
-                <button
-                  onClick={() => setDailyNotesModalDate(getTodayStr())}
-                  className={`absolute left-4 z-10 h-9 px-3 rounded-full shadow-lg flex items-center gap-1.5 transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
-                  style={{ bottom: goalsProjectsEnabled ? '68px' : '24px' }}
-                  title="Today's daily note"
-                >
-                  {obsidianConfig?.enabled ? <BookOpen size={15} /> : <NotebookPen size={15} />}
-                  <span className="text-xs font-medium whitespace-nowrap">{t('common.dailyNote')}</span>
-                </button>
-              )}
-              {/* Goals & Projects FAB — bottom-left of GLANCE panel */}
-              {goalsProjectsEnabled && tabletActiveTab === 'glance' && (
-                <button
-                  onClick={() => setShowGoalsDashboard(true)}
-                  className={`absolute bottom-6 left-4 z-10 h-9 px-3 rounded-full shadow-lg flex items-center gap-1.5 transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
-                >
-                  <GitBranch size={15} />
-                  <span className="text-xs font-medium whitespace-nowrap">{t('settings.goalsProjects')}</span>
-                </button>
-              )}
+              {/* Action pills + the handle that collapses them, bottom-left. */}
+              {tabletActiveTab === 'glance' && <GlanceFabs />}
             </div>
           )}
 
@@ -793,29 +772,8 @@ const DesktopLayout = () => {
               )}
             </div>
             {tabletActiveTab === 'inbox' && <InboxArchivedBar />}
-            {/* Daily Note FAB — above Goals & Projects FAB */}
-            {tabletActiveTab === 'glance' && (
-              <button
-                onClick={() => setDailyNotesModalDate(getTodayStr())}
-                className={`absolute left-4 z-10 h-9 px-3 rounded-full shadow-lg flex items-center gap-1.5 transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
-                style={{ bottom: goalsProjectsEnabled ? '68px' : '24px' }}
-                title="Today's daily note"
-              >
-                {obsidianConfig?.enabled ? <BookOpen size={15} /> : <NotebookPen size={15} />}
-                <span className="text-xs font-medium whitespace-nowrap">{t('common.dailyNote')}</span>
-              </button>
-            )}
-            {/* Goals & Projects FAB — bottom-left of GLANCE panel */}
-            {goalsProjectsEnabled && tabletActiveTab === 'glance' && (
-              <button
-                onClick={() => setShowGoalsDashboard(true)}
-                className={`absolute bottom-6 left-4 z-10 h-9 px-3 rounded-full shadow-lg flex items-center gap-1.5 transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
-                title="Goals & Projects"
-              >
-                <GitBranch size={15} />
-                <span className="text-xs font-medium whitespace-nowrap">{t('settings.goalsProjects')}</span>
-              </button>
-            )}
+            {/* Action pills + the handle that collapses them, bottom-left. */}
+            {tabletActiveTab === 'glance' && <GlanceFabs />}
           </div>
           )}
 
@@ -861,8 +819,16 @@ const DesktopLayout = () => {
                         since nothing floats over the tablet timeline. Landscape
                         is excluded on the same grounds LIST view is (see
                         tabletListView): the two-column landscape timeline IS
-                        the desktop layout, and takes the desktop strip. */}
-                    {effectiveViewMode !== 'sched' && <SummaryStrip compact={isTablet && !isLandscape} />}
+                        the desktop layout, and takes the desktop strip.
+                        titlebarPills lets it stand down for today while the
+                        macOS title bar carries the same numbers — always false
+                        on a tablet, since that bar is Electron-on-macOS only. */}
+                    {effectiveViewMode !== 'sched' && (
+                      <SummaryStrip
+                        compact={isTablet && !isLandscape}
+                        titlebarPills={titlebarPills}
+                      />
+                    )}
                   </>
               }
             </div>

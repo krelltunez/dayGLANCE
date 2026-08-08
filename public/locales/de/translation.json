@@ -141,7 +141,9 @@
     "dailyNote": "Tagesnotiz",
     "filterInbox": "Posteingang filtern",
     "today": "Heute",
-    "tomorrow": "Morgen"
+    "tomorrow": "Morgen",
+    "showActions": "Aktionen anzeigen",
+    "hideActions": "Aktionen ausblenden"
   },
   "errorBoundary": {
     "title": "Etwas ist schiefgelaufen",

@@ -8,14 +8,48 @@
  * every wipe-on-exit session starts with factory settings.
  *
  * Approach: capture every `day-planner-*` localStorage key verbatim (raw
- * string values), minus an exclusion list of (a) stores the backup payload
- * already carries as first-class fields, and (b) volatile sync cursors and
- * caches that would be stale or meaningless after a restore. Prefix capture is
- * deliberate — new settings keys added later ride along automatically instead
- * of re-opening this gap.
+ * string values), plus a fixed list of older keys that predate that naming
+ * convention, minus an exclusion list of (a) stores the backup payload already
+ * carries as first-class fields, and (b) volatile sync cursors and caches that
+ * would be stale or meaningless after a restore. Prefix capture is deliberate —
+ * new settings keys added later ride along automatically instead of re-opening
+ * this gap.
  */
 
 const KEY_PREFIX = 'day-planner-';
+
+// Settings written before the `day-planner-` convention existed. The prefix
+// rule silently missed every one, so a restored profile came back with a reset
+// inbox filter bar and one-time prompts the user had already dismissed.
+//
+// Named rather than renamed: migrating these keys to the prefix would strand
+// the values already sitting in every existing browser profile, and would need
+// a read-both-write-new shim in each of their owners. This list is closed —
+// nothing should ever be added to it, because anything new gets the prefix and
+// is captured for free.
+//
+// Deliberately NOT here:
+//  - minimizedSections, gettingStartedDismissed, onboardingProgress: the backup
+//    payload already carries these as first-class fields, and duplicating them
+//    is the two-sources-of-truth problem EXCLUDED_KEYS exists to prevent.
+//  - dailyContent: a date-stamped quote/history fetch cache, refetched on the
+//    first run of any new day and therefore stale the moment it is restored.
+const LEGACY_KEYS = new Set([
+  // The inbox filter bar, in full: priority, tag and project filters plus the
+  // three hide toggles. Losing these is what surfaced this gap.
+  'inboxPriorityFilter',
+  'inboxTagFilter',
+  'inboxProjectFilter',
+  'hideCompletedInbox',
+  'hideProjectTasksInbox',
+  'hideStandaloneTasksInbox',
+  // One-time prompts and warnings already dismissed. A restore that re-shows
+  // them reads as the app having forgotten, which is what a backup is for.
+  'priorityPromptDismissed',
+  'sectionInfoDismissed',
+  'welcomeDismissed',
+  'storageWarnDismissed',
+]);
 
 const EXCLUDED_KEYS = new Set([
   // Already first-class fields in the auto-backup payload's `data` object —
@@ -58,10 +92,12 @@ const EXCLUDED_KEYS = new Set([
 ]);
 
 const isCapturable = (key) =>
-  typeof key === 'string' && key.startsWith(KEY_PREFIX) && !EXCLUDED_KEYS.has(key);
+  typeof key === 'string'
+  && (key.startsWith(KEY_PREFIX) || LEGACY_KEYS.has(key))
+  && !EXCLUDED_KEYS.has(key);
 
 /**
- * Snapshot all capturable day-planner-* keys as { key: rawString }.
+ * Snapshot all capturable keys as { key: rawString }.
  * Includes device settings AND device-local data stores the payload doesn't
  * carry as fields (daily notes, frames, focus log, routine state, deletion
  * tombstones), which a wiped profile would otherwise lose.
@@ -78,9 +114,10 @@ export function collectDeviceSettings(storage = localStorage) {
 }
 
 /**
- * Write a captured settings map back into storage. Only day-planner-* keys
- * outside the exclusion list are applied (a hand-edited backup can't plant
- * arbitrary keys), and only string values. Returns the number applied.
+ * Write a captured settings map back into storage. Only keys isCapturable
+ * accepts are applied — the day-planner-* prefix or the closed legacy list,
+ * minus the exclusions — so a hand-edited backup still can't plant arbitrary
+ * keys, and only string values. Returns the number applied.
  */
 export function applyDeviceSettings(settings, storage = localStorage) {
   if (!settings || typeof settings !== 'object') return 0;

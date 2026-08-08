@@ -141,7 +141,9 @@
     "dailyNote": "Daily Note",
     "filterInbox": "Filter Inbox",
     "today": "Today",
-    "tomorrow": "Tomorrow"
+    "tomorrow": "Tomorrow",
+    "showActions": "Show actions",
+    "hideActions": "Hide actions"
   },
   "errorBoundary": {
     "title": "Something went wrong",

@@ -55,6 +55,24 @@ describe('buildUpNextFact', () => {
     expect(running.timeLabel).toBe('bis 15:00');
   });
 
+  it('passes a resolved energy through untouched', () => {
+    // The snapshot builder resolves energy from the unstripped source block, so
+    // a title that would derive the other way must not override it.
+    const f = buildUpNextFact({ title: 'Lunch with investors', startTime: '12:00', duration: 60, energy: 'effort' }, at(11, 0), fmt);
+    expect(f.energy).toBe('effort');
+  });
+
+  it('falls back to deriving energy from the title', () => {
+    expect(buildUpNextFact({ title: 'Deep work', startTime: '13:00', duration: 60 }, at(12, 0), fmt).energy).toBe('effort');
+    expect(buildUpNextFact({ title: 'Morning walk', startTime: '13:00', duration: 60 }, at(12, 0), fmt).energy).toBe('restore');
+  });
+
+  it('always names an energy, even with nothing to go on', () => {
+    // The island tints its ring from this field; an absent value would leave the
+    // ring's color undefined rather than neutral.
+    expect(buildUpNextFact({ startTime: '13:00', duration: 60 }, at(12, 0), fmt).energy).toBe('effort');
+  });
+
   it('label wording goes through the caller-provided formatter', () => {
     const twelveHour = (t) => {
       const [h, m] = t.split(':').map(Number);

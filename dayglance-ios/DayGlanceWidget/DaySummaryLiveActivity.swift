@@ -24,6 +24,26 @@ private let effortColor = Color.indigo
 private let restoreColor = Color.green
 private let unblockedColor = Color.teal
 
+// Energy of the current-or-next block, as resolved by JS (deriveBlockEnergy).
+// Anything else — an old snapshot without the field, or a value a future build
+// adds — falls through to the neutral ring and no glyph, so this extension never
+// asserts an energy the app did not send.
+private func energyColor(_ energy: String?) -> Color {
+    switch energy {
+    case "effort": return effortColor
+    case "restore": return restoreColor
+    default: return unblockedColor
+    }
+}
+
+private func energySymbol(_ energy: String?) -> String? {
+    switch energy {
+    case "effort": return "bolt.fill"
+    case "restore": return "leaf.fill"
+    default: return nil
+    }
+}
+
 // The live countdown: the OS renders the remaining time in the interval,
 // showing 0:00 once it has passed (next to a label that is still factual).
 // Falls back to the given string when there is no interval to count.
@@ -40,11 +60,14 @@ private func countdownText(_ state: DaySummaryAttributes.ContentState, fallback:
 // text (ProgressView over the interval ticks with zero updates and zero
 // pushes), so the compact leading slot shows shape while the trailing shows
 // number. In progress it drains as the block runs down; upcoming it drains
-// toward the start. Labels are empty on purpose — the numeric countdown
-// already lives on the trailing side, and the empty currentValueLabel is the
-// slot where a per-block energy glyph could later sit inside the ring.
-// Falls back to the hourglass when there is nothing to animate (no more
-// blocks today).
+// toward the start.
+//
+// The ring carries the block's ENERGY two ways — its tint, and the bolt/leaf
+// glyph in currentValueLabel (the ring's center) — so the smallest island state
+// says what KIND of block is running, not just how much of it is left. The
+// `label` slot stays empty: the numeric countdown already lives on the trailing
+// side. Falls back to the hourglass when there is nothing to animate (no more
+// blocks today), untinted — no block means no energy to report.
 @ViewBuilder
 private func countdownRing(_ state: DaySummaryAttributes.ContentState) -> some View {
     if let start = state.countdownStart, let end = state.countdownEnd, start < end {
@@ -57,9 +80,22 @@ private func countdownRing(_ state: DaySummaryAttributes.ContentState) -> some V
         // Apple's first-party surfaces (Timer) sit tighter only because they
         // are system-rendered, not ActivityKit extensions.
         ProgressView(timerInterval: start...end, countsDown: true,
-                     label: { EmptyView() }, currentValueLabel: { EmptyView() })
+                     label: { EmptyView() },
+                     currentValueLabel: {
+                         // 8pt inside an 18pt ring: the glyph has to clear the
+                         // stroke on both sides, so it reads as a mark rather
+                         // than a legible icon — which is the intent. Bolt and
+                         // leaf are distinguishable at this size by silhouette.
+                         if let symbol = energySymbol(state.blockEnergy) {
+                             Image(systemName: symbol)
+                                 .font(.system(size: 8, weight: .bold))
+                                 .foregroundStyle(energyColor(state.blockEnergy))
+                         } else {
+                             EmptyView()
+                         }
+                     })
             .progressViewStyle(.circular)
-            .tint(unblockedColor)
+            .tint(energyColor(state.blockEnergy))
             .frame(width: 18, height: 18)
     } else {
         Image(systemName: "hourglass")

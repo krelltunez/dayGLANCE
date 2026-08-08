@@ -13,6 +13,7 @@ import { WEEK_GUTTER_W } from './WeekView.jsx';
 import { isNativeAndroid, nativeUpdateEvent } from '../native.js';
 import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
 import { dateToString, extractWikilinks, formatDeadlineDate, formatShortDate } from '../utils/taskUtils.js';
+import { findRunningTask } from '../utils/runningTask.js';
 import { HABIT_COLORS, HABIT_ICONS } from '../constants/habits.js';
 import { MiniHabitRing } from './HabitRing.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
@@ -73,7 +74,7 @@ const CalendarHeader = () => {
     getTasksForDate, getDeadlineTasksForDate,
     getTaskCalendarStyle,
     setTaskRef,
-    formatTime, timeToMinutes, minutesToTime,
+    formatTime, minutesToTime,
     setEditingRecurrenceTaskId,
     updateDragAutoScroll,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
@@ -377,14 +378,7 @@ const CalendarHeader = () => {
 {/* Now bar - current running task (suppressed on Electron Mac where it shows in the title bar) */}
 {(() => {
   if (window.electronAPI?.isElectron && window.electronAPI?.platform === 'darwin') return null;
-  const todayStr = dateToString(new Date());
-  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-  const runningTask = [...tasks, ...expandedRecurringTasks].find(t =>
-    t.date === todayStr && !t.isAllDay && !t.completed &&
-    !(t.imported && !t.isTaskCalendar) &&
-    nowMin >= timeToMinutes(t.startTime || '0:00') &&
-    nowMin < timeToMinutes(t.startTime || '0:00') + (t.duration || 0)
-  );
+  const runningTask = findRunningTask([...tasks, ...expandedRecurringTasks]);
   if (!runningTask) return null;
   return (
     <div className={`flex items-center gap-2 px-4 py-1.5 text-xs font-semibold ${darkMode ? 'bg-amber-900/40 text-amber-300 border-b border-amber-700/40' : 'bg-amber-50 text-amber-800 border-b border-amber-200'}`}>
