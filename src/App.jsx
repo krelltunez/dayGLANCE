@@ -1576,15 +1576,22 @@ const DayPlanner = () => {
     dailyNotes, users, routineCompletions, multiUserEnabled,
   });
 
-  // Onboarding flags aren't part of the useSaveOnChange data slices, so a
-  // checklist dismissal alone would never reach the folder backup — and the
-  // Getting Started checklist would reappear every session on wipe-on-exit
-  // machines. useOnboarding's own effects persist the flags to localStorage in
-  // the same commit, well before the debounced write builds its payload.
+  // View preferences aren't part of the useSaveOnChange data slices, so
+  // changing one alone would never reach the folder backup — the Getting
+  // Started checklist would reappear every session on wipe-on-exit machines,
+  // and the inbox filter bar would come back reset from any restore that
+  // followed a filter-only session. Their own effects (useOnboarding,
+  // useLocalStoragePersist) persist to localStorage in the same commit, well
+  // before the debounced write builds its payload, so a nudge here is enough.
   useEffect(() => {
     if (!dataLoaded) return;
     folderBackupWriteRef.current?.();
-  }, [dataLoaded, gettingStartedDismissed, onboardingProgress]);
+  }, [
+    dataLoaded, gettingStartedDismissed, onboardingProgress,
+    inboxPriorityFilter, inboxTagFilter, inboxProjectFilter,
+    hideCompletedInbox, hideProjectTasksInbox, hideStandaloneTasksInbox,
+    priorityPromptDismissed, sectionInfoDismissed, storageWarnDismissed,
+  ]);
 
   const { timelineScrolledAway, setTimelineScrolledAway, scrollToCurrentHour, scrollToHour } = useTimelineScroll({
     calendarRef, timeGridRef,
