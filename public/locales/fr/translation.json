@@ -990,7 +990,8 @@
     "vaultSynced": "Dernière synchro GLANCEvault",
     "configured": "configuré",
     "notConfigured": "non configuré",
-    "none": "(aucun)"
+    "none": "(aucun)",
+    "icloudSynced": "Dernière synchro iCloud"
   },
   "icloudFirstRun": {
     "title": "Données trouvées dans iCloud",

@@ -25,6 +25,11 @@
  * Every platform API is injected so the whole thing is testable without a device.
  */
 
+// The one import here: the key is owned by the seed guard, which writes it. A
+// second copy of the string literal is exactly how this module ended up reporting
+// a key that belonged to a different sync tier.
+import { ICLOUD_LAST_SYNCED_KEY } from './icloudSeedGuard.js';
+
 /** Shape returned when a probe cannot run on this platform. */
 const UNSUPPORTED = 'unsupported';
 
@@ -158,6 +163,11 @@ export function readSyncTransports({ localStorage } = {}) {
   const vaultCfg = json('dayglance-vault-config');
 
   return {
+    // iCloud's own record, written by iCloudSync on every cycle that reads a real
+    // snapshot. Before it existed, this panel could only show the WebDAV key, so
+    // an iCloud-only device always reported "never" — accurate about WebDAV, and
+    // silent about the only tier it actually used.
+    icloud: { lastSynced: get(ICLOUD_LAST_SYNCED_KEY) },
     webdav: {
       configured: !!webdavCfg?.enabled,
       provider: webdavCfg?.provider ?? null,
@@ -268,8 +278,9 @@ export function formatDiagnosticsReport({ platform, available, snapshot, local, 
   }
   if (snapshot.error) lines.push(`  error:         ${snapshot.error}`);
 
-  const t = transports ?? { webdav: {}, vault: {} };
+  const t = transports ?? { icloud: {}, webdav: {}, vault: {} };
   lines.push(
+    `icloud synced:   ${t.icloud?.lastSynced ?? 'never'}`,
     `webdav sync:     ${t.webdav.configured ? `configured (${t.webdav.provider ?? 'unknown'})` : 'not configured'}`,
     `  last synced:   ${t.webdav.lastSynced ?? 'never'}`,
     `glancevault:     ${t.vault.configured ? 'configured' : 'not configured'}`,

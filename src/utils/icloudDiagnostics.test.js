@@ -169,6 +169,20 @@ describe('readSyncTransports', () => {
     const r = readSyncTransports({ localStorage: fakeLocalStorage() });
     expect(r.webdav).toEqual({ configured: false, provider: null, lastSynced: null });
     expect(r.vault).toEqual({ configured: false, lastSynced: null });
+    expect(r.icloud).toEqual({ lastSynced: null });
+  });
+
+  // iCloud's record is its own key. Reading the WebDAV one is the bug that made
+  // an iCloud-only device report "never" no matter how much it had synced.
+  it("reports iCloud's own sync record, not the WebDAV one", () => {
+    const r = readSyncTransports({
+      localStorage: fakeLocalStorage({
+        'dayglance-icloud-last-synced': '2026-08-08T11:00:00.000Z',
+        'day-planner-cloud-sync-last-synced': '2020-01-01T00:00:00.000Z',
+      }),
+    });
+    expect(r.icloud.lastSynced).toBe('2026-08-08T11:00:00.000Z');
+    expect(r.webdav.lastSynced).toBe('2020-01-01T00:00:00.000Z');
   });
 
   it('reports a configured WebDAV tier with provider and record', () => {

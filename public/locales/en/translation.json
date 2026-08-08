@@ -990,7 +990,8 @@
     "vaultSynced": "GLANCEvault last synced",
     "configured": "configured",
     "notConfigured": "not configured",
-    "none": "(none)"
+    "none": "(none)",
+    "icloudSynced": "iCloud last synced"
   },
   "icloudFirstRun": {
     "title": "Data found in iCloud",
