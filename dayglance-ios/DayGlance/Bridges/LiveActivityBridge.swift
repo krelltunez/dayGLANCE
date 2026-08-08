@@ -63,6 +63,7 @@ final class LiveActivityBridge {
         var title: String?
         var timeLabel: String?
         var inProgress: Bool?
+        var energy: String?
         var countdownStartMs: Double?
         var countdownEndMs: Double?
     }
@@ -100,6 +101,7 @@ final class LiveActivityBridge {
             countdownStart: msToDate(up?.countdownStartMs),
             countdownEnd: msToDate(up?.countdownEndMs),
             inProgress: up?.inProgress ?? false,
+            blockEnergy: up?.energy,
             done: done, effort: effort, restore: restore,
             doneLabel: labels?.done ?? "done",
             remainingLabel: labels?.remaining ?? "remaining",

@@ -14,6 +14,15 @@
 // down time remaining); upcoming → now..start (counts down to the start).
 // After the interval passes without an update it reads 0:00 next to a label
 // that is still factual, and the activity's staleDate dims it.
+//
+// The fact also carries the block's ENERGY ('effort' | 'restore'), which tints
+// the island's countdown ring and picks the bolt/leaf glyph inside it — the
+// same pairing the in-app strip uses. Callers that already resolved it (the
+// snapshot builder does, from the unstripped source block) pass it on the entry
+// and deriveBlockEnergy returns it untouched; anything else falls back to
+// deriving from the title, so the field is never absent.
+
+import { deriveBlockEnergy } from './energyAxis.js';
 
 const toHHMM = (ms) => {
   const t = new Date(ms);
@@ -21,13 +30,14 @@ const toHHMM = (ms) => {
 };
 
 /**
- * @param {{title?: string, startTime?: string, duration?: number}|null} entry
- *   today's current-or-next block ('HH:MM' start, minutes duration)
+ * @param {{title?: string, startTime?: string, duration?: number, energy?: string}|null} entry
+ *   today's current-or-next block ('HH:MM' start, minutes duration, optional
+ *   resolved 'effort'|'restore')
  * @param {number} nowMs epoch ms "now" (startTime is resolved against its day)
  * @param {(hhmm: string) => string} formatTime display formatter (12h/24h)
  * @param {{until?: string, at?: string}} [words] localized label words
  *   (defaults are English so tests and non-localized callers stay stable)
- * @returns {{title, inProgress, timeLabel, countdownStartMs, countdownEndMs}|null}
+ * @returns {{title, inProgress, timeLabel, energy, countdownStartMs, countdownEndMs}|null}
  */
 export function buildUpNextFact(entry, nowMs, formatTime, words) {
   if (!entry || !entry.startTime) return null;
@@ -43,6 +53,7 @@ export function buildUpNextFact(entry, nowMs, formatTime, words) {
     title: entry.title || '',
     inProgress,
     timeLabel: inProgress ? `${w.until} ${formatTime(toHHMM(endMs))}` : `${w.at} ${formatTime(toHHMM(startMs))}`,
+    energy: deriveBlockEnergy(entry),
     countdownStartMs: inProgress ? startMs : nowMs,
     countdownEndMs: inProgress ? endMs : startMs,
   };

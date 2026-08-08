@@ -7246,16 +7246,21 @@ const DayPlanner = () => {
       .map(s => { const [h, m] = s.startTime.split(':').map(Number); return { ...s, startMin: h * 60 + m }; })
       .filter(s => nowMinW < s.startMin + s.duration)
       .sort((a, b) => a.startMin - b.startMin)[0] || null;
+    // energy is resolved from the SOURCE block, never from the projected title:
+    // nextTaskItem.title has already had its #tags and [[wikilinks]] stripped
+    // for display, and the per-block `energy` override is not projected at all,
+    // so deriving from it would silently drop both of deriveBlockEnergy's
+    // stronger signals. nextTaskCandidate / nextHGForUpNext still carry them.
     const nextUpNext = (() => {
       const taskMin = nextTaskItem ? timeToMinutes(nextTaskItem.startTime) : Infinity;
       const hgMin = nextHGForUpNext ? nextHGForUpNext.startMin : Infinity;
       if (nextHGForUpNext && hgMin <= taskMin) {
         const tc = nextHGForUpNext.taskCount;
         const tcLabel = tc > 0 ? ` · ${tc} task${tc !== 1 ? 's' : ''}` : '';
-        return { title: 'hyperGLANCE', startTime: nextHGForUpNext.startTime, duration: nextHGForUpNext.duration, bodyPrefix: `${nextHGForUpNext.title}${tcLabel} · ` };
+        return { title: 'hyperGLANCE', startTime: nextHGForUpNext.startTime, duration: nextHGForUpNext.duration, energy: deriveBlockEnergy(nextHGForUpNext), bodyPrefix: `${nextHGForUpNext.title}${tcLabel} · ` };
       }
       if (nextTaskItem)
-        return { title: nextTaskItem.title, startTime: nextTaskItem.startTime, duration: nextTaskItem.duration, bodyPrefix: '' };
+        return { title: nextTaskItem.title, startTime: nextTaskItem.startTime, duration: nextTaskItem.duration, energy: deriveBlockEnergy(nextTaskCandidate), bodyPrefix: '' };
       return null;
     })();
 
