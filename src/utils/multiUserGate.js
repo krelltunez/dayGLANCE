@@ -26,3 +26,48 @@ export function canEnableMultiUser({ cloudSyncEnabled, vaultEnabled } = {}) {
 export function multiUserToggleLocked({ cloudSyncConfigured, multiUserEnabled } = {}) {
   return !cloudSyncConfigured && !multiUserEnabled;
 }
+
+/**
+ * Which explanation to show under a multi-user toggle that cannot be enabled.
+ *
+ * "Requires cloud sync" is accurate on a device with no sync at all, and it is
+ * actionable — go set up WebDAV or GLANCEvault. On an Apple device syncing via
+ * iCloud it is simply wrong: that user IS syncing, and telling them otherwise
+ * sends them looking for a setting that will not help. iCloud is per-Apple-ID, so
+ * it moves one person's data between their own devices; it cannot give two people
+ * a shared destination, which is the thing multi-user needs. That is a different
+ * sentence, not a missing one — hence a reason code rather than a boolean.
+ *
+ * Returns:
+ *   'none'        — sync is configured; multi-user is available, show nothing.
+ *   'icloud-only' — the only transport is iCloud, which cannot back multi-user.
+ *   'no-sync'     — no transport at all; setting one up is the fix.
+ *
+ * @param {{cloudSyncConfigured?: boolean, icloudAvailable?: boolean}} opts
+ * @returns {'none'|'icloud-only'|'no-sync'}
+ */
+export function multiUserUnavailableReason({ cloudSyncConfigured, icloudAvailable } = {}) {
+  if (cloudSyncConfigured) return 'none';
+  return icloudAvailable ? 'icloud-only' : 'no-sync';
+}
+
+/**
+ * Whether to offer the "sync users" roster action.
+ *
+ * Gated on multi-user actually being ON, not merely on a transport existing. The
+ * previous condition (WebDAV enabled OR iCloud reachable) put a working
+ * household-roster sync button directly beneath a locked toggle that said sync
+ * was not configured — an iCloud-only device got both halves of a contradiction
+ * on one screen. With multi-user off there is no roster to sync in the first
+ * place, so the button has nothing to do.
+ *
+ * The iCloud transport stays supported for the never-trapped case: multi-user
+ * enabled while WebDAV is off, where syncSharedUsersViaICloud is the only way to
+ * reconcile the roster.
+ *
+ * @param {{multiUserEnabled?: boolean, cloudSyncEnabled?: boolean, icloudAvailable?: boolean}} opts
+ * @returns {boolean}
+ */
+export function canSyncUserRoster({ multiUserEnabled, cloudSyncEnabled, icloudAvailable } = {}) {
+  return !!(multiUserEnabled && (cloudSyncEnabled || icloudAvailable));
+}

@@ -348,7 +348,8 @@
     "removeFileImported": "Supprimer les événements importés depuis un fichier",
     "removeFileImportedConfirm": "Supprimer les {{n}} événements importés depuis un fichier ? Réimporter le fichier les restaurera.",
     "liveActivity": "Activité en direct",
-    "liveActivityDesc": "Le plan du jour dans la Dynamic Island et sur l'écran verrouillé. Élargit l'île et masque les icônes de signal près de l'horloge."
+    "liveActivityDesc": "Le plan du jour dans la Dynamic Island et sur l'écran verrouillé. Élargit l'île et masque les icônes de signal près de l'horloge.",
+    "multiUserICloudOnly": "Nécessite une destination de synchronisation partagée. iCloud synchronise vos propres appareils sous un seul identifiant Apple et ne peut donc pas donner une liste partagée à deux personnes. Configurez GLANCEvault ou WebDAV pour cela."
   },
   "task": {
     "newScheduled": "Nouvelle tâche planifiée",
@@ -947,17 +948,17 @@
     "warning": "Cette action efface toutes les tâches, notes, habitudes, objectifs, projets et réglages de cet appareil, et est irréversible. Exportez une sauvegarde d'abord si vous voulez en garder une copie.",
     "exportFirst": "Exporter une sauvegarde d'abord",
     "scopeDevice": "Cet appareil uniquement",
-    "scopeDeviceHint": "La copie dans iCloud est conservée, et cet appareil peut la relire directement — même si la synchronisation est désactivée. À n'utiliser que pour corriger un état local défectueux, pas pour repartir de zéro.",
+    "scopeDeviceHint": "La copie dans iCloud est conservée, et cet appareil peut la relire directement même si la synchronisation est désactivée. À n'utiliser que pour corriger un état local défectueux, pas pour repartir de zéro.",
     "scopeEverywhere": "Cet appareil et iCloud",
     "scopeEverywhereHint": "Supprime aussi la copie dans iCloud, afin que rien ne la restaure ici ni après une réinstallation.",
     "confirm": "Tout effacer",
     "working": "Effacement…",
     "partialFailure": "Certaines données n'ont pas pu être effacées :",
-    "otherDevices": "Quitter dayGLANCE ailleurs ne suffit pas — un appareil fermé restaure sa copie à la prochaine ouverture, et un appareil resté ouvert la restaure en quelques secondes. Pour vraiment repartir de zéro, réinitialisez chaque appareil, et ne rouvrez pas les autres avant de l'avoir fait."
+    "otherDevices": "Quitter dayGLANCE ailleurs ne suffit pas. Un appareil fermé restaure sa copie à la prochaine ouverture, et un appareil resté ouvert la restaure en quelques secondes. Pour vraiment repartir de zéro, réinitialisez chaque appareil, et ne rouvrez pas les autres avant de l'avoir fait."
   },
   "icloudDiag": {
     "title": "Diagnostic iCloud",
-    "hint": "Lecture seule. Indique ce que cet appareil voit actuellement dans le conteneur iCloud — rien n'est écrit, supprimé ni synchronisé.",
+    "hint": "Lecture seule. Indique ce que cet appareil voit actuellement dans le conteneur iCloud. Rien n'est écrit, supprimé ni synchronisé.",
     "run": "Lancer le test",
     "running": "Vérification…",
     "platform": "Plateforme",
@@ -972,7 +973,6 @@
     "lastModified": "Fichier modifié",
     "remoteCounts": "Dans le fichier (tâches / boîte)",
     "localCounts": "Sur l'appareil (tâches / boîte)",
-    "lastSynced": "Dernière synchro",
     "never": "jamais",
     "copy": "Copier le rapport",
     "copied": "Copié",
@@ -983,7 +983,14 @@
       "downloading": "téléchargement depuis iCloud",
       "error": "erreur",
       "unsupported": "pas d'iCloud sur cette plateforme"
-    }
+    },
+    "webdav": "Synchro WebDAV",
+    "webdavSynced": "Dernière synchro WebDAV",
+    "vault": "GLANCEvault",
+    "vaultSynced": "Dernière synchro GLANCEvault",
+    "configured": "configuré",
+    "notConfigured": "non configuré",
+    "none": "(aucun)"
   },
   "icloudFirstRun": {
     "title": "Données trouvées dans iCloud",

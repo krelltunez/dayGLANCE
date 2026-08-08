@@ -26,7 +26,7 @@ import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { isVaultEnabled } from '../sync/vaultConfig.js';
-import { multiUserToggleLocked } from '../utils/multiUserGate.js';
+import { multiUserToggleLocked, multiUserUnavailableReason, canSyncUserRoster } from '../utils/multiUserGate.js';
 import { getDbIntentsConfig, setDbIntentsConfig, getDbIntentsConnection } from '../intents/dbIntentsConfig.js';
 import { getIcloudIntentsEnabledFlag, setIcloudIntentsEnabled } from '../intents/icloudIntentsConfig.js';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -135,6 +135,18 @@ const MobileSettingsPanel = () => {
   } = useFeaturesCtx();
   // Gate multi-user when sync is unconfigured; never trap an already-on toggle.
   const multiUserLocked = multiUserToggleLocked({ cloudSyncConfigured, multiUserEnabled });
+  // "Requires cloud sync" is wrong on an iCloud-only device — that user IS
+  // syncing, just to a destination only they can reach. Pick the sentence that
+  // matches their situation instead of the generic one.
+  const multiUserReason = multiUserUnavailableReason({
+    cloudSyncConfigured,
+    icloudAvailable: isICloudAvailable(),
+  });
+  const multiUserRosterSyncable = canSyncUserRoster({
+    multiUserEnabled,
+    cloudSyncEnabled: cloudSyncConfig?.enabled,
+    icloudAvailable: isICloudAvailable(),
+  });
   // iOS uses HealthKit lazy authorization (permission requested on first read), so
   // it has no explicit permission check/request. On iOS the health-habit "Add"
   // button is always enabled and the dead "Continue" button is hidden — see the
@@ -2826,12 +2838,14 @@ const MobileSettingsPanel = () => {
           <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform ${multiUserEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
         </button>
       </div>
-      {!cloudSyncConfigured && (
-        <p className={`text-xs ${textSecondary} -mt-2`}>{t('settings.multiUserRequiresSync')}</p>
+      {multiUserReason !== 'none' && (
+        <p className={`text-xs ${textSecondary} -mt-2`}>
+          {t(multiUserReason === 'icloud-only' ? 'settings.multiUserICloudOnly' : 'settings.multiUserRequiresSync')}
+        </p>
       )}
       <div className="flex items-center justify-between gap-3">
         <p className={`text-xs ${textSecondary}`}>Share dayGLANCE with your household. Tasks can be assigned to specific people; unassigned tasks are visible to everyone.</p>
-        {(cloudSyncConfig?.enabled || isICloudAvailable()) && (
+        {multiUserRosterSyncable && (
           <button
             type="button"
             disabled={muSyncStatus === 'syncing'}
