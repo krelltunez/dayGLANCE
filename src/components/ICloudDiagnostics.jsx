@@ -116,6 +116,11 @@ const ICloudDiagnostics = ({ darkMode, textPrimary, textSecondary, borderClass }
               <Row label={t('icloudDiag.snapshotError')} value={report.snapshot.error} />
             )}
 
+            {/* iCloud's own sync record. Until it existed this panel could only
+                show the WebDAV key, so an iCloud-only device always read "never"
+                — true of WebDAV, and silent about the tier it actually used. */}
+            <Row label={t('icloudDiag.icloudSynced')} value={report.transports.icloud?.lastSynced ?? t('icloudDiag.never')} />
+
             {/* The other transports. Without these, an unavailable container
                 leaves "so where did this data come from?" unanswerable. */}
             <Row

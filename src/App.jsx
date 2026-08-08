@@ -25,6 +25,7 @@ import {
   isICloudSyncEnabled, setICloudSyncEnabled, getICloudSyncPref,
   shouldPromptFirstRun, payloadHasData,
 } from './utils/icloudSyncPref.js';
+import { evaluateMissingSnapshot, ICLOUD_LAST_SYNCED_KEY } from './utils/icloudSeedGuard.js';
 import useFolderBackup from './hooks/useFolderBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
@@ -2311,6 +2312,10 @@ const DayPlanner = () => {
   // lands a render too late to stop the next 15-second tick); the state drives the
   // modal. Null when nothing is pending.
   const icloudFirstRunPromptRef = useRef(false);
+  // Epoch ms of the first consecutive cycle that found the snapshot absent, or 0
+  // when it was last seen present. Distinguishes a transient iCloud eviction from
+  // a file that is really gone (utils/icloudSeedGuard.js).
+  const iCloudMissingSinceRef = useRef(0);
   const [icloudFirstRun, setICloudFirstRun] = useState(null);
 
   const isElectronMac = () =>
@@ -2395,11 +2400,20 @@ const DayPlanner = () => {
         // No remote file yet — seed it with local data, but only if state is hydrated.
         // If React state is empty but localStorage has tasks, we'd wipe the cloud file.
         //
-        // On iOS, iCloud can temporarily evict a file and report it as absent without
-        // placing a .icloud placeholder. If we have a previous sync record, the file
-        // almost certainly exists but is just not downloaded yet — skip seeding and
-        // let the next 15-second poll retry after iCloud restores it.
-        if (onIOS && localStorage.getItem('day-planner-cloud-sync-last-synced')) return;
+        // iCloud can temporarily evict the file and report it absent without leaving
+        // a .icloud placeholder, so an absent file is only treated as first run when
+        // this device has never read a real snapshot, or has been seeing it absent
+        // for long enough that eviction no longer explains it. See
+        // utils/icloudSeedGuard.js — including why the previous version of this
+        // guard, keyed on day-planner-cloud-sync-last-synced, never fired for the
+        // iCloud-only devices it was written for.
+        const missing = evaluateMissingSnapshot({
+          hasSyncedBefore: !!localStorage.getItem(ICLOUD_LAST_SYNCED_KEY),
+          missingSince: iCloudMissingSinceRef.current,
+          now: Date.now(),
+        });
+        iCloudMissingSinceRef.current = missing.missingSince;
+        if (missing.skip) return;
         const localTaskCount = JSON.parse(localStorage.getItem('day-planner-tasks') || '[]').length;
         const localInboxCount = JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]').length;
         const payload = buildSyncPayload();
@@ -2441,6 +2455,15 @@ const DayPlanner = () => {
         }
       }
       if (!remote?.data) return;
+
+      // A real snapshot came back, so the container demonstrably works from this
+      // device. Record that — it is what a later absence is measured against, and
+      // it is iCloud's OWN record: the WebDAV key this used to rely on is written
+      // by a tier an iCloud-only device never runs. Stamped before the first-run
+      // prompt below, because reading the snapshot is what proves the container
+      // works, regardless of what the user then chooses to do with it.
+      localStorage.setItem(ICLOUD_LAST_SYNCED_KEY, new Date().toISOString());
+      iCloudMissingSinceRef.current = 0;
 
       // First launch on a device with no data of its own, facing a cloud copy that
       // survived an uninstall. Ask instead of restoring silently — see
