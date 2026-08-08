@@ -52,8 +52,23 @@
  * Note that quitting the other devices is NOT a workaround. A closed device still
  * holds its full localStorage, so it re-merges and republishes the moment it is
  * reopened — quitting only avoids the immediate race, it does not make the reset
- * stick. The only way to a clean fleet is to reset every device, leaving the
- * others closed until you have. The UI says exactly that.
+ * stick.
+ *
+ * The workable procedure is one device at a time, and the reason is worth stating
+ * because the obvious phrasing ("reset every device before reopening any of them")
+ * is circular — resetting a device requires opening it:
+ *
+ *   1. quit dayGLANCE everywhere;
+ *   2. open ONE device and reset it. It republishes its data in the second before
+ *      the user can click, because iCloudSync runs on the startup effect — that is
+ *      harmless, since no other device is running to receive it, and the reset
+ *      deletes the file afterwards anyway;
+ *   3. quit it. It is empty now, so it can only ever publish empty;
+ *   4. repeat for the next device.
+ *
+ * What breaks it is two unreset devices running at once, or reopening an unreset
+ * device after cleaning another: the unreset one republishes, the clean one pulls
+ * it, and the cycle restarts.
  *
  * ── Shape ─────────────────────────────────────────────────────────────────
  * Every dependency is injected via `deps` so the whole thing is testable without

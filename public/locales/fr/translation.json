@@ -954,7 +954,7 @@
     "confirm": "Tout effacer",
     "working": "Effacement…",
     "partialFailure": "Certaines données n'ont pas pu être effacées :",
-    "otherDevices": "Quitter dayGLANCE ailleurs ne suffit pas. Un appareil fermé restaure sa copie à la prochaine ouverture, et un appareil resté ouvert la restaure en quelques secondes. Pour vraiment repartir de zéro, réinitialisez chaque appareil, et ne rouvrez pas les autres avant de l'avoir fait."
+    "otherDevices": "Les autres appareils conservent leur propre copie et la restaureront. Réinitialisez-les un par un : quittez dayGLANCE partout, puis ouvrez un seul appareil, réinitialisez-le et quittez-le avant de passer au suivant."
   },
   "icloudDiag": {
     "title": "Diagnostic iCloud",
