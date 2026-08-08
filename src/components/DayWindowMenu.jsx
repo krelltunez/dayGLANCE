@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
@@ -36,6 +36,17 @@ export default function DayWindowMenu({ dateStr, onClose, anchorClass = '', anch
   const [pickerField, setPickerField] = useState(null);
 
   const dayWindow = getDayWindow?.(dateStr) ?? null;
+
+  // Escape closes the popover, matching the other popovers (InboxFilterPopover,
+  // DeadlinePickerPopover). While the clock picker is open Escape belongs to it:
+  // it dismisses the picker and leaves the menu up, so the user lands back where
+  // they were rather than losing the whole popover in one keypress.
+  useEffect(() => {
+    if (pickerField) return undefined;
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [pickerField, onClose]);
 
   const updateWindow = (field, value) => {
     setDayWindow(dateStr, {
