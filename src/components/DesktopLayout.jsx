@@ -836,7 +836,16 @@ const DesktopLayout = () => {
                   two-column timeline). tabletListView covers both LIST and
                   SCHED; the toggle's mode picks which one renders. */}
               {tabletListView
-                ? (mobileViewMode === 'sched' ? <SchedView /> : <MobileListView hideInboxHandle />)
+                ? (mobileViewMode === 'sched' ? <SchedView /> : (
+                    <>
+                      <MobileListView hideInboxHandle />
+                      {/* The tablet's LIST strip, placed exactly as MobileLayout
+                          places the phone's: statically after the day's content,
+                          in the same scroll flow. SCHED gets none — it is a
+                          dashboard, not a timeline, on every device. */}
+                      <SummaryStrip compact staticPlacement />
+                    </>
+                  ))
                 : <>
                     {effectiveViewMode === 'multi' && <TimeGrid />}
                     {effectiveViewMode === 'day' && <DayView />}
@@ -844,8 +853,16 @@ const DesktopLayout = () => {
                     {effectiveViewMode === 'sched' && <SchedDashboard />}
                     {/* Summary strip — sticky over the timeline's own scroll
                         container so it stays visible without reserving layout
-                        height. Timeline views only; sched is a dashboard. */}
-                    {effectiveViewMode !== 'sched' && <SummaryStrip />}
+                        height. Timeline views only; sched is a dashboard.
+                        PORTRAIT tablet takes the compact (touch) variant: this
+                        file is shared with desktop, but a tablet in portrait is
+                        a one-column touch timeline and wants the phone's
+                        collapsible, stacked strip — minus the FAB clearance,
+                        since nothing floats over the tablet timeline. Landscape
+                        is excluded on the same grounds LIST view is (see
+                        tabletListView): the two-column landscape timeline IS
+                        the desktop layout, and takes the desktop strip. */}
+                    {effectiveViewMode !== 'sched' && <SummaryStrip compact={isTablet && !isLandscape} />}
                   </>
               }
             </div>
