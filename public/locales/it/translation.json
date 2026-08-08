@@ -141,7 +141,9 @@
     "dailyNote": "Nota del giorno",
     "filterInbox": "Filtra in arrivo",
     "today": "Oggi",
-    "tomorrow": "Domani"
+    "tomorrow": "Domani",
+    "showActions": "Mostra azioni",
+    "hideActions": "Nascondi azioni"
   },
   "errorBoundary": {
     "title": "Qualcosa è andato storto",

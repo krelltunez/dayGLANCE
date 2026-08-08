@@ -141,7 +141,9 @@
     "dailyNote": "Nota diária",
     "filterInbox": "Filtrar caixa de entrada",
     "today": "Hoje",
-    "tomorrow": "Amanhã"
+    "tomorrow": "Amanhã",
+    "showActions": "Mostrar ações",
+    "hideActions": "Ocultar ações"
   },
   "errorBoundary": {
     "title": "Algo correu mal",

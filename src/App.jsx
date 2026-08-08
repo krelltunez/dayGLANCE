@@ -8924,63 +8924,11 @@ const DayPlanner = () => {
           >
             <Plus size={28} />
           </button>
-          {/* Glance panel FABs: weekly review (bottom), daily summary (middle), recycle bin (top) — only when glance panel is visible (portrait or landscape glance tab) */}
-          {tabletActiveTab === 'glance' && (<>
-          {/* Daily summary ring FAB */}
-          {(() => {
-            const pct = actualTodayNonImportedTasks.length > 0 ? Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100) : 0;
-            const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
-            return (
-              <button
-                onClick={() => setShowMobileDailySummary(true)}
-                className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 active:bg-gray-600' : 'bg-stone-200 active:bg-stone-300'}`}
-                style={{ left: '268px', bottom: '5.5rem' }}
-              >
-                <div className="relative w-11 h-11">
-                  <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
-                    <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-600' : 'stroke-gray-200'} />
-                    <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" strokeLinecap="round" className={ringColor}
-                      strokeDasharray={`${(pct / 100) * 87.96} 87.96`}
-                    />
-                  </svg>
-                  <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textPrimary}`}>
-                    <ChevronUp size={16} />
-                  </span>
-                </div>
-              </button>
-            );
-          })()}
-          {/* Weekly review FAB */}
-          <button
-            onClick={() => {
-              if (showWeeklyReviewReminder) {
-                weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current;
-                localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current);
-                setShowWeeklyReviewReminder(false);
-              }
-              setShowWeeklyReview(true);
-            }}
-            className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white active:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
-            style={{ left: '268px', bottom: '1.5rem' }}
-          >
-            <BarChart3 size={22} />
-          </button>
-          {/* Recycle bin FAB — only when non-empty, always on top */}
-          {recycleBin.filter(t => !t.isExample).length > 0 && (
-            <button
-              onClick={() => setShowMobileRecycleBin(true)}
-              className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300'}`}
-              style={{ left: '268px', bottom: '9.5rem' }}
-            >
-              <div className="relative">
-                <Trash2 size={22} />
-                <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[10px] font-bold min-w-[16px] h-[16px] flex items-center justify-center rounded-full px-0.5">
-                  {recycleBin.filter(t => !t.isExample).length > 9 ? '9+' : recycleBin.filter(t => !t.isExample).length}
-                </span>
-              </div>
-            </button>
-          )}
-          </>)}
+          {/* The GLANCE panel's own FABs (weekly review, daily summary, recycle
+              bin) are NOT here: they live in components/GlanceFabs.jsx with the
+              panel's other buttons, so one collapse handle folds all of them.
+              These timeline FABs stay — they belong to the calendar, not the
+              panel, and are reachable on every tab. */}
         </>
       )}
 
@@ -9004,63 +8952,8 @@ const DayPlanner = () => {
           >
             <Plus size={28} />
           </button>
-          {/* Desktop Glance panel FABs — matching tablet landscape */}
-          {tabletActiveTab === 'glance' && (<>
-          {/* Daily summary ring FAB */}
-          {(() => {
-            const pct = actualTodayNonImportedTasks.length > 0 ? Math.round(((actualTodayCompletedTasks.length + inboxCompletedTodayCount) / actualTodayNonImportedTasks.length) * 100) : 0;
-            const ringColor = pct >= 100 ? 'stroke-green-500' : pct >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
-            return (
-              <button
-                onClick={() => setShowMobileDailySummary(true)}
-                className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'}`}
-                style={{ left: '268px', bottom: '5.5rem' }}
-              >
-                <div className="relative w-11 h-11">
-                  <svg viewBox="0 0 36 36" className="w-11 h-11 -rotate-90">
-                    <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" className={darkMode ? 'stroke-gray-600' : 'stroke-gray-200'} />
-                    <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3" strokeLinecap="round" className={ringColor}
-                      strokeDasharray={`${(pct / 100) * 87.96} 87.96`}
-                    />
-                  </svg>
-                  <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textPrimary}`}>
-                    <ChevronUp size={16} />
-                  </span>
-                </div>
-              </button>
-            );
-          })()}
-          {/* Weekly review FAB */}
-          <button
-            onClick={() => {
-              if (showWeeklyReviewReminder) {
-                weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current;
-                localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current);
-                setShowWeeklyReviewReminder(false);
-              }
-              setShowWeeklyReview(true);
-            }}
-            className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${showWeeklyReviewReminder ? 'bg-blue-600 text-white hover:bg-blue-700' : darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}`}
-            style={{ left: '268px', bottom: '1.5rem' }}
-          >
-            <BarChart3 size={22} />
-          </button>
-          {/* Recycle bin FAB — only when non-empty */}
-          {recycleBin.filter(t => !t.isExample).length > 0 && (
-            <button
-              onClick={() => setShowMobileRecycleBin(true)}
-              className={`fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'}`}
-              style={{ left: '268px', bottom: '9.5rem' }}
-            >
-              <div className="relative">
-                <Trash2 size={22} />
-                <span className="absolute -top-2 -right-3 bg-red-500 text-white text-[10px] font-bold min-w-[16px] h-[16px] flex items-center justify-center rounded-full px-0.5">
-                  {recycleBin.filter(t => !t.isExample).length > 9 ? '9+' : recycleBin.filter(t => !t.isExample).length}
-                </span>
-              </div>
-            </button>
-          )}
-          </>)}
+          {/* GLANCE panel FABs: see the tablet branch above — they live in
+              components/GlanceFabs.jsx so one handle collapses the whole set. */}
         </>
       )}
 
