@@ -26,6 +26,7 @@ import {
   shouldPromptFirstRun, payloadHasData,
 } from './utils/icloudSyncPref.js';
 import { evaluateMissingSnapshot, ICLOUD_LAST_SYNCED_KEY } from './utils/icloudSeedGuard.js';
+import { evaluateSnapshotPush } from './utils/widgetSnapshotDedupe.js';
 import useFolderBackup from './hooks/useFolderBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
@@ -6857,6 +6858,11 @@ const DayPlanner = () => {
   // block boundary (advances the Up Next widget / Live Activity label while
   // the app is open).
   const [widgetSnapshotTick, setWidgetSnapshotTick] = useState(0);
+  // Content fingerprint of the last snapshot actually sent across the bridge, so
+  // an unchanged one is not re-pushed. Empty on mount, so the first push after a
+  // launch or reload always goes through and the widget is never left holding
+  // whatever the previous process left behind.
+  const lastWidgetSnapshotRef = useRef('');
 
   // ── Native Android widget snapshot sync ──────────────────────────────────
   // Pushes a rich snapshot of today's agenda to the native widget via NativeBridge.
@@ -7327,9 +7333,21 @@ const DayPlanner = () => {
       updatedAt: Date.now(),
     };
 
-    try {
-      window.DayGlanceNative.updateWidgetSnapshot(JSON.stringify(snapshot));
-    } catch (_) {}
+    // Only push when the snapshot's CONTENT changed. This effect re-runs on the
+    // 15-second currentTime tick and on every render that rebuilds one of its
+    // derived array deps, so most runs produce a snapshot identical to the last
+    // one — 108 consecutive byte-identical pushes were observed on an idle
+    // device. Each push is a synchronous bridge XHR that blocks the JS thread,
+    // and each one makes the native side run reloadAllTimelines() and sync the
+    // Live Activity. The comparison must exclude `updatedAt` or it never matches;
+    // see utils/widgetSnapshotDedupe.js.
+    const { push, fingerprint } = evaluateSnapshotPush(snapshot, lastWidgetSnapshotRef.current);
+    if (push) {
+      lastWidgetSnapshotRef.current = fingerprint;
+      try {
+        window.DayGlanceNative.updateWidgetSnapshot(JSON.stringify(snapshot));
+      } catch (_) {}
+    }
 
     // Re-push at the next block boundary so "at 3:30 PM" flips to "until
     // 5:00 PM" (and the Up Next widget advances) while the app is open. iOS
