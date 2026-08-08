@@ -852,7 +852,7 @@
     "recurringTasks": "Tâches récurrentes",
     "allInstances": "Toutes les occurrences",
     "nextOnly": "Prochaine seulement",
-    "nothingToFilter": "Rien à filtrer pour l'instant — planifiez d'abord des tâches.",
+    "nothingToFilter": "Rien à filtrer pour l'instant. Planifiez d'abord des tâches.",
     "filterHint": "Les sélections d'une même section s'additionnent ; les sections se combinent.",
     "addTaskOnDate": "Ajouter une tâche le {{date}}",
     "closeFilters": "Fermer les filtres",
@@ -876,7 +876,7 @@
     "switchToView": "Passer à la vue {{view}}",
     "currentViewTap": "Vue actuelle : {{view}}. Touchez pour changer.",
     "deadline": "Échéance",
-    "deadlineTapToSchedule": "Échéance — touchez pour choisir une heure",
+    "deadlineTapToSchedule": "Échéance : touchez pour choisir une heure",
     "routineTapHint": "Touchez pour terminer · maintenez pour choisir une heure",
     "completedTasks": "Tâches terminées",
     "pastEvents": "Événements passés",
@@ -976,7 +976,6 @@
     "never": "jamais",
     "copy": "Copier le rapport",
     "copied": "Copié",
-    "readingNote": "Cet appareil résout un conteneur iCloud et y a trouvé un instantané rempli. Si vous avez désactivé iCloud pour dayGLANCE, c'est le bug : l'application lit un stockage que vous avez désactivé, et une réinstallation le lira aussi.",
     "state": {
       "present": "présent",
       "absent": "introuvable",
@@ -991,7 +990,11 @@
     "configured": "configuré",
     "notConfigured": "non configuré",
     "none": "(aucun)",
-    "icloudSynced": "Dernière synchro iCloud"
+    "icloudSynced": "Dernière synchro iCloud",
+    "syncPref": "Synchro sur cet appareil",
+    "on": "activée",
+    "off": "désactivée",
+    "notSyncingNote": "Cet appareil ne se synchronise pas avec iCloud ; ses données restent ici uniquement. Les autres appareils ne verront pas les modifications faites ici, et celles faites ailleurs n'arriveront pas."
   },
   "icloudFirstRun": {
     "title": "Données trouvées dans iCloud",
