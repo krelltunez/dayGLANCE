@@ -1,9 +1,11 @@
 # dayGLANCE MCP Server: Technical Specification
 
-**Status:** Draft for review, revision 3
+**Status:** Draft for review, revision 4
 **Target:** dayGLANCE Electron builds (macOS, Windows, Linux)
 **Sequencing:** After the 4.1.2 tray release ships
 **Spec baseline:** MCP specification 2026-07-28
+
+**Changes from revision 3:** Closed open question 1 — device calendar events are included, behind a separate consent, read-only. §6.3 splits reads into three tiers (off; dayGLANCE data only; include device calendar) with the rationale; §6.4 adds the calendar tier's own consent copy; §5.1 flags `_native` distinctly in all tool output and requires tool descriptions to state the write limit up front; §5.2 adds the typed `_native` write rejection to the tool contract; §10 Phase 3 gains a verification item on the existing `move_block` mutation path.
 
 **Changes from revision 2:** All changes in this revision come from the Phase 0 spike findings (see `docs/mcp-phase0-findings.md`). Spec baseline moved from 2025-11-25 to 2026-07-28; SDK pinned to v2 (rationale recorded in §10 Phase 1). §3.5 notes what the SDK now provides and closes open question 5 (parallel auth scheme, shared idioms). New §3.7 on main-process state. §3.4 and §7 flip MAS discovery: manual token configuration is primary, container discovery best-effort. New Phase 0.5 (TCC container-protection experiment). Two risks added to §11.
 
@@ -231,12 +233,18 @@ A future headless option exists in principle: a CLI that runs the sync client lo
 
 **Naming:** MCP namespaces tools per server, so a `dayglance_` prefix is not required for collision avoidance, but it helps model disambiguation when many servers are connected. Recommend the prefix.
 
-**Calendar events:** `_native` tasks (device calendar events surfaced via EventKit on macOS) appear in `tasks` alongside dayGLANCE tasks and are included in `todayAgenda`. Decide explicitly whether `get_day` includes them. Arguments for: they are part of the user's actual day, and omitting them gives the model a false picture. Arguments against: they are the user's calendar data flowing to a third-party model provider through a tool the user may think only exposes dayGLANCE data, and they are deliberately never persisted (`useDataPersistence.js:195`). **Recommendation: include them, flagged with a distinct type, and name device calendar events explicitly in the consent copy.**
+**Calendar events — resolved (was open question 1):** `_native` tasks (device calendar events surfaced via EventKit on macOS) appear in `tasks` alongside dayGLANCE tasks and are included in `todayAgenda`. They **are included** in `get_day` and the rest of the read surface — they are part of the user's actual day, and omitting them gives the model a false picture — but **behind a separate consent tier** (§6.3) with its own copy (§6.4), and **read-only always** (§5.2). They were deliberately never persisted (`useDataPersistence.js:195`), and that stays true.
+
+Two requirements on the tool surface:
+
+- `_native` events carry a **distinct type flag in all tool output** — every tool and resource that can return them, not just `get_day` — so neither the model nor a human reading a transcript can mistake calendar data for dayGLANCE data.
+- Tool descriptions for `move_block`, `resize_block`, and `set_task_completion` must **state that dayGLANCE cannot modify device calendar events**, so the model knows the limit before attempting a call rather than discovering it through a rejection.
 
 ### 5.2 Cross-cutting tool contract
 
 - **Writes return the resulting entity state.** Saves a follow-up read.
 - **Errors are tool errors, not protocol errors.** Return `isError: true` with a content block the model can read and recover from. Distinguish at minimum: renderer unavailable, consent revoked, read-only mode, not found, validation failure, rate limited.
+- **`_native` events are rejected by every write tool with a typed error.** `move_block`, `resize_block`, and `set_task_completion` refuse device calendar events regardless of the consent tier. Why: dayGLANCE holds EventKit **read** access only, and the existing `day-planner-native-time-overrides` mechanism shifts local display without touching the actual event — so a "successful" write would create a silent discrepancy between what dayGLANCE shows and what the user's calendar says, which is worse than the refusal.
 - **Idempotency.** Agents retry. Every write accepts an optional `idempotency_key`, mapped onto the existing `transitionId` pattern from GLANCEintents. Reuse the mechanism rather than inventing a second one.
 - **No partial success.** A tool call either applies fully or not at all.
 
@@ -283,22 +291,32 @@ Keep the toggles independent. Coupling them means a Stream Deck user must enable
 
 ### 6.3 MCP consent tiers
 
+Reads are split into **three tiers rather than two** (this closes open question 1):
+
 | Tier | Default | Meaning |
 |---|---|---|
 | Off | **Default** | Listener not bound. No port open. |
-| Read-only | Opt-in | Reads and resources exposed. Writes return a consent error. |
-| Read-write | Second opt-in | Full tool surface. |
+| Read: dayGLANCE data only | Opt-in | Tasks, blocks, goals, habits, routines. `_native` device calendar events are excluded from every tool and resource. Writes return a consent error. |
+| Read: include device calendar | **Separate opt-in with its own consent copy** (§6.4) | Adds `_native` events to the read surface, flagged per §5.1. Always read-only — writes to them are rejected with a typed error regardless of the write tier (§5.2). |
 
-Reads are the exposure; writes are comparatively low-risk. Not per-tool — nine checkboxes nobody reads is worse than a clear tier.
+Writes remain a second, independent opt-in on top of either read tier:
+
+| Tier | Default | Meaning |
+|---|---|---|
+| Read-write | Second opt-in | Full write surface, dayGLANCE data only (§5.2). |
+
+Reads are the exposure; writes are comparatively low-risk. Not per-tool — nine checkboxes nobody reads is worse than a clear tier. The dayGLANCE/device-calendar split earns its place where per-tool consent does not because it maps onto a distinction users actually hold: their own data versus data that is substantially other people's — often their employer's — which they hold in trust rather than own.
 
 ### 6.4 Consent copy
 
 The enable dialog must state, without euphemism, that:
 
-- Enabling this allows other applications on this computer to read the schedule, tasks, goals, **and device calendar events** (see §5.1)
+- Enabling this allows other applications on this computer to read the schedule, tasks, and goals
 - Those applications typically send what they read to an AI provider over the internet
 - dayGLANCE cannot see or control what those applications do with the data
 - dayGLANCE has no relationship with those providers, and this is not covered by dayGLANCE's own privacy guarantees
+
+**The device calendar tier (§6.3) gets its own dialog, and its copy must name what it actually exposes:** event titles, attendees, and other people's information — data the user did not create and that those people did not consent to share. "Include device calendar events" alone under-describes a meeting invite that carries a client's name, a candidate's interview, or a colleague's dial-in.
 
 Model the structure on the existing OpenAI feature disclosure, but the substance differs: that discloses a provider dayGLANCE chose; this discloses a provider **the user** chooses, which dayGLANCE cannot name in advance. The copy has to carry that distinction.
 
@@ -467,6 +485,8 @@ Main-to-renderer IPC channel with a health check (ping plus timeout, not an exis
 
 `create_task`, `schedule_task`, `move_block`, `resize_block`, `set_task_completion`. All routed through existing renderer mutation functions. Idempotency keys mapped to `transitionId`. Write rate limiter.
 
+**Verify during implementation:** whether the existing `move_block` mutation path distinguishes `_native` tasks or would silently write a `day-planner-native-time-overrides` entry. Either way, the `_native` rejection (§5.2) must be **explicit in the MCP write path** — a typed error the MCP layer itself returns — not assumed from the existing code's behavior.
+
 **Exit criteria, all required:**
 1. A write made through MCP syncs correctly to a second device.
 2. It emits the expected GLANCEintents event.
@@ -536,12 +556,11 @@ Privacy policy updates per §9. Umbrella paragraph. ToU confirmation. MAS descri
 
 ## 12. Open questions
 
-1. **Does `get_day` include `_native` device calendar events?** Recommendation in §5.1 is yes, flagged distinctly, named in consent copy. Needs a decision before Phase 2.
-2. **Naming.** `GLANCEmcp` fits the `GLANCEintents` / `GLANCEvault` pattern, but MCP is already an acronym and the doubling reads awkwardly. "dayGLANCE MCP server" is plain and searchable. Weak preference for plain.
-3. **Should the `.mcpb` be submitted to the Connectors Directory?** Discoverable to a well-matched audience, but it is a listed artifact that assumes dayGLANCE is installed and running, which is a poor first experience for anyone who finds it cold. Probably defer past v1.
-4. **Does the write journal persist across restarts?** Session-scoped is simpler and covers the runaway-loop case. Persistent is better for "what changed my schedule last Tuesday," but that is arguably a general audit-log feature rather than an MCP one.
+1. **Naming.** `GLANCEmcp` fits the `GLANCEintents` / `GLANCEvault` pattern, but MCP is already an acronym and the doubling reads awkwardly. "dayGLANCE MCP server" is plain and searchable. Weak preference for plain.
+2. **Should the `.mcpb` be submitted to the Connectors Directory?** Discoverable to a well-matched audience, but it is a listed artifact that assumes dayGLANCE is installed and running, which is a poor first experience for anyone who finds it cold. Probably defer past v1.
+3. **Does the write journal persist across restarts?** Session-scoped is simpler and covers the runaway-loop case. Persistent is better for "what changed my schedule last Tuesday," but that is arguably a general audit-log feature rather than an MCP one.
 
-*(r2 had a fifth question — reuse the Stream Deck token handshake or build a parallel scheme? Resolved by Phase 0: parallel scheme, shared idioms. See §3.5.)*
+*(r2 had two further questions. Its question 5 — reuse the Stream Deck token handshake or build a parallel scheme? — was resolved by Phase 0: parallel scheme, shared idioms; see §3.5. Its question 1 — does `get_day` include `_native` device calendar events? — was resolved in r4: included, behind a separate consent tier, read-only; see §5.1, §6.3.)*
 
 ---
 
