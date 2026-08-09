@@ -24,6 +24,13 @@ const ACK = {
   // patch existed. Its bypass advisory (GHSA-rgw5-rvv9-x895) shipped in-major
   // fixes for BOTH (1.1.18 / 2.1.4 / 5.0.9), now forced via package.json
   // per-major overrides — so both advisories are FIXED, not acknowledged.
+  //
+  // GHSA-frvp-7c67-39w9 (@hono/node-server serve-static path traversal, via
+  // @modelcontextprotocol/node) is FIXED the same way: the SDK pins ^1.19.9,
+  // the fix landed in 2.0.5, and a package.json override forces >=2.0.5. The
+  // SDK only imports getRequestListener (verified compatible across the major;
+  // the vulnerable serve-static subpath was never even loaded), so drop the
+  // override when @modelcontextprotocol/node's own range moves to ^2.
   'GHSA-fx2h-pf6j-xcff': {
     disposition: 'defer', pkg: 'vite',
     reason: 'Dev-server `server.fs.deny` bypass (Windows only). Fix with the vite 5->8 upgrade.',
