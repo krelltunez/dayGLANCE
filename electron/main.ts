@@ -14,6 +14,7 @@ import { APP_SCHEME, APP_HOST, APP_BASE_URL, resolveAppRequest } from './appProt
 import { shouldQuitOnAllWindowsClosed } from './startupQuit.js';
 import { initStartupLog, logStartup } from './startupLog.js';
 import { startMcpServer } from './mcpServer.js';
+import { createRendererBridge } from './mcpRendererBridge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -883,14 +884,26 @@ app.whenReady().then(async () => {
 
   const win = createWindow();
   createWsServer(() => live(mainWindow));
-  // MCP listener — Phase 1: dev flag only, no settings UI or consent gate yet
-  // (those are Phase 5, docs/mcp-server-spec.md §10). Token comes from the
-  // environment for now; the discovery file is Phase 6. Off means off: without
-  // the flag no port is bound at all.
+  // MCP listener — Phase 2: read tools over renderer IPC, still dev flag only
+  // (settings UI and the consent gate are Phase 5, docs/mcp-server-spec.md
+  // §10). Token comes from the environment for now; the discovery file is
+  // Phase 6. Off means off: without the flag no port is bound at all.
   if (process.env['DAYGLANCE_MCP_DEV'] === '1') {
     startMcpServer({
       token: process.env['DAYGLANCE_MCP_TOKEN'] ?? '',
       portOverride: process.env['DAYGLANCE_MCP_PORT'],
+      readDeps: {
+        // Getter, not a reference: requests must target the CURRENT main
+        // window even if it is recreated (same posture as createWsServer).
+        bridge: createRendererBridge(() => live(mainWindow)),
+        now: Date.now,
+        // Resolved on the machine, never inferred from the client (§5.3).
+        timeZone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+        // Device-calendar consent tier (§6.3). Phase 2 source is an env var;
+        // Phase 5 replaces this closure with the settings-backed tier and
+        // nothing in the tool code changes.
+        includeNativeEvents: () => process.env['DAYGLANCE_MCP_CALENDAR'] === '1',
+      },
     });
   }
   registerSubscriptionHandlers(win);

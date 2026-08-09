@@ -128,6 +128,7 @@ import useNewTaskInput from './hooks/useNewTaskInput.js';
 import useTaskFormHelpers from './hooks/useTaskFormHelpers.js';
 import useTaskActions from './hooks/useTaskActions.js';
 import useElectronBridge from './hooks/useElectronBridge.js';
+import useMcpBridge from './hooks/useMcpBridge.js';
 import useRecycleBin from './hooks/useRecycleBin.js';
 import useReminderEngine from './hooks/useReminderEngine.js';
 import useReminders from './hooks/useReminders.js';
@@ -6776,6 +6777,19 @@ const DayPlanner = () => {
       })
       .filter(s => !s.isOverdue && s.date === todayStr && s.startTime);
   }, [goalsProjectsEnabled, hgVisibleProjects, currentTime]);
+
+  // MCP read bridge (docs/mcp-server-spec.md §10 Phase 2): answers main-process
+  // data requests from live state. Inert in the tray popup and outside Electron.
+  // Deliberately its own hook + tested pure model (src/utils/mcpReadModel.js),
+  // NOT part of useElectronBridge — see the §11 risk register.
+  useMcpBridge({
+    tasks,
+    recurringTasks,
+    unscheduledTasks,
+    goals,
+    projects,
+    isVisibleForUser,
+  });
 
   useElectronBridge({
     todayAgenda,
