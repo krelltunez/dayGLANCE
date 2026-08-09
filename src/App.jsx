@@ -6789,6 +6789,14 @@ const DayPlanner = () => {
     goals,
     projects,
     isVisibleForUser,
+  }, {
+    // Write setters (Phase 3): handleMcpWrite applies the canonical shapes
+    // from src/utils/taskMutations.js through these — the same store layer
+    // every UI edit uses, so sync, tombstones, and tray:data-changed engage
+    // identically (spec §3.1 r5).
+    setTasks,
+    setUnscheduledTasks,
+    setRecurringTasks,
   });
 
   useElectronBridge({

@@ -3,6 +3,7 @@ import {
   createIdempotencyStore,
   isValidIdempotencyKey,
   makeStoreKey,
+  deterministicTaskIdFromSeed,
   DEFAULT_IDEMPOTENCY_TTL_MS,
 } from './mcpIdempotency.js';
 
@@ -40,6 +41,15 @@ describe('makeStoreKey', () => {
     // this is what the length prefix is for (tokens/tools are not run through
     // isValidIdempotencyKey, so the store key must not trust their alphabet).
     expect(makeStoreKey('a|b', 'c', 'k')).not.toBe(makeStoreKey('a', 'b|c', 'k'));
+  });
+});
+
+describe('deterministicTaskIdFromSeed', () => {
+  it('is stable, seed-sensitive, and UUIDv4-shaped (the handleIntent precedent)', () => {
+    const a = deterministicTaskIdFromSeed('token|create_task|k1');
+    expect(a).toBe(deterministicTaskIdFromSeed('token|create_task|k1'));
+    expect(a).not.toBe(deterministicTaskIdFromSeed('token|create_task|k2'));
+    expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 });
 

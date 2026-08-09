@@ -24,6 +24,7 @@ import {
 import { checkBearerToken, unauthorizedResponse } from './mcpAuth.js';
 import { resolveMcpPort, describeBindFailure } from './mcpPort.js';
 import { registerReadTools, type ReadToolDeps } from './mcpReadTools.js';
+import { registerWriteTools, type WriteToolDeps } from './mcpWriteTools.js';
 
 export const MCP_ENDPOINT_PATH = '/mcp';
 
@@ -39,6 +40,12 @@ export interface McpServerOptions {
    * can still start in a pure-skeleton mode (tests, early dev).
    */
   readDeps?: ReadToolDeps;
+  /**
+   * Dependencies for the write tools (Phase 3): write gate, replay store,
+   * consent tier, tray-policy hook. Same ownership rules as readDeps (§3.7).
+   * Absent means the write tools are not registered at all.
+   */
+  writeDeps?: WriteToolDeps;
   log?: (msg: string) => void;
   logError?: (msg: string) => void;
 }
@@ -88,6 +95,7 @@ export function startMcpServer(opts: McpServerOptions): http.Server | null {
         }),
       );
       if (opts.readDeps) registerReadTools(server, opts.readDeps);
+      if (opts.writeDeps) registerWriteTools(server, opts.writeDeps);
       return server;
     },
     { onerror: (err) => logError(`[dayGLANCE] MCP handler error: ${String(err)}`) },

@@ -1,0 +1,272 @@
+// The five Phase 3 write tools (spec §5.1), registered onto a per-request
+// McpServer instance by the mcpServer.ts factory. §3.7 discipline as in
+// mcpReadTools.ts: this module holds no state — the write gate, replay store,
+// consent tier, and renderer bridge all arrive as deps owned by main.ts.
+//
+// PER-WRITE PIPELINE, in order:
+//   1. consent tier (read-write, §6.3) — off means a read_only_mode error
+//   2. idempotency replay — a known (token, tool, key) returns the FIRST
+//      attempt's stored result; no gate charge, no renderer call. This store
+//      is NEW MACHINERY, named as such (spec §5.2 r5): nothing reusable
+//      exists for mutation-level replay protection on move/resize/completion.
+//      What IS reused: the key travels into the mutation as its GLANCEintents
+//      transitionId (delivery dedup at the outbox — the part of the old §5.2
+//      claim that was true), and create_task derives its task id from the key
+//      per the handleIntent.js deterministic-id precedent, so a create replay
+//      no-ops renderer-side even if this store has been reset.
+//   3. write gate (§4.3) — 30/min sliding window keyed on the token; repeated
+//      violations auto-disable writes and fire the notification once.
+//   4. validation (§5.3) — local calendar date, wall-clock time incl. DST
+//      gap/repeat rejection, duration bounds. All before any mutation.
+//   5. renderer mutation through the shared pure module (§3.1 r5), returning
+//      the resulting entity state (§5.2).
+
+import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
+import type { McpServer } from '@modelcontextprotocol/server';
+import type { RendererBridge } from './mcpRendererBridge.js';
+import { isValidLocalDate, localDateOf, dateEnvelope } from './mcpDates.js';
+import { validateStartTime, validateDurationMinutes } from './mcpLocalTime.js';
+import type { createWriteGate } from './mcpWriteGate.js';
+import {
+  createIdempotencyStore,
+  isValidIdempotencyKey,
+  makeStoreKey,
+  deterministicTaskIdFromSeed,
+} from './mcpIdempotency.js';
+
+export interface WriteToolDeps {
+  bridge: RendererBridge;
+  gate: ReturnType<typeof createWriteGate>;
+  store: ReturnType<typeof createIdempotencyStore<StoredResult>>;
+  /** The bearer token — the gate/replay key (no sessions, §3.7). */
+  token: () => string;
+  /** Read-write consent tier (§6.3). Env-sourced in Phase 3; Phase 5 swaps the source. */
+  includeWrites: () => boolean;
+  /** Marks an MCP write for the §3.6 tray reload policy (trayReloadPolicy.ts). */
+  noteMcpWrite: () => void;
+  /** Fired exactly once when repeated violations auto-disable writes (§4.3). */
+  onWritesDisabled: () => void;
+  now: () => number;
+  timeZone: () => string;
+}
+
+type ToolResult = {
+  content: Array<{ type: 'text'; text: string }>;
+  structuredContent?: Record<string, unknown>;
+  isError?: boolean;
+};
+type StoredResult = Record<string, unknown>;
+
+const ok = (data: Record<string, unknown>): ToolResult => ({
+  content: [{ type: 'text', text: JSON.stringify(data) }],
+  structuredContent: data,
+});
+const toolError = (code: string, message: string): ToolResult => ({
+  isError: true,
+  content: [{ type: 'text', text: JSON.stringify({ error: { code, message } }) }],
+});
+
+const CANNOT_MODIFY_NATIVE =
+  ' Cannot target device calendar events (type "device_calendar_event"): dayGLANCE has read-only ' +
+  'access to the device calendar, and such calls return a device_calendar_readonly error.';
+
+/** "YYYY-MM-DD HH:MM", both halves validated separately for precise §5.3 errors. */
+function parseStart(start: unknown, timeZone: string): { date: string; time: string } | { invalid: string } {
+  if (typeof start !== 'string' || !/^\S+ \S+$/.test(start)) {
+    return { invalid: `start must be "YYYY-MM-DD HH:MM" (local calendar date + local wall-clock time), got ${JSON.stringify(start)}` };
+  }
+  const [date, time] = start.split(' ') as [string, string];
+  if (!isValidLocalDate(date)) {
+    return { invalid: `start date must be a real local calendar date in strict YYYY-MM-DD form, got ${JSON.stringify(date)}` };
+  }
+  const timeError = validateStartTime(date, time, timeZone);
+  if (timeError) return { invalid: timeError };
+  return { date, time };
+}
+
+export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void {
+  /**
+   * The shared pipeline. `mutate` runs only after consent, replay, gate, and
+   * validation all pass; its transitionId is the caller's idempotency key
+   * when given (the §5.2 emit-path reuse), else a fresh UUID.
+   */
+  const write = async (
+    tool: string,
+    idempotencyKey: unknown,
+    mutate: (transitionId: string) => Promise<ToolResult>,
+  ): Promise<ToolResult> => {
+    if (!deps.includeWrites()) {
+      return toolError(
+        'read_only_mode',
+        'dayGLANCE MCP is in read-only mode; writes are a separate opt-in the user has not enabled.',
+      );
+    }
+
+    let storeKey: string | null = null;
+    if (idempotencyKey !== undefined) {
+      if (!isValidIdempotencyKey(idempotencyKey)) {
+        return toolError('validation', 'idempotency_key must be 1-128 chars of [A-Za-z0-9_.:-]');
+      }
+      storeKey = makeStoreKey(deps.token(), tool, idempotencyKey);
+      const replay = deps.store.get(storeKey);
+      if (replay) return ok({ ...replay, replayed: true });
+    }
+
+    const admission = deps.gate.tryWrite(deps.token());
+    if (!admission.allowed) {
+      if (admission.disabledNow) deps.onWritesDisabled();
+      return admission.reason === 'writes_disabled'
+        ? toolError(
+            'writes_disabled',
+            'MCP writes have been automatically disabled after repeated rate-limit violations. The user must re-enable them (restart dayGLANCE in Phase 3).',
+          )
+        : toolError(
+            'rate_limited',
+            'MCP write rate limit reached (30 writes/minute). Wait for the window to slide before retrying; repeated violations disable writes entirely.',
+          );
+    }
+
+    const transitionId = typeof idempotencyKey === 'string' ? idempotencyKey : randomUUID();
+    const result = await mutate(transitionId);
+    if (!result.isError) {
+      deps.noteMcpWrite();
+      if (storeKey && result.structuredContent) deps.store.put(storeKey, result.structuredContent);
+    }
+    return result;
+  };
+
+  /** Map a renderer response onto the tool result, preserving §5.2 error codes. */
+  const fromRenderer = (
+    r: Awaited<ReturnType<RendererBridge['request']>>,
+    envelope: Record<string, unknown>,
+  ): ToolResult => {
+    if (!r.ok) return toolError(r.error.code, r.error.message);
+    return ok({ ...(r.data as Record<string, unknown>), ...envelope });
+  };
+
+  const IDEMPOTENCY_ARG = z.string().optional()
+    .describe('Optional retry token, 1-128 chars of [A-Za-z0-9_.:-]. Replaying the same key returns the first result without repeating the write.');
+
+  server.registerTool(
+    'dayglance_create_task',
+    {
+      description:
+        'Create a new unscheduled task in the dayGLANCE inbox. Returns the created task. ' +
+        'Use dayglance_schedule_task to place it on a day.',
+      inputSchema: z.object({
+        title: z.string().describe('Task title. Required, non-empty.'),
+        notes: z.string().optional(),
+        project_id: z.string().optional().describe('Attach to a project (see dayglance_get_goal_progress).'),
+        idempotency_key: IDEMPOTENCY_ARG,
+      }),
+    },
+    async ({ title, notes, project_id, idempotency_key }) =>
+      write('create_task', idempotency_key, async (transitionId) => {
+        // Deterministic id from the key (handleIntent precedent): a replayed
+        // create converges on the same id and no-ops renderer-side.
+        const taskId = idempotency_key !== undefined
+          ? deterministicTaskIdFromSeed(makeStoreKey(deps.token(), 'create_task', idempotency_key as string))
+          : randomUUID();
+        const r = await deps.bridge.request('create_task', { taskId, title, notes, projectId: project_id, transitionId });
+        return fromRenderer(r, { timezone: deps.timeZone() });
+      }),
+  );
+
+  server.registerTool(
+    'dayglance_schedule_task',
+    {
+      description:
+        'Schedule an unscheduled dayGLANCE inbox task onto a day and time. start is local: ' +
+        '"YYYY-MM-DD HH:MM", no UTC, no offsets. Returns the resulting block.' + CANNOT_MODIFY_NATIVE,
+      inputSchema: z.object({
+        task_id: z.string(),
+        start: z.string().describe('Local "YYYY-MM-DD HH:MM". Times inside a DST gap or repeat are rejected.'),
+        duration_minutes: z.number().int().optional().describe('1-1440. Defaults to the task\'s own duration, then 30.'),
+        idempotency_key: IDEMPOTENCY_ARG,
+      }),
+    },
+    async ({ task_id, start, duration_minutes, idempotency_key }) =>
+      write('schedule_task', idempotency_key, async (transitionId) => {
+        const parsed = parseStart(start, deps.timeZone());
+        if ('invalid' in parsed) return toolError('validation', parsed.invalid);
+        if (duration_minutes !== undefined) {
+          const durationError = validateDurationMinutes(duration_minutes);
+          if (durationError) return toolError('validation', durationError);
+        }
+        const r = await deps.bridge.request('schedule_task', {
+          taskId: task_id, date: parsed.date, startTime: parsed.time, durationMinutes: duration_minutes, transitionId,
+        });
+        return fromRenderer(r, dateEnvelope(parsed.date, deps.timeZone()) as unknown as Record<string, unknown>);
+      }),
+  );
+
+  server.registerTool(
+    'dayglance_move_block',
+    {
+      description:
+        'Move a scheduled dayGLANCE block to a new local start: new_start is "YYYY-MM-DD HH:MM" ' +
+        '(same or different day). Returns the resulting block.' + CANNOT_MODIFY_NATIVE,
+      inputSchema: z.object({
+        block_id: z.string(),
+        new_start: z.string().describe('Local "YYYY-MM-DD HH:MM". Times inside a DST gap or repeat are rejected.'),
+        idempotency_key: IDEMPOTENCY_ARG,
+      }),
+    },
+    async ({ block_id, new_start, idempotency_key }) =>
+      write('move_block', idempotency_key, async (transitionId) => {
+        const parsed = parseStart(new_start, deps.timeZone());
+        if ('invalid' in parsed) return toolError('validation', parsed.invalid);
+        const r = await deps.bridge.request('move_block', {
+          blockId: block_id, date: parsed.date, startTime: parsed.time, transitionId,
+        });
+        return fromRenderer(r, dateEnvelope(parsed.date, deps.timeZone()) as unknown as Record<string, unknown>);
+      }),
+  );
+
+  server.registerTool(
+    'dayglance_resize_block',
+    {
+      description:
+        'Change the duration of a scheduled dayGLANCE block without moving its start. ' +
+        'Returns the resulting block.' + CANNOT_MODIFY_NATIVE,
+      inputSchema: z.object({
+        block_id: z.string(),
+        duration_minutes: z.number().int().describe('New duration, 1-1440 minutes.'),
+        idempotency_key: IDEMPOTENCY_ARG,
+      }),
+    },
+    async ({ block_id, duration_minutes, idempotency_key }) =>
+      write('resize_block', idempotency_key, async (transitionId) => {
+        const durationError = validateDurationMinutes(duration_minutes);
+        if (durationError) return toolError('validation', durationError);
+        const r = await deps.bridge.request('resize_block', {
+          blockId: block_id, durationMinutes: duration_minutes, transitionId,
+        });
+        return fromRenderer(r, { timezone: deps.timeZone() });
+      }),
+  );
+
+  server.registerTool(
+    'dayglance_set_task_completion',
+    {
+      description:
+        'Set a dayGLANCE task\'s completion state (a setter, not a toggle — safe to retry, and ' +
+        'setting completed:false is the agent\'s own undo). Works for scheduled blocks, inbox ' +
+        'tasks, and recurring-task instances.' + CANNOT_MODIFY_NATIVE,
+      inputSchema: z.object({
+        task_id: z.string(),
+        completed: z.boolean(),
+        idempotency_key: IDEMPOTENCY_ARG,
+      }),
+    },
+    async ({ task_id, completed, idempotency_key }) =>
+      write('set_task_completion', idempotency_key, async (transitionId) => {
+        const r = await deps.bridge.request('set_completion', {
+          taskId: task_id, completed, transitionId,
+          todayStr: localDateOf(deps.now(), deps.timeZone()),
+        });
+        return fromRenderer(r, { timezone: deps.timeZone() });
+      }),
+  );
+}
