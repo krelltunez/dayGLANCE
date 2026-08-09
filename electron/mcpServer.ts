@@ -23,6 +23,7 @@ import {
 } from '@modelcontextprotocol/node';
 import { checkBearerToken, unauthorizedResponse } from './mcpAuth.js';
 import { resolveMcpPort, describeBindFailure } from './mcpPort.js';
+import { registerReadTools, type ReadToolDeps } from './mcpReadTools.js';
 
 export const MCP_ENDPOINT_PATH = '/mcp';
 
@@ -31,6 +32,13 @@ export interface McpServerOptions {
   token: string;
   /** Raw user/env port override; resolution and validation are mcpPort.ts's job. */
   portOverride?: unknown;
+  /**
+   * Dependencies for the read tools (Phase 2): renderer bridge, clock,
+   * timezone, and consent-tier sources. Owned by main.ts at module scope and
+   * closed over by the per-request factory (§3.7). Optional so the listener
+   * can still start in a pure-skeleton mode (tests, early dev).
+   */
+  readDeps?: ReadToolDeps;
   log?: (msg: string) => void;
   logError?: (msg: string) => void;
 }
@@ -67,18 +75,19 @@ export function startMcpServer(opts: McpServerOptions): http.Server | null {
         'dayglance_ping',
         {
           description:
-            'Phase 1 stub: returns static data confirming the dayGLANCE MCP listener is reachable. ' +
-            'Real schedule/task tools arrive in Phase 2.',
+            'Connectivity check: returns static data confirming the dayGLANCE MCP listener is reachable. ' +
+            'Does not touch user data.',
         },
         async () => ({
           content: [
             {
               type: 'text',
-              text: JSON.stringify({ ok: true, server: 'dayGLANCE MCP (Phase 1 skeleton)' }),
+              text: JSON.stringify({ ok: true, server: 'dayGLANCE MCP' }),
             },
           ],
         }),
       );
+      if (opts.readDeps) registerReadTools(server, opts.readDeps);
       return server;
     },
     { onerror: (err) => logError(`[dayGLANCE] MCP handler error: ${String(err)}`) },

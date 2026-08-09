@@ -64,6 +64,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // clock tick, which would reload the tray four times a minute for nothing.
   notifyDataChanged: () => ipcRenderer.send('tray:data-changed'),
 
+  // MCP read bridge (main window only — the tray never subscribes, see
+  // src/hooks/useMcpBridge.js). Main sends correlated requests over
+  // 'mcp:request'; the renderer answers on 'mcp:response'. The main-process
+  // side additionally drops responses from any webContents other than the
+  // main window's (electron/mcpRendererBridge.ts).
+  onMcpRequest: (callback: (request: unknown) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, request: unknown) => callback(request);
+    ipcRenderer.on('mcp:request', handler);
+    return () => ipcRenderer.removeListener('mcp:request', handler);
+  },
+  mcpRespond: (response: unknown) => ipcRenderer.send('mcp:response', response),
+
   // Show or clear the reminder dot (●) next to the tray icon.
   setTrayIndicator: (on: boolean) => ipcRenderer.send('tray:set-indicator', on),
 
