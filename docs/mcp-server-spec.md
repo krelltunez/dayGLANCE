@@ -1,9 +1,11 @@
 # dayGLANCE MCP Server: Technical Specification
 
-**Status:** Draft for review, revision 4
+**Status:** Draft for review, revision 5
 **Target:** dayGLANCE Electron builds (macOS, Windows, Linux)
 **Sequencing:** After the 4.1.2 tray release ships
 **Spec baseline:** MCP specification 2026-07-28
+
+**Changes from revision 4:** Three corrections from the Phase 3 mutation-path trace. §3.1's rule restated as "through the same store layer via a shared pure module" — move and resize have no shared UI mutation function to invoke (inline `setTasks` in drag handlers); converting the UI call sites to the shared module is a follow-up, not part of Phase 3. §5.2's idempotency claim corrected: `transitionId` provides delivery dedup at the GLANCEintents outbox, not mutation-level replay protection; `handleIntent.js:347-389` is the only mutation-level precedent and is create-shaped, so move/resize replay protection is new machinery. §3.6 corrected: the tray debounce is trailing but resets per event, coalescing only bursts closer than 500 ms — at the §4.3 rate limit every write triggers a reload; `electron/trayReloadPolicy.ts` (stretched debounce while MCP writes are recent) is the fix.
 
 **Changes from revision 3:** Closed open question 1 — device calendar events are included, behind a separate consent, read-only. §6.3 splits reads into three tiers (off; dayGLANCE data only; include device calendar) with the rationale; §6.4 adds the calendar tier's own consent copy; §5.1 flags `_native` distinctly in all tool output and requires tool descriptions to state the write limit up front; §5.2 adds the typed `_native` write rejection to the tool contract; §10 Phase 3 gains a verification item on the existing `move_block` mutation path.
 
@@ -63,7 +65,9 @@ The corrected argument, and it is stronger:
 
 **Single-writer discipline.** The codebase enforces, by convention and now by guard, that only the main window renderer writes the `day-planner-*` keys. `useSaveOnChange.js:19` bails in tray mode; PR #1299 extended the same guard to `loadData`'s normalization write-back; PR #1302 extended it to `calendarFilter`. Three separate PRs in the 4.1.2 cycle tightened this invariant. The main process introducing a second writer would undo that work directly.
 
-**Rule:** every MCP write invokes the same renderer-side mutation function the UI invokes. No exceptions, no direct storage access, no "fast path."
+**Rule (restated in r5):** every MCP write goes **through the same store layer via a shared pure module** — renderer-side state setters applying the canonical update shapes, so the save pass, dirty tracking, tombstones, and `tray:data-changed` all engage identically. No direct storage access, no "fast path."
+
+The r4 phrasing was "invokes the same renderer-side mutation function the UI invokes." The Phase 3 trace showed that for move and resize **no such function exists**: the UI performs inline `setTasks` calls inside the drag/resize event handlers (`useDragDrop.js`), and `addTask` is a form-submit handler coupled to modal state, undo, and UI sounds. The canonical update shapes are therefore extracted into `src/utils/taskMutations.js` (pure, state-in/state-out, tested); MCP writes use it as of Phase 3. **Follow-up, not Phase 3:** converting the UI drag/resize call sites to the same module, at which point the letter of the original rule holds too. MCP writes deliberately do not push onto the user's undo stack or play UI sounds — the §4.3 write journal is the undo surface for MCP writes.
 
 **Consequences, all correct behavior:**
 - GLANCEintents events fire automatically for MCP-originated mutations.
@@ -160,12 +164,10 @@ PR #1297 established a channel that fires from the persistence path after `saveD
 
 Because MCP writes route through the renderer mutation path (§3.1), they trigger `saveData()`, which fires the emit, which updates the tray popup. **No MCP-specific propagation work is required.** This is the design being coherent rather than lucky, and it is an additional argument for the §3.1 rule.
 
-Two things to verify during implementation:
+**Verified in Phase 3 (r5), and the answer was the bad case:**
 
-1. **Debounce coalescing.** The main process reload is debounced at 500ms. Confirm it is a true trailing debounce that coalesces rather than a leading-edge fire. At 30 writes per minute from an agent this matters; at the tray's historical rate it did not.
-2. **Reload volume under agent load.** Every MCP write produces a tray popup reload. The 4.1.2 work reduced idle reloads from roughly 240/hour to near zero, and the write rate limiter (§4.3) bounds the MCP contribution, but the interaction should be measured rather than assumed.
-
-If reload volume proves problematic, the fix is a longer debounce on the MCP path specifically, not a bypass of the emit.
+1. **Debounce coalescing.** The reload debounce (`main.ts` `tray:data-changed` handler) is a **trailing debounce that resets per event** — it coalesces only bursts closer together than 500 ms. That is the wrong shape for agent load: at the §4.3 rate limit (one write every 2 s), no two events are within 500 ms of each other, so **every write triggers a tray popup reload** — 30 reloads/minute, 1800/hour against the 4.1.2 cycle's hard-won near-zero. (For user-originated saves the shape is right: a drag gesture fires per mousemove tick and coalesces to one reload after release.)
+2. **The fix, per this section's own rule — a longer debounce on the MCP path specifically, never a bypass of the emit:** `electron/trayReloadPolicy.ts`. While an MCP write has landed within the last 10 s, the handler arms a 5 s debounce (longer than the 2 s write cadence, so a sustained agent session coalesces to zero reloads until it goes quiet, then exactly one); otherwise the historical 500 ms. The emit itself is untouched.
 
 ### 3.7 Main-process state
 
@@ -245,7 +247,7 @@ Two requirements on the tool surface:
 - **Writes return the resulting entity state.** Saves a follow-up read.
 - **Errors are tool errors, not protocol errors.** Return `isError: true` with a content block the model can read and recover from. Distinguish at minimum: renderer unavailable, consent revoked, read-only mode, not found, validation failure, rate limited.
 - **`_native` events are rejected by every write tool with a typed error.** `move_block`, `resize_block`, and `set_task_completion` refuse device calendar events regardless of the consent tier. Why: dayGLANCE holds EventKit **read** access only, and the existing `day-planner-native-time-overrides` mechanism shifts local display without touching the actual event — so a "successful" write would create a silent discrepancy between what dayGLANCE shows and what the user's calendar says, which is worse than the refusal.
-- **Idempotency.** Agents retry. Every write accepts an optional `idempotency_key`, mapped onto the existing `transitionId` pattern from GLANCEintents. Reuse the mechanism rather than inventing a second one.
+- **Idempotency (corrected in r5).** Agents retry. Every write accepts an optional `idempotency_key`. The r4 text said to map it onto "the existing `transitionId` pattern" — the Phase 3 trace showed that overstates what exists: `transitionId` is read in exactly one place (`useNotifyEmitter.js`, as the outbound intent's `event_id`) and provides **delivery dedup at the outbox**, not mutation-level replay protection; no local mutation dedups on it. The only mutation-level precedent is `handleIntent.js:347-389` (deterministic task id from the key + existence/tombstone check), and it is create-shaped. So the design is: the key still travels into the emit path as `transitionId` (reusing the delivery dedup that does exist), `create_task` derives a deterministic task id from the key per the `handleIntent` precedent (reuse), and replayed **move/resize/completion** calls are absorbed by a bounded main-process replay store returning the first attempt's result — which is **new machinery, acknowledged as such**, because nothing reusable exists for mutating operations.
 - **No partial success.** A tool call either applies fully or not at all.
 
 ### 5.3 Date and timezone semantics
