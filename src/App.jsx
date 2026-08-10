@@ -396,6 +396,9 @@ const DayPlanner = () => {
   // captured when they were bound at mount.
   const selectedDateRef = useRef(selectedDate);
   selectedDateRef.current = selectedDate;
+  // Shares from the iOS Share Extension arrive as a batch, but the Add-task form
+  // shows one at a time. Hold the remainder here and advance as each one closes.
+  const pendingSharesRef = useRef([]);
   const [tasks, setTasks] = useState([]);
   const [unscheduledTasks, setUnscheduledTasks] = useState([]);
   // Live refs to the current task state, reassigned every render. applyEngineData
@@ -1928,27 +1931,23 @@ const DayPlanner = () => {
         }
       }, 200);
       if (window.DayGlanceNative?.getShareExtensionPending) {
+        const raw = window.DayGlanceNative.getShareExtensionPending();
+        let items = null;
         try {
-          const raw = window.DayGlanceNative.getShareExtensionPending();
-          const items = JSON.parse(raw);
-          if (Array.isArray(items) && items.length > 0) {
-            items.forEach(text => {
-              const { title: shareTitle, notes: shareNotes } = extractShareTitle(text);
-              setNewTask({
-                title: shareTitle,
-                notes: shareNotes || undefined,
-                startTime: getNextQuarterHour(),
-                duration: 30,
-                date: dateToString(selectedDateRef.current),
-                isAllDay: false,
-                openInInbox: true,
-                deadline: null,
-                priority: 0,
-              });
-              setShowAddTask(true);
-            });
-          }
-        } catch (_) {}
+          items = JSON.parse(raw);
+        } catch (err) {
+          // The native side has already cleared the queue by this point, so a parse
+          // failure loses the batch. Never swallow it silently — that hid a bug where
+          // shared text containing a newline produced invalid JSON and every queued
+          // share disappeared without a trace.
+          console.error('[share] could not parse pending shares; batch lost:', err, raw);
+        }
+        if (Array.isArray(items) && items.length > 0) {
+          // Queue them: the Add-task form shows one at a time, so opening them in a
+          // loop would just overwrite state and only the last share would survive.
+          pendingSharesRef.current.push(...items);
+          openNextPendingShare();
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -2759,6 +2758,37 @@ const DayPlanner = () => {
     
     return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
   };
+
+  // Pops the next queued Share Extension item into the Add-task form. No-op when
+  // the queue is empty or the form is already showing one.
+  const openNextPendingShare = () => {
+    if (pendingSharesRef.current.length === 0) return;
+    const text = pendingSharesRef.current.shift();
+    const { title: shareTitle, notes: shareNotes } = extractShareTitle(text);
+    setNewTask({
+      title: shareTitle,
+      notes: shareNotes || undefined,
+      startTime: getNextQuarterHour(),
+      duration: 30,
+      date: dateToString(selectedDateRef.current),
+      isAllDay: false,
+      openInInbox: true,
+      deadline: null,
+      priority: 0,
+    });
+    setShowAddTask(true);
+  };
+
+  // Advance the share queue when the Add-task form closes, whether the user saved
+  // or dismissed — both are a decision about that share. Only fires while shares
+  // are actually queued, so ordinary use of the form is unaffected.
+  useEffect(() => {
+    if (!showAddTask && pendingSharesRef.current.length > 0) openNextPendingShare();
+    // openNextPendingShare is redefined every render but only reads refs and stable
+    // setters; depending on it would re-run this effect on every render instead of
+    // on the open/close transition it's watching.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showAddTask]);
 
   const getTaskCalendarStyle = (task, isDarkMode) => {
     // Native Android calendar events: apply the calendar color from the device.
