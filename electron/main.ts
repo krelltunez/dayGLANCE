@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import dns from 'node:dns';
 import nodeNet from 'node:net';
 import { fileURLToPath } from 'node:url';
-import { createWsServer } from './ws-server.js';
+import { createWsServer, WS_PORT } from './ws-server.js';
+import type { WebSocketServer } from 'ws';
+import type http from 'node:http';
 import { registerSubscriptionHandlers } from './subscription.js';
 import { registerCalendarHandlers } from './calendar.js';
 import { registerStorefrontHandlers } from './storefront.js';
@@ -14,7 +16,20 @@ import { APP_SCHEME, APP_HOST, APP_BASE_URL, resolveAppRequest } from './appProt
 import { shouldQuitOnAllWindowsClosed } from './startupQuit.js';
 import { initStartupLog, logStartup } from './startupLog.js';
 import { startMcpServer } from './mcpServer.js';
-import { createRendererBridge } from './mcpRendererBridge.js';
+import { generateMcpToken } from './mcpAuth.js';
+import { resolveMcpPort, describeBindFailure, DEFAULT_MCP_PORT } from './mcpPort.js';
+import {
+  defaultConfig as defaultIntegrationsConfig,
+  decideStreamDeckMigration,
+  normalizeConfig as normalizeIntegrationsConfig,
+  mcpGates,
+  applyTransition as applyIntegrationsTransition,
+  listenerEffects,
+  type LocalIntegrationsConfig,
+  type TransitionAction,
+} from './localIntegrations.js';
+import { createRendererBridge, type RendererBridge } from './mcpRendererBridge.js';
+import type { WriteToolDeps } from './mcpWriteTools.js';
 import { createWriteGate } from './mcpWriteGate.js';
 import { createIdempotencyStore } from './mcpIdempotency.js';
 import { trayReloadDebounceMs } from './trayReloadPolicy.js';
@@ -809,6 +824,235 @@ async function migrateFileToAppStorage(): Promise<void> {
   }
 }
 
+// ── Local integrations: Stream Deck + MCP (spec §6.2/§6.3, Phase 5a) ────────
+// Every DECISION (migration, tier resolution, consent transitions, listener
+// reconciliation) lives in localIntegrations.ts, pure and unit-tested. This
+// block owns only what cannot be pure: file I/O, listener lifecycle, and IPC.
+
+const LOCAL_INTEGRATIONS_FILE = 'local-integrations.json';
+function integrationsConfigPath(): string {
+  return path.join(app.getPath('userData'), LOCAL_INTEGRATIONS_FILE);
+}
+
+let integrationsConfig: LocalIntegrationsConfig = defaultIntegrationsConfig();
+let wsServerHandle: WebSocketServer | null = null;
+let mcpServerHandle: http.Server | null = null;
+let streamDeckStatus: { running: boolean; error: string | null } = { running: false, error: null };
+let mcpStatus: { running: boolean; error: string | null } = { running: false, error: null };
+
+// Created on first MCP start and reused across stop/start cycles: the bridge
+// registers an ipcMain listener (restarting must not stack another one), and
+// a long-lived gate + idempotency store mean toggling the port cannot be used
+// to reset rate-limit strikes or the write-replay window.
+let mcpBridge: RendererBridge | null = null;
+let mcpWriteGate: ReturnType<typeof createWriteGate> | null = null;
+let mcpIdempotencyStore: WriteToolDeps['store'] | null = null;
+
+function saveIntegrationsConfig(): void {
+  try {
+    fs.writeFileSync(integrationsConfigPath(), JSON.stringify(integrationsConfig, null, 2));
+  } catch (err) {
+    console.error('[dayGLANCE] Failed to save local-integrations config:', err);
+  }
+}
+
+// MUST run before migrateFileToAppStorage(): that migration stamps its
+// done-flag even on a FRESH install, so reading the prior-install evidence
+// after it would make every fresh install look like an upgrade and switch
+// Stream Deck on for users who never had it (§6.2 inverted).
+function loadOrMigrateIntegrationsConfig(): void {
+  const cfgPath = integrationsConfigPath();
+  if (fs.existsSync(cfgPath)) {
+    // The file's existence is the one-time migration flag: once it exists it
+    // is the sole authority, so a user's deliberate "off" survives every
+    // subsequent update. Unreadable content fails toward all-off — it never
+    // re-runs the migration.
+    try {
+      integrationsConfig = normalizeIntegrationsConfig(JSON.parse(fs.readFileSync(cfgPath, 'utf-8')));
+    } catch (err) {
+      console.error('[dayGLANCE] Unreadable local-integrations config; using defaults (all off):', err);
+      integrationsConfig = defaultIntegrationsConfig();
+    }
+    return;
+  }
+  // Any userData artifact only a previous RUN could have written. The startup
+  // log is deliberately not usable here — initStartupLog() already created it
+  // for THIS run at module load.
+  const priorInstallEvidence =
+    fs.existsSync(winStatePath()) ||
+    fs.existsSync(WINDOW_THEME_FILE()) ||
+    fs.existsSync(path.join(app.getPath('userData'), STORAGE_MIGRATION_FLAG));
+  const decision = decideStreamDeckMigration({ configFileExists: false, priorInstallEvidence });
+  integrationsConfig = defaultIntegrationsConfig();
+  if (decision.migrate && decision.enabled) {
+    // Upgrade: the Stream Deck listener shipped unconditionally before this
+    // config existed, so existing users keep it ON with no action needed.
+    integrationsConfig.streamDeck.enabled = true;
+    integrationsConfig.streamDeck.migratedFromUnconditional = true;
+  }
+  saveIntegrationsConfig();
+  logStartup(
+    `local integrations: config created (streamDeck ${integrationsConfig.streamDeck.enabled ? 'ON — upgrade migration' : 'off — fresh install'})`,
+  );
+}
+
+function pushIntegrationsStatus(): void {
+  live(mainWindow)?.webContents.send('local-integrations:status', integrationsSnapshot());
+}
+
+function startStreamDeckListener(): void {
+  if (wsServerHandle) return;
+  streamDeckStatus = { running: false, error: null };
+  const wss = createWsServer(() => live(mainWindow));
+  wsServerHandle = wss;
+  wss.on('listening', () => {
+    streamDeckStatus = { running: true, error: null };
+    pushIntegrationsStatus();
+  });
+  wss.on('error', (err: NodeJS.ErrnoException) => {
+    // Loud, specific, and no port-scan fallback — same posture as MCP (§3.4).
+    streamDeckStatus = {
+      running: false,
+      error: err.code === 'EADDRINUSE'
+        ? `Port ${WS_PORT} is already in use by another process. The Stream Deck plugin expects this exact port, so dayGLANCE will not pick another one. Quit the conflicting process, then toggle Stream Deck support off and on.`
+        : `Stream Deck listener failed: ${err.code ?? err.message ?? 'unknown error'}`,
+    };
+    pushIntegrationsStatus();
+  });
+}
+
+function stopStreamDeckListener(): void {
+  const wss = wsServerHandle;
+  wsServerHandle = null;
+  streamDeckStatus = { running: false, error: null };
+  if (wss) {
+    for (const client of wss.clients) client.terminate();
+    wss.close();
+  }
+  pushIntegrationsStatus();
+}
+
+function startMcpListener(): void {
+  if (mcpServerHandle) return;
+  if (!mcpGates(integrationsConfig).bound) return; // off means off: no port bound (§6.3)
+
+  const resolved = resolveMcpPort(integrationsConfig.mcp.portOverride);
+  if (!resolved.ok) {
+    mcpStatus = { running: false, error: resolved.reason };
+    pushIntegrationsStatus();
+    return;
+  }
+
+  if (!mcpBridge) mcpBridge = createRendererBridge(() => live(mainWindow));
+  if (!mcpWriteGate) mcpWriteGate = createWriteGate();
+  if (!mcpIdempotencyStore) mcpIdempotencyStore = createIdempotencyStore();
+  // Resolved on the machine, never inferred from the client (§5.3).
+  const mcpTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+  // Getter, read per request: settings-driven rotation invalidates the old
+  // token on the very next request, no restart involved.
+  const mcpToken = () => integrationsConfig.mcp.token ?? '';
+
+  mcpStatus = { running: false, error: null };
+  const srv = startMcpServer({
+    token: mcpToken,
+    portOverride: integrationsConfig.mcp.portOverride,
+    readDeps: {
+      bridge: mcpBridge,
+      now: Date.now,
+      timeZone: mcpTimeZone,
+      // §6.3 device-calendar tier, settings-backed (this closure replaced the
+      // DAYGLANCE_MCP_CALENDAR env var — tool code unchanged, as designed).
+      includeNativeEvents: () => mcpGates(integrationsConfig).includeNative,
+    },
+    writeDeps: {
+      bridge: mcpBridge,
+      gate: mcpWriteGate,
+      store: mcpIdempotencyStore,
+      token: mcpToken,
+      // §6.3 writes opt-in, settings-backed (replaced DAYGLANCE_MCP_WRITES).
+      includeWrites: () => mcpGates(integrationsConfig).includeWrites,
+      noteMcpWrite: () => { lastMcpWriteAt = Date.now(); },
+      // §4.3: repeated rate-limit violations auto-disable writes with a
+      // notification. Fires exactly once, on the disable edge.
+      onWritesDisabled: () => {
+        console.error('[dayGLANCE] MCP writes auto-disabled after repeated rate-limit violations.');
+        if (Notification.isSupported()) {
+          new Notification({
+            title: 'dayGLANCE MCP writes disabled',
+            body: 'An MCP client repeatedly exceeded the write rate limit. Writes stay off until dayGLANCE restarts.',
+          }).show();
+        }
+      },
+      now: Date.now,
+      timeZone: mcpTimeZone,
+    },
+  });
+  if (!srv) {
+    // startMcpServer already logged why; mirror it into settings.
+    mcpStatus = { running: false, error: 'MCP server could not start — see the startup log for details.' };
+    pushIntegrationsStatus();
+    return;
+  }
+  mcpServerHandle = srv;
+  srv.on('listening', () => {
+    mcpStatus = { running: true, error: null };
+    pushIntegrationsStatus();
+  });
+  srv.on('error', (err: NodeJS.ErrnoException) => {
+    // The §3.4 loud collision: named port, no scan, shown in settings.
+    mcpStatus = { running: false, error: describeBindFailure(resolved.port, err) };
+    pushIntegrationsStatus();
+  });
+}
+
+function stopMcpListener(onClosed?: () => void): void {
+  const srv = mcpServerHandle;
+  mcpServerHandle = null;
+  mcpStatus = { running: false, error: null };
+  pushIntegrationsStatus();
+  if (!srv) { onClosed?.(); return; }
+  srv.close(() => { onClosed?.(); });
+  // Destroy live connections (idle keep-alives, open SSE streams) so the port
+  // is actually released now — close() alone waits on them indefinitely, which
+  // would make a port-change restart race its own rebind.
+  srv.closeAllConnections();
+}
+
+function integrationsSnapshot() {
+  const resolved = resolveMcpPort(integrationsConfig.mcp.portOverride);
+  return {
+    config: integrationsConfig,
+    gates: mcpGates(integrationsConfig),
+    ports: {
+      streamDeck: WS_PORT,
+      mcpDefault: DEFAULT_MCP_PORT,
+      mcpEffective: resolved.ok ? resolved.port : null,
+    },
+    status: { streamDeck: streamDeckStatus, mcp: mcpStatus },
+  };
+}
+
+function registerLocalIntegrationsHandlers(): void {
+  ipcMain.handle('local-integrations:get', () => integrationsSnapshot());
+  ipcMain.handle('local-integrations:transition', (_event, action: unknown) => {
+    const result = applyIntegrationsTransition(integrationsConfig, action as TransitionAction, {
+      nowIso: () => new Date().toISOString(),
+      generateToken: generateMcpToken,
+      resolvePort: resolveMcpPort,
+    });
+    if (!result.ok) return { ok: false, error: result.error };
+    const effects = listenerEffects(integrationsConfig, result.config);
+    integrationsConfig = result.config;
+    saveIntegrationsConfig();
+    if (effects.streamDeck === 'start') startStreamDeckListener();
+    else if (effects.streamDeck === 'stop') stopStreamDeckListener();
+    if (effects.mcp === 'start') startMcpListener();
+    else if (effects.mcp === 'stop') stopMcpListener();
+    else if (effects.mcp === 'restart') stopMcpListener(() => startMcpListener());
+    return { ok: true, snapshot: integrationsSnapshot() };
+  });
+}
+
 app.whenReady().then(async () => {
   // A doomed second instance may still reach 'ready' before app.quit() takes
   // effect; bail before creating any windows so it never steals the port/state.
@@ -888,61 +1132,26 @@ app.whenReady().then(async () => {
   // boots with the migrated localStorage. The protocol handler above must already
   // be registered (the writer window loads app://). Awaited so createWindow() sees
   // the migrated data; failures are swallowed inside and never block startup.
+  // Local-integrations config load + the §6.2 one-time Stream Deck migration.
+  // Ordering is load-bearing: migrateFileToAppStorage() below stamps its
+  // done-flag even on a fresh install, and that flag is one of the
+  // prior-install signals — so this MUST read the evidence first.
+  loadOrMigrateIntegrationsConfig();
+
   logStartup('storage migration: start');
   await migrateFileToAppStorage();
   logStartup('storage migration: done');
 
   const win = createWindow();
-  createWsServer(() => live(mainWindow));
-  // MCP listener — Phase 2: read tools over renderer IPC, still dev flag only
-  // (settings UI and the consent gate are Phase 5, docs/mcp-server-spec.md
-  // §10). Token comes from the environment for now; the discovery file is
-  // Phase 6. Off means off: without the flag no port is bound at all.
-  if (process.env['DAYGLANCE_MCP_DEV'] === '1') {
-    // Getter, not a reference: requests must target the CURRENT main
-    // window even if it is recreated (same posture as createWsServer).
-    const mcpBridge = createRendererBridge(() => live(mainWindow));
-    const mcpToken = process.env['DAYGLANCE_MCP_TOKEN'] ?? '';
-    // Resolved on the machine, never inferred from the client (§5.3).
-    const mcpTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
-    startMcpServer({
-      token: mcpToken,
-      portOverride: process.env['DAYGLANCE_MCP_PORT'],
-      readDeps: {
-        bridge: mcpBridge,
-        now: Date.now,
-        timeZone: mcpTimeZone,
-        // Device-calendar consent tier (§6.3). Phase 2 source is an env var;
-        // Phase 5 replaces this closure with the settings-backed tier and
-        // nothing in the tool code changes.
-        includeNativeEvents: () => process.env['DAYGLANCE_MCP_CALENDAR'] === '1',
-      },
-      writeDeps: {
-        bridge: mcpBridge,
-        gate: createWriteGate(),
-        store: createIdempotencyStore(),
-        token: () => mcpToken,
-        // Read-write consent tier (§6.3, second opt-in). Env-sourced now;
-        // Phase 5 swaps the source without touching tool code — same pattern
-        // as includeNativeEvents above.
-        includeWrites: () => process.env['DAYGLANCE_MCP_WRITES'] === '1',
-        noteMcpWrite: () => { lastMcpWriteAt = Date.now(); },
-        // §4.3: repeated rate-limit violations auto-disable writes with a
-        // notification. Fires exactly once, on the disable edge.
-        onWritesDisabled: () => {
-          console.error('[dayGLANCE] MCP writes auto-disabled after repeated rate-limit violations.');
-          if (Notification.isSupported()) {
-            new Notification({
-              title: 'dayGLANCE MCP writes disabled',
-              body: 'An MCP client repeatedly exceeded the write rate limit. Writes stay off until dayGLANCE restarts.',
-            }).show();
-          }
-        },
-        now: Date.now,
-        timeZone: mcpTimeZone,
-      },
-    });
-  }
+  // Both local listeners are settings-gated (§6.2, Phase 5a): the Stream Deck
+  // toggle is ON for upgraded installs via the migration above, and the MCP
+  // listener binds only when a read tier was enabled through the consent flow
+  // — startMcpListener() no-ops otherwise, so off means no port bound at all.
+  // The DAYGLANCE_MCP_DEV/TOKEN/PORT/CALENDAR/WRITES env vars are gone; the
+  // config file is the sole source.
+  registerLocalIntegrationsHandlers();
+  if (integrationsConfig.streamDeck.enabled) startStreamDeckListener();
+  startMcpListener();
   registerSubscriptionHandlers(win);
   registerCalendarHandlers();
   registerStorefrontHandlers();

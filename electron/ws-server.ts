@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { MSG_DAY_TOKEN, MSG_DAY_AUTH, PROTOCOL_VERSION } from './protocol.js';
 import type { OutboundMessage } from './protocol.js';
 
-const WS_PORT = 7892;
+export const WS_PORT = 7892;
 
 // A browser client (property inspector) that fails to present a valid token this
 // quickly is dropped — closes the "connect and sit idle to hold a slot" vector.
@@ -99,7 +99,7 @@ export function createWsServer(getMainWindow: () => BrowserWindow | null): WebSo
   });
 
   // Broadcast state updates from the renderer to all connected clients
-  ipcMain.on('ws:push-state', (_event, state: OutboundMessage) => {
+  const onPushState = (_event: unknown, state: OutboundMessage): void => {
     const payload = JSON.stringify(state);
     lastState = payload;
     for (const client of clients) {
@@ -107,6 +107,14 @@ export function createWsServer(getMainWindow: () => BrowserWindow | null): WebSo
         client.send(payload);
       }
     }
+  };
+  ipcMain.on('ws:push-state', onPushState);
+
+  // The settings toggle (Phase 5a) can stop and later restart this listener.
+  // Detach the IPC handler when the server closes, or every start would stack
+  // another 'ws:push-state' listener onto ipcMain.
+  wss.on('close', () => {
+    ipcMain.removeListener('ws:push-state', onPushState);
   });
 
   return wss;

@@ -81,6 +81,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   mcpRespond: (response: unknown) => ipcRenderer.send('mcp:response', response),
 
+  // Local integrations settings (Stream Deck + MCP, spec §6.2/§6.3). The
+  // renderer never mutates the config directly: it sends typed transition
+  // actions and the main process's consent-state machine accepts or refuses
+  // them (electron/localIntegrations.ts).
+  localIntegrations: {
+    get: (): Promise<unknown> => ipcRenderer.invoke('local-integrations:get'),
+    transition: (action: unknown): Promise<unknown> =>
+      ipcRenderer.invoke('local-integrations:transition', action),
+    // Main pushes a fresh snapshot when listener state changes underneath the
+    // UI (e.g. a port collision discovered after the toggle returned).
+    onStatus: (callback: (snapshot: unknown) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, snapshot: unknown) => callback(snapshot);
+      ipcRenderer.on('local-integrations:status', handler);
+      return () => ipcRenderer.removeListener('local-integrations:status', handler);
+    },
+  },
+
   // Show or clear the reminder dot (●) next to the tray icon.
   setTrayIndicator: (on: boolean) => ipcRenderer.send('tray:set-indicator', on),
 

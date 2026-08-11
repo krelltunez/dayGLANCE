@@ -5,6 +5,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
+import LocalIntegrationsSettings from './LocalIntegrationsSettings.jsx';
 import ICloudDiagnostics from './ICloudDiagnostics.jsx';
 import ICloudSyncToggle from './ICloudSyncToggle.jsx';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
@@ -1804,6 +1805,10 @@ const SettingsModal = () => {
 
                       </>)}
                     </div>
+
+                    {/* Local Integrations (Stream Deck + MCP) — Electron only,
+                        renders nothing on web/mobile builds. */}
+                    <LocalIntegrationsSettings />
 
                     <hr className={borderClass} />
 

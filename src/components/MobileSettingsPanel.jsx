@@ -25,6 +25,7 @@ import SmartSchedulePanel from './SmartSchedulePanel.jsx';
 import MobileRoutinesTab from './MobileRoutinesTab.jsx';
 import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import LocalIntegrationsSettings from './LocalIntegrationsSettings.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { isVaultEnabled } from '../sync/vaultConfig.js';
 import { multiUserToggleLocked, multiUserUnavailableReason, canSyncUserRoster } from '../utils/multiUserGate.js';
@@ -3037,6 +3038,10 @@ const MobileSettingsPanel = () => {
       )}
     </div>
   )}
+
+  {/* Local Integrations (Stream Deck + MCP) — only renders when a narrow
+      Electron window shows the mobile layout; nothing on true mobile. */}
+  <LocalIntegrationsSettings />
 </div>
   );
 };
