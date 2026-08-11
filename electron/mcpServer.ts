@@ -30,8 +30,13 @@ import { registerResources } from './mcpResources.js';
 export const MCP_ENDPOINT_PATH = '/mcp';
 
 export interface McpServerOptions {
-  /** The pre-shared bearer token. Empty is refused — the listener fails closed. */
-  token: string;
+  /**
+   * The pre-shared bearer token, as a value or a getter. A getter is read on
+   * EVERY request, which is what makes settings-driven rotation (§6.2)
+   * invalidate the old token on the very next request without a restart.
+   * Empty is refused at start — the listener fails closed.
+   */
+  token: string | (() => string);
   /** Raw user/env port override; resolution and validation are mcpPort.ts's job. */
   portOverride?: unknown;
   /**
@@ -61,7 +66,8 @@ export function startMcpServer(opts: McpServerOptions): http.Server | null {
   const log = opts.log ?? ((m: string) => console.log(m));
   const logError = opts.logError ?? ((m: string) => console.error(m));
 
-  if (!opts.token) {
+  const getToken = typeof opts.token === 'function' ? opts.token : () => opts.token as string;
+  if (!getToken()) {
     logError('[dayGLANCE] MCP server not started: no bearer token configured (refusing to listen unauthenticated).');
     return null;
   }
@@ -130,7 +136,7 @@ export function startMcpServer(opts: McpServerOptions): http.Server | null {
     if (!validateHost(req, res)) return;
     if (!validateOrigin(req, res)) return;
 
-    const auth = checkBearerToken(req.headers['authorization'], opts.token);
+    const auth = checkBearerToken(req.headers['authorization'], getToken());
     if (!auth.ok) {
       // One identical 401 for every rejection reason — see unauthorizedResponse().
       const rejection = unauthorizedResponse();
