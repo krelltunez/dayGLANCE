@@ -21,12 +21,12 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 export const MCP_BASE_CONSENT = {
   title: 'Allow other apps to read your dayGLANCE data?',
   paragraphs: [
-    'This lets other applications running on this computer — typically an AI assistant such as Claude Desktop — read your dayGLANCE data: your schedule, tasks, goals, and projects.',
+    'This lets other applications running on this computer, typically an AI assistant such as Claude Desktop, read your dayGLANCE data: your schedule, tasks, goals, and projects.',
     'AI assistants usually send what they read to their AI provider over the internet as part of your conversations. Once another app has read your data, dayGLANCE cannot see or control what it does with it.',
     'This is outside dayGLANCE’s encryption and no-server-access guarantees: dayGLANCE itself still never uploads your data anywhere, but an app you connect might.',
     'Only apps on this computer that present your access token (shown in settings after enabling) can connect.',
   ],
-  accept: 'I understand — enable read access',
+  accept: 'I understand, enable read access',
 };
 
 // Required content (device calendar tier): must additionally NAME what it
@@ -35,21 +35,21 @@ export const MCP_BASE_CONSENT = {
 export const MCP_CALENDAR_CONSENT = {
   title: 'Also share device calendar events?',
   paragraphs: [
-    'This adds events from your device’s calendar accounts (work, school, shared family calendars) to what connected apps can read — not just data you created in dayGLANCE.',
+    'This adds events from your device’s calendar accounts (work, school, shared family calendars) to what connected apps can read, not just data you created in dayGLANCE.',
     'Calendar events often contain other people’s information: event titles, attendee names and emails, and details of meetings other people invited you to. You did not create that information, and those people have not agreed to share it with an AI assistant or any other app.',
     'Connected apps can read these events exactly like your dayGLANCE data, and typically send them to an AI provider over the internet.',
     'Leave this off to share only the data you created in dayGLANCE yourself.',
   ],
-  accept: 'I understand — include calendar events',
+  accept: 'I understand, include calendar events',
 };
 
 export const MCP_WRITES_CONSENT = {
   title: 'Allow connected apps to change your schedule?',
   paragraphs: [
-    'Connected apps will be able to add, complete, move, and edit tasks — the same changes you can make yourself — without asking you before each one.',
+    'Connected apps will be able to add, complete, move, and edit tasks (the same changes you can make yourself) without asking you before each one.',
     'Changes are rate-limited and can never touch device calendar events, but a misbehaving app could still rearrange or complete tasks you did not intend. You can turn this off at any time.',
   ],
-  accept: 'I understand — allow changes',
+  accept: 'I understand, allow changes',
 };
 
 const READ_TIER_OPTIONS = [
@@ -306,7 +306,7 @@ const LocalIntegrationsSettings = () => {
                 </div>
                 <p className={`text-xs ${textSecondary} mt-1`}>
                   {rotated
-                    ? 'New token generated — the old one no longer works. Update your MCP clients.'
+                    ? 'New token generated. The old one no longer works, so update your MCP clients.'
                     : 'Paste this into your MCP client as the Bearer token. Rotating it cuts off every client using the old one.'}
                 </p>
               </div>
@@ -330,7 +330,7 @@ const LocalIntegrationsSettings = () => {
                 </div>
                 <p className={`text-xs ${textSecondary} mt-1`}>
                   Endpoint: <code className={`px-1 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}>http://127.0.0.1:{ports.mcpEffective ?? ports.mcpDefault}/mcp</code>
-                  {' '}— leave the port empty for the default. dayGLANCE never picks a different port by itself.
+                  {'. '}Leave the port empty for the default. dayGLANCE never picks a different port by itself.
                 </p>
               </div>
 

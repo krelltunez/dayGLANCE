@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   defaultConfig,
   decideStreamDeckMigration,
+  interpretConfigFile,
+  recoverFromConfigFile,
   normalizeConfig,
   mcpGates,
   applyTransition,
@@ -51,6 +53,67 @@ describe('decideStreamDeckMigration — the §6.2 blocking item', () => {
       .toEqual({ migrate: false });
     expect(decideStreamDeckMigration({ configFileExists: true, priorInstallEvidence: false }))
       .toEqual({ migrate: false });
+  });
+});
+
+describe('interpretConfigFile — corrupt is absent, not a choice', () => {
+  it('null content is absent', () => {
+    expect(interpretConfigFile(null)).toEqual({ state: 'absent' });
+  });
+
+  it('a parseable object is valid, normalized tolerantly', () => {
+    const config = enabledConfig();
+    expect(interpretConfigFile(JSON.stringify(config))).toEqual({ state: 'valid', config });
+    expect(interpretConfigFile('{}')).toEqual({ state: 'valid', config: defaultConfig() });
+  });
+
+  it('unparseable content is corrupt', () => {
+    for (const raw of ['{oops', '', 'not json at all', '{"mcp": }']) {
+      expect(interpretConfigFile(raw)).toEqual({ state: 'corrupt' });
+    }
+  });
+
+  it('parseable non-objects are corrupt too (no user wrote 42 as their config)', () => {
+    for (const raw of ['42', '"off"', '[]', 'null', 'true']) {
+      expect(interpretConfigFile(raw)).toEqual({ state: 'corrupt' });
+    }
+  });
+});
+
+describe('recoverFromConfigFile — the split failure mode (§6.2)', () => {
+  it('valid file: used as-is, never re-migrated (deliberate off stays off)', () => {
+    const off = JSON.stringify(defaultConfig()); // a user who turned everything off
+    const r = recoverFromConfigFile(off, true); // even with upgrade evidence present
+    expect(r.action).toBe('use');
+    expect(r.corrupt).toBe(false);
+    expect(r.config.streamDeck.enabled).toBe(false);
+  });
+
+  it('corrupt file + upgrade evidence: Stream Deck restored to ON, MCP stays off', () => {
+    const r = recoverFromConfigFile('{oops', true);
+    expect(r.action).toBe('migrate');
+    expect(r.corrupt).toBe(true);
+    expect(r.config.streamDeck).toEqual({ enabled: true, migratedFromUnconditional: true });
+    // MCP fails closed: the migration never enables it, whatever was in the file.
+    expect(r.config.mcp.readTier).toBe('off');
+    expect(r.config.mcp.writesEnabled).toBe(false);
+    expect(r.config.mcp.token).toBeNull();
+  });
+
+  it('corrupt file + no evidence: everything stays off', () => {
+    const r = recoverFromConfigFile('{oops', false);
+    expect(r.action).toBe('migrate');
+    expect(r.corrupt).toBe(true);
+    expect(r.config).toEqual(defaultConfig());
+  });
+
+  it('absent file migrates but is not flagged corrupt (nothing to preserve)', () => {
+    const withEvidence = recoverFromConfigFile(null, true);
+    expect(withEvidence).toMatchObject({ action: 'migrate', corrupt: false });
+    expect(withEvidence.config.streamDeck.enabled).toBe(true);
+    const fresh = recoverFromConfigFile(null, false);
+    expect(fresh).toMatchObject({ action: 'migrate', corrupt: false });
+    expect(fresh.config).toEqual(defaultConfig());
   });
 });
 
