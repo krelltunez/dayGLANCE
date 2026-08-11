@@ -13,6 +13,7 @@ const makeSetters = () => ({
   setTasks: vi.fn(),
   setUnscheduledTasks: vi.fn(),
   setRecurringTasks: vi.fn(),
+  setRecycleBin: vi.fn(),
 });
 
 const B = (over = {}) => ({
@@ -113,12 +114,13 @@ describe('undo descriptors on write responses', () => {
 });
 
 describe('undo_mcp_writes', () => {
-  it('applies reversal ops through ALL three setters in one commit and reports counts', () => {
+  it('applies reversal ops through ALL four setters in one commit and reports counts', () => {
     const setters = makeSetters();
     const state = {
       tasks: [B({ id: 'c1', title: 'Agent task', date: '2026-08-12', startTime: '15:00' })],
       unscheduledTasks: [],
       recurringTasks: [],
+      recycleBin: [],
     };
     const r = handleMcpWrite(state, setters, {
       method: 'undo_mcp_writes',
@@ -134,9 +136,14 @@ describe('undo_mcp_writes', () => {
     expect(setters.setTasks).toHaveBeenCalledWith([]);
     expect(setters.setUnscheduledTasks).toHaveBeenCalledWith([]);
     expect(setters.setRecurringTasks).toHaveBeenCalledWith([]);
+    // The undone create lands in the recycle bin (cross-list sync fingerprint,
+    // and recoverable), never a bare vanish.
+    const [bin] = setters.setRecycleBin.mock.calls[0];
+    expect(bin).toHaveLength(1);
+    expect(bin[0]).toMatchObject({ id: 'c1', _deletedFrom: 'inbox' });
   });
 
-  it('restored tasks carry a fresh lastModified so sync propagates the undo', () => {
+  it('FIELD-UPDATE ops carry a fresh lastModified so LWW sync propagates them (remove_created is a bin move instead, tested in taskMutations)', () => {
     const setters = makeSetters();
     handleMcpWrite(
       { tasks: [B()], unscheduledTasks: [], recurringTasks: [] },

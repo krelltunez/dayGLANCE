@@ -208,6 +208,22 @@ export function applyResizeBlock(state, { blockId, durationMinutes, transitionId
  * GLANCEintents diff, and tray:data-changed all engage as for a UI edit.
  * Deliberately NOT pushed onto the user's undo stack (it IS the undo).
  *
+ * SYNC SHAPE, per op kind — the two halves fail differently and the guard
+ * in src/sync/snapshotDeleteGuard.js polices the difference:
+ *  - The four restore_* kinds are FIELD UPDATES stamped with a fresh
+ *    lastModified, so newest-write-wins carries the reversal fleet-wide.
+ *  - remove_created is a DELETION, and a bare array filter is exactly the
+ *    fingerprint-less vanish partitionSnapshotDeletes classifies as a
+ *    'glitch' and healGlitchSkips actively restores from the vault (the
+ *    undone task reappeared seconds later — the resurrection bug). So it is
+ *    a RECYCLE-BIN MOVE instead, the same cross-list shape as the UI's
+ *    moveToRecycleBin in useTaskActions.js, including the anti-zombie stamp
+ *    (deletedAt = lastModified = max(now, task.lastModified + 1s)). The bin
+ *    also keeps a whole-session undo itself recoverable, which a tombstone
+ *    would not. No MCP-provenance marker on the bin entry — the shape is
+ *    synced and consumed by undeleteTask on every device; a field nothing
+ *    displays is scope creep (deliberate skip, revisit on user demand).
+ *
  * Tolerant by design: a task the user deleted or edited away since the MCP
  * write is SKIPPED and counted, never an error — the user's own actions
  * outrank the reversal. _native can never appear here (every forward write
@@ -217,16 +233,36 @@ export function applyUndoOps(state, ops, { nowIso }) {
   let tasks = state.tasks ?? [];
   let unscheduled = state.unscheduledTasks ?? [];
   let recurring = state.recurringTasks ?? [];
+  let recycleBin = state.recycleBin ?? [];
   let undone = 0;
   let skipped = 0;
 
   for (const op of ops ?? []) {
     switch (op?.kind) {
       case 'remove_created': {
-        const before = tasks.length + unscheduled.length;
+        const inScheduled = tasks.find((t) => t.id === op.taskId);
+        const inInbox = unscheduled.find((t) => t.id === op.taskId);
+        const task = inInbox ?? inScheduled;
+        if (!task || task._native) { skipped += 1; break; }
+        const actuallyInInbox = !!inInbox && !inScheduled;
+        // The UI's anti-zombie stamp (useTaskActions.js moveToRecycleBin):
+        // strictly newer than the task's own lastModified, so the bin entry
+        // survives horizon pruning and wins the cross-list reconciliation.
+        const deletedStamp = new Date(
+          Math.max(Date.parse(nowIso), (task.lastModified ? Date.parse(task.lastModified) : 0) + 1000),
+        ).toISOString();
+        const binEntry = {
+          ...task,
+          _deletedFrom: actuallyInInbox ? 'inbox' : 'calendar',
+          deletedAt: deletedStamp,
+          lastModified: deletedStamp,
+        };
         tasks = tasks.filter((t) => t.id !== op.taskId);
         unscheduled = unscheduled.filter((t) => t.id !== op.taskId);
-        if (tasks.length + unscheduled.length < before) undone += 1; else skipped += 1;
+        if (!recycleBin.some((t) => t.id === op.taskId)) {
+          recycleBin = [...recycleBin, binEntry];
+        }
+        undone += 1;
         break;
       }
       case 'restore_unscheduled': {
@@ -284,7 +320,7 @@ export function applyUndoOps(state, ops, { nowIso }) {
     }
   }
 
-  return { ok: true, tasks, unscheduledTasks: unscheduled, recurringTasks: recurring, undone, skipped };
+  return { ok: true, tasks, unscheduledTasks: unscheduled, recurringTasks: recurring, recycleBin, undone, skipped };
 }
 
 export function applySetCompletion(state, { taskId, completed, transitionId, todayStr, nowIso }) {

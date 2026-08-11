@@ -270,12 +270,31 @@ describe('applyUndoOps — the §4.3 bulk undo (Phase 5b)', () => {
   const NOW2 = '2026-08-10T13:00:00.000Z';
   const run = (state, ops) => applyUndoOps(state, ops, { nowIso: NOW2 });
 
-  it('remove_created deletes the created task from either list', () => {
-    const state = { tasks: [T({ id: 's1' })], unscheduledTasks: [{ id: 'c1', title: 'Created' }] };
+  it('remove_created is a recycle-bin move (the UI delete shape), not a bare removal', () => {
+    const state = { tasks: [T({ id: 's1' })], unscheduledTasks: [{ id: 'c1', title: 'Created', lastModified: '2026-08-10T09:00:00.000Z' }], recycleBin: [] };
     const r = run(state, [{ kind: 'remove_created', taskId: 'c1' }]);
     expect(r.unscheduledTasks).toEqual([]);
+    expect(r.recycleBin).toHaveLength(1);
+    // The exact shape undeleteTask (useRecycleBin.js) consumes on restore:
+    // _deletedFrom routes the destination, deletedAt is stripped.
+    expect(r.recycleBin[0]).toMatchObject({
+      id: 'c1', title: 'Created', _deletedFrom: 'inbox', deletedAt: NOW2, lastModified: NOW2,
+    });
     expect(r.undone).toBe(1);
     expect(state.unscheduledTasks).toHaveLength(1); // pure: input untouched
+    expect(state.recycleBin).toEqual([]);
+  });
+
+  it('remove_created carries the anti-zombie stamp: strictly newer than the task lastModified', () => {
+    // A task whose lastModified IS the undo instant (stamped by an earlier op
+    // in the same pass) must get deletedAt = lastModified + 1s, exactly like
+    // moveToRecycleBin — a same-instant stamp would lose the cross-list
+    // reconciliation and resurrect (the zombie the UI comment describes).
+    const state = { tasks: [], unscheduledTasks: [{ id: 'c1', title: 'x', lastModified: NOW2 }], recycleBin: [] };
+    const r = run(state, [{ kind: 'remove_created', taskId: 'c1' }]);
+    const expected = new Date(Date.parse(NOW2) + 1000).toISOString();
+    expect(r.recycleBin[0].deletedAt).toBe(expected);
+    expect(r.recycleBin[0].lastModified).toBe(expected);
   });
 
   it('restore_unscheduled moves the block back to the inbox with the FULL before-task (priority/deadline survive)', () => {
@@ -324,9 +343,9 @@ describe('applyUndoOps — the §4.3 bulk undo (Phase 5b)', () => {
     expect(back.undone).toBe(1);
   });
 
-  it('a compound create→schedule→move history unwinds in reverse order to nothing', () => {
+  it('a compound create→schedule→move history unwinds in reverse order into the bin', () => {
     // Forward: created in inbox, scheduled to 08-10 09:00, moved to 08-12 15:00.
-    const state = { tasks: [T({ id: 'c1', title: 'Agent task', date: '2026-08-12', startTime: '15:00' })], unscheduledTasks: [] };
+    const state = { tasks: [T({ id: 'c1', title: 'Agent task', date: '2026-08-12', startTime: '15:00' })], unscheduledTasks: [], recycleBin: [] };
     const ops = [ // reverse chronological, as buildUndoPlan produces
       { kind: 'restore_block_fields', blockId: 'c1', before: { date: '2026-08-10', startTime: '09:00', isAllDay: false } },
       { kind: 'restore_unscheduled', taskId: 'c1', beforeTask: { id: 'c1', title: 'Agent task', priority: 0 } },
@@ -335,15 +354,24 @@ describe('applyUndoOps — the §4.3 bulk undo (Phase 5b)', () => {
     const r = run(state, ops);
     expect(r.tasks).toEqual([]);
     expect(r.unscheduledTasks).toEqual([]);
+    expect(r.recycleBin.map((t) => t.id)).toEqual(['c1']); // recoverable, and a sync fingerprint
     expect(r.undone).toBe(3);
     expect(r.skipped).toBe(0);
   });
 
-  it('remove_created also removes a created task the user later scheduled manually', () => {
-    const state = { tasks: [T({ id: 'c2', title: 'Created then dragged' })], unscheduledTasks: [] };
+  it('remove_created on a created task the user later scheduled manually bins it as a calendar delete', () => {
+    const state = { tasks: [T({ id: 'c2', title: 'Created then dragged' })], unscheduledTasks: [], recycleBin: [] };
     const r = run(state, [{ kind: 'remove_created', taskId: 'c2' }]);
     expect(r.tasks).toEqual([]);
+    expect(r.recycleBin[0]).toMatchObject({ id: 'c2', _deletedFrom: 'calendar' });
     expect(r.undone).toBe(1);
+  });
+
+  it('remove_created skips a task already gone (user deleted it) without touching the bin', () => {
+    const state = { tasks: [], unscheduledTasks: [], recycleBin: [{ id: 'c3', title: 'already binned' }] };
+    const r = run(state, [{ kind: 'remove_created', taskId: 'gone' }, { kind: 'remove_created', taskId: 'c3' }]);
+    expect(r.skipped).toBe(2); // missing entirely, and only-in-bin: nothing to move
+    expect(r.recycleBin).toHaveLength(1);
   });
 
   it('restore_unscheduled never duplicates a task already back in the inbox', () => {
@@ -354,6 +382,44 @@ describe('applyUndoOps — the §4.3 bulk undo (Phase 5b)', () => {
     const r = run(state, [{ kind: 'restore_unscheduled', taskId: 'u2', beforeTask: { id: 'u2', title: 'Dup risk' } }]);
     expect(r.unscheduledTasks.filter((t) => t.id === 'u2')).toHaveLength(1);
     expect(r.tasks).toEqual([]);
+  });
+
+  it('SYNC SHAPE: an undone create classifies as a cross-list move, never a glitch (the resurrection bug)', async () => {
+    // The property that was previously unasserted: the vault push guard
+    // (src/sync/snapshotDeleteGuard.js) must see the undone create as a
+    // legitimate delete. A bare filter leaves no fingerprint — no tombstone,
+    // no surviving copy under another kind — which the guard classifies as
+    // 'glitch', skips, and heals BACK from the vault: the undone task
+    // reappeared seconds later on any machine with GLANCEvault active.
+    const { partitionSnapshotDeletes } = await import('../sync/snapshotDeleteGuard.js');
+    const { TASK_KINDS } = await import('../sync/dbAdapter.js');
+
+    const state = { tasks: [], unscheduledTasks: [{ id: 'c1', title: 'Created', lastModified: NOW2 }], recycleBin: [] };
+    const r = run(state, [{ kind: 'remove_created', taskId: 'c1' }]);
+
+    // Shred the post-undo state the way the engine does: entityId = 'kind:id'
+    // per task-shaped kind (dbAdapter.js TASK_KINDS).
+    const slices = { tasks: r.tasks, unscheduledTasks: r.unscheduledTasks, recurringTasks: r.recurringTasks, recycleBin: r.recycleBin };
+    const cur = {};
+    for (const kind of TASK_KINDS) {
+      for (const t of slices[kind] ?? []) cur[`${kind}:${t.id}`] = '{}';
+    }
+
+    // The snapshot diff wants to delete the vanished inbox row; no tombstone
+    // bundles exist (mirror empty) — only the bin copy can legitimize it.
+    const verdict = partitionSnapshotDeletes(['unscheduledTasks:c1'], cur, {});
+    expect(verdict.reasons['unscheduledTasks:c1']).toBe('cross-list');
+    expect(verdict.propagate).toEqual(['unscheduledTasks:c1']);
+    expect(verdict.skipped).toEqual([]);
+
+    // Discriminating control: the OLD behavior (no bin entry) is exactly the
+    // fingerprint-less vanish the guard skips as a suspected glitch — this is
+    // what the fix exists to prevent, pinned so a regression cannot pass.
+    const curWithoutBin = { ...cur };
+    delete curWithoutBin['recycleBin:c1'];
+    const regression = partitionSnapshotDeletes(['unscheduledTasks:c1'], curWithoutBin, {});
+    expect(regression.reasons['unscheduledTasks:c1']).toBe('glitch');
+    expect(regression.skipped).toEqual(['unscheduledTasks:c1']);
   });
 
   it('tolerant: user-deleted tasks, _native targets, and unknown ops are skipped, never errors', () => {

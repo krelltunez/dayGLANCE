@@ -6816,6 +6816,9 @@ const DayPlanner = () => {
     tasks,
     recurringTasks,
     unscheduledTasks,
+    // Bulk undo moves undone creates to the recycle bin (the UI's own delete
+    // shape), so the undo path needs the current bin to append to.
+    recycleBin,
     goals,
     projects,
     isVisibleForUser,
@@ -6829,6 +6832,7 @@ const DayPlanner = () => {
     setTasks,
     setUnscheduledTasks,
     setRecurringTasks,
+    setRecycleBin,
   });
 
   useElectronBridge({
