@@ -23,7 +23,7 @@ export const PING_TIMEOUT_MS = 1000;
 export const REQUEST_TIMEOUT_MS = 3000;
 
 export type RendererResult =
-  | { ok: true; data: unknown }
+  | { ok: true; data: unknown; undo?: unknown }
   | { ok: false; error: { code: string; message: string } };
 
 const UNAVAILABLE: RendererResult = {
@@ -60,7 +60,7 @@ export function createRendererBridge(getMainWindow: () => BrowserWindow | null):
     const mw = getMainWindow();
     if (!mw || event.sender !== mw.webContents) return;
 
-    const response = raw as { id?: unknown; ok?: unknown; data?: unknown; error?: unknown };
+    const response = raw as { id?: unknown; ok?: unknown; data?: unknown; undo?: unknown; error?: unknown };
     if (typeof response?.id !== 'number') return;
     const entry = pending.get(response.id);
     if (!entry) return; // late reply after timeout — already answered unavailable
@@ -68,7 +68,9 @@ export function createRendererBridge(getMainWindow: () => BrowserWindow | null):
     clearTimeout(entry.timer);
 
     if (response.ok === true) {
-      entry.resolve({ ok: true, data: response.data });
+      // `undo` is the §4.3 journal descriptor for writes — main-process-only
+      // metadata, threaded alongside `data` so it never reaches tool output.
+      entry.resolve({ ok: true, data: response.data, ...(response.undo !== undefined ? { undo: response.undo } : {}) });
     } else {
       const err = (response.error ?? {}) as { code?: unknown; message?: unknown };
       entry.resolve({

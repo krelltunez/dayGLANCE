@@ -98,6 +98,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
   },
 
+  // §4.3 write journal — session-scoped record of MCP-originated mutations,
+  // owned by the main process; the tray popup displays it and can trigger
+  // the bulk undo (§6.5). Read-only from the renderer's perspective: entries
+  // are created only by the main process's write pipeline.
+  mcpJournal: {
+    get: (): Promise<unknown> => ipcRenderer.invoke('mcp-journal:get'),
+    undoAll: (): Promise<unknown> => ipcRenderer.invoke('mcp-journal:undo-all'),
+    onChanged: (callback: (snapshot: unknown) => void) => {
+      const handler = (_: Electron.IpcRendererEvent, snapshot: unknown) => callback(snapshot);
+      ipcRenderer.on('mcp-journal:changed', handler);
+      return () => ipcRenderer.removeListener('mcp-journal:changed', handler);
+    },
+  },
+
   // Show or clear the reminder dot (●) next to the tray icon.
   setTrayIndicator: (on: boolean) => ipcRenderer.send('tray:set-indicator', on),
 
