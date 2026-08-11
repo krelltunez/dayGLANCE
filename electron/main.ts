@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, net, protocol, Tray, Menu, nativeImage, nativeTheme, globalShortcut, session, screen } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, net, protocol, Tray, Menu, nativeImage, nativeTheme, globalShortcut, session, screen, Notification } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import dns from 'node:dns';
@@ -15,6 +15,9 @@ import { shouldQuitOnAllWindowsClosed } from './startupQuit.js';
 import { initStartupLog, logStartup } from './startupLog.js';
 import { startMcpServer } from './mcpServer.js';
 import { createRendererBridge } from './mcpRendererBridge.js';
+import { createWriteGate } from './mcpWriteGate.js';
+import { createIdempotencyStore } from './mcpIdempotency.js';
+import { trayReloadDebounceMs } from './trayReloadPolicy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -65,6 +68,10 @@ let didCreateMainWindow = false;
 let trayWindow: BrowserWindow | null = null;
 let trayNeedsReload = false;
 let trayReloadTimer: ReturnType<typeof setTimeout> | null = null;
+// Clock reading of the last MCP-originated write, for the §3.6 tray reload
+// policy (trayReloadPolicy.ts): while an agent is writing, the reload debounce
+// stretches so a write storm coalesces instead of reloading the popup per write.
+let lastMcpWriteAt: number | null = null;
 let registeredHotkey: string | null = null;
 let registeredMainWindowHotkey: string | null = null;
 
@@ -671,10 +678,13 @@ ipcMain.on('tray:data-changed', (event) => {
     trayNeedsReload = true;
   } else {
     if (trayReloadTimer) clearTimeout(trayReloadTimer);
+    // 500ms for user saves; stretched while MCP writes are recent, so an
+    // agent writing at the §4.3 rate limit coalesces to one reload after the
+    // storm instead of one per write. See electron/trayReloadPolicy.ts.
     trayReloadTimer = setTimeout(() => {
       trayReloadTimer = null;
       live(trayWindow)?.webContents.reload();
-    }, 500);
+    }, trayReloadDebounceMs(Date.now(), lastMcpWriteAt));
   }
 });
 
@@ -889,20 +899,47 @@ app.whenReady().then(async () => {
   // §10). Token comes from the environment for now; the discovery file is
   // Phase 6. Off means off: without the flag no port is bound at all.
   if (process.env['DAYGLANCE_MCP_DEV'] === '1') {
+    // Getter, not a reference: requests must target the CURRENT main
+    // window even if it is recreated (same posture as createWsServer).
+    const mcpBridge = createRendererBridge(() => live(mainWindow));
+    const mcpToken = process.env['DAYGLANCE_MCP_TOKEN'] ?? '';
+    // Resolved on the machine, never inferred from the client (§5.3).
+    const mcpTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
     startMcpServer({
-      token: process.env['DAYGLANCE_MCP_TOKEN'] ?? '',
+      token: mcpToken,
       portOverride: process.env['DAYGLANCE_MCP_PORT'],
       readDeps: {
-        // Getter, not a reference: requests must target the CURRENT main
-        // window even if it is recreated (same posture as createWsServer).
-        bridge: createRendererBridge(() => live(mainWindow)),
+        bridge: mcpBridge,
         now: Date.now,
-        // Resolved on the machine, never inferred from the client (§5.3).
-        timeZone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timeZone: mcpTimeZone,
         // Device-calendar consent tier (§6.3). Phase 2 source is an env var;
         // Phase 5 replaces this closure with the settings-backed tier and
         // nothing in the tool code changes.
         includeNativeEvents: () => process.env['DAYGLANCE_MCP_CALENDAR'] === '1',
+      },
+      writeDeps: {
+        bridge: mcpBridge,
+        gate: createWriteGate(),
+        store: createIdempotencyStore(),
+        token: () => mcpToken,
+        // Read-write consent tier (§6.3, second opt-in). Env-sourced now;
+        // Phase 5 swaps the source without touching tool code — same pattern
+        // as includeNativeEvents above.
+        includeWrites: () => process.env['DAYGLANCE_MCP_WRITES'] === '1',
+        noteMcpWrite: () => { lastMcpWriteAt = Date.now(); },
+        // §4.3: repeated rate-limit violations auto-disable writes with a
+        // notification. Fires exactly once, on the disable edge.
+        onWritesDisabled: () => {
+          console.error('[dayGLANCE] MCP writes auto-disabled after repeated rate-limit violations.');
+          if (Notification.isSupported()) {
+            new Notification({
+              title: 'dayGLANCE MCP writes disabled',
+              body: 'An MCP client repeatedly exceeded the write rate limit. Writes stay off until dayGLANCE restarts.',
+            }).show();
+          }
+        },
+        now: Date.now,
+        timeZone: mcpTimeZone,
       },
     });
   }
