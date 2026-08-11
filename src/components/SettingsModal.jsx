@@ -11,7 +11,8 @@ import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
 import { isNativeAndroid, nativeGetCalendars, nativeGetAutomationIntentsEnabled, nativeSetAutomationIntentsEnabled } from '../native.js';
 import { hasNativeCalendar, electronCalendarAvailable, electronGetCalendars } from '../utils/nativeCalendar.js';
-import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault } from '../obsidian.js';
+import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, formatDatePattern } from '../obsidian.js';
+import { validateDailyNotePattern, validateVaultFolderSetting } from '../utils/obsidianFilename.js';
 import { INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from '../intents/useIntentPoller.js';
 import { syncSharedUsers, syncSharedUsersViaICloud } from '../intents/sharedUsers.js';
 import { isAvailable as isICloudAvailable } from '../intents/icloudFileTransport.js';
@@ -71,7 +72,7 @@ const SettingsModal = () => {
     syncRetentionDays, setSyncRetentionDays,
     syncAll, isSyncing, calSyncLastSynced,
     availableCalendars, setAvailableCalendars, calendarFilter, setCalendarFilter,
-    obsidianConfig, setObsidianConfig, obsidianSyncStatus, obsidianLastSynced, setObsidianLastSynced,
+    obsidianConfig, setObsidianConfig, obsidianSyncStatus, obsidianSyncError, obsidianLastSynced, setObsidianLastSynced,
     obsidianVaultHandleRef,
     performObsidianSync,
     trmnlConfig, setTrmnlConfig, trmnlSyncStatus, trmnlLastSynced, performTrmnlSync,
@@ -1604,6 +1605,11 @@ const SettingsModal = () => {
                               onChange={(e) => setObsidianConfig(prev => ({ ...prev, newNotesFolder: e.target.value }))}
                               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                             />
+                            {validateVaultFolderSetting(obsidianConfig.newNotesFolder) && (
+                              <p className="text-xs text-red-500 mt-1">
+                                {validateVaultFolderSetting(obsidianConfig.newNotesFolder)}
+                              </p>
+                            )}
                             <p className={`text-xs ${textSecondary} mt-1`}>
                               Where new notes created in dayGLANCE are saved. Leave empty for vault root.
                             </p>
@@ -1619,6 +1625,11 @@ const SettingsModal = () => {
                               onChange={(e) => setObsidianConfig(prev => ({ ...prev, dailyNotePattern: e.target.value }))}
                               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                             />
+                            {validateDailyNotePattern(obsidianConfig.dailyNotePattern, formatDatePattern) && (
+                              <p className="text-xs text-red-500 mt-1">
+                                {validateDailyNotePattern(obsidianConfig.dailyNotePattern, formatDatePattern)}
+                              </p>
+                            )}
                             <p className={`text-xs ${textSecondary} mt-1`}>
                               Date pattern for daily note filenames (without .md). e.g. "yyyy-MM-dd", "dd-MM-yyyy", "MMMM dd, yyyy"
                             </p>
@@ -1682,7 +1693,7 @@ const SettingsModal = () => {
                             <p className={`text-xs text-green-500`}>{t('settings.obsidianSyncComplete')}</p>
                           )}
                           {obsidianSyncStatus === 'error' && (
-                            <p className={`text-xs text-red-500`}>{t('settings.obsidianSyncFailed')}</p>
+                            <p className={`text-xs text-red-500`}>{t('settings.obsidianSyncFailed')}{obsidianSyncError ? `: ${obsidianSyncError}` : ''}</p>
                           )}
                           {obsidianLastSynced && (
                             <p className={`text-xs ${textSecondary}`}>

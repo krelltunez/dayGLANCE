@@ -13,6 +13,11 @@
  */
 
 import { makeElectronVaultHandle } from './obsidianElectronHandle.js';
+import {
+  validateVaultNameSegment,
+  validateWikiNoteName,
+  validateVaultFolderSetting,
+} from './utils/obsidianFilename.js';
 
 // How far back the Obsidian daily-note scan reads, in days. DELIBERATELY FIXED and
 // decoupled from the calendar "Keep past events" retention (syncRetentionDays):
@@ -321,6 +326,22 @@ function dailyNoteFilename(dateStr, pattern) {
 }
 
 /**
+ * Write-side variant: validates the rendered stem before it becomes a new
+ * filename. A backstop for patterns saved before entry-time validation
+ * shipped (the Settings inputs are the primary check). Deliberately NOT
+ * applied on reads — files a legacy pattern already created must stay
+ * readable so existing daily notes keep syncing in.
+ */
+function dailyNoteFilenameForWrite(dateStr, pattern) {
+  const name = dailyNoteFilename(dateStr, pattern);
+  const reason = validateVaultNameSegment(name.slice(0, -3));
+  if (reason) {
+    throw new Error(`Obsidian: daily note pattern "${pattern}" renders an unusable filename — ${reason}. Fix the pattern in Settings → Obsidian.`);
+  }
+  return name;
+}
+
+/**
  * Read a single daily note markdown file. Returns the text or null.
  * @param {string} [pattern] DateTimeFormatter-style filename pattern (default "yyyy-MM-dd")
  */
@@ -343,7 +364,7 @@ async function readDailyNoteFile(dirHandle, dateStr, pattern) {
 export async function writeDailyNoteFile(vaultHandle, dailyNotesPath, dateStr, content, pattern) {
   assertSafeDateStr(dateStr);
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
-  const fileHandle = await dirHandle.getFileHandle(dailyNoteFilename(dateStr, pattern), { create: true });
+  const fileHandle = await dirHandle.getFileHandle(dailyNoteFilenameForWrite(dateStr, pattern), { create: true });
   const writable = await fileHandle.createWritable();
   await writable.write(content);
   await writable.close();
@@ -462,7 +483,7 @@ export async function appendTaskToDailyNote(vaultHandle, dailyNotesPath, dateStr
   const sorted = heading && heading.trim()
     ? sortTaskLinesInSection(lines, heading.trim(), dateStr)
     : lines;
-  const fileHandle = await dirHandle.getFileHandle(dailyNoteFilename(dateStr, pattern), { create: true });
+  const fileHandle = await dirHandle.getFileHandle(dailyNoteFilenameForWrite(dateStr, pattern), { create: true });
   const writable = await fileHandle.createWritable();
   await writable.write(sorted.join('\n'));
   await writable.close();
@@ -537,6 +558,16 @@ export async function writeWikiNote(vaultHandle, noteName, content, newNotesFold
     if (part === '..' || part === '.') {
       throw new Error(`Obsidian: unsafe path segment "${part}" in wiki note name`);
     }
+  }
+  // Portability gate (see utils/obsidianFilename.js): a name like "plans?" is
+  // perfectly creatable here on macOS/Linux — and by Obsidian itself there —
+  // but breaks the same vault when it syncs to Windows or Android. Refuse and
+  // let the caller surface it rather than plant a sync-breaking file.
+  {
+    const reason = validateWikiNoteName(noteName);
+    if (reason) throw new Error(`Obsidian: cannot create note "${noteName}" — ${reason}`);
+    const folderReason = validateVaultFolderSetting(newNotesFolder);
+    if (folderReason) throw new Error(`Obsidian: new-notes folder "${newNotesFolder}" is unusable — ${folderReason}. Fix it in Settings → Obsidian.`);
   }
   const mdFileName = `${parts[parts.length - 1]}.md`;
 

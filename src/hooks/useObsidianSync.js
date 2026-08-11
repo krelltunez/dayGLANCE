@@ -12,6 +12,7 @@ import {
   nativeGetVaultConfig, nativeGetNote, nativeWriteNote, nativeOpenNote,
   nativeListNotes, nativeSetVaultSettings,
 } from '../native.js';
+import { validateWikiNoteName } from '../utils/obsidianFilename.js';
 import { mergeObsidianDailyNotes } from '../utils/mergeObsidianDailyNotes.js';
 import { mergeObsidianTasks } from '../utils/mergeObsidianTasks.js';
 import { detectObsidianDeletions, addObsidianTombstones } from '../utils/obsidianDeletions.js';
@@ -64,6 +65,17 @@ export default function useObsidianSync({
     if (!handle) return;
     // Strip [[Note#Heading]] fragment for write path too
     const notePath = noteName.split('#')[0].trim();
+    // Refuse names that would break the vault on another synced platform
+    // (Windows/Android forbid characters that are legal here — see
+    // utils/obsidianFilename.js). Surfaced through the same visible sync-error
+    // state performObsidianSync uses; the old console.error was a silent write
+    // loss the user could never see.
+    const reason = validateWikiNoteName(notePath);
+    if (reason) {
+      setObsidianSyncError(`Note "${notePath}" was not written: ${reason}. Edit the [[wikilink]] in the task title.`);
+      setObsidianSyncStatus('error');
+      return;
+    }
     if (handle === 'native') {
       nativeWriteNote(notePath, content);
       return;
@@ -72,8 +84,10 @@ export default function useObsidianSync({
       await writeWikiNote(handle, notePath, content, obsidianConfig?.newNotesFolder ?? 'dayGLANCE');
     } catch (err) {
       console.error('Failed to write wiki note:', err);
+      setObsidianSyncError(err.message);
+      setObsidianSyncStatus('error');
     }
-  }, [obsidianConfig?.newNotesFolder, obsidianVaultHandleRef]);
+  }, [obsidianConfig?.newNotesFolder, obsidianVaultHandleRef, setObsidianSyncError, setObsidianSyncStatus]);
 
   // Opens a vault note in the Obsidian app (Android) or via obsidian:// URI (web/desktop).
   const openInObsidian = useCallback((noteName) => {

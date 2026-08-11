@@ -280,8 +280,10 @@ the dialog returns a security-scoped bookmark (persisted to
 `userData/obsidian-vault.json`, re-opened on launch via
 `app.startAccessingSecurityScopedResource`) because a restored FSA handle cannot
 re-establish sandbox access; unsandboxed builds read/write the picked path
-directly. Currently macOS-only: `obsidian:pick`/`obsidian:restore` return `null`
-on Windows/Linux.
+directly (Windows/Linux/dev-macOS). On non-macOS platforms `obsidian:restore`
+verifies the stored vault path still exists and is readable before restoring —
+there is no bookmark whose resolution would otherwise catch a moved or
+unmounted vault.
 
 ### Android (Storage Access Framework)
 

@@ -72,7 +72,6 @@ export function registerObsidianHandlers(): void {
   // Native folder picker. Returns { path, name } and persists the security-scoped
   // bookmark so access survives relaunch. null if the user cancels.
   ipcMain.handle('obsidian:pick', async (event) => {
-    if (process.platform !== 'darwin') return null;
     const opts = {
       properties: ['openDirectory', 'createDirectory'] as Array<'openDirectory' | 'createDirectory'>,
       securityScopedBookmarks: true,
@@ -91,12 +90,26 @@ export function registerObsidianHandlers(): void {
     return { path: dir, name: path.basename(dir) };
   });
 
-  // Re-open a previously-picked vault on launch. Resolves the stored bookmark and
-  // begins access. Returns { path, name } or null if nothing is configured.
+  // Re-open a previously-picked vault on launch. Resolves the stored bookmark
+  // (macOS) and begins access. Returns { path, name } or null if nothing is
+  // configured — null is the same signal the renderer already treats as
+  // "not connected", so the Settings UI falls back to the Select Vault button.
   ipcMain.handle('obsidian:restore', async () => {
-    if (process.platform !== 'darwin') return null;
     const cfg = loadConfig();
     if (!cfg) return null;
+    // Off-macOS there is no bookmark to fail at resolve time, so a vault on a
+    // removed drive, unmounted share, or remapped drive letter would restore
+    // "successfully" and then throw on the first fs call at write time.
+    // Check reachability here instead and fail the restore cleanly (config is
+    // kept, matching macOS stale-bookmark behavior — a re-pick overwrites it).
+    if (process.platform !== 'darwin') {
+      try {
+        fs.accessSync(cfg.path, fs.constants.R_OK);
+        if (!fs.statSync(cfg.path).isDirectory()) return null;
+      } catch {
+        return null;
+      }
+    }
     vaultBasePath = cfg.path;
     beginAccess(cfg.bookmark);
     return { path: cfg.path, name: path.basename(cfg.path) };
