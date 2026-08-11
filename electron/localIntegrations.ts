@@ -7,9 +7,12 @@
 // unconditionally enabled since it existed. Introducing an off-by-default
 // toggle would silently kill every existing user's buttons on auto-update —
 // no error, dead keys. So existing installs MIGRATE TO ON exactly once, and
-// the config file itself is the one-time flag: once it exists, migration
-// never runs again, so a user's later "off" can never be re-enabled by an
-// update. Fresh installs start with everything off.
+// a READABLE config file is the one-time flag: while one exists and parses,
+// migration never runs again, so a user's later "off" can never be
+// re-enabled by an update. A corrupt/unparseable file is NOT a choice the
+// user made — it is treated as absent and the migration re-runs against the
+// on-disk evidence (see interpretConfigFile). Fresh installs start with
+// everything off.
 
 export type McpReadTier = 'off' | 'dayglance' | 'dayglance_calendar';
 
@@ -74,6 +77,69 @@ export function decideStreamDeckMigration(input: {
 }): { migrate: false } | { migrate: true; enabled: boolean } {
   if (input.configFileExists) return { migrate: false };
   return { migrate: true, enabled: input.priorInstallEvidence };
+}
+
+/**
+ * Classify the on-disk config file's CONTENT (main.ts owns the reading).
+ *
+ * - null (file absent, or unreadable with the read error swallowed upstream
+ *   mapped to '') → 'absent'
+ * - JSON that parses to a plain object → 'valid', normalized tolerantly
+ * - anything else (parse failure, or JSON that is not an object — no user
+ *   ever wrote `42` as their integrations config) → 'corrupt'
+ *
+ * 'corrupt' exists because the two integrations must fail DIFFERENTLY (§6.2):
+ * MCP fails closed — nobody consented to a listener, so off is right. Stream
+ * Deck fails OPEN to the migration: it ran unconditionally before the toggle
+ * existed, so a user with a mangled config would otherwise lose their buttons
+ * silently, blamed on a file they have never heard of. A corrupt file is
+ * therefore treated as ABSENT (re-run the migration against the on-disk
+ * evidence), not as an all-off choice the user never made.
+ */
+export function interpretConfigFile(fileContent: string | null):
+  | { state: 'absent' }
+  | { state: 'corrupt' }
+  | { state: 'valid'; config: LocalIntegrationsConfig } {
+  if (fileContent === null) return { state: 'absent' };
+  try {
+    const parsed: unknown = JSON.parse(fileContent);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return { state: 'valid', config: normalizeConfig(parsed) };
+    }
+  } catch {
+    // fall through: unparseable is corrupt
+  }
+  return { state: 'corrupt' };
+}
+
+/**
+ * The whole startup decision, pure: file content in, config out.
+ *
+ * - 'use': a valid config file is the sole authority (the one-time §6.2 flag
+ *   working as designed — a deliberate "off" survives every update).
+ * - 'migrate': absent OR corrupt content re-runs the §6.2 migration against
+ *   the prior-install evidence. Upgrade evidence restores Stream Deck to ON;
+ *   MCP stays off either way, because the migration never enables it — a
+ *   fresh consent is the only path to a bound listener.
+ *
+ * `corrupt` tells main.ts to preserve the unreadable file (moved aside, never
+ * overwritten in place) and to log the recovery.
+ */
+export function recoverFromConfigFile(
+  fileContent: string | null,
+  priorInstallEvidence: boolean,
+): { action: 'use' | 'migrate'; config: LocalIntegrationsConfig; corrupt: boolean } {
+  const interpreted = interpretConfigFile(fileContent);
+  if (interpreted.state === 'valid') {
+    return { action: 'use', config: interpreted.config, corrupt: false };
+  }
+  const decision = decideStreamDeckMigration({ configFileExists: false, priorInstallEvidence });
+  const config = defaultConfig();
+  if (decision.migrate && decision.enabled) {
+    config.streamDeck.enabled = true;
+    config.streamDeck.migratedFromUnconditional = true;
+  }
+  return { action: 'migrate', config, corrupt: interpreted.state === 'corrupt' };
 }
 
 /** Tolerant load: anything malformed collapses to safe defaults (everything off). */

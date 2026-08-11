@@ -20,8 +20,7 @@ import { generateMcpToken } from './mcpAuth.js';
 import { resolveMcpPort, describeBindFailure, DEFAULT_MCP_PORT } from './mcpPort.js';
 import {
   defaultConfig as defaultIntegrationsConfig,
-  decideStreamDeckMigration,
-  normalizeConfig as normalizeIntegrationsConfig,
+  recoverFromConfigFile,
   mcpGates,
   applyTransition as applyIntegrationsTransition,
   listenerEffects,
@@ -862,19 +861,20 @@ function saveIntegrationsConfig(): void {
 // Stream Deck on for users who never had it (§6.2 inverted).
 function loadOrMigrateIntegrationsConfig(): void {
   const cfgPath = integrationsConfigPath();
+
+  // Read the file; every decision about the CONTENT is pure and tested
+  // (localIntegrations.ts). A file that exists but cannot be read maps to ''
+  // (unparseable), so it takes the same corrupt-recovery path below.
+  let fileContent: string | null = null;
   if (fs.existsSync(cfgPath)) {
-    // The file's existence is the one-time migration flag: once it exists it
-    // is the sole authority, so a user's deliberate "off" survives every
-    // subsequent update. Unreadable content fails toward all-off — it never
-    // re-runs the migration.
     try {
-      integrationsConfig = normalizeIntegrationsConfig(JSON.parse(fs.readFileSync(cfgPath, 'utf-8')));
+      fileContent = fs.readFileSync(cfgPath, 'utf-8');
     } catch (err) {
-      console.error('[dayGLANCE] Unreadable local-integrations config; using defaults (all off):', err);
-      integrationsConfig = defaultIntegrationsConfig();
+      console.error('[dayGLANCE] local-integrations config could not be read:', err);
+      fileContent = '';
     }
-    return;
   }
+
   // Any userData artifact only a previous RUN could have written. The startup
   // log is deliberately not usable here — initStartupLog() already created it
   // for THIS run at module load.
@@ -882,17 +882,34 @@ function loadOrMigrateIntegrationsConfig(): void {
     fs.existsSync(winStatePath()) ||
     fs.existsSync(WINDOW_THEME_FILE()) ||
     fs.existsSync(path.join(app.getPath('userData'), STORAGE_MIGRATION_FLAG));
-  const decision = decideStreamDeckMigration({ configFileExists: false, priorInstallEvidence });
-  integrationsConfig = defaultIntegrationsConfig();
-  if (decision.migrate && decision.enabled) {
-    // Upgrade: the Stream Deck listener shipped unconditionally before this
-    // config existed, so existing users keep it ON with no action needed.
-    integrationsConfig.streamDeck.enabled = true;
-    integrationsConfig.streamDeck.migratedFromUnconditional = true;
+
+  const result = recoverFromConfigFile(fileContent, priorInstallEvidence);
+  integrationsConfig = result.config;
+  if (result.action === 'use') return;
+
+  if (result.corrupt) {
+    // A corrupt file is not a choice the user made: MCP fails closed (the
+    // migration never enables it), but Stream Deck re-migrates from the
+    // evidence so existing users keep their buttons. Preserve the corrupt
+    // file rather than overwriting it in place — it is the only record of
+    // what the user actually had.
+    const asidePath = `${cfgPath}.corrupt`;
+    try {
+      fs.rmSync(asidePath, { force: true }); // Windows rename refuses to overwrite
+      fs.renameSync(cfgPath, asidePath);
+      logStartup('local integrations: config unreadable; preserved as local-integrations.json.corrupt');
+      console.error(
+        `[dayGLANCE] local-integrations.json was unreadable. It was preserved as ${asidePath} and the Stream Deck migration re-ran.`,
+      );
+    } catch (err) {
+      console.error('[dayGLANCE] Failed to move the corrupt local-integrations config aside:', err);
+    }
   }
+
   saveIntegrationsConfig();
   logStartup(
-    `local integrations: config created (streamDeck ${integrationsConfig.streamDeck.enabled ? 'ON — upgrade migration' : 'off — fresh install'})`,
+    `local integrations: config ${result.corrupt ? 'recovered from corrupt file' : 'created'} ` +
+    `(streamDeck ${integrationsConfig.streamDeck.enabled ? 'ON — upgrade migration' : 'off — fresh install'})`,
   );
 }
 
