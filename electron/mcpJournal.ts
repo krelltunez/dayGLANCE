@@ -102,8 +102,8 @@ export function mcpIndicator(gates: { bound: boolean; includeNative: boolean; in
 } {
   if (!gates.bound) return { glyph: '', label: 'MCP server off' };
   const reads = gates.includeNative ? 'reads incl. device calendar' : 'reads dayGLANCE data';
-  if (gates.includeWrites) return { glyph: '⚡', label: `MCP on — ${reads} + writes` };
-  return { glyph: '⌁', label: `MCP on — ${reads}` };
+  if (gates.includeWrites) return { glyph: '⚡', label: `MCP on: ${reads} + writes` };
+  return { glyph: '⌁', label: `MCP on: ${reads}` };
 }
 
 /**

@@ -82,17 +82,17 @@ describe('mcpIndicator — §6.5 tier mapping', () => {
 
   it('reads-only tiers → ⌁, with the tier named', () => {
     expect(mcpIndicator({ bound: true, includeNative: false, includeWrites: false }))
-      .toEqual({ glyph: '⌁', label: 'MCP on — reads dayGLANCE data' });
+      .toEqual({ glyph: '⌁', label: 'MCP on: reads dayGLANCE data' });
     expect(mcpIndicator({ bound: true, includeNative: true, includeWrites: false }))
-      .toEqual({ glyph: '⌁', label: 'MCP on — reads incl. device calendar' });
+      .toEqual({ glyph: '⌁', label: 'MCP on: reads incl. device calendar' });
   });
 
   it('writes tier → distinct glyph ⚡ and "+ writes" in the label', () => {
     const ind = mcpIndicator({ bound: true, includeNative: false, includeWrites: true });
     expect(ind.glyph).toBe('⚡');
-    expect(ind.label).toBe('MCP on — reads dayGLANCE data + writes');
+    expect(ind.label).toBe('MCP on: reads dayGLANCE data + writes');
     expect(mcpIndicator({ bound: true, includeNative: true, includeWrites: true }).label)
-      .toBe('MCP on — reads incl. device calendar + writes');
+      .toBe('MCP on: reads incl. device calendar + writes');
   });
 
   it('the glyphs are distinct from the reminder dot', () => {
