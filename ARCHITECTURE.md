@@ -258,7 +258,7 @@ On **Android**, the native `HttpBridge` makes HTTP requests directly from Kotlin
 
 Obsidian tasks are treated as a **read source**: dayGLANCE imports tasks from daily notes and writes completion state back, but the vault is never the authoritative store. The app owns scheduling.
 
-### Desktop (File System Access API)
+### Desktop browser / PWA (File System Access API)
 
 The user picks their vault root with `window.showDirectoryPicker()`. The directory handle is persisted in IndexedDB so permission only needs to be granted once per session.
 
@@ -269,6 +269,19 @@ User picks vault root
   → file.text() → parse markdown
   → write back: fileHandle.createWritable() → write(content)
 ```
+
+### Electron (main-process vault access)
+
+All Electron builds (dev, Developer ID, MAS) bypass the renderer's FSA path: the
+folder is picked with the native dialog and all file I/O runs in the main process
+(`electron/obsidian.ts`), which the renderer drives through an FSA-shaped shim
+(`src/obsidianElectronHandle.js`) so the sync logic above runs unchanged. On MAS
+the dialog returns a security-scoped bookmark (persisted to
+`userData/obsidian-vault.json`, re-opened on launch via
+`app.startAccessingSecurityScopedResource`) because a restored FSA handle cannot
+re-establish sandbox access; unsandboxed builds read/write the picked path
+directly. Currently macOS-only: `obsidian:pick`/`obsidian:restore` return `null`
+on Windows/Linux.
 
 ### Android (Storage Access Framework)
 

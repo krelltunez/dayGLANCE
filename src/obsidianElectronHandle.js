@@ -6,10 +6,12 @@
  * createWritable().write()/.close(), and NotFoundError semantics), backed by the
  * Electron main process via window.electronAPI.obsidian.*.
  *
- * This lets all of obsidian.js's proven markdown/sync logic run unchanged on the
- * Mac App Store build, where the vault folder is accessed in the main process
- * through a security-scoped bookmark (the renderer's own FS Access handle can't
- * persist across relaunch under the sandbox).
+ * This lets all of obsidian.js's proven markdown/sync logic run unchanged on
+ * EVERY Electron build (dev, Developer ID, and MAS — see the unification note
+ * in src/obsidian.js), where the vault folder is accessed in the main process.
+ * The security-scoped bookmark half of that path is MAS-specific: under the
+ * sandbox the renderer's own FS Access handle can't persist across relaunch,
+ * while the unsandboxed builds simply read/write the picked path directly.
  */
 
 function notFoundError() {

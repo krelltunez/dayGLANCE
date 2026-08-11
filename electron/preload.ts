@@ -4,9 +4,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
   platform: process.platform,
   // True only in the Mac App Store (sandboxed) build. Electron sets process.mas
-  // for the `mas` target. Used to gate sandbox-only behavior (e.g. Obsidian vault
-  // access via the main process) so the unsandboxed Developer ID / dev build keeps
-  // its proven File System Access path unchanged.
+  // for the `mas` target. Used to suppress behavior App Store review disallows —
+  // today that is the GitHub-releases update check (App.jsx) and its update
+  // banner (SettingsModal.jsx). NOTE: it does NOT gate Obsidian vault access.
+  // ALL Electron builds (dev, Developer ID, MAS) route the vault through the
+  // main process; the renderer keys that solely on the presence of
+  // window.electronAPI.obsidian, exposed unconditionally below. Only the
+  // security-scoped-bookmark half of that path is MAS-specific, and it is
+  // handled inside electron/obsidian.ts, not gated here.
   isMAS: process.mas === true,
 
   // Renderer pushes app state to connected WebSocket clients (e.g. Stream Deck plugin)
