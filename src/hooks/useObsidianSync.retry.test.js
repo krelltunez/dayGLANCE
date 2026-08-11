@@ -44,7 +44,7 @@ vi.mock('../native.js', () => ({
 
 const { default: useObsidianSync } = await import('./useObsidianSync.js');
 
-function mountHook() {
+function useMountedObsidianSync() {
   effects.length = 0;
   const obsidianVaultHandleRef = { current: null };
   const setObsidianSyncStatus = vi.fn();
@@ -87,7 +87,7 @@ beforeEach(() => {
 
 describe('restore retry — poll and visibility ticks are not gated on a handle', () => {
   it('failed restore, then vault reachable: the next poll tick reconnects without user action', async () => {
-    const { obsidianVaultHandleRef, interval } = mountHook();
+    const { obsidianVaultHandleRef, interval } = useMountedObsidianSync();
     expect(interval.cb).toBeTypeOf('function');
 
     // Vault still unreachable: tick retries restore, stays disconnected, silently.
@@ -104,7 +104,7 @@ describe('restore retry — poll and visibility ticks are not gated on a handle'
   });
 
   it('visibility-change tick does the same', async () => {
-    const { obsidianVaultHandleRef, listeners } = mountHook();
+    const { obsidianVaultHandleRef, listeners } = useMountedObsidianSync();
     expect(listeners.visibilitychange).toBeTypeOf('function');
 
     const handle = { kind: 'directory', name: 'Vault' };
@@ -115,7 +115,7 @@ describe('restore retry — poll and visibility ticks are not gated on a handle'
   });
 
   it('a genuinely missing vault costs one silent attempt per tick — no error state, no loop', async () => {
-    const { obsidianVaultHandleRef, interval, setObsidianSyncStatus } = mountHook();
+    const { obsidianVaultHandleRef, interval, setObsidianSyncStatus } = useMountedObsidianSync();
     getVaultAccess.mockResolvedValue(null);
     await interval.cb();
     await interval.cb();
