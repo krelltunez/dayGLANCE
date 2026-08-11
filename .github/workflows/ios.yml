@@ -1,0 +1,91 @@
+name: iOS build
+
+# Verifies the iOS app, widget, and Share Extension still compile after web or
+# native changes. Build-only: no code signing, no device/simulator run, no
+# upload — just a "does Xcode still accept this" gate, since the iOS targets
+# have no other CI coverage (ci.yml is Linux-only and never touches Swift).
+#
+# Runs on macOS (Xcode is macOS-only). Scoped to changes that can affect the iOS
+# build so ordinary web-only PRs don't spend a macOS runner. Note the Xcode
+# project is NOT committed — XcodeGen generates it from dayglance-ios/project.yml
+# on every run, so this builds exactly what that file declares.
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'dayglance-ios/**'
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ios.js'
+      - 'scripts/gen-ios-project.sh'
+      - '.github/workflows/ios.yml'
+  pull_request:
+    paths:
+      - 'dayglance-ios/**'
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ios.js'
+      - 'scripts/gen-ios-project.sh'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    # macos-15 for a recent Xcode: DayGlanceWidget targets iOS 17.0, above the
+    # app's and the Share Extension's 16.0.
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # npm run ios = build:ios (vite → dayglance-ios/DayGlance/Resources/web)
+      # then ios:generate (scripts/gen-ios-project.sh → DayGlance.xcodeproj).
+      # BUILD_NUMBER is pinned so CI doesn't depend on the wall clock.
+      - name: Build web assets and generate Xcode project
+        run: npm run ios
+        env:
+          BUILD_NUMBER: '0.0'
+
+      # The project's Copy Web Assets phase only *errors* on a Release build; on
+      # Debug it just warns. Without this check a green Debug build could still
+      # be packaging an app with no web content at all.
+      - name: Verify web assets were produced
+        run: |
+          ASSETS="dayglance-ios/DayGlance/Resources/web/index.html"
+          if [ ! -f "$ASSETS" ]; then
+            echo "::error::Web assets missing at $ASSETS — 'npm run build:ios' produced no index.html."
+            exit 1
+          fi
+          echo "Web assets present: $ASSETS"
+
+      # One scheme covers all three targets: project.yml declares DayGlance with
+      # `targets: DayGlance: all`, and the widget and Share Extension are embedded
+      # dependencies of the app.
+      - name: Build iOS app (no signing)
+        run: |
+          xcodebuild build \
+            -project dayglance-ios/DayGlance.xcodeproj \
+            -scheme DayGlance \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO

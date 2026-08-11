@@ -69,8 +69,20 @@ final class WidgetBridge {
     func getPendingShares() -> String {
         guard let defaults = UserDefaults(suiteName: Self.appGroup) else { return "[]" }
         let items = defaults.stringArray(forKey: "shareExtensionPending") ?? []
+        guard !items.isEmpty else { return "[]" }
+
+        // Encode with JSONSerialization, never string concatenation. This used to
+        // hand-build the array escaping only \ and ", which leaves control
+        // characters raw — and shared text routinely contains newlines (a shared
+        // paragraph) or tabs. A raw newline inside a JSON string literal is
+        // invalid, so JSON.parse threw on the web side and the entire batch was
+        // discarded, taking any well-formed shares queued alongside it.
+        guard let data = try? JSONSerialization.data(withJSONObject: items),
+              let json = String(data: data, encoding: .utf8) else { return "[]" }
+
+        // Clear only once the payload is safely encoded: bailing out above leaves
+        // the queue intact for the next attempt instead of dropping it.
         defaults.removeObject(forKey: "shareExtensionPending")
-        let json = items.map { "\"\($0.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\"" }.joined(separator: ",")
-        return "[\(json)]"
+        return json
     }
 }
