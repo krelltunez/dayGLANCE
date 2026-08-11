@@ -205,9 +205,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('tray:focus-quick-add', handler);
   },
 
-  // Obsidian vault (macOS) — folder access held by the main process via a
-  // security-scoped bookmark so it survives relaunch under the App Sandbox. The
-  // renderer drives file I/O through the shim in src/obsidianElectronHandle.js.
+  // Obsidian vault — folder access held by the main process on every desktop
+  // platform. On macOS a security-scoped bookmark keeps it alive across
+  // relaunch under the App Sandbox; on Windows/Linux a plain persisted path is
+  // used and restore verifies it is still reachable. The renderer drives file
+  // I/O through the shim in src/obsidianElectronHandle.js.
   obsidian: {
     pick: (): Promise<{ path: string; name: string } | null> => ipcRenderer.invoke('obsidian:pick'),
     restore: (): Promise<{ path: string; name: string } | null> => ipcRenderer.invoke('obsidian:restore'),

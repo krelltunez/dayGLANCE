@@ -12,6 +12,7 @@ import {
   nativeGetVaultConfig, nativeGetNote, nativeWriteNote, nativeOpenNote,
   nativeListNotes, nativeSetVaultSettings,
 } from '../native.js';
+import { validateWikiNoteName } from '../utils/obsidianFilename.js';
 import { mergeObsidianDailyNotes } from '../utils/mergeObsidianDailyNotes.js';
 import { mergeObsidianTasks } from '../utils/mergeObsidianTasks.js';
 import { detectObsidianDeletions, addObsidianTombstones } from '../utils/obsidianDeletions.js';
@@ -64,7 +65,24 @@ export default function useObsidianSync({
     if (!handle) return;
     // Strip [[Note#Heading]] fragment for write path too
     const notePath = noteName.split('#')[0].trim();
+    // Portability gate on CREATION ONLY (see writeWikiNote): the existence
+    // check runs before the validator, so a note that already exists is
+    // written whatever its name — the harm is in creating NEW unportable
+    // names, and refusing writes to existing files would strand the task in a
+    // permanent error state. Refusals surface through the same visible
+    // sync-error state performObsidianSync uses; the old console.error was a
+    // silent write loss the user could never see.
     if (handle === 'native') {
+      // Android: same ordering — only validate when the note doesn't exist yet.
+      const existing = await Promise.resolve(nativeGetNote(notePath)).catch(() => null);
+      if (!existing) {
+        const reason = validateWikiNoteName(notePath);
+        if (reason) {
+          setObsidianSyncError(`Note "${notePath}" was not written: ${reason}. Edit the [[wikilink]] in the task title.`);
+          setObsidianSyncStatus('error');
+          return;
+        }
+      }
       nativeWriteNote(notePath, content);
       return;
     }
@@ -72,8 +90,12 @@ export default function useObsidianSync({
       await writeWikiNote(handle, notePath, content, obsidianConfig?.newNotesFolder ?? 'dayGLANCE');
     } catch (err) {
       console.error('Failed to write wiki note:', err);
+      setObsidianSyncError(err.code === 'unportable_name' && err.reason
+        ? `Note "${notePath}" was not written: ${err.reason}. Edit the [[wikilink]] in the task title.`
+        : err.message);
+      setObsidianSyncStatus('error');
     }
-  }, [obsidianConfig?.newNotesFolder, obsidianVaultHandleRef]);
+  }, [obsidianConfig?.newNotesFolder, obsidianVaultHandleRef, setObsidianSyncError, setObsidianSyncStatus]);
 
   // Opens a vault note in the Obsidian app (Android) or via obsidian:// URI (web/desktop).
   const openInObsidian = useCallback((noteName) => {
@@ -117,10 +139,16 @@ export default function useObsidianSync({
   // Obsidian vault sync — reads daily notes + imports tasks
   const performObsidianSync = async () => {
     if (obsidianSyncInProgressRef.current) return;
-    // If the vault handle was lost (e.g. permission expired after page reload),
-    // try to re-acquire it. When called from a button click this will trigger
-    // the browser's requestPermission prompt. When called from a timer/visibility
-    // event without a user gesture it will silently return null and we skip.
+    // No vault handle — a failed startup restore (unmounted drive, sleeping
+    // network share, stale macOS bookmark) or an expired browser permission.
+    // Re-acquire it here: this runs on EVERY sync trigger — the 5-minute poll,
+    // the visibility-change handler (neither is gated on a handle anymore),
+    // and the manual Sync Now button — so a vault that comes back reachable
+    // reconnects on the next tick without user action. On Electron this is one
+    // obsidian:restore IPC ending in one fs access check; in the browser, a
+    // button click can prompt for permission, while a timer/visibility caller
+    // without a user gesture silently gets null. Null → skip, silently: a
+    // still-missing vault must not produce an error state once per poll.
     if (!obsidianVaultHandleRef.current) {
       try {
         const handle = await getVaultAccess();
@@ -330,9 +358,10 @@ export default function useObsidianSync({
         } catch {}
         return;
       }
-      if (obsidianVaultHandleRef.current) {
-        performObsidianSync();
-      }
+      // Deliberately NOT gated on a connected handle: performObsidianSync
+      // re-acquires a lost one itself (see its null-handle branch), so a vault
+      // that failed restore at startup reconnects when the user comes back.
+      performObsidianSync();
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
@@ -344,8 +373,12 @@ export default function useObsidianSync({
   // Obsidian sync: poll every 5 minutes while open
   useEffect(() => {
     if (isTrayMode || !obsidianConfig?.enabled) return;
+    // Deliberately NOT gated on a connected handle — same reason as the
+    // visibility handler above: the poll is also the retry path for a vault
+    // on a slow-mounting drive or network share. A still-missing vault costs
+    // one silent restore attempt per tick and produces no error state.
     const timer = setInterval(() => {
-      if (obsidianVaultHandleRef.current) performObsidianSync();
+      performObsidianSync();
     }, 5 * 60 * 1000);
     return () => clearInterval(timer);
     // performObsidianSync is read at call time; the poll is keyed on enabled,

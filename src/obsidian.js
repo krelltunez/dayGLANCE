@@ -13,6 +13,11 @@
  */
 
 import { makeElectronVaultHandle } from './obsidianElectronHandle.js';
+import {
+  validateVaultNameSegment,
+  validateWikiNoteName,
+  validateVaultFolderSetting,
+} from './utils/obsidianFilename.js';
 
 // How far back the Obsidian daily-note scan reads, in days. DELIBERATELY FIXED and
 // decoupled from the calendar "Keep past events" retention (syncRetentionDays):
@@ -321,6 +326,31 @@ function dailyNoteFilename(dateStr, pattern) {
 }
 
 /**
+ * Write-side file-handle resolution with the portability gate on CREATION
+ * ONLY. ORDERING IS THE POINT: the existence check runs BEFORE the validator.
+ * A daily note that already exists gets written regardless of its name — the
+ * portability harm is entirely in bringing a NEW unportable name into being;
+ * a file already in the vault is already there whether or not we write to it,
+ * and refusing would strand sync in a permanent error state. The validator
+ * (backstop for patterns saved before entry-time validation shipped — the
+ * Settings inputs are the primary check) gates only the create branch.
+ * Reads never validate, so legacy-named files always stay readable.
+ */
+async function getDailyNoteHandleForWrite(dirHandle, dateStr, pattern) {
+  const name = dailyNoteFilename(dateStr, pattern);
+  try {
+    return await dirHandle.getFileHandle(name); // exists → write proceeds, name notwithstanding
+  } catch (err) {
+    if (err.name !== 'NotFoundError') throw err;
+  }
+  const reason = validateVaultNameSegment(name.slice(0, -3));
+  if (reason) {
+    throw new Error(`Obsidian: daily note pattern "${pattern}" renders an unusable filename — ${reason}. Fix the pattern in Settings → Obsidian.`);
+  }
+  return dirHandle.getFileHandle(name, { create: true });
+}
+
+/**
  * Read a single daily note markdown file. Returns the text or null.
  * @param {string} [pattern] DateTimeFormatter-style filename pattern (default "yyyy-MM-dd")
  */
@@ -343,7 +373,7 @@ async function readDailyNoteFile(dirHandle, dateStr, pattern) {
 export async function writeDailyNoteFile(vaultHandle, dailyNotesPath, dateStr, content, pattern) {
   assertSafeDateStr(dateStr);
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
-  const fileHandle = await dirHandle.getFileHandle(dailyNoteFilename(dateStr, pattern), { create: true });
+  const fileHandle = await getDailyNoteHandleForWrite(dirHandle, dateStr, pattern);
   const writable = await fileHandle.createWritable();
   await writable.write(content);
   await writable.close();
@@ -462,7 +492,7 @@ export async function appendTaskToDailyNote(vaultHandle, dailyNotesPath, dateStr
   const sorted = heading && heading.trim()
     ? sortTaskLinesInSection(lines, heading.trim(), dateStr)
     : lines;
-  const fileHandle = await dirHandle.getFileHandle(dailyNoteFilename(dateStr, pattern), { create: true });
+  const fileHandle = await getDailyNoteHandleForWrite(dirHandle, dateStr, pattern);
   const writable = await fileHandle.createWritable();
   await writable.write(sorted.join('\n'));
   await writable.close();
@@ -540,27 +570,63 @@ export async function writeWikiNote(vaultHandle, noteName, content, newNotesFold
   }
   const mdFileName = `${parts[parts.length - 1]}.md`;
 
-  let fileHandle;
+  // ORDERING IS THE POINT: existence check BEFORE the portability gate.
+  // The portability harm is entirely in bringing a NEW unportable name into
+  // being — a file already sitting in the vault is already affecting sync
+  // whether or not we write to it again, and refusing the write would strand
+  // the task in a permanent error state whose only remedy breaks its link to
+  // a note that visibly exists. So: exists → write, name notwithstanding;
+  // missing → validate before creating (see utils/obsidianFilename.js — a
+  // name like "plans?" is creatable here on macOS/Linux, and by Obsidian
+  // itself there, but breaks the same vault on Windows/Android).
+  let fileHandle = null;
   if (parts.length > 1) {
-    // Explicit path — create dirs as needed
+    // Explicit path — probe WITHOUT create
     let dir = vaultHandle;
+    let dirsExist = true;
     for (const part of parts.slice(0, -1)) {
-      dir = await dir.getDirectoryHandle(part, { create: true });
+      try { dir = await dir.getDirectoryHandle(part); }
+      catch (err) { if (err.name === 'NotFoundError') { dirsExist = false; break; } throw err; }
     }
-    fileHandle = await dir.getFileHandle(mdFileName, { create: true });
+    if (dirsExist) {
+      try { fileHandle = await dir.getFileHandle(mdFileName); }
+      catch (err) { if (err.name !== 'NotFoundError') throw err; }
+    }
   } else {
-    // Bare name — write to existing location, or create in newNotesFolder (or vault root)
-    fileHandle = await findFileHandleInDir(vaultHandle, mdFileName)
-      ?? await (async () => {
-        if (newNotesFolder) {
-          let dir = vaultHandle;
-          for (const segment of newNotesFolder.split('/').filter(Boolean)) {
-            dir = await dir.getDirectoryHandle(segment, { create: true });
-          }
-          return dir.getFileHandle(mdFileName, { create: true });
-        }
-        return vaultHandle.getFileHandle(mdFileName, { create: true });
-      })();
+    // Bare name — an existing note anywhere in the vault is written in place
+    fileHandle = await findFileHandleInDir(vaultHandle, mdFileName);
+  }
+
+  if (!fileHandle) {
+    // CREATION ONLY: the portability gate.
+    const reason = validateWikiNoteName(noteName);
+    if (reason) {
+      const err = new Error(`Obsidian: cannot create note "${noteName}" — ${reason}`);
+      err.code = 'unportable_name';
+      err.reason = reason; // callers compose user-facing copy from the bare reason
+      throw err;
+    }
+    if (parts.length > 1) {
+      let dir = vaultHandle;
+      for (const part of parts.slice(0, -1)) {
+        dir = await dir.getDirectoryHandle(part, { create: true });
+      }
+      fileHandle = await dir.getFileHandle(mdFileName, { create: true });
+    } else if (newNotesFolder) {
+      const folderReason = validateVaultFolderSetting(newNotesFolder);
+      if (folderReason) {
+        const err = new Error(`Obsidian: new-notes folder "${newNotesFolder}" is unusable — ${folderReason}. Fix it in Settings → Obsidian.`);
+        err.code = 'unportable_name';
+        throw err;
+      }
+      let dir = vaultHandle;
+      for (const segment of newNotesFolder.split('/').filter(Boolean)) {
+        dir = await dir.getDirectoryHandle(segment, { create: true });
+      }
+      fileHandle = await dir.getFileHandle(mdFileName, { create: true });
+    } else {
+      fileHandle = await vaultHandle.getFileHandle(mdFileName, { create: true });
+    }
   }
 
   const writable = await fileHandle.createWritable();
