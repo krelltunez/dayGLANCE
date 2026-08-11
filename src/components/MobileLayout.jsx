@@ -29,7 +29,6 @@ import FrameNudgeCard from './FrameNudgeCard.jsx';
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
 import MobileTabBar from './MobileTabBar.jsx';
 import MobileSettingsPanel from './MobileSettingsPanel.jsx';
-import TrayMcpStatus from './TrayMcpStatus.jsx';
 import GoalDashboard from './goals/GoalDashboard.jsx';
 import MobileTimeGrid from './MobileTimeGrid.jsx';
 import SummaryStrip from './SummaryStrip.jsx';
@@ -483,8 +482,6 @@ const MobileLayout = () => {
         <>
           {/* Mobile Layout */}
           <div className="mobile-timeline-layout" style={isNativeAndroid() ? { height: 'calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px))' } : undefined}>
-            {/* §6.5 MCP status strip — tray popup only, renders null elsewhere */}
-            <TrayMcpStatus />
             {/* Mobile Header */}
             {mobileActiveTab === 'timeline' && (
               <div className={`${cardBg} border-b ${borderClass} flex-shrink-0 relative ${showMonthView ? 'z-50' : 'z-30'}`}>
