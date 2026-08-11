@@ -989,7 +989,7 @@ function startMcpListener(): void {
   });
   if (!srv) {
     // startMcpServer already logged why; mirror it into settings.
-    mcpStatus = { running: false, error: 'MCP server could not start — see the startup log for details.' };
+    mcpStatus = { running: false, error: 'MCP server could not start. See the startup log for details.' };
     pushIntegrationsStatus();
     return;
   }

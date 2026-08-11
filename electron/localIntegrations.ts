@@ -206,7 +206,7 @@ export function applyTransition(
 
     case 'rotate-token': {
       if (config.mcp.token === null) {
-        return { ok: false, error: 'No token to rotate — enable MCP first' };
+        return { ok: false, error: 'No token to rotate; enable MCP first' };
       }
       next.mcp.token = deps.generateToken();
       return { ok: true, config: next };

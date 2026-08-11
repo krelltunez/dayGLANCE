@@ -67,7 +67,7 @@ export function resolveMcpPort(override: unknown): PortResolution {
 export function describeBindFailure(port: number, err: { code?: string; message?: string }): string {
   if (err.code === 'EADDRINUSE') {
     return `MCP server could not start: port ${port} is already in use by another process. ` +
-      'Pick a different port explicitly — dayGLANCE will not scan for a free one, because ' +
+      'Pick a different port explicitly; dayGLANCE will not scan for a free one, because ' +
       'configured MCP clients point at a fixed port.';
   }
   if (err.code === 'EACCES') {
