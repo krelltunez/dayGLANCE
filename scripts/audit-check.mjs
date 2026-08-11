@@ -31,6 +31,14 @@ const ACK = {
   // SDK only imports getRequestListener (verified compatible across the major;
   // the vulnerable serve-static subpath was never even loaded), so drop the
   // override when @modelcontextprotocol/node's own range moves to ^2.
+  //
+  // RUNTIME COROLLARY of that override: @hono/node-server 2.x imports
+  // "hono/ws" at module load, and hono is only its PEER dependency — npm
+  // installs it in dev, but electron-builder's production-dependency walker
+  // does not collect peer-installed packages into app.asar, which crashed
+  // every packaged build at startup (ERR_MODULE_NOT_FOUND: hono). That is why
+  // "hono" is a DIRECT dependency in package.json — do not remove it as
+  // unused while the override keeps @hono/node-server on 2.x.
   'GHSA-fx2h-pf6j-xcff': {
     disposition: 'defer', pkg: 'vite',
     reason: 'Dev-server `server.fs.deny` bypass (Windows only). Fix with the vite 5->8 upgrade.',
