@@ -65,18 +65,24 @@ export default function useObsidianSync({
     if (!handle) return;
     // Strip [[Note#Heading]] fragment for write path too
     const notePath = noteName.split('#')[0].trim();
-    // Refuse names that would break the vault on another synced platform
-    // (Windows/Android forbid characters that are legal here — see
-    // utils/obsidianFilename.js). Surfaced through the same visible sync-error
-    // state performObsidianSync uses; the old console.error was a silent write
-    // loss the user could never see.
-    const reason = validateWikiNoteName(notePath);
-    if (reason) {
-      setObsidianSyncError(`Note "${notePath}" was not written: ${reason}. Edit the [[wikilink]] in the task title.`);
-      setObsidianSyncStatus('error');
-      return;
-    }
+    // Portability gate on CREATION ONLY (see writeWikiNote): the existence
+    // check runs before the validator, so a note that already exists is
+    // written whatever its name — the harm is in creating NEW unportable
+    // names, and refusing writes to existing files would strand the task in a
+    // permanent error state. Refusals surface through the same visible
+    // sync-error state performObsidianSync uses; the old console.error was a
+    // silent write loss the user could never see.
     if (handle === 'native') {
+      // Android: same ordering — only validate when the note doesn't exist yet.
+      const existing = await Promise.resolve(nativeGetNote(notePath)).catch(() => null);
+      if (!existing) {
+        const reason = validateWikiNoteName(notePath);
+        if (reason) {
+          setObsidianSyncError(`Note "${notePath}" was not written: ${reason}. Edit the [[wikilink]] in the task title.`);
+          setObsidianSyncStatus('error');
+          return;
+        }
+      }
       nativeWriteNote(notePath, content);
       return;
     }
@@ -84,7 +90,9 @@ export default function useObsidianSync({
       await writeWikiNote(handle, notePath, content, obsidianConfig?.newNotesFolder ?? 'dayGLANCE');
     } catch (err) {
       console.error('Failed to write wiki note:', err);
-      setObsidianSyncError(err.message);
+      setObsidianSyncError(err.code === 'unportable_name' && err.reason
+        ? `Note "${notePath}" was not written: ${err.reason}. Edit the [[wikilink]] in the task title.`
+        : err.message);
       setObsidianSyncStatus('error');
     }
   }, [obsidianConfig?.newNotesFolder, obsidianVaultHandleRef, setObsidianSyncError, setObsidianSyncStatus]);
