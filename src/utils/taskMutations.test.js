@@ -6,6 +6,7 @@ import {
   applyMoveBlock,
   applyResizeBlock,
   applySetCompletion,
+  applyUndoOps,
   WRITE_ERROR_CODES,
 } from './taskMutations.js';
 
@@ -262,5 +263,112 @@ describe('structural: the module can never write a native override', () => {
     expect(code).not.toMatch(/localStorage/);
     expect(code).not.toMatch(/native-time-overrides/);
     expect(code).not.toMatch(/window\./);
+  });
+});
+
+describe('applyUndoOps — the §4.3 bulk undo (Phase 5b)', () => {
+  const NOW2 = '2026-08-10T13:00:00.000Z';
+  const run = (state, ops) => applyUndoOps(state, ops, { nowIso: NOW2 });
+
+  it('remove_created deletes the created task from either list', () => {
+    const state = { tasks: [T({ id: 's1' })], unscheduledTasks: [{ id: 'c1', title: 'Created' }] };
+    const r = run(state, [{ kind: 'remove_created', taskId: 'c1' }]);
+    expect(r.unscheduledTasks).toEqual([]);
+    expect(r.undone).toBe(1);
+    expect(state.unscheduledTasks).toHaveLength(1); // pure: input untouched
+  });
+
+  it('restore_unscheduled moves the block back to the inbox with the FULL before-task (priority/deadline survive)', () => {
+    const beforeTask = { id: 'u1', title: 'Inbox task', priority: 2, deadline: '2026-08-20', duration: 45 };
+    const state = { tasks: [T({ id: 'u1', title: 'Inbox task', date: '2026-08-11' })], unscheduledTasks: [] };
+    const r = run(state, [{ kind: 'restore_unscheduled', taskId: 'u1', beforeTask }]);
+    expect(r.tasks).toEqual([]);
+    expect(r.unscheduledTasks[0]).toMatchObject({ priority: 2, deadline: '2026-08-20', duration: 45, lastModified: NOW2 });
+    expect(r.undone).toBe(1);
+  });
+
+  it('restore_block_fields puts back exactly the touched fields and stamps lastModified for sync', () => {
+    const state = { tasks: [T({ id: 'b1', date: '2026-08-12', startTime: '15:00', duration: 90 })] };
+    const r = run(state, [
+      { kind: 'restore_block_fields', blockId: 'b1', before: { duration: 60 } },
+      { kind: 'restore_block_fields', blockId: 'b1', before: { date: '2026-08-10', startTime: '09:00', isAllDay: false } },
+    ]);
+    expect(r.tasks[0]).toMatchObject({ date: '2026-08-10', startTime: '09:00', duration: 60, lastModified: NOW2 });
+    expect(r.undone).toBe(2);
+  });
+
+  it('restore_completion restores completed AND completedAt on inbox and scheduled tasks', () => {
+    const state = {
+      tasks: [T({ id: 'b1', completed: true })],
+      unscheduledTasks: [{ id: 'u1', title: 'x', completed: true, completedAt: '2026-08-10' }],
+    };
+    const r = run(state, [
+      { kind: 'restore_completion', taskId: 'b1', before: { completed: false, completedAt: null } },
+      { kind: 'restore_completion', taskId: 'u1', before: { completed: false, completedAt: null } },
+    ]);
+    expect(r.tasks[0].completed).toBe(false);
+    expect(r.unscheduledTasks[0]).toMatchObject({ completed: false, completedAt: null });
+    expect(r.undone).toBe(2);
+  });
+
+  it('restore_recurring_completion restores membership with a fresh per-date timestamp', () => {
+    const state = {
+      recurringTasks: [{ id: 'r1', title: 'Standup', completedDates: ['2026-08-10'], completedDatesTimestamps: {} }],
+    };
+    const r = run(state, [{ kind: 'restore_recurring_completion', templateId: 'r1', dateStr: '2026-08-10', wasCompleted: false }]);
+    expect(r.recurringTasks[0].completedDates).toEqual([]);
+    expect(r.recurringTasks[0].completedDatesTimestamps['2026-08-10']).toBe(NOW2);
+    expect(r.recurringTasks[0].lastModified).toBe(NOW2);
+    const back = run(state, [{ kind: 'restore_recurring_completion', templateId: 'r1', dateStr: '2026-08-10', wasCompleted: true }]);
+    expect(back.recurringTasks[0].completedDates).toEqual(['2026-08-10']); // already there → undone, unchanged
+    expect(back.undone).toBe(1);
+  });
+
+  it('a compound create→schedule→move history unwinds in reverse order to nothing', () => {
+    // Forward: created in inbox, scheduled to 08-10 09:00, moved to 08-12 15:00.
+    const state = { tasks: [T({ id: 'c1', title: 'Agent task', date: '2026-08-12', startTime: '15:00' })], unscheduledTasks: [] };
+    const ops = [ // reverse chronological, as buildUndoPlan produces
+      { kind: 'restore_block_fields', blockId: 'c1', before: { date: '2026-08-10', startTime: '09:00', isAllDay: false } },
+      { kind: 'restore_unscheduled', taskId: 'c1', beforeTask: { id: 'c1', title: 'Agent task', priority: 0 } },
+      { kind: 'remove_created', taskId: 'c1' },
+    ];
+    const r = run(state, ops);
+    expect(r.tasks).toEqual([]);
+    expect(r.unscheduledTasks).toEqual([]);
+    expect(r.undone).toBe(3);
+    expect(r.skipped).toBe(0);
+  });
+
+  it('remove_created also removes a created task the user later scheduled manually', () => {
+    const state = { tasks: [T({ id: 'c2', title: 'Created then dragged' })], unscheduledTasks: [] };
+    const r = run(state, [{ kind: 'remove_created', taskId: 'c2' }]);
+    expect(r.tasks).toEqual([]);
+    expect(r.undone).toBe(1);
+  });
+
+  it('restore_unscheduled never duplicates a task already back in the inbox', () => {
+    const state = {
+      tasks: [T({ id: 'u2', title: 'Dup risk' })],
+      unscheduledTasks: [{ id: 'u2', title: 'Dup risk' }],
+    };
+    const r = run(state, [{ kind: 'restore_unscheduled', taskId: 'u2', beforeTask: { id: 'u2', title: 'Dup risk' } }]);
+    expect(r.unscheduledTasks.filter((t) => t.id === 'u2')).toHaveLength(1);
+    expect(r.tasks).toEqual([]);
+  });
+
+  it('tolerant: user-deleted tasks, _native targets, and unknown ops are skipped, never errors', () => {
+    const state = { tasks: [NATIVE], unscheduledTasks: [] };
+    const r = run(state, [
+      { kind: 'restore_block_fields', blockId: 'gone', before: { duration: 30 } },
+      { kind: 'restore_block_fields', blockId: NATIVE.id, before: { duration: 30 } },
+      { kind: 'restore_completion', taskId: 'gone', before: { completed: false } },
+      { kind: 'restore_completion', taskId: NATIVE.id, before: { completed: true } },
+      { kind: 'restore_unscheduled', taskId: 'gone', beforeTask: { id: 'gone' } },
+      { kind: 'time_travel' },
+    ]);
+    expect(r.ok).toBe(true);
+    expect(r.undone).toBe(0);
+    expect(r.skipped).toBe(6);
+    expect(r.tasks).toEqual([NATIVE]); // native untouched — fields AND completion
   });
 });

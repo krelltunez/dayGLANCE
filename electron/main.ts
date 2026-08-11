@@ -30,6 +30,15 @@ import {
 } from './localIntegrations.js';
 import { createRendererBridge, type RendererBridge } from './mcpRendererBridge.js';
 import type { WriteToolDeps } from './mcpWriteTools.js';
+import {
+  appendEntry as appendJournalEntry,
+  journalSnapshot as buildJournalSnapshot,
+  buildUndoPlan,
+  mcpIndicator,
+  composeTrayTitle,
+  type JournalEntry,
+  type JournalRecord,
+} from './mcpJournal.js';
 import { createWriteGate } from './mcpWriteGate.js';
 import { createIdempotencyStore } from './mcpIdempotency.js';
 import { trayReloadDebounceMs } from './trayReloadPolicy.js';
@@ -94,7 +103,13 @@ let registeredMainWindowHotkey: string | null = null;
 let trayIndicatorOn = false;
 let trayFocusTitle = '';
 function refreshTrayTitle() {
-  tray?.setTitle(trayFocusTitle || (trayIndicatorOn ? '●' : ''));
+  // §6.5: the MCP glyph is appended, never displaced — a bound listener stays
+  // visible in the menu bar through focus countdowns and reminder dots alike.
+  tray?.setTitle(composeTrayTitle({
+    focusTitle: trayFocusTitle,
+    reminderOn: trayIndicatorOn,
+    mcpGlyph: mcpIndicator(mcpGates(integrationsConfig)).glyph,
+  }));
 }
 
 // Safe accessor — returns null if the window has been destroyed so callers
@@ -395,13 +410,24 @@ function createTray(): void {
     pushCurrentTaskToTray();
   });
 
-  // Right-click: native Open / Quit menu
+  // Right-click: native Open / Quit menu. When the MCP listener is bound, the
+  // menu also names the current tier and offers the §6.5 kill switch — this
+  // path is pure main-process (runIntegrationsTransition), so it works with
+  // NO window at all: no main window, no popup, no relay to drop.
   tray.on('right-click', () => {
-    tray?.popUpContextMenu(Menu.buildFromTemplate([
+    const gates = mcpGates(integrationsConfig);
+    const template: Electron.MenuItemConstructorOptions[] = [
       { label: 'Open dayGLANCE', click: () => { live(mainWindow)?.show(); live(mainWindow)?.focus(); } },
-      { type: 'separator' },
-      { label: 'Quit', click: () => app.quit() },
-    ]));
+    ];
+    if (gates.bound) {
+      template.push(
+        { type: 'separator' },
+        { label: mcpIndicator(gates).label, enabled: false },
+        { label: 'Turn off MCP server', click: () => killMcpServer() },
+      );
+    }
+    template.push({ type: 'separator' }, { label: 'Quit', click: () => app.quit() });
+    tray?.popUpContextMenu(Menu.buildFromTemplate(template));
   });
 }
 
@@ -896,8 +922,51 @@ function loadOrMigrateIntegrationsConfig(): void {
   );
 }
 
+// ── §4.3 write journal — session-scoped BY DESIGN ────────────────────────────
+// Module scope in the main process (never on the McpServer instance, §3.7,
+// never on disk): it covers the runaway-agent case, so dying with the process
+// is correct. All decisions live in mcpJournal.ts, pure and tested.
+let mcpJournalEntries: JournalEntry[] = [];
+
+function recordMcpJournal(record: JournalRecord): void {
+  mcpJournalEntries = appendJournalEntry(mcpJournalEntries, record, new Date().toISOString());
+  pushMcpJournal();
+}
+
+function pushMcpJournal(): void {
+  const snapshot = buildJournalSnapshot(mcpJournalEntries);
+  for (const win of [live(mainWindow), live(trayWindow)]) {
+    win?.webContents.send('mcp-journal:changed', snapshot);
+  }
+}
+
+function registerMcpJournalHandlers(): void {
+  ipcMain.handle('mcp-journal:get', () => buildJournalSnapshot(mcpJournalEntries));
+  // Bulk undo (§4.3): reverse every session MCP write, applied by the main
+  // window's renderer through taskMutations.js applyUndoOps — the same store
+  // layer as any write, so sync, GLANCEintents, and tray:data-changed all
+  // engage. The journal clears only on a confirmed application.
+  ipcMain.handle('mcp-journal:undo-all', async () => {
+    if (mcpJournalEntries.length === 0) return { ok: false, error: 'No MCP changes to undo.' };
+    if (!mcpBridge) return { ok: false, error: 'The dayGLANCE window is not available.' };
+    const plan = buildUndoPlan(mcpJournalEntries);
+    const r = await mcpBridge.request('undo_mcp_writes', { ops: plan.ops }, 10_000);
+    if (!r.ok) return { ok: false, error: r.error.message };
+    mcpJournalEntries = [];
+    pushMcpJournal();
+    const data = r.data as { undone?: number; skipped?: number };
+    return { ok: true, undone: data?.undone ?? plan.count, skipped: data?.skipped ?? 0 };
+  });
+}
+
 function pushIntegrationsStatus(): void {
-  live(mainWindow)?.webContents.send('local-integrations:status', integrationsSnapshot());
+  const snapshot = integrationsSnapshot();
+  // The tray gets the same push (§6.5): its listener-state display is LIVE
+  // over IPC, deliberately outside the popup's stale data-snapshot cycle.
+  for (const win of [live(mainWindow), live(trayWindow)]) {
+    win?.webContents.send('local-integrations:status', snapshot);
+  }
+  refreshTrayTitle();
 }
 
 function startStreamDeckListener(): void {
@@ -972,6 +1041,8 @@ function startMcpListener(): void {
       // §6.3 writes opt-in, settings-backed (replaced DAYGLANCE_MCP_WRITES).
       includeWrites: () => mcpGates(integrationsConfig).includeWrites,
       noteMcpWrite: () => { lastMcpWriteAt = Date.now(); },
+      // §4.3 write journal (Phase 5b): session-scoped record + tray surface.
+      journal: recordMcpJournal,
       // §4.3: repeated rate-limit violations auto-disable writes with a
       // notification. Fires exactly once, on the disable edge.
       onWritesDisabled: () => {
@@ -1032,23 +1103,39 @@ function integrationsSnapshot() {
   };
 }
 
+// The one transition entry point, shared by the settings/tray IPC handler and
+// the tray icon's native context menu (the §6.5 kill switch path that needs
+// no window at all). Config-owning, so it never routes through a renderer.
+function runIntegrationsTransition(action: TransitionAction): { ok: true } | { ok: false; error: string } {
+  const result = applyIntegrationsTransition(integrationsConfig, action, {
+    nowIso: () => new Date().toISOString(),
+    generateToken: generateMcpToken,
+    resolvePort: resolveMcpPort,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  const effects = listenerEffects(integrationsConfig, result.config);
+  integrationsConfig = result.config;
+  saveIntegrationsConfig();
+  if (effects.streamDeck === 'start') startStreamDeckListener();
+  else if (effects.streamDeck === 'stop') stopStreamDeckListener();
+  if (effects.mcp === 'start') startMcpListener();
+  else if (effects.mcp === 'stop') stopMcpListener();
+  else if (effects.mcp === 'restart') stopMcpListener(() => startMcpListener());
+  pushIntegrationsStatus();
+  return { ok: true };
+}
+
+/** The §6.5 kill switch: MCP off (port unbinds; writes drop with the tier). */
+function killMcpServer(): void {
+  const r = runIntegrationsTransition({ type: 'set-mcp-read-tier', tier: 'off' });
+  if (!r.ok) console.error('[dayGLANCE] MCP kill switch failed:', r.error);
+}
+
 function registerLocalIntegrationsHandlers(): void {
   ipcMain.handle('local-integrations:get', () => integrationsSnapshot());
   ipcMain.handle('local-integrations:transition', (_event, action: unknown) => {
-    const result = applyIntegrationsTransition(integrationsConfig, action as TransitionAction, {
-      nowIso: () => new Date().toISOString(),
-      generateToken: generateMcpToken,
-      resolvePort: resolveMcpPort,
-    });
-    if (!result.ok) return { ok: false, error: result.error };
-    const effects = listenerEffects(integrationsConfig, result.config);
-    integrationsConfig = result.config;
-    saveIntegrationsConfig();
-    if (effects.streamDeck === 'start') startStreamDeckListener();
-    else if (effects.streamDeck === 'stop') stopStreamDeckListener();
-    if (effects.mcp === 'start') startMcpListener();
-    else if (effects.mcp === 'stop') stopMcpListener();
-    else if (effects.mcp === 'restart') stopMcpListener(() => startMcpListener());
+    const result = runIntegrationsTransition(action as TransitionAction);
+    if (!result.ok) return result;
     return { ok: true, snapshot: integrationsSnapshot() };
   });
 }
@@ -1150,6 +1237,7 @@ app.whenReady().then(async () => {
   // The DAYGLANCE_MCP_DEV/TOKEN/PORT/CALENDAR/WRITES env vars are gone; the
   // config file is the sole source.
   registerLocalIntegrationsHandlers();
+  registerMcpJournalHandlers();
   if (integrationsConfig.streamDeck.enabled) startStreamDeckListener();
   startMcpListener();
   registerSubscriptionHandlers(win);

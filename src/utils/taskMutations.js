@@ -196,6 +196,97 @@ export function applyResizeBlock(state, { blockId, durationMinutes, transitionId
  *    flip without the network half would desync the user's CalDAV server. A
  *    pure module cannot do the network half — v1 rejects.
  */
+/**
+ * BULK UNDO (§4.3): apply a list of reversal ops produced by the main
+ * process's write journal (electron/mcpJournal.ts buildUndoPlan). Ops arrive
+ * in REVERSE chronological order, so compound histories unwind correctly:
+ * create → schedule → move undoes as restore-fields → restore-to-inbox →
+ * remove-created, each op finding exactly the state its write produced.
+ *
+ * Same store-layer path as every other write in this module: the caller
+ * invokes the setters with the returned slices, so the save pass, sync push,
+ * GLANCEintents diff, and tray:data-changed all engage as for a UI edit.
+ * Deliberately NOT pushed onto the user's undo stack (it IS the undo).
+ *
+ * Tolerant by design: a task the user deleted or edited away since the MCP
+ * write is SKIPPED and counted, never an error — the user's own actions
+ * outrank the reversal. _native can never appear here (every forward write
+ * rejects it), but ops touching one are skipped anyway, fail-closed.
+ */
+export function applyUndoOps(state, ops, { nowIso }) {
+  let tasks = state.tasks ?? [];
+  let unscheduled = state.unscheduledTasks ?? [];
+  let recurring = state.recurringTasks ?? [];
+  let undone = 0;
+  let skipped = 0;
+
+  for (const op of ops ?? []) {
+    switch (op?.kind) {
+      case 'remove_created': {
+        const before = tasks.length + unscheduled.length;
+        tasks = tasks.filter((t) => t.id !== op.taskId);
+        unscheduled = unscheduled.filter((t) => t.id !== op.taskId);
+        if (tasks.length + unscheduled.length < before) undone += 1; else skipped += 1;
+        break;
+      }
+      case 'restore_unscheduled': {
+        const scheduled = tasks.find((t) => t.id === op.taskId);
+        if (!scheduled || scheduled._native || !op.beforeTask) { skipped += 1; break; }
+        tasks = tasks.filter((t) => t.id !== op.taskId);
+        if (!unscheduled.some((t) => t.id === op.taskId)) {
+          unscheduled = [...unscheduled, { ...op.beforeTask, lastModified: nowIso }];
+        }
+        undone += 1;
+        break;
+      }
+      case 'restore_block_fields': {
+        const block = tasks.find((t) => t.id === op.blockId);
+        if (!block || block._native || !op.before) { skipped += 1; break; }
+        tasks = tasks.map((t) => (t.id === op.blockId ? { ...t, ...op.before, lastModified: nowIso } : t));
+        undone += 1;
+        break;
+      }
+      case 'restore_completion': {
+        const inInbox = unscheduled.find((t) => t.id === op.taskId);
+        const scheduled = tasks.find((t) => t.id === op.taskId);
+        const task = inInbox ?? scheduled;
+        if (!task || task._native || !op.before) { skipped += 1; break; }
+        const next = {
+          ...task,
+          completed: !!op.before.completed,
+          ...(op.before.completedAt !== undefined ? { completedAt: op.before.completedAt } : {}),
+          lastModified: nowIso,
+        };
+        if (inInbox) unscheduled = unscheduled.map((t) => (t.id === op.taskId ? next : t));
+        else tasks = tasks.map((t) => (t.id === op.taskId ? next : t));
+        undone += 1;
+        break;
+      }
+      case 'restore_recurring_completion': {
+        const template = recurring.find((t) => t.id === op.templateId);
+        if (!template) { skipped += 1; break; }
+        const has = (template.completedDates || []).includes(op.dateStr);
+        if (has === op.wasCompleted) { undone += 1; break; } // already in the before-state
+        const nextTemplate = {
+          ...template,
+          completedDates: op.wasCompleted
+            ? [...(template.completedDates || []), op.dateStr]
+            : (template.completedDates || []).filter((d) => d !== op.dateStr),
+          completedDatesTimestamps: { ...(template.completedDatesTimestamps || {}), [op.dateStr]: nowIso },
+          lastModified: nowIso,
+        };
+        recurring = recurring.map((t) => (t.id === op.templateId ? nextTemplate : t));
+        undone += 1;
+        break;
+      }
+      default:
+        skipped += 1;
+    }
+  }
+
+  return { ok: true, tasks, unscheduledTasks: unscheduled, recurringTasks: recurring, undone, skipped };
+}
+
 export function applySetCompletion(state, { taskId, completed, transitionId, todayStr, nowIso }) {
   const tasks = state.tasks ?? [];
   const unscheduled = state.unscheduledTasks ?? [];

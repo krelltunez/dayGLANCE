@@ -34,6 +34,21 @@ import {
   makeStoreKey,
   deterministicTaskIdFromSeed,
 } from './mcpIdempotency.js';
+import type { JournalRecord } from './mcpJournal.js';
+
+/** Renderer-captured undo descriptor, diverted to the §4.3 journal. */
+interface UndoDescriptor {
+  summary: string;
+  op: JournalRecord['op'];
+}
+interface UndoCapture {
+  undo?: UndoDescriptor;
+}
+function isUndoDescriptor(v: unknown): v is UndoDescriptor {
+  return typeof v === 'object' && v !== null
+    && typeof (v as UndoDescriptor).summary === 'string'
+    && typeof (v as UndoDescriptor).op === 'object' && (v as UndoDescriptor).op !== null;
+}
 
 export interface WriteToolDeps {
   bridge: RendererBridge;
@@ -47,6 +62,12 @@ export interface WriteToolDeps {
   noteMcpWrite: () => void;
   /** Fired exactly once when repeated violations auto-disable writes (§4.3). */
   onWritesDisabled: () => void;
+  /**
+   * §4.3 write journal (Phase 5b): called once per successful non-replayed
+   * write with tool, summary, idempotency key, and the reversal op. Optional
+   * so the listener still runs journal-less (tests, skeleton mode).
+   */
+  journal?: (record: JournalRecord) => void;
   now: () => number;
   timeZone: () => string;
 }
@@ -94,7 +115,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
   const write = async (
     tool: string,
     idempotencyKey: unknown,
-    mutate: (transitionId: string) => Promise<ToolResult>,
+    mutate: (transitionId: string, capture: UndoCapture) => Promise<ToolResult>,
   ): Promise<ToolResult> => {
     if (!deps.includeWrites()) {
       return toolError(
@@ -128,20 +149,38 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
     }
 
     const transitionId = typeof idempotencyKey === 'string' ? idempotencyKey : randomUUID();
-    const result = await mutate(transitionId);
+    const capture: UndoCapture = {};
+    const result = await mutate(transitionId, capture);
     if (!result.isError) {
       deps.noteMcpWrite();
+      // §4.3 write journal: record tool, time, what changed, and the reversal
+      // descriptor the renderer captured from the before-state. Replayed
+      // writes carry no descriptor — nothing changed, nothing to journal.
+      if (capture.undo && deps.journal) {
+        deps.journal({
+          tool: `dayglance_${tool}`,
+          ...(typeof idempotencyKey === 'string' ? { idempotencyKey } : {}),
+          summary: capture.undo.summary,
+          op: capture.undo.op,
+        });
+      }
       if (storeKey && result.structuredContent) deps.store.put(storeKey, result.structuredContent);
     }
     return result;
   };
 
-  /** Map a renderer response onto the tool result, preserving §5.2 error codes. */
+  /**
+   * Map a renderer response onto the tool result, preserving §5.2 error codes.
+   * The renderer's `undo` descriptor is diverted into the capture for the
+   * journal — it is main-process metadata and must never reach tool output.
+   */
   const fromRenderer = (
     r: Awaited<ReturnType<RendererBridge['request']>>,
     envelope: Record<string, unknown>,
+    capture?: UndoCapture,
   ): ToolResult => {
     if (!r.ok) return toolError(r.error.code, r.error.message);
+    if (capture && isUndoDescriptor(r.undo)) capture.undo = r.undo;
     return ok({ ...(r.data as Record<string, unknown>), ...envelope });
   };
 
@@ -162,14 +201,14 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
       }),
     },
     async ({ title, notes, project_id, idempotency_key }) =>
-      write('create_task', idempotency_key, async (transitionId) => {
+      write('create_task', idempotency_key, async (transitionId, capture) => {
         // Deterministic id from the key (handleIntent precedent): a replayed
         // create converges on the same id and no-ops renderer-side.
         const taskId = idempotency_key !== undefined
           ? deterministicTaskIdFromSeed(makeStoreKey(deps.token(), 'create_task', idempotency_key as string))
           : randomUUID();
         const r = await deps.bridge.request('create_task', { taskId, title, notes, projectId: project_id, transitionId });
-        return fromRenderer(r, { timezone: deps.timeZone() });
+        return fromRenderer(r, { timezone: deps.timeZone() }, capture);
       }),
   );
 
@@ -187,7 +226,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
       }),
     },
     async ({ task_id, start, duration_minutes, idempotency_key }) =>
-      write('schedule_task', idempotency_key, async (transitionId) => {
+      write('schedule_task', idempotency_key, async (transitionId, capture) => {
         const parsed = parseStart(start, deps.timeZone());
         if ('invalid' in parsed) return toolError('validation', parsed.invalid);
         if (duration_minutes !== undefined) {
@@ -197,7 +236,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
         const r = await deps.bridge.request('schedule_task', {
           taskId: task_id, date: parsed.date, startTime: parsed.time, durationMinutes: duration_minutes, transitionId,
         });
-        return fromRenderer(r, dateEnvelope(parsed.date, deps.timeZone()) as unknown as Record<string, unknown>);
+        return fromRenderer(r, dateEnvelope(parsed.date, deps.timeZone()) as unknown as Record<string, unknown>, capture);
       }),
   );
 
@@ -214,13 +253,13 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
       }),
     },
     async ({ block_id, new_start, idempotency_key }) =>
-      write('move_block', idempotency_key, async (transitionId) => {
+      write('move_block', idempotency_key, async (transitionId, capture) => {
         const parsed = parseStart(new_start, deps.timeZone());
         if ('invalid' in parsed) return toolError('validation', parsed.invalid);
         const r = await deps.bridge.request('move_block', {
           blockId: block_id, date: parsed.date, startTime: parsed.time, transitionId,
         });
-        return fromRenderer(r, dateEnvelope(parsed.date, deps.timeZone()) as unknown as Record<string, unknown>);
+        return fromRenderer(r, dateEnvelope(parsed.date, deps.timeZone()) as unknown as Record<string, unknown>, capture);
       }),
   );
 
@@ -237,13 +276,13 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
       }),
     },
     async ({ block_id, duration_minutes, idempotency_key }) =>
-      write('resize_block', idempotency_key, async (transitionId) => {
+      write('resize_block', idempotency_key, async (transitionId, capture) => {
         const durationError = validateDurationMinutes(duration_minutes);
         if (durationError) return toolError('validation', durationError);
         const r = await deps.bridge.request('resize_block', {
           blockId: block_id, durationMinutes: duration_minutes, transitionId,
         });
-        return fromRenderer(r, { timezone: deps.timeZone() });
+        return fromRenderer(r, { timezone: deps.timeZone() }, capture);
       }),
   );
 
@@ -261,12 +300,12 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
       }),
     },
     async ({ task_id, completed, idempotency_key }) =>
-      write('set_task_completion', idempotency_key, async (transitionId) => {
+      write('set_task_completion', idempotency_key, async (transitionId, capture) => {
         const r = await deps.bridge.request('set_completion', {
           taskId: task_id, completed, transitionId,
           todayStr: localDateOf(deps.now(), deps.timeZone()),
         });
-        return fromRenderer(r, { timezone: deps.timeZone() });
+        return fromRenderer(r, { timezone: deps.timeZone() }, capture);
       }),
   );
 }
