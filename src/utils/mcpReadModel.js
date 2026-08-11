@@ -102,6 +102,40 @@ export function buildDayBlocks(state, params) {
   return { blocks };
 }
 
+/**
+ * The 7 local calendar dates of the week containing `dateStr`, starting on the
+ * user's weekStartDay setting (App.jsx: 0=Sunday, 1=Monday, any 0-6). Pure
+ * y/m/d arithmetic via a local Date at noon — noon so no DST transition can
+ * shift the calendar date when adding days.
+ *
+ * This is the STRICT calendar week (the week containing today), deliberately
+ * ignoring the weekViewMode='rolling' display preference: a rolling 7-day
+ * strip anchored at today is a view of the NEXT seven days, not "the current
+ * week", which is what the dayglance://schedule/week/current URI names.
+ */
+export function weekDatesFor(dateStr, weekStartDay) {
+  const start = Number.isInteger(weekStartDay) && weekStartDay >= 0 && weekStartDay <= 6 ? weekStartDay : 0;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const base = new Date(y, m - 1, d, 12, 0, 0);
+  const diff = (base.getDay() - start + 7) % 7;
+  return Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(y, m - 1, d - diff + i, 12, 0, 0);
+    const p = (n) => String(n).padStart(2, '0');
+    return `${day.getFullYear()}-${p(day.getMonth() + 1)}-${p(day.getDate())}`;
+  });
+}
+
+/** The week resource payload: the day model repeated across the strict week. */
+export function buildWeek(state, params) {
+  const { date, include_native: includeNative = false } = params;
+  const weekStartDay = Number.isInteger(state.weekStartDay) ? state.weekStartDay : 0;
+  const days = weekDatesFor(date, weekStartDay).map((dayDate) => ({
+    date: dayDate,
+    ...buildDayBlocks(state, { date: dayDate, include_native: includeNative }),
+  }));
+  return { week_start_day: weekStartDay, days };
+}
+
 /** The unscheduled inbox, unpaginated — the main process owns paging (§5.1). */
 export function buildUnscheduledItems(state) {
   const { unscheduledTasks = [], isVisibleForUser = () => true } = state;
@@ -207,6 +241,8 @@ export function handleMcpRequest(state, request) {
       return { ok: true, data: { pong: true } };
     case 'get_day':
       return { ok: true, data: buildDayBlocks(state, params) };
+    case 'get_week':
+      return { ok: true, data: buildWeek(state, params) };
     case 'list_unscheduled':
       return { ok: true, data: buildUnscheduledItems(state) };
     case 'goal_progress': {

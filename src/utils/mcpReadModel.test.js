@@ -6,6 +6,8 @@ import {
   buildDayBlocks,
   buildUnscheduledItems,
   buildGoalProgress,
+  weekDatesFor,
+  buildWeek,
   handleMcpRequest,
 } from './mcpReadModel.js';
 
@@ -187,6 +189,95 @@ describe('buildGoalProgress', () => {
   });
 });
 
+describe('weekDatesFor — the strict calendar week, honoring weekStartDay', () => {
+  it('Sunday start (0, the app default): 2026-08-12 is a Wednesday', () => {
+    expect(weekDatesFor('2026-08-12', 0)).toEqual([
+      '2026-08-09', '2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14', '2026-08-15',
+    ]);
+  });
+
+  it('Monday start (1) shifts the same date into a different week window', () => {
+    expect(weekDatesFor('2026-08-12', 1)).toEqual([
+      '2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14', '2026-08-15', '2026-08-16',
+    ]);
+  });
+
+  it('every weekStartDay value 0-6 starts the week on that weekday and contains the date', () => {
+    for (let start = 0; start <= 6; start++) {
+      const days = weekDatesFor('2026-08-12', start);
+      expect(days).toHaveLength(7);
+      const [y, m, d] = days[0].split('-').map(Number);
+      expect(new Date(y, m - 1, d, 12).getDay(), `start=${start}`).toBe(start);
+      expect(days, `start=${start}`).toContain('2026-08-12');
+    }
+  });
+
+  it('a date ON the start day begins its own week (diff 0, not 7)', () => {
+    // 2026-08-09 is a Sunday.
+    expect(weekDatesFor('2026-08-09', 0)[0]).toBe('2026-08-09');
+  });
+
+  it('crosses month and year boundaries correctly', () => {
+    // 2026-01-01 is a Thursday; the Sunday-start week runs 2025-12-28 .. 2026-01-03.
+    expect(weekDatesFor('2026-01-01', 0)).toEqual([
+      '2025-12-28', '2025-12-29', '2025-12-30', '2025-12-31', '2026-01-01', '2026-01-02', '2026-01-03',
+    ]);
+    expect(weekDatesFor('2028-02-29', 1)).toContain('2028-02-29'); // leap day inside its week
+  });
+
+  it('spans a DST transition without skipping or repeating a date', () => {
+    // US spring forward 2026-03-08 (Sunday). Week must be 7 distinct consecutive dates.
+    const days = weekDatesFor('2026-03-10', 0);
+    expect(days).toEqual([
+      '2026-03-08', '2026-03-09', '2026-03-10', '2026-03-11', '2026-03-12', '2026-03-13', '2026-03-14',
+    ]);
+  });
+
+  it('falls back to Sunday for invalid weekStartDay values', () => {
+    for (const bad of [-1, 7, 1.5, '1', null, undefined]) {
+      expect(weekDatesFor('2026-08-12', bad)[0], String(bad)).toBe('2026-08-09');
+    }
+  });
+});
+
+describe('buildWeek — the day model repeated across the week', () => {
+  const state = {
+    weekStartDay: 1,
+    tasks: [
+      T({ id: 'mon', date: '2026-08-10', startTime: '09:00' }),
+      T({ id: 'sun-next', date: '2026-08-16', startTime: '10:00' }),
+      T({ id: 'outside', date: '2026-08-17', startTime: '10:00' }),
+      T({ id: 'native-cal-w1', date: '2026-08-12', _native: true, imported: true, startTime: '11:00' }),
+    ],
+    recurringTasks: [],
+  };
+
+  it('returns 7 days honoring weekStartDay, each shaped exactly like get_day', () => {
+    const week = buildWeek(state, { date: '2026-08-12', include_native: true });
+    expect(week.week_start_day).toBe(1);
+    expect(week.days).toHaveLength(7);
+    expect(week.days[0].date).toBe('2026-08-10');
+    expect(week.days[0].blocks.map((b) => b.id)).toEqual(['mon']);
+    expect(week.days[6].date).toBe('2026-08-16');
+    expect(week.days[6].blocks.map((b) => b.id)).toEqual(['sun-next']);
+    expect(week.days.flatMap((d) => d.blocks.map((b) => b.id))).not.toContain('outside');
+    const native = week.days[2].blocks.find((b) => b.id === 'native-cal-w1');
+    expect(native.type).toBe('device_calendar_event');
+    expect(native.read_only).toBe(true);
+  });
+
+  it('excludes _native events when include_native is off — same gate as get_day', () => {
+    const week = buildWeek(state, { date: '2026-08-12' });
+    expect(week.days.flatMap((d) => d.blocks.map((b) => b.type))).not.toContain('device_calendar_event');
+  });
+
+  it('defaults week_start_day to 0 when the slice is absent', () => {
+    const week = buildWeek({ tasks: [], recurringTasks: [] }, { date: '2026-08-12' });
+    expect(week.week_start_day).toBe(0);
+    expect(week.days[0].date).toBe('2026-08-09');
+  });
+});
+
 describe('handleMcpRequest — the dispatcher', () => {
   const state = { tasks: [], recurringTasks: [], unscheduledTasks: [], goals: [], projects: [] };
 
@@ -194,8 +285,9 @@ describe('handleMcpRequest — the dispatcher', () => {
     expect(handleMcpRequest(state, { method: 'ping' })).toEqual({ ok: true, data: { pong: true } });
   });
 
-  it('routes the three read methods', () => {
+  it('routes the four read methods', () => {
     expect(handleMcpRequest(state, { method: 'get_day', params: { date: '2026-08-10' } }).ok).toBe(true);
+    expect(handleMcpRequest(state, { method: 'get_week', params: { date: '2026-08-10' } }).ok).toBe(true);
     expect(handleMcpRequest(state, { method: 'list_unscheduled' }).ok).toBe(true);
     expect(handleMcpRequest(state, { method: 'goal_progress', params: {} }).ok).toBe(true);
   });
