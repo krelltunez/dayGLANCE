@@ -6819,6 +6819,8 @@ const DayPlanner = () => {
     goals,
     projects,
     isVisibleForUser,
+    // Phase 4 week resource honors the user's week-start setting (0=Sunday).
+    weekStartDay,
   }, {
     // Write setters (Phase 3): handleMcpWrite applies the canonical shapes
     // from src/utils/taskMutations.js through these — the same store layer

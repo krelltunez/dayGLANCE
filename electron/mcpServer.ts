@@ -25,6 +25,7 @@ import { checkBearerToken, unauthorizedResponse } from './mcpAuth.js';
 import { resolveMcpPort, describeBindFailure } from './mcpPort.js';
 import { registerReadTools, type ReadToolDeps } from './mcpReadTools.js';
 import { registerWriteTools, type WriteToolDeps } from './mcpWriteTools.js';
+import { registerResources } from './mcpResources.js';
 
 export const MCP_ENDPOINT_PATH = '/mcp';
 
@@ -94,7 +95,12 @@ export function startMcpServer(opts: McpServerOptions): http.Server | null {
           ],
         }),
       );
-      if (opts.readDeps) registerReadTools(server, opts.readDeps);
+      if (opts.readDeps) {
+        registerReadTools(server, opts.readDeps);
+        // Phase 4 resources share the read tools' deps: same bridge, same
+        // clock/timezone, same consent tier (§5.4 — no second read path).
+        registerResources(server, opts.readDeps);
+      }
       if (opts.writeDeps) registerWriteTools(server, opts.writeDeps);
       return server;
     },
