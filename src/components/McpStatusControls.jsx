@@ -91,7 +91,7 @@ export function McpBoltButton({ mcp, darkMode, open, onToggle, variant }) {
       aria-expanded={open}
       aria-label="MCP server status"
     >
-      <Zap size={variant === 'cluster' ? 18 : 16} className={variant === 'cluster' ? (darkMode ? 'text-gray-300' : 'text-stone-600') : undefined} />
+      <Zap size={variant === 'cluster' ? 18 : 16} className={variant === 'cluster' ? (darkMode ? 'text-gray-400' : 'text-stone-600') : undefined} />
       <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${dotBorder} ${DOT_CLASS[mcp.dot]}`} />
     </button>
   );
