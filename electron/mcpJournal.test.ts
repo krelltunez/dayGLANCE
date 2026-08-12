@@ -100,16 +100,11 @@ describe('mcpIndicator — §6.5 tier mapping', () => {
   });
 });
 
-describe('composeTrayTitle', () => {
-  it('appends the MCP glyph to focus title and reminder dot instead of replacing them', () => {
-    expect(composeTrayTitle({ focusTitle: '12:34', reminderOn: false, mcpGlyph: '⌁' })).toBe('12:34 ⌁');
-    expect(composeTrayTitle({ focusTitle: '', reminderOn: true, mcpGlyph: '⚡' })).toBe('● ⚡');
-  });
-
-  it('glyph alone when there is no other state; base states unchanged when unbound', () => {
-    expect(composeTrayTitle({ focusTitle: '', reminderOn: false, mcpGlyph: '⌁' })).toBe('⌁');
-    expect(composeTrayTitle({ focusTitle: '', reminderOn: false, mcpGlyph: '' })).toBe('');
-    expect(composeTrayTitle({ focusTitle: '12:34', reminderOn: false, mcpGlyph: '' })).toBe('12:34');
-    expect(composeTrayTitle({ focusTitle: '', reminderOn: true, mcpGlyph: '' })).toBe('●');
+describe('composeTrayTitle — focus and reminder state ONLY, no MCP glyph in any tier state', () => {
+  it('focus countdown takes priority, reminder dot fills its slot, else empty', () => {
+    expect(composeTrayTitle({ focusTitle: '12:34', reminderOn: false })).toBe('12:34');
+    expect(composeTrayTitle({ focusTitle: '12:34', reminderOn: true })).toBe('12:34');
+    expect(composeTrayTitle({ focusTitle: '', reminderOn: true })).toBe('●');
+    expect(composeTrayTitle({ focusTitle: '', reminderOn: false })).toBe('');
   });
 });

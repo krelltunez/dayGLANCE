@@ -326,9 +326,18 @@ One shared setup guide, two sections (Stream Deck and MCP), linked from both tog
 
 ### 6.5 Visible state
 
-The listener state must be visible without opening settings. The tray is the right surface: a distinct indicator when the MCP server is bound, the current mode, a one-click kill switch that does not require opening a window, and recent MCP activity (the §4.3 write journal).
+The listener state must be visible without opening settings. A network listener that runs invisibly is the wrong default for a privacy-first app regardless of how the consent was obtained.
 
-A network listener that runs invisibly is the wrong default for a privacy-first app regardless of how the consent was obtained.
+**The canonical surface is in the app, not the tray** (revised after the Phase 5b implementation shipped tray-first): `createTray()` is darwin-gated, so Windows and Linux have no tray at all — a tray-only surface left the majority of platforms with no ambient indication that a listener was bound and no reachable kill switch or bulk undo outside settings, contradicting this section's own premise. The surface is a lightning-bolt icon button:
+
+- **Settings-cluster button in the main window** (canonical, all platforms): rendered while the listener is bound, and also while it is off with undoable session writes remaining. This section requires a BOUND listener to be visible — not an unbound one to be invisible: the kill switch is most likely used because an agent misbehaved, which is exactly when bulk undo is needed, so the bolt must not vanish with the port. Status dot per the settings-cluster convention: green (enabled, no undoable writes), blue (undoable MCP writes exist), red (writes auto-disabled after repeated rate-limit violations, §4.3), amber (server off, undoable writes remain — deliberately not green or blue so it cannot read as enabled). Clicking expands an inline panel below the header row — in document flow, never a popover — with server status, current tier, the one-click kill switch, the journal entry count, and bulk undo; in the amber state the panel shows the journal, bulk undo, and a clear server-off indication, with no kill switch (nothing to kill). The bolt disappears once the journal is empty, whether emptied by undo or by restart (the journal is session-scoped). The narrow-viewport variant is a row in the mobile Settings tab's **Sync** section — the section that already holds every external-connection row (calendar sync, cloud sync, Obsidian), each with the same status-dot convention on its icon — because the same layout renders in Electron windows under 721px wide. The row toggles the same panel inline below itself. It deliberately does NOT sit in the date-nav header, the layout's most contended row.
+- **The same bolt in the macOS tray popup's input row** (convenience mirror): identical states and panel, always opening collapsed.
+- **The tray icon's right-click menu** (macOS): tier label plus the kill switch — the one path that needs no window at all.
+
+**Removed, deliberately:**
+
+- *The menu-bar tier glyph.* It competed with focus-countdown and reminder state in a cramped, macOS-only surface, and duplicated a signal the bolt now carries on every platform.
+- *The persistent tray-popup banner.* Two always-visible rows taxed a 320px popup whose purpose is the day's tasks; the collapsed bolt carries the same ambient signal in one icon's footprint, and the expansion carries the rest on demand.
 
 ---
 

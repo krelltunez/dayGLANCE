@@ -26,6 +26,7 @@ import MobileRoutinesTab from './MobileRoutinesTab.jsx';
 import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import LocalIntegrationsSettings from './LocalIntegrationsSettings.jsx';
+import { useMcpStatus, McpStatusPanel, DOT_CLASS as MCP_DOT_CLASS } from './McpStatusControls.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { isVaultEnabled } from '../sync/vaultConfig.js';
 import { multiUserToggleLocked, multiUserUnavailableReason, canSyncUserRoster } from '../utils/multiUserGate.js';
@@ -207,6 +208,8 @@ const MobileSettingsPanel = () => {
   const { t } = useTranslation(); // null | 'syncing' | 'ok' | 'error'
 
   // Commit staged routines on unmount (e.g. user switches tabs while in routines view)
+  const mcpStatus = useMcpStatus();
+  const [mcpRowOpen, setMcpRowOpen] = useState(false);
   const mobileSettingsViewRef = useRef(mobileSettingsView);
   const handleRoutinesDoneRef = useRef(handleRoutinesDone);
   const [devTapCount, setDevTapCount] = useState(0);
@@ -344,6 +347,30 @@ const MobileSettingsPanel = () => {
           </div>
           <span className={`font-medium ${textPrimary}`}>{t('settings.syncCalendars')}</span>
         </button>
+      )}
+      {/* §6.5 MCP status — narrow-viewport home of the canonical surface.
+          A Sync-section row like its neighbors (external connections with a
+          status dot on the icon); shown while the listener is bound OR
+          undoable session writes remain (the amber state, which keeps bulk
+          undo reachable after the kill switch). Toggles an inline expansion
+          below the row instead of a sub-view. */}
+      {mcpStatus.visible && (
+        <button
+          onClick={() => setMcpRowOpen(v => !v)}
+          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+          aria-expanded={mcpRowOpen}
+          aria-label="MCP server status"
+        >
+          <div className="relative">
+            <Zap size={20} className="text-amber-500" />
+            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${MCP_DOT_CLASS[mcpStatus.dot]}`} />
+          </div>
+          <span className={`font-medium ${textPrimary} flex-1 text-left`}>MCP server</span>
+          <ChevronDown size={18} className={`${textSecondary} transition-transform ${mcpRowOpen ? 'rotate-180' : ''}`} />
+        </button>
+      )}
+      {mcpRowOpen && (
+        <McpStatusPanel mcp={mcpStatus} darkMode={darkMode} variant="card" cardBg={cardBg} borderClass={borderClass} />
       )}
       <button
         onClick={() => setMobileSettingsView('cloudsync')}

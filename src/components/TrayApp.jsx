@@ -7,7 +7,6 @@ import TrayReminders from './TrayReminders.jsx';
 import TrayNowBar from './TrayNowBar.jsx';
 import TraySpotlight from './TraySpotlight.jsx';
 import TrayVoice from './TrayVoice.jsx';
-import TrayMcpStatus from './TrayMcpStatus.jsx';
 
 export default function TrayApp({ bgClass, darkMode }) {
   const [overlay, setOverlay] = useState(null); // 'spotlight' | 'voice' | null
@@ -43,8 +42,6 @@ export default function TrayApp({ bgClass, darkMode }) {
         onSearchClick={() => setOverlay('spotlight')}
         onVoiceClick={() => setOverlay('voice')}
       />
-      {/* §6.5 MCP status strip: indicator, tier, kill switch, write journal */}
-      <TrayMcpStatus />
       {focusState ? (
         <TrayFocus darkMode={darkMode} focusState={focusState} />
       ) : (

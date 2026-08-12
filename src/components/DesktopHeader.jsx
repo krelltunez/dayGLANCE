@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Bell, BookOpen, ChevronLeft, ChevronRight, Cloud,
   HelpCircle, Moon, RefreshCw, Save, Settings, Sun,
@@ -6,6 +6,7 @@ import {
 import { dateToString, formatDateRange } from '../utils/taskUtils.js';
 import { hasNativeCalendar } from '../utils/nativeCalendar.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useMcpStatus, McpBoltButton, McpStatusPanel } from './McpStatusControls.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
@@ -50,7 +51,14 @@ const DesktopHeader = () => {
   const effSyncing = effSyncStatus === 'uploading' || effSyncStatus === 'downloading';
   const triggerSync = () => { if (webdavOn) cloudSyncUpload(); if (vaultEnabled) vaultSyncNow?.(); };
 
+  // §6.5 canonical MCP surface: createTray() is darwin-gated, so this cluster
+  // button is the only ambient bound-listener signal (and reachable kill
+  // switch / bulk undo outside Settings) on Windows and Linux.
+  const mcp = useMcpStatus();
+  const [mcpOpen, setMcpOpen] = useState(false);
+
   return (
+    <>
       <div className={`${cardBg} border-b ${borderClass} px-4 py-2 flex items-center justify-between relative`} style={{ height: '80px' }}>
         {/* Left: Weather + Daily Content */}
         <div className="flex items-center gap-4 min-w-0">
@@ -241,6 +249,7 @@ const DesktopHeader = () => {
               }`} />
             </button>
           )}
+          <McpBoltButton mcp={mcp} darkMode={darkMode} open={mcpOpen} onToggle={() => setMcpOpen(v => !v)} variant="cluster" />
           <button
             onClick={() => setShowSettings(true)}
             className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
@@ -284,6 +293,9 @@ const DesktopHeader = () => {
           </button>
         </div>
       </div>
+      {/* Inline expansion below the header row — pushes content down, no popover */}
+      <McpStatusPanel mcp={mcp} darkMode={darkMode} open={mcpOpen} borderClass={borderClass} />
+    </>
   );
 };
 
