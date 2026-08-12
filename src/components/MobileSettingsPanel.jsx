@@ -350,9 +350,11 @@ const MobileSettingsPanel = () => {
       )}
       {/* §6.5 MCP status — narrow-viewport home of the canonical surface.
           A Sync-section row like its neighbors (external connections with a
-          status dot on the icon); shown only while the listener is bound.
-          Toggles an inline expansion below the row instead of a sub-view. */}
-      {mcpStatus.enabled && (
+          status dot on the icon); shown while the listener is bound OR
+          undoable session writes remain (the amber state, which keeps bulk
+          undo reachable after the kill switch). Toggles an inline expansion
+          below the row instead of a sub-view. */}
+      {mcpStatus.visible && (
         <button
           onClick={() => setMcpRowOpen(v => !v)}
           className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}

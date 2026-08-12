@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Power, Undo2, Zap } from 'lucide-react';
+import { mcpSurfaceState } from '../utils/mcpSurfaceState.js';
 
 // The §6.5 MCP surface, restructured as an ambient bolt button + inline
 // expansion (replacing the tray popup's persistent two-row banner and the
@@ -46,24 +47,34 @@ export function useMcpStatus() {
   const gates = snapshot?.gates;
   const enabled = !!gates?.bound;
   const writesAutoDisabled = !!snapshot?.status?.mcp?.writesAutoDisabled;
-  const dot = writesAutoDisabled ? 'red' : journal.total > 0 ? 'blue' : 'green';
+  // The state table lives in src/utils/mcpSurfaceState.js, pure and
+  // mutation-verified — including the AMBER state that keeps bulk undo
+  // reachable after the kill switch while undoable entries remain.
+  const surface = mcpSurfaceState({ bound: enabled, writesAutoDisabled, journalTotal: journal.total });
   const tier = !enabled ? 'MCP server off'
     : gates.includeWrites
       ? (gates.includeNative ? 'Reads incl. device calendar + writes' : 'Reads dayGLANCE data + writes')
       : (gates.includeNative ? 'Reads incl. device calendar' : 'Reads dayGLANCE data');
 
-  return { api, snapshot, journal, enabled, writesAutoDisabled, dot, tier };
+  return {
+    api, snapshot, journal, enabled, writesAutoDisabled, tier,
+    visible: surface.visible, dot: surface.dot, showKillSwitch: surface.showKillSwitch,
+  };
 }
 
-export const DOT_CLASS = { green: 'bg-green-500', blue: 'bg-blue-500', red: 'bg-red-500' };
+export const DOT_CLASS = { green: 'bg-green-500', blue: 'bg-blue-500', red: 'bg-red-500', amber: 'bg-amber-500' };
 
 /**
- * The bolt. Null while the listener is unbound — an absent bolt IS the
- * "nothing is listening" state. `variant` matches the host row's own button
- * styling so the addition never reflows it.
+ * The bolt. Null while there is nothing to show — no bound listener AND no
+ * undoable session writes. While bound its dot is green/blue/red; after the
+ * kill switch it stays AMBER while undoable entries remain, because the kill
+ * switch is most likely used when an agent misbehaved, which is exactly when
+ * undo is needed. It disappears once the journal empties (undo or restart).
+ * `variant` matches the host row's own button styling so the addition never
+ * reflows it.
  */
 export function McpBoltButton({ mcp, darkMode, open, onToggle, variant }) {
-  if (!mcp.enabled) return null;
+  if (!mcp.visible) return null;
 
   const dotBorder = darkMode ? 'border-gray-800' : 'border-white';
   const cls = variant === 'cluster'
@@ -74,7 +85,9 @@ export function McpBoltButton({ mcp, darkMode, open, onToggle, variant }) {
     <button
       onClick={onToggle}
       className={cls}
-      title={`MCP server on — ${mcp.tier}${mcp.journal.total > 0 ? ` · ${mcp.journal.total} undoable change${mcp.journal.total === 1 ? '' : 's'}` : ''}${mcp.writesAutoDisabled ? ' · writes auto-disabled' : ''}`}
+      title={mcp.enabled
+        ? `MCP server on — ${mcp.tier}${mcp.journal.total > 0 ? ` · ${mcp.journal.total} undoable change${mcp.journal.total === 1 ? '' : 's'}` : ''}${mcp.writesAutoDisabled ? ' · writes auto-disabled' : ''}`
+        : `MCP server off · ${mcp.journal.total} undoable change${mcp.journal.total === 1 ? '' : 's'} remain`}
       aria-expanded={open}
       aria-label="MCP server status"
     >
@@ -96,13 +109,16 @@ export function McpBoltButton({ mcp, darkMode, open, onToggle, variant }) {
  *   layout's most contended row, and mobile's convention for this class of
  *   control is the Settings tab.
  *
- * Renders null when unbound (a kill switch click removes the whole surface).
+ * Renders null when the surface is hidden (unbound with an empty journal).
+ * Unbound with undoable entries — the amber state — shows a clear "server is
+ * off" heading, the journal count, and bulk undo, with NO kill switch: there
+ * is nothing to kill, and the undo path must survive the kill switch.
  */
 export function McpStatusPanel({ mcp, darkMode, open, borderClass, variant, cardBg }) {
   const [undoBusy, setUndoBusy] = useState(false);
   const [notice, setNotice] = useState(null);
 
-  if (!mcp.enabled) return null;
+  if (!mcp.visible) return null;
   if (variant !== 'card' && !open) return null;
 
   const textPrimary = darkMode ? 'text-gray-100' : 'text-stone-900';
@@ -142,13 +158,19 @@ export function McpStatusPanel({ mcp, darkMode, open, borderClass, variant, card
     <div className={container}>
       <div className={`text-xs font-semibold ${textPrimary} flex items-center gap-1.5`}>
         {variant === 'card' && <Zap size={12} className="text-amber-500" />}
-        MCP server on
+        {mcp.enabled ? 'MCP server on' : 'MCP server off'}
       </div>
-      <div className={`text-[11px] ${status.mcp.error ? 'text-red-500' : textSecondary}`}>{serverLine}</div>
-      <div className={`text-[11px] ${textSecondary}`}>{mcp.tier}</div>
-      {mcp.writesAutoDisabled && (
-        <div className="text-[11px] text-red-500">
-          Writes auto-disabled after repeated rate-limit violations. Restart dayGLANCE to re-enable.
+      {mcp.enabled ? (<>
+        <div className={`text-[11px] ${status.mcp.error ? 'text-red-500' : textSecondary}`}>{serverLine}</div>
+        <div className={`text-[11px] ${textSecondary}`}>{mcp.tier}</div>
+        {mcp.writesAutoDisabled && (
+          <div className="text-[11px] text-red-500">
+            Writes auto-disabled after repeated rate-limit violations. Restart dayGLANCE to re-enable.
+          </div>
+        )}
+      </>) : (
+        <div className={`text-[11px] ${textSecondary}`}>
+          The server was turned off, but changes MCP clients made this session can still be undone.
         </div>
       )}
       <div className={`text-[11px] ${textSecondary}`}>
@@ -157,14 +179,16 @@ export function McpStatusPanel({ mcp, darkMode, open, borderClass, variant, card
           : 'No changes by MCP this session'}
       </div>
       <div className="flex items-center gap-2">
-        <button
-          onClick={killSwitch}
-          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium ${darkMode ? 'bg-red-900/40 text-red-300 hover:bg-red-900/60' : 'bg-red-100 text-red-700 hover:bg-red-200'} transition-colors`}
-          title="Turn the MCP server off. No apps will be able to connect until you re-enable it in Settings."
-        >
-          <Power size={12} />
-          Turn off
-        </button>
+        {mcp.showKillSwitch && (
+          <button
+            onClick={killSwitch}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium ${darkMode ? 'bg-red-900/40 text-red-300 hover:bg-red-900/60' : 'bg-red-100 text-red-700 hover:bg-red-200'} transition-colors`}
+            title="Turn the MCP server off. No apps will be able to connect until you re-enable it in Settings."
+          >
+            <Power size={12} />
+            Turn off
+          </button>
+        )}
         {mcp.journal.total > 0 && (
           <button
             onClick={undoAll}
