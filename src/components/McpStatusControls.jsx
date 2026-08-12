@@ -79,7 +79,11 @@ export function McpBoltButton({ mcp, darkMode, open, onToggle, variant }) {
   const dotBorder = darkMode ? 'border-gray-800' : 'border-white';
   const cls = variant === 'cluster'
     ? `relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-stone-300'}`
-    : `relative flex-shrink-0 p-2 rounded-lg transition-opacity hover:opacity-70 ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-500'}`;
+    : variant === 'glance-row'
+      // The mobile GLANCE tab's utility row (search/filter/mic/bucket): its
+      // buttons are self-stretch px-2.5 with the row's own token colors.
+      ? `relative flex-shrink-0 px-2.5 self-stretch flex items-center rounded-lg transition-colors ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'}`
+      : `relative flex-shrink-0 p-2 rounded-lg transition-opacity hover:opacity-70 ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-500'}`;
 
   return (
     <button
