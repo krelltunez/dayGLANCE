@@ -55,7 +55,7 @@ export function useMcpStatus() {
   return { api, snapshot, journal, enabled, writesAutoDisabled, dot, tier };
 }
 
-const DOT_CLASS = { green: 'bg-green-500', blue: 'bg-blue-500', red: 'bg-red-500' };
+export const DOT_CLASS = { green: 'bg-green-500', blue: 'bg-blue-500', red: 'bg-red-500' };
 
 /**
  * The bolt. Null while the listener is unbound — an absent bolt IS the
