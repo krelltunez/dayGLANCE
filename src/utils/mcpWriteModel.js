@@ -124,10 +124,14 @@ export function handleMcpWrite(state, setters, request) {
       // The §4.3 bulk undo. Not itself journaled (the main process clears the
       // journal on success), and applied through the same store layer as every
       // other write, so sync, GLANCEintents, and tray:data-changed all fire.
+      // Undone creates land in the recycle bin (cross-list move, the UI's own
+      // delete shape) so the vault propagates a legitimate delete instead of
+      // healing back a fingerprint-less vanish — see applyUndoOps.
       const r = applyUndoOps(state, params.ops, { nowIso });
       setters.setTasks(r.tasks);
       setters.setUnscheduledTasks(r.unscheduledTasks);
       setters.setRecurringTasks(r.recurringTasks);
+      setters.setRecycleBin(r.recycleBin);
       return { ok: true, data: { undone: r.undone, skipped: r.skipped } };
     }
     default:
