@@ -31,7 +31,7 @@ import { mcpSurfaceState } from '../utils/mcpSurfaceState.js';
 export function useMcpStatus() {
   const api = typeof window !== 'undefined' ? window.electronAPI : undefined;
   const [snapshot, setSnapshot] = useState(null);
-  const [journal, setJournal] = useState({ total: 0, entries: [] });
+  const [journal, setJournal] = useState({ total: 0, entries: [], groups: [] });
 
   useEffect(() => {
     if (!api?.localIntegrations) return undefined;
@@ -103,15 +103,25 @@ export function McpBoltButton({ mcp, darkMode, open, onToggle, variant }) {
 
 /**
  * Shared body: heading line handled by the host shape; here the status,
- * tier, journal count, actions, and notice. The amber (server off, undoable
- * entries remain) form shows a clear off indication and NO kill switch —
- * there is nothing to kill, and the undo path must survive the kill switch.
+ * tier, journal count, the per-task journal list, actions, and notice. The
+ * amber (server off, undoable entries remain) form shows a clear off
+ * indication and NO kill switch — there is nothing to kill, and the undo
+ * path must survive the kill switch.
+ *
+ * The journal renders grouped by task (snapshot `groups`, computed over the
+ * full journal in the main process), each group with its own undo reversing
+ * that task to its pre-MCP state; "Undo all" stays alongside — still the
+ * right answer for a runaway loop. The list scrolls inside a max-height so
+ * a long session cannot outgrow the 320px tray strip or the modals.
  */
 function McpPanelBody({ mcp, darkMode, textScale = 'text-[11px]' }) {
   const [undoBusy, setUndoBusy] = useState(false);
+  const [undoTaskBusy, setUndoTaskBusy] = useState(null); // groupKey mid-undo
   const [notice, setNotice] = useState(null);
 
+  const textPrimary = darkMode ? 'text-gray-100' : 'text-stone-900';
   const textSecondary = darkMode ? 'text-gray-400' : 'text-stone-500';
+  const groupBorder = darkMode ? 'border-gray-700' : 'border-stone-200';
   const { status, ports } = mcp.snapshot;
 
   const serverLine = status.mcp.error
@@ -139,6 +149,32 @@ function McpPanelBody({ mcp, darkMode, textScale = 'text-[11px]' }) {
     }
   };
 
+  // Per-task undo (§4.3): every journal entry for one task, reversed back to
+  // its pre-MCP state in the main process; other tasks' entries stay undoable.
+  const undoTask = async (group) => {
+    setUndoTaskBusy(group.key);
+    setNotice(null);
+    try {
+      const r = await mcp.api.mcpJournal.undoTask(group.key);
+      setNotice(r?.ok
+        ? `Undid ${r.undone} change${r.undone === 1 ? '' : 's'} to ${group.label}${r.skipped ? ` (${r.skipped} no longer applicable)` : ''}.`
+        : (r?.error || 'Undo failed.'));
+    } finally {
+      setUndoTaskBusy(null);
+    }
+  };
+
+  // The journal, grouped per task, newest activity first. Group counts come
+  // from the FULL journal; the rows under each group come from the trimmed
+  // display list (last 50), so a busy group notes how many rows are elided.
+  const groups = mcp.journal.groups ?? [];
+  const entriesByGroup = new Map();
+  for (const e of mcp.journal.entries ?? []) {
+    const list = entriesByGroup.get(e.groupKey);
+    if (list) list.push(e);
+    else entriesByGroup.set(e.groupKey, [e]);
+  }
+
   return (<>
     {mcp.enabled ? (<>
       <div className={`${textScale} ${status.mcp.error ? 'text-red-500' : textSecondary}`}>{serverLine}</div>
@@ -158,6 +194,41 @@ function McpPanelBody({ mcp, darkMode, textScale = 'text-[11px]' }) {
         ? `${mcp.journal.total} change${mcp.journal.total === 1 ? '' : 's'} by MCP this session`
         : 'No changes by MCP this session'}
     </div>
+    {groups.length > 0 && (
+      <div className="max-h-44 overflow-y-auto space-y-1.5" data-testid="mcp-journal-list">
+        {groups.map((group) => {
+          const rows = entriesByGroup.get(group.key) ?? [];
+          return (
+            <div key={group.key} className={`rounded-lg border ${groupBorder} px-2 py-1.5 space-y-0.5`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className={`${textScale} font-medium ${textPrimary} truncate min-w-0`} title={group.label}>
+                  {group.label}
+                </span>
+                <button
+                  onClick={() => undoTask(group)}
+                  disabled={undoTaskBusy !== null || undoBusy}
+                  className={`flex-shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded ${textScale} font-medium disabled:opacity-50 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'} transition-colors`}
+                  title={`Reverse ${group.count === 1 ? 'the change' : `all ${group.count} changes`} MCP clients made to this task, back to its state before MCP first touched it. An undone new task goes to the recycle bin.`}
+                >
+                  <Undo2 size={10} />
+                  {undoTaskBusy === group.key ? 'Undoing…' : `Undo${group.count > 1 ? ` (${group.count})` : ''}`}
+                </button>
+              </div>
+              {rows.map((row) => (
+                <div key={row.seq} className={`${textScale} ${textSecondary} truncate`} title={row.summary}>
+                  {row.summary}
+                </div>
+              ))}
+              {group.count > rows.length && (
+                <div className={`${textScale} ${textSecondary} italic`}>
+                  and {group.count - rows.length} earlier change{group.count - rows.length === 1 ? '' : 's'} not shown
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    )}
     <div className="flex items-center gap-2">
       {mcp.showKillSwitch && (
         <button
@@ -172,7 +243,7 @@ function McpPanelBody({ mcp, darkMode, textScale = 'text-[11px]' }) {
       {mcp.journal.total > 0 && (
         <button
           onClick={undoAll}
-          disabled={undoBusy}
+          disabled={undoBusy || undoTaskBusy !== null}
           className={`flex items-center gap-1 px-2 py-1 rounded-lg ${textScale} font-medium disabled:opacity-50 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'} transition-colors`}
           title="Reverse every change MCP clients made since dayGLANCE started (or since the last undo). Undone new tasks go to the recycle bin."
         >

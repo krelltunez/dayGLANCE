@@ -33,6 +33,7 @@ import {
   appendEntry as appendJournalEntry,
   journalSnapshot as buildJournalSnapshot,
   buildUndoPlan,
+  undoGroupKey,
   mcpIndicator,
   composeTrayTitle,
   type JournalEntry,
@@ -968,6 +969,27 @@ function registerMcpJournalHandlers(): void {
     const r = await mcpBridge.request('undo_mcp_writes', { ops: plan.ops }, 10_000);
     if (!r.ok) return { ok: false, error: r.error.message };
     mcpJournalEntries = [];
+    pushMcpJournal();
+    const data = r.data as { undone?: number; skipped?: number };
+    return { ok: true, undone: data?.undone ?? plan.count, skipped: data?.skipped ?? 0 };
+  });
+  // Per-task undo: reverse every journal entry for ONE task, back to its
+  // state before MCP first touched it. Same pipeline as undo-all — filter
+  // the FULL journal by group key, reverse chronologically, apply through
+  // the renderer's applyUndoOps — so an undone create still becomes a
+  // recycle-bin move. Only the undone task's entries leave the journal;
+  // the rest stay undoable (each entry's before-state is self-contained).
+  ipcMain.handle('mcp-journal:undo-task', async (_event, groupKey: unknown) => {
+    if (typeof groupKey !== 'string' || groupKey.length === 0) {
+      return { ok: false, error: 'No task specified.' };
+    }
+    const subset = mcpJournalEntries.filter((e) => undoGroupKey(e.op) === groupKey);
+    if (subset.length === 0) return { ok: false, error: 'No MCP changes to undo for this task.' };
+    if (!mcpBridge) return { ok: false, error: 'The dayGLANCE window is not available.' };
+    const plan = buildUndoPlan(subset);
+    const r = await mcpBridge.request('undo_mcp_writes', { ops: plan.ops }, 10_000);
+    if (!r.ok) return { ok: false, error: r.error.message };
+    mcpJournalEntries = mcpJournalEntries.filter((e) => undoGroupKey(e.op) !== groupKey);
     pushMcpJournal();
     const data = r.data as { undone?: number; skipped?: number };
     return { ok: true, undone: data?.undone ?? plan.count, skipped: data?.skipped ?? 0 };
