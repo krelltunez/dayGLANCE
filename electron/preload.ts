@@ -105,6 +105,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   mcpJournal: {
     get: (): Promise<unknown> => ipcRenderer.invoke('mcp-journal:get'),
     undoAll: (): Promise<unknown> => ipcRenderer.invoke('mcp-journal:undo-all'),
+    undoTask: (groupKey: string): Promise<unknown> => ipcRenderer.invoke('mcp-journal:undo-task', groupKey),
     onChanged: (callback: (snapshot: unknown) => void) => {
       const handler = (_: Electron.IpcRendererEvent, snapshot: unknown) => callback(snapshot);
       ipcRenderer.on('mcp-journal:changed', handler);
