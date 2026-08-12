@@ -6,7 +6,7 @@ import {
 import { dateToString, formatDateRange } from '../utils/taskUtils.js';
 import { hasNativeCalendar } from '../utils/nativeCalendar.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
-import { useMcpStatus, McpBoltButton, McpStatusPanel } from './McpStatusControls.jsx';
+import { useMcpStatus, McpBoltButton, McpStatusModal } from './McpStatusControls.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
@@ -293,8 +293,9 @@ const DesktopHeader = () => {
           </button>
         </div>
       </div>
-      {/* Inline expansion below the header row — pushes content down, no popover */}
-      <McpStatusPanel mcp={mcp} darkMode={darkMode} open={mcpOpen} borderClass={borderClass} />
+      {/* Desktop uses the app's standard modal chrome (backup/help pattern) —
+          the earlier inline expansion pushed the whole calendar down. */}
+      <McpStatusModal mcp={mcp} darkMode={darkMode} open={mcpOpen} onClose={() => setMcpOpen(false)} borderClass={borderClass} cardBg={cardBg} />
     </>
   );
 };

@@ -70,11 +70,22 @@ const READ_TIER_OPTIONS = [
   },
 ];
 
-const LocalIntegrationsSettings = () => {
+/**
+ * variant:
+ *  - default: a collapsible section for the desktop SettingsModal (hr +
+ *    header button + chevron, per that modal's section idiom).
+ *  - "page": bare content for the mobile Settings sub-view, which provides
+ *    its own back header and title; always expanded, no hr, no section
+ *    header. (Previously this component was mounted whole at the bottom of
+ *    the mobile panel, stranding a desktop-shaped section in a page of row
+ *    cards.)
+ */
+const LocalIntegrationsSettings = ({ variant }) => {
   const {
     collapsedSettings, toggleSettingsSection,
     darkMode, borderClass, textPrimary, textSecondary,
   } = useDayPlannerCtx();
+  const isPage = variant === 'page';
 
   const api = typeof window !== 'undefined' ? window.electronAPI?.localIntegrations : undefined;
   const [snapshot, setSnapshot] = useState(null);
@@ -229,15 +240,17 @@ const LocalIntegrationsSettings = () => {
 
   return (
     <>
-      <hr className={borderClass} />
+      {!isPage && <hr className={borderClass} />}
       <div className="space-y-3">
-        <button onClick={() => toggleSettingsSection('localIntegrations')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
-          <Plug size={16} className={textSecondary} />
-          Local Integrations
-          {anyEnabled && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
-          <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.localIntegrations ? '' : 'rotate-180'}`} />
-        </button>
-        {!collapsedSettings.localIntegrations && (<>
+        {!isPage && (
+          <button onClick={() => toggleSettingsSection('localIntegrations')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
+            <Plug size={16} className={textSecondary} />
+            Local Integrations
+            {anyEnabled && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+            <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.localIntegrations ? '' : 'rotate-180'}`} />
+          </button>
+        )}
+        {(isPage || !collapsedSettings.localIntegrations) && (<>
           <p className={`${textSecondary} text-xs`}>
             Connections for other apps running on this computer. Both listen on 127.0.0.1 only and are never reachable from the network.
           </p>

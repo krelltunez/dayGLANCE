@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   AlarmClock, AlertCircle, AlertTriangle, BookOpen, BrainCircuit,
   Calendar, CalendarClock, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
@@ -19,6 +19,7 @@ import GettingStartedChecklist from './GettingStartedChecklist.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import FrameNudgeCard from './FrameNudgeCard.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { useMcpStatus, McpBoltButton, McpStatusModal } from './McpStatusControls.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getGlanceHGInstances, isHGSessionReachable } from '../hooks/useHyperGlance.js';
@@ -26,6 +27,13 @@ import { useTranslation } from 'react-i18next';
 import { notBucketed } from '../utils/bucketList.js';
 
 const MobileGlanceSection = () => {
+  // §6.5 status surface for narrow viewports: the GLANCE tab's utility row is
+  // the mobile analog of the desktop settings cluster (and its neighbors
+  // already open overlays), so the bolt lives here and opens the same status
+  // modal as desktop. Configuration lives in Settings > Local Integrations;
+  // this is status, kill switch, and bulk undo only.
+  const mcp = useMcpStatus();
+  const [mcpOpen, setMcpOpen] = useState(false);
   const {
     visibleDates,
     calendarRef,
@@ -178,7 +186,11 @@ const MobileGlanceSection = () => {
     >
       <Telescope size={16} />
     </button>
+    {/* MCP status bolt — visible only while bound (or amber: off with
+        undoable writes). Opens the same modal as the desktop cluster. */}
+    <McpBoltButton mcp={mcp} darkMode={darkMode} open={mcpOpen} onToggle={() => setMcpOpen(v => !v)} variant="glance-row" />
   </div>
+  <McpStatusModal mcp={mcp} darkMode={darkMode} open={mcpOpen} onClose={() => setMcpOpen(false)} borderClass={borderClass} cardBg={cardBg} />
   {/* Habits / Goals carousel */}
   {(() => {
     const todayDow = new Date().getDay();

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Activity, Archive, BarChart3, Bell, BookOpen, BrainCircuit,
   CalendarDays, CheckCircle, CheckSquare, ChevronDown, ChevronUp,
-  ChevronLeft, ChevronRight, Clock, Cloud, ExternalLink,
+  ChevronLeft, ChevronRight, Clock, Cloud, ExternalLink, Plug,
   Footprints, FolderOpen, Globe, GripVertical, HelpCircle, Key, LayoutGrid,
   Loader, Lock, Mic, Moon, Pencil, Plus,
   Flag, RefreshCw, Save, Server, Settings, Sparkles, Sun, Target, Trash2,
@@ -26,7 +26,7 @@ import MobileRoutinesTab from './MobileRoutinesTab.jsx';
 import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import LocalIntegrationsSettings from './LocalIntegrationsSettings.jsx';
-import { useMcpStatus, McpStatusPanel, DOT_CLASS as MCP_DOT_CLASS } from './McpStatusControls.jsx';
+import { useMcpStatus } from './McpStatusControls.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { isVaultEnabled } from '../sync/vaultConfig.js';
 import { multiUserToggleLocked, multiUserUnavailableReason, canSyncUserRoster } from '../utils/multiUserGate.js';
@@ -208,8 +208,11 @@ const MobileSettingsPanel = () => {
   const { t } = useTranslation(); // null | 'syncing' | 'ok' | 'error'
 
   // Commit staged routines on unmount (e.g. user switches tabs while in routines view)
+  // For the Local Integrations row card only: Electron presence + on/off dot.
+  // The status/undo surface lives in the GLANCE tab's top row, not here.
   const mcpStatus = useMcpStatus();
-  const [mcpRowOpen, setMcpRowOpen] = useState(false);
+  const integrationsConfig = mcpStatus.snapshot?.config;
+  const localIntegrationsOn = !!(integrationsConfig?.streamDeck?.enabled || (integrationsConfig?.mcp?.readTier && integrationsConfig.mcp.readTier !== 'off'));
   const mobileSettingsViewRef = useRef(mobileSettingsView);
   const handleRoutinesDoneRef = useRef(handleRoutinesDone);
   const [devTapCount, setDevTapCount] = useState(0);
@@ -348,30 +351,6 @@ const MobileSettingsPanel = () => {
           <span className={`font-medium ${textPrimary}`}>{t('settings.syncCalendars')}</span>
         </button>
       )}
-      {/* §6.5 MCP status — narrow-viewport home of the canonical surface.
-          A Sync-section row like its neighbors (external connections with a
-          status dot on the icon); shown while the listener is bound OR
-          undoable session writes remain (the amber state, which keeps bulk
-          undo reachable after the kill switch). Toggles an inline expansion
-          below the row instead of a sub-view. */}
-      {mcpStatus.visible && (
-        <button
-          onClick={() => setMcpRowOpen(v => !v)}
-          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
-          aria-expanded={mcpRowOpen}
-          aria-label="MCP server status"
-        >
-          <div className="relative">
-            <Zap size={20} className="text-amber-500" />
-            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${MCP_DOT_CLASS[mcpStatus.dot]}`} />
-          </div>
-          <span className={`font-medium ${textPrimary} flex-1 text-left`}>MCP server</span>
-          <ChevronDown size={18} className={`${textSecondary} transition-transform ${mcpRowOpen ? 'rotate-180' : ''}`} />
-        </button>
-      )}
-      {mcpRowOpen && (
-        <McpStatusPanel mcp={mcpStatus} darkMode={darkMode} variant="card" cardBg={cardBg} borderClass={borderClass} />
-      )}
       <button
         onClick={() => setMobileSettingsView('cloudsync')}
         className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
@@ -426,6 +405,21 @@ const MobileSettingsPanel = () => {
         <span className={`font-medium ${textPrimary} flex-1 text-left`}>{t('settings.glanceIntegrations')}</span>
         <ChevronRight size={18} className={textSecondary} />
       </button>
+      {!!mcpStatus.api?.localIntegrations && (
+        <button
+          onClick={() => setMobileSettingsView('localIntegrations')}
+          className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+        >
+          <div className="relative">
+            <Plug size={20} className={localIntegrationsOn ? 'text-amber-500' : textSecondary} />
+            {localIntegrationsOn && (
+              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-green-500`} />
+            )}
+          </div>
+          <span className={`font-medium ${textPrimary} flex-1 text-left`}>Local Integrations</span>
+          <ChevronRight size={18} className={textSecondary} />
+        </button>
+      )}
       <button
         onClick={() => setMobileSettingsView('multiUser')}
         className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
@@ -3066,9 +3060,24 @@ const MobileSettingsPanel = () => {
     </div>
   )}
 
-  {/* Local Integrations (Stream Deck + MCP) — only renders when a narrow
-      Electron window shows the mobile layout; nothing on true mobile. */}
-  <LocalIntegrationsSettings />
+  {/* Local Integrations sub-view — row card above opens it; the content is
+      the same component the desktop SettingsModal embeds, in page form. */}
+  {mobileSettingsView === 'localIntegrations' && (
+    <div className="px-4 py-4 space-y-4">
+      <button
+        onClick={() => setMobileSettingsView('main')}
+        className={`flex items-center gap-2 ${textSecondary} mb-2`}
+      >
+        <ChevronLeft size={18} />
+        <span className="text-sm font-medium">{t('common.settings')}</span>
+      </button>
+      <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
+        <Plug size={18} className={localIntegrationsOn ? 'text-amber-500' : textSecondary} />
+        Local Integrations
+      </h4>
+      <LocalIntegrationsSettings variant="page" />
+    </div>
+  )}
 </div>
   );
 };
