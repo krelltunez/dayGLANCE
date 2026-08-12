@@ -26,6 +26,7 @@ import MobileRoutinesTab from './MobileRoutinesTab.jsx';
 import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import LocalIntegrationsSettings from './LocalIntegrationsSettings.jsx';
+import { useMcpStatus, McpStatusPanel } from './McpStatusControls.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { isVaultEnabled } from '../sync/vaultConfig.js';
 import { multiUserToggleLocked, multiUserUnavailableReason, canSyncUserRoster } from '../utils/multiUserGate.js';
@@ -207,6 +208,7 @@ const MobileSettingsPanel = () => {
   const { t } = useTranslation(); // null | 'syncing' | 'ok' | 'error'
 
   // Commit staged routines on unmount (e.g. user switches tabs while in routines view)
+  const mcpStatus = useMcpStatus();
   const mobileSettingsViewRef = useRef(mobileSettingsView);
   const handleRoutinesDoneRef = useRef(handleRoutinesDone);
   const [devTapCount, setDevTapCount] = useState(0);
@@ -248,6 +250,10 @@ const MobileSettingsPanel = () => {
         </div>
       </div>
     )}
+
+    {/* §6.5 MCP status — narrow-viewport home of the canonical surface.
+        Shown only while the listener is bound; null on true mobile. */}
+    <McpStatusPanel mcp={mcpStatus} darkMode={darkMode} variant="card" cardBg={cardBg} borderClass={borderClass} />
 
     {/* Quick toggles */}
     <div className="grid grid-cols-3 gap-3">

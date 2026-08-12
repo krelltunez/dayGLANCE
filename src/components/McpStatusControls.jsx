@@ -85,16 +85,25 @@ export function McpBoltButton({ mcp, darkMode, open, onToggle, variant }) {
 }
 
 /**
- * The inline expansion: server status, tier, kill switch, journal count,
- * bulk undo. Hosts render it directly BELOW the row holding the bolt, so it
- * pushes content down. Renders null when collapsed or unbound (a kill switch
- * click collapses the whole surface with it).
+ * Server status, tier, kill switch, journal count, bulk undo. Two shapes:
+ *
+ * - default (strip): the bolt's inline expansion, rendered directly BELOW the
+ *   row holding the bolt so it pushes content down; null when collapsed.
+ * - variant="card": a standalone section in the mobile Settings tab — the
+ *   narrow-viewport home for secondary status and controls (that panel's
+ *   card idiom), no bolt and no expansion, always shown while bound. The
+ *   mobile date-nav header deliberately does NOT carry the bolt: it is the
+ *   layout's most contended row, and mobile's convention for this class of
+ *   control is the Settings tab.
+ *
+ * Renders null when unbound (a kill switch click removes the whole surface).
  */
-export function McpStatusPanel({ mcp, darkMode, open, borderClass }) {
+export function McpStatusPanel({ mcp, darkMode, open, borderClass, variant, cardBg }) {
   const [undoBusy, setUndoBusy] = useState(false);
   const [notice, setNotice] = useState(null);
 
-  if (!open || !mcp.enabled) return null;
+  if (!mcp.enabled) return null;
+  if (variant !== 'card' && !open) return null;
 
   const textPrimary = darkMode ? 'text-gray-100' : 'text-stone-900';
   const textSecondary = darkMode ? 'text-gray-400' : 'text-stone-500';
@@ -125,9 +134,16 @@ export function McpStatusPanel({ mcp, darkMode, open, borderClass }) {
     }
   };
 
+  const container = variant === 'card'
+    ? `${cardBg} border ${borderClass} rounded-xl p-3 space-y-1.5`
+    : `border-b ${borderClass} ${darkMode ? 'bg-amber-900/15' : 'bg-amber-50'} px-3 py-2 space-y-1.5`;
+
   return (
-    <div className={`border-b ${borderClass} ${darkMode ? 'bg-amber-900/15' : 'bg-amber-50'} px-3 py-2 space-y-1.5`}>
-      <div className={`text-xs font-semibold ${textPrimary}`}>MCP server on</div>
+    <div className={container}>
+      <div className={`text-xs font-semibold ${textPrimary} flex items-center gap-1.5`}>
+        {variant === 'card' && <Zap size={12} className="text-amber-500" />}
+        MCP server on
+      </div>
       <div className={`text-[11px] ${status.mcp.error ? 'text-red-500' : textSecondary}`}>{serverLine}</div>
       <div className={`text-[11px] ${textSecondary}`}>{mcp.tier}</div>
       {mcp.writesAutoDisabled && (
