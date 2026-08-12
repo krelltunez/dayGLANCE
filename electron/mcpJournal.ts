@@ -90,11 +90,13 @@ export function buildUndoPlan(entries: JournalEntry[]): { count: number; ops: Un
 }
 
 /**
- * §6.5 tier-to-indicator mapping. The glyph lands in the macOS menu bar next
- * to the tray icon; the label names the current tier in the popup and the
- * right-click menu. Requirements: visibly distinct from the base app state
- * (the reminder dot is '●' and focus titles are countdown text, so both
- * glyphs here are reserved for MCP), and writes distinguishable from reads.
+ * §6.5 tier-to-indicator mapping. The label names the current tier in the
+ * tray icon's right-click menu and the expandable status panels. The glyph
+ * is UNUSED as of the presentation restructure — the menu-bar title carries
+ * no MCP state (glanceable state moved to the in-app bolt button, whose dot
+ * follows the settings-cluster convention); kept, not deleted, because the
+ * mapping itself is the tested §6.3→§6.5 tier translation and the label half
+ * is load-bearing.
  */
 export function mcpIndicator(gates: { bound: boolean; includeNative: boolean; includeWrites: boolean }): {
   glyph: string;
@@ -107,13 +109,12 @@ export function mcpIndicator(gates: { bound: boolean; includeNative: boolean; in
 }
 
 /**
- * Menu-bar title composition. Focus countdowns keep priority (they are the
- * highest-value glanceable state), the reminder dot keeps its slot, and the
- * MCP glyph is APPENDED rather than replacing either — a bound listener must
- * stay visible through every other tray state (§6.5: never invisible).
+ * Menu-bar title composition: focus countdown first, else the reminder dot.
+ * Deliberately carries NO MCP state — the tier glyph was removed in the
+ * presentation restructure (it competed with focus/reminder state in a
+ * surface that exists only on macOS; the bolt button in the app and tray
+ * popup is the ambient §6.5 signal on every platform).
  */
-export function composeTrayTitle(parts: { focusTitle: string; reminderOn: boolean; mcpGlyph: string }): string {
-  const base = parts.focusTitle || (parts.reminderOn ? '●' : '');
-  if (!parts.mcpGlyph) return base;
-  return base ? `${base} ${parts.mcpGlyph}` : parts.mcpGlyph;
+export function composeTrayTitle(parts: { focusTitle: string; reminderOn: boolean }): string {
+  return parts.focusTitle || (parts.reminderOn ? '●' : '');
 }

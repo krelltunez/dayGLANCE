@@ -102,13 +102,11 @@ let registeredMainWindowHotkey: string | null = null;
 let trayIndicatorOn = false;
 let trayFocusTitle = '';
 function refreshTrayTitle() {
-  // §6.5: the MCP glyph is appended, never displaced — a bound listener stays
-  // visible in the menu bar through focus countdowns and reminder dots alike.
-  tray?.setTitle(composeTrayTitle({
-    focusTitle: trayFocusTitle,
-    reminderOn: trayIndicatorOn,
-    mcpGlyph: mcpIndicator(mcpGates(integrationsConfig)).glyph,
-  }));
+  // Focus and reminder state only. The MCP tier deliberately does NOT reach
+  // the menu-bar title: the §6.5 ambient signal is the in-app bolt button
+  // (settings cluster + tray popup), which exists on every platform, while
+  // this title exists only on macOS.
+  tray?.setTitle(composeTrayTitle({ focusTitle: trayFocusTitle, reminderOn: trayIndicatorOn }));
 }
 
 // Safe accessor — returns null if the window has been destroyed so callers
@@ -1070,6 +1068,9 @@ function startMcpListener(): void {
             body: 'An MCP client repeatedly exceeded the write rate limit. Writes stay off until dayGLANCE restarts.',
           }).show();
         }
+        // The bolt buttons' red dot state: push so it appears live, not on
+        // the next unrelated status change.
+        pushIntegrationsStatus();
       },
       now: Date.now,
       timeZone: mcpTimeZone,
@@ -1116,7 +1117,16 @@ function integrationsSnapshot() {
       mcpDefault: DEFAULT_MCP_PORT,
       mcpEffective: resolved.ok ? resolved.port : null,
     },
-    status: { streamDeck: streamDeckStatus, mcp: mcpStatus },
+    status: {
+      streamDeck: streamDeckStatus,
+      mcp: {
+        ...mcpStatus,
+        // §4.3 auto-disable state, straight from the gate (the long-lived
+        // authority — it survives listener stop/start deliberately). Drives
+        // the bolt buttons' red dot; presentation reads it, never sets it.
+        writesAutoDisabled: mcpWriteGate?.writesDisabled() ?? false,
+      },
+    },
   };
 }
 

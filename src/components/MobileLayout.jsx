@@ -22,6 +22,7 @@ import GettingStartedChecklist from './GettingStartedChecklist.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import FrameEditor from './FrameEditor.jsx';
 import SmartSchedulePanel from './SmartSchedulePanel.jsx';
+import { useMcpStatus, McpBoltButton, McpStatusPanel } from './McpStatusControls.jsx';
 import DailyNotesModal from './DailyNotesModal.jsx';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import AutoBackupSettingsForm from './AutoBackupSettingsForm.jsx';
@@ -49,6 +50,11 @@ import useGlanceFabs from '../hooks/useGlanceFabs.js';
 import { glanceFabStagger, glanceFabVisibilityClass } from '../utils/glanceFabs.js';
 
 const MobileLayout = () => {
+  // §6.5 narrow-viewport variant of the canonical MCP surface: this layout
+  // also renders in Electron windows under 721px wide, where the desktop
+  // settings cluster does not exist. Null on true mobile (no electronAPI).
+  const mcp = useMcpStatus();
+  const [mcpOpen, setMcpOpen] = useState(false);
   const [tzBannerDismissed, setTzBannerDismissed] = useState(false);
   const { collapsed: glanceFabsCollapsed, toggle: toggleGlanceFabs } = useGlanceFabs();
   const {
@@ -508,10 +514,15 @@ const MobileLayout = () => {
                       </button>
                     )}
                   </div>
-                  <button onClick={() => changeDate(1)} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label="Next day">
-                    <ChevronRight size={20} className={textSecondary} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <McpBoltButton mcp={mcp} darkMode={darkMode} open={mcpOpen} onToggle={() => setMcpOpen(v => !v)} variant="tray" />
+                    <button onClick={() => changeDate(1)} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label="Next day">
+                      <ChevronRight size={20} className={textSecondary} />
+                    </button>
+                  </div>
                 </div>
+                {/* Inline MCP expansion below the nav row — pushes content down */}
+                <McpStatusPanel mcp={mcp} darkMode={darkMode} open={mcpOpen} borderClass={borderClass} />
                 {/* Month View Popup for mobile */}
                 {showMonthView && (
                   <div className={`month-view-container absolute left-4 right-4 top-full mt-1 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50`}>

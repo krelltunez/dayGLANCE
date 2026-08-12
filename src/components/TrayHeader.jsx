@@ -3,18 +3,31 @@ import { useTranslation } from 'react-i18next';
 import { Search, Mic } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { useMcpStatus, McpBoltButton, McpStatusPanel } from './McpStatusControls.jsx';
 
 export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
   const { setUnscheduledTasks, borderClass } = useDayPlannerCtx();
   const { aiConfig, voiceCanRecord } = useFeaturesCtx();
   const [text, setText] = useState('');
   const inputRef = useRef(null);
+  const mcp = useMcpStatus();
+  const [mcpOpen, setMcpOpen] = useState(false);
 
   useEffect(() => {
     if (!window.electronAPI?.onFocusQuickAdd) return;
     return window.electronAPI.onFocusQuickAdd(() => {
       inputRef.current?.focus();
       inputRef.current?.select();
+    });
+  }, []);
+
+  // The popup always opens collapsed (§6.5 restructure): expanded state never
+  // persists across hide/show, which a reload alone would not guarantee — the
+  // popup only reloads when data changed while it was open.
+  useEffect(() => {
+    if (!window.electronAPI?.onTrayVisibility) return;
+    return window.electronAPI.onTrayVisibility((visible) => {
+      if (!visible) setMcpOpen(false);
     });
   }, []);
 
@@ -42,8 +55,8 @@ export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
   const showVoice = aiConfig?.enabled && aiConfig?.features?.voiceTaskInput && voiceCanRecord;
 
   return (
-    <div className={`flex-shrink-0 px-3 pt-3 pb-2 border-b ${borderClass}`}>
-      <div className="flex items-center gap-1.5">
+    <div className={`flex-shrink-0 border-b ${borderClass}`}>
+      <div className="px-3 pt-3 pb-2 flex items-center gap-1.5">
         <input
           ref={inputRef}
           className={`flex-1 text-sm px-3 py-2 rounded-lg outline-none ${
@@ -76,7 +89,11 @@ export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
             <Mic size={16} />
           </button>
         )}
+        {/* §6.5 ambient signal: visible only while the MCP listener is bound */}
+        <McpBoltButton mcp={mcp} darkMode={darkMode} open={mcpOpen} onToggle={() => setMcpOpen((v) => !v)} variant="tray" />
       </div>
+      {/* Inline expansion below the row — pushes popup content down, no popover */}
+      <McpStatusPanel mcp={mcp} darkMode={darkMode} open={mcpOpen} borderClass={borderClass} />
     </div>
   );
 }
