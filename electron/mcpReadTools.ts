@@ -28,6 +28,13 @@ export interface ReadToolDeps {
   timeZone: () => string;
   /** Device-calendar consent tier (§6.3). Phase 2 reads an env var behind this; Phase 5 swaps the source. */
   includeNativeEvents: () => boolean;
+  /**
+   * Multi-user mode, pushed from the renderer (per-device toggle). Gates the
+   * EXISTENCE of dayglance_list_users — evaluated at registration time, which
+   * is per request (§3.7 factory), so a toggle mid-session changes the
+   * schema on the client's next request.
+   */
+  multiUserEnabled: () => boolean;
 }
 
 type ToolResult = {
@@ -125,6 +132,28 @@ export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
       });
     },
   );
+
+  // Registered ONLY while multi-user mode is on: with it off there are no
+  // assignees to enumerate and create_task has no assignee_id argument, so
+  // the tool would only invite confusion. The roster itself stays in the
+  // renderer (read over the bridge like every other read) — the main process
+  // gates existence but never holds a copy of the user list.
+  if (deps.multiUserEnabled()) {
+    server.registerTool(
+      'dayglance_list_users',
+      {
+        description:
+          'The household members tasks can be assigned to (multi-user mode). Returns active users as ' +
+          '{ id, name }. Use the id as create_task\'s assignee_id — resolve names through this list, ' +
+          'never guess an id.',
+      },
+      async () => {
+        const r = await deps.bridge.request('list_users', {});
+        if (!r.ok) return bridgeError(r);
+        return ok({ ...(r.data as Record<string, unknown>) });
+      },
+    );
+  }
 
   server.registerTool(
     'dayglance_get_goal_progress',

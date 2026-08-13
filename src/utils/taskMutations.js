@@ -44,40 +44,91 @@ export function parseRecurringInstanceId(id) {
 }
 
 /**
- * CREATE (inbox). Shape transcribed from useTaskActions.js addTask's inbox
- * branch (:155-174): base task + priority default 0, appended to
- * unscheduledTasks.
+ * CREATE. Two shapes, transcribed from useTaskActions.js addTask:
+ *  - inbox (:155-174): base task + priority default 0 (+ optional deadline),
+ *    appended to unscheduledTasks.
+ *  - scheduled (:236-248, via `schedule`): the SAME base task with
+ *    date/startTime/duration/isAllDay, appended DIRECTLY to tasks — never
+ *    inbox-then-schedule. One transition, one slice, so §5.2 atomicity holds
+ *    by construction, and applyScheduleTask's by-design priority/deadline
+ *    strip is never in the path. All-day stores startTime '00:00' with
+ *    isAllDay true, the UI's own shape. Deliberately NOT transcribed: the
+ *    UI's conflict auto-adjustment (getAdjustedTimeForImportedConflicts) —
+ *    MCP writes take exact times, as schedule_task and move_block already do.
+ *
+ * ASSIGNMENT (multi-user): assigneeSyncId must name an ACTIVE roster member
+ * (state.users, matched on syncId with the legacy id fallback the UI's own
+ * badge uses) — an unknown id would produce a task invisible to every user,
+ * so it is a not_found error, not a silent write. Stored as the UI stores
+ * it: assignedUserSyncIds array.
  *
  * Idempotent per the handleIntent.js:347-389 precedent (the one create-shaped
  * mutation-level dedup in the codebase): the caller derives `taskId`
  * deterministically from its idempotency key, so a replayed create finds the
  * id already present and returns the existing task unchanged.
  */
-export function applyCreateTask(state, { taskId, title, notes, projectId, transitionId, nowIso }) {
+export function applyCreateTask(state, {
+  taskId, title, notes, projectId, assigneeSyncId,
+  priority, deadline, durationMinutes, schedule,
+  transitionId, nowIso,
+}) {
   const unscheduled = state.unscheduledTasks ?? [];
+  const tasks = state.tasks ?? [];
   const trimmed = typeof title === 'string' ? title.trim() : '';
   if (!trimmed) return err(WRITE_ERROR_CODES.VALIDATION, 'title must be a non-empty string');
 
-  const existing = unscheduled.find((t) => t.id === taskId) ?? (state.tasks ?? []).find((t) => t.id === taskId);
-  if (existing) {
-    return { ok: true, replayed: true, unscheduledTasks: unscheduled, task: existing };
+  let assignedUserSyncIds;
+  if (assigneeSyncId !== undefined) {
+    const member = (state.users ?? []).find(
+      (u) => !u.deleted && (u.syncId === assigneeSyncId || u.id === assigneeSyncId),
+    );
+    if (!member) {
+      return err(WRITE_ERROR_CODES.NOT_FOUND,
+        `No active user with id ${JSON.stringify(assigneeSyncId)} — enumerate valid assignees with dayglance_list_users`);
+    }
+    assignedUserSyncIds = [member.syncId ?? member.id];
   }
 
-  const task = {
+  const existing = unscheduled.find((t) => t.id === taskId) ?? tasks.find((t) => t.id === taskId);
+  if (existing) {
+    return {
+      ok: true, replayed: true, unscheduledTasks: unscheduled, tasks,
+      task: existing, scheduled: existing.date !== undefined,
+    };
+  }
+
+  const base = {
     id: taskId,
     title: trimmed,
-    duration: 30,
+    duration: typeof durationMinutes === 'number' ? durationMinutes : 30,
     color: 'bg-blue-500',
     completed: false,
     isAllDay: false,
     notes: typeof notes === 'string' ? notes : '',
     subtasks: [],
-    priority: 0,
     ...(projectId ? { projectId } : {}),
+    ...(assignedUserSyncIds ? { assignedUserSyncIds } : {}),
     ...(transitionId ? { transitionId } : {}),
     lastModified: nowIso,
   };
-  return { ok: true, replayed: false, unscheduledTasks: [...unscheduled, task], task };
+
+  if (schedule) {
+    const task = {
+      ...base,
+      date: schedule.date,
+      startTime: schedule.startTime,
+      duration: schedule.durationMinutes,
+      isAllDay: !!schedule.allDay,
+    };
+    return { ok: true, replayed: false, unscheduledTasks: unscheduled, tasks: [...tasks, task], task, scheduled: true };
+  }
+
+  const task = {
+    ...base,
+    priority: typeof priority === 'number' ? priority : 0,
+    ...(deadline ? { deadline } : {}),
+  };
+  return { ok: true, replayed: false, unscheduledTasks: [...unscheduled, task], tasks, task, scheduled: false };
 }
 
 /**

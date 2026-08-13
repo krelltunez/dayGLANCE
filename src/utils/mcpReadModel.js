@@ -233,6 +233,23 @@ export function buildGoalProgress(state, params) {
  * 'ping' is the §3.3 health check: a crashed renderer cannot run this
  * function, so answering at all IS the health signal.
  */
+/**
+ * The multi-user roster for assignment (spec §5.1 list_users): ACTIVE members
+ * only (soft-deleted rows keep their names for history but are not valid
+ * assignees), each as { id, name } where id is the user's syncId — the value
+ * assignedUserSyncIds actually matches on (with the same legacy id fallback
+ * the UI's assignment badge uses). The roster stays renderer-side: the main
+ * process gates the tool's existence on the multi-user flag but never holds
+ * a copy of the user list.
+ */
+export function buildUsers(state) {
+  return {
+    users: (state.users ?? [])
+      .filter((u) => !u.deleted)
+      .map((u) => ({ id: u.syncId ?? u.id, name: u.name ?? '' })),
+  };
+}
+
 export function handleMcpRequest(state, request) {
   const method = request?.method;
   const params = request?.params ?? {};
@@ -245,6 +262,8 @@ export function handleMcpRequest(state, request) {
       return { ok: true, data: buildWeek(state, params) };
     case 'list_unscheduled':
       return { ok: true, data: buildUnscheduledItems(state) };
+    case 'list_users':
+      return { ok: true, data: buildUsers(state) };
     case 'goal_progress': {
       const r = buildGoalProgress(state, params);
       if (r.invalid) return { ok: false, error: { code: 'validation', message: r.invalid } };
