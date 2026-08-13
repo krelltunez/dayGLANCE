@@ -43,6 +43,7 @@ export default [
         // Vite `define` compile-time constants (see vite.config.*.js).
         __APP_VERSION__: 'readonly',
         __BUILD_TIMESTAMP__: 'readonly',
+        __MAS_BUILD__: 'readonly',
       },
     },
     plugins: { 'react-hooks': reactHooks },

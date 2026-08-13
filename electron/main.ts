@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell, ipcMain, net, protocol, Tray, Menu, nativeImage, nativeTheme, globalShortcut, session, screen, Notification } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
+import { homedir } from 'node:os';
 import dns from 'node:dns';
 import nodeNet from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -29,6 +30,7 @@ import {
 } from './localIntegrations.js';
 import { createRendererBridge, type RendererBridge } from './mcpRendererBridge.js';
 import type { WriteToolDeps } from './mcpWriteTools.js';
+import { discoveryFilePath, discoveryPayload } from './mcpDiscovery.js';
 import {
   appendEntry as appendJournalEntry,
   journalSnapshot as buildJournalSnapshot,
@@ -1128,6 +1130,7 @@ function startMcpListener(): void {
   mcpServerHandle = srv;
   srv.on('listening', () => {
     mcpStatus = { running: true, error: null };
+    syncDiscoveryFile();
     pushIntegrationsStatus();
   });
   srv.on('error', (err: NodeJS.ErrnoException) => {
@@ -1137,10 +1140,34 @@ function startMcpListener(): void {
   });
 }
 
+// ── §3.4 discovery file ──────────────────────────────────────────────────────
+// {port, token} where the bridge looks, so direct-download setups need no
+// manual configuration. Kept in lockstep with the listener: written on bind,
+// rewritten when the token rotates, removed on unbind. MAS builds write
+// nothing (discoveryFilePath returns null there): manual token only, per the
+// Phase 0.5 findings.
+function syncDiscoveryFile(): void {
+  const filePath = discoveryFilePath(process.platform, process.env, homedir(), process.mas === true);
+  if (!filePath) return;
+  try {
+    if (mcpStatus.running && mcpGates(integrationsConfig).bound) {
+      const resolved = resolveMcpPort(integrationsConfig.mcp.portOverride);
+      if (!resolved.ok) return;
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, discoveryPayload(resolved.port, integrationsConfig.mcp.token ?? ''), { mode: 0o600 });
+    } else {
+      fs.rmSync(filePath, { force: true });
+    }
+  } catch (err) {
+    logStartup(`discovery file sync failed at ${filePath}: ${String((err as Error).message)}`);
+  }
+}
+
 function stopMcpListener(onClosed?: () => void): void {
   const srv = mcpServerHandle;
   mcpServerHandle = null;
   mcpStatus = { running: false, error: null };
+  syncDiscoveryFile();
   pushIntegrationsStatus();
   if (!srv) { onClosed?.(); return; }
   srv.close(() => { onClosed?.(); });
@@ -1191,6 +1218,9 @@ function runIntegrationsTransition(action: TransitionAction): { ok: true } | { o
   if (effects.mcp === 'start') startMcpListener();
   else if (effects.mcp === 'stop') stopMcpListener();
   else if (effects.mcp === 'restart') stopMcpListener(() => startMcpListener());
+  // Token rotation changes no listener state (the token is a live getter),
+  // but the §3.4 discovery file carries the token, so keep it in lockstep.
+  syncDiscoveryFile();
   pushIntegrationsStatus();
   return { ok: true };
 }
@@ -1309,6 +1339,13 @@ app.whenReady().then(async () => {
   registerLocalIntegrationsHandlers();
   registerMcpJournalHandlers();
   registerMcpMultiUserHandler();
+  // §7 compile-out: the Claude Desktop setup module is EXCLUDED from MAS
+  // packaging (electron-builder mas.files filter), so it loads dynamically
+  // and its absence is a clean no-op, never a crash. The renderer's setup
+  // button is likewise eliminated from the MAS bundle at build time.
+  import('./mcpDesktopSetup.js')
+    .then((m) => m.registerMcpDesktopSetup())
+    .catch(() => { /* absent in the MAS package, by design */ });
   if (integrationsConfig.streamDeck.enabled) startStreamDeckListener();
   startMcpListener();
   registerSubscriptionHandlers(win);

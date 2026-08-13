@@ -44,6 +44,12 @@ export default defineConfig({
     __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
     __APP_VERSION__: JSON.stringify(pkg.version),
     __IS_ELECTRON__: 'true',
+    // §7 build-time separation: DAYGLANCE_MAS_BUILD=1 (set by the
+    // build:electron:mas script's vite step) makes this constant true, and
+    // rollup eliminates every `if (!__MAS_BUILD__)` branch from the MAS
+    // bundle — the Claude Desktop setup button never enters that artifact.
+    // Runtime gating would not satisfy §7; this is dead-code elimination.
+    __MAS_BUILD__: JSON.stringify(process.env.DAYGLANCE_MAS_BUILD === '1'),
   },
   build: {
     sourcemap: false,

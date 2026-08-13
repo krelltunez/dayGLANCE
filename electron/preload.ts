@@ -118,6 +118,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // per-request schema never goes stale while a client is connected.
   mcpPushMultiUser: (enabled: boolean) => ipcRenderer.send('mcp:multi-user-enabled', enabled),
 
+  // "Set up Claude Desktop" (direct-download builds). A thin invoke stub:
+  // the handler module is excluded from MAS packaging entirely (§7), so on
+  // MAS this channel has no listener and the MAS renderer never calls it
+  // (the button is compiled out of that bundle).
+  mcpSetupClaudeDesktop: (): Promise<unknown> => ipcRenderer.invoke('mcp-setup:claude-desktop'),
+
   // Show or clear the reminder dot (●) next to the tray icon.
   setTrayIndicator: (on: boolean) => ipcRenderer.send('tray:set-indicator', on),
 
