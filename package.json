@@ -57,7 +57,7 @@
   "devDependencies": {
     "@electron/notarize": "^3.1.1",
     "@eslint/js": "^9.39.4",
-    "@glance-apps/mcp-bridge": "github:glance-apps/mcp-bridge",
+    "@glance-apps/mcp-bridge": "github:glance-apps/mcp-bridge#91f556d95eeb8ee4a390bd16066221ee4768971b",
     "@modelcontextprotocol/client": "2.0.0",
     "@types/node": "^24.0.0",
     "@types/react": "^18.2.15",
