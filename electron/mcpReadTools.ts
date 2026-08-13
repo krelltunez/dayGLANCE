@@ -77,7 +77,7 @@ export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
     {
       description:
         "Today's schedule from dayGLANCE. Resolves the current LOCAL calendar date on the " +
-        'user\'s machine — use this instead of guessing the date. Response echoes the resolved ' +
+        'user\'s machine. Use this instead of guessing the date. Response echoes the resolved ' +
         'date and IANA timezone; times are local wall-clock HH:MM.' + NATIVE_NOTE,
     },
     async () => getDay(localDateOf(deps.now(), deps.timeZone())),
@@ -109,7 +109,7 @@ export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
     'dayglance_list_unscheduled_tasks',
     {
       description:
-        "The dayGLANCE inbox: tasks not yet scheduled onto a day. Paginated — default page " +
+        "The dayGLANCE inbox: tasks not yet scheduled onto a day. Paginated, default page " +
         `${DEFAULT_LIST_LIMIT}, max ${MAX_LIST_LIMIT}; when truncated is true, pass next_cursor ` +
         'back as cursor for the next page.',
       inputSchema: z.object({
@@ -144,7 +144,7 @@ export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
       {
         description:
           'The household members tasks can be assigned to (multi-user mode). Returns active users as ' +
-          '{ id, name }. Use the id as create_task\'s assignee_id — resolve names through this list, ' +
+          '{ id, name }. Use the id as create_task\'s assignee_id. Resolve names through this list, ' +
           'never guess an id.',
       },
       async () => {

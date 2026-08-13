@@ -84,7 +84,7 @@ export function applyCreateTask(state, {
     );
     if (!member) {
       return err(WRITE_ERROR_CODES.NOT_FOUND,
-        `No active user with id ${JSON.stringify(assigneeSyncId)} — enumerate valid assignees with dayglance_list_users`);
+        `No active user with id ${JSON.stringify(assigneeSyncId)}. Enumerate valid assignees with dayglance_list_users`);
     }
     assignedUserSyncIds = [member.syncId ?? member.id];
   }
@@ -182,7 +182,7 @@ function findWritableBlock(tasks, blockId, { operation }) {
   if (parseRecurringInstanceId(blockId)) {
     return err(
       WRITE_ERROR_CODES.VALIDATION,
-      `${blockId} is a recurring-task instance; ${operation} on recurring instances is not supported in v1 — edit the series in dayGLANCE`,
+      `${blockId} is a recurring-task instance; ${operation} on recurring instances is not supported in v1. Edit the series in dayGLANCE`,
     );
   }
   const task = tasks.find((t) => t.id === blockId);

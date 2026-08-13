@@ -209,7 +209,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
       'Attach to a project (see dayglance_get_goal_progress). Project tasks do not carry priority or deadline by design.'),
     ...(multiUser ? {
       assignee_id: z.string().optional().describe(
-        'Assign to one household member by their user id. Ids come from dayglance_list_users — never guess from a name.'),
+        'Assign to one household member by their user id. Ids come from dayglance_list_users. Never guess from a name.'),
     } : {}),
     priority: z.number().int().optional().describe(
       'Inbox tasks only: 0 none (default), 1 low, 2 medium, 3 high. Scheduled and project tasks do not carry priority by design.'),
@@ -219,7 +219,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
       'Presence makes this a SCHEDULED create, placed directly on the calendar in one call. ' +
       'Timed: local "YYYY-MM-DD HH:MM" (DST gap/repeat times rejected). With all_day: a bare "YYYY-MM-DD".'),
     duration_minutes: z.number().int().optional().describe(
-      '1-1440. Defaults to 30. Contradicts all_day — an all-day task has no meaningful duration.'),
+      '1-1440. Defaults to 30. Contradicts all_day: an all-day task has no meaningful duration.'),
     all_day: z.boolean().optional().describe(
       'With start: create an all-day task. start must then be a bare YYYY-MM-DD date.'),
     repeat: z.unknown().optional().describe(
@@ -232,7 +232,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
     {
       description:
         'Create a new dayGLANCE task. Without start: an unscheduled inbox task (may carry priority and ' +
-        'deadline). With start: a scheduled task placed directly onto the calendar — one call, no separate ' +
+        'deadline). With start: a scheduled task placed directly onto the calendar in one call, with no separate ' +
         'scheduling step. Returns the created task or block.',
       inputSchema: createTaskSchema,
     },
@@ -262,7 +262,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
         'Schedule an unscheduled dayGLANCE inbox task onto a day and time. start is local: ' +
         '"YYYY-MM-DD HH:MM", no UTC, no offsets. Returns the resulting block. If the inbox task ' +
         'carried a priority or deadline, scheduling drops them BY DESIGN and the response lists ' +
-        'them in dropped_fields — tell the user rather than treating it as an error.' + CANNOT_MODIFY_NATIVE,
+        'them in dropped_fields. Tell the user rather than treating it as an error.' + CANNOT_MODIFY_NATIVE,
       inputSchema: z.object({
         task_id: z.string(),
         start: z.string().describe('Local "YYYY-MM-DD HH:MM". Times inside a DST gap or repeat are rejected.'),
@@ -335,7 +335,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
     'dayglance_set_task_completion',
     {
       description:
-        'Set a dayGLANCE task\'s completion state (a setter, not a toggle — safe to retry, and ' +
+        'Set a dayGLANCE task\'s completion state (a setter, not a toggle: safe to retry, and ' +
         'setting completed:false is the agent\'s own undo). Works for scheduled blocks, inbox ' +
         'tasks, and recurring-task instances.' + CANNOT_MODIFY_NATIVE,
       inputSchema: z.object({

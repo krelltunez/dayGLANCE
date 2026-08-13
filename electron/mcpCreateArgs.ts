@@ -78,7 +78,7 @@ export function planCreateTask(args: CreateTaskArgs, timeZone: string): CreatePl
 
   if (repeat !== undefined) {
     return reject(
-      'Recurring tasks cannot be created over MCP in v1 — create the repeating series in dayGLANCE itself. ' +
+      'Recurring tasks cannot be created over MCP in v1. Create the repeating series in dayGLANCE itself. ' +
       'To create a one-off task, drop the repeat argument.',
     );
   }
@@ -91,13 +91,13 @@ export function planCreateTask(args: CreateTaskArgs, timeZone: string): CreatePl
 
   if (scheduled && (priority !== undefined || deadline !== undefined)) {
     return reject(
-      'Scheduled dayGLANCE tasks do not carry priority or deadline by design — those fields belong to inbox ' +
+      'Scheduled dayGLANCE tasks do not carry priority or deadline by design: those fields belong to inbox ' +
       'tasks only, and scheduling an inbox task drops them. Create the task without start to keep them.',
     );
   }
   if (project_id !== undefined && (priority !== undefined || deadline !== undefined)) {
     return reject(
-      'dayGLANCE project tasks do not carry priority or deadline by design — the app manages project work ' +
+      'dayGLANCE project tasks do not carry priority or deadline by design: the app manages project work ' +
       'through the project itself. Create the task without project_id to use priority or deadline.',
     );
   }
@@ -118,7 +118,7 @@ export function planCreateTask(args: CreateTaskArgs, timeZone: string): CreatePl
   }
 
   if (!scheduled && allDay) {
-    return reject('all_day applies to scheduled creates only — pass start (a bare YYYY-MM-DD date) alongside all_day.');
+    return reject('all_day applies to scheduled creates only. Pass start (a bare YYYY-MM-DD date) alongside all_day.');
   }
 
   const plan: CreatePlan = { title };
@@ -136,13 +136,13 @@ export function planCreateTask(args: CreateTaskArgs, timeZone: string): CreatePl
   if (allDay) {
     if (duration_minutes !== undefined) {
       return reject(
-        'all_day and duration_minutes contradict each other — an all-day task has no meaningful duration. ' +
+        'all_day and duration_minutes contradict each other: an all-day task has no meaningful duration. ' +
         'Drop duration_minutes, or drop all_day to create a timed block.',
       );
     }
     if (!isValidLocalDate(start)) {
       return reject(
-        `with all_day, start is a bare local calendar date — all-day tasks take a date only, no time component. ` +
+        `with all_day, start is a bare local calendar date: all-day tasks take a date only, no time component. ` +
         `Expected strict YYYY-MM-DD, got ${JSON.stringify(start)}`,
       );
     }

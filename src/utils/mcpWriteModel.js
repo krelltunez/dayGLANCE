@@ -101,7 +101,7 @@ export function handleMcpWrite(state, setters, request) {
           replayed: r.replayed,
           ...(dropped.length ? {
             dropped_fields: dropped,
-            note: `Scheduling dropped ${dropped.join(' and ')} — inbox-only fields by design. Tell the user if they asked to keep them.`,
+            note: `Scheduling dropped ${dropped.join(' and ')}: inbox-only fields by design. Tell the user if they asked to keep them.`,
           } : {}),
         },
         ...(undo ? { undo } : {}),

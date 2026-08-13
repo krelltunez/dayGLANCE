@@ -32,7 +32,7 @@ const UNAVAILABLE: RendererResult = {
     code: 'renderer_unavailable',
     message:
       'The dayGLANCE window is not responding (it may have crashed or be restarting). ' +
-      'Data is temporarily unreadable — this is NOT an empty schedule. Retry shortly.',
+      'Data is temporarily unreadable. This is NOT an empty schedule. Retry shortly.',
   },
 };
 
