@@ -1,9 +1,11 @@
 # dayGLANCE MCP Server: Technical Specification
 
-**Status:** Draft for review, revision 5
+**Status:** Draft for review, revision 6
 **Target:** dayGLANCE Electron builds (macOS, Windows, Linux)
 **Sequencing:** After the 4.1.2 tray release ships
 **Spec baseline:** MCP specification 2026-07-28
+
+**Changes from revision 5:** Phase 0.5 ran on hardware (findings in `docs/mcp-phase0.5-findings.md`) and the result was worse than predicted: the TCC container-protection prompt is attributed to `node` — naming neither Claude nor dayGLANCE — with no revocation toggle anywhere in System Settings. §3.4 drops MAS container discovery entirely (was best-effort); MAS is manual token configuration only. §7's matrix and MAS notes updated to match. §10 marks Phase 0.5 done. §11's container-discovery risk row rewritten from contingency to outcome. Discovery on the three unsandboxed platforms is unchanged.
 
 **Changes from revision 4:** Three corrections from the Phase 3 mutation-path trace. §3.1's rule restated as "through the same store layer via a shared pure module" — move and resize have no shared UI mutation function to invoke (inline `setTasks` in drag handlers); converting the UI call sites to the shared module is a follow-up, not part of Phase 3. §5.2's idempotency claim corrected: `transitionId` provides delivery dedup at the GLANCEintents outbox, not mutation-level replay protection; `handleIntent.js:347-389` is the only mutation-level precedent and is create-shaped, so move/resize replay protection is new machinery. §3.6 corrected: the tray debounce is trailing but resets per event, coalescing only bursts closer than 500 ms — at the §4.3 rate limit every write triggers a reload; `electron/trayReloadPolicy.ts` (stretched debounce while MCP writes are recent) is the fix.
 
@@ -133,9 +135,9 @@ This shares a root cause with open item "tray mutations silently dropped when no
   - Windows: `%APPDATA%\dayGLANCE\mcp.json`
   - Linux: `$XDG_CONFIG_HOME/dayglance/mcp.json`, falling back to `~/.config/dayglance/mcp.json`
   - macOS (direct download): `~/Library/Application Support/dayGLANCE/mcp.json`
-  - macOS (MAS): inside the app container — **best-effort only, see below**
-- **Manual configuration:** the bridge accepts `--port` and `--token`, and reads `DAYGLANCE_MCP_TOKEN`. On Windows, Linux, and macOS direct-download this is the fallback; **on MAS it is the primary path** (Phase 0 finding).
-- **MAS container discovery is best-effort, not primary.** The file lands at `~/Library/Containers/com.dayglance/Data/Library/Application Support/dayGLANCE/mcp.json` (derived from the `userData` pin in `main.ts:37` and the container-home shape confirmed by `icloud.ts:31-33`). The App Sandbox does not block outside readers and POSIX permissions pass for same-user processes, but macOS 15 introduced TCC app container protection: a process reading another app's container triggers a one-time consent prompt attributed to the responsible process. For a bridge spawned by Claude Desktop, the user sees a prompt naming Claude Desktop, about dayGLANCE's data, with no context; a denial is sticky and subsequent reads fail silently. The same-Team-ID exemption keys off the requester (Anthropic's team, not GLANCE Apps) and does not apply. macOS 14 and earlier are unaffected. Phase 0.5 confirms the exact behavior on hardware.
+  - macOS (MAS): **none — no discovery file is written, and the bridge never attempts a container read.** See below.
+- **Manual configuration:** the bridge accepts `--port` and `--token`, and reads `DAYGLANCE_MCP_TOKEN`. On Windows, Linux, and macOS direct-download this is the fallback; **on MAS it is the only path** (Phase 0.5 finding).
+- **MAS container discovery is dropped entirely — not retained as best-effort** (Phase 0.5, run on hardware: `docs/mcp-phase0.5-findings.md`). The file would land at `~/Library/Containers/com.dayglance/Data/Library/Application Support/dayGLANCE/mcp.json`, and on macOS 15+ TCC container protection gates the read behind a one-time consent prompt. Revision 5 predicted the prompt would name the responsible client app; the hardware run showed it is attributed to the spawned runtime instead — **"node would like to access data from other apps," naming neither Claude nor dayGLANCE**, fired twice, with **no corresponding toggle anywhere in System Settings** and no safe reset (`tccutil reset SystemPolicyAppData` is system-wide and crashed the test machine once). The happy path therefore requires the user to allow a prompt from an unnamed runtime with no mention of either product — a prompt a security-conscious user **correctly denies** — and the resulting failure is confusing rather than clean. A feature that fails this way is worse than an honestly manual one. Discovery is retained on direct-download macOS, Windows, and Linux, which are unsandboxed and hit no TCC path at all.
 - File permissions `0600` on POSIX. It contains a bearer token.
 
 ### 3.5 Authentication and origin validation
@@ -348,7 +350,7 @@ The listener state must be visible without opening settings. A network listener 
 |---|---|---|---|---|
 | Listener bind | Trivial | Trivial | Trivial | Needs `network.server`, already held |
 | Renderer alive when listening | Yes (app quits otherwise) | Yes | Yes (hidden, not destroyed) | Yes |
-| Discovery file | `%APPDATA%` | XDG | App Support | Container path, best-effort — **manual token is the primary path** (§3.4) |
+| Discovery file | `%APPDATA%` | XDG | App Support | **None — manual token configuration only** (§3.4, Phase 0.5) |
 | Bridge | Bundled + button | Bundled + button | Bundled + button | **Documentation link only** |
 | Claude Desktop available | Yes | No | Yes | Yes |
 | Claude Code available | Yes | Yes | Yes | Yes |
@@ -356,7 +358,7 @@ The listener state must be visible without opening settings. A network listener 
 
 **Direct-download builds** bundle the bridge and offer a setup button that writes the Claude Desktop config entry pointing at the bundled binary's path. No download, no Node requirement. The config edit must read, modify the one key, and write back with a backup — never rewrite the whole file. Claude Desktop is known to silently rewrite that file when it dislikes an entry; treat it as contested territory.
 
-**MAS builds** link to documentation. Nothing else. See §8.2. The documented MAS setup leads with manual token configuration — container discovery is best-effort, per §3.4.
+**MAS builds** link to documentation. Nothing else. See §8.2. The documented MAS setup is manual token configuration only — container discovery is dropped, per §3.4. This costs less than it sounds: MAS users already install the bridge by hand, because the setup path is compiled out of the MAS binary for Guideline 2.5.2, so one token copy-paste is a small addition to an already manual process — and it replaces a consent prompt that names neither product and cannot be found again in System Settings.
 
 **Build-time separation, not runtime gating.** The download/install path must be compiled out of the MAS binary, not hidden behind `if (isMAS)`. Dormant capability in a shipped App Store build is its own violation (hidden or undocumented functionality) independent of 2.5.2. The existing China-locale suppression establishes the per-build pattern; this is stricter.
 
@@ -474,6 +476,8 @@ Method:
 
 **Exit:** written findings. The outcome shapes Phase 6 (whether the bridge attempts container discovery on MAS at all) and the Phase 7 docs (what the MAS setup page tells users to expect).
 
+**Done.** Findings in `docs/mcp-phase0.5-findings.md`. Result in one line: the prompt is attributed to `node` — naming neither Claude nor dayGLANCE, with no System Settings toggle to revisit the choice — so §3.4 (r6) drops MAS container discovery entirely; the bridge never attempts it, and Phase 7's MAS docs lead with the token copy-paste.
+
 ### Phase 1: Listener skeleton
 **Repo:** dayGLANCE
 
@@ -556,7 +560,7 @@ Privacy policy updates per §9. Umbrella paragraph. ToU confirmation. MAS descri
 | **Stream Deck regression from the new toggle** | High without the migration flag | High | Existing installs migrate to on. This breaks the most engaged users silently, with no error. Blocking exit criterion on Phase 5. |
 | Renderer crash leaves a `mainWindow` that `live()` considers healthy | Low | Medium | Health check, not existence check. Shares a root cause with the open tray-mutation-dropped item; fixing `render-process-gone` closes both. |
 | MAS rejection on 2.5.2 for bridge distribution | Low if the app only links | High if it happens | App never fetches or executes the bridge. Path compiled out, not runtime-gated. Review notes state it explicitly. |
-| MAS container read denied or prompt-gated (macOS 15+ TCC container protection; consent prompt attributed to the client app, sticky denial) | Medium | Medium | Manual token paste is the **primary** MAS path (§3.4); container discovery is best-effort. Phase 0.5 confirms the behavior on hardware. |
+| MAS container read prompt-gated by TCC container protection — **resolved by Phase 0.5** (`docs/mcp-phase0.5-findings.md`): the prompt is attributed to `node`, names neither product, and has no System Settings toggle | Was Medium; now retired | Was Medium; now none | Container discovery **dropped** on MAS (§3.4 r6): the bridge never attempts the read, so the prompt never fires. Manual token configuration is the only MAS path. Unsandboxed platforms keep discovery and hit no TCC path. |
 | SDK v1 maintenance window closes mid-project (~October 2026) | Certain if v1 is pinned | Medium | Pin SDK v2 (§10 Phase 1). |
 | Client transport confusion (users pasting a URL into Claude Desktop's config and losing their `mcpServers` block) | High | Medium, and it is someone else's bug arriving as a dayGLANCE support request | Docs lead with the bridge for Claude Desktop and never show a `url` field in a `claude_desktop_config.json` example, not even as a counterexample. |
 | Tray reload volume under agent load | Medium | Low | Rate limiter bounds it. Verify debounce coalescing per §3.6. Fix is a longer debounce on the MCP path, never a bypass of the emit. |
