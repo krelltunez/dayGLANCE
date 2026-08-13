@@ -72,7 +72,7 @@ export function registerResources(server: McpServer, deps: ReadToolDeps): void {
     {
       title: 'Current week',
       description:
-        'The current calendar week of dayGLANCE blocks — the week containing today, starting on the ' +
+        'The current calendar week of dayGLANCE blocks: the week containing today, starting on the ' +
         "user's configured week-start day (echoed as week_start_day, 0=Sunday). Dates and times are " +
         'local (§5.3); the resolved date and IANA timezone are echoed.',
       mimeType: MIME,

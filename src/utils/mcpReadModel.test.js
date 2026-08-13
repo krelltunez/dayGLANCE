@@ -8,6 +8,7 @@ import {
   buildGoalProgress,
   weekDatesFor,
   buildWeek,
+  buildUsers,
   handleMcpRequest,
 } from './mcpReadModel.js';
 
@@ -299,5 +300,29 @@ describe('handleMcpRequest — the dispatcher', () => {
     expect(bad).toMatchObject({ ok: false, error: { code: 'validation' } });
     const unknown = handleMcpRequest(state, { method: 'explode' });
     expect(unknown).toMatchObject({ ok: false, error: { code: 'validation' } });
+  });
+
+  it('routes list_users', () => {
+    expect(handleMcpRequest(state, { method: 'list_users' })).toEqual({ ok: true, data: { users: [] } });
+  });
+});
+
+describe('buildUsers — the assignment roster (multi-user)', () => {
+  it('active members only, id is the syncId assignment matches on, legacy rows fall back to id', () => {
+    const users = [
+      { id: 'id-ana', syncId: 'sync-ana', name: 'Ana', updatedAt: 'x' },
+      { id: 'id-legacy', name: 'Legacy' },
+      { id: 'id-gone', syncId: 'sync-gone', name: 'Gone', deleted: true },
+    ];
+    expect(buildUsers({ users })).toEqual({
+      users: [
+        { id: 'sync-ana', name: 'Ana' },
+        { id: 'id-legacy', name: 'Legacy' },
+      ],
+    });
+  });
+
+  it('missing state → empty roster, never a throw', () => {
+    expect(buildUsers({})).toEqual({ users: [] });
   });
 });

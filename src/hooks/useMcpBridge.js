@@ -27,6 +27,18 @@ export default function useMcpBridge(state, setters) {
   const settersRef = useRef(setters);
   settersRef.current = setters;
 
+  // Multi-user is a per-device toggle living in RENDERER state; the main
+  // process needs it to gate assignee_id / list_users in the per-request
+  // tool schemas. Pushed on mount and on every change (never polled), so a
+  // toggle while an MCP client is connected updates the schema the client
+  // sees on its very next request. Only the flag crosses the boundary —
+  // the user roster stays here and is read over the bridge like any read.
+  const multiUserEnabled = !!state.multiUserEnabled;
+  useEffect(() => {
+    if (isTrayMode) return;
+    window.electronAPI?.mcpPushMultiUser?.(multiUserEnabled);
+  }, [multiUserEnabled]);
+
   useEffect(() => {
     if (isTrayMode) return undefined;
     if (!window.electronAPI?.onMcpRequest) return undefined;

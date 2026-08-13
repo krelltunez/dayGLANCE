@@ -73,6 +73,93 @@ describe('applyCreateTask', () => {
       expect(r.error.code).toBe(WRITE_ERROR_CODES.VALIDATION);
     }
   });
+
+  it('carries priority, deadline, and duration into the inbox shape', () => {
+    const r = applyCreateTask(state, {
+      taskId: 'n4', title: 'T', priority: 3, deadline: '2026-09-01', durationMinutes: 45, nowIso: NOW,
+    });
+    expect(r.task).toMatchObject({ priority: 3, deadline: '2026-09-01', duration: 45 });
+    expect(r.scheduled).toBe(false);
+  });
+
+  it('SCHEDULED create lands directly in tasks — one transition, inbox untouched by reference', () => {
+    const r = applyCreateTask(state, {
+      taskId: 's1', title: 'Standup', nowIso: NOW,
+      schedule: { date: '2026-08-14', startTime: '09:30', durationMinutes: 90, allDay: false },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.scheduled).toBe(true);
+    expect(r.tasks).toHaveLength(1);
+    expect(r.tasks[0]).toMatchObject({
+      id: 's1', title: 'Standup', date: '2026-08-14', startTime: '09:30',
+      duration: 90, isAllDay: false, completed: false, lastModified: NOW,
+    });
+    // The addTask scheduled branch carries NO priority/deadline fields at all.
+    expect(r.tasks[0]).not.toHaveProperty('priority');
+    expect(r.tasks[0]).not.toHaveProperty('deadline');
+    // Atomicity shape: the untouched slice comes back by reference.
+    expect(r.unscheduledTasks).toBe(state.unscheduledTasks);
+  });
+
+  it('all-day create stores the UI shape: startTime 00:00, isAllDay true', () => {
+    const r = applyCreateTask(state, {
+      taskId: 's2', title: 'Conference', nowIso: NOW,
+      schedule: { date: '2026-08-15', startTime: '00:00', durationMinutes: 30, allDay: true },
+    });
+    expect(r.tasks[0]).toMatchObject({ startTime: '00:00', isAllDay: true, date: '2026-08-15' });
+  });
+
+  it('scheduled replay converges on the existing calendar task', () => {
+    const r = applyCreateTask({ tasks: [T({ id: 's1' })], unscheduledTasks: [] }, {
+      taskId: 's1', title: 'T', nowIso: NOW,
+      schedule: { date: '2026-08-14', startTime: '09:30', durationMinutes: 30, allDay: false },
+    });
+    expect(r.replayed).toBe(true);
+    expect(r.scheduled).toBe(true);
+    expect(r.tasks).toHaveLength(1);
+  });
+
+  describe('assignment (multi-user)', () => {
+    const users = [
+      { id: 'id-ana', syncId: 'sync-ana', name: 'Ana' },
+      { id: 'id-legacy', name: 'Legacy' },              // pre-syncId row
+      { id: 'id-gone', syncId: 'sync-gone', name: 'Gone', deleted: true },
+    ];
+    const uState = { ...state, users };
+
+    it('stores a valid assignee as the UI does: assignedUserSyncIds array', () => {
+      const r = applyCreateTask(uState, { taskId: 'a1', title: 'T', assigneeSyncId: 'sync-ana', nowIso: NOW });
+      expect(r.ok).toBe(true);
+      expect(r.task.assignedUserSyncIds).toEqual(['sync-ana']);
+    });
+
+    it('matches the legacy id fallback the assignment badge uses', () => {
+      const r = applyCreateTask(uState, { taskId: 'a2', title: 'T', assigneeSyncId: 'id-legacy', nowIso: NOW });
+      expect(r.ok).toBe(true);
+      expect(r.task.assignedUserSyncIds).toEqual(['id-legacy']);
+    });
+
+    it('unknown assignee → not_found pointing at list_users (an unknown id would hide the task from everyone)', () => {
+      const r = applyCreateTask(uState, { taskId: 'a3', title: 'T', assigneeSyncId: 'nope', nowIso: NOW });
+      expect(r.ok).toBe(false);
+      expect(r.error.code).toBe(WRITE_ERROR_CODES.NOT_FOUND);
+      expect(r.error.message).toContain('list_users');
+    });
+
+    it('soft-deleted member is not a valid assignee', () => {
+      const r = applyCreateTask(uState, { taskId: 'a4', title: 'T', assigneeSyncId: 'sync-gone', nowIso: NOW });
+      expect(r.ok).toBe(false);
+      expect(r.error.code).toBe(WRITE_ERROR_CODES.NOT_FOUND);
+    });
+
+    it('assignment works on the scheduled shape too', () => {
+      const r = applyCreateTask(uState, {
+        taskId: 'a5', title: 'T', assigneeSyncId: 'sync-ana', nowIso: NOW,
+        schedule: { date: '2026-08-14', startTime: '10:00', durationMinutes: 30, allDay: false },
+      });
+      expect(r.tasks[0].assignedUserSyncIds).toEqual(['sync-ana']);
+    });
+  });
 });
 
 describe('applyScheduleTask', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { handleMcpWrite, isWriteMethod } from './mcpWriteModel.js';
+import { handleMcpWrite, isWriteMethod, scheduleDroppedFields } from './mcpWriteModel.js';
 
 // Phase 5b additions to the write dispatcher: every successful non-replayed
 // write returns a §4.3 undo descriptor { summary, op } captured from the
@@ -153,5 +153,94 @@ describe('undo_mcp_writes', () => {
     const [next] = setters.setTasks.mock.calls[0];
     expect(next[0].duration).toBe(30);
     expect(next[0].lastModified).toMatch(NOW_RE);
+  });
+});
+
+describe('create_task — the extended scheduled shape', () => {
+  it('schedule param → block response, setTasks only, undo summary names the slot', () => {
+    const setters = makeSetters();
+    const r = handleMcpWrite({ tasks: [], unscheduledTasks: [] }, setters, {
+      method: 'create_task',
+      params: { taskId: 's1', title: 'Standup', schedule: { date: '2026-08-14', startTime: '09:30', durationMinutes: 45, allDay: false } },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.data.block).toMatchObject({
+      id: 's1', type: 'task', date: '2026-08-14', start_time: '09:30', duration_minutes: 45, all_day: false,
+    });
+    expect(r.data.task).toBeUndefined();
+    expect(setters.setTasks).toHaveBeenCalledTimes(1);
+    expect(setters.setUnscheduledTasks).not.toHaveBeenCalled();
+    // Same undo kind as any create — remove_created reverses it to the bin.
+    expect(r.undo.op).toEqual({ kind: 'remove_created', taskId: 's1' });
+    expect(r.undo.summary).toBe('Created “Standup” at 2026-08-14 09:30');
+  });
+
+  it('all-day create → block with null start_time, summary names the date only', () => {
+    const r = handleMcpWrite({ tasks: [], unscheduledTasks: [] }, makeSetters(), {
+      method: 'create_task',
+      params: { taskId: 's2', title: 'Conference', schedule: { date: '2026-08-15', startTime: '00:00', durationMinutes: 30, allDay: true } },
+    });
+    expect(r.data.block).toMatchObject({ all_day: true, start_time: null, date: '2026-08-15' });
+    expect(r.undo.summary).toBe('Created “Conference” at 2026-08-15');
+  });
+
+  it('assignee round-trips into the response as assignee_id', () => {
+    const users = [{ id: 'id-ana', syncId: 'sync-ana', name: 'Ana' }];
+    const r = handleMcpWrite({ tasks: [], unscheduledTasks: [], users }, makeSetters(), {
+      method: 'create_task', params: { taskId: 'a1', title: 'T', assigneeSyncId: 'sync-ana' },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.data.assignee_id).toBe('sync-ana');
+  });
+
+  it('a created-and-scheduled task reverses to the RECYCLE BIN like any MCP create (PR #1364 shape)', () => {
+    // Create scheduled…
+    const createSetters = makeSetters();
+    const created = handleMcpWrite({ tasks: [], unscheduledTasks: [] }, createSetters, {
+      method: 'create_task',
+      params: { taskId: 'cs1', title: 'Agent block', schedule: { date: '2026-08-14', startTime: '11:00', durationMinutes: 30, allDay: false } },
+    });
+    const [tasksAfter] = createSetters.setTasks.mock.calls[0];
+    // …then undo with the descriptor the create returned.
+    const undoSetters = makeSetters();
+    const undone = handleMcpWrite(
+      { tasks: tasksAfter, unscheduledTasks: [], recurringTasks: [], recycleBin: [] },
+      undoSetters,
+      { method: 'undo_mcp_writes', params: { ops: [created.undo.op] } },
+    );
+    expect(undone).toEqual({ ok: true, data: { undone: 1, skipped: 0 } });
+    expect(undoSetters.setTasks.mock.calls[0][0]).toEqual([]);
+    const [bin] = undoSetters.setRecycleBin.mock.calls[0];
+    expect(bin[0]).toMatchObject({ id: 'cs1', _deletedFrom: 'calendar' });
+    expect(bin[0].deletedAt).toBe(bin[0].lastModified);
+  });
+});
+
+describe('schedule_task — dropped_fields reporting', () => {
+  it('an inbox task carrying priority and deadline → both named, with a note', () => {
+    const state = { tasks: [], unscheduledTasks: [{ id: 'u1', title: 'Report', priority: 2, deadline: '2026-08-20' }] };
+    const r = handleMcpWrite(state, makeSetters(), {
+      method: 'schedule_task', params: { taskId: 'u1', date: '2026-08-14', startTime: '10:00' },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.data.dropped_fields).toEqual(['priority', 'deadline']);
+    expect(r.data.note).toMatch(/by design/);
+  });
+
+  it('priority 0 and no deadline → nothing was carried, nothing reported', () => {
+    const state = { tasks: [], unscheduledTasks: [{ id: 'u1', title: 'Plain', priority: 0 }] };
+    const r = handleMcpWrite(state, makeSetters(), {
+      method: 'schedule_task', params: { taskId: 'u1', date: '2026-08-14', startTime: '10:00' },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.data.dropped_fields).toBeUndefined();
+    expect(r.data.note).toBeUndefined();
+  });
+
+  it('scheduleDroppedFields: each field independently', () => {
+    expect(scheduleDroppedFields({ priority: 1 })).toEqual(['priority']);
+    expect(scheduleDroppedFields({ deadline: '2026-08-20' })).toEqual(['deadline']);
+    expect(scheduleDroppedFields({ priority: 0 })).toEqual([]);
+    expect(scheduleDroppedFields(undefined)).toEqual([]);
   });
 });

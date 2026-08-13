@@ -113,6 +113,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
   },
 
+  // Multi-user flag for the MCP tool schemas (assignee_id / list_users
+  // gating). Pushed by the main window on mount and on every toggle so the
+  // per-request schema never goes stale while a client is connected.
+  mcpPushMultiUser: (enabled: boolean) => ipcRenderer.send('mcp:multi-user-enabled', enabled),
+
   // Show or clear the reminder dot (●) next to the tray icon.
   setTrayIndicator: (on: boolean) => ipcRenderer.send('tray:set-indicator', on),
 

@@ -6824,6 +6824,10 @@ const DayPlanner = () => {
     isVisibleForUser,
     // Phase 4 week resource honors the user's week-start setting (0=Sunday).
     weekStartDay,
+    // Multi-user: the roster backs list_users and assignee validation in the
+    // renderer; the flag is pushed to main to gate the tool schemas.
+    users,
+    multiUserEnabled,
   }, {
     // Write setters (Phase 3): handleMcpWrite applies the canonical shapes
     // from src/utils/taskMutations.js through these — the same store layer

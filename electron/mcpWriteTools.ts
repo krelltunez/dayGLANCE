@@ -34,6 +34,7 @@ import {
   makeStoreKey,
   deterministicTaskIdFromSeed,
 } from './mcpIdempotency.js';
+import { planCreateTask } from './mcpCreateArgs.js';
 import type { JournalRecord } from './mcpJournal.js';
 
 /** Renderer-captured undo descriptor, diverted to the §4.3 journal. */
@@ -62,6 +63,14 @@ export interface WriteToolDeps {
   noteMcpWrite: () => void;
   /** Fired exactly once when repeated violations auto-disable writes (§4.3). */
   onWritesDisabled: () => void;
+  /**
+   * Multi-user mode, pushed from the renderer (a per-device toggle that lives
+   * in renderer state, unlike the main-owned consent tiers). Gates the
+   * assignee_id argument's EXISTENCE in the create_task schema — evaluated at
+   * registration time, which is per request (§3.7 factory), so toggling
+   * multi-user updates the schema on the very next request.
+   */
+  multiUserEnabled: () => boolean;
   /**
    * §4.3 write journal (Phase 5b): called once per successful non-replayed
    * write with tool, summary, idempotency key, and the reversal op. Optional
@@ -187,29 +196,63 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
   const IDEMPOTENCY_ARG = z.string().optional()
     .describe('Optional retry token, 1-128 chars of [A-Za-z0-9_.:-]. Replaying the same key returns the first result without repeating the write.');
 
+  // assignee_id EXISTS in the schema only while multi-user mode is on —
+  // evaluated here, at registration time, which is per request (the §3.7
+  // per-request factory), so toggling multi-user in Settings changes the
+  // schema a connected client sees on its next request. Same idea as the
+  // calendar tier gating _native inclusion, applied at the schema level.
+  const multiUser = deps.multiUserEnabled();
+  const createTaskSchema = z.object({
+    title: z.string().describe('Task title. Required, non-empty.'),
+    notes: z.string().optional(),
+    project_id: z.string().optional().describe(
+      'Attach to a project (see dayglance_get_goal_progress). Project tasks do not carry priority or deadline by design.'),
+    ...(multiUser ? {
+      assignee_id: z.string().optional().describe(
+        'Assign to one household member by their user id. Ids come from dayglance_list_users. Never guess from a name.'),
+    } : {}),
+    priority: z.number().int().optional().describe(
+      'Inbox tasks only: 0 none (default), 1 low, 2 medium, 3 high. Scheduled and project tasks do not carry priority by design.'),
+    deadline: z.string().optional().describe(
+      'Inbox tasks only: local calendar date, strict YYYY-MM-DD. Scheduled and project tasks do not carry a deadline by design.'),
+    start: z.string().optional().describe(
+      'Presence makes this a SCHEDULED create, placed directly on the calendar in one call. ' +
+      'Timed: local "YYYY-MM-DD HH:MM" (DST gap/repeat times rejected). With all_day: a bare "YYYY-MM-DD".'),
+    duration_minutes: z.number().int().optional().describe(
+      '1-1440. Defaults to 30. Contradicts all_day: an all-day task has no meaningful duration.'),
+    all_day: z.boolean().optional().describe(
+      'With start: create an all-day task. start must then be a bare YYYY-MM-DD date.'),
+    repeat: z.unknown().optional().describe(
+      'NOT SUPPORTED: recurring tasks cannot be created over MCP in v1. Passing anything here is an error.'),
+    idempotency_key: IDEMPOTENCY_ARG,
+  });
+
   server.registerTool(
     'dayglance_create_task',
     {
       description:
-        'Create a new unscheduled task in the dayGLANCE inbox. Returns the created task. ' +
-        'Use dayglance_schedule_task to place it on a day.',
-      inputSchema: z.object({
-        title: z.string().describe('Task title. Required, non-empty.'),
-        notes: z.string().optional(),
-        project_id: z.string().optional().describe('Attach to a project (see dayglance_get_goal_progress).'),
-        idempotency_key: IDEMPOTENCY_ARG,
-      }),
+        'Create a new dayGLANCE task. Without start: an unscheduled inbox task (may carry priority and ' +
+        'deadline). With start: a scheduled task placed directly onto the calendar in one call, with no separate ' +
+        'scheduling step. Returns the created task or block.',
+      inputSchema: createTaskSchema,
     },
-    async ({ title, notes, project_id, idempotency_key }) =>
-      write('create_task', idempotency_key, async (transitionId, capture) => {
+    async (args: Record<string, unknown>) => {
+      const idempotency_key = args['idempotency_key'];
+      return write('create_task', idempotency_key, async (transitionId, capture) => {
+        const planned = planCreateTask(args, deps.timeZone());
+        if (!planned.ok) return toolError(planned.code, planned.message);
         // Deterministic id from the key (handleIntent precedent): a replayed
         // create converges on the same id and no-ops renderer-side.
         const taskId = idempotency_key !== undefined
           ? deterministicTaskIdFromSeed(makeStoreKey(deps.token(), 'create_task', idempotency_key as string))
           : randomUUID();
-        const r = await deps.bridge.request('create_task', { taskId, title, notes, projectId: project_id, transitionId });
-        return fromRenderer(r, { timezone: deps.timeZone() }, capture);
-      }),
+        const r = await deps.bridge.request('create_task', { taskId, ...planned.plan, transitionId });
+        const envelope = planned.plan.schedule
+          ? dateEnvelope(planned.plan.schedule.date, deps.timeZone()) as unknown as Record<string, unknown>
+          : { timezone: deps.timeZone() };
+        return fromRenderer(r, envelope, capture);
+      });
+    },
   );
 
   server.registerTool(
@@ -217,7 +260,9 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
     {
       description:
         'Schedule an unscheduled dayGLANCE inbox task onto a day and time. start is local: ' +
-        '"YYYY-MM-DD HH:MM", no UTC, no offsets. Returns the resulting block.' + CANNOT_MODIFY_NATIVE,
+        '"YYYY-MM-DD HH:MM", no UTC, no offsets. Returns the resulting block. If the inbox task ' +
+        'carried a priority or deadline, scheduling drops them BY DESIGN and the response lists ' +
+        'them in dropped_fields. Tell the user rather than treating it as an error.' + CANNOT_MODIFY_NATIVE,
       inputSchema: z.object({
         task_id: z.string(),
         start: z.string().describe('Local "YYYY-MM-DD HH:MM". Times inside a DST gap or repeat are rejected.'),
@@ -290,7 +335,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
     'dayglance_set_task_completion',
     {
       description:
-        'Set a dayGLANCE task\'s completion state (a setter, not a toggle — safe to retry, and ' +
+        'Set a dayGLANCE task\'s completion state (a setter, not a toggle: safe to retry, and ' +
         'setting completed:false is the agent\'s own undo). Works for scheduled blocks, inbox ' +
         'tasks, and recurring-task instances.' + CANNOT_MODIFY_NATIVE,
       inputSchema: z.object({

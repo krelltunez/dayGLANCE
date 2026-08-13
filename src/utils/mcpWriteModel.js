@@ -55,12 +55,25 @@ export function handleMcpWrite(state, setters, request) {
     case 'create_task': {
       const r = applyCreateTask(state, { ...params, nowIso });
       if (!r.ok) return r;
-      if (!r.replayed) setters.setUnscheduledTasks(r.unscheduledTasks);
+      // One slice changed per shape (the other comes back by reference);
+      // scheduled creates land directly in tasks — §5.2 atomicity is one
+      // transition, not two batched ones.
+      if (!r.replayed) {
+        if (r.scheduled) setters.setTasks(r.tasks);
+        else setters.setUnscheduledTasks(r.unscheduledTasks);
+      }
       const undo = r.replayed ? undefined : {
-        summary: `Created ${q(r.task.title)}`,
+        summary: r.scheduled
+          ? `Created ${q(r.task.title)} at ${at(r.task.date, r.task.isAllDay ? null : r.task.startTime)}`
+          : `Created ${q(r.task.title)}`,
+        // A scheduled create still reverses as remove_created: applyUndoOps
+        // finds it in tasks and bins it (_deletedFrom 'calendar') — no new
+        // undo kind, no undoGroupKey extension.
         op: { kind: 'remove_created', taskId: r.task.id },
       };
-      return { ok: true, data: { task: inboxItem(r.task), replayed: r.replayed }, ...(undo ? { undo } : {}) };
+      const entity = r.scheduled ? { block: toBlock(r.task) } : { task: inboxItem(r.task) };
+      if (r.task.assignedUserSyncIds?.length) entity.assignee_id = r.task.assignedUserSyncIds[0];
+      return { ok: true, data: { ...entity, replayed: r.replayed }, ...(undo ? { undo } : {}) };
     }
     case 'schedule_task': {
       // Captured BEFORE the mutation: applyScheduleTask strips priority and
@@ -77,7 +90,22 @@ export function handleMcpWrite(state, setters, request) {
         summary: `Scheduled ${q(beforeTask.title)} at ${at(params.date, params.startTime)}`,
         op: { kind: 'restore_unscheduled', taskId: params.taskId, beforeTask },
       };
-      return { ok: true, data: { block: toBlock(r.task), replayed: r.replayed }, ...(undo ? { undo } : {}) };
+      // Scheduling strips priority/deadline BY DESIGN (applyScheduleTask);
+      // the response must say so, so the model can tell the user instead of
+      // the loss being silent. Priority 0 is "no priority" — nothing dropped.
+      const dropped = r.replayed ? [] : scheduleDroppedFields(beforeTask);
+      return {
+        ok: true,
+        data: {
+          block: toBlock(r.task),
+          replayed: r.replayed,
+          ...(dropped.length ? {
+            dropped_fields: dropped,
+            note: `Scheduling dropped ${dropped.join(' and ')}: inbox-only fields by design. Tell the user if they asked to keep them.`,
+          } : {}),
+        },
+        ...(undo ? { undo } : {}),
+      };
     }
     case 'move_block': {
       const before = (state.tasks ?? []).find((t) => t.id === params.blockId);
@@ -137,6 +165,18 @@ export function handleMcpWrite(state, setters, request) {
     default:
       return { ok: false, error: { code: 'validation', message: `Unknown write method ${JSON.stringify(request?.method)}` } };
   }
+}
+
+/**
+ * Which inbox-only fields applyScheduleTask's by-design strip will actually
+ * lose for this task: priority only when it carries one (0 is "no priority"),
+ * deadline only when set. Pure so the rule is testable on its own.
+ */
+export function scheduleDroppedFields(beforeTask) {
+  const dropped = [];
+  if (typeof beforeTask?.priority === 'number' && beforeTask.priority > 0) dropped.push('priority');
+  if (beforeTask?.deadline) dropped.push('deadline');
+  return dropped;
 }
 
 /** Before-state for set_completion, across the three branches applySetCompletion handles. */

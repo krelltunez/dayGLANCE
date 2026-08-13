@@ -938,6 +938,25 @@ function loadOrMigrateIntegrationsConfig(): void {
   );
 }
 
+// ── Multi-user flag for the MCP tool schemas ─────────────────────────────────
+// A per-device toggle that lives in RENDERER state (unlike the consent tiers,
+// which main owns in local-integrations.json), so the renderer pushes it here:
+// once on mount and again on every change. It gates the EXISTENCE of
+// create_task's assignee_id argument and the dayglance_list_users tool, both
+// evaluated per request by the §3.7 server factory — a toggle mid-session
+// changes the schema on the client's very next request, never a stale one.
+// Only the flag crosses the IPC boundary; the user roster stays renderer-side.
+let mcpMultiUserEnabled = false;
+
+function registerMcpMultiUserHandler(): void {
+  ipcMain.on('mcp:multi-user-enabled', (event, enabled: unknown) => {
+    // Same sender discipline as mcpRendererBridge: only the main window's
+    // live state is authoritative (the tray popup holds a stale snapshot).
+    if (event.sender !== live(mainWindow)?.webContents) return;
+    mcpMultiUserEnabled = enabled === true;
+  });
+}
+
 // ── §4.3 write journal — session-scoped BY DESIGN ────────────────────────────
 // Module scope in the main process (never on the McpServer instance, §3.7,
 // never on disk): it covers the runaway-agent case, so dying with the process
@@ -1069,6 +1088,7 @@ function startMcpListener(): void {
       // §6.3 device-calendar tier, settings-backed (this closure replaced the
       // DAYGLANCE_MCP_CALENDAR env var — tool code unchanged, as designed).
       includeNativeEvents: () => mcpGates(integrationsConfig).includeNative,
+      multiUserEnabled: () => mcpMultiUserEnabled,
     },
     writeDeps: {
       bridge: mcpBridge,
@@ -1077,6 +1097,7 @@ function startMcpListener(): void {
       token: mcpToken,
       // §6.3 writes opt-in, settings-backed (replaced DAYGLANCE_MCP_WRITES).
       includeWrites: () => mcpGates(integrationsConfig).includeWrites,
+      multiUserEnabled: () => mcpMultiUserEnabled,
       noteMcpWrite: () => { lastMcpWriteAt = Date.now(); },
       // §4.3 write journal (Phase 5b): session-scoped record + tray surface.
       journal: recordMcpJournal,
@@ -1287,6 +1308,7 @@ app.whenReady().then(async () => {
   // config file is the sole source.
   registerLocalIntegrationsHandlers();
   registerMcpJournalHandlers();
+  registerMcpMultiUserHandler();
   if (integrationsConfig.streamDeck.enabled) startStreamDeckListener();
   startMcpListener();
   registerSubscriptionHandlers(win);
