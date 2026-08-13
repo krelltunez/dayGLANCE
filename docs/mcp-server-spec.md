@@ -467,7 +467,7 @@ Runnable in parallel with Phase 1 — nothing in Phase 1 depends on it. A `mas-d
 
 Method:
 1. On macOS 15 or 26: build the existing `mas` target dev-signed (`mas-dev` provisioning, already supported by `electron-builder.config.cjs`), launch it once so `~/Library/Containers/com.dayglance` exists, and place a test `mcp.json` at the §3.4 userData path.
-2. Configure Claude Desktop with a stdio entry running a trivial node script that `readFileSync`s that path and logs contents or `errno` — this reproduces the exact responsible-process chain the real bridge would have.
+2. Configure Claude Desktop with a stdio entry running a trivial node script that `readFileSync`s that path and logs contents or `errno` — this reproduces the exact responsible-process chain the real bridge would have. The script exists: `scripts/tcc-container-probe.mjs` (dependency-free; serves as the stdio entry, and `--once` covers the Terminal and second-GUI-app runs; usage in its header).
 3. Observe: whether a prompt appears, its wording and which app it names, that Allow → read succeeds, Deny → the specific error code, and where the toggle lands in System Settings.
 4. Re-run the same script from Terminal and from a second GUI app to confirm attribution follows the responsible process.
 5. Repeat on macOS 14 to confirm the unprotected baseline.
