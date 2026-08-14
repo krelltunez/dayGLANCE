@@ -10,6 +10,9 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "sourceMap": true,
+    // Same rationale as tsconfig.electron.json: compiled comments would trip the
+    // §7 whole-asar marker grep (preload.ts mentions the setup button by name).
+    "removeComments": true,
     "types": ["node", "electron"]
   },
   "include": ["electron/preload.ts"]
