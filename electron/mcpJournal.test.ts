@@ -87,6 +87,11 @@ describe('undoGroupKey — the per-task partition', () => {
     expect(undoGroupKey({ kind: 'restore_block_fields', blockId: 't1', before: { duration: 30 } })).toBe('t1');
   });
 
+  it('update_task edits group by taskId too: the id survives renames, so the partition holds', () => {
+    expect(undoGroupKey({ kind: 'restore_task_fields', taskId: 't1', before: { title: 'Old' } })).toBe('t1');
+    expect(undoGroupKey({ kind: 'restore_task_fields', taskId: 't1', before: {}, absentBefore: ['deadline'] })).toBe('t1');
+  });
+
   it('recurring completions group per INSTANCE (template::date), never per template', () => {
     const tue = undoGroupKey({ kind: 'restore_recurring_completion', templateId: 42, dateStr: '2026-08-11', wasCompleted: false });
     const wed = undoGroupKey({ kind: 'restore_recurring_completion', templateId: 42, dateStr: '2026-08-12', wasCompleted: false });
@@ -136,6 +141,22 @@ describe('journalGroups — per-task groups over the full journal', () => {
     // was created after Alpha.
     expect(groups[0]).toMatchObject({ key: 'a', label: 'Alpha', count: 3, latestSeq: 4 });
     expect(groups[1]).toMatchObject({ key: 'b', label: 'Beta', count: 1, latestSeq: 2 });
+  });
+
+  it('a rename updates the group label: latest entry wins BY DESIGN, and the update summary quotes only the new title', () => {
+    const renamed = [
+      ...history,
+      entry({
+        seq: 5,
+        summary: 'Edited “Alpha v2” (title, priority)',
+        op: { kind: 'restore_task_fields', taskId: 'a', before: { title: 'Alpha', priority: 1 } },
+      }),
+    ];
+    const groups = journalGroups(renamed);
+    expect(groups[0]).toMatchObject({ key: 'a', label: 'Alpha v2', count: 4, latestSeq: 5 });
+    // The one-quoted-span rule that makes this work: summaryTitle spans first
+    // “ to last ”, so the update summary must never quote the old title too.
+    expect(summaryTitle('Edited “Alpha v2” (title, priority)')).toBe('Alpha v2');
   });
 
   it('recurring groups get the instance date in the label so two dates stay tellable apart', () => {

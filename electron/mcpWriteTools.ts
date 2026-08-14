@@ -1,4 +1,4 @@
-// The five Phase 3 write tools (spec §5.1), registered onto a per-request
+// The Phase 3 write tools (spec §5.1) plus update_task, registered onto a per-request
 // McpServer instance by the mcpServer.ts factory. §3.7 discipline as in
 // mcpReadTools.ts: this module holds no state — the write gate, replay store,
 // consent tier, and renderer bridge all arrive as deps owned by main.ts.
@@ -35,6 +35,7 @@ import {
   deterministicTaskIdFromSeed,
 } from './mcpIdempotency.js';
 import { planCreateTask } from './mcpCreateArgs.js';
+import { planUpdateTask } from './mcpUpdateArgs.js';
 import type { JournalRecord } from './mcpJournal.js';
 
 /** Renderer-captured undo descriptor, diverted to the §4.3 journal. */
@@ -251,6 +252,48 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDeps): void
           ? dateEnvelope(planned.plan.schedule.date, deps.timeZone()) as unknown as Record<string, unknown>
           : { timezone: deps.timeZone() };
         return fromRenderer(r, envelope, capture);
+      });
+    },
+  );
+
+  const updateTaskSchema = z.object({
+    task_id: z.string().describe('The task to edit. Recurring-instance ids (recurring-...) are not editable; edit the series in dayGLANCE.'),
+    title: z.string().optional().describe('New title. Required on every task, so it can be set but never cleared.'),
+    notes: z.string().optional().describe('New notes text. To remove notes entirely, name "notes" in clear_fields instead.'),
+    priority: z.number().int().optional().describe(
+      'Inbox tasks without a project only: 0 none, 1 low, 2 medium, 3 high. Scheduled and project tasks do not carry priority by design.'),
+    deadline: z.string().optional().describe(
+      'Inbox tasks without a project only: local calendar date, strict YYYY-MM-DD. Scheduled and project tasks do not carry a deadline by design.'),
+    ...(multiUser ? {
+      assignee_id: z.string().optional().describe(
+        'Reassign to one household member by their user id. Ids come from dayglance_list_users. Never guess from a name.'),
+    } : {}),
+    clear_fields: z.array(z.string()).optional().describe(
+      'Field names to REMOVE from the task. Accepts only fields that can meaningfully be empty: ' +
+      `"notes", "deadline"${multiUser ? ', "assignee"' : ''}. ` +
+      'Naming a required field like title, or any other field, is a validation error.'),
+    idempotency_key: IDEMPOTENCY_ARG,
+  });
+
+  server.registerTool(
+    'dayglance_update_task',
+    {
+      description:
+        'Edit fields of an existing dayGLANCE task, inbox or scheduled. An absent argument leaves that field ' +
+        'alone. A present argument sets it. A field named in clear_fields is removed. Fields are never cleared ' +
+        'by passing null or empty values; clearing is only ever the explicit clear_fields list. ' +
+        'project_id is not editable, and date, time, duration, and completion have their own tools ' +
+        '(schedule_task, move_block, resize_block, set_task_completion). Returns the resulting task or block.' +
+        CANNOT_MODIFY_NATIVE,
+      inputSchema: updateTaskSchema,
+    },
+    async (args: Record<string, unknown>) => {
+      const idempotency_key = args['idempotency_key'];
+      return write('update_task', idempotency_key, async (transitionId, capture) => {
+        const planned = planUpdateTask(args, multiUser);
+        if (!planned.ok) return toolError(planned.code, planned.message);
+        const r = await deps.bridge.request('update_task', { ...planned.plan, transitionId });
+        return fromRenderer(r, { timezone: deps.timeZone() }, capture);
       });
     },
   );
