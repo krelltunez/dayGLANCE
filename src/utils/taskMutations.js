@@ -177,6 +177,124 @@ export function applyScheduleTask(state, { taskId, date, startTime, durationMinu
   };
 }
 
+/**
+ * UPDATE (edit fields in place). Shapes transcribed from the UI's own edits:
+ * title from the edit-modal save (App.jsx ~3517: trimmed string + fresh
+ * transitionId), notes from useTaskActions.updateTaskNotes, priority from
+ * useDeadlinePriority.cyclePriority's commit map, deadline from
+ * useTaskActions.setDeadline, assignee from the edit modal's direct
+ * assignedUserSyncIds write. lastModified is deliberately NOT stamped here:
+ * the save pass (useDataPersistence stampTaskTimestamps) diff-stamps both
+ * tasks and unscheduledTasks, the applyMoveBlock/applyResizeBlock precedent.
+ *
+ * DELIBERATE DIFFERENCE from the UI edit modal: no cleanTitle(). Sigil
+ * parsing ($fri, !2) is a typing-UI affordance; an agent writing "$fri" in a
+ * title means the literal text, and silently converting it into a deadline
+ * would be state the caller never requested. create_task set this precedent.
+ *
+ * FIELD RULES, all typed and by-design in wording (§5.2):
+ *  - priority/deadline (set OR clear) rejected on scheduled tasks and on
+ *    project tasks: the UI disables both controls there, so writing them
+ *    would create state the UI cannot display, edit, or clear.
+ *  - _native (module header), recurring instances (synthetic per-instance
+ *    ids, dedicated error), and CalDAV task-calendar tasks (a local-only
+ *    edit desyncs the user's CalDAV server; the set_task_completion
+ *    precedent) are all rejected before any field is touched.
+ *
+ * CLEAR SHAPES, matching what the UI produces: notes clears to '' (the
+ * create default), deadline and assignedUserSyncIds are deleted outright
+ * (create only adds them when set, and every reader treats an absent
+ * assignedUserSyncIds identically to an empty one: isVisibleForUser and
+ * UserAssignmentBadge both coalesce to []).
+ *
+ * Returns `touched`: the STORAGE keys this call changed, in a stable order,
+ * so the caller can capture exact before-state for the §4.3 undo journal.
+ */
+export function applyUpdateTask(state, { taskId, set = {}, clear = [], transitionId }) {
+  const tasks = state.tasks ?? [];
+  const unscheduled = state.unscheduledTasks ?? [];
+
+  if (parseRecurringInstanceId(taskId)) {
+    return err(
+      WRITE_ERROR_CODES.VALIDATION,
+      `${taskId} is a recurring-task instance: its id is a synthetic per-date view of the series, not an ` +
+      'editable task, and update_task on recurring instances is not supported in v1. Edit the series in dayGLANCE',
+    );
+  }
+
+  const inInbox = unscheduled.find((t) => t.id === taskId);
+  const scheduled = tasks.find((t) => t.id === taskId);
+  const task = inInbox ?? scheduled;
+  if (!task) return err(WRITE_ERROR_CODES.NOT_FOUND, `No task with id ${taskId}`);
+  if (task._native) return err(WRITE_ERROR_CODES.NATIVE_READONLY, NATIVE_MSG(taskId));
+  if (task.isTaskCalendar && task.icalUid) {
+    return err(
+      WRITE_ERROR_CODES.VALIDATION,
+      `${taskId} is a CalDAV task-calendar task; editing it requires a CalDAV write that MCP v1 does not perform`,
+    );
+  }
+
+  const touchesPressure = set.priority !== undefined || set.deadline !== undefined || clear.includes('deadline');
+  if (touchesPressure && !inInbox) {
+    return err(
+      WRITE_ERROR_CODES.VALIDATION,
+      'Scheduled dayGLANCE tasks do not carry priority or deadline by design: those fields belong to inbox ' +
+      'tasks only. Edit the other fields, or work with the task before scheduling it.',
+    );
+  }
+  if (touchesPressure && task.projectId) {
+    return err(
+      WRITE_ERROR_CODES.VALIDATION,
+      'dayGLANCE project tasks do not carry priority or deadline by design: the app manages project work ' +
+      'through the project itself, and the UI disables both controls for them.',
+    );
+  }
+
+  let assignedUserSyncIds;
+  if (set.assigneeSyncId !== undefined) {
+    const member = (state.users ?? []).find(
+      (u) => !u.deleted && (u.syncId === set.assigneeSyncId || u.id === set.assigneeSyncId),
+    );
+    if (!member) {
+      return err(WRITE_ERROR_CODES.NOT_FOUND,
+        `No active user with id ${JSON.stringify(set.assigneeSyncId)}. Enumerate valid assignees with dayglance_list_users`);
+    }
+    assignedUserSyncIds = [member.syncId ?? member.id];
+  }
+
+  if (task.transitionId && transitionId && task.transitionId === transitionId) {
+    return { ok: true, replayed: true, tasks, unscheduledTasks: unscheduled, task, touched: [], scheduled: !inInbox };
+  }
+
+  const next = { ...task, ...(transitionId ? { transitionId } : {}) };
+  const touched = [];
+  const touch = (key) => { if (!touched.includes(key)) touched.push(key); };
+
+  if (set.title !== undefined) { next.title = set.title; touch('title'); }
+  if (set.notes !== undefined) { next.notes = set.notes; touch('notes'); }
+  if (set.priority !== undefined) { next.priority = set.priority; touch('priority'); }
+  if (set.deadline !== undefined) { next.deadline = set.deadline; touch('deadline'); }
+  if (assignedUserSyncIds !== undefined) { next.assignedUserSyncIds = assignedUserSyncIds; touch('assignedUserSyncIds'); }
+  for (const field of clear) {
+    if (field === 'notes') { next.notes = ''; touch('notes'); }
+    else if (field === 'deadline') { delete next.deadline; touch('deadline'); }
+    else if (field === 'assignee') { delete next.assignedUserSyncIds; touch('assignedUserSyncIds'); }
+  }
+
+  if (inInbox) {
+    return {
+      ok: true, replayed: false, tasks,
+      unscheduledTasks: unscheduled.map((t) => (t.id === taskId ? next : t)),
+      task: next, touched, scheduled: false,
+    };
+  }
+  return {
+    ok: true, replayed: false, unscheduledTasks: unscheduled,
+    tasks: tasks.map((t) => (t.id === taskId ? next : t)),
+    task: next, touched, scheduled: true,
+  };
+}
+
 /** Shared lookup + guards for the block-mutating tools. */
 function findWritableBlock(tasks, blockId, { operation }) {
   if (parseRecurringInstanceId(blockId)) {
@@ -330,6 +448,22 @@ export function applyUndoOps(state, ops, { nowIso }) {
         const block = tasks.find((t) => t.id === op.blockId);
         if (!block || block._native || !op.before) { skipped += 1; break; }
         tasks = tasks.map((t) => (t.id === op.blockId ? { ...t, ...op.before, lastModified: nowIso } : t));
+        undone += 1;
+        break;
+      }
+      case 'restore_task_fields': {
+        // Reverses an update_task edit: `before` carries the prior values of
+        // every touched field, and `absentBefore` names touched fields that
+        // did not exist pre-edit, which a spread alone cannot un-set (undoing
+        // "add a deadline" must DELETE the key, not write undefined into it).
+        const inInbox = unscheduled.find((t) => t.id === op.taskId);
+        const scheduled = tasks.find((t) => t.id === op.taskId);
+        const task = inInbox ?? scheduled;
+        if (!task || task._native || !op.before) { skipped += 1; break; }
+        const next = { ...task, ...op.before, lastModified: nowIso };
+        for (const key of op.absentBefore ?? []) delete next[key];
+        if (inInbox) unscheduled = unscheduled.map((t) => (t.id === op.taskId ? next : t));
+        else tasks = tasks.map((t) => (t.id === op.taskId ? next : t));
         undone += 1;
         break;
       }

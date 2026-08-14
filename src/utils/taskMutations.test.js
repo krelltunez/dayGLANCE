@@ -6,6 +6,7 @@ import {
   applyMoveBlock,
   applyResizeBlock,
   applySetCompletion,
+  applyUpdateTask,
   applyUndoOps,
   WRITE_ERROR_CODES,
 } from './taskMutations.js';
@@ -353,6 +354,112 @@ describe('structural: the module can never write a native override', () => {
   });
 });
 
+describe('applyUpdateTask — field edits with by-design guards', () => {
+  const INBOX = { id: 'u1', title: 'Old title', priority: 1, deadline: '2026-08-20', notes: 'old notes', completed: false };
+  const USERS = [{ syncId: 'user-a', name: 'A' }, { id: 'user-b-legacy', name: 'B' }, { syncId: 'user-gone', deleted: true }];
+  const base = () => ({ tasks: [T()], unscheduledTasks: [{ ...INBOX }], users: USERS });
+
+  it('absent leaves alone, present sets: title, notes, priority, deadline, assignee on an inbox task', () => {
+    const r = applyUpdateTask(base(), {
+      taskId: 'u1',
+      set: { title: 'New title', notes: 'new', priority: 3, deadline: '2026-09-01', assigneeSyncId: 'user-a' },
+      clear: [],
+      transitionId: 'tr-1',
+    });
+    expect(r.ok).toBe(true);
+    expect(r.task).toMatchObject({
+      title: 'New title', notes: 'new', priority: 3, deadline: '2026-09-01',
+      assignedUserSyncIds: ['user-a'], transitionId: 'tr-1',
+      completed: false, // untouched field left alone
+    });
+    expect(r.touched).toEqual(['title', 'notes', 'priority', 'deadline', 'assignedUserSyncIds']);
+    expect(r.scheduled).toBe(false);
+    expect(r.unscheduledTasks.find((t) => t.id === 'u1')).toBe(r.task);
+  });
+
+  it('title and notes edit scheduled tasks too, returned as scheduled', () => {
+    const r = applyUpdateTask(base(), { taskId: 'b1', set: { title: 'Renamed block' }, clear: [] });
+    expect(r.ok).toBe(true);
+    expect(r.scheduled).toBe(true);
+    expect(r.tasks.find((t) => t.id === 'b1').title).toBe('Renamed block');
+  });
+
+  it('clear_fields removes: deadline and assignee deleted, notes cleared to the create default', () => {
+    const state = base();
+    state.unscheduledTasks[0].assignedUserSyncIds = ['user-a'];
+    const r = applyUpdateTask(state, { taskId: 'u1', set: {}, clear: ['notes', 'deadline', 'assignee'] });
+    expect(r.ok).toBe(true);
+    expect(r.task.notes).toBe('');
+    expect('deadline' in r.task).toBe(false);
+    expect('assignedUserSyncIds' in r.task).toBe(false);
+    expect(r.touched).toEqual(['notes', 'deadline', 'assignedUserSyncIds']);
+  });
+
+  it('rejects priority/deadline on a scheduled task, set and clear alike, wording says by design', () => {
+    for (const attempt of [{ set: { priority: 2 }, clear: [] }, { set: { deadline: '2026-09-01' }, clear: [] }, { set: {}, clear: ['deadline'] }]) {
+      const r = applyUpdateTask(base(), { taskId: 'b1', ...attempt });
+      expect(r).toMatchObject({ ok: false, error: { code: 'validation' } });
+      expect(r.error.message).toMatch(/by design/);
+    }
+  });
+
+  it('rejects priority/deadline on a project task, wording says by design', () => {
+    const state = base();
+    state.unscheduledTasks[0].projectId = 'p1';
+    const r = applyUpdateTask(state, { taskId: 'u1', set: { priority: 2 }, clear: [] });
+    expect(r).toMatchObject({ ok: false, error: { code: 'validation' } });
+    expect(r.error.message).toMatch(/project tasks do not carry priority or deadline by design/i);
+    // title stays editable on the same project task
+    expect(applyUpdateTask(state, { taskId: 'u1', set: { title: 'ok' }, clear: [] }).ok).toBe(true);
+  });
+
+  it('rejects _native device calendar events', () => {
+    const state = { tasks: [NATIVE], unscheduledTasks: [] };
+    const r = applyUpdateTask(state, { taskId: NATIVE.id, set: { title: 'nope' }, clear: [] });
+    expect(r).toMatchObject({ ok: false, error: { code: 'device_calendar_readonly' } });
+  });
+
+  it('rejects recurring instances with a dedicated synthetic-id error, not not_found', () => {
+    const r = applyUpdateTask(base(), { taskId: 'recurring-abc-2026-08-10', set: { title: 'x' }, clear: [] });
+    expect(r).toMatchObject({ ok: false, error: { code: 'validation' } });
+    expect(r.error.message).toMatch(/synthetic/);
+    expect(r.error.message).toMatch(/Edit the series/);
+  });
+
+  it('rejects CalDAV task-calendar tasks (the set_task_completion precedent)', () => {
+    const state = { tasks: [T({ id: 'cd1', isTaskCalendar: true, icalUid: 'uid-1' })], unscheduledTasks: [] };
+    const r = applyUpdateTask(state, { taskId: 'cd1', set: { title: 'x' }, clear: [] });
+    expect(r).toMatchObject({ ok: false, error: { code: 'validation' } });
+    expect(r.error.message).toMatch(/CalDAV/);
+  });
+
+  it('validates the assignee against the active roster, legacy id fallback included', () => {
+    expect(applyUpdateTask(base(), { taskId: 'u1', set: { assigneeSyncId: 'user-b-legacy' }, clear: [] }).task.assignedUserSyncIds)
+      .toEqual(['user-b-legacy']);
+    const unknown = applyUpdateTask(base(), { taskId: 'u1', set: { assigneeSyncId: 'nobody' }, clear: [] });
+    expect(unknown).toMatchObject({ ok: false, error: { code: 'not_found' } });
+    const deleted = applyUpdateTask(base(), { taskId: 'u1', set: { assigneeSyncId: 'user-gone' }, clear: [] });
+    expect(deleted).toMatchObject({ ok: false, error: { code: 'not_found' } });
+  });
+
+  it('not_found for an unknown id; replay via matching transitionId', () => {
+    expect(applyUpdateTask(base(), { taskId: 'ghost', set: { title: 'x' }, clear: [] }))
+      .toMatchObject({ ok: false, error: { code: 'not_found' } });
+    const state = base();
+    state.unscheduledTasks[0].transitionId = 'tr-same';
+    const r = applyUpdateTask(state, { taskId: 'u1', set: { title: 'x' }, clear: [], transitionId: 'tr-same' });
+    expect(r).toMatchObject({ ok: true, replayed: true, touched: [] });
+    expect(r.task.title).toBe('Old title');
+  });
+
+  it('is pure: the input state is untouched', () => {
+    const state = base();
+    applyUpdateTask(state, { taskId: 'u1', set: { title: 'New' }, clear: ['deadline'] });
+    expect(state.unscheduledTasks[0].title).toBe('Old title');
+    expect(state.unscheduledTasks[0].deadline).toBe('2026-08-20');
+  });
+});
+
 describe('applyUndoOps — the §4.3 bulk undo (Phase 5b)', () => {
   const NOW2 = '2026-08-10T13:00:00.000Z';
   const run = (state, ops) => applyUndoOps(state, ops, { nowIso: NOW2 });
@@ -401,6 +508,30 @@ describe('applyUndoOps — the §4.3 bulk undo (Phase 5b)', () => {
     ]);
     expect(r.tasks[0]).toMatchObject({ date: '2026-08-10', startTime: '09:00', duration: 60, lastModified: NOW2 });
     expect(r.undone).toBe(2);
+  });
+
+  it('restore_task_fields restores values, DELETES absentBefore fields, on inbox and scheduled', () => {
+    const state = {
+      tasks: [T({ id: 'b1', title: 'Renamed block', notes: 'edited' })],
+      unscheduledTasks: [{ id: 'u1', title: 'Renamed', priority: 3, deadline: '2026-09-01', notes: '' }],
+    };
+    const r = run(state, [
+      // The edit set title+priority and ADDED a deadline (absent before) and cleared notes.
+      { kind: 'restore_task_fields', taskId: 'u1', before: { title: 'Old', priority: 1, notes: 'old notes' }, absentBefore: ['deadline'] },
+      { kind: 'restore_task_fields', taskId: 'b1', before: { title: 'Block', notes: '' } },
+    ]);
+    expect(r.unscheduledTasks[0]).toMatchObject({ title: 'Old', priority: 1, notes: 'old notes', lastModified: NOW2 });
+    expect('deadline' in r.unscheduledTasks[0]).toBe(false);
+    expect(r.tasks[0]).toMatchObject({ title: 'Block', notes: '', lastModified: NOW2 });
+    expect(r.undone).toBe(2);
+  });
+
+  it('restore_task_fields skips a task the user deleted since the edit', () => {
+    const r = run({ tasks: [], unscheduledTasks: [] }, [
+      { kind: 'restore_task_fields', taskId: 'gone', before: { title: 'Old' } },
+    ]);
+    expect(r.undone).toBe(0);
+    expect(r.skipped).toBe(1);
   });
 
   it('restore_completion restores completed AND completedAt on inbox and scheduled tasks', () => {

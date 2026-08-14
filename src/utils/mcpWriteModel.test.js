@@ -22,11 +22,75 @@ const B = (over = {}) => ({
 });
 
 describe('isWriteMethod', () => {
-  it('routes the five write tools plus undo_mcp_writes', () => {
-    for (const m of ['create_task', 'schedule_task', 'move_block', 'resize_block', 'set_completion', 'undo_mcp_writes']) {
+  it('routes the write tools plus undo_mcp_writes', () => {
+    for (const m of ['create_task', 'schedule_task', 'move_block', 'resize_block', 'set_completion', 'update_task', 'undo_mcp_writes']) {
       expect(isWriteMethod(m)).toBe(true);
     }
     expect(isWriteMethod('get_day')).toBe(false);
+  });
+});
+
+describe('update_task — dispatch, undo capture, one-quoted-span summaries', () => {
+  const inbox = () => ({ id: 'u1', title: 'Old title', priority: 1, notes: 'old', completed: false });
+
+  it('applies through the inbox setter and returns the task entity', () => {
+    const setters = makeSetters();
+    const r = handleMcpWrite({ tasks: [], unscheduledTasks: [inbox()], users: [] }, setters, {
+      method: 'update_task', params: { taskId: 'u1', set: { title: 'New title', deadline: '2026-09-01' }, clear: [] },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.data.task).toMatchObject({ id: 'u1', title: 'New title', deadline: '2026-09-01' });
+    expect(setters.setUnscheduledTasks).toHaveBeenCalledTimes(1);
+    expect(setters.setTasks).not.toHaveBeenCalled();
+  });
+
+  it('undo captures before-values, routes added fields to absentBefore, and quotes ONLY the new title', () => {
+    const r = handleMcpWrite({ tasks: [], unscheduledTasks: [inbox()], users: [] }, makeSetters(), {
+      method: 'update_task', params: { taskId: 'u1', set: { title: 'New title', deadline: '2026-09-01' }, clear: ['notes'] },
+    });
+    expect(r.undo.op).toEqual({
+      kind: 'restore_task_fields',
+      taskId: 'u1',
+      before: { title: 'Old title', notes: 'old' },
+      absentBefore: ['deadline'],
+    });
+    // ONE-QUOTED-SPAN RULE: summaryTitle spans first “ to last ”, so the
+    // summary must quote exactly one title, the post-edit one. A second
+    // quoted span (the old title) would extract garbage.
+    expect(r.undo.summary).toBe('Edited “New title” (title, deadline, notes)');
+    expect([...r.undo.summary].filter((c) => c === '“')).toHaveLength(1);
+    expect(r.undo.summary).not.toContain('Old title');
+  });
+
+  it('summary field list uses wire names: assignee, never the assignedUserSyncIds storage key', () => {
+    const state = { tasks: [], unscheduledTasks: [inbox()], users: [{ syncId: 'user-a', name: 'A' }] };
+    const r = handleMcpWrite(state, makeSetters(), {
+      method: 'update_task', params: { taskId: 'u1', set: { assigneeSyncId: 'user-a' }, clear: [] },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.undo.summary).toBe('Edited “Old title” (assignee)');
+    expect(r.undo.summary).not.toContain('assignedUserSyncIds');
+    expect(r.data.assignee_id).toBe('user-a');
+  });
+
+  it('a scheduled task routes through setTasks and returns a block entity', () => {
+    const setters = makeSetters();
+    const r = handleMcpWrite({ tasks: [B()], unscheduledTasks: [], users: [] }, setters, {
+      method: 'update_task', params: { taskId: 'b1', set: { notes: 'annotated' }, clear: [] },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.data.block).toMatchObject({ id: 'b1' });
+    expect(setters.setTasks).toHaveBeenCalledTimes(1);
+    expect(setters.setUnscheduledTasks).not.toHaveBeenCalled();
+  });
+
+  it('errors pass through untouched and run no setters', () => {
+    const setters = makeSetters();
+    const r = handleMcpWrite({ tasks: [B()], unscheduledTasks: [], users: [] }, setters, {
+      method: 'update_task', params: { taskId: 'b1', set: { priority: 2 }, clear: [] },
+    });
+    expect(r).toMatchObject({ ok: false, error: { code: 'validation' } });
+    expect(setters.setTasks).not.toHaveBeenCalled();
   });
 });
 

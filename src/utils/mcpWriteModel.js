@@ -22,6 +22,7 @@ import {
   applyMoveBlock,
   applyResizeBlock,
   applySetCompletion,
+  applyUpdateTask,
   applyUndoOps,
   parseRecurringInstanceId,
 } from './taskMutations.js';
@@ -29,7 +30,7 @@ import { toBlock } from './mcpReadModel.js';
 
 const WRITE_METHODS = new Set([
   'create_task', 'schedule_task', 'move_block', 'resize_block', 'set_completion',
-  'undo_mcp_writes',
+  'update_task', 'undo_mcp_writes',
 ]);
 
 export function isWriteMethod(method) {
@@ -148,6 +149,32 @@ export function handleMcpWrite(state, setters, request) {
       const undo = r.replayed ? undefined : undoSource;
       return { ok: true, data: { ...entity, replayed: r.replayed }, ...(undo ? { undo } : {}) };
     }
+    case 'update_task': {
+      // Captured BEFORE the mutation: the undo op needs the prior value of
+      // every field this call touches, and after the setters run this state
+      // is gone.
+      const beforeTask = (state.unscheduledTasks ?? []).find((t) => t.id === params.taskId)
+        ?? (state.tasks ?? []).find((t) => t.id === params.taskId);
+      const r = applyUpdateTask(state, params);
+      if (!r.ok) return r;
+      if (!r.replayed) {
+        if (r.scheduled) setters.setTasks(r.tasks);
+        else setters.setUnscheduledTasks(r.unscheduledTasks);
+      }
+      const undo = r.replayed || !beforeTask ? undefined : {
+        // ONE-QUOTED-SPAN RULE, load-bearing: summaryTitle() extracts the
+        // title as first “ to last ”, so a summary may contain exactly ONE
+        // quoted span. Never quote two titles (a rename written as
+        // Renamed “Old” to “New” would extract the garbage span Old” to “New).
+        // The quoted title is the POST-EDIT one, so journalGroups'
+        // latest-entry-wins labeling shows the task's current name.
+        summary: `Edited ${q(r.task.title)} (${updatedFieldNames(r.touched).join(', ')})`,
+        op: updateUndoOp(params.taskId, beforeTask, r.touched),
+      };
+      const entity = r.scheduled ? { block: toBlock(r.task) } : { task: inboxItem(r.task) };
+      if (r.task.assignedUserSyncIds?.length) entity.assignee_id = r.task.assignedUserSyncIds[0];
+      return { ok: true, data: { ...entity, replayed: r.replayed }, ...(undo ? { undo } : {}) };
+    }
     case 'undo_mcp_writes': {
       // The §4.3 bulk undo. Not itself journaled (the main process clears the
       // journal on success), and applied through the same store layer as every
@@ -177,6 +204,33 @@ export function scheduleDroppedFields(beforeTask) {
   if (typeof beforeTask?.priority === 'number' && beforeTask.priority > 0) dropped.push('priority');
   if (beforeTask?.deadline) dropped.push('deadline');
   return dropped;
+}
+
+/**
+ * The restore_task_fields undo op for an update_task edit: `before` carries
+ * the pre-edit value of every touched STORAGE key, and touched keys the task
+ * did not have land in `absentBefore` so undo deletes them instead of
+ * writing undefined into them. Pure so the before/absent split is testable
+ * on its own.
+ */
+export function updateUndoOp(taskId, beforeTask, touched) {
+  const before = {};
+  const absentBefore = [];
+  for (const key of touched ?? []) {
+    if (beforeTask && Object.prototype.hasOwnProperty.call(beforeTask, key)) before[key] = beforeTask[key];
+    else absentBefore.push(key);
+  }
+  return {
+    kind: 'restore_task_fields',
+    taskId,
+    before,
+    ...(absentBefore.length ? { absentBefore } : {}),
+  };
+}
+
+/** Storage keys → the wire field names the summary shows the user. */
+export function updatedFieldNames(touched) {
+  return (touched ?? []).map((key) => (key === 'assignedUserSyncIds' ? 'assignee' : key));
 }
 
 /** Before-state for set_completion, across the three branches applySetCompletion handles. */

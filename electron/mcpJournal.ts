@@ -17,7 +17,14 @@ export type UndoOp =
   | { kind: 'restore_unscheduled'; taskId: string; beforeTask: Record<string, unknown> }
   | { kind: 'restore_block_fields'; blockId: string; before: Record<string, unknown> }
   | { kind: 'restore_completion'; taskId: string; before: { completed: boolean; completedAt?: string | null } }
-  | { kind: 'restore_recurring_completion'; templateId: string | number; dateStr: string; wasCompleted: boolean };
+  | { kind: 'restore_recurring_completion'; templateId: string | number; dateStr: string; wasCompleted: boolean }
+  /**
+   * Reverses an update_task edit, inbox or scheduled. `before` holds the
+   * prior values of the touched fields; `absentBefore` names touched fields
+   * that did not exist pre-edit, so undo deletes them (a spread cannot
+   * un-set a deadline the edit added).
+   */
+  | { kind: 'restore_task_fields'; taskId: string; before: Record<string, unknown>; absentBefore?: string[] };
 
 export interface JournalEntry {
   seq: number;
@@ -59,12 +66,13 @@ export function appendEntry(entries: JournalEntry[], record: JournalRecord, nowI
 
 /**
  * PER-TASK grouping key: the single entity an op reverses. The per-task undo
- * partition rests on every op touching exactly one task — true for all five
+ * partition rests on every op touching exactly one task — true for all six
  * current kinds (verified against taskMutations.js: no forward write cascades
- * to another task), and a task's id is stable across scheduling, so taskId
- * and blockId are the same key for the same task. Recurring completions group
- * per INSTANCE (template::date): undoing "Tuesday's completion" must not drag
- * Wednesday's along.
+ * to another task), and a task's id is stable across scheduling AND across
+ * renames (update_task edits fields in place, never the id), so taskId and
+ * blockId are the same key for the same task for the whole session. Recurring
+ * completions group per INSTANCE (template::date): undoing "Tuesday's
+ * completion" must not drag Wednesday's along.
  *
  * THROWS on an unknown kind, deliberately: a future multi-task op would break
  * the partition property, and it must fail visibly at the grouping seam — a
@@ -75,6 +83,7 @@ export function undoGroupKey(op: UndoOp): string {
     case 'remove_created':
     case 'restore_unscheduled':
     case 'restore_completion':
+    case 'restore_task_fields':
       return String(op.taskId);
     case 'restore_block_fields':
       return String(op.blockId);
@@ -114,11 +123,15 @@ export interface JournalGroup {
 /**
  * Per-task groups computed over the FULL journal — never the display trim,
  * whose last-50 window would undercount a busy task — ordered by newest
- * activity first. The label is the quoted title from the group's latest
- * entry (no MCP write renames a task, so every entry agrees), with the
- * instance date appended for recurring completions so two dates on the same
- * series stay tellable apart. Falls back to the raw summary if no quoted
- * title is found.
+ * activity first. The label is the quoted title from the group's LATEST
+ * entry, BY DESIGN: update_task can rename a task mid-session, and the group
+ * represents the task as it now exists, so the newest entry's title must win.
+ * Older entries keep the historical title in their own summaries, which is
+ * correct per-entry history. (This replaces an earlier assumption that no
+ * MCP write renames a task; latest-entry-wins was incidental then and is the
+ * contract now.) The instance date is appended for recurring completions so
+ * two dates on the same series stay tellable apart. Falls back to the raw
+ * summary if no quoted title is found.
  */
 export function journalGroups(entries: JournalEntry[]): JournalGroup[] {
   const groups = new Map<string, JournalGroup>();
