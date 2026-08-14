@@ -298,7 +298,17 @@ export function McpStatusModal({ mcp, darkMode, open, onClose, borderClass, card
   const textSecondary = darkMode ? 'text-gray-400' : 'text-stone-500';
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+    // Escape-close follows the DatePicker/DailyNotesModal backdrop idiom: the
+    // backdrop takes focus on mount (tabIndex -1 + ref focus) so the keydown
+    // lands here without a document-level listener, and bubbling still
+    // delivers it when focus sits on a control inside the card.
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 outline-none"
+      onClick={onClose}
+      onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); } }}
+      tabIndex={-1}
+      ref={(el) => el && el.focus()}
+    >
       <div
         className={`${cardBg} rounded-xl shadow-xl border ${borderClass} w-full max-w-sm mx-4 overflow-hidden`}
         onClick={(e) => e.stopPropagation()}
