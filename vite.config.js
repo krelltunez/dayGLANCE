@@ -136,6 +136,8 @@ function devApiProxy() {
 // https://vitejs.dev/config/
 export default defineConfig({
   define: {
+    // Not an Electron MAS build; keeps the shared components' __MAS_BUILD__ reference defined.
+    __MAS_BUILD__: 'false',
     __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
     __APP_VERSION__: JSON.stringify(pkg.version),
   },

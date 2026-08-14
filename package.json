@@ -24,7 +24,7 @@
     "build:helpers": "npm run build:calendar-helper",
     "build:electron": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs",
     "build:electron:release": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && electron-builder --config electron-builder.config.cjs --publish never",
-    "build:electron:mas": "npm run build:helpers && vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && DAYGLANCE_APP_ID=com.dayglance electron-builder --config electron-builder.config.cjs --mac mas --universal --publish never"
+    "build:electron:mas": "npm run build:helpers && DAYGLANCE_MAS_BUILD=1 vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && DAYGLANCE_APP_ID=com.dayglance electron-builder --config electron-builder.config.cjs --mac mas --universal --publish never"
   },
   "dependencies": {
     "@glance-apps/billing": "0.1.1",
@@ -57,6 +57,7 @@
   "devDependencies": {
     "@electron/notarize": "^3.1.1",
     "@eslint/js": "^9.39.4",
+    "@glance-apps/mcp-bridge": "^0.1.0",
     "@modelcontextprotocol/client": "2.0.0",
     "@types/node": "^24.0.0",
     "@types/react": "^18.2.15",

@@ -96,6 +96,9 @@ const LocalIntegrationsSettings = ({ variant }) => {
   const [portDraft, setPortDraft] = useState(null); // null = not editing
   const [copied, setCopied] = useState(false);
   const [rotated, setRotated] = useState(false);
+  // { ok, action, path, backupPath } | { ok:false, reason, path?, manualEntry } | null
+  const [setupResult, setSetupResult] = useState(null);
+  const [setupBusy, setSetupBusy] = useState(false);
   const copiedTimer = useRef(null);
 
   useEffect(() => {
@@ -346,6 +349,69 @@ const LocalIntegrationsSettings = ({ variant }) => {
                   {'. '}Leave the port empty for the default. dayGLANCE never picks a different port by itself.
                 </p>
               </div>
+
+              {/* Claude Desktop setup. Direct-download macOS and Windows only:
+                  the !__MAS_BUILD__ branch is dead-code-eliminated from the
+                  MAS bundle at build time (§7; the main-process handler is
+                  likewise excluded from MAS packaging), and Linux has no
+                  Claude Desktop, plus an AppImage's mount path changes every
+                  launch, so a written absolute path would go stale. */}
+              {!__MAS_BUILD__ && ['darwin', 'win32'].includes(window.electronAPI?.platform) && (
+                <div>
+                  <button
+                    onClick={async () => {
+                      setSetupBusy(true);
+                      setSetupResult(null);
+                      try {
+                        setSetupResult(await window.electronAPI.mcpSetupClaudeDesktop());
+                      } finally {
+                        setSetupBusy(false);
+                      }
+                    }}
+                    disabled={setupBusy}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'} transition-colors`}
+                    title="Adds a dayGLANCE entry to Claude Desktop's configuration, pointing at the bridge bundled with this app. Everything else in the file is preserved, and a backup is made first."
+                  >
+                    {setupBusy ? 'Setting up' : 'Set up Claude Desktop'}
+                  </button>
+                  {setupResult?.ok && (
+                    <p className={`text-xs ${textSecondary} mt-1`}>
+                      {setupResult.action === 'created'
+                        ? 'Claude Desktop configuration created.'
+                        : 'dayGLANCE entry added. Everything else in the file was preserved.'}
+                      {setupResult.backupPath ? ' A backup of the previous file was saved next to it.' : ''}
+                      {' '}Restart Claude Desktop to connect.
+                    </p>
+                  )}
+                  {setupResult && !setupResult.ok && (
+                    <div className={`text-xs ${textSecondary} mt-1 space-y-1`}>
+                      <p className="text-amber-500">
+                        {setupResult.reason === 'unparseable'
+                          ? 'Your Claude Desktop configuration file could not be parsed, so dayGLANCE did not touch it. To finish setup by hand, fix or empty the file, or paste this entry into it:'
+                          : 'The configuration could not be written automatically. To finish setup by hand, paste this entry into your Claude Desktop configuration file:'}
+                      </p>
+                      {setupResult.path && <p className="font-mono break-all">{setupResult.path}</p>}
+                      {setupResult.manualEntry && (
+                        <pre className={`p-2 rounded overflow-x-auto ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}>{setupResult.manualEntry}</pre>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              {__MAS_BUILD__ && (
+                <p className={`text-xs ${textSecondary}`}>
+                  To connect Claude Desktop or other MCP apps, see the{' '}
+                  <a
+                    href="https://glance-apps.com/dayglance/mcp"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-500 hover:underline"
+                  >
+                    setup guide
+                  </a>
+                  . You will paste the access token above into your MCP client.
+                </p>
+              )}
 
               {status.mcp.running && (
                 <p className="text-xs text-green-500">MCP server running on 127.0.0.1:{ports.mcpEffective}.</p>

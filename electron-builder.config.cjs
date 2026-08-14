@@ -81,8 +81,13 @@ module.exports = {
     },
     // Bundle the signed EventKit calendar helper (built by scripts/build-calendar-helper.sh)
     // into Contents/Resources/calendar-helper. electron-builder signs nested binaries.
+    // The MCP bridge (spec §3.2) rides along into Contents/Resources/mcp-bridge for
+    // DIRECT builds only: the mas block below declares its OWN extraResources (which
+    // replaces this array), so the bridge never enters the MAS artifact — MAS links
+    // to documentation instead (§7). scripts/verify-mas-compileout.mjs asserts this.
     extraResources: [
       { from: 'electron/native/calendar-helper/build/dayglance-calendar-helper', to: 'calendar-helper/dayglance-calendar-helper' },
+      { from: 'node_modules/@glance-apps/mcp-bridge', to: 'mcp-bridge' },
     ],
     target: [
       { target: 'dmg', arch: ['x64', 'arm64'] },
@@ -90,6 +95,17 @@ module.exports = {
     ],
   },
   mas: {
+    // §7 build-time separation: the Claude Desktop setup path is compiled out
+    // of the MAS artifact, not runtime-gated. Two mechanisms: the renderer's
+    // button is dead-code-eliminated by the __MAS_BUILD__ define (see
+    // vite.config.electron.js and the build:electron:mas script), and the
+    // main-process setup modules are excluded from packaging right here.
+    // main.ts loads mcpDesktopSetup dynamically, so this absence is a no-op.
+    // Verify against the built artifact with scripts/verify-mas-compileout.mjs.
+    files: [
+      '!dist-electron/mcpDesktopSetup*',
+      '!dist-electron/mcpDesktopConfig*',
+    ],
     hardenedRuntime: false, // MAS builds must NOT use Hardened Runtime — sandbox replaces it
     entitlements: 'electron/entitlements.mas.plist',
     // Child binaries (Electron Helpers + bundled Swift helpers) get the minimal
