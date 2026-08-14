@@ -24,7 +24,7 @@ Expose dayGLANCE's schedule, task, and goal data over the Model Context Protocol
 The feature ships as two artifacts:
 
 1. **In-process MCP server** inside the dayGLANCE Electron main process, exposed over a loopback Streamable HTTP listener. Serves Claude Code, editor integrations, and any client that accepts an HTTP MCP endpoint.
-2. **`@glance-apps/mcp-bridge`**, a standalone stdio-to-HTTP bridge distributed separately (npm plus a signed `.mcpb` bundle). Serves Claude Desktop, which does not accept HTTP endpoints in its local config.
+2. **`@glance-apps/mcp-bridge`**, a standalone stdio-to-HTTP bridge distributed separately (npm plus an unsigned `.mcpb` bundle — see the Phase 6 notes for why unsigned). Serves Claude Desktop, which does not accept HTTP endpoints in its local config.
 
 The second artifact is not optional. See §3.2.
 
@@ -527,9 +527,9 @@ Two-toggle "Local integrations" section. **Stream Deck migration flag (§6.2) �
 ### Phase 6: Bridge and distribution
 **Repo:** new, `glance-apps/mcp-bridge`
 
-stdio-to-HTTP bridge. Discovery file reading with `--port`, `--token`, and env var fallbacks. Publish to npm. Build and sign the `.mcpb`. Declare platform and runtime requirements in `manifest.json`. Bundle into the direct-download builds with the setup button; compile that path out of MAS.
+stdio-to-HTTP bridge. Discovery file reading with `--port`, `--token`, and env var fallbacks. Publish to npm. Build the `.mcpb` (unsigned; see notes). Declare platform and runtime requirements in `manifest.json`. Bundle into the direct-download builds with the setup button; compile that path out of MAS.
 
-Notes from implementation: dayGLANCE's side of §3.4 (writing the discovery file) also landed here — no earlier phase had implemented it; it is written on bind with mode 0600, rewritten on token rotation, and removed on unbind, never on MAS. The `.mcpb` is **self-signed** deliberately (`mcpb sign --self-signed`): MCPB signing is its own PEM-certificate mechanism, not Apple identity signing; `mcpb verify` warns on self-signed, and enterprise policies may block such bundles — the npm path is the managed-environment alternative, and a CA certificate can be swapped in later without other changes. The bundle's `user_config` presents Token and Port as Claude Desktop form fields, which is what makes MAS setup a paste into a form rather than a JSON edit.
+Notes from implementation: dayGLANCE's side of §3.4 (writing the discovery file) also landed here — no earlier phase had implemented it; it is written on bind with mode 0600, rewritten on token rotation, and removed on unbind, never on MAS. The `.mcpb` ships **unsigned**, a change from the original self-signed plan. Two findings forced it: `@anthropic-ai/mcpb` 2.1.2's `sign` appends its PKCS#7 block after the zip end-of-central-directory record without updating the comment-length field, so every signed bundle fails strict zip readers and Claude Desktop refuses to install it (reproduced on a minimal bundle; reported upstream); and the signature bought nothing anyway, since `mcpb verify` reports any certificate absent from the OS trust store — self-signed included — as "not signed". Patching the archive ourselves was rejected: it would ship a layout produced by a workaround around a bug in the tool that produced it. Every `.mcpb` build is instead gated on a strict zip parse (`scripts/check-mcpb.mjs` in the bridge repo, yauzl — the same parser family Claude Desktop uses); signing returns to the build chain when upstream fixes the bug. Enterprise policies may block unsigned bundles — the npm path is the managed-environment alternative. The bundle's `user_config` presents Token and Port as Claude Desktop form fields, which is what makes MAS setup a paste into a form rather than a JSON edit.
 
 **Exit:** one-click install into Claude Desktop on macOS and Windows; tools appear; a read and a write both succeed. Direct-download setup button works without network access.
 
