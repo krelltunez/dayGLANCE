@@ -10,6 +10,11 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "sourceMap": true,
+    // Comments must not reach the packaged app: §7 verification greps the whole
+    // app.asar for feature markers (e.g. "Set up Claude Desktop"), and a comment
+    // anywhere in compiled main-process code would fail a MAS build. Sources and
+    // sourcemaps keep local debugging intact.
+    "removeComments": true,
     "types": ["node", "electron", "ws"]
   },
   "include": ["electron"],

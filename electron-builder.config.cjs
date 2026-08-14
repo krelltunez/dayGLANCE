@@ -62,7 +62,20 @@ module.exports = {
   // otherwise ship inside the app bundle, exposing readable source with no runtime
   // benefit. tsconfig keeps sourceMap on for local debugging; this drops them from
   // the packaged build only.
-  files: ['dist/**/*', 'dist-electron/**/*', '!**/*.map'],
+  //
+  // The MAS §7 exclusions live HERE, in the same array as the positives, not in a
+  // per-target mas.files block. electron-builder normalizes this top-level array
+  // into one file-set matcher; a per-target files array becomes a SEPARATE matcher
+  // whose negations cannot exclude anything the top-level matcher includes (the
+  // walks are unioned). Worse, a negation-only per-target array gets '**/*'
+  // prepended, which drags the whole project directory into app.asar.
+  // scripts/verify-mas-compileout.mjs asserts both properties on built artifacts.
+  files: [
+    'dist/**/*',
+    'dist-electron/**/*',
+    '!**/*.map',
+    ...(isMasBuild ? ['!dist-electron/mcpDesktopSetup*', '!dist-electron/mcpDesktopConfig*'] : []),
+  ],
   mac: {
     // null → ad-hoc (dev); undefined → electron-builder auto-selects the signing
     // cert from the Keychain (Developer ID when CSC_LINK is set; the Apple
@@ -82,12 +95,15 @@ module.exports = {
     // Bundle the signed EventKit calendar helper (built by scripts/build-calendar-helper.sh)
     // into Contents/Resources/calendar-helper. electron-builder signs nested binaries.
     // The MCP bridge (spec §3.2) rides along into Contents/Resources/mcp-bridge for
-    // DIRECT builds only: the mas block below declares its OWN extraResources (which
-    // replaces this array), so the bridge never enters the MAS artifact — MAS links
-    // to documentation instead (§7). scripts/verify-mas-compileout.mjs asserts this.
+    // DIRECT builds only, so it is conditionally omitted here. It must NOT be handled
+    // by giving the mas block its own extraResources: electron-builder's deepAssign
+    // CONCATENATES arrays when merging mac options into mas options (it does not
+    // replace them), so anything listed here rides into the MAS artifact regardless
+    // of what the mas block declares. MAS links to documentation instead (§7).
+    // scripts/verify-mas-compileout.mjs asserts this against the built artifact.
     extraResources: [
       { from: 'electron/native/calendar-helper/build/dayglance-calendar-helper', to: 'calendar-helper/dayglance-calendar-helper' },
-      { from: 'node_modules/@glance-apps/mcp-bridge', to: 'mcp-bridge' },
+      ...(isMasBuild ? [] : [{ from: 'node_modules/@glance-apps/mcp-bridge', to: 'mcp-bridge' }]),
     ],
     target: [
       { target: 'dmg', arch: ['x64', 'arm64'] },
@@ -99,13 +115,12 @@ module.exports = {
     // of the MAS artifact, not runtime-gated. Two mechanisms: the renderer's
     // button is dead-code-eliminated by the __MAS_BUILD__ define (see
     // vite.config.electron.js and the build:electron:mas script), and the
-    // main-process setup modules are excluded from packaging right here.
+    // main-process setup modules are excluded from packaging by the isMasBuild
+    // conditional in the TOP-LEVEL files array above — deliberately not by a
+    // files array here, which would become a separate matcher whose negations
+    // don't compose (see the comment on the top-level files array).
     // main.ts loads mcpDesktopSetup dynamically, so this absence is a no-op.
     // Verify against the built artifact with scripts/verify-mas-compileout.mjs.
-    files: [
-      '!dist-electron/mcpDesktopSetup*',
-      '!dist-electron/mcpDesktopConfig*',
-    ],
     hardenedRuntime: false, // MAS builds must NOT use Hardened Runtime — sandbox replaces it
     entitlements: 'electron/entitlements.mas.plist',
     // Child binaries (Electron Helpers + bundled Swift helpers) get the minimal
@@ -124,9 +139,10 @@ module.exports = {
       // App Store Connect from prompting for encryption docs on every upload.
       ITSAppUsesNonExemptEncryption: false,
     },
-    extraResources: [
-      { from: 'electron/native/calendar-helper/build/dayglance-calendar-helper', to: 'calendar-helper/dayglance-calendar-helper' },
-    ],
+    // No extraResources here: deepAssign CONCATENATES this array with mac's when
+    // merging (declaring the calendar helper again would copy it twice). The MAS
+    // artifact inherits mac's extraResources, which the isMasBuild conditional
+    // above already trims to the calendar helper only.
     // Universal (x86_64 + arm64) so the App Store accepts the build for every Mac.
     // Without this it defaults to the host arch only (arm64), which Apple rejects
     // unless the deployment target is 12.0+. The bundled Swift helpers are already

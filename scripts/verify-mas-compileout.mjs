@@ -55,6 +55,18 @@ check('dist-electron/mcpDesktopSetup.js in app.asar', asarList.includes('/dist-e
 check('dist-electron/mcpDesktopConfig.js in app.asar', asarList.includes('/dist-electron/mcpDesktopConfig.js'));
 check('Resources/mcp-bridge bundled bridge', existsSync(join(resourcesDir, 'mcp-bridge', 'bridge.js')));
 
+// Bloat guard, both modes: no source or project directory may ever reach the
+// asar. electron-builder 26 prepends '**/*' to a matcher containing only
+// negations (see electron-builder.config.cjs), which once packaged the whole
+// repo — sources, docs, session config — into a MAS candidate. The four §7
+// checks above would all pass on a direct build with this regression, so it
+// gets its own unconditional assertion.
+for (const dir of ['electron', 'docs', '.claude', 'dayglance-ios']) {
+  const present = asarList.split('\n').some((l) => l.startsWith(`/${dir}/`));
+  console.log(`${present ? 'FAIL' : 'OK  '} project dir /${dir} in app.asar: ${present ? 'present' : 'absent'} (expected absent)`);
+  if (present) problems.push(`/${dir} in app.asar`);
+}
+
 // The renderer bundle: grep the whole asar blob for the button's user-facing
 // string. Grepping the container is crude but exactly right here: if the
 // bytes are anywhere in the artifact, the path is not compiled out.
