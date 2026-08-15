@@ -145,6 +145,21 @@ describe('buildUnscheduledItems', () => {
       completed: false, deadline: '2026-08-20', notes: 'oat',
     }]);
   });
+
+  it('excludes Bucket List items unconditionally — the bucketList.js invariant', () => {
+    const state = {
+      unscheduledTasks: [
+        { id: 'u1', title: 'Get bloodwork done' },
+        { id: 'b1', title: 'Go to US Open in NYC', bucketId: 'b1' },
+        { id: 'b2', title: 'Honeymoon encore trip', bucketId: 'b2' },
+      ],
+    };
+    const { items } = buildUnscheduledItems(state);
+    expect(items.map((i) => i.id)).toEqual(['u1']);
+    // And bucketId never reaches the wire: the tool excludes bucket items
+    // rather than labeling them.
+    expect(JSON.stringify(items)).not.toContain('bucketId');
+  });
 });
 
 describe('buildGoalProgress', () => {

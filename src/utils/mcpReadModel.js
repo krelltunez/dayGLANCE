@@ -17,6 +17,7 @@
 import { getOccurrencesInRange } from './recurrenceEngine.js';
 import { calculateGoalProgress } from './goalProgress.js';
 import { calculateProjectProgress } from './projectProgress.js';
+import { notBucketed } from './bucketList.js';
 
 /**
  * The §5.1 distinct type flag. 'device_calendar_event' marks data that came
@@ -140,7 +141,13 @@ export function buildWeek(state, params) {
 export function buildUnscheduledItems(state) {
   const { unscheduledTasks = [], isVisibleForUser = () => true } = state;
   return {
-    items: unscheduledTasks.filter(isVisibleForUser).map((t) => {
+    // Bucket List items never appear in Inbox output — the unconditional
+    // exclusion utils/bucketList.js documents for EVERY consumer feeding
+    // inbox lists or counts. This was the one consumer that missed the
+    // invariant (bucket items leaked into MCP results). Unconditional by
+    // design: not a scope value, not behind an argument — a caller wanting
+    // bucket items needs a separate tool, so this list stays one thing.
+    items: unscheduledTasks.filter(notBucketed).filter(isVisibleForUser).map((t) => {
       const item = {
         id: t.id,
         type: 'task',
