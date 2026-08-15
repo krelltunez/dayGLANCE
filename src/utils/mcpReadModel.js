@@ -17,6 +17,7 @@
 import { getOccurrencesInRange } from './recurrenceEngine.js';
 import { calculateGoalProgress } from './goalProgress.js';
 import { calculateProjectProgress } from './projectProgress.js';
+import { notBucketed } from './bucketList.js';
 
 /**
  * The §5.1 distinct type flag. 'device_calendar_event' marks data that came
@@ -137,10 +138,28 @@ export function buildWeek(state, params) {
 }
 
 /** The unscheduled inbox, unpaginated — the main process owns paging (§5.1). */
-export function buildUnscheduledItems(state) {
+export function buildUnscheduledItems(state, filter = {}) {
   const { unscheduledTasks = [], isVisibleForUser = () => true } = state;
+  // Filter selection over structural fields, resolved by the main process
+  // (electron/mcpInboxFilter.ts) and applied HERE, before the array crosses
+  // IPC to paginate — so total/truncated/next_cursor are computed against
+  // the filtered set by construction, never by post-filtering a page. The
+  // predicates are the app's own: 'standalone' is the TRMNL inbox-count
+  // shape (notBucketed && !projectId), with completion a separate axis.
+  const { scope = 'all', includeCompleted = true } = filter;
   return {
-    items: unscheduledTasks.filter(isVisibleForUser).map((t) => {
+    // Bucket List items never appear in Inbox output — the unconditional
+    // exclusion utils/bucketList.js documents for EVERY consumer feeding
+    // inbox lists or counts. This was the one consumer that missed the
+    // invariant (bucket items leaked into MCP results). Unconditional by
+    // design: not a scope value, not behind an argument — a caller wanting
+    // bucket items needs a separate tool, so this list stays one thing.
+    items: unscheduledTasks
+      .filter(notBucketed)
+      .filter(isVisibleForUser)
+      .filter((t) => (scope === 'standalone' ? !t.projectId : scope === 'project' ? !!t.projectId : true))
+      .filter((t) => includeCompleted || !t.completed)
+      .map((t) => {
       const item = {
         id: t.id,
         type: 'task',
@@ -261,7 +280,7 @@ export function handleMcpRequest(state, request) {
     case 'get_week':
       return { ok: true, data: buildWeek(state, params) };
     case 'list_unscheduled':
-      return { ok: true, data: buildUnscheduledItems(state) };
+      return { ok: true, data: buildUnscheduledItems(state, params?.filter) };
     case 'list_users':
       return { ok: true, data: buildUsers(state) };
     case 'goal_progress': {

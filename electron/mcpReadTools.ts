@@ -19,6 +19,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import type { RendererBridge } from './mcpRendererBridge.js';
 import { isValidLocalDate, localDateOf, dateEnvelope } from './mcpDates.js';
 import { paginate, DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT } from './mcpPagination.js';
+import { resolveInboxFilter } from './mcpInboxFilter.js';
 
 export interface ReadToolDeps {
   bridge: RendererBridge;
@@ -111,17 +112,37 @@ export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
       description:
         "The dayGLANCE inbox: tasks not yet scheduled onto a day. Paginated, default page " +
         `${DEFAULT_LIST_LIMIT}, max ${MAX_LIST_LIMIT}; when truncated is true, pass next_cursor ` +
-        'back as cursor for the next page.',
+        'back as cursor for the next page. Filters: scope "all" returns every unscheduled task ' +
+        '(the default), "standalone" only tasks not attached to a project (what the app itself ' +
+        'counts as the inbox), "project" only project-attached tasks; include_completed defaults ' +
+        'to true, pass false for open tasks only. total, truncated, and next_cursor always ' +
+        'describe the FILTERED set. Bucket List (someday/maybe) items are never returned by this ' +
+        'tool. A cursor is bound to the filters it was issued under: changing scope or ' +
+        'include_completed mid-pagination is a validation error, so to change filters, restart ' +
+        'with a fresh call and no cursor.',
       inputSchema: z.object({
         limit: z.number().int().optional().describe(`Page size, 1-${MAX_LIST_LIMIT}. Default ${DEFAULT_LIST_LIMIT}.`),
         cursor: z.string().optional().describe('Opaque cursor from a previous response\'s next_cursor.'),
+        scope: z.enum(['all', 'standalone', 'project']).optional().describe(
+          'Which inbox tasks to return. "all" (default): every unscheduled task. "standalone": tasks not ' +
+          'attached to any project (what the app counts as the inbox). "project": only tasks attached to a project.'),
+        include_completed: z.boolean().optional().describe(
+          'Default true. Pass false to return only open tasks.'),
       }),
     },
-    async ({ limit, cursor }) => {
-      const r = await deps.bridge.request('list_unscheduled', {});
+    async ({ limit, cursor, scope, include_completed }) => {
+      // Resolve defaults BEFORE anything compares or encodes: the canonical
+      // tuple is what the renderer applies and what the cursor carries, so
+      // omitted-vs-explicit defaults can never mismatch across pages.
+      const resolved = resolveInboxFilter({ scope, include_completed });
+      if (!resolved.ok) return toolError('validation', resolved.message);
+      const { filter } = resolved;
+      const r = await deps.bridge.request('list_unscheduled', {
+        filter: { scope: filter.scope, includeCompleted: filter.includeCompleted },
+      });
       if (!r.ok) return bridgeError(r);
       const items = (r.data as { items: unknown[] }).items ?? [];
-      const page = paginate(items, { limit, cursor });
+      const page = paginate(items, { limit, cursor, filterKey: filter.key });
       if (!page.ok) return toolError('validation', page.reason);
       return ok({
         items: page.items,
