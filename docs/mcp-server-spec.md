@@ -541,6 +541,8 @@ Three OS config snippets. Bridge install paths per build type. Troubleshooting f
 
 **Exit:** a self-hoster can go from zero to a working tool call without asking a question.
 
+Notes from implementation: division of labor decided and enforced — the bridge README (glance-apps/mcp-bridge) is the canonical how-to covering every install path (setup button for direct-download macOS/Windows; unsigned `.mcpb` with the mcpb-CLI signing bug noted; `npx` manual entry, the only Linux path; Claude Code direct HTTP with no bridge), plus an eight-item troubleshooting section and the renderer requirement; the site page (glance-apps-dotcom, dayGLANCE app page) is an "AI Assistants" capability card in the GLANCEvault-precedent stack that explains the capability for someone who does not know MCP, leads with the decision-making facts (assistant reads go to the assistant's model provider; local-only; off by default with reads/writes/device-calendar as separate opt-ins), and links to the README rather than restating any setup. The MAS manual-token path is stated with its reason (a container read would trigger a macOS consent prompt attributed to "node" naming neither product). One documentation landmine made a hard rule: no `url` field may appear in any `claude_desktop_config.json` example, even as a counterexample — Claude Desktop silently rewrites the file and drops the whole `mcpServers` block when it sees one; the only `url` in the README sits in a block explicitly labeled as Claude Code's `.mcp.json`.
+
 ### Phase 8: Legal and store
 **Repos:** legal docs, ASC
 
