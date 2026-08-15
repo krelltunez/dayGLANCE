@@ -44,6 +44,7 @@ import {
 import { createWriteGate } from './mcpWriteGate.js';
 import { createIdempotencyStore } from './mcpIdempotency.js';
 import { trayReloadDebounceMs } from './trayReloadPolicy.js';
+import { decideRecovery } from './rendererRecovery.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -92,6 +93,14 @@ let isQuitting = false;
 // before the real window exists. See the window-all-closed handler.
 let didCreateMainWindow = false;
 let trayWindow: BrowserWindow | null = null;
+// Crash-recovery attempt clocks, one ladder per window (rendererRecovery.ts).
+let mainRecoveryAttempts: number[] = [];
+let trayRecoveryAttempts: number[] = [];
+// Consumed by createWindow: a recreate of a window that was hidden when its
+// renderer crashed (macOS closed-to-tray) must not surface it. Recovery keeps
+// the renderer alive for the save pass and tray pushes; showing a window the
+// user closed is not its call to make.
+let suppressNextMainShow = false;
 let trayNeedsReload = false;
 let trayReloadTimer: ReturnType<typeof setTimeout> | null = null;
 // Clock reading of the last MCP-originated write, for the §3.6 tray reload
@@ -257,9 +266,19 @@ function createWindow(): BrowserWindow {
   // startup. Both paths are logged so dayglance-startup.log shows which fired.
   const SHOW_FALLBACK_MS = 10_000;
   let shown = false;
+  // Crash recovery can recreate a window that was hidden when its renderer
+  // died (macOS closed-to-tray). That recreate must not surface the window,
+  // so it sets suppressNextMainShow and this consumes it: the renderer comes
+  // back alive but invisible, exactly as the user left it.
+  const suppressShow = suppressNextMainShow;
+  suppressNextMainShow = false;
   const showOnce = (why: string) => {
     if (shown) return;
     shown = true;
+    if (suppressShow) {
+      logStartup(`main window show suppressed after hidden-recreate (${why})`);
+      return;
+    }
     logStartup(`main window show (${why})`);
     live(mainWindow)?.show();
   };
@@ -270,8 +289,40 @@ function createWindow(): BrowserWindow {
   mainWindow.webContents.on('did-finish-load', () => logStartup('main window did-finish-load'));
   mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) =>
     logStartup(`did-fail-load: code=${code} "${desc}" url=${url}`));
-  mainWindow.webContents.on('render-process-gone', (_e, details) =>
-    logStartup(`render-process-gone: reason=${details.reason} exitCode=${details.exitCode}`));
+  // Crash recovery (rendererRecovery.ts holds the tested decision ladder):
+  // reload the surviving window on the first qualifying crash, recreate on a
+  // second within the window, then stop. A crashed renderer leaves a window
+  // isDestroyed() calls healthy, so without this the app is a blank frame
+  // whose save pass and tray pushes are silently dead.
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    logStartup(`render-process-gone: reason=${details.reason} exitCode=${details.exitCode}`);
+    const decision = decideRecovery({
+      reason: details.reason, isQuitting, attempts: mainRecoveryAttempts, now: Date.now(),
+    });
+    mainRecoveryAttempts = decision.attempts;
+    if (decision.action === 'ignore' || decision.action === 'give-up') {
+      if (decision.action === 'give-up') logStartup('crash recovery: giving up (crash loop)');
+      return;
+    }
+    // Deferred so a crash arriving a moment before quit re-checks the flag
+    // after before-quit has had the chance to set it.
+    setTimeout(() => {
+      if (isQuitting) return;
+      const win = live(mainWindow);
+      if (!win) return;
+      logStartup(`crash recovery: ${decision.action}`);
+      if (decision.action === 'reload') {
+        win.webContents.reload();
+      } else if (decision.action === 'load-url') {
+        win.loadURL(DEV ? VITE_DEV_SERVER_URL : APP_BASE_URL);
+      } else {
+        // recreate: destroy the zombie first, and keep a hidden window hidden.
+        suppressNextMainShow = !win.isVisible();
+        win.destroy();
+        createWindow();
+      }
+    }, 250);
+  });
   mainWindow.webContents.on('preload-error', (_e, preloadPath, err) =>
     logStartup(`preload-error: ${preloadPath}: ${err?.message ?? err}`));
 
@@ -335,6 +386,40 @@ function createTrayWindow(): BrowserWindow {
   // finish hydrating; focus state self-corrects within 1s so no re-push needed.
   win.webContents.on('did-finish-load', () => {
     setTimeout(() => { pushRemindersToTray(); pushCurrentTaskToTray(); pushTrayVisibilityToTray(); }, 800);
+  });
+
+  // Tray crash recovery, same ladder as the main window. The popup's
+  // accidental self-healing (tray:data-changed reload) only works while the
+  // MAIN renderer is alive to emit a save pass; this handler covers the case
+  // where the tray dies alone or both are down. Recreate is safe here: the
+  // popup is created hidden by design, and the cached pushes re-send on
+  // did-finish-load above.
+  win.webContents.on('render-process-gone', (_e, details) => {
+    logStartup(`tray render-process-gone: reason=${details.reason} exitCode=${details.exitCode}`);
+    const decision = decideRecovery({
+      reason: details.reason, isQuitting, attempts: trayRecoveryAttempts, now: Date.now(),
+    });
+    trayRecoveryAttempts = decision.attempts;
+    if (decision.action === 'ignore' || decision.action === 'give-up') {
+      if (decision.action === 'give-up') logStartup('tray crash recovery: giving up (crash loop)');
+      return;
+    }
+    setTimeout(() => {
+      if (isQuitting) return;
+      const tw = live(trayWindow);
+      if (!tw) return;
+      logStartup(`tray crash recovery: ${decision.action}`);
+      if (decision.action === 'reload') {
+        tw.webContents.reload();
+      } else if (decision.action === 'load-url') {
+        tw.loadURL(DEV ? `${VITE_DEV_SERVER_URL}?tray=1` : `${APP_BASE_URL}?tray=1`);
+      } else {
+        const wasVisible = tw.isVisible();
+        tw.destroy();
+        trayWindow = createTrayWindow();
+        if (wasVisible) setTrayVisible(false); // popup positioning is show-time logic; reopen from the tray icon
+      }
+    }, 250);
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -578,11 +663,30 @@ ipcMain.on('window:exit-fullscreen', (event) => {
 });
 
 // Tray popup requests the main window to show and navigate to a specific location.
+// This is a user action and must never silently vanish: when the main window is
+// gone (closed on non-macOS) OR a zombie (renderer crashed, which live() cannot
+// see because the window is not destroyed), recreate it and deliver the
+// navigation once the fresh renderer has loaded. Mirrors the second-instance
+// recreate branch, plus the zombie destroy that branch does not need.
 ipcMain.on('tray:open-main', (_event, payload: unknown) => {
   live(trayWindow)?.hide();
   setTrayVisible(false);
   const mw = live(mainWindow);
-  if (mw) { mw.show(); mw.focus(); mw.webContents.send('tray:navigate', payload); }
+  if (mw && !mw.webContents.isCrashed()) {
+    mw.show();
+    mw.focus();
+    mw.webContents.send('tray:navigate', payload);
+    return;
+  }
+  if (mw) mw.destroy();
+  const win = createWindow();
+  win.webContents.once('did-finish-load', () => {
+    const fresh = live(mainWindow);
+    if (!fresh) return;
+    fresh.show();
+    fresh.focus();
+    fresh.webContents.send('tray:navigate', payload);
+  });
 });
 
 // Tray sends background mutations (e.g. toggle-complete) to the main window without showing it.
