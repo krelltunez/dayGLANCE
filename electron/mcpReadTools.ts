@@ -19,6 +19,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import type { RendererBridge } from './mcpRendererBridge.js';
 import { isValidLocalDate, localDateOf, dateEnvelope } from './mcpDates.js';
 import { paginate, DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT } from './mcpPagination.js';
+import { resolveInboxFilter } from './mcpInboxFilter.js';
 
 export interface ReadToolDeps {
   bridge: RendererBridge;
@@ -115,13 +116,26 @@ export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
       inputSchema: z.object({
         limit: z.number().int().optional().describe(`Page size, 1-${MAX_LIST_LIMIT}. Default ${DEFAULT_LIST_LIMIT}.`),
         cursor: z.string().optional().describe('Opaque cursor from a previous response\'s next_cursor.'),
+        scope: z.enum(['all', 'standalone', 'project']).optional().describe(
+          'Which inbox tasks to return. "all" (default): every unscheduled task. "standalone": tasks not ' +
+          'attached to any project (what the app counts as the inbox). "project": only tasks attached to a project.'),
+        include_completed: z.boolean().optional().describe(
+          'Default true. Pass false to return only open tasks.'),
       }),
     },
-    async ({ limit, cursor }) => {
-      const r = await deps.bridge.request('list_unscheduled', {});
+    async ({ limit, cursor, scope, include_completed }) => {
+      // Resolve defaults BEFORE anything compares or encodes: the canonical
+      // tuple is what the renderer applies and what the cursor carries, so
+      // omitted-vs-explicit defaults can never mismatch across pages.
+      const resolved = resolveInboxFilter({ scope, include_completed });
+      if (!resolved.ok) return toolError('validation', resolved.message);
+      const { filter } = resolved;
+      const r = await deps.bridge.request('list_unscheduled', {
+        filter: { scope: filter.scope, includeCompleted: filter.includeCompleted },
+      });
       if (!r.ok) return bridgeError(r);
       const items = (r.data as { items: unknown[] }).items ?? [];
-      const page = paginate(items, { limit, cursor });
+      const page = paginate(items, { limit, cursor, filterKey: filter.key });
       if (!page.ok) return toolError('validation', page.reason);
       return ok({
         items: page.items,
