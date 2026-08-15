@@ -112,7 +112,14 @@ export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
       description:
         "The dayGLANCE inbox: tasks not yet scheduled onto a day. Paginated, default page " +
         `${DEFAULT_LIST_LIMIT}, max ${MAX_LIST_LIMIT}; when truncated is true, pass next_cursor ` +
-        'back as cursor for the next page.',
+        'back as cursor for the next page. Filters: scope "all" returns every unscheduled task ' +
+        '(the default), "standalone" only tasks not attached to a project (what the app itself ' +
+        'counts as the inbox), "project" only project-attached tasks; include_completed defaults ' +
+        'to true, pass false for open tasks only. total, truncated, and next_cursor always ' +
+        'describe the FILTERED set. Bucket List (someday/maybe) items are never returned by this ' +
+        'tool. A cursor is bound to the filters it was issued under: changing scope or ' +
+        'include_completed mid-pagination is a validation error, so to change filters, restart ' +
+        'with a fresh call and no cursor.',
       inputSchema: z.object({
         limit: z.number().int().optional().describe(`Page size, 1-${MAX_LIST_LIMIT}. Default ${DEFAULT_LIST_LIMIT}.`),
         cursor: z.string().optional().describe('Opaque cursor from a previous response\'s next_cursor.'),
