@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+// Tray-side observers of outgoing background actions (see backgroundAction
+// below). Lives at module scope because contextBridge freezes the exposed
+// object; both halves run in the same (tray) renderer.
+const actionSentListeners: Array<(ackId: string) => void> = [];
+
 contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
   platform: process.platform,
@@ -56,9 +61,51 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Tray sends background mutations (e.g. toggle-complete) that run in the
   // main window without bringing it to the foreground.
-  backgroundAction: (payload: unknown) => ipcRenderer.send('tray:background-action', payload),
+  //
+  // END-TO-END ACK (items 4/5 follow-up): each action is stamped with an
+  // ackId here, and the RECEIVING side's wrapper below reports it applied
+  // only after the registered handler has run and the task's microtasks have
+  // flushed (React commits default-priority updates before a macrotask
+  // fires). So an ack means the mutation was dispatched into live app state,
+  // not merely that a webContents existed to receive the send: a crashed
+  // main renderer receives nothing and acks nothing, and the tray's pending
+  // timeout (trayActionAcks.js) turns that silence into a visible notice
+  // instead of a silently reverting checkbox.
+  backgroundAction: (payload: unknown) => {
+    const ackId = crypto.randomUUID();
+    for (const cb of actionSentListeners) {
+      try { cb(ackId); } catch { /* a listener error must not block the send */ }
+    }
+    ipcRenderer.send('tray:background-action', { ...(payload as Record<string, unknown>), ackId });
+    return ackId;
+  },
+  /** Tray-side: observe every action this renderer sends, for the pending map. */
+  onActionSent: (callback: (ackId: string) => void) => {
+    actionSentListeners.push(callback);
+    return () => {
+      const i = actionSentListeners.indexOf(callback);
+      if (i !== -1) actionSentListeners.splice(i, 1);
+    };
+  },
+  /** Tray-side: acks relayed back from the main renderer via the main process. */
+  onActionApplied: (callback: (ackId: string) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, ackId: unknown) => {
+      if (typeof ackId === 'string') callback(ackId);
+    };
+    ipcRenderer.on('tray:action-applied', handler);
+    return () => ipcRenderer.removeListener('tray:action-applied', handler);
+  },
   onBackgroundAction: (callback: (payload: unknown) => void) => {
-    const handler = (_: Electron.IpcRendererEvent, payload: unknown) => callback(payload);
+    const handler = (_: Electron.IpcRendererEvent, payload: unknown) => {
+      callback(payload);
+      // Ack after the handler returns, deferred one macrotask so React's
+      // batched commit lands first. No registered handler (renderer still
+      // loading) means no ack, which is exactly right: the timeout fires.
+      const ackId = (payload as { ackId?: unknown } | null)?.ackId;
+      if (typeof ackId === 'string') {
+        setTimeout(() => ipcRenderer.send('tray:action-applied', ackId), 0);
+      }
+    };
     ipcRenderer.on('tray:background-action', handler);
     return () => ipcRenderer.removeListener('tray:background-action', handler);
   },

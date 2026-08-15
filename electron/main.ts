@@ -690,8 +690,18 @@ ipcMain.on('tray:open-main', (_event, payload: unknown) => {
 });
 
 // Tray sends background mutations (e.g. toggle-complete) to the main window without showing it.
+// Fire-and-forget BY DESIGN at this hop: delivery is confirmed end-to-end by
+// the tray:action-applied ack below, and the tray treats silence past its
+// timeout as failure. A liveness check here would be redundant and, for a
+// crashed renderer, wrong (live() cannot see a zombie).
 ipcMain.on('tray:background-action', (_event, payload: unknown) => {
   live(mainWindow)?.webContents.send('tray:background-action', payload);
+});
+
+// The main renderer reports an action applied; relay to the tray popup so it
+// settles its pending map (src/utils/trayActionAcks.js).
+ipcMain.on('tray:action-applied', (_event, ackId: unknown) => {
+  live(trayWindow)?.webContents.send('tray:action-applied', ackId);
 });
 
 // Reminder indicator: show/clear the dot next to the tray icon.
