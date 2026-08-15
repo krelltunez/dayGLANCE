@@ -66,15 +66,28 @@ One local calendar date's schedule. For the current date prefer `dayglance_get_t
 | `date` | string | yes | Strict `YYYY-MM-DD`, a real local calendar date. Not a timestamp. |
 
 ### `dayglance_list_unscheduled_tasks`
-The inbox: tasks not yet scheduled onto a day. Paginated.
+The inbox: tasks not yet scheduled onto a day. Paginated, with opt-in filter selection.
+**Bucket List (someday/maybe) items are never returned** — the app's unconditional inbox
+exclusion applies here, not a filter argument, and `bucketId` never appears on the wire.
 
 | Param | Type | Required | Notes |
 |---|---|---|---|
 | `limit` | integer | no | Page size 1–200. Default 50. |
-| `cursor` | string | no | Opaque cursor from a previous response's `next_cursor`. |
+| `cursor` | string | no | Opaque cursor from a previous response's `next_cursor`. Bound to the filters it was issued under (see below). |
+| `scope` | `'all'` \| `'standalone'` \| `'project'` | no | Default `'all'` (every unscheduled task). `'standalone'`: tasks not attached to a project — what the app itself counts as the inbox. `'project'`: only project-attached tasks. |
+| `include_completed` | boolean | no | Default `true`. Pass `false` for open tasks only. |
 
 Returns `{ items, truncated, next_cursor, total, timezone }`. Items carry `id`, `title`,
 `priority` (0–3), `completed`, and `deadline` / `project_id` / `notes` when set.
+
+Filtering happens before pagination: `total`, `truncated`, and `next_cursor` always describe
+the **filtered** set. A filter matching nothing returns an empty list with `total: 0`, not an
+error. Cursors encode the resolved filter they were minted under; presenting a cursor with
+different filter arguments is a `validation` error naming both sides — restart with a fresh
+call (no cursor) to change filters. Defaults are resolved before comparison, so omitting
+`include_completed` on one page and passing `include_completed: true` on the next never
+mismatches. `scope: 'standalone'` with `include_completed: false` is the app's own inbox
+count (the same predicate the TRMNL integration uses).
 
 ### `dayglance_list_users` *(exists only while multi-user mode is on)*
 The household members tasks can be assigned to. Returns active users as `{ id, name }`;
