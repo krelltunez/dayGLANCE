@@ -182,6 +182,29 @@ describe('paginate — validation failures, never silent clamps', () => {
   });
 });
 
+describe('filtered totals — the field never lies', () => {
+  it('total reflects the (pre-filtered) input set, not any larger population it came from', () => {
+    // The tool layer filters in the read model BEFORE paginate ever sees the
+    // array, so paginate's total is definitionally the filtered count. This
+    // pins the composed behavior: a filtered subset paginated to completion
+    // reports the subset's size on every page and walks exactly that many rows.
+    const population = Array.from({ length: 347 }, (_, i) => ({ id: `t${i}`, open: i % 5 === 0 }));
+    const filtered = population.filter((t) => t.open); // 70 rows, standing in for the read-model filter
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    for (let guard = 0; guard < 100; guard++) {
+      const r = page(filtered, { limit: 7, cursor, filterKey: 'scope=standalone;completed=0' });
+      if (!r.ok) throw new Error(r.reason);
+      expect(r.total).toBe(filtered.length);
+      expect(r.total).not.toBe(population.length);
+      seen.push(...r.items.map((t) => t.id));
+      if (!r.truncated) break;
+      cursor = r.nextCursor!;
+    }
+    expect(seen).toEqual(filtered.map((t) => t.id));
+  });
+});
+
 describe('cursor round-trip', () => {
   it('decode(encode(n, f)) round-trips offset and filter key', () => {
     for (const n of [0, 1, 50, 119, 10_000]) {
