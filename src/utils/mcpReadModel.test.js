@@ -146,6 +146,36 @@ describe('buildUnscheduledItems', () => {
     }]);
   });
 
+  it('scope and includeCompleted filter over structural fields; defaults change nothing', () => {
+    const state = {
+      unscheduledTasks: [
+        { id: 's-open', title: 'Standalone open' },
+        { id: 's-done', title: 'Standalone done', completed: true },
+        { id: 'p-open', title: 'Project open', projectId: 'p1' },
+        { id: 'p-done', title: 'Project done', projectId: 'p1', completed: true },
+        { id: 'bucket', title: 'Someday', bucketId: 'b1' },
+      ],
+    };
+    const ids = (filter) => buildUnscheduledItems(state, filter).items.map((i) => i.id);
+    // Defaults (explicit or omitted) = everything non-bucketed.
+    expect(ids(undefined)).toEqual(['s-open', 's-done', 'p-open', 'p-done']);
+    expect(ids({ scope: 'all', includeCompleted: true })).toEqual(['s-open', 's-done', 'p-open', 'p-done']);
+    // The TRMNL standalone-open shape.
+    expect(ids({ scope: 'standalone', includeCompleted: false })).toEqual(['s-open']);
+    expect(ids({ scope: 'standalone' })).toEqual(['s-open', 's-done']);
+    expect(ids({ scope: 'project' })).toEqual(['p-open', 'p-done']);
+    expect(ids({ includeCompleted: false })).toEqual(['s-open', 'p-open']);
+    // Bucket items appear under NO argument combination.
+    for (const f of [undefined, { scope: 'all' }, { scope: 'standalone' }, { scope: 'project' }, { includeCompleted: false }]) {
+      expect(ids(f)).not.toContain('bucket');
+    }
+  });
+
+  it('a filter matching nothing returns an empty list, not an error', () => {
+    const state = { unscheduledTasks: [{ id: 'p1', title: 'Project only', projectId: 'p' }] };
+    expect(buildUnscheduledItems(state, { scope: 'standalone' }).items).toEqual([]);
+  });
+
   it('excludes Bucket List items unconditionally — the bucketList.js invariant', () => {
     const state = {
       unscheduledTasks: [
