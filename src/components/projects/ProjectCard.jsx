@@ -5,6 +5,7 @@ import {
   AlertTriangle, BookOpen, Calendar, CheckCircle2, CheckSquare, ChevronDown,
   Edit2, ExternalLink, Eye, EyeOff, FileText, GripVertical, LayoutDashboard,
   LogIn, Plus, Square, Trash2, X, Zap,
+  Phone,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
@@ -14,7 +15,7 @@ import { calculateProjectProgress, isProjectStalled } from '../../utils/projectP
 import { TAILWIND_TO_HEX, hexToRgba, getProjectColor } from '../../utils/colorUtils.js';
 import ProjectProgress from './ProjectProgress.jsx';
 import NotesSubtasksPanel from '../NotesSubtasksPanel.jsx';
-import { renderTitle, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, getLinkUrl, isObsidianNoteOnlyTask } from '../../utils/textFormatting.jsx';
+import { renderTitle, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, getLinkUrl, isObsidianNoteOnlyTask, openNoteAction, isPhoneOnlyTask } from '../../utils/textFormatting.jsx';
 import { dateToString, extractWikilinks } from '../../utils/taskUtils.js';
 import { getActiveHGInstance } from '../../hooks/useHyperGlance.js';
 
@@ -550,7 +551,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                       e.stopPropagation();
                       if (isLinkOnlyTask(t)) {
                         if (!longPressTriggeredRef.current) {
-                          window.open(getLinkUrl(t), '_blank', 'noopener,noreferrer');
+                          openNoteAction(t);
                         }
                         longPressTriggeredRef.current = false;
                       } else {
@@ -562,7 +563,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                     }`}
                     title={isLinkOnlyTask(t) ? `${getLinkUrl(t)} (hold to edit)` : 'Notes & subtasks'}
                   >
-                    {isLinkOnlyTask(t) ? <ExternalLink size={10} /> : hasOnlySubtasks(t) ? <CheckSquare size={10} /> : isObsidianNoteOnlyTask(t) ? <BookOpen size={10} /> : <FileText size={10} />}
+                    {isPhoneOnlyTask(t) ? <Phone size={10} /> : isLinkOnlyTask(t) ? <ExternalLink size={10} /> : hasOnlySubtasks(t) ? <CheckSquare size={10} /> : isObsidianNoteOnlyTask(t) ? <BookOpen size={10} /> : <FileText size={10} />}
                   </button>
                   {/* Calendar badge for scheduled tasks — w-5 h-5 matches drag handle (p-1 + size-12) footprint exactly */}
                   {scheduled && (

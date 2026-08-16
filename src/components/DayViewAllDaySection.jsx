@@ -3,12 +3,13 @@ import {
   AlertCircle, BookOpen, Calendar, Check, CheckSquare,
   ExternalLink, FileText, GripVertical, Inbox,
   Pencil, Settings, SkipForward,
+  Phone,
 } from 'lucide-react';
 import AllDayTaskCard from './AllDayTaskCard.jsx';
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { dateToString, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
-import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
+import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask, openNoteAction, isPhoneOnlyTask } from '../utils/textFormatting.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
@@ -178,11 +179,11 @@ const GroupChips = ({ tasks, deadlineTasks = [], date, dateStr, darkMode, border
                     onMouseDown={() => { if (isLinkOnlyTask(task)) { longPressTriggeredRef.current = false; longPressTimerRef.current = setTimeout(() => { longPressTriggeredRef.current = true; setExpandedNotesTaskId(prev => prev === task.id ? null : task.id); }, 500); } }}
                     onMouseUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                     onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
-                    onClick={(e) => { e.stopPropagation(); if (isLinkOnlyTask(task)) { if (!longPressTriggeredRef.current) window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer'); longPressTriggeredRef.current = false; } else { setExpandedNotesTaskId(prev => prev === task.id ? null : task.id); } }}
+                    onClick={(e) => { e.stopPropagation(); if (isLinkOnlyTask(task)) { if (!longPressTriggeredRef.current) openNoteAction(task); longPressTriggeredRef.current = false; } else { setExpandedNotesTaskId(prev => prev === task.id ? null : task.id); } }}
                     className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || extractWikilinks(task.title).length > 0 ? '' : 'opacity-40'}`}
                     title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : 'Notes & subtasks'}
                   >
-                    {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
+                    {isPhoneOnlyTask(task) ? <Phone size={14} /> : isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                   </button>
                   <button onClick={(e) => { e.stopPropagation(); postponeDeadlineTask(task.id); }} className="hover:bg-white/20 rounded p-1 transition-colors" title="Postpone to tomorrow">
                     <SkipForward size={14} />

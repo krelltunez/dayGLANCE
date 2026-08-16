@@ -6,9 +6,10 @@ import ReactDOM from 'react-dom';
 import {
   BookOpen, Check, CheckSquare, ChevronDown, ChevronRight, ChevronUp,
   Clock, Edit2, ExternalLink, FileText, Inbox, LayoutGrid, RefreshCw, SkipForward, Zap,
+  Phone,
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
-import { renderTitle, isLinkOnlyTask, getLinkUrl, hasNotesOrSubtasks, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
+import { renderTitle, isLinkOnlyTask, getLinkUrl, hasNotesOrSubtasks, hasOnlySubtasks, isObsidianNoteOnlyTask, openNoteAction, isPhoneOnlyTask } from '../utils/textFormatting.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { taskColorToHex } from '../utils/colorUtils.js';
 import { triggerHaptic } from '../native.js';
@@ -195,7 +196,8 @@ const TaskCard = React.memo(({
     minHeight: TASK_H,
   };
 
-  const NoteIcon = isLinkOnlyTask(item) ? ExternalLink
+  const NoteIcon = isPhoneOnlyTask(item) ? Phone
+    : isLinkOnlyTask(item) ? ExternalLink
     : hasOnlySubtasks(item)      ? CheckSquare
     : isObsidianNoteOnlyTask(item) ? BookOpen
     : FileText;
@@ -262,7 +264,7 @@ const TaskCard = React.memo(({
             onClick={e => {
               e.stopPropagation();
               if (isLinkOnlyTask(item)) {
-                if (!notesLongPressTriggered.current) window.open(getLinkUrl(item), '_blank', 'noopener,noreferrer');
+                if (!notesLongPressTriggered.current) openNoteAction(item);
                 notesLongPressTriggered.current = false;
               } else {
                 setExpandedNotesTaskId(prev => prev === item.id ? null : item.id);

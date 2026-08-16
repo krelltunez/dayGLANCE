@@ -3,8 +3,9 @@ import {
   AlertCircle, BookOpen, Calendar, Check, CheckSquare,
   ExternalLink, FileText, GripVertical, Inbox,
   RefreshCw, Settings, SkipForward, Trash2,
+  Phone,
 } from 'lucide-react';
-import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../utils/textFormatting.jsx';
+import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask, openNoteAction, isPhoneOnlyTask } from '../utils/textFormatting.jsx';
 import { dateToString, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
@@ -168,7 +169,7 @@ const MobileAllDaySection = () => {
                               e.stopPropagation();
                               if (isLinkOnlyTask(task)) {
                                 if (!longPressTriggeredRef.current) {
-                                  window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                                  openNoteAction(task);
                                 }
                                 longPressTriggeredRef.current = false;
                               } else {
@@ -177,7 +178,7 @@ const MobileAllDaySection = () => {
                             }}
                             className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0 ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
                           >
-                            {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
+                            {isPhoneOnlyTask(task) ? <Phone size={14} /> : isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                           </button>
                           {task.recurrenceType !== 'daily' && (
                           <button
@@ -305,7 +306,7 @@ const MobileAllDaySection = () => {
                         e.stopPropagation();
                         if (isLinkOnlyTask(task)) {
                           if (!longPressTriggeredRef.current) {
-                            window.open(getLinkUrl(task), '_blank', 'noopener,noreferrer');
+                            openNoteAction(task);
                           }
                           longPressTriggeredRef.current = false;
                         } else {
@@ -314,7 +315,7 @@ const MobileAllDaySection = () => {
                       }}
                       className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0 ${hasNotesOrSubtasks(task) ? '' : 'opacity-40'}`}
                     >
-                      {isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
+                      {isPhoneOnlyTask(task) ? <Phone size={14} /> : isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); postponeDeadlineTask(task.id); }}
