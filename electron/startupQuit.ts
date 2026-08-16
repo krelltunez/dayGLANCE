@@ -29,3 +29,30 @@ export function shouldQuitOnAllWindowsClosed(
   if (platform === 'darwin') return false;
   return mainWindowCreated;
 }
+
+/**
+ * Whether the `will-quit` teardown may call into globalShortcut (issue #1352).
+ *
+ * Every globalShortcut API throws "globalShortcut cannot be used before the
+ * app is ready", and `will-quit` CAN fire before ready: electronmon's kill
+ * sequence (hook.js exit -> reset) registers its own will-quit listener and
+ * calls app.quit() the moment its reset message arrives, which during a slow
+ * or colliding startup lands before app-ready.
+ *
+ * The throw is worse than the visible error dialog: it aborts the rest of the
+ * synchronous will-quit emit chain, so listeners registered after ours never
+ * run. Under electronmon the skipped listener is `app.exit(signal)`, and the
+ * observed result is a "killed" app that resumes startup, creates its window,
+ * and keeps holding the single-instance lock and the ws://7892 port the
+ * restarted instance needs.
+ *
+ * Skipping the unregister before ready loses nothing: hotkeys are registered
+ * only via renderer IPC (set-global-hotkey / set-main-window-hotkey), which
+ * requires a ready app with a loaded window, so before ready there is nothing
+ * registered to clean up.
+ *
+ * @param appIsReady `app.isReady()` at the moment `will-quit` fires
+ */
+export function shouldUnregisterShortcutsOnQuit(appIsReady: boolean): boolean {
+  return appIsReady;
+}

@@ -14,7 +14,7 @@ import { registerStorefrontHandlers } from './storefront.js';
 import { registerICloudHandlers } from './icloud.js';
 import { registerObsidianHandlers } from './obsidian.js';
 import { APP_SCHEME, APP_HOST, APP_BASE_URL, resolveAppRequest } from './appProtocol.js';
-import { shouldQuitOnAllWindowsClosed } from './startupQuit.js';
+import { shouldQuitOnAllWindowsClosed, shouldUnregisterShortcutsOnQuit } from './startupQuit.js';
 import { initStartupLog, logStartup } from './startupLog.js';
 import { startMcpServer } from './mcpServer.js';
 import { generateMcpToken } from './mcpAuth.js';
@@ -1478,6 +1478,16 @@ app.whenReady().then(async () => {
 app.on('before-quit', () => { isQuitting = true; });
 
 app.on('will-quit', () => {
+  // Guarded on app-ready (startupQuit.ts, issue #1352): globalShortcut throws
+  // before ready, and the throw aborts the rest of the will-quit emit chain.
+  // Under electronmon's kill sequence that skipped later listener is its
+  // app.exit(signal), so the "killed" app resumed startup and kept the
+  // single-instance lock and the 7892 port. Before ready nothing can be
+  // registered (hotkeys register via renderer IPC), so skipping loses nothing.
+  if (!shouldUnregisterShortcutsOnQuit(app.isReady())) {
+    logStartup('will-quit: globalShortcut teardown skipped (app not ready)');
+    return;
+  }
   globalShortcut.unregisterAll();
 });
 
