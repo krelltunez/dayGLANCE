@@ -27,7 +27,7 @@ vi.mock('../obsidian.js', () => ({
   simpleHash: vi.fn(() => 'h'),
   readWikiNote: vi.fn(async () => null),
   writeWikiNote: vi.fn(async () => {}),
-  listVaultNotes: vi.fn(async () => []),
+  scanVaultNotes: vi.fn(async () => ({ names: [], unportable: [] })),
   OBSIDIAN_IMPORT_WINDOW_DAYS: 90,
   obsidianWindowCutoffDate: vi.fn(() => null),
 }));

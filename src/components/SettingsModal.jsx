@@ -14,6 +14,7 @@ import { isNativeAndroid, nativeGetCalendars, nativeGetAutomationIntentsEnabled,
 import { hasNativeCalendar, electronCalendarAvailable, electronGetCalendars } from '../utils/nativeCalendar.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, formatDatePattern } from '../obsidian.js';
 import { validateDailyNotePattern, validateVaultFolderSetting } from '../utils/obsidianFilename.js';
+import UnportableVaultNamesPanel from './UnportableVaultNamesPanel.jsx';
 import { INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from '../intents/useIntentPoller.js';
 import { syncSharedUsers, syncSharedUsersViaICloud } from '../intents/sharedUsers.js';
 import { isAvailable as isICloudAvailable } from '../intents/icloudFileTransport.js';
@@ -74,7 +75,7 @@ const SettingsModal = () => {
     syncAll, isSyncing, calSyncLastSynced,
     availableCalendars, setAvailableCalendars, calendarFilter, setCalendarFilter,
     obsidianConfig, setObsidianConfig, obsidianSyncStatus, obsidianSyncError, obsidianLastSynced, setObsidianLastSynced,
-    obsidianVaultHandleRef,
+    obsidianVaultHandleRef, unportableVaultFiles, setUnportableVaultFiles,
     performObsidianSync,
     trmnlConfig, setTrmnlConfig, trmnlSyncStatus, trmnlLastSynced, performTrmnlSync,
     setShowIntentActivityLog,
@@ -1680,6 +1681,7 @@ const SettingsModal = () => {
                                 obsidianVaultHandleRef.current = null;
                                 setObsidianConfig(null);
                                 setObsidianLastSynced(null);
+                                setUnportableVaultFiles?.([]);
                                 localStorage.removeItem('day-planner-obsidian-last-synced');
                                 // Remove Obsidian-imported tasks
                                 setTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
@@ -1701,6 +1703,7 @@ const SettingsModal = () => {
                               {t('common.lastSynced')}: {new Date(obsidianLastSynced).toLocaleString()}
                             </p>
                           )}
+                          <UnportableVaultNamesPanel entries={unportableVaultFiles} darkMode={darkMode} textSecondary={textSecondary} />
                         </div>
                       ) : (
                         <button
