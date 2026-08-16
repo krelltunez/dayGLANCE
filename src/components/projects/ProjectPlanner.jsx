@@ -5,6 +5,7 @@ import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
 import { dateToString } from '../../utils/taskUtils.js';
 import { getProjectColor, taskColorToHex, hexToRgba } from '../../utils/colorUtils.js';
+import { plannerColumns } from '../../utils/plannerColumns.js';
 import { renderFormattedText } from '../../utils/textFormatting.jsx';
 
 // Same iOS detection as ProjectCard: grip-only touch drag on iOS, where
@@ -47,6 +48,12 @@ const ProjectPlanner = ({ project, onClose }) => {
   // Mobile shows the two task columns as tabs (they'd otherwise stack, hiding
   // Unscheduled below the fold); desktop keeps them side by side.
   const [activeTab, setActiveTab] = useState('scheduled');
+  // Per-project SCHEDULED-list hiding (the Bucket List secondListHidden
+  // pattern): persisted on the project record like its notes, so each
+  // planner remembers its own choice and it syncs with the project.
+  const scheduledHidden = !!project.plannerScheduledHidden;
+  const { effectiveTab, showTabs, showScheduled, showUnscheduled, gridColumns } =
+    plannerColumns({ isMobile, activeTab, scheduledHidden });
   const [dragIdx, setDragIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
   const touchDragRef = useRef({ active: false, fromIdx: null, overIdx: null });
@@ -109,6 +116,8 @@ const ProjectPlanner = ({ project, onClose }) => {
   const hasAnyCompleted = useMemo(() =>
     [...tasks, ...unscheduledTasks].some(task => task.projectId === project.id && !task.archived && task.completed),
     [tasks, unscheduledTasks, project.id]);
+
+  const incompleteScheduledCount = scheduledDays.reduce((n, g) => n + (g.dateStr ? g.tasks.length : 0), 0);
 
   const todayStr = dateToString(new Date());
   const dayHeading = (dateStr) => {
@@ -320,19 +329,19 @@ const ProjectPlanner = ({ project, onClose }) => {
           </div>
 
           {/* Task columns — tabbed on mobile, side by side on desktop */}
-          {isMobile && (
+          {showTabs && (
             <div className={`flex rounded-lg border ${borderClass} p-0.5 gap-0.5`}>
               {[
-                { key: 'scheduled', label: t('planner.scheduled', 'Scheduled'), count: scheduledDays.reduce((n, g) => n + (g.dateStr ? g.tasks.length : 0), 0) },
+                { key: 'scheduled', label: t('planner.scheduled', 'Scheduled'), count: incompleteScheduledCount },
                 { key: 'unscheduled', label: t('task.unscheduled', 'Unscheduled'), count: incompleteUnscheduled.length },
               ].map(tab => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wide transition-colors ${
-                    activeTab === tab.key ? 'text-white' : `${textSecondary} ${hoverBg}`
+                    effectiveTab === tab.key ? 'text-white' : `${textSecondary} ${hoverBg}`
                   }`}
-                  style={activeTab === tab.key ? { background: projectHex } : undefined}
+                  style={effectiveTab === tab.key ? { background: projectHex } : undefined}
                 >
                   {tab.label}
                   {tab.count > 0 && <span className="opacity-70">{tab.count}</span>}
@@ -340,15 +349,25 @@ const ProjectPlanner = ({ project, onClose }) => {
               ))}
             </div>
           )}
-          <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-2'}`}>
+          <div className={`grid gap-4 ${gridColumns === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
             {/* Scheduled */}
-            {(!isMobile || activeTab === 'scheduled') && (
+            {showScheduled && (
             <div className="flex flex-col gap-2 min-w-0">
-              {!isMobile && (
-                <span className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>
-                  {t('planner.scheduled', 'Scheduled')}
-                </span>
-              )}
+              <div className="flex items-center justify-between gap-2">
+                {!isMobile ? (
+                  <span className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>
+                    {t('planner.scheduled', 'Scheduled')}
+                  </span>
+                ) : <span />}
+                <button
+                  type="button"
+                  onClick={() => updateProject(project.id, { plannerScheduledHidden: true })}
+                  title={t('planner.hideScheduled', 'Hide Scheduled list')}
+                  className={`p-1 rounded ${hoverBg} flex-shrink-0`}
+                >
+                  <EyeOff size={14} className={textSecondary} />
+                </button>
+              </div>
               {scheduledDays.length > 0 ? scheduledDays.map(group => (
                 <div key={group.dateStr ?? 'completed'} className="flex flex-col gap-1">
                   <span className={`text-[11px] font-semibold ${group.dateStr === todayStr ? 'text-blue-500' : textSecondary} ${group.dateStr ? '' : 'opacity-60'}`}>
@@ -363,7 +382,7 @@ const ProjectPlanner = ({ project, onClose }) => {
             )}
 
             {/* Unscheduled */}
-            {(!isMobile || activeTab === 'unscheduled') && (
+            {showUnscheduled && (
             <div className="flex flex-col gap-2 min-w-0">
               {!isMobile && (
                 <span className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>
@@ -420,6 +439,17 @@ const ProjectPlanner = ({ project, onClose }) => {
             </div>
             )}
           </div>
+
+          {scheduledHidden && (
+            <button
+              type="button"
+              onClick={() => updateProject(project.id, { plannerScheduledHidden: false })}
+              className={`self-start text-xs ${textSecondary} hover:underline flex items-center gap-1`}
+            >
+              <Eye size={12} />
+              {t('planner.showScheduled', 'Show Scheduled')}{incompleteScheduledCount > 0 ? ` (${incompleteScheduledCount})` : ''}
+            </button>
+          )}
 
           {/* hyperGLANCE settings (moved here from the Edit Project form) */}
           <HyperGlanceEditor
