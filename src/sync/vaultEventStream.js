@@ -322,6 +322,28 @@ export function createNudgeCoalescer({
 // ─── connection client (reconnect + backoff) ──────────────────────────────────
 
 /**
+ * Reconnect delay for `attempt` (0-based): capped exponential with EQUAL
+ * JITTER. The exponential's lower half is kept as a floor that still grows
+ * with the attempt count — the politeness the flap guard (minStableMs)
+ * exists to protect — and the upper half is spread uniformly, so the many
+ * clients (or tabs behind one IP) dropped by a single vault restart
+ * reconnect scattered instead of in aligned 1s/2s/4s… waves against the
+ * vault's per-IP rate limiter. Full jitter (random(0, delay)) would
+ * decorrelate harder but can retry almost immediately after a failure,
+ * which undoes the backoff's purpose. The cap applies to the exponential
+ * BEFORE jitter, so every sample is < maxMs and ≥ baseMs/2 (never zero).
+ *
+ * Mirrored by SseBackoff.nextDelayMs
+ * (dayglance-android/.../sse/SseBackoff.kt) — change both together.
+ *
+ * @param {{attempt:number, baseMs:number, maxMs:number, random:() => number}} p
+ */
+export function backoffDelayMs({ attempt, baseMs, maxMs, random }) {
+  const exp = Math.min(maxMs, baseMs * 2 ** attempt);
+  return Math.floor(exp / 2 + random() * (exp / 2));
+}
+
+/**
  * Manages the SSE connection lifecycle: connect, pump events through onEvent,
  * and on any drop reconnect with capped exponential backoff. It NEVER touches
  * polling — polling is a separate effect and remains the backstop for every gap
@@ -342,6 +364,8 @@ export function createNudgeCoalescer({
  * @param {typeof setTimeout}  [p.setTimeoutFn]
  * @param {typeof clearTimeout}[p.clearTimeoutFn]
  * @param {() => number} [p.now]       clock (injectable for tests)
+ * @param {() => number} [p.randomFn]  uniform [0,1) source for the backoff
+ *                                     jitter (injectable so tests stay deterministic)
  * @param {(state:string, detail?:any) => void} [p.onStateChange]
  */
 export function createVaultEventClient({
@@ -355,6 +379,7 @@ export function createVaultEventClient({
   setTimeoutFn = setTimeout,
   clearTimeoutFn = clearTimeout,
   now = () => Date.now(),
+  randomFn = Math.random,
   onStateChange,
 } = {}) {
   let stopped = true;
@@ -400,7 +425,9 @@ export function createVaultEventClient({
       // healthy; a flapping open/close keeps backing off (up to backoffMaxMs) so a
       // broken endpoint can't storm.
       if (now() - startedAt >= minStableMs) attempt = 0;
-      const delay = Math.min(backoffMaxMs, backoffBaseMs * 2 ** attempt);
+      const delay = backoffDelayMs({
+        attempt, baseMs: backoffBaseMs, maxMs: backoffMaxMs, random: randomFn,
+      });
       attempt += 1;
       await new Promise((resolve) => { reconnectTimer = setTimeoutFn(resolve, delay); });
       reconnectTimer = null;

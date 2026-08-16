@@ -7,6 +7,7 @@ import {
   createNudgeCoalescer,
   createVaultEventClient,
   createBridgeSseClient,
+  backoffDelayMs,
 } from './vaultEventStream.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -299,6 +300,9 @@ describe('createVaultEventClient — lifecycle, reconnect, reconcile', () => {
       onEvent: coalescer.handleEvent,
       backoffBaseMs: 1000,
       backoffMaxMs: 30000,
+      // Equal jitter's upper edge recovers the pre-jitter ladder, keeping
+      // this test's exact timer arithmetic (and its comments) true.
+      randomFn: () => 1,
     });
 
     client.start();
@@ -336,6 +340,7 @@ describe('createVaultEventClient — lifecycle, reconnect, reconcile', () => {
       backoffBaseMs: 1000,
       backoffMaxMs: 60000,
       minStableMs: 5000,
+      randomFn: () => 1, // upper edge = pre-jitter ladder; see jitter tests below
     });
     client.start();
     expect(s.calls).toHaveLength(1);
@@ -368,6 +373,7 @@ describe('createVaultEventClient — lifecycle, reconnect, reconcile', () => {
       onEvent: () => {},
       backoffBaseMs: 1000,
       minStableMs: 5000,
+      randomFn: () => 1, // upper edge = pre-jitter ladder
     });
     client.start();
     vi.advanceTimersByTime(5000);                // healthy: stayed open 5s
@@ -622,5 +628,78 @@ describe('createBridgeSseClient — native bridge-fed transport', () => {
     expect(states.find((s) => s[0] === 'error')[1]).toEqual({
       message: 'vault SSE refused: insecure http URL', code: 'insecure',
     });
+  });
+});
+
+describe('backoffDelayMs — equal jitter (mirrored by SseBackoff.kt; change both together)', () => {
+  // Seeded LCG so every assertion is deterministic — the injected-source
+  // pattern this codebase uses for clocks, applied to randomness.
+  const lcg = (seed) => () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 2 ** 32;
+  };
+
+  it('spreads same-attempt delays instead of one aligned value (the anti-wave property)', () => {
+    // Many clients dropped by the same vault restart must not share a
+    // schedule. Without jitter every attempt-3 delay is exactly 8000 and the
+    // distinct-count assertion fails — that is the negative control.
+    const random = lcg(42);
+    const samples = Array.from({ length: 500 }, () =>
+      backoffDelayMs({ attempt: 3, baseMs: 1000, maxMs: 30000, random }));
+    expect(new Set(samples).size).toBeGreaterThan(100);
+    expect(samples.every((d) => d >= 4000)).toBe(true); // floor: exp/2
+    expect(samples.every((d) => d < 8000)).toBe(true);  // range: < exp
+  });
+
+  it('the cap still caps and the floor holds at high attempt counts', () => {
+    const random = lcg(7);
+    const samples = Array.from({ length: 500 }, () =>
+      backoffDelayMs({ attempt: 20, baseMs: 1000, maxMs: 30000, random }));
+    expect(samples.every((d) => d < 30000)).toBe(true);  // never exceeds max
+    expect(samples.every((d) => d >= 15000)).toBe(true); // floor at cap: max/2
+  });
+
+  it('no delay is ever zero or negative, from the very first attempt', () => {
+    const random = lcg(3);
+    const samples = Array.from({ length: 200 }, () =>
+      backoffDelayMs({ attempt: 0, baseMs: 1000, maxMs: 30000, random }));
+    expect(samples.every((d) => d >= 500)).toBe(true); // attempt-0 floor: base/2
+  });
+
+  it('deterministic with a seeded source — same seed, same sequence', () => {
+    const seq = (seed) => {
+      const random = lcg(seed);
+      return Array.from({ length: 6 }, (_, i) =>
+        backoffDelayMs({ attempt: i, baseMs: 1000, maxMs: 30000, random }));
+    };
+    expect(seq(99)).toEqual(seq(99));
+  });
+
+  it('the client waits at least the floor before reconnecting (behavioural floor check)', async () => {
+    // randomFn () => 0 pins every delay to its floor exp/2: after the first
+    // instant drop the reconnect must NOT fire before 500ms, and must at 500.
+    vi.useFakeTimers();
+    const calls = [];
+    const client = createVaultEventClient({
+      supported: true,
+      getConnection: () => ({ vaultUrl: 'https://v', vaultToken: 't', accountId: 'a' }),
+      openStream: async (args) => { calls.push(args); throw new Error('refused'); },
+      onEvent: () => {},
+      backoffBaseMs: 1000,
+      backoffMaxMs: 30000,
+      minStableMs: 5000,
+      randomFn: () => 0,
+    });
+    client.start();
+    await Promise.resolve(); await Promise.resolve();
+    expect(calls).toHaveLength(1);
+    vi.advanceTimersByTime(499);                 // just under the attempt-0 floor
+    await Promise.resolve(); await Promise.resolve();
+    expect(calls).toHaveLength(1);               // no early retry
+    vi.advanceTimersByTime(1);                   // 500ms: the floor
+    await Promise.resolve(); await Promise.resolve();
+    expect(calls).toHaveLength(2);
+    client.stop();
+    vi.useRealTimers();
   });
 });
