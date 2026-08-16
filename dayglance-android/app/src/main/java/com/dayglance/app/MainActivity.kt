@@ -523,11 +523,23 @@ class MainActivity : AppCompatActivity() {
         vaultSseClient.setForeground(false)
         if (BuildConfig.BILLING_ENABLED && !BuildConfig.DEBUG) {
             billingManager.activity = null
-            billingManager.disconnect()
+            // Deliberately NOT ending the billing connection here. A
+            // BillingClient is dead forever after endConnection(), so the old
+            // teardown-on-onStop killed billing (restores, purchases, the
+            // entitlement refresh) for the rest of the process after the
+            // first background cycle. The connection is kept alive across
+            // backgrounding; final teardown is onDestroy's destroy().
         }
     }
 
     override fun onDestroy() {
+        // Required, not cleanup: this activity handles orientation/screenSize/
+        // screenLayout/keyboardHidden config changes itself but NOT uiMode or
+        // locale, so a dark-mode toggle or language change recreates the
+        // activity and builds a new BillingManager + client. The old binding
+        // used to be released by onStop's disconnect purely by accident;
+        // without this call, every recreation would leak a service binding.
+        if (::billingManager.isInitialized) billingManager.destroy()
         // Release the platform speech recognizer (no-op if never attached).
         if (::nativeBridge.isInitialized) nativeBridge.destroySpeechBridge()
         // Tear the SSE reader down cleanly — no leaked connection or coroutine.

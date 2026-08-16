@@ -28,7 +28,22 @@ import kotlin.coroutines.resume
  * Annual plan → Play Console: Monetize → Subscriptions (product type SUBS).
  * Lifetime plan → Play Console: Monetize → In-app products (product type INAPP).
  *
- * Call [connect] from Activity.onStart() and [disconnect] from Activity.onStop().
+ * Lifecycle: call [connect] from Activity.onStart() and [destroy] from
+ * Activity.onDestroy(). Nothing is called on onStop — the connection is
+ * deliberately kept alive across backgrounding. A BillingClient is dead
+ * forever after endConnection() (device-confirmed: "Client was already
+ * closed and can't be reused"), and the old close-on-onStop lifecycle left
+ * every billing operation silently no-opping after the first
+ * background/foreground cycle. The Play service binding is cheap to hold and
+ * Google's own samples keep it for the life of the process.
+ *
+ * The shared client lives behind [client], the single accessor that replaces
+ * a CLOSED instance before handing anything out (decision table in
+ * [BillingConnectionPolicy]) — reuse of a closed client is impossible by
+ * construction, not avoided by convention. AckRetryWorker deliberately does
+ * NOT go through this accessor: its retry lane owns a short-lived client per
+ * attempt precisely so it never depends on the shared instance's lifecycle.
+ *
  * Set [activity] before calling [launchPurchaseFlow].
  */
 class BillingManager(
@@ -94,23 +109,82 @@ class BillingManager(
         }
     }
 
-    private val billingClient: BillingClient = BillingClient.newBuilder(context)
-        .setListener(purchasesUpdatedListener)
-        .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
-        .build()
+    /**
+     * The ONLY reference to the shared BillingClient, and it is never touched
+     * directly — every use goes through [client]. Lazily built: debug and
+     * github-flavor builds, which never connect, never construct one either.
+     */
+    private var billingClient: BillingClient? = null
 
+    /**
+     * Single accessor for the shared client. Consults
+     * [BillingConnectionPolicy.clientAction]: a CLOSED instance (dead forever,
+     * per Play's documentation and the device-confirmed warning) is replaced
+     * with a fresh one before anything is handed out, which makes the closed
+     * object unreachable. Synchronized because billing entry points span the
+     * main thread (onStart) and the WebView's JS thread (SubscriptionBridge).
+     *
+     * A fresh instance starts DISCONNECTED and holds no service binding until
+     * startConnection — so an accessor hit after [destroy] (e.g. a late JS
+     * bridge call during teardown) creates only an inert object, never a leak.
+     */
+    @Synchronized
+    private fun client(): BillingClient {
+        val held = billingClient
+        if (held != null &&
+            BillingConnectionPolicy.clientAction(held.connectionState) ==
+                BillingConnectionPolicy.ClientAction.REUSE
+        ) {
+            return held
+        }
+        val fresh = BillingClient.newBuilder(context)
+            .setListener(purchasesUpdatedListener)
+            .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
+            // PBL 8: service drops (Play killing the binding while we hold the
+            // client) reconnect themselves instead of waiting for the next
+            // foreground connect().
+            .enableAutoServiceReconnection()
+            .build()
+        billingClient = fresh
+        return fresh
+    }
+
+    /**
+     * Idempotent foreground connect — called from Activity.onStart() on every
+     * foreground. [BillingConnectionPolicy.connectAction] decides: a live
+     * connection skips straight to the queries (keep-alive), an in-flight
+     * connection is left to finish (its setup callback runs the queries), and
+     * only a disconnected client actually starts a connection. Either path
+     * ends with [queryPurchases] running on this foreground, which is what
+     * keeps entitlement fresh and the re-acknowledgement lane live.
+     */
     fun connect() {
-        billingClient.startConnection(object : BillingClientStateListener {
-            override fun onBillingSetupFinished(result: BillingResult) {
-                if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                    queryPurchases()
-                    queryProductPrices()
-                }
+        val client = client()
+        when (BillingConnectionPolicy.connectAction(client.connectionState)) {
+            BillingConnectionPolicy.ConnectAction.ALREADY_CONNECTED -> {
+                queryPurchases()
+                queryProductPrices()
             }
-            override fun onBillingServiceDisconnected() {
-                // Play will retry automatically; we reconnect on next connect() call.
+            BillingConnectionPolicy.ConnectAction.WAIT -> {
+                // startConnection already in flight; its onBillingSetupFinished
+                // will run the queries. Stacking another does nothing useful.
             }
-        })
+            BillingConnectionPolicy.ConnectAction.CONNECT -> {
+                client.startConnection(object : BillingClientStateListener {
+                    override fun onBillingSetupFinished(result: BillingResult) {
+                        if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                            queryPurchases()
+                            queryProductPrices()
+                        }
+                    }
+                    override fun onBillingServiceDisconnected() {
+                        // enableAutoServiceReconnection re-establishes the
+                        // service connection on this same instance; the next
+                        // onStart's connect() is the backstop.
+                    }
+                })
+            }
+        }
     }
 
     /**
@@ -120,7 +194,8 @@ class BillingManager(
      * Lifetime (INAPP): reads oneTimePurchaseOfferDetailsList[0].formattedPrice directly.
      */
     fun queryProductPrices() {
-        if (!billingClient.isReady) return
+        val client = client()
+        if (!client.isReady) return
 
         val subsParams = QueryProductDetailsParams.newBuilder()
             .setProductList(SUBSCRIPTION_PRODUCTS.map { id ->
@@ -141,7 +216,7 @@ class BillingManager(
             .build()
 
         scope.launch {
-            billingClient.queryProductDetailsAsync(subsParams) { result, queryResult ->
+            client.queryProductDetailsAsync(subsParams) { result, queryResult ->
                 if (result.responseCode != BillingClient.BillingResponseCode.OK) return@queryProductDetailsAsync
                 for (details in queryResult.productDetailsList) {
                     if (details.productId != PRODUCT_ANNUAL) continue
@@ -165,7 +240,7 @@ class BillingManager(
                         ?.let { dataStore.trialDaysAnnual = it }
                 }
             }
-            billingClient.queryProductDetailsAsync(inappParams) { result, queryResult ->
+            client.queryProductDetailsAsync(inappParams) { result, queryResult ->
                 if (result.responseCode != BillingClient.BillingResponseCode.OK) return@queryProductDetailsAsync
                 for (details in queryResult.productDetailsList) {
                     // PBL 8 replaced the singular oneTimePurchaseOfferDetails with a list
@@ -177,8 +252,24 @@ class BillingManager(
         }
     }
 
-    fun disconnect() {
-        billingClient.endConnection()
+    /**
+     * Final teardown for THIS manager instance — Activity.onDestroy() only,
+     * never onStop. Required, not cleanup: MainActivity handles
+     * orientation/screenSize/screenLayout/keyboardHidden config changes
+     * itself but NOT uiMode or locale, so a dark-mode toggle or language
+     * change recreates the activity, which builds a new manager and client.
+     * The old binding used to be released by onStop's disconnect purely by
+     * accident; without this, every recreation would leak a binding.
+     *
+     * Under the accessor invariant each client is closed at most once, and
+     * only here — which is also why the "Receiver is not registered" warning
+     * (a second endConnection on an already-closed client) should never
+     * appear again. Deliberately does not construct: closing nothing is fine.
+     */
+    @Synchronized
+    fun destroy() {
+        billingClient?.endConnection()
+        billingClient = null
     }
 
     /** "P14D" → 14, "P2W" → 14. Months/years approximated (unused for trials in practice). */
@@ -189,20 +280,21 @@ class BillingManager(
         null
     }
 
-    private suspend fun queryPurchasesForType(productType: String): List<Purchase> =
+    private suspend fun queryPurchasesForType(client: BillingClient, productType: String): List<Purchase> =
         suspendCancellableCoroutine { cont ->
-            billingClient.queryPurchasesAsync(
+            client.queryPurchasesAsync(
                 QueryPurchasesParams.newBuilder().setProductType(productType).build()
             ) { _, purchases -> cont.resume(purchases) }
         }
 
     fun queryPurchases() {
-        if (!billingClient.isReady) return
+        val client = client()
+        if (!client.isReady) return
         scope.launch {
-            val activeSub = queryPurchasesForType(BillingClient.ProductType.SUBS)
+            val activeSub = queryPurchasesForType(client, BillingClient.ProductType.SUBS)
                 .firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
 
-            val active = activeSub ?: queryPurchasesForType(BillingClient.ProductType.INAPP)
+            val active = activeSub ?: queryPurchasesForType(client, BillingClient.ProductType.INAPP)
                 .firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
 
             if (active != null) {
@@ -248,7 +340,8 @@ class BillingManager(
             onBillingEvent?.invoke("error", BillingClient.BillingResponseCode.DEVELOPER_ERROR, "activity_null", productId)
             return
         }
-        if (!billingClient.isReady) {
+        val client = client()
+        if (!client.isReady) {
             Log.w(TAG, "launchPurchaseFlow($productId): client not ready")
             onBillingEvent?.invoke("error", BillingClient.BillingResponseCode.SERVICE_DISCONNECTED, "billing_not_ready", productId)
             return
@@ -270,7 +363,7 @@ class BillingManager(
             .build()
 
         scope.launch {
-            billingClient.queryProductDetailsAsync(params) { result, queryResult ->
+            client.queryProductDetailsAsync(params) { result, queryResult ->
                 // PBL 8: the callback now delivers a QueryProductDetailsResult; the fetched
                 // items live on .productDetailsList (unfetched products are reported separately).
                 val detailsList = queryResult.productDetailsList
@@ -317,7 +410,7 @@ class BillingManager(
                     .build()
 
                 act.runOnUiThread {
-                    val launchResult = billingClient.launchBillingFlow(act, flowParams)
+                    val launchResult = client.launchBillingFlow(act, flowParams)
                     logd("launchBillingFlow: code=${launchResult.responseCode} msg='${launchResult.debugMessage}' ts=${System.currentTimeMillis()}")
                     if (launchResult.responseCode != BillingClient.BillingResponseCode.OK) {
                         onBillingEvent?.invoke("error", launchResult.responseCode, launchResult.debugMessage, productId)
@@ -354,7 +447,7 @@ class BillingManager(
         val params = AcknowledgePurchaseParams.newBuilder()
             .setPurchaseToken(token)
             .build()
-        billingClient.acknowledgePurchase(params) { result ->
+        client().acknowledgePurchase(params) { result ->
             if (result.responseCode == BillingClient.BillingResponseCode.OK) {
                 AckRetryWorker.recordSuccess(dataStore, token)
                 logd("acknowledgePurchase OK: token=…${token.takeLast(8)}")
@@ -372,7 +465,8 @@ class BillingManager(
         dataStore.subscriptionProductId = null
         dataStore.subscriptionToken = null
 
-        if (!billingClient.isReady) {
+        val client = client()
+        if (!client.isReady) {
             onComplete(true)
             return
         }
@@ -381,11 +475,11 @@ class BillingManager(
             // dataStore. When an annual test subscription is active, queryPurchases() stores
             // the SUBS token (SUBS has priority), leaving the lifetime INAPP token untouched.
             // Querying INAPP directly ensures the lifetime token is always consumed.
-            val inappPurchases = queryPurchasesForType(BillingClient.ProductType.INAPP)
+            val inappPurchases = queryPurchasesForType(client, BillingClient.ProductType.INAPP)
             for (purchase in inappPurchases) {
                 val p = ConsumeParams.newBuilder().setPurchaseToken(purchase.purchaseToken).build()
                 suspendCancellableCoroutine { cont ->
-                    billingClient.consumeAsync(p) { result, _ ->
+                    client.consumeAsync(p) { result, _ ->
                         logd("consumeAsync INAPP ${purchase.purchaseToken.takeLast(8)}: code=${result.responseCode} msg='${result.debugMessage}'")
                         cont.resume(Unit)
                     }
@@ -396,7 +490,7 @@ class BillingManager(
             if (inappPurchases.none { it.purchaseToken == token }) {
                 val p = ConsumeParams.newBuilder().setPurchaseToken(token).build()
                 suspendCancellableCoroutine { cont ->
-                    billingClient.consumeAsync(p) { result, _ ->
+                    client.consumeAsync(p) { result, _ ->
                         logd("consumeAsync stored token ${token.takeLast(8)}: code=${result.responseCode} msg='${result.debugMessage}'")
                         cont.resume(Unit)
                     }
