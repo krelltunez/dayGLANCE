@@ -2,11 +2,13 @@
   "sync": {
     "errors": {
       "AUTH_FAILURE": "Authentication failed. Check your username and password in sync settings.",
+      "CREDENTIAL_INVALID": "The sync server no longer accepts this device's sync access. Your changes are saved on this device. Ask whoever runs your sync server to restore access for this device.",
       "FORBIDDEN": "Sync blocked (403). Your server may be blocking the request.",
       "LOCKED": "Sync is locked by another device. Try again in a moment.",
       "NETWORK_ERROR": "Network error. Check your connection and try again.",
       "PASSPHRASE_REQUIRED": "Enter your sync passphrase to continue.",
       "PRECONDITION_FAILED": "Another device updated first. Retrying.",
+      "QUOTA_EXCEEDED": "The sync server has reached its limit for this account. Your changes are saved on this device and syncing will retry automatically. Ask whoever runs your sync server to raise the limit.",
       "KEY_MISMATCH": "Wrong sync passphrase. It must exactly match the passphrase used on your other devices.",
       "VERIFIER_UNSUPPORTED": "Your GLANCEvault server needs to be updated to support this app version (key verification).",
       "ACCOUNT_ID_REQUIRED": "GLANCEvault is missing an account ID. Re-enter your GLANCEvault details (URL, device token, and account ID) in Cloud Sync settings.",
