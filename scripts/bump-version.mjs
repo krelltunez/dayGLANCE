@@ -33,6 +33,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -59,6 +60,29 @@ if (!version) {
 // Strict semver x.y.z — no prerelease/build metadata, no leading "v".
 if (!/^\d+\.\d+\.\d+$/.test(version)) {
   die(`"${version}" is not a valid X.Y.Z version (expected e.g. 4.0.0).`);
+}
+
+// ── Guard: never run on main ────────────────────────────────────────────
+// The bump lands in a release PR. Written on main, it becomes a local
+// commit that branch protection rejects on the next pull, leaving
+// divergent branches to untangle. Refuse up front, before any file is
+// touched. Deliberately no bypass flag: if this ever needs to run from
+// main, checking out a branch takes five seconds.
+let currentBranch = '';
+try {
+  currentBranch = execSync('git rev-parse --abbrev-ref HEAD', {
+    cwd: ROOT,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  }).trim();
+} catch {
+  // Not a git checkout (or git unavailable) — nothing for the guard to protect.
+}
+if (currentBranch === 'main') {
+  die('refusing to run on main. A bump written here becomes a local commit ' +
+      'that fights branch protection on the next pull. Create a branch first:\n' +
+      `  git checkout -b bump-v${version}\n` +
+      `then re-run: npm run bump ${version}`);
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
