@@ -27,7 +27,7 @@
     "build:electron:mas": "npm run build:helpers && DAYGLANCE_MAS_BUILD=1 vite build --config vite.config.electron.js && npx tsc -p tsconfig.electron.json && npx tsc -p tsconfig.electron.preload.json && DAYGLANCE_APP_ID=com.dayglance electron-builder --config electron-builder.config.cjs --mac mas --universal --publish never"
   },
   "dependencies": {
-    "@glance-apps/billing": "0.1.1",
+    "@glance-apps/billing": "0.2.2",
     "@glance-apps/intents": "1.4.0",
     "@glance-apps/sync": "1.10.0",
     "@modelcontextprotocol/node": "2.0.0",
