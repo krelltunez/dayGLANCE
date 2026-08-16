@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { taskColorToHex, TAILWIND_TO_HEX } from '../utils/colorUtils.js';
-import { dateToString } from '../utils/taskUtils.js';
-import { calculateGoalProgress } from '../utils/goalProgress.js';
-import { calculateProjectProgress } from '../utils/projectProgress.js';
+import { taskColorToHex } from '../utils/colorUtils.js';
+import { buildStreamDeckState, timeToMinutes } from '../utils/streamDeckPayload.js';
+import { dispatchBackgroundAction } from '../utils/trayActionDispatch.js';
 import {
-  PROTOCOL_VERSION,
-  MSG_DAY_STATE,
   MSG_DAY_FOCUS_START,
   MSG_DAY_FOCUS_TIMER_START,
   MSG_DAY_FOCUS_STOP,
@@ -24,28 +21,6 @@ import {
   MSG_DAY_HG_TASK_COMPLETE,
 } from '../../electron/protocol';
 import { isTrayMode } from '../utils/trayMode.js';
-
-const timeToMinutes = (time) => {
-  if (!time) return 0;
-  const [h, m] = time.split(':').map(Number);
-  return h * 60 + (m || 0);
-};
-
-
-// Inline habit color map (mirrors HABIT_COLORS ring values from src/constants/habits.js)
-const HABIT_COLOR_HEX = {
-  blue: '#3b82f6', green: '#22c55e', red: '#ef4444', amber: '#f59e0b',
-  purple: '#a855f7', pink: '#ec4899', cyan: '#06b6d4', orange: '#f97316',
-};
-
-function habitRingColor(habit, count) {
-  const base = HABIT_COLOR_HEX[habit.color] ?? '#3b82f6';
-  if (habit.type === 'limit') {
-    // Green while at or under the limit, red once exceeded — no amber state.
-    return count <= habit.target ? '#22c55e' : '#ef4444';
-  }
-  return count === 0 ? '#d1d5db' : base;
-}
 
 // Pushes a lightweight state snapshot to the Electron WebSocket server
 // (ws://localhost:7892) whenever app state changes, and routes incoming
@@ -314,37 +289,25 @@ export default function useElectronBridge({
   }, [goToDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle background mutations from the tray (no window focus change).
+  // Never registered in tray mode: the receiving preload acks each delivery,
+  // so a tray-side listener would ack the tray's own sends and mask a dead
+  // main window (the failure tray:action-applied exists to surface).
   useEffect(() => {
     if (isTrayMode || !window.electronAPI?.onBackgroundAction) return;
-    return window.electronAPI.onBackgroundAction((payload) => {
-      if (!payload?.action) return;
-      if (payload.action === 'toggle-complete') {
-        toggleCompleteRef.current?.(payload.taskId, false);
-      } else if (payload.action === 'add-inbox-task' && payload.task) {
-        setUnscheduledTasksRef.current?.(prev => [...(prev || []), payload.task]);
-      } else if (payload.action === 'increment-habit' && payload.habitId) {
-        incrementHabitRef.current?.(payload.habitId);
-      } else if (payload.action === 'set-habit-count' && payload.habitId != null) {
-        setHabitCountRef.current?.(payload.habitId, payload.count);
-      } else if (payload.action === 'toggle-routine' && payload.routineId) {
-        toggleRoutineCompletionRef.current?.(payload.routineId);
-      } else if (payload.action === 'move-to-inbox' && payload.taskId) {
-        setTasksRef.current?.(prev => prev.filter(t => t.id !== payload.taskId));
-        if (payload.inboxTask) setUnscheduledTasksRef.current?.(prev => [...(prev || []), payload.inboxTask]);
-      } else if (payload.action === 'move-to-recycle-bin' && payload.taskId) {
-        moveToRecycleBinRef.current?.(payload.taskId, !!payload.isInbox);
-      } else if (payload.action === 'clear-deadline' && payload.taskId) {
-        clearDeadlineRef.current?.(payload.taskId);
-      } else if (payload.action === 'focus-stop') {
-        exitFocusModeRef.current?.(true);
-      } else if (payload.action === 'focus-skip') {
-        skipFocusPhaseRef.current?.();
-      } else if (payload.action === 'dismiss-reminder' && payload.reminderId) {
-        dismissReminderRef.current?.(payload.reminderId);
-      } else if (payload.action === 'snooze-reminder' && payload.reminder) {
-        snoozeReminderRef.current?.(payload.reminder);
-      }
-    });
+    return window.electronAPI.onBackgroundAction((payload) => dispatchBackgroundAction(payload, {
+      toggleCompleteRef,
+      setUnscheduledTasksRef,
+      incrementHabitRef,
+      setHabitCountRef,
+      toggleRoutineCompletionRef,
+      setTasksRef,
+      moveToRecycleBinRef,
+      clearDeadlineRef,
+      exitFocusModeRef,
+      skipFocusPhaseRef,
+      dismissReminderRef,
+      snoozeReminderRef,
+    }));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-register the stored global hotkeys after the main window (re)loads.
@@ -407,214 +370,22 @@ export default function useElectronBridge({
     // renderer. Nothing between here and the send has a side effect.
     if (isTrayMode) return;
 
-    const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
-    const hgSessions = (todayHGSessions || []);
-    const scheduled = [
-      ...todayAgenda.filter(t => t._agendaType === 'scheduled' && !t.completed && t.startTime),
-      ...hgSessions,
-    ].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
-
-    const inProgress = scheduled.find(t => {
-      const start = timeToMinutes(t.startTime);
-      return start <= nowMin && start + (t.duration || 0) > nowMin;
-    }) || null;
-
-    const nextUpcoming = scheduled
-      .filter(t => timeToMinutes(t.startTime) > nowMin)
-      .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))[0] || null;
-
-    const mapTask = (t) => t ? {
-      id: t.id,
-      title: t.title,
-      startTime: t.startTime ?? null,
-      duration: t.duration || 0,
-      colorHex: t.colorHex || taskColorToHex(t.color, t.nativeCalendarColor),
-      tags: t.tags || [],
-      completed: !!t.completed,
-      isAllDay: !!t.isAllDay,
-      isHGSession: !!t.isHGSession,
-      imported: !!t.imported,
-      isTaskCalendar: !!t.isTaskCalendar,
-    } : null;
-
-    // A read-only calendar event whose time window has passed is effectively done.
-    const isPastCalendarEvent = (t) =>
-      t.imported && !t.isTaskCalendar && !t.isAllDay && t.startTime &&
-      timeToMinutes(t.startTime) + (t.duration || 0) <= nowMin;
-
-    const todayStr = dateToString(currentTime);
-    // Multi-user: only surface the current user's tasks on tray/Stream Deck/menu bar.
-    const vTasks = (tasks || []).filter(isVisibleForUser);
-    const todayRecurring = (expandedRecurringTasks || []).filter(t => t.date === todayStr && isVisibleForUser(t));
-
-    const tomorrowDate = new Date(currentTime);
-    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-    const tomorrowStr = dateToString(tomorrowDate);
-    const tomorrowRecurring = (expandedRecurringTasks || []).filter(t => t.date === tomorrowStr && isVisibleForUser(t));
-    const tomorrowAllDay = [
-      ...vTasks.filter(t => t.date === tomorrowStr && !!t.isAllDay),
-      ...tomorrowRecurring.filter(t => !!t.isAllDay),
-    ];
-    const tomorrowTimed = [
-      ...vTasks.filter(t => t.date === tomorrowStr && t.startTime && !t.isAllDay),
-      ...tomorrowRecurring.filter(t => t.startTime && !t.isAllDay),
-    ].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
-    // Include recurring instances in counts (stable denominator — all tasks regardless of completion/time)
-    const todayTasks = [
-      ...vTasks.filter(t => t.date === todayStr && t.startTime && !t.isAllDay),
-      ...todayRecurring.filter(t => t.startTime && !t.isAllDay),
-      ...hgSessions,
-    ];
-    const allDayTasks = [
-      ...vTasks.filter(t => t.date === todayStr && t.isAllDay),
-      ...todayRecurring.filter(t => t.isAllDay),
-    ];
-
-    // ── Habits ────────────────────────────────────────────────────────────
-    const habits = habitsEnabled ? (activeHabits ?? []).map(h => {
-      const count = getTodayHabitCount(h.id);
-      const colorHex = HABIT_COLOR_HEX[h.color] ?? '#3b82f6';
-      const ringColorHex = habitRingColor(h, count);
-      return {
-        id: h.id,
-        name: h.name,
-        colorHex,
-        ringColorHex,
-        count,
-        target: h.target,
-        unit: h.unit ?? '',
-        type: h.type || 'doMore',
-        complete: h.type === 'doMore' ? (h.target > 0 && count >= h.target) : false,
-      };
-    }) : [];
-
-    // ── Next routine (next uncompleted scheduled routine for today) ────────
-    const nextRoutineRaw = (todayRoutines ?? [])
-      .filter(r => r.startTime && !r.isAllDay && !routineCompletions?.[r.id])
-      .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))[0] ?? null;
-
-    // ── Goals ─────────────────────────────────────────────────────────────
-    const allTasksForGoals = [...vTasks, ...(unscheduledTasks || []).filter(isVisibleForUser)];
-    const todayMs = new Date(dateToString(currentTime) + 'T00:00:00').getTime();
-    const goalsPayload = goalsProjectsEnabled ? (goals || [])
-      .filter(g => g.status === 'active' && isVisibleForUser(g))
-      .map(g => {
-        const progress = Math.round(calculateGoalProgress(g.id, projects || [], allTasksForGoals) * 100);
-        const colorHex = TAILWIND_TO_HEX[g.color] || '#3b82f6';
-        const daysLeft = g.targetDate
-          ? Math.round((new Date(g.targetDate + 'T00:00:00').getTime() - todayMs) / 86400000)
-          : null;
-        return { id: g.id, title: g.title, progress, colorHex, daysLeft };
-      }) : [];
-
-    // ── Projects ──────────────────────────────────────────────────────────
-    const mapProject = (p) => {
-      const progress = Math.round(calculateProjectProgress(p.id, allTasksForGoals) * 100);
-      const colorHex = TAILWIND_TO_HEX[p.color] || '#3b82f6';
-      const parentGoal = p.goalId ? (goals || []).find(g => g.id === p.goalId) : null;
-      const goalDaysLeft = parentGoal?.targetDate
-        ? Math.round((new Date(parentGoal.targetDate + 'T00:00:00').getTime() - todayMs) / 86400000)
-        : null;
-      const projectTasks = allTasksForGoals.filter(t => t.projectId === p.id && !t.archived);
-      const tasksTotal = projectTasks.length;
-      const tasksDone = projectTasks.filter(t => t.completed).length;
-      return {
-        id: p.id, title: p.title, progress, colorHex,
-        goalTitle: parentGoal?.title ?? null,
-        goalDaysLeft,
-        tasksDone,
-        tasksTotal,
-      };
-    };
-    const sortByProgressAsc = (a, b) => a.progress - b.progress;
-    const activeProjects = goalsProjectsEnabled ? (projects || []).filter(p => p.status === 'active' && isVisibleForUser(p)) : [];
-    const projectsPayload = [
-      ...activeProjects.filter(p => p.goalId).map(mapProject).sort(sortByProgressAsc),
-      ...activeProjects.filter(p => !p.goalId).map(mapProject).sort(sortByProgressAsc),
-    ];
-
-    // Dock badge: incomplete scheduled tasks today, excluding imported calendar events
-    // (imported events can't be "completed" by the user and shouldn't inflate the badge)
-    window.electronAPI.setBadgeCount?.(todayTasks.filter(t => !t.completed && !(t.imported && !t.isTaskCalendar)).length);
-
-    window.electronAPI.pushState({
-      v: PROTOCOL_VERSION,
-      type: MSG_DAY_STATE,
-      currentTask: mapTask(inProgress),
-      nextTask: mapTask(nextUpcoming),
-      scheduledTasks: [
-        ...allDayTasks.map(mapTask),
-        ...[...todayTasks]
-          .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
-          .map(mapTask),
-      ],
-      today: {
-        total: todayTasks.length + allDayTasks.length,
-        completed: todayTasks.filter(t => t.completed || isPastCalendarEvent(t)).length + allDayTasks.filter(t => t.completed).length,
-        date: todayStr,
-      },
-      tomorrow: {
-        total: tomorrowAllDay.length + tomorrowTimed.length,
-        tasks: [...tomorrowAllDay.map(mapTask), ...tomorrowTimed.map(mapTask)],
-      },
-      focus: {
-        available: focusModeAvailable,
-        active: showFocusMode,
-        setup: !!focusShowSettings,
-        showStats: !!focusShowStats,
-        phase: focusPhase,
-        secondsRemaining: focusTimerSeconds,
-        running: focusTimerRunning,
-        workMinutes: focusWorkMinutes,
-        breakMinutes: focusBreakMinutes,
-        longBreakMinutes: focusLongBreakMinutes,
-        cycleCount: focusCycleCount || 0,
-        nextFocusTask: (() => {
-          const t = (focusBlockTasks || []).find(t => !t.completed && !focusCompletedTasks?.has(t.id));
-          return t ? { id: t.id, title: t.title } : null;
-        })(),
-      },
-      habits,
-      nextRoutine: nextRoutineRaw ? {
-        id: nextRoutineRaw.id,
-        name: nextRoutineRaw.name,
-        startTime: nextRoutineRaw.startTime,
-        completed: false,
-      } : null,
-      use24Hour: !!use24HourClock,
-      goals: goalsPayload,
-      projects: projectsPayload,
-      hg: {
-        scheduled: (todayHGSessions || []).slice(0, 4).map(s => ({
-          projectId: s.id,
-          title: s.title,
-          colorHex: s.colorHex,
-          startTime: s.startTime,
-          reachable: !!s.reachable,
-          date: s.date,
-        })),
-        active: showHyperGlanceMode ? {
-          projectId: hyperGlanceProjectId || '',
-          title: (() => { const p = (projects || []).find(p => p.id === hyperGlanceProjectId); return p?.title || ''; })(),
-          colorHex: (() => { const p = (projects || []).find(p => p.id === hyperGlanceProjectId); return p?.hyperglance?.color || '#4f46e5'; })(),
-          setup: !!hgShowSettings,
-          completed: !!hgCompleted,
-          phase: hgTimerPhase || 'work',
-          secondsRemaining: hgTimerSeconds || 0,
-          running: !!hgTimerRunning,
-          cycleCount: hgCycleCount || 0,
-          workMinutes: hgWorkMinutes || 25,
-          breakMinutes: hgBreakMinutes || 5,
-          longBreakMinutes: hgLongBreakMinutes || 15,
-          nextTask: (() => {
-            if (!hyperGlanceProjectId) return null;
-            const allT = [...(tasks || []), ...(unscheduledTasks || [])];
-            const t = allT.find(t => t.projectId === hyperGlanceProjectId && !t.archived && !t.completed);
-            return t ? { id: t.id, title: t.title } : null;
-          })(),
-        } : null,
-      },
+    const { payload, badgeCount } = buildStreamDeckState({
+      currentTime, todayAgenda, todayHGSessions, tasks, unscheduledTasks,
+      expandedRecurringTasks, isVisibleForUser,
+      focusModeAvailable, showFocusMode, focusShowSettings, focusShowStats,
+      focusPhase, focusTimerSeconds, focusTimerRunning, focusWorkMinutes,
+      focusBreakMinutes, focusLongBreakMinutes, focusCycleCount,
+      focusBlockTasks, focusCompletedTasks,
+      showHyperGlanceMode, hyperGlanceProjectId, hgShowSettings, hgCompleted,
+      hgTimerPhase, hgTimerSeconds, hgTimerRunning, hgCycleCount,
+      hgWorkMinutes, hgBreakMinutes, hgLongBreakMinutes,
+      habitsEnabled, activeHabits, getTodayHabitCount,
+      todayRoutines, routineCompletions,
+      use24HourClock, goalsProjectsEnabled, goals, projects,
     });
+    window.electronAPI.setBadgeCount?.(badgeCount);
+    window.electronAPI.pushState(payload);
     // isVisibleForUser is omitted: it is a filter applied at push time and is
     // recreated each render, so depending on it would re-push the snapshot on
     // every render. The push is intentionally keyed on the state values below.
