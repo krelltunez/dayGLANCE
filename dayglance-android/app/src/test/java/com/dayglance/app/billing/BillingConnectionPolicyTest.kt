@@ -97,6 +97,28 @@ class BillingConnectionPolicyTest {
     }
 
     @Test
+    fun `repeated buy taps during a slow connect never stack`() {
+        // The not-ready purchase guard kicks connect() on every failed tap
+        // (launchPurchaseFlow's billing_not_ready path), so a user hammering
+        // buy on a slow connection is the same shape as rapid foregrounds.
+        // First tap finds DISCONNECTED and starts the one attempt; every
+        // further tap while that attempt is in flight must WAIT — this is
+        // the rule that keeps the reconnect-on-failure change from stacking
+        // startConnection calls.
+        assertEquals(
+            ConnectAction.CONNECT,
+            BillingConnectionPolicy.connectAction(BillingConnectionPolicy.DISCONNECTED),
+        )
+        repeat(5) {
+            assertEquals(
+                "tap ${it + 2} while connecting must WAIT",
+                ConnectAction.WAIT,
+                BillingConnectionPolicy.connectAction(BillingConnectionPolicy.CONNECTING),
+            )
+        }
+    }
+
+    @Test
     fun `the constants are Play's ConnectionState values`() {
         // BillingClient.ConnectionState: DISCONNECTED=0, CONNECTING=1,
         // CONNECTED=2, CLOSED=3 — mirrored locally so the policy stays
