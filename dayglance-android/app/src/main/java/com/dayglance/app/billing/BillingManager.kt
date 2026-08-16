@@ -206,7 +206,18 @@ class BillingManager(
                 .firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
 
             if (active != null) {
-                if (!active.isAcknowledged) acknowledgePurchase(active)
+                if (!active.isAcknowledged) {
+                    // Opportunistic re-ack lane: outcome-aware (recorded and
+                    // retried on failure via acknowledgePurchase), no longer a
+                    // blind extra attempt.
+                    acknowledgePurchase(active)
+                } else if (dataStore.pendingAckToken == active.purchaseToken) {
+                    // Play reports the pending token acknowledged (the retry
+                    // worker, a prior blind re-ack, or Play itself caught up):
+                    // isAcknowledged from a fresh query is authoritative success.
+                    AckRetryWorker.recordSuccess(dataStore, active.purchaseToken)
+                    logd("pending ack cleared: Play reports token=…${active.purchaseToken.takeLast(8)} acknowledged")
+                }
                 dataStore.subscriptionActive = true
                 dataStore.subscriptionProductId = active.products.firstOrNull()
                 dataStore.subscriptionToken = active.purchaseToken
@@ -215,6 +226,12 @@ class BillingManager(
                 dataStore.subscriptionProductId = null
                 dataStore.subscriptionToken = null
             }
+            // Backstop: a pending-ack record with no live retry chain (WorkManager
+            // state cleared by the OS or the user) gets re-scheduled here. KEEP
+            // policy makes this a no-op while the chain is alive. The worker's
+            // own query settles a record whose purchase has since vanished
+            // (terminal ITEM_NOT_OWNED) or aged out (three-day window).
+            if (dataStore.pendingAckToken != null) AckRetryWorker.schedule(context)
             onPurchasesQueried?.invoke()
             onPurchasesQueried = null
         }
@@ -321,11 +338,32 @@ class BillingManager(
         onBillingEvent?.invoke("success", BillingClient.BillingResponseCode.OK, "", pid)
     }
 
+    /**
+     * Acknowledge a purchase, with the result recorded rather than discarded.
+     * Play refunds any purchase not acknowledged within three days, so a
+     * failure here is real money: it is persisted as a pending-ack record and
+     * retried by AckRetryWorker (WorkManager: survives process death and
+     * reboot, waits for connectivity, exponential backoff) until it succeeds,
+     * proves terminal, or ages past the three-day window. Entitlement is NOT
+     * gated on any of this — subscriptionActive is set by the callers before
+     * or regardless of the ack outcome, deliberately.
+     */
     private fun acknowledgePurchase(purchase: Purchase) {
+        val token = purchase.purchaseToken
+        val productId = purchase.products.firstOrNull()
         val params = AcknowledgePurchaseParams.newBuilder()
-            .setPurchaseToken(purchase.purchaseToken)
+            .setPurchaseToken(token)
             .build()
-        billingClient.acknowledgePurchase(params) { /* fire and forget */ }
+        billingClient.acknowledgePurchase(params) { result ->
+            if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                AckRetryWorker.recordSuccess(dataStore, token)
+                logd("acknowledgePurchase OK: token=…${token.takeLast(8)}")
+            } else {
+                AckRetryWorker.recordFailureAndSchedule(
+                    context, dataStore, token, productId, result.responseCode
+                )
+            }
+        }
     }
 
     fun consumePurchase(token: String, onComplete: (success: Boolean) -> Unit) {

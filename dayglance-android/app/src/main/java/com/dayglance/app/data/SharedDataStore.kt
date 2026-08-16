@@ -227,6 +227,66 @@ class SharedDataStore(context: Context) {
             else remove(KEY_SUBSCRIPTION_TOKEN)
         }
 
+    // ── Purchase acknowledgement retry (see billing/AckRetryPolicy.kt) ──────
+    // The pending record is what makes a failed acknowledgement durable: it is
+    // written the moment an ack fails and survives process death, so the retry
+    // lane (AckRetryWorker) always has something to work from. Cleared only on
+    // authoritative success or a terminal/window give-up.
+
+    /** Purchase token awaiting acknowledgement after a failed ack, or null. */
+    var pendingAckToken: String?
+        get() = prefs.getString(KEY_PENDING_ACK_TOKEN, null)
+        set(value) = prefs.edit {
+            if (value != null) putString(KEY_PENDING_ACK_TOKEN, value)
+            else remove(KEY_PENDING_ACK_TOKEN)
+        }
+
+    /** Product id for the pending-ack purchase (diagnostics only). */
+    var pendingAckProductId: String?
+        get() = prefs.getString(KEY_PENDING_ACK_PRODUCT_ID, null)
+        set(value) = prefs.edit {
+            if (value != null) putString(KEY_PENDING_ACK_PRODUCT_ID, value)
+            else remove(KEY_PENDING_ACK_PRODUCT_ID)
+        }
+
+    /** Epoch ms of the FIRST failed ack for the pending token — the anchor the
+     *  three-day give-up window is measured from. 0 = none. */
+    var pendingAckFirstFailedAt: Long
+        get() = prefs.getLong(KEY_PENDING_ACK_FIRST_FAILED_AT, 0L)
+        set(value) = prefs.edit { putLong(KEY_PENDING_ACK_FIRST_FAILED_AT, value) }
+
+    /** Failed attempts so far for the pending token (diagnostics). */
+    var pendingAckAttempts: Int
+        get() = prefs.getInt(KEY_PENDING_ACK_ATTEMPTS, 0)
+        set(value) = prefs.edit { putInt(KEY_PENDING_ACK_ATTEMPTS, value) }
+
+    // Acknowledgement diagnostics — the "make failure visible" record. Written
+    // on every outcome and NEVER cleared, so a support conversation (or the
+    // hidden dev menu, via SubscriptionBridge.getBillingDiagnostics) can see
+    // what happened after the fact. lastAckOutcome values: "success",
+    // "retrying", "gave_up_terminal", "gave_up_window".
+    var lastAckOutcome: String?
+        get() = prefs.getString(KEY_LAST_ACK_OUTCOME, null)
+        set(value) = prefs.edit {
+            if (value != null) putString(KEY_LAST_ACK_OUTCOME, value)
+            else remove(KEY_LAST_ACK_OUTCOME)
+        }
+
+    /** BillingResponseCode of the most recent failed ack. 0 = none recorded. */
+    var lastAckFailureCode: Int
+        get() = prefs.getInt(KEY_LAST_ACK_FAILURE_CODE, 0)
+        set(value) = prefs.edit { putInt(KEY_LAST_ACK_FAILURE_CODE, value) }
+
+    /** Epoch ms of the most recent failed ack. 0 = never. */
+    var lastAckFailureAt: Long
+        get() = prefs.getLong(KEY_LAST_ACK_FAILURE_AT, 0L)
+        set(value) = prefs.edit { putLong(KEY_LAST_ACK_FAILURE_AT, value) }
+
+    /** Epoch ms of the most recent successful ack (first try or retry). 0 = never. */
+    var lastAckSuccessAt: Long
+        get() = prefs.getLong(KEY_LAST_ACK_SUCCESS_AT, 0L)
+        set(value) = prefs.edit { putLong(KEY_LAST_ACK_SUCCESS_AT, value) }
+
     /** Localized price string for the annual plan, e.g. "£19.99". Null until first Play query. */
     var productPriceAnnual: String?
         get() = prefs.getString(KEY_PRODUCT_PRICE_ANNUAL, null)
@@ -305,6 +365,14 @@ class SharedDataStore(context: Context) {
         private const val KEY_PRODUCT_PRICE_LIFETIME = "product_price_lifetime"
         private const val KEY_TRIAL_ELIGIBLE_ANNUAL  = "trial_eligible_annual"
         private const val KEY_TRIAL_DAYS_ANNUAL      = "trial_days_annual"
+        private const val KEY_PENDING_ACK_TOKEN           = "pending_ack_token"
+        private const val KEY_PENDING_ACK_PRODUCT_ID      = "pending_ack_product_id"
+        private const val KEY_PENDING_ACK_FIRST_FAILED_AT = "pending_ack_first_failed_at"
+        private const val KEY_PENDING_ACK_ATTEMPTS        = "pending_ack_attempts"
+        private const val KEY_LAST_ACK_OUTCOME            = "last_ack_outcome"
+        private const val KEY_LAST_ACK_FAILURE_CODE       = "last_ack_failure_code"
+        private const val KEY_LAST_ACK_FAILURE_AT         = "last_ack_failure_at"
+        private const val KEY_LAST_ACK_SUCCESS_AT         = "last_ack_success_at"
 
         const val DEFAULT_DAILY_NOTE_PATTERN = "yyyy-MM-dd"
         const val DEFAULT_NEW_NOTES_FOLDER = "dayGLANCE"

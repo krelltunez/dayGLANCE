@@ -126,6 +126,44 @@ class SubscriptionBridge(
         """{"dayglance_pro_annual":${dataStore.trialEligibleAnnual}}"""
 
     /**
+     * Read-only acknowledgement diagnostics — the "make failure visible"
+     * surface for the ack-retry lane (billing/AckRetryPolicy.kt). Reachable
+     * through the web layer's hidden dev menu (the same 7-tap path that arms
+     * consumeTestPurchase), and cheap enough to call anytime. No analytics
+     * pipeline: this plus the Log.w lines in the retry lane are the whole
+     * mechanism.
+     *
+     * The pending token is truncated to its last 8 characters (the logd
+     * convention in BillingManager): enough to correlate with logcat, not
+     * enough to leak a usable purchase token to the page.
+     *
+     * Response:
+     *   {"pendingAck": {"tokenTail": "…abc12345", "productId": "...",
+     *                   "firstFailedAt": 0, "attempts": 0} | null,
+     *    "lastOutcome": "success"|"retrying"|"gave_up_terminal"|"gave_up_window"|null,
+     *    "lastFailureCode": 0, "lastFailureAt": 0, "lastSuccessAt": 0}
+     */
+    @JavascriptInterface
+    fun getBillingDiagnostics(): String {
+        val pendingToken = dataStore.pendingAckToken
+        val pending = if (pendingToken != null) {
+            JSONObject().apply {
+                put("tokenTail", "…" + pendingToken.takeLast(8))
+                put("productId", dataStore.pendingAckProductId ?: "")
+                put("firstFailedAt", dataStore.pendingAckFirstFailedAt)
+                put("attempts", dataStore.pendingAckAttempts)
+            }
+        } else JSONObject.NULL
+        return JSONObject().apply {
+            put("pendingAck", pending)
+            put("lastOutcome", dataStore.lastAckOutcome ?: JSONObject.NULL)
+            put("lastFailureCode", dataStore.lastAckFailureCode)
+            put("lastFailureAt", dataStore.lastAckFailureAt)
+            put("lastSuccessAt", dataStore.lastAckSuccessAt)
+        }.toString()
+    }
+
+    /**
      * Consumes the stored lifetime purchase token so it can be bought again.
      * Only available on play builds (BILLING_ENABLED=true). Intended for testing.
      * Result is delivered via window.__billingEvent with status "consumed" or "consume_failed".
