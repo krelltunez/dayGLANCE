@@ -353,7 +353,8 @@
     "removeFileImportedConfirm": "Alle {{n}} aus Datei importierten Termine entfernen? Ein erneuter Datei-Import stellt sie wieder her.",
     "liveActivity": "Live-Aktivität",
     "liveActivityDesc": "Der heutige Plan in der Dynamic Island und auf dem Sperrbildschirm. Verbreitert die Island und verdeckt die Signalsymbole neben der Uhr.",
-    "multiUserICloudOnly": "Erfordert ein gemeinsames Sync-Ziel. iCloud synchronisiert Ihre eigenen Geräte unter einer Apple-ID und kann zwei Personen daher keine gemeinsame Liste bereitstellen. Richten Sie dafür GLANCEvault oder WebDAV-Sync ein."
+    "multiUserICloudOnly": "Erfordert ein gemeinsames Sync-Ziel. iCloud synchronisiert Ihre eigenen Geräte unter einer Apple-ID und kann zwei Personen daher keine gemeinsame Liste bereitstellen. Richten Sie dafür GLANCEvault oder WebDAV-Sync ein.",
+    "language": "Sprache"
   },
   "task": {
     "newScheduled": "Neue geplante Aufgabe",

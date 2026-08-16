@@ -43,6 +43,7 @@ import { ensureVaultIntentsKey, setupVaultIntentsEncryption } from '../intents/v
 import { flushOutboxNow } from '../intents/useOutboxFlush.js';
 import { loadIntentsRootKey, clearIntentsRootKey } from '../intents/intentsKeyStore.js';
 import { useTranslation } from 'react-i18next';
+import LanguagePicker from './LanguagePicker.jsx';
 import { notBucketed } from '../utils/bucketList.js';
 
 const MobileSettingsPanel = () => {
@@ -583,6 +584,19 @@ const MobileSettingsPanel = () => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Language */}
+      <hr className={borderClass} />
+      <div className="space-y-2">
+        <label htmlFor="mobile-settings-language" className={`font-medium ${textPrimary} flex items-center gap-2`}>
+          <Globe size={16} className={textSecondary} />
+          {t('settings.language')}
+        </label>
+        <LanguagePicker
+          id="mobile-settings-language"
+          className={`w-full px-3 py-2 text-sm rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+        />
       </div>
 
       {/* Home timezone */}

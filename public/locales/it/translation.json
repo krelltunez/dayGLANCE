@@ -353,7 +353,8 @@
     "removeFileImportedConfirm": "Rimuovere tutti i {{n}} eventi importati da file? Reimportando il file verranno ripristinati.",
     "liveActivity": "Attività in tempo reale",
     "liveActivityDesc": "Il piano di oggi nella Dynamic Island e nella schermata di blocco. Allarga l'isola e nasconde le icone del segnale accanto all'orologio.",
-    "multiUserICloudOnly": "Richiede una destinazione di sincronizzazione condivisa. iCloud sincronizza i tuoi dispositivi con un unico Apple ID, quindi non può fornire una lista condivisa a due persone. Configura GLANCEvault o la sincronizzazione WebDAV per farlo."
+    "multiUserICloudOnly": "Richiede una destinazione di sincronizzazione condivisa. iCloud sincronizza i tuoi dispositivi con un unico Apple ID, quindi non può fornire una lista condivisa a due persone. Configura GLANCEvault o la sincronizzazione WebDAV per farlo.",
+    "language": "Lingua"
   },
   "task": {
     "newScheduled": "Nuova attività pianificata",
