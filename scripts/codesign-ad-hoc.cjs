@@ -11,8 +11,18 @@
 // the xattr/detritus cleanup still runs (it's harmless and prevents codesign
 // failures on CI), but the ad-hoc --sign - step is skipped.
 
-const { execSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const path = require('path');
+
+exports._spawnSync = spawnSync;
+
+function runOrThrow(command, args) {
+  const result = exports._spawnSync(command, args, { stdio: 'inherit' });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`[codesign-ad-hoc] ${command} exited with status ${result.status}`);
+  }
+}
 
 exports.default = async function codesignAdHoc({ appOutDir, packager, electronPlatformName }) {
   if (packager.platform.name !== 'mac') return;
@@ -26,9 +36,9 @@ exports.default = async function codesignAdHoc({ appOutDir, packager, electronPl
   // xattr -cr handles all file types including symlinks inside Electron frameworks
   // (e.g. Versions/Current) that the previous find -not -type l approach skipped.
   console.log(`[codesign-ad-hoc] Removing ._* resource fork files from ${appPath}`);
-  execSync(`find ${JSON.stringify(appPath)} -name "._*" -delete`);
+  runOrThrow('find', [appPath, '-name', '._*', '-delete']);
   console.log(`[codesign-ad-hoc] Clearing xattrs on ${appPath}`);
-  execSync(`xattr -cr ${JSON.stringify(appPath)}`);
+  runOrThrow('xattr', ['-cr', appPath]);
   // MAS builds are always signed by electron-builder with the Mac App Store
   // distribution identity (from the keychain) — never ad-hoc sign them, or the
   // App Store signature would be invalid. The xattr cleanup above still helps.
@@ -41,5 +51,7 @@ exports.default = async function codesignAdHoc({ appOutDir, packager, electronPl
     return;
   }
   console.log(`[codesign-ad-hoc] Signing ${appPath}`);
-  execSync(`codesign --sign - --deep --force ${JSON.stringify(appPath)}`);
+  runOrThrow('codesign', ['--sign', '-', '--deep', '--force', appPath]);
 };
+
+exports.runOrThrow = runOrThrow;
