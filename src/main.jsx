@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
-import './i18n.js'
+import { ready as i18nReady } from './i18n.js'
 
 // crypto.randomUUID() requires a secure context (HTTPS or localhost).
 // When accessed over HTTP on a LAN IP the API is absent and every call throws,
@@ -77,10 +77,21 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </React.StrictMode>,
-)
+function mount() {
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </React.StrictMode>,
+  )
+}
+
+// The active language is its own chunk now, so wait for it before the first
+// paint — otherwise a non-English user watches the UI render in English and
+// then swap. A failed fetch still mounts: i18next falls back to bundled en,
+// and a missing translation is a better outcome than a blank screen.
+i18nReady.then(mount, (error) => {
+  console.error('Translations failed to load; continuing in English:', error)
+  mount()
+})
