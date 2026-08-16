@@ -740,6 +740,12 @@ const DayPlanner = () => {
   // Wikilink autocomplete candidates — bare note names from the connected vault.
   // Populated when the vault connects (native or FSA) and used by task-title inputs.
   const [wikilinkCandidates, setWikilinkCandidates] = useState([]);
+  // Vault entries whose names may not sync to Windows or Android devices
+  // (issue #1358) — [{ path, reason }], computed during the same vault scan
+  // that populates wikilinkCandidates and listed read-only in Settings →
+  // Obsidian. Informational, not an error: the harm is conditional on
+  // multi-platform sync dayGLANCE cannot detect.
+  const [unportableVaultFiles, setUnportableVaultFiles] = useState([]);
 
   // Auto-Backup state. Saved configs predating a section (e.g. `folder`) get
   // that section's defaults merged in so downstream code can assume the shape.
@@ -2698,6 +2704,7 @@ const DayPlanner = () => {
     unscheduledTasks, setUnscheduledTasks,
     setDailyNotes,
     setWikilinkCandidates,
+    setUnportableVaultFiles,
     obsidianConfig, setObsidianConfig,
     setObsidianSyncStatus, setObsidianSyncError, setObsidianLastSynced,
     obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
@@ -8250,6 +8257,7 @@ const DayPlanner = () => {
     obsidianSyncError, setObsidianSyncError,
     obsidianLastSynced, setObsidianLastSynced,
     wikilinkCandidates, setWikilinkCandidates,
+    unportableVaultFiles, setUnportableVaultFiles,
 
     // ── TRMNL ─────────────────────────────────────────────────────────────────
     trmnlConfig, setTrmnlConfig,

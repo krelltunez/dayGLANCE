@@ -18,6 +18,7 @@ import {
   validateWikiNoteName,
   validateVaultFolderSetting,
 } from './utils/obsidianFilename.js';
+import { unportableEntryReason } from './utils/vaultPortability.js';
 
 // How far back the Obsidian daily-note scan reads, in days. DELIBERATELY FIXED and
 // decoupled from the calendar "Keep past events" retention (syncRetentionDays):
@@ -635,24 +636,37 @@ export async function writeWikiNote(vaultHandle, noteName, content, newNotesFold
 }
 
 /**
- * Return a sorted array of all vault note names (bare, without .md extension).
- * Used to populate the wikilink autocomplete candidates list.
- * Scans at most 8 levels deep and ignores hidden directories (starting with '.').
+ * Scan the vault once and return everything the single traversal can tell us:
+ *  - names: sorted bare note names (without .md), for wikilink autocomplete.
+ *  - unportable: [{ path, reason }] of entries whose names may not sync to
+ *    Windows or Android devices (issue #1358; rules in
+ *    utils/vaultPortability.js). Computed during this scan precisely so the
+ *    Settings -> Obsidian listing costs no traversal of its own.
+ * Scans at most 8 levels deep and ignores hidden directories (starting with
+ * '.'), both unchanged from the original wikilink-candidates scan.
  */
-export async function listVaultNotes(vaultHandle) {
+export async function scanVaultNotes(vaultHandle) {
   const names = [];
-  async function scan(dir, depth) {
+  const unportable = [];
+  async function scan(dir, depth, prefix) {
     if (depth > 8) return;
     for await (const [name, handle] of dir.entries()) {
-      if (handle.kind === 'file' && name.endsWith('.md')) {
-        names.push(name.slice(0, -3));
+      if (handle.kind === 'file') {
+        if (name.endsWith('.md')) names.push(name.slice(0, -3));
+        const reason = unportableEntryReason(name, 'file');
+        if (reason) unportable.push({ path: prefix + name, reason });
       } else if (handle.kind === 'directory' && !name.startsWith('.')) {
-        await scan(handle, depth + 1);
+        const reason = unportableEntryReason(name, 'directory');
+        if (reason) unportable.push({ path: prefix + name + '/', reason });
+        await scan(handle, depth + 1, prefix + name + '/');
       }
     }
   }
-  await scan(vaultHandle, 0);
-  return names.sort((a, b) => a.localeCompare(b));
+  await scan(vaultHandle, 0, '');
+  return {
+    names: names.sort((a, b) => a.localeCompare(b)),
+    unportable: unportable.sort((a, b) => a.path.localeCompare(b.path)),
+  };
 }
 
 /**

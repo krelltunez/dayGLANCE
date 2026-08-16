@@ -4,7 +4,7 @@ import {
   syncObsidianVault, syncObsidianVaultNative,
   writeTaskStateToFile, writeTaskStateNative,
   simpleHash as obsidianSimpleHash,
-  readWikiNote, writeWikiNote, listVaultNotes,
+  readWikiNote, writeWikiNote, scanVaultNotes,
   OBSIDIAN_IMPORT_WINDOW_DAYS, obsidianWindowCutoffDate,
 } from '../obsidian.js';
 import {
@@ -13,6 +13,7 @@ import {
   nativeListNotes, nativeSetVaultSettings,
 } from '../native.js';
 import { validateWikiNoteName } from '../utils/obsidianFilename.js';
+import { classifyVaultPaths } from '../utils/vaultPortability.js';
 import { mergeObsidianDailyNotes } from '../utils/mergeObsidianDailyNotes.js';
 import { mergeObsidianTasks } from '../utils/mergeObsidianTasks.js';
 import { detectObsidianDeletions, addObsidianTombstones } from '../utils/obsidianDeletions.js';
@@ -38,6 +39,7 @@ export default function useObsidianSync({
   unscheduledTasks, setUnscheduledTasks,
   setDailyNotes,
   setWikilinkCandidates,
+  setUnportableVaultFiles,
   obsidianConfig, setObsidianConfig,
   setObsidianSyncStatus, setObsidianSyncError, setObsidianLastSynced,
   obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
@@ -154,7 +156,7 @@ export default function useObsidianSync({
         const handle = await getVaultAccess();
         if (!handle) return;
         obsidianVaultHandleRef.current = handle;
-        listVaultNotes(handle).then(names => setWikilinkCandidates(names)).catch(() => {});
+        scanVaultNotes(handle).then(({ names, unportable }) => { setWikilinkCandidates(names); setUnportableVaultFiles?.(unportable); }).catch(() => {});
       } catch {
         return;
       }
@@ -298,7 +300,10 @@ export default function useObsidianSync({
           // Populate wikilink autocomplete candidates from the vault index
           try {
             const notes = nativeListNotes('');
-            if (notes) setWikilinkCandidates(notes.map(p => p.split('/').pop().replace(/\.md$/i, '')).sort((a, b) => a.localeCompare(b)));
+            if (notes) {
+              setWikilinkCandidates(notes.map(p => p.split('/').pop().replace(/\.md$/i, '')).sort((a, b) => a.localeCompare(b)));
+              setUnportableVaultFiles?.(classifyVaultPaths(notes));
+            }
           } catch {}
         } else {
           // No Obsidian configured — release the splash immediately
@@ -317,7 +322,7 @@ export default function useObsidianSync({
         if (handle) {
           obsidianVaultHandleRef.current = handle;
           performObsidianSync();
-          listVaultNotes(handle).then(names => setWikilinkCandidates(names)).catch(() => {});
+          scanVaultNotes(handle).then(({ names, unportable }) => { setWikilinkCandidates(names); setUnportableVaultFiles?.(unportable); }).catch(() => {});
         }
       } catch (err) {
         console.error('Obsidian: failed to restore vault access', err);
@@ -351,7 +356,10 @@ export default function useObsidianSync({
             requestAnimationFrame(() => setTimeout(() => {
               try {
                 const notes = nativeListNotes('');
-                if (notes) setWikilinkCandidates(notes.map(p => p.split('/').pop().replace(/\.md$/i, '')).sort((a, b) => a.localeCompare(b)));
+                if (notes) {
+              setWikilinkCandidates(notes.map(p => p.split('/').pop().replace(/\.md$/i, '')).sort((a, b) => a.localeCompare(b)));
+              setUnportableVaultFiles?.(classifyVaultPaths(notes));
+            }
               } catch {}
             }, 0));
           }

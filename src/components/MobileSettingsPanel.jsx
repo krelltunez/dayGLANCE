@@ -13,7 +13,8 @@ import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from '../constants/habits
 import { getDeviceId, isNativeAndroid, isNativeApp, nativeGetCalendars, nativePickVault, nativeGetAutomationIntentsEnabled, nativeSetAutomationIntentsEnabled } from '../native.js';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
-import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, listVaultNotes, formatDatePattern } from '../obsidian.js';
+import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, scanVaultNotes, formatDatePattern } from '../obsidian.js';
+import UnportableVaultNamesPanel from './UnportableVaultNamesPanel.jsx';
 import { validateDailyNotePattern, validateVaultFolderSetting } from '../utils/obsidianFilename.js';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import ICloudDiagnostics from './ICloudDiagnostics.jsx';
@@ -94,6 +95,7 @@ const MobileSettingsPanel = () => {
     obsidianConfig, setObsidianConfig,
     obsidianSyncStatus, obsidianSyncError, obsidianLastSynced, setObsidianLastSynced,
     wikilinkCandidates, setWikilinkCandidates,
+    unportableVaultFiles, setUnportableVaultFiles,
     cloudSyncTest, cloudSyncNow,
     vaultSyncNow, vaultBootstrapSync, vaultStatus, vaultError, vaultLastSynced, vaultSkipped, vaultEnabled,
     syncAll, performObsidianSync, performRemoteBackup, nativeClearVault,
@@ -1596,6 +1598,7 @@ const MobileSettingsPanel = () => {
                     setObsidianConfig(null);
                     setObsidianLastSynced(null);
                     setWikilinkCandidates([]);
+                    setUnportableVaultFiles?.([]);
                     localStorage.removeItem('day-planner-obsidian-last-synced');
                     setTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
                     setUnscheduledTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
@@ -1770,6 +1773,7 @@ const MobileSettingsPanel = () => {
                 obsidianVaultHandleRef.current = null;
                 setObsidianConfig(null);
                 setObsidianLastSynced(null);
+                setUnportableVaultFiles?.([]);
                 localStorage.removeItem('day-planner-obsidian-last-synced');
                 setTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
                 setUnscheduledTasks(prev => prev.filter(t => t.importSource !== 'obsidian'));
@@ -1784,6 +1788,7 @@ const MobileSettingsPanel = () => {
           {obsidianLastSynced && (
             <p className={`text-xs ${textSecondary}`}>{t('common.lastSynced')}: {new Date(obsidianLastSynced).toLocaleString()}</p>
           )}
+          <UnportableVaultNamesPanel entries={unportableVaultFiles} darkMode={darkMode} textSecondary={textSecondary} />
         </div>
       ) : (
         <button
@@ -1796,7 +1801,7 @@ const MobileSettingsPanel = () => {
             if (handle) {
               obsidianVaultHandleRef.current = handle;
               setObsidianConfig({ enabled: true, dailyNotesPath: '', vaultName: handle.name });
-              listVaultNotes(handle).then(names => setWikilinkCandidates(names)).catch(() => {});
+              scanVaultNotes(handle).then(({ names, unportable }) => { setWikilinkCandidates(names); setUnportableVaultFiles?.(unportable); }).catch(() => {});
             }
           }}
           className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
