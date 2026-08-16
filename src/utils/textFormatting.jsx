@@ -1,4 +1,5 @@
 import React from 'react';
+import { isOnlyPhoneNumber, phoneTelUrl, canDialHere } from './phoneNumber.js';
 
 // URL detection regex for notes
 export const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
@@ -130,15 +131,42 @@ export const hasNotesOrSubtasks = (task) => {
   return (task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0);
 };
 
-// Check if task has only a link (note is URL-only, no subtasks)
-export const isLinkOnlyTask = (task) => {
+// Check if task's note is JUST a phone number, on a platform that can dial
+// (the capability gate keeps this false on desktop, where the note keeps the
+// plain notes behavior). The phone twin of the URL-only affordance.
+export const isPhoneOnlyTask = (task) => {
   if (task.subtasks && task.subtasks.length > 0) return false;
-  return isOnlyUrl(task.notes);
+  return canDialHere() && isOnlyPhoneNumber(task.notes);
 };
 
-// Get the link URL from a link-only task
+// Check if task has only an actionable note (no subtasks, note is a single
+// URL, or a single phone number where dialing is possible). Callers that need
+// to distinguish the two kinds (icon choice) check isPhoneOnlyTask first.
+export const isLinkOnlyTask = (task) => {
+  if (task.subtasks && task.subtasks.length > 0) return false;
+  return isOnlyUrl(task.notes) || isPhoneOnlyTask(task);
+};
+
+// Get the actionable URL from a link-only task: the raw URL for web links
+// (unchanged behavior), a tel: URI for dialable phone-number notes.
 export const getLinkUrl = (task) => {
-  return task.notes?.trim() || null;
+  const trimmed = task.notes?.trim();
+  if (!trimmed) return null;
+  if (!isOnlyUrl(trimmed) && canDialHere() && isOnlyPhoneNumber(trimmed)) return phoneTelUrl(trimmed);
+  return trimmed;
+};
+
+// Open the action a link-only note represents. Web links open in a new
+// tab/window (both native shells route them externally). Phone numbers must
+// NAVIGATE to tel: instead: the iOS shell's window.open path
+// (createWebViewWith) forwards only http/https, while a navigation reaches
+// decidePolicyFor, which hands tel: to the system dialer. Both shells cancel
+// the navigation, so the app never actually leaves the page.
+export const openNoteAction = (task) => {
+  const url = getLinkUrl(task);
+  if (!url) return;
+  if (url.startsWith('tel:')) window.location.href = url;
+  else window.open(url, '_blank', 'noopener,noreferrer');
 };
 
 // Given shared text (from Android share sheet or web share target), extract a human-readable
