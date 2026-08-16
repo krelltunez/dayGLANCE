@@ -44,24 +44,37 @@ describe('locale bundles', () => {
     expect(value, `${lng} still carries the English string`).not.toBe(en);
   });
 
-  // de/es/it/pt were frozen while they were unreachable, so they sit behind en
-  // by a fixed set of keys; those fall back to English per key rather than
-  // breaking. Pinning the number keeps the gap from widening unnoticed and
-  // fails loudly once the backlog is translated, as the prompt to lower it.
+  // de/es/it/pt were 61 keys behind en, having been frozen while they were
+  // unreachable. That backlog is translated, so this is now a strict parity
+  // check rather than a ratchet: a key added to en without translations fails
+  // here instead of silently rendering English.
   describe('coverage against en', () => {
-    const KNOWN_GAP = { de: 61, es: 61, fr: 0, it: 61, pt: 61 };
-
-    it.each(TRANSLATED)('%s is missing exactly its known number of keys', (lng) => {
+    it.each(TRANSLATED)('%s covers every key in en', (lng) => {
       const missing = [...keysOf('en')].filter((k) => !keysOf(lng).has(k));
       expect(
-        missing.length,
-        `${lng} gap changed — translate the backlog and lower KNOWN_GAP, or investigate the new omissions:\n  ${missing.slice(0, 10).join('\n  ')}`,
-      ).toBe(KNOWN_GAP[lng]);
+        missing,
+        `${lng} is missing keys that en has — translate them:\n  ${missing.slice(0, 10).join('\n  ')}`,
+      ).toEqual([]);
     });
 
     it.each(TRANSLATED)('%s carries no keys that en does not', (lng) => {
       const extra = [...keysOf(lng)].filter((k) => !keysOf('en').has(k));
       expect(extra, `${lng} has keys absent from en`).toEqual([]);
     });
+  });
+
+  // The backlog covered four namespaces at once. Spot-checking one string from
+  // each catches a namespace merged in as an untranslated copy of the English.
+  describe('backlog namespaces are actually translated', () => {
+    const SAMPLES = ['reset.title', 'icloudDiag.title', 'icloudFirstRun.title', 'icloudSync.title'];
+    const get = (lng, key) => key.split('.').reduce((o, k) => o?.[k], bundles[lng]);
+
+    it.each(TRANSLATED.flatMap((lng) => SAMPLES.map((key) => [lng, key])))(
+      '%s translates %s',
+      (lng, key) => {
+        expect(get(lng, key), `${lng} is missing ${key}`).toBeTypeOf('string');
+        expect(get(lng, key), `${lng} left ${key} in English`).not.toBe(get('en', key));
+      },
+    );
   });
 });
