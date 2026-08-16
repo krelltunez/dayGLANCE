@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Wordmark from './Wordmark';
 import { Check, Loader } from 'lucide-react';
+import { paywallErrorMessage } from '../utils/paywallErrorMessage.js';
 
 /**
  * Full-screen paywall shown on Android, iOS, and macOS when the user has no active subscription.
@@ -49,7 +50,12 @@ export default function SubscriptionWall({
     if (!billingEvent) return;
     setPending(null);
     if (billingEvent.status === 'error') {
-      setErrorMsg(billingErrorMessage?.(billingEvent.code) ?? 'Something went wrong. Please try again.');
+      // isAndroid: this wall only renders on the three native platforms, and
+      // isIOSApp covers both Apple ones — so !isIOSApp here means Android.
+      setErrorMsg(paywallErrorMessage(billingEvent, {
+        isAndroid: !isIOSApp,
+        mapCode: billingErrorMessage,
+      }));
     } else {
       setErrorMsg(null);
     }

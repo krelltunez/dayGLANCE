@@ -342,8 +342,19 @@ class BillingManager(
         }
         val client = client()
         if (!client.isReady) {
-            Log.w(TAG, "launchPurchaseFlow($productId): client not ready")
+            Log.w(TAG, "launchPurchaseFlow($productId): client not ready — kicking a connection attempt")
             onBillingEvent?.invoke("error", BillingClient.BillingResponseCode.SERVICE_DISCONNECTED, "billing_not_ready", productId)
+            // The paywall tells the user to try again in a moment; make that
+            // advice true by establishing the connection the retry needs,
+            // instead of hoping unrelated connection work is in flight.
+            // connect() routes through the accessor (a CLOSED client is
+            // replaced, never reused) and BillingConnectionPolicy (CONNECTING
+            // maps to WAIT, so repeated taps on a slow connection cannot stack
+            // startConnection calls). Deliberately NO auto-resume: the
+            // purchase is not re-launched when the connection lands — a Play
+            // sheet appearing seconds after a failure, possibly after the
+            // user navigated away, is worse than a second tap.
+            connect()
             return
         }
 
