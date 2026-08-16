@@ -447,6 +447,10 @@ export function createDbEngine(callbacks = {}) {
     if (syncing) return;
     syncing = true;
     callbacks.onError?.(null, null);
+    // Pull-cursor value as of cycle start, for the rollback in the catch
+    // below. Captured under the in-flight guard, so nothing else can move the
+    // cursor between here and the rollback.
+    const preCycleHwm = engine.getHighWaterMark();
     try {
       mirror = clone(callbacks.getData()) || {};
 
@@ -730,6 +734,37 @@ export function createDbEngine(callbacks = {}) {
       callbacks.onStatusChange?.('success');
       return { applied: pull?.applied ?? 0, skipped: pull?.skipped ?? 0, skippedEntityIds: pull?.skippedEntityIds ?? [] };
     } catch (err) {
+      // ROLL THE PULL CURSOR BACK to where this cycle started. This looks like
+      // it is fighting the package, and it is — deliberately. As of
+      // @glance-apps/sync 1.10.0 pullRemoteChanges persists the pull cursor
+      // PER PAGE, on the assumption that an applied row is durable the moment
+      // applyRemoteEntity returns. That holds for dbSyncCycle consumers
+      // (lastGLANCE/lifeGLANCE apply straight into their stores); it does not
+      // hold here: our applyRemoteEntity writes into the per-cycle MIRROR,
+      // which this catch discards (commit-only-on-success, above). Without the
+      // rollback, a pull that fails mid-pagination leaves the cursor advanced
+      // past pages whose rows were applied only to the discarded mirror —
+      // those rows sit below the cursor forever, are never re-listed by an
+      // incremental pull, and are unreachable by the glitch heal (which only
+      // re-fetches rows that were in the SNAPSHOT and vanished locally; these
+      // were never in either). Demonstrated as permanent row loss in the
+      // 1.10.0 survey and pinned by dbPullPagination.test.js.
+      //
+      // The rollback restores 1.6.1's mid-pagination failure semantics — a
+      // failed cycle re-pulls from where it started — and goes one step
+      // further: it also rewinds after a pull that SUCCEEDED when a later step
+      // (push, heal, commit) threw, because the mirror is discarded then too
+      // and 1.6.1 had the same loss window on that path. The invariant is
+      // simple: the cursor must never sit ahead of state this device has
+      // actually committed. Re-pulling already-applied rows next cycle is
+      // idempotent (entity-grain LWW).
+      //
+      // The trade, written down: dayGLANCE forfeits 1.10.0's per-page
+      // convergence benefit (a huge backlog on a flaky connection resuming
+      // from the last good page) because it cannot bank it while its commit
+      // is all-or-nothing. Making the benefit safe here would need durable
+      // per-page commits, which is an architecture change, not a bump.
+      try { engine.setHighWaterMark(preCycleHwm); } catch { /* storage unavailable */ }
       const code = err && err.code ? err.code : 'NETWORK_ERROR';
       callbacks.onError?.(err?.message || String(err), code);
       callbacks.onStatusChange?.('error');
