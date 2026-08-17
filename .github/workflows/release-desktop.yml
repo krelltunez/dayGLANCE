@@ -16,7 +16,7 @@ jobs:
           - os: windows-latest
             artifact_glob: "dist-app/*.exe"
           - os: ubuntu-latest
-            artifact_glob: "dist-app/*.AppImage"
+            artifact_glob: "dist-app/*.AppImage dist-app/*.deb"
 
     runs-on: ${{ matrix.os }}
 
@@ -67,6 +67,7 @@ jobs:
             dist-app/*-mac.zip
             dist-app/*.exe
             dist-app/*.AppImage
+            dist-app/*.deb
           if-no-files-found: ignore
 
   release:

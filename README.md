@@ -79,16 +79,26 @@ Native builds for macOS, Windows and Linux are on the [releases page](https://gi
 |---|---|---|
 | macOS | `.dmg`, `.zip` | Intel (`x64`) and Apple Silicon (`arm64`) |
 | Windows | `.exe` installer | x64 |
-| Linux | `dayGLANCE-<version>-x64.AppImage` | x64 |
-| Linux | `dayGLANCE-<version>-arm64.AppImage` | arm64 |
+| Linux | `dayglance_<version>_amd64.deb`, `dayglance_<version>_arm64.deb` | x64 and arm64 |
+| Linux | `dayGLANCE-<version>-x64.AppImage`, `dayGLANCE-<version>-arm64.AppImage` | x64 and arm64 |
 
-Every Linux artifact names its architecture, so pick the one matching `uname -m`: `x86_64` takes the `x64` build, `aarch64` takes `arm64`. Running the wrong one fails with `cannot execute binary file: exec format error`.
+Every Linux artifact names its architecture. Check yours with `uname -m`: `x86_64` takes the `x64` AppImage or the `amd64` deb, `aarch64` takes either `arm64` file. Debian and AppImage spell 64-bit Intel differently, `amd64` versus `x64`, but they mean the same thing. Running the wrong architecture fails with `cannot execute binary file: exec format error`.
 
 The arm64 AppImage covers 64-bit Raspberry Pi OS and other aarch64 desktops. 32-bit systems reporting `armv7l` are not covered. If you only want the planner itself on an ARM board rather than the desktop features, the Docker image above is lighter.
 
 AppImages need FUSE. If launching complains about it, either install `libfuse2` or run with `--appimage-extract-and-run`.
 
-#### Running it on Linux
+#### Installing on Linux
+
+**On Debian, Ubuntu, Raspberry Pi OS or anything else with `apt`, take the `.deb`.** It installs properly: the app lands in your applications menu with its icon, and `apt remove dayglance` takes it away again.
+
+```bash
+sudo apt install ./dayglance_<version>_arm64.deb
+```
+
+Then launch it from your menu, or run `dayglance` from a terminal.
+
+#### The AppImage, if you would rather stay portable
 
 An AppImage is not installed. It is a single self-contained executable that stays wherever you saved it, so there is no setup step and nothing to uninstall later:
 

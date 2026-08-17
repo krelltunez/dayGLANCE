@@ -212,7 +212,6 @@ module.exports = {
     // ${arch} expands through Arch[arch], so the values are x64 and arm64, not
     // x86_64. Matching electron-builder's own vocabulary beats inventing a
     // synonym, and "x86" would be wrong outright since it reads as 32-bit.
-    artifactName: '${productName}-${version}-${arch}.${ext}',
     // Desktop-entry metadata. electron-builder writes Name, Exec, Type, Terminal,
     // Icon and StartupWMClass itself (LinuxTargetHelper), so only the keys it
     // cannot infer are set here. All three of these were missing:
@@ -248,6 +247,29 @@ module.exports = {
         Keywords: 'planner;schedule;tasks;todo;calendar;timeblocking;habits;goals;',
       },
     },
-    target: [{ target: 'AppImage', arch: ['x64', 'arm64'] }],
+    // maintainer is REQUIRED by the deb target and by nothing else. FpmTarget's
+    // checkOptions throws before building on a missing homepage (package.json,
+    // added alongside this) or a missing maintainer, taken from here or from a
+    // package.json author carrying an email. Declaring a deb target without both
+    // does not degrade, it FAILS THE LINUX BUILD.
+    //
+    // This address ships inside every published package and is readable by anyone
+    // who installs one, so it is deliberately the project's public contact rather
+    // than a personal address.
+    maintainer: 'GLANCE Apps <hello@glance-apps.com>',
+    target: [
+      // artifactName sits on the TARGET, not the platform: at platform level it
+      // would rename the deb too, and Debian's convention is
+      // name_version_arch.deb with arch as amd64, not ${productName}-...-x64.deb.
+      // Target-specific patterns still set isUserForced, so x64 keeps its suffix.
+      { target: 'AppImage', arch: ['x64', 'arm64'],
+        artifactName: '${productName}-${version}-${arch}.${ext}' },
+      // deb exists because an AppImage is not installed: it is a loose executable
+      // that never creates a menu entry, so "where is it after installing" had no
+      // good answer. A deb unpacks to /opt, registers the .desktop file written
+      // from the metadata above, and uninstalls with apt like anything else.
+      // AppImage stays for distros without dpkg and for people who want portable.
+      { target: 'deb', arch: ['x64', 'arm64'] },
+    ],
   },
 };

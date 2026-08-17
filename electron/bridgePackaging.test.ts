@@ -107,20 +107,55 @@ describe('desktop target architectures are declared, never inherited from the ho
 // arch suffix for the default arch UNLESS artifactName is user-specified, so
 // the presence of that pattern is load-bearing, not cosmetic.
 describe('Linux artifact names carry their architecture', () => {
-  it('linux sets artifactName, which is what stops x64 losing its suffix', () => {
-    const config = loadConfig({ DAYGLANCE_APP_ID: undefined });
-    const pattern = (config['linux'] as { artifactName?: string } | undefined)?.artifactName;
-    expect(pattern, 'without artifactName, x64 builds as an unlabelled name').toBeDefined();
-    expect(pattern).toContain('${arch}');
+  const linuxTargets = (config: Record<string, never>) =>
+    ((config['linux'] as unknown as { target?: unknown })?.target ?? []) as {
+      target: string;
+      arch?: string[];
+      artifactName?: string;
+    }[];
+
+  it('the AppImage target sets artifactName, stopping x64 losing its suffix', () => {
+    const appImage = linuxTargets(loadConfig({ DAYGLANCE_APP_ID: undefined }))
+      .find((t) => t.target === 'AppImage');
+    expect(appImage?.artifactName, 'without it, x64 builds unlabelled').toBeDefined();
+    expect(appImage?.artifactName).toContain('${arch}');
+    expect(appImage?.artifactName).toContain('${version}');
+    expect(appImage?.artifactName).toContain('${ext}');
   });
 
-  it('the pattern keeps the version and the extension placeholder too', () => {
+  it('the pattern is NOT set platform-wide, which would rename the deb too', () => {
+    // Debian convention is name_version_arch.deb with arch as amd64. A
+    // platform-level pattern would impose ${productName}-...-x64.deb on it.
     const config = loadConfig({ DAYGLANCE_APP_ID: undefined });
-    const pattern = (config['linux'] as { artifactName?: string } | undefined)?.artifactName ?? '';
-    expect(pattern).toContain('${version}');
-    expect(pattern).toContain('${ext}');
+    expect((config['linux'] as unknown as { artifactName?: string }).artifactName).toBeUndefined();
+  });
+
+  it('deb takes electron-builder default naming', () => {
+    const deb = linuxTargets(loadConfig({ DAYGLANCE_APP_ID: undefined }))
+      .find((t) => t.target === 'deb');
+    expect(deb, 'a deb target must exist for a real install').toBeDefined();
+    expect(deb?.artifactName).toBeUndefined();
+    expect(deb?.arch).toEqual(['x64', 'arm64']);
+  });
+
+  it('maintainer is set, without which the deb target throws before building', () => {
+    // FpmTarget.checkOptions requires homepage (package.json) and a maintainer
+    // from linux.maintainer or a package.json author with an email. Missing
+    // either fails the Linux build outright rather than degrading.
+    const linux = config_maintainer(loadConfig({ DAYGLANCE_APP_ID: undefined }));
+    expect(linux, 'no maintainer means the Linux job fails').toBeTruthy();
+    expect(linux).toMatch(/<[^@\s]+@[^>\s]+>/);
+  });
+
+  it('package.json declares homepage, the other field fpm requires', () => {
+    const pkg = JSON.parse(require('node:fs').readFileSync('package.json', 'utf-8'));
+    expect(pkg.homepage, 'computePackageUrl reads metadata.homepage first').toBeTruthy();
   });
 });
+
+function config_maintainer(config: Record<string, never>): string | undefined {
+  return (config['linux'] as unknown as { maintainer?: string }).maintainer;
+}
 
 // Desktop-entry metadata. electron-builder writes Name, Exec, Type, Terminal,
 // Icon and StartupWMClass itself, so these assertions cover only the keys it
