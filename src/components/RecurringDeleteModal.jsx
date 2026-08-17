@@ -15,7 +15,10 @@ const RecurringDeleteModal = () => {
   if (!recurringDeleteConfirm) return null;
 
   return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setRecurringDeleteConfirm(null)} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setRecurringDeleteConfirm(null); } }} tabIndex={-1} ref={(el) => el && el.focus()}>
+        // z-[90]: must top everything it can be spawned from — G&P dashboard
+        // (z-60), planner (z-70), and the task editor's delete button (z-80);
+        // matches DatePicker and the notes overlay.
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[90]" onClick={() => setRecurringDeleteConfirm(null)} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setRecurringDeleteConfirm(null); } }} tabIndex={-1} ref={(el) => el && el.focus()}>
           <div
             className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
             onClick={(e) => e.stopPropagation()}

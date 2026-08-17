@@ -3643,8 +3643,11 @@ const DayPlanner = () => {
         }
       }
     } else if (newTask.recurrence) {
-      // Convert regular task to recurring: remove from tasks, create recurring template
-      const existingTask = tasks.find(t => t.id === taskId);
+      // Convert regular task to recurring: the original may live in tasks
+      // (scheduled) OR unscheduledTasks (project/inbox list — e.g. created via
+      // a project card's quick-add). Read it from, and remove it from, BOTH
+      // lists or a ghost copy stays behind next to the new series.
+      const existingTask = tasks.find(t => t.id === taskId) || unscheduledTasks.find(t => t.id === taskId);
       const taskDate = newTask.date || existingTask?.date || dateToString(selectedDate);
       const template = {
         id: crypto.randomUUID(),
@@ -3663,6 +3666,7 @@ const DayPlanner = () => {
         lastModified: new Date().toISOString()
       };
       setTasks(prev => prev.filter(t => t.id !== taskId));
+      setUnscheduledTasks(prev => prev.filter(t => t.id !== taskId));
       setRecurringTasks(prev => [...prev, template]);
     } else if (newTask.keepUnscheduled && newTask.projectId) {
       // Keep/make this an unscheduled project task
