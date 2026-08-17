@@ -16,7 +16,9 @@
       "passphraseNeeded": "Geben Sie oben Ihre Sync-Passphrase ein, um GLANCEvault zu aktivieren.",
       "vaultUnreachable": "GLANCEvault konnte nicht erreicht werden. Überprüfen Sie die Vault-URL und das Gerätetoken. ({{detail}})",
       "requestFailed": "Anfrage fehlgeschlagen",
-      "iCloudUnavailable": "iCloud nicht verfügbar: {{error}}"
+      "iCloudUnavailable": "iCloud nicht verfügbar: {{error}}",
+      "CREDENTIAL_INVALID": "Der Sync-Server akzeptiert den Sync-Zugriff dieses Geräts nicht mehr. Ihre Änderungen sind auf diesem Gerät gespeichert. Bitten Sie die Person, die Ihren Sync-Server betreibt, den Zugriff für dieses Gerät wiederherzustellen.",
+      "QUOTA_EXCEEDED": "Der Sync-Server hat das Limit für dieses Konto erreicht. Ihre Änderungen sind auf diesem Gerät gespeichert und die Synchronisierung versucht es automatisch erneut. Bitten Sie die Person, die Ihren Sync-Server betreibt, das Limit zu erhöhen."
     },
     "vaultUrl": {
       "invalid": "Geben Sie eine gültige Vault-URL ein.",
@@ -350,7 +352,9 @@
     "removeFileImported": "Aus Datei importierte Termine entfernen",
     "removeFileImportedConfirm": "Alle {{n}} aus Datei importierten Termine entfernen? Ein erneuter Datei-Import stellt sie wieder her.",
     "liveActivity": "Live-Aktivität",
-    "liveActivityDesc": "Der heutige Plan in der Dynamic Island und auf dem Sperrbildschirm. Verbreitert die Island und verdeckt die Signalsymbole neben der Uhr."
+    "liveActivityDesc": "Der heutige Plan in der Dynamic Island und auf dem Sperrbildschirm. Verbreitert die Island und verdeckt die Signalsymbole neben der Uhr.",
+    "multiUserICloudOnly": "Erfordert ein gemeinsames Sync-Ziel. iCloud synchronisiert Ihre eigenen Geräte unter einer Apple-ID und kann zwei Personen daher keine gemeinsame Liste bereitstellen. Richten Sie dafür GLANCEvault oder WebDAV-Sync ein.",
+    "language": "Sprache"
   },
   "task": {
     "newScheduled": "Neue geplante Aufgabe",
@@ -942,5 +946,73 @@
     "remaining": "verbleibend",
     "startsIn": "beginnt in",
     "noMoreBlocks": "Keine weiteren Blöcke heute"
+  },
+  "reset": {
+    "title": "App-Daten zurücksetzen",
+    "subtitle": "Alles löschen und leer neu beginnen",
+    "warning": "Damit werden alle Aufgaben, Notizen, Gewohnheiten, Ziele, Projekte und Einstellungen auf diesem Gerät gelöscht, und das kann nicht rückgängig gemacht werden. Exportieren Sie zuerst eine Sicherung, wenn Sie eine Kopie behalten möchten.",
+    "exportFirst": "Zuerst eine Sicherung exportieren",
+    "scopeDevice": "Nur dieses Gerät",
+    "scopeDeviceHint": "Die Kopie in iCloud bleibt erhalten, und dieses Gerät kann sie direkt wieder lesen, auch wenn die Synchronisierung ausgeschaltet ist. Verwenden Sie dies nur, um einen fehlerhaften lokalen Zustand zu beheben, nicht für einen Neuanfang.",
+    "scopeEverywhere": "Dieses Gerät und iCloud",
+    "scopeEverywhereHint": "Löscht auch die Kopie in iCloud, sodass sie weder hier noch bei einer Neuinstallation wiederhergestellt wird.",
+    "confirm": "Alles löschen",
+    "working": "Wird gelöscht…",
+    "partialFailure": "Einige Daten konnten nicht gelöscht werden:",
+    "otherDevices": "Andere Geräte behalten ihre eigene Kopie und stellen sie wieder her. Setzen Sie sie nacheinander zurück: Beenden Sie dayGLANCE überall, öffnen Sie dann ein einzelnes Gerät, setzen Sie es zurück und beenden Sie es wieder, bevor Sie zum nächsten übergehen."
+  },
+  "icloudDiag": {
+    "title": "iCloud-Diagnose",
+    "hint": "Nur lesend. Zeigt an, was dieses Gerät derzeit im iCloud-Container sieht. Es wird nichts geschrieben, gelöscht oder synchronisiert.",
+    "run": "Prüfung starten",
+    "running": "Wird geprüft…",
+    "platform": "Plattform",
+    "container": "Container",
+    "containerError": "Container-Fehler",
+    "available": "VERFÜGBAR",
+    "unavailable": "nicht verfügbar",
+    "notProbeable": "auf dieser Plattform nicht prüfbar",
+    "snapshot": "Snapshot-Datei",
+    "snapshotError": "Snapshot-Fehler",
+    "size": "Größe",
+    "lastModified": "Datei geändert",
+    "remoteCounts": "In Datei (Aufgaben / Posteingang)",
+    "localCounts": "Auf Gerät (Aufgaben / Posteingang)",
+    "never": "nie",
+    "copy": "Bericht kopieren",
+    "copied": "Kopiert",
+    "state": {
+      "present": "vorhanden",
+      "absent": "nicht gefunden",
+      "downloading": "wird aus iCloud geladen",
+      "error": "Fehler",
+      "unsupported": "kein iCloud auf dieser Plattform"
+    },
+    "webdav": "WebDAV-Sync",
+    "webdavSynced": "WebDAV zuletzt synchronisiert",
+    "vault": "GLANCEvault",
+    "vaultSynced": "GLANCEvault zuletzt synchronisiert",
+    "configured": "konfiguriert",
+    "notConfigured": "nicht konfiguriert",
+    "none": "(keine)",
+    "icloudSynced": "iCloud zuletzt synchronisiert",
+    "syncPref": "Synchronisierung auf diesem Gerät",
+    "on": "ein",
+    "off": "aus",
+    "notSyncingNote": "Dieses Gerät synchronisiert nicht mit iCloud, seine Daten bleiben also nur hier. Andere Geräte sehen hier vorgenommene Änderungen nicht, und anderswo vorgenommene Änderungen kommen nicht an."
+  },
+  "icloudFirstRun": {
+    "title": "Daten in iCloud gefunden",
+    "body": "In iCloud liegt eine Kopie Ihrer dayGLANCE-Daten: {{tasks}} Aufgaben und {{inbox}} Posteingangseinträge. Auf diesem Gerät sind noch keine vorhanden.",
+    "lastModified": "Zuletzt aktualisiert {{when}}",
+    "restore": "Aus iCloud wiederherstellen",
+    "restoreHint": "Diese Daten auf dieses Gerät holen und weiter synchronisieren.",
+    "startFresh": "Auf diesem Gerät neu beginnen",
+    "startFreshHint": "Leer beginnen und die iCloud-Synchronisierung hier ausschalten. Die iCloud-Kopie und Ihre anderen Geräte bleiben unberührt. Sie können sie in den Einstellungen wieder einschalten."
+  },
+  "icloudSync": {
+    "title": "iCloud-Synchronisierung",
+    "onHint": "Ein. Dieses Gerät synchronisiert automatisch mit Ihren anderen Apple-Geräten.",
+    "offHint": "Auf diesem Gerät aus. Die iCloud-Kopie und Ihre anderen Geräte sind nicht betroffen."
   }
 }

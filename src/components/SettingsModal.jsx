@@ -28,6 +28,7 @@ import { ensureVaultIntentsKey, setupVaultIntentsEncryption } from '../intents/v
 import { flushOutboxNow } from '../intents/useOutboxFlush.js';
 import { loadIntentsRootKey, clearIntentsRootKey } from '../intents/intentsKeyStore.js';
 import { useTranslation } from 'react-i18next';
+import LanguagePicker from './LanguagePicker.jsx';
 
 const SettingsModal = () => {
   const { t } = useTranslation();
@@ -484,6 +485,13 @@ const SettingsModal = () => {
                         <Clock size={16} className={textSecondary} />
                         {t('settings.localization')}
                       </h4>
+                      <div>
+                        <label htmlFor="settings-language" className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.language')}</label>
+                        <LanguagePicker
+                          id="settings-language"
+                          className={`w-full px-2 py-1.5 text-xs rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                        />
+                      </div>
                       <div>
                         <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.clockFormat')}</label>
                         <div className="flex gap-2">

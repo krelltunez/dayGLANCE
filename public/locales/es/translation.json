@@ -16,7 +16,9 @@
       "passphraseNeeded": "Introduce arriba tu frase de contraseña de sincronización para activar GLANCEvault.",
       "vaultUnreachable": "No se pudo conectar con GLANCEvault. Comprueba la URL del vault y el token del dispositivo. ({{detail}})",
       "requestFailed": "la solicitud falló",
-      "iCloudUnavailable": "iCloud no disponible: {{error}}"
+      "iCloudUnavailable": "iCloud no disponible: {{error}}",
+      "CREDENTIAL_INVALID": "El servidor de sincronización ya no acepta el acceso de este dispositivo. Tus cambios están guardados en este dispositivo. Pide a quien administra tu servidor de sincronización que restaure el acceso para este dispositivo.",
+      "QUOTA_EXCEEDED": "El servidor de sincronización ha alcanzado el límite de esta cuenta. Tus cambios están guardados en este dispositivo y la sincronización se reintentará automáticamente. Pide a quien administra tu servidor de sincronización que aumente el límite."
     },
     "vaultUrl": {
       "invalid": "Introduce una URL de vault válida.",
@@ -350,7 +352,9 @@
     "removeFileImported": "Eliminar eventos importados de archivo",
     "removeFileImportedConfirm": "¿Eliminar los {{n}} eventos importados de archivo? Volver a importar el archivo los restaura.",
     "liveActivity": "Actividad en Vivo",
-    "liveActivityDesc": "El plan de hoy en la Dynamic Island y en la pantalla de bloqueo. Ensancha la isla y oculta los iconos de señal junto al reloj."
+    "liveActivityDesc": "El plan de hoy en la Dynamic Island y en la pantalla de bloqueo. Ensancha la isla y oculta los iconos de señal junto al reloj.",
+    "multiUserICloudOnly": "Requiere un destino de sincronización compartido. iCloud sincroniza tus propios dispositivos con un mismo Apple ID, así que no puede darle una lista compartida a dos personas. Configura GLANCEvault o sincronización WebDAV para eso.",
+    "language": "Idioma"
   },
   "task": {
     "newScheduled": "Nueva tarea programada",
@@ -942,5 +946,73 @@
     "remaining": "restante",
     "startsIn": "empieza en",
     "noMoreBlocks": "No quedan bloques hoy"
+  },
+  "reset": {
+    "title": "Restablecer datos de la app",
+    "subtitle": "Borrar todo y empezar desde cero",
+    "warning": "Esto borra todas las tareas, notas, hábitos, objetivos, proyectos y ajustes de este dispositivo, y no se puede deshacer. Exporta una copia de seguridad primero si quieres conservar una copia.",
+    "exportFirst": "Exportar una copia de seguridad primero",
+    "scopeDevice": "Solo este dispositivo",
+    "scopeDeviceHint": "La copia en iCloud se conserva, y este dispositivo puede volver a leerla directamente aunque la sincronización esté desactivada. Usa esto solo para corregir un estado local defectuoso, no para empezar de nuevo.",
+    "scopeEverywhere": "Este dispositivo e iCloud",
+    "scopeEverywhereHint": "También elimina la copia en iCloud, de modo que nada la restaure aquí ni al reinstalar.",
+    "confirm": "Borrar todo",
+    "working": "Borrando…",
+    "partialFailure": "Algunos datos no se pudieron borrar:",
+    "otherDevices": "Los demás dispositivos conservan su propia copia y la restaurarán. Restablécelos de uno en uno: cierra dayGLANCE en todas partes, luego abre un solo dispositivo, restablécelo y ciérralo de nuevo antes de pasar al siguiente."
+  },
+  "icloudDiag": {
+    "title": "Diagnóstico de iCloud",
+    "hint": "Solo lectura. Informa de lo que este dispositivo ve actualmente en el contenedor de iCloud. No se escribe, elimina ni sincroniza nada.",
+    "run": "Ejecutar comprobación",
+    "running": "Comprobando…",
+    "platform": "Plataforma",
+    "container": "Contenedor",
+    "containerError": "Error de contenedor",
+    "available": "DISPONIBLE",
+    "unavailable": "no disponible",
+    "notProbeable": "no se puede comprobar en esta plataforma",
+    "snapshot": "Archivo de instantánea",
+    "snapshotError": "Error de instantánea",
+    "size": "Tamaño",
+    "lastModified": "Archivo modificado",
+    "remoteCounts": "En el archivo (tareas / bandeja)",
+    "localCounts": "En el dispositivo (tareas / bandeja)",
+    "never": "nunca",
+    "copy": "Copiar informe",
+    "copied": "Copiado",
+    "state": {
+      "present": "presente",
+      "absent": "no encontrado",
+      "downloading": "descargando de iCloud",
+      "error": "error",
+      "unsupported": "sin iCloud en esta plataforma"
+    },
+    "webdav": "Sincronización WebDAV",
+    "webdavSynced": "WebDAV sincronizado por última vez",
+    "vault": "GLANCEvault",
+    "vaultSynced": "GLANCEvault sincronizado por última vez",
+    "configured": "configurado",
+    "notConfigured": "no configurado",
+    "none": "(ninguno)",
+    "icloudSynced": "iCloud sincronizado por última vez",
+    "syncPref": "Sincronización en este dispositivo",
+    "on": "activada",
+    "off": "desactivada",
+    "notSyncingNote": "Este dispositivo no se sincroniza con iCloud, así que sus datos se quedan solo aquí. Los demás dispositivos no verán los cambios hechos aquí, y los cambios hechos en otro sitio no llegarán."
+  },
+  "icloudFirstRun": {
+    "title": "Datos encontrados en iCloud",
+    "body": "iCloud tiene una copia de tus datos de dayGLANCE: {{tasks}} tareas y {{inbox}} elementos de la bandeja. Este dispositivo aún no tiene ninguno.",
+    "lastModified": "Última actualización {{when}}",
+    "restore": "Restaurar desde iCloud",
+    "restoreHint": "Traer estos datos a este dispositivo y seguir sincronizando.",
+    "startFresh": "Empezar de cero en este dispositivo",
+    "startFreshHint": "Empieza vacío y desactiva aquí la sincronización con iCloud. La copia en iCloud y tus otros dispositivos no se tocan. Puedes volver a activarla en Ajustes."
+  },
+  "icloudSync": {
+    "title": "Sincronización con iCloud",
+    "onHint": "Activada. Este dispositivo se sincroniza automáticamente con tus otros dispositivos Apple.",
+    "offHint": "Desactivada en este dispositivo. La copia en iCloud y tus otros dispositivos no se ven afectados."
   }
 }
