@@ -175,6 +175,18 @@ module.exports = {
     ],
     target: [{ target: 'nsis' }],
   },
+  // Per-target options. artifactName lives HERE rather than on the target entry
+  // or the linux block. TargetConfiguration is additionalProperties:false with
+  // only `target` and `arch`, so an artifactName inside one invalidates the whole
+  // array (electron-builder then reports the unhelpful "linux.target.0 should be
+  // a string"). And at linux level it would rename the deb too, where Debian
+  // convention is name_version_arch.deb with arch as amd64 — not
+  // dayGLANCE-4.4.0-x64.deb. This block is the AppImage's targetSpecificOptions,
+  // so it still sets isUserForced and x64 keeps the arch suffix it would
+  // otherwise lose as the default arch.
+  appImage: {
+    artifactName: '${productName}-${version}-${arch}.${ext}',
+  },
   linux: {
     // No bridge, by design (§7): there is no Claude Desktop on Linux, and an
     // AppImage's mount path changes every launch, so an absolute path written into
@@ -258,12 +270,7 @@ module.exports = {
     // than a personal address.
     maintainer: 'GLANCE Apps <hello@glance-apps.com>',
     target: [
-      // artifactName sits on the TARGET, not the platform: at platform level it
-      // would rename the deb too, and Debian's convention is
-      // name_version_arch.deb with arch as amd64, not ${productName}-...-x64.deb.
-      // Target-specific patterns still set isUserForced, so x64 keeps its suffix.
-      { target: 'AppImage', arch: ['x64', 'arm64'],
-        artifactName: '${productName}-${version}-${arch}.${ext}' },
+      { target: 'AppImage', arch: ['x64', 'arm64'] },
       // deb exists because an AppImage is not installed: it is a loose executable
       // that never creates a menu entry, so "where is it after installing" had no
       // good answer. A deb unpacks to /opt, registers the .desktop file written

@@ -114,13 +114,17 @@ describe('Linux artifact names carry their architecture', () => {
       artifactName?: string;
     }[];
 
-  it('the AppImage target sets artifactName, stopping x64 losing its suffix', () => {
-    const appImage = linuxTargets(loadConfig({ DAYGLANCE_APP_ID: undefined }))
-      .find((t) => t.target === 'AppImage');
-    expect(appImage?.artifactName, 'without it, x64 builds unlabelled').toBeDefined();
-    expect(appImage?.artifactName).toContain('${arch}');
-    expect(appImage?.artifactName).toContain('${version}');
-    expect(appImage?.artifactName).toContain('${ext}');
+  it('the appImage block sets artifactName, stopping x64 losing its suffix', () => {
+    // Not on the target entry: TargetConfiguration is additionalProperties:false,
+    // so an artifactName there invalidates the array. This block is the AppImage's
+    // targetSpecificOptions, so it still counts as user-forced.
+    const pattern = (loadConfig({ DAYGLANCE_APP_ID: undefined })['appImage'] as unknown as {
+      artifactName?: string;
+    })?.artifactName;
+    expect(pattern, 'without it, x64 builds unlabelled').toBeDefined();
+    expect(pattern).toContain('${arch}');
+    expect(pattern).toContain('${version}');
+    expect(pattern).toContain('${ext}');
   });
 
   it('the pattern is NOT set platform-wide, which would rename the deb too', () => {
@@ -130,12 +134,12 @@ describe('Linux artifact names carry their architecture', () => {
     expect((config['linux'] as unknown as { artifactName?: string }).artifactName).toBeUndefined();
   });
 
-  it('deb takes electron-builder default naming', () => {
-    const deb = linuxTargets(loadConfig({ DAYGLANCE_APP_ID: undefined }))
-      .find((t) => t.target === 'deb');
+  it('no deb block overrides naming, so it keeps the Debian convention', () => {
+    const config = loadConfig({ DAYGLANCE_APP_ID: undefined });
+    const deb = linuxTargets(config).find((t) => t.target === 'deb');
     expect(deb, 'a deb target must exist for a real install').toBeDefined();
-    expect(deb?.artifactName).toBeUndefined();
     expect(deb?.arch).toEqual(['x64', 'arm64']);
+    expect((config['deb'] as unknown as { artifactName?: string })?.artifactName).toBeUndefined();
   });
 
   it('maintainer is set, without which the deb target throws before building', () => {
