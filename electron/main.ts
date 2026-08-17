@@ -1457,9 +1457,18 @@ app.whenReady().then(async () => {
   // packaging (electron-builder mas.files filter), so it loads dynamically
   // and its absence is a clean no-op, never a crash. The renderer's setup
   // button is likewise eliminated from the MAS bundle at build time.
+  // The catch distinguishes the two ways this can fail. On MAS the module is
+  // genuinely absent and that is the design, so it stays quiet. ANY OTHER
+  // failure means the ipcMain handler was never registered, and the renderer's
+  // invoke will reject rather than return — so log it instead of swallowing it.
+  // A bare catch here made a real failure indistinguishable from the intended
+  // MAS no-op, on the one code path whose entire job is to be diagnosable.
   import('./mcpDesktopSetup.js')
     .then((m) => m.registerMcpDesktopSetup())
-    .catch(() => { /* absent in the MAS package, by design */ });
+    .catch((err: NodeJS.ErrnoException) => {
+      if (err?.code === 'ERR_MODULE_NOT_FOUND' || err?.code === 'MODULE_NOT_FOUND') return;
+      logStartup(`mcpDesktopSetup failed to load; the setup button will not work: ${err instanceof Error ? err.stack ?? err.message : String(err)}`);
+    });
   if (integrationsConfig.streamDeck.enabled) startStreamDeckListener();
   startMcpListener();
   registerSubscriptionHandlers(win);
