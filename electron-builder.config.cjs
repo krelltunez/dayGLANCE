@@ -180,6 +180,24 @@ module.exports = {
     // AppImage's mount path changes every launch, so an absolute path written into
     // a config would go stale on the next run. Linux connects via npx instead, and
     // the renderer's setup button does not render there.
-    target: [{ target: 'AppImage' }],
+    //
+    // arch is EXPLICIT here, and must stay that way. Omitting it does not mean
+    // "every architecture", it means "whatever the build host happens to be" —
+    // and the host is ubuntu-latest, so for three releases the only Linux artifact
+    // was x64. Nothing decided to exclude ARM; the default decided, silently, and
+    // a Raspberry Pi user downloading the AppImage got "cannot execute binary
+    // file" with nothing explaining why. mac had arch spelled out from the start
+    // because Apple Silicon makes the omission fail loudly; Linux never forced
+    // the question.
+    //
+    // Cross-packaging arm64 from an x64 runner is sound HERE specifically because
+    // no runtime dependency is native (every .node in node_modules is build
+    // tooling: rolldown, rollup, lightningcss). electron-builder fetches the
+    // arm64 Electron dist and wraps the same JS, so there is nothing to compile.
+    // Adding a native runtime dep invalidates that and this needs an arm64 runner
+    // (ubuntu-24.04-arm) instead.
+    //
+    // 64-bit only. 32-bit Raspberry Pi OS reports armv7l and is not covered.
+    target: [{ target: 'AppImage', arch: ['x64', 'arm64'] }],
   },
 };
