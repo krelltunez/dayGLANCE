@@ -12,10 +12,10 @@
 // string's absence) against the BUILT artifact.
 
 import { ipcMain } from 'electron';
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { homedir } from 'node:os';
-import { claudeConfigPath, bridgeEntry, mergeClaudeConfig, manualEntrySnippet } from './mcpDesktopConfig.js';
+import { claudeConfigPath, bridgeEntry, bridgeScriptPath, mergeClaudeConfig, manualEntrySnippet } from './mcpDesktopConfig.js';
 
 export function registerMcpDesktopSetup(): void {
   ipcMain.handle('mcp-setup:claude-desktop', () => {
@@ -23,6 +23,17 @@ export function registerMcpDesktopSetup(): void {
     const entry = bridgeEntry(process.execPath, process.resourcesPath);
     if (!path) {
       return { ok: false, reason: 'unsupported_platform', manualEntry: manualEntrySnippet(entry) };
+    }
+
+    // The bridge is put here by a per-platform extraResources entry, and a
+    // platform that forgets to declare one still reaches this handler with a
+    // perfectly well-formed entry pointing at nothing. Writing it would leave
+    // the user a config that looks right, a success message, and a client that
+    // silently fails to connect — which is exactly what the Windows build did
+    // before this check existed. Report it instead.
+    const bridgePath = bridgeScriptPath(process.resourcesPath);
+    if (!existsSync(bridgePath)) {
+      return { ok: false, reason: 'bridge_missing', path, bridgePath };
     }
 
     let existingText: string | null = null;

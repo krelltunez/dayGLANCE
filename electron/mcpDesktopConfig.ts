@@ -42,6 +42,17 @@ export interface BridgeEntry {
 }
 
 /**
+ * Where the bundled bridge lands: resources/mcp-bridge/bridge.js, put there by
+ * the extraResources entry that EVERY direct-download platform must declare
+ * (electron-builder.config.cjs). Exported so the setup handler can check the
+ * file is really there before writing a config that points at it — Windows
+ * shipped without it once, and the button reported success anyway.
+ */
+export function bridgeScriptPath(resourcesPath: string): string {
+  return join(resourcesPath, 'mcp-bridge', 'bridge.js');
+}
+
+/**
  * The config entry: dayGLANCE's own Electron binary run as Node, executing
  * the bundled bridge. No Node install, no network, no npx; the binary is
  * already on disk and already signed. resourcesPath is process.resourcesPath
@@ -50,7 +61,7 @@ export interface BridgeEntry {
 export function bridgeEntry(execPath: string, resourcesPath: string): BridgeEntry {
   return {
     command: execPath,
-    args: [join(resourcesPath, 'mcp-bridge', 'bridge.js')],
+    args: [bridgeScriptPath(resourcesPath)],
     env: { ELECTRON_RUN_AS_NODE: '1' },
   };
 }
