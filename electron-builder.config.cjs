@@ -198,6 +198,21 @@ module.exports = {
     // (ubuntu-24.04-arm) instead.
     //
     // 64-bit only. 32-bit Raspberry Pi OS reports armv7l and is not covered.
+    //
+    // artifactName exists to force the arch into EVERY name, including x64's.
+    // electron-builder suppresses the arch suffix for a platform's default arch
+    // unless a pattern is user-specified: expandArtifactNamePattern only strips it
+    // when `!isUserForced`, and artifactPatternConfig sets isUserForced from the
+    // mere presence of artifactName (app-builder-lib/out/platformPackager.js).
+    // Without this, the pair ships as dayGLANCE-4.4.0.AppImage (x64, unlabelled)
+    // and dayGLANCE-4.4.0-arm64.AppImage, so the x64 build reads as the generic
+    // one and gets downloaded onto ARM hardware, where it fails with a bare
+    // "exec format error". Both names now carry their arch.
+    //
+    // ${arch} expands through Arch[arch], so the values are x64 and arm64, not
+    // x86_64. Matching electron-builder's own vocabulary beats inventing a
+    // synonym, and "x86" would be wrong outright since it reads as 32-bit.
+    artifactName: '${productName}-${version}-${arch}.${ext}',
     target: [{ target: 'AppImage', arch: ['x64', 'arm64'] }],
   },
 };

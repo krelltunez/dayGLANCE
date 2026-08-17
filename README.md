@@ -77,11 +77,16 @@ Native builds for macOS, Windows and Linux are on the [releases page](https://gi
 
 | Platform | Artifact | Architectures |
 |---|---|---|
-| macOS | `.dmg`, `.zip` | Intel and Apple Silicon |
+| macOS | `.dmg`, `.zip` | Intel (`x64`) and Apple Silicon (`arm64`) |
 | Windows | `.exe` installer | x64 |
-| Linux | `.AppImage` | x64 and arm64 |
+| Linux | `dayGLANCE-<version>-x64.AppImage` | x64 |
+| Linux | `dayGLANCE-<version>-arm64.AppImage` | arm64 |
+
+Every Linux artifact names its architecture, so pick the one matching `uname -m`: `x86_64` takes the `x64` build, `aarch64` takes `arm64`. Running the wrong one fails with `cannot execute binary file: exec format error`.
 
 The arm64 AppImage covers 64-bit Raspberry Pi OS and other aarch64 desktops. 32-bit systems reporting `armv7l` are not covered. If you only want the planner itself on an ARM board rather than the desktop features, the Docker image above is lighter.
+
+AppImages need FUSE. If launching complains about it, either install `libfuse2` or run with `--appimage-extract-and-run`.
 
 ---
 

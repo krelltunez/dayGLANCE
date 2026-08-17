@@ -99,3 +99,25 @@ describe('desktop target architectures are declared, never inherited from the ho
     }
   });
 });
+
+// Naming, which is a usability failure rather than a build failure: both
+// AppImages built correctly, but the x64 one was called
+// dayGLANCE-<version>.AppImage with no arch in it, so it read as "the Linux
+// build" and got downloaded onto a Raspberry Pi. electron-builder strips the
+// arch suffix for the default arch UNLESS artifactName is user-specified, so
+// the presence of that pattern is load-bearing, not cosmetic.
+describe('Linux artifact names carry their architecture', () => {
+  it('linux sets artifactName, which is what stops x64 losing its suffix', () => {
+    const config = loadConfig({ DAYGLANCE_APP_ID: undefined });
+    const pattern = (config['linux'] as { artifactName?: string } | undefined)?.artifactName;
+    expect(pattern, 'without artifactName, x64 builds as an unlabelled name').toBeDefined();
+    expect(pattern).toContain('${arch}');
+  });
+
+  it('the pattern keeps the version and the extension placeholder too', () => {
+    const config = loadConfig({ DAYGLANCE_APP_ID: undefined });
+    const pattern = (config['linux'] as { artifactName?: string } | undefined)?.artifactName ?? '';
+    expect(pattern).toContain('${version}');
+    expect(pattern).toContain('${ext}');
+  });
+});
