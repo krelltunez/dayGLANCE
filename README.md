@@ -79,14 +79,61 @@ Native builds for macOS, Windows and Linux are on the [releases page](https://gi
 |---|---|---|
 | macOS | `.dmg`, `.zip` | Intel (`x64`) and Apple Silicon (`arm64`) |
 | Windows | `.exe` installer | x64 |
-| Linux | `dayGLANCE-<version>-x64.AppImage` | x64 |
-| Linux | `dayGLANCE-<version>-arm64.AppImage` | arm64 |
+| Linux | `dayglance_<version>_amd64.deb`, `dayglance_<version>_arm64.deb` | x64 and arm64 |
+| Linux | `dayGLANCE-<version>-x64.AppImage`, `dayGLANCE-<version>-arm64.AppImage` | x64 and arm64 |
 
-Every Linux artifact names its architecture, so pick the one matching `uname -m`: `x86_64` takes the `x64` build, `aarch64` takes `arm64`. Running the wrong one fails with `cannot execute binary file: exec format error`.
+Every Linux artifact names its architecture. Check yours with `uname -m`: `x86_64` takes the `x64` AppImage or the `amd64` deb, `aarch64` takes either `arm64` file. Debian and AppImage spell 64-bit Intel differently, `amd64` versus `x64`, but they mean the same thing. Running the wrong architecture fails with `cannot execute binary file: exec format error`.
 
 The arm64 AppImage covers 64-bit Raspberry Pi OS and other aarch64 desktops. 32-bit systems reporting `armv7l` are not covered. If you only want the planner itself on an ARM board rather than the desktop features, the Docker image above is lighter.
 
 AppImages need FUSE. If launching complains about it, either install `libfuse2` or run with `--appimage-extract-and-run`.
+
+#### Installing on Linux
+
+**On Debian, Ubuntu, Raspberry Pi OS or anything else with `apt`, take the `.deb`.** It installs properly: the app lands in your applications menu with its icon, and `apt remove dayglance` takes it away again.
+
+```bash
+sudo apt install ./dayglance_<version>_arm64.deb
+```
+
+Then launch it from your menu, or run `dayglance` from a terminal.
+
+#### The AppImage, if you would rather stay portable
+
+An AppImage is not installed. It is a single self-contained executable that stays wherever you saved it, so there is no setup step and nothing to uninstall later:
+
+```bash
+chmod +x dayGLANCE-<version>-arm64.AppImage
+./dayGLANCE-<version>-arm64.AppImage
+```
+
+It will **not** appear in your applications menu on its own. Two ways to get it there:
+
+**[AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher)** — install it once and every AppImage you open offers to integrate itself, moving the file somewhere sensible and creating the menu entry for you. This is the least work if you use AppImages for anything else.
+
+**A desktop entry by hand** — move the AppImage somewhere permanent, then write one file:
+
+```bash
+mkdir -p ~/.local/bin ~/.local/share/applications
+mv dayGLANCE-*.AppImage ~/.local/bin/dayglance
+chmod +x ~/.local/bin/dayglance
+
+cat > ~/.local/share/applications/dayglance.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=dayGLANCE
+Comment=Your day, at a glance
+Exec=/home/YOUR_USER/.local/bin/dayglance
+Icon=dayglance
+Terminal=false
+Categories=Office;Calendar;
+StartupWMClass=dayGLANCE
+EOF
+
+update-desktop-database ~/.local/share/applications 2>/dev/null || true
+```
+
+Replace `YOUR_USER`, since `Exec` does not expand `~`. For the icon, extract it from the AppImage with `./dayglance --appimage-extract` and copy `squashfs-root/dayglance.png` to `~/.local/share/icons/`, or point `Icon=` at any PNG path.
 
 ---
 

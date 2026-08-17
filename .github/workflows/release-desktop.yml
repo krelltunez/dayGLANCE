@@ -16,7 +16,7 @@ jobs:
           - os: windows-latest
             artifact_glob: "dist-app/*.exe"
           - os: ubuntu-latest
-            artifact_glob: "dist-app/*.AppImage"
+            artifact_glob: "dist-app/*.AppImage dist-app/*.deb"
 
     runs-on: ${{ matrix.os }}
 
@@ -67,10 +67,20 @@ jobs:
             dist-app/*-mac.zip
             dist-app/*.exe
             dist-app/*.AppImage
+            dist-app/*.deb
           if-no-files-found: ignore
 
   release:
     needs: build
+    # Tag pushes only. Without this, a workflow_dispatch run against a branch
+    # reaches action-gh-release with no tag and either fails or writes a
+    # release nobody asked for. Guarding it makes manual dispatch a safe
+    # build-only smoke test: artifacts get produced and can be downloaded,
+    # and no release is touched. That is the only way to exercise a packaging
+    # change before tagging, since ci.yml runs the web build and never
+    # electron-builder — so packaging bugs have historically had the release
+    # itself as their first real test.
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write

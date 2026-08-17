@@ -175,6 +175,18 @@ module.exports = {
     ],
     target: [{ target: 'nsis' }],
   },
+  // Per-target options. artifactName lives HERE rather than on the target entry
+  // or the linux block. TargetConfiguration is additionalProperties:false with
+  // only `target` and `arch`, so an artifactName inside one invalidates the whole
+  // array (electron-builder then reports the unhelpful "linux.target.0 should be
+  // a string"). And at linux level it would rename the deb too, where Debian
+  // convention is name_version_arch.deb with arch as amd64 — not
+  // dayGLANCE-4.4.0-x64.deb. This block is the AppImage's targetSpecificOptions,
+  // so it still sets isUserForced and x64 keeps the arch suffix it would
+  // otherwise lose as the default arch.
+  appImage: {
+    artifactName: '${productName}-${version}-${arch}.${ext}',
+  },
   linux: {
     // No bridge, by design (§7): there is no Claude Desktop on Linux, and an
     // AppImage's mount path changes every launch, so an absolute path written into
@@ -212,7 +224,59 @@ module.exports = {
     // ${arch} expands through Arch[arch], so the values are x64 and arm64, not
     // x86_64. Matching electron-builder's own vocabulary beats inventing a
     // synonym, and "x86" would be wrong outright since it reads as 32-bit.
-    artifactName: '${productName}-${version}-${arch}.${ext}',
-    target: [{ target: 'AppImage', arch: ['x64', 'arm64'] }],
+    // Desktop-entry metadata. electron-builder writes Name, Exec, Type, Terminal,
+    // Icon and StartupWMClass itself (LinuxTargetHelper), so only the keys it
+    // cannot infer are set here. All three of these were missing:
+    //
+    // category — REQUIRED, not optional. Left unset, LinuxTargetHelper tries to
+    //   map mac.category, and its macToLinuxCategory table has no entry for
+    //   public.app-category.productivity (graphics-design, developer-tools,
+    //   education, games, video, utilities, social-networking, finance, music
+    //   only). The mapping fails, Categories is omitted entirely, and the app
+    //   lands in the launcher's catch-all "Other" section. Office is the main
+    //   freedesktop category; Calendar is a registered additional one.
+    //
+    // icon — without it, computeDesktopIcons falls through every source
+    //   (linux.icon, mac.icon, config.icon) and then looks for a `public/icons`
+    //   directory, which does not exist, so it reaches getDefaultFrameworkIcon
+    //   and ships the GENERIC ELECTRON ICON. resolveIcon logs "default Electron
+    //   icon is used" when that happens, which has been in the build output all
+    //   along. Resolved against buildResources (public/) first, so the bare
+    //   filename is the right form. icon-512.png is 512x512 RGBA, comfortably
+    //   over the 256x256 floor for generating a Linux icon set.
+    //
+    // description — becomes the .desktop Comment, shown as the tooltip and in
+    //   launcher search results. package.json has no description field, so
+    //   getDescription resolved to empty and the key was dropped. Set here
+    //   rather than in package.json to keep the change scoped to Linux.
+    category: 'Office;Calendar',
+    description: 'Your day, at a glance',
+    icon: 'icon-512.png',
+    desktop: {
+      entry: {
+        // Launcher search terms. Trailing semicolon per the freedesktop spec for
+        // list values; electron-builder appends one to Categories but not here.
+        Keywords: 'planner;schedule;tasks;todo;calendar;timeblocking;habits;goals;',
+      },
+    },
+    // maintainer is REQUIRED by the deb target and by nothing else. FpmTarget's
+    // checkOptions throws before building on a missing homepage (package.json,
+    // added alongside this) or a missing maintainer, taken from here or from a
+    // package.json author carrying an email. Declaring a deb target without both
+    // does not degrade, it FAILS THE LINUX BUILD.
+    //
+    // This address ships inside every published package and is readable by anyone
+    // who installs one, so it is deliberately the project's public contact rather
+    // than a personal address.
+    maintainer: 'GLANCE Apps <hello@glance-apps.com>',
+    target: [
+      { target: 'AppImage', arch: ['x64', 'arm64'] },
+      // deb exists because an AppImage is not installed: it is a loose executable
+      // that never creates a menu entry, so "where is it after installing" had no
+      // good answer. A deb unpacks to /opt, registers the .desktop file written
+      // from the metadata above, and uninstalls with apt like anything else.
+      // AppImage stays for distros without dpkg and for people who want portable.
+      { target: 'deb', arch: ['x64', 'arm64'] },
+    ],
   },
 };

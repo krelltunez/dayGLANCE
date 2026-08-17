@@ -107,17 +107,116 @@ describe('desktop target architectures are declared, never inherited from the ho
 // arch suffix for the default arch UNLESS artifactName is user-specified, so
 // the presence of that pattern is load-bearing, not cosmetic.
 describe('Linux artifact names carry their architecture', () => {
-  it('linux sets artifactName, which is what stops x64 losing its suffix', () => {
-    const config = loadConfig({ DAYGLANCE_APP_ID: undefined });
-    const pattern = (config['linux'] as { artifactName?: string } | undefined)?.artifactName;
-    expect(pattern, 'without artifactName, x64 builds as an unlabelled name').toBeDefined();
-    expect(pattern).toContain('${arch}');
-  });
+  const linuxTargets = (config: Record<string, never>) =>
+    ((config['linux'] as unknown as { target?: unknown })?.target ?? []) as {
+      target: string;
+      arch?: string[];
+      artifactName?: string;
+    }[];
 
-  it('the pattern keeps the version and the extension placeholder too', () => {
-    const config = loadConfig({ DAYGLANCE_APP_ID: undefined });
-    const pattern = (config['linux'] as { artifactName?: string } | undefined)?.artifactName ?? '';
+  it('the appImage block sets artifactName, stopping x64 losing its suffix', () => {
+    // Not on the target entry: TargetConfiguration is additionalProperties:false,
+    // so an artifactName there invalidates the array. This block is the AppImage's
+    // targetSpecificOptions, so it still counts as user-forced.
+    const pattern = (loadConfig({ DAYGLANCE_APP_ID: undefined })['appImage'] as unknown as {
+      artifactName?: string;
+    })?.artifactName;
+    expect(pattern, 'without it, x64 builds unlabelled').toBeDefined();
+    expect(pattern).toContain('${arch}');
     expect(pattern).toContain('${version}');
     expect(pattern).toContain('${ext}');
+  });
+
+  it('the pattern is NOT set platform-wide, which would rename the deb too', () => {
+    // Debian convention is name_version_arch.deb with arch as amd64. A
+    // platform-level pattern would impose ${productName}-...-x64.deb on it.
+    const config = loadConfig({ DAYGLANCE_APP_ID: undefined });
+    expect((config['linux'] as unknown as { artifactName?: string }).artifactName).toBeUndefined();
+  });
+
+  it('no deb block overrides naming, so it keeps the Debian convention', () => {
+    const config = loadConfig({ DAYGLANCE_APP_ID: undefined });
+    const deb = linuxTargets(config).find((t) => t.target === 'deb');
+    expect(deb, 'a deb target must exist for a real install').toBeDefined();
+    expect(deb?.arch).toEqual(['x64', 'arm64']);
+    expect((config['deb'] as unknown as { artifactName?: string })?.artifactName).toBeUndefined();
+  });
+
+  it('maintainer is set, without which the deb target throws before building', () => {
+    // FpmTarget.checkOptions requires homepage (package.json) and a maintainer
+    // from linux.maintainer or a package.json author with an email. Missing
+    // either fails the Linux build outright rather than degrading.
+    const linux = config_maintainer(loadConfig({ DAYGLANCE_APP_ID: undefined }));
+    expect(linux, 'no maintainer means the Linux job fails').toBeTruthy();
+    expect(linux).toMatch(/<[^@\s]+@[^>\s]+>/);
+  });
+
+  it('package.json declares homepage, the other field fpm requires', () => {
+    const pkg = JSON.parse(require('node:fs').readFileSync('package.json', 'utf-8'));
+    expect(pkg.homepage, 'computePackageUrl reads metadata.homepage first').toBeTruthy();
+  });
+});
+
+function config_maintainer(config: Record<string, never>): string | undefined {
+  return (config['linux'] as unknown as { maintainer?: string }).maintainer;
+}
+
+// Desktop-entry metadata. electron-builder writes Name, Exec, Type, Terminal,
+// Icon and StartupWMClass itself, so these assertions cover only the keys it
+// cannot infer — each of which was silently absent, and each of which fails in a
+// way no build error reports: no launcher category, the generic Electron icon,
+// and an empty tooltip.
+describe('Linux desktop-entry metadata is set, since none of it can be inferred', () => {
+  const linuxOf = (config: Record<string, never>) =>
+    config['linux'] as unknown as {
+      category?: string;
+      icon?: string;
+      description?: string;
+      desktop?: { entry?: Record<string, string> };
+    };
+
+  it('category is explicit, because mac.category cannot map to a Linux one', () => {
+    // macToLinuxCategory covers graphics-design, developer-tools, education,
+    // games, video, utilities, social-networking, finance and music. There is no
+    // productivity entry, so relying on the fallback yields no Categories at all.
+    const linux = linuxOf(loadConfig({ DAYGLANCE_APP_ID: undefined }));
+    expect(linux.category, 'unset category means no Categories key').toBeTruthy();
+    expect(linux.category).toContain('Office');
+  });
+
+  it('an icon is named, or the build ships the generic Electron one', () => {
+    const linux = linuxOf(loadConfig({ DAYGLANCE_APP_ID: undefined }));
+    expect(linux.icon, 'no icon source reaches getDefaultFrameworkIcon').toBeTruthy();
+  });
+
+  it('the named icon exists under buildResources and is a PNG', () => {
+    // resolveIcon searches [buildResourcesDir, projectDir], and buildResources is
+    // public/, so a bare filename must exist there. A missing file falls back
+    // silently rather than failing the build, which is why this is asserted.
+    const config = loadConfig({ DAYGLANCE_APP_ID: undefined });
+    const icon = linuxOf(config).icon as string;
+    const buildResources = (config['directories'] as unknown as { buildResources: string }).buildResources;
+    const full = require('node:path').join(buildResources, icon);
+    expect(require('node:fs').existsSync(full), `${full} must exist`).toBe(true);
+    expect(icon.endsWith('.png'), 'Linux icon sets are generated from a PNG').toBe(true);
+  });
+
+  it('a description is set, so the .desktop Comment is not dropped', () => {
+    // getDescription falls back to package.json description, which is unset.
+    const linux = linuxOf(loadConfig({ DAYGLANCE_APP_ID: undefined }));
+    expect(linux.description).toBeTruthy();
+  });
+
+  it('Keywords is a semicolon-terminated list, per the freedesktop spec', () => {
+    const entry = linuxOf(loadConfig({ DAYGLANCE_APP_ID: undefined })).desktop?.entry ?? {};
+    expect(entry['Keywords']).toBeTruthy();
+    expect(entry['Keywords']?.endsWith(';'), 'list values must end with ;').toBe(true);
+  });
+
+  it('StartupWMClass is NOT overridden: electron-builder derives it correctly', () => {
+    // It must match Electron's app_id. Hardcoding a guess here would break
+    // window-to-launcher association rather than fix it.
+    const entry = linuxOf(loadConfig({ DAYGLANCE_APP_ID: undefined })).desktop?.entry ?? {};
+    expect(entry['StartupWMClass']).toBeUndefined();
   });
 });
