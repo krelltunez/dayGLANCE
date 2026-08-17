@@ -213,6 +213,41 @@ module.exports = {
     // x86_64. Matching electron-builder's own vocabulary beats inventing a
     // synonym, and "x86" would be wrong outright since it reads as 32-bit.
     artifactName: '${productName}-${version}-${arch}.${ext}',
+    // Desktop-entry metadata. electron-builder writes Name, Exec, Type, Terminal,
+    // Icon and StartupWMClass itself (LinuxTargetHelper), so only the keys it
+    // cannot infer are set here. All three of these were missing:
+    //
+    // category — REQUIRED, not optional. Left unset, LinuxTargetHelper tries to
+    //   map mac.category, and its macToLinuxCategory table has no entry for
+    //   public.app-category.productivity (graphics-design, developer-tools,
+    //   education, games, video, utilities, social-networking, finance, music
+    //   only). The mapping fails, Categories is omitted entirely, and the app
+    //   lands in the launcher's catch-all "Other" section. Office is the main
+    //   freedesktop category; Calendar is a registered additional one.
+    //
+    // icon — without it, computeDesktopIcons falls through every source
+    //   (linux.icon, mac.icon, config.icon) and then looks for a `public/icons`
+    //   directory, which does not exist, so it reaches getDefaultFrameworkIcon
+    //   and ships the GENERIC ELECTRON ICON. resolveIcon logs "default Electron
+    //   icon is used" when that happens, which has been in the build output all
+    //   along. Resolved against buildResources (public/) first, so the bare
+    //   filename is the right form. icon-512.png is 512x512 RGBA, comfortably
+    //   over the 256x256 floor for generating a Linux icon set.
+    //
+    // description — becomes the .desktop Comment, shown as the tooltip and in
+    //   launcher search results. package.json has no description field, so
+    //   getDescription resolved to empty and the key was dropped. Set here
+    //   rather than in package.json to keep the change scoped to Linux.
+    category: 'Office;Calendar',
+    description: 'Your day, at a glance',
+    icon: 'icon-512.png',
+    desktop: {
+      entry: {
+        // Launcher search terms. Trailing semicolon per the freedesktop spec for
+        // list values; electron-builder appends one to Categories but not here.
+        Keywords: 'planner;schedule;tasks;todo;calendar;timeblocking;habits;goals;',
+      },
+    },
     target: [{ target: 'AppImage', arch: ['x64', 'arm64'] }],
   },
 };

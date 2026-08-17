@@ -121,3 +121,63 @@ describe('Linux artifact names carry their architecture', () => {
     expect(pattern).toContain('${ext}');
   });
 });
+
+// Desktop-entry metadata. electron-builder writes Name, Exec, Type, Terminal,
+// Icon and StartupWMClass itself, so these assertions cover only the keys it
+// cannot infer — each of which was silently absent, and each of which fails in a
+// way no build error reports: no launcher category, the generic Electron icon,
+// and an empty tooltip.
+describe('Linux desktop-entry metadata is set, since none of it can be inferred', () => {
+  const linuxOf = (config: Record<string, never>) =>
+    config['linux'] as unknown as {
+      category?: string;
+      icon?: string;
+      description?: string;
+      desktop?: { entry?: Record<string, string> };
+    };
+
+  it('category is explicit, because mac.category cannot map to a Linux one', () => {
+    // macToLinuxCategory covers graphics-design, developer-tools, education,
+    // games, video, utilities, social-networking, finance and music. There is no
+    // productivity entry, so relying on the fallback yields no Categories at all.
+    const linux = linuxOf(loadConfig({ DAYGLANCE_APP_ID: undefined }));
+    expect(linux.category, 'unset category means no Categories key').toBeTruthy();
+    expect(linux.category).toContain('Office');
+  });
+
+  it('an icon is named, or the build ships the generic Electron one', () => {
+    const linux = linuxOf(loadConfig({ DAYGLANCE_APP_ID: undefined }));
+    expect(linux.icon, 'no icon source reaches getDefaultFrameworkIcon').toBeTruthy();
+  });
+
+  it('the named icon exists under buildResources and is a PNG', () => {
+    // resolveIcon searches [buildResourcesDir, projectDir], and buildResources is
+    // public/, so a bare filename must exist there. A missing file falls back
+    // silently rather than failing the build, which is why this is asserted.
+    const config = loadConfig({ DAYGLANCE_APP_ID: undefined });
+    const icon = linuxOf(config).icon as string;
+    const buildResources = (config['directories'] as unknown as { buildResources: string }).buildResources;
+    const full = require('node:path').join(buildResources, icon);
+    expect(require('node:fs').existsSync(full), `${full} must exist`).toBe(true);
+    expect(icon.endsWith('.png'), 'Linux icon sets are generated from a PNG').toBe(true);
+  });
+
+  it('a description is set, so the .desktop Comment is not dropped', () => {
+    // getDescription falls back to package.json description, which is unset.
+    const linux = linuxOf(loadConfig({ DAYGLANCE_APP_ID: undefined }));
+    expect(linux.description).toBeTruthy();
+  });
+
+  it('Keywords is a semicolon-terminated list, per the freedesktop spec', () => {
+    const entry = linuxOf(loadConfig({ DAYGLANCE_APP_ID: undefined })).desktop?.entry ?? {};
+    expect(entry['Keywords']).toBeTruthy();
+    expect(entry['Keywords']?.endsWith(';'), 'list values must end with ;').toBe(true);
+  });
+
+  it('StartupWMClass is NOT overridden: electron-builder derives it correctly', () => {
+    // It must match Electron's app_id. Hardcoding a guess here would break
+    // window-to-launcher association rather than fix it.
+    const entry = linuxOf(loadConfig({ DAYGLANCE_APP_ID: undefined })).desktop?.entry ?? {};
+    expect(entry['StartupWMClass']).toBeUndefined();
+  });
+});

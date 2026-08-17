@@ -88,6 +88,43 @@ The arm64 AppImage covers 64-bit Raspberry Pi OS and other aarch64 desktops. 32-
 
 AppImages need FUSE. If launching complains about it, either install `libfuse2` or run with `--appimage-extract-and-run`.
 
+#### Running it on Linux
+
+An AppImage is not installed. It is a single self-contained executable that stays wherever you saved it, so there is no setup step and nothing to uninstall later:
+
+```bash
+chmod +x dayGLANCE-<version>-arm64.AppImage
+./dayGLANCE-<version>-arm64.AppImage
+```
+
+It will **not** appear in your applications menu on its own. Two ways to get it there:
+
+**[AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher)** — install it once and every AppImage you open offers to integrate itself, moving the file somewhere sensible and creating the menu entry for you. This is the least work if you use AppImages for anything else.
+
+**A desktop entry by hand** — move the AppImage somewhere permanent, then write one file:
+
+```bash
+mkdir -p ~/.local/bin ~/.local/share/applications
+mv dayGLANCE-*.AppImage ~/.local/bin/dayglance
+chmod +x ~/.local/bin/dayglance
+
+cat > ~/.local/share/applications/dayglance.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=dayGLANCE
+Comment=Your day, at a glance
+Exec=/home/YOUR_USER/.local/bin/dayglance
+Icon=dayglance
+Terminal=false
+Categories=Office;Calendar;
+StartupWMClass=dayGLANCE
+EOF
+
+update-desktop-database ~/.local/share/applications 2>/dev/null || true
+```
+
+Replace `YOUR_USER`, since `Exec` does not expand `~`. For the icon, extract it from the AppImage with `./dayglance --appimage-extract` and copy `squashfs-root/dayglance.png` to `~/.local/share/icons/`, or point `Icon=` at any PNG path.
+
 ---
 
 ## Android App
