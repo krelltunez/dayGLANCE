@@ -69,6 +69,16 @@ Local integrations (Electron), whenever the MCP surface has changed:
   whether the bridge is present at all. Confirm Claude Desktop actually
   starts the server afterward, because a written config proves only that
   the file was written.
+
+  Plan for this one. The button writes an `mcpServers` entry into
+  `claude_desktop_config.json`, while the `.mcpb` bundle installs through
+  Claude Desktop's Extensions pane — two independent mechanisms, neither
+  aware of the other, so a day-to-day machine running the extension cannot
+  test the button without disturbing the setup you rely on. Use a second
+  machine, a VM, or a spare Claude Desktop profile rather than uninstalling
+  the extension. If both paths are ever active at once, expect Claude
+  Desktop to list the dayGLANCE tools twice; they reach the same listener,
+  so it is a confusing surface rather than a correctness problem.
 - A write syncs to a second device and survives a tombstone cycle. This
   needs two real devices, not a local write test.
 - Per-task and bulk undo both reverse a write, and an undone create
