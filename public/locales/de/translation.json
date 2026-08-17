@@ -527,7 +527,20 @@
   },
   "gettingStarted": {
     "title": "Erste Schritte",
-    "imGoodToGo": "Ich bin bereit"
+    "imGoodToGo": "Ich bin bereit",
+    "items": {
+      "inbox": "Erste Aufgabe im Posteingang hinzufügen",
+      "scheduled": "Erste geplante Aufgabe hinzufügen",
+      "dragMobile": "Eine Aufgabe aus dem Posteingang planen",
+      "dragDesktop": "Eine Aufgabe in die Zeitplanansicht ziehen",
+      "priority": "Priorität oder Frist festlegen",
+      "notes": "Notizen oder Unteraufgaben zu einer Aufgabe hinzufügen",
+      "tags": "#Tags im Aufgabentitel verwenden",
+      "recurring": "Wiederkehrende Aufgabe erstellen",
+      "focus": "Fokusmodus ausprobieren",
+      "sync": "Kalendersynchronisierung einrichten",
+      "optional": "Routinen, Gewohnheiten oder KI aktivieren"
+    }
   },
   "habit": {
     "manageHabits": "Gewohnheiten verwalten",

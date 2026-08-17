@@ -527,7 +527,20 @@
   },
   "gettingStarted": {
     "title": "Premiers pas",
-    "imGoodToGo": "C'est parti !"
+    "imGoodToGo": "C'est parti !",
+    "items": {
+      "inbox": "Ajoutez votre première tâche à la boîte de réception",
+      "scheduled": "Ajoutez votre première tâche planifiée",
+      "dragMobile": "Planifiez une tâche depuis la boîte de réception",
+      "dragDesktop": "Faites glisser une tâche vers l'agenda",
+      "priority": "Définissez une priorité ou une échéance",
+      "notes": "Ajoutez des notes ou des sous-tâches à une tâche",
+      "tags": "Utilisez des #tags dans le titre d'une tâche",
+      "recurring": "Créez une tâche récurrente",
+      "focus": "Essayez le Mode Focus",
+      "sync": "Configurez la synchronisation du calendrier",
+      "optional": "Activez les routines, habitudes ou l'IA"
+    }
   },
   "habit": {
     "manageHabits": "Gérer les habitudes",

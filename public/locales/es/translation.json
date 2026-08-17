@@ -527,7 +527,20 @@
   },
   "gettingStarted": {
     "title": "Primeros pasos",
-    "imGoodToGo": "¡Estoy listo!"
+    "imGoodToGo": "¡Estoy listo!",
+    "items": {
+      "inbox": "Añade tu primera tarea a la bandeja de entrada",
+      "scheduled": "Añade tu primera tarea programada",
+      "dragMobile": "Programa una tarea desde la bandeja de entrada",
+      "dragDesktop": "Arrastra una tarea a la agenda",
+      "priority": "Establece una prioridad o fecha límite",
+      "notes": "Añade notas o subtareas a una tarea",
+      "tags": "Usa #etiquetas en el título de una tarea",
+      "recurring": "Crea una tarea recurrente",
+      "focus": "Prueba el Modo Enfoque",
+      "sync": "Configura la sincronización de calendario",
+      "optional": "Activa rutinas, hábitos o IA"
+    }
   },
   "habit": {
     "manageHabits": "Gestionar hábitos",

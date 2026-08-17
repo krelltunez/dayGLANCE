@@ -527,7 +527,20 @@
   },
   "gettingStarted": {
     "title": "Per iniziare",
-    "imGoodToGo": "Sono pronto!"
+    "imGoodToGo": "Sono pronto!",
+    "items": {
+      "inbox": "Aggiungi la tua prima attività in arrivo",
+      "scheduled": "Aggiungi la tua prima attività pianificata",
+      "dragMobile": "Pianifica un'attività da In arrivo",
+      "dragDesktop": "Trascina un'attività nell'agenda",
+      "priority": "Imposta una priorità o una scadenza",
+      "notes": "Aggiungi note o sottoattività a un'attività",
+      "tags": "Usa i #tag nel titolo di un'attività",
+      "recurring": "Crea un'attività ricorrente",
+      "focus": "Prova la Modalità Focus",
+      "sync": "Configura la sincronizzazione del calendario",
+      "optional": "Attiva routine, abitudini o IA"
+    }
   },
   "habit": {
     "manageHabits": "Gestisci abitudini",

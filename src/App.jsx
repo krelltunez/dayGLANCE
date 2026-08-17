@@ -5806,18 +5806,21 @@ const DayPlanner = () => {
   // Getting Started checklist - uses persistent progress tracking
   const gettingStartedItems = useMemo(() => {
     return [
-      { id: 'inbox', label: 'Add your first inbox task', completed: onboardingProgress.hasAddedInboxTask },
-      { id: 'scheduled', label: 'Add your first scheduled task', completed: onboardingProgress.hasAddedScheduledTask },
-      { id: 'drag', label: isMobile ? 'Schedule a task from inbox' : 'Drag a task to the timeline', completed: onboardingProgress.hasDraggedToTimeline },
-      { id: 'priority', label: 'Set a priority or deadline', completed: onboardingProgress.hasSetPriority || onboardingProgress.hasAddedDeadline },
-      { id: 'notes', label: 'Add notes or subtasks to a task', completed: onboardingProgress.hasAddedNotes },
-      { id: 'tags', label: 'Use #tags in a task title', completed: onboardingProgress.hasUsedTags },
-      { id: 'recurring', label: 'Create a recurring task', completed: onboardingProgress.hasCreatedRecurring },
-      { id: 'focus', label: 'Try Focus Mode', completed: onboardingProgress.hasUsedFocusMode },
-      { id: 'sync', label: 'Set up calendar sync', completed: onboardingProgress.hasSetupSync },
-      { id: 'optional', label: 'Enable routines, habits, or AI', completed: onboardingProgress.hasEnabledOptionalFeature },
+      { id: 'inbox', label: t('gettingStarted.items.inbox'), completed: onboardingProgress.hasAddedInboxTask },
+      { id: 'scheduled', label: t('gettingStarted.items.scheduled'), completed: onboardingProgress.hasAddedScheduledTask },
+      { id: 'drag', label: isMobile ? t('gettingStarted.items.dragMobile') : t('gettingStarted.items.dragDesktop'), completed: onboardingProgress.hasDraggedToTimeline },
+      { id: 'priority', label: t('gettingStarted.items.priority'), completed: onboardingProgress.hasSetPriority || onboardingProgress.hasAddedDeadline },
+      { id: 'notes', label: t('gettingStarted.items.notes'), completed: onboardingProgress.hasAddedNotes },
+      { id: 'tags', label: t('gettingStarted.items.tags'), completed: onboardingProgress.hasUsedTags },
+      { id: 'recurring', label: t('gettingStarted.items.recurring'), completed: onboardingProgress.hasCreatedRecurring },
+      { id: 'focus', label: t('gettingStarted.items.focus'), completed: onboardingProgress.hasUsedFocusMode },
+      { id: 'sync', label: t('gettingStarted.items.sync'), completed: onboardingProgress.hasSetupSync },
+      { id: 'optional', label: t('gettingStarted.items.optional'), completed: onboardingProgress.hasEnabledOptionalFeature },
     ];
-  }, [onboardingProgress, isMobile]);
+    // t belongs in the deps: without it the memo holds the labels from whichever
+    // language was active when it last ran, so switching language in Settings
+    // would leave this list stranded in the old one.
+  }, [onboardingProgress, isMobile, t]);
 
   const allGettingStartedComplete = gettingStartedItems.every(item => item.completed);
   const gettingStartedCompleteCount = gettingStartedItems.filter(item => item.completed).length;
