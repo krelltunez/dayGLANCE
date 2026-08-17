@@ -364,6 +364,17 @@ const LocalIntegrationsSettings = ({ variant }) => {
                       setSetupResult(null);
                       try {
                         setSetupResult(await window.electronAPI.mcpSetupClaudeDesktop());
+                      } catch (err) {
+                        // A REJECTED invoke, not a returned failure. The handler
+                        // returns {ok:false,...} for everything it can anticipate;
+                        // reaching here means the call never got that far — most
+                        // likely the channel does not exist, because main.ts loads
+                        // the setup module dynamically and swallows any load error.
+                        // Without this branch the rejection is unhandled, no result
+                        // is ever set, and the button silently does nothing, which
+                        // is indistinguishable from the packaging bug it is meant
+                        // to report.
+                        setSetupResult({ ok: false, reason: 'unavailable', error: String(err?.message || err) });
                       } finally {
                         setSetupBusy(false);
                       }
@@ -392,7 +403,9 @@ const LocalIntegrationsSettings = ({ variant }) => {
                             /* No manual entry offered here on purpose: it would name the
                                same missing file. Send them to the published bridge instead. */
                             ? 'This build did not ship the bridge, so nothing was written. Install the bridge yourself with "npx -y @glance-apps/mcp-bridge", then follow the setup guide to point Claude Desktop at it. Please report this build as broken.'
-                            : 'The configuration could not be written automatically. To finish setup by hand, paste this entry into your Claude Desktop configuration file:'}
+                            : setupResult.reason === 'unavailable'
+                              ? 'dayGLANCE could not run setup at all, so nothing was written. This is a fault in the app rather than in your configuration. Restart dayGLANCE, and if it persists, set the bridge up by hand with "npx -y @glance-apps/mcp-bridge" and please report the build.'
+                              : 'The configuration could not be written automatically. To finish setup by hand, paste this entry into your Claude Desktop configuration file:'}
                       </p>
                       {setupResult.path && <p className="font-mono break-all">{setupResult.path}</p>}
                       {setupResult.manualEntry && (
