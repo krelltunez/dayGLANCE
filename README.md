@@ -7,7 +7,7 @@ Part of the **GLANCE family**: focused, standalone apps connected through a shar
 [<img src="screenshots/badges/google-play.png" alt="Get it on Google Play" height="60">](https://play.google.com/store/apps/details?id=com.dayglance.app) [<img src="screenshots/badges/app-store.svg" alt="Download on the App Store" height="60">](https://apps.apple.com/app/id6771540599)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-4.3.0-green.svg)](https://github.com/krelltunez/dayglance/releases)
+[![Version](https://img.shields.io/badge/version-4.4.0-green.svg)](https://github.com/krelltunez/dayglance/releases)
 
 [**Live App**](https://dayglance.app) · [**Documentation**](https://docs.dayglance.app) · [**Releases**](https://github.com/krelltunez/dayglance/releases)
 
@@ -306,7 +306,7 @@ Sync tasks and daily notes directly with your **Obsidian vault**, with no plugin
 - Supports all Obsidian task formats, duration ranges (`HH:MM-HH:MM`), moves, rescheduling, and title edits
 - Daily notes sync **bidirectionally**
 
-**Setup:** Settings → Obsidian → select your vault folder. Available on desktop browsers (Chrome, Edge, Brave) and the Android app.
+**Setup:** Settings → Obsidian → select your vault folder. Available in the desktop app on macOS, Windows and Linux, in desktop browsers (Chrome, Edge, Brave), and in the Android app.
 
 ---
 
@@ -328,6 +328,20 @@ Once enabled in **Settings → AI**:
 | ✅ **Subtask generation** | Generates a subtask list from any task's notes panel |
 | 🔄 **End-of-day rescheduling** | Reviews incomplete tasks and suggests times to move them |
 | 🌙 **Evening reflection** | Guided end-of-day prompt to capture wins and plan tomorrow |
+
+### AI Assistants (MCP Server)
+
+Let an AI assistant on the same computer read your day and manage your tasks. dayGLANCE's desktop app includes a local **MCP (Model Context Protocol)** server, so clients like Claude Desktop and Claude Code can ask what's scheduled, add and reschedule tasks, and check goal progress.
+
+- **Local only.** The listener binds to `127.0.0.1` and is never reachable from the network. Nothing is sent anywhere by dayGLANCE
+- **Three separate opt-ins.** Reading dayGLANCE data, writing changes, and reading your device calendar are each their own consent
+- **12 tools and 3 read-only resources** covering the schedule, inbox, goals, habits and routines
+- **Every change is undoable.** Writes land in a session journal you can reverse per task or in bulk, from the app or the macOS tray. A kill switch stops the server outright
+- Device calendar events are always read-only, and writes to them are refused
+
+**The tradeoff to understand:** an assistant that reads your data typically sends what it reads to its own AI provider over the internet. dayGLANCE cannot see or control what a client does with data it has read, and this sits outside dayGLANCE's own privacy guarantees. Review the privacy policy of any client you connect.
+
+**Setup:** Settings → Local Integrations. Claude Code connects directly over HTTP; Claude Desktop connects through [`@glance-apps/mcp-bridge`](https://github.com/glance-apps/mcp-bridge), which the desktop builds can install for you with one click. Full tool reference in [docs/mcp-tools-reference.md](docs/mcp-tools-reference.md).
 
 ### Health Connect (Android)
 
