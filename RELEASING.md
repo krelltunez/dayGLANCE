@@ -50,8 +50,28 @@ Run these once each on real hardware or a representative simulator:
   prompt is deferred until first use (not on launch); a vault SSE
   auth-failure surfaces to the user once (no silent retry storm).
 - Android: vault SSE stream connects and the WebView renders the app.
+- Android: a real purchase completes and is acknowledged, and the app
+  recovers when the billing service is not ready at first tap (honest
+  message, then a successful retry after reconnect).
 - Electron: the Mac App Store restore-purchase flow works, and the
   file-to-app storage migration runs cleanly on an upgrade.
+
+Local integrations (Electron), whenever the MCP surface has changed:
+
+- Fresh install has the server off and nothing bound on 7893.
+- Each of the three consent tiers cannot be enabled without passing its
+  own copy, and the device-calendar tier is its own separate dialog.
+- A read and a write both succeed from a real client. Claude Code
+  connects directly; Claude Desktop needs the bridge, so exercise the
+  setup button in a direct-download build.
+- A write syncs to a second device and survives a tombstone cycle. This
+  needs two real devices, not a local write test.
+- Per-task and bulk undo both reverse a write, and an undone create
+  lands in the recycle bin.
+- The kill switch stops the listener, and a connected client then fails
+  to reach it.
+- The MAS build has the bridge path compiled out: no setup button, no
+  discovery file written, manual token configuration only.
 
 ### 1.4 App Store Connect metadata
 
@@ -62,6 +82,13 @@ Confirm the listing has:
 - EULA: https://www.glance-apps.com/eula
 - Review notes disclose the reviewer-unlock code so the reviewer can get past
   the paywall.
+- Review notes cover the loopback listener whenever a release changes it:
+  that it is off by default behind explicit consent, that the app never
+  downloads or executes an external component (connecting a client needs a
+  bridge the user installs themselves), and that 127.0.0.1 is the same
+  architecture as the Stream Deck listener already resolved under Guideline
+  2.4.5(i). Testing it needs an MCP client, so link the bridge bundle and
+  offer the demo video as the alternative.
 - ATS justification documented for user-configured http WebDAV/CalDAV
   endpoints (arbitrary-loads is allowed because the server address is
   user-provided, not an app-controlled host).
@@ -121,6 +148,16 @@ archive, and upload to App Store Connect.
 
 Order matters, because publishing the GitHub release is what triggers the
 downstream Docker and website workflows. Do it LAST.
+
+Tag only from a commit that carries the bump. A tag pushed from any other
+commit still fires `release-desktop.yml` and produces a draft release for a
+version that does not exist (this happened to `v4.3.1`). Delete such a tag on
+both sides rather than leaving it in the history.
+
+If the release changes the MCP surface, `@glance-apps/mcp-bridge` ships on its
+own timeline in its own repo. Publish the npm package and the `.mcpb` bundle
+BEFORE this release, so the setup button and the documented install paths work
+the moment the desktop builds land.
 
 1. Push the version tag: `git tag v4.0.0 && git push origin v4.0.0`.
 2. CI (`release-desktop.yml`) builds the desktop apps and creates a DRAFT

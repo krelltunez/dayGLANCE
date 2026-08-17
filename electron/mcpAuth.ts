@@ -7,7 +7,7 @@
 // and its token only delegates trust to a browser-context property inspector,
 // while this token gates every request. What carries over is the idiom:
 // randomBytes(32).toString('hex'), loopback-only, reject browser origins.
-// See docs/mcp-server-spec.md §3.5 and docs/mcp-phase0-findings.md item 2.
+// See docs/mcp-server-spec.md §3.5 and docs/internal/mcp-phase0-findings.md item 2.
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
