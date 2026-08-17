@@ -155,9 +155,31 @@ module.exports = {
     x64ArchFiles: '**/dayglance-*-helper',
   },
   win: {
+    // The MCP bridge must be declared HERE too, not only under mac. extraResources
+    // is a per-platform option: mac's array does not reach the Windows artifact, so
+    // omitting it here shipped an installer with no resources/mcp-bridge at all,
+    // while the "Set up Claude Desktop" button still wrote a config pointing into
+    // it (fixed alongside this; the setup handler now refuses to write when the
+    // bridge is absent rather than reporting success).
+    //
+    // Deliberately NOT hoisted to a top-level extraResources to cover both at once:
+    // the mac block's array would then merge with it, and the mac/mas deepAssign
+    // concatenation documented above makes that merge's result the exact thing this
+    // file already has to reason carefully about. Per-platform is verbose and
+    // obvious; hoisting is terse and subtle.
+    //
+    // isMasBuild is a whole-build env flag, not a per-target one, so it is not
+    // needed here (MAS is a mac-only target), but no Windows build ever sets it.
+    extraResources: [
+      { from: 'node_modules/@glance-apps/mcp-bridge', to: 'mcp-bridge' },
+    ],
     target: [{ target: 'nsis' }],
   },
   linux: {
+    // No bridge, by design (§7): there is no Claude Desktop on Linux, and an
+    // AppImage's mount path changes every launch, so an absolute path written into
+    // a config would go stale on the next run. Linux connects via npx instead, and
+    // the renderer's setup button does not render there.
     target: [{ target: 'AppImage' }],
   },
 };

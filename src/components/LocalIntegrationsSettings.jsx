@@ -388,7 +388,11 @@ const LocalIntegrationsSettings = ({ variant }) => {
                       <p className="text-amber-500">
                         {setupResult.reason === 'unparseable'
                           ? 'Your Claude Desktop configuration file could not be parsed, so dayGLANCE did not touch it. To finish setup by hand, fix or empty the file, or paste this entry into it:'
-                          : 'The configuration could not be written automatically. To finish setup by hand, paste this entry into your Claude Desktop configuration file:'}
+                          : setupResult.reason === 'bridge_missing'
+                            /* No manual entry offered here on purpose: it would name the
+                               same missing file. Send them to the published bridge instead. */
+                            ? 'This build did not ship the bridge, so nothing was written. Install the bridge yourself with "npx -y @glance-apps/mcp-bridge", then follow the setup guide to point Claude Desktop at it. Please report this build as broken.'
+                            : 'The configuration could not be written automatically. To finish setup by hand, paste this entry into your Claude Desktop configuration file:'}
                       </p>
                       {setupResult.path && <p className="font-mono break-all">{setupResult.path}</p>}
                       {setupResult.manualEntry && (

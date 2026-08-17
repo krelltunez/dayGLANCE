@@ -62,8 +62,23 @@ Local integrations (Electron), whenever the MCP surface has changed:
 - Each of the three consent tiers cannot be enabled without passing its
   own copy, and the device-calendar tier is its own separate dialog.
 - A read and a write both succeed from a real client. Claude Code
-  connects directly; Claude Desktop needs the bridge, so exercise the
-  setup button in a direct-download build.
+  connects directly; Claude Desktop needs the bridge.
+- The setup button, run on macOS AND on Windows, on the real installed
+  artifact. Not one platform standing in for the other: extraResources is
+  declared per platform, so the two builds can and did disagree about
+  whether the bridge is present at all. Confirm Claude Desktop actually
+  starts the server afterward, because a written config proves only that
+  the file was written.
+
+  Plan for this one. The button writes an `mcpServers` entry into
+  `claude_desktop_config.json`, while the `.mcpb` bundle installs through
+  Claude Desktop's Extensions pane — two independent mechanisms, neither
+  aware of the other, so a day-to-day machine running the extension cannot
+  test the button without disturbing the setup you rely on. Use a second
+  machine, a VM, or a spare Claude Desktop profile rather than uninstalling
+  the extension. If both paths are ever active at once, expect Claude
+  Desktop to list the dayGLANCE tools twice; they reach the same listener,
+  so it is a confusing surface rather than a correctness problem.
 - A write syncs to a second device and survives a tombstone cycle. This
   needs two real devices, not a local write test.
 - Per-task and bulk undo both reverse a write, and an undone create
