@@ -12,15 +12,36 @@
 // string's absence) against the BUILT artifact.
 
 import { ipcMain } from 'electron';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { homedir } from 'node:os';
-import { claudeConfigPath, bridgeEntry, bridgeScriptPath, mergeClaudeConfig, manualEntrySnippet } from './mcpDesktopConfig.js';
+import { claudeConfigPath, claudeConfigIsPackaged, bridgeEntry, bridgeScriptPath, mergeClaudeConfig, manualEntrySnippet } from './mcpDesktopConfig.js';
 
-export function registerMcpDesktopSetup(): void {
+/** Never throws: an unreadable or absent directory is simply no candidates. */
+const dirProbe = {
+  readDir(p: string): string[] {
+    try {
+      return readdirSync(p);
+    } catch {
+      return [];
+    }
+  },
+};
+
+/**
+ * @param getConnection supplies the live MCP port and token, used only when
+ *   Claude Desktop is packaged and discovery cannot cross the container
+ *   boundary (see bridgeEntry). Returning null falls back to discovery.
+ */
+export function registerMcpDesktopSetup(
+  getConnection: () => { port: number; token: string } | null = () => null,
+): void {
   ipcMain.handle('mcp-setup:claude-desktop', () => {
-    const path = claudeConfigPath(process.platform, process.env, homedir());
-    const entry = bridgeEntry(process.execPath, process.resourcesPath);
+    const path = claudeConfigPath(process.platform, process.env, homedir(), dirProbe);
+    // Only override discovery where it provably cannot work. An unpackaged
+    // install keeps the 0600 discovery file as the only place the token lives.
+    const connection = path && claudeConfigIsPackaged(path) ? getConnection() : null;
+    const entry = bridgeEntry(process.execPath, process.resourcesPath, connection);
     if (!path) {
       return { ok: false, reason: 'unsupported_platform', manualEntry: manualEntrySnippet(entry) };
     }
