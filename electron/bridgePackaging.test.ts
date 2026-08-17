@@ -63,3 +63,39 @@ describe('MCP bridge packaging — every platform with a setup button ships one'
     expect(resourcesOf(config as never).some((r) => r.from === BRIDGE)).toBe(false);
   });
 });
+
+// Architecture is a separate failure mode from packaging, and a quieter one.
+// An omitted `arch` does not mean "all architectures", it means "whatever the
+// build host is" — ubuntu-latest, so x64. Three releases shipped a Linux
+// AppImage that could not run on a Raspberry Pi, and nothing anywhere said so:
+// the config looked complete, the build succeeded, the artifact uploaded.
+// Only a user on aarch64 would ever find out, via "cannot execute binary file".
+describe('desktop target architectures are declared, never inherited from the host', () => {
+  const targetsOf = (block: { target?: unknown } | undefined) => {
+    const t = block?.target;
+    return Array.isArray(t) ? (t as { target: string; arch?: string | string[] }[]) : [];
+  };
+
+  it('the Linux AppImage covers x64 AND arm64, so ARM SBCs get a real app', () => {
+    const config = loadConfig({ DAYGLANCE_APP_ID: undefined });
+    const appImage = targetsOf(config['linux']).find((t) => t.target === 'AppImage');
+    expect(appImage, 'linux must declare an AppImage target').toBeDefined();
+    expect(appImage?.arch, 'omitting arch silently yields host-arch only').toEqual(['x64', 'arm64']);
+  });
+
+  it('every Linux and macOS target names its arch explicitly', () => {
+    const config = loadConfig({ DAYGLANCE_APP_ID: undefined });
+    for (const platform of ['linux', 'mac']) {
+      for (const t of targetsOf(config[platform])) {
+        expect(t.arch, `${platform}.${t.target} must declare arch, not inherit it`).toBeDefined();
+      }
+    }
+  });
+
+  it('mac still covers both architectures, unchanged', () => {
+    const config = loadConfig({ DAYGLANCE_APP_ID: undefined });
+    for (const t of targetsOf(config['mac'])) {
+      expect(t.arch).toEqual(['x64', 'arm64']);
+    }
+  });
+});

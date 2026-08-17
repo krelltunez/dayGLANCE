@@ -48,6 +48,8 @@ services:
 docker compose up -d
 ```
 
+The image is built for `linux/amd64` and `linux/arm64`, so it runs on a Raspberry Pi or other ARM single-board computer as well as on an x86 server. Docker pulls the right one automatically.
+
 Available at `http://localhost:6767`. For HTTPS with Caddy:
 
 ```caddy
@@ -68,6 +70,18 @@ npm run dev
 Open [http://localhost:5173](http://localhost:5173). For production: `npm run build`.
 
 → See the [full deployment guide](https://docs.dayglance.app/self-hosting) for reverse proxy setup and update instructions.
+
+### Desktop App
+
+Native builds for macOS, Windows and Linux are on the [releases page](https://github.com/krelltunez/dayglance/releases). The desktop app adds what a browser cannot do: the menu bar or tray popup, the Stream Deck listener, native calendar access, and the local MCP server for AI assistants.
+
+| Platform | Artifact | Architectures |
+|---|---|---|
+| macOS | `.dmg`, `.zip` | Intel and Apple Silicon |
+| Windows | `.exe` installer | x64 |
+| Linux | `.AppImage` | x64 and arm64 |
+
+The arm64 AppImage covers 64-bit Raspberry Pi OS and other aarch64 desktops. 32-bit systems reporting `armv7l` are not covered. If you only want the planner itself on an ARM board rather than the desktop features, the Docker image above is lighter.
 
 ---
 
