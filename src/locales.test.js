@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { languages, loaders } from './locales.js';
+import { languages, loaders, resolveLanguage } from './locales.js';
 
 // Guards the drift that shipped de/es/it/pt as files with no `resources` entry,
 // so every string in those languages silently rendered in English. A test that
 // only checked the files existed would have passed throughout that bug — the
 // assertions below go through the same loaders i18n.js resolves at runtime.
 describe('locale bundles', () => {
-  const EXPECTED = ['de', 'en', 'es', 'fr', 'it', 'pt'];
+  const EXPECTED = ['de', 'en', 'es', 'fr', 'it', 'pt-BR', 'pt-PT'];
   const TRANSLATED = EXPECTED.filter((l) => l !== 'en');
 
   const bundles = {};
@@ -28,6 +28,61 @@ describe('locale bundles', () => {
 
   it('exposes every shipped language', () => {
     expect(languages).toEqual(EXPECTED);
+  });
+
+  describe('resolveLanguage', () => {
+    it('passes through a tag that is already shipped', () => {
+      expect(resolveLanguage('pt-BR')).toBe('pt-BR');
+      expect(resolveLanguage('de')).toBe('de');
+    });
+
+    // The regression this exists to prevent. Portuguese shipped as a single
+    // "pt" locale before the split, so every Portuguese user has that value
+    // cached; without the mapping they would silently land in English.
+    it('moves the pre-split "pt" to European rather than English', () => {
+      expect(resolveLanguage('pt')).toBe('pt-PT');
+    });
+
+    it('sends an unshipped Portuguese region to European', () => {
+      expect(resolveLanguage('pt-AO')).toBe('pt-PT');
+      expect(resolveLanguage('pt-MZ')).toBe('pt-PT');
+    });
+
+    it('matches a regional tag regardless of case', () => {
+      expect(resolveLanguage('pt-br')).toBe('pt-BR');
+      expect(resolveLanguage('PT-BR')).toBe('pt-BR');
+    });
+
+    it('reduces a regional tag to a base language that is shipped', () => {
+      expect(resolveLanguage('en-US')).toBe('en');
+      expect(resolveLanguage('de-AT')).toBe('de');
+    });
+
+    it('falls back to en for a language that is not shipped', () => {
+      expect(resolveLanguage('ja')).toBe('en');
+      expect(resolveLanguage('zz-ZZ')).toBe('en');
+    });
+
+    it('handles a missing or non-string value', () => {
+      expect(resolveLanguage(undefined)).toBe('en');
+      expect(resolveLanguage(null)).toBe('en');
+      expect(resolveLanguage('')).toBe('en');
+      expect(resolveLanguage(42)).toBe('en');
+    });
+
+    it('prefers any variant of the right language over English', () => {
+      expect(resolveLanguage('pt', ['en', 'pt-BR'])).toBe('pt-BR');
+    });
+
+    it('falls back to the first option when en is not shipped', () => {
+      expect(resolveLanguage('ja', ['de', 'fr'])).toBe('de');
+    });
+
+    it('always returns something the picker can render', () => {
+      for (const reported of ['en', 'pt', 'pt-AO', 'de-AT', 'zz', '', undefined]) {
+        expect(languages).toContain(resolveLanguage(reported));
+      }
+    });
   });
 
   it.each(EXPECTED)('%s resolves to a non-empty bundle', (lng) => {

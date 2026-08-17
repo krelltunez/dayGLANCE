@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { languages } from '../locales.js';
+import { languages, resolveLanguage } from '../locales.js';
 
 /**
  * The language's own name for itself, derived from the tag rather than a table
@@ -21,21 +21,12 @@ export function nativeLanguageName(tag) {
   }
 }
 
-/**
- * Resolve what i18next reports to one of the options actually in the list, so
- * the select never falls back to displaying its first entry while a different
- * language is live. A detected tag can be regional ("en-US") or unsupported.
- */
-export function selectedLanguage(reported, available = languages) {
-  if (available.includes(reported)) return reported;
-  const base = String(reported ?? '').split('-')[0];
-  if (available.includes(base)) return base;
-  return available.includes('en') ? 'en' : available[0];
-}
-
 export default function LanguagePicker({ className, id }) {
   const { i18n } = useTranslation();
-  const value = selectedLanguage(i18n.resolvedLanguage || i18n.language);
+  // Same resolver the detector uses, so the option shown always matches the
+  // language actually rendering. A select whose value matches no option
+  // silently displays its first entry instead.
+  const value = resolveLanguage(i18n.resolvedLanguage || i18n.language);
 
   return (
     <select
