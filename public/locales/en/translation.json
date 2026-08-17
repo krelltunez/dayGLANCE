@@ -527,7 +527,20 @@
   },
   "gettingStarted": {
     "title": "Getting Started",
-    "imGoodToGo": "I'm Good to Go"
+    "imGoodToGo": "I'm Good to Go",
+    "items": {
+      "inbox": "Add your first inbox task",
+      "scheduled": "Add your first scheduled task",
+      "dragMobile": "Schedule a task from inbox",
+      "dragDesktop": "Drag a task to the timeline",
+      "priority": "Set a priority or deadline",
+      "notes": "Add notes or subtasks to a task",
+      "tags": "Use #tags in a task title",
+      "recurring": "Create a recurring task",
+      "focus": "Try Focus Mode",
+      "sync": "Set up calendar sync",
+      "optional": "Enable routines, habits, or AI"
+    }
   },
   "habit": {
     "manageHabits": "Manage Habits",
