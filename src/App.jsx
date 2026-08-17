@@ -3552,6 +3552,7 @@ const DayPlanner = () => {
             notes: template?.notes || '',
             subtasks: template?.subtasks ? JSON.parse(JSON.stringify(template.subtasks)) : [],
             date: newTask.date || parsed.dateStr,
+            projectId: newTask.projectId || undefined,
             ...(mobileEditingTask.assignedUserSyncIds?.length ? { assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds } : {}),
           };
           setTasks(prev => [...prev, regularTask]);
@@ -3585,6 +3586,7 @@ const DayPlanner = () => {
               completed: false,
               notes: '',
               subtasks: [],
+              projectId: newTask.projectId || undefined,
               assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds,
             }]);
           } else {
@@ -3629,6 +3631,9 @@ const DayPlanner = () => {
                 ...t,
                 exceptions,
                 assignedUserSyncIds: templateAssigned,
+                // Project changes in the editor apply to the whole series —
+                // project membership is series-level, like the template itself.
+                projectId: newTask.projectId || undefined,
                 // Update recurrence pattern on template if changed
                 recurrence: { ...newTask.recurrence, startDate: t.recurrence?.startDate || parsed.dateStr.substring(0, 8) + '01' },
                 lastModified: new Date().toISOString(),
@@ -3653,6 +3658,7 @@ const DayPlanner = () => {
         recurrence: { ...newTask.recurrence, startDate: taskDate },
         completedDates: existingTask?.completed ? [taskDate] : [],
         exceptions: {},
+        ...(newTask.projectId ? { projectId: newTask.projectId } : {}),
         assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds ?? existingTask?.assignedUserSyncIds,
         lastModified: new Date().toISOString()
       };
@@ -5982,6 +5988,9 @@ const DayPlanner = () => {
           isRecurring: true,
           recurringTemplateId: template.id,
           recurrenceType: template.recurrence?.type,
+          // Project membership is series-level (stored on the template);
+          // instances inherit it so project-filtered views keep occurrences.
+          projectId: template.projectId,
           ...(template.isExample ? { isExample: true } : {}),
         });
       }

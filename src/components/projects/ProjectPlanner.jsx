@@ -17,6 +17,7 @@ const IS_IOS = typeof navigator !== 'undefined' && (
 );
 import SchedTaskCard from '../sched/SchedTaskCard.jsx';
 import HyperGlanceEditor from './HyperGlanceEditor.jsx';
+import RecurringSeriesRow from './RecurringSeriesRow.jsx';
 
 /**
  * PLANNER — a per-project planning dashboard, themed to the project's color.
@@ -29,6 +30,7 @@ const ProjectPlanner = ({ project, onClose }) => {
     isMobile,
     darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     tasks, unscheduledTasks, setUnscheduledTasks, reorderUnscheduledTasks,
+    recurringTasks,
     openMobileEditTask, scheduleTaskAtNextSlot,
   } = useDayPlannerCtx();
   const { goals, updateProject, isVisibleForUser } = useFeaturesCtx();
@@ -116,6 +118,13 @@ const ProjectPlanner = ({ project, onClose }) => {
   const hasAnyCompleted = useMemo(() =>
     [...tasks, ...unscheduledTasks].some(task => task.projectId === project.id && !task.archived && task.completed),
     [tasks, unscheduledTasks, project.id]);
+
+  // Recurring series of this project — listed once per template at the top of
+  // the Scheduled column (never expanded per occurrence, so a daily task
+  // appears exactly once).
+  const projectRecurring = useMemo(() =>
+    recurringTasks.filter(task => task.projectId === project.id && !task.archived && isVisibleForUser(task)),
+    [recurringTasks, project.id, isVisibleForUser]);
 
   const incompleteScheduledCount = scheduledDays.reduce((n, g) => n + (g.dateStr ? g.tasks.length : 0), 0);
 
@@ -368,6 +377,16 @@ const ProjectPlanner = ({ project, onClose }) => {
                   <EyeOff size={14} className={textSecondary} />
                 </button>
               </div>
+              {projectRecurring.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <span className={`text-[11px] font-semibold ${textSecondary}`}>
+                    {t('planner.recurring', 'Recurring')}
+                  </span>
+                  {projectRecurring.map(template => (
+                    <RecurringSeriesRow key={template.id} template={template} projectHex={projectHex} />
+                  ))}
+                </div>
+              )}
               {scheduledDays.length > 0 ? scheduledDays.map(group => (
                 <div key={group.dateStr ?? 'completed'} className="flex flex-col gap-1">
                   <span className={`text-[11px] font-semibold ${group.dateStr === todayStr ? 'text-blue-500' : textSecondary} ${group.dateStr ? '' : 'opacity-60'}`}>
@@ -375,7 +394,7 @@ const ProjectPlanner = ({ project, onClose }) => {
                   </span>
                   {group.tasks.map(task => <SchedTaskCard key={task.id} task={task} onEdit={editTask} />)}
                 </div>
-              )) : (
+              )) : projectRecurring.length === 0 && (
                 <p className={`text-xs ${textSecondary} opacity-70 py-2`}>{t('planner.nothingScheduledYet', 'Nothing scheduled yet.')}</p>
               )}
             </div>
