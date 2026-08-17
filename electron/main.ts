@@ -1464,7 +1464,14 @@ app.whenReady().then(async () => {
   // A bare catch here made a real failure indistinguishable from the intended
   // MAS no-op, on the one code path whose entire job is to be diagnosable.
   import('./mcpDesktopSetup.js')
-    .then((m) => m.registerMcpDesktopSetup())
+    .then((m) => m.registerMcpDesktopSetup(() => {
+      // Read at click time, not at registration: the port override and the
+      // token both change while the app runs, and a rotated token written into
+      // Claude Desktop's config would otherwise be stale on arrival.
+      const resolved = resolveMcpPort(integrationsConfig.mcp.portOverride);
+      const token = integrationsConfig.mcp.token;
+      return resolved.ok && token ? { port: resolved.port, token } : null;
+    }))
     .catch((err: NodeJS.ErrnoException) => {
       if (err?.code === 'ERR_MODULE_NOT_FOUND' || err?.code === 'MODULE_NOT_FOUND') return;
       logStartup(`mcpDesktopSetup failed to load; the setup button will not work: ${err instanceof Error ? err.stack ?? err.message : String(err)}`);
