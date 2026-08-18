@@ -190,6 +190,9 @@ export default function useTaskActions({
           recurrence: { ...newTask.recurrence, startDate: taskDate },
           completedDates: [],
           exceptions: {},
+          // Project membership is series-level too: it lives on the template so
+          // every materialised instance inherits it (same rule as assignment).
+          ...(newTask.projectId ? { projectId: newTask.projectId } : {}),
           // User assignment on recurring tasks is series-level: it lives on the
           // template so every materialised instance inherits it.
           ...(newTask.assignedUserSyncIds?.length ? { assignedUserSyncIds: newTask.assignedUserSyncIds } : {}),

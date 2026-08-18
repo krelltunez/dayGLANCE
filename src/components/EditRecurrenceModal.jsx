@@ -26,7 +26,9 @@ const EditRecurrenceModal = () => {
   const currentRecurrence = template.recurrence;
 
   return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditingRecurrenceTaskId(null)}>
+          // z-[90]: opened from the task editor (z-80) — must stack above it,
+          // same as RecurringDeleteModal and DatePicker.
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[90]" onClick={() => setEditingRecurrenceTaskId(null)}>
             <div
               className={`${cardBg} rounded-lg shadow-xl p-6 ${borderClass} border max-w-sm w-full mx-4`}
               onClick={(e) => e.stopPropagation()}

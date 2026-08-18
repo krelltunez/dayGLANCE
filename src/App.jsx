@@ -2983,6 +2983,9 @@ const DayPlanner = () => {
           isRecurring: true,
           recurringTemplateId: template.id,
           recurrenceType: template.recurrence?.type,
+          // Project membership is series-level (stored on the template);
+          // instances inherit it so project-filtered views keep occurrences.
+          projectId: template.projectId,
           _overdueType: 'scheduled',
         });
       }
@@ -3552,6 +3555,7 @@ const DayPlanner = () => {
             notes: template?.notes || '',
             subtasks: template?.subtasks ? JSON.parse(JSON.stringify(template.subtasks)) : [],
             date: newTask.date || parsed.dateStr,
+            projectId: newTask.projectId || undefined,
             ...(mobileEditingTask.assignedUserSyncIds?.length ? { assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds } : {}),
           };
           setTasks(prev => [...prev, regularTask]);
@@ -3585,6 +3589,7 @@ const DayPlanner = () => {
               completed: false,
               notes: '',
               subtasks: [],
+              projectId: newTask.projectId || undefined,
               assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds,
             }]);
           } else {
@@ -3629,6 +3634,9 @@ const DayPlanner = () => {
                 ...t,
                 exceptions,
                 assignedUserSyncIds: templateAssigned,
+                // Project changes in the editor apply to the whole series —
+                // project membership is series-level, like the template itself.
+                projectId: newTask.projectId || undefined,
                 // Update recurrence pattern on template if changed
                 recurrence: { ...newTask.recurrence, startDate: t.recurrence?.startDate || parsed.dateStr.substring(0, 8) + '01' },
                 lastModified: new Date().toISOString(),
@@ -3638,8 +3646,11 @@ const DayPlanner = () => {
         }
       }
     } else if (newTask.recurrence) {
-      // Convert regular task to recurring: remove from tasks, create recurring template
-      const existingTask = tasks.find(t => t.id === taskId);
+      // Convert regular task to recurring: the original may live in tasks
+      // (scheduled) OR unscheduledTasks (project/inbox list — e.g. created via
+      // a project card's quick-add). Read it from, and remove it from, BOTH
+      // lists or a ghost copy stays behind next to the new series.
+      const existingTask = tasks.find(t => t.id === taskId) || unscheduledTasks.find(t => t.id === taskId);
       const taskDate = newTask.date || existingTask?.date || dateToString(selectedDate);
       const template = {
         id: crypto.randomUUID(),
@@ -3653,10 +3664,12 @@ const DayPlanner = () => {
         recurrence: { ...newTask.recurrence, startDate: taskDate },
         completedDates: existingTask?.completed ? [taskDate] : [],
         exceptions: {},
+        ...(newTask.projectId ? { projectId: newTask.projectId } : {}),
         assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds ?? existingTask?.assignedUserSyncIds,
         lastModified: new Date().toISOString()
       };
       setTasks(prev => prev.filter(t => t.id !== taskId));
+      setUnscheduledTasks(prev => prev.filter(t => t.id !== taskId));
       setRecurringTasks(prev => [...prev, template]);
     } else if (newTask.keepUnscheduled && newTask.projectId) {
       // Keep/make this an unscheduled project task
@@ -5982,6 +5995,9 @@ const DayPlanner = () => {
           isRecurring: true,
           recurringTemplateId: template.id,
           recurrenceType: template.recurrence?.type,
+          // Project membership is series-level (stored on the template);
+          // instances inherit it so project-filtered views keep occurrences.
+          projectId: template.projectId,
           ...(template.isExample ? { isExample: true } : {}),
         });
       }

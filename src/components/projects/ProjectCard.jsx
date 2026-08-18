@@ -14,9 +14,11 @@ import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { calculateProjectProgress, isProjectStalled } from '../../utils/projectProgress.js';
 import { TAILWIND_TO_HEX, hexToRgba, getProjectColor } from '../../utils/colorUtils.js';
 import ProjectProgress from './ProjectProgress.jsx';
+import RecurringSeriesRow from './RecurringSeriesRow.jsx';
 import NotesSubtasksPanel from '../NotesSubtasksPanel.jsx';
 import { renderTitle, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, getLinkUrl, isObsidianNoteOnlyTask, openNoteAction, isPhoneOnlyTask } from '../../utils/textFormatting.jsx';
 import { dateToString, extractWikilinks } from '../../utils/taskUtils.js';
+import { getNextOccurrence } from '../../utils/recurrenceEngine.js';
 import { getActiveHGInstance } from '../../hooks/useHyperGlance.js';
 
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
@@ -50,6 +52,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   const {
     tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks, reorderUnscheduledTasks,
+    recurringTasks,
     openMobileEditTask,
     getTodayStr, currentTimeMinutes,
     darkMode, isMobile, use24HourClock,
@@ -122,6 +125,12 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   const projectUnscheduled = unscheduledTasks.filter(t => t.projectId === project.id && !t.archived && isVisibleForUser(t));
   const projectScheduled = tasks.filter(t => t.projectId === project.id && !t.archived && isVisibleForUser(t))
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  // Recurring series belonging to the project — listed once per series via
+  // RecurringSeriesRow (never expanded per occurrence, so a daily task can't
+  // flood the list). Not counted in totals/progress: a series never completes.
+  // Ended series (past endDate / maxOccurrences exhausted) are hidden so
+  // finished templates don't become permanent clutter.
+  const projectRecurring = recurringTasks.filter(t => t.projectId === project.id && !t.archived && isVisibleForUser(t) && getNextOccurrence(t) !== null);
   const allProjectDisplayTasks = [
     ...projectScheduled.filter(t => !t.completed),
     ...projectUnscheduled.filter(t => !t.completed),
@@ -611,6 +620,15 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                 }
               </button>
             )}
+          </div>
+        )}
+
+        {/* Recurring series — one row per template, never per occurrence */}
+        {projectRecurring.length > 0 && (
+          <div className={`flex flex-col gap-0.5 ${displayableTasks.length > 0 ? 'pt-1' : `pt-2 border-t ${borderClass}`}`}>
+            {projectRecurring.map(template => (
+              <RecurringSeriesRow key={template.id} template={template} projectHex={projectHex} />
+            ))}
           </div>
         )}
 
