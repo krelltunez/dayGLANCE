@@ -41,13 +41,13 @@ export const getRecurrenceLabel = (rec) => {
   if (rec.type === 'daily') label = 'Every day';
   else if (rec.type === 'weekly') {
     const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
-      ? rec.daysOfWeek.sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
+      ? [...rec.daysOfWeek].sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
       : dayNames[new Date(rec.startDate + 'T12:00:00').getDay()];
     label = `Weekly on ${days}`;
   }
   else if (rec.type === 'biweekly') {
     const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
-      ? rec.daysOfWeek.sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
+      ? [...rec.daysOfWeek].sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
       : dayNames[new Date(rec.startDate + 'T12:00:00').getDay()];
     label = `Every 2 weeks on ${days}`;
   }
