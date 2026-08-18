@@ -33,3 +33,45 @@ export const loaders = Object.fromEntries(
 // Sorted so the value is stable across platforms — glob key order follows the
 // filesystem, which is not guaranteed to match between a dev machine and CI.
 export const languages = Object.keys(loaders).sort();
+
+/**
+ * Which regional variant a bare language tag means when more than one ships.
+ *
+ * Portuguese was a single "pt" locale, written in the European standard, until
+ * it was split into pt-PT and pt-BR. Bare "pt" therefore has to keep resolving
+ * to European: every existing Portuguese user has "pt" cached in localStorage,
+ * and mapping it anywhere else would silently change the language under people
+ * who never asked for it. Browsers reporting a Portuguese-speaking region we
+ * do not ship (pt-AO, pt-MZ) land here too.
+ */
+const REGIONAL_DEFAULTS = { pt: 'pt-PT' };
+
+/**
+ * Map any language tag onto one this app actually ships.
+ *
+ * Used in two places that must agree: the detector, so a stored or browser tag
+ * resolves before i18next sees it, and the picker, so the select always has a
+ * matching option. If they disagreed, the UI would render one language while
+ * the picker displayed another.
+ */
+export function resolveLanguage(reported, available = languages) {
+  const fallback = available.includes('en') ? 'en' : available[0];
+  if (!reported || typeof reported !== 'string') return fallback;
+
+  if (available.includes(reported)) return reported;
+
+  // "pt-br" from a browser that lower-cases the region.
+  const exact = available.find((l) => l.toLowerCase() === reported.toLowerCase());
+  if (exact) return exact;
+
+  const base = reported.split('-')[0].toLowerCase();
+  if (available.includes(base)) return base;
+
+  const preferred = REGIONAL_DEFAULTS[base];
+  if (preferred && available.includes(preferred)) return preferred;
+
+  // A regional tag for a language we ship only regionally, with no default
+  // declared — any variant beats falling through to English.
+  const sameLanguage = available.find((l) => l.split('-')[0].toLowerCase() === base);
+  return sameLanguage ?? fallback;
+}

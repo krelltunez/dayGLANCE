@@ -2,7 +2,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import en from '../public/locales/en/translation.json';
-import { languages, loaders } from './locales.js';
+import { languages, loaders, resolveLanguage } from './locales.js';
 
 // Resolves a language from the lazy chunks in locales.js. i18next only asks for
 // a language it is about to use, so this fetches one bundle, not six.
@@ -44,6 +44,12 @@ export const ready = i18n
     detection: {
       order: ['localStorage', 'navigator', 'htmlTag'],
       caches: ['localStorage'],
+      // Runs on every detection source, the localStorage cache included, so a
+      // user carrying the pre-split "pt" is moved to pt-PT on first load and
+      // the corrected value is written straight back to the cache. Without
+      // this they would fall through to English, since "pt" is no longer in
+      // supportedLngs.
+      convertDetectedLanguage: (lng) => resolveLanguage(lng),
     },
   });
 
