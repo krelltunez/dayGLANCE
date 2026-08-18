@@ -57,6 +57,27 @@ function createMemoryVault({ rowGet = false } = {}) {
   return vault;
 }
 
+// FROZEN CLOCK. Every fixture below stamps lastModified with a hardcoded date —
+// '2026-06-18T10:00:00.000Z' and friends — chosen to mean "recent, comfortably
+// inside the sync horizon". Against the REAL wall clock that meaning decays:
+// dbEngine classifies a row whose lastModified predates tombstoneCutoff() (the
+// fixed 60-day fence) as 'sync-horizon' aged-out and RELEASES it instead of
+// healing it. So these tests passed until the wall clock walked 60 days past
+// the fixture date and then failed on every run, with no commit to blame — a
+// green CI run at 23:37 UTC and a red one at 01:12 UTC on the same tree.
+//
+// Pinning "now" to 2026-07-10 makes each hardcoded date keep the meaning it was
+// written with, permanently: the '2026-06-18' rows are 22 days old (live), the
+// '2026-07-08' tombstone is 2 days old (live), and the deliberately stale
+// fixtures ('2026-01-05', the completed '2026-04-0x' pair) stay well aged out.
+// Only Date is faked — setTimeout and friends stay real, so nothing that awaits
+// a genuine timer hangs.
+const FIXTURE_NOW = new Date('2026-07-10T12:00:00.000Z');
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(FIXTURE_NOW);
+});
+
 // Hermetic teardown: never let fake timers or the localStorage shim leak into
 // other test files sharing this worker.
 afterEach(() => { vi.useRealTimers(); });
@@ -1030,14 +1051,22 @@ describe('Wave C — file-tier aged-out release: the zombie-drop-vs-vault fight 
   // split-brain behind the observed churn: the file tier removes it, the vault
   // vanish-guard keeps re-fetching it. No getSyncRetentionDays wiring — the
   // classifier derives the horizon from tombstoneCutoff() itself.
-  const HORIZON = Date.now() - 60 * 86400e3;
+  // Read LAZILY, per call. A describe body is evaluated at collection time —
+  // before any beforeEach, so before the frozen clock is installed — and a
+  // Date.now() captured there would pin the REAL wall clock while every fixture
+  // below runs on the fake one. The two horizons then drift apart by however
+  // long ago this file was written, and the zombie-drop model starts dropping
+  // rows the engine still considers live: exactly the fight this test asserts
+  // has ended. Deriving it from tombstoneCutoff() also removes the duplicated
+  // 60-day constant, so the model and the classifier cannot disagree at all.
+  const horizonMs = () => tombstoneCutoff().getTime();
   function makeZombieDropDevice(name, vault, initial) {
     let data = clone(initial);
     let nativeKey = null;
     const zombie = (t) => {
       if (t.completed === true) return true; // completed rows the app aged out
       const lm = Date.parse(t.lastModified || '');
-      return Number.isFinite(lm) && lm < HORIZON; // older than the sync horizon
+      return Number.isFinite(lm) && lm < horizonMs(); // older than the sync horizon
     };
     const engine = createDbEngine({
       vaultClient: vault,
