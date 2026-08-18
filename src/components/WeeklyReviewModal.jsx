@@ -394,7 +394,7 @@ const WeeklyReviewModal = () => {
                 const weekCompleted = weekTasks.filter(t => t.completed).length;
                 const weekTotal = weekTasks.length;
                 const overallProgress = calculateProjectProgress(p.id, allTasksCombined);
-                const stalled = isProjectStalled(p.id, allTasksCombined, p);
+                const stalled = isProjectStalled(p.id, allTasksCombined, p, recurringTasks);
                 return {
                   id: p.id,
                   title: p.title,

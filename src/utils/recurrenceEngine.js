@@ -6,8 +6,13 @@ import { dateToString } from './taskUtils.js';
  *
  * Optimised with fast-forward logic so it doesn't iterate every day from the
  * start date when the range is far in the future.
+ *
+ * `maxResults` stops the walk once that many occurrences are in hand. Callers
+ * that only need the next one (getNextOccurrence, and through it the project
+ * views) would otherwise materialise the whole window to read element 0 — a
+ * daily series over two years built 732 dates to return one.
  */
-export const getOccurrencesInRange = (template, rangeStartStr, rangeEndStr) => {
+export const getOccurrencesInRange = (template, rangeStartStr, rangeEndStr, maxResults = Infinity) => {
   const rec = template.recurrence;
   if (!rec) return [];
   const results = [];
@@ -25,7 +30,7 @@ export const getOccurrencesInRange = (template, rangeStartStr, rangeEndStr) => {
     if (template.exceptions && (template.exceptions[ds]?.deleted || template.exceptions[ds]?.skipped)) { count++; return true; }
     if (d >= rangeStart && d <= rangeEnd) results.push(ds);
     count++;
-    return true;
+    return results.length < maxResults;
   };
 
   if (rec.type === 'daily') {
@@ -38,7 +43,7 @@ export const getOccurrencesInRange = (template, rangeStartStr, rangeEndStr) => {
     }
     while (cursor <= rangeEnd && count < maxOcc) {
       if (endDate && cursor > endDate) break;
-      addIfInRange(cursor);
+      if (!addIfInRange(cursor)) break;
       cursor.setDate(cursor.getDate() + 1);
     }
   } else if (rec.type === 'weekly' || rec.type === 'biweekly') {
@@ -62,14 +67,15 @@ export const getOccurrencesInRange = (template, rangeStartStr, rangeEndStr) => {
       }
     }
     const cursor = new Date(weekStart);
-    while (cursor <= rangeEnd && count < maxOcc) {
+    let stop = false;
+    while (!stop && cursor <= rangeEnd && count < maxOcc) {
       for (const dow of days.sort((a, b) => a - b)) {
         const d = new Date(cursor);
         d.setDate(d.getDate() + dow);
         if (d < startDate) continue;
-        if (endDate && d > endDate) break;
-        if (d > rangeEnd) break;
-        if (!addIfInRange(d)) break;
+        if (endDate && d > endDate) { stop = true; break; }
+        if (d > rangeEnd) { stop = true; break; }
+        if (!addIfInRange(d)) { stop = true; break; }
       }
       cursor.setDate(cursor.getDate() + 7 * step);
     }
@@ -117,17 +123,24 @@ export const getOccurrencesInRange = (template, rangeStartStr, rangeEndStr) => {
   return results;
 };
 
+// How far ahead getNextOccurrence is willing to look. Only a backstop against
+// a pathological search: every real termination comes from the series itself
+// (endDate, maxOccurrences) or from finding the occurrence. It was two years,
+// which quietly reported "no next occurrence" for a series starting further
+// out than that — and callers read that as "ended".
+const NEXT_OCCURRENCE_HORIZON_YEARS = 10;
+
 /**
  * Return the next occurrence date string (YYYY-MM-DD) of a recurring task
- * on or after today, or null if there are no future occurrences within 2 years.
+ * on or after today, or null if the series has no future occurrences.
  */
 export const getNextOccurrence = (template) => {
   const today = dateToString(new Date());
   const futureEnd = new Date();
-  futureEnd.setFullYear(futureEnd.getFullYear() + 2);
+  futureEnd.setFullYear(futureEnd.getFullYear() + NEXT_OCCURRENCE_HORIZON_YEARS);
   const futureEndStr = dateToString(futureEnd);
-  const occurrences = getOccurrencesInRange(template, today, futureEndStr);
-  return occurrences.length > 0 ? occurrences[0] : null;
+  const [next] = getOccurrencesInRange(template, today, futureEndStr, 1);
+  return next ?? null;
 };
 
 /**

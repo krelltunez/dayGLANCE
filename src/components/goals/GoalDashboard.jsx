@@ -607,7 +607,7 @@ export const FormOverlay = ({ children, onClose, mobile, cardBg }) => {
 // ─── Goal mini card (carousel side slots) ────────────────────────────────────
 
 const GoalMiniCard = ({ goal, onClick }) => {
-  const { darkMode, textPrimary, textSecondary, tasks, unscheduledTasks } = useDayPlannerCtx();
+  const { darkMode, textPrimary, textSecondary, tasks, unscheduledTasks, recurringTasks } = useDayPlannerCtx();
   const { projects, updateGoal, isVisibleForUser } = useFeaturesCtx();
   const { t } = useTranslation();
   const today = new Date();
@@ -631,8 +631,8 @@ const GoalMiniCard = ({ goal, onClick }) => {
   const allTasks = useMemo(() => [...tasks, ...unscheduledTasks].filter(isVisibleForUser), [tasks, unscheduledTasks, isVisibleForUser]);
   const childProjects = useMemo(() => projects.filter(p => p.goalId === goal.id && p.status !== 'archived'), [projects, goal.id]);
   const hasStalledProject = useMemo(
-    () => !goal.hideStalled && childProjects.some(p => isProjectStalled(p.id, allTasks, p)),
-    [childProjects, allTasks, goal.hideStalled]
+    () => !goal.hideStalled && childProjects.some(p => isProjectStalled(p.id, allTasks, p, recurringTasks)),
+    [childProjects, allTasks, recurringTasks, goal.hideStalled]
   );
   const showCaution = isOverdue || hasStalledProject;
   const goalProgress = useMemo(() => calculateGoalProgress(goal.id, childProjects, allTasks), [goal.id, childProjects, allTasks]);
@@ -1257,7 +1257,7 @@ const MobileDashboard = ({
   onNewProject,
   isActive = false,
 }) => {
-  const { darkMode, textPrimary, textSecondary, hoverBg, cardBg, borderClass, tasks: scheduledTasks, unscheduledTasks } = useDayPlannerCtx();
+  const { darkMode, textPrimary, textSecondary, hoverBg, cardBg, borderClass, tasks: scheduledTasks, unscheduledTasks, recurringTasks } = useDayPlannerCtx();
   const { updateGoal, moveProject, goalsDashboardFocusId, setGoalsDashboardFocusId, isVisibleForUser } = useFeaturesCtx();
   const { t } = useTranslation();
 
@@ -1485,7 +1485,7 @@ const MobileDashboard = ({
                   const nonArchivedProjects = activeProjects.filter(p => p.goalId === goal.id);
                   const isCompleted = goal.status === 'completed';
                   const allProjectsDone = nonArchivedProjects.length > 0 && goalProgress >= 1;
-                  const hasStalledProject = !goal.hideStalled && nonArchivedProjects.some(p => isProjectStalled(p.id, allTasks, p));
+                  const hasStalledProject = !goal.hideStalled && nonArchivedProjects.some(p => isProjectStalled(p.id, allTasks, p, recurringTasks));
                   let daysLabel = null, daysUrgent = false, isOverdue = false;
                   if (goal.targetDate) {
                     const today = new Date(); today.setHours(0, 0, 0, 0);
