@@ -4,6 +4,7 @@ import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
 import { dateToString } from '../../utils/taskUtils.js';
+import { getNextOccurrence } from '../../utils/recurrenceEngine.js';
 import { getProjectColor, taskColorToHex, hexToRgba } from '../../utils/colorUtils.js';
 import { plannerColumns } from '../../utils/plannerColumns.js';
 import { renderFormattedText } from '../../utils/textFormatting.jsx';
@@ -121,9 +122,10 @@ const ProjectPlanner = ({ project, onClose }) => {
 
   // Recurring series of this project — listed once per template at the top of
   // the Scheduled column (never expanded per occurrence, so a daily task
-  // appears exactly once).
+  // appears exactly once). Ended series (past endDate / maxOccurrences
+  // exhausted) are hidden so finished templates don't become permanent clutter.
   const projectRecurring = useMemo(() =>
-    recurringTasks.filter(task => task.projectId === project.id && !task.archived && isVisibleForUser(task)),
+    recurringTasks.filter(task => task.projectId === project.id && !task.archived && isVisibleForUser(task) && getNextOccurrence(task) !== null),
     [recurringTasks, project.id, isVisibleForUser]);
 
   const incompleteScheduledCount = scheduledDays.reduce((n, g) => n + (g.dateStr ? g.tasks.length : 0), 0);
@@ -380,7 +382,7 @@ const ProjectPlanner = ({ project, onClose }) => {
               {projectRecurring.length > 0 && (
                 <div className="flex flex-col gap-1">
                   <span className={`text-[11px] font-semibold ${textSecondary}`}>
-                    {t('planner.recurring', 'Recurring')}
+                    {t('sched.recurring')}
                   </span>
                   {projectRecurring.map(template => (
                     <RecurringSeriesRow key={template.id} template={template} projectHex={projectHex} />

@@ -1,5 +1,6 @@
 import React from 'react';
 import { CheckSquare, Repeat, Square } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { getOccurrencesInRange } from '../../utils/recurrenceEngine.js';
 import { renderTitle } from '../../utils/textFormatting.jsx';
@@ -20,6 +21,7 @@ const RecurringSeriesRow = ({ template, projectHex }) => {
     toggleComplete, openMobileEditTask, getTodayStr, formatTime,
     textSecondary, hoverBg,
   } = useDayPlannerCtx();
+  const { t } = useTranslation();
 
   const todayStr = getTodayStr();
   const exc = template.exceptions?.[todayStr] || {};
@@ -60,7 +62,7 @@ const RecurringSeriesRow = ({ template, projectHex }) => {
         <button
           onClick={() => toggleComplete(instance.id)}
           className="flex items-center justify-center flex-shrink-0 pl-1.5 pr-2 py-1.5"
-          aria-label={completed ? 'Mark incomplete' : 'Mark complete'}
+          aria-label={completed ? t('sched.markIncomplete') : t('sched.markComplete')}
         >
           {completed
             ? <CheckSquare size={12} className="text-green-500" />
@@ -80,7 +82,6 @@ const RecurringSeriesRow = ({ template, projectHex }) => {
         </span>
       </button>
       <span className={`flex items-center gap-1 flex-shrink-0 pr-1.5 text-[10px] ${textSecondary} opacity-60`}>
-        {occursToday && <Repeat size={10} />}
         {timeLabel}
       </span>
     </div>

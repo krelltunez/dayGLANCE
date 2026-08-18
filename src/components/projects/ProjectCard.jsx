@@ -18,6 +18,7 @@ import RecurringSeriesRow from './RecurringSeriesRow.jsx';
 import NotesSubtasksPanel from '../NotesSubtasksPanel.jsx';
 import { renderTitle, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, getLinkUrl, isObsidianNoteOnlyTask, openNoteAction, isPhoneOnlyTask } from '../../utils/textFormatting.jsx';
 import { dateToString, extractWikilinks } from '../../utils/taskUtils.js';
+import { getNextOccurrence } from '../../utils/recurrenceEngine.js';
 import { getActiveHGInstance } from '../../hooks/useHyperGlance.js';
 
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
@@ -127,7 +128,9 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   // Recurring series belonging to the project — listed once per series via
   // RecurringSeriesRow (never expanded per occurrence, so a daily task can't
   // flood the list). Not counted in totals/progress: a series never completes.
-  const projectRecurring = recurringTasks.filter(t => t.projectId === project.id && !t.archived && isVisibleForUser(t));
+  // Ended series (past endDate / maxOccurrences exhausted) are hidden so
+  // finished templates don't become permanent clutter.
+  const projectRecurring = recurringTasks.filter(t => t.projectId === project.id && !t.archived && isVisibleForUser(t) && getNextOccurrence(t) !== null);
   const allProjectDisplayTasks = [
     ...projectScheduled.filter(t => !t.completed),
     ...projectUnscheduled.filter(t => !t.completed),

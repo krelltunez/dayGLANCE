@@ -2983,6 +2983,9 @@ const DayPlanner = () => {
           isRecurring: true,
           recurringTemplateId: template.id,
           recurrenceType: template.recurrence?.type,
+          // Project membership is series-level (stored on the template);
+          // instances inherit it so project-filtered views keep occurrences.
+          projectId: template.projectId,
           _overdueType: 'scheduled',
         });
       }
