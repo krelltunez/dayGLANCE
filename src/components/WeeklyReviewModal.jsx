@@ -400,7 +400,7 @@ const WeeklyReviewModal = () => {
                   title: p.title,
                   weekCompleted,
                   weekTotal,
-                  overallProgressPct: Math.round(overallProgress * 100),
+                  overallProgressPct: overallProgress === null ? null : Math.round(overallProgress * 100),
                   stalled,
                 };
               })

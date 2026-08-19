@@ -25,10 +25,17 @@ describe('calculateProjectProgress', () => {
     expect(calculateProjectProgress('p1', tasks)).toBeCloseTo(0.5);
   });
 
-  it('ignores archived tasks and other projects, and is 0 with nothing to measure', () => {
-    expect(calculateProjectProgress('p1', [task({ archived: true, completed: true })])).toBe(0);
-    expect(calculateProjectProgress('p1', [task({ projectId: 'p2', completed: true })])).toBe(0);
-    expect(calculateProjectProgress('p1', [])).toBe(0);
+  // null is the whole point: "no measurement to make" is not "measured at 0%".
+  // A project whose only work is a recurring series lands here, because series
+  // are excluded from progress on purpose.
+  it('is null, not 0, when there is nothing to measure', () => {
+    expect(calculateProjectProgress('p1', [])).toBeNull();
+    expect(calculateProjectProgress('p1', [task({ archived: true, completed: true })])).toBeNull();
+    expect(calculateProjectProgress('p1', [task({ projectId: 'p2', completed: true })])).toBeNull();
+  });
+
+  it('is 0 — not null — for real work that is genuinely untouched', () => {
+    expect(calculateProjectProgress('p1', [task()])).toBe(0);
   });
 
   it('reports total duration for goal weighting', () => {

@@ -207,10 +207,13 @@ const MobileGlanceSection = () => {
           const childProjects = projects
             .filter(p => p.goalId === g.id && p.status !== 'archived')
             .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-          const projectBars = childProjects.map(p => ({
-            id: p.id,
-            progress: Math.round(calculateProjectProgress(p.id, allTasksCombined) * 100),
-          }));
+          // One segment per project that has a measurement. A project with
+          // nothing to measure is dropped rather than drawn as an empty
+          // segment, which read as "this project has made no progress".
+          const projectBars = childProjects
+            .map(p => ({ id: p.id, progress: calculateProjectProgress(p.id, allTasksCombined) }))
+            .filter(bar => bar.progress !== null)
+            .map(bar => ({ ...bar, progress: Math.round(bar.progress * 100) }));
           return { ...g, progressPct, daysLeft, projectBars };
         }).sort((a, b) => {
           if (a.daysLeft === null && b.daysLeft === null) return 0;

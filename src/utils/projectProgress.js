@@ -12,22 +12,29 @@ const DEFAULT_DURATION = 30; // minutes — fallback for tasks with no duration 
 /**
  * Calculates duration-weighted completion progress for a single project.
  *
+ * Returns null, not 0, when there is nothing to measure. The two are different
+ * claims — "measured, and no progress yet" versus "there is no measurement to
+ * make" — and collapsing them meant a project whose only work is a recurring
+ * series (series are excluded from progress on purpose, since a series never
+ * completes) reported a confident 0% across every surface. Callers decide how
+ * to render the absence; they must not treat null as a number.
+ *
  * @param {string} projectId
  * @param {Array} allTasks - combined scheduled + unscheduled tasks
- * @returns {number} value between 0 and 1 (0 if no tasks)
+ * @returns {number|null} 0..1, or null when the project has no countable tasks
  */
 export function calculateProjectProgress(projectId, allTasks) {
   const projectTasks = allTasks.filter(
     t => t.projectId === projectId && !t.archived
   );
 
-  if (projectTasks.length === 0) return 0;
+  if (projectTasks.length === 0) return null;
 
   const totalDuration = projectTasks.reduce(
     (sum, t) => sum + (t.duration || DEFAULT_DURATION), 0
   );
 
-  if (totalDuration === 0) return 0;
+  if (totalDuration === 0) return null;
 
   const completedDuration = projectTasks
     .filter(t => t.completed)

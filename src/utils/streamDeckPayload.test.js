@@ -274,3 +274,19 @@ describe('fixture sanity', () => {
     expect(FIXTURE_NOW.getMinutes()).toBe(30);
   });
 });
+
+describe('project progress for an external plugin', () => {
+  // calculateProjectProgress returns null for a project with nothing to
+  // measure, but this payload is a contract with the Stream Deck plugin, which
+  // sums and averages `progress` and renders it as a bar width. A key has no
+  // way to draw an absence, so the coercion here is deliberate.
+  it('sends 0, not null, for an unmeasurable project', () => {
+    const { payload } = build(i => {
+      i.projects = [...i.projects, { id: 'p-empty', title: 'Upkeep', status: 'active', color: 'bg-blue-500' }];
+    });
+    const p = payload.projects.find(x => x.id === 'p-empty');
+    expect(p).toBeDefined();
+    expect(p.progress).toBe(0);
+    expect(p.progress).not.toBeNull();
+  });
+});
