@@ -32,7 +32,7 @@ import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOn
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
 import { notBucketed, demoteToBucket, normalizeBucketConfig } from './utils/bucketList.js';
 import { parseICS, parseDatetime, filterByDateWindow, expandMultiDayEvent } from './utils/icsParser.js';
-import { fetchIcsFeed, replaceFeedEvents, PRIMARY_FEED_ID } from './utils/icsFeedSync.js';
+import { fetchIcsFeed, replaceFeedEvents, PRIMARY_FEED_ID, ICS_CALENDARS_KEY, loadIcsCalendars, isActiveIcsCalendar, hasActiveIcsCalendars, stripIcsCalendarCredentials, applyRemoteIcsCalendars } from './utils/icsFeedSync.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex, getProjectColor } from './utils/colorUtils.js';
 import { calculateGoalProgress } from './utils/goalProgress.js';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from './constants/habits.js';
@@ -524,6 +524,7 @@ const DayPlanner = () => {
     calSyncLastSynced, setCalSyncLastSynced,
     taskCalendarUrl, setTaskCalendarUrl,
     taskCalendarAuth, setTaskCalendarAuth,
+    icsCalendars, setIcsCalendars,
     syncRetentionDays, setSyncRetentionDays,
     completedTaskUids, setCompletedTaskUids,
     pendingImportFile, setPendingImportFile,
@@ -538,7 +539,7 @@ const DayPlanner = () => {
   });
   // When a native calendar source is present (mobile bridge or macOS EventKit),
   // calendar events come from there — only the task calendar URL matters for sync.
-  const calSyncConfigured = hasNativeCalendar() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
+  const calSyncConfigured = hasNativeCalendar() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl || hasActiveIcsCalendars(icsCalendars));
   // The settings-panel "configured" dot: green when ANY calendar source is
   // live — CalDAV/task URLs, or the native calendar actually delivering
   // (availableCalendars only populates once access is granted and calendars
@@ -1810,10 +1811,10 @@ const DayPlanner = () => {
 
   // Track for onboarding when sync is set up
   useEffect(() => {
-    if (!onboardingProgress.hasSetupSync && (syncUrl.trim() || taskCalendarUrl.trim())) {
+    if (!onboardingProgress.hasSetupSync && (syncUrl.trim() || taskCalendarUrl.trim() || hasActiveIcsCalendars(icsCalendars))) {
       setOnboardingProgress(prev => ({ ...prev, hasSetupSync: true }));
     }
-  }, [syncUrl, taskCalendarUrl, onboardingProgress.hasSetupSync, setOnboardingProgress]);
+  }, [syncUrl, taskCalendarUrl, icsCalendars, onboardingProgress.hasSetupSync, setOnboardingProgress]);
 
   useEffect(() => {
     // Tick every 15s for responsive reminders; firedRemindersRef prevents duplicates
@@ -2042,23 +2043,36 @@ const DayPlanner = () => {
     const encrypted = !!(cloudSyncConfig?.encryptionEnabled || isVaultEnabled());
     const includeAuth = syncCalendarCreds && encrypted && taskCalendarAuth
       && (taskCalendarAuth.username || taskCalendarAuth.appPassword);
-    const desired = { syncUrl, taskCalendarUrl, ...(includeAuth ? { auth: taskCalendarAuth } : {}) };
+    // Additional calendars ride per-user too; their credentials only when the
+    // creds toggle is on AND the payload is encrypted (same rule as auth).
+    const includeCalCreds = syncCalendarCreds && encrypted;
+    const desired = {
+      syncUrl,
+      taskCalendarUrl,
+      icsCalendars: includeCalCreds ? icsCalendars : stripIcsCalendarCredentials(icsCalendars),
+      ...(includeAuth ? { auth: taskCalendarAuth } : {}),
+    };
     let map = {};
     try { map = JSON.parse(localStorage.getItem('day-planner-calendar-config-by-user') || '{}'); } catch { map = {}; }
     const cur = map[meUserSyncId];
     const sameContent = !!cur
       && (cur.syncUrl ?? '') === (desired.syncUrl ?? '')
       && (cur.taskCalendarUrl ?? '') === (desired.taskCalendarUrl ?? '')
+      && JSON.stringify(cur.icsCalendars ?? []) === JSON.stringify(desired.icsCalendars ?? [])
       && JSON.stringify(cur.auth ?? null) === JSON.stringify(desired.auth ?? null);
     if (sameContent) return;
     map[meUserSyncId] = { ...desired, updatedAt: new Date().toISOString() };
     localStorage.setItem('day-planner-calendar-config-by-user', JSON.stringify(map));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [multiUserEnabled, meUserSyncId, syncUrl, taskCalendarUrl, taskCalendarAuth, syncCalendarCreds, cloudSyncConfig?.encryptionEnabled]);
+  }, [multiUserEnabled, meUserSyncId, syncUrl, taskCalendarUrl, taskCalendarAuth, icsCalendars, syncCalendarCreds, cloudSyncConfig?.encryptionEnabled]);
 
+  // Signature of the additional-calendar config that affects fetching — sync
+  // re-runs when a feed is added/removed/toggled or its URL changes, but not
+  // on name/color edits.
+  const icsCalendarsFetchKey = JSON.stringify(icsCalendars.map(c => [c.id, c.url, c.enabled !== false]));
   useEffect(() => {
     if (isTrayMode) return;
-    const hasSyncTarget = hasNativeCalendar() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
+    const hasSyncTarget = hasNativeCalendar() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl || hasActiveIcsCalendars(icsCalendars));
     if (!hasSyncTarget) return;
 
     syncAllRef.current({ silent: true });
@@ -2067,7 +2081,8 @@ const DayPlanner = () => {
     }, 15 * 60 * 1000); // 15 minutes
 
     return () => clearInterval(syncTimer);
-  }, [syncUrl, taskCalendarUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncUrl, taskCalendarUrl, icsCalendarsFetchKey]);
 
   // Cloud sync: debounced upload on data changes.
   // Upload only (no download) to avoid the applyEngineData → state-change → debounce
@@ -2238,6 +2253,11 @@ const DayPlanner = () => {
   useEffect(() => { writeConfigTimestamp('day-planner-goals-projects-enabled-updated-at'); }, [goalsProjectsEnabled]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { writeConfigTimestamp('dayglance-multi-user-enabled-updated-at'); }, [multiUserEnabled]);
+  // Content-keyed (not identity-keyed) so a remote apply rebuilding an equal
+  // array doesn't restamp; writeConfigTimestamp additionally skips remote applies.
+  const icsCalendarsJson = JSON.stringify(icsCalendars);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { writeConfigTimestamp('day-planner-ics-calendars-updated-at'); }, [icsCalendarsJson]);
   useEffect(() => { localStorage.setItem('day-planner-sync-calendar-creds', String(syncCalendarCreds)); }, [syncCalendarCreds]);
 
   // One-time per-device cleanup when this device first runs in per-user calendar
@@ -2267,8 +2287,10 @@ const DayPlanner = () => {
     if (!map[meUserSyncId]) {
       localStorage.removeItem('day-planner-sync-url');
       localStorage.removeItem('day-planner-task-calendar-url');
+      localStorage.removeItem(ICS_CALENDARS_KEY);
       setSyncUrl('');
       setTaskCalendarUrl('');
+      setIcsCalendars([]);
     }
     localStorage.setItem('day-planner-calendar-per-user-migrated', 'true');
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4388,6 +4410,7 @@ const DayPlanner = () => {
         syncUrl: localStorage.getItem('day-planner-sync-url') || '',
         taskCalendarUrl: localStorage.getItem('day-planner-task-calendar-url') || '',
         taskCalendarAuth: JSON.parse(localStorage.getItem('day-planner-task-calendar-auth') || 'null'),
+        icsCalendars: JSON.parse(localStorage.getItem('day-planner-ics-calendars') || '[]'),
         completedTaskUids: JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]'),
         recurringTasks: JSON.parse(localStorage.getItem('day-planner-recurring-tasks') || '[]'),
         routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
@@ -4452,6 +4475,7 @@ const DayPlanner = () => {
       syncUrl: localStorage.getItem('day-planner-sync-url') || '',
       taskCalendarUrl: localStorage.getItem('day-planner-task-calendar-url') || '',
       taskCalendarAuth: JSON.parse(localStorage.getItem('day-planner-task-calendar-auth') || 'null'),
+      icsCalendars: JSON.parse(localStorage.getItem('day-planner-ics-calendars') || '[]'),
       completedTaskUids: JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]'),
       recurringTasks: JSON.parse(localStorage.getItem('day-planner-recurring-tasks') || '[]'),
       routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
@@ -4643,6 +4667,7 @@ const DayPlanner = () => {
     if (data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', data.syncUrl);
     if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
     if (data.taskCalendarAuth) localStorage.setItem('day-planner-task-calendar-auth', JSON.stringify(data.taskCalendarAuth));
+    if (data.icsCalendars) localStorage.setItem('day-planner-ics-calendars', JSON.stringify(data.icsCalendars));
     if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
     if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
     if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
@@ -4777,44 +4802,100 @@ const DayPlanner = () => {
     catch { return url; }
   };
 
-  // Returns { success: boolean, count?: number, error?: string }
+  // Sync every configured event feed: the primary Calendar URL plus all enabled
+  // additional calendars. Feeds are fetched in parallel and applied in ONE
+  // setTasks so one feed's result can never wipe another's. A feed that fails
+  // keeps its previous events (keepFeedIds); events of feeds that were removed
+  // from the config drop out because their feedId is in neither set.
+  // Returns { success, count?, error?, urlUpdated?, failedFeeds?: string[] }
   const syncWithCalendar = async () => {
     // When a native calendar source is present (mobile bridge or macOS EventKit),
     // calendar events come from there. CalDAV iCal sync would duplicate those
     // events, so skip it entirely.
     if (hasNativeCalendar()) return { success: false, error: 'no-url' };
-    if (!syncUrl) {
+
+    const feeds = [];
+    if (syncUrl) {
+      feeds.push({
+        id: PRIMARY_FEED_ID,
+        url: syncUrl,
+        name: '',
+        color: null,
+        authValue: (calendarUrlAuth.username && calendarUrlAuth.password)
+          ? 'Basic ' + toBase64(calendarUrlAuth.username + ':' + calendarUrlAuth.password)
+          : null,
+      });
+    }
+    for (const cal of icsCalendars) {
+      if (!isActiveIcsCalendar(cal)) continue;
+      feeds.push({
+        id: cal.id,
+        url: cal.url.trim(),
+        name: cal.name || '',
+        color: cal.color || 'bg-gray-600',
+        authValue: (cal.username && cal.password)
+          ? 'Basic ' + toBase64(cal.username + ':' + cal.password)
+          : null,
+      });
+    }
+    if (feeds.length === 0) {
       return { success: false, error: 'no-url' };
     }
 
-    try {
-      const calAuthValue = (calendarUrlAuth.username && calendarUrlAuth.password)
-        ? 'Basic ' + toBase64(calendarUrlAuth.username + ':' + calendarUrlAuth.password)
-        : null;
-      const debug = import.meta.env.DEV ? (...args) => console.log('[calendar-sync]', ...args) : undefined;
-      const { icsContent, effectiveUrl } = await fetchIcsFeed(syncUrl, calAuthValue, icsProxyFetch, debug);
-
-      // Persist the corrected URL so future syncs use it directly
-      if (effectiveUrl !== syncUrl) {
-        setSyncUrl(effectiveUrl);
-        localStorage.setItem('day-planner-sync-url', effectiveUrl);
+    const debug = import.meta.env.DEV ? (...args) => console.log('[calendar-sync]', ...args) : undefined;
+    const results = await Promise.all(feeds.map(async (feed) => {
+      try {
+        const { icsContent, effectiveUrl } = await fetchIcsFeed(feed.url, feed.authValue, icsProxyFetch, debug);
+        return { feed, icsContent, effectiveUrl };
+      } catch (error) {
+        console.error(`Sync error (${feed.name || feed.id}):`, error);
+        return { feed, error: error.message === 'not-ical' ? 'not-ical' : 'calendar' };
       }
+    }));
 
-      const events = parseICS(icsContent);
-
+    let urlUpdated = false;
+    const freshEvents = [];
+    const failedFeedIds = new Set();
+    const failedFeeds = [];
+    let firstError = null;
+    for (const r of results) {
+      if (r.error) {
+        failedFeedIds.add(r.feed.id);
+        failedFeeds.push(r.feed.name || (r.feed.id === PRIMARY_FEED_ID ? 'calendar' : 'additional calendar'));
+        if (!firstError) firstError = r.error;
+        continue;
+      }
+      // Persist the corrected (?export) URL so future syncs use it directly
+      if (r.effectiveUrl !== r.feed.url) {
+        urlUpdated = true;
+        if (r.feed.id === PRIMARY_FEED_ID) {
+          setSyncUrl(r.effectiveUrl);
+          localStorage.setItem('day-planner-sync-url', r.effectiveUrl);
+        } else {
+          setIcsCalendars(prev => prev.map(c => c.id === r.feed.id ? { ...c, url: r.effectiveUrl } : c));
+        }
+      }
+      const events = parseICS(r.icsContent);
       const allImported = events.flatMap(event =>
-        expandMultiDayEvent(event, { asTaskCalendar: false, feedId: PRIMARY_FEED_ID })
+        expandMultiDayEvent(event, {
+          asTaskCalendar: false,
+          feedId: r.feed.id,
+          ...(r.feed.color ? { color: r.feed.color } : {}),
+        })
       );
-      const importedTasks = filterByDateWindow(allImported, syncRetentionDays);
-
-      // Replace old sync-sourced imported events (not task calendar) with the fresh ones.
-      // Preserves file-imported events; uses functional form to avoid stale closures
-      setTasks(prevTasks => replaceFeedEvents(prevTasks, importedTasks));
-      return { success: true, count: importedTasks.length, urlUpdated: effectiveUrl !== syncUrl };
-    } catch (error) {
-      console.error('Sync error:', error);
-      return { success: false, error: error.message === 'not-ical' ? 'not-ical' : 'calendar' };
+      freshEvents.push(...filterByDateWindow(allImported, syncRetentionDays));
     }
+
+    if (failedFeedIds.size === feeds.length) {
+      // Every feed failed — leave existing events untouched.
+      return { success: false, error: firstError, failedFeeds };
+    }
+
+    // Replace sync-sourced imported events (not task calendar) with the fresh
+    // ones, keeping the previous events of feeds that failed this round.
+    // Preserves file-imported events; uses functional form to avoid stale closures
+    setTasks(prevTasks => replaceFeedEvents(prevTasks, freshEvents, { keepFeedIds: failedFeedIds }));
+    return { success: true, count: freshEvents.length, urlUpdated, failedFeeds };
   };
 
   // Returns { success: boolean, count?: number, error?: string }
@@ -5201,7 +5282,7 @@ const DayPlanner = () => {
 
   // Combined sync function that shows a single notification
   const syncAll = async ({ silent = false } = {}) => {
-    const hasSyncTarget = hasNativeCalendar() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl);
+    const hasSyncTarget = hasNativeCalendar() ? !!taskCalendarUrl : !!(syncUrl || taskCalendarUrl || hasActiveIcsCalendars(icsCalendars));
     if (!hasSyncTarget) {
       if (!silent) setSyncNotification({ type: 'info', message: 'Please enter a task calendar URL in sync settings' });
       return;
@@ -5233,6 +5314,8 @@ const DayPlanner = () => {
 
       if (calendarResult.success) {
         successes.push(`${calendarResult.count} event${calendarResult.count !== 1 ? 's' : ''}`);
+        // Some feeds may still have failed even when the sync overall succeeded.
+        for (const name of calendarResult.failedFeeds || []) errors.push(`calendar "${name}"`);
       } else if (calendarResult.error === 'not-ical') {
         if (!silent) setSyncNotification({ type: 'error', title: 'Calendar Sync', message: 'The URL did not return a calendar file. For CalDAV servers (Nextcloud, Baikal, etc.), append ?export to the URL (e.g. …/default/?export).' });
         setIsSyncing(false);
@@ -5309,6 +5392,12 @@ const DayPlanner = () => {
         recycleBin: stampTaskTimestamps(recycleBin, 'day-planner-recycle-bin'),
         syncUrl,
         taskCalendarUrl,
+        // Additional calendars sync at the top level with credentials stripped
+        // (the apply side restores locally stored creds by entry id). Full
+        // entries ride per-user inside calendarConfigByUser when opted in.
+        // Whole-list LWW by the sibling icsCalendarsUpdatedAt on both tiers.
+        icsCalendars: stripIcsCalendarCredentials(icsCalendars),
+        icsCalendarsUpdatedAt: localStorage.getItem('day-planner-ics-calendars-updated-at') || null,
         calendarConfigByUser,
         // taskCalendarAuth is intentionally excluded from the top level — credentials
         // ride per-user inside calendarConfigByUser (only when opted in and encrypted),
@@ -5458,6 +5547,12 @@ const DayPlanner = () => {
     // calendarConfigByUser[mySyncId] below instead.
     if (!perUserCalendar && data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', data.syncUrl);
     if (!perUserCalendar && data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
+    // Additional calendars: the shared payload strips credentials, so restore
+    // the locally stored ones by entry id before persisting/applying.
+    if (!perUserCalendar && data.icsCalendars !== undefined) {
+      localStorage.setItem(ICS_CALENDARS_KEY, JSON.stringify(applyRemoteIcsCalendars(data.icsCalendars, loadIcsCalendars())));
+      if (data.icsCalendarsUpdatedAt) localStorage.setItem('day-planner-ics-calendars-updated-at', data.icsCalendarsUpdatedAt);
+    }
     // taskCalendarAuth is not applied from the top level — credentials are device-local
     // unless they arrive per-user inside calendarConfigByUser (applied below).
     if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
@@ -5593,6 +5688,11 @@ const DayPlanner = () => {
         if (mine) {
           if (mine.syncUrl !== undefined) { localStorage.setItem('day-planner-sync-url', mine.syncUrl); setSyncUrl(mine.syncUrl); }
           if (mine.taskCalendarUrl !== undefined) { localStorage.setItem('day-planner-task-calendar-url', mine.taskCalendarUrl); setTaskCalendarUrl(mine.taskCalendarUrl); }
+          if (mine.icsCalendars !== undefined) {
+            const merged = applyRemoteIcsCalendars(mine.icsCalendars, loadIcsCalendars());
+            localStorage.setItem(ICS_CALENDARS_KEY, JSON.stringify(merged));
+            setIcsCalendars(merged);
+          }
           if (mine.auth) { localStorage.setItem('day-planner-task-calendar-auth', JSON.stringify(mine.auth)); setTaskCalendarAuth(mine.auth); }
         }
       }
@@ -5654,6 +5754,7 @@ const DayPlanner = () => {
     if (data.recycleBin) setRecycleBin(data.recycleBin);
     if (!perUserCalendar && data.syncUrl !== undefined) setSyncUrl(data.syncUrl);
     if (!perUserCalendar && data.taskCalendarUrl !== undefined) setTaskCalendarUrl(data.taskCalendarUrl);
+    if (!perUserCalendar && data.icsCalendars !== undefined) setIcsCalendars(prev => applyRemoteIcsCalendars(data.icsCalendars, prev));
     if (data.completedTaskUids) setCompletedTaskUids(new Set(data.completedTaskUids));
     if (data.recurringTasks) setRecurringTasks(prev =>
       rescueUnsyncedTasks(data.recurringTasks, prev, rescueDeletedIds, t => !!t._intentKey));
@@ -8204,6 +8305,7 @@ const DayPlanner = () => {
   const syncCtx = {
     // ── Calendar sync ─────────────────────────────────────────────────────────
     syncUrl, setSyncUrl,
+    icsCalendars, setIcsCalendars,
     taskCalendarUrl, setTaskCalendarUrl,
     taskCalendarAuth, setTaskCalendarAuth,
     syncCalendarCreds, setSyncCalendarCreds,

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ICS_CALENDARS_KEY, loadIcsCalendars } from '../utils/icsFeedSync.js';
 
 const useCalendarSync = () => {
   const [calSyncStatus, setCalSyncStatus] = useState(null); // null | 'success' | 'error'
@@ -14,6 +15,10 @@ const useCalendarSync = () => {
     const saved = localStorage.getItem('day-planner-sync-retention-days');
     return saved ? JSON.parse(saved) : 30;
   });
+  // Additional ICS/CalDAV event calendars beyond the primary Calendar URL:
+  // [{id, name, url, username, password, color, enabled}]. The primary feed
+  // stays in the legacy day-planner-sync-url key for old-build compatibility.
+  const [icsCalendars, setIcsCalendars] = useState(loadIcsCalendars);
   const [completedTaskUids, setCompletedTaskUids] = useState(new Set());
   const [pendingImportFile, setPendingImportFile] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -24,11 +29,17 @@ const useCalendarSync = () => {
     localStorage.setItem('day-planner-task-calendar-auth', JSON.stringify(taskCalendarAuth));
   }, [taskCalendarAuth]);
 
+  // Persist additional calendars to localStorage
+  useEffect(() => {
+    localStorage.setItem(ICS_CALENDARS_KEY, JSON.stringify(icsCalendars));
+  }, [icsCalendars]);
+
   return {
     calSyncStatus, setCalSyncStatus,
     calSyncLastSynced, setCalSyncLastSynced,
     taskCalendarUrl, setTaskCalendarUrl,
     taskCalendarAuth, setTaskCalendarAuth,
+    icsCalendars, setIcsCalendars,
     syncRetentionDays, setSyncRetentionDays,
     completedTaskUids, setCompletedTaskUids,
     pendingImportFile, setPendingImportFile,

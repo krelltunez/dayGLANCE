@@ -45,6 +45,7 @@ import { loadIntentsRootKey, clearIntentsRootKey } from '../intents/intentsKeySt
 import { useTranslation } from 'react-i18next';
 import LanguagePicker from './LanguagePicker.jsx';
 import { notBucketed } from '../utils/bucketList.js';
+import AdditionalCalendars from './AdditionalCalendars.jsx';
 
 const MobileSettingsPanel = () => {
   const {
@@ -695,6 +696,7 @@ const MobileSettingsPanel = () => {
             </div>
           </div>
         )}
+        {!isNativeApp() && <AdditionalCalendars />}
         {isNativeApp() && (
           <p className={`text-xs ${textSecondary}`}>
             Calendar events are read from your device accounts. Use the Device Calendars section below to choose which calendars to show.

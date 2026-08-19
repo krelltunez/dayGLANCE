@@ -7,6 +7,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import LocalIntegrationsSettings from './LocalIntegrationsSettings.jsx';
 import ICloudDiagnostics from './ICloudDiagnostics.jsx';
+import AdditionalCalendars from './AdditionalCalendars.jsx';
 import ICloudSyncToggle from './ICloudSyncToggle.jsx';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
@@ -915,6 +916,7 @@ const SettingsModal = () => {
                           </div>
                         </div>
                       )}
+                      {!hasNativeCalendar() && <AdditionalCalendars />}
                       {hasNativeCalendar() && (
                         <p className={`text-xs ${textSecondary}`}>
                           Calendar events are read from your device accounts. Use the Device Calendars section below to choose which calendars to show.

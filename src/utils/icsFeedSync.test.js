@@ -6,6 +6,10 @@ import {
   fetchIcsFeed,
   isFeedEvent,
   replaceFeedEvents,
+  isActiveIcsCalendar,
+  hasActiveIcsCalendars,
+  stripIcsCalendarCredentials,
+  applyRemoteIcsCalendars,
 } from './icsFeedSync.js';
 
 const ICS = 'BEGIN:VCALENDAR\nBEGIN:VEVENT\nEND:VEVENT\nEND:VCALENDAR';
@@ -125,5 +129,60 @@ describe('replaceFeedEvents', () => {
       { keepFeedIds: new Set([PRIMARY_FEED_ID]) }
     );
     expect(result).toEqual([oldPrimary]);
+  });
+});
+
+describe('isActiveIcsCalendar / hasActiveIcsCalendars', () => {
+  it('requires a non-blank URL and not-disabled', () => {
+    expect(isActiveIcsCalendar({ url: 'https://x.test/c/' })).toBe(true);
+    expect(isActiveIcsCalendar({ url: 'https://x.test/c/', enabled: true })).toBe(true);
+    expect(isActiveIcsCalendar({ url: 'https://x.test/c/', enabled: false })).toBe(false);
+    expect(isActiveIcsCalendar({ url: '   ' })).toBe(false);
+    expect(isActiveIcsCalendar({})).toBe(false);
+    expect(isActiveIcsCalendar(null)).toBe(false);
+    expect(hasActiveIcsCalendars([{ url: '' }, { url: 'https://x.test/c/' }])).toBe(true);
+    expect(hasActiveIcsCalendars([])).toBe(false);
+    expect(hasActiveIcsCalendars(undefined)).toBe(false);
+  });
+});
+
+describe('stripIcsCalendarCredentials', () => {
+  it('removes username/password and keeps everything else', () => {
+    const stripped = stripIcsCalendarCredentials([
+      { id: 'a', name: 'Work', url: 'https://x.test/c/', username: 'u', password: 'p', color: 'bg-blue-600', enabled: true },
+    ]);
+    expect(stripped).toEqual([
+      { id: 'a', name: 'Work', url: 'https://x.test/c/', color: 'bg-blue-600', enabled: true },
+    ]);
+  });
+
+  it('tolerates null/undefined', () => {
+    expect(stripIcsCalendarCredentials(null)).toEqual([]);
+  });
+});
+
+describe('applyRemoteIcsCalendars', () => {
+  const local = [
+    { id: 'a', name: 'Work', url: 'https://x.test/a/', username: 'u', password: 'p' },
+    { id: 'b', name: 'Home', url: 'https://x.test/b/', username: 'hu', password: 'hp' },
+  ];
+
+  it('restores local credentials for credential-stripped remote entries', () => {
+    const remote = [{ id: 'a', name: 'Work renamed', url: 'https://x.test/a2/' }];
+    expect(applyRemoteIcsCalendars(remote, local)).toEqual([
+      { id: 'a', name: 'Work renamed', url: 'https://x.test/a2/', username: 'u', password: 'p' },
+    ]);
+  });
+
+  it('prefers credentials carried by the remote entry (per-user encrypted config)', () => {
+    const remote = [{ id: 'a', name: 'Work', url: 'https://x.test/a/', username: 'ru', password: 'rp' }];
+    expect(applyRemoteIcsCalendars(remote, local)[0]).toMatchObject({ username: 'ru', password: 'rp' });
+  });
+
+  it('drops local entries absent from the remote list and defaults creds for new ones', () => {
+    const remote = [{ id: 'c', name: 'New', url: 'https://x.test/c/' }];
+    expect(applyRemoteIcsCalendars(remote, local)).toEqual([
+      { id: 'c', name: 'New', url: 'https://x.test/c/', username: '', password: '' },
+    ]);
   });
 });
