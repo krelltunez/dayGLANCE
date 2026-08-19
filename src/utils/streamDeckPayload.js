@@ -156,7 +156,12 @@ export function buildStreamDeckState({
 
   // ── Projects ──────────────────────────────────────────────────────────
   const mapProject = (p) => {
-    const progress = Math.round(calculateProjectProgress(p.id, allTasksForGoals) * 100);
+    // Deliberately coerced to 0 rather than passed through as null. This
+    // payload is an external contract with the Stream Deck plugin, which sums
+    // and averages `progress` and renders it as a bar width — a key has no way
+    // to draw "unmeasurable", and null would break the arithmetic.
+    const rawProgress = calculateProjectProgress(p.id, allTasksForGoals);
+    const progress = rawProgress === null ? 0 : Math.round(rawProgress * 100);
     const colorHex = TAILWIND_TO_HEX[p.color] || '#3b82f6';
     const parentGoal = p.goalId ? (goals || []).find(g => g.id === p.goalId) : null;
     const goalDaysLeft = parentGoal?.targetDate

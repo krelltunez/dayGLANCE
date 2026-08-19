@@ -241,6 +241,22 @@ describe('buildGoalProgress', () => {
     expect(buildGoalProgress(state, { goal_id: 'nope' }).notFound).toBe(true);
     expect(buildGoalProgress(state, { window: 'weekly' }).invalid).toContain('window');
   });
+
+  // A project whose only work is a recurring series has no countable tasks.
+  // Reporting 0 would tell a reader it has made no progress; null says the
+  // question does not apply.
+  it('reports progress_percent null, not 0, for a project with nothing to measure', () => {
+    const withEmptyProject = {
+      ...state,
+      projects: [...state.projects, { id: 'p3', title: 'Upkeep', status: 'active', goalId: 'g1' }],
+    };
+    const r = buildGoalProgress(withEmptyProject, { goal_id: 'g1' });
+    const p3 = r.goals[0].projects.find((p) => p.id === 'p3');
+    expect(p3.progress_percent).toBeNull();
+    // The measurable sibling is unaffected, and so is the goal rollup.
+    expect(r.goals[0].projects.find((p) => p.id === 'p1').progress_percent).toBe(50);
+    expect(r.goals[0].progress_percent).toBe(50);
+  });
 });
 
 describe('weekDatesFor — the strict calendar week, honoring weekStartDay', () => {

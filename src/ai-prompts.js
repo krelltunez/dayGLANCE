@@ -408,7 +408,8 @@ export function weeklySummaryUserPrompt(data) {
     const stalledProjects = projectStats.filter(p => p.stalled);
     if (activeProjects.length > 0) {
       lines.push(`Project activity this week: ${activeProjects.map(p =>
-        `"${p.title}" — ${p.weekCompleted}/${p.weekTotal} tasks completed (${p.overallProgressPct}% overall)`
+        `"${p.title}" — ${p.weekCompleted}/${p.weekTotal} tasks completed${
+          p.overallProgressPct === null ? '' : ` (${p.overallProgressPct}% overall)`}`
       ).join('; ')}.`);
     }
     if (stalledProjects.length > 0) {

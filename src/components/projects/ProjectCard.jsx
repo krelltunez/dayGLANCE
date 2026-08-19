@@ -137,12 +137,15 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     () => recurringTasks.filter(t => t.projectId === project.id && !t.archived && isVisibleForUser(t) && getNextOccurrence(t) !== null),
     [recurringTasks, project.id, isVisibleForUser],
   );
-  // A project whose only work is a recurring series has nothing countable:
-  // series are excluded from totals and progress on purpose (a series never
-  // completes), so the card claimed "0/0 tasks" at a permanent 0% while the
-  // series list underneath showed real work. Show neither rather than report
-  // no progress. A genuinely empty project is unchanged.
-  const nothingToMeasure = totalCount === 0 && projectRecurring.length > 0;
+  // No bar when there is no measurement to draw (calculateProjectProgress
+  // returns null). That covers both a project whose only work is a recurring
+  // series and one that is simply empty — neither has ever had a meaningful
+  // percentage, they just used to claim 0%.
+  const hasProgress = progress !== null;
+  // The count is a separate statement. "0/0 tasks" is true and useful for an
+  // empty project, but reads as wrong above a list of recurring series, so it
+  // goes only in that case.
+  const countIsMisleading = totalCount === 0 && projectRecurring.length > 0;
   const allProjectDisplayTasks = [
     ...projectScheduled.filter(t => !t.completed),
     ...projectUnscheduled.filter(t => !t.completed),
@@ -496,14 +499,14 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
         </div>
 
         {/* Task count — hidden by the standalone-card eyeball toggle */}
-        {!detailsHidden && !nothingToMeasure && (
+        {!detailsHidden && !countIsMisleading && (
           <span className={`text-xs ${textSecondary}`}>
             {completedCount}/{totalCount} task{totalCount !== 1 ? 's' : ''}
           </span>
         )}
 
         {/* Progress bar — hidden by the standalone-card eyeball toggle */}
-        {!detailsHidden && !nothingToMeasure && <ProjectProgress progress={progress} compact />}
+        {!detailsHidden && hasProgress && <ProjectProgress progress={progress} compact />}
 
         {/* Unscheduled task list */}
         {displayableTasks.length > 0 && (

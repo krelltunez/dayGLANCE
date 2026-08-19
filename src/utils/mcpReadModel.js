@@ -216,13 +216,21 @@ export function buildGoalProgress(state, params) {
     return { notFound: true, invalid: null };
   }
 
+  const projectProgressPercent = (id, tasks) => {
+    const progress = calculateProjectProgress(id, tasks);
+    return progress === null ? null : Math.round(progress * 100);
+  };
+
   const mapProject = (p) => {
     const projectTasks = progressTasks.filter((t) => t.projectId === p.id && !t.archived);
     return {
       id: p.id,
       title: p.title,
       status: p.status,
-      progress_percent: Math.round(calculateProjectProgress(p.id, progressTasks) * 100),
+      // null, not 0, when the project has nothing to measure — a reader that
+      // cannot tell those apart will report "no progress" on a project that is
+      // simply not measurable in tasks.
+      progress_percent: projectProgressPercent(p.id, progressTasks),
       tasks_done: projectTasks.filter((t) => t.completed).length,
       tasks_total: projectTasks.length,
     };

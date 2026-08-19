@@ -28,8 +28,12 @@ export function calculateGoalProgress(goalId, projects, allTasks) {
   let weightedSum = 0;
 
   for (const project of childProjects) {
-    const weight = getProjectTotalDuration(project.id, allTasks);
     const progress = calculateProjectProgress(project.id, allTasks);
+    // A project with nothing to measure carries no opinion about the goal.
+    // Its weight was already 0, so this only makes the intent explicit and
+    // keeps null out of the arithmetic.
+    if (progress === null) continue;
+    const weight = getProjectTotalDuration(project.id, allTasks);
     totalWeight += weight;
     weightedSum += progress * weight;
   }
