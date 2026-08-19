@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ICS_CALENDARS_KEY, loadIcsCalendars } from '../utils/icsFeedSync.js';
+import { ICS_CALENDARS_KEY, loadIcsCalendars, PRIMARY_CAL_META_KEY, loadPrimaryCalendarMeta } from '../utils/icsFeedSync.js';
 
 const useCalendarSync = () => {
   const [calSyncStatus, setCalSyncStatus] = useState(null); // null | 'success' | 'error'
@@ -19,6 +19,9 @@ const useCalendarSync = () => {
   // [{id, name, url, username, password, color, enabled}]. The primary feed
   // stays in the legacy day-planner-sync-url key for old-build compatibility.
   const [icsCalendars, setIcsCalendars] = useState(loadIcsCalendars);
+  // Display meta for the primary calendar (name/color/enabled). Its URL and
+  // credentials stay in the legacy keys; see icsFeedSync.js (unified list).
+  const [primaryCalendarMeta, setPrimaryCalendarMeta] = useState(loadPrimaryCalendarMeta);
   const [completedTaskUids, setCompletedTaskUids] = useState(new Set());
   const [pendingImportFile, setPendingImportFile] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -34,12 +37,18 @@ const useCalendarSync = () => {
     localStorage.setItem(ICS_CALENDARS_KEY, JSON.stringify(icsCalendars));
   }, [icsCalendars]);
 
+  // Persist primary calendar meta to localStorage
+  useEffect(() => {
+    localStorage.setItem(PRIMARY_CAL_META_KEY, JSON.stringify(primaryCalendarMeta));
+  }, [primaryCalendarMeta]);
+
   return {
     calSyncStatus, setCalSyncStatus,
     calSyncLastSynced, setCalSyncLastSynced,
     taskCalendarUrl, setTaskCalendarUrl,
     taskCalendarAuth, setTaskCalendarAuth,
     icsCalendars, setIcsCalendars,
+    primaryCalendarMeta, setPrimaryCalendarMeta,
     syncRetentionDays, setSyncRetentionDays,
     completedTaskUids, setCompletedTaskUids,
     pendingImportFile, setPendingImportFile,

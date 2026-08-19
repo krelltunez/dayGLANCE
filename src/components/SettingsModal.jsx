@@ -7,7 +7,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import LocalIntegrationsSettings from './LocalIntegrationsSettings.jsx';
 import ICloudDiagnostics from './ICloudDiagnostics.jsx';
-import AdditionalCalendars from './AdditionalCalendars.jsx';
+import CalendarList from './CalendarList.jsx';
 import ICloudSyncToggle from './ICloudSyncToggle.jsx';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
@@ -868,55 +868,7 @@ const SettingsModal = () => {
                         <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
                       </button>
                       {!collapsedSettings.calSync && (<>
-                      {!hasNativeCalendar() && (
-                      <div>
-                        <label className={`block text-sm ${textSecondary} mb-1`}>
-                          {t('settings.calendarUrl')}
-                        </label>
-                        <input
-                          type="url"
-                          placeholder="https://nextcloud.example.com/remote.php/dav/calendars/user/calendar-name/?export"
-                          value={syncUrl}
-                          onChange={(e) => setSyncUrl(e.target.value.replace(/^webcal:\/\//i, 'https://'))}
-                          onPaste={(e) => { const text = e.clipboardData.getData('text'); if (/^webcal:\/\//i.test(text)) { e.preventDefault(); setSyncUrl(text.replace(/^webcal:\/\//i, 'https://')); } }}
-                          className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
-                        />
-                        <p className={`text-xs ${textSecondary} mt-1`}>
-                          {showCalendarUrlHint
-                            ? <>Paste any public ICS/iCal URL here. <strong>Google Calendar:</strong> Settings → [your calendar] → "Secret address in iCal format". <strong>Outlook:</strong> Settings → View all → Calendar → Shared calendars → Publish → ICS link. <strong>Nextcloud (public):</strong> Calendar → Settings → Copy the public link. <strong>Nextcloud (private):</strong> use the internal CalDAV URL with ?export appended (e.g. …/remote.php/dav/calendars/user/personal/?export) and enter credentials below. <button onClick={() => setShowCalendarUrlHint(false)} className="underline">Show less</button></>
-                            : <>Where do I find this URL? <button onClick={() => setShowCalendarUrlHint(true)} className="underline">Show more</button></>
-                          }
-                        </p>
-                      </div>
-                      )}
-                      {!hasNativeCalendar() && syncUrl && (
-                        <div className={`space-y-2 pl-3 border-l-2 ${darkMode ? 'border-gray-600' : 'border-stone-300'}`}>
-                          <p className={`text-xs font-medium ${textSecondary}`}>{t('settings.calendarBasicAuth')}</p>
-                          <div className="flex gap-2">
-                            <div className="flex-1">
-                              <label className={`block text-xs ${textSecondary} mb-1`}>{t('common.username')}</label>
-                              <input
-                                type="text"
-                                placeholder="username"
-                                value={calendarUrlAuth.username}
-                                onChange={(e) => setCalendarUrlAuth(prev => ({ ...prev, username: e.target.value }))}
-                                className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
-                              />
-                            </div>
-                            <div className="flex-1">
-                              <label className={`block text-xs ${textSecondary} mb-1`}>{t('common.password')}</label>
-                              <input
-                                type="password"
-                                placeholder="password"
-                                value={calendarUrlAuth.password}
-                                onChange={(e) => setCalendarUrlAuth(prev => ({ ...prev, password: e.target.value }))}
-                                className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      {!hasNativeCalendar() && <AdditionalCalendars />}
+                      {!hasNativeCalendar() && <CalendarList />}
                       {hasNativeCalendar() && (
                         <p className={`text-xs ${textSecondary}`}>
                           Calendar events are read from your device accounts. Use the Device Calendars section below to choose which calendars to show.
