@@ -129,3 +129,59 @@ export const applyRemoteIcsCalendars = (remote, local) => {
     };
   });
 };
+
+// ── Unified calendar list (primary + extras in one UI) ──────────────────────
+// The UI shows one list, but persistence keeps the Phase-1 split so older
+// builds sharing localStorage, backups, or a cloud payload stay correct:
+// the primary's URL/credentials live in the legacy keys, extras in
+// day-planner-ics-calendars, and the primary's display meta (name/color/
+// enabled) in its own key below.
+
+export const PRIMARY_CAL_META_KEY = 'day-planner-primary-cal-meta';
+
+export const defaultPrimaryCalendarMeta = () => ({ name: '', color: 'bg-gray-600', enabled: true });
+
+export const loadPrimaryCalendarMeta = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PRIMARY_CAL_META_KEY) || 'null');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? { ...defaultPrimaryCalendarMeta(), ...parsed }
+      : defaultPrimaryCalendarMeta();
+  } catch {
+    return defaultPrimaryCalendarMeta();
+  }
+};
+
+/**
+ * Compose the synced icsCalendars payload field from the extras list and the
+ * primary's meta. The primary rides as a URL-less, credential-less stub: a
+ * build that predates the unified list skips it when fetching (no url) but
+ * echoes it back unchanged, and reconstruct-on-apply restores the url from
+ * the sibling syncUrl payload field — so a mixed fleet never fetches the
+ * primary feed twice and never loses its display meta.
+ */
+export const injectPrimaryStub = (extras, meta, hasPrimaryUrl) => [
+  ...(hasPrimaryUrl ? [{
+    id: PRIMARY_FEED_ID,
+    name: meta?.name || '',
+    color: meta?.color || 'bg-gray-600',
+    enabled: meta?.enabled !== false,
+  }] : []),
+  ...(extras || []).filter(c => c?.id !== PRIMARY_FEED_ID),
+];
+
+/**
+ * Split a remote icsCalendars field back into { meta, extras }. meta is null
+ * when the list carries no primary stub (an older client's payload, or the
+ * primary was removed) — callers keep their local meta in that case.
+ */
+export const splitPrimaryStub = (remote) => {
+  const list = Array.isArray(remote) ? remote : [];
+  const stub = list.find(c => c?.id === PRIMARY_FEED_ID) || null;
+  return {
+    meta: stub
+      ? { name: stub.name || '', color: stub.color || 'bg-gray-600', enabled: stub.enabled !== false }
+      : null,
+    extras: list.filter(c => c?.id !== PRIMARY_FEED_ID),
+  };
+};

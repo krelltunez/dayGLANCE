@@ -10,6 +10,8 @@ import {
   hasActiveIcsCalendars,
   stripIcsCalendarCredentials,
   applyRemoteIcsCalendars,
+  injectPrimaryStub,
+  splitPrimaryStub,
 } from './icsFeedSync.js';
 
 const ICS = 'BEGIN:VCALENDAR\nBEGIN:VEVENT\nEND:VEVENT\nEND:VCALENDAR';
@@ -184,5 +186,46 @@ describe('applyRemoteIcsCalendars', () => {
     expect(applyRemoteIcsCalendars(remote, local)).toEqual([
       { id: 'c', name: 'New', url: 'https://x.test/c/', username: '', password: '' },
     ]);
+  });
+});
+
+describe('primary calendar stub (unified list)', () => {
+  const META = { name: 'Personal', color: 'bg-teal-600', enabled: false };
+  const EXTRAS = [{ id: 'x1', name: 'Work', url: 'https://x.test/w/', color: 'bg-blue-600', enabled: true }];
+
+  it('injectPrimaryStub prepends a URL-less stub when a primary URL is configured', () => {
+    const out = injectPrimaryStub(EXTRAS, META, true);
+    expect(out[0]).toEqual({ id: 'primary', name: 'Personal', color: 'bg-teal-600', enabled: false });
+    expect('url' in out[0]).toBe(false);
+    expect(out.slice(1)).toEqual(EXTRAS);
+  });
+
+  it('injectPrimaryStub omits the stub without a primary URL and defaults missing meta', () => {
+    expect(injectPrimaryStub(EXTRAS, META, false)).toEqual(EXTRAS);
+    expect(injectPrimaryStub([], null, true)).toEqual([
+      { id: 'primary', name: '', color: 'bg-gray-600', enabled: true },
+    ]);
+  });
+
+  it('injectPrimaryStub drops a stray primary entry from the extras list', () => {
+    const out = injectPrimaryStub([{ id: 'primary', name: 'stale' }, ...EXTRAS], META, true);
+    expect(out.filter(c => c.id === 'primary')).toHaveLength(1);
+    expect(out[0].name).toBe('Personal');
+  });
+
+  it('splitPrimaryStub recovers meta and extras, and round-trips inject', () => {
+    const { meta, extras } = splitPrimaryStub(injectPrimaryStub(EXTRAS, META, true));
+    expect(meta).toEqual(META);
+    expect(extras).toEqual(EXTRAS);
+  });
+
+  it('splitPrimaryStub returns null meta for lists without a stub (older clients)', () => {
+    expect(splitPrimaryStub(EXTRAS)).toEqual({ meta: null, extras: EXTRAS });
+    expect(splitPrimaryStub(undefined)).toEqual({ meta: null, extras: [] });
+  });
+
+  it('a Phase-1 build would skip the stub when fetching (no url ⇒ inactive)', () => {
+    const stub = injectPrimaryStub([], { enabled: true }, true)[0];
+    expect(isActiveIcsCalendar(stub)).toBe(false);
   });
 });

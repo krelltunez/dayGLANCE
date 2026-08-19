@@ -45,7 +45,7 @@ import { loadIntentsRootKey, clearIntentsRootKey } from '../intents/intentsKeySt
 import { useTranslation } from 'react-i18next';
 import LanguagePicker from './LanguagePicker.jsx';
 import { notBucketed } from '../utils/bucketList.js';
-import AdditionalCalendars from './AdditionalCalendars.jsx';
+import CalendarList from './CalendarList.jsx';
 
 const MobileSettingsPanel = () => {
   const {
@@ -659,44 +659,7 @@ const MobileSettingsPanel = () => {
           <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.calSync ? '' : 'rotate-180'}`} />
         </button>
         {!collapsedSettings.calSync && (<>
-        {!isNativeApp() && (
-        <div>
-          <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.calendarUrl')}</label>
-          <input
-            type="url"
-            placeholder="https://..."
-            value={syncUrl}
-            onChange={(e) => setSyncUrl(e.target.value)}
-            className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
-          />
-        </div>
-        )}
-        {!isNativeApp() && syncUrl && (
-          <div className={`space-y-2 pl-3 border-l-2 ${darkMode ? 'border-gray-600' : 'border-stone-300'}`}>
-            <p className={`text-xs font-medium ${textSecondary}`}>{t('settings.calendarBasicAuth')}</p>
-            <div>
-              <label className={`block text-xs ${textSecondary} mb-1`}>Username</label>
-              <input
-                type="text"
-                placeholder="username"
-                value={calendarUrlAuth.username}
-                onChange={(e) => setCalendarUrlAuth(prev => ({ ...prev, username: e.target.value }))}
-                className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
-              />
-            </div>
-            <div>
-              <label className={`block text-xs ${textSecondary} mb-1`}>Password</label>
-              <input
-                type="password"
-                placeholder="password"
-                value={calendarUrlAuth.password}
-                onChange={(e) => setCalendarUrlAuth(prev => ({ ...prev, password: e.target.value }))}
-                className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
-              />
-            </div>
-          </div>
-        )}
-        {!isNativeApp() && <AdditionalCalendars />}
+        {!isNativeApp() && <CalendarList />}
         {isNativeApp() && (
           <p className={`text-xs ${textSecondary}`}>
             Calendar events are read from your device accounts. Use the Device Calendars section below to choose which calendars to show.

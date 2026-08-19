@@ -32,7 +32,7 @@ import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOn
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
 import { notBucketed, demoteToBucket, normalizeBucketConfig } from './utils/bucketList.js';
 import { parseICS, parseDatetime, filterByDateWindow, expandMultiDayEvent } from './utils/icsParser.js';
-import { fetchIcsFeed, replaceFeedEvents, PRIMARY_FEED_ID, ICS_CALENDARS_KEY, loadIcsCalendars, isActiveIcsCalendar, hasActiveIcsCalendars, stripIcsCalendarCredentials, applyRemoteIcsCalendars } from './utils/icsFeedSync.js';
+import { fetchIcsFeed, replaceFeedEvents, PRIMARY_FEED_ID, ICS_CALENDARS_KEY, loadIcsCalendars, isActiveIcsCalendar, hasActiveIcsCalendars, stripIcsCalendarCredentials, applyRemoteIcsCalendars, PRIMARY_CAL_META_KEY, defaultPrimaryCalendarMeta, injectPrimaryStub, splitPrimaryStub } from './utils/icsFeedSync.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex, getProjectColor } from './utils/colorUtils.js';
 import { calculateGoalProgress } from './utils/goalProgress.js';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from './constants/habits.js';
@@ -525,6 +525,7 @@ const DayPlanner = () => {
     taskCalendarUrl, setTaskCalendarUrl,
     taskCalendarAuth, setTaskCalendarAuth,
     icsCalendars, setIcsCalendars,
+    primaryCalendarMeta, setPrimaryCalendarMeta,
     syncRetentionDays, setSyncRetentionDays,
     completedTaskUids, setCompletedTaskUids,
     pendingImportFile, setPendingImportFile,
@@ -2049,7 +2050,9 @@ const DayPlanner = () => {
     const desired = {
       syncUrl,
       taskCalendarUrl,
-      icsCalendars: includeCalCreds ? icsCalendars : stripIcsCalendarCredentials(icsCalendars),
+      icsCalendars: injectPrimaryStub(
+        includeCalCreds ? icsCalendars : stripIcsCalendarCredentials(icsCalendars),
+        primaryCalendarMeta, !!syncUrl),
       ...(includeAuth ? { auth: taskCalendarAuth } : {}),
     };
     let map = {};
@@ -2064,7 +2067,7 @@ const DayPlanner = () => {
     map[meUserSyncId] = { ...desired, updatedAt: new Date().toISOString() };
     localStorage.setItem('day-planner-calendar-config-by-user', JSON.stringify(map));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [multiUserEnabled, meUserSyncId, syncUrl, taskCalendarUrl, taskCalendarAuth, icsCalendars, syncCalendarCreds, cloudSyncConfig?.encryptionEnabled]);
+  }, [multiUserEnabled, meUserSyncId, syncUrl, taskCalendarUrl, taskCalendarAuth, icsCalendars, primaryCalendarMeta, syncCalendarCreds, cloudSyncConfig?.encryptionEnabled]);
 
   // Signature of the additional-calendar config that affects fetching — sync
   // re-runs when a feed is added/removed/toggled or its URL changes, but not
@@ -2082,7 +2085,7 @@ const DayPlanner = () => {
 
     return () => clearInterval(syncTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncUrl, taskCalendarUrl, icsCalendarsFetchKey]);
+  }, [syncUrl, taskCalendarUrl, icsCalendarsFetchKey, primaryCalendarMeta.enabled]);
 
   // Cloud sync: debounced upload on data changes.
   // Upload only (no download) to avoid the applyEngineData → state-change → debounce
@@ -2288,9 +2291,11 @@ const DayPlanner = () => {
       localStorage.removeItem('day-planner-sync-url');
       localStorage.removeItem('day-planner-task-calendar-url');
       localStorage.removeItem(ICS_CALENDARS_KEY);
+      localStorage.removeItem(PRIMARY_CAL_META_KEY);
       setSyncUrl('');
       setTaskCalendarUrl('');
       setIcsCalendars([]);
+      setPrimaryCalendarMeta(defaultPrimaryCalendarMeta());
     }
     localStorage.setItem('day-planner-calendar-per-user-migrated', 'true');
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4411,6 +4416,7 @@ const DayPlanner = () => {
         taskCalendarUrl: localStorage.getItem('day-planner-task-calendar-url') || '',
         taskCalendarAuth: JSON.parse(localStorage.getItem('day-planner-task-calendar-auth') || 'null'),
         icsCalendars: JSON.parse(localStorage.getItem('day-planner-ics-calendars') || '[]'),
+        primaryCalendarMeta: JSON.parse(localStorage.getItem('day-planner-primary-cal-meta') || 'null'),
         completedTaskUids: JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]'),
         recurringTasks: JSON.parse(localStorage.getItem('day-planner-recurring-tasks') || '[]'),
         routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
@@ -4476,6 +4482,7 @@ const DayPlanner = () => {
       taskCalendarUrl: localStorage.getItem('day-planner-task-calendar-url') || '',
       taskCalendarAuth: JSON.parse(localStorage.getItem('day-planner-task-calendar-auth') || 'null'),
       icsCalendars: JSON.parse(localStorage.getItem('day-planner-ics-calendars') || '[]'),
+      primaryCalendarMeta: JSON.parse(localStorage.getItem('day-planner-primary-cal-meta') || 'null'),
       completedTaskUids: JSON.parse(localStorage.getItem('day-planner-task-completed-uids') || '[]'),
       recurringTasks: JSON.parse(localStorage.getItem('day-planner-recurring-tasks') || '[]'),
       routineDefinitions: JSON.parse(localStorage.getItem('day-planner-routine-definitions') || '{}'),
@@ -4668,6 +4675,7 @@ const DayPlanner = () => {
     if (data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
     if (data.taskCalendarAuth) localStorage.setItem('day-planner-task-calendar-auth', JSON.stringify(data.taskCalendarAuth));
     if (data.icsCalendars) localStorage.setItem('day-planner-ics-calendars', JSON.stringify(data.icsCalendars));
+    if (data.primaryCalendarMeta) localStorage.setItem('day-planner-primary-cal-meta', JSON.stringify(data.primaryCalendarMeta));
     if (data.completedTaskUids) localStorage.setItem('day-planner-task-completed-uids', JSON.stringify(data.completedTaskUids));
     if (data.recurringTasks) localStorage.setItem('day-planner-recurring-tasks', JSON.stringify(data.recurringTasks));
     if (data.routineDefinitions) localStorage.setItem('day-planner-routine-definitions', JSON.stringify(data.routineDefinitions));
@@ -4815,12 +4823,12 @@ const DayPlanner = () => {
     if (hasNativeCalendar()) return { success: false, error: 'no-url' };
 
     const feeds = [];
-    if (syncUrl) {
+    if (syncUrl && primaryCalendarMeta.enabled !== false) {
       feeds.push({
         id: PRIMARY_FEED_ID,
         url: syncUrl,
-        name: '',
-        color: null,
+        name: primaryCalendarMeta.name || '',
+        color: primaryCalendarMeta.color || 'bg-gray-600',
         authValue: (calendarUrlAuth.username && calendarUrlAuth.password)
           ? 'Basic ' + toBase64(calendarUrlAuth.username + ':' + calendarUrlAuth.password)
           : null,
@@ -4839,6 +4847,9 @@ const DayPlanner = () => {
       });
     }
     if (feeds.length === 0) {
+      // No active feeds — drop any leftover feed events (a feed was disabled or
+      // its URL cleared and nothing else remains to sync them away).
+      setTasks(prevTasks => replaceFeedEvents(prevTasks, []));
       return { success: false, error: 'no-url' };
     }
 
@@ -5396,7 +5407,9 @@ const DayPlanner = () => {
         // (the apply side restores locally stored creds by entry id). Full
         // entries ride per-user inside calendarConfigByUser when opted in.
         // Whole-list LWW by the sibling icsCalendarsUpdatedAt on both tiers.
-        icsCalendars: stripIcsCalendarCredentials(icsCalendars),
+        // The primary calendar rides as a URL-less stub carrying its display
+        // meta; its URL travels in syncUrl above (see injectPrimaryStub).
+        icsCalendars: injectPrimaryStub(stripIcsCalendarCredentials(icsCalendars), primaryCalendarMeta, !!syncUrl),
         icsCalendarsUpdatedAt: localStorage.getItem('day-planner-ics-calendars-updated-at') || null,
         calendarConfigByUser,
         // taskCalendarAuth is intentionally excluded from the top level — credentials
@@ -5548,9 +5561,13 @@ const DayPlanner = () => {
     if (!perUserCalendar && data.syncUrl !== undefined) localStorage.setItem('day-planner-sync-url', data.syncUrl);
     if (!perUserCalendar && data.taskCalendarUrl !== undefined) localStorage.setItem('day-planner-task-calendar-url', data.taskCalendarUrl);
     // Additional calendars: the shared payload strips credentials, so restore
-    // the locally stored ones by entry id before persisting/applying.
+    // the locally stored ones by entry id before persisting/applying. The
+    // primary's URL-less stub splits off into its meta key; a list without a
+    // stub (older client) leaves the local meta untouched.
     if (!perUserCalendar && data.icsCalendars !== undefined) {
-      localStorage.setItem(ICS_CALENDARS_KEY, JSON.stringify(applyRemoteIcsCalendars(data.icsCalendars, loadIcsCalendars())));
+      const { meta: remotePrimaryMeta, extras: remoteExtras } = splitPrimaryStub(data.icsCalendars);
+      localStorage.setItem(ICS_CALENDARS_KEY, JSON.stringify(applyRemoteIcsCalendars(remoteExtras, loadIcsCalendars())));
+      if (remotePrimaryMeta) localStorage.setItem(PRIMARY_CAL_META_KEY, JSON.stringify(remotePrimaryMeta));
       if (data.icsCalendarsUpdatedAt) localStorage.setItem('day-planner-ics-calendars-updated-at', data.icsCalendarsUpdatedAt);
     }
     // taskCalendarAuth is not applied from the top level — credentials are device-local
@@ -5689,9 +5706,14 @@ const DayPlanner = () => {
           if (mine.syncUrl !== undefined) { localStorage.setItem('day-planner-sync-url', mine.syncUrl); setSyncUrl(mine.syncUrl); }
           if (mine.taskCalendarUrl !== undefined) { localStorage.setItem('day-planner-task-calendar-url', mine.taskCalendarUrl); setTaskCalendarUrl(mine.taskCalendarUrl); }
           if (mine.icsCalendars !== undefined) {
-            const merged = applyRemoteIcsCalendars(mine.icsCalendars, loadIcsCalendars());
+            const { meta: minePrimaryMeta, extras: mineExtras } = splitPrimaryStub(mine.icsCalendars);
+            const merged = applyRemoteIcsCalendars(mineExtras, loadIcsCalendars());
             localStorage.setItem(ICS_CALENDARS_KEY, JSON.stringify(merged));
             setIcsCalendars(merged);
+            if (minePrimaryMeta) {
+              localStorage.setItem(PRIMARY_CAL_META_KEY, JSON.stringify(minePrimaryMeta));
+              setPrimaryCalendarMeta(minePrimaryMeta);
+            }
           }
           if (mine.auth) { localStorage.setItem('day-planner-task-calendar-auth', JSON.stringify(mine.auth)); setTaskCalendarAuth(mine.auth); }
         }
@@ -5754,7 +5776,11 @@ const DayPlanner = () => {
     if (data.recycleBin) setRecycleBin(data.recycleBin);
     if (!perUserCalendar && data.syncUrl !== undefined) setSyncUrl(data.syncUrl);
     if (!perUserCalendar && data.taskCalendarUrl !== undefined) setTaskCalendarUrl(data.taskCalendarUrl);
-    if (!perUserCalendar && data.icsCalendars !== undefined) setIcsCalendars(prev => applyRemoteIcsCalendars(data.icsCalendars, prev));
+    if (!perUserCalendar && data.icsCalendars !== undefined) {
+      const { meta: remotePrimaryMeta, extras: remoteExtras } = splitPrimaryStub(data.icsCalendars);
+      setIcsCalendars(prev => applyRemoteIcsCalendars(remoteExtras, prev));
+      if (remotePrimaryMeta) setPrimaryCalendarMeta(remotePrimaryMeta);
+    }
     if (data.completedTaskUids) setCompletedTaskUids(new Set(data.completedTaskUids));
     if (data.recurringTasks) setRecurringTasks(prev =>
       rescueUnsyncedTasks(data.recurringTasks, prev, rescueDeletedIds, t => !!t._intentKey));
@@ -8306,6 +8332,7 @@ const DayPlanner = () => {
     // ── Calendar sync ─────────────────────────────────────────────────────────
     syncUrl, setSyncUrl,
     icsCalendars, setIcsCalendars,
+    primaryCalendarMeta, setPrimaryCalendarMeta,
     taskCalendarUrl, setTaskCalendarUrl,
     taskCalendarAuth, setTaskCalendarAuth,
     syncCalendarCreds, setSyncCalendarCreds,
