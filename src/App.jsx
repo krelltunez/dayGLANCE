@@ -3668,6 +3668,11 @@ const DayPlanner = () => {
         assignedUserSyncIds: mobileEditingTask.assignedUserSyncIds ?? existingTask?.assignedUserSyncIds,
         lastModified: new Date().toISOString()
       };
+      // The original is gone, replaced by a template under a NEW id. Tombstone
+      // it or cloud sync re-adds it from a device that still has it, leaving a
+      // one-off sitting next to the series it became. The mirror-image branch
+      // (recurring -> regular) already tombstones the template it drops.
+      recordDeletedTaskTombstone(taskId);
       setTasks(prev => prev.filter(t => t.id !== taskId));
       setUnscheduledTasks(prev => prev.filter(t => t.id !== taskId));
       setRecurringTasks(prev => [...prev, template]);

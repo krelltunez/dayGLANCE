@@ -71,6 +71,10 @@ export function expandRecurringForDate(recurringTasks, date) {
         completed: (template.completedDates || []).includes(dateStr),
         isAllDay: exception?.isAllDay ?? template.isAllDay ?? false,
         assignedUserSyncIds: exception?.assignedUserSyncIds ?? template.assignedUserSyncIds,
+        // Series-level, like assignment: the template owns it and every
+        // instance inherits it, so toBlock can emit project_id for a
+        // recurring block the same as for a concrete task.
+        projectId: template.projectId,
         date: dateStr,
         isRecurring: true,
       });

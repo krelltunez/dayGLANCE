@@ -85,6 +85,14 @@ describe('expandRecurringForDate', () => {
     expect(expandRecurringForDate([], '2026-08-10')).toEqual([]);
     expect(expandRecurringForDate(undefined, '2026-08-10')).toEqual([]);
   });
+
+  it('inherits the project from the template, so reads report the association', () => {
+    const inProject = { ...template, projectId: 'p1' };
+    expect(expandRecurringForDate([inProject], '2026-08-10')[0].projectId).toBe('p1');
+    expect(toBlock(expandRecurringForDate([inProject], '2026-08-10')[0]).project_id).toBe('p1');
+    // No project: the wire block omits the key rather than sending null.
+    expect(toBlock(expandRecurringForDate([template], '2026-08-10')[0])).not.toHaveProperty('project_id');
+  });
 });
 
 describe('buildDayBlocks', () => {

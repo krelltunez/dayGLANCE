@@ -54,14 +54,18 @@ export function getProjectTotalDuration(projectId, allTasks) {
  * Returns whether a project is stalled:
  *   - project is at least 7 days old (grace period for new projects), AND
  *   - has at least one incomplete task, AND
- *   - no task has completedAt within the last 7 days
+ *   - no task has completedAt within the last 7 days, AND
+ *   - no recurring series of the project was completed in the last 7 days
  *
  * @param {string} projectId
  * @param {Array} allTasks
  * @param {Object} project - the project object (needs createdAt)
+ * @param {Array} [recurringTasks] - templates; their completedDates count as
+ *   activity. Optional so callers with no access to them keep the old
+ *   behaviour, which can only over-report stalling, never under-report it.
  * @returns {boolean}
  */
-export function isProjectStalled(projectId, allTasks, project) {
+export function isProjectStalled(projectId, allTasks, project, recurringTasks = []) {
   // Grace period: don't flag projects created within the last 7 days
   if (project?.createdAt) {
     const ageMs = Date.now() - new Date(project.createdAt).getTime();
@@ -82,6 +86,19 @@ export function isProjectStalled(projectId, allTasks, project) {
   const hasRecentCompletion = projectTasks.some(
     t => t.completed && t.completedAt && t.completedAt >= cutoff
   );
+  if (hasRecentCompletion) return false;
 
-  return !hasRecentCompletion;
+  // A project whose upkeep is a recurring series has no completed rows in
+  // `allTasks` to find — completions live as dates on the template — so
+  // ticking off a daily task every day still read as stalled. Recurring
+  // activity only ever CLEARS the flag: a series is never counted as
+  // outstanding work, so this can suppress a false positive but never raise a
+  // new one.
+  const hasRecentRecurringCompletion = recurringTasks.some(
+    t => t.projectId === projectId
+      && !t.archived
+      && (t.completedDates || []).some(d => d >= cutoff)
+  );
+
+  return !hasRecentRecurringCompletion;
 }

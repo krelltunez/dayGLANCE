@@ -1,4 +1,4 @@
-import React, { forwardRef, useState, useRef } from 'react';
+import React, { forwardRef, useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import ConfirmDialog from '../ConfirmDialog.jsx';
 import {
@@ -119,7 +119,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   const progress = calculateProjectProgress(project.id, allTasks);
   const hasHGSession = !!getActiveHGInstance(project, currentTimeMinutes);
   // Per-goal opt-out: a goal with hideStalled suppresses the badge on its projects.
-  const stalled = !!project.goalId && !parentGoal?.hideStalled && !hasHGSession && isProjectStalled(project.id, allTasks, project);
+  const stalled = !!project.goalId && !parentGoal?.hideStalled && !hasHGSession && isProjectStalled(project.id, allTasks, project, recurringTasks);
 
   // All project tasks: unscheduled (in array order) then scheduled (by date), completed last
   const projectUnscheduled = unscheduledTasks.filter(t => t.projectId === project.id && !t.archived && isVisibleForUser(t));
@@ -130,7 +130,19 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   // flood the list). Not counted in totals/progress: a series never completes.
   // Ended series (past endDate / maxOccurrences exhausted) are hidden so
   // finished templates don't become permanent clutter.
-  const projectRecurring = recurringTasks.filter(t => t.projectId === project.id && !t.archived && isVisibleForUser(t) && getNextOccurrence(t) !== null);
+  // Memoised: this card re-renders every minute (currentTimeMinutes), and
+  // getNextOccurrence walks the series. ProjectPlanner already memoises the
+  // same filter.
+  const projectRecurring = useMemo(
+    () => recurringTasks.filter(t => t.projectId === project.id && !t.archived && isVisibleForUser(t) && getNextOccurrence(t) !== null),
+    [recurringTasks, project.id, isVisibleForUser],
+  );
+  // A project whose only work is a recurring series has nothing countable:
+  // series are excluded from totals and progress on purpose (a series never
+  // completes), so the card claimed "0/0 tasks" at a permanent 0% while the
+  // series list underneath showed real work. Show neither rather than report
+  // no progress. A genuinely empty project is unchanged.
+  const nothingToMeasure = totalCount === 0 && projectRecurring.length > 0;
   const allProjectDisplayTasks = [
     ...projectScheduled.filter(t => !t.completed),
     ...projectUnscheduled.filter(t => !t.completed),
@@ -484,14 +496,14 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
         </div>
 
         {/* Task count — hidden by the standalone-card eyeball toggle */}
-        {!detailsHidden && (
+        {!detailsHidden && !nothingToMeasure && (
           <span className={`text-xs ${textSecondary}`}>
             {completedCount}/{totalCount} task{totalCount !== 1 ? 's' : ''}
           </span>
         )}
 
         {/* Progress bar — hidden by the standalone-card eyeball toggle */}
-        {!detailsHidden && <ProjectProgress progress={progress} compact />}
+        {!detailsHidden && !nothingToMeasure && <ProjectProgress progress={progress} compact />}
 
         {/* Unscheduled task list */}
         {displayableTasks.length > 0 && (
