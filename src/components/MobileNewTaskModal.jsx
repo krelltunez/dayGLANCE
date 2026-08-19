@@ -7,10 +7,10 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { SOURCE_APPS } from '../native.js';
 import LastGlanceBadge from './LastGlanceBadge.jsx';
 import QuickAddChips from './QuickAddChips.jsx';
+import RecurrencePicker from './RecurrencePicker.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { extractWikilinks } from '../utils/taskUtils.js';
 import { dateToString, extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
-import { getRecurrencePresets } from '../utils/recurrenceEngine.js';
 import { getProjectColor } from '../utils/colorUtils.js';
 
 const MobileNewTaskModal = () => {
@@ -462,29 +462,7 @@ const MobileNewTaskModal = () => {
                       >
                         {newTask.recurrence ? getRecurrenceLabel(newTask.recurrence) : 'None'}
                       </button>
-                      {showRecurrencePicker && (() => {
-                        const presets = getRecurrencePresets(newTask.date || dateToString(selectedDate));
-                        return (
-                          <div className={`absolute bottom-full left-0 mb-1 ${cardBg} rounded-lg shadow-xl z-30 border ${borderClass} min-w-[250px] max-h-[200px] overflow-y-auto`}>
-                            {presets.map((preset, i) => (
-                              <button
-                                key={i}
-                                type="button"
-                                onClick={() => {
-                                  const endFields = {};
-                                  if (newTask.recurrence?.endDate) endFields.endDate = newTask.recurrence.endDate;
-                                  if (newTask.recurrence?.maxOccurrences) endFields.maxOccurrences = newTask.recurrence.maxOccurrences;
-                                  setNewTask({ ...newTask, recurrence: preset.value ? { ...preset.value, ...endFields } : null });
-                                  setShowRecurrencePicker(false);
-                                }}
-                                className={`w-full text-left px-3 py-2 text-sm ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${textPrimary}`}
-                              >
-                                {preset.label}
-                              </button>
-                            ))}
-                          </div>
-                        );
-                      })()}
+                      {showRecurrencePicker && <RecurrencePicker placement="top" />}
                     </div>
                     {newTask.recurrence && (
                       <div className="col-span-2">

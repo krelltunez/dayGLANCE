@@ -7,11 +7,11 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { SOURCE_APPS } from '../native.js';
 import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
 import QuickAddChips from './QuickAddChips.jsx';
+import RecurrencePicker from './RecurrencePicker.jsx';
 import LastGlanceBadge from './LastGlanceBadge.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { extractWikilinks } from '../utils/taskUtils.js';
 import { dateToString, extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
-import { getRecurrencePresets } from '../utils/recurrenceEngine.js';
 import { getProjectColor } from '../utils/colorUtils.js';
 
 const DesktopNewTaskModal = () => {
@@ -552,32 +552,7 @@ const DesktopNewTaskModal = () => {
                       >
                         {newTask.recurrence ? getRecurrenceLabel(newTask.recurrence) : 'None'}
                       </button>
-                      {showRecurrencePicker && (() => {
-                        const presets = getRecurrencePresets(newTask.date || dateToString(selectedDate));
-
-                        return (
-                          <div className={`absolute top-full left-0 mt-1 ${cardBg} rounded-lg shadow-xl z-30 border ${borderClass} min-w-[250px] max-h-[300px] overflow-y-auto`}>
-                            {presets.map((preset, i) => (
-                              <button
-                                key={i}
-                                type="button"
-                                onClick={() => {
-                                  const endFields = {};
-                                  if (newTask.recurrence?.endDate) endFields.endDate = newTask.recurrence.endDate;
-                                  if (newTask.recurrence?.maxOccurrences) endFields.maxOccurrences = newTask.recurrence.maxOccurrences;
-                                  setNewTask({ ...newTask, recurrence: preset.value ? { ...preset.value, ...endFields } : null });
-                                  setShowRecurrencePicker(false);
-                                }}
-                                className={`w-full text-left px-3 py-2 text-sm ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${
-                                  JSON.stringify(newTask.recurrence) === JSON.stringify(preset.value) ? (darkMode ? 'bg-gray-700' : 'bg-blue-50 text-blue-700') : textPrimary
-                                } ${i === 0 ? 'rounded-t-lg' : ''} ${i === presets.length - 1 ? 'rounded-b-lg' : ''}`}
-                              >
-                                {preset.label}
-                              </button>
-                            ))}
-                          </div>
-                        );
-                      })()}
+                      {showRecurrencePicker && <RecurrencePicker placement="bottom" highlightSelected />}
                     </div>
                     {newTask.recurrence && (
                       <div className="col-span-full">
