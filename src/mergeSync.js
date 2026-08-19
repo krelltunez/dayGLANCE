@@ -27,9 +27,9 @@ export const mergeTaskArrays = (local, remote, deletedIds, syncHorizon = null) =
 //  - the feature toggles are device-local ONLY when multi-user is on; a
 //    single-user install keeps syncing them LWW across that user's own devices.
 const ALWAYS_LOCAL_KEYS = ['obsidianConfig'];
-// syncUrl/taskCalendarUrl are device-local in multi-user because each user's
-// calendar config travels per-user via the calendarConfigByUser map instead.
-const MULTIUSER_LOCAL_KEYS = ['habitsEnabled', 'routinesEnabled', 'goalsProjectsEnabled', 'syncUrl', 'taskCalendarUrl'];
+// syncUrl/taskCalendarUrl/icsCalendars are device-local in multi-user because
+// each user's calendar config travels per-user via the calendarConfigByUser map instead.
+const MULTIUSER_LOCAL_KEYS = ['habitsEnabled', 'routinesEnabled', 'goalsProjectsEnabled', 'syncUrl', 'taskCalendarUrl', 'icsCalendars'];
 
 // Per-user calendar config: {syncId → {syncUrl, taskCalendarUrl, auth?, updatedAt}}.
 // Union by syncId, keeping the newer entry per user (LWW). Each device reads only
@@ -329,6 +329,32 @@ export const mergeSyncData = (local, remote, retentionDays) => {
     // before this fix existed).
     if (winner !== lb) result.localChanged = true;
     if (winner !== rb) result.remoteChanged = true;
+  }
+
+  // Additional ICS calendars: whole-list LWW by the sibling icsCalendarsUpdatedAt
+  // (stamped on every local edit). The upstream merge predates this slice and
+  // DROPS unknown keys, so without this wrapper the merged file would silently
+  // lose it (the same failure mode bucketConfig had). Remote wins ties, matching
+  // the vault bundle's pickByTs convention (dbAdapter.js 'icsCalendars') so the
+  // two tiers cannot disagree. In multi-user the device-local override below
+  // (MULTIUSER_LOCAL_KEYS) restores the local list afterwards.
+  if (local?.icsCalendars !== undefined || remote?.icsCalendars !== undefined) {
+    const its = (v) => { const t = new Date(v ?? 0).getTime(); return Number.isNaN(t) ? 0 : t; };
+    const lts = its(local?.icsCalendarsUpdatedAt);
+    const rts = its(remote?.icsCalendarsUpdatedAt);
+    const winner = rts >= lts
+      ? (remote?.icsCalendars ?? local?.icsCalendars ?? [])
+      : (local?.icsCalendars ?? []);
+    result.data.icsCalendars = winner;
+    result.data.icsCalendarsUpdatedAt = rts >= lts
+      ? (remote?.icsCalendarsUpdatedAt ?? local?.icsCalendarsUpdatedAt ?? null)
+      : (local?.icsCalendarsUpdatedAt ?? null);
+    // Content-compared change flags (identity would churn on equal lists):
+    // localChanged triggers the local apply, remoteChanged the re-upload that
+    // heals a remote file missing the slice (one written by an older client).
+    const wj = JSON.stringify(winner);
+    if (wj !== JSON.stringify(local?.icsCalendars ?? null)) result.localChanged = true;
+    if (wj !== JSON.stringify(remote?.icsCalendars ?? null)) result.remoteChanged = true;
   }
 
   // Recurring completions ride inside the shared template row, which the upstream

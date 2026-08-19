@@ -83,6 +83,7 @@ export const BUNDLE_OWNS = {
   goalsProjectsEnabled: ['goalsProjectsEnabledUpdatedAt'],
   obsidianConfig:       ['obsidianConfigUpdatedAt'],
   multiUserEnabled:     ['multiUserEnabledUpdatedAt'],
+  icsCalendars:         ['icsCalendarsUpdatedAt'],
 };
 const OWNED_KEYS = new Set(Object.values(BUNDLE_OWNS).flat());
 
@@ -400,6 +401,7 @@ const ALWAYS_DEVICE_LOCAL = new Set([
 // multiUserEnabled flag (itself device-local, so stable regardless of merge order).
 const MULTIUSER_DEVICE_LOCAL = new Set([
   'habitsEnabled', 'routinesEnabled', 'goalsProjectsEnabled', 'syncUrl', 'taskCalendarUrl',
+  'icsCalendars',
 ]);
 // True when `key` must keep the local value rather than accept the pulled one,
 // given this device's multi-user state. Used by both the merge and the re-push
@@ -480,6 +482,17 @@ function mergeBundle(data, key, value, extra) {
       // (mirrors merge.js:810-815).
       data[key] = value || data[key] || '';
       return;
+    case 'icsCalendars': {
+      // Additional event calendars: per-user in multi-user (rides
+      // calendarConfigByUser like syncUrl); single-user LWW across own devices
+      // by the sibling icsCalendarsUpdatedAt (stamped on every local edit),
+      // matching the file tier's wrapper in mergeSync.js.
+      if (data.multiUserEnabled) return;
+      const tsKey = 'icsCalendarsUpdatedAt';
+      data[key] = pickByTs(data[key], data[tsKey], value, extra[tsKey]);
+      data[tsKey] = newerIso(data[tsKey], extra[tsKey]);
+      return;
+    }
     case 'dayWindows': {
       // {date|'defaults' → {start, stop, lastModified}}: union by key, newer
       // lastModified wins per entry — concurrent edits to DIFFERENT days never

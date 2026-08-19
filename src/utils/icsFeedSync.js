@@ -80,3 +80,52 @@ export const replaceFeedEvents = (prevTasks, freshEvents, { keepFeedIds = null }
   );
   return [...kept, ...freshEvents];
 };
+
+// ── Additional-calendar (multi-feed) config helpers ─────────────────────────
+// The primary feed stays in the legacy day-planner-sync-url /
+// day-planner-calendar-url-auth keys so older builds sharing a cloud payload
+// keep working; additional calendars live in day-planner-ics-calendars as
+// [{id, name, url, username, password, color, enabled}].
+
+export const ICS_CALENDARS_KEY = 'day-planner-ics-calendars';
+
+export const newFeedId = () =>
+  `ics-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+export const loadIcsCalendars = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ICS_CALENDARS_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+// A calendar entry that should actually be fetched.
+export const isActiveIcsCalendar = (c) =>
+  !!(c && c.enabled !== false && typeof c.url === 'string' && c.url.trim());
+
+export const hasActiveIcsCalendars = (cals) => (cals || []).some(isActiveIcsCalendar);
+
+// Strip credentials before the list leaves the device in a payload that is not
+// per-user-encrypted (mirrors taskCalendarAuth, which never rides top-level).
+export const stripIcsCalendarCredentials = (cals) =>
+  (cals || []).map(({ username: _u, password: _p, ...rest }) => rest);
+
+/**
+ * Apply a remote additional-calendars list over the local one, restoring
+ * locally stored credentials for entries the remote copy carries none for
+ * (the shared cloud payload strips them). A remote entry that DOES carry
+ * credentials (per-user encrypted config with creds opted in) wins.
+ */
+export const applyRemoteIcsCalendars = (remote, local) => {
+  const localById = new Map((local || []).map(c => [c.id, c]));
+  return (remote || []).map(c => {
+    const mine = localById.get(c.id);
+    return {
+      ...c,
+      username: c.username ?? mine?.username ?? '',
+      password: c.password ?? mine?.password ?? '',
+    };
+  });
+};

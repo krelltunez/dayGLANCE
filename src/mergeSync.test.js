@@ -2191,3 +2191,59 @@ describe('mergeSyncData — areas sync', () => {
     expect(Object.keys(data.deletedAreaIds).sort()).toEqual(['a1', 'a2']);
   });
 });
+
+describe('mergeSyncData — additional ICS calendars (icsCalendars)', () => {
+  const empty = () => ({
+    tasks: [], unscheduledTasks: [], recycleBin: [], recurringTasks: [],
+    completedTaskUids: [], deletedTaskIds: {},
+    routineDefinitions: {}, todayRoutines: [], routinesDate: '',
+  });
+  const CAL_A = [{ id: 'a', name: 'Work', url: 'https://x.test/a/', color: 'bg-blue-600', enabled: true }];
+  const CAL_B = [{ id: 'b', name: 'Home', url: 'https://x.test/b/', color: 'bg-red-600', enabled: true }];
+
+  it('the newer side wins by icsCalendarsUpdatedAt (local newer)', () => {
+    const local = { ...empty(), icsCalendars: CAL_A, icsCalendarsUpdatedAt: '2026-08-02T00:00:00.000Z' };
+    const remote = { ...empty(), icsCalendars: CAL_B, icsCalendarsUpdatedAt: '2026-08-01T00:00:00.000Z' };
+    const { data, remoteChanged } = mergeSyncData(local, remote);
+    expect(data.icsCalendars).toEqual(CAL_A);
+    expect(data.icsCalendarsUpdatedAt).toBe('2026-08-02T00:00:00.000Z');
+    expect(remoteChanged).toBe(true); // remote file needs healing
+  });
+
+  it('the newer side wins by icsCalendarsUpdatedAt (remote newer), and remote wins ties', () => {
+    const local = { ...empty(), icsCalendars: CAL_A, icsCalendarsUpdatedAt: '2026-08-01T00:00:00.000Z' };
+    const remote = { ...empty(), icsCalendars: CAL_B, icsCalendarsUpdatedAt: '2026-08-02T00:00:00.000Z' };
+    expect(mergeSyncData(local, remote).data.icsCalendars).toEqual(CAL_B);
+    const tie = mergeSyncData(
+      { ...empty(), icsCalendars: CAL_A, icsCalendarsUpdatedAt: '2026-08-01T00:00:00.000Z' },
+      { ...empty(), icsCalendars: CAL_B, icsCalendarsUpdatedAt: '2026-08-01T00:00:00.000Z' },
+    );
+    expect(tie.data.icsCalendars).toEqual(CAL_B);
+  });
+
+  it('survives against a remote written by an older client (no icsCalendars key)', () => {
+    const local = { ...empty(), icsCalendars: CAL_A, icsCalendarsUpdatedAt: '2026-08-01T00:00:00.000Z' };
+    const { data, remoteChanged } = mergeSyncData(local, empty());
+    expect(data.icsCalendars).toEqual(CAL_A);
+    expect(remoteChanged).toBe(true);
+  });
+
+  it('a deliberate clear (empty list, newer stamp) propagates', () => {
+    const local = { ...empty(), icsCalendars: [], icsCalendarsUpdatedAt: '2026-08-02T00:00:00.000Z' };
+    const remote = { ...empty(), icsCalendars: CAL_B, icsCalendarsUpdatedAt: '2026-08-01T00:00:00.000Z' };
+    expect(mergeSyncData(local, remote).data.icsCalendars).toEqual([]);
+  });
+
+  it('equal lists produce no spurious change flags', () => {
+    const mk = () => ({ ...empty(), icsCalendars: JSON.parse(JSON.stringify(CAL_A)), icsCalendarsUpdatedAt: '2026-08-01T00:00:00.000Z' });
+    const { localChanged, remoteChanged } = mergeSyncData(mk(), mk());
+    expect(localChanged).toBe(false);
+    expect(remoteChanged).toBe(false);
+  });
+
+  it('multi-user keeps the LOCAL list regardless of timestamps (per-user config rides calendarConfigByUser)', () => {
+    const local = { ...empty(), multiUserEnabled: true, icsCalendars: CAL_A, icsCalendarsUpdatedAt: '2026-08-01T00:00:00.000Z' };
+    const remote = { ...empty(), multiUserEnabled: true, icsCalendars: CAL_B, icsCalendarsUpdatedAt: '2026-08-02T00:00:00.000Z' };
+    expect(mergeSyncData(local, remote).data.icsCalendars).toEqual(CAL_A);
+  });
+});

@@ -75,6 +75,7 @@ const EXCLUDED_KEYS = new Set([
   'day-planner-sync-url',
   'day-planner-task-calendar-url',
   'day-planner-task-calendar-auth',
+  'day-planner-ics-calendars',
 
   // Volatile markers, sync cursors, and caches — stale after a restore; the
   // owning subsystems rebuild them on their own.
