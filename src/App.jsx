@@ -32,6 +32,7 @@ import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOn
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
 import { notBucketed, demoteToBucket, normalizeBucketConfig } from './utils/bucketList.js';
 import { parseICS, parseDatetime, filterByDateWindow, expandMultiDayEvent } from './utils/icsParser.js';
+import { fetchIcsFeed, replaceFeedEvents, PRIMARY_FEED_ID } from './utils/icsFeedSync.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex, getProjectColor } from './utils/colorUtils.js';
 import { calculateGoalProgress } from './utils/goalProgress.js';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from './constants/habits.js';
@@ -4790,37 +4791,8 @@ const DayPlanner = () => {
       const calAuthValue = (calendarUrlAuth.username && calendarUrlAuth.password)
         ? 'Basic ' + toBase64(calendarUrlAuth.username + ':' + calendarUrlAuth.password)
         : null;
-      const response = await icsProxyFetch(syncUrl, calAuthValue);
-      if (!response.ok) throw new Error('Failed to fetch calendar');
-
-      let icsContent = await response.text();
-      let effectiveUrl = syncUrl;
-
-      if (!icsContent.includes('BEGIN:VCALENDAR')) {
-        // CalDAV collection URLs (Baikal, Nextcloud, etc.) return HTML or WebDAV XML
-        // unless ?export is appended. Auto-retry once before giving up.
-        if (import.meta.env.DEV) console.log('[calendar-sync] Response is not ICS. Content-Type:', response.headers.get('content-type'), '— First 300 chars:', icsContent.slice(0, 300));
-        if (!syncUrl.includes('export')) {
-          const exportUrl = syncUrl.includes('?') ? `${syncUrl}&export` : `${syncUrl}?export`;
-          if (import.meta.env.DEV) console.log('[calendar-sync] Retrying with ?export:', redactUrl(exportUrl));
-          try {
-            const exportResponse = await icsProxyFetch(exportUrl, calAuthValue);
-            if (exportResponse.ok) {
-              const exportContent = await exportResponse.text();
-              if (exportContent.includes('BEGIN:VCALENDAR')) {
-                icsContent = exportContent;
-                effectiveUrl = exportUrl;
-              } else {
-                if (import.meta.env.DEV) console.log('[calendar-sync] ?export retry also returned non-ICS. Content-Type:', exportResponse.headers.get('content-type'));
-              }
-            }
-          } catch { /* fall through to not-ical error below */ }
-        }
-      }
-
-      if (!icsContent.includes('BEGIN:VCALENDAR')) {
-        throw new Error('not-ical');
-      }
+      const debug = import.meta.env.DEV ? (...args) => console.log('[calendar-sync]', ...args) : undefined;
+      const { icsContent, effectiveUrl } = await fetchIcsFeed(syncUrl, calAuthValue, icsProxyFetch, debug);
 
       // Persist the corrected URL so future syncs use it directly
       if (effectiveUrl !== syncUrl) {
@@ -4831,16 +4803,13 @@ const DayPlanner = () => {
       const events = parseICS(icsContent);
 
       const allImported = events.flatMap(event =>
-        expandMultiDayEvent(event, { asTaskCalendar: false })
+        expandMultiDayEvent(event, { asTaskCalendar: false, feedId: PRIMARY_FEED_ID })
       );
       const importedTasks = filterByDateWindow(allImported, syncRetentionDays);
 
-      // Remove old sync-sourced imported events (not task calendar) and add the fresh ones
+      // Replace old sync-sourced imported events (not task calendar) with the fresh ones.
       // Preserves file-imported events; uses functional form to avoid stale closures
-      setTasks(prevTasks => {
-        const kept = prevTasks.filter(t => !(t.imported && !t.isTaskCalendar && t.importSource !== 'file'));
-        return [...kept, ...importedTasks];
-      });
+      setTasks(prevTasks => replaceFeedEvents(prevTasks, importedTasks));
       return { success: true, count: importedTasks.length, urlUpdated: effectiveUrl !== syncUrl };
     } catch (error) {
       console.error('Sync error:', error);
