@@ -199,6 +199,29 @@ describe('expandMultiDayEvent', () => {
     );
     expect(tasks[0]).toMatchObject({ completed: true, isTaskCalendar: true, color: 'task-calendar', duration: 15 });
   });
+
+  it('stamps feedId and keeps legacy unprefixed ids for the primary feed', () => {
+    const tasks = expandMultiDayEvent(
+      { uid: 'ev-1', summary: 'Meeting', dtstart: '20260721T090000', dtend: '20260721T100000' },
+      { feedId: 'primary' }
+    );
+    expect(tasks[0].feedId).toBe('primary');
+    expect(tasks[0].id).toBe('ev-1-2026-07-21');
+  });
+
+  it('prefixes ids with the feed id for non-primary feeds so cross-feed UIDs cannot collide', () => {
+    const tasks = expandMultiDayEvent(
+      { uid: 'ev-1', summary: 'Meeting', dtstart: '20260721T090000', dtend: '20260721T100000' },
+      { feedId: 'feed-abc' }
+    );
+    expect(tasks[0].feedId).toBe('feed-abc');
+    expect(tasks[0].id).toBe('feed-abc:ev-1-2026-07-21');
+  });
+
+  it('omits feedId entirely when none is given', () => {
+    const tasks = expandMultiDayEvent({ uid: 'ev-1', summary: 'M', dtstart: '20260721T090000' });
+    expect('feedId' in tasks[0]).toBe(false);
+  });
 });
 
 describe('TZID time zone handling', () => {

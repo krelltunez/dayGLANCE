@@ -9,6 +9,7 @@
 // task objects.
 
 import { dateToString } from './taskUtils.js';
+import { PRIMARY_FEED_ID } from './icsFeedSync.js';
 
 // ── Time zone handling ────────────────────────────────────────────────────────
 // Outlook (and other Exchange-backed feeds) export event times as local wall
@@ -550,7 +551,7 @@ export const filterByDateWindow = (importedTasks, retentionDays) => {
 
 // Helper to expand multi-day events into separate tasks for each day
 export const expandMultiDayEvent = (event, options = {}) => {
-  const { asTaskCalendar = false, freshCompletedUids = new Set(), color: customColor, importSource = 'sync' } = options;
+  const { asTaskCalendar = false, freshCompletedUids = new Set(), color: customColor, importSource = 'sync', feedId } = options;
   const startDate = parseDatetime(event.dtstart, event.dtstartTzid);
   const endDate = event.dtend ? parseDatetime(event.dtend, event.dtendTzid || event.dtstartTzid) : new Date(startDate.getTime() + 60 * 60 * 1000);
   const duration = Math.round((endDate - startDate) / (1000 * 60));
@@ -573,7 +574,11 @@ export const expandMultiDayEvent = (event, options = {}) => {
 
     const baseId = event.uid || `imported-${Date.now()}-${Math.random()}`;
     const dateStr = dateToString(taskDate);
-    const taskId = dayCount > 1 ? `${baseId}-${dateStr}-day${i + 1}` : `${baseId}-${dateStr}`;
+    // Non-primary feeds prefix the task id with the feed id so the same event
+    // UID appearing in two subscribed calendars can't collide. The primary feed
+    // keeps the legacy unprefixed format.
+    const idPrefix = feedId && feedId !== PRIMARY_FEED_ID ? `${feedId}:` : '';
+    const taskId = dayCount > 1 ? `${idPrefix}${baseId}-${dateStr}-day${i + 1}` : `${idPrefix}${baseId}-${dateStr}`;
 
     // Add day indicator for multi-day events
     const titleSuffix = dayCount > 1 ? ` (Day ${i + 1}/${dayCount})` : '';
@@ -592,6 +597,7 @@ export const expandMultiDayEvent = (event, options = {}) => {
       isAllDay: isAllDay,
       isRecurringSeries: !!event.isRecurringSeries,
       importSource: importSource,
+      ...(feedId ? { feedId } : {}),
       ...(event.description ? { notes: event.description } : {})
     });
   }
