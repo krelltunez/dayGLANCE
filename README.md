@@ -234,6 +234,12 @@ A Pomodoro-style timer with customizable work, short break, and long break durat
 |:-:|:-:|
 | ![Focus Mode Setup](screenshots/focus-mode-1.png) | ![Focus Mode Timer](screenshots/focus-mode-2.png) |
 
+### Day Dial
+
+An ambient, fullscreen view of the day as a 24-hour instrument dial — midnight at top, your schedule as a glowing ring, the current time as a single orange sweep line. Designed to be read from across the room: press `O` (or the dial button in the desktop header) to open it, `Esc` to close, `←`/`→` to page through days.
+
+For a wall display or kiosk, append `?dial` to the URL to boot straight into it — for example `http://localhost:6767/?dial` on a self-hosted Docker instance, or a pinned PWA on a wall tablet. The dial follows the date across midnight, so it can run unattended.
+
 ### Spotlight Search
 
 `Ctrl+K` / `Cmd+K` searches across all tasks (scheduled, inbox, recurring, and deleted) with highlighted matches.

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
@@ -27,8 +27,22 @@ const DayDialModal = () => {
   });
 
   const dateStr = dateToString(selectedDate);
-  const isToday = dateStr === dateToString(new Date());
+  const todayStr = dateToString(currentTime);
+  const isToday = dateStr === todayStr;
   const nowMin = isToday ? currentTime.getHours() * 60 + currentTime.getMinutes() : null;
+
+  // Kiosk longevity: when midnight passes while the dial is showing today,
+  // follow to the new today — a wall panel must never quietly become a
+  // yesterday view. Only the today view follows; a deliberately browsed
+  // other day stays put. Rides the existing minute tick (currentTime), so
+  // no extra timer.
+  const prevTodayRef = useRef(todayStr);
+  useEffect(() => {
+    if (prevTodayRef.current === todayStr) return;
+    if (dateStr === prevTodayRef.current) setSelectedDate(new Date(currentTime));
+    prevTodayRef.current = todayStr;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayStr]);
 
   // Own key handling: the global shortcut map is suspended while a modal is
   // open, and the dial should still page across days from the couch.

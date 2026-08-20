@@ -512,7 +512,14 @@ const DayPlanner = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [deadlinePickerTaskId, setDeadlinePickerTaskId] = useState(null); // Task ID for deadline date picker
   const [showMonthView, setShowMonthView] = useState(false);
-  const [showDayDial, setShowDayDial] = useState(false); // ambient Day Dial overlay ('O')
+  // Ambient Day Dial overlay ('O'). `?dial` boots straight into it — the
+  // kiosk/wall-panel entry, same idiom as the tray popup's `?tray` (a plain
+  // URL beats per-platform launch flags: it works for a Docker kiosk browser,
+  // a wall tablet's pinned PWA, and a dev server alike). Evaluated once at
+  // mount: the query string can't change without a reload.
+  const [showDayDial, setShowDayDial] = useState(() =>
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location?.search ?? '').has('dial'));
   const [viewedMonth, setViewedMonth] = useState(() => new Date());
   const [mobileReviewPage, setMobileReviewPage] = useState(0);
   const [showMobileDailySummary, setShowMobileDailySummary] = useState(false);
