@@ -1,0 +1,296 @@
+import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { stripWikilinks } from '../utils/taskUtils.js';
+import { formatMinutes } from '../utils/daySummary.js';
+import {
+  DIAL_COLORS,
+  DIAL_DAY_MINUTES,
+  computeDialModel,
+  dialArcPath,
+  dialIntensity,
+  dialPoint,
+  dialSectorPath,
+  dialTicks,
+  findDialFocusBlock,
+  padDialSegment,
+} from '../utils/dayDial.js';
+
+// The Day Dial: one day as a 24-hour instrument face. Midnight at top,
+// clockwise; the schedule is a ring of translucent wedges whose luminous
+// outer edge does the work; the now line is the only moving element and the
+// only saturated color. Designed for the squint-from-ten-feet test — mass,
+// glow, and the now line survive distance, the detail rewards walking closer.
+//
+// Deliberately a single dark look, independent of the app theme: this is an
+// ambient/wall surface, and emissive-on-dark IS the design. All geometry and
+// rollups come from utils/dayDial.js; this file only draws.
+//
+// SVG rather than canvas: arcs, ticks, and text stay crisp from a phone to a
+// 4K wall panel, and the same component serves the PWA, Electron, and any
+// kiosk view with no per-platform work.
+
+const CX = 500;
+const CY = 500;
+const R_EDGE = 385;   // luminous outer edge of the schedule ring
+const R_INNER = 300;  // inner edge of the wedge band
+const R_BEZEL = 424;  // faint chapter ring
+const TICKS = dialTicks();
+
+// Tick geometry by kind: one color, three opacities — the cheapest thing
+// that makes a dial read as engineered rather than illustrated.
+const TICK_STYLE = {
+  hour:    { r1: 400, r2: 436, width: 2.5, opacity: 0.45 },
+  quarter: { r1: 404, r2: 428, width: 1.6, opacity: 0.22 },
+  minor:   { r1: 407, r2: 421, width: 1.0, opacity: 0.10 },
+};
+
+// The now line's trailing falloff: stepped arcs approximating a gradient
+// (SVG has no conic gradient), fading out over the previous 90 minutes.
+const TRAIL_MINUTES = 90;
+const TRAIL_STEPS = 12;
+
+const HOUR_LABEL_MINUTES = [0, 360, 720, 1080];
+
+function TickField() {
+  return (
+    <g stroke="#ffffff" strokeLinecap="butt">
+      {TICKS.map(({ min, kind }) => {
+        const s = TICK_STYLE[kind];
+        const p1 = dialPoint(CX, CY, s.r1, min);
+        const p2 = dialPoint(CX, CY, s.r2, min);
+        return (
+          <line
+            key={min}
+            x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
+            strokeWidth={s.width} strokeOpacity={s.opacity}
+          />
+        );
+      })}
+    </g>
+  );
+}
+
+function Segment({ startMin, endMin, color, dim = false, padStart = true, padEnd = true }) {
+  const [s, e] = padDialSegment(startMin, endMin, 3, padStart, padEnd);
+  if (e <= s) return null;
+  const { fillOpacity, edgeOpacity, edgeWidth } = dialIntensity(endMin - startMin);
+  const mute = dim ? 0.45 : 1;
+  const edge = dialArcPath(CX, CY, R_EDGE, s, e);
+  return (
+    <g>
+      <path
+        d={dialSectorPath(CX, CY, R_INNER, R_EDGE, s, e)}
+        fill={color}
+        fillOpacity={fillOpacity * mute}
+      />
+      {/* Soft halo under the crisp edge — one glowing rim reads better at
+          distance than any texture. */}
+      <path
+        d={edge}
+        fill="none" stroke={color} strokeLinecap="round"
+        strokeWidth={edgeWidth * 2.4} strokeOpacity={0.35 * edgeOpacity * mute}
+        filter="url(#dial-glow)"
+      />
+      <path
+        d={edge}
+        fill="none" stroke={color} strokeLinecap="round"
+        strokeWidth={edgeWidth} strokeOpacity={edgeOpacity * mute}
+      />
+    </g>
+  );
+}
+
+function NowLine({ nowMin }) {
+  const deg = (nowMin / 1440) * 360;
+  const dot = dialPoint(CX, CY, R_EDGE, nowMin);
+  return (
+    <g>
+      {/* Trailing falloff along the edge radius — brightest at the line. */}
+      {Array.from({ length: TRAIL_STEPS }, (_, i) => {
+        const a = nowMin - (TRAIL_MINUTES / TRAIL_STEPS) * (i + 1);
+        const b = nowMin - (TRAIL_MINUTES / TRAIL_STEPS) * i;
+        if (b <= 0) return null;
+        return (
+          <path
+            key={i}
+            d={dialArcPath(CX, CY, R_EDGE, Math.max(0, a), b)}
+            fill="none" stroke={DIAL_COLORS.now} strokeWidth={3.5}
+            strokeOpacity={0.4 * (1 - i / TRAIL_STEPS)}
+          />
+        );
+      })}
+      {/* The radius itself rides a rotated group so the minute tick animates
+          as a sweep instead of a jump. */}
+      <g
+        style={{
+          transform: `rotate(${deg}deg)`,
+          transformOrigin: `${CX}px ${CY}px`,
+          transition: 'transform 1.5s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+      >
+        <line
+          x1={CX} y1={CY - 140} x2={CX} y2={CY - R_BEZEL + 14}
+          stroke={DIAL_COLORS.now} strokeWidth={3} strokeLinecap="round"
+          strokeOpacity={0.9}
+        />
+      </g>
+      {/* Leading dot where the line crosses the event ring. */}
+      <circle
+        cx={dot.x} cy={dot.y} r={13}
+        fill={DIAL_COLORS.now} fillOpacity={0.28} filter="url(#dial-glow)"
+        style={{ transition: 'cx 1.5s, cy 1.5s' }}
+      />
+      <circle
+        cx={dot.x} cy={dot.y} r={7} fill={DIAL_COLORS.now}
+        style={{ transition: 'cx 1.5s, cy 1.5s' }}
+      />
+    </g>
+  );
+}
+
+/**
+ * @param dayTasks        The date's tasks (getTasksForDate shape).
+ * @param dayWindow       Resolved {start, stop} markers for the date, or null.
+ * @param date            Date object the dial describes (hub typography).
+ * @param nowMin          Minutes-since-midnight for the now line, or null to
+ *                        hide it (viewing a day other than today).
+ * @param formatTime      App-level 'HH:MM' → display formatter (12/24h aware).
+ * @param use24HourClock  Picks the cardinal hour label set.
+ */
+const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, formatTime, use24HourClock = false }) => {
+  const { t, i18n } = useTranslation();
+
+  const model = useMemo(
+    () => computeDialModel(dayTasks, dayWindow),
+    [dayTasks, dayWindow],
+  );
+
+  const focus = nowMin !== null ? findDialFocusBlock(model.blocks, nowMin) : null;
+
+  const minToHHMM = (m) =>
+    `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+  const weekday = date.toLocaleDateString(i18n.language, { weekday: 'long' });
+  const dateLabel = date.toLocaleDateString(i18n.language, { month: 'long', day: 'numeric' });
+  const hourLabels = use24HourClock ? ['00', '06', '12', '18'] : ['12 AM', '6 AM', '12 PM', '6 PM'];
+
+  const legend = [
+    { key: 'effort', label: t('dial.effort', 'Effort'), color: DIAL_COLORS.effort, minutes: model.effortMinutes },
+    { key: 'restore', label: t('dial.restore', 'Restore'), color: DIAL_COLORS.restore, minutes: model.restoreMinutes },
+    ...(model.sleepMinutes !== null
+      ? [{ key: 'sleep', label: t('dial.sleep', 'Sleep'), color: DIAL_COLORS.sleep, minutes: model.sleepMinutes }]
+      : []),
+    ...(model.unblockedMinutes !== null
+      ? [{ key: 'unblocked', label: t('dial.unblocked', 'Unblocked'), color: DIAL_COLORS.unblocked, minutes: model.unblockedMinutes }]
+      : []),
+  ];
+
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center gap-2 select-none">
+      <div className="relative w-full flex-1 min-h-0 flex items-center justify-center">
+        <svg
+          viewBox="0 0 1000 1000"
+          className="h-full w-full max-h-full"
+          role="img"
+          aria-label={t('dial.aria', 'Day dial: {{date}}', { date: `${weekday} ${dateLabel}` })}
+        >
+          <defs>
+            <filter id="dial-glow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="6" />
+            </filter>
+          </defs>
+
+          {/* Chapter ring + tick field — the engineered bezel. */}
+          <circle cx={CX} cy={CY} r={R_BEZEL} fill="none" stroke="#ffffff" strokeOpacity={0.07} strokeWidth={2} />
+          <TickField />
+
+          {/* Cardinal hour labels. */}
+          {HOUR_LABEL_MINUTES.map((min, i) => {
+            const p = dialPoint(CX, CY, 478, min);
+            return (
+              <text
+                key={min}
+                x={p.x} y={p.y}
+                textAnchor="middle" dominantBaseline="central"
+                fill="#ffffff" fillOpacity={0.4}
+                style={{ fontSize: 26, letterSpacing: '0.25em', fontWeight: 500 }}
+              >
+                {hourLabels[i]}
+              </text>
+            );
+          })}
+
+          {/* Sleep — the declared night, quiet lavender. Its two halves stay
+              flush at midnight so the night reads as one mass. */}
+          {model.sleep.map((seg) => (
+            <Segment
+              key={`sleep-${seg.startMin}`}
+              startMin={seg.startMin} endMin={seg.endMin}
+              color={DIAL_COLORS.sleep}
+              padStart={seg.startMin !== 0}
+              padEnd={seg.endMin !== DIAL_DAY_MINUTES}
+            />
+          ))}
+
+          {/* Schedule blocks — completed ones stay (the hour is spent) but
+              recede so the remaining day carries the light. */}
+          {model.blocks.map((b) => (
+            <Segment
+              key={b.id}
+              startMin={b.startMin} endMin={b.endMin}
+              color={DIAL_COLORS[b.kind] || DIAL_COLORS.effort}
+              dim={b.completed}
+            />
+          ))}
+
+          {nowMin !== null && <NowLine nowMin={nowMin} />}
+        </svg>
+
+        {/* Hub — HTML overlay so the brand serif and tracking behave. */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-[18%]">
+          <div className="text-white/40 text-[clamp(10px,1.6vmin,16px)] font-medium tracking-[0.35em] uppercase">
+            {weekday}
+          </div>
+          <div className="font-brand text-white text-[clamp(28px,7vmin,64px)] leading-tight mt-1">
+            {dateLabel}
+          </div>
+          <div className="w-24 border-t border-white/15 my-[1.5vmin]" />
+          {focus ? (
+            <>
+              <div className="text-white/85 text-[clamp(13px,2.4vmin,22px)] font-medium truncate max-w-full">
+                {stripWikilinks(focus.block.title)}
+              </div>
+              <div className="text-white/40 text-[clamp(11px,1.8vmin,16px)] mt-0.5">
+                {focus.current
+                  ? t('dial.until', 'until {{time}}', { time: formatTime(minToHHMM(focus.block.endMin)) })
+                  : t('dial.next', 'next at {{time}}', { time: formatTime(minToHHMM(focus.block.startMin)) })}
+              </div>
+            </>
+          ) : (
+            <div className="text-white/35 text-[clamp(12px,2vmin,18px)]">
+              {nowMin !== null
+                ? t('dial.clear', 'Nothing else scheduled')
+                : t('dial.blocksCount', '{{count}} blocks', { count: model.blocks.length })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Legend — short enumerable facts, quiet enough to leave the now line
+          the loudest thing on the wall. */}
+      <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 rounded-2xl bg-white/[0.04] px-8 py-3">
+        {legend.map((item) => (
+          <div key={item.key} className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+            <div className="leading-tight">
+              <div className="text-white/45 text-xs">{item.label}</div>
+              <div className="text-white/90 text-sm font-medium tabular-nums">{formatMinutes(item.minutes)}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default DayDial;

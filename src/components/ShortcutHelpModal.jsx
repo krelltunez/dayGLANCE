@@ -57,6 +57,7 @@ const ShortcutHelpModal = () => {
                 ['G', t('shortcuts.goalsProjects')],
                 ['H', t('shortcuts.habitsShortcut')],
                 ['U', t('bucket.title')],
+                ['O', t('shortcuts.dayDial', 'Day Dial')],
                 ['L', t('shortcuts.intentLog')],
                 ['D', t('shortcuts.toggleDarkMode')],
                 ['S', t('common.settings')],

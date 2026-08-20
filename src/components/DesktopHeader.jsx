@@ -10,6 +10,17 @@ import { useMcpStatus, McpBoltButton, McpStatusModal } from './McpStatusControls
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
+// Miniature of the Day Dial itself (ring, wedge, now needle) — a truer signal
+// than any stock glyph, same idiom as the ViewCycler's bespoke icons.
+const DayDialIcon = ({ className }) => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true" className={className}>
+    <circle cx="9" cy="9" r="7.25" stroke="currentColor" strokeWidth="1.5" strokeOpacity="0.45" />
+    <path d="M 9 1.75 A 7.25 7.25 0 0 1 16.25 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="9" y1="9" x2="4.5" y2="13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <circle cx="4.5" cy="13.5" r="1.4" fill="currentColor" />
+  </svg>
+);
+
 const DesktopHeader = () => {
   const {
     visibleDays, visibleDates,
@@ -18,6 +29,7 @@ const DesktopHeader = () => {
     selectedDate,
     darkMode, setDarkMode,
     showMonthView, setShowMonthView,
+    setShowDayDial,
     viewedMonth, setViewedMonth,
     setShowSettings,
     updateInfo,
@@ -269,6 +281,13 @@ const DesktopHeader = () => {
             {activeReminders.length > 0 && (
               <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-amber-500 animate-pulse`} />
             )}
+          </button>
+          <button
+            onClick={() => setShowDayDial(true)}
+            className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
+            title="Day Dial (O)"
+          >
+            <DayDialIcon className={textSecondary} />
           </button>
           <button
             onClick={() => setDarkMode(!darkMode)}
