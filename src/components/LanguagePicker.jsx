@@ -12,7 +12,11 @@ import { languages, resolveLanguage } from '../locales.js';
  */
 export function nativeLanguageName(tag) {
   try {
-    const name = new Intl.DisplayNames([tag], { type: 'language' }).of(tag);
+    // 'standard' composes regional variants as "language (Region)" —
+    // "Português (Portugal)" — where the default 'dialect' mode picks
+    // ICU-version-dependent dialect names like "Português europeu",
+    // breaking the parenthetical pattern next to "Português (Brasil)".
+    const name = new Intl.DisplayNames([tag], { type: 'language', languageDisplay: 'standard' }).of(tag);
     // Intl echoes the input back when it has no name for the tag.
     if (!name || name === tag) return tag;
     return name.charAt(0).toLocaleUpperCase(tag) + name.slice(1);
