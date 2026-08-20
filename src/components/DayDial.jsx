@@ -94,13 +94,18 @@ function TickField() {
   );
 }
 
-function Segment({ startMin, endMin, color, mute = 1, padStart = true, padEnd = true }) {
+function Segment({ startMin, endMin, color, mute = 1, padStart = true, padEnd = true, onEnter, onLeave, onTap }) {
   const [s, e] = padDialSegment(startMin, endMin, 3, padStart, padEnd);
   if (e <= s) return null;
   const { fillOpacity, edgeOpacity, edgeWidth } = dialIntensity(endMin - startMin);
   const edge = dialArcPath(CX, CY, R_EDGE, s, e);
   return (
-    <g>
+    <g
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+      onClick={onTap}
+      style={onTap ? { cursor: 'pointer' } : undefined}
+    >
       <path
         d={dialSectorPath(CX, CY, R_INNER, R_EDGE, s, e)}
         fill={color}
@@ -306,6 +311,36 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
 
   const focus = nowMin !== null ? findDialFocusBlock(model.blocks, nowMin) : null;
 
+  // Block inspection: hover or tap a wedge and the hub becomes its readout,
+  // reverting to the live display after a beat. Details render in the hub
+  // rather than a floating tooltip — the hub IS the instrument's readout,
+  // and a tooltip would be foreign chrome on a dial face. Hover holds while
+  // the pointer stays; a tap (no hover on touch) gets a fixed dwell.
+  const [inspected, setInspected] = useState(null);
+  const inspectTimerRef = useRef(null);
+  const scheduleInspectClear = (ms) => {
+    clearTimeout(inspectTimerRef.current);
+    inspectTimerRef.current = setTimeout(() => setInspected(null), ms);
+  };
+  const inspectEnter = (b) => { clearTimeout(inspectTimerRef.current); setInspected(b); };
+  const inspectLeave = () => scheduleInspectClear(1200);
+  const inspectTap = (b) => { clearTimeout(inspectTimerRef.current); setInspected(b); scheduleInspectClear(4000); };
+  useEffect(() => () => clearTimeout(inspectTimerRef.current), []);
+  useEffect(() => { setInspected(null); }, [date]);
+
+  // Relative clock phrase for a block, from the same minute tick as the now
+  // line: "45m left" while running, "in 2h 10m" ahead, "ended 1h ago" behind.
+  const relLabel = (b) => {
+    if (nowMin === null) return null;
+    if (b.startMin <= nowMin && nowMin < b.endMin) {
+      return t('dial.timeLeft', '{{left}} left', { left: formatMinutes(b.endMin - nowMin) });
+    }
+    if (b.startMin > nowMin) {
+      return t('dial.startsIn', 'in {{in}}', { in: formatMinutes(b.startMin - nowMin) });
+    }
+    return t('dial.endedAgo', 'ended {{ago}} ago', { ago: formatMinutes(nowMin - b.endMin) });
+  };
+
   // Time flows brightest ahead: a segment wholly behind the now line drops
   // to the dim tier, so the remaining day carries the light and the ring
   // reads as "what's left" from across the room. On other days the whole
@@ -421,6 +456,9 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
               startMin={b.startMin} endMin={b.endMin}
               color={muteDialColor(b.colorHex)}
               mute={b.completed || isPast(b.endMin) ? PAST_MUTE : 1}
+              onEnter={() => inspectEnter(b)}
+              onLeave={inspectLeave}
+              onTap={() => inspectTap(b)}
             />
           ))}
 
@@ -436,7 +474,33 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
             {dateLabel}
           </div>
           <div className="w-24 border-t border-white/15 my-[1.5vmin]" />
-          {focus ? (
+          {nowMin !== null && (
+            <div className="text-white/70 text-[clamp(14px,2.6vmin,24px)] font-medium tabular-nums tracking-wide mb-[0.8vmin]">
+              {formatTime(minToHHMM(nowMin))}
+            </div>
+          )}
+          {inspected ? (
+            <>
+              <div className="flex items-center gap-2 max-w-full">
+                <span
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: muteDialColor(inspected.colorHex) }}
+                />
+                <span className="text-white/85 text-[clamp(13px,2.4vmin,22px)] font-medium truncate">
+                  {stripWikilinks(inspected.title)}
+                </span>
+              </div>
+              <div className="text-white/40 text-[clamp(11px,1.8vmin,16px)] mt-0.5 tabular-nums">
+                {formatTime(minToHHMM(inspected.startMin))} – {formatTime(minToHHMM(inspected.endMin))}
+                {' · '}{formatMinutes(inspected.endMin - inspected.startMin)}
+              </div>
+              {(inspected.completed || nowMin !== null) && (
+                <div className="text-white/40 text-[clamp(11px,1.8vmin,16px)] mt-0.5">
+                  {inspected.completed ? t('dial.completed', 'completed') : relLabel(inspected)}
+                </div>
+              )}
+            </>
+          ) : focus ? (
             <>
               <div className="text-white/85 text-[clamp(13px,2.4vmin,22px)] font-medium truncate max-w-full">
                 {stripWikilinks(focus.block.title)}
@@ -445,6 +509,7 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
                 {focus.current
                   ? t('dial.until', 'until {{time}}', { time: formatTime(minToHHMM(focus.block.endMin)) })
                   : t('dial.next', 'next at {{time}}', { time: formatTime(minToHHMM(focus.block.startMin)) })}
+                {' · '}{relLabel(focus.block)}
               </div>
             </>
           ) : (
