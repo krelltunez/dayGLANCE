@@ -555,7 +555,15 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
 
       {/* Legend — short enumerable facts, quiet enough to leave the now line
           the loudest thing on the wall. */}
-      <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 rounded-2xl bg-white/[0.04] px-8 py-3">
+      <div
+        className={`rounded-2xl bg-white/[0.04] px-8 py-3 ${
+          compact
+            // Width-constrained: a deliberate 2×2 grid instead of flex-wrap's
+            // lopsided 3+1 spill.
+            ? 'grid grid-cols-2 justify-items-start gap-x-10 gap-y-2.5'
+            : 'flex flex-wrap items-center justify-center gap-x-8 gap-y-2'
+        }`}
+      >
         {legend.map((item) => (
           <div key={item.key} className="flex items-center gap-2.5">
             <item.Icon size={15} strokeWidth={1.75} style={{ color: item.color }} aria-hidden="true" />
