@@ -44,10 +44,17 @@ const TICK_STYLE = {
   minor:   { r1: 407, r2: 421, width: 1.0, opacity: 0.10 },
 };
 
-// The now line's trailing falloff: stepped arcs approximating a gradient
-// (SVG has no conic gradient), fading out over the previous 90 minutes.
-const TRAIL_MINUTES = 90;
-const TRAIL_STEPS = 12;
+// The now line's trailing falloff: a radar-sweep afterglow — a faint wash
+// across the whole ring band fading out over the previous hour. An area,
+// deliberately not a stroke: an earlier version drew the trail as arcs on
+// the segments' own edge radius, where it collided with their luminous
+// edges into a muddy blend and read as a detached element. Built from
+// overlapping sectors that all end at the needle (SVG has no conic
+// gradient): each adds a whisper of opacity, so coverage accumulates
+// smoothly toward the needle with no visible banding.
+const TRAIL_MINUTES = 60;
+const TRAIL_STEPS = 15;
+const TRAIL_STEP_OPACITY = 0.011; // ≈0.15 cumulative at the needle
 
 // Chapter labels every 3 hours. Cardinals (12/6 o'clock axes) carry full
 // weight; the intermediate hours step down in size and opacity — same
@@ -162,17 +169,18 @@ function NowLine({ nowMin }) {
   const dot = dialPoint(CX, CY, R_EDGE, nowMin);
   return (
     <g>
-      {/* Trailing falloff along the edge radius — brightest at the line. */}
+      {/* Radar-sweep afterglow: every sector ends at the needle, each one
+          starting closer to it, so their tiny opacities stack into a smooth
+          ramp — brightest just behind the needle, gone an hour back. */}
       {Array.from({ length: TRAIL_STEPS }, (_, i) => {
-        const a = nowMin - (TRAIL_MINUTES / TRAIL_STEPS) * (i + 1);
-        const b = nowMin - (TRAIL_MINUTES / TRAIL_STEPS) * i;
-        if (b <= 0) return null;
+        const a = Math.max(0, nowMin - (TRAIL_MINUTES / TRAIL_STEPS) * (i + 1));
+        if (a >= nowMin) return null;
         return (
           <path
             key={i}
-            d={dialArcPath(CX, CY, R_EDGE, Math.max(0, a), b)}
-            fill="none" stroke={DIAL_COLORS.now} strokeWidth={3.5}
-            strokeOpacity={0.4 * (1 - i / TRAIL_STEPS)}
+            d={dialSectorPath(CX, CY, R_INNER, R_EDGE, a, nowMin)}
+            fill={DIAL_COLORS.now}
+            fillOpacity={TRAIL_STEP_OPACITY}
           />
         );
       })}
