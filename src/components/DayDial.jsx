@@ -235,6 +235,18 @@ function WeatherRing({ hourly }) {
   );
 }
 
+// Hub titles: #tags step back — italic, smaller, muted — so the title
+// itself carries the highlight. Same rule as renderTitle
+// (textFormatting.jsx), but em-relative so it scales with the hub's
+// clamp() type instead of pinning tags at list-view size.
+const renderHubTitle = (title) => {
+  return stripWikilinks(title || '').split(/(#\p{L}[\p{L}\p{N}_]*)/gu).map((part, i) => (
+    /^#\p{L}[\p{L}\p{N}_]*$/u.test(part)
+      ? <span key={i} className="italic font-normal text-[0.72em] text-white/45">{part}</span>
+      : part
+  ));
+};
+
 function NowLine({ nowMin }) {
   const deg = (nowMin / 1440) * 360;
   const dot = dialPoint(CX, CY, R_EDGE, nowMin);
@@ -491,7 +503,7 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
                   style={{ backgroundColor: muteDialColor(inspected.colorHex) }}
                 />
                 <span className="text-white/85 text-[clamp(13px,2.4vmin,22px)] font-medium truncate">
-                  {stripWikilinks(inspected.title)}
+                  {renderHubTitle(inspected.title)}
                 </span>
               </div>
               <div className="text-white/40 text-[clamp(11px,1.8vmin,16px)] mt-0.5 tabular-nums">
@@ -507,7 +519,7 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
           ) : focus ? (
             <>
               <div className="text-white/85 text-[clamp(13px,2.4vmin,22px)] font-medium truncate max-w-full">
-                {stripWikilinks(focus.block.title)}
+                {renderHubTitle(focus.block.title)}
               </div>
               <div className="text-white/40 text-[clamp(11px,1.8vmin,16px)] mt-0.5">
                 {focus.current
