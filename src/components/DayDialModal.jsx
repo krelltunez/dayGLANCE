@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Eclipse, Layers, Maximize, Minimize, Sunrise, Thermometer, X } from 'lucide-react';
+import { CalendarDays, Eclipse, Layers, Maximize, Minimize, Monitor, Sunrise, Thermometer, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { getStoredWeatherCoords, getSunTimes } from '../utils/solar.js';
 import { acquireWakeLock, releaseWakeLock } from '../utils/wakeLock.js';
+import { AMBIENT_DELAY_OPTIONS, loadAmbientPrefs, saveAmbientPrefs } from '../utils/dialPrefs.js';
 import DayDial from './DayDial.jsx';
 import Wordmark from './Wordmark.jsx';
 
@@ -39,18 +40,14 @@ const loadLayers = () => {
   }
 };
 
-// Ambient auto-start — off by default, per device like the layer choices
-// (a kiosk wants it, a laptop doesn't).
-const DIAL_AMBIENT_KEY = 'day-planner-dial-ambient';
-const DEFAULT_AMBIENT_PREFS = { auto: false, delayMin: 5 };
-const AMBIENT_DELAY_OPTIONS = [1, 5, 15, 30];
-const loadAmbientPrefs = () => {
-  try {
-    return { ...DEFAULT_AMBIENT_PREFS, ...JSON.parse(localStorage.getItem(DIAL_AMBIENT_KEY) || '{}') };
-  } catch {
-    return DEFAULT_AMBIENT_PREFS;
-  }
-};
+// Burn-in guard: while ambient, the whole face drifts through this pixel
+// orbit — one step a minute, eased over seconds, imperceptible in the room
+// but enough that no tick, label, or hub glyph parks on one OLED pixel.
+// The backdrop is a uniform color, so only the content needs to move.
+const AMBIENT_ORBIT = [
+  [0, 0], [7, 4], [9, -3], [3, -8], [-5, -6], [-9, 0], [-6, 6], [1, 8],
+];
+const AMBIENT_ORBIT_STEP_MS = 60_000;
 
 const ToggleRow = ({ icon: Icon, label, on, onChange }) => (
   <button
@@ -70,7 +67,7 @@ const ToggleRow = ({ icon: Icon, label, on, onChange }) => (
 const DayDialModal = () => {
   const { t } = useTranslation();
   const {
-    selectedDate, setSelectedDate, setShowDayDial,
+    selectedDate, setSelectedDate, showDayDial, setShowDayDial,
     getTasksForDate, currentTime, formatTime, use24HourClock,
     weather,
     toggleComplete, openMobileEditTask, scrollToHour, isMobile,
@@ -130,10 +127,16 @@ const DayDialModal = () => {
   // tap so it can't also land on a wedge. Exiting leaves fullscreen only if
   // ambient entered it.
   const [ambient, setAmbient] = useState(() =>
-    typeof window !== 'undefined' &&
-    new URLSearchParams(window.location?.search ?? '').has('ambient'));
+    showDayDial === 'ambient' ||
+    (typeof window !== 'undefined' &&
+      new URLSearchParams(window.location?.search ?? '').has('ambient')));
   const ambientGuardRef = useRef(false);
   const ambientOwnedFullscreenRef = useRef(false);
+  // True screensaver semantics: ambient that the planner's idle watcher
+  // started (showDayDial === 'ambient' — its only source) wakes back to the
+  // planner; ambient entered from the dial (or a ?dial&ambient kiosk boot,
+  // which arrives as boolean true) wakes back to the dial.
+  const ambientFromPlannerRef = useRef(showDayDial === 'ambient');
   const enterAmbient = () => {
     if (ambient) return;
     setSelectedDate(new Date());
@@ -151,6 +154,13 @@ const DayDialModal = () => {
   };
   const exitAmbient = () => {
     if (ambientGuardRef.current) return;
+    if (ambientFromPlannerRef.current) {
+      // Wake back to the planner: closing the dial unmounts us, and the
+      // mount/fullscreen cleanups release the wake lock and fullscreen.
+      ambientFromPlannerRef.current = false;
+      setShowDayDial(false);
+      return;
+    }
     setAmbient(false);
     releaseWakeLock();
     if (ambientOwnedFullscreenRef.current) {
@@ -158,14 +168,38 @@ const DayDialModal = () => {
       if (document.fullscreenElement) document.exitFullscreen()?.catch(() => {});
     }
   };
-  // Boot straight into ambient (?dial&ambient): wake lock needs no gesture;
-  // the fullscreen attempt may be denied on the web — kiosk browsers launch
+  // Boot straight into ambient (?dial&ambient, or the planner screensaver
+  // opening us with showDayDial === 'ambient'): jump to today, hold the wake
+  // lock (needs no gesture), and attempt fullscreen — Electron grants it
+  // without a gesture, the web denies it silently, and kiosk browsers launch
   // fullscreen themselves. Release everything on unmount.
   useEffect(() => {
-    if (ambient) acquireWakeLock();
+    if (ambient) {
+      setSelectedDate(new Date());
+      acquireWakeLock();
+      if (!document.fullscreenElement && containerRef.current?.requestFullscreen) {
+        containerRef.current.requestFullscreen().then(
+          () => { ambientOwnedFullscreenRef.current = true; },
+          () => {},
+        );
+      }
+    }
     return () => releaseWakeLock();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Burn-in guard: step through the pixel orbit while ambient; glide back
+  // to center on exit.
+  const [orbitIdx, setOrbitIdx] = useState(0);
+  useEffect(() => {
+    if (!ambient) { setOrbitIdx(0); return undefined; }
+    const interval = setInterval(
+      () => setOrbitIdx((i) => (i + 1) % AMBIENT_ORBIT.length),
+      AMBIENT_ORBIT_STEP_MS,
+    );
+    return () => clearInterval(interval);
+  }, [ambient]);
+  const [orbitX, orbitY] = ambient ? AMBIENT_ORBIT[orbitIdx] : [0, 0];
   // Auto-start (opt-in, configurable delay): rides the same activity clock
   // as idle-return and the same 15s tick — no timer of its own. Activity
   // resets it implicitly because lastActiveRef is stamped by the chrome
@@ -173,7 +207,7 @@ const DayDialModal = () => {
   const [ambientPrefs, setAmbientPrefs] = useState(loadAmbientPrefs);
   const setAmbientPref = (key, value) => setAmbientPrefs((prev) => {
     const next = { ...prev, [key]: value };
-    try { localStorage.setItem(DIAL_AMBIENT_KEY, JSON.stringify(next)); } catch { /* view pref only */ }
+    saveAmbientPrefs(next);
     return next;
   });
   useEffect(() => {
@@ -364,9 +398,19 @@ const DayDialModal = () => {
       ref={containerRef}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
-      className={`fixed inset-0 z-[70] bg-[#0b0d12] flex flex-col p-[3vmin] ${
+      className={`fixed inset-0 z-[70] bg-[#0b0d12] ${
         chromeShown ? '' : 'cursor-none'}`}
     >
+      {/* Everything but the shield rides the burn-in orbit; the uniform
+          backdrop stays put (a solid color can't burn), so the drift never
+          exposes an edge. */}
+      <div
+        className="absolute inset-0 flex flex-col p-[3vmin]"
+        style={{
+          transform: `translate(${orbitX}px, ${orbitY}px)`,
+          transition: 'transform 5s ease-in-out',
+        }}
+      >
       {/* Maker's mark — a watch face carries its brand, so this stays put
           while the interactive chrome fades; muted so it never competes
           with the now line (which wears the same orange). Top-left, except
@@ -467,27 +511,36 @@ const DayDialModal = () => {
               onChange={(v) => setAmbientPref('auto', v)}
             />
             {ambientPrefs.auto && (
-              <div className="flex items-center gap-1.5 px-3 pb-2 pt-0.5">
-                <span className="text-white/40 text-xs flex-1">
-                  {t('dial.autoAmbientAfter', 'after idle')}
-                </span>
-                {AMBIENT_DELAY_OPTIONS.map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => setAmbientPref('delayMin', m)}
-                    className={`px-2 py-1 rounded-md text-xs transition-colors ${
-                      ambientPrefs.delayMin === m
-                        ? 'bg-[#fe8b00]/70 text-white'
-                        : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
-                  >
-                    {m}m
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className="flex items-center gap-1.5 px-3 pb-1.5 pt-0.5">
+                  <span className="text-white/40 text-xs flex-1">
+                    {t('dial.autoAmbientAfter', 'after idle')}
+                  </span>
+                  {AMBIENT_DELAY_OPTIONS.map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setAmbientPref('delayMin', m)}
+                      className={`px-2 py-1 rounded-md text-xs transition-colors ${
+                        ambientPrefs.delayMin === m
+                          ? 'bg-[#fe8b00]/70 text-white'
+                          : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
+                    >
+                      {m}m
+                    </button>
+                  ))}
+                </div>
+                <ToggleRow
+                  icon={Monitor}
+                  label={t('dial.ambientFromPlanner', 'Also start from planner')}
+                  on={ambientPrefs.fromPlanner}
+                  onChange={(v) => setAmbientPref('fromPlanner', v)}
+                />
+              </>
             )}
           </div>
         </div>
       )}
+      </div>
 
       {/* Ambient shield — screensaver glass. Catches the exiting tap so it
           can't also land on a wedge; a drifting cursor passes over it

@@ -242,7 +242,7 @@ If a weather location is set, hairlines mark sunrise (amber, with a sun glyph) a
 
 For a wall display or kiosk, append `?dial` to the URL to boot straight into it — for example `http://localhost:6767/?dial` on a self-hosted Docker instance, or a pinned PWA on a wall tablet. The dial is built to run unattended: it follows the date across midnight, the cursor and corner buttons fade after a few seconds of stillness, and a browsed date snaps back to today after five idle minutes.
 
-**Ambient mode** turns the dial into a screensaver: press `A` (or the eclipse button) to go fullscreen with the screen wake lock held and all controls hidden — tap, click, or press any key to exit; a drifting cursor won't. Boot a kiosk straight into it with `?dial&ambient`, or enable auto-start in the Layers panel (`L`) with a configurable idle delay.
+**Ambient mode** turns the dial into a screensaver: press `A` (or the eclipse button) to go fullscreen with the screen wake lock held and all controls hidden — tap, click, or press any key to exit; a drifting cursor won't. While ambient, the whole face drifts through a slow pixel orbit to guard OLED panels against burn-in. Boot a kiosk straight into it with `?dial&ambient`, or enable auto-start in the Layers panel (`L`) with a configurable idle delay — including "Also start from planner", the true screensaver: after the idle delay anywhere in the app, the dial takes over, and waking returns you exactly where you were.
 
 ### Spotlight Search
 
