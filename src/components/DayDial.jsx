@@ -467,6 +467,15 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
 
         {/* Hub — HTML overlay so the brand serif and tracking behave. */}
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-[18%]">
+          {/* Clock on top — the first read on a wall display. It stays put
+              through wedge inspection (only the region below the divider
+              swaps), so it belongs with the steady face, not the live
+              readout. Today-only, like the needle. */}
+          {nowMin !== null && (
+            <div className="text-white/70 text-[clamp(14px,2.6vmin,24px)] font-medium tabular-nums tracking-wide mb-[0.8vmin]">
+              {formatTime(minToHHMM(nowMin))}
+            </div>
+          )}
           <div className="text-white/40 text-[clamp(10px,1.6vmin,16px)] font-medium tracking-[0.35em] uppercase">
             {weekday}
           </div>
@@ -474,11 +483,6 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
             {dateLabel}
           </div>
           <div className="w-24 border-t border-white/15 my-[1.5vmin]" />
-          {nowMin !== null && (
-            <div className="text-white/70 text-[clamp(14px,2.6vmin,24px)] font-medium tabular-nums tracking-wide mb-[0.8vmin]">
-              {formatTime(minToHHMM(nowMin))}
-            </div>
-          )}
           {inspected ? (
             <>
               <div className="flex items-center gap-2 max-w-full">
