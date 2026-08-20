@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CircleDashed, Leaf, MoonStar, Zap } from 'lucide-react';
+import { Check, CircleDashed, ExternalLink, Leaf, MoonStar, Undo2, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { stripWikilinks } from '../utils/taskUtils.js';
 import { formatMinutes } from '../utils/daySummary.js';
@@ -321,7 +321,7 @@ function NowLine({ nowMin }) {
  *                        be null in polar seasons), or null to omit the
  *                        solar layer entirely (no location known).
  */
-const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null }) => {
+const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null }) => {
   const { t, i18n } = useTranslation();
 
   const model = useMemo(
@@ -344,9 +344,46 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
   };
   const inspectEnter = (b) => { clearTimeout(inspectTimerRef.current); setInspected(b); };
   const inspectLeave = () => scheduleInspectClear(1200);
-  const inspectTap = (b) => { clearTimeout(inspectTimerRef.current); setInspected(b); scheduleInspectClear(4000); };
   useEffect(() => () => clearTimeout(inspectTimerRef.current), []);
-  useEffect(() => { setInspected(null); }, [date]);
+
+  // Action sheet: tap = read, tap the same block again = act. (On desktop,
+  // hover already inspects, so the first click acts.) The sheet stays in
+  // the dial's register — completing from the couch is the point — and
+  // "open in planner" is a listed action, never a side effect of touching
+  // the glass, so a kiosk can't fall out of the dial by accident. It
+  // self-dismisses after a quiet while for the same reason.
+  const [sheetBlock, setSheetBlock] = useState(null);
+  const sheetTimerRef = useRef(null);
+  const openSheet = (b) => {
+    setSheetBlock(b);
+    clearTimeout(sheetTimerRef.current);
+    sheetTimerRef.current = setTimeout(() => setSheetBlock(null), 20_000);
+  };
+  const closeSheet = () => { clearTimeout(sheetTimerRef.current); setSheetBlock(null); };
+  useEffect(() => () => clearTimeout(sheetTimerRef.current), []);
+
+  const inspectTap = (b) => {
+    if (inspected?.id === b.id) { openSheet(b); return; }
+    clearTimeout(inspectTimerRef.current);
+    setInspected(b);
+    scheduleInspectClear(4000);
+  };
+  useEffect(() => { setInspected(null); setSheetBlock(null); }, [date]);
+
+  // Esc closes the sheet before anything above it (capture phase, so the
+  // overlay's own Escape-closes-the-dial handler never sees this press).
+  useEffect(() => {
+    if (!sheetBlock) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeSheet();
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheetBlock]);
 
   // Relative clock phrase for a block, from the same minute tick as the now
   // line: "45m left" while running, "in 2h 10m" ahead, "ended 1h ago" behind.
@@ -551,6 +588,62 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
             </div>
           )}
         </div>
+
+        {/* Action sheet — the dial's own register, never planner chrome.
+            Backdrop click/tap dismisses; actions dismiss after acting. */}
+        {sheetBlock && (() => {
+          const live = model.blocks.find((x) => x.id === sheetBlock.id) || sheetBlock;
+          return (
+            <div
+              className="absolute inset-0 z-20 flex items-center justify-center"
+              onClick={closeSheet}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
+              <div
+                role="dialog"
+                aria-label={stripWikilinks(live.title)}
+                className="w-[min(82%,340px)] rounded-2xl border border-white/10 bg-[#12151c] px-5 py-4 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: muteDialColor(live.colorHex) }}
+                  />
+                  <span className="text-white/90 text-base font-medium truncate">
+                    {renderHubTitle(live.title)}
+                  </span>
+                </div>
+                <div className="text-white/40 text-xs mt-1 tabular-nums">
+                  {formatTime(minToHHMM(live.startMin))} – {formatTime(minToHHMM(live.endMin))}
+                  {' · '}{formatMinutes(live.endMin - live.startMin)}
+                </div>
+                <div className="mt-3.5 space-y-1.5">
+                  {live.completable && onToggleComplete && (
+                    <button
+                      onClick={() => { onToggleComplete(live); closeSheet(); }}
+                      className="w-full flex items-center gap-2.5 rounded-lg bg-white/5 hover:bg-white/10 active:bg-white/15 px-3.5 py-2.5 text-white/85 text-sm transition-colors"
+                    >
+                      {live.completed ? <Undo2 size={16} className="text-white/50" /> : <Check size={16} className="text-white/50" />}
+                      {live.completed
+                        ? t('dial.markNotComplete', 'Mark not complete')
+                        : t('dial.markComplete', 'Mark complete')}
+                    </button>
+                  )}
+                  {onOpenInPlanner && (
+                    <button
+                      onClick={() => { closeSheet(); onOpenInPlanner(live); }}
+                      className="w-full flex items-center gap-2.5 rounded-lg bg-white/5 hover:bg-white/10 active:bg-white/15 px-3.5 py-2.5 text-white/85 text-sm transition-colors"
+                    >
+                      <ExternalLink size={16} className="text-white/50" />
+                      {t('dial.openInPlanner', 'Open in planner')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Legend — short enumerable facts, quiet enough to leave the now line

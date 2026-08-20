@@ -119,10 +119,19 @@ describe('computeDialModel', () => {
       task({ id: 4, title: 'Unscheduled', startTime: null }),
     ]);
     expect(model.blocks.map((b) => b.id)).toEqual([2, 1]);
-    expect(model.blocks[0]).toMatchObject({ startMin: 750, endMin: 795, kind: 'restore' });
+    expect(model.blocks[0]).toMatchObject({ startMin: 750, endMin: 795, kind: 'restore', completable: true });
     expect(model.blocks[1]).toMatchObject({ startMin: 840, endMin: 900, kind: 'effort' });
     expect(model.effortMinutes).toBe(60);
     expect(model.restoreMinutes).toBe(45);
+  });
+
+  it('marks read-only imported calendar events as not completable', () => {
+    const model = computeDialModel([
+      task({ id: 1, imported: true }),
+      task({ id: 2, startTime: '11:00', imported: true, isTaskCalendar: true }),
+    ]);
+    expect(model.blocks[0].completable).toBe(false);
+    expect(model.blocks[1].completable).toBe(true);
   });
 
   it('clips a block running past midnight to the dial\'s day', () => {

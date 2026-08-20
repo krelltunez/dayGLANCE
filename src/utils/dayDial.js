@@ -145,6 +145,9 @@ export function computeDialModel(dayTasks, dayWindow = null) {
         endMin: Math.min(DIAL_DAY_MINUTES, startMin + (t.duration || 0)),
         kind: deriveBlockEnergy(t),
         completed: !!t.completed,
+        // Fixture rule (same as computeDaySummary): a read-only imported
+        // calendar event has no completion to toggle.
+        completable: !(t.imported && !t.isTaskCalendar),
         colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
       };
     })

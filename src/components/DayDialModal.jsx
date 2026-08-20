@@ -31,6 +31,7 @@ const DayDialModal = () => {
     selectedDate, setSelectedDate, setShowDayDial,
     getTasksForDate, currentTime, formatTime, use24HourClock,
     weather,
+    toggleComplete, openMobileEditTask, scrollToHour, isMobile,
   } = useDayPlannerCtx();
   const { getDayWindow } = useFeaturesCtx();
 
@@ -41,6 +42,24 @@ const DayDialModal = () => {
     next.setDate(next.getDate() + delta);
     return next;
   });
+
+  // Action-sheet callbacks. Completing stays in the dial (the wedge dims to
+  // the past tier as live feedback); "open in planner" is the deliberate
+  // exit ramp — close the dial (the planner is already on this date) and
+  // hand off: the mobile edit sheet on touch layouts, a scroll to the
+  // block's hour on desktop. toggleComplete understands recurring-instance
+  // ids natively.
+  const handleToggleComplete = (block) => toggleComplete(block.id);
+  const handleOpenInPlanner = (block) => {
+    setShowDayDial(false);
+    const task = getTasksForDate(selectedDate).find((t) => t.id === block.id);
+    if (isMobile && task && block.completable) {
+      openMobileEditTask(task, false);
+    } else {
+      const hhmm = `${String(Math.floor(block.startMin / 60)).padStart(2, '0')}:00`;
+      scrollToHour(hhmm);
+    }
+  };
 
   const dateStr = dateToString(selectedDate);
   const todayStr = dateToString(currentTime);
@@ -225,6 +244,8 @@ const DayDialModal = () => {
         use24HourClock={use24HourClock}
         sun={sun}
         hourlyWeather={weather?.hourlyByDate?.[dateStr] ?? null}
+        onToggleComplete={handleToggleComplete}
+        onOpenInPlanner={handleOpenInPlanner}
       />
     </div>
   );
