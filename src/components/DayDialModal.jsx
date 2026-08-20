@@ -39,6 +39,19 @@ const loadLayers = () => {
   }
 };
 
+// Ambient auto-start — off by default, per device like the layer choices
+// (a kiosk wants it, a laptop doesn't).
+const DIAL_AMBIENT_KEY = 'day-planner-dial-ambient';
+const DEFAULT_AMBIENT_PREFS = { auto: false, delayMin: 5 };
+const AMBIENT_DELAY_OPTIONS = [1, 5, 15, 30];
+const loadAmbientPrefs = () => {
+  try {
+    return { ...DEFAULT_AMBIENT_PREFS, ...JSON.parse(localStorage.getItem(DIAL_AMBIENT_KEY) || '{}') };
+  } catch {
+    return DEFAULT_AMBIENT_PREFS;
+  }
+};
+
 const ToggleRow = ({ icon: Icon, label, on, onChange }) => (
   <button
     onClick={() => onChange(!on)}
@@ -153,6 +166,25 @@ const DayDialModal = () => {
     return () => releaseWakeLock();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Auto-start (opt-in, configurable delay): rides the same activity clock
+  // as idle-return and the same 15s tick — no timer of its own. Activity
+  // resets it implicitly because lastActiveRef is stamped by the chrome
+  // wake listener; hidden tabs never auto-start (lifeGLANCE's rule).
+  const [ambientPrefs, setAmbientPrefs] = useState(loadAmbientPrefs);
+  const setAmbientPref = (key, value) => setAmbientPrefs((prev) => {
+    const next = { ...prev, [key]: value };
+    try { localStorage.setItem(DIAL_AMBIENT_KEY, JSON.stringify(next)); } catch { /* view pref only */ }
+    return next;
+  });
+  useEffect(() => {
+    if (!ambientPrefs.auto || ambient) return;
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastActiveRef.current >= ambientPrefs.delayMin * 60_000) {
+      enterAmbient();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTime, ambientPrefs.auto, ambientPrefs.delayMin, ambient]);
+
   // Any key exits ambient (swallowed — the first press only wakes).
   useEffect(() => {
     if (!ambient) return undefined;
@@ -181,7 +213,7 @@ const DayDialModal = () => {
       hideTimer = setTimeout(() => setChromeVisible(false), CHROME_HIDE_MS);
     };
     wake();
-    const events = ['pointermove', 'pointerdown', 'keydown'];
+    const events = ['pointermove', 'pointerdown', 'keydown', 'wheel'];
     events.forEach((ev) => document.addEventListener(ev, wake));
     return () => {
       clearTimeout(hideTimer);
@@ -250,6 +282,9 @@ const DayDialModal = () => {
       } else if (e.key === 'a') {
         e.preventDefault();
         enterAmbient();
+      } else if (e.key === 'l') {
+        e.preventDefault();
+        setShowLayers((v) => !v);
       }
     };
     document.addEventListener('keydown', onKeyDown);
@@ -351,8 +386,8 @@ const DayDialModal = () => {
         <button
           onClick={() => setShowLayers((v) => !v)}
           className="p-2 text-white/30 hover:text-white/80 transition-colors"
-          title={t('dial.layers', 'Layers')}
-          aria-label={t('dial.layers', 'Layers')}
+          title={t('dial.layersKey', 'Layers (L)')}
+          aria-label={t('dial.layersKey', 'Layers (L)')}
         >
           <Layers size={22} />
         </button>
@@ -424,6 +459,32 @@ const DayDialModal = () => {
               on={layers.calendars}
               onChange={(v) => setLayer('calendars', v)}
             />
+            <div className="my-1.5 border-t border-white/10" />
+            <ToggleRow
+              icon={Eclipse}
+              label={t('dial.autoAmbient', 'Auto ambient')}
+              on={ambientPrefs.auto}
+              onChange={(v) => setAmbientPref('auto', v)}
+            />
+            {ambientPrefs.auto && (
+              <div className="flex items-center gap-1.5 px-3 pb-2 pt-0.5">
+                <span className="text-white/40 text-xs flex-1">
+                  {t('dial.autoAmbientAfter', 'after idle')}
+                </span>
+                {AMBIENT_DELAY_OPTIONS.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setAmbientPref('delayMin', m)}
+                    className={`px-2 py-1 rounded-md text-xs transition-colors ${
+                      ambientPrefs.delayMin === m
+                        ? 'bg-[#fe8b00]/70 text-white'
+                        : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
+                  >
+                    {m}m
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
