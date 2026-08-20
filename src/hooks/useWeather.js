@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
 import { isTrayMode } from '../utils/trayMode.js';
+import { storeWeatherCoords } from '../utils/solar.js';
 
 const getWeatherCondition = (code) => {
   if (code === 0) return 'Clear';
@@ -63,6 +64,7 @@ const useWeather = () => {
 
       if (!zip) {
         setWeather(null);
+        storeWeatherCoords(null); // location cleared → the dial's sun marks go too
         return;
       }
 
@@ -107,6 +109,11 @@ const useWeather = () => {
         });
         return;
       }
+
+      // Persist the resolved coordinates: the Day Dial computes sunrise/
+      // sunset locally from them (utils/solar.js), for any date and offline —
+      // the forecast API's few-day window can't serve a pageable dial.
+      storeWeatherCoords({ lat: latitude, lon: longitude });
 
       tz = tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 

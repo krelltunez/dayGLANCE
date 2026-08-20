@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Maximize, Minimize, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString } from '../utils/taskUtils.js';
+import { getStoredWeatherCoords, getSunTimes } from '../utils/solar.js';
 import DayDial from './DayDial.jsx';
 
 // Fullscreen ambient surface for the Day Dial ('O', the header button, or
@@ -144,6 +145,14 @@ const DayDialModal = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Solar layer: sunrise/sunset computed locally from the weather feature's
+  // persisted geocode (utils/solar.js) — any date, works offline. No
+  // location ever configured → null → the layer doesn't render.
+  const sun = useMemo(() => {
+    const coords = getStoredWeatherCoords();
+    return coords ? getSunTimes(selectedDate, coords.lat, coords.lon) : null;
+  }, [selectedDate]);
+
   // Touch paging — the couch has arrow keys, a phone or wall tablet doesn't.
   // A decisively horizontal swipe pages one day; anything vertical-ish is
   // ignored rather than misread.
@@ -204,6 +213,7 @@ const DayDialModal = () => {
         nowMin={nowMin}
         formatTime={formatTime}
         use24HourClock={use24HourClock}
+        sun={sun}
       />
     </div>
   );

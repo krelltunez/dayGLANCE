@@ -100,6 +100,25 @@ function Segment({ startMin, endMin, color, dim = false, padStart = true, padEnd
   );
 }
 
+// Sunrise/sunset hairline: a single warm radial stroke spanning the ring
+// band — no glyphs, no fill, per the one-weight-line rule. Morning-right vs
+// evening-left position disambiguates rise from set on its own, so both
+// marks are identical. A short overshoot past the bezel lets it read as an
+// astronomical datum rather than another schedule edge.
+const SUN_COLOR = '#fbbf24'; // amber-400
+
+function SunMark({ min }) {
+  const p1 = dialPoint(CX, CY, R_INNER - 12, min);
+  const p2 = dialPoint(CX, CY, R_BEZEL + 8, min);
+  return (
+    <line
+      x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
+      stroke={SUN_COLOR} strokeWidth={1.5} strokeOpacity={0.55}
+      strokeLinecap="round"
+    />
+  );
+}
+
 function NowLine({ nowMin }) {
   const deg = (nowMin / 1440) * 360;
   const dot = dialPoint(CX, CY, R_EDGE, nowMin);
@@ -156,8 +175,11 @@ function NowLine({ nowMin }) {
  *                        hide it (viewing a day other than today).
  * @param formatTime      App-level 'HH:MM' → display formatter (12/24h aware).
  * @param use24HourClock  Picks the cardinal hour label set.
+ * @param sun             {sunriseMin, sunsetMin} minutes-of-day (either may
+ *                        be null in polar seasons), or null to omit the
+ *                        solar layer entirely (no location known).
  */
-const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, formatTime, use24HourClock = false }) => {
+const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, formatTime, use24HourClock = false, sun = null }) => {
   const { t, i18n } = useTranslation();
 
   const model = useMemo(
@@ -235,6 +257,10 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, formatTime, use24Ho
               padEnd={seg.endMin !== DIAL_DAY_MINUTES}
             />
           ))}
+
+          {/* Solar hairlines — under the schedule, over the night. */}
+          {sun?.sunriseMin != null && <SunMark min={sun.sunriseMin} />}
+          {sun?.sunsetMin != null && <SunMark min={sun.sunsetMin} />}
 
           {/* Schedule blocks — completed ones stay (the hour is spent) but
               recede so the remaining day carries the light. */}
