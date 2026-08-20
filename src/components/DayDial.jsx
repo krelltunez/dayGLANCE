@@ -538,38 +538,42 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
               {formatTime(minToHHMM(nowMin))}
             </div>
           )}
-          <div className="text-white/40 text-[clamp(10px,1.6vmin,16px)] font-medium tracking-[0.35em] uppercase">
-            {weekday}
-          </div>
-          {/* Clickable day nav — very subtle chevrons flanking the date,
-              fading with the rest of the chrome so the idle face stays a
-              pure instrument. Keyboard arrows and swipe remain. */}
-          <div className="relative mt-1">
+          {/* Clickable day nav — very subtle chevrons flanking the WEEKDAY
+              line, not the serif date: the small-caps day is a short,
+              fixed-width line at every viewport, while the date is the
+              hub's widest element and would push the controls into the
+              ring on a phone. They fade with the rest of the idle chrome
+              so the resting face stays a pure instrument; keyboard arrows
+              and swipe remain. */}
+          <div className="relative">
             {onStepDay && (
               <>
                 <button
                   onClick={() => onStepDay(-1)}
-                  className={`absolute right-full top-1/2 -translate-y-1/2 mr-[1.5vmin] p-2 text-white/20 hover:text-white/75 transition-all duration-300 ${
+                  className={`absolute right-full top-1/2 -translate-y-1/2 mr-[1vmin] p-2 text-white/20 hover:text-white/75 transition-all duration-300 ${
                     chromeVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
                   title={t('dial.prevDay', 'Previous day (←)')}
                   aria-label={t('dial.prevDay', 'Previous day (←)')}
                 >
-                  <ChevronLeft size={28} />
+                  <ChevronLeft size={20} />
                 </button>
                 <button
                   onClick={() => onStepDay(1)}
-                  className={`absolute left-full top-1/2 -translate-y-1/2 ml-[1.5vmin] p-2 text-white/20 hover:text-white/75 transition-all duration-300 ${
+                  className={`absolute left-full top-1/2 -translate-y-1/2 ml-[1vmin] p-2 text-white/20 hover:text-white/75 transition-all duration-300 ${
                     chromeVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
                   title={t('dial.nextDay', 'Next day (→)')}
                   aria-label={t('dial.nextDay', 'Next day (→)')}
                 >
-                  <ChevronRight size={28} />
+                  <ChevronRight size={20} />
                 </button>
               </>
             )}
-            <div className="font-brand text-white text-[clamp(28px,7vmin,64px)] leading-tight">
-              {dateLabel}
+            <div className="text-white/40 text-[clamp(10px,1.6vmin,16px)] font-medium tracking-[0.35em] uppercase">
+              {weekday}
             </div>
+          </div>
+          <div className="font-brand text-white text-[clamp(28px,7vmin,64px)] leading-tight mt-1">
+            {dateLabel}
           </div>
           <div className="w-24 border-t border-white/15 my-[1.5vmin]" />
           {inspected ? (
