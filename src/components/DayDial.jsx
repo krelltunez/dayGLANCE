@@ -185,8 +185,13 @@ function NowLine({ nowMin }) {
           transition: 'transform 1.5s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
+        {/* Rooted just inside the ring band, never in the hub: the needle
+            is a pointer onto the schedule, and the hub's typography stays
+            untouched at every dial size (the hub is HTML with minimum font
+            sizes, so on small dials its text spans a larger share of the
+            viewBox — r=265 clears it even at phone scale). */}
         <line
-          x1={CX} y1={CY - 140} x2={CX} y2={CY - R_BEZEL + 14}
+          x1={CX} y1={CY - 265} x2={CX} y2={CY - R_BEZEL + 14}
           stroke={DIAL_COLORS.now} strokeWidth={3} strokeLinecap="round"
           strokeOpacity={0.9}
         />
