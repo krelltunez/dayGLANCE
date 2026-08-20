@@ -100,14 +100,18 @@ function Segment({ startMin, endMin, color, dim = false, padStart = true, padEnd
   );
 }
 
-// Sunrise/sunset hairline: a single warm radial stroke spanning the ring
-// band, with a one-weight line glyph at the outer tip naming the event —
-// sun for rise, moon for set (lucide geometry, so it matches the app's
-// icon language; line icons at one weight, never emoji). Both stay amber:
-// the layer keeps a single color, the glyph only labels. The overshoot past
-// the bezel lets the mark read as an astronomical datum rather than
-// another schedule edge.
-const SUN_COLOR = '#fbbf24'; // amber-400
+// Sunrise/sunset hairline: a single radial stroke spanning the ring band,
+// with a one-weight line glyph at the outer tip naming the event — sun for
+// rise, moon for set (lucide geometry, so it matches the app's icon
+// language; line icons at one weight, never emoji). Dawn is warm amber,
+// dusk a cool moonlight blue — the temperature split mirrors the events
+// themselves, and both stay at hairline opacity so neither competes with
+// the schedule. The overshoot past the bezel lets each mark read as an
+// astronomical datum rather than another schedule edge.
+const SUN_COLOR = '#fbbf24';  // amber-400 — sunrise
+const MOON_COLOR = '#7dd3fc'; // sky-300 — sunset; cooler and greener than the
+                              // effort blue (#93c5fd) so the two never read
+                              // as the same layer
 const SUN_GLYPH_R = 456;     // glyph center: past the bezel, inside the hour labels
 const GLYPH_SCALE = 0.9;     // lucide 24-unit grid → ~22 viewBox units
 
@@ -123,7 +127,7 @@ function SunMark({ min, kind }) {
   const p2 = dialPoint(CX, CY, R_BEZEL + 8, min);
   const g = dialPoint(CX, CY, SUN_GLYPH_R, min);
   return (
-    <g stroke={SUN_COLOR} strokeOpacity={0.55} fill="none" strokeLinecap="round">
+    <g stroke={kind === 'rise' ? SUN_COLOR : MOON_COLOR} strokeOpacity={0.55} fill="none" strokeLinecap="round">
       <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} strokeWidth={1.5} />
       <g
         strokeWidth={2}

@@ -238,7 +238,7 @@ A Pomodoro-style timer with customizable work, short break, and long break durat
 
 An ambient, fullscreen view of the day as a 24-hour instrument dial — midnight at top, your schedule as a glowing ring, the current time as a single orange sweep line. Designed to be read from across the room: press `O` (or the dial button in the desktop header) to open it, `Esc` to close, `←`/`→` to page through days, `T` to jump back to today, and `F` for full screen. On mobile, tap the dial button at the top of the GLANCE tab and swipe sideways to page through days.
 
-If a weather location is set, amber hairlines mark sunrise and sunset — computed locally from your coordinates, so they work for any date and offline.
+If a weather location is set, hairlines mark sunrise (amber, with a sun glyph) and sunset (moonlight blue, with a moon glyph) — computed locally from your coordinates, so they work for any date and offline.
 
 For a wall display or kiosk, append `?dial` to the URL to boot straight into it — for example `http://localhost:6767/?dial` on a self-hosted Docker instance, or a pinned PWA on a wall tablet. The dial is built to run unattended: it follows the date across midnight, the cursor and corner buttons fade after a few seconds of stillness, and a browsed date snaps back to today after five idle minutes.
 
