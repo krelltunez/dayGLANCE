@@ -568,7 +568,11 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
                 </button>
               </>
             )}
-            <div className="text-white/40 text-[clamp(10px,1.6vmin,16px)] font-medium tracking-[0.35em] uppercase">
+            {/* Fixed min-width (sized to WEDNESDAY, the longest English
+                day) so the chevrons anchor to a stable box instead of
+                breathing with each day's name length as you page. A longer
+                localized weekday just widens the box gracefully. */}
+            <div className="min-w-[10em] text-center text-white/40 text-[clamp(10px,1.6vmin,16px)] font-medium tracking-[0.35em] uppercase">
               {weekday}
             </div>
           </div>
