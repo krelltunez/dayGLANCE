@@ -33,6 +33,7 @@ import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilin
 import { notBucketed, demoteToBucket, normalizeBucketConfig } from './utils/bucketList.js';
 import { parseICS, parseDatetime, filterByDateWindow, expandMultiDayEvent } from './utils/icsParser.js';
 import { fetchIcsFeed, replaceFeedEvents, PRIMARY_FEED_ID, ICS_CALENDARS_KEY, loadIcsCalendars, isActiveIcsCalendar, hasActiveIcsCalendars, stripIcsCalendarCredentials, applyRemoteIcsCalendars, PRIMARY_CAL_META_KEY, defaultPrimaryCalendarMeta, injectPrimaryStub, splitPrimaryStub } from './utils/icsFeedSync.js';
+import { nextPerUserCalendarEntry } from './utils/perUserCalendarEntry.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex, getProjectColor } from './utils/colorUtils.js';
 import { calculateGoalProgress } from './utils/goalProgress.js';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from './constants/habits.js';
@@ -2053,8 +2054,15 @@ const DayPlanner = () => {
   // commit it runs first and skips (flag not yet set), then re-runs next render with
   // the cleared URL. Content-compared so updatedAt only advances on a real change
   // (and not during remote apply, when the applied value already matches).
+  // Gated on dataLoaded: syncUrl/taskCalendarUrl state loads asynchronously in
+  // loadData(), so a pre-load run would see '' and rewrite this device's entry
+  // (then rewrite it again post-load) — each write restamps updatedAt, letting
+  // this device's possibly-stale calendar list win whole-entry LWW against a
+  // genuinely newer entry from another device. That was exactly the reported
+  // "second calendar silently dropped": the machine that DIDN'T add the
+  // calendar restamped its old list as newest on every launch.
   useEffect(() => {
-    if (!multiUserEnabled || !meUserSyncId) return;
+    if (!dataLoaded || !multiUserEnabled || !meUserSyncId) return;
     if (localStorage.getItem('day-planner-calendar-per-user-migrated') !== 'true') return;
     const encrypted = !!(cloudSyncConfig?.encryptionEnabled || isVaultEnabled());
     const includeAuth = syncCalendarCreds && encrypted && taskCalendarAuth
@@ -2072,17 +2080,14 @@ const DayPlanner = () => {
     };
     let map = {};
     try { map = JSON.parse(localStorage.getItem('day-planner-calendar-config-by-user') || '{}'); } catch { map = {}; }
-    const cur = map[meUserSyncId];
-    const sameContent = !!cur
-      && (cur.syncUrl ?? '') === (desired.syncUrl ?? '')
-      && (cur.taskCalendarUrl ?? '') === (desired.taskCalendarUrl ?? '')
-      && JSON.stringify(cur.icsCalendars ?? []) === JSON.stringify(desired.icsCalendars ?? [])
-      && JSON.stringify(cur.auth ?? null) === JSON.stringify(desired.auth ?? null);
-    if (sameContent) return;
-    map[meUserSyncId] = { ...desired, updatedAt: new Date().toISOString() };
+    // Unchanged content and fresh-device-with-empty-config both skip the write
+    // (see utils/perUserCalendarEntry.js for why either would clobber the fleet).
+    const next = nextPerUserCalendarEntry(map[meUserSyncId], desired, new Date().toISOString());
+    if (!next) return;
+    map[meUserSyncId] = next;
     localStorage.setItem('day-planner-calendar-config-by-user', JSON.stringify(map));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [multiUserEnabled, meUserSyncId, syncUrl, taskCalendarUrl, taskCalendarAuth, icsCalendars, primaryCalendarMeta, syncCalendarCreds, cloudSyncConfig?.encryptionEnabled]);
+  }, [dataLoaded, multiUserEnabled, meUserSyncId, syncUrl, taskCalendarUrl, taskCalendarAuth, icsCalendars, primaryCalendarMeta, syncCalendarCreds, cloudSyncConfig?.encryptionEnabled]);
 
   // Signature of the additional-calendar config that affects fetching — sync
   // re-runs when a feed is added/removed/toggled or its URL changes, but not
@@ -5534,7 +5539,18 @@ const DayPlanner = () => {
     const meSidForCal = (() => {
       try { return JSON.parse(localStorage.getItem('dayglance-multi-user-config') || '{}').meUserSyncId || null; } catch { return null; }
     })();
-    const perUserCalendar = !!(data.multiUserEnabled && meSidForCal);
+    // data.multiUserEnabled can be ABSENT: the upstream file-tier merge outputs
+    // an explicit key list that does not carry the per-device toggle, so a
+    // WebDAV/iCloud pull arrives without it. Falling back to this device's own
+    // flag is required — treating absence as false skipped the per-user apply
+    // below, so calendarConfigByUser changes were stored but never applied, and
+    // the per-user maintenance effect then re-stamped this device's stale
+    // calendar list over the fleet's newer entry (calendars added on another
+    // device silently vanished).
+    const localMultiUser = (() => {
+      try { return JSON.parse(localStorage.getItem('dayglance-multi-user-enabled') || 'false') === true; } catch { return false; }
+    })();
+    const perUserCalendar = !!((data.multiUserEnabled ?? localMultiUser) && meSidForCal);
 
     // Normalize task defaults so localStorage and React state are identical.
     // Without this, stampTaskTimestamps detects spurious differences (e.g.

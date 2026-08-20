@@ -14,9 +14,15 @@
  */
 
 const isIOS = typeof window !== 'undefined' && !!window.DayGlanceIOS;
+// The preload script exposes the iCloud IPC methods on EVERY Electron platform,
+// but the main-process handlers (electron/icloud.ts) are darwin-only no-ops —
+// on Windows/Linux every call returns null/false. Gate on the platform too, or
+// isAvailable() reports true there and callers log spurious failures (e.g.
+// "[shared-users/icloud] writeFile failed") and render dead iCloud settings UI.
 const isMacOS =
   typeof window !== 'undefined' &&
   !!window.electronAPI &&
+  window.electronAPI.platform === 'darwin' &&
   typeof window.electronAPI.listICloudFiles === 'function';
 
 /**
