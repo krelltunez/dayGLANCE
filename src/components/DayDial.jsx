@@ -321,7 +321,7 @@ function NowLine({ nowMin }) {
  *                        be null in polar seasons), or null to omit the
  *                        solar layer entirely (no location known).
  */
-const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, chromeVisible = true }) => {
+const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, onGoToday = null, chromeVisible = true }) => {
   const { t, i18n } = useTranslation();
 
   const model = useMemo(
@@ -417,11 +417,17 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
   const weekday = date.toLocaleDateString(i18n.language, { weekday: 'long' });
   const dateLabel = date.toLocaleDateString(i18n.language, { month: 'long', day: 'numeric' });
 
-  // Compact when the container is width-constrained (portrait-ish): there,
+  // Compact when the component is width-constrained (portrait-ish): there,
   // the side labels and their viewBox margin cost actual dial diameter, so
   // both go. In a height-constrained container the margin only letterboxes
   // and everything stays. Measured, not media-queried — the same component
   // must judge a phone, a tray popup, and a rotated wall panel correctly.
+  //
+  // CRITICAL: the observed element must be the OUTER box (dial + legend),
+  // never the inner dial area. Compact changes the legend's height (row vs
+  // 2x2 grid), so measuring anything the legend's size feeds into creates a
+  // feedback loop: near the threshold the mode flips every frame — a
+  // sustained visible flicker across a ~45px window-width band.
   const wrapRef = useRef(null);
   const [compact, setCompact] = useState(false);
   useEffect(() => {
@@ -451,8 +457,8 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
   ];
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center gap-2 select-none">
-      <div ref={wrapRef} className="relative w-full flex-1 min-h-0 flex items-center justify-center">
+    <div ref={wrapRef} className="w-full h-full flex flex-col items-center justify-center gap-2 select-none">
+      <div className="relative w-full flex-1 min-h-0 flex items-center justify-center">
         {/* The horizontal viewBox margin exists only for the 3/9-o'clock
             labels, which extend past the dial's square; compact mode drops
             those labels, so it reclaims the margin too. */}
@@ -532,11 +538,22 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
           {/* Clock on top — the first read on a wall display. It stays put
               through wedge inspection (only the region below the divider
               swaps), so it belongs with the steady face, not the live
-              readout. Today-only, like the needle. */}
-          {nowMin !== null && (
+              readout. Today-only, like the needle — and on any other date
+              its slot carries the way home instead, so browsing always
+              shows either the time or the button back to it. */}
+          {nowMin !== null ? (
             <div className="text-white/70 text-[clamp(14px,2.6vmin,24px)] font-medium tabular-nums tracking-wide mb-[0.8vmin]">
               {formatTime(minToHHMM(nowMin))}
             </div>
+          ) : onGoToday && (
+            <button
+              onClick={onGoToday}
+              className={`mb-[0.8vmin] rounded-full border border-white/15 px-3.5 py-1 text-[clamp(10px,1.6vmin,14px)] font-medium tracking-[0.2em] uppercase text-white/45 hover:text-white/90 hover:border-white/40 transition-all duration-300 ${
+                chromeVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+              title={t('dial.backToToday', 'Back to today (T)')}
+            >
+              {t('dial.today', 'Today')}
+            </button>
           )}
           {/* Clickable day nav — very subtle chevrons flanking the WEEKDAY
               line, not the serif date: the small-caps day is a short,

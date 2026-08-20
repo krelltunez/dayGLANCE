@@ -471,6 +471,7 @@ const DayDialModal = () => {
         onToggleComplete={handleToggleComplete}
         onOpenInPlanner={handleOpenInPlanner}
         onStepDay={stepDay}
+        onGoToday={() => setSelectedDate(new Date())}
         chromeVisible={chromeShown}
       />
 
