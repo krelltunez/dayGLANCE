@@ -82,7 +82,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                 await LiveActivityBridge.shared.refreshFromBackground(
                     snapshotJSON: WidgetBridge.shared.storedSnapshotJSON())
                 let ms = (clock.now - start) / .milliseconds(1)
-                Self.bgLog.info("Background refresh done; Live Activity leg took \(ms, format: .fixed(precision: 1), privacy: .public)ms")
+                // notice, not info: info-level is hidden by default in
+                // Console.app (and easy to lose in Xcode's console), which
+                // defeats this line's purpose — the measured duration must be
+                // readable on a device without a debugger attached.
+                Self.bgLog.notice("Background refresh done; Live Activity leg took \(ms, format: .fixed(precision: 1), privacy: .public)ms")
                 completion.complete(success: true)
             }
         }
