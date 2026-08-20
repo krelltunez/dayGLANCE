@@ -198,7 +198,7 @@ function WeatherRing({ hourly }) {
             x={p.x} y={p.y}
             textAnchor="middle" dominantBaseline="central"
             fill="#ffffff" fillOpacity={0.32}
-            style={{ fontSize: 19, fontWeight: 500 }}
+            style={{ fontSize: 16, fontWeight: 500 }}
           >
             {entry.temp}°
           </text>
