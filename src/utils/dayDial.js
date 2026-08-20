@@ -1,5 +1,6 @@
 import { computeDaySummary } from './daySummary.js';
 import { deriveBlockEnergy } from './energyAxis.js';
+import { taskColorToHex } from './colorUtils.js';
 
 // Model + geometry for the Day Dial — the ambient 24-hour instrument view.
 // Pure functions only: DayDial.jsx stays presentational and every angle,
@@ -144,6 +145,7 @@ export function computeDialModel(dayTasks, dayWindow = null) {
         endMin: Math.min(DIAL_DAY_MINUTES, startMin + (t.duration || 0)),
         kind: deriveBlockEnergy(t),
         completed: !!t.completed,
+        colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
       };
     })
     .filter((b) => b.endMin > b.startMin)
@@ -169,6 +171,51 @@ export function computeDialModel(dayTasks, dayWindow = null) {
     sleepMinutes: hasWindow ? startM + (DIAL_DAY_MINUTES - stopM) : null,
     unblockedMinutes: summary.unblockedMinutes,
   };
+}
+
+const hexToRgb = (hex) => {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
+};
+
+/**
+ * Pull any task color into the dial's single pastel-emissive family: keep
+ * the hue, cap saturation, pin lightness. Task palettes are saturated
+ * 400–600-series colors (and native calendar events arrive in arbitrary,
+ * often dark, hues) — drawn raw they would shatter the instrument's
+ * reserved palette, so every wedge speaks its task's hue in the dial's
+ * voice. Unparseable input falls back to the effort blue.
+ */
+export function muteDialColor(hex) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return DIAL_COLORS.effort;
+  const [r, g, b] = rgb;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0;
+  if (max !== min) {
+    const d = max - min;
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+  }
+  const l0 = (max + min) / 2;
+  const s0 = max === min ? 0 : (max - min) / (1 - Math.abs(2 * l0 - 1));
+
+  const s = Math.min(s0, 0.5);
+  const l = 0.73;
+
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h * 6) % 2) - 1));
+  const m2 = l - c / 2;
+  const seg = Math.floor(h * 6) % 6;
+  const [r1, g1, b1] = [
+    [c, x, 0], [x, c, 0], [0, c, x], [0, x, c], [x, 0, c], [c, 0, x],
+  ][seg];
+  const toHex = (v) => Math.round((v + m2) * 255).toString(16).padStart(2, '0');
+  return `#${toHex(r1)}${toHex(g1)}${toHex(b1)}`;
 }
 
 /**

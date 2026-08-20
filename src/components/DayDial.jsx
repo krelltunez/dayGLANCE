@@ -12,6 +12,7 @@ import {
   dialSectorPath,
   dialTicks,
   findDialFocusBlock,
+  muteDialColor,
   padDialSegment,
   precipRuns,
 } from '../utils/dayDial.js';
@@ -93,11 +94,10 @@ function TickField() {
   );
 }
 
-function Segment({ startMin, endMin, color, dim = false, padStart = true, padEnd = true }) {
+function Segment({ startMin, endMin, color, mute = 1, padStart = true, padEnd = true }) {
   const [s, e] = padDialSegment(startMin, endMin, 3, padStart, padEnd);
   if (e <= s) return null;
   const { fillOpacity, edgeOpacity, edgeWidth } = dialIntensity(endMin - startMin);
-  const mute = dim ? 0.45 : 1;
   const edge = dialArcPath(CX, CY, R_EDGE, s, e);
   return (
     <g>
@@ -296,7 +296,7 @@ function NowLine({ nowMin }) {
  *                        be null in polar seasons), or null to omit the
  *                        solar layer entirely (no location known).
  */
-const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, formatTime, use24HourClock = false, sun = null, hourlyWeather = null }) => {
+const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null }) => {
   const { t, i18n } = useTranslation();
 
   const model = useMemo(
@@ -305,6 +305,19 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, formatTime, use24Ho
   );
 
   const focus = nowMin !== null ? findDialFocusBlock(model.blocks, nowMin) : null;
+
+  // Time flows brightest ahead: a segment wholly behind the now line drops
+  // to the dim tier, so the remaining day carries the light and the ring
+  // reads as "what's left" from across the room. On other days the whole
+  // dial takes one tier — dim for a past date, bright for a future one.
+  const isPast = (endMin) => (nowMin !== null ? endMin <= nowMin : dayIsPast);
+  // Recede, don't erase: 0.6 keeps the spent day legible as history — late
+  // in the evening most of the ring is past, and a harsher tier would
+  // blank it entirely.
+  const PAST_MUTE = 0.6;
+  // Sleep is context, never schedule: even the coming night sits a step
+  // below the day's events.
+  const SLEEP_MUTE = 0.6;
 
   const minToHHMM = (m) =>
     `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
@@ -385,6 +398,7 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, formatTime, use24Ho
               key={`sleep-${seg.startMin}`}
               startMin={seg.startMin} endMin={seg.endMin}
               color={DIAL_COLORS.sleep}
+              mute={SLEEP_MUTE * (isPast(seg.endMin) ? PAST_MUTE : 1)}
               padStart={seg.startMin !== 0}
               padEnd={seg.endMin !== DIAL_DAY_MINUTES}
             />
@@ -397,14 +411,16 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, formatTime, use24Ho
           {/* Weather ring — only for dates the hourly forecast covers. */}
           {hourlyWeather && <WeatherRing hourly={hourlyWeather} />}
 
-          {/* Schedule blocks — completed ones stay (the hour is spent) but
-              recede so the remaining day carries the light. */}
+          {/* Schedule blocks — each in its task's own hue, spoken in the
+              dial's voice (muteDialColor pins every color into one
+              pastel-emissive family). Completed and fully-past blocks stay
+              (the hour is spent) but recede to the dim tier. */}
           {model.blocks.map((b) => (
             <Segment
               key={b.id}
               startMin={b.startMin} endMin={b.endMin}
-              color={DIAL_COLORS[b.kind] || DIAL_COLORS.effort}
-              dim={b.completed}
+              color={muteDialColor(b.colorHex)}
+              mute={b.completed || isPast(b.endMin) ? PAST_MUTE : 1}
             />
           ))}
 

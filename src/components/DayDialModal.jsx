@@ -220,6 +220,7 @@ const DayDialModal = () => {
         dayWindow={getDayWindow(dateStr)}
         date={selectedDate}
         nowMin={nowMin}
+        dayIsPast={dateStr < todayStr}
         formatTime={formatTime}
         use24HourClock={use24HourClock}
         sun={sun}

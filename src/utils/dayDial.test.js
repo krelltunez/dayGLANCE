@@ -11,6 +11,7 @@ import {
   classifyPrecip,
   computeDialModel,
   findDialFocusBlock,
+  muteDialColor,
   precipRuns,
 } from './dayDial.js';
 
@@ -163,6 +164,28 @@ describe('computeDialModel', () => {
     const model = computeDialModel([]);
     expect(model.blocks).toEqual([]);
     expect(model.unblockedMinutes).toBeNull();
+  });
+});
+
+describe('muteDialColor', () => {
+  it('pulls saturated task colors into one pastel-emissive family', () => {
+    // Hue survives; saturation caps at 0.5; lightness pins at 0.73.
+    expect(muteDialColor('#3b82f6')).toBe('#98b2dd'); // blue-500
+    expect(muteDialColor('#ef4444')).toBe('#dd9898'); // red-500
+    expect(muteDialColor('#22c55e')).toBe('#98ddb1'); // green-500
+    expect(muteDialColor('#a855f7')).toBe('#bb98dd'); // purple-500
+  });
+
+  it('maps any gray to the same neutral and keeps output opaque hex', () => {
+    expect(muteDialColor('#111111')).toBe('#bababa');
+    expect(muteDialColor('#ffffff')).toBe('#bababa');
+    expect(muteDialColor('#808080')).toBe('#bababa');
+  });
+
+  it('falls back to the effort blue on unparseable input', () => {
+    expect(muteDialColor('not-a-color')).toBe('#93c5fd');
+    expect(muteDialColor(null)).toBe('#93c5fd');
+    expect(muteDialColor('#abc')).toBe('#93c5fd'); // shorthand unsupported
   });
 });
 
