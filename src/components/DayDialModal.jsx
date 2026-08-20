@@ -144,12 +144,32 @@ const DayDialModal = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Touch paging — the couch has arrow keys, a phone or wall tablet doesn't.
+  // A decisively horizontal swipe pages one day; anything vertical-ish is
+  // ignored rather than misread.
+  const touchStartRef = useRef(null);
+  const onTouchStart = (e) => {
+    if (e.touches.length !== 1) { touchStartRef.current = null; return; }
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const onTouchEnd = (e) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start) return;
+    const dx = e.changedTouches[0].clientX - start.x;
+    const dy = e.changedTouches[0].clientY - start.y;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    stepDay(dx < 0 ? 1 : -1);
+  };
+
   const chromeClass = `transition-opacity duration-500 ${
     chromeVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`;
 
   return (
     <div
       ref={containerRef}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
       className={`fixed inset-0 z-[70] bg-[#0b0d12] flex flex-col p-[3vmin] ${
         chromeVisible ? '' : 'cursor-none'}`}
     >

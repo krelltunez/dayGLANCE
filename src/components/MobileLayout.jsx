@@ -37,6 +37,7 @@ import MobileAllDaySection from './MobileAllDaySection.jsx';
 import MobileBottomSheets from './MobileBottomSheets.jsx';
 import MobileGlanceSection from './MobileGlanceSection.jsx';
 import MobileViewToggle from './MobileViewToggle.jsx';
+import DayDialIcon from './DayDialIcon.jsx';
 import MobileListView from './MobileListView.jsx';
 import SchedView from './sched/SchedView.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
@@ -91,6 +92,7 @@ const MobileLayout = () => {
     mobileWelcomeStep, setMobileWelcomeStep,
     desktopWelcomeStep, setDesktopWelcomeStep,
     showMonthView, setShowMonthView,
+    setShowDayDial,
     viewedMonth, setViewedMonth,
     mobileReviewPage, setMobileReviewPage,
     showMobileDailySummary, setShowMobileDailySummary,
@@ -684,8 +686,19 @@ const MobileLayout = () => {
             )}
             {mobileActiveTab === 'dayglance' && (
               <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
-                <div className="flex items-center justify-center px-4 py-3">
+                <div className="relative flex items-center justify-center px-4 py-3">
                   <Wordmark className="text-3xl" darkMode={darkMode} />
+                  {/* Touch entry to the Day Dial — mirrors the desktop header
+                      button; the wordmark stays centered, the dial sits in the
+                      header's empty right flank. */}
+                  <button
+                    onClick={() => setShowDayDial(true)}
+                    className={`absolute right-3 p-2.5 rounded-lg ${hoverBg} active:bg-black/10 dark:active:bg-white/10 transition-colors`}
+                    title={t('dial.open', 'Day Dial')}
+                    aria-label={t('dial.open', 'Day Dial')}
+                  >
+                    <DayDialIcon size={22} className={textSecondary} />
+                  </button>
                 </div>
               </div>
             )}

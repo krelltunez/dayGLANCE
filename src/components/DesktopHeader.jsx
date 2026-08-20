@@ -7,19 +7,9 @@ import { dateToString, formatDateRange } from '../utils/taskUtils.js';
 import { hasNativeCalendar } from '../utils/nativeCalendar.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useMcpStatus, McpBoltButton, McpStatusModal } from './McpStatusControls.jsx';
+import DayDialIcon from './DayDialIcon.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
-
-// Miniature of the Day Dial itself (ring, wedge, now needle) — a truer signal
-// than any stock glyph, same idiom as the ViewCycler's bespoke icons.
-const DayDialIcon = ({ className }) => (
-  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true" className={className}>
-    <circle cx="9" cy="9" r="7.25" stroke="currentColor" strokeWidth="1.5" strokeOpacity="0.45" />
-    <path d="M 9 1.75 A 7.25 7.25 0 0 1 16.25 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <line x1="9" y1="9" x2="4.5" y2="13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <circle cx="4.5" cy="13.5" r="1.4" fill="currentColor" />
-  </svg>
-);
 
 const DesktopHeader = () => {
   const {

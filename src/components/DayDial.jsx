@@ -188,8 +188,12 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, formatTime, use24Ho
   return (
     <div className="w-full h-full flex flex-col items-center justify-center gap-2 select-none">
       <div className="relative w-full flex-1 min-h-0 flex items-center justify-center">
+        {/* Horizontal viewBox margin: the 3/9-o'clock hour labels extend past
+            the dial's square, and a width-constrained viewport (phone
+            portrait) would clip them at the screen edge without it. A
+            height-constrained viewport just letterboxes the margin away. */}
         <svg
-          viewBox="0 0 1000 1000"
+          viewBox="-60 0 1120 1000"
           className="h-full w-full max-h-full"
           role="img"
           aria-label={t('dial.aria', 'Day dial: {{date}}', { date: `${weekday} ${dateLabel}` })}
