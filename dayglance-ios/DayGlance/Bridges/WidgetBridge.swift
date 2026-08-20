@@ -12,6 +12,11 @@ final class WidgetBridge {
     /// typo to silently disable the App Group.
     static let appGroup = "group.com.dayglance.app"
 
+    /// The App Group key the snapshot lives under. The widget extension keeps
+    /// its own copy of this literal (kSnapshotKey in WidgetModels.swift — a
+    /// different target); inside the app target this is the one definition.
+    static let snapshotKey = "widgetSnapshot"
+
     /// Widgets are killed at 30 MB with no warning. 200 KB is safely under that
     /// even with the full snapshot structure.
     private static let snapshotCapBytes = 200_000
@@ -46,13 +51,23 @@ final class WidgetBridge {
             Self.log.error("Widget snapshot dropped: App Group \(Self.appGroup, privacy: .public) is unavailable. Check the application-groups entitlement.")
             return
         }
-        defaults.set(data, forKey: "widgetSnapshot")
+        defaults.set(data, forKey: Self.snapshotKey)
         WidgetCenter.shared.reloadAllTimelines()
         // Same JSON drives the day-summary Live Activity — one entry point,
         // no separate JS bridge call to keep in sync.
         if #available(iOS 16.2, *) {
             LiveActivityBridge.shared.sync(fromSnapshotJSON: json)
         }
+    }
+
+    /// The stored snapshot JSON, as last written by updateSnapshot — read by
+    /// the background refresh task, whose only data source is this container
+    /// (the WebView is suspended when it fires). nil when the App Group is
+    /// unreachable or nothing was ever pushed.
+    func storedSnapshotJSON() -> String? {
+        guard let defaults = UserDefaults(suiteName: Self.appGroup),
+              let data = defaults.data(forKey: Self.snapshotKey) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     func getPendingAction() -> String {

@@ -5,11 +5,32 @@ import RevenueCat
 import BackgroundTasks
 import CoreSpotlight
 import WidgetKit
+import os
+
+/// Calls setTaskCompleted exactly once, however many paths race to it —
+/// normal completion, a failure, and the expiration handler all funnel
+/// through here. Overrunning the BGAppRefreshTask deadline without
+/// completing gets the app terminated by the system and can reduce future
+/// scheduling, so this is the constraint with teeth.
+private final class BGTaskCompletionGuard {
+    private let lock = NSLock()
+    private var task: BGTask?
+    init(_ task: BGTask) { self.task = task }
+    func complete(success: Bool) {
+        lock.lock()
+        let task = self.task
+        self.task = nil
+        lock.unlock()
+        task?.setTaskCompleted(success: success)
+    }
+}
 
 class AppDelegate: NSObject, UIApplicationDelegate {
 
     static var pendingShortcutAction: String? = nil
     static var pendingDeepLink: String? = nil
+
+    private static let bgLog = Logger(subsystem: "com.dayglance.app", category: "background")
 
     func application(
         _ application: UIApplication,
@@ -27,13 +48,43 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Phase 9 — RevenueCat subscriptions
         SubscriptionBridge.shared.configure(apiKey: "appl_uHejfwubTbYOTpEPNYFsjXAgnHw")
 
-        // Phase 10 — Background widget refresh
+        // Phase 10 — Background widget + Live Activity refresh. Opportunistic:
+        // iOS runs this when it pleases (usage patterns, battery, Low Power
+        // Mode), or not at all — both refreshes must stay correct without it,
+        // and this only ever makes them fresher.
         BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.dayglance.widgetrefresh", using: nil) { task in
             // The WebView is suspended when this fires so posting a notification to it
             // does nothing. Reload from whatever is already in the App Group container —
             // it's the freshest data available without the app running.
+            //
+            // The widget path runs FIRST and synchronously: it cannot fail and is
+            // complete before any Live Activity code executes, so a problem in the
+            // activity leg can never cost the widget refresh.
             WidgetCenter.shared.reloadAllTimelines()
-            task.setTaskCompleted(success: true)
+
+            guard #available(iOS 16.2, *) else {
+                task.setTaskCompleted(success: true)
+                return
+            }
+
+            let completion = BGTaskCompletionGuard(task)
+            var refresh: Task<Void, Never>?
+            // Armed before the async work starts, so a deadline landing
+            // mid-flight cancels the work instead of racing it.
+            task.expirationHandler = {
+                refresh?.cancel()
+                Self.bgLog.error("Background refresh expired at the BGAppRefreshTask deadline; Live Activity leg cancelled.")
+                completion.complete(success: false)
+            }
+            refresh = Task {
+                let clock = ContinuousClock()
+                let start = clock.now
+                await LiveActivityBridge.shared.refreshFromBackground(
+                    snapshotJSON: WidgetBridge.shared.storedSnapshotJSON())
+                let ms = (clock.now - start) / .milliseconds(1)
+                Self.bgLog.info("Background refresh done; Live Activity leg took \(ms, format: .fixed(precision: 1), privacy: .public)ms")
+                completion.complete(success: true)
+            }
         }
 
         // Capture Quick Action if app was cold-launched via a home screen shortcut.
