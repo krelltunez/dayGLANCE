@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize, Minimize, X } from 'lucide-react';
+import { CalendarDays, Layers, Maximize, Minimize, Sunrise, Thermometer, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -24,6 +24,34 @@ import Wordmark from './Wordmark.jsx';
 const CHROME_HIDE_MS = 5_000;
 // A browsed date returns to today after this much inactivity.
 const IDLE_RETURN_MS = 5 * 60_000;
+
+// Layer visibility — a device-local view preference (same class as the
+// summary strip's collapse state): a wall panel and a phone reasonably want
+// different layers, so this deliberately does not ride the sync payload.
+const DIAL_LAYERS_KEY = 'day-planner-dial-layers';
+const DEFAULT_LAYERS = { solar: true, weather: true, calendars: true };
+const loadLayers = () => {
+  try {
+    return { ...DEFAULT_LAYERS, ...JSON.parse(localStorage.getItem(DIAL_LAYERS_KEY) || '{}') };
+  } catch {
+    return DEFAULT_LAYERS;
+  }
+};
+
+const ToggleRow = ({ icon: Icon, label, on, onChange }) => (
+  <button
+    onClick={() => onChange(!on)}
+    role="switch"
+    aria-checked={on}
+    className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 transition-colors"
+  >
+    <Icon size={16} className="text-white/50 flex-shrink-0" />
+    <span className="flex-1 text-left text-white/85 text-sm">{label}</span>
+    <span className={`relative w-9 h-5 flex-shrink-0 rounded-full transition-colors ${on ? 'bg-[#fe8b00]/70' : 'bg-white/10'}`}>
+      <span className={`absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white transition-transform ${on ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+    </span>
+  </button>
+);
 
 const DayDialModal = () => {
   const { t } = useTranslation();
@@ -166,13 +194,48 @@ const DayDialModal = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Layer toggles: solar marks, weather ring, imported calendar events.
+  // Persisted per device; the panel opens from the Layers chrome button.
+  const [layers, setLayers] = useState(loadLayers);
+  const [showLayers, setShowLayers] = useState(false);
+  const setLayer = (key, value) => setLayers((prev) => {
+    const next = { ...prev, [key]: value };
+    try { localStorage.setItem(DIAL_LAYERS_KEY, JSON.stringify(next)); } catch { /* view pref only */ }
+    return next;
+  });
+  // Esc closes the panel before the dial (capture phase, same pattern as
+  // the block action sheet).
+  useEffect(() => {
+    if (!showLayers) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      setShowLayers(false);
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [showLayers]);
+
   // Solar layer: sunrise/sunset computed locally from the weather feature's
   // persisted geocode (utils/solar.js) — any date, works offline. No
   // location ever configured → null → the layer doesn't render.
   const sun = useMemo(() => {
+    if (!layers.solar) return null;
     const coords = getStoredWeatherCoords();
     return coords ? getSunTimes(selectedDate, coords.lat, coords.lon) : null;
-  }, [selectedDate]);
+  }, [selectedDate, layers.solar]);
+
+  // Calendars off hides calendar-imported events (Obsidian-imported tasks
+  // are the user's own work and stay); totals and the ring follow together
+  // since the same filtered list feeds computeDialModel.
+  const dayTasks = useMemo(() => {
+    const all = getTasksForDate(selectedDate);
+    return layers.calendars
+      ? all
+      : all.filter((t) => !(t.imported && t.importSource !== 'obsidian'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getTasksForDate, selectedDate, layers.calendars]);
 
   // Touch paging — the couch has arrow keys, a phone or wall tablet doesn't.
   // A decisively horizontal swipe pages one day; anything vertical-ish is
@@ -211,6 +274,14 @@ const DayDialModal = () => {
         <Wordmark className="text-2xl" darkMode dayClassName="text-white/60" />
       </div>
       <div className={`absolute top-4 right-4 z-10 flex items-center gap-1 ${chromeClass}`}>
+        <button
+          onClick={() => setShowLayers((v) => !v)}
+          className="p-2 text-white/30 hover:text-white/80 transition-colors"
+          title={t('dial.layers', 'Layers')}
+          aria-label={t('dial.layers', 'Layers')}
+        >
+          <Layers size={22} />
+        </button>
         {fullscreenSupported && (
           <button
             onClick={toggleFullscreen}
@@ -235,7 +306,7 @@ const DayDialModal = () => {
         </button>
       </div>
       <DayDial
-        dayTasks={getTasksForDate(selectedDate)}
+        dayTasks={dayTasks}
         dayWindow={getDayWindow(dateStr)}
         date={selectedDate}
         nowMin={nowMin}
@@ -243,12 +314,45 @@ const DayDialModal = () => {
         formatTime={formatTime}
         use24HourClock={use24HourClock}
         sun={sun}
-        hourlyWeather={weather?.hourlyByDate?.[dateStr] ?? null}
+        hourlyWeather={layers.weather ? (weather?.hourlyByDate?.[dateStr] ?? null) : null}
         onToggleComplete={handleToggleComplete}
         onOpenInPlanner={handleOpenInPlanner}
         onStepDay={stepDay}
         chromeVisible={chromeVisible}
       />
+
+      {/* Layers panel — same register as the block action sheet. Ambient
+          layers stay honest either way: a toggle hides a layer, it never
+          fakes one. */}
+      {showLayers && (
+        <div className="absolute inset-0 z-20" onClick={() => setShowLayers(false)}>
+          <div
+            role="dialog"
+            aria-label={t('dial.layers', 'Layers')}
+            className="absolute top-16 right-4 w-60 rounded-2xl border border-white/10 bg-[#12151c] p-1.5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ToggleRow
+              icon={Sunrise}
+              label={t('dial.layerSolar', 'Sunrise & sunset')}
+              on={layers.solar}
+              onChange={(v) => setLayer('solar', v)}
+            />
+            <ToggleRow
+              icon={Thermometer}
+              label={t('dial.layerWeather', 'Weather')}
+              on={layers.weather}
+              onChange={(v) => setLayer('weather', v)}
+            />
+            <ToggleRow
+              icon={CalendarDays}
+              label={t('dial.layerCalendars', 'Calendar events')}
+              on={layers.calendars}
+              onChange={(v) => setLayer('calendars', v)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
