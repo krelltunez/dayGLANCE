@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { CircleDashed, Leaf, MoonStar, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { stripWikilinks } from '../utils/taskUtils.js';
 import { formatMinutes } from '../utils/daySummary.js';
@@ -396,14 +397,19 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
     return () => ro.disconnect();
   }, []);
 
+  // Legend glyphs: Zap and Leaf are the summary strip's own effort/restore
+  // icons (one vocabulary across surfaces); MoonStar is nocturnal but
+  // distinct from the plain crescent marking sunset on the ring; the dashed
+  // circle is what unblocked time literally is here — an unclaimed stretch
+  // of the dial.
   const legend = [
-    { key: 'effort', label: t('dial.effort', 'Effort'), color: DIAL_COLORS.effort, minutes: model.effortMinutes },
-    { key: 'restore', label: t('dial.restore', 'Restore'), color: DIAL_COLORS.restore, minutes: model.restoreMinutes },
+    { key: 'effort', label: t('dial.effort', 'Effort'), color: DIAL_COLORS.effort, minutes: model.effortMinutes, Icon: Zap },
+    { key: 'restore', label: t('dial.restore', 'Restore'), color: DIAL_COLORS.restore, minutes: model.restoreMinutes, Icon: Leaf },
     ...(model.sleepMinutes !== null
-      ? [{ key: 'sleep', label: t('dial.sleep', 'Sleep'), color: DIAL_COLORS.sleep, minutes: model.sleepMinutes }]
+      ? [{ key: 'sleep', label: t('dial.sleep', 'Sleep'), color: DIAL_COLORS.sleep, minutes: model.sleepMinutes, Icon: MoonStar }]
       : []),
     ...(model.unblockedMinutes !== null
-      ? [{ key: 'unblocked', label: t('dial.unblocked', 'Unblocked'), color: DIAL_COLORS.unblocked, minutes: model.unblockedMinutes }]
+      ? [{ key: 'unblocked', label: t('dial.unblocked', 'Unblocked'), color: DIAL_COLORS.unblocked, minutes: model.unblockedMinutes, Icon: CircleDashed }]
       : []),
   ];
 
@@ -552,7 +558,7 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
       <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 rounded-2xl bg-white/[0.04] px-8 py-3">
         {legend.map((item) => (
           <div key={item.key} className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+            <item.Icon size={15} strokeWidth={1.75} style={{ color: item.color }} aria-hidden="true" />
             <div className="leading-tight">
               <div className="text-white/45 text-xs">{item.label}</div>
               <div className="text-white/90 text-sm font-medium tabular-nums">{formatMinutes(item.minutes)}</div>
