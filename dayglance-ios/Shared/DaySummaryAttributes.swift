@@ -14,11 +14,15 @@ import ActivityKit
 /// activity (the bridge ends yesterday's and requests today's), which keeps
 /// midnight semantics trivial.
 ///
-/// The island leads with SCHEDULE FACTS, not claims about "now": a no-backend
-/// app cannot update a Live Activity in the background, so "Deep work until
-/// 2:00 PM" (still true when stale) beats "In progress" (false the moment a
-/// boundary passes with the app closed). The live part is the countdown
-/// interval, which SwiftUI's Text(timerInterval:) ticks with zero updates.
+/// The island leads with SCHEDULE FACTS, not claims about "now": with no
+/// server push, the activity only updates when the app's own process runs —
+/// every foreground snapshot push, plus an opportunistic BGAppRefreshTask
+/// that re-presents the stored snapshot (LiveActivityBridge
+/// .refreshFromBackground) and is never guaranteed to fire. So "Deep work
+/// until 2:00 PM" (still true when stale) beats "In progress" (false the
+/// moment a boundary passes with the app closed). The live part is the
+/// countdown interval, which SwiftUI's Text(timerInterval:) ticks with zero
+/// updates.
 /// All strings arrive PREFORMATTED from JS so wording matches the in-app
 /// strip and the math is never re-implemented in Swift: the projection is
 /// computeDaySummary + buildUpNextFact, serialized in the snapshot's
