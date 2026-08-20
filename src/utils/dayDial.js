@@ -172,6 +172,42 @@ export function computeDialModel(dayTasks, dayWindow = null) {
 }
 
 /**
+ * WMO weather code → precipitation kind, or null for dry conditions. The
+ * dial's weather ring only marks precipitation: it is the one condition
+ * that changes a decision, so it earns ink where cloud-cover taxonomy
+ * would not.
+ */
+export function classifyPrecip(code) {
+  if (code == null) return null;
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code >= 95) return 'rain';
+  return null;
+}
+
+/**
+ * Contiguous precipitation spells from an hour-keyed forecast map
+ * ({ hour: {code, ...} }). Adjacent hours of the same kind merge into one
+ * run; a kind change splits (a rain hour then a snow hour is two runs).
+ * Returns [{kind: 'rain'|'snow', startMin, endMin}] in day order.
+ */
+export function precipRuns(hourlyByHour) {
+  const runs = [];
+  let cur = null;
+  for (let h = 0; h < 24; h++) {
+    const kind = classifyPrecip(hourlyByHour?.[h]?.code);
+    if (kind && cur?.kind === kind && cur.endMin === h * 60) {
+      cur.endMin = (h + 1) * 60;
+    } else if (kind) {
+      cur = { kind, startMin: h * 60, endMin: (h + 1) * 60 };
+      runs.push(cur);
+    } else {
+      cur = null;
+    }
+  }
+  return runs;
+}
+
+/**
  * The block the hub should narrate: the one running now (latest-starting
  * cover wins, so a nested block beats its container), else the next upcoming
  * one. Returns {block, current} or null when the rest of the day is clear.

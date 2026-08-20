@@ -30,6 +30,7 @@ const DayDialModal = () => {
   const {
     selectedDate, setSelectedDate, setShowDayDial,
     getTasksForDate, currentTime, formatTime, use24HourClock,
+    weather,
   } = useDayPlannerCtx();
   const { getDayWindow } = useFeaturesCtx();
 
@@ -222,6 +223,7 @@ const DayDialModal = () => {
         formatTime={formatTime}
         use24HourClock={use24HourClock}
         sun={sun}
+        hourlyWeather={weather?.hourlyByDate?.[dateStr] ?? null}
       />
     </div>
   );

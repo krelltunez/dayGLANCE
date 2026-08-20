@@ -8,8 +8,10 @@ import {
   dialTicks,
   dialIntensity,
   padDialSegment,
+  classifyPrecip,
   computeDialModel,
   findDialFocusBlock,
+  precipRuns,
 } from './dayDial.js';
 
 const task = (over = {}) => ({
@@ -161,6 +163,40 @@ describe('computeDialModel', () => {
     const model = computeDialModel([]);
     expect(model.blocks).toEqual([]);
     expect(model.unblockedMinutes).toBeNull();
+  });
+});
+
+describe('classifyPrecip / precipRuns', () => {
+  it('classifies WMO codes into rain, snow, or dry', () => {
+    expect(classifyPrecip(0)).toBeNull();    // clear
+    expect(classifyPrecip(3)).toBeNull();    // overcast
+    expect(classifyPrecip(45)).toBeNull();   // fog
+    expect(classifyPrecip(55)).toBe('rain'); // drizzle
+    expect(classifyPrecip(63)).toBe('rain'); // rain
+    expect(classifyPrecip(81)).toBe('rain'); // showers
+    expect(classifyPrecip(95)).toBe('rain'); // thunderstorm
+    expect(classifyPrecip(73)).toBe('snow'); // snowfall
+    expect(classifyPrecip(86)).toBe('snow'); // snow showers
+    expect(classifyPrecip(null)).toBeNull();
+  });
+
+  it('merges adjacent hours of one kind and splits on kind change', () => {
+    const hourly = {};
+    for (let h = 0; h < 24; h++) hourly[h] = { code: 1 };
+    hourly[9] = { code: 61 };
+    hourly[10] = { code: 63 };
+    hourly[11] = { code: 71 };  // rain turns to snow
+    hourly[15] = { code: 80 };  // separate afternoon shower
+    expect(precipRuns(hourly)).toEqual([
+      { kind: 'rain', startMin: 540, endMin: 660 },
+      { kind: 'snow', startMin: 660, endMin: 720 },
+      { kind: 'rain', startMin: 900, endMin: 960 },
+    ]);
+  });
+
+  it('handles a dry day and missing data', () => {
+    expect(precipRuns({})).toEqual([]);
+    expect(precipRuns(null)).toEqual([]);
   });
 });
 
