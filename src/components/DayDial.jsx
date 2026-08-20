@@ -101,21 +101,40 @@ function Segment({ startMin, endMin, color, dim = false, padStart = true, padEnd
 }
 
 // Sunrise/sunset hairline: a single warm radial stroke spanning the ring
-// band — no glyphs, no fill, per the one-weight-line rule. Morning-right vs
-// evening-left position disambiguates rise from set on its own, so both
-// marks are identical. A short overshoot past the bezel lets it read as an
-// astronomical datum rather than another schedule edge.
+// band, with a one-weight line glyph at the outer tip naming the event —
+// sun for rise, moon for set (lucide geometry, so it matches the app's
+// icon language; line icons at one weight, never emoji). Both stay amber:
+// the layer keeps a single color, the glyph only labels. The overshoot past
+// the bezel lets the mark read as an astronomical datum rather than
+// another schedule edge.
 const SUN_COLOR = '#fbbf24'; // amber-400
+const SUN_GLYPH_R = 456;     // glyph center: past the bezel, inside the hour labels
+const GLYPH_SCALE = 0.9;     // lucide 24-unit grid → ~22 viewBox units
 
-function SunMark({ min }) {
+// Lucide 'sun': core circle + 8 rays, one path.
+const SUN_RAYS =
+  'M12 2v2 M12 20v2 M4.93 4.93l1.41 1.41 M17.66 17.66l1.41 1.41 ' +
+  'M2 12h2 M20 12h2 M6.34 17.66l-1.41 1.41 M19.07 4.93l-1.41 1.41';
+// Lucide 'moon': the crescent.
+const MOON_PATH = 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z';
+
+function SunMark({ min, kind }) {
   const p1 = dialPoint(CX, CY, R_INNER - 12, min);
   const p2 = dialPoint(CX, CY, R_BEZEL + 8, min);
+  const g = dialPoint(CX, CY, SUN_GLYPH_R, min);
   return (
-    <line
-      x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
-      stroke={SUN_COLOR} strokeWidth={1.5} strokeOpacity={0.55}
-      strokeLinecap="round"
-    />
+    <g stroke={SUN_COLOR} strokeOpacity={0.55} fill="none" strokeLinecap="round">
+      <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} strokeWidth={1.5} />
+      <g
+        strokeWidth={2}
+        strokeLinejoin="round"
+        transform={`translate(${(g.x - 12 * GLYPH_SCALE).toFixed(2)} ${(g.y - 12 * GLYPH_SCALE).toFixed(2)}) scale(${GLYPH_SCALE})`}
+      >
+        {kind === 'rise'
+          ? <><circle cx="12" cy="12" r="4" /><path d={SUN_RAYS} /></>
+          : <path d={MOON_PATH} />}
+      </g>
+    </g>
   );
 }
 
@@ -259,8 +278,8 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, formatTime, use24Ho
           ))}
 
           {/* Solar hairlines — under the schedule, over the night. */}
-          {sun?.sunriseMin != null && <SunMark min={sun.sunriseMin} />}
-          {sun?.sunsetMin != null && <SunMark min={sun.sunsetMin} />}
+          {sun?.sunriseMin != null && <SunMark min={sun.sunriseMin} kind="rise" />}
+          {sun?.sunsetMin != null && <SunMark min={sun.sunsetMin} kind="set" />}
 
           {/* Schedule blocks — completed ones stay (the hour is spent) but
               recede so the remaining day carries the light. */}
