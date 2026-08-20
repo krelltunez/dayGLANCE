@@ -47,7 +47,9 @@ const ProjectPlanner = ({ project, onClose }) => {
   // returns to editing. Starts in preview when notes already exist.
   const [editingNotes, setEditingNotes] = useState(!(project.description || '').trim());
   const [quickAddTitle, setQuickAddTitle] = useState('');
-  const [showCompleted, setShowCompleted] = useState(true);
+  // Persisted on the project record like plannerScheduledHidden below, so
+  // each planner remembers its own choice and it syncs with the project.
+  const showCompleted = !project.plannerCompletedHidden;
   // Mobile shows the two task columns as tabs (they'd otherwise stack, hiding
   // Unscheduled below the fold); desktop keeps them side by side.
   const [activeTab, setActiveTab] = useState('scheduled');
@@ -280,7 +282,7 @@ const ProjectPlanner = ({ project, onClose }) => {
           <div className="flex items-center gap-1 flex-shrink-0">
             {hasAnyCompleted && (
               <button
-                onClick={() => setShowCompleted(v => !v)}
+                onClick={() => updateProject(project.id, { plannerCompletedHidden: showCompleted })}
                 className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1.5 rounded-lg ${hoverBg} ${textSecondary} transition-colors`}
                 title={showCompleted ? t('planner.hideCompleted', 'Hide completed tasks') : t('planner.showCompleted', 'Show completed tasks')}
               >
