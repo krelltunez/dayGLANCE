@@ -6,6 +6,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { getStoredWeatherCoords, getSunTimes } from '../utils/solar.js';
 import DayDial from './DayDial.jsx';
+import Wordmark from './Wordmark.jsx';
 
 // Fullscreen ambient surface for the Day Dial ('O', the header button, or
 // booting with ?dial). Shows the viewed day; the now line and hub narration
@@ -182,6 +183,13 @@ const DayDialModal = () => {
       className={`fixed inset-0 z-[70] bg-[#0b0d12] flex flex-col p-[3vmin] ${
         chromeVisible ? '' : 'cursor-none'}`}
     >
+      {/* Maker's mark — a watch face carries its brand, so this stays put
+          while the interactive chrome fades; muted so it never competes
+          with the now line (which wears the same orange). Top-left, except
+          top-center on narrow viewports where the corners crowd the dial. */}
+      <div className="absolute top-5 left-1/2 -translate-x-1/2 sm:left-6 sm:translate-x-0 z-10 opacity-70 pointer-events-none">
+        <Wordmark className="text-2xl" darkMode dayClassName="text-white/60" />
+      </div>
       <div className={`absolute top-4 right-4 z-10 flex items-center gap-1 ${chromeClass}`}>
         {fullscreenSupported && (
           <button
