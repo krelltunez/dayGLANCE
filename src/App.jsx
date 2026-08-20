@@ -158,6 +158,8 @@ import MobileLayout from './components/MobileLayout.jsx';
 import ShortcutHelpModal from './components/ShortcutHelpModal.jsx';
 import FocusModeModal from './components/FocusModeModal.jsx';
 import HyperGlanceModeModal from './components/HyperGlanceModeModal.jsx';
+import DayDialModal from './components/DayDialModal.jsx';
+import useAmbientScreensaver from './hooks/useAmbientScreensaver.js';
 import HGAdjustModal from './components/HGAdjustModal.jsx';
 import RoutinesDashboardModal from './components/RoutinesDashboardModal.jsx';
 import FrameAdjustModal from './components/FrameAdjustModal.jsx';
@@ -511,6 +513,19 @@ const DayPlanner = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [deadlinePickerTaskId, setDeadlinePickerTaskId] = useState(null); // Task ID for deadline date picker
   const [showMonthView, setShowMonthView] = useState(false);
+  // Ambient Day Dial overlay ('O'). `?dial` boots straight into it — the
+  // kiosk/wall-panel entry, same idiom as the tray popup's `?tray` (a plain
+  // URL beats per-platform launch flags: it works for a Docker kiosk browser,
+  // a wall tablet's pinned PWA, and a dev server alike). Evaluated once at
+  // mount: the query string can't change without a reload.
+  // Value is false | true | 'ambient' — 'ambient' opens the dial directly in
+  // ambient (screensaver) mode; every truthiness check works unchanged.
+  const [showDayDial, setShowDayDial] = useState(() =>
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location?.search ?? '').has('dial'));
+  const showDayDialRef = useRef(showDayDial);
+  showDayDialRef.current = showDayDial;
+  useAmbientScreensaver({ showDayDialRef, setShowDayDial });
   const [viewedMonth, setViewedMonth] = useState(() => new Date());
   const [mobileReviewPage, setMobileReviewPage] = useState(0);
   const [showMobileDailySummary, setShowMobileDailySummary] = useState(false);
@@ -3300,6 +3315,7 @@ const DayPlanner = () => {
     showAddTask, showFocusMode, showRoutinesDashboard, showShortcutHelp, showSpotlight,
     showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput,
     showHabitModal, showFramesModal, frameAdjustModal, showRescheduleModal,
+    showDayDial, setShowDayDial,
     selectedDate, hoverPreviewTime, hoverPreviewDate,
     setNewTask, setShowAddTask, setHoverPreviewTime, setHoverPreviewDate,
     routinesEnabled, setRoutinesEnabled, openRoutinesDashboardRef,
@@ -8093,6 +8109,7 @@ const DayPlanner = () => {
     mobileWelcomeStep, setMobileWelcomeStep,
     desktopWelcomeStep, setDesktopWelcomeStep,
     showMonthView, setShowMonthView,
+    showDayDial, setShowDayDial,
     viewedMonth, setViewedMonth,
     mobileReviewPage, setMobileReviewPage,
     showMobileDailySummary, setShowMobileDailySummary,
@@ -9570,6 +9587,9 @@ const DayPlanner = () => {
 
       {/* HyperGLANCE Overlay */}
       {showHyperGlanceMode && <HyperGlanceModeModal />}
+
+      {/* Day Dial — ambient 24-hour instrument view */}
+      {showDayDial && <DayDialModal />}
 
       {/* Spotlight Search */}
       {showSpotlight && <SpotlightModal />}

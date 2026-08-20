@@ -27,6 +27,8 @@ export default function useKeyboardShortcuts({
   showAddTask, showFocusMode, showRoutinesDashboard, showShortcutHelp, showSpotlight,
   showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput,
   showHabitModal, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard,
+  // day dial ('o') — the overlay owns its own keys (Esc, arrows) while open
+  showDayDial, setShowDayDial,
   // bucket list ('u')
   showBucketList, setShowBucketList,
   // new task ('n' / 'i')
@@ -110,7 +112,7 @@ export default function useKeyboardShortcuts({
       }
 
       // Don't trigger shortcuts when a modal is open (except Escape and ? handled above)
-      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight || showSettings || showRemindersSettings || showWeeklyReview || showVoiceInput || showHabitModal || showFramesModal || frameAdjustModal || showRescheduleModal || showGoalsDashboard || showBucketList) {
+      if (showAddTask || showFocusMode || showRoutinesDashboard || showShortcutHelp || showSpotlight || showSettings || showRemindersSettings || showWeeklyReview || showVoiceInput || showHabitModal || showFramesModal || frameAdjustModal || showRescheduleModal || showGoalsDashboard || showBucketList || showDayDial) {
         return;
       }
 
@@ -217,6 +219,12 @@ export default function useKeyboardShortcuts({
         setShowVoiceInput(true);
       }
 
+      // 'o' for the Day Dial (the key is the shape of the dial)
+      if (e.key === 'o' && noModifiers) {
+        e.preventDefault();
+        setShowDayDial(true);
+      }
+
       // 'u' for the bUcket List
       if (e.key === 'u' && noModifiers) {
         e.preventDefault();
@@ -321,5 +329,5 @@ export default function useKeyboardShortcuts({
     // action callbacks (changeDate/goToToday/performUndo/performRedo/playUISound),
     // all stable or read through refs — listing them would needlessly re-bind.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showHabitModal, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, showBucketList, hoverPreviewTime, hoverPreviewDate, isMobile, tabletActiveTab, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames, canShowViewCycler, effectiveViewMode]);
+  }, [selectedDate, showAddTask, showShortcutHelp, showFocusMode, showRoutinesDashboard, showHabitModal, showMonthView, showSpotlight, showSettings, showRemindersSettings, showWeeklyReview, showVoiceInput, showFramesModal, frameAdjustModal, showRescheduleModal, showGoalsDashboard, showBucketList, showDayDial, hoverPreviewTime, hoverPreviewDate, isMobile, tabletActiveTab, routinesEnabled, habitsEnabled, goalsProjectsEnabled, aiConfig, gtdFrames, canShowViewCycler, effectiveViewMode]);
 }

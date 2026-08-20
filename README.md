@@ -234,6 +234,16 @@ A Pomodoro-style timer with customizable work, short break, and long break durat
 |:-:|:-:|
 | ![Focus Mode Setup](screenshots/focus-mode-1.png) | ![Focus Mode Timer](screenshots/focus-mode-2.png) |
 
+### Day Dial
+
+An ambient, fullscreen view of the day as a 24-hour instrument dial — midnight at top, your schedule as a glowing ring, the current time as a single orange sweep line. Designed to be read from across the room: press `O` (or the dial button in the desktop header) to open it, `Esc` to close, `←`/`→` to page through days, `T` to jump back to today, and `F` for full screen. On mobile, tap the dial button at the top of the GLANCE tab and swipe sideways to page through days.
+
+If a weather location is set, hairlines mark sunrise (amber, with a sun glyph) and sunset (moonlight blue, with a moon glyph) — computed locally from your coordinates, so they work for any date and offline. On days the forecast covers, hour temperatures appear at the 3-hour marks and rain or snow spells are traced as a thin arc along the ring's inner edge. The Layers button in the corner toggles the solar marks, the weather ring, and imported calendar events; choices persist per device.
+
+For a wall display or kiosk, append `?dial` to the URL to boot straight into it — for example `http://localhost:6767/?dial` on a self-hosted Docker instance, or a pinned PWA on a wall tablet. The dial is built to run unattended: it follows the date across midnight, the cursor and corner buttons fade after a few seconds of stillness, and a browsed date snaps back to today after five idle minutes.
+
+**Ambient mode** turns the dial into a screensaver: press `A` (or the eclipse button) to go fullscreen with the screen wake lock held and all controls hidden — tap, click, or press any key to exit; a drifting cursor won't. While ambient, the whole face drifts through a slow pixel orbit to guard OLED panels against burn-in. Boot a kiosk straight into it with `?dial&ambient`, or enable auto-start in the Layers panel (`L`) with a configurable idle delay — including "Also start from planner", the true screensaver: after the idle delay anywhere in the app, the dial takes over, and waking returns you exactly where you were.
+
 ### Spotlight Search
 
 `Ctrl+K` / `Cmd+K` searches across all tasks (scheduled, inbox, recurring, and deleted) with highlighted matches.

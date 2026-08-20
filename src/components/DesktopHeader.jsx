@@ -7,6 +7,7 @@ import { dateToString, formatDateRange } from '../utils/taskUtils.js';
 import { hasNativeCalendar } from '../utils/nativeCalendar.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useMcpStatus, McpBoltButton, McpStatusModal } from './McpStatusControls.jsx';
+import DayDialIcon from './DayDialIcon.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
@@ -18,6 +19,7 @@ const DesktopHeader = () => {
     selectedDate,
     darkMode, setDarkMode,
     showMonthView, setShowMonthView,
+    setShowDayDial,
     viewedMonth, setViewedMonth,
     setShowSettings,
     updateInfo,
@@ -269,6 +271,13 @@ const DesktopHeader = () => {
             {activeReminders.length > 0 && (
               <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-amber-500 animate-pulse`} />
             )}
+          </button>
+          <button
+            onClick={() => setShowDayDial(true)}
+            className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
+            title="Day Dial (O)"
+          >
+            <DayDialIcon className={textSecondary} />
           </button>
           <button
             onClick={() => setDarkMode(!darkMode)}

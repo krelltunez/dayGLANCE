@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
 import { isTrayMode } from '../utils/trayMode.js';
+import { storeWeatherCoords } from '../utils/solar.js';
 
 const getWeatherCondition = (code) => {
   if (code === 0) return 'Clear';
@@ -63,6 +64,7 @@ const useWeather = () => {
 
       if (!zip) {
         setWeather(null);
+        storeWeatherCoords(null); // location cleared → the dial's sun marks go too
         return;
       }
 
@@ -108,12 +110,32 @@ const useWeather = () => {
         return;
       }
 
+      // Persist the resolved coordinates: the Day Dial computes sunrise/
+      // sunset locally from them (utils/solar.js), for any date and offline —
+      // the forecast API's few-day window can't serve a pageable dial.
+      storeWeatherCoords({ lat: latitude, lon: longitude });
+
       tz = tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-      const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&temperature_unit=${tempUnit}&timezone=${encodeURIComponent(tz)}&forecast_days=6`);
+      const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&hourly=temperature_2m,weather_code&temperature_unit=${tempUnit}&timezone=${encodeURIComponent(tz)}&forecast_days=6`);
       const data = await response.json();
 
       if (data.current && data.daily) {
+        // Hour-grained temps/codes by local date, for the Day Dial's weather
+        // ring: { 'YYYY-MM-DD': { 0: {temp, code}, ..., 23: {...} } }. Only
+        // dates the forecast covers exist as keys — the dial treats a missing
+        // date as "no data" and drops the layer for it.
+        const hourlyByDate = {};
+        if (data.hourly?.time) {
+          data.hourly.time.forEach((iso, i) => {
+            const [dateStr, hh] = iso.split('T');
+            (hourlyByDate[dateStr] ??= {})[parseInt(hh, 10)] = {
+              temp: Math.round(data.hourly.temperature_2m[i]),
+              code: data.hourly.weather_code[i],
+            };
+          });
+        }
+
         // Build forecast array for next 5 days (starting from tomorrow)
         const forecast = [];
         for (let i = 1; i <= 5; i++) {
@@ -134,7 +156,8 @@ const useWeather = () => {
           icon: getWeatherIcon(data.current.weather_code),
           high: Math.round(data.daily.temperature_2m_max[0]),
           low: Math.round(data.daily.temperature_2m_min[0]),
-          forecast: forecast
+          forecast: forecast,
+          hourlyByDate,
         });
       }
     } catch (error) {
