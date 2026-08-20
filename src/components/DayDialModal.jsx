@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Layers, Maximize, Minimize, Sunrise, Thermometer, X } from 'lucide-react';
+import { CalendarDays, Eclipse, Layers, Maximize, Minimize, Sunrise, Thermometer, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { getStoredWeatherCoords, getSunTimes } from '../utils/solar.js';
+import { acquireWakeLock, releaseWakeLock } from '../utils/wakeLock.js';
 import DayDial from './DayDial.jsx';
 import Wordmark from './Wordmark.jsx';
 
@@ -107,6 +108,65 @@ const DayDialModal = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [todayStr]);
 
+  // Ambient mode — the dial as a screensaver, semantics carried over from
+  // lifeGLANCE's watch mode: enter by gesture (button, 'A', or booting with
+  // ?dial&ambient for kiosks), go fullscreen and hold a screen wake lock;
+  // any DELIBERATE input — tap, click, key, wheel — exits, while a passive
+  // drifting cursor does not; a 1s start guard keeps the initiating gesture
+  // from immediately cancelling. An invisible shield captures the exiting
+  // tap so it can't also land on a wedge. Exiting leaves fullscreen only if
+  // ambient entered it.
+  const [ambient, setAmbient] = useState(() =>
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location?.search ?? '').has('ambient'));
+  const ambientGuardRef = useRef(false);
+  const ambientOwnedFullscreenRef = useRef(false);
+  const enterAmbient = () => {
+    if (ambient) return;
+    setSelectedDate(new Date());
+    setShowLayers(false);
+    setAmbient(true);
+    ambientGuardRef.current = true;
+    setTimeout(() => { ambientGuardRef.current = false; }, 1000);
+    acquireWakeLock();
+    if (!document.fullscreenElement && containerRef.current?.requestFullscreen) {
+      containerRef.current.requestFullscreen().then(
+        () => { ambientOwnedFullscreenRef.current = true; },
+        () => {}, // no gesture (kiosk boot) or unsupported — ambient works anyway
+      );
+    }
+  };
+  const exitAmbient = () => {
+    if (ambientGuardRef.current) return;
+    setAmbient(false);
+    releaseWakeLock();
+    if (ambientOwnedFullscreenRef.current) {
+      ambientOwnedFullscreenRef.current = false;
+      if (document.fullscreenElement) document.exitFullscreen()?.catch(() => {});
+    }
+  };
+  // Boot straight into ambient (?dial&ambient): wake lock needs no gesture;
+  // the fullscreen attempt may be denied on the web — kiosk browsers launch
+  // fullscreen themselves. Release everything on unmount.
+  useEffect(() => {
+    if (ambient) acquireWakeLock();
+    return () => releaseWakeLock();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Any key exits ambient (swallowed — the first press only wakes).
+  useEffect(() => {
+    if (!ambient) return undefined;
+    const onKeyDown = (e) => {
+      if (ambientGuardRef.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+      exitAmbient();
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ambient]);
+
   // One activity clock for both idle behaviors. chromeVisible drives the
   // cursor and corner buttons; lastActiveRef drives the return-to-today
   // check, which rides the minute tick rather than owning a timer.
@@ -187,6 +247,9 @@ const DayDialModal = () => {
       } else if (e.key === 'f') {
         e.preventDefault();
         toggleFullscreen();
+      } else if (e.key === 'a') {
+        e.preventDefault();
+        enterAmbient();
       }
     };
     document.addEventListener('keydown', onKeyDown);
@@ -255,8 +318,11 @@ const DayDialModal = () => {
     stepDay(dx < 0 ? 1 : -1);
   };
 
+  // Ambient suppresses the chrome outright — no buttons, no cursor, no
+  // chevrons; the shield handles every way out.
+  const chromeShown = chromeVisible && !ambient;
   const chromeClass = `transition-opacity duration-500 ${
-    chromeVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`;
+    chromeShown ? 'opacity-100' : 'opacity-0 pointer-events-none'}`;
 
   return (
     <div
@@ -264,7 +330,7 @@ const DayDialModal = () => {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       className={`fixed inset-0 z-[70] bg-[#0b0d12] flex flex-col p-[3vmin] ${
-        chromeVisible ? '' : 'cursor-none'}`}
+        chromeShown ? '' : 'cursor-none'}`}
     >
       {/* Maker's mark — a watch face carries its brand, so this stays put
           while the interactive chrome fades; muted so it never competes
@@ -274,6 +340,14 @@ const DayDialModal = () => {
         <Wordmark className="text-2xl" darkMode dayClassName="text-white/60" />
       </div>
       <div className={`absolute top-4 right-4 z-10 flex items-center gap-1 ${chromeClass}`}>
+        <button
+          onClick={enterAmbient}
+          className="p-2 text-white/30 hover:text-white/80 transition-colors"
+          title={t('dial.ambient', 'Ambient mode (A) — tap anywhere to exit')}
+          aria-label={t('dial.ambient', 'Ambient mode (A) — tap anywhere to exit')}
+        >
+          <Eclipse size={22} />
+        </button>
         <button
           onClick={() => setShowLayers((v) => !v)}
           className="p-2 text-white/30 hover:text-white/80 transition-colors"
@@ -318,7 +392,7 @@ const DayDialModal = () => {
         onToggleComplete={handleToggleComplete}
         onOpenInPlanner={handleOpenInPlanner}
         onStepDay={stepDay}
-        chromeVisible={chromeVisible}
+        chromeVisible={chromeShown}
       />
 
       {/* Layers panel — same register as the block action sheet. Ambient
@@ -352,6 +426,17 @@ const DayDialModal = () => {
             />
           </div>
         </div>
+      )}
+
+      {/* Ambient shield — screensaver glass. Catches the exiting tap so it
+          can't also land on a wedge; a drifting cursor passes over it
+          without consequence. */}
+      {ambient && (
+        <div
+          className="absolute inset-0 z-30 cursor-none"
+          onPointerDown={exitAmbient}
+          onWheel={exitAmbient}
+        />
       )}
     </div>
   );
