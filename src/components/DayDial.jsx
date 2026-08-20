@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, CircleDashed, ExternalLink, Leaf, MoonStar, Undo2, Zap } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, CircleDashed, ExternalLink, Leaf, MoonStar, Undo2, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { stripWikilinks } from '../utils/taskUtils.js';
 import { formatMinutes } from '../utils/daySummary.js';
@@ -321,7 +321,7 @@ function NowLine({ nowMin }) {
  *                        be null in polar seasons), or null to omit the
  *                        solar layer entirely (no location known).
  */
-const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null }) => {
+const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, chromeVisible = true }) => {
   const { t, i18n } = useTranslation();
 
   const model = useMemo(
@@ -541,8 +541,35 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
           <div className="text-white/40 text-[clamp(10px,1.6vmin,16px)] font-medium tracking-[0.35em] uppercase">
             {weekday}
           </div>
-          <div className="font-brand text-white text-[clamp(28px,7vmin,64px)] leading-tight mt-1">
-            {dateLabel}
+          {/* Clickable day nav — very subtle chevrons flanking the date,
+              fading with the rest of the chrome so the idle face stays a
+              pure instrument. Keyboard arrows and swipe remain. */}
+          <div className="relative mt-1">
+            {onStepDay && (
+              <>
+                <button
+                  onClick={() => onStepDay(-1)}
+                  className={`absolute right-full top-1/2 -translate-y-1/2 mr-[1.5vmin] p-2 text-white/20 hover:text-white/75 transition-all duration-300 ${
+                    chromeVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+                  title={t('dial.prevDay', 'Previous day (←)')}
+                  aria-label={t('dial.prevDay', 'Previous day (←)')}
+                >
+                  <ChevronLeft size={28} />
+                </button>
+                <button
+                  onClick={() => onStepDay(1)}
+                  className={`absolute left-full top-1/2 -translate-y-1/2 ml-[1.5vmin] p-2 text-white/20 hover:text-white/75 transition-all duration-300 ${
+                    chromeVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+                  title={t('dial.nextDay', 'Next day (→)')}
+                  aria-label={t('dial.nextDay', 'Next day (→)')}
+                >
+                  <ChevronRight size={28} />
+                </button>
+              </>
+            )}
+            <div className="font-brand text-white text-[clamp(28px,7vmin,64px)] leading-tight">
+              {dateLabel}
+            </div>
           </div>
           <div className="w-24 border-t border-white/15 my-[1.5vmin]" />
           {inspected ? (

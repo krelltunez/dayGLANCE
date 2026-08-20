@@ -246,6 +246,8 @@ const DayDialModal = () => {
         hourlyWeather={weather?.hourlyByDate?.[dateStr] ?? null}
         onToggleComplete={handleToggleComplete}
         onOpenInPlanner={handleOpenInPlanner}
+        onStepDay={stepDay}
+        chromeVisible={chromeVisible}
       />
     </div>
   );
