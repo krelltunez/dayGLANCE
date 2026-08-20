@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { stripWikilinks } from '../utils/taskUtils.js';
 import { formatMinutes } from '../utils/daySummary.js';
@@ -49,7 +49,22 @@ const TICK_STYLE = {
 const TRAIL_MINUTES = 90;
 const TRAIL_STEPS = 12;
 
-const HOUR_LABEL_MINUTES = [0, 360, 720, 1080];
+// Chapter labels every 3 hours. Cardinals (12/6 o'clock axes) carry full
+// weight; the intermediate hours step down in size and opacity — same
+// hierarchy rule as the ticks, so density never turns into noise. The two
+// side labels (6 AM / 6 PM) are the only ones that need horizontal margin
+// beyond the dial; compact mode drops them entirely and gives that margin
+// back to the dial.
+const HOUR_LABELS = Array.from({ length: 8 }, (_, i) => {
+  const h = i * 3;
+  return {
+    min: h * 60,
+    cardinal: h % 6 === 0,
+    side: h === 6 || h === 18,
+    h24: String(h).padStart(2, '0'),
+    h12: `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? 'AM' : 'PM'}`,
+  };
+});
 
 function TickField() {
   return (
@@ -217,7 +232,23 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, formatTime, use24Ho
 
   const weekday = date.toLocaleDateString(i18n.language, { weekday: 'long' });
   const dateLabel = date.toLocaleDateString(i18n.language, { month: 'long', day: 'numeric' });
-  const hourLabels = use24HourClock ? ['00', '06', '12', '18'] : ['12 AM', '6 AM', '12 PM', '6 PM'];
+
+  // Compact when the container is width-constrained (portrait-ish): there,
+  // the side labels and their viewBox margin cost actual dial diameter, so
+  // both go. In a height-constrained container the margin only letterboxes
+  // and everything stays. Measured, not media-queried — the same component
+  // must judge a phone, a tray popup, and a rotated wall panel correctly.
+  const wrapRef = useRef(null);
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(([entry]) => {
+      setCompact(entry.contentRect.width < entry.contentRect.height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const legend = [
     { key: 'effort', label: t('dial.effort', 'Effort'), color: DIAL_COLORS.effort, minutes: model.effortMinutes },
@@ -232,13 +263,12 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, formatTime, use24Ho
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center gap-2 select-none">
-      <div className="relative w-full flex-1 min-h-0 flex items-center justify-center">
-        {/* Horizontal viewBox margin: the 3/9-o'clock hour labels extend past
-            the dial's square, and a width-constrained viewport (phone
-            portrait) would clip them at the screen edge without it. A
-            height-constrained viewport just letterboxes the margin away. */}
+      <div ref={wrapRef} className="relative w-full flex-1 min-h-0 flex items-center justify-center">
+        {/* The horizontal viewBox margin exists only for the 3/9-o'clock
+            labels, which extend past the dial's square; compact mode drops
+            those labels, so it reclaims the margin too. */}
         <svg
-          viewBox="-60 0 1120 1000"
+          viewBox={compact ? '0 0 1000 1000' : '-60 0 1120 1000'}
           className="h-full w-full max-h-full"
           role="img"
           aria-label={t('dial.aria', 'Day dial: {{date}}', { date: `${weekday} ${dateLabel}` })}
@@ -253,18 +283,18 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, formatTime, use24Ho
           <circle cx={CX} cy={CY} r={R_BEZEL} fill="none" stroke="#ffffff" strokeOpacity={0.07} strokeWidth={2} />
           <TickField />
 
-          {/* Cardinal hour labels. */}
-          {HOUR_LABEL_MINUTES.map((min, i) => {
-            const p = dialPoint(CX, CY, 478, min);
+          {/* Hour labels every 3 hours, cardinals weighted above the rest. */}
+          {HOUR_LABELS.filter((l) => !(compact && l.side)).map((l) => {
+            const p = dialPoint(CX, CY, 478, l.min);
             return (
               <text
-                key={min}
+                key={l.min}
                 x={p.x} y={p.y}
                 textAnchor="middle" dominantBaseline="central"
-                fill="#ffffff" fillOpacity={0.4}
-                style={{ fontSize: 26, letterSpacing: '0.25em', fontWeight: 500 }}
+                fill="#ffffff" fillOpacity={l.cardinal ? 0.4 : 0.26}
+                style={{ fontSize: l.cardinal ? 26 : 21, letterSpacing: '0.25em', fontWeight: 500 }}
               >
-                {hourLabels[i]}
+                {use24HourClock ? l.h24 : l.h12}
               </text>
             );
           })}
