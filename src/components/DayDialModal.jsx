@@ -6,6 +6,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { getStoredWeatherCoords, getSunTimes } from '../utils/solar.js';
 import { acquireWakeLock, releaseWakeLock } from '../utils/wakeLock.js';
+import { isNativeAndroid, nativeSetImmersiveMode } from '../native.js';
 import { AMBIENT_DELAY_OPTIONS, loadAmbientPrefs, saveAmbientPrefs } from '../utils/dialPrefs.js';
 import DayDial from './DayDial.jsx';
 import Wordmark from './Wordmark.jsx';
@@ -145,12 +146,10 @@ const DayDialModal = () => {
     ambientGuardRef.current = true;
     setTimeout(() => { ambientGuardRef.current = false; }, 1000);
     acquireWakeLock();
-    if (!document.fullscreenElement && containerRef.current?.requestFullscreen) {
-      containerRef.current.requestFullscreen().then(
-        () => { ambientOwnedFullscreenRef.current = true; },
-        () => {}, // no gesture (kiosk boot) or unsupported — ambient works anyway
-      );
-    }
+    enterFullscreen().then(
+      () => { ambientOwnedFullscreenRef.current = true; },
+      () => {}, // no gesture (kiosk boot) or unsupported — ambient works anyway
+    );
   };
   const exitAmbient = () => {
     if (ambientGuardRef.current) return;
@@ -165,7 +164,7 @@ const DayDialModal = () => {
     releaseWakeLock();
     if (ambientOwnedFullscreenRef.current) {
       ambientOwnedFullscreenRef.current = false;
-      if (document.fullscreenElement) document.exitFullscreen()?.catch(() => {});
+      exitFullscreen();
     }
   };
   // Boot straight into ambient (?dial&ambient, or the planner screensaver
@@ -177,12 +176,10 @@ const DayDialModal = () => {
     if (ambient) {
       setSelectedDate(new Date());
       acquireWakeLock();
-      if (!document.fullscreenElement && containerRef.current?.requestFullscreen) {
-        containerRef.current.requestFullscreen().then(
-          () => { ambientOwnedFullscreenRef.current = true; },
-          () => {},
-        );
-      }
+      enterFullscreen().then(
+        () => { ambientOwnedFullscreenRef.current = true; },
+        () => {},
+      );
     }
     return () => releaseWakeLock();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -267,9 +264,49 @@ const DayDialModal = () => {
   // are user gestures, which requestFullscreen requires — so ?dial cannot
   // auto-fullscreen, and true kiosks launch the browser fullscreen instead).
   // Unsupported environments (e.g. iPhone Safari) just don't get the button.
+  //
+  // The Android app is different: its WebView rejects the Fullscreen API
+  // (the shell implements no onShowCustomView), but the native bridge can
+  // hide the system bars itself — the same immersive call focus mode uses.
+  // So there "fullscreen" means immersive mode, tracked by hand because no
+  // fullscreenchange event ever fires; a bonus is that the native call
+  // needs no user gesture, so ambient auto-start truly hides the bars.
   const containerRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const fullscreenSupported = typeof document !== 'undefined' && !!document.fullscreenEnabled;
+  const androidApp = isNativeAndroid();
+  const androidImmersiveRef = useRef(false);
+  const fullscreenSupported = androidApp ||
+    (typeof document !== 'undefined' && !!document.fullscreenEnabled);
+  // Current fullscreen truth, safe to read inside handlers where the
+  // isFullscreen state could be stale.
+  const inFullscreen = () =>
+    (androidApp ? androidImmersiveRef.current : !!document.fullscreenElement);
+  // Resolves when this call took the screen fullscreen; rejects when it
+  // didn't (already fullscreen, unsupported, or no gesture on the web) so
+  // callers can track ownership exactly as requestFullscreen() allows.
+  const enterFullscreen = () => {
+    if (inFullscreen()) return Promise.reject(new Error('already fullscreen'));
+    if (androidApp) {
+      nativeSetImmersiveMode(true);
+      androidImmersiveRef.current = true;
+      setIsFullscreen(true);
+      return Promise.resolve();
+    }
+    if (containerRef.current?.requestFullscreen) {
+      return containerRef.current.requestFullscreen();
+    }
+    return Promise.reject(new Error('fullscreen unsupported'));
+  };
+  const exitFullscreen = () => {
+    if (androidApp) {
+      if (!androidImmersiveRef.current) return;
+      nativeSetImmersiveMode(false);
+      androidImmersiveRef.current = false;
+      setIsFullscreen(false);
+      return;
+    }
+    if (document.fullscreenElement) document.exitFullscreen()?.catch(() => {});
+  };
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onChange);
@@ -278,11 +315,13 @@ const DayDialModal = () => {
       // Leaving the dial leaves fullscreen too — the planner underneath
       // should come back exactly as it was.
       if (document.fullscreenElement) document.exitFullscreen()?.catch(() => {});
+      if (androidImmersiveRef.current) nativeSetImmersiveMode(false);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const toggleFullscreen = () => {
-    if (document.fullscreenElement) document.exitFullscreen()?.catch(() => {});
-    else containerRef.current?.requestFullscreen()?.catch(() => {});
+    if (inFullscreen()) exitFullscreen();
+    else enterFullscreen().catch(() => {});
   };
 
   // Own key handling: the global shortcut map is suspended while a modal is
@@ -296,8 +335,8 @@ const DayDialModal = () => {
         // and headless runners don't reliably do it for us; where the
         // browser already exited on its own, fullscreenElement is simply
         // null and this press closes the dial), the next closes the dial.
-        if (document.fullscreenElement) {
-          document.exitFullscreen()?.catch(() => {});
+        if (inFullscreen()) {
+          exitFullscreen();
           return;
         }
         setShowDayDial(false);
@@ -418,11 +457,14 @@ const DayDialModal = () => {
           The wide-viewport variant sits at top-12: on macOS Electron
           (titleBarStyle hiddenInset, traffic lights at y:8) the window
           controls own the top ~20px of this corner, and the mark must
-          clear them. */}
-      <div className="absolute top-5 left-1/2 -translate-x-1/2 sm:top-12 sm:left-6 sm:translate-x-0 z-10 opacity-70 pointer-events-none">
+          clear them. All the top chrome adds env(safe-area-inset-top): on
+          the phones the dial underlaps the status bar / notch, and the
+          inset collapses to 0 when fullscreen hides the bars (and on
+          desktops, which never have one). */}
+      <div className="absolute top-[calc(1.25rem+env(safe-area-inset-top,0px))] left-1/2 -translate-x-1/2 sm:top-[calc(3rem+env(safe-area-inset-top,0px))] sm:left-6 sm:translate-x-0 z-10 opacity-70 pointer-events-none">
         <Wordmark className="text-2xl" darkMode dayClassName="text-white/60" />
       </div>
-      <div className={`absolute top-4 right-4 z-10 flex items-center gap-1 ${chromeClass}`}>
+      <div className={`absolute top-[calc(1rem+env(safe-area-inset-top,0px))] right-4 z-10 flex items-center gap-1 ${chromeClass}`}>
         <button
           onClick={enterAmbient}
           className="p-2 text-white/30 hover:text-white/80 transition-colors"
@@ -487,7 +529,7 @@ const DayDialModal = () => {
           <div
             role="dialog"
             aria-label={t('dial.layers', 'Layers')}
-            className="absolute top-16 right-4 w-60 rounded-2xl border border-white/10 bg-[#12151c] p-1.5 shadow-2xl"
+            className="absolute top-[calc(4rem+env(safe-area-inset-top,0px))] right-4 w-60 rounded-2xl border border-white/10 bg-[#12151c] p-1.5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <ToggleRow
