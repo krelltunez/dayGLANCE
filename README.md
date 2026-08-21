@@ -238,6 +238,8 @@ A Pomodoro-style timer with customizable work, short break, and long break durat
 
 An ambient, fullscreen view of the day as a 24-hour instrument dial — midnight at top, your schedule as a glowing ring, the current time as a single orange sweep line. Designed to be read from across the room: press `O` (or the dial button in the desktop header) to open it, `Esc` to close, `←`/`→` to page through days, `T` to jump back to today, and `F` for full screen. On mobile, tap the dial button at the top of the GLANCE tab and swipe sideways to page through days.
 
+![The Day Dial](screenshots/day-dial.png)
+
 If a weather location is set, hairlines mark sunrise (amber, with a sun glyph) and sunset (moonlight blue, with a moon glyph) — computed locally from your coordinates, so they work for any date and offline. On days the forecast covers, hour temperatures appear at the 3-hour marks and rain or snow spells are traced as a thin arc along the ring's inner edge. The Layers button in the corner toggles the solar marks, the weather ring, and imported calendar events; choices persist per device.
 
 For a wall display or kiosk, append `?dial` to the URL to boot straight into it — for example `http://localhost:6767/?dial` on a self-hosted Docker instance, or a pinned PWA on a wall tablet. The dial is built to run unattended: it follows the date across midnight, the cursor and corner buttons fade after a few seconds of stillness, and a browsed date snaps back to today after five idle minutes.
@@ -424,6 +426,12 @@ Let an AI assistant on the same computer read your day and manage your tasks. da
 Pull step counts and activity data from **Google Health Connect** into your daily summary. Visualize your movement alongside your schedule.
 
 **Setup:** On first use, dayGLANCE will prompt you to grant Health Connect permissions via Android's standard permissions dialog. To manage or revoke permissions later, go to the **Android Health Connect app → App permissions → dayGLANCE**.
+
+### Automation Intents — Tasker (Android)
+
+Automate dayGLANCE from **Tasker**, MacroDroid, Automate, or any Android app that can send broadcasts. Four inbound actions — `CREATE`, `COMPLETE`, `OPEN`, and `QUERY` — each take a JSON `payload` extra, so a Tasker profile can add a task, complete one by title, jump to a tab, or read your current task counts. Every action replies with an `app.dayglance.RESULT` broadcast, and dayGLANCE emits `app.dayglance.NOTIFY` broadcasts whenever tasks change state (completed, rescheduled, updated, deleted), so your automations can react to what happens in the planner too.
+
+**Setup:** Off by default. Enable in **Settings → GLANCE Integrations → "Automation intents (Tasker)"** (on phones, the "Automation intents" section). Full action and payload reference, with Tasker profile examples, in [docs/tasker-integration.md](docs/tasker-integration.md).
 
 ---
 
