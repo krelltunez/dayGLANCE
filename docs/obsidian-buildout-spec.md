@@ -1,0 +1,361 @@
+# dayGLANCE Obsidian Build-Out
+
+**Status:** Draft, revision 1
+**Date:** 2026-08-10
+**Scope:** Extending dayGLANCE's Obsidian integration from direct filesystem access to a full bridge, including a first-party Obsidian community plugin.
+
+---
+
+## 1. Purpose
+
+dayGLANCE's Obsidian integration currently works by reading and writing vault files directly. That approach is fast, private, and requires no plugin or server, and it should remain the default wherever the platform permits it.
+
+It has two limits:
+
+1. **Platform coverage.** Direct filesystem access is unavailable on iOS entirely, and on Safari, Firefox, mobile browsers, and tablet PWA installs.
+2. **Sync propagation.** Obsidian Sync only runs while Obsidian is open. Changes dayGLANCE writes to a vault while Obsidian is closed do not propagate to other devices until Obsidian is next launched on the originating machine.
+
+This document specifies a phased build-out addressing both, plus the format and correctness work that should precede any expansion of write surface.
+
+---
+
+## 2. Current state
+
+As established by codebase audit, August 2026.
+
+### 2.1 Transport by platform
+
+| Platform | Mechanism | Notes |
+|---|---|---|
+| Browser / PWA | Real File System Access API | Feature-detected via `'showDirectoryPicker' in window`. Chromium only (Chrome, Edge, Brave). |
+| Electron: dev | Main-process IPC | `dialog.showOpenDialog` + `obsidian:*` handlers in `electron/obsidian.ts`. |
+| Electron: Developer ID | Main-process IPC | Same. No security-scoped bookmark; `beginAccess` is a documented no-op. |
+| Electron: Mac App Store | Main-process IPC | `securityScopedBookmarks: true`; bookmark persisted to `userData/obsidian-vault.json`; `obsidian:restore` calls `app.startAccessingSecurityScopedResource` each launch. |
+| Electron: Windows / Linux | Main-process IPC | Enabled by PR #1357. Plain absolute path persisted, no bookmark. |
+| Android | SAF bridge | `window.DayGlanceObsidian`. |
+| iOS | **None** | No Obsidian integration exists. |
+
+The gate for the Electron path is simply the presence of `window.electronAPI.obsidian`, which `preload.ts` exposes unconditionally. It is not MAS-gated.
+
+`src/obsidianElectronHandle.js` is a shim mirroring the FSA surface (`getDirectoryHandle`, `createWritable`, `NotFoundError` semantics) so that all of `src/obsidian.js`'s markdown and sync logic runs unchanged across the browser and Electron paths.
+
+### 2.2 What syncs today
+
+- Tasks, as markdown checkboxes with `HH:MM-HH:MM` durations and wikilinks. Moves, reschedules, and title edits are written back.
+- Daily notes, bidirectionally.
+- Wiki notes, created from `[[...]]` targets found in task titles.
+
+### 2.3 Sync triggers
+
+App open, visibility change, 5-minute poll, and a manual "Sync Now" control.
+
+### 2.4 Recently landed
+
+**PR #1356** (`chore/obsidian-comment-accuracy`). Corrected three stale comments describing superseded behavior: the `isMAS` comment in `preload.ts`, the `files.bookmarks.app-scope` comment in `entitlements.mas.plist`, and the `obsidianElectronHandle.js` header. Also corrected the ARCHITECTURE.md desktop section.
+
+**PR #1357** (`feat/obsidian-vault-win-linux`). Three changes:
+
+- Removed the `process.platform !== 'darwin'` gates in `obsidian:pick` and `obsidian:restore`, giving Windows and Linux Electron real vault access. Previously those platforms advertised vault support via `isFileSystemAccessSupported()` but the picker silently did nothing.
+- Added a filename portability validator, plus a reachability check on `obsidian:restore` for non-darwin (where there is no bookmark to fail against).
+- Un-gated restore retry. The retry logic in `performObsidianSync` was correct but unreachable, because both automatic triggers checked for an existing handle before calling it. A failed startup restore was terminal for the session.
+
+Verified on Linux under xvfb (pick, write, quit, relaunch, restore, write, plus moved vault) and on Windows hardware.
+
+### 2.5 Known deferred items
+
+- **Issue #1358.** Surface unportable existing vault filenames in Settings, read-only, phrased as a portability note rather than an error.
+- **Path length.** No total-path-length check. Decided to let it fail honestly, since the real limit depends on vault depth plus folder plus filename plus whether long-path support is enabled, so any validator constant is wrong in one direction. If the raw `ENAMETOOLONG` proves cryptic in practice, a targeted catch-and-rephrase is a small follow-up.
+- **Windows edge cases not tested.** Mapped drive letters, UNC paths, OneDrive Files-On-Demand vaults, non-ASCII vault paths, and 260-character paths. Path resolution logic was verified against `path.win32` semantics across 13 cases including UNC, but not exercised on hardware. Deferred deliberately: these are real failure modes, but they are better fixed in response to a bug report from someone who has that setup than by building a test environment speculatively.
+
+---
+
+## 3. Decisions of record
+
+These were arrived at rather than being obvious, and are recorded so they are not relitigated by accident.
+
+### 3.1 GLANCEvault only, no WebDAV path for advanced features
+
+The basic direct-filesystem integration continues to work for everyone regardless of sync backend. Everything specified from Phase 5 onward assumes GLANCEvault.
+
+**Rationale.** Supporting both transports in the plugin roughly doubles its configuration surface and support burden for a solo maintainer. GLANCEvault is expected to become the default for all self-hosters running GLANCE apps.
+
+**Consequence.** The plugin becomes another device in a GLANCEvault account and inherits per-device credential binding, account-scoped route enforcement, quota accounting, and individual credential revocation with no new server work.
+
+### 3.2 The plugin is authoritative where installed and paired
+
+If the bridge plugin is present and paired to GLANCEvault on a device, the plugin owns the vault on that device and dayGLANCE does not write directly.
+
+**Rationale.** Installing a plugin is a deliberate act, so a behavior change is not a surprise. A single ownership rule is far easier to document and debug than a capability-negotiated split.
+
+**Critical qualifier: paired, not merely installed.** Obsidian Sync propagates installed community plugins across devices when that option is enabled, which most users leave on. A single deliberate install on one device therefore lands the plugin on others without a second deliberate act. An unpaired plugin must be inert: direct access continues, plugin does nothing. Authority transfers on successful pairing.
+
+### 3.3 Pairing state is carried in the heartbeat payload
+
+The plugin writes `.dayglance/heartbeat` on an interval while Obsidian is open. Payload: `{paired, accountId, deviceId, ts}`.
+
+**Rationale.** Arbitration only matters on devices where dayGLANCE could write directly, and on precisely those devices dayGLANCE has vault access and can read the file. On iOS there is nothing to arbitrate and correspondingly no way to read it. The mechanism degrades exactly where it is irrelevant, and no separate signalling channel is needed.
+
+**Revert path.** A stale or missing heartbeat resumes direct writes, treated identically. Staleness threshold should be comfortably longer than an Obsidian restart, so minutes rather than seconds.
+
+### 3.4 HKDF bridge-scoped subkey, never the root E2E key
+
+The plugin is provisioned with a bridge-scoped subkey derived via HKDF from the root sync key, and the Obsidian intent stream is encrypted under that subkey.
+
+**Rationale.** The plugin's settings live at `.obsidian/plugins/dayglance-bridge/data.json`, in plaintext, inside the vault, which Obsidian Sync propagates to every device. Obsidian's mobile plugin runtime has no keychain equivalent. Storing the root key there would put the entire dayGLANCE dataset at risk from a single leaked vault file. A scoped subkey limits the blast radius to the Obsidian bridge stream.
+
+Combined with per-device credentials on the transport side, a compromised vault costs one revocable device credential and one scoped stream, not the account.
+
+**Additional mitigations.** Recommend excluding the plugin data file from Obsidian Sync in documentation. State plainly in the plugin settings tab what is stored where. The plugin source is public under community directory rules, so this design will be read by people who care.
+
+### 3.5 Block IDs are a hard prerequisite for Phase 6
+
+Phase 2 must be complete and running long enough that most vault content carries IDs before Phase 6 begins.
+
+**Rationale.** The transport handoff is the risky moment. At cutover the vault may contain tasks dayGLANCE wrote via direct access that GLANCEvault holds under different identity. With `^dg-` IDs that reconciliation is a scan-and-match. Without them it is text matching across two sources of truth, which is the shape of the duplication bugs addressed in PRs #1146 through #1148.
+
+### 3.6 Semantic intent stream, not reuse of the FSA handle shim
+
+Phase 6 does not add a third implementation behind `obsidianElectronHandle.js`. dayGLANCE and the plugin exchange semantic task and note changes over a bidirectional GLANCEvault intent stream.
+
+**Rationale.** A GLANCEvault-backed handle would satisfy the write path cleanly but has nothing to read unless the plugin maintains a mirror of vault content in GLANCEvault, which is real storage and real staleness for little benefit. dayGLANCE already knows its own task state from GLANCEvault; the only thing it needs from the vault is Obsidian-side edits, which arrive as inbound intents. This is a fork of the reconcile path rather than a reuse of it, but a smaller one than maintaining a mirror, and the boundary matches the ownership rule in 3.2.
+
+**Reversibility note.** This is the most reversible decision in the plan. If Phase 6 work repeatedly wants to change shared logic in `src/obsidian.js`, that is the signal to reconsider, and it is much cheaper to unwind early.
+
+### 3.7 Filename portability: refuse creation, permit writes to existing files
+
+The validator rejects the union of characters illegal on any platform an Obsidian vault may sync to: `[ ] # ^ | * " \ / : ? < >`, control characters `0x00-0x1F`, leading dot, trailing dot or space, and Windows reserved device names (case-insensitive, including with extensions).
+
+Existence is checked **before** the validator gate. An invalid name that already exists is written to normally; an invalid name that does not exist is refused.
+
+**Rationale.** The portability harm is entirely in creating a new unportable name. A file already in the vault is already breaking sync on other platforms whether or not dayGLANCE writes to it again. Refusing that write buys zero portability and leaves the user with a permanent error on a task whose linked note visibly exists.
+
+**Honest framing requirement.** Obsidian's own restrictions are OS-specific and narrower than this union. As of v1.8.10 Obsidian forbids `[ ] # ^ |` on all platforms plus `\ / :` on macOS/iOS/Linux, `* " \ / : | ?` on Windows, and `\ / : * ? "` on Android. Characters like `?` and `*` are perfectly creatable Obsidian note names on macOS. dayGLANCE is deliberately stricter, on portability grounds, and the error copy must say so rather than implying Obsidian would have refused.
+
+**Rejected alternatives.** Sanitizing illegal characters breaks round-trip, because `readWikiNote` resolves links by exact-name search and would never find the sanitized file again; rescuing it with frontmatter aliases adds alias-aware resolution and collision handling for little gain. Renaming the offending file and rewriting the wikilink is worse still, since renaming breaks every other link to that note across the vault, and backlink maintenance is Obsidian's job.
+
+### 3.8 Community directory submission comes after dogfooding, not before
+
+The plugin runs unlisted (BRAT or manual install) through Phases 5 and 6. Submission to the Obsidian community directory happens once the codebase is stable.
+
+**Rationale.** Nothing about running the plugin on your own devices requires the directory. Obsidian's automated review scans every version, not just the initial submission, and a failed release is removed from search within 24 hours. Submitting a thin plugin and then substantially rewriting it means putting each intermediate state through that gate for no benefit.
+
+---
+
+## 4. Obsidian community directory constraints
+
+Relevant from Phase 5 onward. Current as of the May 2026 policy overhaul.
+
+- **Review is automated and fast.** Submission runs through a developer dashboard, results typically within minutes, searchable in-app within 24 hours. This is nothing like App Store review timelines.
+- **Every version is scanned,** not just the first. A release that fails is removed from search within 24 hours. Wire the official eslint plugin and the dashboard preview scan into CI before the first submission.
+- **Labeling.** Plugins must be labeled Free, Optional payments, or Paid. A plugin connecting to a paid service or API must be labeled Optional payments even if the service has a free tier. The dayGLANCE bridge will carry this label once it talks to GLANCEvault.
+- **New closed-source plugins are not accepted.** The bridge source will be public.
+- **Ads.** Prohibited outside the plugin's own interface. Static ads inside it are permitted if disclosed in the README. An upgrade prompt in the plugin settings tab is acceptable; writing promotional content into the user's vault is not.
+- **Maintenance.** Developers agree to continue maintaining their projects. Plugins that stop working with newer Obsidian versions are eventually removed.
+
+---
+
+## 5. Mobile plugin runtime constraints
+
+Relevant to Phases 6 and 7.
+
+- **No keychain.** Plugin settings live in `data.json` inside the vault. This is why 3.4 exists.
+- **Background execution is limited.** An SSE connection will not survive backgrounding on iOS.
+- **Consequence.** Phase 7 live sync is effectively desktop-only. Mobile gets drain-on-open. Design for this rather than discovering it in testing.
+
+---
+
+## 6. Phases
+
+Phase 0 is complete. Phases 1 through 4 are independent of the plugin and deliver value on their own.
+
+### Phase 0. Platform truth and write safety foundations — COMPLETE
+
+Delivered by PRs #1356 and #1357. See section 2.4.
+
+---
+
+### Phase 1. Launch-on-write
+
+**Goal.** When dayGLANCE writes to a vault while Obsidian is closed, launch Obsidian so Obsidian Sync pushes the change.
+
+**Key insight.** No "sync now" command is needed. Obsidian Sync connects and reconciles as soon as the vault opens, so launching the app is the entire mechanism.
+
+**Scope.**
+
+- Fire `obsidian://open?path=<absolute path>` after a debounced quiet window following vault writes. The `path` parameter overrides both `vault` and `file`, so no vault-name configuration is required; dayGLANCE already knows the absolute path of the file it wrote.
+- Debounce on a quiet window of roughly 5 to 10 seconds after the last write, so a burst of task edits produces one launch rather than many.
+- Suppress when Obsidian is already running. Until Phase 5 provides the heartbeat, this is best-effort.
+- Settings toggle, per platform defaults below.
+
+**Per-platform.**
+
+| Platform | Mechanism | Default |
+|---|---|---|
+| macOS, all Electron builds | `shell.openExternal(uri, { activate: false })` from the **main process**, alongside the existing `obsidian:*` handlers | On |
+| Windows Electron | `shell.openExternal`. Obsidian takes focus; no background equivalent | Off |
+| Linux Electron | `shell.openExternal`. Handler registration is unreliable, especially for AppImage installs | Off, fail silently |
+| Android | Fire the intent directly via Capacitor. No Tasker needed | Off |
+| iOS | Not applicable until Phase 6 | n/a |
+
+**Notes.**
+
+- `activate: false` is macOS-only and works under the App Store sandbox, since it goes through LaunchServices rather than spawning a process. There was a historical period where it misbehaved when called from a renderer but worked correctly from the main process; the vault code is already main-process. Verify once on a real MAS build.
+- Linux deep-link delivery and Linux vault access are independent capabilities and must not be gated on each other. Vault access works; URI handler registration may not.
+- Optional polish: Advanced URI's `openmode=silent` avoids opening a tab. Detect its presence by checking `<vault>/.obsidian/plugins/obsidian-advanced-uri/` and the enabled list in `community-plugins.json`, and fall back to the base scheme when absent. A dependency to detect, never to require.
+
+**Non-goals.** This does not solve propagation to other devices. It fixes the push side only. The pull side is Phases 5 through 7.
+
+**Exit criteria.** Writing to a vault with Obsidian closed results in the change appearing on a second device without manual intervention on the originating machine.
+
+---
+
+### Phase 2. Block-ID identity
+
+**Goal.** Give every dayGLANCE-managed task a stable identity in the vault that survives edits, reordering, and reformatting.
+
+**Rationale.** Task identity is currently implicit, positional or text-matched. Every bug class fought in GLANCEvault (resurrection, phantom deletes, duplication) has a latent analog here and will surface as write surface grows. This is the highest-value single change in the plan.
+
+**Scope.**
+
+- Assign `^dg-<id>` block references on write: `- [ ] Review proposal ^dg-a1b2c3`.
+- Match on read by ID first, falling back to existing text matching when a task carries no ID.
+- Migrate opportunistically: assign an ID the first time a task is seen without one. No flag day.
+- IDs are assigned at write time in dayGLANCE and persisted, not derived at read time.
+
+**Why block references specifically.** Native Obsidian syntax, invisible in reading view, survives edits and reordering, and linkable from anywhere in the vault.
+
+**Note.** `^` is in the portability validator's rejected set for filenames. That is unrelated and correct; block IDs live in file content, not filenames.
+
+**Exit criteria.** A task edited in Obsidian (retitled, moved between sections, reordered) is matched correctly on the next sync without duplication.
+
+---
+
+### Phase 3. Write-safety hardening
+
+**Goal.** Make vault writes safe against concurrent edits and partial failures before expanding what gets written.
+
+**Dependencies.** Phase 2.
+
+**Scope.**
+
+- Content-hash change detection, so a sync cycle with no delta writes nothing.
+- Modified-since-last-read guard before overwrite, so an edit made in Obsidian between sync cycles is not clobbered.
+- Verify write atomicity per transport. FSA's `createWritable()` provides atomicity by default via a swap file and rename. The Electron main-process path and the Android SAF path need explicit verification.
+
+**Exit criteria.** An edit made in Obsidian while dayGLANCE is running is never silently lost.
+
+---
+
+### Phase 4. Format expansion
+
+**Goal.** Speak the formats Obsidian power users already use, so dayGLANCE content is queryable with their existing tooling.
+
+**Dependencies.** Phases 2 and 3.
+
+**Scope.**
+
+- Tasks plugin emoji metadata: due, scheduled, priority, recurrence.
+- Dataview inline fields.
+- Tags.
+- Frontmatter on generated notes, so they are queryable from Dataview and Bases.
+
+**Rationale.** This is the cheapest real user-facing win in the plan and the thing that makes a directory listing compelling to someone already living in their vault.
+
+---
+
+### Phase 5. Bridge plugin, minimal, unlisted
+
+**Goal.** Establish the plugin as an artifact, running on your own devices, doing the smallest useful thing.
+
+**Dependencies.** None strictly, but sequencing after Phase 4 is sensible.
+
+**Scope.**
+
+- Heartbeat: write `.dayglance/heartbeat` every 30 seconds while Obsidian is open, payload per 3.3.
+- A `dayglance-bridge:sync-now` command.
+- Nothing else. No transport, no GLANCEvault client.
+- dayGLANCE reads the heartbeat to suppress Phase 1 deep links when Obsidian is already running, and to determine arbitration state.
+
+**Distribution.** BRAT or manual install. Not submitted to the community directory.
+
+**Exit criteria.** Heartbeat visible and correctly interpreted by dayGLANCE on macOS, Android, and Windows. Phase 1 no longer fires a deep link when Obsidian is open.
+
+---
+
+### Phase 6. Plugin as transport
+
+**Goal.** Unlock Obsidian integration on platforms where dayGLANCE has no filesystem access, principally iOS.
+
+**Dependencies.** Phase 2 complete and in production long enough that most vault content carries IDs. Phase 5.
+
+**Scope.**
+
+- Plugin pairs to GLANCEvault as a device, obtaining per-device credentials and an HKDF bridge-scoped subkey per 3.4.
+- Bidirectional semantic intent stream per 3.6. dayGLANCE emits task and note changes; the plugin applies them to the vault through Obsidian's own API and emits Obsidian-side edits back.
+- Arbitration per 3.2 and 3.3: on pairing, the plugin becomes authoritative and dayGLANCE stops writing directly on that device.
+- Idempotency: intent IDs assigned at write time in dayGLANCE and persisted. Plugin maintains a per-vault applied-ID set plus a high-water mark, so replay is a no-op.
+- Convergence: applied output must be a pure function of the intent. Any non-determinism (timestamps, ordering within a section) manufactures Obsidian Sync conflicts across devices.
+- Settings UI in dayGLANCE showing the active mode **for this device** with the reason, for example: "Bridge plugin active (paired 3 days ago). Direct vault access disabled." Without this, the first symptom a user notices is the vault folder picker apparently no longer mattering.
+
+**Scope honesty.** What this delivers per platform is lopsided. iOS gains everything, since it currently has nothing. Android and desktop gain path consolidation rather than new capability, since SAF and filesystem access already work there. The risk concentration is on the Obsidian mobile runtime, not on GLANCEvault.
+
+**Idempotency lesson to apply.** The GLANCEintents `transitionId` failure was an ID that was undefined at emit time and did not survive the transport. Assign at write time, persist, verify it survives the round trip.
+
+**Exit criteria.** A task created in dayGLANCE on iOS appears correctly in the vault on macOS, and an edit made in Obsidian on macOS appears in dayGLANCE on iOS, with no duplication across repeated syncs.
+
+---
+
+### Phase 7. Live sync
+
+**Goal.** Near-real-time propagation while Obsidian is open.
+
+**Dependencies.** Phase 6.
+
+**Scope.**
+
+- Plugin holds an SSE connection to GLANCEvault while Obsidian is open, applying changes as they arrive.
+- Desktop only in practice. Mobile gets drain-on-open per section 5.
+- Self-nudge loop prevention: the plugin applying an inbound change must not emit that change back outbound. This is structurally the same failure identified in the lastGLANCE SSE audit; use lifeGLANCE's persisted-flag pattern.
+
+**Exit criteria.** A change made in dayGLANCE on one desktop appears in Obsidian on another within seconds, with no echo.
+
+---
+
+### Phase 8. Deeper integrations
+
+**Goal.** The integrations that motivated the whole exercise, now on a safe substrate.
+
+**Dependencies.** Phases 2, 3, and 6.
+
+**Candidate scope.**
+
+- Project and goal notes with backlinks from tasks.
+- Habit and routine completion written to frontmatter.
+- Daily-note section templates.
+
+Deliberately underspecified. Scope this once the substrate is proven.
+
+---
+
+## 7. Directory submission milestone
+
+Not a phase. Submit the plugin to the Obsidian community directory once Phases 6 and 7 are stable and the codebase is not expected to change substantially.
+
+**Before submitting.**
+
+- Wire the official eslint plugin and dashboard preview scan into CI.
+- Confirm the Optional payments label is correct and expected.
+- Write the listing description around the Obsidian-side capability, not around dayGLANCE. The README does the explaining.
+
+**Expectation setting.** The bridge plugin is installed only by people who already have dayGLANCE, so as an acquisition funnel it runs backwards. Its value is a permanent sanctioned listing describing what dayGLANCE does, plus standing to discuss the integration in Obsidian community spaces. That is a credibility artifact more than a growth channel.
+
+**Announcement channels.** The `#updates` channel on the Obsidian Discord (requires the developer role) and the forum's showcase category are both explicitly sanctioned.
+
+---
+
+## 8. Open questions
+
+- **Phase 3 atomicity.** Is the Android SAF write path atomic? Is the Electron main-process write path atomic?
+- **Phase 6 pairing UX.** How does the plugin obtain GLANCEvault credentials? A pairing code shown in dayGLANCE settings is the obvious shape but is unspecified.
+- **Phase 6 conflict policy.** What happens when the same task is edited in Obsidian and in dayGLANCE between syncs? Last-write-wins is the default assumption but should be deliberate.
+- **Phase 8 scope.** Deliberately deferred.
