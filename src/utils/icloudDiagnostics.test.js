@@ -28,18 +28,25 @@ describe('detectPlatform', () => {
   });
 
   it('detects macOS from the electron API', () => {
-    expect(detectPlatform({ electronAPI: { readICloud: async () => null } })).toBe('macos');
+    expect(detectPlatform({ electronAPI: { platform: 'darwin', readICloud: async () => null } })).toBe('macos');
   });
 
   it('prefers iOS when somehow both are present', () => {
     expect(detectPlatform({
       nativeBridge: { iCloudAvailable: () => '{}' },
-      electronAPI: { readICloud: async () => null },
+      electronAPI: { platform: 'darwin', readICloud: async () => null },
     })).toBe('ios');
   });
 
   it('reports none on Android/web', () => {
     expect(detectPlatform({})).toBe('none');
+  });
+
+  // The preload exposes readICloud on every Electron platform, but the main
+  // process only serves it on darwin — Windows/Linux must not claim macOS.
+  it('reports none on Windows/Linux Electron despite the exposed API', () => {
+    expect(detectPlatform({ electronAPI: { platform: 'win32', readICloud: async () => null } })).toBe('none');
+    expect(detectPlatform({ electronAPI: { platform: 'linux', readICloud: async () => null } })).toBe('none');
   });
 });
 
@@ -302,7 +309,7 @@ describe('collectICloudDiagnostics', () => {
 
   it('gathers a macOS report and awaits the async read', async () => {
     const r = await collectICloudDiagnostics({
-      electronAPI: { readICloud: async () => payload() },
+      electronAPI: { platform: 'darwin', readICloud: async () => payload() },
       localStorage: fakeLocalStorage(),
     });
     expect(r.platform).toBe('macos');

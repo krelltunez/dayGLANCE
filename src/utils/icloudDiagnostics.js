@@ -63,7 +63,9 @@ export function formatBytes(n) {
  */
 export function detectPlatform({ nativeBridge, electronAPI } = {}) {
   if (nativeBridge?.iCloudAvailable) return 'ios';
-  if (electronAPI?.readICloud) return 'macos';
+  // Electron exposes readICloud on every platform, but the main-process handler
+  // is a darwin-only no-op — Windows/Linux must report 'none', not 'macos'.
+  if (electronAPI?.readICloud && electronAPI.platform === 'darwin') return 'macos';
   return 'none';
 }
 
