@@ -455,17 +455,19 @@ const DayDialModal = () => {
       >
       {/* Maker's mark — a watch face carries its brand, so this stays put
           while the interactive chrome fades; muted so it never competes
-          with the now line (which wears the same orange). Top-left, except
-          top-center on narrow viewports where the corners crowd the dial.
-          The wide-viewport variant sits at top-12: on macOS Electron
-          (titleBarStyle hiddenInset, traffic lights at y:8) the window
-          controls own the top ~20px of this corner, and the mark must
-          clear them. All the top chrome adds env(safe-area-inset-top): on
-          the phones the dial underlaps the status bar / notch, and the
+          with the now line (which wears the same orange). Top-left on every
+          viewport: the earlier top-center narrow variant sat in the same
+          band as the corner buttons and they overlapped. Narrow shrinks it
+          a step so mark and buttons clear each other even on the smallest
+          phones. The wide-viewport variant sits at top-12: on macOS
+          Electron (titleBarStyle hiddenInset, traffic lights at y:8) the
+          window controls own the top ~20px of this corner, and the mark
+          must clear them. All the top chrome adds env(safe-area-inset-top):
+          on the phones the dial underlaps the status bar / notch, and the
           inset collapses to 0 when fullscreen hides the bars (and on
           desktops, which never have one). */}
-      <div className="absolute top-[calc(1.25rem+env(safe-area-inset-top,0px))] left-1/2 -translate-x-1/2 sm:top-[calc(3rem+env(safe-area-inset-top,0px))] sm:left-6 sm:translate-x-0 z-10 opacity-70 pointer-events-none">
-        <Wordmark className="text-2xl" darkMode dayClassName="text-white/60" />
+      <div className="absolute top-[calc(1.25rem+env(safe-area-inset-top,0px))] left-4 sm:top-[calc(3rem+env(safe-area-inset-top,0px))] sm:left-6 z-10 opacity-70 pointer-events-none">
+        <Wordmark className="text-xl sm:text-2xl" darkMode dayClassName="text-white/60" />
       </div>
       <div className={`absolute top-[calc(1rem+env(safe-area-inset-top,0px))] right-4 z-10 flex items-center gap-1 ${chromeClass}`}>
         <button
