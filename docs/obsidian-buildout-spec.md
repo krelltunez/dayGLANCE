@@ -182,10 +182,13 @@ Delivered by PRs #1356 and #1357. See section 2.4.
 
 **Scope.**
 
-- Fire `obsidian://open?path=<absolute path>` after a debounced quiet window following vault writes. The `path` parameter overrides both `vault` and `file`, so no vault-name configuration is required; dayGLANCE already knows the absolute path of the file it wrote.
-- Debounce on a quiet window of roughly 5 to 10 seconds after the last write, so a burst of task edits produces one launch rather than many.
-- Suppress when Obsidian is already running. Until Phase 5 provides the heartbeat, this is best-effort.
-- Settings toggle, per platform defaults below.
+- Fire `obsidian://open` after a debounced quiet window following vault writes. The URI form differs by platform:
+  - **Desktop.** `?path=<absolute path>`. The `path` parameter overrides both `vault` and `file`, so no vault-name configuration is required. The absolute path is resolved in the Electron main process by `resolveInVault` and never reaches the renderer.
+  - **Android.** `?vault=<name>&file=<relpath>`. Under SAF there is no absolute filesystem path — the bridge holds a content-tree URI — so `path=` cannot work. The vault name is derived programmatically from the tree URI, exactly as the existing `ObsidianBridge.openNote` does, so the outcome of no user-facing vault-name configuration still holds.
+- **Debounce: 8 seconds, trailing edge, reset on every write.** Any value in the 5-10 range is defensible. 8 is chosen because a leisurely triage session can have 5-plus second gaps between actions, which a 5-second window would split into multiple launches, while past 8 seconds nothing further coalesces in practice and the only effect is added latency. The cost asymmetry favors the upper-middle: an extra launch is nearly free (it focuses or no-ops), while added delay is invisible because the user is not waiting on it.
+- **Settings toggle must be device-local, not part of `obsidianConfig`.** `obsidianConfig` participates in cloud sync, and between non-native devices the incoming config wholesale replaces the local one. A `launchOnWrite` field inside it would leak from a Mac to a Windows machine and defeat the per-platform defaults. Use a device-local key (for example `day-planner-obsidian-launch-on-write`), which the `day-planner-` prefix rule captures in local device backups while excluding it from the cloud payload — the same posture as `darkMode` and `reminderSettings`. Store as tri-state, where unset means platform default, so changing a default stays a one-line edit.
+- **Suppression when Obsidian is already running is deferred to Phase 5.** It depends on the heartbeat. Firing while Obsidian is open is harmless: on macOS `activate: false` makes it a no-op, and elsewhere it focuses the window.
+- **Browser and PWA are out of scope,** and not merely by choice. A `window.open` fired from a debounce timer has no user gesture attached and is popup-blocked.
 
 **Per-platform.**
 
@@ -194,14 +197,18 @@ Delivered by PRs #1356 and #1357. See section 2.4.
 | macOS, all Electron builds | `shell.openExternal(uri, { activate: false })` from the **main process**, alongside the existing `obsidian:*` handlers | On |
 | Windows Electron | `shell.openExternal`. Obsidian takes focus; no background equivalent | Off |
 | Linux Electron | `shell.openExternal`. Handler registration is unreliable, especially for AppImage installs | Off, fail silently |
-| Android | Fire the intent directly via Capacitor. No Tasker needed | Off |
+| Android | Fire `ACTION_VIEW` from the Kotlin bridge, extending the existing `ObsidianBridge.openNote` path. **Not Capacitor** — `dayglance-android` is a native Kotlin WebView app with `@JavascriptInterface` bridges. No Tasker needed | Off |
 | iOS | Not applicable until Phase 6 | n/a |
+| Browser / PWA | None. Popup-blocked without a user gesture | n/a |
 
 **Notes.**
 
 - `activate: false` is macOS-only and works under the App Store sandbox, since it goes through LaunchServices rather than spawning a process. There was a historical period where it misbehaved when called from a renderer but worked correctly from the main process; the vault code is already main-process. Verify once on a real MAS build.
 - Linux deep-link delivery and Linux vault access are independent capabilities and must not be gated on each other. Vault access works; URI handler registration may not.
 - Optional polish: Advanced URI's `openmode=silent` avoids opening a tab. Detect its presence by checking `<vault>/.obsidian/plugins/obsidian-advanced-uri/` and the enabled list in `community-plugins.json`, and fall back to the base scheme when absent. A dependency to detect, never to require.
+- **Write chokepoint: one per platform, on the native side of each bridge.** There is no single cross-platform chokepoint, and creating one in the renderer would be worse. On desktop, every write path funnels through `obsidian:write-file` in `electron/obsidian.ts`, which already holds the resolved absolute path and knows whether the write succeeded. On Android, the analog is `ObsidianRepository.writeText`, which `writeDailyNote` and `writeNote` share. A renderer-side debounce would require extracting a shared write helper across four inline `createWritable` sites plus the native wrappers, add a launch IPC back to main, and still not have the absolute path. Two small debounce policies, each at a real funnel with its own tests, is the smaller honest shape.
+- **IPC surface is one channel:** `obsidian:set-launch-on-write` (renderer to main, boolean), pushed at startup and on toggle change. There is no renderer-invocable launch channel — main initiates the launch itself from the write handler, so the renderer never controls a URI. This preserves the security posture of the existing `obsidian:open-note` handler, where `setWindowOpenHandler` permits only http and https.
+- **Lifecycle edges to cover:** clear any pending timer on toggle-off and on `obsidian:disconnect`, and confirm the enabled flag is not left stale across a disconnect followed by a fresh `obsidian:pick`, which would otherwise fire a launch against a vault the user just swapped away from. Decide explicitly what happens to a pending timer on app quit; firing immediately is preferable if cheap, since editing and then closing the app is a normal pattern.
 
 **Non-goals.** This does not solve propagation to other devices. It fixes the push side only. The pull side is Phases 5 through 7.
 
