@@ -101,7 +101,11 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UIRequiresFullScreen: false
         UIStatusBarStyle: UIStatusBarStyleDefault
-        UIViewControllerBasedStatusBarAppearance: false
+        # View-controller-based so SwiftUI's .statusBarHidden works (Day Dial
+        # immersive mode). The theme-driven status bar text colour still works:
+        # the hosting controller reports .default, which resolves from the
+        # window's overridden user interface style (see StatusBarBridge).
+        UIViewControllerBasedStatusBarAppearance: true
         # Export compliance: false because the app's encryption uses only standard,
         # internationally-recognized algorithms (AES-256-GCM, PBKDF2-SHA-256,
         # HMAC-SHA-256) for end-to-end cloud sync/backup (@glance-apps/sync) in a

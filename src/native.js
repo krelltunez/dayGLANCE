@@ -608,9 +608,11 @@ export const nativeExitFocusMode = () => {
 };
 
 /**
- * Hides (enter=true) or restores (enter=false) the system bars without
- * the DND/alarm side effects of full focus mode. Used by hyperGLANCE.
- * No-op when running as a PWA.
+ * Hides (enter=true) or restores (enter=false) the system chrome without
+ * the DND/alarm side effects of full focus mode: status + nav bars on
+ * Android, status bar + home indicator on iOS. Used by the Day Dial's
+ * fullscreen and ambient modes. No-op when running as a PWA (and on iOS
+ * shells predating the bridge case, where the call returns null).
  */
 export const nativeSetImmersiveMode = (enter) => {
   const bridge = nativeBridge();

@@ -6,7 +6,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { getStoredWeatherCoords, getSunTimes } from '../utils/solar.js';
 import { acquireWakeLock, releaseWakeLock } from '../utils/wakeLock.js';
-import { isNativeAndroid, nativeSetImmersiveMode } from '../native.js';
+import { isNativeApp, nativeSetImmersiveMode } from '../native.js';
 import { AMBIENT_DELAY_OPTIONS, loadAmbientPrefs, saveAmbientPrefs } from '../utils/dialPrefs.js';
 import DayDial from './DayDial.jsx';
 import Wordmark from './Wordmark.jsx';
@@ -265,30 +265,33 @@ const DayDialModal = () => {
   // auto-fullscreen, and true kiosks launch the browser fullscreen instead).
   // Unsupported environments (e.g. iPhone Safari) just don't get the button.
   //
-  // The Android app is different: its WebView rejects the Fullscreen API
-  // (the shell implements no onShowCustomView), but the native bridge can
-  // hide the system bars itself — the same immersive call focus mode uses.
-  // So there "fullscreen" means immersive mode, tracked by hand because no
+  // The native apps are different: neither WebView offers the Fullscreen API
+  // (Android implements no onShowCustomView; iPhone WKWebView has none at
+  // all), but both shells can hide the system chrome themselves through the
+  // same setImmersiveMode bridge call — Android hides the status and nav
+  // bars, iOS the status bar and home indicator (an iOS shell predating the
+  // call no-ops harmlessly: the bar stays, as it always did). So there
+  // "fullscreen" means immersive mode, tracked by hand because no
   // fullscreenchange event ever fires; a bonus is that the native call
   // needs no user gesture, so ambient auto-start truly hides the bars.
   const containerRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const androidApp = isNativeAndroid();
-  const androidImmersiveRef = useRef(false);
-  const fullscreenSupported = androidApp ||
+  const nativeApp = isNativeApp();
+  const nativeImmersiveRef = useRef(false);
+  const fullscreenSupported = nativeApp ||
     (typeof document !== 'undefined' && !!document.fullscreenEnabled);
   // Current fullscreen truth, safe to read inside handlers where the
   // isFullscreen state could be stale.
   const inFullscreen = () =>
-    (androidApp ? androidImmersiveRef.current : !!document.fullscreenElement);
+    (nativeApp ? nativeImmersiveRef.current : !!document.fullscreenElement);
   // Resolves when this call took the screen fullscreen; rejects when it
   // didn't (already fullscreen, unsupported, or no gesture on the web) so
   // callers can track ownership exactly as requestFullscreen() allows.
   const enterFullscreen = () => {
     if (inFullscreen()) return Promise.reject(new Error('already fullscreen'));
-    if (androidApp) {
+    if (nativeApp) {
       nativeSetImmersiveMode(true);
-      androidImmersiveRef.current = true;
+      nativeImmersiveRef.current = true;
       setIsFullscreen(true);
       return Promise.resolve();
     }
@@ -298,10 +301,10 @@ const DayDialModal = () => {
     return Promise.reject(new Error('fullscreen unsupported'));
   };
   const exitFullscreen = () => {
-    if (androidApp) {
-      if (!androidImmersiveRef.current) return;
+    if (nativeApp) {
+      if (!nativeImmersiveRef.current) return;
       nativeSetImmersiveMode(false);
-      androidImmersiveRef.current = false;
+      nativeImmersiveRef.current = false;
       setIsFullscreen(false);
       return;
     }
@@ -315,7 +318,7 @@ const DayDialModal = () => {
       // Leaving the dial leaves fullscreen too — the planner underneath
       // should come back exactly as it was.
       if (document.fullscreenElement) document.exitFullscreen()?.catch(() => {});
-      if (androidImmersiveRef.current) nativeSetImmersiveMode(false);
+      if (nativeImmersiveRef.current) nativeSetImmersiveMode(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

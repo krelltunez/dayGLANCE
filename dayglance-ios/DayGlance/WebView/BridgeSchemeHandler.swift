@@ -250,6 +250,14 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
             StatusBarBridge.shared.setAppearance(isDark: isDark)
             return "null"
 
+        // Day Dial fullscreen / ambient screensaver: hide or restore the
+        // status bar and home indicator (the iOS analogue of Android's
+        // immersive mode; same bridge method name on both shells).
+        case "setImmersiveMode":
+            guard let on = args.first as? Bool else { return "null" }
+            ImmersiveBridge.shared.set(on)
+            return "null"
+
         // Phase 11 — Spotlight
         case "indexSpotlight":
             guard let json = args.first as? String else { return "null" }

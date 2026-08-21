@@ -5,10 +5,18 @@ import CoreSpotlight
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var lastCalendarStatus = EKEventStore.authorizationStatus(for: .event)
+    // Day Dial fullscreen / ambient screensaver: the web layer can't hide the
+    // status bar itself (WKWebView has no Fullscreen API on iPhone), so it
+    // flips this bridge flag and the chrome is hidden natively. On notched
+    // devices the safe-area inset stays (the cutout is physical), so the web
+    // layer's env(safe-area-inset-top) offsets keep clearing it.
+    @ObservedObject private var immersiveBridge = ImmersiveBridge.shared
 
     var body: some View {
         WebView()
             .ignoresSafeArea()
+            .statusBarHidden(immersiveBridge.immersive)
+            .persistentSystemOverlays(immersiveBridge.immersive ? .hidden : .automatic)
             .task {
                 let calendarWasUndetermined = EKEventStore.authorizationStatus(for: .event) == .notDetermined
 
