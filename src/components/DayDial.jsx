@@ -12,6 +12,7 @@ import {
   dialPoint,
   dialSectorPath,
   dialTicks,
+  dialLabelYieldsToSun,
   findDialFocusBlock,
   muteDialColor,
   padDialSegment,
@@ -478,7 +479,9 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
           <circle cx={CX} cy={CY} r={R_BEZEL} fill="none" stroke="#ffffff" strokeOpacity={0.07} strokeWidth={2} />
           <TickField />
 
-          {/* Hour labels every 3 hours, cardinals weighted above the rest. */}
+          {/* Hour labels every 3 hours, cardinals weighted above the rest.
+              A label yields (fades out) while a sunrise/sunset mark sits on
+              its station — see dialLabelYieldsToSun. */}
           {HOUR_LABELS.filter((l) => !(compact && l.side)).map((l) => {
             const p = dialPoint(CX, CY, 478, l.min);
             return (
@@ -486,7 +489,8 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
                 key={l.min}
                 x={p.x} y={p.y}
                 textAnchor="middle" dominantBaseline="central"
-                fill="#ffffff" fillOpacity={l.cardinal ? 0.4 : 0.26}
+                fill="#ffffff"
+                fillOpacity={dialLabelYieldsToSun(l.min, sun) ? 0 : (l.cardinal ? 0.4 : 0.26)}
                 style={{ fontSize: l.cardinal ? 26 : 21, letterSpacing: '0.25em', fontWeight: 500 }}
               >
                 {use24HourClock ? l.h24 : l.h12}
