@@ -10,6 +10,7 @@ import { renderTitle } from '../utils/textFormatting.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { hasNativeCalendar } from '../utils/nativeCalendar.js';
 import DesktopHeader from './DesktopHeader.jsx';
+import DayDialIcon from './DayDialIcon.jsx';
 import GlanceFabs from './GlanceFabs.jsx';
 import CalendarHeader from './CalendarHeader.jsx';
 import TimeGrid from './TimeGrid.jsx';
@@ -69,6 +70,7 @@ const DesktopLayout = () => {
     mobileWelcomeStep, setMobileWelcomeStep,
     desktopWelcomeStep, setDesktopWelcomeStep,
     showMonthView, setShowMonthView,
+    setShowDayDial,
     viewedMonth, setViewedMonth,
     mobileReviewPage, setMobileReviewPage,
     showMobileDailySummary, setShowMobileDailySummary,
@@ -592,6 +594,14 @@ const DesktopLayout = () => {
               {activeReminders.length > 0 && (
                 <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-amber-500 animate-pulse`} />
               )}
+            </button>
+            <button
+              onClick={() => setShowDayDial(true)}
+              className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
+              title="Day Dial"
+              aria-label="Day Dial"
+            >
+              <DayDialIcon className={textSecondary} />
             </button>
             <button
               onClick={() => setDarkMode(!darkMode)}
