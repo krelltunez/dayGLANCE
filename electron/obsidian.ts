@@ -1,7 +1,8 @@
 import { ipcMain, app, dialog, shell, BrowserWindow } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
-import { buildObsidianOpenUri } from './obsidianUri.js';
+import { buildObsidianOpenUri, buildObsidianOpenPathUri } from './obsidianUri.js';
+import { createLaunchScheduler } from './obsidianLaunch.js';
 
 // ── Obsidian vault access (Electron) ─────────────────────────────────────────
 //
@@ -27,6 +28,24 @@ interface VaultConfig { path: string; bookmark?: string; }
 
 let vaultBasePath: string | null = null;
 let stopAccessing: (() => void) | null = null;
+
+// Launch-on-write (Obsidian build-out Phase 1): after a debounced quiet window
+// following vault writes, open the last-written file so Obsidian Sync pushes
+// the change. Fed by the obsidian:write-file handler below — the single funnel
+// every desktop write path runs through. The scheduler starts DISABLED and
+// stays so until the renderer pushes the device-local toggle over
+// obsidian:set-launch-on-write, so no launch can fire ahead of the user's
+// stored setting.
+const launchScheduler = createLaunchScheduler((absPath) => {
+  const uri = buildObsidianOpenPathUri(absPath);
+  if (!uri) return;
+  // activate: false is macOS-only (ignored elsewhere): the launch goes through
+  // LaunchServices without taking focus, App Store sandbox included. Failures
+  // stay silent BY DESIGN — on Linux the obsidian:// handler is frequently
+  // unregistered (AppImage installs), and the vault write already succeeded;
+  // only the wake didn't. No error state, no toast.
+  shell.openExternal(uri, { activate: false }).catch(() => { /* ignore */ });
+});
 
 function configPath(): string {
   return path.join(app.getPath('userData'), 'obsidian-vault.json');
@@ -87,6 +106,8 @@ export function registerObsidianHandlers(): void {
     saveConfig({ path: dir, bookmark });
     vaultBasePath = dir;
     beginAccess(bookmark);
+    // A pending launch would point into the vault just swapped away from.
+    launchScheduler.cancelPending();
     return { path: dir, name: path.basename(dir) };
   });
 
@@ -143,6 +164,18 @@ export function registerObsidianHandlers(): void {
     if (stopAccessing) { try { stopAccessing(); } catch { /* ignore */ } stopAccessing = null; }
     vaultBasePath = null;
     clearConfig();
+    // Pending only, not the enabled flag: the toggle is the user's setting and
+    // survives a vault swap — a write into a newly picked vault schedules again.
+    launchScheduler.cancelPending();
+    return true;
+  });
+
+  // The renderer pushes the device-local launch-on-write setting here at
+  // startup and on every toggle change. Boolean only — the renderer never
+  // supplies a URI or path, so the http/https-only external-URL allowlist
+  // documented at obsidian:open-note keeps its security property.
+  ipcMain.handle('obsidian:set-launch-on-write', async (_e, enabled: unknown) => {
+    launchScheduler.setEnabled(enabled === true);
     return true;
   });
 
@@ -183,13 +216,24 @@ export function registerObsidianHandlers(): void {
   });
 
   // Write a file (creating parent directories). Returns true on success.
+  // Post-write chokepoint: every desktop vault write — daily notes, task
+  // write-back, wiki notes — reaches disk through this handler (via the shim's
+  // createWritable().close()), so launch-on-write hooks here and nowhere else.
   ipcMain.handle('obsidian:write-file', async (_e, relativePath: string, content: string) => {
     const abs = resolveInVault(relativePath);
     if (!abs) return false;
     try {
       fs.mkdirSync(path.dirname(abs), { recursive: true });
       fs.writeFileSync(abs, content, 'utf-8');
+      launchScheduler.noteWrite(abs);
       return true;
     } catch { return false; }
   });
+
+  // A pending launch at quit fires immediately rather than being dropped:
+  // editing a task and closing the app inside the quiet window is a normal
+  // pattern, and dropping the launch would leave that edit unpushed until the
+  // next write. openExternal is fire-and-forget here (no await, no
+  // preventDefault), so quit is not delayed.
+  app.on('will-quit', () => { launchScheduler.flush(); });
 }

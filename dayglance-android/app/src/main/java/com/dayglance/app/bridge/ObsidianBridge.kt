@@ -4,7 +4,11 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.webkit.JavascriptInterface
+import com.dayglance.app.data.LaunchOnWritePolicy
 import com.dayglance.app.data.ObsidianRepository
 
 /**
@@ -19,6 +23,36 @@ import com.dayglance.app.data.ObsidianRepository
 class ObsidianBridge(private val context: Context, private val webView: android.webkit.WebView? = null) {
 
     private val repository = ObsidianRepository(context)
+
+    // Launch-on-write (Obsidian build-out Phase 1): after a debounced quiet
+    // window following vault writes, open the last-written note so Obsidian
+    // Sync pushes the change. The policy owns the timing (JVM-tested); this
+    // bridge schedules one delayed check per write — a check made stale by a
+    // later write returns null from fireIfQuiet, so nothing needs cancelling.
+    // Disabled until the web frontend pushes the device-local toggle via
+    // setLaunchOnWrite (Android default: off).
+    private val launchPolicy = LaunchOnWritePolicy()
+    private val launchHandler = Handler(Looper.getMainLooper())
+
+    init {
+        repository.onVaultWrite = { noteName ->
+            launchPolicy.onWrite(noteName, SystemClock.elapsedRealtime())?.let { delayMs ->
+                launchHandler.postDelayed({
+                    launchPolicy.fireIfQuiet(SystemClock.elapsedRealtime())?.let { openNote(it) }
+                }, delayMs)
+            }
+        }
+    }
+
+    /**
+     * Pushed by the web frontend (device-local toggle) at startup and on every
+     * change. The launch itself reuses [openNote], which already degrades the
+     * way the write path requires: no vault name or no Obsidian installed is
+     * silently ignored — the vault write succeeded, only the wake didn't, so
+     * no error surfaces and sync status is untouched.
+     */
+    @JavascriptInterface
+    fun setLaunchOnWrite(enabled: Boolean) = launchPolicy.setEnabled(enabled)
 
     /**
      * Returns the raw markdown content of the daily note for [date] (ISO: yyyy-MM-dd).
@@ -177,7 +211,12 @@ class ObsidianBridge(private val context: Context, private val webView: android.
     /**
      * Clears the stored vault URI so the integration returns to unconfigured state.
      * Does NOT revoke the SAF permission — the user can re-select the same folder.
+     * Also drops any pending launch-on-write (the pending note belongs to the
+     * vault being swapped away from) while keeping the user's toggle intact.
      */
     @JavascriptInterface
-    fun clearVault() = repository.clearVault()
+    fun clearVault() {
+        launchPolicy.cancelPending()
+        repository.clearVault()
+    }
 }

@@ -270,6 +270,8 @@
     "obsidianFilenamePattern": "Filename pattern",
     "obsidianTaskHeading": "Task heading",
     "obsidianDailyNoteTemplate": "Daily note template",
+    "obsidianLaunchOnWrite": "Launch Obsidian after writes",
+    "obsidianLaunchOnWriteHint": "After dayGLANCE writes to your vault, launch Obsidian so Obsidian Sync can push the change to your other devices. On macOS this happens in the background.",
     "obsidianSyncComplete": "Sync complete",
     "obsidianSyncFailed": "Sync failed. Check console for details",
     "obsidianSelectVault": "Select Vault Folder",

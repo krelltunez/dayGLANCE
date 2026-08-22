@@ -25,6 +25,16 @@ class ObsidianRepository(private val context: Context) {
 
     private val dataStore = SharedDataStore(context)
 
+    /**
+     * Post-write chokepoint listener (launch-on-write, Obsidian build-out
+     * Phase 1). Every vault write — daily notes, wiki notes, appends — reaches
+     * disk through [writeText], so this is the one place a successful write is
+     * announced. Invoked with the written file's bare name (no .md).
+     * ObsidianBridge wires this to its LaunchOnWritePolicy.
+     */
+    @Volatile
+    var onVaultWrite: ((noteName: String) -> Unit)? = null
+
     // ── Note URI index ───────────────────────────────────────────────────────
     //
     // SAF recursive search (DocumentFile.listFiles + findFile) is expensive:
@@ -128,11 +138,16 @@ class ObsidianRepository(private val context: Context) {
         // buffer is flushed to disk before the stream closes.  Closing only the
         // OutputStream while a BufferedWriter wraps it leaves the buffer unflushed,
         // which silently truncates the file to zero bytes.
-        context.contentResolver.openOutputStream(file.uri, "wt")?.use { outputStream ->
-            outputStream.bufferedWriter().use { writer ->
+        val outputStream = context.contentResolver.openOutputStream(file.uri, "wt") ?: return
+        outputStream.use { stream ->
+            stream.bufferedWriter().use { writer ->
                 writer.write(text)
             }
         }
+        // Announce only a write that actually reached the stream (a null stream
+        // above wrote nothing and must not wake Obsidian).
+        val noteName = file.name?.removeSuffix(".md") ?: return
+        onVaultWrite?.invoke(noteName)
     }
 
     // ── Public API ───────────────────────────────────────────────────────────

@@ -317,5 +317,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('obsidian:read-file', relativePath),
     writeFile: (relativePath: string, content: string): Promise<boolean> =>
       ipcRenderer.invoke('obsidian:write-file', relativePath, content),
+    // Pushes the device-local launch-on-write toggle to the main process,
+    // which owns the post-write debounce and fires the obsidian:// deep link
+    // itself. Boolean only — no URI ever crosses this boundary.
+    setLaunchOnWrite: (enabled: boolean): Promise<boolean> =>
+      ipcRenderer.invoke('obsidian:set-launch-on-write', enabled),
   },
 });

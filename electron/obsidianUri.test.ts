@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildObsidianOpenUri } from './obsidianUri.js';
+import { buildObsidianOpenUri, buildObsidianOpenPathUri } from './obsidianUri.js';
 
 // Regression tests for "Open in Obsidian" doing nothing on macOS. Two defects
 // met here: the renderer's window.open('obsidian://…') was dropped by the
@@ -57,5 +57,36 @@ describe('buildObsidianOpenUri', () => {
     expect(buildObsidianOpenUri(undefined as unknown as string, 'Note')).toBeNull();
     expect(buildObsidianOpenUri('Vault', null as unknown as string)).toBeNull();
     expect(buildObsidianOpenUri('Vault', 42 as unknown as string)).toBeNull();
+  });
+});
+
+// Launch-on-write (Phase 1): the deep link fired by the main process after the
+// debounced quiet window. `path` overrides `vault` and `file`, so the URI
+// carries only the absolute path resolveInVault produced.
+
+describe('buildObsidianOpenPathUri', () => {
+  it('builds a path URI from a POSIX absolute path', () => {
+    expect(buildObsidianOpenPathUri('/Users/me/Vault/Daily Notes/2026-08-22.md'))
+      .toBe('obsidian://open?path=%2FUsers%2Fme%2FVault%2FDaily%20Notes%2F2026-08-22.md');
+  });
+
+  it('builds a path URI from a Windows absolute path (drive colon and backslashes encoded)', () => {
+    expect(buildObsidianOpenPathUri('C:\\Vault\\note.md'))
+      .toBe('obsidian://open?path=C%3A%5CVault%5Cnote.md');
+  });
+
+  it('does not strip or trim — the path is a resolved filesystem path, not a wikilink', () => {
+    // A pre-existing vault file may legally contain '#' (the portability
+    // validator only refuses CREATING such names); the exact path must survive.
+    expect(buildObsidianOpenPathUri('/v/Notes #1.md'))
+      .toBe('obsidian://open?path=%2Fv%2FNotes%20%231.md');
+  });
+
+  it('returns null for empty, blank, or non-string input', () => {
+    expect(buildObsidianOpenPathUri('')).toBeNull();
+    expect(buildObsidianOpenPathUri('   ')).toBeNull();
+    expect(buildObsidianOpenPathUri(undefined as unknown as string)).toBeNull();
+    expect(buildObsidianOpenPathUri(null as unknown as string)).toBeNull();
+    expect(buildObsidianOpenPathUri(42 as unknown as string)).toBeNull();
   });
 });

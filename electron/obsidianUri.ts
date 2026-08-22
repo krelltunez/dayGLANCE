@@ -33,3 +33,22 @@ export function buildObsidianOpenUri(vaultName: string, noteName: string): strin
 
   return `obsidian://open?vault=${encodeURIComponent(vault)}&file=${encodeURIComponent(note)}`;
 }
+
+/**
+ * Builds the launch-on-write deep link for the vault file at an ABSOLUTE path.
+ * Obsidian's `path` parameter overrides both `vault` and `file`, so no vault
+ * name is needed — which is exactly right here, since only the main process
+ * holds the real path (resolveInVault in obsidian.ts) and the renderer is
+ * never involved.
+ *
+ * Unlike buildObsidianOpenUri there is no `#Heading` stripping or trimming:
+ * the input is a filesystem path the main process itself resolved, not a
+ * user-typed wikilink, and it must be passed through exactly.
+ *
+ * @param absPath Absolute path of the file just written.
+ * @returns The obsidian://open URI, or null when the input is unusable.
+ */
+export function buildObsidianOpenPathUri(absPath: string): string | null {
+  if (typeof absPath !== 'string' || absPath.trim() === '') return null;
+  return `obsidian://open?path=${encodeURIComponent(absPath)}`;
+}

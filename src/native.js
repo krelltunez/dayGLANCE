@@ -244,6 +244,17 @@ export const nativeOpenNote = (noteName) => {
   bridge.openNote(noteName);
 };
 
+/**
+ * Pushes the device-local launch-on-write toggle to the Android bridge, which
+ * owns the post-write debounce and fires the obsidian:// intent itself.
+ * No-op when the bridge (or an older APK without the method) is absent.
+ */
+export const nativeSetLaunchOnWrite = (enabled) => {
+  const bridge = obsidianBridge();
+  if (!bridge?.setLaunchOnWrite) return;
+  bridge.setLaunchOnWrite(!!enabled);
+};
+
 export const nativeGetDailyNote = (date) => {
   const bridge = obsidianBridge();
   if (!bridge?.getDailyNote) return null;

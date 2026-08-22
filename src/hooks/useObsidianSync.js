@@ -10,8 +10,9 @@ import {
 import {
   isNativeAndroid, isNativeApp,
   nativeGetVaultConfig, nativeGetNote, nativeWriteNote, nativeOpenNote,
-  nativeListNotes, nativeSetVaultSettings,
+  nativeListNotes, nativeSetVaultSettings, nativeSetLaunchOnWrite,
 } from '../native.js';
+import { effectiveLaunchOnWrite } from '../utils/obsidianLaunchOnWrite.js';
 import { validateWikiNoteName } from '../utils/obsidianFilename.js';
 import { classifyVaultPaths } from '../utils/vaultPortability.js';
 import { mergeObsidianDailyNotes } from '../utils/mergeObsidianDailyNotes.js';
@@ -41,6 +42,7 @@ export default function useObsidianSync({
   setWikilinkCandidates,
   setUnportableVaultFiles,
   obsidianConfig, setObsidianConfig,
+  obsidianLaunchOnWrite,
   setObsidianSyncStatus, setObsidianSyncError, setObsidianLastSynced,
   obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
   obsidianTasksRef, obsidianInboxRef,
@@ -502,6 +504,22 @@ export default function useObsidianSync({
     // paths would re-run a writeback on a mere settings change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, unscheduledTasks, obsidianConfig?.enabled]);
+
+  // Push the effective launch-on-write value to the platform layer that owns
+  // the post-write debounce: Electron main (obsidian:set-launch-on-write) or
+  // the Android bridge. Runs on mount and on every tri-state change; both
+  // schedulers start disabled, so nothing can fire before the first push.
+  // Plain browser has no launch mechanism (a window.open from a debounce timer
+  // is popup-blocked without a user gesture) — deliberately a no-op there.
+  useEffect(() => {
+    if (isTrayMode) return;
+    const api = typeof window !== 'undefined' ? window.electronAPI : null;
+    if (api?.obsidian?.setLaunchOnWrite) {
+      api.obsidian.setLaunchOnWrite(effectiveLaunchOnWrite(obsidianLaunchOnWrite, api.platform));
+    } else if (isNativeAndroid()) {
+      nativeSetLaunchOnWrite(effectiveLaunchOnWrite(obsidianLaunchOnWrite, 'android'));
+    }
+  }, [obsidianLaunchOnWrite, isTrayMode]);
 
   // On iOS, persist Obsidian folder/pattern/newNotesFolder to UserDefaults so
   // getDailyNote/writeDailyNote use the correct path (iOS has no SettingsActivity).

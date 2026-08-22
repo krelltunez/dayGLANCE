@@ -267,6 +267,8 @@
     "obsidianFilenamePattern": "Modèle de nom de fichier",
     "obsidianTaskHeading": "En-tête des tâches",
     "obsidianDailyNoteTemplate": "Modèle de note quotidienne",
+    "obsidianLaunchOnWrite": "Lancer Obsidian après les écritures",
+    "obsidianLaunchOnWriteHint": "Après que dayGLANCE a écrit dans votre coffre, Obsidian est lancé pour qu'Obsidian Sync propage la modification vers vos autres appareils. Sur macOS, cela se fait en arrière-plan.",
     "obsidianSyncComplete": "Synchronisation terminée",
     "obsidianSyncFailed": "Échec de la synchronisation. Voir la console pour les détails",
     "obsidianSelectVault": "Sélectionner le dossier du coffre",
