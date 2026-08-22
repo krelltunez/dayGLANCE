@@ -17,6 +17,11 @@ final class WidgetBridge {
     /// different target); inside the app target this is the one definition.
     static let snapshotKey = "widgetSnapshot"
 
+    /// The App Group key a pending action lives under, drained by
+    /// getPendingAction(). Hoisted for the same reason as appGroup above: it now
+    /// has more than one writer.
+    static let pendingActionKey = "widgetPendingAction"
+
     /// Widgets are killed at 30 MB with no warning. 200 KB is safely under that
     /// even with the full snapshot structure.
     private static let snapshotCapBytes = 200_000
@@ -70,12 +75,21 @@ final class WidgetBridge {
         return String(data: data, encoding: .utf8)
     }
 
+    /// Stashes a pending action for the web layer to pick up on resume. The
+    /// value shape ({ "action": ... }) matches what the widget extension's
+    /// ControlActionStore and widget intents write, so all entry points — Quick
+    /// Actions, Control Center, widget buttons, and the Siri/Shortcuts intents in
+    /// AppShortcuts.swift — land on the single getPendingAction() drain.
+    static func writePendingAction(_ action: String) {
+        UserDefaults(suiteName: appGroup)?.set(["action": action], forKey: pendingActionKey)
+    }
+
     func getPendingAction() -> String {
         guard let defaults = UserDefaults(suiteName: Self.appGroup),
-              let action = defaults.dictionary(forKey: "widgetPendingAction") else {
+              let action = defaults.dictionary(forKey: Self.pendingActionKey) else {
             return "null"
         }
-        defaults.removeObject(forKey: "widgetPendingAction")
+        defaults.removeObject(forKey: Self.pendingActionKey)
         let encoded = (try? JSONSerialization.data(withJSONObject: action))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "null"
         return encoded
