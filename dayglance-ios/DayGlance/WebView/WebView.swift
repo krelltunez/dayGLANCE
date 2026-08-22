@@ -144,6 +144,16 @@ struct WebView: UIViewRepresentable {
             UIApplication.shared.open(url, options: [:], completionHandler: nil)
         }
 
+        // iOS reclaims the WebContent process of backgrounded apps under memory
+        // pressure. Without this, the user returns to a dead blank page — and a
+        // Quick Action tapped on that dead page goes nowhere, because the
+        // dayglanceForeground event is dispatched into a document with no
+        // listeners. Reloading reboots the web app, whose dataLoaded drain then
+        // picks up the stashed pending shortcut / deep link.
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            webView.reload()
+        }
+
         // window.open(url, '_blank') and target="_blank" anchors ask WebKit to
         // create a new web view. We never create one — instead we hand off any
         // web URL to the system browser and return nil.

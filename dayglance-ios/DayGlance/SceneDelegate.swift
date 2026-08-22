@@ -17,6 +17,12 @@ final class SceneDelegate: NSObject, UIWindowSceneDelegate {
     // URL arrives in the connection options. The web layer drains these once its
     // data has loaded (the `dataLoaded` effect in App.jsx), so there's no need to
     // nudge it here — the WebView isn't even up yet.
+    //
+    // NOTE: SwiftUI's hosting machinery wraps this delegate class and can swallow
+    // willConnectTo, so the AUTHORITATIVE cold-launch Quick Action capture lives
+    // in AppDelegate.application(_:configurationForConnecting:options:). The
+    // capture below is a harmless idempotent backup (same value, same slot) for
+    // iOS versions that do forward the callback.
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         if let shortcut = connectionOptions.shortcutItem {
             AppDelegate.pendingShortcutAction = shortcut.type
