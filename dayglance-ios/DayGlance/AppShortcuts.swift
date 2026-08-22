@@ -42,6 +42,20 @@ struct AddInboxTaskShortcutIntent: AppIntent {
     }
 }
 
+struct AddScheduledTaskShortcutIntent: AppIntent {
+    static var title: LocalizedStringResource = "Add Scheduled Task"
+    static var description = IntentDescription(
+        "Opens dayGLANCE with a new task ready to add to your schedule."
+    )
+
+    static var openAppWhenRun: Bool = true
+
+    func perform() async throws -> some IntentResult {
+        WidgetBridge.writePendingAction("newScheduledTask")
+        return .result()
+    }
+}
+
 struct StartFocusShortcutIntent: AppIntent {
     static var title: LocalizedStringResource = "Start Focus"
     static var description = IntentDescription(
@@ -60,11 +74,16 @@ struct StartFocusShortcutIntent: AppIntent {
 // assemble a shortcut first. Phrases must interpolate .applicationName — the API
 // requires the app name in every phrase.
 //
-// Deliberately only two. App Shortcuts also feed Spotlight and Siri suggestions,
-// so the list is a discoverability surface rather than a menu: "add a scheduled
-// task" implies details Siri cannot collect without parameterized intents, and a
-// voice-input shortcut would mean asking Siri to open a voice capture UI. Both
-// remain available as Home Screen Quick Actions and Control Center controls.
+// Three of the four available actions. App Shortcuts also feed Spotlight and Siri
+// suggestions, so the list is a discoverability surface rather than a menu — but
+// these three are the ones worth surfacing. Voice input is left out: a shortcut
+// for it would mean asking Siri to open a voice capture UI, which is circular.
+// It remains available as a Home Screen Quick Action and a Control Center control.
+//
+// Note the inbox and scheduled phrasings overlap by design: "add a task" is a
+// prefix of "add a scheduled task". Siri prefers the longest match, so the more
+// specific phrase wins and the bare one falls through to inbox capture, which is
+// the right default for a quick spoken request.
 struct DayGlanceAppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
@@ -76,6 +95,16 @@ struct DayGlanceAppShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Add inbox task",
             systemImageName: "tray.and.arrow.down"
+        )
+        AppShortcut(
+            intent: AddScheduledTaskShortcutIntent(),
+            phrases: [
+                "Add a scheduled task in \(.applicationName)",
+                "New scheduled task in \(.applicationName)",
+                "Schedule a task in \(.applicationName)",
+            ],
+            shortTitle: "Add scheduled task",
+            systemImageName: "calendar.badge.plus"
         )
         AppShortcut(
             intent: StartFocusShortcutIntent(),
