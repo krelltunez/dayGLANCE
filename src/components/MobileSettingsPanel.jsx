@@ -16,6 +16,7 @@ import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, scanVaultNotes, formatDatePattern } from '../obsidian.js';
 import UnportableVaultNamesPanel from './UnportableVaultNamesPanel.jsx';
 import { validateDailyNotePattern, validateVaultFolderSetting } from '../utils/obsidianFilename.js';
+import { effectiveLaunchOnWrite } from '../utils/obsidianLaunchOnWrite.js';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import ICloudDiagnostics from './ICloudDiagnostics.jsx';
 import ICloudSyncToggle from './ICloudSyncToggle.jsx';
@@ -95,6 +96,7 @@ const MobileSettingsPanel = () => {
     cloudSyncStatus, cloudSyncLastSynced, cloudSyncError,
     syncKeyReady, setSyncKeyReady,
     obsidianConfig, setObsidianConfig,
+    obsidianLaunchOnWrite, setObsidianLaunchOnWrite,
     obsidianSyncStatus, obsidianSyncError, obsidianLastSynced, setObsidianLastSynced,
     wikilinkCandidates, setWikilinkCandidates,
     unportableVaultFiles, setUnportableVaultFiles,
@@ -107,6 +109,15 @@ const MobileSettingsPanel = () => {
     setShowIntentActivityLog,
     removeFileImportedEvents,
   } = useSyncCtx();
+
+  // Launch-on-write (Obsidian Phase 1) is shown only where a launch mechanism
+  // exists: Electron (main-process shell.openExternal) or the Android bridge
+  // intent. Plain browser has neither — a window.open fired from a debounce
+  // timer is popup-blocked without a user gesture. The platform string feeds
+  // the per-platform default (macOS on, everything else off).
+  const launchOnWritePlatform = window.electronAPI?.obsidian?.setLaunchOnWrite
+    ? window.electronAPI.platform
+    : (isNativeAndroid() && window.DayGlanceObsidian?.setLaunchOnWrite) ? 'android' : null;
   const {
     routinesEnabled, setRoutinesEnabled,
     todayRoutines, setDashboardSelectedChips,
@@ -1664,6 +1675,25 @@ const MobileSettingsPanel = () => {
               />
             </div>
           )}
+          {launchOnWritePlatform && obsidianConfig?.enabled && (
+            <div>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={effectiveLaunchOnWrite(obsidianLaunchOnWrite, launchOnWritePlatform)}
+                    onChange={(e) => setObsidianLaunchOnWrite(e.target.checked ? 'on' : 'off')}
+                    className="sr-only"
+                  />
+                  <div className={`w-10 h-6 rounded-full transition-colors ${effectiveLaunchOnWrite(obsidianLaunchOnWrite, launchOnWritePlatform) ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${effectiveLaunchOnWrite(obsidianLaunchOnWrite, launchOnWritePlatform) ? 'translate-x-5' : 'translate-x-1'}`} />
+                  </div>
+                </div>
+                <span className={`text-sm ${textPrimary}`}>{t('settings.obsidianLaunchOnWrite')}</span>
+              </label>
+              <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianLaunchOnWriteHint')}</p>
+            </div>
+          )}
           {obsidianSyncStatus === 'success' && <p className="text-xs text-green-500">{t('settings.obsidianSyncComplete')}</p>}
           {obsidianSyncStatus === 'error' && <p className="text-xs text-red-500">{t('settings.obsidianSyncFailed')}</p>}
           {obsidianLastSynced && obsidianConfig?.enabled && (
@@ -1737,6 +1767,25 @@ const MobileSettingsPanel = () => {
               rows={4}
             />
           </div>
+          {launchOnWritePlatform && (
+            <div>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={effectiveLaunchOnWrite(obsidianLaunchOnWrite, launchOnWritePlatform)}
+                    onChange={(e) => setObsidianLaunchOnWrite(e.target.checked ? 'on' : 'off')}
+                    className="sr-only"
+                  />
+                  <div className={`w-10 h-6 rounded-full transition-colors ${effectiveLaunchOnWrite(obsidianLaunchOnWrite, launchOnWritePlatform) ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${effectiveLaunchOnWrite(obsidianLaunchOnWrite, launchOnWritePlatform) ? 'translate-x-5' : 'translate-x-1'}`} />
+                  </div>
+                </div>
+                <span className={`text-sm ${textPrimary}`}>{t('settings.obsidianLaunchOnWrite')}</span>
+              </label>
+              <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianLaunchOnWriteHint')}</p>
+            </div>
+          )}
           <div className="flex gap-2">
             <button
               onClick={() => performObsidianSync()}

@@ -40,6 +40,7 @@ vi.mock('../native.js', () => ({
   nativeOpenNote: vi.fn(),
   nativeListNotes: vi.fn(() => []),
   nativeSetVaultSettings: vi.fn(),
+  nativeSetLaunchOnWrite: vi.fn(),
 }));
 
 const { default: useObsidianSync } = await import('./useObsidianSync.js');

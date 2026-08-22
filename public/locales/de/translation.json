@@ -267,6 +267,8 @@
     "obsidianFilenamePattern": "Dateinamenmuster",
     "obsidianTaskHeading": "Aufgaben-Überschrift",
     "obsidianDailyNoteTemplate": "Vorlage für tägliche Notizen",
+    "obsidianLaunchOnWrite": "Obsidian nach Schreibvorgängen starten",
+    "obsidianLaunchOnWriteHint": "Nachdem dayGLANCE in Ihren Tresor geschrieben hat, wird Obsidian gestartet, damit Obsidian Sync die Änderung an Ihre anderen Geräte überträgt. Auf macOS geschieht das im Hintergrund.",
     "obsidianSyncComplete": "Synchronisierung abgeschlossen",
     "obsidianSyncFailed": "Synchronisierung fehlgeschlagen. Konsole prüfen",
     "obsidianSelectVault": "Tresorordner auswählen",

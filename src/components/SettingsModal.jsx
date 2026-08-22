@@ -15,6 +15,7 @@ import { isNativeAndroid, nativeGetCalendars, nativeGetAutomationIntentsEnabled,
 import { hasNativeCalendar, electronCalendarAvailable, electronGetCalendars } from '../utils/nativeCalendar.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, formatDatePattern } from '../obsidian.js';
 import { validateDailyNotePattern, validateVaultFolderSetting } from '../utils/obsidianFilename.js';
+import { effectiveLaunchOnWrite } from '../utils/obsidianLaunchOnWrite.js';
 import UnportableVaultNamesPanel from './UnportableVaultNamesPanel.jsx';
 import { INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from '../intents/useIntentPoller.js';
 import { syncSharedUsers, syncSharedUsersViaICloud } from '../intents/sharedUsers.js';
@@ -77,6 +78,7 @@ const SettingsModal = () => {
     syncAll, isSyncing, calSyncLastSynced,
     availableCalendars, setAvailableCalendars, calendarFilter, setCalendarFilter,
     obsidianConfig, setObsidianConfig, obsidianSyncStatus, obsidianSyncError, obsidianLastSynced, setObsidianLastSynced,
+    obsidianLaunchOnWrite, setObsidianLaunchOnWrite,
     obsidianVaultHandleRef, unportableVaultFiles, setUnportableVaultFiles,
     performObsidianSync,
     trmnlConfig, setTrmnlConfig, trmnlSyncStatus, trmnlLastSynced, performTrmnlSync,
@@ -87,6 +89,15 @@ const SettingsModal = () => {
   const fileImportedEventCount = tasks.filter(
     t => t.imported && !t.isTaskCalendar && t.importSource === 'file'
   ).length;
+
+  // Launch-on-write (Obsidian Phase 1) is shown only where a launch mechanism
+  // exists: Electron (main-process shell.openExternal) or the Android bridge
+  // intent. Plain browser has neither — a window.open fired from a debounce
+  // timer is popup-blocked without a user gesture. The platform string feeds
+  // the per-platform default (macOS on, everything else off).
+  const launchOnWritePlatform = window.electronAPI?.obsidian?.setLaunchOnWrite
+    ? window.electronAPI.platform
+    : (isNativeAndroid() && window.DayGlanceObsidian?.setLaunchOnWrite) ? 'android' : null;
   const {
     habitsEnabled, setHabitsEnabled,
     routinesEnabled, setRoutinesEnabled,
@@ -1535,6 +1546,27 @@ const SettingsModal = () => {
                             <FolderOpen size={14} />
                             {t('settings.obsidianOpenVaultSettings')}
                           </button>
+                          {launchOnWritePlatform && obsidianConfig?.enabled && (
+                            <div>
+                              <label className="flex items-center gap-3 cursor-pointer">
+                                <div className="relative">
+                                  <input
+                                    type="checkbox"
+                                    checked={effectiveLaunchOnWrite(obsidianLaunchOnWrite, launchOnWritePlatform)}
+                                    onChange={(e) => setObsidianLaunchOnWrite(e.target.checked ? 'on' : 'off')}
+                                    className="sr-only"
+                                  />
+                                  <div className={`w-10 h-6 rounded-full transition-colors ${effectiveLaunchOnWrite(obsidianLaunchOnWrite, launchOnWritePlatform) ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${effectiveLaunchOnWrite(obsidianLaunchOnWrite, launchOnWritePlatform) ? 'translate-x-5' : 'translate-x-1'}`} />
+                                  </div>
+                                </div>
+                                <span className={`text-sm ${textPrimary}`}>{t('settings.obsidianLaunchOnWrite')}</span>
+                              </label>
+                              <p className={`text-xs ${textSecondary} mt-1`}>
+                                {t('settings.obsidianLaunchOnWriteHint')}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       ) : obsidianConfig?.enabled ? (
                         <div className="space-y-3">
@@ -1628,6 +1660,27 @@ const SettingsModal = () => {
                               Pre-filled when creating a new daily note
                             </p>
                           </div>
+                          {launchOnWritePlatform && (
+                            <div>
+                              <label className="flex items-center gap-3 cursor-pointer">
+                                <div className="relative">
+                                  <input
+                                    type="checkbox"
+                                    checked={effectiveLaunchOnWrite(obsidianLaunchOnWrite, launchOnWritePlatform)}
+                                    onChange={(e) => setObsidianLaunchOnWrite(e.target.checked ? 'on' : 'off')}
+                                    className="sr-only"
+                                  />
+                                  <div className={`w-10 h-6 rounded-full transition-colors ${effectiveLaunchOnWrite(obsidianLaunchOnWrite, launchOnWritePlatform) ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${effectiveLaunchOnWrite(obsidianLaunchOnWrite, launchOnWritePlatform) ? 'translate-x-5' : 'translate-x-1'}`} />
+                                  </div>
+                                </div>
+                                <span className={`text-sm ${textPrimary}`}>{t('settings.obsidianLaunchOnWrite')}</span>
+                              </label>
+                              <p className={`text-xs ${textSecondary} mt-1`}>
+                                {t('settings.obsidianLaunchOnWriteHint')}
+                              </p>
+                            </div>
+                          )}
                           <div className="flex gap-2">
                             <button
                               onClick={() => performObsidianSync()}

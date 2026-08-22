@@ -267,6 +267,8 @@
     "obsidianFilenamePattern": "Schema nome file",
     "obsidianTaskHeading": "Intestazione attività",
     "obsidianDailyNoteTemplate": "Modello nota giornaliera",
+    "obsidianLaunchOnWrite": "Avvia Obsidian dopo le scritture",
+    "obsidianLaunchOnWriteHint": "Dopo che dayGLANCE ha scritto nel tuo vault, Obsidian viene avviato così Obsidian Sync invia la modifica agli altri tuoi dispositivi. Su macOS avviene in background.",
     "obsidianSyncComplete": "Sincronizzazione completata",
     "obsidianSyncFailed": "Sincronizzazione fallita. Controlla la console",
     "obsidianSelectVault": "Seleziona cartella vault",

@@ -295,6 +295,24 @@ JS: window.DayGlanceObsidian.getDailyNote("2026-03-15")
   → returns raw markdown string
 ```
 
+### Launch-on-write
+
+After a debounced quiet window (8s) following vault writes, dayGLANCE fires
+`obsidian://open` for the last-written file so Obsidian Sync pushes the change
+even when Obsidian was closed. The debounce sits at each platform's write
+chokepoint, on the native side of the bridge: on Electron the
+`obsidian:write-file` handler feeds `electron/obsidianLaunch.ts` and the main
+process calls `shell.openExternal(uri, { activate: false })` (background launch
+on macOS; option ignored elsewhere); on Android `ObsidianRepository.writeText`
+feeds `LaunchOnWritePolicy` and the bridge fires the intent via its existing
+`openNote` path (`vault` + `file` form — SAF has no absolute path for `path=`).
+The toggle is a device-local tri-state key
+(`day-planner-obsidian-launch-on-write`, unset = platform default: on for
+macOS, off elsewhere), deliberately outside the cloud-synced `obsidianConfig`
+so one platform's setting can't leak to another. A failed launch is always
+silent — the vault write succeeded; only the wake didn't. Browser/PWA has no
+launch mechanism (a `window.open` from a timer is popup-blocked).
+
 ### Markdown parsing
 
 Both paths use the same parser in `obsidian.js`. Supported task formats:
