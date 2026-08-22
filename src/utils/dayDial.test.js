@@ -10,6 +10,7 @@ import {
   padDialSegment,
   classifyPrecip,
   computeDialModel,
+  dialLabelYieldsToSun,
   findDialFocusBlock,
   muteDialColor,
   precipRuns,
@@ -254,5 +255,36 @@ describe('findDialFocusBlock', () => {
   it('returns null when the rest of the day is clear', () => {
     expect(findDialFocusBlock(blocks, 1000)).toBeNull();
     expect(findDialFocusBlock([], 600)).toBeNull();
+  });
+});
+
+describe('dialLabelYieldsToSun', () => {
+  it('yields a label the sunrise mark sits on (August: 6:09 vs 6 AM)', () => {
+    expect(dialLabelYieldsToSun(360, { sunriseMin: 369, sunsetMin: 1183 })).toBe(true);
+  });
+
+  it('yields to a sunset near a label (equinox: 18:12 vs 6 PM)', () => {
+    expect(dialLabelYieldsToSun(1080, { sunriseMin: 420, sunsetMin: 1092 })).toBe(true);
+  });
+
+  it('leaves labels alone once the sun is clear of them', () => {
+    // Late May: sunrise 5:29, sunset 20:14 — both beyond the clearance.
+    expect(dialLabelYieldsToSun(360, { sunriseMin: 329, sunsetMin: 1214 })).toBe(false);
+    expect(dialLabelYieldsToSun(1080, { sunriseMin: 329, sunsetMin: 1214 })).toBe(false);
+  });
+
+  it('measures circularly across midnight', () => {
+    // White nights: a 23:50 sunset is 10 minutes from the 12 AM label.
+    expect(dialLabelYieldsToSun(0, { sunriseMin: 200, sunsetMin: 1430 })).toBe(true);
+  });
+
+  it('treats the clearance as exclusive at the boundary', () => {
+    expect(dialLabelYieldsToSun(360, { sunriseMin: 390, sunsetMin: null })).toBe(false);
+    expect(dialLabelYieldsToSun(360, { sunriseMin: 389, sunsetMin: null })).toBe(true);
+  });
+
+  it('is quiet with no solar data', () => {
+    expect(dialLabelYieldsToSun(360, null)).toBe(false);
+    expect(dialLabelYieldsToSun(360, { sunriseMin: null, sunsetMin: null })).toBe(false);
   });
 });

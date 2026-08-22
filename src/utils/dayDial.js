@@ -273,3 +273,19 @@ export function findDialFocusBlock(blocks, nowMin) {
   const next = (blocks || []).find((b) => b.startMin > nowMin);
   return next ? { block: next, current: false } : null;
 }
+
+// A sunrise/sunset mark rides its hairline out to the hour-label radius, so
+// a sun time within about half an hour of a label parks the glyph on the
+// text ("6☼AM" for an August sunrise at 6:09). The label yields for those
+// weeks — the hairline and glyph name the station more precisely than the
+// text does. Distance is circular so a white-nights sunset at 23:50 clears
+// the midnight label too.
+export const SUN_LABEL_CLEARANCE_MIN = 30;
+
+export function dialLabelYieldsToSun(labelMin, sun) {
+  return [sun?.sunriseMin, sun?.sunsetMin].some((m) => {
+    if (m == null) return false;
+    const d = Math.abs(m - labelMin) % DIAL_DAY_MINUTES;
+    return Math.min(d, DIAL_DAY_MINUTES - d) < SUN_LABEL_CLEARANCE_MIN;
+  });
+}
