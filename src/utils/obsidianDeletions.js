@@ -49,13 +49,18 @@ export function obsidianKeyDate(key) {
  * @param {object}  [opts]
  * @param {number}  [opts.maxDropAbs=5]     absolute drop above which a scan is deemed incomplete
  * @param {number}  [opts.maxDropRatio=0.25] fractional drop above which a scan is deemed incomplete
+ * @param {Record<string,string>} [opts.keyDates]  dates for keys that don't carry
+ *   one themselves. Block-id task keys (`obsidian-dg-<id>`) are deliberately
+ *   content-free, so their in-window proof comes from the daily-note date the
+ *   key was last scanned in — the caller persists that map alongside
+ *   lastScanned. A dateless key with no entry stays conservatively excluded.
  * @returns {{ deletions: string[], skipped: boolean, reason: string|null }}
  *   `deletions` — keys to tombstone (empty when skipped). `skipped` — the scan was
  *   judged incomplete and NO deletions were inferred (caller should also NOT
  *   overwrite its stored `lastScanned`, so a clean scan can still catch up).
  */
 export function detectObsidianDeletions(lastScanned, current, cutoffDate = null, opts = {}) {
-  const { maxDropAbs = 5, maxDropRatio = 0.25 } = opts;
+  const { maxDropAbs = 5, maxDropRatio = 0.25, keyDates = {} } = opts;
   const last = new Set(lastScanned || []);
   const cur = new Set(current || []);
   if (last.size === 0) return { deletions: [], skipped: false, reason: null };
@@ -68,7 +73,7 @@ export function detectObsidianDeletions(lastScanned, current, cutoffDate = null,
   // something we can't prove is in-window).
   if (cutoffDate) {
     missing = missing.filter((k) => {
-      const d = obsidianKeyDate(k);
+      const d = obsidianKeyDate(k) ?? keyDates[k] ?? null;
       return d != null && d >= cutoffDate;
     });
   }

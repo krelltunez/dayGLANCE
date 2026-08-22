@@ -79,3 +79,26 @@ describe('mergeObsidianTasks', () => {
     expect(out.map(t => t.id)).toEqual(['a']);
   });
 });
+
+// Phase 2 transition bridge: a scanned task carrying an obsidianLegacyId hint
+// (a line freshly tagged with ^dg-) matches the prior copy a device still
+// holds under the old content-derived id, and — because the caller includes
+// the hint in scannedIdsAllLists — that old copy is not retained as a ghost.
+describe('mergeObsidianTasks — legacy-id bridge', () => {
+  it('preserves app-only fields from the old copy via the obsidianLegacyId hint', () => {
+    const prev = [obs('obsidian-2026-08-22-abc', { archived: true, completedAt: '2026-08-21T10:00:00.000Z' })];
+    const scanned = [obs('obsidian-dg-xxxxxxxx', { obsidianLegacyId: 'obsidian-2026-08-22-abc' })];
+    const out = mergeObsidianTasks(prev, scanned, new Set(['obsidian-dg-xxxxxxxx', 'obsidian-2026-08-22-abc']), preserve);
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe('obsidian-dg-xxxxxxxx');
+    expect(out[0].archived).toBe(true);
+    expect(out[0].completedAt).toBe('2026-08-21T10:00:00.000Z');
+  });
+
+  it('does not retain the old legacy copy when its id is accounted for in the scanned set', () => {
+    const prev = [obs('obsidian-2026-08-22-abc')];
+    const scanned = [obs('obsidian-dg-xxxxxxxx', { obsidianLegacyId: 'obsidian-2026-08-22-abc' })];
+    const out = mergeObsidianTasks(prev, scanned, new Set(['obsidian-dg-xxxxxxxx', 'obsidian-2026-08-22-abc']), preserve);
+    expect(out.map(t => t.id)).toEqual(['obsidian-dg-xxxxxxxx']);
+  });
+});
