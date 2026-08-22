@@ -4,6 +4,7 @@ import {
   syncObsidianVault, syncObsidianVaultNative,
   writeTaskStateToFile, writeTaskStateNative,
   simpleHash as obsidianSimpleHash,
+  generateBlockId, appIdForBlockId,
   readWikiNote, writeWikiNote, scanVaultNotes,
   OBSIDIAN_IMPORT_WINDOW_DAYS, obsidianWindowCutoffDate,
 } from '../obsidian.js';
@@ -213,11 +214,30 @@ export default function useObsidianSync({
       // Keys this device's scan produced: daily-note dates + task ids (across BOTH
       // task lists, so a task that moved scheduled↔inbox counts as scanned and
       // isn't retained as a stale duplicate in the list it left).
+      const allScannedTasks = [...result.scheduledTasks, ...result.inboxTasks];
       const scannedObsidianIds = new Set([
-        ...result.scheduledTasks.map(t => String(t.id)),
-        ...result.inboxTasks.map(t => String(t.id)),
+        ...allScannedTasks.map(t => String(t.id)),
+        // Transition bridge (Phase 2): a ^dg- tagged line also "accounts for"
+        // the content-derived id it would have had untagged. Including the
+        // hint means the old id of a freshly-stamped line is neither retained
+        // as a ghost copy (mergeObsidianTasks treats it as scanned) nor
+        // reported to the deletion detector as missing — a rename is not a
+        // deletion, and a burst of stampings must not trip the detector's
+        // incomplete-scan threshold.
+        ...allScannedTasks.filter(t => t.obsidianLegacyId).map(t => String(t.obsidianLegacyId)),
       ]);
       const scannedKeys = [...Object.keys(result.dailyNotes), ...scannedObsidianIds];
+      // Dates for block-id task keys (obsidian-dg-…), which — unlike legacy
+      // ids — carry no date of their own. The deletion detector needs a date
+      // to tell "aged out of the scan window" from "deleted"; without one it
+      // conservatively never tombstones, which would silently break deletion
+      // propagation for every tagged task. A tagged task is visible exactly
+      // while its daily note is in the window, so the note's date is the
+      // honest answer.
+      const scannedKeyDates = {};
+      for (const t of allScannedTasks) {
+        if (t.obsidianBlockId && t.obsidianFileDate) scannedKeyDates[String(t.id)] = t.obsidianFileDate;
+      }
 
       // Option 1 — DELETION DETECTION (conservative). Diff this device's current
       // scan against what it scanned last time; keys it previously saw and no
@@ -230,19 +250,30 @@ export default function useObsidianSync({
       try { tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-obsidian-keys') || '{}'); } catch { tombstones = {}; }
       let lastScanned = [];
       try { lastScanned = JSON.parse(localStorage.getItem('day-planner-obsidian-last-scanned') || '[]'); } catch { lastScanned = []; }
+      // Sidecar of the PREVIOUS scan's key→date map — dates the missing-key
+      // check below against the scan the keys actually came from. Absent (first
+      // run after upgrade, or cleared storage) every dg key is conservatively
+      // excluded from deletion detection for one cycle, exactly like any other
+      // undatable key.
+      let lastScannedDates = {};
+      try { lastScannedDates = JSON.parse(localStorage.getItem('day-planner-obsidian-last-scanned-dates') || '{}'); } catch { lastScannedDates = {}; }
       // The scan only reads notes/tasks within the fixed Obsidian window of today
       // (OBSIDIAN_IMPORT_WINDOW_DAYS, src/obsidian.js), so notes aging out of that
       // window must NOT be mistaken for deletions. Use the SAME helper the scan uses
       // so the two windows can't drift.
       const obsidianCutoff = obsidianWindowCutoffDate(OBSIDIAN_IMPORT_WINDOW_DAYS);
-      const { deletions, skipped } = detectObsidianDeletions(lastScanned, scannedKeys, obsidianCutoff);
+      const { deletions, skipped } = detectObsidianDeletions(lastScanned, scannedKeys, obsidianCutoff, { keyDates: lastScannedDates });
       if (deletions.length) {
         tombstones = addObsidianTombstones(tombstones, deletions, new Date().toISOString());
         localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(tombstones));
       }
       // Only advance the baseline on a scan we trusted — a skipped (incomplete) scan
       // leaves lastScanned intact so the next clean scan can still catch the delete.
-      if (!skipped) localStorage.setItem('day-planner-obsidian-last-scanned', JSON.stringify(scannedKeys));
+      // The dates sidecar advances with it, in lockstep.
+      if (!skipped) {
+        localStorage.setItem('day-planner-obsidian-last-scanned', JSON.stringify(scannedKeys));
+        localStorage.setItem('day-planner-obsidian-last-scanned-dates', JSON.stringify(scannedKeyDates));
+      }
 
       // Update daily notes — MERGE the scan in, don't replace. Replacing deletes
       // any note this device's vault lacks (different vault, shorter retention, or
@@ -413,6 +444,24 @@ export default function useObsidianSync({
     // IDs of tasks whose obsidianRawTitle / id changed during this loop (title writeback).
     // We collect them and apply a single batched state update after the loop.
     const titleUpdates = []; // { oldId, newId, newRawTitle }
+    // Block-id assignments confirmed by a synchronous native write this pass.
+    const nativeBlockAssignments = []; // { fromId, blockId }
+
+    // Commit a fresh block-id assignment to app state once the vault write
+    // that stamped it reported success: the task's id switches to the durable
+    // block-derived form and the id is persisted as obsidianBlockId. The
+    // snapshot entry moves with it so change detection stays keyed correctly.
+    // Gated on write success deliberately — a failed stamp must leave the task
+    // untouched, or the app would hold an id no vault line carries (a ghost no
+    // scan could ever match or tombstone).
+    const applyBlockIdAssignment = (fromId, blockId) => {
+      const newId = appIdForBlockId(blockId);
+      const apply = t => (t.id === fromId ? { ...t, id: newId, obsidianBlockId: blockId } : t);
+      setTasks(prevTasks => prevTasks.map(apply));
+      setUnscheduledTasks(prevTasks => prevTasks.map(apply));
+      const snap = obsidianPrevTaskStateRef.current;
+      if (snap[fromId]) { snap[newId] = snap[fromId]; delete snap[fromId]; }
+    };
 
     for (const task of allObsidian) {
       const p = prev[task.id];
@@ -447,8 +496,36 @@ export default function useObsidianSync({
       const writeStartTime = task.isAllDay ? null : (task.startTime || null);
       const writeDuration = task.isAllDay ? null : (task.duration || null);
       const taskHeading = obsidianConfig?.taskHeading || '## Tasks';
+
+      // Phase 2 opportunistic migration: a changed task with no block id gets
+      // one assigned at THIS write — updateTaskLines stamps it onto the
+      // matched line, and the assignment is committed to app state only when
+      // the write reports success. Existing untagged tasks acquire ids
+      // naturally as they get edited; there is no sweep.
+      const assignBlockId = task.obsidianBlockId ? null : generateBlockId();
+      const writeBlockId = task.obsidianBlockId || assignBlockId;
+
+      // Title-change bookkeeping BEFORE the write, so the write-success
+      // callback maps from the task's post-title-update id:
+      //  - tagged task: the block id owns identity — a retitle never changes
+      //    the id, only obsidianRawTitle is refreshed;
+      //  - untagged task: legacy behavior — the content-derived id is
+      //    recomputed (and if this write's stamping succeeds, the block-id
+      //    assignment below supersedes it).
+      let postTitleId = task.id;
+      if (titleChanged && newRawTitle) {
+        if (task.obsidianBlockId) {
+          titleUpdates.push({ oldId: task.id, newId: task.id, newRawTitle });
+        } else {
+          // New content-derived ID from the updated raw title (mirrors parseTasksFromMarkdown)
+          const newId = `obsidian-${sourceDate}-${obsidianSimpleHash(newRawTitle)}`;
+          titleUpdates.push({ oldId: task.id, newId, newRawTitle });
+          postTitleId = newId;
+        }
+      }
+
       if (isNative) {
-        writeTaskStateNative(
+        const updated = writeTaskStateNative(
           sourceDate,
           task.obsidianRawTitle,
           task.completed,
@@ -457,7 +534,9 @@ export default function useObsidianSync({
           writeDuration,
           targetDate,
           taskHeading,
+          writeBlockId,
         );
+        if (updated && assignBlockId) nativeBlockAssignments.push({ fromId: postTitleId, blockId: assignBlockId });
       } else {
         writeTaskStateToFile(
           obsidianVaultHandleRef.current,
@@ -470,13 +549,10 @@ export default function useObsidianSync({
           writeDuration,
           targetDate,
           taskHeading,
-        ).catch(err => console.error('Obsidian: failed to write task state back', err));
-      }
-
-      if (titleChanged && newRawTitle) {
-        // New stable ID based on the updated raw title (mirrors parseTasksFromMarkdown)
-        const newId = `obsidian-${sourceDate}-${obsidianSimpleHash(newRawTitle)}`;
-        titleUpdates.push({ oldId: task.id, newId, newRawTitle });
+          writeBlockId,
+        ).then(updated => {
+          if (updated && assignBlockId) applyBlockIdAssignment(postTitleId, assignBlockId);
+        }).catch(err => console.error('Obsidian: failed to write task state back', err));
       }
     }
 
@@ -499,6 +575,13 @@ export default function useObsidianSync({
       next[snapshotId] = { completed: task.completed, startTime: task.startTime || null, duration: task.duration || null, title: task.title, date: task.date || null };
     }
     obsidianPrevTaskStateRef.current = next;
+
+    // Native writes are synchronous, so their confirmed block-id assignments
+    // commit here — after the snapshot rebuild, so the entry move inside
+    // applyBlockIdAssignment operates on the fresh snapshot. (Desktop
+    // assignments commit in each write's own .then, which also lands after
+    // this point.)
+    for (const { fromId, blockId } of nativeBlockAssignments) applyBlockIdAssignment(fromId, blockId);
     // Keyed on task changes — writeback fires when tasks change and reads the
     // current obsidianConfig paths + dedup refs at that moment. Adding the config
     // paths would re-run a writeback on a mere settings change.
