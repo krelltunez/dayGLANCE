@@ -116,6 +116,20 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         configurationForConnecting connectingSceneSession: UISceneSession,
         options: UIScene.ConnectionOptions
     ) -> UISceneConfiguration {
+        // A Quick Action that COLD-LAUNCHES the app must be captured here, from
+        // the connection options — not only in the scene delegate. SwiftUI wraps
+        // the delegateClass it is handed to install its own hosting window, and
+        // that machinery can swallow scene(_:willConnectTo:options:) entirely,
+        // in which case the shortcut riding in the connection options never
+        // reaches our SceneDelegate and the tap "just opens the app". This
+        // app-delegate callback always runs before the scene connects, so it is
+        // the one guaranteed capture point. (Warm-launch taps still arrive via
+        // SceneDelegate.windowScene(_:performActionFor:).) The web layer drains
+        // the stashed action once its data has loaded, so no nudge is needed —
+        // the WebView doesn't even exist yet.
+        if let shortcut = options.shortcutItem {
+            AppDelegate.pendingShortcutAction = shortcut.type
+        }
         let config = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
         config.delegateClass = SceneDelegate.self
         return config
