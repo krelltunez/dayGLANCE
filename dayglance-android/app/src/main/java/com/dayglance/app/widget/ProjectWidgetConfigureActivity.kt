@@ -1,5 +1,6 @@
 package com.dayglance.app.widget
 
+import com.dayglance.app.R
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
@@ -59,13 +60,13 @@ class ProjectWidgetConfigureActivity : AppCompatActivity() {
         }
 
         root.addView(TextView(this).apply {
-            text = "Select a Project"
+            text = getString(R.string.config_select_project)
             textSize = 18f
             setTextColor(resolveAttrColor(android.R.attr.textColorPrimary))
             setPadding(0, 0, 0, dp(4))
         })
         root.addView(TextView(this).apply {
-            text = "Choose which project to display on your widget."
+            text = getString(R.string.config_choose_project)
             textSize = 13f
             setTextColor(resolveAttrColor(android.R.attr.textColorSecondary))
             setPadding(0, 0, 0, dp(16))
@@ -73,7 +74,7 @@ class ProjectWidgetConfigureActivity : AppCompatActivity() {
 
         if (allProjects == null || allProjects.length() == 0) {
             root.addView(TextView(this).apply {
-                text = "No active projects found.\n\nOpen dayGLANCE to sync your data, then try adding the widget again."
+                text = getString(R.string.config_no_projects)
                 textSize = 14f
                 setTextColor(resolveAttrColor(android.R.attr.textColorSecondary))
             })

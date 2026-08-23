@@ -44,7 +44,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="UP NEXT"
+                android:text="@string/pill_up_next"
                 android:textColor="@color/widget_brand"
                 android:textStyle="bold"
                 android:textSize="11sp"
@@ -364,7 +364,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Nothing up next"
+                android:text="@string/upnext_empty_title"
                 android:textColor="@color/widget_text_primary"
                 android:textSize="14sp"
                 android:textStyle="bold" />
@@ -373,7 +373,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="You're all done for today"
+                android:text="@string/upnext_empty_sub"
                 android:textColor="@color/widget_text_secondary"
                 android:textSize="12sp" />
 

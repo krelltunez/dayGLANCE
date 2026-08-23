@@ -362,22 +362,22 @@ class DayGlanceWidgetListFactory(
                 try {
                     val parts = firstStart.split(":").map { it.toInt() }
                     val t = LocalTime.of(parts[0], parts.getOrNull(1) ?: 0)
-                    "Day starts at ${t.format(if (use24Hour) TWENTY_FOUR_HR else TWELVE_HR)}"
+                    context.getString(R.string.widget_day_starts_at, t.format(if (use24Hour) TWENTY_FOUR_HR else TWELVE_HR))
                 } catch (_: Throwable) { "" }
             } else ""
 
             // Build counts string
             val countParts = mutableListOf<String>()
-            if (taskCount > 0) countParts += "$taskCount task${if (taskCount != 1) "s" else ""}"
-            if (eventCount > 0) countParts += "$eventCount event${if (eventCount != 1) "s" else ""}"
-            if (deadlineCount > 0) countParts += "$deadlineCount deadline${if (deadlineCount != 1) "s" else ""}"
+            if (taskCount > 0) countParts += context.resources.getQuantityString(R.plurals.widget_count_tasks, taskCount, taskCount)
+            if (eventCount > 0) countParts += context.resources.getQuantityString(R.plurals.widget_count_events, eventCount, eventCount)
+            if (deadlineCount > 0) countParts += context.resources.getQuantityString(R.plurals.widget_count_deadlines, deadlineCount, deadlineCount)
             val countsStr = countParts.joinToString("  ·  ")
 
             items += AgendaItem.GlanceAhead(
                 dayLabel = dayLabel,
                 startTimeStr = startTimeStr,
                 countsStr = countsStr,
-                committedStr = if (committedStr.isNotEmpty()) "$committedStr committed" else "",
+                committedStr = if (committedStr.isNotEmpty()) context.getString(R.string.widget_committed, committedStr) else "",
                 isEmpty = isEmpty,
             )
         }
@@ -486,7 +486,7 @@ class DayGlanceWidgetListFactory(
         rv.setProgressBar(activeBarId, 100, item.progressPct, false)
 
         val statsStr = if (item.totalTasks > 0)
-            "${item.progressPct}% · ${item.completedTasks}/${item.totalTasks} tasks"
+            context.getString(R.string.widget_goal_stats, item.progressPct, item.completedTasks, item.totalTasks)
         else
             "${item.progressPct}%"
         rv.setTextViewText(R.id.tv_goal_stats, statsStr)
@@ -534,7 +534,7 @@ class DayGlanceWidgetListFactory(
 
     private fun buildSectionView(item: AgendaItem.Section): RemoteViews {
         val rv = RemoteViews(context.packageName, R.layout.widget_item_section)
-        rv.setTextViewText(R.id.tv_section_label, item.label)
+        rv.setTextViewText(R.id.tv_section_label, localizedSection(item.label))
         val labelColor = if (item.isOverdue) colorRes(R.color.widget_overdue_text)
                          else colorRes(R.color.widget_section_text)
         rv.setTextColor(R.id.tv_section_label, labelColor)
@@ -572,7 +572,7 @@ class DayGlanceWidgetListFactory(
 
         // Badge
         if (item.badge.isNotEmpty()) {
-            rv.setTextViewText(R.id.tv_task_badge, item.badge)
+            rv.setTextViewText(R.id.tv_task_badge, localizedBadge(item.badge))
             rv.setViewVisibility(R.id.tv_task_badge, View.VISIBLE)
             val badgeColor = when (item.badge) {
                 "OVERDUE" -> colorRes(R.color.widget_overdue_text)
@@ -622,7 +622,7 @@ class DayGlanceWidgetListFactory(
         // Available time
         if (item.availableMinutes > 0) {
             val avail = formatMinutes(item.availableMinutes)
-            rv.setTextViewText(R.id.tv_frame_avail, "$avail free")
+            rv.setTextViewText(R.id.tv_frame_avail, context.getString(R.string.widget_free, avail))
             rv.setViewVisibility(R.id.tv_frame_avail, View.VISIBLE)
         } else {
             rv.setViewVisibility(R.id.tv_frame_avail, View.GONE)
@@ -646,7 +646,7 @@ class DayGlanceWidgetListFactory(
         val rv = RemoteViews(context.packageName, R.layout.widget_item_glanceahead)
 
         // Header: "GLANCEahead — Monday"
-        rv.setTextViewText(R.id.tv_glanceahead_header, "GLANCEahead — ${item.dayLabel}")
+        rv.setTextViewText(R.id.tv_glanceahead_header, context.getString(R.string.widget_glanceahead_header, item.dayLabel))
 
         if (item.isEmpty) {
             rv.setViewVisibility(R.id.tv_glanceahead_empty, View.VISIBLE)
@@ -689,7 +689,7 @@ class DayGlanceWidgetListFactory(
     private fun buildEmptyView(): RemoteViews {
         // Reuse the section layout to show an "all caught up" message
         val rv = RemoteViews(context.packageName, R.layout.widget_item_section)
-        rv.setTextViewText(R.id.tv_section_label, "All caught up ✓")
+        rv.setTextViewText(R.id.tv_section_label, context.getString(R.string.widget_all_caught_up))
         rv.setOnClickFillInIntent(R.id.section_item_root, android.content.Intent())
         return rv
     }
@@ -772,6 +772,25 @@ class DayGlanceWidgetListFactory(
     private fun isDarkMode(): Boolean =
         (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
             Configuration.UI_MODE_NIGHT_YES
+
+    // The agenda model carries the English constants ("OVERDUE", …) because
+    // logic — the badge color switch, isOverdue flags — keys on them. Only the
+    // rendered text is localized, here at the last moment.
+    private fun localizedSection(label: String): String = when (label) {
+        "GOALS" -> context.getString(R.string.section_goals)
+        "OVERDUE" -> context.getString(R.string.section_overdue)
+        "ALL DAY" -> context.getString(R.string.section_all_day)
+        "SCHEDULED" -> context.getString(R.string.section_scheduled)
+        "ROUTINES" -> context.getString(R.string.section_routines)
+        else -> label
+    }
+
+    private fun localizedBadge(badge: String): String = when (badge) {
+        "OVERDUE" -> context.getString(R.string.badge_overdue)
+        "DUE TODAY" -> context.getString(R.string.badge_due_today)
+        "IN PROGRESS" -> context.getString(R.string.badge_in_progress)
+        else -> badge
+    }
 
     private fun colorRes(resId: Int): Int =
         context.resources.getColor(resId, context.theme)

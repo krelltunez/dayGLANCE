@@ -1,5 +1,6 @@
 package com.dayglance.app.notifications
 
+import com.dayglance.app.R
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -101,7 +102,7 @@ class UpNextNotificationUpdater : BroadcastReceiver() {
                 return
             }
 
-            val bodyText = buildBodyText(nowMin, startMin, duration, endMin, use24Hour, bodyPrefix)
+            val bodyText = buildBodyText(context, nowMin, startMin, duration, endMin, use24Hour, bodyPrefix)
 
             // Skip nm.notify() if the content hasn't changed — avoids repositioning the
             // notification on every JS state update while a task is in progress.
@@ -125,6 +126,7 @@ class UpNextNotificationUpdater : BroadcastReceiver() {
         // ── Internal helpers ────────────────────────────────────────────────
 
         private fun buildBodyText(
+            context: Context,
             nowMin: Int,
             startMin: Int,
             duration: Int,
@@ -135,13 +137,14 @@ class UpNextNotificationUpdater : BroadcastReceiver() {
             nowMin < startMin -> {
                 val diff = startMin - nowMin
                 val countdown = if (diff >= 60) {
-                    "Starts in ${diff / 60}h${if (diff % 60 > 0) " ${diff % 60}m" else ""}"
+                    if (diff % 60 > 0) context.getString(R.string.notif_starts_in_h_m, diff / 60, diff % 60)
+                    else context.getString(R.string.notif_starts_in_h, diff / 60)
                 } else {
-                    "Starts in ${diff}m"
+                    context.getString(R.string.notif_starts_in_m, diff)
                 }
                 "$bodyPrefix$countdown"
             }
-            duration == 0 -> "${bodyPrefix}Starting now"
+            duration == 0 -> bodyPrefix + context.getString(R.string.notif_starting_now)
             else -> {
                 val endH = (endMin / 60) % 24
                 val endM = endMin % 60
@@ -152,7 +155,7 @@ class UpNextNotificationUpdater : BroadcastReceiver() {
                     val amPm = if (endH >= 12) "PM" else "AM"
                     "%d:%02d %s".format(h, endM, amPm)
                 }
-                "${bodyPrefix}In progress · ends at $endStr"
+                bodyPrefix + context.getString(R.string.notif_in_progress_ends, endStr)
             }
         }
 

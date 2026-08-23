@@ -21,27 +21,27 @@ class DayGlanceApplication : Application() {
             listOf(
                 NotificationChannel(
                     CHANNEL_REMINDERS,
-                    "Reminders",
+                    getString(R.string.channel_reminders),
                     NotificationManager.IMPORTANCE_HIGH
-                ).apply { description = "Task and event reminders" },
+                ).apply { description = getString(R.string.channel_reminders_desc) },
 
                 NotificationChannel(
                     CHANNEL_FOCUS,
-                    "Focus Mode",
+                    getString(R.string.channel_focus),
                     NotificationManager.IMPORTANCE_DEFAULT
-                ).apply { description = "Pomodoro and focus block alerts" },
+                ).apply { description = getString(R.string.channel_focus_desc) },
 
                 NotificationChannel(
                     CHANNEL_EVENTS,
-                    "Events",
+                    getString(R.string.channel_events),
                     NotificationManager.IMPORTANCE_DEFAULT
-                ).apply { description = "Upcoming calendar event notifications" },
+                ).apply { description = getString(R.string.channel_events_desc) },
 
                 NotificationChannel(
                     CHANNEL_UP_NEXT,
-                    "Up Next",
+                    getString(R.string.channel_up_next),
                     NotificationManager.IMPORTANCE_LOW
-                ).apply { description = "Persistent notification showing your next scheduled task" },
+                ).apply { description = getString(R.string.channel_up_next_desc) },
             )
         )
     }

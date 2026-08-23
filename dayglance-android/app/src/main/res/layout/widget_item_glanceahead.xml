@@ -69,7 +69,7 @@
         android:id="@+id/tv_glanceahead_empty"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Tomorrow is wide open"
+        android:text="@string/glanceahead_empty"
         android:textColor="@color/widget_text_secondary"
         android:textSize="13sp"
         android:textStyle="italic"

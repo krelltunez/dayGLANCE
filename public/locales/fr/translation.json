@@ -701,7 +701,9 @@
     "hgUpNext": "{{title}} · Commence dans {{minutes}} min",
     "hgUpNextWithTasks_one": "{{title}} · {{count}} tâche · Commence dans {{minutes}} min",
     "hgUpNextWithTasks_other": "{{title}} · {{count}} tâches · Commence dans {{minutes}} min",
-    "hgStartingNow": "{{title}} · Commence maintenant"
+    "hgStartingNow": "{{title}} · Commence maintenant",
+    "taskCount_one": "{{count}} tâche",
+    "taskCount_other": "{{count}} tâches"
   },
   "frames": {
     "title": "Plages GTD",

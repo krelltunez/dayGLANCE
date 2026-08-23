@@ -135,13 +135,13 @@ class NotificationBridge(private val context: Context) {
 
         // Snooze 15m — available for all types except "end"
         if (type != "end") {
-            builder.addAction(0, "Snooze 15m",
+            builder.addAction(0, context.getString(R.string.notif_snooze),
                 snoozePendingIntent(notifId, taskId, title, body, type, isCalendarEvent))
         }
 
         // Mark Complete — available for start/end reminders on non-calendar tasks
         if ((type == "start" || type == "end") && !isCalendarEvent) {
-            builder.addAction(0, "Mark Complete", completePendingIntent(notifId, taskId))
+            builder.addAction(0, context.getString(R.string.notif_complete), completePendingIntent(notifId, taskId))
         }
 
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -345,8 +345,8 @@ class NotificationBridge(private val context: Context) {
             val task = JSONObject(taskJson)
             val notification = NotificationCompat.Builder(context, DayGlanceApplication.CHANNEL_UP_NEXT)
                 .setSmallIcon(R.drawable.ic_notification)
-                .setSubText("Up Next")
-                .setContentTitle(task.optString("title", "Up Next"))
+                .setSubText(context.getString(R.string.notif_up_next))
+                .setContentTitle(task.optString("title", context.getString(R.string.notif_up_next)))
                 .setContentText(task.optString("bodyText", ""))
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setCategory(NotificationCompat.CATEGORY_STATUS)

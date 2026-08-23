@@ -86,7 +86,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 context, notifId + 1, snoozeIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            builder.addAction(0, "Snooze 15m", snoozePi)
+            builder.addAction(0, context.getString(R.string.notif_snooze), snoozePi)
         }
 
         // Mark Complete — available for start/end reminders on non-calendar tasks
@@ -100,7 +100,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 context, notifId + 2, completeIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            builder.addAction(0, "Mark Complete", completePi)
+            builder.addAction(0, context.getString(R.string.notif_complete), completePi)
         }
 
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

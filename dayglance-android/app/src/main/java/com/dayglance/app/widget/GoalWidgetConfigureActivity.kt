@@ -62,7 +62,7 @@ class GoalWidgetConfigureActivity : AppCompatActivity() {
 
         // Title
         root.addView(TextView(this).apply {
-            text = "Select a Goal"
+            text = getString(R.string.config_select_goal)
             textSize = 18f
             setTextColor(resolveAttrColor(android.R.attr.textColorPrimary))
             setPadding(0, 0, 0, dp(4))
@@ -70,7 +70,7 @@ class GoalWidgetConfigureActivity : AppCompatActivity() {
 
         // Subtitle
         root.addView(TextView(this).apply {
-            text = "Choose which goal to display on your widget."
+            text = getString(R.string.config_choose_goal)
             textSize = 13f
             setTextColor(resolveAttrColor(android.R.attr.textColorSecondary))
             setPadding(0, 0, 0, dp(16))
@@ -78,7 +78,7 @@ class GoalWidgetConfigureActivity : AppCompatActivity() {
 
         if (allGoals == null || allGoals.length() == 0) {
             root.addView(TextView(this).apply {
-                text = "No active goals found.\n\nOpen dayGLANCE to sync your data, then try adding the widget again."
+                text = getString(R.string.config_no_goals)
                 textSize = 14f
                 setTextColor(resolveAttrColor(android.R.attr.textColorSecondary))
             })

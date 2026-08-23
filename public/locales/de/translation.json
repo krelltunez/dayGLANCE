@@ -701,7 +701,9 @@
     "hgUpNext": "{{title}} · Beginnt in {{minutes}} Min.",
     "hgUpNextWithTasks_one": "{{title}} · {{count}} Aufgabe · Beginnt in {{minutes}} Min.",
     "hgUpNextWithTasks_other": "{{title}} · {{count}} Aufgaben · Beginnt in {{minutes}} Min.",
-    "hgStartingNow": "{{title}} · Beginnt jetzt"
+    "hgStartingNow": "{{title}} · Beginnt jetzt",
+    "taskCount_one": "{{count}} Aufgabe",
+    "taskCount_other": "{{count}} Aufgaben"
   },
   "frames": {
     "title": "GTD-Rahmen",
