@@ -55,6 +55,15 @@ Run these once each on real hardware or a representative simulator:
   action can be drained, and a control whose intent is not compiled into the
   app target silently does neither. `src/iosControls.test.js` guards the
   project layout that makes this work, but only a device proves the launch.
+- iOS: the Up Next widget's Complete and Start Focus buttons still foreground
+  the app and apply the action. These worked at rollout, but the
+  `ForegroundContinuableIntent` conformances in WidgetIntents.swift are marked
+  `@available(iOSApplicationExtension, unavailable)` in a file only the
+  extension target compiles, so they are excluded from that build and the
+  protection the comment describes is not actually in effect. If the buttons
+  have since broken on iOS 18.4+, moving WidgetIntents.swift to `Shared/` (as
+  ControlWidgets.swift already is) puts the conformance in the app target
+  where it compiles. Confirm before deleting the conformances as dead code.
 - Android: vault SSE stream connects and the WebView renders the app.
 - Android: a real purchase completes and is acknowledged, and the app
   recovers when the billing service is not ready at first tap (honest
