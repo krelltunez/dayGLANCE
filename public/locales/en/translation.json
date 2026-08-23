@@ -701,7 +701,9 @@
     "hgUpNext": "{{title}} · Starts in {{minutes}}m",
     "hgUpNextWithTasks_one": "{{title}} · {{count}} task · Starts in {{minutes}}m",
     "hgUpNextWithTasks_other": "{{title}} · {{count}} tasks · Starts in {{minutes}}m",
-    "hgStartingNow": "{{title}} · Starting now"
+    "hgStartingNow": "{{title}} · Starting now",
+    "taskCount_one": "{{count}} task",
+    "taskCount_other": "{{count}} tasks"
   },
   "frames": {
     "title": "GTD Frames",

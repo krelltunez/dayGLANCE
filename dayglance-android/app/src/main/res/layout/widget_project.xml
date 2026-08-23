@@ -44,7 +44,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="PROJECT"
+                android:text="@string/pill_project"
                 android:textColor="@color/widget_brand"
                 android:textStyle="bold"
                 android:textSize="11sp"
@@ -147,7 +147,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="6dp"
-                            android:text="DONE"
+                            android:text="@string/badge_done"
                             android:textColor="#22c55e"
                             android:textSize="11sp"
                             android:textStyle="bold"
@@ -381,7 +381,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="No project selected"
+                android:text="@string/widget_no_project"
                 android:textColor="@color/widget_text_primary"
                 android:textSize="14sp"
                 android:textStyle="bold" />
@@ -391,7 +391,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="Long-press widget to reconfigure"
+                android:text="@string/widget_reconfigure"
                 android:textColor="@color/widget_text_secondary"
                 android:textSize="12sp" />
 

@@ -63,7 +63,7 @@ class GoalWidget : AppWidgetProvider() {
         val snapshot = dataStore.widgetSnapshot?.let { runCatching { JSONObject(it) }.getOrNull() }
 
         // Header date
-        val dateLabel = snapshot?.optString("dateLabel") ?: formatTodayLabel()
+        val dateLabel = snapshot?.optString("dateLabel") ?: formatTodayLabel(context)
         views.setTextViewText(R.id.tv_goal_widget_date, dateLabel)
 
         // Tap root to open app
@@ -87,11 +87,11 @@ class GoalWidget : AppWidgetProvider() {
         val selectedGoalId = prefs.getString(prefKey(appWidgetId), null)
 
         if (selectedGoalId == null) {
-            showEmpty(views, "Long-press widget to reconfigure")
+            showEmpty(views, context.getString(R.string.widget_reconfigure))
         } else {
             val goal = findGoal(snapshot, selectedGoalId)
             if (goal == null) {
-                showEmpty(views, "It may have been deleted or completed")
+                showEmpty(views, context.getString(R.string.widget_goal_gone))
             } else {
                 bindGoalViews(views, goal, context)
             }
@@ -125,17 +125,16 @@ class GoalWidget : AppWidgetProvider() {
         catch (_: Throwable) { }
 
         // Title
-        views.setTextViewText(R.id.tv_goal_widget_title, goal.optString("title", "Untitled"))
+        views.setTextViewText(R.id.tv_goal_widget_title, goal.optString("title", context.getString(R.string.widget_untitled)))
 
         // Due date badge
         val daysUntilDue = if (goal.isNull("daysUntilDue")) null else goal.optInt("daysUntilDue")
         val targetDate = goal.optString("targetDate", "")
         if (daysUntilDue != null && targetDate.isNotEmpty()) {
             val dueLabel = when {
-                daysUntilDue < 0  -> "${-daysUntilDue}d overdue"
-                daysUntilDue == 0 -> "Due today"
-                daysUntilDue == 1 -> "1d left"
-                else              -> "${daysUntilDue}d left"
+                daysUntilDue < 0  -> context.getString(R.string.widget_due_overdue, -daysUntilDue)
+                daysUntilDue == 0 -> context.getString(R.string.widget_due_today)
+                else              -> context.getString(R.string.widget_due_left, daysUntilDue)
             }
             views.setTextViewText(R.id.tv_goal_widget_due, dueLabel)
             views.setViewVisibility(R.id.tv_goal_widget_due, View.VISIBLE)
@@ -234,7 +233,7 @@ class GoalWidget : AppWidgetProvider() {
 
         // Overflow
         if (totalOverflow > 0) {
-            views.setTextViewText(R.id.tv_goal_widget_more, "+$totalOverflow more project${if (totalOverflow != 1) "s" else ""}")
+            views.setTextViewText(R.id.tv_goal_widget_more, context.resources.getQuantityString(R.plurals.widget_more_projects, totalOverflow, totalOverflow))
             views.setViewVisibility(R.id.tv_goal_widget_more, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.tv_goal_widget_more, View.GONE)
@@ -265,7 +264,7 @@ class GoalWidget : AppWidgetProvider() {
         if (isCompleted) {
             // Hide progress bar; show a green "✓ Done" badge.
             views.setViewVisibility(row.progressId, View.GONE)
-            views.setTextViewText(row.statsId, "✓ Done")
+            views.setTextViewText(row.statsId, context.getString(R.string.widget_done_check))
             views.setTextColor(row.statsId, 0xFF22C55E.toInt())
         } else {
             // Active project — blue progress bar, secondary-coloured task count.
@@ -298,9 +297,9 @@ class GoalWidget : AppWidgetProvider() {
         views.setInt(activeId, "setProgress", pct)
     }
 
-    private fun formatTodayLabel(): String = try {
+    private fun formatTodayLabel(context: Context): String = try {
         LocalDate.now().format(DateTimeFormatter.ofPattern("EEE, MMM d"))
-    } catch (_: Throwable) { "Today" }
+    } catch (_: Throwable) { context.getString(R.string.widget_today) }
 
     // ── Broadcast + refresh ───────────────────────────────────────────────────
 

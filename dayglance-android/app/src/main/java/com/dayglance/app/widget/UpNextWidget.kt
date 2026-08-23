@@ -64,7 +64,7 @@ class UpNextWidget : AppWidgetProvider() {
         val use24Hour = snapshot?.optBoolean("use24Hour", false) ?: false
 
         // Header date
-        val dateLabel = snapshot?.optString("dateLabel") ?: formatTodayLabel()
+        val dateLabel = snapshot?.optString("dateLabel") ?: formatTodayLabel(context)
         views.setTextViewText(R.id.tv_upnext_date, dateLabel)
 
         // Tap root to open app
@@ -90,7 +90,7 @@ class UpNextWidget : AppWidgetProvider() {
         if (nextTask != null) {
             views.setViewVisibility(R.id.layout_upnext_task, View.VISIBLE)
             views.setViewVisibility(R.id.layout_upnext_empty, View.GONE)
-            bindTaskViews(views, nextTask, use24Hour)
+            bindTaskViews(context, views, nextTask, use24Hour)
         } else {
             views.setViewVisibility(R.id.layout_upnext_task, View.GONE)
             views.setViewVisibility(R.id.layout_upnext_empty, View.VISIBLE)
@@ -99,7 +99,7 @@ class UpNextWidget : AppWidgetProvider() {
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 
-    private fun bindTaskViews(views: RemoteViews, task: JSONObject, use24Hour: Boolean) {
+    private fun bindTaskViews(context: Context, views: RemoteViews, task: JSONObject, use24Hour: Boolean) {
         // Color bar
         try {
             val colorHex = task.optString("colorHex", "#3b82f6")
@@ -112,7 +112,7 @@ class UpNextWidget : AppWidgetProvider() {
         // Time range + time-until countdown
         val startTime = task.optString("startTime", "")
         val duration = task.optInt("duration", 0)
-        val (timeStr, timeUntilStr) = buildTimeStrings(startTime, duration, use24Hour)
+        val (timeStr, timeUntilStr) = buildTimeStrings(context, startTime, duration, use24Hour)
         views.setTextViewText(R.id.tv_upnext_time, timeStr)
         if (timeUntilStr.isNotEmpty()) {
             views.setTextViewText(R.id.tv_upnext_time_until, timeUntilStr)
@@ -187,6 +187,7 @@ class UpNextWidget : AppWidgetProvider() {
      * timeUntilStr: e.g. "in 15m", "in 1h 30m", "in progress", or "" when ended
      */
     private fun buildTimeStrings(
+        context: Context,
         startTime: String,
         duration: Int,
         use24Hour: Boolean,
@@ -216,12 +217,12 @@ class UpNextWidget : AppWidgetProvider() {
                     if (diff >= 60) {
                         val h = diff / 60
                         val m = diff % 60
-                        if (m == 0) "in ${h}h" else "in ${h}h ${m}m"
+                        if (m == 0) context.getString(R.string.upnext_in_h, h) else context.getString(R.string.upnext_in_h_m, h, m)
                     } else {
-                        "in ${diff}m"
+                        context.getString(R.string.upnext_in_m, diff)
                     }
                 }
-                nowMin < endMin -> "in progress"
+                nowMin < endMin -> context.getString(R.string.upnext_in_progress)
                 else -> "" // task has ended — no badge
             }
 
@@ -231,9 +232,9 @@ class UpNextWidget : AppWidgetProvider() {
         }
     }
 
-    private fun formatTodayLabel(): String = try {
+    private fun formatTodayLabel(context: Context): String = try {
         LocalDate.now().format(DateTimeFormatter.ofPattern("EEE, MMM d"))
-    } catch (_: Throwable) { "Today" }
+    } catch (_: Throwable) { context.getString(R.string.widget_today) }
 
     // ── Manual refresh broadcast ──────────────────────────────────────────────
 

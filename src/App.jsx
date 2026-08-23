@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
+import i18n from 'i18next';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, Flag, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { hasNativeCalendar, electronGetCalendars, electronGetEventsByDate, electronRequestCalendarAccess, nativeEventToTask } from './utils/nativeCalendar.js';
@@ -6487,7 +6488,7 @@ const DayPlanner = () => {
     const committedMinutes = scheduledItems.reduce((sum, t) => sum + (t.duration || 0), 0);
 
     // Day label
-    const dayLabel = tomorrow.toLocaleDateString('en-US', { weekday: 'long' });
+    const dayLabel = tomorrow.toLocaleDateString(i18n.language, { weekday: 'long' });
 
     return {
       dayLabel,
@@ -7493,7 +7494,7 @@ const DayPlanner = () => {
       const hgMin = nextHGForUpNext ? nextHGForUpNext.startMin : Infinity;
       if (nextHGForUpNext && hgMin <= taskMin) {
         const tc = nextHGForUpNext.taskCount;
-        const tcLabel = tc > 0 ? ` · ${tc} task${tc !== 1 ? 's' : ''}` : '';
+        const tcLabel = tc > 0 ? ` · ${i18n.t('reminders.taskCount', { count: tc })}` : '';
         return { title: 'hyperGLANCE', startTime: nextHGForUpNext.startTime, duration: nextHGForUpNext.duration, energy: deriveBlockEnergy(nextHGForUpNext), bodyPrefix: `${nextHGForUpNext.title}${tcLabel} · ` };
       }
       if (nextTaskItem)

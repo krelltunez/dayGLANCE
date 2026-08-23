@@ -83,11 +83,11 @@ class ProjectWidget : AppWidgetProvider() {
         val selectedProjectId = prefs.getString(prefKey(appWidgetId), null)
 
         if (selectedProjectId == null) {
-            showEmpty(views, "Long-press widget to reconfigure")
+            showEmpty(views, context.getString(R.string.widget_reconfigure))
         } else {
             val project = findProject(snapshot, selectedProjectId)
             if (project == null) {
-                showEmpty(views, "Project may have been deleted or archived")
+                showEmpty(views, context.getString(R.string.widget_project_gone))
             } else {
                 bindProjectViews(views, project)
             }
@@ -131,7 +131,7 @@ class ProjectWidget : AppWidgetProvider() {
         catch (_: Throwable) { }
 
         // Title
-        views.setTextViewText(R.id.tv_pw_title, project.optString("title", "Untitled"))
+        views.setTextViewText(R.id.tv_pw_title, project.optString("title", context.getString(R.string.widget_untitled)))
 
         // Progress + stats
         val pct   = project.optInt("progressPct", 0)

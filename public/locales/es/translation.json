@@ -701,7 +701,9 @@
     "hgUpNext": "{{title}} · Empieza en {{minutes}} min",
     "hgUpNextWithTasks_one": "{{title}} · {{count}} tarea · Empieza en {{minutes}} min",
     "hgUpNextWithTasks_other": "{{title}} · {{count}} tareas · Empieza en {{minutes}} min",
-    "hgStartingNow": "{{title}} · Empieza ahora"
+    "hgStartingNow": "{{title}} · Empieza ahora",
+    "taskCount_one": "{{count}} tarea",
+    "taskCount_other": "{{count}} tareas"
   },
   "frames": {
     "title": "Bloques GTD",
