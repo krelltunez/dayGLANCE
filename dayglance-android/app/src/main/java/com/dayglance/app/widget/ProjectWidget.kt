@@ -89,7 +89,7 @@ class ProjectWidget : AppWidgetProvider() {
             if (project == null) {
                 showEmpty(views, context.getString(R.string.widget_project_gone))
             } else {
-                bindProjectViews(views, project)
+                bindProjectViews(views, project, context)
             }
         }
 
@@ -111,7 +111,7 @@ class ProjectWidget : AppWidgetProvider() {
         return null
     }
 
-    private fun bindProjectViews(views: RemoteViews, project: JSONObject) {
+    private fun bindProjectViews(views: RemoteViews, project: JSONObject, context: Context) {
         views.setViewVisibility(R.id.layout_project_content, View.VISIBLE)
         views.setViewVisibility(R.id.layout_project_empty, View.GONE)
 
