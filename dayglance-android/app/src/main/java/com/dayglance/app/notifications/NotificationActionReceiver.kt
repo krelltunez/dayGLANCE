@@ -70,6 +70,15 @@ class NotificationActionReceiver : BroadcastReceiver() {
         }
     }
 
+    /**
+     * Legacy path. Nothing builds an ACTION_COMPLETE broadcast any more: the
+     * notification button is a getActivity PendingIntent straight into
+     * MainActivity, because this method's startActivity() is a background
+     * activity launch the platform can drop on SDK 34+ (see
+     * MainActivity.ACTION_COMPLETE_TASK), which is exactly why the button did
+     * nothing. Kept so a notification still on screen from a pre-upgrade build,
+     * whose PendingIntent still points here, is no worse off than before.
+     */
     private fun handleComplete(context: Context, intent: Intent) {
         val taskId = intent.getStringExtra(EXTRA_TASK_ID) ?: return
         SharedDataStore(context).pendingCompleteTaskId = taskId
