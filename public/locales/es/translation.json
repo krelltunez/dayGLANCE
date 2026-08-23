@@ -689,6 +689,20 @@
     "next7Days": "Próximos 7 días",
     "goalsDueThisWeek": "Objetivos con fecha límite esta semana"
   },
+  "reminders": {
+    "before15": "Empieza en 15 minutos",
+    "before10": "Empieza en 10 minutos",
+    "before5": "Empieza en 5 minutos",
+    "start": "Empieza ahora",
+    "end": "Termina ahora",
+    "morning": "Recordatorio de tarea de todo el día",
+    "fallback": "Recordatorio",
+    "weeklyReview": "¡Hora de tu revisión semanal!",
+    "hgUpNext": "{{title}} · Empieza en {{minutes}} min",
+    "hgUpNextWithTasks_one": "{{title}} · {{count}} tarea · Empieza en {{minutes}} min",
+    "hgUpNextWithTasks_other": "{{title}} · {{count}} tareas · Empieza en {{minutes}} min",
+    "hgStartingNow": "{{title}} · Empieza ahora"
+  },
   "frames": {
     "title": "Bloques GTD",
     "tabMyFrames": "Mis bloques",

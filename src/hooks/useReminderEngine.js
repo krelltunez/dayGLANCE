@@ -1,4 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
+// The bare singleton, not ../i18n.js: that module boots the language detector
+// as an import side effect, which node-side tests must not inherit. main.jsx
+// imports it before anything fires, so t() is always initialized at runtime.
+import i18n from 'i18next';
 import { dateToString, stripWikilinks } from '../utils/taskUtils.js';
 import { isNativeAndroid, isNativeApp, nativeShowNotification, nativeShowTaskNotification, nativeSyncReminders } from '../native.js';
 
@@ -17,6 +21,18 @@ const minutesToTime = (minutes) => {
   const mins = minutes % 60;
   return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
 };
+
+// Notification/toast text, localized at fire (or native-schedule) time rather
+// than hardcoded English. Pre-scheduled native bodies re-bake after a language
+// switch, since the scheduling effect below re-runs and nativeSyncReminders
+// replaces the pending set.
+const REMINDER_TYPES = ['before15', 'before10', 'before5', 'start', 'end', 'morning'];
+const reminderMessage = (type) =>
+  i18n.t(REMINDER_TYPES.includes(type) ? `reminders.${type}` : 'reminders.fallback');
+const hgUpNextBody = (session, minutes) =>
+  session.taskCount > 0
+    ? i18n.t('reminders.hgUpNextWithTasks', { title: session.title, count: session.taskCount, minutes })
+    : i18n.t('reminders.hgUpNext', { title: session.title, minutes });
 
 const getTaskCategory = (task) => {
   if (task.isAllDay) return 'allDayTasks';
@@ -61,6 +77,15 @@ export default function useReminderEngine({
   lastWeeklyReviewFiredRef,
 }) {
   const [activeReminders, setActiveReminders] = useState([]);
+  // Bumped on languageChanged so the native-scheduling effect below re-runs
+  // and re-bakes every pending notification body in the new language. The
+  // live-fire effect needs no equivalent: it localizes at fire time.
+  const [langEpoch, setLangEpoch] = useState(0);
+  useEffect(() => {
+    const bump = () => setLangEpoch(e => e + 1);
+    i18n.on('languageChanged', bump);
+    return () => i18n.off('languageChanged', bump);
+  }, []);
   const firedRemindersRef = useRef(new Set());
   const lastReminderDateRef = useRef((() => {
     const d = new Date();
@@ -93,11 +118,11 @@ export default function useReminderEngine({
           playUISound('reminder');
           if (reminderSettings.browserNotifications && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
             if (window.electronAPI?.isElectron) {
-              try { new Notification('dayGLANCE', { body: 'Time for your weekly review!' }); } catch {}
+              try { new Notification('dayGLANCE', { body: i18n.t('reminders.weeklyReview') }); } catch {}
             } else {
               try {
                 navigator.serviceWorker?.ready.then(reg => {
-                  reg.showNotification('dayGLANCE', { body: 'Time for your weekly review!', icon: '/icon-192.png', tag: 'weekly-review' });
+                  reg.showNotification('dayGLANCE', { body: i18n.t('reminders.weeklyReview'), icon: '/icon-192.png', tag: 'weekly-review' });
                 });
               } catch {}
             }
@@ -131,7 +156,7 @@ export default function useReminderEngine({
             firedRemindersRef.current.add(upNextKey);
             hgFires.push({
               title: 'hyperGLANCE',
-              body: `${session.title}${session.taskCount > 0 ? ` · ${session.taskCount} task${session.taskCount !== 1 ? 's' : ''}` : ''} · Starts in ${upNextMinutes}m`,
+              body: hgUpNextBody(session, upNextMinutes),
               tag: `hg-session-${session.id}`,
             });
           }
@@ -144,7 +169,7 @@ export default function useReminderEngine({
           firedRemindersRef.current.add(startKey);
           hgFires.push({
             title: 'hyperGLANCE',
-            body: `${session.title} · Starting now`,
+            body: i18n.t('reminders.hgStartingNow', { title: session.title }),
             tag: `hg-session-${session.id}`,
           });
         }
@@ -197,21 +222,13 @@ export default function useReminderEngine({
         // Fire if current time is within a 2-minute window of the trigger
         if (nowMin >= point.triggerMin && nowMin < point.triggerMin + 2) {
           firedRemindersRef.current.add(point.key);
-          const messageMap = {
-            before15: 'Starts in 15 minutes',
-            before10: 'Starts in 10 minutes',
-            before5: 'Starts in 5 minutes',
-            start: 'Starting now',
-            end: 'Ending now',
-            morning: 'All-day task reminder',
-          };
           newReminders.push({
             id: `${point.key}-${Date.now()}`,
             taskId: task.id,
             taskTitle: stripWikilinks(task.title),
             taskColor: task.color,
             startTime: task.startTime || null,
-            message: messageMap[point.type] || 'Reminder',
+            message: reminderMessage(point.type),
             type: point.type,
             isCalendarEvent: task.imported && !task.isTaskCalendar,
             firedAt: Date.now(),
@@ -289,15 +306,6 @@ export default function useReminderEngine({
       const todayRecurring = expandedRecurringTasks.filter(t => t.date === todayStr && isVisibleForUser(t));
       const allTodayTasks = [...todayRegular, ...todayRecurring];
 
-      const messageMap = {
-        before15: 'Starts in 15 minutes',
-        before10: 'Starts in 10 minutes',
-        before5: 'Starts in 5 minutes',
-        start: 'Starting now',
-        end: 'Ending now',
-        morning: 'All-day task reminder',
-      };
-
       for (const task of allTodayTasks) {
         if (task.completed) continue;
         const category = getTaskCategory(task);
@@ -311,7 +319,7 @@ export default function useReminderEngine({
             id: point.key,
             taskId: String(task.id),
             title: task.title,
-            body: messageMap[point.type] || 'Reminder',
+            body: reminderMessage(point.type),
             type: point.type,
             isCalendarEvent: !!(task.imported && !task.isTaskCalendar),
             triggerAtMillis,
@@ -333,7 +341,7 @@ export default function useReminderEngine({
               id: `hg-upnext-${session.id}-${session.date}`,
               taskId: `hg-${session.id}`,
               title: 'hyperGLANCE',
-              body: `${session.title}${session.taskCount > 0 ? ` · ${session.taskCount} task${session.taskCount !== 1 ? 's' : ''}` : ''} · Starts in ${upNextMinutes}m`,
+              body: hgUpNextBody(session, upNextMinutes),
               type: 'hg-upnext',
               isCalendarEvent: false,
               triggerAtMillis,
@@ -346,7 +354,7 @@ export default function useReminderEngine({
             id: `hg-start-${session.id}-${session.date}`,
             taskId: `hg-${session.id}`,
             title: 'hyperGLANCE',
-            body: `${session.title} · Starting now`,
+            body: i18n.t('reminders.hgStartingNow', { title: session.title }),
             type: 'hg-start',
             isCalendarEvent: false,
             triggerAtMillis: startTrigger,
@@ -356,7 +364,7 @@ export default function useReminderEngine({
     }
 
     nativeSyncReminders(futureReminders);
-  }, [tasks, expandedRecurringTasks, reminderSettings, hgSessions, isVisibleForUser]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tasks, expandedRecurringTasks, reminderSettings, hgSessions, isVisibleForUser, langEpoch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reminder snooze: push task start time forward 15 minutes
   const snoozeReminder = (reminder) => {

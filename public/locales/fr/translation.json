@@ -689,6 +689,20 @@
     "next7Days": "7 prochains jours",
     "goalsDueThisWeek": "Objectifs à atteindre cette semaine"
   },
+  "reminders": {
+    "before15": "Commence dans 15 minutes",
+    "before10": "Commence dans 10 minutes",
+    "before5": "Commence dans 5 minutes",
+    "start": "Commence maintenant",
+    "end": "Se termine maintenant",
+    "morning": "Rappel de tâche sur toute la journée",
+    "fallback": "Rappel",
+    "weeklyReview": "C’est l’heure de votre revue hebdomadaire !",
+    "hgUpNext": "{{title}} · Commence dans {{minutes}} min",
+    "hgUpNextWithTasks_one": "{{title}} · {{count}} tâche · Commence dans {{minutes}} min",
+    "hgUpNextWithTasks_other": "{{title}} · {{count}} tâches · Commence dans {{minutes}} min",
+    "hgStartingNow": "{{title}} · Commence maintenant"
+  },
   "frames": {
     "title": "Plages GTD",
     "tabMyFrames": "Mes plages",
