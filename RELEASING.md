@@ -49,6 +49,12 @@ Run these once each on real hardware or a representative simulator:
 - iOS: external links open in the system browser; the HealthKit permission
   prompt is deferred until first use (not on launch); a vault SSE
   auth-failure surfaces to the user once (no silent retry storm).
+- iOS: each Control Center control (Scheduled Task, Inbox Task, Voice Task)
+  foregrounds the app AND opens its UI, from a cold start and from the
+  background. Tapping a control has to launch the app before the pending
+  action can be drained, and a control whose intent is not compiled into the
+  app target silently does neither. `src/iosControls.test.js` guards the
+  project layout that makes this work, but only a device proves the launch.
 - Android: vault SSE stream connects and the WebView renders the app.
 - Android: a real purchase completes and is acknowledged, and the app
   recovers when the billing service is not ready at first tap (honest

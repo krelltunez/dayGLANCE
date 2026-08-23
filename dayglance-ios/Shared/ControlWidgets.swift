@@ -9,11 +9,25 @@ import WidgetKit
 /// which can use a `Link`/`widgetURL`). So each control runs a tiny intent that
 /// stashes a pending action in the shared App Group and opens the app
 /// (`openAppWhenRun`). On foreground the web layer drains it via
-/// `getWidgetPendingAction` → `nativeGetWidgetPendingAction()` — the same App
+/// `getWidgetPendingAction` → `nativeGetWidgetPendingAction()`, the same App
 /// Group slot the widget bridge already reads (see WidgetBridge.getPendingAction).
 ///
 /// Gated to iOS 18 because the Controls (WidgetKit `ControlWidget`) API does not
 /// exist before then; users on iOS 16/17 keep the Home Screen Quick Actions.
+///
+/// ⚠️ THIS FILE MUST LIVE IN `Shared/`, NOT `DayGlanceWidget/`.
+///
+/// `openAppWhenRun` only foregrounds the app if the control's `AppIntent` is a
+/// member of BOTH the app target and the widget extension target. When this file
+/// sat in `DayGlanceWidget/` (extension-only, per project.yml `sources`), tapping
+/// a control did nothing at all: no launch, so nothing ever drained the pending
+/// action the intent had just written. `Shared/` is listed under `sources` for
+/// both the DayGlance app target and the DayGlanceWidget extension target, so
+/// keeping the file here is what satisfies the dual-membership requirement.
+/// src/iosControls.test.js guards this, because CI cannot compile the iOS app.
+///
+/// Everything here is `@available(iOS 18.0, *)`, so compiling into the app
+/// target (deployment target 16.0) is safe.
 
 // MARK: - Shared store
 
