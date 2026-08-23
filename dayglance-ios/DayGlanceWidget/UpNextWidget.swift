@@ -95,7 +95,7 @@ struct UpNextWidgetView: View {
                         if let id = task.id?.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
                            let doneURL = URL(string: "dayglance://completeTask?id=\(id)") {
                             Link(destination: doneURL) {
-                                actionLabel("Done", systemImage: "checkmark.circle")
+                                actionLabel(String(localized: "Done"), systemImage: "checkmark.circle")
                             }
                         }
                         if let focusURL = URL(string: "dayglance://startFocus") {

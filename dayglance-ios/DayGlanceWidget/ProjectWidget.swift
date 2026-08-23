@@ -32,7 +32,7 @@ struct ProjectEntityQuery: EntityQuery {
     private func allEntities() -> [ProjectEntity] {
         (loadSnapshot()?.allProjects ?? []).compactMap { p in
             guard let id = p.id else { return nil }
-            return ProjectEntity(id: id, title: p.title ?? "Untitled", goalTitle: p.goalTitle)
+            return ProjectEntity(id: id, title: p.title ?? String(localized: "Untitled"), goalTitle: p.goalTitle)
         }
     }
 }

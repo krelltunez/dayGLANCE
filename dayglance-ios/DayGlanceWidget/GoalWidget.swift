@@ -26,7 +26,7 @@ struct GoalEntityQuery: EntityQuery {
     private func allEntities() -> [GoalEntity] {
         (loadSnapshot()?.allGoals ?? []).compactMap { g in
             guard let id = g.id else { return nil }
-            return GoalEntity(id: id, title: g.title ?? "Untitled")
+            return GoalEntity(id: id, title: g.title ?? String(localized: "Untitled"))
         }
     }
 }
