@@ -2,6 +2,7 @@ package com.dayglance.app
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.NotificationManager
 import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -181,6 +182,7 @@ class MainActivity : AppCompatActivity() {
             ACTION_VOICE_INPUT    -> store.pendingVoiceInput = true
             ACTION_ADD_TASK       -> store.pendingAddTask = true
             ACTION_ADD_INBOX_TASK -> store.pendingAddInboxTask = true
+            ACTION_COMPLETE_TASK  -> storeCompleteFromNotification(intent, store)
             Intent.ACTION_SEND    -> storeShareIntent(intent, store)
             // Cold start via an app.dayglance.* Activity intent (app was killed):
             // onNewIntent is NOT called for the launching intent, so without this the
@@ -692,6 +694,7 @@ class MainActivity : AppCompatActivity() {
             ACTION_VOICE_INPUT    -> store.pendingVoiceInput = true
             ACTION_ADD_TASK       -> store.pendingAddTask = true
             ACTION_ADD_INBOX_TASK -> store.pendingAddInboxTask = true
+            ACTION_COMPLETE_TASK  -> storeCompleteFromNotification(intent, store)
             Intent.ACTION_SEND    -> storeShareIntent(intent, store)
             "app.dayglance.CREATE",
             "app.dayglance.COMPLETE",
@@ -701,6 +704,30 @@ class MainActivity : AppCompatActivity() {
         }
         // The WebView is already loaded; trigger the JS check immediately.
         forwardPendingIntentToJs()
+    }
+
+    /**
+     * Stores the task from a notification "Mark Complete" tap and dismisses the
+     * notification it came from.
+     *
+     * NotificationActionReceiver used to do both, but it can only bring the app
+     * forward with a background startActivity(), which the platform may drop (see
+     * ACTION_COMPLETE_TASK). Arriving here means the Activity is already being
+     * launched by the system, so the only work left is the same SharedDataStore
+     * write the receiver did; NativeBridge.getPendingAction() hands it to JS.
+     *
+     * Dismissal moves here with it: setAutoCancel applies to the notification body,
+     * not to action buttons, so nothing else would clear it.
+     */
+    private fun storeCompleteFromNotification(intent: Intent, store: SharedDataStore) {
+        val taskId = intent.getStringExtra(EXTRA_COMPLETE_TASK_ID)
+        if (taskId.isNullOrEmpty()) return
+        store.pendingCompleteTaskId = taskId
+
+        val notifId = intent.getIntExtra(EXTRA_COMPLETE_NOTIF_ID, -1)
+        if (notifId >= 0) {
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(notifId)
+        }
     }
 
     /**
@@ -755,5 +782,21 @@ class MainActivity : AppCompatActivity() {
         const val ACTION_ADD_TASK       = "com.dayglance.app.ACTION_ADD_TASK"
         const val ACTION_ADD_INBOX_TASK = "com.dayglance.app.ACTION_ADD_INBOX_TASK"
         const val ACTION_INTENT_RECEIVED = "com.dayglance.app.INTENT_RECEIVED"
+
+        /**
+         * The notification "Mark Complete" button, delivered straight to this
+         * Activity rather than through NotificationActionReceiver.
+         *
+         * The button used to be a getBroadcast PendingIntent whose receiver then
+         * called startActivity(). Targeting SDK 34+, an app no longer grants its
+         * background-activity-launch privileges when sending a PendingIntent, so
+         * that second hop could be dropped and the tap did nothing at all. A
+         * notification tap that launches an Activity directly is a system-sent
+         * launch and needs no such privilege, which is why this is a getActivity
+         * PendingIntent now. Snooze is unaffected: it only sets an alarm.
+         */
+        const val ACTION_COMPLETE_TASK = "com.dayglance.app.ACTION_COMPLETE_TASK"
+        const val EXTRA_COMPLETE_TASK_ID = "complete_task_id"
+        const val EXTRA_COMPLETE_NOTIF_ID = "complete_notif_id"
     }
 }

@@ -296,13 +296,21 @@ class NotificationBridge(private val context: Context) {
         )
     }
 
+    /**
+     * Launches MainActivity directly rather than broadcasting to
+     * NotificationActionReceiver. Targeting SDK 34+, the receiver's own
+     * startActivity() is a background activity launch the platform can drop, so
+     * the tap did nothing; a notification that starts an Activity is a
+     * system-sent launch and is exempt. See MainActivity.ACTION_COMPLETE_TASK.
+     */
     private fun completePendingIntent(notifId: Int, taskId: String): PendingIntent {
-        val intent = Intent(context, NotificationActionReceiver::class.java).apply {
-            action = NotificationActionReceiver.ACTION_COMPLETE
-            putExtra(NotificationActionReceiver.EXTRA_NOTIF_ID, notifId)
-            putExtra(NotificationActionReceiver.EXTRA_TASK_ID, taskId)
+        val intent = Intent(context, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_COMPLETE_TASK
+            putExtra(MainActivity.EXTRA_COMPLETE_NOTIF_ID, notifId)
+            putExtra(MainActivity.EXTRA_COMPLETE_TASK_ID, taskId)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
-        return PendingIntent.getBroadcast(
+        return PendingIntent.getActivity(
             context, notifId + 2, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
