@@ -689,6 +689,20 @@
     "next7Days": "Next 7 Days",
     "goalsDueThisWeek": "Goals Due This Week"
   },
+  "reminders": {
+    "before15": "Starts in 15 minutes",
+    "before10": "Starts in 10 minutes",
+    "before5": "Starts in 5 minutes",
+    "start": "Starting now",
+    "end": "Ending now",
+    "morning": "All-day task reminder",
+    "fallback": "Reminder",
+    "weeklyReview": "Time for your weekly review!",
+    "hgUpNext": "{{title}} · Starts in {{minutes}}m",
+    "hgUpNextWithTasks_one": "{{title}} · {{count}} task · Starts in {{minutes}}m",
+    "hgUpNextWithTasks_other": "{{title}} · {{count}} tasks · Starts in {{minutes}}m",
+    "hgStartingNow": "{{title}} · Starting now"
+  },
   "frames": {
     "title": "GTD Frames",
     "tabMyFrames": "My Frames",

@@ -689,6 +689,20 @@
     "next7Days": "Nächste 7 Tage",
     "goalsDueThisWeek": "Diese Woche fällige Ziele"
   },
+  "reminders": {
+    "before15": "Beginnt in 15 Minuten",
+    "before10": "Beginnt in 10 Minuten",
+    "before5": "Beginnt in 5 Minuten",
+    "start": "Beginnt jetzt",
+    "end": "Endet jetzt",
+    "morning": "Erinnerung an ganztägige Aufgabe",
+    "fallback": "Erinnerung",
+    "weeklyReview": "Zeit für Ihren Wochenrückblick!",
+    "hgUpNext": "{{title}} · Beginnt in {{minutes}} Min.",
+    "hgUpNextWithTasks_one": "{{title}} · {{count}} Aufgabe · Beginnt in {{minutes}} Min.",
+    "hgUpNextWithTasks_other": "{{title}} · {{count}} Aufgaben · Beginnt in {{minutes}} Min.",
+    "hgStartingNow": "{{title}} · Beginnt jetzt"
+  },
   "frames": {
     "title": "GTD-Rahmen",
     "tabMyFrames": "Meine Rahmen",
