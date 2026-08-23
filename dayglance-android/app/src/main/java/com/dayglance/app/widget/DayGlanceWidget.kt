@@ -81,7 +81,7 @@ class DayGlanceWidget : AppWidgetProvider() {
         try {
             val dataStore = SharedDataStore(context)
             val snapshot = dataStore.widgetSnapshot?.let { runCatching { JSONObject(it) }.getOrNull() }
-            val dateLabel = snapshot?.optString("dateLabel") ?: formatTodayLabel()
+            val dateLabel = snapshot?.optString("dateLabel") ?: formatTodayLabel(context)
             views.setTextViewText(R.id.tv_date, dateLabel)
 
             val updatedAt = dataStore.widgetSnapshotUpdatedAt
@@ -94,7 +94,7 @@ class DayGlanceWidget : AppWidgetProvider() {
                 views.setTextViewText(R.id.tv_updated, "")
             }
         } catch (_: Throwable) {
-            views.setTextViewText(R.id.tv_date, formatTodayLabel())
+            views.setTextViewText(R.id.tv_date, formatTodayLabel(context))
             views.setTextViewText(R.id.tv_updated, "")
         }
 
@@ -147,9 +147,9 @@ class DayGlanceWidget : AppWidgetProvider() {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private fun formatTodayLabel(): String = try {
+    private fun formatTodayLabel(context: Context): String = try {
         LocalDate.now().format(DateTimeFormatter.ofPattern("EEE, MMM d"))
-    } catch (_: Throwable) { "Today" }
+    } catch (_: Throwable) { context.getString(R.string.widget_today) }
 
     // ── Manual refresh broadcast ──────────────────────────────────────────────
 
