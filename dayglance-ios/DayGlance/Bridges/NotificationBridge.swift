@@ -31,8 +31,8 @@ final class NotificationBridge {
 
     /// Register Snooze / Mark Complete action categories. Call once at app start.
     func registerCategories() {
-        let snooze   = UNNotificationAction(identifier: Self.actionSnooze,   title: "Snooze 15m",    options: [])
-        let complete = UNNotificationAction(identifier: Self.actionComplete,  title: "Mark Complete", options: [])
+        let snooze   = UNNotificationAction(identifier: Self.actionSnooze,   title: String(localized: "Snooze 15m"),    options: [])
+        let complete = UNNotificationAction(identifier: Self.actionComplete,  title: String(localized: "Mark Complete"), options: [])
         center.setNotificationCategories([
             UNNotificationCategory(identifier: Self.catSnoozeComplete, actions: [snooze, complete], intentIdentifiers: [], options: []),
             UNNotificationCategory(identifier: Self.catSnoozeOnly,     actions: [snooze],           intentIdentifiers: [], options: []),
