@@ -1,5 +1,6 @@
 package com.dayglance.app.bridge
 
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -85,8 +86,8 @@ class ObsidianBridge(private val context: Context, private val webView: android.
      * only PEEKED, never consumed: an ignored notification must not lose the
      * wake, and a later back-exit still direct-launches. A constant id means
      * at most one such notification exists; it times out on its own, and
-     * MainActivity retires it whenever the app returns to the foreground.
-     * Failure stays silent throughout, per the launch-on-write contract.
+     * [onAppResumed] resolves the offer when the app comes back. Failure
+     * stays silent throughout, per the launch-on-write contract.
      */
     fun notifyPendingLaunch() {
         val noteName = launchPolicy.peekPending() ?: return
@@ -113,6 +114,8 @@ class ObsidianBridge(private val context: Context, private val webView: android.
             .build()
         try {
             nm.notify(LAUNCH_NOTIFICATION_ID, notification)
+            // Only a posted offer may be resolved on resume; see onAppResumed.
+            launchPolicy.onOfferPosted()
         } catch (_: SecurityException) {
             // POST_NOTIFICATIONS revoked between the check and the post — silent.
         }
@@ -121,6 +124,39 @@ class ObsidianBridge(private val context: Context, private val webView: android.
     /** Retires the tap-to-sync notification (delivery confirmed, or app resumed). */
     fun cancelLaunchNotification() {
         NotificationManagerCompat.from(context).cancel(LAUNCH_NOTIFICATION_ID)
+    }
+
+    /**
+     * Resolves an outstanding tap-to-open offer when the app returns to the
+     * foreground. Called from MainActivity.onStart — the moment that closes
+     * the redundant-launch gap, since the user cannot back-exit dayGLANCE
+     * without first coming back to it.
+     *
+     * The notification's tap is unobservable (no trampolines on 12+), but its
+     * ABSENCE from the shade is not: gone means tapped, swiped, or timed out,
+     * all of which spend the offer, so the policy consumes the arm and no
+     * later back-exit re-launches Obsidian. Still showing means merely
+     * ignored — the arm survives and we just retire the notification, which
+     * is noise while the user is in the app.
+     */
+    fun onAppResumed() {
+        if (launchPolicy.onAppResumed(isLaunchNotificationShowing())) {
+            cancelLaunchNotification()
+        }
+    }
+
+    /**
+     * Whether our tap-to-sync notification is still in the shade.
+     * Deliberately CONSERVATIVE on failure: reporting "still showing" keeps
+     * the arm, degrading to the previous behaviour (at worst one redundant
+     * launch) rather than risking a dropped wake.
+     */
+    private fun isLaunchNotificationShowing(): Boolean = try {
+        context.getSystemService(NotificationManager::class.java)
+            ?.activeNotifications
+            ?.any { it.id == LAUNCH_NOTIFICATION_ID } ?: true
+    } catch (_: Exception) {
+        true
     }
 
     /**

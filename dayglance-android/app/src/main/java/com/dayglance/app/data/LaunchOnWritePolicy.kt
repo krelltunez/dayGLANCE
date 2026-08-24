@@ -2,7 +2,7 @@ package com.dayglance.app.data
 
 /**
  * Launch-on-write policy (Obsidian build-out Phase 1): vault writes ARM the
- * launcher; leaving the app FIRES it. The last-written note is opened via
+ * launcher; leaving the app DELIVERS it. The last-written note is opened via
  * obsidian:// so Obsidian Sync pushes the change.
  *
  * Android deliberately has no quiet-window timer (unlike the desktop
@@ -15,8 +15,6 @@ package com.dayglance.app.data
  *  2. Correctness: since Android 10 the OS blocks activity starts from apps
  *     that are no longer foreground (background-activity-launch restriction),
  *     so a timer expiring after the user left would be silently discarded.
- *     App exit — while the activity is still foreground — is the only moment
- *     that is both non-interruptive and reliably allowed to launch.
  *
  * The exit itself is therefore the debounce: any number of writes during a
  * session arm exactly one launch, of the last-written note. Delivery differs
@@ -32,6 +30,15 @@ package com.dayglance.app.data
  *    the armed state survives for a later back-exit's direct launch (an
  *    ignored notification must not eat the wake).
  *
+ * That leaves one gap, closed by [onAppResumed]: the notification's tap
+ * cannot be observed (Android 12+ forbids notification trampolines, so the
+ * tap PendingIntent targets Obsidian directly), so a tapped offer would leave
+ * the arm set and the NEXT back-exit would launch Obsidian redundantly. The
+ * tap's side effect on the notification IS observable, though — the platform
+ * layer can ask whether our notification is still in the shade. Since the
+ * user cannot back-exit dayGLANCE without first returning to it, resolving
+ * the offer on resume closes the gap completely rather than probabilistically.
+ *
  * Pure state holder, JVM-testable. Starts DISABLED until the web frontend
  * pushes the device-local toggle via setLaunchOnWrite (Android default: off).
  */
@@ -40,11 +47,17 @@ class LaunchOnWritePolicy {
     private var enabled = false
     private var pendingNote: String? = null
 
+    // Whether a tap-to-open notification is outstanding for the current arm.
+    // Gates [onAppResumed] so a resume with no offer in flight — screen-off
+    // then screen-on, which fires onStart without ever posting one — cannot
+    // discard a perfectly good arm.
+    private var offerPosted = false
+
     /** Web-pushed toggle. Turning off drops any armed launch. */
     @Synchronized
     fun setEnabled(value: Boolean) {
         enabled = value
-        if (!value) pendingNote = null
+        if (!value) clearArm()
     }
 
     /**
@@ -53,9 +66,7 @@ class LaunchOnWritePolicy {
      * swapped away from. The toggle is the user's setting and survives.
      */
     @Synchronized
-    fun cancelPending() {
-        pendingNote = null
-    }
+    fun cancelPending() = clearArm()
 
     /**
      * Record a successful vault write of [noteName] (bare name, no .md).
@@ -75,18 +86,52 @@ class LaunchOnWritePolicy {
     @Synchronized
     fun takePending(): String? {
         val note = pendingNote
-        pendingNote = null
+        clearArm()
         return note
     }
 
     /**
      * The armed note WITHOUT consuming it — for the Home/Recents notification
-     * fallback, whose tap cannot be observed (Android 12+ forbids notification
-     * trampolines, so the tap PendingIntent must target Obsidian directly).
-     * Keeping the state armed means an ignored notification doesn't lose the
-     * wake: a later back-exit still direct-launches, and re-posting uses a
-     * constant notification id so at most one exists.
+     * fallback, whose tap cannot be observed. Keeping the state armed means an
+     * ignored notification doesn't lose the wake: a later back-exit still
+     * direct-launches, and re-posting uses a constant notification id so at
+     * most one exists.
      */
     @Synchronized
     fun peekPending(): String? = pendingNote
+
+    /** Record that a tap-to-open offer was posted for the current arm. */
+    @Synchronized
+    fun onOfferPosted() {
+        offerPosted = true
+    }
+
+    /**
+     * Resolve an outstanding tap-to-open offer when the app returns to the
+     * foreground — the moment that closes the redundant-launch gap, since a
+     * back-exit is unreachable without first coming back here.
+     *
+     * A notification that is GONE was tapped (Obsidian opened and synced),
+     * swiped away (declined), or timed out (stale). All three mean the offer
+     * is spent, so the arm is consumed and no later exit re-launches. A
+     * notification still SHOWING was merely ignored: the wake was never
+     * delivered, so the arm survives — the caller just retires the
+     * notification, which is noise while the user is in the app.
+     *
+     * @param offerStillShowing whether our notification is still in the shade
+     * @return true when the caller should retire that still-showing notification
+     */
+    @Synchronized
+    fun onAppResumed(offerStillShowing: Boolean): Boolean {
+        if (!offerPosted) return false
+        offerPosted = false
+        if (offerStillShowing) return true
+        pendingNote = null
+        return false
+    }
+
+    private fun clearArm() {
+        pendingNote = null
+        offerPosted = false
+    }
 }

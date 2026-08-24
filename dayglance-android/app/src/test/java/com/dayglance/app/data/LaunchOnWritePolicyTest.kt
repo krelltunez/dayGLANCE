@@ -1,7 +1,9 @@
 package com.dayglance.app.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -78,6 +80,70 @@ class LaunchOnWritePolicyTest {
         p.onWrite("b")
         p.cancelPending()
         assertNull(p.peekPending()) // vault swap dropped it
+    }
+
+    @Test
+    fun `a tapped offer (notification gone on resume) consumes the arm - no redundant later launch`() {
+        // Home exit posts an offer, the user taps it (Obsidian opens and syncs),
+        // then returns to dayGLANCE. The tap itself is unobservable, but the
+        // notification's absence resolves it: the arm is spent, so a later
+        // back-exit must NOT open Obsidian again.
+        val p = LaunchOnWritePolicy()
+        p.setEnabled(true)
+        p.onWrite("a")
+        p.peekPending()          // Home exit posts the notification
+        p.onOfferPosted()
+        assertFalse(p.onAppResumed(offerStillShowing = false)) // gone → nothing to retire
+        assertNull(p.takePending())                            // back-exit: no launch
+    }
+
+    @Test
+    fun `an ignored offer (still showing on resume) keeps the arm and is retired`() {
+        // The wake was never delivered, so the arm survives; the caller only
+        // retires the notification, which is noise while the user is in the app.
+        val p = LaunchOnWritePolicy()
+        p.setEnabled(true)
+        p.onWrite("a")
+        p.peekPending()
+        p.onOfferPosted()
+        assertTrue(p.onAppResumed(offerStillShowing = true)) // caller retires it
+        assertEquals("a", p.takePending())                   // back-exit still delivers
+    }
+
+    @Test
+    fun `a resume with no offer in flight leaves the arm alone`() {
+        // Screen-off then screen-on fires onStart without any notification
+        // having been posted — that must not discard a perfectly good arm.
+        val p = LaunchOnWritePolicy()
+        p.setEnabled(true)
+        p.onWrite("a")
+        assertFalse(p.onAppResumed(offerStillShowing = false))
+        assertEquals("a", p.takePending())
+    }
+
+    @Test
+    fun `resolving an offer is one-shot - a second resume does not re-resolve`() {
+        val p = LaunchOnWritePolicy()
+        p.setEnabled(true)
+        p.onWrite("a")
+        p.onOfferPosted()
+        assertTrue(p.onAppResumed(offerStillShowing = true)) // retire, keep arm
+        // Notification already retired: a further resume has no offer to resolve
+        // and must not consume the arm just because nothing is showing.
+        assertFalse(p.onAppResumed(offerStillShowing = false))
+        assertEquals("a", p.takePending())
+    }
+
+    @Test
+    fun `a new write after a spent offer arms again`() {
+        val p = LaunchOnWritePolicy()
+        p.setEnabled(true)
+        p.onWrite("a")
+        p.onOfferPosted()
+        p.onAppResumed(offerStillShowing = false) // tapped → spent
+        assertNull(p.peekPending())
+        p.onWrite("b")                            // user edits again
+        assertEquals("b", p.takePending())
     }
 
     @Test

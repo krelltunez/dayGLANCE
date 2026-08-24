@@ -314,7 +314,12 @@ background-activity-launch check). The notification's tap targets Obsidian
 directly (no trampolines on 12+), so it cannot be observed and the armed state
 is only peeked by that path — an ignored notification doesn't lose the wake; a
 later back-exit still direct-launches, retiring the notification, which also
-times out on its own and is cancelled on app resume. There is no Android timer
+times out on its own. The offer is resolved when the app next comes to the
+foreground: a notification gone from the shade was tapped, swiped, or timed out
+(offer spent → consume the arm, so no later back-exit re-launches), while one
+still showing was merely ignored (retire it, keep the arm). That resolution is
+gated on an offer having been posted, so screen-off/screen-on can't discard a
+valid arm. There is no Android timer
 on purpose: an in-app launch interrupts the user (no `activate: false`
 equivalent), and a timer expiring after backgrounding is blocked by the same
 BAL restriction. The intent goes via the existing `openNote` path (`vault` +
