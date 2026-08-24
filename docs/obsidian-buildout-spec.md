@@ -233,7 +233,7 @@ Delivered by PRs #1435, #1444, #1445, and #1446; shipped with 4.7.0. See section
 
 **Goal.** Give every dayGLANCE-managed task a stable identity in the vault that survives edits, reordering, and reformatting.
 
-**Status.** Part A implemented in PR #1439, pending merge (held for a release after 4.7.0). The scope below records the split and the semantics decided during that implementation.
+**Status.** Part A delivered by PR #1439, riding the first release after 4.7.0. The scope below records the split and the semantics decided during that implementation.
 
 **Rationale.** Task identity is currently implicit, positional or text-matched. Every bug class fought in GLANCEvault (resurrection, phantom deletes, duplication) has a latent analog here and will surface as write surface grows. This is the highest-value single change in the plan.
 
