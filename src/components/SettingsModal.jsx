@@ -1563,7 +1563,7 @@ const SettingsModal = () => {
                                 <span className={`text-sm ${textPrimary}`}>{t('settings.obsidianLaunchOnWrite')}</span>
                               </label>
                               <p className={`text-xs ${textSecondary} mt-1`}>
-                                {t('settings.obsidianLaunchOnWriteHint')}
+                                {t('settings.obsidianLaunchOnWriteHintAndroid')}
                               </p>
                             </div>
                           )}
