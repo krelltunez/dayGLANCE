@@ -1,10 +1,15 @@
 package com.dayglance.app.bridge
 
+import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.webkit.JavascriptInterface
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import com.dayglance.app.DayGlanceApplication
+import com.dayglance.app.R
 import com.dayglance.app.data.LaunchOnWritePolicy
 import com.dayglance.app.data.ObsidianRepository
 
@@ -18,6 +23,14 @@ import com.dayglance.app.data.ObsidianRepository
  * SAF I/O is acceptable here since it's typically fast for local storage.
  */
 class ObsidianBridge(private val context: Context, private val webView: android.webkit.WebView? = null) {
+
+    companion object {
+        // Fixed id so re-posting UPDATES rather than stacks. Reminder ids are
+        // taskId hashes, so no constant is provably disjoint from them — a
+        // collision merely replaces one notification and is vanishingly rare.
+        private const val LAUNCH_NOTIFICATION_ID = 990_001
+        private const val LAUNCH_NOTIFICATION_TIMEOUT_MS = 15L * 60 * 1000
+    }
 
     private val repository = ObsidianRepository(context)
 
@@ -45,14 +58,69 @@ class ObsidianBridge(private val context: Context, private val webView: android.
     fun setLaunchOnWrite(enabled: Boolean) = launchPolicy.setEnabled(enabled)
 
     /**
-     * Fires the armed launch, if any. Called by MainActivity at the two
-     * user-initiated exit moments — onUserLeaveHint (Home/Recents) and the
-     * back-exit branch of its back callback — both of which run while the
-     * activity is still foreground, so the activity start is permitted.
+     * Fires the armed launch directly. Called by MainActivity from the
+     * back-exit branch of its back callback — the one exit where a direct
+     * activity start is actually permitted: the app is the foreground actor
+     * performing a legitimate app switch, so neither the Home-press
+     * stopAppSwitches suppression nor the background-activity-launch
+     * restriction applies. Consumes the armed state (delivery is confirmed)
+     * and retires any fallback notification from an earlier Home exit.
      * NOT a @JavascriptInterface: the WebView has no business firing it.
      */
     fun flushPendingLaunch() {
-        launchPolicy.takePending()?.let { openNote(it) }
+        launchPolicy.takePending()?.let {
+            openNote(it)
+            cancelLaunchNotification()
+        }
+    }
+
+    /**
+     * Home/Recents fallback. A direct start from onUserLeaveHint is dropped by
+     * the platform (the Home press triggers stopAppSwitches — the mechanism
+     * that stops apps hijacking the Home button — and the deferred start then
+     * fails the background-activity-launch check), so the sanctioned channel
+     * is a notification whose tap PendingIntent targets Obsidian directly.
+     * Android 12+ forbids notification trampolines, so the tap cannot be
+     * routed through us and cannot be observed — therefore the armed state is
+     * only PEEKED, never consumed: an ignored notification must not lose the
+     * wake, and a later back-exit still direct-launches. A constant id means
+     * at most one such notification exists; it times out on its own, and
+     * MainActivity retires it whenever the app returns to the foreground.
+     * Failure stays silent throughout, per the launch-on-write contract.
+     */
+    fun notifyPendingLaunch() {
+        val noteName = launchPolicy.peekPending() ?: return
+        val vaultName = repository.getVaultName() ?: return
+        val nm = NotificationManagerCompat.from(context)
+        if (!nm.areNotificationsEnabled()) return
+
+        val tapIntent = PendingIntent.getActivity(
+            context, LAUNCH_NOTIFICATION_ID,
+            Intent(Intent.ACTION_VIEW, buildOpenNoteUri(vaultName, noteName)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(context, DayGlanceApplication.CHANNEL_OBSIDIAN_SYNC)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.notif_obsidian_sync_title))
+            .setContentText(context.getString(R.string.notif_obsidian_sync_body))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setContentIntent(tapIntent)
+            .setAutoCancel(true)
+            // Stale "tap to sync" prompts are noise — let the shade clean up.
+            .setTimeoutAfter(LAUNCH_NOTIFICATION_TIMEOUT_MS)
+            .build()
+        try {
+            nm.notify(LAUNCH_NOTIFICATION_ID, notification)
+        } catch (_: SecurityException) {
+            // POST_NOTIFICATIONS revoked between the check and the post — silent.
+        }
+    }
+
+    /** Retires the tap-to-sync notification (delivery confirmed, or app resumed). */
+    fun cancelLaunchNotification() {
+        NotificationManagerCompat.from(context).cancel(LAUNCH_NOTIFICATION_ID)
     }
 
     /**
@@ -145,13 +213,7 @@ class ObsidianBridge(private val context: Context, private val webView: android.
     @JavascriptInterface
     fun openNote(noteName: String) {
         val vaultName = repository.getVaultName() ?: return
-        val uri = Uri.Builder()
-            .scheme("obsidian")
-            .authority("open")
-            .appendQueryParameter("vault", vaultName)
-            .appendQueryParameter("file", noteName)
-            .build()
-        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+        val intent = Intent(Intent.ACTION_VIEW, buildOpenNoteUri(vaultName, noteName)).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         try {
@@ -160,6 +222,13 @@ class ObsidianBridge(private val context: Context, private val webView: android.
             // Obsidian not installed — silently ignore
         }
     }
+
+    private fun buildOpenNoteUri(vaultName: String, noteName: String): Uri = Uri.Builder()
+        .scheme("obsidian")
+        .authority("open")
+        .appendQueryParameter("vault", vaultName)
+        .appendQueryParameter("file", noteName)
+        .build()
 
     /**
      * Returns JSON: { configured: Boolean, folder: String, pattern: String }.

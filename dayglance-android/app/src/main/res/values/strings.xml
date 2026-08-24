@@ -99,4 +99,8 @@ Open dayGLANCE to sync your data, then try adding the widget again.</string>
     <string name="upnext_empty_title">Nothing up next</string>
     <string name="upnext_empty_sub">You\'re all done for today</string>
     <string name="glanceahead_empty">Tomorrow is wide open</string>
+    <string name="channel_obsidian_sync">Obsidian sync</string>
+    <string name="channel_obsidian_sync_desc">Reminders to open Obsidian so vault changes sync to your other devices</string>
+    <string name="notif_obsidian_sync_title">Changes written to your vault</string>
+    <string name="notif_obsidian_sync_body">Tap to open Obsidian so they sync to your other devices</string>
 </resources>
