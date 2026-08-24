@@ -269,6 +269,7 @@
     "obsidianDailyNoteTemplate": "Modello nota giornaliera",
     "obsidianLaunchOnWrite": "Avvia Obsidian dopo le scritture",
     "obsidianLaunchOnWriteHint": "Dopo che dayGLANCE ha scritto nel tuo vault, Obsidian viene avviato così Obsidian Sync invia la modifica agli altri tuoi dispositivi. Su macOS avviene in background.",
+    "obsidianLaunchOnWriteHintAndroid": "Dopo che dayGLANCE ha scritto nel tuo vault, Obsidian si apre quando esci dall'app, così Obsidian Sync invia la modifica agli altri tuoi dispositivi.",
     "obsidianSyncComplete": "Sincronizzazione completata",
     "obsidianSyncFailed": "Sincronizzazione fallita. Controlla la console",
     "obsidianSelectVault": "Seleziona cartella vault",

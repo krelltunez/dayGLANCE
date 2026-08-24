@@ -297,15 +297,21 @@ JS: window.DayGlanceObsidian.getDailyNote("2026-03-15")
 
 ### Launch-on-write
 
-After a debounced quiet window (8s) following vault writes, dayGLANCE fires
-`obsidian://open` for the last-written file so Obsidian Sync pushes the change
-even when Obsidian was closed. The debounce sits at each platform's write
-chokepoint, on the native side of the bridge: on Electron the
-`obsidian:write-file` handler feeds `electron/obsidianLaunch.ts` and the main
-process calls `shell.openExternal(uri, { activate: false })` (background launch
-on macOS; option ignored elsewhere); on Android `ObsidianRepository.writeText`
-feeds `LaunchOnWritePolicy` and the bridge fires the intent via its existing
-`openNote` path (`vault` + `file` form — SAF has no absolute path for `path=`).
+After vault writes, dayGLANCE fires `obsidian://open` for the last-written
+file so Obsidian Sync pushes the change even when Obsidian was closed. The
+trigger sits at each platform's write chokepoint, on the native side of the
+bridge, but the firing moment differs: on Electron the `obsidian:write-file`
+handler feeds a debounced quiet window (8s, `electron/obsidianLaunch.ts`) and
+the main process calls `shell.openExternal(uri, { activate: false })`
+(background launch on macOS; option ignored elsewhere). On Android
+`ObsidianRepository.writeText` ARMS `LaunchOnWritePolicy` and the launch fires
+on app exit — Home/Recents (`onUserLeaveHint`) or back-button exit (the back
+callback in MainActivity), both while the activity is still foreground. There
+is no Android timer on purpose: an in-app launch interrupts the user (no
+`activate: false` equivalent), and a timer expiring after backgrounding is
+blocked by Android's background-activity-launch restriction. The intent goes
+via the existing `openNote` path (`vault` + `file` form — SAF has no absolute
+path for `path=`).
 The toggle is a device-local tri-state key
 (`day-planner-obsidian-launch-on-write`, unset = platform default: on for
 macOS, off elsewhere), deliberately outside the cloud-synced `obsidianConfig`

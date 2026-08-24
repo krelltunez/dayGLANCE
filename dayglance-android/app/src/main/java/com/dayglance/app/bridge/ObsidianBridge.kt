@@ -4,9 +4,6 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
-import android.os.SystemClock
 import android.webkit.JavascriptInterface
 import com.dayglance.app.data.LaunchOnWritePolicy
 import com.dayglance.app.data.ObsidianRepository
@@ -24,24 +21,17 @@ class ObsidianBridge(private val context: Context, private val webView: android.
 
     private val repository = ObsidianRepository(context)
 
-    // Launch-on-write (Obsidian build-out Phase 1): after a debounced quiet
-    // window following vault writes, open the last-written note so Obsidian
-    // Sync pushes the change. The policy owns the timing (JVM-tested); this
-    // bridge schedules one delayed check per write — a check made stale by a
-    // later write returns null from fireIfQuiet, so nothing needs cancelling.
+    // Launch-on-write (Obsidian build-out Phase 1): vault writes ARM the
+    // launcher; leaving the app FIRES it (see MainActivity's exit hooks and
+    // the rationale in LaunchOnWritePolicy — deliberately no timer: a timer
+    // firing in-app interrupts the user's flow, and one firing after they
+    // left is blocked by Android's background-activity-launch restriction).
     // Disabled until the web frontend pushes the device-local toggle via
     // setLaunchOnWrite (Android default: off).
     private val launchPolicy = LaunchOnWritePolicy()
-    private val launchHandler = Handler(Looper.getMainLooper())
 
     init {
-        repository.onVaultWrite = { noteName ->
-            launchPolicy.onWrite(noteName, SystemClock.elapsedRealtime())?.let { delayMs ->
-                launchHandler.postDelayed({
-                    launchPolicy.fireIfQuiet(SystemClock.elapsedRealtime())?.let { openNote(it) }
-                }, delayMs)
-            }
-        }
+        repository.onVaultWrite = { noteName -> launchPolicy.onWrite(noteName) }
     }
 
     /**
@@ -53,6 +43,17 @@ class ObsidianBridge(private val context: Context, private val webView: android.
      */
     @JavascriptInterface
     fun setLaunchOnWrite(enabled: Boolean) = launchPolicy.setEnabled(enabled)
+
+    /**
+     * Fires the armed launch, if any. Called by MainActivity at the two
+     * user-initiated exit moments — onUserLeaveHint (Home/Recents) and the
+     * back-exit branch of its back callback — both of which run while the
+     * activity is still foreground, so the activity start is permitted.
+     * NOT a @JavascriptInterface: the WebView has no business firing it.
+     */
+    fun flushPendingLaunch() {
+        launchPolicy.takePending()?.let { openNote(it) }
+    }
 
     /**
      * Returns the raw markdown content of the daily note for [date] (ISO: yyyy-MM-dd).

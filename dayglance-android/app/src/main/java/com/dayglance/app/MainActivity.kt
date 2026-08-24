@@ -285,6 +285,11 @@ class MainActivity : AppCompatActivity() {
                 if (webView.canGoBack()) {
                     webView.goBack()
                 } else {
+                    // Launch-on-write: a back/gesture exit is as deliberate a
+                    // leave as a Home press, and onUserLeaveHint does NOT fire
+                    // for it — hook the armed Obsidian launch here, while the
+                    // activity is still foreground (so the start is permitted).
+                    obsidianBridge.flushPendingLaunch()
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
                 }
@@ -489,6 +494,19 @@ class MainActivity : AppCompatActivity() {
         if (permissions.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, permissions.toTypedArray(), RC_PERMISSIONS)
         }
+    }
+
+    // Launch-on-write (Obsidian build-out Phase 1): fire the armed Obsidian
+    // launch when the user deliberately leaves via Home or Recents. This hint
+    // runs while the activity is still foreground, so the activity start is
+    // permitted — an intent fired after backgrounding would be dropped by
+    // Android's background-activity-launch restriction. It intentionally does
+    // NOT fire on screen-off or an incoming call: those are not "done with the
+    // app", and the armed state simply survives until a real exit. Back-button
+    // exits don't reach this hint; they are hooked in backCallback instead.
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (::obsidianBridge.isInitialized) obsidianBridge.flushPendingLaunch()
     }
 
     override fun onPause() {
