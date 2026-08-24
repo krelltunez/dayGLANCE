@@ -536,10 +536,14 @@ class MainActivity : AppCompatActivity() {
             billingManager.activity = this
             billingManager.connect()
         }
-        // The tap-to-sync prompt is noise while the user is IN the app — retire
-        // it; the armed launch state survives and re-posts on the next Home exit
-        // (or direct-launches on a back-exit).
-        if (::obsidianBridge.isInitialized) obsidianBridge.cancelLaunchNotification()
+        // Resolve any outstanding tap-to-sync offer. If the notification is gone
+        // it was tapped (Obsidian already opened and synced), swiped, or timed
+        // out — the offer is spent, so the armed launch is consumed here and a
+        // later back-exit won't open Obsidian redundantly. If it's still
+        // showing it was merely ignored: retire the noise, keep the arm. This
+        // is the moment that closes that gap, since a back-exit is unreachable
+        // without first returning to the app.
+        if (::obsidianBridge.isInitialized) obsidianBridge.onAppResumed()
     }
 
     override fun onStop() {
