@@ -91,12 +91,18 @@ class ReminderReceiver : BroadcastReceiver() {
 
         // Mark Complete — available for start/end reminders on non-calendar tasks
         if ((type == "start" || type == "end") && !isCalendar) {
-            val completeIntent = Intent(context, NotificationActionReceiver::class.java).apply {
-                action = NotificationActionReceiver.ACTION_COMPLETE
-                putExtra(NotificationActionReceiver.EXTRA_NOTIF_ID, notifId)
-                putExtra(NotificationActionReceiver.EXTRA_TASK_ID, taskId)
+            // Launches MainActivity directly. A broadcast receiver calling
+            // startActivity() is a background activity launch the platform can drop
+            // on SDK 34+, which is why this button did nothing; a notification that
+            // starts an Activity is system-sent and exempt. See
+            // MainActivity.ACTION_COMPLETE_TASK.
+            val completeIntent = Intent(context, MainActivity::class.java).apply {
+                action = MainActivity.ACTION_COMPLETE_TASK
+                putExtra(MainActivity.EXTRA_COMPLETE_NOTIF_ID, notifId)
+                putExtra(MainActivity.EXTRA_COMPLETE_TASK_ID, taskId)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             }
-            val completePi = PendingIntent.getBroadcast(
+            val completePi = PendingIntent.getActivity(
                 context, notifId + 2, completeIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )

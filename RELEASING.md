@@ -49,6 +49,22 @@ Run these once each on real hardware or a representative simulator:
 - iOS: external links open in the system browser; the HealthKit permission
   prompt is deferred until first use (not on launch); a vault SSE
   auth-failure surfaces to the user once (no silent retry storm).
+- iOS: each Control Center control (Scheduled Task, Inbox Task, Voice Task)
+  foregrounds the app AND opens its UI, from a cold start and from the
+  background. Tapping a control has to launch the app before the pending
+  action can be drained, and a control whose intent is not compiled into the
+  app target silently does neither. `src/iosControls.test.js` guards the
+  project layout that makes this work, but only a device proves the launch.
+- iOS: the Up Next widget's Complete and Start Focus buttons foreground the
+  app and apply the action. Confirmed working in the released 4.6.0, so
+  unlike the Control Center controls these do NOT need their intent in the
+  app target: `openAppWhenRun` foregrounds the app from an extension-only
+  widget intent. Keep the check as a regression guard, and do not "fix"
+  WidgetIntents.swift by moving it to `Shared/` without a failure to point
+  at. Its `ForegroundContinuableIntent` conformances are marked
+  `@available(iOSApplicationExtension, unavailable)` in a file only the
+  extension target builds, so they may well be inert, but the behavior they
+  supposedly guard has never actually broken. Leave them be.
 - Android: vault SSE stream connects and the WebView renders the app.
 - Android: a real purchase completes and is acknowledged, and the app
   recovers when the billing service is not ready at first tap (honest
