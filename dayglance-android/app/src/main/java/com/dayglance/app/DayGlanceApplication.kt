@@ -42,6 +42,15 @@ class DayGlanceApplication : Application() {
                     getString(R.string.channel_up_next),
                     NotificationManager.IMPORTANCE_LOW
                 ).apply { description = getString(R.string.channel_up_next_desc) },
+
+                // Launch-on-write fallback for Home/Recents exits, where the
+                // platform forbids a direct app switch (see ObsidianBridge).
+                // LOW: no sound, no heads-up — a quiet tap-to-sync prompt.
+                NotificationChannel(
+                    CHANNEL_OBSIDIAN_SYNC,
+                    getString(R.string.channel_obsidian_sync),
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply { description = getString(R.string.channel_obsidian_sync_desc) },
             )
         )
     }
@@ -51,5 +60,6 @@ class DayGlanceApplication : Application() {
         const val CHANNEL_FOCUS = "focus_mode"
         const val CHANNEL_EVENTS = "events"
         const val CHANNEL_UP_NEXT = "up_next"
+        const val CHANNEL_OBSIDIAN_SYNC = "obsidian_sync"
     }
 }

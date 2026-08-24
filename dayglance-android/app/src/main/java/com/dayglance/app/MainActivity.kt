@@ -285,6 +285,11 @@ class MainActivity : AppCompatActivity() {
                 if (webView.canGoBack()) {
                     webView.goBack()
                 } else {
+                    // Launch-on-write: a back/gesture exit is as deliberate a
+                    // leave as a Home press, and onUserLeaveHint does NOT fire
+                    // for it — hook the armed Obsidian launch here, while the
+                    // activity is still foreground (so the start is permitted).
+                    obsidianBridge.flushPendingLaunch()
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
                 }
@@ -491,6 +496,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // Launch-on-write (Obsidian build-out Phase 1): a Home/Recents exit CANNOT
+    // direct-launch Obsidian — the Home press triggers the platform's
+    // stopAppSwitches suppression (built precisely so apps can't hijack the
+    // Home button) and the deferred start is then dropped by the
+    // background-activity-launch restriction. Verified on hardware: the
+    // startActivity is silently discarded. The sanctioned channel here is a
+    // tap-to-open notification (see ObsidianBridge.notifyPendingLaunch); the
+    // armed state is NOT consumed, so a later back-exit still direct-launches.
+    // This hint intentionally does not fire on screen-off or an incoming call —
+    // those are not "done with the app". Back-button exits don't reach this
+    // hint; they are hooked in backCallback, where a direct launch IS allowed.
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (::obsidianBridge.isInitialized) obsidianBridge.notifyPendingLaunch()
+    }
+
     override fun onPause() {
         super.onPause()
         // Show the overlay so the stale cached frame is hidden when the user returns.
@@ -515,6 +536,14 @@ class MainActivity : AppCompatActivity() {
             billingManager.activity = this
             billingManager.connect()
         }
+        // Resolve any outstanding tap-to-sync offer. If the notification is gone
+        // it was tapped (Obsidian already opened and synced), swiped, or timed
+        // out — the offer is spent, so the armed launch is consumed here and a
+        // later back-exit won't open Obsidian redundantly. If it's still
+        // showing it was merely ignored: retire the noise, keep the arm. This
+        // is the moment that closes that gap, since a back-exit is unreachable
+        // without first returning to the app.
+        if (::obsidianBridge.isInitialized) obsidianBridge.onAppResumed()
     }
 
     override fun onStop() {

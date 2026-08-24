@@ -269,6 +269,7 @@
     "obsidianDailyNoteTemplate": "Modèle de note quotidienne",
     "obsidianLaunchOnWrite": "Lancer Obsidian après les écritures",
     "obsidianLaunchOnWriteHint": "Après que dayGLANCE a écrit dans votre coffre, Obsidian est lancé pour qu'Obsidian Sync propage la modification vers vos autres appareils. Sur macOS, cela se fait en arrière-plan.",
+    "obsidianLaunchOnWriteHintAndroid": "Après que dayGLANCE a écrit dans votre coffre, quitter l'application avec Retour ouvre Obsidian directement ; en quittant par Accueil ou les applications récentes, une notification à toucher s'affiche à la place (Android n'autorise pas les applications à s'ouvrir par-dessus l'écran d'accueil). Dans les deux cas, Obsidian Sync peut ensuite propager la modification vers vos autres appareils.",
     "obsidianSyncComplete": "Synchronisation terminée",
     "obsidianSyncFailed": "Échec de la synchronisation. Voir la console pour les détails",
     "obsidianSelectVault": "Sélectionner le dossier du coffre",

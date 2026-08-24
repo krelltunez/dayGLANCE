@@ -1691,7 +1691,7 @@ const MobileSettingsPanel = () => {
                 </div>
                 <span className={`text-sm ${textPrimary}`}>{t('settings.obsidianLaunchOnWrite')}</span>
               </label>
-              <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianLaunchOnWriteHint')}</p>
+              <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianLaunchOnWriteHintAndroid')}</p>
             </div>
           )}
           {obsidianSyncStatus === 'success' && <p className="text-xs text-green-500">{t('settings.obsidianSyncComplete')}</p>}

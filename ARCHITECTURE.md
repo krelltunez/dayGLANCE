@@ -297,15 +297,33 @@ JS: window.DayGlanceObsidian.getDailyNote("2026-03-15")
 
 ### Launch-on-write
 
-After a debounced quiet window (8s) following vault writes, dayGLANCE fires
-`obsidian://open` for the last-written file so Obsidian Sync pushes the change
-even when Obsidian was closed. The debounce sits at each platform's write
-chokepoint, on the native side of the bridge: on Electron the
-`obsidian:write-file` handler feeds `electron/obsidianLaunch.ts` and the main
-process calls `shell.openExternal(uri, { activate: false })` (background launch
-on macOS; option ignored elsewhere); on Android `ObsidianRepository.writeText`
-feeds `LaunchOnWritePolicy` and the bridge fires the intent via its existing
-`openNote` path (`vault` + `file` form — SAF has no absolute path for `path=`).
+After vault writes, dayGLANCE fires `obsidian://open` for the last-written
+file so Obsidian Sync pushes the change even when Obsidian was closed. The
+trigger sits at each platform's write chokepoint, on the native side of the
+bridge, but the firing moment differs: on Electron the `obsidian:write-file`
+handler feeds a debounced quiet window (8s, `electron/obsidianLaunch.ts`) and
+the main process calls `shell.openExternal(uri, { activate: false })`
+(background launch on macOS; option ignored elsewhere). On Android
+`ObsidianRepository.writeText` ARMS `LaunchOnWritePolicy` and delivery happens
+on app exit, split by exit path: a back-button/gesture exit direct-launches
+(the back callback in MainActivity — the app is the foreground actor of a
+legitimate app switch), while Home/Recents exits post a quiet tap-to-open
+notification instead, because a direct start there is platform-blocked (the
+Home press triggers `stopAppSwitches`, and the deferred start then fails the
+background-activity-launch check). The notification's tap targets Obsidian
+directly (no trampolines on 12+), so it cannot be observed and the armed state
+is only peeked by that path — an ignored notification doesn't lose the wake; a
+later back-exit still direct-launches, retiring the notification, which also
+times out on its own. The offer is resolved when the app next comes to the
+foreground: a notification gone from the shade was tapped, swiped, or timed out
+(offer spent → consume the arm, so no later back-exit re-launches), while one
+still showing was merely ignored (retire it, keep the arm). That resolution is
+gated on an offer having been posted, so screen-off/screen-on can't discard a
+valid arm. There is no Android timer
+on purpose: an in-app launch interrupts the user (no `activate: false`
+equivalent), and a timer expiring after backgrounding is blocked by the same
+BAL restriction. The intent goes via the existing `openNote` path (`vault` +
+`file` form — SAF has no absolute path for `path=`).
 The toggle is a device-local tri-state key
 (`day-planner-obsidian-launch-on-write`, unset = platform default: on for
 macOS, off elsewhere), deliberately outside the cloud-synced `obsidianConfig`
