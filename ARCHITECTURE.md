@@ -304,14 +304,21 @@ bridge, but the firing moment differs: on Electron the `obsidian:write-file`
 handler feeds a debounced quiet window (8s, `electron/obsidianLaunch.ts`) and
 the main process calls `shell.openExternal(uri, { activate: false })`
 (background launch on macOS; option ignored elsewhere). On Android
-`ObsidianRepository.writeText` ARMS `LaunchOnWritePolicy` and the launch fires
-on app exit — Home/Recents (`onUserLeaveHint`) or back-button exit (the back
-callback in MainActivity), both while the activity is still foreground. There
-is no Android timer on purpose: an in-app launch interrupts the user (no
-`activate: false` equivalent), and a timer expiring after backgrounding is
-blocked by Android's background-activity-launch restriction. The intent goes
-via the existing `openNote` path (`vault` + `file` form — SAF has no absolute
-path for `path=`).
+`ObsidianRepository.writeText` ARMS `LaunchOnWritePolicy` and delivery happens
+on app exit, split by exit path: a back-button/gesture exit direct-launches
+(the back callback in MainActivity — the app is the foreground actor of a
+legitimate app switch), while Home/Recents exits post a quiet tap-to-open
+notification instead, because a direct start there is platform-blocked (the
+Home press triggers `stopAppSwitches`, and the deferred start then fails the
+background-activity-launch check). The notification's tap targets Obsidian
+directly (no trampolines on 12+), so it cannot be observed and the armed state
+is only peeked by that path — an ignored notification doesn't lose the wake; a
+later back-exit still direct-launches, retiring the notification, which also
+times out on its own and is cancelled on app resume. There is no Android timer
+on purpose: an in-app launch interrupts the user (no `activate: false`
+equivalent), and a timer expiring after backgrounding is blocked by the same
+BAL restriction. The intent goes via the existing `openNote` path (`vault` +
+`file` form — SAF has no absolute path for `path=`).
 The toggle is a device-local tri-state key
 (`day-planner-obsidian-launch-on-write`, unset = platform default: on for
 macOS, off elsewhere), deliberately outside the cloud-synced `obsidianConfig`

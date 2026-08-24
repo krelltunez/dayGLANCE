@@ -269,7 +269,7 @@
     "obsidianDailyNoteTemplate": "Modelo de nota diária",
     "obsidianLaunchOnWrite": "Abrir o Obsidian após gravações",
     "obsidianLaunchOnWriteHint": "Depois que o dayGLANCE gravar no seu vault, o Obsidian é aberto para que o Obsidian Sync envie a alteração para os seus outros dispositivos. No macOS isso acontece em segundo plano.",
-    "obsidianLaunchOnWriteHintAndroid": "Depois que o dayGLANCE gravar no seu vault, o Obsidian abre na próxima vez que você sair do aplicativo, para que o Obsidian Sync envie a alteração para os seus outros dispositivos.",
+    "obsidianLaunchOnWriteHintAndroid": "Depois que o dayGLANCE gravar no seu vault, sair do aplicativo com Voltar abre o Obsidian diretamente; ao sair com Início ou Recentes, aparece uma notificação que você pode tocar (o Android não permite que aplicativos se abram sobre a tela inicial). Nos dois casos, o Obsidian Sync pode então enviar a alteração para os seus outros dispositivos.",
     "obsidianSyncComplete": "Sincronização concluída",
     "obsidianSyncFailed": "Sincronização falhou. Ver consola para detalhes",
     "obsidianSelectVault": "Selecionar pasta do vault",

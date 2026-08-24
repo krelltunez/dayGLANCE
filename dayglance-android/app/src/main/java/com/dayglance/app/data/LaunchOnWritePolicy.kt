@@ -19,9 +19,18 @@ package com.dayglance.app.data
  *     that is both non-interruptive and reliably allowed to launch.
  *
  * The exit itself is therefore the debounce: any number of writes during a
- * session produce exactly one launch, of the last-written note, when the user
- * leaves (Home/Recents via onUserLeaveHint, or back-exit via the back
- * callback — both hooked in MainActivity).
+ * session arm exactly one launch, of the last-written note. Delivery differs
+ * by exit path (both hooked in MainActivity):
+ *
+ *  - Back-exit CAN direct-launch (the app is the foreground actor performing
+ *    a legitimate app switch) → [takePending] consumes the armed state.
+ *  - Home/Recents CANNOT: the Home press triggers the platform's
+ *    stopAppSwitches suppression (built precisely so apps can't hijack the
+ *    Home button), and the deferred start is then dropped by the
+ *    background-activity-launch restriction. The sanctioned channel there is
+ *    a tap-to-open notification → [peekPending] reads WITHOUT consuming, so
+ *    the armed state survives for a later back-exit's direct launch (an
+ *    ignored notification must not eat the wake).
  *
  * Pure state holder, JVM-testable. Starts DISABLED until the web frontend
  * pushes the device-local toggle via setLaunchOnWrite (Android default: off).
@@ -59,8 +68,9 @@ class LaunchOnWritePolicy {
     }
 
     /**
-     * The note to open at an app-exit moment, clearing the armed state so an
-     * exit fires at most once. Null when nothing is armed.
+     * The note to open at a CONFIRMED delivery moment (back-exit direct
+     * launch), clearing the armed state so an exit fires at most once.
+     * Null when nothing is armed.
      */
     @Synchronized
     fun takePending(): String? {
@@ -68,4 +78,15 @@ class LaunchOnWritePolicy {
         pendingNote = null
         return note
     }
+
+    /**
+     * The armed note WITHOUT consuming it — for the Home/Recents notification
+     * fallback, whose tap cannot be observed (Android 12+ forbids notification
+     * trampolines, so the tap PendingIntent must target Obsidian directly).
+     * Keeping the state armed means an ignored notification doesn't lose the
+     * wake: a later back-exit still direct-launches, and re-posting uses a
+     * constant notification id so at most one exists.
+     */
+    @Synchronized
+    fun peekPending(): String? = pendingNote
 }

@@ -87,4 +87,8 @@
     <string name="upnext_empty_title">Nichts mehr geplant</string>
     <string name="upnext_empty_sub">Für heute ist alles erledigt</string>
     <string name="glanceahead_empty">Morgen ist noch ganz frei</string>
+    <string name="channel_obsidian_sync">Obsidian-Synchronisierung</string>
+    <string name="channel_obsidian_sync_desc">Erinnerungen, Obsidian zu öffnen, damit Tresor-Änderungen mit Ihren anderen Geräten synchronisiert werden</string>
+    <string name="notif_obsidian_sync_title">Änderungen in Ihren Tresor geschrieben</string>
+    <string name="notif_obsidian_sync_body">Tippen Sie, um Obsidian zu öffnen und sie mit Ihren anderen Geräten zu synchronisieren</string>
 </resources>

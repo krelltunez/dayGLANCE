@@ -496,17 +496,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Launch-on-write (Obsidian build-out Phase 1): fire the armed Obsidian
-    // launch when the user deliberately leaves via Home or Recents. This hint
-    // runs while the activity is still foreground, so the activity start is
-    // permitted — an intent fired after backgrounding would be dropped by
-    // Android's background-activity-launch restriction. It intentionally does
-    // NOT fire on screen-off or an incoming call: those are not "done with the
-    // app", and the armed state simply survives until a real exit. Back-button
-    // exits don't reach this hint; they are hooked in backCallback instead.
+    // Launch-on-write (Obsidian build-out Phase 1): a Home/Recents exit CANNOT
+    // direct-launch Obsidian — the Home press triggers the platform's
+    // stopAppSwitches suppression (built precisely so apps can't hijack the
+    // Home button) and the deferred start is then dropped by the
+    // background-activity-launch restriction. Verified on hardware: the
+    // startActivity is silently discarded. The sanctioned channel here is a
+    // tap-to-open notification (see ObsidianBridge.notifyPendingLaunch); the
+    // armed state is NOT consumed, so a later back-exit still direct-launches.
+    // This hint intentionally does not fire on screen-off or an incoming call —
+    // those are not "done with the app". Back-button exits don't reach this
+    // hint; they are hooked in backCallback, where a direct launch IS allowed.
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (::obsidianBridge.isInitialized) obsidianBridge.flushPendingLaunch()
+        if (::obsidianBridge.isInitialized) obsidianBridge.notifyPendingLaunch()
     }
 
     override fun onPause() {
@@ -533,6 +536,10 @@ class MainActivity : AppCompatActivity() {
             billingManager.activity = this
             billingManager.connect()
         }
+        // The tap-to-sync prompt is noise while the user is IN the app — retire
+        // it; the armed launch state survives and re-posts on the next Home exit
+        // (or direct-launches on a back-exit).
+        if (::obsidianBridge.isInitialized) obsidianBridge.cancelLaunchNotification()
     }
 
     override fun onStop() {

@@ -87,4 +87,8 @@
     <string name="upnext_empty_title">Nada a continuación</string>
     <string name="upnext_empty_sub">Has terminado por hoy</string>
     <string name="glanceahead_empty">Mañana está totalmente libre</string>
+    <string name="channel_obsidian_sync">Sincronización de Obsidian</string>
+    <string name="channel_obsidian_sync_desc">Recordatorios para abrir Obsidian y sincronizar los cambios del vault con tus otros dispositivos</string>
+    <string name="notif_obsidian_sync_title">Cambios guardados en tu vault</string>
+    <string name="notif_obsidian_sync_body">Toca para abrir Obsidian y sincronizarlos con tus otros dispositivos</string>
 </resources>

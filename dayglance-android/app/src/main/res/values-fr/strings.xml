@@ -87,4 +87,8 @@
     <string name="upnext_empty_title">Rien à suivre</string>
     <string name="upnext_empty_sub">Vous avez terminé pour aujourd\'hui</string>
     <string name="glanceahead_empty">Demain est entièrement libre</string>
+    <string name="channel_obsidian_sync">Synchronisation Obsidian</string>
+    <string name="channel_obsidian_sync_desc">Rappels pour ouvrir Obsidian afin de synchroniser les modifications du coffre avec vos autres appareils</string>
+    <string name="notif_obsidian_sync_title">Modifications écrites dans votre coffre</string>
+    <string name="notif_obsidian_sync_body">Touchez pour ouvrir Obsidian et les synchroniser avec vos autres appareils</string>
 </resources>

@@ -56,6 +56,31 @@ class LaunchOnWritePolicyTest {
     }
 
     @Test
+    fun `peek (the Home-exit notification path) does not consume the armed state`() {
+        // The notification tap cannot be observed (no trampolines on 12+), so
+        // an ignored notification must not eat the wake: repeated Home exits
+        // re-post, and a later back-exit still direct-launches.
+        val p = LaunchOnWritePolicy()
+        p.setEnabled(true)
+        p.onWrite("a")
+        assertEquals("a", p.peekPending())
+        assertEquals("a", p.peekPending()) // second Home exit re-posts
+        assertEquals("a", p.takePending()) // back-exit still delivers
+        assertNull(p.peekPending())        // and only then is it gone
+    }
+
+    @Test
+    fun `peek respects disabled and cancelled states like take does`() {
+        val p = LaunchOnWritePolicy()
+        p.onWrite("a")
+        assertNull(p.peekPending()) // disabled: nothing armed
+        p.setEnabled(true)
+        p.onWrite("b")
+        p.cancelPending()
+        assertNull(p.peekPending()) // vault swap dropped it
+    }
+
+    @Test
     fun `clearVault then a fresh vault - pending is dropped but the enabled flag is not left stale`() {
         // ObsidianBridge.clearVault calls cancelPending() — a launch must not
         // fire against a vault the user just swapped away from, but the user's
