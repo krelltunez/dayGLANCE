@@ -61,6 +61,15 @@ App open, visibility change, 5-minute poll, and a manual "Sync Now" control.
 
 Verified on Linux under xvfb (pick, write, quit, relaunch, restore, write, plus moved vault) and on Windows hardware.
 
+**Phase 1 (launch-on-write), shipped with 4.7.0.** Four PRs:
+
+- **PR #1435** — the core feature: per-platform launch mechanisms, the desktop 8s debounce in the Electron main process, the single `obsidian:set-launch-on-write` IPC channel, the device-local tri-state toggle, and the Settings surfaces. Verified under xvfb (write → silent debounce fire with no `obsidian://` handler → clean quit with a pending launch flushed).
+- **PR #1444** — replaced the Android timer with armed-on-write / delivered-on-exit, after establishing that a timer either interrupts the user in-app or is dropped by the background-activity-launch restriction once they leave.
+- **PR #1445** — split Android delivery by exit path after hardware testing: back-exit direct-launches; Home/Recents exits post a tap-to-open notification, because the Home press triggers `stopAppSwitches` and the direct start is silently discarded.
+- **PR #1446** — resolves the notification offer on app resume (gone from the shade = tapped/swiped/expired = offer spent, arm consumed), closing the redundant-launch gap left by the tap being unobservable under the Android 12+ trampoline ban.
+
+The Phase 1 section below reflects the delivered design, not a proposal.
+
 ### 2.5 Known deferred items
 
 - **Issue #1358.** Surface unportable existing vault filenames in Settings, read-only, phrased as a portability note rather than an error.
@@ -166,7 +175,7 @@ Relevant to Phases 6 and 7.
 
 ## 6. Phases
 
-Phase 0 is complete. Phases 1 through 4 are independent of the plugin and deliver value on their own.
+Phases 0 and 1 are complete. Phases 2 through 4 are independent of the plugin and deliver value on their own.
 
 ### Phase 0. Platform truth and write safety foundations — COMPLETE
 
@@ -174,7 +183,9 @@ Delivered by PRs #1356 and #1357. See section 2.4.
 
 ---
 
-### Phase 1. Launch-on-write
+### Phase 1. Launch-on-write — COMPLETE
+
+Delivered by PRs #1435, #1444, #1445, and #1446; shipped with 4.7.0. See section 2.4. The scope and notes below are the as-built record.
 
 **Goal.** When dayGLANCE writes to a vault while Obsidian is closed, launch Obsidian so Obsidian Sync pushes the change.
 
@@ -210,11 +221,11 @@ Delivered by PRs #1356 and #1357. See section 2.4.
 - Optional polish: Advanced URI's `openmode=silent` avoids opening a tab. Detect its presence by checking `<vault>/.obsidian/plugins/obsidian-advanced-uri/` and the enabled list in `community-plugins.json`, and fall back to the base scheme when absent. A dependency to detect, never to require.
 - **Write chokepoint: one per platform, on the native side of each bridge.** There is no single cross-platform chokepoint, and creating one in the renderer would be worse. On desktop, every write path funnels through `obsidian:write-file` in `electron/obsidian.ts`, which already holds the resolved absolute path and knows whether the write succeeded. On Android, the analog is `ObsidianRepository.writeText`, which `writeDailyNote` and `writeNote` share. A renderer-side debounce would require extracting a shared write helper across four inline `createWritable` sites plus the native wrappers, add a launch IPC back to main, and still not have the absolute path. Two small debounce policies, each at a real funnel with its own tests, is the smaller honest shape.
 - **IPC surface is one channel:** `obsidian:set-launch-on-write` (renderer to main, boolean), pushed at startup and on toggle change. There is no renderer-invocable launch channel — main initiates the launch itself from the write handler, so the renderer never controls a URI. This preserves the security posture of the existing `obsidian:open-note` handler, where `setWindowOpenHandler` permits only http and https.
-- **Lifecycle edges to cover:** clear any pending timer on toggle-off and on `obsidian:disconnect`, and confirm the enabled flag is not left stale across a disconnect followed by a fresh `obsidian:pick`, which would otherwise fire a launch against a vault the user just swapped away from. Decide explicitly what happens to a pending timer on app quit; firing immediately is preferable if cheap, since editing and then closing the app is a normal pattern.
+- **Lifecycle edges (covered, with tests):** a pending launch is cleared on toggle-off, on `obsidian:disconnect`, and on `obsidian:pick`, while the enabled flag survives a vault swap — so a launch never fires against a vault the user just swapped away from, and a write into the new vault schedules normally. On desktop app quit, a pending launch inside the quiet window fires immediately via a `will-quit` flush (fire-and-forget, so quit is never delayed); on Android the armed state dies with the process — the accepted-miss equivalent, since there is no exit hook left to fire from.
 
 **Non-goals.** This does not solve propagation to other devices. It fixes the push side only. The pull side is Phases 5 through 7.
 
-**Exit criteria.** Writing to a vault with Obsidian closed results in the change appearing on a second device without manual intervention on the originating machine.
+**Exit criteria (met).** Writing to a vault with Obsidian closed results in the change appearing on a second device without manual intervention on the originating machine — immediately on desktop and Android back-exits; after one notification tap on Android Home/Recents exits, where the platform forbids anything more automatic.
 
 ---
 
@@ -222,14 +233,25 @@ Delivered by PRs #1356 and #1357. See section 2.4.
 
 **Goal.** Give every dayGLANCE-managed task a stable identity in the vault that survives edits, reordering, and reformatting.
 
+**Status.** Part A implemented in PR #1439, pending merge (held for a release after 4.7.0). The scope below records the split and the semantics decided during that implementation.
+
 **Rationale.** Task identity is currently implicit, positional or text-matched. Every bug class fought in GLANCEvault (resurrection, phantom deletes, duplication) has a latent analog here and will surface as write surface grows. This is the highest-value single change in the plan.
 
-**Scope.**
+**Scope — Part A (the whole deliverable).**
 
-- Assign `^dg-<id>` block references on write: `- [ ] Review proposal ^dg-a1b2c3`.
-- Match on read by ID first, falling back to existing text matching when a task carries no ID.
-- Migrate opportunistically: assign an ID the first time a task is seen without one. No flag day.
+- Assign `^dg-<id>` block references on write: `- [ ] Review proposal ^dg-a1b2c3d4`. Format: 8 chars of crypto-random lowercase base36, generated at write time, persisted on the task as `obsidianBlockId`, and embedded in the line itself — the vault carries the identity, so every device derives the same task id from the same line.
+- Match on read by ID first, falling back to existing text matching when a line carries no ID. The app-level id for a tagged line is the content-independent `obsidian-dg-<id>`; content-derived ids diverge across devices whenever two devices first import before/after an edit, so deriving from the block id is what makes cross-device matching converge. A one-time legacy-id bridge carries app-only fields across the switch.
+- Migrate opportunistically: a task acquires an ID the first time a WRITE rewrites its line, committed to app state only when the write reports success. No flag day.
 - IDs are assigned at write time in dayGLANCE and persisted, not derived at read time.
+
+**Part B — deliberately not shipped.** A proactive sweep stamping IDs onto every existing line is a mass rewrite of the user's files; a bug in emission would corrupt everything at once, where Part A bounds any bug to one task. Part A converges on its own as tasks get edited, and untagged tasks keep working through the fallback indefinitely — there is no correctness cliff forcing a sweep.
+
+**Decided semantics** (details and rationale in PR #1439):
+
+- Duplicate `^dg-` ids (a line copy-pasted in Obsidian): first occurrence wins, vault-wide; later occurrences parse as untagged tasks.
+- A tagged line retitled in Obsidian keeps its task, and the vault title wins when the line's raw title differs from what dayGLANCE last wrote; an unchanged line still preserves DG-side renames.
+- A line ending in the user's own block ref (`^quote1`) is never stamped — Obsidian allows one block reference per line — but a line already carrying our id keeps it unconditionally.
+- `obsidian-dg-` keys carry no date, and the deletion detector conservatively never tombstones undatable keys; a persisted sidecar (`day-planner-obsidian-last-scanned-dates`) supplies each key's last-seen daily-note date so deletion propagation stays alive for tagged tasks.
 
 **Why block references specifically.** Native Obsidian syntax, invisible in reading view, survives edits and reordering, and linkable from anywhere in the vault.
 
@@ -283,11 +305,11 @@ Delivered by PRs #1356 and #1357. See section 2.4.
 - Heartbeat: write `.dayglance/heartbeat` every 30 seconds while Obsidian is open, payload per 3.3.
 - A `dayglance-bridge:sync-now` command.
 - Nothing else. No transport, no GLANCEvault client.
-- dayGLANCE reads the heartbeat to suppress Phase 1 deep links when Obsidian is already running, and to determine arbitration state.
+- dayGLANCE reads the heartbeat to suppress Phase 1 launch-on-write delivery when Obsidian is already running — the desktop debounced launch, and on Android the arming itself (so neither a direct launch nor a tap-to-open notification is produced) — and to determine arbitration state.
 
 **Distribution.** BRAT or manual install. Not submitted to the community directory.
 
-**Exit criteria.** Heartbeat visible and correctly interpreted by dayGLANCE on macOS, Android, and Windows. Phase 1 no longer fires a deep link when Obsidian is open.
+**Exit criteria.** Heartbeat visible and correctly interpreted by dayGLANCE on macOS, Android, and Windows. Phase 1 no longer launches Obsidian or posts a tap-to-open notification when Obsidian is already open.
 
 ---
 
