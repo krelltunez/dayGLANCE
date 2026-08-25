@@ -441,11 +441,29 @@ export default function useObsidianSync({
     const prev = obsidianPrevTaskStateRef.current;
     const isNative = obsidianVaultHandleRef.current === 'native';
 
-    // IDs of tasks whose obsidianRawTitle / id changed during this loop (title writeback).
-    // We collect them and apply a single batched state update after the loop.
-    const titleUpdates = []; // { oldId, newId, newRawTitle }
-    // Block-id assignments confirmed by a synchronous native write this pass.
-    const nativeBlockAssignments = []; // { fromId, blockId }
+    // Write-success commits from synchronous native writes, run after the
+    // snapshot rebuild below. (Desktop commits run in each write's own .then,
+    // which also lands after that point.)
+    const nativeCommits = [];
+
+    // ── Write-success bookkeeping ─────────────────────────────────────────
+    // ALL id / obsidianRawTitle bookkeeping is gated on the vault write
+    // reporting success — a failed write must leave the task exactly as it
+    // was. obsidianRawTitle in particular means "what the vault line says we
+    // last wrote"; advancing it optimistically made the field claim a write
+    // that never landed, and the next scan then misclassified the FAILED
+    // WRITE as an Obsidian-side edit (vault raw ≠ "last written") and
+    // discarded the user's rename via the vault-title-wins rule.
+
+    // Map oldId → { id, obsidianRawTitle } across both lists, moving the
+    // change-detection snapshot entry along with the id.
+    const applyTitleUpdate = ({ oldId, newId, newRawTitle }) => {
+      const apply = t => (t.id === oldId ? { ...t, id: newId, obsidianRawTitle: newRawTitle } : t);
+      setTasks(prevTasks => prevTasks.map(apply));
+      setUnscheduledTasks(prevTasks => prevTasks.map(apply));
+      const snap = obsidianPrevTaskStateRef.current;
+      if (oldId !== newId && snap[oldId]) { snap[newId] = snap[oldId]; delete snap[oldId]; }
+    };
 
     // Commit a fresh block-id assignment to app state once the vault write
     // that stamped it reported success: the task's id switches to the durable
@@ -461,6 +479,28 @@ export default function useObsidianSync({
       setUnscheduledTasks(prevTasks => prevTasks.map(apply));
       const snap = obsidianPrevTaskStateRef.current;
       if (snap[fromId]) { snap[newId] = snap[fromId]; delete snap[fromId]; }
+    };
+
+    // The transition KNOWS a retired id no longer names anything — it did the
+    // renaming. Record explicit deletedTaskIds tombstones for every id the
+    // confirmed write retires, so the file-tier union merge (which consults
+    // ONLY deletedTaskIds — see the "deletedObsidianKeys never reaches the
+    // file-tier task merge" issue) stops resurrecting retired rows from the
+    // remote file onto every device, vaultless ones included. The deletion
+    // DETECTOR still never infers a deletion from a rename (the scanned-keys
+    // hints see to that): this is the transition asserting a fact it holds,
+    // not the detector guessing from a short scan. LWW protects an offline
+    // device's newer edit under a retired id — its copy outlives the
+    // tombstone and re-bridges on that device's next scan. Entries prune at
+    // the shared 60-day retention (sync/tombstoneRetention.js).
+    const recordRetiredIdTombstones = (ids) => {
+      if (!ids.length) return;
+      try {
+        const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}');
+        const nowIso = new Date().toISOString();
+        for (const id of ids) tombstones[String(id)] = nowIso;
+        localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(tombstones));
+      } catch { /* storage unavailable — scanned-keys hints still keep local state coherent */ }
     };
 
     for (const task of allObsidian) {
@@ -505,24 +545,29 @@ export default function useObsidianSync({
       const assignBlockId = task.obsidianBlockId ? null : generateBlockId();
       const writeBlockId = task.obsidianBlockId || assignBlockId;
 
-      // Title-change bookkeeping BEFORE the write, so the write-success
-      // callback maps from the task's post-title-update id:
+      // Title bookkeeping is COMPUTED here but applied only on write success:
       //  - tagged task: the block id owns identity — a retitle never changes
       //    the id, only obsidianRawTitle is refreshed;
-      //  - untagged task: legacy behavior — the content-derived id is
-      //    recomputed (and if this write's stamping succeeds, the block-id
-      //    assignment below supersedes it).
+      //  - untagged task: the legacy content-derived id is recomputed
+      //    (then superseded by the block assignment from the same write).
+      let titleUpdate = null;
       let postTitleId = task.id;
       if (titleChanged && newRawTitle) {
-        if (task.obsidianBlockId) {
-          titleUpdates.push({ oldId: task.id, newId: task.id, newRawTitle });
-        } else {
-          // New content-derived ID from the updated raw title (mirrors parseTasksFromMarkdown)
-          const newId = `obsidian-${sourceDate}-${obsidianSimpleHash(newRawTitle)}`;
-          titleUpdates.push({ oldId: task.id, newId, newRawTitle });
-          postTitleId = newId;
-        }
+        // Mirrors parseTasksFromMarkdown's content-derived id for untagged tasks.
+        const newId = task.obsidianBlockId ? task.id : `obsidian-${sourceDate}-${obsidianSimpleHash(newRawTitle)}`;
+        titleUpdate = { oldId: task.id, newId, newRawTitle };
+        postTitleId = newId;
       }
+
+      // Everything the CONFIRMED write establishes, in order: the title /
+      // rawTitle bookkeeping, the block-id assignment, then tombstones for
+      // every id the rename chain retired (task.id → postTitleId → dg id).
+      const commit = () => {
+        if (titleUpdate) applyTitleUpdate(titleUpdate);
+        if (assignBlockId) applyBlockIdAssignment(postTitleId, assignBlockId);
+        const finalId = assignBlockId ? appIdForBlockId(assignBlockId) : postTitleId;
+        recordRetiredIdTombstones([...new Set([task.id, postTitleId])].filter(id => id !== finalId));
+      };
 
       if (isNative) {
         const updated = writeTaskStateNative(
@@ -536,7 +581,7 @@ export default function useObsidianSync({
           taskHeading,
           writeBlockId,
         );
-        if (updated && assignBlockId) nativeBlockAssignments.push({ fromId: postTitleId, blockId: assignBlockId });
+        if (updated) nativeCommits.push(commit);
       } else {
         writeTaskStateToFile(
           obsidianVaultHandleRef.current,
@@ -551,37 +596,29 @@ export default function useObsidianSync({
           taskHeading,
           writeBlockId,
         ).then(updated => {
-          if (updated && assignBlockId) applyBlockIdAssignment(postTitleId, assignBlockId);
+          if (updated) commit();
         }).catch(err => console.error('Obsidian: failed to write task state back', err));
       }
     }
 
-    // Apply title-writeback ID/obsidianRawTitle updates to React state
-    if (titleUpdates.length > 0) {
-      const applyUpdates = t => {
-        const u = titleUpdates.find(u => u.oldId === t.id);
-        return u ? { ...t, id: u.newId, obsidianRawTitle: u.newRawTitle } : t;
-      };
-      setTasks(prev => prev.map(applyUpdates));
-      setUnscheduledTasks(prev => prev.map(applyUpdates));
-    }
-
-    // Update previous-state snapshot (keyed by new IDs after title changes)
-    // Include date so we can detect future rescheduling to a different day
+    // Update previous-state snapshot, keyed by the tasks' CURRENT ids — all
+    // id / rawTitle bookkeeping is write-success-gated and moves its own
+    // snapshot entry when it commits. After a FAILED write the entry keeps
+    // the task's new display state under the old id, so the failed write is
+    // not re-attempted until the task changes again (unchanged from the old
+    // behavior — minus the misclassification the optimistic advance caused).
+    // Include date so we can detect future rescheduling to a different day.
     const next = {};
     for (const task of allObsidian) {
-      const u = titleUpdates.find(u => u.oldId === task.id);
-      const snapshotId = u ? u.newId : task.id;
-      next[snapshotId] = { completed: task.completed, startTime: task.startTime || null, duration: task.duration || null, title: task.title, date: task.date || null };
+      next[task.id] = { completed: task.completed, startTime: task.startTime || null, duration: task.duration || null, title: task.title, date: task.date || null };
     }
     obsidianPrevTaskStateRef.current = next;
 
-    // Native writes are synchronous, so their confirmed block-id assignments
-    // commit here — after the snapshot rebuild, so the entry move inside
-    // applyBlockIdAssignment operates on the fresh snapshot. (Desktop
-    // assignments commit in each write's own .then, which also lands after
-    // this point.)
-    for (const { fromId, blockId } of nativeBlockAssignments) applyBlockIdAssignment(fromId, blockId);
+    // Native writes are synchronous, so their confirmed commits run here —
+    // after the snapshot rebuild, so the entry moves inside the commit operate
+    // on the fresh snapshot. (Desktop commits run in each write's own .then,
+    // which also lands after this point.)
+    for (const commit of nativeCommits) commit();
     // Keyed on task changes — writeback fires when tasks change and reads the
     // current obsidianConfig paths + dedup refs at that moment. Adding the config
     // paths would re-run a writeback on a mere settings change.

@@ -13,10 +13,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // is modeled as devices scanning the same (or a stale copy of the) vault, and
 // cloud row/tombstone exchange is modeled at the documented seams.
 //
-// One block below pins a FINDING — file-tier union resurrection of the
-// transitioned-away legacy row — reported for a decision, NOT fixed here.
-// Those tests assert CURRENT (wrong) behavior on purpose; do not "fix" the
-// tests without the accompanying behavior decision.
+// The review's Finding 1 (file-tier union resurrection of the transitioned-
+// away legacy row) is FIXED: the write-success commit records explicit
+// deletedTaskIds tombstones for every retired id, and the tests below assert
+// the fixed flow. Finding 2 (deletedObsidianKeys never reaches the file-tier
+// task merge) is a pre-existing shipped bug filed as issue #1448 and remains
+// pinned, labeled, at the bottom of this file.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const effects = [];
@@ -38,7 +40,7 @@ vi.mock('./native.js', () => ({
 }));
 
 const { default: useObsidianSync } = await import('./hooks/useObsidianSync.js');
-const { legacyObsidianId, appIdForBlockId, parseTasksFromMarkdown } = await import('./obsidian.js');
+const { legacyObsidianId, appIdForBlockId, parseTasksFromMarkdown, simpleHash } = await import('./obsidian.js');
 const { mergeObsidianTasks } = await import('./utils/mergeObsidianTasks.js');
 const { addObsidianTombstones } = await import('./utils/obsidianDeletions.js');
 const { mergeTaskArrays } = await import('./mergeSync.js');
@@ -140,6 +142,46 @@ async function runVaultSync(device, vaultFs) {
   await p;
 }
 
+// Run the REAL writeback effect for [device] against [vaultFs], with
+// [prevSnapshot] as the change-detection baseline (what the last sync saw).
+// This is where the Phase 2 write-success gating lives: block-id assignment,
+// obsidianRawTitle / id bookkeeping, and retired-id tombstones all commit only
+// when writeTaskStateToFile reports the line was actually written.
+async function runWriteback(device, vaultFs, prevSnapshot) {
+  globalThis.localStorage = device.storage;
+  effects.length = 0;
+  const bind = (key) => (v) => { device[key] = typeof v === 'function' ? v(device[key]) : v; };
+  const noop = () => {};
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- react is fully mocked (see above)
+  useObsidianSync({
+    isTrayMode: false,
+    dataLoaded: true,
+    tasks: device.tasks, setTasks: bind('tasks'),
+    unscheduledTasks: device.inbox, setUnscheduledTasks: bind('inbox'),
+    setDailyNotes: bind('dailyNotes'),
+    setWikilinkCandidates: noop,
+    setUnportableVaultFiles: noop,
+    obsidianConfig: { enabled: true, dailyNotesPath: '', dailyNotePattern: 'yyyy-MM-dd', taskHeading: '## Tasks' },
+    setObsidianConfig: noop,
+    obsidianLaunchOnWrite: null,
+    setObsidianSyncStatus: noop, setObsidianSyncError: noop, setObsidianLastSynced: noop,
+    obsidianVaultHandleRef: { current: makeDir(vaultFs) },
+    obsidianSyncInProgressRef: { current: false },
+    obsidianPrevTaskStateRef: { current: prevSnapshot },
+    obsidianTasksRef: { current: device.tasks },
+    obsidianInboxRef: { current: device.inbox },
+  });
+  // The writeback effect is the one keyed on BOTH task arrays plus the
+  // enabled flag ([tasks, unscheduledTasks, enabled]) — the always-fresh-ref
+  // effects also key on a task array but with only two deps.
+  const writeback = effects.find(e =>
+    Array.isArray(e.deps) && e.deps.length === 3 && e.deps[0] === device.tasks && e.deps[1] === device.inbox);
+  writeback.fn();
+  // Desktop commits land in each write's .then — drain the microtask chain.
+  for (let i = 0; i < 40; i++) await Promise.resolve();
+}
+const deletedTaskIdsOf = (d) => readJson(d, 'day-planner-deleted-task-ids', {});
+
 // ── Fixtures ────────────────────────────────────────────────────────────────
 // Local "today" so the daily note is always inside the 90-day scan window.
 const now = new Date();
@@ -234,13 +276,31 @@ describe('transition (b): device offline for a week comes back to a tagged vault
     expect(tombstonesOf(b)).toEqual({}); // no aged-out false deletions, no legacy tombstone
   });
 
-  // FINDING (b2), reported for decision — see the PR discussion: if the task's
-  // daily note ages PAST the 90-day window before the offline device ever
-  // scans again, that device retains the legacy-keyed row (correct detector
-  // conservatism) while stamped devices hold the dg-keyed row, and no scan can
-  // ever reconcile them — the union-style file-tier merge then carries BOTH
-  // rows fleet-wide. Not testable as correct behavior until the decision.
-  it.todo('(b2) note ages out of the window before the offline device rescans — permanent id split (reported)');
+  // (b2) — RESOLVED by the transition tombstone. If the task's daily note ages
+  // past the 90-day window before the offline device ever rescans, no scan can
+  // bridge its legacy row — but sync alone now converges it: the explicit
+  // deletedTaskIds tombstone written at stamp time drops the legacy row at the
+  // file-tier merge, and the union delivers the dg row.
+  it('(b2) the aged-out offline device converges via sync alone: tombstone kills the legacy row, union delivers dg', () => {
+    const dgRow = legacyRow({ id: DG_ID, obsidianBlockId: 'aaaaaaaa', lastModified: '2026-08-21T00:00:00.000Z' });
+    const { merged } = mergeTaskArrays(
+      [legacyRow()],                              // offline device: legacy row only
+      [dgRow],                                    // remote: the stamped row
+      { [LEGACY_ID]: '2026-08-21T00:00:00.000Z' } // the transition's tombstone, synced
+    );
+    expect(merged.map(t => t.id)).toEqual([DG_ID]);
+  });
+
+  it('(b2) beyond the 60-day tombstone GC, the sync-horizon fence zombie-drops the stale legacy row', () => {
+    // Device offline past tombstone retention: the tombstone is pruned, but
+    // its legacy row's lastModified now predates the remote's
+    // tombstonePrunedBefore fence — mergeArrayById presumes zombie and drops
+    // it rather than resurrecting it. Both windows are covered.
+    const dgRow = legacyRow({ id: DG_ID, obsidianBlockId: 'aaaaaaaa' });
+    const staleLegacy = legacyRow({ lastModified: '2026-05-01T00:00:00.000Z' });
+    const { merged } = mergeTaskArrays([staleLegacy], [dgRow], {}, new Date('2026-08-01T00:00:00.000Z'));
+    expect(merged.map(t => t.id)).toEqual([DG_ID]);
+  });
 });
 
 // ═══ (c) Both devices stamp the same task independently ═════════════════════
@@ -361,38 +421,120 @@ describe('transition (d2/e): the stamped line is deleted from the vault', () => 
   });
 });
 
-// ═══ FINDING PINS — reported wrong behavior, NOT fixed in this pass ═════════
-// The transitioned-away legacy row is removed from the stamping device's
-// arrays with NO tombstone in ANY channel (the hint deliberately suppresses
-// the deletion detector so a rename isn't treated as a deletion). But the
-// file-tier task merge (@glance-apps/sync mergeArrayById via mergeTaskArrays)
-// is a UNION consulting only deletedTaskIds: a row absent locally but present
-// in the remote file is resurrected into the merged set. Consequences:
-// vault devices oscillate (legacy row reappears on every pull, dropped by the
-// next scan); vaultless file-tier devices keep it PERMANENTLY; the row is
-// immortal in the remote file. The same union also ignores deletedObsidianKeys
-// entirely — a PRE-EXISTING gap that today's rename churn and vault deletions
-// also fall into; the transition widens exposure to every task, once.
-// These tests PIN the current behavior so the failure is visible; the fix
-// direction is a decision for the PR review, not this pass.
-describe('FINDING: file-tier union resurrects the transitioned-away legacy row', () => {
-  const dgRow = legacyRow({ id: DG_ID, obsidianBlockId: 'aaaaaaaa' });
-
-  it('with no tombstone in any channel, the remote copy of the legacy row unions back', () => {
-    const { merged } = mergeTaskArrays(
-      [dgRow],              // local: device already transitioned
-      [legacyRow(), dgRow], // remote file: still carries the legacy row
-      {},                   // deletedTaskIds: nothing — the transition writes none
-    );
-    expect(merged.map(t => t.id).sort()).toEqual([DG_ID, LEGACY_ID].sort()); // ← the duplicate
+// ═══ Write-success gating: bookkeeping commits only on a confirmed write ═══
+describe('writeback bookkeeping is gated on write success', () => {
+  const snapshotOf = (id, over = {}) => ({
+    [id]: { completed: false, startTime: null, duration: 45, title: `${TITLE} #obsidian`, date: null, ...over },
   });
 
-  it('a deletedObsidianKeys tombstone would not help either — the file-tier merge never sees that map', () => {
-    // The call sites pass only deletedTaskIds (mergeSync.js allDeletedIds);
-    // deletedObsidianKeys is honored solely by the vault-scan merge and the
-    // rescue gate. Passing the obsidian map through the parameter that IS
-    // consulted removes the row — proving it is a channel gap, not an LWW gap.
-    const obsidianTombs = { [LEGACY_ID]: new Date(Date.now() + 60_000).toISOString() };
+  it('successful stamp: id transitions, the line is stamped, and the retired legacy id is tombstoned in deletedTaskIds', async () => {
+    const vault = { [NOTE]: `## Tasks\n- [ ] ${TITLE}` };
+    const device = makeDevice({ inbox: [legacyRow({ completed: true })] }); // user just checked it off
+    await runWriteback(device, vault, snapshotOf(LEGACY_ID));
+
+    const t = device.inbox[0];
+    expect(t.id).toMatch(/^obsidian-dg-[a-z0-9]{8}$/);
+    expect(t.obsidianBlockId).toMatch(/^[a-z0-9]{8}$/);
+    expect(vault[NOTE]).toContain(`- [x] ${TITLE} ^dg-${t.obsidianBlockId}`);
+    // The transition asserts the fact it holds: the legacy key is retired,
+    // tombstoned in the channel the file-tier merge actually consults.
+    expect(deletedTaskIdsOf(device)[LEGACY_ID]).toBeTruthy();
+  });
+
+  it('failed write (note file missing): NOTHING commits — no id change, no block id, no tombstone', async () => {
+    const device = makeDevice({ inbox: [legacyRow({ completed: true })] });
+    await runWriteback(device, {}, snapshotOf(LEGACY_ID));
+
+    const t = device.inbox[0];
+    expect(t.id).toBe(LEGACY_ID);
+    expect(t.obsidianBlockId).toBeUndefined();
+    expect(t.obsidianRawTitle).toBe(TITLE);
+    expect(deletedTaskIdsOf(device)).toEqual({});
+  });
+
+  it('tagged retitle, write lands: obsidianRawTitle advances, id unchanged, no id retired → no tombstone', async () => {
+    const vault = { [NOTE]: `## Tasks\n- [ ] ${TITLE} ^dg-aaaaaaaa` };
+    const device = makeDevice({
+      inbox: [legacyRow({ id: DG_ID, obsidianBlockId: 'aaaaaaaa', title: 'Renamed thing #obsidian' })],
+    });
+    await runWriteback(device, vault, snapshotOf(DG_ID));
+
+    const t = device.inbox[0];
+    expect(t.id).toBe(DG_ID);
+    expect(t.obsidianRawTitle).toBe('Renamed thing');
+    expect(vault[NOTE]).toContain('- [ ] Renamed thing ^dg-aaaaaaaa');
+    expect(deletedTaskIdsOf(device)).toEqual({});
+  });
+
+  it("tagged retitle, write FAILS: obsidianRawTitle does NOT advance — a failed write must not masquerade as a landed one", async () => {
+    // The old optimistic advance made obsidianRawTitle claim we wrote the new
+    // title; the next scan then read the still-old vault line as an
+    // Obsidian-side edit and discarded the user's rename via vault-title-wins.
+    // With the gate, obsidianRawTitle keeps meaning "what the vault line says
+    // we last wrote", so the scan classifies the unchanged line correctly and
+    // the DG rename survives.
+    const device = makeDevice({
+      inbox: [legacyRow({ id: DG_ID, obsidianBlockId: 'aaaaaaaa', title: 'Renamed thing #obsidian' })],
+    });
+    await runWriteback(device, {}, snapshotOf(DG_ID));
+
+    const t = device.inbox[0];
+    expect(t.id).toBe(DG_ID);
+    expect(t.obsidianRawTitle).toBe(TITLE); // unchanged — the write never landed
+    expect(deletedTaskIdsOf(device)).toEqual({});
+  });
+
+  it('untagged retitle, write lands: both retired ids (original hash and transient recompute) are tombstoned', async () => {
+    const vault = { [NOTE]: `## Tasks\n- [ ] ${TITLE}` };
+    const device = makeDevice({ inbox: [legacyRow({ title: 'Renamed thing #obsidian' })] });
+    await runWriteback(device, vault, snapshotOf(LEGACY_ID));
+
+    const t = device.inbox[0];
+    expect(t.id).toMatch(/^obsidian-dg-[a-z0-9]{8}$/);
+    expect(t.obsidianRawTitle).toBe('Renamed thing');
+    expect(vault[NOTE]).toContain(`- [ ] Renamed thing ^dg-${t.obsidianBlockId}`);
+    const tombs = deletedTaskIdsOf(device);
+    expect(tombs[LEGACY_ID]).toBeTruthy(); // hash of the original title — the fleet-known id
+    expect(tombs[`obsidian-${TODAY}-${simpleHash('Renamed thing')}`]).toBeTruthy(); // transient recompute
+    // Both stamp flavors now retire ids through the same explicit channel —
+    // the retitle-vs-completion inconsistency (review Finding 3) is gone.
+  });
+});
+
+// ═══ Transition tombstone at the file-tier merge ═══════════════════════════
+// Finding 1 from the cross-device review, now FIXED: the write-success commit
+// records an explicit deletedTaskIds tombstone for every id the rename chain
+// retires — deliberately deletedTaskIds and not deletedObsidianKeys, because
+// the file-tier union merge consults only the former. The deletion DETECTOR
+// still never infers a deletion from a rename (the scanned-keys hints see to
+// that); this is the transition asserting a fact it holds.
+describe('transition tombstone: the file-tier union no longer resurrects retired ids', () => {
+  const dgRow = legacyRow({ id: DG_ID, obsidianBlockId: 'aaaaaaaa' });
+
+  it('the commit-time tombstone covers the remote copy of the legacy row', () => {
+    const { merged } = mergeTaskArrays(
+      [dgRow],                                    // local: device already transitioned
+      [legacyRow(), dgRow],                       // remote file: still carries the legacy row
+      { [LEGACY_ID]: '2026-08-21T00:00:00.000Z' } // written by the commit, synced everywhere
+    );
+    expect(merged.map(t => t.id)).toEqual([DG_ID]); // no resurrection, vaultless devices included
+  });
+
+  it('LWW still protects a newer offline edit under the retired id (not silently destroyed)', () => {
+    // An edit made offline AFTER the stamp outlives the tombstone; the row
+    // resurrects and re-bridges on that device\'s next vault scan — deletion
+    // must never beat a newer edit.
+    const editedLegacy = legacyRow({ lastModified: '2026-08-22T00:00:00.000Z', notes: 'offline edit' });
+    const { merged } = mergeTaskArrays([dgRow], [editedLegacy, dgRow], { [LEGACY_ID]: '2026-08-21T00:00:00.000Z' });
+    expect(merged.map(t => t.id).sort()).toEqual([DG_ID, LEGACY_ID].sort());
+  });
+
+  it('KNOWN GAP, issue #1448 (pre-existing, unchanged here): deletedObsidianKeys never reaches this merge', () => {
+    // The obsidian tombstone map is honored only by the vault-scan merge and
+    // the rescue gate. Routing the same tombstone through the parameter this
+    // merge DOES consult removes the row — proving a channel gap, not an LWW
+    // gap. Update this pin when #1448 is fixed.
+    const obsidianTombs = { [LEGACY_ID]: '2026-08-21T00:00:00.000Z' };
     const { merged } = mergeTaskArrays([dgRow], [legacyRow(), dgRow], obsidianTombs);
     expect(merged.map(t => t.id)).toEqual([DG_ID]);
   });
