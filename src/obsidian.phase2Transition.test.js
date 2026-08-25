@@ -113,6 +113,9 @@ async function runVaultSync(device, vaultFs) {
   effects.length = 0;
   const bind = (key) => (v) => { device[key] = typeof v === 'function' ? v(device[key]) : v; };
   const noop = () => {};
+  // Not a component tree: react is fully mocked above (effects captured, never
+  // run), so the rules-of-hooks constraint doesn't apply to this harness.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { performObsidianSync } = useObsidianSync({
     isTrayMode: false,
     dataLoaded: true,
