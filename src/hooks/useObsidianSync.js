@@ -25,6 +25,7 @@ import {
   RETIRED_TASK_IDS_STORAGE_KEY,
   RETIRED_ID_DUAL_WRITE,
 } from '../utils/retiredTaskIds.js';
+import { blockIdWritesEnabled } from '../utils/obsidianWritePolicy.js';
 
 /**
  * Obsidian vault sync — extracted from App.jsx (see "App.jsx — Ongoing
@@ -570,7 +571,14 @@ export default function useObsidianSync({
       // matched line, and the assignment is committed to app state only when
       // the write reports success. Existing untagged tasks acquire ids
       // naturally as they get edited; there is no sweep.
-      const assignBlockId = task.obsidianBlockId ? null : generateBlockId();
+      //
+      // GATED by the read/write release split (utils/obsidianWritePolicy.js):
+      // on the READ release no NEW id is ever minted — this is one of the two
+      // emit sites the gate covers. A task that ALREADY carries a block id
+      // (adopted from a vault another release stamped) keeps writing it —
+      // writeBlockId preserves existing tokens unconditionally, because
+      // stripping one would destroy identity other devices rely on.
+      const assignBlockId = (!task.obsidianBlockId && blockIdWritesEnabled()) ? generateBlockId() : null;
       const writeBlockId = task.obsidianBlockId || assignBlockId;
 
       // Title bookkeeping is COMPUTED here but applied only on write success:

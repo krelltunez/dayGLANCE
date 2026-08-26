@@ -150,6 +150,18 @@ The plugin runs unlisted (BRAT or manual install) through Phases 5 and 6. Submis
 
 ---
 
+### 3.9 Staged vault-format rollout: read-support first, write-support one release later
+
+**Standing rule, not a one-time decision.** Any change to what dayGLANCE WRITES into the vault ships in two releases: first a release whose parser fully understands the new format but never emits it, then — one release later, once the reader has propagated — a release that enables emission. The gate is a build-time constant (`src/utils/obsidianWritePolicy.js`), never a user-facing setting: a setting pushes correctness onto the user, and someone always has a device they forgot about.
+
+**Rationale.** The fleet spans five platforms on three release channels (dev, Developer ID, MAS, Play, App Store/TestFlight) whose store approvals never align, plus always-on appliances with vault access that lag behind updates. Every write-format change therefore has a mixed-version window measured in days. A client that does not understand a format token reads it as **title text**, hashes it into a brand-new content-derived id, and imports a duplicate that syncs fleet-wide — stable duplicates for the whole mixed window, surviving the update in the heavy-stamp case (analyzed for `^dg-` block ids, then observed live 2026-08-26). Shipping the reader first means that by the time any device emits the new format, every device can read it — the mixed window pairs a token-aware reader with the writer and no mangled identity can ever be minted.
+
+**Read support means the FULL read semantics, not "strip and ignore."** A device that strips a token but still derives the old identity (e.g. hashing the clean title into a legacy id) keeps re-producing retired identities after a write-release device retires them — a milder seed of the same divergence. The read release carries everything except emission: recognition, identity adoption, bridging, dedup rules.
+
+**Applies next to Phase 4** (Tasks emoji metadata, Dataview inline fields, frontmatter) — a strictly larger write surface than block ids: each of those formats gets a read release before any device emits it.
+
+---
+
 ## 4. Obsidian community directory constraints
 
 Relevant from Phase 5 onward. Current as of the May 2026 policy overhaul.
@@ -233,7 +245,7 @@ Delivered by PRs #1435, #1444, #1445, and #1446; shipped with 4.7.0. See section
 
 **Goal.** Give every dayGLANCE-managed task a stable identity in the vault that survives edits, reordering, and reformatting.
 
-**Status.** Part A delivered by PR #1439, riding the first release after 4.7.0. The scope below records the split and the semantics decided during that implementation.
+**Status.** Part A delivered by PR #1439. Ships in TWO releases per the staged-rollout rule (3.9): the **read release** carries the full Part A read path — token recognition, `obsidian-dg-` adoption, the legacy bridge, first-occurrence-wins — with emission gated OFF (`OBSIDIAN_BLOCK_ID_WRITES = false` in `src/utils/obsidianWritePolicy.js`; new tasks and writes keep pre-Phase-2 behavior, and tokens already present in lines are preserved, never stripped). The **write release** is the one-line flip of that constant, once the read release has propagated to every channel. The scope below records the split and the semantics decided during implementation.
 
 **Rationale.** Task identity is currently implicit, positional or text-matched. Every bug class fought in GLANCEvault (resurrection, phantom deletes, duplication) has a latent analog here and will surface as write surface grows. This is the highest-value single change in the plan.
 
@@ -291,6 +303,8 @@ Delivered by PRs #1435, #1444, #1445, and #1446; shipped with 4.7.0. See section
 - Frontmatter on generated notes, so they are queryable from Dataview and Bases.
 
 **Rationale.** This is the cheapest real user-facing win in the plan and the thing that makes a directory listing compelling to someone already living in their vault.
+
+**Rollout.** Subject to the staged-rollout rule (3.9), format by format: a release that parses Tasks emoji / Dataview fields / frontmatter without emitting them, then the emitting release. This surface is strictly larger than block ids — an emoji date or an inline field misread as title text corrupts identity hashing exactly the way a `^dg-` token did.
 
 ---
 

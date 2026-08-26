@@ -19,6 +19,7 @@ import {
   validateVaultFolderSetting,
 } from './utils/obsidianFilename.js';
 import { unportableEntryReason } from './utils/vaultPortability.js';
+import { blockIdWritesEnabled } from './utils/obsidianWritePolicy.js';
 
 // How far back the Obsidian daily-note scan reads, in days. DELIBERATELY FIXED and
 // decoupled from the calendar "Keep past events" retention (syncRetentionDays):
@@ -852,6 +853,34 @@ export function generateBlockId() {
  * the legacy `obsidian-<date>-<hash>` id lacks (two devices that first import
  * before/after a retitle derive different ids and cloud merge duplicates).
  */
+// Identity metadata for a NEW vault-bound task created in dayGLANCE — one of
+// the two block-id EMIT sites (the other is the writeback's opportunistic
+// stamp in useObsidianSync), both gated by the read/write release split
+// (utils/obsidianWritePolicy.js).
+//
+// WRITE release: identity is a ^dg- block id generated HERE, at creation
+// time, and persisted on the task — never derived from content at read time.
+// The appended vault line carries the same id (blockIdSuffix via the append
+// path), so the next scan parses it back to exactly this task id and the
+// round trip converges without text matching.
+//
+// READ release: the pre-Phase-2 content-derived identity, so no device emits
+// a token before the whole fleet can read one. The hash input is the same
+// rawTitle a rescan of the (token-less) appended line will hash, so the round
+// trip still converges — exactly as it did before Phase 2.
+export function buildNewObsidianTaskMeta(rawTitle, todayStr) {
+  const base = {
+    importSource: 'obsidian',
+    obsidianRawTitle: rawTitle,
+    obsidianFileDate: todayStr,
+  };
+  if (!blockIdWritesEnabled()) {
+    return { ...base, id: `obsidian-${todayStr}-${simpleHash(rawTitle)}` };
+  }
+  const blockId = generateBlockId();
+  return { ...base, id: appIdForBlockId(blockId), obsidianBlockId: blockId };
+}
+
 export function appIdForBlockId(blockId) {
   return `obsidian-dg-${blockId}`;
 }

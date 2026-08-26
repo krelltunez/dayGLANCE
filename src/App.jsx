@@ -4,7 +4,7 @@ import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, Chev
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { hasNativeCalendar, electronGetCalendars, electronGetEventsByDate, electronRequestCalendarAccess, nativeEventToTask } from './utils/nativeCalendar.js';
 import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeWriteDailyNote, nativeClearVault, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeGetWidgetPendingAction, triggerHaptic } from './native.js';
-import { writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, simpleHash as obsidianSimpleHash, generateBlockId as obsidianGenerateBlockId, appIdForBlockId as obsidianAppIdForBlockId, appendTaskToDailyNote, appendTaskToDailyNoteNative } from './obsidian.js';
+import { writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, simpleHash as obsidianSimpleHash, buildNewObsidianTaskMeta, appendTaskToDailyNote, appendTaskToDailyNoteNative } from './obsidian.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
@@ -6873,22 +6873,11 @@ const DayPlanner = () => {
     exitFocusModeRef,
     playFocusSound,
     getObsidianTaskMeta: obsidianConfig?.enabled && obsidianVaultHandleRef.current
-      ? (rawTitle) => {
-          const todayStr = new Date().toISOString().split('T')[0];
-          // Phase 2: identity is a ^dg- block id generated HERE, at creation/
-          // write time, and persisted on the task — never derived from content
-          // at read time. The appended vault line carries the same id (see
-          // buildObsidianTaskLine), so the next scan parses it back to exactly
-          // this task id and the round trip converges without text matching.
-          const blockId = obsidianGenerateBlockId();
-          return {
-            id: obsidianAppIdForBlockId(blockId),
-            importSource: 'obsidian',
-            obsidianRawTitle: rawTitle,
-            obsidianFileDate: todayStr,
-            obsidianBlockId: blockId,
-          };
-        }
+      // Creation-time identity — gated by the read/write release split: dg
+      // block id on the write release, legacy content-derived id on the read
+      // release. See obsidian.js buildNewObsidianTaskMeta and
+      // utils/obsidianWritePolicy.js.
+      ? (rawTitle) => buildNewObsidianTaskMeta(rawTitle, new Date().toISOString().split('T')[0])
       : null,
     onWriteObsidianTask: obsidianConfig?.enabled && obsidianVaultHandleRef.current
       ? (task) => {
