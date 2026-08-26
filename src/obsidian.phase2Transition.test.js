@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { __setBlockIdWritesForTests } from './utils/obsidianWritePolicy.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Phase 2 cross-device transition (legacy content-derived id → ^dg- block id).
@@ -200,8 +201,13 @@ const legacyRow = (extra = {}) => ({
   ...extra,
 });
 
-beforeEach(() => { vi.useFakeTimers(); });
-afterEach(() => { vi.useRealTimers(); delete globalThis.localStorage; });
+// This suite tests WRITE-RELEASE behavior (stamping, id migration, retirement
+// recording), so the read/write release gate is forced ON — the shipped
+// default is read-only until the write release flips it
+// (utils/obsidianWritePolicy.js). Read-release behavior has its own suite:
+// obsidian.readRelease.test.js.
+beforeEach(() => { vi.useFakeTimers(); __setBlockIdWritesForTests(true); });
+afterEach(() => { vi.useRealTimers(); __setBlockIdWritesForTests(null); delete globalThis.localStorage; });
 
 // ═══ (a) A stamped; warm B still holds the legacy-keyed row ═════════════════
 describe('transition (a): warm device with the legacy row scans the freshly-tagged vault', () => {
@@ -537,5 +543,86 @@ describe('transition tombstone: the file-tier union no longer resurrects retired
     const obsidianTombs = { [LEGACY_ID]: '2026-08-21T00:00:00.000Z' };
     const { merged } = mergeTaskArrays([dgRow], [legacyRow(), dgRow], obsidianTombs);
     expect(merged.map(t => t.id)).toEqual([DG_ID]);
+  });
+});
+
+// ═══ READ RELEASE — the staged-rollout split ═══════════════════════════════
+// The read/write release split (utils/obsidianWritePolicy.js): the READ
+// release carries the FULL Phase 2 read path — token recognition, dg-id
+// adoption, the legacy bridge hint, first-occurrence-wins — but never EMITS a
+// block id. A pre-Phase-2 client reads a `^dg-` token as title text, hashes
+// it into a brand-new id, and imports a fleet-wide duplicate; shipping the
+// reader first means that by the time any device stamps, every device
+// understands the stamp. The file-level beforeEach forces the gate ON (the
+// suites above test the write release); this describe forces it OFF — the
+// shipped read-release default.
+describe('read release: full read path, zero emission', () => {
+  beforeEach(() => { __setBlockIdWritesForTests(false); });
+
+  const snapshotOf = (id, over = {}) => ({
+    [id]: { completed: false, startTime: null, duration: 45, title: `${TITLE} #obsidian`, date: null, ...over },
+  });
+
+  it('untagged completion writes the line WITHOUT a token: no id mint, no migration, no tombstones — v4.7.0 write parity', async () => {
+    const vault = { [NOTE]: `## Tasks\n- [ ] ${TITLE}` };
+    const device = makeDevice({ inbox: [legacyRow({ completed: true })] });
+    await runWriteback(device, vault, snapshotOf(LEGACY_ID));
+
+    const t = device.inbox[0];
+    expect(vault[NOTE]).toContain(`- [x] ${TITLE}`);
+    expect(vault[NOTE]).not.toContain('^dg-');       // nothing emitted
+    expect(t.id).toBe(LEGACY_ID);                    // no id migration
+    expect(t.obsidianBlockId).toBeUndefined();
+    expect(deletedTaskIdsOf(device)).toEqual({});    // nothing retired
+    expect(readJson(device, 'day-planner-retired-task-ids', {})).toEqual({});
+  });
+
+  it('a task ADOPTED from an already-stamped vault keeps writing its existing token — the gate stops minting, never strips', async () => {
+    const vault = { [NOTE]: `## Tasks\n- [ ] ${TITLE} ^dg-aaaaaaaa` };
+    const device = makeDevice({
+      inbox: [legacyRow({ id: DG_ID, obsidianBlockId: 'aaaaaaaa', completed: true })],
+    });
+    await runWriteback(device, vault, snapshotOf(DG_ID));
+
+    expect(vault[NOTE]).toContain(`- [x] ${TITLE} ^dg-aaaaaaaa`); // token preserved
+    expect(device.inbox[0].id).toBe(DG_ID);
+  });
+
+  it('untagged retitle keeps legacy id semantics (content re-hash) with the retirement recorded — but emits no token', async () => {
+    const vault = { [NOTE]: `## Tasks\n- [ ] ${TITLE}` };
+    const device = makeDevice({ inbox: [legacyRow({ title: 'Renamed thing #obsidian' })] });
+    await runWriteback(device, vault, snapshotOf(LEGACY_ID));
+
+    const t = device.inbox[0];
+    const newHashId = `obsidian-${TODAY}-${simpleHash('Renamed thing')}`;
+    expect(vault[NOTE]).toContain('- [ ] Renamed thing');
+    expect(vault[NOTE]).not.toContain('^dg-');
+    expect(t.id).toBe(newHashId);                    // legacy re-hash, as v4.7.0 did
+    expect(t.obsidianBlockId).toBeUndefined();
+    // The retitle retirement (legacy → legacy) IS still recorded — it is
+    // app-internal channel data, not vault metadata, and it is what stops the
+    // old hash id resurrecting through the sync tiers. Deliberate.
+    const retired = readJson(device, 'day-planner-retired-task-ids', {});
+    expect(retired[LEGACY_ID]?.successor).toBe(newHashId);
+    expect(deletedTaskIdsOf(device)[LEGACY_ID]).toBeTruthy(); // legacy-fleet dual-write shim
+  });
+
+  it('adoption of a stamped vault works in full on the read release: dg id, bridge from the warm legacy row, app fields carried', async () => {
+    // The (c) confirmation: a read-release device pointed at a vault that
+    // already contains ^dg- tokens (stamped by a dev build / a write-release
+    // device) adopts them as first-class identity — it does NOT read them as
+    // title text the way a pre-Phase-2 client does.
+    const vault = { [NOTE]: `## Tasks\n- [ ] ${TITLE} ^dg-aaaaaaaa` };
+    const device = makeDevice({ inbox: [legacyRow()] }); // warm device, legacy row from before the stamp
+    await runVaultSync(device, vault);
+
+    const ids = device.inbox.map((t) => t.id);
+    expect(ids).toContain(DG_ID);                    // adopted, not re-hashed
+    expect(ids).not.toContain(LEGACY_ID);            // bridged away, no duplicate
+    const dg = device.inbox.find((t) => t.id === DG_ID);
+    expect(dg.obsidianBlockId).toBe('aaaaaaaa');
+    expect(dg.projectId).toBe('proj-1');             // app-only fields carried over the bridge
+    expect(dg.title).toContain(TITLE);
+    expect(dg.title).not.toContain('^dg-');          // the token is identity, not title text
   });
 });
