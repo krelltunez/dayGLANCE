@@ -14,6 +14,7 @@ import { tombstoneCutoff } from './sync/tombstoneRetention.js';
 import { preserveArchived } from './utils/preserveArchived.js';
 import { rescueUnsyncedTasks } from './utils/rescueUnsyncedTasks.js';
 import { readRetiredTaskIds, applyTaskRetirements, RETIRED_TASK_IDS_STORAGE_KEY } from './utils/retiredTaskIds.js';
+import { dropTombstonedObsidianTasks, dropTombstonedObsidianNotes } from './utils/obsidianDeletions.js';
 import { dropResurrectedTasks } from './utils/dropResurrectedTasks.js';
 import { partitionExpiredSingleDayFrames } from './utils/expiredFrames.js';
 import { stripHealthSourcedLogs } from './utils/healthLogFilter.js';
@@ -5611,6 +5612,19 @@ const DayPlanner = () => {
     if (normalizedTasks) normalizedTasks = applyTaskRetirements(normalizedTasks, retiredRecord, retiredLiveIds);
     if (normalizedUnsched) normalizedUnsched = applyTaskRetirements(normalizedUnsched, retiredRecord, retiredLiveIds);
 
+    // Symmetric enforcement of deletedObsidianKeys at the APPLY boundary
+    // (utils/obsidianDeletions.js — the shared gate both tiers use). The
+    // channel used to be honored on the way OUT but ignored on the way IN:
+    // every deleting path consulted it while this apply admitted pulled rows
+    // unfiltered — the asymmetry behind the tombstone echo war
+    // (obsidianTombstoneEchoWar.test.js) and issue #1448. Same LWW as the
+    // scan merge: a genuinely restored/re-created copy (lastModified newer
+    // than its tombstone) passes and propagates.
+    const obsidianTombs = data.deletedObsidianKeys
+      || (() => { try { return JSON.parse(localStorage.getItem('day-planner-deleted-obsidian-keys') || '{}'); } catch { return {}; } })();
+    if (normalizedTasks) normalizedTasks = dropTombstonedObsidianTasks(normalizedTasks, obsidianTombs);
+    if (normalizedUnsched) normalizedUnsched = dropTombstonedObsidianTasks(normalizedUnsched, obsidianTombs);
+
     // Update localStorage
     if (normalizedTasks) localStorage.setItem('day-planner-tasks', JSON.stringify(normalizedTasks));
     if (normalizedUnsched) localStorage.setItem('day-planner-unscheduled', JSON.stringify(normalizedUnsched));
@@ -5678,8 +5692,13 @@ const DayPlanner = () => {
       setRemovedTodayRoutineIds(data.removedTodayRoutineIds);
     }
     if (data.dailyNotes) {
-      localStorage.setItem('day-planner-daily-notes', JSON.stringify(data.dailyNotes));
-      setDailyNotes(data.dailyNotes);
+      // Same apply-boundary gate as the task lists above: a note whose
+      // deletion tombstone is the newest word must not be re-admitted by a
+      // pulled/merged map (this replace used to be the notes' half of the
+      // echo war). A note re-created later (newer lastModified) passes.
+      const gatedNotes = dropTombstonedObsidianNotes(data.dailyNotes, obsidianTombs);
+      localStorage.setItem('day-planner-daily-notes', JSON.stringify(gatedNotes));
+      setDailyNotes(gatedNotes);
     }
     // Day windows MERGE (per-entry LWW) rather than overwrite like the slices
     // above: applyRemoteDayWindows also persists, and is a no-op (no write, no

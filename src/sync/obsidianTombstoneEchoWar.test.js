@@ -2,69 +2,47 @@ import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vites
 import { setSyncPassphrase } from '@glance-apps/sync';
 import { createDbEngine } from './dbEngine.js';
 import { setVaultConfig } from './vaultConfig.js';
-import { createSyncCycleBreaker } from './syncBrakes.js';
 import { rescueUnsyncedTasks } from '../utils/rescueUnsyncedTasks.js';
 import { mergeObsidianTasks } from '../utils/mergeObsidianTasks.js';
 import { mergeObsidianDailyNotes } from '../utils/mergeObsidianDailyNotes.js';
+import { dropTombstonedObsidianTasks, dropTombstonedObsidianNotes } from '../utils/obsidianDeletions.js';
+import { mergeSyncData } from '../mergeSync.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE TOMBSTONE ECHO WAR — deterministic reproduction of the 2026-08-26 log
-// (three rows — one legacy Obsidian task, two daily notes — cycling pull-DELETE
-// → snapshot-diff-new → push written:3 → "honored deletes: Array(3)" →
-// propagating delete(s) → repeat, ~12 rounds, EVERY cycle successful, counts
-// oscillating 577/576 and 48/46 in lockstep).
+// THE TOMBSTONE ECHO WAR — reproduction of the 2026-08-26 log, now pinning the
+// FIX: symmetric enforcement of deletedObsidianKeys at the apply boundary.
 //
-// THE MECHANISM — one deletion channel, enforced asymmetrically:
+// THE WAR (as captured live): three rows — one legacy Obsidian task, two daily
+// notes — cycled pull-DELETE → snapshot-diff-new → push written:3 → "honored
+// deletes: Array(3)" → propagate, ~12 successful rounds, counts oscillating
+// 577/576 and 48/46. The mechanism: the rows carried deletion tombstones newer
+// than their lastModified, and the channel was HONORED ON THE WAY OUT BUT
+// IGNORED ON THE WAY IN — every deleting path consulted it (the vault-scan
+// merges, rescue, the commit merge's honored-delete blessing, the push guard's
+// 'tombstoned' propagation) while no applying path did (applyEngineData
+// admitted pulled rows unfiltered and replaced dailyNotes wholesale; the
+// file-tier merge unioned tombstoned rows back from the remote file — issue
+// #1448, the same asymmetry's file-tier face). Add the commit-visibility lag
+// (React's flush racing back-to-back SSE drains) and the device fought its own
+// echo: stale state re-pushed the rows the vault just deleted, the flushed
+// state re-propagated blessed deletes, each push seeding the opposite half a
+// cycle later. Every cycle SUCCEEDED, so no failure-armed brake engaged.
 //
-//   The rows carry deletion tombstones newer than their lastModified
-//   (deletedObsidianKeys here; any bundle the guard blesses behaves the same).
-//   The tombstone is honored by EVERY PATH THAT DELETES:
-//     • the vault-scan merges drop the rows from state
-//       (mergeObsidianTasks / mergeObsidianDailyNotes, tombstone ≥ lastModified),
-//     • rescueUnsyncedTasks refuses to rescue them,
-//     • the commit merge blesses their mid-cycle vanish as an honored delete
-//       (commitMerge → partitionSnapshotDeletes unions ALL tombstone bundles),
-//     • the push guard propagates their snapshot vanish as 'tombstoned';
-//   …but by NO PATH THAT APPLIES:
-//     • applyEngineData admits pulled task rows with no deletedObsidianKeys
-//       gate on the merged list and applies dailyNotes as a PLAIN REPLACE,
-//     • the engine's pull applies any vault copy the mirror lacks.
-//
-//   The third ingredient is TIMING: back-to-back cycles (SSE multi-drains, the
-//   3s debounce, the visibility handler firing scan + cycle together) run
-//   against state whose React commit hasn't flushed yet — so a cycle can see
-//   the PREVIOUS state, diff it against the snapshot of the cycle before, and
-//   push the OPPOSITE of what the vault just did. The device fights its own
-//   echo: state-with-rows + snapshot-without → push NEW (resurrect); state-
-//   without + snapshot-with → blessed delete (kill); each push echoes back
-//   through the pull one cycle later and seeds the opposite half. This is the
-//   DB-tier sibling of issue #1448 (the same channel never reaching the
-//   FILE-tier merge): honored on the way out, ignored on the way in.
-//
-//   EVERY CYCLE SUCCEEDS — which is why none of the brakes engage: the circuit
-//   breaker (#1450) arms only on failure, the deferred retry (#1451) only on a
-//   gated cycle, and the acked-hash dedup only suppresses re-pushing content
-//   the vault already acked — these rows are ABSENT from the payload when they
-//   diff as deletes and freshly re-applied when they diff as new, so the dedup
-//   never sees a repeat. Pinned below as the success-loop gap.
-//
-//   SELF-RESOLUTION (the log's "survivors: Array(3)" flip): the war's substrate
-//   is `tombstone ≥ lastModified`. The moment live copies exist whose
-//   lastModified EXCEEDS the tombstones (a scan re-importing a note with a
-//   fresh file mtime; any genuine edit), commitMerge carries them into the
-//   commit as SURVIVORS, the next diff pushes them, and every comparison
-//   thereafter keeps them. LWW revive-beats-tombstone ends the war by design —
-//   it just cannot START until something bumps lastModified. Pinned below.
+// THE FIX (utils/obsidianDeletions.js — dropTombstonedObsidianTasks/Notes, one
+// shared gate for BOTH tiers): applyEngineData filters the merged task lists
+// and gates the dailyNotes apply, and mergeSyncData cleanses its merge output
+// (which is also the uploaded file — closing #1448 and the day-61 resurrection
+// a dirty file would cause when tombstones GC). Same LWW as the scan merge:
+// revive-preserving — a copy whose lastModified beats its tombstone passes and
+// propagates. The echo is refused, the first blessed delete sticks, and the
+// war collapses in one round.
 //
 // HARNESS: real @glance-apps/sync engine + real crypto over the in-memory
-// vault (the #1449 pattern). The device models React's commit-visibility lag
-// explicitly: commitData lands in `pending`, `flush()` promotes it to the
-// state getData sees — the stand-in for the render flush racing back-to-back
-// drains. commitData models applyEngineData's verified behavior (tasks:
-// merged list unfiltered + real tombstone-gated rescue; dailyNotes: plain
-// replace). The scan step is the REAL mergeObsidianTasks /
-// mergeObsidianDailyNotes fed the localStorage tombstones, exactly as
-// useObsidianSync feeds them.
+// vault. The device models React's commit-visibility lag explicitly
+// (pending/flush). commitData models the FIXED applyEngineData: merged tasks
+// through the apply-boundary gate + real tombstone-gated rescue; dailyNotes
+// replace through the same gate. The scan step is the REAL merge functions
+// fed the localStorage tombstones, exactly as useObsidianSync feeds them.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function memLocalStorage() {
@@ -115,11 +93,6 @@ afterAll(() => { delete global.localStorage; });
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
-// The cast, mirroring the log: a legacy Obsidian task and two daily notes,
-// each with lastModified OLDER than its deletion tombstone. Which bundle
-// blessed the April task in the field (deletedObsidianKeys, or a
-// deletedTaskIds entry inside the guard's 5s epsilon) doesn't change the
-// shape; deletedObsidianKeys is used for all three here.
 const TASK_ID = 'obsidian-2026-04-27-3a979k';
 const NOTE_A = '2026-08-10';
 const NOTE_B = '2026-08-11';
@@ -146,9 +119,9 @@ const EMPTY = {
 
 // A device with EXPLICIT commit-visibility lag (the React-flush stand-in):
 // getData reads `visible`; commitData computes the applyEngineData model into
-// `pending`; flush() promotes pending → visible. `flushOnPush` promotes the
-// PREVIOUS pending right after a vault write lands — the mid-cycle render
-// flush that produces the log's "honored deletes: Array(3)".
+// `pending`; flush() promotes it. `flushOnPush` promotes the previous pending
+// right after a vault write lands — the mid-cycle render flush that produced
+// the log's "honored deletes: Array(3)".
 function makeLaggedDevice(name, vault, initial, { flushOnPush = false, engineOverrides = {} } = {}) {
   let visible = clone(initial);
   let pending = null;
@@ -172,15 +145,18 @@ function makeLaggedDevice(name, vault, initial, { flushOnPush = false, engineOve
     ...engineOverrides,
     getData: () => clone(visible),
     commitData: (d) => {
+      const tombs = d.deletedObsidianKeys || {};
       const prevTasks = visible.tasks;
       pending = {
         ...d,
-        // applyEngineData: merged list unfiltered + tombstone-gated rescue of
-        // prev-only rows. The gate BLOCKS a rescue of the war rows — but a
-        // pulled copy inside `d.tasks` walks straight in.
-        tasks: rescueUnsyncedTasks(d.tasks, prevTasks, d.deletedTaskIds || {}, undefined, d.deletedObsidianKeys || {}),
-        // applyEngineData: `setDailyNotes(data.dailyNotes)` — plain replace.
-        dailyNotes: d.dailyNotes,
+        // The FIXED applyEngineData: the apply-boundary gate on the merged
+        // list, then the (real, already tombstone-gated) rescue of prev-only
+        // rows, and the same gate on the notes replace.
+        tasks: rescueUnsyncedTasks(
+          dropTombstonedObsidianTasks(d.tasks, tombs),
+          prevTasks, d.deletedTaskIds || {}, undefined, tombs,
+        ),
+        dailyNotes: dropTombstonedObsidianNotes(d.dailyNotes, tombs),
       };
     },
   });
@@ -188,9 +164,6 @@ function makeLaggedDevice(name, vault, initial, { flushOnPush = false, engineOve
 }
 
 // The REAL vault-scan merge step, fed exactly what useObsidianSync feeds it.
-// The local scan does not contain the war rows (the task's note is outside the
-// 90-day import window; the notes scan to nothing here), so the tombstones
-// decide — and they DROP all three from visible state: the remover.
 function runVaultScan(dev, { scannedNotes = {} } = {}) {
   let tombstones = {};
   try { tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-obsidian-keys') || '{}'); } catch { tombstones = {}; }
@@ -205,169 +178,85 @@ const warIds = [`tasks:${TASK_ID}`, `dailyNotes:${NOTE_A}`, `dailyNotes:${NOTE_B
 const hasWarRows = (data) =>
   data.tasks.some((t) => t.id === TASK_ID) && !!data.dailyNotes[NOTE_A] && !!data.dailyNotes[NOTE_B];
 
-// Seed: state holds the rows (lastModified T_OLD) + the tombstones (T_TOMB);
-// two cycles so the engine leaves the HWM=0 full-seed path and has consumed
-// its own seed rows (echo drained); flush so visible is settled.
+// Seed, HISTORICALLY: the rows exist and sync everywhere FIRST (no tombstones
+// yet — two cycles so the engine leaves the HWM=0 full-seed path and consumes
+// its own seed rows), and only THEN are the tombstones written (the detector
+// firing / the bundle syncing in). That is the field pre-state: state and
+// vault holding tombstoned-and-older copies. Seeding the other way around is
+// impossible post-fix — the gated apply strips the rows during seeding, which
+// is the fix itself working.
 async function seedWar(vault, opts = {}) {
-  localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(TOMBSTONES));
   const dev = makeLaggedDevice('mac', vault, {
     ...EMPTY,
     tasks: [warTask()],
     dailyNotes: { [NOTE_A]: warNote(), [NOTE_B]: warNote(T_OLD, '## Quick Notes\n## Thoughts') },
-    deletedObsidianKeys: TOMBSTONES,
   }, opts);
   await dev.engine.dbSyncCycle();
   await dev.engine.dbSyncCycle();
   dev.flush();
+  localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(TOMBSTONES));
+  dev.visible = { ...dev.visible, deletedObsidianKeys: TOMBSTONES };
   expect(hasWarRows(dev.visible)).toBe(true);
   return dev;
 }
 
-describe('the echo war — a tombstone honored by every deleting path and no applying path', () => {
-  it("reproduces the log's round anatomy: pull-DELETE supersedes the dirty marks → stale state re-pushes written:3 → honored deletes: 3 → the round re-arms", async () => {
+describe('the echo war — FIXED by symmetric enforcement at the apply boundary', () => {
+  it("the log's round anatomy now collapses: pull-DELETE supersedes → stale re-push resurrects once → the echo is REFUSED → the deletes stick and the vault converges dead", async () => {
     const vault = createMemoryVault();
     const dev = await seedWar(vault, { flushOnPush: true });
 
-    // Pre-state, as mid-war: the vault's latest rows for the three keys are
-    // DELETES (a previous round's blessed propagation), and the snapshot lacks
-    // them (saved from that round's post-delete mirror) — while visible state
-    // still HAS them (the flush lagged).
+    // Mid-war pre-state, as in the log: the vault's latest rows are DELETES
+    // (a previous round's blessed propagation), the snapshot lacks them, but
+    // visible state still HAS them (the flush lagged).
     for (const id of warIds) await vault.deleteRow('dayglance', id, 'acct', { deletedAt: new Date(T_TOMB).getTime() });
     const snapKey = 'dev-mac-db-sync-snapshot';
     const snap = JSON.parse(localStorage.getItem(snapKey));
     for (const id of warIds) delete snap[id];
     localStorage.setItem(snapKey, JSON.stringify(snap));
-    expect(hasWarRows(dev.visible)).toBe(true);
 
-    // ROUND A (log: "[pull] DELETE ×3 … did NOT write … dirty ids: Array(0) …
-    // snapshot-diff new ×3"): the diff marks the rows NEW (state vs snapshot),
-    // the pull's delete rows supersede the dirty marks (deletedAt ≥
-    // lastModified — the engine's LWW), nothing is written, and the commit
-    // carries the deletions — but only into `pending`; visible state still
-    // shows the rows.
-    const seqA0 = vault._seq();
+    // ROUND A (log: "[pull] DELETE ×3 … did NOT write"): the pulled deletes
+    // supersede the dirty marks; no war-row is written (the one legitimate
+    // write this cycle is the freshly-grown deletedObsidianKeys bundle
+    // syncing out); the commit carries the deletions into `pending` while
+    // visible state still shows the rows.
+    const rowSeqsA0 = warIds.map((id) => vault._row(id).seq);
     const resA = await dev.engine.dbSyncCycle();
     expect(resA.error).toBeUndefined();
-    expect(vault._seq()).toBe(seqA0);            // did NOT write this cycle
-    expect(hasWarRows(dev.visible)).toBe(true);  // flush hasn't landed
+    expect(warIds.map((id) => vault._row(id).seq)).toEqual(rowSeqsA0); // war rows untouched
+    expect(hasWarRows(dev.visible)).toBe(true);
 
-    // ROUND B (log: "written:3 … [commit] mid-cycle merge — survivors:
-    // Array(0) honored deletes: Array(3)"): the still-stale state re-diffs the
-    // rows as NEW and pushes them — RESURRECTING the vault rows the previous
-    // round deleted. The flush lands right after the push (flushOnPush), so
-    // the commit merge sees live state WITHOUT the rows, and — because the
-    // tombstones bless the vanish — HONORS the deletes into the commit.
+    // ROUND B (log: "written:3 … honored deletes: Array(3)"): the still-stale
+    // state re-pushes the rows — the ONE resurrection the visibility lag can
+    // still cause — and the mid-cycle flush lets the commit merge honor the
+    // blessed deletes.
     const resB = await dev.engine.dbSyncCycle();
     expect(resB.error).toBeUndefined();
-    for (const id of warIds) expect(vault._row(id).deleted).toBe(false); // resurrected
-    expect(hasWarRows(dev.pending ?? dev.visible)).toBe(false);          // honored deletes carried
+    for (const id of warIds) expect(vault._row(id).deleted).toBe(false); // resurrected once
+    expect(hasWarRows(dev.pending ?? dev.visible)).toBe(false);
 
-    // ROUND C: the flushed state now lacks the rows while the snapshot (saved
-    // pre-merge, WITH the rows) still holds them → the guard blesses the
-    // vanish ('tombstoned') — and the pull echoes round B's upserts straight
-    // back into the mirror, which the commit RE-ADMITS into state. The war has
-    // re-armed itself; nothing converged.
+    // ROUND C — where the war used to re-arm: the pull echoes round B's
+    // upserts into the mirror, but the apply-boundary gate REFUSES them
+    // (tombstone ≥ lastModified). State stays clean.
     dev.flush();
     expect(hasWarRows(dev.visible)).toBe(false);
     const resC = await dev.engine.dbSyncCycle();
     expect(resC.error).toBeUndefined();
     dev.flush();
-    expect(hasWarRows(dev.visible)).toBe(true);  // re-admitted — appear/disappear, forever
-  });
+    expect(hasWarRows(dev.visible)).toBe(false); // the echo did NOT re-enter state
 
-  it('pins the sustained war: scan drops, the echo re-admits, the push re-writes — vault traffic every round, every cycle successful, rows never converge', async () => {
-    const vault = createMemoryVault();
-    const dev = await seedWar(vault);
-
-    let lastSeq = vault._seq();
-    for (let round = 1; round <= 3; round++) {
-      runVaultScan(dev);                          // remover: rows leave visible state
-      expect(hasWarRows(dev.visible)).toBe(false);
-      const res = await dev.engine.dbSyncCycle(); // echo re-applies → push re-writes → commit re-admits
-      expect(res.error).toBeUndefined();
-      dev.flush();
-      expect(hasWarRows(dev.visible)).toBe(true); // …and they are back
-      expect(vault._seq()).toBeGreaterThan(lastSeq); // the vault was written AGAIN
-      lastSeq = vault._seq();
-    }
-    for (const id of warIds) expect(vault._row(id).deleted).toBe(false); // never converged
-  });
-
-  it('confirms the brake gap: every cycle succeeds — the breaker never strikes, nothing is gated, no deferred retry is armed', async () => {
-    const vault = createMemoryVault();
-    const breaker = createSyncCycleBreaker({ random: () => 0 });
-    const onFailure = vi.spyOn(breaker, 'onFailure');
-    const armed = [];
-    const dev = await seedWar(vault, {
-      engineOverrides: {
-        cycleBreaker: breaker,
-        retryTimers: { setTimeoutFn: (fn, ms) => { armed.push(ms); return { fn, ms }; }, clearTimeoutFn: () => {} },
-      },
-    });
-
-    for (let round = 0; round < 4; round++) {
-      runVaultScan(dev);
-      const res = await dev.engine.dbSyncCycle();
-      expect(res.error).toBeUndefined();
-      expect(res.throttled).toBeUndefined();
-      dev.flush();
-    }
-    expect(onFailure).not.toHaveBeenCalled(); // failure-brakes are structurally blind to a success loop
-    expect(armed).toEqual([]);
-  });
-
-  it("pins the self-resolution: copies whose lastModified beats the tombstones end the war (the log's 'survivors' flip) — and it STAYS ended", async () => {
-    const vault = createMemoryVault();
-    const dev = await seedWar(vault);
-
-    for (let round = 0; round < 2; round++) { // a couple of war rounds first
-      runVaultScan(dev);
-      await dev.engine.dbSyncCycle();
-      dev.flush();
-    }
-    expect(hasWarRows(dev.visible)).toBe(true);
-
-    // The resolution event: the scan re-imports the notes with FRESH file
-    // mtimes AND changed text (Obsidian's own sync delivering updated files),
-    // and the task's copy is re-stamped past its tombstone. The changed text
-    // matters: mergeObsidianDailyNotes carries the OLD lastModified forward
-    // for UNCHANGED text (so unedited notes don't re-push every scan), which
-    // means a same-text rescan still loses to the tombstone — only genuinely
-    // newer content (or a fresh import into an absent slot) can end the war.
-    const T_FRESH = '2026-08-26T19:30:00.000Z';
-    const freshNotes = {
-      [NOTE_A]: warNote(T_FRESH, '## Quick Notes\n- Testing on Windows\n- Back on the Mac'),
-      [NOTE_B]: warNote(T_FRESH, '## Quick Notes\n## Thoughts\n- resolved'),
-    };
-    dev.visible = {
-      ...dev.visible,
-      tasks: dev.visible.tasks.map((t) => (t.id === TASK_ID ? { ...t, lastModified: T_FRESH } : t)),
-    };
-    runVaultScan(dev, { scannedNotes: freshNotes });
-    expect(hasWarRows(dev.visible)).toBe(true); // fresh copies now BEAT the tombstones — nothing drops them
-
-    await dev.engine.dbSyncCycle(); // pushes the newer-than-tombstone copies
+    // ROUND D: the snapshot vanish propagates as blessed deletes, the vault
+    // converges dead, and further cycles write nothing.
+    await dev.engine.dbSyncCycle();
     dev.flush();
+    for (const id of warIds) expect(vault._row(id).deleted).toBe(true);
     const settledSeq = vault._seq();
-
-    // Converged: further scan+cycle rounds drop nothing, write nothing.
-    for (let round = 0; round < 2; round++) {
-      runVaultScan(dev, { scannedNotes: freshNotes });
-      expect(hasWarRows(dev.visible)).toBe(true);
-      const res = await dev.engine.dbSyncCycle();
-      expect(res.error).toBeUndefined();
-      dev.flush();
-    }
+    await dev.engine.dbSyncCycle();
+    dev.flush();
     expect(vault._seq()).toBe(settledSeq);
-    expect(hasWarRows(dev.visible)).toBe(true);
+    expect(hasWarRows(dev.visible)).toBe(false);
   });
 
-  // CORRECT behavior — currently false, deliberately pinned as the bug: a
-  // pulled copy of a row whose deletion tombstone is the newest word must not
-  // RE-ENTER state. If the apply path honored deletedObsidianKeys the way
-  // every deleting path does, the scan's drop would stick, the echo would be
-  // refused, and the war would converge instead of re-arming.
-  it.fails('a pulled echo of a tombstoned-and-older obsidian row does not re-enter state — the eviction sticks', async () => {
+  it('the eviction sticks: a pulled echo of a tombstoned-and-older row does not re-enter state (the former it.fails, flipped)', async () => {
     const vault = createMemoryVault();
     const dev = await seedWar(vault);
 
@@ -375,11 +264,193 @@ describe('the echo war — a tombstone honored by every deleting path and no app
     expect(hasWarRows(dev.visible)).toBe(false);
     await dev.engine.dbSyncCycle();
     dev.flush();
-    // CORRECT: the echo is refused and the rows stay gone…
+    // CORRECT (now true): the echo is refused and the rows stay gone…
     expect(hasWarRows(dev.visible)).toBe(false);
     // …so the next cycle propagates clean deletes and the vault converges dead.
     await dev.engine.dbSyncCycle();
     dev.flush();
     for (const id of warIds) expect(vault._row(id).deleted).toBe(true);
+  });
+
+  it('the orphan case in isolation: a tombstoned task with NO scannable file (outside the import window) converges through the gate alone — no self-heal needed', async () => {
+    // The April task's shape, alone: nothing can ever refresh its lastModified
+    // (its daily note is outside the 90-day scan window), so before the fix it
+    // had NO self-heal path and would loop until its tombstone's 60-day GC.
+    // The fix must converge it on its own — not carried by healable rows.
+    const vault = createMemoryVault();
+    const dev = makeLaggedDevice('solo', vault, {
+      ...EMPTY,
+      tasks: [warTask()],
+    });
+    await dev.engine.dbSyncCycle();
+    await dev.engine.dbSyncCycle();
+    dev.flush();
+    // The tombstone arrives AFTER the row is everywhere (historical order).
+    localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify({ [TASK_ID]: T_TOMB }));
+    dev.visible = { ...dev.visible, deletedObsidianKeys: { [TASK_ID]: T_TOMB } };
+
+    runVaultScan(dev); // the scan-merge drops it (tombstone ≥ lastModified)
+    expect(dev.visible.tasks.some((t) => t.id === TASK_ID)).toBe(false);
+
+    await dev.engine.dbSyncCycle(); // echo refused at the apply boundary
+    dev.flush();
+    expect(dev.visible.tasks.some((t) => t.id === TASK_ID)).toBe(false);
+
+    await dev.engine.dbSyncCycle(); // blessed delete propagates
+    dev.flush();
+    expect(vault._row(`tasks:${TASK_ID}`).deleted).toBe(true);
+
+    const settledSeq = vault._seq();
+    for (let round = 0; round < 3; round++) { // stays converged, no loop, no writes
+      runVaultScan(dev);
+      const res = await dev.engine.dbSyncCycle();
+      expect(res.error).toBeUndefined();
+      dev.flush();
+    }
+    expect(vault._seq()).toBe(settledSeq);
+    expect(dev.visible.tasks.some((t) => t.id === TASK_ID)).toBe(false);
+  });
+
+  it('legitimate restore: a copy whose lastModified beats its tombstone by even a small margin passes the gate, survives every merge, and syncs fleet-wide', async () => {
+    const vault = createMemoryVault();
+    const dev = await seedWar(vault);
+
+    // Converge the war first: the old copies die.
+    runVaultScan(dev);
+    await dev.engine.dbSyncCycle();
+    await dev.engine.dbSyncCycle();
+    dev.flush();
+    for (const id of warIds) expect(vault._row(id).deleted).toBe(true);
+
+    // A peer restores the task and re-creates one note — lastModified beats
+    // the tombstone by ONE SECOND. That must be enough: the LWW has no margin
+    // in the restore direction (strictly-newer wins).
+    const T_RESTORE = '2026-08-20T10:00:01.000Z'; // T_TOMB + 1s
+    const peer = makeLaggedDevice('peer', vault, {
+      ...EMPTY,
+      tasks: [warTask(T_RESTORE)],
+      dailyNotes: { [NOTE_A]: warNote(T_RESTORE, '## Quick Notes\n- restored') },
+      deletedObsidianKeys: TOMBSTONES,
+    });
+    await peer.engine.dbSyncCycle();
+    await peer.engine.dbSyncCycle();
+    peer.flush();
+    // The restoring device's own apply keeps the restored copies (revive-preserving).
+    expect(peer.visible.tasks.some((t) => t.id === TASK_ID)).toBe(true);
+    expect(peer.visible.dailyNotes[NOTE_A]).toBeTruthy();
+
+    // The original device pulls the restore: the gate passes it (newer than
+    // tombstone), and the scan-merge keeps it thereafter.
+    await dev.engine.dbSyncCycle();
+    dev.flush();
+    expect(dev.visible.tasks.some((t) => t.id === TASK_ID)).toBe(true);
+    expect(dev.visible.dailyNotes[NOTE_A]).toBeTruthy();
+    runVaultScan(dev);
+    expect(dev.visible.tasks.some((t) => t.id === TASK_ID)).toBe(true);
+    expect(dev.visible.dailyNotes[NOTE_A]).toBeTruthy();
+  });
+
+  it("clock-skew characterization: a restore whose lastModified lands BELOW the tombstone (inside the push guard's 5s epsilon) is dropped — the obsidian LWW has no epsilon, by pre-existing rule", async () => {
+    // The boundary, stated rather than assured: isObsidianTombstoned is
+    // tombstone ≥ lastModified with NO margin — the same rule the scan merge
+    // and rescue gate have always enforced; symmetric enforcement adopts it
+    // unchanged. A restoring device whose clock runs ~3s behind the deleting
+    // device stamps its restore below the tombstone and the restore loses —
+    // everywhere, including on the restoring device's own next apply (that
+    // was already true via the rescue gate before this fix). The push guard's
+    // 5s STALE_TOMBSTONE_EPSILON protects a different comparison (tombstone
+    // vs snapshot copy at the push diff) and does not soften this one. The
+    // recovery path is the same as ever: any later edit or vault write
+    // re-stamps lastModified past the tombstone and the copy revives.
+    const vault = createMemoryVault();
+    const dev = await seedWar(vault);
+    runVaultScan(dev);
+    await dev.engine.dbSyncCycle();
+    await dev.engine.dbSyncCycle();
+    dev.flush();
+
+    const T_SKEWED = '2026-08-20T09:59:57.000Z'; // tombstone − 3s: inside the guard's epsilon
+    const peer = makeLaggedDevice('skewed', vault, {
+      ...EMPTY,
+      tasks: [warTask(T_SKEWED)],
+      deletedObsidianKeys: TOMBSTONES,
+    });
+    await peer.engine.dbSyncCycle();
+    await peer.engine.dbSyncCycle();
+    peer.flush();
+    // The skewed restore is dropped by the restoring device's own apply…
+    expect(peer.visible.tasks.some((t) => t.id === TASK_ID)).toBe(false);
+    // …and never re-enters the original device either.
+    await dev.engine.dbSyncCycle();
+    dev.flush();
+    expect(dev.visible.tasks.some((t) => t.id === TASK_ID)).toBe(false);
+  });
+
+  it('re-creation with fresh content ends up stable everywhere (the self-resolution mechanism, still intact post-fix)', async () => {
+    const vault = createMemoryVault();
+    const dev = await seedWar(vault);
+
+    // The war converges dead first (post-fix behavior).
+    runVaultScan(dev);
+    await dev.engine.dbSyncCycle();
+    await dev.engine.dbSyncCycle();
+    dev.flush();
+
+    // Obsidian's own sync later delivers the notes with fresh mtimes AND
+    // changed text; the scan re-imports them newer than their tombstones.
+    const T_FRESH = '2026-08-26T19:30:00.000Z';
+    const freshNotes = {
+      [NOTE_A]: warNote(T_FRESH, '## Quick Notes\n- Testing on Windows\n- Back on the Mac'),
+      [NOTE_B]: warNote(T_FRESH, '## Quick Notes\n## Thoughts\n- resolved'),
+    };
+    runVaultScan(dev, { scannedNotes: freshNotes });
+    expect(dev.visible.dailyNotes[NOTE_A]).toBeTruthy();
+
+    await dev.engine.dbSyncCycle(); // pushes the newer-than-tombstone notes
+    dev.flush();
+    const settledSeq = vault._seq();
+    for (let round = 0; round < 2; round++) {
+      runVaultScan(dev, { scannedNotes: freshNotes });
+      const res = await dev.engine.dbSyncCycle();
+      expect(res.error).toBeUndefined();
+      dev.flush();
+    }
+    expect(vault._seq()).toBe(settledSeq); // stable — no war, no churn
+    expect(dev.visible.dailyNotes[NOTE_A]).toBeTruthy();
+    expect(dev.visible.dailyNotes[NOTE_B]).toBeTruthy();
+  });
+});
+
+describe('the file-tier half — deletedObsidianKeys reaches the merge (fixes #1448)', () => {
+  const localData = () => ({
+    ...EMPTY,
+    deletedObsidianKeys: TOMBSTONES,
+  });
+  // The remote FILE (WebDAV/iCloud) still carries the zombie rows a vaultless
+  // device kept re-uploading — the #1448 scenario.
+  const remoteData = () => ({
+    ...EMPTY,
+    tasks: [warTask()],
+    dailyNotes: { [NOTE_A]: warNote() },
+    deletedObsidianKeys: {},
+  });
+
+  it('a tombstoned-and-older row in the remote file is dropped from the merge output — and from the rewritten file', () => {
+    const result = mergeSyncData(localData(), remoteData(), 365);
+    expect(result.data.tasks.some((t) => t.id === TASK_ID)).toBe(false);
+    expect(result.data.dailyNotes[NOTE_A]).toBeUndefined();
+    // Both sides need the cleansed result: local applies it, the remote file
+    // is rewritten without the zombies (so nothing is left to resurrect when
+    // the tombstones hit the 60-day GC).
+    expect(result.remoteChanged).toBe(true);
+  });
+
+  it('a revived row in the remote file (newer than its tombstone) survives the merge and syncs', () => {
+    const remote = remoteData();
+    remote.tasks = [warTask('2026-08-21T10:00:00.000Z')]; // newer than T_TOMB
+    remote.dailyNotes = { [NOTE_A]: warNote('2026-08-21T10:00:00.000Z', 'restored') };
+    const result = mergeSyncData(localData(), remote, 365);
+    expect(result.data.tasks.some((t) => t.id === TASK_ID)).toBe(true);
+    expect(result.data.dailyNotes[NOTE_A]).toBeTruthy();
   });
 });

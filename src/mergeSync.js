@@ -10,6 +10,7 @@ import {
   unionNewerIso as unionTombstones,
 } from './sync/tombstoneRetention.js';
 import { mergeRetiredTaskIds, pruneRetiredTaskIds, applyRetirementsToTaskLists } from './utils/retiredTaskIds.js';
+import { dropTombstonedObsidianTasks, dropTombstonedObsidianNotes } from './utils/obsidianDeletions.js';
 import { mergeDayWindowMaps, dayWindowMapsEqual, migrateDayWindows } from './sync/dayWindowSync.js';
 
 export const mergeTaskArrays = (local, remote, deletedIds, syncHorizon = null) =>
@@ -492,6 +493,33 @@ export const mergeSyncData = (local, remote, retentionDays) => {
   if (retApplied.tasks !== result.data.tasks || retApplied.unscheduledTasks !== result.data.unscheduledTasks) {
     result.data.tasks = retApplied.tasks;
     result.data.unscheduledTasks = retApplied.unscheduledTasks;
+    result.localChanged = true;
+    result.remoteChanged = true;
+  }
+
+  // Symmetric enforcement of deletedObsidianKeys in the FILE-TIER merge — the
+  // fix for issue #1448 ("deletedObsidianKeys never reaches the file-tier task
+  // merge"). The channel was honored on the way OUT but ignored on the way IN:
+  // every deleting path consulted it while this merge unioned tombstoned rows
+  // straight back from the remote file — the vaultless-device resurrection
+  // loop, and the file-tier face of the tombstone echo war
+  // (src/sync/obsidianTombstoneEchoWar.test.js; applyEngineData carries the
+  // apply-side of the same gate). Cleansing the MERGE OUTPUT also cleanses the
+  // uploaded file, so a zombie row cannot sit in the remote file waiting to
+  // resurrect the day its tombstone hits the 60-day GC. Same shared LWW
+  // helpers as the apply boundary (utils/obsidianDeletions.js): a row or note
+  // re-created after its deletion (newer lastModified) survives and syncs.
+  const obsTombs = result.data.deletedObsidianKeys || {};
+  const obsCleanTasks = dropTombstonedObsidianTasks(result.data.tasks, obsTombs);
+  const obsCleanUnsched = dropTombstonedObsidianTasks(result.data.unscheduledTasks, obsTombs);
+  const obsCleanNotes = dropTombstonedObsidianNotes(result.data.dailyNotes, obsTombs);
+  if (obsCleanTasks !== result.data.tasks || obsCleanUnsched !== result.data.unscheduledTasks
+      || obsCleanNotes !== result.data.dailyNotes) {
+    result.data.tasks = obsCleanTasks;
+    result.data.unscheduledTasks = obsCleanUnsched;
+    result.data.dailyNotes = obsCleanNotes;
+    // Both sides need the cleansed result: local state applies it, and the
+    // remote file is rewritten without the zombies.
     result.localChanged = true;
     result.remoteChanged = true;
   }

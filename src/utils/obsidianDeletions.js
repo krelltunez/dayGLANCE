@@ -111,3 +111,67 @@ export function addObsidianTombstones(tombstones, keys, deletedAtIso) {
   }
   return out;
 }
+
+// ─── Symmetric enforcement at the APPLY boundary ─────────────────────────────
+//
+// For a long time deletedObsidianKeys was honored on the way OUT but ignored
+// on the way IN: every path that DELETES consulted it (the vault-scan merges,
+// the rescue gate, the commit merge's honored-delete blessing, the push
+// guard's 'tombstoned' propagation), while no path that APPLIES did —
+// applyEngineData admitted pulled task rows unfiltered and replaced dailyNotes
+// wholesale, and the file-tier merge unioned tombstoned rows straight back in
+// from the remote file (issue #1448). That asymmetry is a war generator: a
+// tombstoned row deleted locally is re-admitted by the next pull/merge, pushed
+// back to the vault as "new", deleted again, forever — the tombstone echo war
+// (src/sync/obsidianTombstoneEchoWar.test.js), and #1448's vaultless-device
+// resurrection, are the DB-tier and file-tier faces of the same missing gate.
+//
+// These two helpers ARE that gate, shared by both tiers so the rule can never
+// fork again: applyEngineData (the single ingress for DB commits AND file-tier
+// applies) and mergeSyncData (the file-tier merge output, which is also what
+// gets uploaded — cleansing it stops the remote file from carrying zombies
+// past their tombstones' 60-day GC, where they would otherwise resurrect).
+//
+// The comparison is the SAME last-writer-wins isObsidianTombstoned every
+// deleting path uses — revive-preserving by construction: a copy whose
+// lastModified is strictly newer than its tombstone (a genuine re-creation or
+// restore) passes untouched and propagates normally. Note the rule has NO
+// epsilon (unlike the push guard's 5s stale-tombstone margin): a restore whose
+// lastModified lands AT or BELOW the tombstone — e.g. a restoring device with
+// a skewed-behind clock — is dropped, exactly as the scan merge and rescue
+// gate have always treated it. Symmetric enforcement adopts the existing rule
+// unchanged; it does not invent a new boundary.
+
+/**
+ * Drop Obsidian-imported task rows whose deletion tombstone is at least as new
+ * as the row (LWW). Non-Obsidian rows pass through untouched — the channel's
+ * keys are Obsidian task ids and note dates by construction. Pure; returns the
+ * SAME array when nothing changed (no spurious re-render/diff churn).
+ *
+ * @param {object[]} tasks
+ * @param {Record<string,string>} tombstones  deletedObsidianKeys {key → ISO}
+ */
+export function dropTombstonedObsidianTasks(tasks, tombstones) {
+  if (!Array.isArray(tasks) || !tombstones || Object.keys(tombstones).length === 0) return tasks || [];
+  const out = tasks.filter((t) =>
+    !(t && t.importSource === 'obsidian' && isObsidianTombstoned(tombstones, String(t.id), t.lastModified)));
+  return out.length === tasks.length ? tasks : out;
+}
+
+/**
+ * Drop daily-note entries whose deletion tombstone is at least as new as the
+ * note (LWW). Pure; returns the SAME map when nothing changed.
+ *
+ * @param {Record<string, {text:string, lastModified?:string}>} notes
+ * @param {Record<string,string>} tombstones  deletedObsidianKeys {key → ISO}
+ */
+export function dropTombstonedObsidianNotes(notes, tombstones) {
+  if (!notes || typeof notes !== 'object' || !tombstones || Object.keys(tombstones).length === 0) return notes || {};
+  let changed = false;
+  const out = {};
+  for (const [date, note] of Object.entries(notes)) {
+    if (isObsidianTombstoned(tombstones, date, note && note.lastModified)) { changed = true; continue; }
+    out[date] = note;
+  }
+  return changed ? out : notes;
+}
