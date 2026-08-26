@@ -30,7 +30,12 @@ export function mergeObsidianTasks(prevList, scannedList, scannedIdsAllLists, pr
   const oldObsidian = prev.filter(t => t.importSource === 'obsidian');
   const oldMap = new Map(oldObsidian.map(t => [String(t.id), t]));
   const merged = (scannedList || []).map(t => {
-    const old = oldMap.get(String(t.id));
+    // Secondary lookup by the scanned task's legacy-id hint: bridges the
+    // one-time switch from content-derived to ^dg- block-derived ids, so
+    // app-only fields survive on a device that still holds the task under
+    // its old id (see resolveExistingObsidianTask in obsidian.js).
+    const old = oldMap.get(String(t.id))
+      ?? (t.obsidianLegacyId ? oldMap.get(String(t.obsidianLegacyId)) : undefined);
     return old ? { ...t, ...preserveAppFields(old) } : t;
   }).filter(t => !isObsidianTombstoned(tombstones, String(t.id), t.lastModified));
   const retained = oldObsidian.filter(t =>

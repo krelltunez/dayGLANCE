@@ -341,9 +341,25 @@ Both paths use the same parser in `obsidian.js`. Supported task formats:
 - [ ] 09:00 Task title #obsidian                 → timed task (today)
 - [ ] Task title #obsidian                       → inbox task
 - [ ] 09:00-10:30 Task title #obsidian           → timed with duration
+- [ ] Task title ^dg-a1b2c3d4                    → block-id identity (Phase 2)
 ```
 
-Each imported task gets a **stable ID** derived from `obsidian-{date}-{hash(title)}`. On re-sync, existing tasks are matched by ID so user edits (scheduling, notes, colour, subtasks) are preserved and not overwritten. Completion state is written back to the vault file.
+Task identity is **ID-first with text fallback**. Lines dayGLANCE writes or
+rewrites carry a trailing `^dg-<id>` Obsidian block reference (native syntax,
+invisible in reading view): the id is generated at write time, persisted on the
+task as `obsidianBlockId`, and the app-level task id becomes
+`obsidian-dg-<id>` — content-independent, so it survives retitles, reordering,
+reschedules, and cut-paste between daily notes, and every device derives the
+same id from the same line. Untagged lines keep the legacy content-derived id
+`obsidian-{date}-{hash(title)}` and the original text matching; they acquire
+ids opportunistically when a writeback rewrites them (no migration sweep). On
+re-sync, existing tasks are matched by ID so user edits (scheduling, notes,
+colour, subtasks) are preserved and not overwritten; a tagged line retitled in
+Obsidian keeps its identity and the vault title wins. Completion state is
+written back to the vault file. Duplicate `^dg-` ids (a copy-pasted line):
+first occurrence wins, later ones parse as untagged. Block-id keys carry no
+date, so the deletion detector's age-out check reads their daily-note date from
+a persisted sidecar (`day-planner-obsidian-last-scanned-dates`).
 
 ---
 

@@ -446,13 +446,16 @@ function sortTaskLinesInSection(lines, headingStr, noteDate) {
  *   - [ ] 08:00-09:00 Title             (timed task on note's own date)
  *   - [ ] 2026-03-29 08:00-09:00 Title  (timed task on a different date)
  *
- * @param {{ title, startTime, duration, isAllDay, date }} task
+ * @param {{ title, startTime, duration, isAllDay, date, blockId }} task
  * @param {string} noteDate  The YYYY-MM-DD date of the note being written to
  */
 function buildObsidianTaskLine(task, noteDate) {
   const datePrefix = task.date && task.date !== noteDate ? `${task.date} ` : '';
   const timePrefix = (!task.isAllDay && task.startTime) ? buildTimePrefix(task.startTime, task.duration || null) : '';
-  return `- [ ] ${datePrefix}${timePrefix}${task.title}`;
+  // Phase 2: a task created in dayGLANCE lands in the vault already carrying
+  // its ^dg- block id, assigned at creation time (useTaskActions) and
+  // persisted on the app task — never derived at read time.
+  return `- [ ] ${datePrefix}${timePrefix}${task.title}${blockIdSuffix(task.blockId, task.title)}`;
 }
 
 /**
@@ -698,15 +701,78 @@ function stripLinePrefixes(text) {
 }
 
 /**
- * Write a task's completion and scheduling state back to its Obsidian file.
+ * Apply a task-state update to daily-note lines IN PLACE. Shared by the FSA
+ * and Android-native writeback paths so ID-first matching cannot drift.
  *
- * Finds every line matching `obsidianRawTitle` (the title text as it originally
- * appeared, without #obsidian tag or time prefix) and updates all of them.
- * Updating all occurrences is correct because dayGLANCE deduplicates tasks by
- * title-hash at import time, so a single task object in the app corresponds to
- * every occurrence of that title in the file.
+ * Matching (Phase 2):
+ *  1. ID-first — when the task carries a block id, lines whose trailing
+ *     `^dg-<id>` equals it are updated (the id survives the rewrite even when
+ *     the title now ends in a user block ref, so identity is never dropped).
+ *  2. Fallback — when no line carried the id (line predates tagging, or the
+ *     user removed the token), lines are matched by bare title exactly as
+ *     before, SKIPPING lines tagged with some other task's id (those are
+ *     different tasks now, per the duplicate rule). Fallback-matched lines are
+ *     stamped with the task's block id when one is provided — this is the
+ *     opportunistic migration moment: existing untagged tasks acquire ids as
+ *     they get rewritten, never via a sweep.
+ *
+ * Updating all occurrences within a match pass mirrors the historical
+ * title-dedup behavior.
+ *
+ * @returns {boolean} whether any line was updated
  */
-export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null) {
+export function updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId = null }) {
+  const timeStr = buildTimePrefix(startTime, duration);
+  const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
+  // When targetDate is provided (task rescheduled to a different day), write
+  // an explicit inline date prefix so the task is attributed to the new date
+  // while remaining in its original daily note file.
+  const rewrite = (i, indent, datePrefix, idSuffix) => {
+    const effectiveDatePrefix = targetDate ? `${targetDate} ` : datePrefix;
+    lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${effectiveDatePrefix}${timeStr}${writtenTitle}${idSuffix}`;
+  };
+
+  let updated = false;
+  if (blockId) {
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^(\s*)- \[([ xX])\]\s+(.+)$/);
+      if (!m) continue;
+      const { text: body, blockId: lineId } = splitBlockId(m[3]);
+      if (lineId !== blockId) continue;
+      const { datePrefix } = stripLinePrefixes(body);
+      // Forced suffix: a line that already carried this id keeps it
+      // unconditionally — the foreign-block-ref guard only applies to
+      // FIRST-TIME stamping, never to preserving established identity.
+      rewrite(i, m[1], datePrefix, ` ^dg-${blockId}`);
+      updated = true;
+    }
+    if (updated) return true;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^(\s*)- \[([ xX])\]\s+(.+)$/);
+    if (!m) continue;
+    const { text: body, blockId: lineId } = splitBlockId(m[3]);
+    if (lineId) continue; // tagged line — belongs to whichever task owns that id
+    const { bareTitle, datePrefix } = stripLinePrefixes(body);
+    if (bareTitle !== obsidianRawTitle) continue;
+    rewrite(i, m[1], datePrefix, blockIdSuffix(blockId, writtenTitle));
+    updated = true;
+  }
+  return updated;
+}
+
+/**
+ * Write a task's completion and scheduling state back to its Obsidian file.
+ * Line matching is ID-first with title fallback — see updateTaskLines.
+ *
+ * @param {string|null} [blockId]  the task's ^dg- block id (or a freshly
+ *   assigned one to stamp on the matched line)
+ * @returns {Promise<boolean>} whether a line was found and the file written —
+ *   callers use this to commit a fresh id assignment only when it actually
+ *   reached the vault.
+ */
+export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null, blockId = null) {
   assertSafeDateStr(dateStr);
   if (targetDate) assertSafeDateStr(targetDate);
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
@@ -716,31 +782,12 @@ export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr,
     const file = await fileHandle.getFile();
     text = await file.text();
   } catch (err) {
-    if (err.name === 'NotFoundError') return; // file gone, nothing to update
+    if (err.name === 'NotFoundError') return false; // file gone, nothing to update
     throw err;
   }
 
   const lines = text.split('\n');
-  let updated = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(/^(\s*)- \[([ xX])\]\s+(.+)$/);
-    if (!m) continue;
-
-    const { bareTitle, datePrefix } = stripLinePrefixes(m[3]);
-    if (bareTitle !== obsidianRawTitle) continue;
-
-    const indent = m[1];
-    const timeStr = buildTimePrefix(startTime, duration);
-    const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
-    // When targetDate is provided (task rescheduled to a different day), write
-    // an explicit inline date prefix so the task is attributed to the new date
-    // while remaining in its original daily note file.
-    const effectiveDatePrefix = targetDate ? `${targetDate} ` : datePrefix;
-    lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${effectiveDatePrefix}${timeStr}${writtenTitle}`;
-    updated = true;
-    // Continue — update every occurrence, not just the first.
-  }
+  const updated = updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId });
 
   if (updated) {
     const finalLines = taskHeading
@@ -750,6 +797,7 @@ export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr,
     await writable.write(finalLines.join('\n'));
     await writable.close();
   }
+  return updated;
 }
 
 // ---------------------------------------------------------------------------
@@ -763,6 +811,87 @@ export function simpleHash(str) {
     hash |= 0;
   }
   return Math.abs(hash).toString(36);
+}
+
+// ---------------------------------------------------------------------------
+// Block-ID identity (Obsidian build-out Phase 2)
+//
+// Task lines dayGLANCE writes carry a trailing `^dg-<id>` Obsidian block
+// reference — native syntax, invisible in reading view, survives edits and
+// reordering. The id is generated at write time, persisted on the task as
+// `obsidianBlockId`, and embedded in the line itself, so every device that
+// scans the vault derives the same durable identity from the file — unlike
+// the legacy content-derived id (date + title hash), which changes whenever
+// the title or date does. Matching is ID-first with fallback to the legacy
+// text matching for lines that carry no id; existing untagged lines acquire
+// ids opportunistically as they get rewritten. No sweep, no flag day.
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a new block id: 8 chars of lowercase base36 (Obsidian block ids
+ * allow alphanumerics and hyphens). 36^8 ≈ 2.8e12, so a collision within one
+ * vault is vanishingly unlikely; if one ever occurs inside a file, the
+ * duplicate-id rule below (first occurrence wins) bounds the damage to one
+ * task rather than corrupting anything.
+ */
+export function generateBlockId() {
+  const bytes = new Uint8Array(8);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  let out = '';
+  for (const b of bytes) out += (b % 36).toString(36);
+  return out;
+}
+
+/**
+ * The app-level task id for a block-tagged line. Content-independent, so it is
+ * identical on every device whenever the line was first scanned — the property
+ * the legacy `obsidian-<date>-<hash>` id lacks (two devices that first import
+ * before/after a retitle derive different ids and cloud merge duplicates).
+ */
+export function appIdForBlockId(blockId) {
+  return `obsidian-dg-${blockId}`;
+}
+
+/** The legacy content-derived id for an untagged line (and pre-Phase-2 tasks). */
+export function legacyObsidianId(taskDate, rawTitle) {
+  return `obsidian-${taskDate}-${simpleHash(rawTitle)}`;
+}
+
+const DG_BLOCK_ID_RE = /\s+\^dg-([a-z0-9]+)\s*$/;
+
+/**
+ * Split a trailing ` ^dg-<id>` block reference off a task-line body.
+ * Only dayGLANCE's own `^dg-` ids are recognised; a user's own block
+ * reference (e.g. `^quote1`) stays part of the title, exactly as today.
+ * A `^` anywhere else in the title is untouched.
+ * @returns {{ text: string, blockId: string|null }}
+ */
+export function splitBlockId(text) {
+  const m = DG_BLOCK_ID_RE.exec(text);
+  if (!m) return { text, blockId: null };
+  return { text: text.slice(0, m.index), blockId: m[1] };
+}
+
+// Obsidian allows exactly one block reference per line, at end of line. A line
+// whose title already ends in a user-authored block id must never get a ^dg-
+// suffix appended — the appended id would become the line's block id and break
+// the user's existing block links.
+const FOREIGN_BLOCK_ID_RE = /(^|\s)\^[A-Za-z0-9-]+$/;
+export function hasForeignBlockId(text) {
+  return FOREIGN_BLOCK_ID_RE.test(String(text).trimEnd());
+}
+
+/**
+ * The ` ^dg-<id>` suffix for a written task line, or '' when there is no id to
+ * write or the title carries a user-authored block reference (see above).
+ */
+export function blockIdSuffix(blockId, writtenTitle) {
+  if (!blockId || hasForeignBlockId(writtenTitle)) return '';
+  return ` ^dg-${blockId}`;
 }
 
 /**
@@ -847,8 +976,14 @@ function buildTimePrefix(startTime, duration) {
  *   - [x] Completed task                     → completed (any of the above)
  *
  * Returns { scheduledTasks: [...], inboxTasks: [...] }
+ *
+ * @param {Set<string>} [seenBlockIds]  duplicate `^dg-` guard. First occurrence
+ *   of an id wins; later lines carrying the same id (a copy-paste inside
+ *   Obsidian) are parsed as if untagged, becoming ordinary content-derived
+ *   tasks. The sync passes ONE set across every file in the scan so the rule
+ *   holds vault-wide, not merely per file.
  */
-export function parseTasksFromMarkdown(content, dateStr) {
+export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set()) {
   const scheduled = [];
   const inbox = [];
   if (!content) return { scheduledTasks: scheduled, inboxTasks: inbox };
@@ -862,6 +997,22 @@ export function parseTasksFromMarkdown(content, dateStr) {
 
     const completed = match[1] !== ' ';
     let rawTitle = match[2].trim();
+
+    // Strip a trailing ^dg-<id> block reference BEFORE any other parsing, so
+    // rawTitle (and therefore the legacy hash) is identical to what an
+    // untagged copy of the line would produce — that identity is what lets
+    // ID-matching and text-matching fall back into each other cleanly.
+    let blockId = null;
+    const idSplit = splitBlockId(rawTitle);
+    if (idSplit.blockId) {
+      rawTitle = idSplit.text.trim();
+      if (!seenBlockIds.has(idSplit.blockId)) {
+        seenBlockIds.add(idSplit.blockId);
+        blockId = idSplit.blockId;
+      }
+      // else: duplicate id — first occurrence won; this line falls through as
+      // an untagged task (blockId stays null).
+    }
 
     let taskDate = dateStr;
     let startTime = null;
@@ -898,8 +1049,18 @@ export function parseTasksFromMarkdown(content, dateStr) {
     // Add #obsidian tag if not already present
     const title = rawTitle.includes('#obsidian') ? rawTitle : `${rawTitle} #obsidian`;
 
-    // Stable ID: based on task's effective date + hash of raw title
-    const id = `obsidian-${taskDate}-${simpleHash(rawTitle)}`;
+    // ID-first: a ^dg- tagged line gets its durable block-derived id; an
+    // untagged line keeps the legacy content-derived id (date + title hash).
+    const legacyId = legacyObsidianId(taskDate, rawTitle);
+    const id = blockId ? appIdForBlockId(blockId) : legacyId;
+    // obsidianLegacyId is a PER-SCAN bridge hint, not an identity: it is what
+    // this line's id would have been without the tag, recomputed from current
+    // content each scan. The sync uses it to match a freshly-tagged line to
+    // the task a device still holds under the old id, so app-side fields
+    // survive the one-time legacy → block-id switch.
+    const blockFields = blockId
+      ? { obsidianBlockId: blockId, obsidianLegacyId: legacyId }
+      : {};
 
     if (startTime) {
       // Timed task (with or without inline date)
@@ -917,6 +1078,7 @@ export function parseTasksFromMarkdown(content, dateStr) {
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,
         obsidianFileDate: dateStr,
+        ...blockFields,
       });
     } else if (isAllDay) {
       // Date-only task → all-day scheduled task
@@ -934,6 +1096,7 @@ export function parseTasksFromMarkdown(content, dateStr) {
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,
         obsidianFileDate: dateStr,
+        ...blockFields,
       });
     } else {
       // No date, no time → inbox
@@ -949,6 +1112,7 @@ export function parseTasksFromMarkdown(content, dateStr) {
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,
         obsidianFileDate: dateStr,
+        ...blockFields,
       });
     }
   }
@@ -959,6 +1123,36 @@ export function parseTasksFromMarkdown(content, dateStr) {
 // ---------------------------------------------------------------------------
 // Full vault sync
 // ---------------------------------------------------------------------------
+
+/**
+ * Resolve which existing app task a scanned task corresponds to: by id first;
+ * then, for a tagged line, by its legacy content-derived id — the one-time
+ * bridge for a device that still holds the task under the pre-tagging id
+ * (another device stamped the line since this device last synced).
+ */
+function resolveExistingObsidianTask(existingTaskMap, task) {
+  return existingTaskMap[task.id]
+    || (task.obsidianLegacyId ? existingTaskMap[task.obsidianLegacyId] : undefined);
+}
+
+/**
+ * Title ownership for block-tagged tasks. Historically "DG owns the title"
+ * was enforced by preserving existing.title — but it was also unreachable for
+ * Obsidian-side retitles, because a retitle changed the content-derived id
+ * and the task re-imported fresh (as a duplicate) instead. With a stable
+ * block id the same line IS matched, so the rule must be explicit: when the
+ * line's raw title differs from what dayGLANCE last knew the vault said
+ * (obsidianRawTitle, which the writeback keeps current), the vault was edited
+ * after our last write — the Obsidian retitle wins. When they are equal, the
+ * vault is unchanged and any DG-side rename is preserved as before. Reverting
+ * the user's Obsidian edit on the next writeback would be the one hostile
+ * outcome, and is exactly the Phase 2 exit-criteria scenario.
+ */
+function vaultTitleWins(task, existing) {
+  return !!task.obsidianBlockId
+    && existing.obsidianRawTitle !== undefined
+    && task.obsidianRawTitle !== existing.obsidianRawTitle;
+}
 
 /**
  * Sync daily notes + tasks from the Obsidian vault.
@@ -1027,6 +1221,11 @@ export async function syncObsidianVault(
   const isDefaultPattern = !pattern || pattern === 'yyyy-MM-dd';
   const dateParser = isDefaultPattern ? null : buildDateParser(pattern);
 
+  // ONE duplicate-^dg-id guard across every file in this scan, so the
+  // first-occurrence-wins rule holds vault-wide (a line copy-pasted into a
+  // different daily note is still a duplicate).
+  const seenBlockIds = new Set();
+
   // Iterate files in the daily notes directory
   for await (const [name, handle] of dirHandle) {
     if (handle.kind !== 'file' || !name.endsWith('.md')) continue;
@@ -1051,7 +1250,7 @@ export async function syncObsidianVault(
     dailyNotes[dateStr] = { text, lastModified, fromObsidian: true };
 
     // Parse tasks
-    const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(text, dateStr);
+    const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(text, dateStr, seenBlockIds);
 
     // Merge: once imported, DG owns scheduling, title, and app-controlled
     // properties.  Obsidian only controls task *existence* and initial values.
@@ -1059,7 +1258,7 @@ export async function syncObsidianVault(
     // task into the inbox (or vice versa), the task goes into the array the
     // user chose, not the one the vault dictates.
     for (const task of scheduledTasks) {
-      const existing = existingTaskMap[task.id];
+      const existing = resolveExistingObsidianTask(existingTaskMap, task);
       if (existing) {
         // Completed: OR logic — completed in DG OR in Obsidian → completed
         if (existing.completed) task.completed = true;
@@ -1070,18 +1269,22 @@ export async function syncObsidianVault(
         if (existing.duration !== undefined) task.duration = existing.duration;
         if (existing.priority !== undefined) task.priority = existing.priority;
         // Preserve scheduling & title changes made in DG so sync never
-        // overwrites moves/renames the user made inside the app.
+        // overwrites moves/renames the user made inside the app — EXCEPT the
+        // title of a tagged line Obsidian edited since our last write, which
+        // the vault wins (see vaultTitleWins).
         if (existing.date !== undefined) task.date = existing.date;
         if (existing.startTime !== undefined) task.startTime = existing.startTime;
         if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
-        if (existing.title !== undefined) task.title = existing.title;
+        if (existing.title !== undefined && !vaultTitleWins(task, existing)) task.title = existing.title;
         // Preserve lastModified so cloud merge keeps recognising the
         // version the user actually edited rather than treating re-imports
         // as brand-new tasks with a fresh timestamp.
         if (existing.lastModified) task.lastModified = existing.lastModified;
 
-        // User moved this to inbox — respect the cross-array move
-        if (userInboxIds.has(task.id)) {
+        // User moved this to inbox — respect the cross-array move (keyed by
+        // the id the task holds IN STATE, which during the one-time block-id
+        // switch is the legacy id, not the freshly parsed one)
+        if (userInboxIds.has(String(existing.id))) {
           allInbox.push(task);
           continue;
         }
@@ -1093,7 +1296,7 @@ export async function syncObsidianVault(
       allScheduled.push(task);
     }
     for (const task of inboxTasks) {
-      const existing = existingTaskMap[task.id];
+      const existing = resolveExistingObsidianTask(existingTaskMap, task);
       if (existing) {
         if (existing.completed) task.completed = true;
         if (existing.priority !== undefined) task.priority = existing.priority;
@@ -1101,11 +1304,11 @@ export async function syncObsidianVault(
         if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
         if (existing.color !== undefined) task.color = existing.color;
         if (existing.duration !== undefined) task.duration = existing.duration;
-        if (existing.title !== undefined) task.title = existing.title;
+        if (existing.title !== undefined && !vaultTitleWins(task, existing)) task.title = existing.title;
         if (existing.lastModified) task.lastModified = existing.lastModified;
 
         // User scheduled this from inbox — respect the cross-array move
-        if (userScheduledIds.has(task.id)) {
+        if (userScheduledIds.has(String(existing.id))) {
           if (existing.date !== undefined) task.date = existing.date;
           if (existing.startTime !== undefined) task.startTime = existing.startTime;
           if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
@@ -1204,35 +1407,24 @@ export function writeDailyNoteNative(date, content) {
  * Write a task's completion and scheduling state back to its Obsidian file
  * via the native bridge.
  *
- * Reads the note with getDailyNote, applies the same regex-replace logic as
- * writeTaskStateToFile, then writes the result back with writeDailyNote.
+ * Reads the note with getDailyNote, applies the same ID-first line matching
+ * as writeTaskStateToFile (shared updateTaskLines), then writes the result
+ * back with writeDailyNote.
+ *
+ * @returns {boolean} whether a line was found and the note written — callers
+ *   use this to commit a fresh block-id assignment only when it actually
+ *   reached the vault.
  */
-export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null) {
+export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null, blockId = null) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
-  if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return;
+  if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return false;
 
   try {
     const text = bridge.getDailyNote(date);
-    if (!text && text !== '') return; // vault not configured
+    if (!text && text !== '') return false; // vault not configured
 
     const lines = text.split('\n');
-    let updated = false;
-
-    for (let i = 0; i < lines.length; i++) {
-      const m = lines[i].match(/^(\s*)- \[([ xX])\]\s+(.+)$/);
-      if (!m) continue;
-
-      const { bareTitle, datePrefix } = stripLinePrefixes(m[3]);
-      if (bareTitle !== obsidianRawTitle) continue;
-
-      const indent = m[1];
-      const timeStr = buildTimePrefix(startTime, duration);
-      const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
-      const effectiveDatePrefix = targetDate ? `${targetDate} ` : datePrefix;
-      lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${effectiveDatePrefix}${timeStr}${writtenTitle}`;
-      updated = true;
-      // Continue — update every occurrence, not just the first.
-    }
+    const updated = updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId });
 
     if (updated) {
       const finalLines = taskHeading
@@ -1240,8 +1432,10 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
         : lines;
       bridge.writeDailyNote(date, finalLines.join('\n'));
     }
+    return updated;
   } catch (err) {
     console.error('Obsidian native writeback error:', err);
+    return false;
   }
 }
 
@@ -1367,6 +1561,9 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
     throw new Error('Obsidian bridge is missing required methods (getAllDailyNotes or listNotes)');
   }
 
+  // Vault-wide duplicate-^dg-id guard, matching syncObsidianVault.
+  const seenBlockIds = new Set();
+
   for (const entry of noteEntries) {
     const { date: dateStr, text } = entry;
     if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) continue;
@@ -1376,11 +1573,11 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
     // bridge builds that don't report it yet. See nativeNoteLastModified.
     dailyNotes[dateStr] = { text, lastModified: nativeNoteLastModified(entry, new Date().toISOString()), fromObsidian: true };
 
-    const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(text, dateStr);
+    const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(text, dateStr, seenBlockIds);
 
     // Same merge logic as syncObsidianVault
     for (const task of scheduledTasks) {
-      const existing = existingTaskMap[task.id];
+      const existing = resolveExistingObsidianTask(existingTaskMap, task);
       if (existing) {
         if (existing.completed) task.completed = true;
         if (existing.notes !== undefined) task.notes = existing.notes;
@@ -1391,9 +1588,9 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
         if (existing.date !== undefined) task.date = existing.date;
         if (existing.startTime !== undefined) task.startTime = existing.startTime;
         if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
-        if (existing.title !== undefined) task.title = existing.title;
+        if (existing.title !== undefined && !vaultTitleWins(task, existing)) task.title = existing.title;
         if (existing.lastModified) task.lastModified = existing.lastModified;
-        if (userInboxIds.has(task.id)) { allInbox.push(task); continue; }
+        if (userInboxIds.has(String(existing.id))) { allInbox.push(task); continue; }
       } else {
         task.lastModified = new Date(0).toISOString();
       }
@@ -1401,7 +1598,7 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
     }
 
     for (const task of inboxTasks) {
-      const existing = existingTaskMap[task.id];
+      const existing = resolveExistingObsidianTask(existingTaskMap, task);
       if (existing) {
         if (existing.completed) task.completed = true;
         if (existing.priority !== undefined) task.priority = existing.priority;
@@ -1409,9 +1606,9 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
         if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
         if (existing.color !== undefined) task.color = existing.color;
         if (existing.duration !== undefined) task.duration = existing.duration;
-        if (existing.title !== undefined) task.title = existing.title;
+        if (existing.title !== undefined && !vaultTitleWins(task, existing)) task.title = existing.title;
         if (existing.lastModified) task.lastModified = existing.lastModified;
-        if (userScheduledIds.has(task.id)) {
+        if (userScheduledIds.has(String(existing.id))) {
           if (existing.date !== undefined) task.date = existing.date;
           if (existing.startTime !== undefined) task.startTime = existing.startTime;
           if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;

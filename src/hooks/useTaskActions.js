@@ -72,7 +72,7 @@ export default function useTaskActions({
   exitFocusModeRef,
   playFocusSound,
   // Obsidian integration.
-  // getObsidianTaskMeta(rawTitle) → { id, importSource, obsidianRawTitle, obsidianFileDate }
+  // getObsidianTaskMeta(rawTitle) → { id, importSource, obsidianRawTitle, obsidianFileDate, obsidianBlockId }
   // Used synchronously at task-creation time so the task gets the obsidian-format
   // ID from the start, letting the next periodic sync de-duplicate instead of cloning.
   getObsidianTaskMeta,
@@ -259,7 +259,9 @@ export default function useTaskActions({
         }
       }
 
-      // If the task is tagged #obsidian, write it to today's daily note
+      // If the task is tagged #obsidian, write it to today's daily note.
+      // blockId rides along so the appended line carries the same ^dg- id the
+      // app task was just created with (Phase 2 round-trip identity).
       if (obsidianMeta && onWriteObsidianTask) {
         onWriteObsidianTask({
           title: rawObsidianTitle,
@@ -267,6 +269,7 @@ export default function useTaskActions({
           duration: toInbox ? null : (newTask.duration || null),
           isAllDay: !toInbox && (newTask.isAllDay || false),
           date: toInbox ? null : (newTask.date || dateToString(selectedDate)),
+          blockId: obsidianMeta.obsidianBlockId,
         });
       }
 

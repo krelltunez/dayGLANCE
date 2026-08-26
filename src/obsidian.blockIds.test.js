@@ -1,0 +1,417 @@
+import { describe, it, expect } from 'vitest';
+import {
+  parseTasksFromMarkdown,
+  updateTaskLines,
+  writeTaskStateToFile,
+  appendTaskToDailyNote,
+  syncObsidianVault,
+  generateBlockId,
+  appIdForBlockId,
+  legacyObsidianId,
+  splitBlockId,
+  hasForeignBlockId,
+  blockIdSuffix,
+  simpleHash,
+} from './obsidian.js';
+
+// Block-ID identity (Obsidian build-out Phase 2, Part A): task lines dayGLANCE
+// writes carry a trailing ^dg-<id>; reads match by ID first and fall back to
+// the legacy text matching for untagged lines. These tests pin the exact
+// contract the report proposed: round trip, edit/reorder/move survival,
+// first-occurrence-wins duplicates, fallback for untagged lines, and user
+// carets never breaking parsing.
+
+// Minimal in-memory FSA mock (same shape as obsidian.vaultWrites.test.js).
+function nfe() {
+  const e = new Error('A requested file or directory could not be found.');
+  e.name = 'NotFoundError';
+  return e;
+}
+function makeFile(parent, name) {
+  return {
+    kind: 'file',
+    name,
+    async getFile() {
+      return { text: async () => parent[name], lastModified: 1 };
+    },
+    async createWritable() {
+      let buf = '';
+      return {
+        write: async (chunk) => { buf += chunk; },
+        close: async () => { parent[name] = buf; },
+      };
+    },
+  };
+}
+function makeDir(node, name = '') {
+  return {
+    kind: 'directory',
+    name,
+    async getFileHandle(n, opts) {
+      if (typeof node[n] === 'string') return makeFile(node, n);
+      if (opts?.create) { node[n] = ''; return makeFile(node, n); }
+      throw nfe();
+    },
+    async getDirectoryHandle(n, opts) {
+      if (node[n] && typeof node[n] === 'object') return makeDir(node[n], n);
+      if (opts?.create) { node[n] = {}; return makeDir(node[n], n); }
+      throw nfe();
+    },
+    async *entries() {
+      for (const [n, v] of Object.entries(node)) {
+        yield [n, typeof v === 'string' ? makeFile(node, n) : makeDir(v, n)];
+      }
+    },
+    [Symbol.asyncIterator]() { return this.entries(); },
+  };
+}
+
+describe('block-id helpers', () => {
+  it('generateBlockId produces 8 lowercase base36 chars, distinct across calls', () => {
+    const a = generateBlockId();
+    const b = generateBlockId();
+    expect(a).toMatch(/^[a-z0-9]{8}$/);
+    expect(b).toMatch(/^[a-z0-9]{8}$/);
+    expect(a).not.toBe(b);
+  });
+
+  it('splitBlockId strips only a TRAILING ^dg- token', () => {
+    expect(splitBlockId('Review proposal ^dg-a1b2c3d4'))
+      .toEqual({ text: 'Review proposal', blockId: 'a1b2c3d4' });
+    // Mid-line ^dg- is title text, not an id.
+    expect(splitBlockId('see ^dg-a1b2c3d4 for context').blockId).toBeNull();
+    // A user's own block ref is not ours.
+    expect(splitBlockId('Quote of the day ^quote1').blockId).toBeNull();
+    // A bare caret is just a character.
+    expect(splitBlockId('x^2 + y^2').blockId).toBeNull();
+  });
+
+  it('hasForeignBlockId / blockIdSuffix: never append after a user block ref', () => {
+    expect(hasForeignBlockId('Quote of the day ^quote1')).toBe(true);
+    expect(hasForeignBlockId('plain title')).toBe(false);
+    expect(blockIdSuffix('abc12345', 'Quote of the day ^quote1')).toBe('');
+    expect(blockIdSuffix('abc12345', 'plain title')).toBe(' ^dg-abc12345');
+    expect(blockIdSuffix(null, 'plain title')).toBe('');
+  });
+});
+
+describe('parseTasksFromMarkdown — ^dg- ids', () => {
+  it('a tagged line gets the block-derived id, with the id stripped from title and hash', () => {
+    const { inboxTasks } = parseTasksFromMarkdown('- [ ] Review proposal ^dg-a1b2c3d4', '2026-08-22');
+    expect(inboxTasks).toHaveLength(1);
+    const t = inboxTasks[0];
+    expect(t.id).toBe(appIdForBlockId('a1b2c3d4'));
+    expect(t.obsidianBlockId).toBe('a1b2c3d4');
+    expect(t.obsidianRawTitle).toBe('Review proposal');
+    expect(t.title).toBe('Review proposal #obsidian');
+    // The legacy hint equals what the SAME line untagged would derive.
+    const { inboxTasks: untagged } = parseTasksFromMarkdown('- [ ] Review proposal', '2026-08-22');
+    expect(t.obsidianLegacyId).toBe(untagged[0].id);
+  });
+
+  it('the id survives time and inline-date prefixes (timed and all-day forms)', () => {
+    const { scheduledTasks } = parseTasksFromMarkdown(
+      [
+        '- [ ] 09:00-10:00 Timed task ^dg-aaaaaaaa',
+        '- [x] 2026-08-25 Moved task ^dg-bbbbbbbb',
+      ].join('\n'),
+      '2026-08-22',
+    );
+    expect(scheduledTasks.map(t => t.id)).toEqual([
+      appIdForBlockId('aaaaaaaa'),
+      appIdForBlockId('bbbbbbbb'),
+    ]);
+    expect(scheduledTasks[0].startTime).toBe('09:00');
+    expect(scheduledTasks[0].duration).toBe(60);
+    expect(scheduledTasks[1].date).toBe('2026-08-25');
+    expect(scheduledTasks[1].completed).toBe(true);
+  });
+
+  it('the id is identical regardless of position in the file (reorder survival)', () => {
+    const a = parseTasksFromMarkdown('- [ ] A ^dg-xxxxxxxx\n- [ ] B', '2026-08-22');
+    const b = parseTasksFromMarkdown('- [ ] B\n- [ ] A ^dg-xxxxxxxx', '2026-08-22');
+    expect(a.inboxTasks.find(t => t.obsidianBlockId).id)
+      .toBe(b.inboxTasks.find(t => t.obsidianBlockId).id);
+  });
+
+  it('the id is identical regardless of which file the line is in (move survival)', () => {
+    const seen1 = new Set();
+    const inFileA = parseTasksFromMarkdown('- [ ] Task ^dg-xxxxxxxx', '2026-08-20', seen1);
+    const seen2 = new Set();
+    const inFileB = parseTasksFromMarkdown('- [ ] Task ^dg-xxxxxxxx', '2026-08-22', seen2);
+    expect(inFileA.inboxTasks[0].id).toBe(inFileB.inboxTasks[0].id);
+    expect(inFileA.inboxTasks[0].obsidianFileDate).toBe('2026-08-20');
+    expect(inFileB.inboxTasks[0].obsidianFileDate).toBe('2026-08-22');
+  });
+
+  it('a retitled tagged line keeps its id (the Phase 2 exit criterion)', () => {
+    const before = parseTasksFromMarkdown('- [ ] Old title ^dg-xxxxxxxx', '2026-08-22');
+    const after = parseTasksFromMarkdown('- [ ] Completely new words ^dg-xxxxxxxx', '2026-08-22');
+    expect(after.inboxTasks[0].id).toBe(before.inboxTasks[0].id);
+    expect(after.inboxTasks[0].obsidianRawTitle).toBe('Completely new words');
+  });
+
+  it('duplicate ids (copy-paste): first occurrence wins, later ones parse as untagged', () => {
+    const { inboxTasks } = parseTasksFromMarkdown(
+      '- [ ] Original ^dg-xxxxxxxx\n- [ ] Original ^dg-xxxxxxxx',
+      '2026-08-22',
+    );
+    expect(inboxTasks).toHaveLength(2);
+    expect(inboxTasks[0].id).toBe(appIdForBlockId('xxxxxxxx'));
+    expect(inboxTasks[1].id).toBe(legacyObsidianId('2026-08-22', 'Original'));
+    expect(inboxTasks[1].obsidianBlockId).toBeUndefined();
+  });
+
+  it('the duplicate rule spans files when the sync shares one seen-set', () => {
+    const seen = new Set();
+    const fileA = parseTasksFromMarkdown('- [ ] Copied ^dg-xxxxxxxx', '2026-08-20', seen);
+    const fileB = parseTasksFromMarkdown('- [ ] Copied ^dg-xxxxxxxx', '2026-08-22', seen);
+    expect(fileA.inboxTasks[0].id).toBe(appIdForBlockId('xxxxxxxx'));
+    expect(fileB.inboxTasks[0].id).toBe(legacyObsidianId('2026-08-22', 'Copied'));
+  });
+
+  it('untagged lines keep the legacy content-derived id exactly (fallback path intact)', () => {
+    const { inboxTasks } = parseTasksFromMarkdown('- [ ] Plain old task', '2026-08-22');
+    expect(inboxTasks[0].id).toBe(`obsidian-2026-08-22-${simpleHash('Plain old task')}`);
+    expect(inboxTasks[0].obsidianBlockId).toBeUndefined();
+    expect(inboxTasks[0].obsidianLegacyId).toBeUndefined();
+  });
+
+  it('a user-typed ^ in a title does not break parsing or matching', () => {
+    const { inboxTasks } = parseTasksFromMarkdown(
+      '- [ ] solve x^2 + y^2 = z^2\n- [ ] read note ^quote1\n- [ ] tagged x^2 task ^dg-cccccccc',
+      '2026-08-22',
+    );
+    expect(inboxTasks[0].obsidianRawTitle).toBe('solve x^2 + y^2 = z^2');
+    // A user block ref stays part of the title, exactly as before Phase 2.
+    expect(inboxTasks[1].obsidianRawTitle).toBe('read note ^quote1');
+    expect(inboxTasks[1].obsidianBlockId).toBeUndefined();
+    // A caret in the title does not confuse the trailing-id strip.
+    expect(inboxTasks[2].obsidianRawTitle).toBe('tagged x^2 task');
+    expect(inboxTasks[2].obsidianBlockId).toBe('cccccccc');
+  });
+});
+
+describe('updateTaskLines — ID-first matching with title fallback', () => {
+  it('matches by id even when the title was edited in Obsidian', () => {
+    const lines = ['- [ ] Renamed in Obsidian ^dg-xxxxxxxx'];
+    const updated = updateTaskLines(lines, {
+      obsidianRawTitle: 'Old title dayGLANCE knew',
+      completed: true, startTime: null, newRawTitle: undefined,
+      duration: null, targetDate: undefined, blockId: 'xxxxxxxx',
+    });
+    expect(updated).toBe(true);
+    // The title match would have failed; the id pinned the line.
+    expect(lines[0]).toBe('- [x] Old title dayGLANCE knew ^dg-xxxxxxxx');
+  });
+
+  it('with an id match, an untagged same-title line is left alone', () => {
+    const lines = [
+      '- [ ] Same title ^dg-xxxxxxxx',
+      '- [ ] Same title',
+    ];
+    updateTaskLines(lines, {
+      obsidianRawTitle: 'Same title',
+      completed: true, startTime: null, newRawTitle: undefined,
+      duration: null, targetDate: undefined, blockId: 'xxxxxxxx',
+    });
+    expect(lines).toEqual([
+      '- [x] Same title ^dg-xxxxxxxx',
+      '- [ ] Same title',
+    ]);
+  });
+
+  it('fallback: no line carries the id → title match, and the id is stamped (opportunistic migration)', () => {
+    const lines = ['- [ ] Legacy task', '- [ ] Other task'];
+    const updated = updateTaskLines(lines, {
+      obsidianRawTitle: 'Legacy task',
+      completed: true, startTime: null, newRawTitle: undefined,
+      duration: null, targetDate: undefined, blockId: 'yyyyyyyy',
+    });
+    expect(updated).toBe(true);
+    expect(lines).toEqual(['- [x] Legacy task ^dg-yyyyyyyy', '- [ ] Other task']);
+  });
+
+  it('fallback never touches a line tagged with a DIFFERENT id (it is another task now)', () => {
+    const lines = ['- [ ] Same title ^dg-other0000'];
+    const updated = updateTaskLines(lines, {
+      obsidianRawTitle: 'Same title',
+      completed: true, startTime: null, newRawTitle: undefined,
+      duration: null, targetDate: undefined, blockId: 'xxxxxxxx',
+    });
+    expect(updated).toBe(false);
+    expect(lines[0]).toBe('- [ ] Same title ^dg-other0000');
+  });
+
+  it('a title ending in a user block ref is matched but NOT stamped', () => {
+    const lines = ['- [ ] read note ^quote1'];
+    const updated = updateTaskLines(lines, {
+      obsidianRawTitle: 'read note ^quote1',
+      completed: true, startTime: null, newRawTitle: undefined,
+      duration: null, targetDate: undefined, blockId: 'zzzzzzzz',
+    });
+    expect(updated).toBe(true);
+    expect(lines[0]).toBe('- [x] read note ^quote1');
+  });
+
+  it('a line that already carries our id keeps it even when the title now ends in a user block ref', () => {
+    const lines = ['- [ ] cite ^src1 ^dg-xxxxxxxx'];
+    updateTaskLines(lines, {
+      obsidianRawTitle: 'cite ^src1',
+      completed: true, startTime: null, newRawTitle: undefined,
+      duration: null, targetDate: undefined, blockId: 'xxxxxxxx',
+    });
+    expect(lines[0]).toBe('- [x] cite ^src1 ^dg-xxxxxxxx');
+  });
+
+  it('untagged task with no blockId behaves exactly as before (pure legacy path)', () => {
+    const lines = ['- [ ] Legacy task'];
+    const updated = updateTaskLines(lines, {
+      obsidianRawTitle: 'Legacy task',
+      completed: true, startTime: '09:00', newRawTitle: undefined,
+      duration: 30, targetDate: undefined, blockId: null,
+    });
+    expect(updated).toBe(true);
+    expect(lines[0]).toBe('- [x] 09:00-09:30 Legacy task');
+  });
+
+  it('a rename via writeback rewrites the line and keeps the id at end of line', () => {
+    const lines = ['- [ ] Old name ^dg-xxxxxxxx'];
+    updateTaskLines(lines, {
+      obsidianRawTitle: 'Old name',
+      completed: false, startTime: null, newRawTitle: 'New name',
+      duration: null, targetDate: undefined, blockId: 'xxxxxxxx',
+    });
+    expect(lines[0]).toBe('- [ ] New name ^dg-xxxxxxxx');
+  });
+
+  it('a reschedule to another day writes the inline date prefix and keeps the id', () => {
+    const lines = ['- [ ] 09:00-09:30 Meeting ^dg-xxxxxxxx'];
+    updateTaskLines(lines, {
+      obsidianRawTitle: 'Meeting',
+      completed: false, startTime: '10:00', newRawTitle: undefined,
+      duration: 30, targetDate: '2026-08-25', blockId: 'xxxxxxxx',
+    });
+    expect(lines[0]).toBe('- [ ] 2026-08-25 10:00-10:30 Meeting ^dg-xxxxxxxx');
+  });
+});
+
+describe('round trip — write, read back, match', () => {
+  it('a task appended from dayGLANCE parses back to the same app id', async () => {
+    const fs = {};
+    const vault = makeDir(fs);
+    const blockId = generateBlockId();
+    await appendTaskToDailyNote(vault, '', '2026-08-22', {
+      title: 'Ship the report', startTime: '09:00', duration: 60,
+      isAllDay: false, date: '2026-08-22', blockId,
+    }, '## Tasks', '', 'yyyy-MM-dd');
+
+    expect(fs['2026-08-22.md']).toContain(`Ship the report ^dg-${blockId}`);
+
+    const { scheduledTasks } = parseTasksFromMarkdown(fs['2026-08-22.md'], '2026-08-22');
+    expect(scheduledTasks).toHaveLength(1);
+    expect(scheduledTasks[0].id).toBe(appIdForBlockId(blockId));
+    expect(scheduledTasks[0].obsidianRawTitle).toBe('Ship the report');
+  });
+
+  it('writeTaskStateToFile resolves true on a stamped write and false when nothing matched', async () => {
+    const fs = { '2026-08-22.md': '- [ ] Legacy task' };
+    const vault = makeDir(fs);
+    const ok = await writeTaskStateToFile(vault, '', '2026-08-22', 'Legacy task', true, null, undefined, null, undefined, null, 'ffffffff');
+    expect(ok).toBe(true);
+    expect(fs['2026-08-22.md']).toBe('- [x] Legacy task ^dg-ffffffff');
+
+    const miss = await writeTaskStateToFile(vault, '', '2026-08-22', 'No such task', true, null, undefined, null, undefined, null, 'eeeeeeee');
+    expect(miss).toBe(false);
+    // And a missing file resolves false rather than throwing.
+    const gone = await writeTaskStateToFile(vault, '', '2026-08-23', 'Legacy task', true, null, undefined, null, undefined, null, 'dddddddd');
+    expect(gone).toBe(false);
+  });
+});
+
+describe('syncObsidianVault — ID-first matching end to end', () => {
+  const scan = (fs, existingTasks = [], existingInbox = []) =>
+    syncObsidianVault(makeDir(fs), '', 0, existingTasks, existingInbox, 'yyyy-MM-dd');
+
+  it('a retitle in Obsidian matches the same task by id — vault title wins, app fields survive', async () => {
+    const fs = { '2026-08-22.md': '- [ ] New wording ^dg-xxxxxxxx' };
+    const existing = [{
+      id: appIdForBlockId('xxxxxxxx'), importSource: 'obsidian',
+      obsidianBlockId: 'xxxxxxxx', obsidianRawTitle: 'Old wording',
+      obsidianFileDate: '2026-08-22', title: 'Old wording #obsidian',
+      notes: 'my notes', color: 'bg-red-500', completed: false,
+      lastModified: '2026-08-20T00:00:00.000Z',
+    }];
+    const result = await scan(fs, [], existing);
+    expect(result.inboxTasks).toHaveLength(1);
+    const t = result.inboxTasks[0];
+    expect(t.id).toBe(appIdForBlockId('xxxxxxxx'));
+    // Obsidian edited the line since our last write → the vault title wins…
+    expect(t.title).toBe('New wording #obsidian');
+    // …while app-controlled fields are preserved from the existing task.
+    expect(t.notes).toBe('my notes');
+    expect(t.color).toBe('bg-red-500');
+  });
+
+  it('an unchanged tagged line preserves a DG-side rename (DG still owns the title)', async () => {
+    const fs = { '2026-08-22.md': '- [ ] Vault wording ^dg-xxxxxxxx' };
+    const existing = [{
+      id: appIdForBlockId('xxxxxxxx'), importSource: 'obsidian',
+      obsidianBlockId: 'xxxxxxxx',
+      // The writeback keeps obsidianRawTitle current: equal to the vault line
+      // means the vault has NOT changed since we last wrote it.
+      obsidianRawTitle: 'Vault wording',
+      obsidianFileDate: '2026-08-22', title: 'Renamed in DG #obsidian',
+      completed: false,
+    }];
+    const result = await scan(fs, [], existing);
+    expect(result.inboxTasks[0].title).toBe('Renamed in DG #obsidian');
+  });
+
+  it('a line moved to a different daily note keeps its identity', async () => {
+    const existing = [{
+      id: appIdForBlockId('xxxxxxxx'), importSource: 'obsidian',
+      obsidianBlockId: 'xxxxxxxx', obsidianRawTitle: 'Migrating task',
+      obsidianFileDate: '2026-08-20', title: 'Migrating task #obsidian',
+      notes: 'sticky notes', completed: false,
+    }];
+    // The line was cut from the 20th and pasted into the 22nd.
+    const fs = { '2026-08-20.md': '- [ ] other things', '2026-08-22.md': '- [ ] Migrating task ^dg-xxxxxxxx' };
+    const result = await scan(fs, [], existing);
+    const t = [...result.scheduledTasks, ...result.inboxTasks].find(x => x.obsidianBlockId === 'xxxxxxxx');
+    expect(t.id).toBe(appIdForBlockId('xxxxxxxx'));
+    expect(t.notes).toBe('sticky notes');
+    // The write path follows the line to its new file.
+    expect(t.obsidianFileDate).toBe('2026-08-22');
+  });
+
+  it('legacy-id bridge: a freshly tagged line matches the task a device still holds under the old id', async () => {
+    const legacy = legacyObsidianId('2026-08-22', 'Bridged task');
+    const existing = [{
+      id: legacy, importSource: 'obsidian',
+      obsidianRawTitle: 'Bridged task', obsidianFileDate: '2026-08-22',
+      title: 'Bridged task #obsidian', notes: 'kept', completed: true,
+    }];
+    // Another device stamped the id since this device last synced.
+    const fs = { '2026-08-22.md': '- [ ] Bridged task ^dg-xxxxxxxx' };
+    const result = await scan(fs, [], existing);
+    expect(result.inboxTasks).toHaveLength(1);
+    const t = result.inboxTasks[0];
+    expect(t.id).toBe(appIdForBlockId('xxxxxxxx'));
+    expect(t.notes).toBe('kept');
+    expect(t.completed).toBe(true); // completed-OR carried across the bridge
+  });
+
+  it('untagged lines still match existing tasks by the legacy id (fallback path)', async () => {
+    const legacy = legacyObsidianId('2026-08-22', 'Untagged task');
+    const existing = [{
+      id: legacy, importSource: 'obsidian',
+      obsidianRawTitle: 'Untagged task', obsidianFileDate: '2026-08-22',
+      title: 'Untagged task #obsidian', duration: 45, completed: false,
+    }];
+    const fs = { '2026-08-22.md': '- [ ] Untagged task' };
+    const result = await scan(fs, [], existing);
+    expect(result.inboxTasks[0].id).toBe(legacy);
+    expect(result.inboxTasks[0].duration).toBe(45);
+  });
+});

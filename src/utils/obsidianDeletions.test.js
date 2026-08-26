@@ -90,3 +90,39 @@ describe('addObsidianTombstones', () => {
     expect(out.a).toBe('2026-07-07T00:00:00Z');
   });
 });
+
+// Phase 2: block-id task keys (obsidian-dg-<id>) are deliberately content-free,
+// so their in-window proof comes from the keyDates sidecar the sync persists
+// alongside lastScanned (the daily-note date each key was last seen in).
+describe('detectObsidianDeletions — keyDates sidecar for dateless block-id keys', () => {
+  it('tombstones an in-window dg key whose date comes from the sidecar', () => {
+    const last = ['obsidian-dg-a1b2c3d4', 'obsidian-2026-06-22-xyz'];
+    const cur = ['obsidian-2026-06-22-xyz'];
+    const r = detectObsidianDeletions(last, cur, '2026-06-01', {
+      keyDates: { 'obsidian-dg-a1b2c3d4': '2026-06-20' },
+    });
+    expect(r.deletions).toEqual(['obsidian-dg-a1b2c3d4']);
+  });
+
+  it('excludes a dg key whose sidecar date aged out of the window (not a deletion)', () => {
+    const r = detectObsidianDeletions(
+      ['obsidian-dg-a1b2c3d4', 'x'], ['x'], '2026-06-01',
+      { keyDates: { 'obsidian-dg-a1b2c3d4': '2026-05-20' } },
+    );
+    expect(r.deletions).toEqual([]);
+    expect(r.skipped).toBe(false);
+  });
+
+  it('stays conservative for a dg key with no sidecar entry (first run after upgrade)', () => {
+    const r = detectObsidianDeletions(['obsidian-dg-a1b2c3d4', 'x'], ['x'], '2026-06-01');
+    expect(r.deletions).toEqual([]);
+  });
+
+  it('a self-dating legacy key ignores the sidecar (its own date wins)', () => {
+    const r = detectObsidianDeletions(
+      ['obsidian-2026-06-22-abc', 'x'], ['x'], '2026-06-01',
+      { keyDates: { 'obsidian-2026-06-22-abc': '2026-01-01' } },
+    );
+    expect(r.deletions).toEqual(['obsidian-2026-06-22-abc']);
+  });
+});
