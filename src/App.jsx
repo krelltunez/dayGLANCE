@@ -13,6 +13,7 @@ import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { tombstoneCutoff } from './sync/tombstoneRetention.js';
 import { preserveArchived } from './utils/preserveArchived.js';
 import { rescueUnsyncedTasks } from './utils/rescueUnsyncedTasks.js';
+import { readRetiredTaskIds, applyTaskRetirements, RETIRED_TASK_IDS_STORAGE_KEY } from './utils/retiredTaskIds.js';
 import { dropResurrectedTasks } from './utils/dropResurrectedTasks.js';
 import { partitionExpiredSingleDayFrames } from './utils/expiredFrames.js';
 import { stripHealthSourcedLogs } from './utils/healthLogFilter.js';
@@ -5461,6 +5462,10 @@ const DayPlanner = () => {
         deletedRoutineChipIds: JSON.parse(localStorage.getItem('day-planner-deleted-routine-chip-ids') || '{}'),
         deletedFrameIds: JSON.parse(localStorage.getItem('day-planner-deleted-frame-ids') || '{}'),
         deletedObsidianKeys: JSON.parse(localStorage.getItem('day-planner-deleted-obsidian-keys') || '{}'),
+        // Id-retirement record ({oldId → {retiredAt, successor}}) — like the
+        // tombstone maps it has no React state and only changes during sync
+        // or the Obsidian write-commit. See utils/retiredTaskIds.js.
+        retiredTaskIds: readRetiredTaskIds(),
         removedTodayRoutineIds,
         dailyNotes,
         // Per-day START/STOP timeline markers (flat date map + 'defaults',
@@ -5585,8 +5590,26 @@ const DayPlanner = () => {
       !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')
       && !(multiUserEnabled && t.imported && t.importSource === 'sync'));
 
-    const normalizedTasks = data.tasks ? preserveArchived(filterTasks(normalizeTasks(data.tasks)), existingArchivedList) : null;
-    const normalizedUnsched = data.unscheduledTasks ? preserveArchived(filterTasks(normalizeTasks(data.unscheduledTasks)), existingArchivedList) : null;
+    let normalizedTasks = data.tasks ? preserveArchived(filterTasks(normalizeTasks(data.tasks)), existingArchivedList) : null;
+    let normalizedUnsched = data.unscheduledTasks ? preserveArchived(filterTasks(normalizeTasks(data.unscheduledTasks)), existingArchivedList) : null;
+
+    // Id-retirement supersede pass (utils/retiredTaskIds.js): a merged/pulled
+    // row whose id the record maps to a LIVE successor is dropped — with its
+    // content redirected onto the successor when it is the newer edit —
+    // REGARDLESS of timestamps. Retirement is an identity move, not a
+    // deletion: without this, a retired-id copy re-stamped newer than its
+    // tombstone (offline edit crossing a stamp, peer re-stamp) landed here as
+    // a resurrected duplicate and fed the scan-evict ↔ guard-heal war. The
+    // live-id set spans BOTH lists so a cross-list successor still counts as
+    // live; a row with no live successor is left alone (deletion tombstones
+    // still govern it).
+    const retiredRecord = data.retiredTaskIds || readRetiredTaskIds();
+    const retiredLiveIds = new Set([
+      ...(normalizedTasks || tasksLiveRef.current || []),
+      ...(normalizedUnsched || unscheduledLiveRef.current || []),
+    ].filter(Boolean).map(t => String(t.id)));
+    if (normalizedTasks) normalizedTasks = applyTaskRetirements(normalizedTasks, retiredRecord, retiredLiveIds);
+    if (normalizedUnsched) normalizedUnsched = applyTaskRetirements(normalizedUnsched, retiredRecord, retiredLiveIds);
 
     // Update localStorage
     if (normalizedTasks) localStorage.setItem('day-planner-tasks', JSON.stringify(normalizedTasks));
@@ -5649,6 +5672,7 @@ const DayPlanner = () => {
     if (data.deletedRoutineChipIds) localStorage.setItem('day-planner-deleted-routine-chip-ids', JSON.stringify(data.deletedRoutineChipIds));
     if (data.deletedFrameIds) localStorage.setItem('day-planner-deleted-frame-ids', JSON.stringify(data.deletedFrameIds));
     if (data.deletedObsidianKeys) localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(data.deletedObsidianKeys));
+    if (data.retiredTaskIds) localStorage.setItem(RETIRED_TASK_IDS_STORAGE_KEY, JSON.stringify(data.retiredTaskIds));
     if (data.removedTodayRoutineIds) {
       localStorage.setItem('day-planner-removed-today-routine-ids', JSON.stringify(data.removedTodayRoutineIds));
       setRemovedTodayRoutineIds(data.removedTodayRoutineIds);
@@ -5805,8 +5829,18 @@ const DayPlanner = () => {
     // genuinely vault-deleted one must stay gone — honor its deletedObsidianKeys
     // tombstone. See utils/rescueUnsyncedTasks.js (the ala7ur flicker fix).
     const rescueObsidianTombstones = data.deletedObsidianKeys || {};
-    if (normalizedTasks) setTasks(prev => rescueUnsyncedTasks(preserveArchived(normalizedTasks, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones));
-    if (normalizedUnsched) setUnscheduledTasks(prev => rescueUnsyncedTasks(preserveArchived(normalizedUnsched, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones));
+    // The retirement pass runs AGAIN on the rescue output: rescue can re-add a
+    // prev-only copy of a retired id (this device's own offline edit under the
+    // old id). Same rule as above — dropped when its successor is live, with
+    // the newer content redirected onto the successor first — so the edit
+    // reaches the vault via the successor's normal writeback instead of
+    // resurrecting the retired row.
+    if (normalizedTasks) setTasks(prev => applyTaskRetirements(
+      rescueUnsyncedTasks(preserveArchived(normalizedTasks, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones),
+      retiredRecord, retiredLiveIds));
+    if (normalizedUnsched) setUnscheduledTasks(prev => applyTaskRetirements(
+      rescueUnsyncedTasks(preserveArchived(normalizedUnsched, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones),
+      retiredRecord, retiredLiveIds));
     if (data.unscheduledOrderTimestamp) {
       setUnscheduledOrderTimestamp(data.unscheduledOrderTimestamp);
       localStorage.setItem('day-planner-unscheduled-order-ts', data.unscheduledOrderTimestamp);

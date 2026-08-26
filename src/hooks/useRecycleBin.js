@@ -39,7 +39,10 @@ export default function useRecycleBin({
 
   const confirmEmptyBin = () => {
     pushUndo();
-    // Record tombstones for permanently deleted tasks (prevents resurrection during merge sync)
+    // Record tombstones for permanently deleted tasks (prevents resurrection during merge sync).
+    // PROVENANCE (see utils/retiredTaskIds.js): user-pressed delete — intent
+    // known, no successor — so deletedTaskIds, never retiredTaskIds (the
+    // commit-that-renames' channel) or deletedObsidianKeys (the detector's).
     const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}');
     const now = new Date().toISOString();
     recycleBin.forEach(t => { tombstones[String(t.id)] = now; });

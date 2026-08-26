@@ -84,6 +84,9 @@ const REPRESENTATIVE = {
   deletedRoutineChipIds: { gonechip: ISO },
   deletedFrameIds: { goneframe: ISO },
   deletedObsidianKeys: { '2026-07-01': ISO },
+  // Id-retirement record (utils/retiredTaskIds.js) — its own wrapper block in
+  // mergeSync.js (union+LWW on retiredAt, pruned at the fixed window).
+  retiredTaskIds: { 'obsidian-2026-08-01-abc': { retiredAt: ISO, successor: 'obsidian-dg-k3x9q2mf' } },
   removedTodayRoutineIds: { removedchip: ISO },
   dailyNotes: { '2026-08-01': 'a note' },
   dayWindows: { defaults: { start: '08:00', stop: '22:00', lastModified: ISO } },
