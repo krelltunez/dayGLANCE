@@ -47,15 +47,19 @@ import { mergeObsidianTasks } from '../utils/mergeObsidianTasks.js';
 //  3. THE STORM — when a heal row-get fails (429), the cycle withholds its
 //     snapshot (dbEngine.js: unresolved glitch-skips poison the baseline). A
 //     frozen baseline re-marks every since-changed row dirty EVERY cycle, and
-//     pushDirtyRows has no content dedup — each cycle re-writes the same rows,
+//     pushDirtyRows had no content dedup — each cycle re-wrote the same rows,
 //     each write advances the account seq, each seq advance SSE-nudges
-//     drainSync (wired straight to dbSyncCycle, no backoff), which runs the
-//     next cycle: the ~1/s self-nudge loop whose request volume feeds the very
-//     429s that keep the heal failing. Restart changes nothing: snapshot,
-//     tombstones, task lists and the vault row are all persisted.
+//     drainSync (wired straight to dbSyncCycle, originally with no backoff),
+//     running the next cycle: the ~1/s self-nudge loop whose request volume
+//     feeds the very 429s that keep the heal failing. Restart changes nothing:
+//     snapshot, tombstones, task lists and the vault row are all persisted.
+//     ── FIXED by the client-side brakes (src/sync/syncBrakes.js + the
+//     acked-hash push dedup in dbEngine.js); the storm section below now pins
+//     the fixed behavior.
 //
-// Tests asserting the CORRECT behavior are marked it.fails — they document the
-// bug deterministically while keeping CI green; a fix flips them to plain it.
+// Tests asserting correct-but-not-yet-implemented behavior are marked it.fails
+// — they document the remaining bug (the war, parts 1–2) deterministically
+// while keeping CI green; the eventual fix flips them to plain it.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function memLocalStorage() {
@@ -150,7 +154,7 @@ const obsidianTask = (id, lastModified, extra = {}) => ({
 // (replace semantics, NO deletedTaskIds filter on the merged list — the real
 // apply only consults tombstones for prev-only rescue rows, never for rows the
 // mirror itself carries).
-function makeDevice(name, vault, initial) {
+function makeDevice(name, vault, initial, engineOverrides = {}) {
   let data = clone(initial);
   let nativeKey = null;
   const engine = createDbEngine({
@@ -159,6 +163,7 @@ function makeDevice(name, vault, initial) {
     deviceId: `device-${name}`,
     nativeGetSyncKey: () => nativeKey,
     nativeStoreSyncKey: (v) => { nativeKey = v; },
+    ...engineOverrides,
     getData: () => {
       const d = clone(data);
       d.tasks = dropResurrectedTasks(d.tasks, d.deletedTaskIds);
@@ -195,12 +200,12 @@ const taskIds = (device) => device.data.tasks.map((t) => t.id).sort();
 //   peer cycle 1 — pulls, then pushes its re-stamped L (T_PEER) and stale L2 (T_OLD).
 //   mac cycle 2  — pulls both: the duplicates land in Mac state (the phone
 //                  symptom, reproduced on the Mac).
-async function seedMixedSession(vault) {
+async function seedMixedSession(vault, macOverrides = {}) {
   const mac = makeDevice('mac', vault, {
     ...EMPTY,
     tasks: [obsidianTask(DG_ID, T_EDIT, { obsidianBlockId: 'k3x9q2mf' })],
     deletedTaskIds: { [L_ID]: T_TOMB, [L2_ID]: T_TOMB },
-  });
+  }, macOverrides);
   const peer = makeDevice('peer', vault, {
     ...EMPTY,
     tasks: [obsidianTask(L_ID, T_PEER), obsidianTask(L2_ID, T_OLD)],
@@ -315,18 +320,27 @@ describe('the war — scan eviction vs stale-tombstone heal (peers powered off)'
   });
 });
 
-describe('the storm — a failing heal withholds the snapshot and turns one stuck row into full re-pushes', () => {
-  // What SHOULD happen: rows the vault has already acked are not re-written by
-  // cycles in which they did not change. What ACTUALLY happens while any
-  // glitch-skip stays unresolved (429 on the row-get): the snapshot is withheld,
-  // the frozen baseline re-diffs the same rows dirty every cycle, and
-  // pushDirtyRows re-writes them — every write advances the account seq, and the
-  // live app wires each seq advance (SSE 'activity') straight into the next
-  // dbSyncCycle with no backoff: the observed ~1/s self-nudge loop, whose
-  // request volume sustains the 429s that keep the heal failing.
-  it.fails('an unchanged row is not re-pushed on every cycle while a 429 pins the heal', async () => {
+describe('the storm — FIXED: brakes on the withheld-snapshot re-push loop (syncBrakes + acked-hash dedup)', () => {
+  // Originally pinned here as it.fails: while any glitch-skip stayed unresolved
+  // (429 on the row-get), the snapshot was withheld, the frozen baseline
+  // re-diffed the same rows dirty every cycle, and pushDirtyRows re-wrote them —
+  // every write advanced the account seq, each seq advance SSE-nudged the next
+  // dbSyncCycle, and no backoff existed anywhere: the observed ~1/s self-nudge
+  // loop, whose request volume sustained the 429s that kept the heal failing.
+  // Two independent brakes now cover it, each proven in isolation below:
+  //   • acked-hash push dedup (dbEngine.js): a row whose exact content/delete
+  //     the vault already acknowledged is never re-marked dirty by a stale
+  //     baseline — the loop's write fuel is gone even if cycles keep running.
+  //   • cycle breaker (syncBrakes.js): a failed or rate-limited cycle imposes a
+  //     capped-exponential cooldown, so triggers can't hammer a 429ing vault.
+
+  // Cycles keep running here (breaker disarmed) to prove the DEDUP alone stops
+  // the writes: one edit → one write, then the seq stops moving even though the
+  // heal keeps 429ing and the snapshot stays withheld.
+  it('push dedup: an unchanged row is not re-pushed while a 429 pins the heal — the seq stops advancing', async () => {
     const vault = createMemoryVault();
-    const mac = await seedMixedSession(vault);
+    const noBreaker = { beforeCycle: () => ({ allowed: true }), onSuccess() {}, onFailure() { return 0; } };
+    const mac = await seedMixedSession(vault, { cycleBreaker: noBreaker });
     await mac.engine.dbSyncCycle();
     runVaultScan(mac); // L evicted → next cycle wants the delete → skip → heal
 
@@ -342,42 +356,61 @@ describe('the storm — a failing heal withholds the snapshot and turns one stuc
     const batchSpy = vi.spyOn(vault, 'batch');
     await mac.engine.dbSyncCycle(); // pushes the edit; heal 429s → snapshot withheld
     const seqAfterFirst = vault._seq();
-    await mac.engine.dbSyncCycle(); // nothing changed since — should push nothing
+    await mac.engine.dbSyncCycle(); // nothing changed since — must push nothing
     await mac.engine.dbSyncCycle();
 
     const dgWrites = batchSpy.mock.calls
       .flatMap((c) => c[1].rows)
       .filter((r) => r.entityId === `tasks:${DG_ID}`).length;
-    // CORRECT behavior (currently false): one edit → one write, and the account
-    // seq stops moving. Currently dgWrites is 3 (one per cycle) and the seq
-    // advances every cycle — each advance is an SSE nudge scheduling the next
-    // cycle in the live app.
     expect(dgWrites).toBe(1);
     expect(vault._seq()).toBe(seqAfterFirst);
   });
 
-  it('pins the broken shape: while the heal 429s, every cycle re-writes the unchanged row and advances the account seq (the self-nudge fuel)', async () => {
+  it('cycle breaker: a rate-limited heal imposes a cooldown — the next trigger runs no cycle and touches the vault not at all', async () => {
     const vault = createMemoryVault();
-    const mac = await seedMixedSession(vault);
+    const mac = await seedMixedSession(vault); // default (real) breaker
     await mac.engine.dbSyncCycle();
     runVaultScan(mac);
     vault.getRow = async () => { const e = new Error('get row failed: 429'); e.status = 429; throw e; };
-    mac.data = {
-      ...mac.data,
-      tasks: mac.data.tasks.map((t) => (t.id === DG_ID ? { ...t, title: 'Buy oat milk #obsidian', lastModified: '2026-07-10T11:59:00.000Z' } : t)),
-    };
 
-    const batchSpy = vi.spyOn(vault, 'batch');
-    const seqs = [];
-    for (let i = 0; i < 3; i++) {
-      await mac.engine.dbSyncCycle();
-      seqs.push(vault._seq());
-    }
-    const dgWrites = batchSpy.mock.calls
-      .flatMap((c) => c[1].rows)
-      .filter((r) => r.entityId === `tasks:${DG_ID}`).length;
-    expect(dgWrites).toBe(3);                     // same content, re-written every cycle
-    expect(seqs[1]).toBeGreaterThan(seqs[0]);     // every cycle advances the seq —
-    expect(seqs[2]).toBeGreaterThan(seqs[1]);     // each advance = an SSE nudge = the next cycle
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await mac.engine.dbSyncCycle(); // heal 429s → breaker strike → cooldown
+
+    const listSpy = vi.spyOn(vault, 'list');
+    const gated = await mac.engine.dbSyncCycle(); // an SSE nudge / debounce firing now
+    expect(gated.throttled).toBe(true);
+    expect(gated.retryInMs).toBeGreaterThan(0);
+    expect(listSpy.mock.calls.length).toBe(0); // zero vault traffic while gated
+
+    // Cooldown passes (rate-limit backoff caps at 5min) → cycles run again.
+    vi.setSystemTime(new Date(FIXTURE_NOW.getTime() + 5 * 60 * 1000 + 1000));
+    const resumed = await mac.engine.dbSyncCycle();
+    expect(resumed.throttled).toBeUndefined();
+    expect(listSpy.mock.calls.length).toBeGreaterThan(0);
+    warnSpy.mockRestore();
+  });
+
+  it('cycle breaker: a 429-failed pull (list) gates the immediate retry too', async () => {
+    const vault = createMemoryVault();
+    const mac = await seedMixedSession(vault);
+    await mac.engine.dbSyncCycle();
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const realList = vault.list;
+    vault.list = async () => { const e = new Error('list failed: 429'); e.status = 429; throw e; };
+    const failed = await mac.engine.dbSyncCycle();
+    expect(failed.error).toMatch(/429/);
+
+    vault.list = realList;
+    const listSpy = vi.spyOn(vault, 'list');
+    const gated = await mac.engine.dbSyncCycle();
+    expect(gated.throttled).toBe(true);
+    expect(listSpy.mock.calls.length).toBe(0);
+
+    vi.setSystemTime(new Date(FIXTURE_NOW.getTime() + 5 * 60 * 1000 + 1000));
+    const resumed = await mac.engine.dbSyncCycle();
+    expect(resumed.throttled).toBeUndefined();
+    expect(listSpy.mock.calls.length).toBeGreaterThan(0);
+    warnSpy.mockRestore();
   });
 });

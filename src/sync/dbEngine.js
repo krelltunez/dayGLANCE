@@ -43,6 +43,7 @@ import { pruneAllTombstones, tombstoneCutoff } from './tombstoneRetention.js';
 import { partitionSnapshotDeletes } from './snapshotDeleteGuard.js';
 import { isPayloadExcludedEntity, agedOutReleaseReason } from './payloadExclusions.js';
 import { shredHashes, hashMapsEqual, mergeMidCycleEdits } from './commitMerge.js';
+import { createSyncCycleBreaker, isRateLimitedError } from './syncBrakes.js';
 
 const APP_ID = 'dayglance';
 const CRYPTO_DB_NAME = 'dayglance-db-crypto';
@@ -323,6 +324,10 @@ export function createDbEngine(callbacks = {}) {
       // ping-pong. Logging every applied entityId shows whether the churn arrives
       // FROM the vault (another device re-pushing) vs originates locally.
       if (debugPushEnabled()) console.log('[pull] apply', entityId);
+      // The vault's content for this row changed under us — whatever we last
+      // acked there is stale, so the no-op re-push skip below must not apply.
+      ackedUpsertHashes.delete(entityId);
+      ackedDeletes.delete(entityId);
       // Bundle merges may leave us richer than the clobbered vault row; re-push
       // the superset so it converges at the vault (see dbAdapter / stage-2 doc).
       for (const id of adapterApplyRemoteEntity(mirror, entity)) engine.markDirty(id);
@@ -332,6 +337,10 @@ export function createDbEngine(callbacks = {}) {
       // is the "deleted" half of the ping-pong — it proves the delete came from
       // the vault log (a peer's soft-delete), not from local state loss.
       if (debugPushEnabled()) console.log('[pull] DELETE', entityId);
+      // The vault now holds a delete for this row — remember it so the diff
+      // doesn't re-send an identical soft-delete every cycle.
+      ackedDeletes.add(entityId);
+      ackedUpsertHashes.delete(entityId);
       return adapterApplyRemoteDelete(mirror, entityId);
     },
     isInsertOnly,
@@ -342,6 +351,32 @@ export function createDbEngine(callbacks = {}) {
 
   // In-flight guard so a debounced push never overlaps a cadence-triggered cycle.
   let syncing = false;
+
+  // CYCLE-RATE BRAKE (finding (e), PR #1449 repro): a failed cycle — above all a
+  // rate-limited one — must not be immediately eligible for the next trigger
+  // (interval / debounced push / SSE nudge), or a throttled client retries as
+  // fast as it is triggered and feeds the limiter rejecting it. Gated at the top
+  // of dbSyncCycle; a gated cycle performs NO network traffic. Injectable for
+  // tests via callbacks.cycleBreaker.
+  const breaker = callbacks.cycleBreaker || createSyncCycleBreaker();
+  // Log once per imposed cooldown, not once per rejected trigger.
+  let throttleAnnounced = false;
+
+  // PUSH CONTENT DEDUP (the self-nudge fuel cut, same finding): what the vault
+  // last acknowledged from us, per entityId — upserts as their pushed content
+  // hash, deletes as membership. The snapshot diff consults these so a row
+  // whose current content the vault already holds (or whose delete it already
+  // holds) is never re-marked dirty by a STALE baseline: pushDirtyRows re-sends
+  // dirty rows verbatim, and each re-send advances the account seq → SSE nudge
+  // → next cycle — the write half of the ~1/s loop. A WITHHELD snapshot (the
+  // glitch-heal path deliberately freezes the baseline) is exactly such a stale
+  // baseline, so without this map every cycle re-wrote every since-changed row.
+  // In-memory by design: after a restart the first push is at most one
+  // idempotent re-send, and persisting acks would risk suppressing a push the
+  // vault never actually kept. Entries are invalidated whenever a pull applies
+  // remote content for the row (see applyRemoteEntity/applyRemoteDelete above).
+  const ackedUpsertHashes = new Map();
+  const ackedDeletes = new Set();
 
   // Re-fetch glitch-skipped rows by id and re-inject them into the mirror (see
   // the call site in dbSyncCycle for the full rationale). Uses the vault's
@@ -365,10 +400,10 @@ export function createDbEngine(callbacks = {}) {
   // and automatic), and a hard bail on the first 429 (every further row-get
   // this cycle is doomed and only feeds the limiter).
   const HEAL_MAX_PER_CYCLE = 40;
-  const isRateLimited = (err) => err?.status === 429 || /\b429\b/.test(String(err?.message || ''));
   const healGlitchSkips = async (skippedIds) => {
     const unresolved = [];
     const recovered = [];
+    let rateLimited = false;
     const canGetRow = typeof engine.vault?.getRow === 'function';
     const toHeal = skippedIds.slice(0, HEAL_MAX_PER_CYCLE);
     if (skippedIds.length > HEAL_MAX_PER_CYCLE) {
@@ -396,7 +431,8 @@ export function createDbEngine(callbacks = {}) {
         recovered.push(entityId);
       } catch (err) {
         unresolved.push(entityId); // transient failure — retry next cycle
-        if (isRateLimited(err)) {
+        if (isRateLimitedError(err)) {
+          rateLimited = true;
           const rest = toHeal.slice(i + 1);
           unresolved.push(...rest);
           console.warn(
@@ -414,7 +450,7 @@ export function createDbEngine(callbacks = {}) {
         recovered.slice(0, 25), recovered.length > 25 ? `(+${recovered.length - 25} more)` : ''
       );
     }
-    return unresolved;
+    return { unresolved, rateLimited };
   };
 
   // dayGLANCE wraps the engine's push/pull steps in its own cycle so it can
@@ -445,6 +481,20 @@ export function createDbEngine(callbacks = {}) {
   const dbSyncCycle = async () => {
     if (typeof callbacks.getData !== 'function') return;
     if (syncing) return;
+    // Failure/429 cooldown gate — see the breaker note above. A gated cycle is
+    // a pure no-op (no network traffic, no status churn); the next trigger
+    // after the cooldown expires runs normally.
+    const gate = breaker.beforeCycle();
+    if (!gate.allowed) {
+      if (!throttleAnnounced) {
+        throttleAnnounced = true;
+        console.warn(
+          `[sync] BRAKE: cycle skipped — backing off after ${gate.reason} ` +
+          `(retry eligible in ~${Math.ceil(gate.waitMs / 1000)}s).`
+        );
+      }
+      return { applied: 0, skipped: 0, skippedEntityIds: [], throttled: true, retryInMs: gate.waitMs };
+    }
     syncing = true;
     callbacks.onError?.(null, null);
     // Pull-cursor value as of cycle start, for the rollback in the catch
@@ -494,6 +544,12 @@ export function createDbEngine(callbacks = {}) {
         const cur = baseHashes;
         for (const [id, h] of Object.entries(cur)) {
           if (prev[id] === h) continue;
+          // The vault already holds exactly this content for this row (acked on
+          // a previous push) — the diff only sees it because the baseline is
+          // stale (typically a WITHHELD snapshot). Re-sending it would be a
+          // no-op write that still advances the account seq → SSE nudge → next
+          // cycle: the self-nudge loop's fuel. Skip it.
+          if (ackedUpsertHashes.get(id) === h) continue;
           engine.markDirty(id);
           if (dbgChanges) {
             let a, b;
@@ -572,6 +628,12 @@ export function createDbEngine(callbacks = {}) {
           );
         }
         for (const id of propagate) {
+          // Same no-op-write skip as the upsert diff above: a delete the vault
+          // already acknowledged (or that arrived FROM the vault) re-fires from
+          // a stale baseline every cycle, and each re-send is a seq-advancing
+          // write. If the row ever comes back at the vault, the pull applies it
+          // live (invalidating this entry) before any delete could be wanted.
+          if (ackedDeletes.has(id)) continue;
           engine.markDirty(id); // deletes
           if (dbgChanges) dbgChanges.push({ id, kind: 'deleted', diff: [] });
         }
@@ -614,7 +676,12 @@ export function createDbEngine(callbacks = {}) {
       // (no row-get on this client, network error, undecryptable) poison the
       // snapshot save below.
       let glitchUnresolved = [];
-      if (glitchSkipped.length) glitchUnresolved = await healGlitchSkips(glitchSkipped);
+      let healRateLimited = false;
+      if (glitchSkipped.length) {
+        const heal = await healGlitchSkips(glitchSkipped);
+        glitchUnresolved = heal.unresolved;
+        healRateLimited = heal.rateLimited;
+      }
       reconcileCrossList(
         mirror,
         (id) => engine.markDirty(id),
@@ -643,7 +710,10 @@ export function createDbEngine(callbacks = {}) {
       // re-push + cross-list reconcile) right before the push, then report what
       // vault.batch actually wrote — so we can see if the client writes every
       // cycle and which exact row/field is moving. Gated on dayglance-debug-push.
-      const dirtyBeforePush = pushDbg && typeof engine.getDirtySet === 'function' ? engine.getDirtySet() : null;
+      // Captured unconditionally (not just for the debug log): these are the
+      // rows the push below sends, and on success their pushed content becomes
+      // the acked-hash baseline for the no-op re-push skip in the diff.
+      const dirtyBeforePush = typeof engine.getDirtySet === 'function' ? engine.getDirtySet() : null;
       const pushRes = await engine.pushDirtyRows();        // push merged superset + local changes
       if (pushDbg) {
         const wrote = (pushRes?.written ?? 0) + (pushRes?.deleted ?? 0);
@@ -691,6 +761,21 @@ export function createDbEngine(callbacks = {}) {
       // snapshot → 'new' in cycle N+1's diff → pushed. And for a pulled remote
       // change: in the snapshot AND in the commit → clean, no echo re-push.)
       const vaultSnapshot = shredHashes(mirror);
+      // The push above was fully acked (a throw would have skipped this), so
+      // record what the vault now holds for each pushed id: present in the
+      // mirror → its pushed content hash (vaultSnapshot is hashed from the
+      // exact mirror the push read); absent → an acked soft-delete.
+      if (dirtyBeforePush) {
+        for (const id of dirtyBeforePush) {
+          if (vaultSnapshot[id] !== undefined) {
+            ackedUpsertHashes.set(id, vaultSnapshot[id]);
+            ackedDeletes.delete(id);
+          } else {
+            ackedDeletes.add(id);
+            ackedUpsertHashes.delete(id);
+          }
+        }
+      }
       const liveNow = clone(callbacks.getData()) || {};
       const { survivors, honoredDeletes, liveHashes } = mergeMidCycleEdits(mirror, baseHashes, liveNow);
       if (survivors.length || honoredDeletes.length) {
@@ -731,6 +816,16 @@ export function createDbEngine(callbacks = {}) {
           glitchUnresolved.slice(0, 25), glitchUnresolved.length > 25 ? `(+${glitchUnresolved.length - 25} more)` : ''
         );
       }
+      // Breaker bookkeeping: a clean cycle resets the backoff. A cycle that
+      // finished but was rate-limited inside the heal still counts as a strike —
+      // the vault told us to slow down, and retrying the heal at full trigger
+      // cadence is what sustained the observed 429 storm.
+      if (healRateLimited) {
+        throttleAnnounced = false;
+        breaker.onFailure({ status: 429, message: 'rate-limited during glitch-skip recovery' });
+      } else {
+        breaker.onSuccess();
+      }
       callbacks.onStatusChange?.('success');
       return { applied: pull?.applied ?? 0, skipped: pull?.skipped ?? 0, skippedEntityIds: pull?.skippedEntityIds ?? [] };
     } catch (err) {
@@ -765,6 +860,11 @@ export function createDbEngine(callbacks = {}) {
       // is all-or-nothing. Making the benefit safe here would need durable
       // per-page commits, which is an architecture change, not a bump.
       try { engine.setHighWaterMark(preCycleHwm); } catch { /* storage unavailable */ }
+      // Failed cycle → impose/extend the cooldown so the next trigger (interval,
+      // debounced push, SSE nudge) cannot immediately re-run us against a vault
+      // that just rejected us.
+      throttleAnnounced = false;
+      breaker.onFailure(err);
       const code = err && err.code ? err.code : 'NETWORK_ERROR';
       callbacks.onError?.(err?.message || String(err), code);
       callbacks.onStatusChange?.('error');

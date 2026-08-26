@@ -1027,8 +1027,11 @@ describe('Wave B — payload-excluded baseline rows (the fresh-device churn loop
     expect(rateLimitedCalls).toBe(1); // bailed after the FIRST 429 — not 12 doomed attempts
     expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('rate-limited'))).toBe(true);
 
-    // Limiter clears → the withheld snapshot retries and fully recovers.
+    // Limiter clears AND the rate-limit cooldown passes (a heal 429 now counts
+    // as a breaker strike — syncBrakes.js — so an immediate retry would be
+    // gated) → the withheld snapshot retries and fully recovers.
     vault.getRow = realGetRow;
+    vi.setSystemTime(new Date(FIXTURE_NOW.getTime() + 5 * 60 * 1000));
     await A.engine.dbSyncCycle();
     expect(A.data.tasks).toHaveLength(12);
   });
