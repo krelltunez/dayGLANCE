@@ -57,6 +57,7 @@
 
 import { TOMBSTONE_BUNDLE_KEYS } from './tombstoneRetention.js';
 import { getEntityLastModified } from './dbAdapter.js';
+import { resolveRetirement } from '../utils/retiredTaskIds.js';
 
 // Tolerance for the tombstone-vs-lastModified comparison. Delete-path audit
 // (2026-07): every tombstone writer stamps `new Date().toISOString()` at delete
@@ -145,7 +146,9 @@ export function partitionSnapshotDeletes(deleteEntityIds, cur, mirror, getDelete
   const propagate = [];
   const skipped = [];
   const excluded = [];
-  // Why each entityId landed where it did — 'tombstoned' (a real deletion), a
+  // Why each entityId landed where it did — 'retired' (an id-migration
+  // retirement whose successor is live: superseded, propagate regardless of
+  // timestamps), 'tombstoned' (a real deletion), a
   // cross-list move ('cross-list', the id survives under another kind), a
   // suspected 'glitch' (skipped, no fingerprint at all), 'stale-tombstone'
   // (skipped: tombstoned, but the deleted copy is clearly newer than the
@@ -165,9 +168,33 @@ export function partitionSnapshotDeletes(deleteEntityIds, cur, mirror, getDelete
     if (r === true) return 'payload-excluded';
     return typeof r === 'string' && r ? r : null;
   };
+  // Id-retirement record (utils/retiredTaskIds.js): { oldId → {retiredAt,
+  // successor} }. Rides the mirror like the tombstone bundles.
+  const retiredRecord = m.retiredTaskIds && typeof m.retiredTaskIds === 'object' ? m.retiredTaskIds : {};
+
   for (const eid of ids) {
     const id = bareId(eid);
     let rr;
+    // RETIREMENT, decided BEFORE the tombstone timestamp rule: a vanished id
+    // whose record names a successor that is LIVE in the current payload is
+    // SUPERSEDED — the same task's identity moved, the content survives under
+    // the successor — so its delete propagates REGARDLESS of timestamps. This
+    // is deliberately exempt from the stale-tombstone LWW: a copy re-stamped
+    // newer than the retirement (an offline edit crossing a stamp, a peer's
+    // normalization re-stamp) is an edit belonging to the successor (the apply
+    // path redirects its content there — applyTaskRetirements), never a
+    // revival of the old id. Without this exemption the guard classified such
+    // rows 'stale-tombstone' and heal-fetched them back forever — the
+    // scan-evict ↔ guard-heal war (phase2TransitionSyncLoop repro). When the
+    // successor is NOT live in `cur`, the record does not authorize anything
+    // and the row falls through to the ordinary classification below —
+    // conservative: never bless a delete whose surviving copy this device
+    // can't see.
+    const successor = resolveRetirement(retiredRecord, id);
+    if (successor && successor !== id && liveBareIds.has(successor)) {
+      propagate.push(eid); reasons[eid] = 'retired';
+      continue;
+    }
     if (tombstoned.has(id)) {
       const tombTs = tombstoned.get(id);
       const lastMod = deletedLastModified(eid);

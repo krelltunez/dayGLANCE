@@ -19,6 +19,12 @@ import { classifyVaultPaths } from '../utils/vaultPortability.js';
 import { mergeObsidianDailyNotes } from '../utils/mergeObsidianDailyNotes.js';
 import { mergeObsidianTasks } from '../utils/mergeObsidianTasks.js';
 import { detectObsidianDeletions, addObsidianTombstones } from '../utils/obsidianDeletions.js';
+import {
+  readRetiredTaskIds,
+  recordRetirements as recordRetirementEntries,
+  RETIRED_TASK_IDS_STORAGE_KEY,
+  RETIRED_ID_DUAL_WRITE,
+} from '../utils/retiredTaskIds.js';
 
 /**
  * Obsidian vault sync — extracted from App.jsx (see "App.jsx — Ongoing
@@ -264,6 +270,13 @@ export default function useObsidianSync({
       const obsidianCutoff = obsidianWindowCutoffDate(OBSIDIAN_IMPORT_WINDOW_DAYS);
       const { deletions, skipped } = detectObsidianDeletions(lastScanned, scannedKeys, obsidianCutoff, { keyDates: lastScannedDates });
       if (deletions.length) {
+        // PROVENANCE (see utils/retiredTaskIds.js): THIS site is the
+        // detector-observed vanish. It saw a key disappear and knows NEITHER
+        // user intent NOR a successor (an untagged line retitled in the vault
+        // is indistinguishable from delete+create by construction), so it
+        // writes deletedObsidianKeys — the conservative, LWW-revivable
+        // channel — and never retiredTaskIds (commit-that-renames) or
+        // deletedTaskIds (user-pressed delete).
         tombstones = addObsidianTombstones(tombstones, deletions, new Date().toISOString());
         localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(tombstones));
       }
@@ -481,26 +494,41 @@ export default function useObsidianSync({
       if (snap[fromId]) { snap[newId] = snap[fromId]; delete snap[fromId]; }
     };
 
-    // The transition KNOWS a retired id no longer names anything — it did the
-    // renaming. Record explicit deletedTaskIds tombstones for every id the
-    // confirmed write retires, so the file-tier union merge (which consults
-    // ONLY deletedTaskIds — see the "deletedObsidianKeys never reaches the
-    // file-tier task merge" issue) stops resurrecting retired rows from the
-    // remote file onto every device, vaultless ones included. The deletion
-    // DETECTOR still never infers a deletion from a rename (the scanned-keys
-    // hints see to that): this is the transition asserting a fact it holds,
-    // not the detector guessing from a short scan. LWW protects an offline
-    // device's newer edit under a retired id — its copy outlives the
-    // tombstone and re-bridges on that device's next scan. Entries prune at
-    // the shared 60-day retention (sync/tombstoneRetention.js).
-    const recordRetiredIdTombstones = (ids) => {
+    // PROVENANCE (see utils/retiredTaskIds.js — three channels, three actors,
+    // no write site ever has two valid choices): THIS site is the
+    // commit-that-renames. It KNOWS the successor at write time — it did the
+    // renaming — so retirements are recorded in `retiredTaskIds` as
+    // { oldId → { retiredAt, successor } }, which the guard, the apply path,
+    // and the file-tier merge treat as an identity move: superseded regardless
+    // of timestamps, with a newer edit on the retired id redirected onto the
+    // successor. (User-pressed deletes belong to deletedTaskIds — useTaskActions
+    // / useRecycleBin; detector-observed vanishes to deletedObsidianKeys — the
+    // scan block above. Neither knows a successor; this site never writes
+    // theirs except the shim below.) The deletion DETECTOR still never infers
+    // a deletion from a rename (the scanned-keys hints see to that): this is
+    // the commit asserting a fact it holds. Entries prune at the shared 60-day
+    // retention (sync/tombstoneRetention.js).
+    //
+    // RETIRED_ID_DUAL_WRITE (legacy-fleet shim — sunset condition documented
+    // at the flag in utils/retiredTaskIds.js): the v4.7.x fleet's file-tier
+    // merge consults ONLY deletedTaskIds, so retired ids are ALSO written
+    // there as plain tombstones; without it, stale legacy rows resurrect on
+    // un-upgraded devices. New clients act on the record and merely tolerate
+    // the tombstone.
+    const recordRetirements = (ids, successorId) => {
       if (!ids.length) return;
+      const nowIso = new Date().toISOString();
       try {
-        const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}');
-        const nowIso = new Date().toISOString();
-        for (const id of ids) tombstones[String(id)] = nowIso;
-        localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(tombstones));
+        const record = recordRetirementEntries(readRetiredTaskIds(), ids, successorId, nowIso);
+        localStorage.setItem(RETIRED_TASK_IDS_STORAGE_KEY, JSON.stringify(record));
       } catch { /* storage unavailable — scanned-keys hints still keep local state coherent */ }
+      if (RETIRED_ID_DUAL_WRITE) {
+        try {
+          const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}');
+          for (const id of ids) tombstones[String(id)] = nowIso;
+          localStorage.setItem('day-planner-deleted-task-ids', JSON.stringify(tombstones));
+        } catch { /* ditto */ }
+      }
     };
 
     for (const task of allObsidian) {
@@ -566,7 +594,10 @@ export default function useObsidianSync({
         if (titleUpdate) applyTitleUpdate(titleUpdate);
         if (assignBlockId) applyBlockIdAssignment(postTitleId, assignBlockId);
         const finalId = assignBlockId ? appIdForBlockId(assignBlockId) : postTitleId;
-        recordRetiredIdTombstones([...new Set([task.id, postTitleId])].filter(id => id !== finalId));
+        // Every retired id in the rename chain maps DIRECTLY to the final id —
+        // chains are collapsed at write time, so the record never needs a
+        // stale L→M hop resolved later (resolveRetirement handles one anyway).
+        recordRetirements([...new Set([task.id, postTitleId])].filter(id => id !== finalId), finalId);
       };
 
       if (isNative) {

@@ -25,6 +25,7 @@
 // for weeks; keeping them longer only grows the payload with no benefit.
 
 import { floorToUtcDayIso } from '../utils/tombstoneHorizon.js';
+import { pruneRetiredTaskIds } from '../utils/retiredTaskIds.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -115,6 +116,17 @@ export function pruneAllTombstones(data, cutoff = tombstoneCutoff()) {
     const pruned = pruneTombstoneMap(map, cutoff);
     if (Object.keys(pruned).length !== before) {
       data[key] = pruned;
+      changed = true;
+    }
+  }
+  // The retirement record ({oldId → {retiredAt, successor}}) prunes at the SAME
+  // fixed window, keyed on retiredAt — but its values are objects, not bare ISO
+  // strings, so it cannot ride TOMBSTONE_BUNDLE_KEYS / pruneTombstoneMap. Its
+  // own pruner keeps the two transports in the same lockstep.
+  if (data.retiredTaskIds && typeof data.retiredTaskIds === 'object') {
+    const pruned = pruneRetiredTaskIds(data.retiredTaskIds, cutoff);
+    if (pruned !== data.retiredTaskIds) {
+      data.retiredTaskIds = pruned;
       changed = true;
     }
   }

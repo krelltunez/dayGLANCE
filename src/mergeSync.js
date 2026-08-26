@@ -9,6 +9,7 @@ import {
   pruneTombstoneMap,
   unionNewerIso as unionTombstones,
 } from './sync/tombstoneRetention.js';
+import { mergeRetiredTaskIds, pruneRetiredTaskIds, applyRetirementsToTaskLists } from './utils/retiredTaskIds.js';
 import { mergeDayWindowMaps, dayWindowMapsEqual, migrateDayWindows } from './sync/dayWindowSync.js';
 
 export const mergeTaskArrays = (local, remote, deletedIds, syncHorizon = null) =>
@@ -461,6 +462,38 @@ export const mergeSyncData = (local, remote, retentionDays) => {
     // 60-day set differs from a side, that side needs the corrected bundle written.
     if (!tombstoneMapsEqual(merged, local?.[key] || {})) result.localChanged = true;
     if (!tombstoneMapsEqual(merged, remote?.[key] || {})) result.remoteChanged = true;
+  }
+
+  // Id-retirement record ({oldId → {retiredAt, successor}} — see
+  // utils/retiredTaskIds.js): union with per-key LWW on retiredAt, pruned at
+  // the SAME fixed window as the deletion bundles so the two transports stay
+  // in lockstep. Its object values can't ride unionTombstones/pruneTombstoneMap.
+  const retiredEntryEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const retiredMapsEqual = (a = {}, b = {}) => {
+    const ka = Object.keys(a); const kb = Object.keys(b);
+    return ka.length === kb.length && ka.every((k) => retiredEntryEq(a[k], b[k]));
+  };
+  const retiredMerged = pruneRetiredTaskIds(
+    mergeRetiredTaskIds(local?.retiredTaskIds || {}, remote?.retiredTaskIds || {}), tsCutoff,
+  );
+  result.data.retiredTaskIds = retiredMerged;
+  if (!retiredMapsEqual(retiredMerged, local?.retiredTaskIds || {})) result.localChanged = true;
+  if (!retiredMapsEqual(retiredMerged, remote?.retiredTaskIds || {})) result.remoteChanged = true;
+
+  // Supersede retired ids in the merged task lists: a row whose id the record
+  // maps to a LIVE successor is dropped (its newer content, if any, redirected
+  // onto the successor) REGARDLESS of timestamps — retirement is an identity
+  // move, not a deletion, so the LWW that lets a genuinely deleted task revive
+  // must not resurrect a retired id. This also keeps retired rows out of the
+  // uploaded sync file, so the v4.7.x fleet stops re-ingesting them.
+  const retApplied = applyRetirementsToTaskLists(
+    { tasks: result.data.tasks, unscheduledTasks: result.data.unscheduledTasks }, retiredMerged,
+  );
+  if (retApplied.tasks !== result.data.tasks || retApplied.unscheduledTasks !== result.data.unscheduledTasks) {
+    result.data.tasks = retApplied.tasks;
+    result.data.unscheduledTasks = retApplied.unscheduledTasks;
+    result.localChanged = true;
+    result.remoteChanged = true;
   }
 
   // Override the upstream resurrection fence (which was max(localFence, remoteFence)

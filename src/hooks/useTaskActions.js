@@ -34,6 +34,11 @@ const minutesToTime = (minutes) => {
   return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
 };
 
+// PROVENANCE (see utils/retiredTaskIds.js): THIS site is the user-pressed
+// delete. It knows INTENT — the user removed the task and there is no
+// successor — so it writes deletedTaskIds, never retiredTaskIds (that channel
+// belongs to the commit-that-renames, which knows a successor) and never
+// deletedObsidianKeys (the vault-scan detector's observed-vanish channel).
 const recordDeletedTaskTombstone = (taskId) => {
   const tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}');
   tombstones[String(taskId)] = new Date().toISOString();

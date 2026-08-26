@@ -28,6 +28,7 @@
 
 import { mergeHabitLogs, mergeRoutineDefinitions, mergeRoutineCompletions, mergeCompletedDates } from '../mergeSync.js';
 import { TOMBSTONE_BUNDLE_KEYS, tombstoneCutoff } from './tombstoneRetention.js';
+import { mergeRetiredTaskIds } from '../utils/retiredTaskIds.js';
 import { mergeDayWindowMaps } from './dayWindowSync.js';
 
 // ── Collection kinds: each array element is one row, keyed by a stable id, with
@@ -421,6 +422,14 @@ function mergeBundle(data, key, value, extra) {
     return;
   }
   switch (key) {
+    case 'retiredTaskIds':
+      // Id-retirement record ({oldId → {retiredAt, successor}}): union with
+      // per-key LWW on retiredAt (deterministic tie-break) — its object values
+      // can't ride the flat unionNewerIso the deletion bundles use. Retention
+      // pruning happens on the mirror alongside the other tombstone bundles
+      // (tombstoneRetention.pruneAllTombstones). See utils/retiredTaskIds.js.
+      data.retiredTaskIds = mergeRetiredTaskIds(data.retiredTaskIds || {}, value || {});
+      return;
     case 'habitLogs': {
       // per-(date,habitId) recency merge; timestamps ride in _extra so the merge
       // is self-contained and order-independent.
