@@ -82,6 +82,12 @@ function makeDevice(name, vault, initial) {
     nativeStoreSyncKey: (v) => { nativeKey = v; },
     getData: () => clone(data),
     commitData: (d) => { data = d; },
+    // These tests deliberately fail a cycle and retry it IMMEDIATELY to prove
+    // cursor-rollback semantics; the failure backoff (syncBrakes.js) would gate
+    // that retry under the real clock. The brake has its own coverage
+    // (phase2TransitionSyncLoop / syncBrakes tests) — disarm it here so the
+    // pull semantics stay the thing under test.
+    cycleBreaker: { beforeCycle: () => ({ allowed: true }), onSuccess() {}, onFailure() { return 0; } },
   });
   return { engine, get data() { return data; } };
 }
