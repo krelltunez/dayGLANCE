@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectObsidianDeletions, isObsidianTombstoned, addObsidianTombstones, obsidianKeyDate } from './obsidianDeletions.js';
+import { detectObsidianDeletions, isObsidianTombstoned, addObsidianTombstones, obsidianKeyDate, dropTombstonedObsidianTasks, dropTombstonedObsidianNotes } from './obsidianDeletions.js';
 
 describe('detectObsidianDeletions (conservative)', () => {
   it('reports a key this device previously scanned and no longer sees', () => {
@@ -124,5 +124,45 @@ describe('detectObsidianDeletions — keyDates sidecar for dateless block-id key
       { keyDates: { 'obsidian-2026-06-22-abc': '2026-01-01' } },
     );
     expect(r.deletions).toEqual(['obsidian-2026-06-22-abc']);
+  });
+});
+
+describe('dropTombstonedObsidianTasks / dropTombstonedObsidianNotes — the shared apply-boundary gate', () => {
+  const T_OLD = '2026-08-12T10:00:00.000Z';
+  const T_TOMB = '2026-08-20T10:00:00.000Z';
+  const T_NEWER = '2026-08-20T10:00:01.000Z';
+  const obsTask = (id, lastModified, extra = {}) => ({ id, importSource: 'obsidian', lastModified, ...extra });
+
+  it('drops an obsidian row whose tombstone is at least as new (LWW), keeps a strictly-newer revive', () => {
+    const tombs = { a: T_TOMB, b: T_TOMB, tie: T_TOMB };
+    const out = dropTombstonedObsidianTasks(
+      [obsTask('a', T_OLD), obsTask('b', T_NEWER), obsTask('tie', T_TOMB)], tombs,
+    );
+    // 'a' (older) and 'tie' (equal — delete wins ties, matching isObsidianTombstoned) drop; 'b' revives.
+    expect(out.map((t) => t.id)).toEqual(['b']);
+  });
+
+  it('never touches non-obsidian rows, even on a key collision', () => {
+    const tombs = { plain: T_TOMB };
+    const rows = [{ id: 'plain', lastModified: T_OLD }];
+    expect(dropTombstonedObsidianTasks(rows, tombs)).toBe(rows); // same array — untouched
+  });
+
+  it('returns the SAME array/map when nothing changes (no spurious diff churn)', () => {
+    const rows = [obsTask('x', T_NEWER)];
+    expect(dropTombstonedObsidianTasks(rows, { x: T_TOMB })).toBe(rows);
+    expect(dropTombstonedObsidianTasks(rows, {})).toBe(rows);
+    const notes = { '2026-08-10': { text: 'n', lastModified: T_NEWER } };
+    expect(dropTombstonedObsidianNotes(notes, { '2026-08-10': T_TOMB })).toBe(notes);
+  });
+
+  it('drops a tombstoned-and-older note, keeps a re-created one', () => {
+    const tombs = { '2026-08-10': T_TOMB, '2026-08-11': T_TOMB };
+    const out = dropTombstonedObsidianNotes({
+      '2026-08-10': { text: 'zombie', lastModified: T_OLD },
+      '2026-08-11': { text: 'recreated', lastModified: T_NEWER },
+      '2026-08-12': { text: 'untombstoned', lastModified: T_OLD },
+    }, tombs);
+    expect(Object.keys(out).sort()).toEqual(['2026-08-11', '2026-08-12']);
   });
 });

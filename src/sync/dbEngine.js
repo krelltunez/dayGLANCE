@@ -44,6 +44,7 @@ import { partitionSnapshotDeletes } from './snapshotDeleteGuard.js';
 import { isPayloadExcludedEntity, agedOutReleaseReason } from './payloadExclusions.js';
 import { shredHashes, hashMapsEqual, mergeMidCycleEdits } from './commitMerge.js';
 import { createSyncCycleBreaker, isRateLimitedError } from './syncBrakes.js';
+import { isObsidianTombstoned } from '../utils/obsidianDeletions.js';
 
 const APP_ID = 'dayglance';
 const CRYPTO_DB_NAME = 'dayglance-db-crypto';
@@ -324,6 +325,26 @@ export function createDbEngine(callbacks = {}) {
       // ping-pong. Logging every applied entityId shows whether the churn arrives
       // FROM the vault (another device re-pushing) vs originates locally.
       if (debugPushEnabled()) console.log('[pull] apply', entityId);
+      // Symmetric enforcement of deletedObsidianKeys at the DB-TIER APPLY —
+      // the third face of the shared gate (utils/obsidianDeletions.js; the
+      // other two are applyEngineData and the file-tier merge). The channel
+      // was honored on the way out but ignored on the way in, and THIS
+      // callback was the deepest ignored ingress: without the gate, a
+      // tombstoned-and-older row echoed back by the pull re-enters the
+      // MIRROR, where the snapshot-diff's blessed delete-marks find it live
+      // again and re-upsert it — an engine-level echo war that continues
+      // even after the app-level applies are gated (the vault seq climbs
+      // every cycle while state stays clean; caught by
+      // obsidianTombstoneEchoWar.test.js). Same revive-preserving LWW as
+      // every other face: a copy newer than its tombstone applies normally.
+      const obsTombs = mirror.deletedObsidianKeys;
+      if (obsTombs && entity && typeof entity === 'object') {
+        const k = entity._kind;
+        const v = entity.value;
+        if ((k === 'tasks' || k === 'unscheduledTasks') && v && v.importSource === 'obsidian'
+            && isObsidianTombstoned(obsTombs, String(v.id), v.lastModified)) return;
+        if (k === 'dailyNotes' && isObsidianTombstoned(obsTombs, String(entity._key), v && v.lastModified)) return;
+      }
       // The vault's content for this row changed under us — whatever we last
       // acked there is stale, so the no-op re-push skip below must not apply.
       ackedUpsertHashes.delete(entityId);
