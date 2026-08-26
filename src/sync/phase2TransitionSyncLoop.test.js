@@ -1,0 +1,383 @@
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { setSyncPassphrase } from '@glance-apps/sync';
+import { createDbEngine } from './dbEngine.js';
+import { setVaultConfig } from './vaultConfig.js';
+import { partitionSnapshotDeletes, STALE_TOMBSTONE_EPSILON_MS } from './snapshotDeleteGuard.js';
+import { dropResurrectedTasks } from '../utils/dropResurrectedTasks.js';
+import { mergeObsidianTasks } from '../utils/mergeObsidianTasks.js';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 2 TRANSITION × DB-TIER SYNC LOOP — deterministic reproduction.
+//
+// Field symptom (macOS dev build, main @ #1439, GLANCEvault backend, all peers
+// powered off): cloud sync fires ~every second, GLANCEvault rate-limits with
+// `list failed: 429`, task rows appear and disappear in a repeating cycle, and
+// the whole thing survives an app restart.
+//
+// THE MECHANISM, in three interlocking parts (each pinned by a test below):
+//
+//  1. THE SEED — a retired legacy row whose VAULT copy outlived its tombstone.
+//     The Phase 2 id migration retires `obsidian-<date>-<hash>` → `obsidian-dg-…`
+//     and tombstones the retired id in deletedTaskIds at commit time T_c. During
+//     the mixed-version window a v4.7.0 peer still holding the legacy row L
+//     re-pushed it to the vault with a lastModified NEWER than T_c (any peer-side
+//     re-stamp does it). The vault now holds L alive, newer than its tombstone.
+//
+//  2. THE WAR — two subsystems permanently disagree about L:
+//       • REMOVER: the Phase 2 vault scan evicts L from app state every scan —
+//         the legacy-hint bridge puts L in scannedIdsAllLists, so
+//         mergeObsidianTasks neither merges nor retains it (utils/
+//         mergeObsidianTasks.js). By design: the dg row replaces it.
+//       • RESTORER: the DB engine's snapshot still holds L, so the push diff
+//         wants to delete it — but snapshotDeleteGuard compares the tombstone
+//         (T_c) against the snapshot copy's lastModified (the peer re-stamp,
+//         > T_c + 5s) and classifies it 'stale-tombstone': the delete is SKIPPED
+//         and healGlitchSkips re-fetches L from the vault (still live there) and
+//         re-commits it into app state. Row reappears; snapshot re-learns it;
+//         the next scan evicts it again. Neither side ever wins: the vault row
+//         is never deleted, the eviction never sticks, and every iteration costs
+//         a list + a row-get. The 'completed'/aged-out release valve
+//         (payloadExclusions) deliberately does NOT apply to the
+//         'stale-tombstone' class, so completed rows — exactly the ones the
+//         user completed, stamping and retiring their legacy ids — are the ones
+//         that loop. (Contrast test: a legacy row whose tombstone stayed newest
+//         propagates its delete cleanly and converges. The peer re-stamp is the
+//         whole difference.)
+//
+//  3. THE STORM — when a heal row-get fails (429), the cycle withholds its
+//     snapshot (dbEngine.js: unresolved glitch-skips poison the baseline). A
+//     frozen baseline re-marks every since-changed row dirty EVERY cycle, and
+//     pushDirtyRows has no content dedup — each cycle re-writes the same rows,
+//     each write advances the account seq, each seq advance SSE-nudges
+//     drainSync (wired straight to dbSyncCycle, no backoff), which runs the
+//     next cycle: the ~1/s self-nudge loop whose request volume feeds the very
+//     429s that keep the heal failing. Restart changes nothing: snapshot,
+//     tombstones, task lists and the vault row are all persisted.
+//
+// Tests asserting the CORRECT behavior are marked it.fails — they document the
+// bug deterministically while keeping CI green; a fix flips them to plain it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function memLocalStorage() {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+    clear: () => m.clear(),
+  };
+}
+
+// In-memory GLANCEvault with the single-row GET enabled (the heal path needs it).
+function createMemoryVault() {
+  const salts = new Map();
+  const log = new Map();
+  let seq = 0;
+  const vault = {
+    async getSalt(accountId) { return salts.get(accountId) || null; },
+    async putSalt(accountId, fresh) { if (!salts.has(accountId)) salts.set(accountId, fresh); return salts.get(accountId); },
+    async batch(app, { rows }) {
+      for (const r of rows) log.set(r.entityId, { entityId: r.entityId, seq: ++seq, envelope: r.envelope, deleted: false });
+      return { maxSeq: seq };
+    },
+    async deleteRow(app, entityId) { log.set(entityId, { entityId, seq: ++seq, envelope: null, deleted: true }); return { seq }; },
+    async list(app, { since }) {
+      const rows = [...log.values()].filter((r) => r.seq > since).sort((a, b) => a.seq - b.seq);
+      return { rows, hasMore: false };
+    },
+    async device() { return { updated: true }; },
+    async getRow(app, entityId) {
+      const r = log.get(entityId);
+      return r && !r.deleted ? { entityId: r.entityId, seq: r.seq, envelope: r.envelope, deleted: false } : null;
+    },
+    _row(entityId) { return log.get(entityId) || null; },
+    _seq() { return seq; },
+  };
+  return vault;
+}
+
+// Frozen clock: every fixture date below keeps its meaning against the 60-day
+// tombstone window permanently (same pattern as dbEngineWiring.test.js).
+const FIXTURE_NOW = new Date('2026-07-10T12:00:00.000Z');
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(FIXTURE_NOW);
+  global.localStorage = memLocalStorage();
+  setVaultConfig({ enabled: true, vaultUrl: 'https://vault.test', vaultToken: 't', accountId: 'acct' });
+  setSyncPassphrase('correct horse battery staple');
+});
+afterEach(() => { vi.useRealTimers(); });
+afterAll(() => { delete global.localStorage; });
+
+const clone = (x) => JSON.parse(JSON.stringify(x));
+
+const EMPTY = {
+  tasks: [], unscheduledTasks: [], recurringTasks: [], recycleBin: [], todayRoutines: [],
+  habits: [], goals: [], projects: [], gtdFrames: [], users: [], dailyNotes: {},
+  completedTaskUids: [], deletedTaskIds: {},
+};
+
+// ── The mixed-session cast ──────────────────────────────────────────────────
+// D: the migrated dg row the Mac keeps. L: the retired legacy id, completed on
+// the Mac at T_EDIT, tombstoned at T_TOMB, re-stamped by a v4.7.0 peer at
+// T_PEER (> T_TOMB + epsilon). L2: a retired id whose tombstone stayed newest
+// (the healthy case — no peer re-stamp).
+const DG_ID = 'obsidian-dg-k3x9q2mf';
+const L_ID = 'obsidian-2026-07-08-1a2b3c';
+const L2_ID = 'obsidian-2026-07-08-9z8y7x';
+const T_EDIT = '2026-07-08T10:00:00.000Z';
+const T_TOMB = '2026-07-08T10:00:05.000Z'; // commit-time tombstone, 5s after the edit
+const T_PEER = '2026-07-08T11:00:00.000Z'; // peer re-stamp, 1h later — well past epsilon
+const T_OLD = '2026-07-08T09:00:00.000Z'; // L2's untouched lastModified — older than its tombstone
+
+const obsidianTask = (id, lastModified, extra = {}) => ({
+  id,
+  title: 'Buy milk #obsidian',
+  duration: 30,
+  color: 'bg-purple-600',
+  completed: true,
+  notes: '',
+  subtasks: [],
+  importSource: 'obsidian',
+  obsidianRawTitle: 'Buy milk',
+  obsidianFileDate: '2026-07-08',
+  lastModified,
+  ...extra,
+});
+
+// A device wired like the app: getData mirrors buildSyncPayload (its
+// dropResurrectedTasks pass included), commitData mirrors applyEngineData
+// (replace semantics, NO deletedTaskIds filter on the merged list — the real
+// apply only consults tombstones for prev-only rescue rows, never for rows the
+// mirror itself carries).
+function makeDevice(name, vault, initial) {
+  let data = clone(initial);
+  let nativeKey = null;
+  const engine = createDbEngine({
+    vaultClient: vault,
+    storageKeyPrefix: `dev-${name}`,
+    deviceId: `device-${name}`,
+    nativeGetSyncKey: () => nativeKey,
+    nativeStoreSyncKey: (v) => { nativeKey = v; },
+    getData: () => {
+      const d = clone(data);
+      d.tasks = dropResurrectedTasks(d.tasks, d.deletedTaskIds);
+      d.unscheduledTasks = dropResurrectedTasks(d.unscheduledTasks, d.deletedTaskIds);
+      return d;
+    },
+    commitData: (d) => { data = d; },
+  });
+  return {
+    engine,
+    get data() { return data; },
+    set data(d) { data = d; },
+  };
+}
+
+// The Phase 2 vault scan, reduced to its task-merge step: the scan parses the
+// stamped line as D and — via the legacy-hint bridge — reports L as "accounted
+// for" in scannedIdsAllLists, so mergeObsidianTasks evicts the L row from state.
+// This is the REAL merge function, fed exactly what useObsidianSync feeds it.
+function runVaultScan(device) {
+  const scannedD = obsidianTask(DG_ID, T_EDIT, { obsidianBlockId: 'k3x9q2mf', obsidianLegacyId: L_ID });
+  const scannedIdsAllLists = new Set([DG_ID, L_ID]);
+  const preserve = () => ({});
+  device.data = {
+    ...device.data,
+    tasks: mergeObsidianTasks(device.data.tasks, [scannedD], scannedIdsAllLists, preserve, {}),
+  };
+}
+
+const taskIds = (device) => device.data.tasks.map((t) => t.id).sort();
+
+// Shared setup: replay the mixed-version session, then power the peer off.
+//   mac cycle 1  — pushes D + the tombstone bundle (deletedTaskIds[L]=T_TOMB).
+//   peer cycle 1 — pulls, then pushes its re-stamped L (T_PEER) and stale L2 (T_OLD).
+//   mac cycle 2  — pulls both: the duplicates land in Mac state (the phone
+//                  symptom, reproduced on the Mac).
+async function seedMixedSession(vault) {
+  const mac = makeDevice('mac', vault, {
+    ...EMPTY,
+    tasks: [obsidianTask(DG_ID, T_EDIT, { obsidianBlockId: 'k3x9q2mf' })],
+    deletedTaskIds: { [L_ID]: T_TOMB, [L2_ID]: T_TOMB },
+  });
+  const peer = makeDevice('peer', vault, {
+    ...EMPTY,
+    tasks: [obsidianTask(L_ID, T_PEER), obsidianTask(L2_ID, T_OLD)],
+  });
+  await mac.engine.dbSyncCycle();
+  await peer.engine.dbSyncCycle();
+  await mac.engine.dbSyncCycle();
+  // The mixed-session damage is now in place on the Mac:
+  expect(taskIds(mac)).toContain(L_ID);
+  return mac;
+}
+
+describe('the seed — guard classification of a peer-re-stamped retired id', () => {
+  it("a retired id whose vault copy outlived its tombstone is 'stale-tombstone' (skipped + healed), and the aged-out release valve does not cover it", () => {
+    const snapshotEntity = { _kind: 'tasks', value: obsidianTask(L_ID, T_PEER) };
+    const { skipped, reasons } = partitionSnapshotDeletes(
+      [`tasks:${L_ID}`],
+      {}, // current shred: the scan evicted L, so it is absent
+      { deletedTaskIds: { [L_ID]: T_TOMB } },
+      () => snapshotEntity,
+      // The release predicate dbEngine passes would say 'completed' for this row —
+      // but partitionSnapshotDeletes only consults it for bare-glitch rows, so the
+      // completed stale-tombstone row is NOT released. Assert that stays true (it
+      // is why the user's COMPLETED tasks are exactly the ones that loop).
+      () => 'completed',
+    );
+    expect(skipped).toEqual([`tasks:${L_ID}`]);
+    expect(reasons[`tasks:${L_ID}`]).toBe('stale-tombstone');
+    // Sanity: the classification really is the timestamp flip, not something else.
+    expect(new Date(T_PEER).getTime() - new Date(T_TOMB).getTime()).toBeGreaterThan(STALE_TOMBSTONE_EPSILON_MS);
+  });
+
+  it("the same id with its tombstone still newest is 'tombstoned' (propagates) — the healthy transition", () => {
+    const snapshotEntity = { _kind: 'tasks', value: obsidianTask(L2_ID, T_OLD) };
+    const { propagate, reasons } = partitionSnapshotDeletes(
+      [`tasks:${L2_ID}`], {}, { deletedTaskIds: { [L2_ID]: T_TOMB } }, () => snapshotEntity,
+    );
+    expect(propagate).toEqual([`tasks:${L2_ID}`]);
+    expect(reasons[`tasks:${L2_ID}`]).toBe('tombstoned');
+  });
+});
+
+describe('the war — scan eviction vs stale-tombstone heal (peers powered off)', () => {
+  it('contrast: the tombstoned-and-older duplicate (L2) converges — delete propagates to the vault and it stays gone', async () => {
+    const vault = createMemoryVault();
+    const mac = await seedMixedSession(vault);
+    // L2 landed in state from the pull, but getData's dropResurrectedTasks hides
+    // it from the payload, so the next cycle diffs it as a delete — and with the
+    // tombstone newest, the guard PROPAGATES it. One more cycle commits the
+    // mirror (which lacks L2) back over state. Converged; no heal traffic.
+    const getRowSpy = vi.spyOn(vault, 'getRow');
+    await mac.engine.dbSyncCycle();
+    await mac.engine.dbSyncCycle();
+    expect(vault._row(`tasks:${L2_ID}`).deleted).toBe(true);
+    expect(taskIds(mac)).not.toContain(L2_ID);
+    expect(getRowSpy.mock.calls.filter((c) => c[1] === `tasks:${L2_ID}`).length).toBe(0);
+  });
+
+  // What SHOULD happen after the scan evicts the re-stamped duplicate: the
+  // system converges — L stays out of state (or at minimum stops consuming a
+  // vault row-get per scan, forever). What ACTUALLY happens: every scan
+  // eviction is undone by the guard's heal within one cycle, the vault row is
+  // never deleted, and each round costs a fresh row-get. it.fails pins the loop.
+  it.fails('a scan-evicted stale-tombstone duplicate stays evicted (no per-round heal traffic)', async () => {
+    const vault = createMemoryVault();
+    const mac = await seedMixedSession(vault);
+    await mac.engine.dbSyncCycle(); // settle L2's clean delete so only L is in play
+
+    const getRowSpy = vi.spyOn(vault, 'getRow');
+    for (let round = 0; round < 3; round++) {
+      runVaultScan(mac);
+      expect(taskIds(mac)).not.toContain(L_ID); // scan evicted it…
+      await mac.engine.dbSyncCycle();
+      await mac.engine.dbSyncCycle();
+    }
+    // CORRECT behavior (currently false): the eviction sticks…
+    expect(taskIds(mac)).not.toContain(L_ID);
+    // …and the war costs no per-round vault row-gets. Currently every round
+    // heal-fetches tasks:L right back (3 rounds → 3 fetches → 3 reappearances).
+    expect(getRowSpy.mock.calls.filter((c) => c[1] === `tasks:${L_ID}`).length).toBe(0);
+  });
+
+  it('pins the broken shape: every round the heal re-fetches L, re-commits it into state, and the vault row stays live', async () => {
+    const vault = createMemoryVault();
+    const mac = await seedMixedSession(vault);
+    await mac.engine.dbSyncCycle();
+
+    const getRowSpy = vi.spyOn(vault, 'getRow');
+    for (let round = 1; round <= 3; round++) {
+      runVaultScan(mac);
+      expect(taskIds(mac)).not.toContain(L_ID); // disappears…
+      await mac.engine.dbSyncCycle();
+      expect(taskIds(mac)).toContain(L_ID);     // …reappears, same round
+      expect(getRowSpy.mock.calls.filter((c) => c[1] === `tasks:${L_ID}`).length).toBe(round);
+    }
+    expect(vault._row(`tasks:${L_ID}`).deleted).toBe(false); // never deleted
+  });
+
+  it('pins restart survival: a fresh engine over the same persisted state resumes the war immediately', async () => {
+    const vault = createMemoryVault();
+    const mac = await seedMixedSession(vault);
+    await mac.engine.dbSyncCycle();
+    runVaultScan(mac);
+
+    // "Quit and reopen": a NEW engine with the same storageKeyPrefix (snapshot,
+    // HWM, dirty set all persisted in localStorage) over the same app data.
+    const reopened = makeDevice('mac', vault, mac.data);
+    const getRowSpy = vi.spyOn(vault, 'getRow');
+    await reopened.engine.dbSyncCycle();
+    expect(taskIds(reopened)).toContain(L_ID); // healed straight back, no user action
+    expect(getRowSpy.mock.calls.filter((c) => c[1] === `tasks:${L_ID}`).length).toBe(1);
+  });
+});
+
+describe('the storm — a failing heal withholds the snapshot and turns one stuck row into full re-pushes', () => {
+  // What SHOULD happen: rows the vault has already acked are not re-written by
+  // cycles in which they did not change. What ACTUALLY happens while any
+  // glitch-skip stays unresolved (429 on the row-get): the snapshot is withheld,
+  // the frozen baseline re-diffs the same rows dirty every cycle, and
+  // pushDirtyRows re-writes them — every write advances the account seq, and the
+  // live app wires each seq advance (SSE 'activity') straight into the next
+  // dbSyncCycle with no backoff: the observed ~1/s self-nudge loop, whose
+  // request volume sustains the 429s that keep the heal failing.
+  it.fails('an unchanged row is not re-pushed on every cycle while a 429 pins the heal', async () => {
+    const vault = createMemoryVault();
+    const mac = await seedMixedSession(vault);
+    await mac.engine.dbSyncCycle();
+    runVaultScan(mac); // L evicted → next cycle wants the delete → skip → heal
+
+    // The vault is now rate-limiting row-gets (what the storm looks like server-side).
+    vault.getRow = async () => { const e = new Error('get row failed: 429'); e.status = 429; throw e; };
+
+    // A single ordinary user edit, made once.
+    mac.data = {
+      ...mac.data,
+      tasks: mac.data.tasks.map((t) => (t.id === DG_ID ? { ...t, title: 'Buy oat milk #obsidian', lastModified: '2026-07-10T11:59:00.000Z' } : t)),
+    };
+
+    const batchSpy = vi.spyOn(vault, 'batch');
+    await mac.engine.dbSyncCycle(); // pushes the edit; heal 429s → snapshot withheld
+    const seqAfterFirst = vault._seq();
+    await mac.engine.dbSyncCycle(); // nothing changed since — should push nothing
+    await mac.engine.dbSyncCycle();
+
+    const dgWrites = batchSpy.mock.calls
+      .flatMap((c) => c[1].rows)
+      .filter((r) => r.entityId === `tasks:${DG_ID}`).length;
+    // CORRECT behavior (currently false): one edit → one write, and the account
+    // seq stops moving. Currently dgWrites is 3 (one per cycle) and the seq
+    // advances every cycle — each advance is an SSE nudge scheduling the next
+    // cycle in the live app.
+    expect(dgWrites).toBe(1);
+    expect(vault._seq()).toBe(seqAfterFirst);
+  });
+
+  it('pins the broken shape: while the heal 429s, every cycle re-writes the unchanged row and advances the account seq (the self-nudge fuel)', async () => {
+    const vault = createMemoryVault();
+    const mac = await seedMixedSession(vault);
+    await mac.engine.dbSyncCycle();
+    runVaultScan(mac);
+    vault.getRow = async () => { const e = new Error('get row failed: 429'); e.status = 429; throw e; };
+    mac.data = {
+      ...mac.data,
+      tasks: mac.data.tasks.map((t) => (t.id === DG_ID ? { ...t, title: 'Buy oat milk #obsidian', lastModified: '2026-07-10T11:59:00.000Z' } : t)),
+    };
+
+    const batchSpy = vi.spyOn(vault, 'batch');
+    const seqs = [];
+    for (let i = 0; i < 3; i++) {
+      await mac.engine.dbSyncCycle();
+      seqs.push(vault._seq());
+    }
+    const dgWrites = batchSpy.mock.calls
+      .flatMap((c) => c[1].rows)
+      .filter((r) => r.entityId === `tasks:${DG_ID}`).length;
+    expect(dgWrites).toBe(3);                     // same content, re-written every cycle
+    expect(seqs[1]).toBeGreaterThan(seqs[0]);     // every cycle advances the seq —
+    expect(seqs[2]).toBeGreaterThan(seqs[1]);     // each advance = an SSE nudge = the next cycle
+  });
+});
