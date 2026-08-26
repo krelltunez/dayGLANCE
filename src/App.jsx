@@ -2164,6 +2164,9 @@ const DayPlanner = () => {
       document.removeEventListener('visibilitychange', onVisible);
       clearInterval(interval);
       registerDbEngine(null);
+      // Cancels any pending deferred cooldown-retry and makes stray timer
+      // firings no-ops — a timer must never run a cycle against a dead engine.
+      engine.dispose?.();
       dbEngineRef.current = null;
     };
     // Keyed on dataLoaded (sets up the DB engine once). setUndoToast/t are read
@@ -8476,7 +8479,13 @@ const DayPlanner = () => {
         onRowsSkipped: (count) => setVaultSkipped(count),
       });
       if (!eng) return { ok: false, error: 'GLANCEvault is not configured.' };
-      await eng.dbSyncCycle();
+      try {
+        await eng.dbSyncCycle();
+      } finally {
+        // Transient engine: retire it so no deferred cooldown-retry timer can
+        // ever fire a cycle against it after this one-shot bootstrap returns.
+        eng.dispose?.();
+      }
       if (bootErr) return { ok: false, error: bootErr, code: bootCode };
       setVaultError(null);
       setVaultLastSynced(eng.getLastSynced?.() || new Date().toISOString());

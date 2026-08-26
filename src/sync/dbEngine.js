@@ -362,6 +362,46 @@ export function createDbEngine(callbacks = {}) {
   // Log once per imposed cooldown, not once per rejected trigger.
   let throttleAnnounced = false;
 
+  // DEFERRED RETRY — a trigger that arrives during a cooldown must not be
+  // LOST, only delayed. Without this, a gated SSE nudge was consumed and
+  // dropped (the drain wrapper ignores the return value and the nudge
+  // coalescer's seq cursor has already advanced), so a peer edit whose nudge
+  // landed inside even a single isolated cooldown waited for the next
+  // trigger — worst case the 5-minute poll. Instead, the first gated trigger
+  // arms ONE one-shot timer for the cooldown's expiry; further gated triggers
+  // coalesce into it (no queue). When it fires it simply calls dbSyncCycle
+  // again: if the cooldown was extended meanwhile it re-arms through the same
+  // gate, and if the cycle runs and fails, that failure goes through the
+  // normal breaker.onFailure path — so storm damping is unchanged (still at
+  // most one attempted cycle per cooldown window, with escalating windows).
+  // A cycle that COMPLETES cancels any pending retry: its pull already served
+  // whatever the gated trigger was announcing, so firing afterwards would be
+  // a pointless extra cycle. Timer fns are injectable for deterministic tests.
+  const retrySetTimeout = callbacks.retryTimers?.setTimeoutFn || ((fn, ms) => setTimeout(fn, ms));
+  const retryClearTimeout = callbacks.retryTimers?.clearTimeoutFn || ((h) => clearTimeout(h));
+  // Small pad past the nominal expiry so the retry lands after the gate opens
+  // rather than a tick before it (in which case it just re-arms — harmless,
+  // but one wasted hop).
+  const RETRY_PAD_MS = 250;
+  let pendingRetryTimer = null;
+  let disposed = false;
+  const cancelPendingRetry = () => {
+    if (pendingRetryTimer != null) {
+      retryClearTimeout(pendingRetryTimer);
+      pendingRetryTimer = null;
+    }
+  };
+  const armDeferredRetry = (waitMs) => {
+    if (pendingRetryTimer != null) return; // coalesce: one pending retry, never a queue
+    // The callback's returned promise is ignored by a real setTimeout but lets
+    // an injected test timer await the deferred cycle deterministically.
+    pendingRetryTimer = retrySetTimeout(() => {
+      pendingRetryTimer = null;
+      if (disposed) return undefined; // engine torn down while the timer was in flight
+      return dbSyncCycle().catch(() => { /* surfaced via the engine onError */ });
+    }, Math.max(0, waitMs) + RETRY_PAD_MS);
+  };
+
   // PUSH CONTENT DEDUP (the self-nudge fuel cut, same finding): what the vault
   // last acknowledged from us, per entityId — upserts as their pushed content
   // hash, deletes as membership. The snapshot diff consults these so a row
@@ -479,21 +519,24 @@ export function createDbEngine(callbacks = {}) {
   // (the engine's own dbSyncCycle swallows errors, which would let a failed
   // cycle commit a partial mirror).
   const dbSyncCycle = async () => {
+    if (disposed) return;
     if (typeof callbacks.getData !== 'function') return;
     if (syncing) return;
-    // Failure/429 cooldown gate — see the breaker note above. A gated cycle is
-    // a pure no-op (no network traffic, no status churn); the next trigger
-    // after the cooldown expires runs normally.
+    // Failure/429 cooldown gate — see the breaker note above. A gated cycle
+    // performs no network traffic and no status churn, but the TRIGGER is not
+    // lost: it arms (or coalesces into) the deferred retry, which re-runs the
+    // cycle at cooldown expiry. See armDeferredRetry above.
     const gate = breaker.beforeCycle();
     if (!gate.allowed) {
+      armDeferredRetry(gate.waitMs);
       if (!throttleAnnounced) {
         throttleAnnounced = true;
         console.warn(
           `[sync] BRAKE: cycle skipped — backing off after ${gate.reason} ` +
-          `(retry eligible in ~${Math.ceil(gate.waitMs / 1000)}s).`
+          `(deferred retry armed for ~${Math.ceil(gate.waitMs / 1000)}s).`
         );
       }
-      return { applied: 0, skipped: 0, skippedEntityIds: [], throttled: true, retryInMs: gate.waitMs };
+      return { applied: 0, skipped: 0, skippedEntityIds: [], throttled: true, retryInMs: gate.waitMs, retryPending: true };
     }
     syncing = true;
     callbacks.onError?.(null, null);
@@ -816,6 +859,12 @@ export function createDbEngine(callbacks = {}) {
           glitchUnresolved.slice(0, 25), glitchUnresolved.length > 25 ? `(+${glitchUnresolved.length - 25} more)` : ''
         );
       }
+      // This cycle COMPLETED (pull + push both ran), so it served whatever any
+      // gated trigger was announcing — a still-pending deferred retry would
+      // just run a pointless extra cycle. Cancel it. (A THROWN cycle skips
+      // this, deliberately: its pull may not have finished, and the retry
+      // re-arms itself through the gate anyway.)
+      cancelPendingRetry();
       // Breaker bookkeeping: a clean cycle resets the backoff. A cycle that
       // finished but was rate-limited inside the heal still counts as a strike —
       // the vault told us to slow down, and retrying the heal at full trigger
@@ -874,7 +923,20 @@ export function createDbEngine(callbacks = {}) {
     }
   };
 
-  return { ...engine, dbSyncCycle, sync: dbSyncCycle };
+  return {
+    ...engine,
+    dbSyncCycle,
+    sync: dbSyncCycle,
+    // Tear-down for the wrapper's own state: cancels any pending deferred
+    // retry and makes every later dbSyncCycle call (including one from a
+    // timer that already left the queue) a no-op. Call when the engine is
+    // discarded — the App effect cleanup, a transient bootstrap engine — so a
+    // stray timer can never fire a cycle against a dead engine.
+    dispose() {
+      disposed = true;
+      cancelPendingRetry();
+    },
+  };
 }
 
 export { APP_ID, CRYPTO_DB_NAME };
