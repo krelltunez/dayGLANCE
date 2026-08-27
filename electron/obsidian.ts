@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { buildObsidianOpenUri, buildObsidianOpenPathUri } from './obsidianUri.js';
 import { createLaunchScheduler } from './obsidianLaunch.js';
+import { writeFileAtomicSync } from './atomicWrite.js';
 
 // ── Obsidian vault access (Electron) ─────────────────────────────────────────
 //
@@ -219,12 +220,16 @@ export function registerObsidianHandlers(): void {
   // Post-write chokepoint: every desktop vault write — daily notes, task
   // write-back, wiki notes — reaches disk through this handler (via the shim's
   // createWritable().close()), so launch-on-write hooks here and nowhere else.
+  // Atomic (temp file + fsync + rename — see atomicWrite.ts): the shim's
+  // FSA-like createWritable() surface promises what real FSA delivers, and a
+  // bare writeFileSync here could truncate a daily note if the process died
+  // mid-write.
   ipcMain.handle('obsidian:write-file', async (_e, relativePath: string, content: string) => {
     const abs = resolveInVault(relativePath);
     if (!abs) return false;
     try {
       fs.mkdirSync(path.dirname(abs), { recursive: true });
-      fs.writeFileSync(abs, content, 'utf-8');
+      writeFileAtomicSync(abs, content);
       launchScheduler.noteWrite(abs);
       return true;
     } catch { return false; }

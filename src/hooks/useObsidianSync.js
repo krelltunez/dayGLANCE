@@ -95,7 +95,14 @@ export default function useObsidianSync({
           return;
         }
       }
-      nativeWriteNote(notePath, content);
+      // Honor the bridge's write result, surfacing failure through the same
+      // visible sync-error state the desktop branch below uses — a silently
+      // ignored false return here was exactly the "silent write loss the user
+      // could never see" this comment block already warns about.
+      if (!nativeWriteNote(notePath, content)) {
+        setObsidianSyncError(`Note "${notePath}" was not written: the vault write failed.`);
+        setObsidianSyncStatus('error');
+      }
       return;
     }
     try {

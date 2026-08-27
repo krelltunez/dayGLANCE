@@ -133,12 +133,19 @@ class ObsidianRepository(private val context: Context) {
             it.bufferedReader().readText()
         } ?: ""
 
-    private fun writeText(file: DocumentFile, text: String) {
+    /**
+     * Returns whether the write reached the stream. A null stream (the provider
+     * refused to open the document) writes NOTHING and must report false — the
+     * JS side gates id/rawTitle bookkeeping on this result, and a false success
+     * here would commit app state for a line that never reached the vault.
+     * An IOException propagates to the caller's runCatching, same outcome.
+     */
+    private fun writeText(file: DocumentFile, text: String): Boolean {
         // Close the BufferedWriter (not just the raw OutputStream) so its internal
         // buffer is flushed to disk before the stream closes.  Closing only the
         // OutputStream while a BufferedWriter wraps it leaves the buffer unflushed,
         // which silently truncates the file to zero bytes.
-        val outputStream = context.contentResolver.openOutputStream(file.uri, "wt") ?: return
+        val outputStream = context.contentResolver.openOutputStream(file.uri, "wt") ?: return false
         outputStream.use { stream ->
             stream.bufferedWriter().use { writer ->
                 writer.write(text)
@@ -146,8 +153,9 @@ class ObsidianRepository(private val context: Context) {
         }
         // Announce only a write that actually reached the stream (a null stream
         // above wrote nothing and must not wake Obsidian).
-        val noteName = file.name?.removeSuffix(".md") ?: return
-        onVaultWrite?.invoke(noteName)
+        val noteName = file.name?.removeSuffix(".md")
+        if (noteName != null) onVaultWrite?.invoke(noteName)
+        return true
     }
 
     // ── Public API ───────────────────────────────────────────────────────────
@@ -226,7 +234,6 @@ class ObsidianRepository(private val context: Context) {
         // Ensure a newline separator before the new content
         val separator = if (existing.isNotEmpty() && !existing.endsWith("\n")) "\n" else ""
         writeText(file, "$existing$separator$content")
-        true
     }.getOrDefault(false)
 
     /**
@@ -292,7 +299,6 @@ class ObsidianRepository(private val context: Context) {
             ?: return false
 
         writeText(file, content)
-        true
     }.getOrDefault(false)
 
     /**
@@ -407,7 +413,6 @@ class ObsidianRepository(private val context: Context) {
         }
 
         writeText(file, content)
-        true
     }.getOrDefault(false)
 
     fun getTasksFromNote(path: String): String {
