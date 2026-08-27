@@ -45,6 +45,7 @@ import { isPayloadExcludedEntity, agedOutReleaseReason } from './payloadExclusio
 import { shredHashes, hashMapsEqual, mergeMidCycleEdits } from './commitMerge.js';
 import { createSyncCycleBreaker, isRateLimitedError } from './syncBrakes.js';
 import { isObsidianTombstoned } from '../utils/obsidianDeletions.js';
+import { ghostSuccessorId, persistDerivedGhostRetirements } from '../utils/obsidianGhostRows.js';
 
 const APP_ID = 'dayglance';
 const CRYPTO_DB_NAME = 'dayglance-db-crypto';
@@ -344,6 +345,30 @@ export function createDbEngine(callbacks = {}) {
         if ((k === 'tasks' || k === 'unscheduledTasks') && v && v.importSource === 'obsidian'
             && isObsidianTombstoned(obsTombs, String(v.id), v.lastModified)) return;
         if (k === 'dailyNotes' && isObsidianTombstoned(obsTombs, String(entity._key), v && v.lastModified)) return;
+      }
+      // Ghost-row CONTAINMENT at the DB-tier pull — the third ingress (the
+      // #1454 lesson: gate the mirror too, or the guard's blessed delete-marks
+      // find the pull-re-applied ghost live in the mirror and re-upsert it).
+      // A ghost NOT newer than its live successor is refused outright, its
+      // derived retirement persisted, and the entityId marked dirty — the
+      // mirror lacks the row, so THIS cycle's push soft-deletes the vault
+      // ghost row and the echo dies at the source. A NEWER ghost (an edit the
+      // user made on the old client) is deliberately let through: the apply
+      // boundary redirects its content onto the successor and records the
+      // retirement, and the guard propagates its delete next cycle.
+      if (entity && typeof entity === 'object'
+          && (entity._kind === 'tasks' || entity._kind === 'unscheduledTasks')) {
+        const succId = ghostSuccessorId(entity.value);
+        if (succId) {
+          const succ = [...(mirror.tasks || []), ...(mirror.unscheduledTasks || [])]
+            .find((t) => t && String(t.id) === succId);
+          const ts = (x) => { const n = new Date(x ?? 0).getTime(); return Number.isNaN(n) ? 0 : n; };
+          if (succ && ts(entity.value.lastModified) <= ts(succ.lastModified)) {
+            persistDerivedGhostRetirements({ [String(entity.value.id)]: succId });
+            engine.markDirty(entityId); // absent from the mirror → pushed as a soft-delete
+            return;
+          }
+        }
       }
       // The vault's content for this row changed under us — whatever we last
       // acked there is stale, so the no-op re-push skip below must not apply.

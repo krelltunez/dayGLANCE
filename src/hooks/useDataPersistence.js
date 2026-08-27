@@ -18,6 +18,7 @@ const isSubscriptionImport = (t) =>
 // runs on every tray mount and reload, so it needs the guard too: the tray
 // still reads and normalizes for its own render, it just never persists.
 import { isTrayMode } from '../utils/trayMode.js';
+import { repairLoadedGhostRows } from '../utils/obsidianGhostRows.js';
 
 export default function useDataPersistence({
   // setters for loadData
@@ -91,8 +92,16 @@ export default function useDataPersistence({
       // calendar devices, drop any persisted subscription imports so they don't
       // linger as stale duplicates of the live EventKit/bridge events.
       const loadedTasks = hasNativeCalendar() ? parsedTasks.filter(t => !isSubscriptionImport(t)) : parsedTasks;
-      setTasks(prev => [...loadedTasks, ...prev.filter(t => t._native)]);
-      setUnscheduledTasks(parsedUnscheduled.filter(t => !t.imported));
+      // Ghost-row self-repair at boot (utils/obsidianGhostRows.js): if this
+      // device minted mangled duplicates while running a pre-block-id build,
+      // its first launch after updating contains them here — the sync
+      // ingresses only fire when something syncs, and a local-only install
+      // would otherwise never repair. The tray never persists (read snapshot).
+      const ghostRepaired = repairLoadedGhostRows(
+        loadedTasks, parsedUnscheduled.filter(t => !t.imported), { persist: !isTrayMode },
+      );
+      setTasks(prev => [...ghostRepaired.tasks, ...prev.filter(t => t._native)]);
+      setUnscheduledTasks(ghostRepaired.unscheduledTasks);
       if (recycleBinData) {
         setRecycleBin(JSON.parse(recycleBinData));
       }
