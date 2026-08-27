@@ -2,6 +2,8 @@ package com.dayglance.app.data
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
+import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import org.json.JSONArray
 import org.json.JSONObject
@@ -22,6 +24,8 @@ import java.util.concurrent.ConcurrentHashMap
  * Both folder and pattern are configurable in SettingsActivity.
  */
 class ObsidianRepository(private val context: Context) {
+
+    private companion object { const val TAG = "ObsidianRepository" }
 
     private val dataStore = SharedDataStore(context)
 
@@ -65,6 +69,10 @@ class ObsidianRepository(private val context: Context) {
     }
 
     private fun indexDirectory(dir: DocumentFile, index: ConcurrentHashMap<String, Uri>) {
+        // Vault-wide crashed-write recovery rides the index build (which runs
+        // on every sync via getAllDailyNotes and on cache misses): any note
+        // stranded in a temp anywhere in the tree is healed before indexing.
+        recoverStrayTemps(dir)
         for (file in dir.listFiles()) {
             val name = file.name ?: continue
             if (name.startsWith('.')) continue // skip hidden files/dirs (.obsidian/, .trash/, etc.)
@@ -140,7 +148,7 @@ class ObsidianRepository(private val context: Context) {
      * here would commit app state for a line that never reached the vault.
      * An IOException propagates to the caller's runCatching, same outcome.
      */
-    private fun writeText(file: DocumentFile, text: String): Boolean {
+    private fun writeText(file: DocumentFile, text: String, announce: Boolean = true): Boolean {
         // Close the BufferedWriter (not just the raw OutputStream) so its internal
         // buffer is flushed to disk before the stream closes.  Closing only the
         // OutputStream while a BufferedWriter wraps it leaves the buffer unflushed,
@@ -152,10 +160,117 @@ class ObsidianRepository(private val context: Context) {
             }
         }
         // Announce only a write that actually reached the stream (a null stream
-        // above wrote nothing and must not wake Obsidian).
-        val noteName = file.name?.removeSuffix(".md")
-        if (noteName != null) onVaultWrite?.invoke(noteName)
+        // above wrote nothing and must not wake Obsidian). Crash-safe replaces
+        // pass announce = false for their intermediate temp write and announce
+        // the FINAL name once the rename lands (replaceText below) — announcing
+        // here would arm launch-on-write with the hidden temp's name.
+        if (announce) {
+            val noteName = file.name?.removeSuffix(".md")
+            if (noteName != null) onVaultWrite?.invoke(noteName)
+        }
         return true
+    }
+
+    // ── Crash-safe replacement (SafeReplace) ─────────────────────────────────
+    //
+    // The temp/delete/rename orchestration and its recovery rule live in
+    // SafeReplace.kt (pure, JVM-tested); this section binds them to
+    // DocumentFile. Every write path that knows its parent DIRECTORY goes
+    // through replaceText; recovery hooks run at every point a note file is
+    // resolved, so a crashed write is healed before anything reads, lists, or
+    // rewrites the file — the temp dance runs exactly where recovery can see.
+
+    private inner class SafDir(private val dir: DocumentFile) : SafeReplace.Dir {
+        override fun exists(name: String) = dir.findFile(name) != null
+        override fun createAndWrite(name: String, text: String): Boolean {
+            // octet-stream for the temp: providers only append an extension
+            // when the MIME maps to one, so the exact display name survives.
+            val mime = if (name.endsWith(".md")) "text/markdown" else "application/octet-stream"
+            val created = dir.createFile(mime, name) ?: return false
+            if (created.name != name) {
+                // Provider mangled the name — the rename step could never
+                // find it again. Back out and let the caller fall back.
+                created.delete()
+                return false
+            }
+            return writeText(created, text, announce = false)
+        }
+        override fun delete(name: String) = dir.findFile(name)?.delete() ?: true
+        override fun rename(from: String, to: String): Boolean {
+            val f = dir.findFile(from) ?: return false
+            return try { f.renameTo(to) && f.name == to } catch (e: Exception) { false }
+        }
+        override fun read(name: String): String? = dir.findFile(name)?.let { readText(it) }
+    }
+
+    /**
+     * Crash-safe create-or-replace of [fileName] in [dir]; announces the FINAL
+     * name on success (the one announce for the whole logical write).
+     */
+    private fun replaceText(dir: DocumentFile, fileName: String, text: String): Boolean {
+        val ok = SafeReplace.replace(SafDir(dir), fileName, text)
+        if (ok) onVaultWrite?.invoke(fileName.removeSuffix(".md"))
+        return ok
+    }
+
+    /**
+     * Heal any crashed-write residue for [fileName] before it is read or
+     * rewritten. A restored note is announced (its content never reached
+     * Obsidian — the crash killed the write's own announce) and logged; the
+     * surviving content is the note as the interrupted write intended it.
+     */
+    private fun recoverIn(dir: DocumentFile, fileName: String): SafeReplace.Recovery {
+        val outcome = SafeReplace.recover(SafDir(dir), fileName)
+        when (outcome) {
+            SafeReplace.Recovery.DISCARDED_STALE_TEMP ->
+                Log.w(TAG, "Discarded stale temp of crashed write for $fileName (original intact)")
+            SafeReplace.Recovery.RESTORED_FROM_TEMP -> {
+                Log.w(TAG, "Restored $fileName from crashed write's temp")
+                onVaultWrite?.invoke(fileName.removeSuffix(".md"))
+            }
+            SafeReplace.Recovery.RESTORE_FAILED ->
+                Log.e(TAG, "Could not restore $fileName from crashed write's temp; leaving temp in place")
+            SafeReplace.Recovery.NONE -> {}
+        }
+        return outcome
+    }
+
+    /**
+     * Sweep one directory listing for crashed-write temps and heal each.
+     * Returns true when anything was recovered (callers re-list). Hooked into
+     * the traversals that enumerate notes, so orphaned content resurfaces on
+     * the next sync even if its own file is never individually touched.
+     */
+    private fun recoverStrayTemps(dir: DocumentFile): Boolean {
+        var recovered = false
+        for (file in dir.listFiles()) {
+            val name = file.name ?: continue
+            if (!SafeReplace.isTempName(name)) continue
+            if (recoverIn(dir, SafeReplace.originalNameOf(name)) != SafeReplace.Recovery.NONE) recovered = true
+        }
+        return recovered
+    }
+
+    /**
+     * Best-effort tree directory for an index-resolved file URI, so bare-name
+     * wiki-note overwrites can use the crash-safe replace. Document ids on
+     * ExternalStorageProvider (every real vault — Obsidian requires a local
+     * folder) are path-based: `<rootDocId>/<relative path>`. Anything that
+     * doesn't match that shape returns null and the caller falls back to the
+     * in-place write.
+     */
+    private fun treeDirOf(fileUri: Uri): DocumentFile? = try {
+        val root = vaultRoot()
+        if (root == null) null else {
+            val rootId = DocumentsContract.getDocumentId(root.uri)
+            val docId = DocumentsContract.getDocumentId(fileUri)
+            if (!docId.startsWith("$rootId/")) null else {
+                val parentSegments = docId.removePrefix("$rootId/").split("/").dropLast(1)
+                if (parentSegments.isEmpty()) root else root.navigateTo(parentSegments.joinToString("/"))
+            }
+        }
+    } catch (e: Exception) {
+        null
     }
 
     // ── Public API ───────────────────────────────────────────────────────────
@@ -182,6 +297,10 @@ class ObsidianRepository(private val context: Context) {
 
         val fileName = "${localDate.format(formatter)}.md"
         val dir = if (folder.isBlank()) root else (root.navigateTo(folder) ?: return "")
+        // Heal a crashed write first: without this, the post-delete crash
+        // window reads as "note gone" — which the deletion detector upstream
+        // would treat as a real vault deletion.
+        recoverIn(dir, fileName)
         val file = dir.findFile(fileName) ?: return ""
         return readText(file)
     }
@@ -197,6 +316,7 @@ class ObsidianRepository(private val context: Context) {
         val prefix = if (folder.isBlank()) "" else "$folder/"
         val arr = JSONArray()
         fun collect(d: DocumentFile, pathPrefix: String) {
+            recoverStrayTemps(d)
             for (file in d.listFiles()) {
                 val name = file.name ?: continue
                 if (name.startsWith('.')) continue
@@ -226,14 +346,14 @@ class ObsidianRepository(private val context: Context) {
         val dir = if (folderPath.isBlank()) root
                   else (root.navigateOrCreate(folderPath) ?: return false)
 
-        val file = dir.findFile(fileName)
-            ?: dir.createFile("text/markdown", fileName)
-            ?: return false
-
-        val existing = readText(file)
+        // Heal any crashed write FIRST — resolving the file before recovery
+        // could read a freshly-created empty original while the real content
+        // sits in a temp, and the append would then wipe the note.
+        recoverIn(dir, fileName)
+        val existing = dir.findFile(fileName)?.let { readText(it) } ?: ""
         // Ensure a newline separator before the new content
         val separator = if (existing.isNotEmpty() && !existing.endsWith("\n")) "\n" else ""
-        writeText(file, "$existing$separator$content")
+        replaceText(dir, fileName, "$existing$separator$content")
     }.getOrDefault(false)
 
     /**
@@ -294,11 +414,7 @@ class ObsidianRepository(private val context: Context) {
 
         val fileName = "${localDate.format(formatter)}.md"
         val dir = if (folder.isBlank()) root else (root.navigateOrCreate(folder) ?: return false)
-        val file = dir.findFile(fileName)
-            ?: dir.createFile("text/markdown", fileName)
-            ?: return false
-
-        writeText(file, content)
+        replaceText(dir, fileName, content)
     }.getOrDefault(false)
 
     /**
@@ -313,6 +429,10 @@ class ObsidianRepository(private val context: Context) {
     fun getAllDailyNotes(folder: String, cutoff: String): String {
         val root = vaultRoot() ?: return "[]"
         val dir = if (folder.isBlank()) root else (root.navigateTo(folder) ?: return "[]")
+        // Sweep crashed-write residue before the listing: a note stuck in the
+        // post-delete window would otherwise be missing from this scan, and
+        // the deletion detector would read that as a vault deletion.
+        recoverStrayTemps(dir)
         val arr = JSONArray()
         dir.listFiles()
             .filter { it.isFile && it.name?.endsWith(".md") == true }
@@ -357,6 +477,7 @@ class ObsidianRepository(private val context: Context) {
             // Explicit path — navigate directly (no index needed)
             val folderPath = segments.dropLast(1).joinToString("/")
             val dir = root.navigateTo(folderPath) ?: return ""
+            recoverIn(dir, fileName)
             dir.findFile(fileName) ?: return ""
         } else {
             // Bare name — use the in-memory index for O(1) lookup
@@ -390,29 +511,33 @@ class ObsidianRepository(private val context: Context) {
 
         val noteName = segments.last()
         val fileName = "$noteName.md"
-        val file = if (segments.size > 1) {
+        if (segments.size > 1) {
             val folderPath = segments.dropLast(1).joinToString("/")
             val dir = root.navigateOrCreate(folderPath) ?: return false
-            dir.findFile(fileName)
-                ?: dir.createFile("text/markdown", fileName)
-                ?: return false
-        } else {
-            // Use the index to find the existing file; if not found create in newNotesFolder
-            val existingUri = findNoteUri(noteName)
-            val existingFile = existingUri?.let { DocumentFile.fromSingleUri(context, it) }
-            existingFile?.takeIf { it.exists() }
-                ?: run {
-                    val folder = dataStore.newNotesFolder
-                    val dir = if (folder.isBlank()) root
-                              else (root.navigateOrCreate(folder) ?: return false)
-                    (dir.createFile("text/markdown", fileName) ?: return false).also { created ->
-                        // Keep the index up-to-date so the new file is found on next getNote()
-                        noteUriIndex[noteName.lowercase()] = created.uri
-                    }
-                }
+            return replaceText(dir, fileName, content)
         }
-
-        writeText(file, content)
+        // Bare name: use the index to find the existing file's directory so
+        // the overwrite is crash-safe too; if the note doesn't exist yet,
+        // create it in newNotesFolder.
+        val existingUri = findNoteUri(noteName)
+        val existingFile = existingUri?.let { DocumentFile.fromSingleUri(context, it) }?.takeIf { it.exists() }
+        val dir = if (existingFile != null) {
+            treeDirOf(existingFile.uri)
+                ?: // Provider whose document ids we can't map to a directory:
+                   // fall back to the legacy in-place write rather than lose
+                   // the write. Crash-safety degrades to pre-existing behavior
+                   // on this (unobserved in practice) path.
+                   return writeText(existingFile, content)
+        } else {
+            val folder = dataStore.newNotesFolder
+            if (folder.isBlank()) root else (root.navigateOrCreate(folder) ?: return false)
+        }
+        if (!replaceText(dir, fileName, content)) return false
+        // Keep the index truthful: the replace changes the document id on
+        // providers with path-based ids (delete + rename mints a new one),
+        // and a brand-new note was never indexed at all.
+        dir.findFile(fileName)?.let { noteUriIndex[noteName.lowercase()] = it.uri }
+        true
     }.getOrDefault(false)
 
     fun getTasksFromNote(path: String): String {
@@ -423,6 +548,7 @@ class ObsidianRepository(private val context: Context) {
         val fileName = segments.last()
         val folderPath = segments.dropLast(1).joinToString("/")
         val dir = if (folderPath.isBlank()) root else (root.navigateTo(folderPath) ?: return "[]")
+        recoverIn(dir, fileName)
         val file = dir.findFile(fileName) ?: return "[]"
 
         val taskRegex = Regex("""^- \[([xX ])] (.+)$""")
