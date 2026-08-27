@@ -15,6 +15,7 @@ import { preserveArchived } from './utils/preserveArchived.js';
 import { rescueUnsyncedTasks } from './utils/rescueUnsyncedTasks.js';
 import { readRetiredTaskIds, applyTaskRetirements, RETIRED_TASK_IDS_STORAGE_KEY } from './utils/retiredTaskIds.js';
 import { dropTombstonedObsidianTasks, dropTombstonedObsidianNotes } from './utils/obsidianDeletions.js';
+import { containObsidianGhostRows, persistDerivedGhostRetirements } from './utils/obsidianGhostRows.js';
 import { dropResurrectedTasks } from './utils/dropResurrectedTasks.js';
 import { partitionExpiredSingleDayFrames } from './utils/expiredFrames.js';
 import { stripHealthSourcedLogs } from './utils/healthLogFilter.js';
@@ -5624,6 +5625,25 @@ const DayPlanner = () => {
       || (() => { try { return JSON.parse(localStorage.getItem('day-planner-deleted-obsidian-keys') || '{}'); } catch { return {}; } })();
     if (normalizedTasks) normalizedTasks = dropTombstonedObsidianTasks(normalizedTasks, obsidianTombs);
     if (normalizedUnsched) normalizedUnsched = dropTombstonedObsidianTasks(normalizedUnsched, obsidianTombs);
+
+    // Ghost-row CONTAINMENT (utils/obsidianGhostRows.js): a row an old client
+    // minted by parsing a block-id-stamped line — its title still carries the
+    // swallowed ^dg- token, which names its own successor — is superseded
+    // here (dropped, or its newer edits redirected onto the real task), and
+    // the derived retirement is PERSISTED so the guard propagates the ghost's
+    // delete and the vault row dies instead of echoing. Containment, not
+    // prevention: the minting device keeps its local duplicate until it
+    // updates — at which point this same pass self-repairs its state.
+    {
+      const ghostIn = {
+        tasks: normalizedTasks || tasksLiveRef.current || [],
+        unscheduledTasks: normalizedUnsched || unscheduledLiveRef.current || [],
+      };
+      const contained = containObsidianGhostRows(ghostIn);
+      persistDerivedGhostRetirements(contained.derived);
+      if (normalizedTasks) normalizedTasks = contained.tasks;
+      if (normalizedUnsched) normalizedUnsched = contained.unscheduledTasks;
+    }
 
     // Update localStorage
     if (normalizedTasks) localStorage.setItem('day-planner-tasks', JSON.stringify(normalizedTasks));

@@ -11,6 +11,7 @@ import {
 } from './sync/tombstoneRetention.js';
 import { mergeRetiredTaskIds, pruneRetiredTaskIds, applyRetirementsToTaskLists } from './utils/retiredTaskIds.js';
 import { dropTombstonedObsidianTasks, dropTombstonedObsidianNotes } from './utils/obsidianDeletions.js';
+import { containObsidianGhostRows } from './utils/obsidianGhostRows.js';
 import { mergeDayWindowMaps, dayWindowMapsEqual, migrateDayWindows } from './sync/dayWindowSync.js';
 
 export const mergeTaskArrays = (local, remote, deletedIds, syncHorizon = null) =>
@@ -520,6 +521,24 @@ export const mergeSyncData = (local, remote, retentionDays) => {
     result.data.dailyNotes = obsCleanNotes;
     // Both sides need the cleansed result: local state applies it, and the
     // remote file is rewritten without the zombies.
+    result.localChanged = true;
+    result.remoteChanged = true;
+  }
+
+  // Ghost-row CONTAINMENT at the file-tier merge (utils/obsidianGhostRows.js):
+  // a duplicate an old client minted from a block-id-stamped line carries the
+  // swallowed ^dg- token in its title — the pointer to its own successor. The
+  // merged output (which is also the uploaded file) is cleansed of ghosts
+  // whose successor is live, with a newer ghost's edits redirected onto the
+  // successor. Ephemeral here (a pure merge persists nothing); the derived
+  // retirement is recorded at the apply boundary. Containment, not
+  // prevention: the minting client keeps its local copy until it updates.
+  const ghostContained = containObsidianGhostRows(
+    { tasks: result.data.tasks, unscheduledTasks: result.data.unscheduledTasks },
+  );
+  if (ghostContained.tasks !== result.data.tasks || ghostContained.unscheduledTasks !== result.data.unscheduledTasks) {
+    result.data.tasks = ghostContained.tasks;
+    result.data.unscheduledTasks = ghostContained.unscheduledTasks;
     result.localChanged = true;
     result.remoteChanged = true;
   }

@@ -14,9 +14,14 @@
 //
 // THE PROVENANCE RULE — three channels, three different actors, and no write
 // site ever has two valid choices:
-//   • retiredTaskIds      — written ONLY by the commit that renames an id: it
-//                           KNOWS the successor at write time. (useObsidianSync
-//                           write-success commit; any future id migration.)
+//   • retiredTaskIds      — written ONLY by a writer that KNOWS the successor
+//                           at write time: the commit that renames an id
+//                           (useObsidianSync write-success commit; any future
+//                           id migration), and ghost-row containment, which
+//                           DERIVES the successor from the corruption itself
+//                           (utils/obsidianGhostRows.js — an old client's
+//                           mangled duplicate carries its successor's ^dg- id
+//                           in its own title).
 //   • deletedTaskIds      — written ONLY by user-intent delete paths: the user
 //                           pressed delete, there IS no successor.
 //                           (useTaskActions / useRecycleBin.)
@@ -64,17 +69,22 @@
 // retired ids, because the shipped v4.7.x fleet's file-tier merge consults
 // ONLY deletedTaskIds — dropping the dual-write would let stale legacy rows
 // resurrect on un-upgraded devices (the (b2) resolution would regress).
-// SUNSET CONDITION (checkable, not vibes): delete the dual-write — flip this
-// flag, remove the dead branch in useObsidianSync's recordRetirements — when
-// BOTH hold:
+// SUNSET CONDITION: delete the dual-write — flip this flag, remove the dead
+// branches in useObsidianSync's recordRetirements and obsidianGhostRows'
+// persistDerivedGhostRetirements — when BOTH hold:
 //   1. at least TOMBSTONE_RETENTION_DAYS (60) have passed since the first
 //      release carrying retiredTaskIds shipped, AND
-//   2. no pre-retiredTaskIds client (v4.7.x or older) has synced the account
-//      within the last TOMBSTONE_RETENTION_DAYS (check the device list in
-//      Cloud Sync settings / the vault's device cursors).
-// After (1)+(2), every deletedTaskIds entry an old file-tier merge could still
-// consult has been GC'd by the shared retention anyway, so the dual-write is
-// provably writing entries nothing reads differently.
+//   2. no pre-retiredTaskIds client (v4.7.x or older) still syncs the account.
+// HONESTY ABOUT (2): it is NOT currently checkable from inside the app.
+// GLANCEvault exposes no device-list endpoint — the device-cursor call is
+// write-only ({accountId, deviceId, lastSeenSeq}) and no peer information of
+// any kind reaches a client (verified against @glance-apps/sync vaultClient's
+// full API surface during the staged-rollout review). Until a fleet-visibility
+// mechanism exists (the capability-bundle / devices-endpoint proposal from
+// that review), (2) is an OPERATOR JUDGMENT — "I know every install that
+// syncs this account and none is pre-4.8" — not a queryable fact. Do not
+// remove the shim on (1) alone; if in doubt, the shim's only cost is a few
+// redundant tombstone entries that GC at 60 days.
 export const RETIRED_ID_DUAL_WRITE = true;
 
 export const RETIRED_TASK_IDS_STORAGE_KEY = 'day-planner-retired-task-ids';
