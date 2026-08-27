@@ -1,9 +1,9 @@
 // The Phase 2 READ/WRITE release split — the vault write-format gate.
 //
 // ═══ THE WRITE-RELEASE SWITCH ══════════════════════════════════════════════
-// Flip this ONE constant to `true` to ship the write release. Nothing else
-// changes. Grep anchor: OBSIDIAN_BLOCK_ID_WRITES.
-export const OBSIDIAN_BLOCK_ID_WRITES = false;
+// This ONE constant is the write release. Nothing else changes on a flip.
+// Grep anchor: OBSIDIAN_BLOCK_ID_WRITES.
+export const OBSIDIAN_BLOCK_ID_WRITES = true;
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // THE STANDING RULE (docs/obsidian-buildout-spec.md, "Staged vault-format
@@ -15,9 +15,25 @@ export const OBSIDIAN_BLOCK_ID_WRITES = false;
 // reads it as TITLE TEXT, hashes it into a brand-new content-derived id, and
 // imports a duplicate that syncs fleet-wide (the staged-rollout analysis, and
 // the live incident of 2026-08-26: stable duplicates for the whole mixed
-// window, surviving the update in the heavy-stamp case). Shipping the READER
-// first means that by the time any device emits the new format, every device
-// understands it.
+// window, surviving the update in the heavy-stamp case).
+//
+// WHAT READ-FIRST ACTUALLY BUYS — an ordering discipline, NOT a guarantee.
+// Release ordering cannot be enforced: a Docker user pulls `latest` after six
+// months and skips every intermediate release, so "once the read release has
+// propagated" is a state no one can observe and no sequencing can produce.
+// Read-first MAXIMIZES the share of the fleet that understands a format
+// before anything emits it; it guarantees nothing about the stragglers.
+// The fleet-readiness gate that WOULD guarantee it (per-account capability
+// bundle, a GLANCEvault devices endpoint, cursor cross-referencing) was
+// investigated and deliberately NOT built: substantial permanent server+client
+// surface for a solo maintainer, to close a gap that ghost-row containment
+// (utils/obsidianGhostRows.js, PR #1457) reduces to a temporary inconvenience.
+// What we accept instead: an old client reading a stamped vault mints local
+// duplicates it shows to its OWN user until it updates. Those duplicates no
+// longer propagate to current clients — every sync ingress and boot-time load
+// contains them, the derived retirement kills the vault ghost row — and the
+// minting device self-repairs the moment it updates. Bounded, temporary,
+// self-healing; that is the basis on which this constant reads `true`.
 //
 // WHY THE READER IS THE FULL PHASE 2 READ PATH, not merely "strip and
 // ignore": a device that strips `^dg-` tokens but still hashes the clean

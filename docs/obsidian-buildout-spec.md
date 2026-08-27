@@ -150,15 +150,21 @@ The plugin runs unlisted (BRAT or manual install) through Phases 5 and 6. Submis
 
 ---
 
-### 3.9 Staged vault-format rollout: read-support first, write-support one release later
+### 3.9 Staged vault-format rollout: read-support first, containment as the safety net
 
-**Standing rule, not a one-time decision.** Any change to what dayGLANCE WRITES into the vault ships in two releases: first a release whose parser fully understands the new format but never emits it, then — one release later, once the reader has propagated — a release that enables emission. The gate is a build-time constant (`src/utils/obsidianWritePolicy.js`), never a user-facing setting: a setting pushes correctness onto the user, and someone always has a device they forgot about.
+**Standing rule, not a one-time decision.** Any change to what dayGLANCE WRITES into the vault ships in two releases: first a release whose parser fully understands the new format but never emits it, then a release that enables emission. The gate is a build-time constant (`src/utils/obsidianWritePolicy.js`), never a user-facing setting: a setting pushes correctness onto the user, and someone always has a device they forgot about.
 
-**Rationale.** The fleet spans five platforms on three release channels (dev, Developer ID, MAS, Play, App Store/TestFlight) whose store approvals never align, plus always-on appliances with vault access that lag behind updates. Every write-format change therefore has a mixed-version window measured in days. A client that does not understand a format token reads it as **title text**, hashes it into a brand-new content-derived id, and imports a duplicate that syncs fleet-wide — stable duplicates for the whole mixed window, surviving the update in the heavy-stamp case (analyzed for `^dg-` block ids, then observed live 2026-08-26). Shipping the reader first means that by the time any device emits the new format, every device can read it — the mixed window pairs a token-aware reader with the writer and no mangled identity can ever be minted.
+**Ordering discipline, not a guarantee.** Read-support-first is the right default for every vault-format change because it maximizes the share of the fleet that understands a new format before anything emits it. But release ordering **cannot be enforced** — a Docker user pulls `latest` after six months and skips every intermediate release, so "the reader has propagated" is a state nobody can observe and no release sequencing can produce. Read-first must not be relied on as a gate; it narrows the exposure window, nothing more.
+
+**Rationale for the exposure being worth narrowing.** The fleet spans five platforms on three release channels (dev, Developer ID, MAS, Play, App Store/TestFlight) whose store approvals never align, plus always-on appliances with vault access that lag behind updates. A client that does not understand a format token reads it as **title text**, hashes it into a brand-new content-derived id, and imports a duplicate that syncs fleet-wide — stable duplicates for the whole mixed window, surviving the update in the heavy-stamp case (analyzed for `^dg-` block ids, then observed live 2026-08-26).
+
+**Containment is the actual safety net.** Before any format's emitting release ships, evaluate whether a naive old parser's misread of that format is **self-identifying** — the way a `^dg-` token swallowed into a mangled title still names the very task it duplicates. Where it is, build containment: recognize the misread at every sync ingress AND at boot (PR #1457's fourth wiring point — a device that never syncs never repairs itself), derive the correct identity from the corruption, and retire the duplicate so it stops propagating and the minting device self-repairs on update. Where a misread would NOT be self-identifying, that is a design signal against the format as proposed — prefer a shape whose corruption carries its own antidote.
 
 **Read support means the FULL read semantics, not "strip and ignore."** A device that strips a token but still derives the old identity (e.g. hashing the clean title into a legacy id) keeps re-producing retired identities after a write-release device retires them — a milder seed of the same divergence. The read release carries everything except emission: recognition, identity adoption, bridging, dedup rules.
 
-**Applies next to Phase 4** (Tasks emoji metadata, Dataview inline fields, frontmatter) — a strictly larger write surface than block ids: each of those formats gets a read release before any device emits it.
+**Fleet-readiness gating: investigated and declined.** A per-account readiness gate (capability bundle in the sync payload, a GLANCEvault devices endpoint, cursor cross-referencing to detect stale clients) would make the ordering enforceable — and was deliberately not built: substantial permanent server-and-client surface for a solo maintainer, to close a gap that containment reduces to a bounded, temporary, self-healing inconvenience confined to the un-updated device's own screen. Recorded here so it is not rediscovered as a novel idea later.
+
+**Applies next to Phase 4** (Tasks emoji metadata, Dataview inline fields, frontmatter) — a strictly larger write surface than block ids: each of those formats gets a read release before any device emits it, and each gets the containment question asked, format by format, before its emitting release.
 
 ---
 
@@ -187,7 +193,7 @@ Relevant to Phases 6 and 7.
 
 ## 6. Phases
 
-Phases 0 and 1 are complete. Phases 2 through 4 are independent of the plugin and deliver value on their own.
+Phases 0 through 2 are complete. Phases 2 through 4 are independent of the plugin and deliver value on their own.
 
 ### Phase 0. Platform truth and write safety foundations — COMPLETE
 
@@ -241,11 +247,11 @@ Delivered by PRs #1435, #1444, #1445, and #1446; shipped with 4.7.0. See section
 
 ---
 
-### Phase 2. Block-ID identity
+### Phase 2. Block-ID identity — COMPLETE
 
 **Goal.** Give every dayGLANCE-managed task a stable identity in the vault that survives edits, reordering, and reformatting.
 
-**Status.** Part A delivered by PR #1439. Ships in TWO releases per the staged-rollout rule (3.9): the **read release** carries the full Part A read path — token recognition, `obsidian-dg-` adoption, the legacy bridge, first-occurrence-wins — with emission gated OFF (`OBSIDIAN_BLOCK_ID_WRITES = false` in `src/utils/obsidianWritePolicy.js`; new tasks and writes keep pre-Phase-2 behavior, and tokens already present in lines are preserved, never stripped). The **write release** is the one-line flip of that constant, once the read release has propagated to every channel. The scope below records the split and the semantics decided during implementation.
+**Status.** Complete. Part A delivered by PR #1439; shipped in TWO releases per the staged-rollout rule (3.9): the **read release** (PR #1456) carried the full Part A read path — token recognition, `obsidian-dg-` adoption, the legacy bridge, first-occurrence-wins — with emission gated OFF; the **write release** flipped `OBSIDIAN_BLOCK_ID_WRITES` to `true` in `src/utils/obsidianWritePolicy.js`, backed not by an unenforceable propagation guarantee but by ghost-row containment (PR #1457) as the safety net for straggler clients, per the amended 3.9. Tokens already present in lines are preserved, never stripped. Phase 3 depends on this phase and is now unblocked. The scope below records the split and the semantics decided during implementation.
 
 **Rationale.** Task identity is currently implicit, positional or text-matched. Every bug class fought in GLANCEvault (resurrection, phantom deletes, duplication) has a latent analog here and will surface as write surface grows. This is the highest-value single change in the plan.
 
@@ -304,7 +310,7 @@ Delivered by PRs #1435, #1444, #1445, and #1446; shipped with 4.7.0. See section
 
 **Rationale.** This is the cheapest real user-facing win in the plan and the thing that makes a directory listing compelling to someone already living in their vault.
 
-**Rollout.** Subject to the staged-rollout rule (3.9), format by format: a release that parses Tasks emoji / Dataview fields / frontmatter without emitting them, then the emitting release. This surface is strictly larger than block ids — an emoji date or an inline field misread as title text corrupts identity hashing exactly the way a `^dg-` token did.
+**Rollout.** Subject to the staged-rollout rule as amended (3.9), format by format: a release that parses Tasks emoji / Dataview fields / frontmatter without emitting them, then the emitting release — with read-first understood as an exposure-narrowing discipline, not a gate. This surface is strictly larger than block ids — an emoji date or an inline field misread as title text corrupts identity hashing exactly the way a `^dg-` token did — so **each format gets the 3.9 containment question asked before its emitting release ships**: is an old parser's misread of THIS format self-identifying, and if so, where is the containment built (all sync ingresses plus boot)? A format whose misread is not self-identifying needs a redesign or an explicit accepted-risk record before it emits.
 
 ---
 
