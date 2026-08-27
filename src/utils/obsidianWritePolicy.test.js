@@ -5,13 +5,15 @@ import { buildNewObsidianTaskMeta, simpleHash, blockIdSuffix } from '../obsidian
 afterEach(() => __setBlockIdWritesForTests(null));
 
 describe('the read/write release gate', () => {
-  it('SHIPS READ-ONLY: the constant is false until the write release flips it', () => {
-    // This is the release switch itself. When shipping the write release,
-    // flip OBSIDIAN_BLOCK_ID_WRITES to true in obsidianWritePolicy.js and
-    // update THIS assertion — the failure is the reminder that the flip is a
-    // release decision, not a side effect.
-    expect(OBSIDIAN_BLOCK_ID_WRITES).toBe(false);
-    expect(blockIdWritesEnabled()).toBe(false);
+  it('SHIPS WRITES ON: the write release flipped the constant to true', () => {
+    // This is the release switch itself. The write release shipped the flip
+    // (with ghost-row containment, PR #1457, as the safety net for stragglers
+    // — see the module header). Flipping it BACK is equally a release
+    // decision: update THIS assertion alongside any change to the constant —
+    // the failure is the reminder that the flip leaves a mark in the diff,
+    // never a side effect.
+    expect(OBSIDIAN_BLOCK_ID_WRITES).toBe(true);
+    expect(blockIdWritesEnabled()).toBe(true);
   });
 
   it('the test override forces either mode and restores the constant', () => {
