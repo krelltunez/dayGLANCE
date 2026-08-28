@@ -63,7 +63,7 @@ import {
 } from './retiredTaskIds.js';
 
 // The exact emitted token, at end of string: space, ^dg-, 8 chars of lowercase
-// base36 (generateBlockId's alphabet), nothing after.
+// base36 (deriveBlockId's alphabet), nothing after.
 export const GHOST_TOKEN_RE = /\s\^dg-([a-z0-9]{8})$/;
 
 // Strip ONE SPECIFIC recognized token from a title. The app-level title

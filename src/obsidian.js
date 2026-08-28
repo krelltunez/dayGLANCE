@@ -829,22 +829,54 @@ export function simpleHash(str) {
 // ---------------------------------------------------------------------------
 
 /**
- * Generate a new block id: 8 chars of lowercase base36 (Obsidian block ids
- * allow alphanumerics and hyphens). 36^8 ≈ 2.8e12, so a collision within one
- * vault is vanishingly unlikely; if one ever occurs inside a file, the
- * duplicate-id rule below (first occurrence wins) bounds the damage to one
- * task rather than corrupting anything.
+ * DERIVE a block id: 8 chars of lowercase base36, a pure function of the
+ * line's stable identity — (daily-note date, raw title), the same inputs the
+ * legacy content id hashes.
+ *
+ * WHY DERIVED, NOT RANDOM (the echo-stamp decision): with random minting, an
+ * edit that reaches the fleet under the LEGACY id (it originated on a device
+ * without vault access, or a vault device's write failed before its rename
+ * committed) makes every vault-capable device mint its own token for the same
+ * line — an N-way identity race that converges only through retirement
+ * records, detector reaping, and Obsidian Sync settling the file, with one
+ * no-heal corner (a mint whose device closes before ever scanning it lingers
+ * as a permanent duplicate row). Deriving the token makes the race
+ * semantically empty: every device mints the SAME token, so an N-way mint is
+ * N devices writing an identical line — nothing to reconcile, nothing to
+ * reap. One logical edit produces one token by UNANIMITY rather than
+ * election.
+ *
+ * NORMALIZATION (pinned deliberately — a subtle cross-device difference here
+ * silently restores the old race): the hash input is
+ *     `${dateStr}\u0000${String(rawTitle).normalize('NFC').trim()}`
+ *   • dateStr — the ISO `YYYY-MM-DD` the write targets (the daily note's
+ *     date, exactly the string used in legacy ids and filenames);
+ *   • rawTitle — the title AS IT WILL EXIST ON THE LINE (for a retitling
+ *     write, the NEW raw title), NFC-normalized (macOS/iOS text input can
+ *     produce decomposed forms) and trimmed; internal whitespace is
+ *     PRESERVED (titles differing inside are different lines);
+ *   • the display '#obsidian' tag never appears in rawTitle by construction;
+ *   • NUL separator so ('2026-08-281', 'x') can't alias ('2026-08-28', '1x').
+ *
+ * ★ FROZEN ALGORITHM: FNV-1a 64-bit over the UTF-8 bytes, mod 36^8, base36,
+ * zero-padded to 8. Tokens derived by different app VERSIONS must agree
+ * forever — changing any detail here (hash, seed, input shape) reintroduces
+ * cross-device divergence between updated and un-updated devices. The golden
+ * values in obsidian.deterministicBlockIds.test.js pin it.
+ *
+ * Collision profile: same inputs as the legacy id, so colliding pairs are
+ * exactly the pairs that already collide today, governed by the existing
+ * first-occurrence-wins rule; 36^8 ≈ 2.8e12 makes unrelated collisions
+ * vanishingly unlikely at vault scale.
  */
-export function generateBlockId() {
-  const bytes = new Uint8Array(8);
-  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-    crypto.getRandomValues(bytes);
-  } else {
-    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+export function deriveBlockId(dateStr, rawTitle) {
+  const input = `${dateStr}\u0000${String(rawTitle ?? '').normalize('NFC').trim()}`;
+  let h = 0xcbf29ce484222325n; // FNV-1a 64-bit offset basis
+  for (const byte of new TextEncoder().encode(input)) {
+    h ^= BigInt(byte);
+    h = (h * 0x100000001b3n) & 0xffffffffffffffffn; // FNV prime, mod 2^64
   }
-  let out = '';
-  for (const b of bytes) out += (b % 36).toString(36);
-  return out;
+  return (h % 2821109907456n).toString(36).padStart(8, '0'); // 36^8
 }
 
 /**
@@ -877,7 +909,9 @@ export function buildNewObsidianTaskMeta(rawTitle, todayStr) {
   if (!blockIdWritesEnabled()) {
     return { ...base, id: `obsidian-${todayStr}-${simpleHash(rawTitle)}` };
   }
-  const blockId = generateBlockId();
+  // Derived, not random — every device creating "the same" line derives the
+  // same token (see deriveBlockId).
+  const blockId = deriveBlockId(todayStr, rawTitle);
   return { ...base, id: appIdForBlockId(blockId), obsidianBlockId: blockId };
 }
 

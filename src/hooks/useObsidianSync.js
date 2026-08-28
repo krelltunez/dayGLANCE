@@ -4,7 +4,7 @@ import {
   syncObsidianVault, syncObsidianVaultNative,
   writeTaskStateToFile, writeTaskStateNative,
   simpleHash as obsidianSimpleHash,
-  generateBlockId, appIdForBlockId,
+  deriveBlockId, appIdForBlockId,
   readWikiNote, writeWikiNote, scanVaultNotes,
   OBSIDIAN_IMPORT_WINDOW_DAYS, obsidianWindowCutoffDate,
 } from '../obsidian.js';
@@ -697,7 +697,17 @@ export default function useObsidianSync({
       // (adopted from a vault another release stamped) keeps writing it —
       // writeBlockId preserves existing tokens unconditionally, because
       // stripping one would destroy identity other devices rely on.
-      const assignBlockId = (!task.obsidianBlockId && blockIdWritesEnabled()) ? generateBlockId() : null;
+      //
+      // The id is DERIVED from (sourceDate, the title as it will exist on the
+      // line) — see deriveBlockId. Every device stamping "the same" line
+      // derives the same token, so the echo-stamp race (an edit syncing under
+      // the legacy id making N vault devices mint N different ids) mints one
+      // token unanimously instead. Deriving from newRawTitle on a retitle
+      // matters: the line will CARRY newRawTitle, and a later device deriving
+      // from the parsed line must reach the same input.
+      const assignBlockId = (!task.obsidianBlockId && blockIdWritesEnabled())
+        ? deriveBlockId(sourceDate, newRawTitle !== undefined ? newRawTitle : task.obsidianRawTitle)
+        : null;
       const writeBlockId = task.obsidianBlockId || assignBlockId;
 
       // Title bookkeeping is COMPUTED here but applied only on write success:
