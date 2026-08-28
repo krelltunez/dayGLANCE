@@ -5,7 +5,7 @@ import {
   writeTaskStateToFile,
   appendTaskToDailyNote,
   syncObsidianVault,
-  generateBlockId,
+  deriveBlockId,
   appIdForBlockId,
   legacyObsidianId,
   splitBlockId,
@@ -67,12 +67,13 @@ function makeDir(node, name = '') {
 }
 
 describe('block-id helpers', () => {
-  it('generateBlockId produces 8 lowercase base36 chars, distinct across calls', () => {
-    const a = generateBlockId();
-    const b = generateBlockId();
+  it('deriveBlockId produces 8 lowercase base36 chars, distinct for distinct lines, identical for the same line', () => {
+    const a = deriveBlockId('2026-08-22', 'Ship the report');
+    const b = deriveBlockId('2026-08-22', 'Walk the dog');
     expect(a).toMatch(/^[a-z0-9]{8}$/);
     expect(b).toMatch(/^[a-z0-9]{8}$/);
     expect(a).not.toBe(b);
+    expect(deriveBlockId('2026-08-22', 'Ship the report')).toBe(a);
   });
 
   it('splitBlockId strips only a TRAILING ^dg- token', () => {
@@ -300,7 +301,7 @@ describe('round trip — write, read back, match', () => {
   it('a task appended from dayGLANCE parses back to the same app id', async () => {
     const fs = {};
     const vault = makeDir(fs);
-    const blockId = generateBlockId();
+    const blockId = deriveBlockId('2026-08-22', 'Ship the report');
     await appendTaskToDailyNote(vault, '', '2026-08-22', {
       title: 'Ship the report', startTime: '09:00', duration: 60,
       isAllDay: false, date: '2026-08-22', blockId,
