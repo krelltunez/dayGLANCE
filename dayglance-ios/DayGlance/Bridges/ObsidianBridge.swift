@@ -107,11 +107,18 @@ final class ObsidianBridge: NSObject {
 
     // MARK: - getDailyNote / writeDailyNote
 
-    func getDailyNote(date: String) -> String {
-        withVault(fallback: "") { vault in
-            guard let fileName = dailyNoteFileName(date: date) else { return "" }
+    /// READ CONTRACT: "" means the note is determinately absent or empty; nil
+    /// means the answer could not be determined — vault unconfigured, bookmark
+    /// or security-scope failure, or the file exists but cannot be read. The
+    /// scheme handler turns nil into a 500 and the JS shim into `null`; JS
+    /// must never treat that as an empty note (an "empty" daily note erases
+    /// its task keys from the scan and arms the deletion detector).
+    func getDailyNote(date: String) -> String? {
+        withVault(fallback: nil) { vault -> String? in
+            guard let fileName = dailyNoteFileName(date: date) else { return nil }
             let file = dailyNoteURL(vault: vault, fileName: fileName)
-            return (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+            guard FileManager.default.fileExists(atPath: file.path) else { return "" }
+            return try? String(contentsOf: file, encoding: .utf8) // read failure → nil
         }
     }
 
@@ -145,8 +152,18 @@ final class ObsidianBridge: NSObject {
 
     // MARK: - getAllDailyNotes
 
+    /// READ CONTRACT — this is the scan the deletion detector diffs, so a
+    /// failed read must never shape the result. Success is a JSON ARRAY;
+    /// failure is a JSON OBJECT `{"error":"…"}` (JS checks Array.isArray and
+    /// fails the scan). Failures: the vault is configured but the bookmark or
+    /// security scope cannot be resolved (an "empty vault" answer there would
+    /// read as everything-deleted), or a listed daily note cannot be read (an
+    /// "empty note" answer would erase its task keys and, within the
+    /// detector's drop threshold, tombstone them fleet-wide). An unconfigured
+    /// vault is legitimately "[]".
     func getAllDailyNotes(folder: String, cutoff: String) -> String {
-        withVault(fallback: "[]") { vault in
+        guard UserDefaults.standard.data(forKey: bookmarkKey) != nil else { return "[]" }
+        return withVault(fallback: #"{"error":"vault access failed — the stored folder bookmark could not be opened"}"#) { vault in
             let dir = folder.isEmpty ? vault : vault.appendingPathComponent(folder)
             guard let entries = try? FileManager.default.contentsOfDirectory(
                 at: dir, includingPropertiesForKeys: nil
@@ -160,7 +177,9 @@ final class ObsidianBridge: NSObject {
                 let range = NSRange(dateStr.startIndex..., in: dateStr)
                 guard dateRe?.firstMatch(in: dateStr, range: range) != nil else { continue }
                 if !cutoff.isEmpty && dateStr < cutoff { continue }
-                let text = (try? String(contentsOf: entry, encoding: .utf8)) ?? ""
+                guard let text = try? String(contentsOf: entry, encoding: .utf8) else {
+                    return #"{"error":"could not read daily note \#(esc(dateStr)).md from the vault"}"#
+                }
                 items.append(#"{"date":"\#(dateStr)","text":"\#(esc(text))"}"#)
             }
 
@@ -180,7 +199,16 @@ final class ObsidianBridge: NSObject {
             let dir = folderPath.isEmpty ? vault : vault.appendingPathComponent(folderPath)
             createDirs(at: dir)
             let file = dir.appendingPathComponent(fileName)
-            let existing = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+            // A FAILED read of an existing note must abort the append: treating
+            // it as "" would rewrite the note as just the appended line,
+            // erasing its content. An absent file is genuinely "" (fresh note).
+            let existing: String
+            if FileManager.default.fileExists(atPath: file.path) {
+                guard let text = try? String(contentsOf: file, encoding: .utf8) else { return "false" }
+                existing = text
+            } else {
+                existing = ""
+            }
             let sep = (!existing.isEmpty && !existing.hasSuffix("\n")) ? "\n" : ""
             return write("\(existing)\(sep)\(content)", to: file) ? "true" : "false"
         }
@@ -202,7 +230,13 @@ final class ObsidianBridge: NSObject {
                 guard let indexed = noteIndex[noteName.lowercased()] else { return "" }
                 fileURL = indexed
             }
-            guard let text = try? String(contentsOf: fileURL, encoding: .utf8) else { return "" }
+            // Missing file → "" (determinately absent). A file that EXISTS but
+            // cannot be read → error envelope, mirroring the Android contract:
+            // "unreadable" must never masquerade as "not found".
+            guard FileManager.default.fileExists(atPath: fileURL.path) else { return "" }
+            guard let text = try? String(contentsOf: fileURL, encoding: .utf8) else {
+                return #"{"error":"note read failed"}"#
+            }
             let modified = (try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
             let iso = modified.map { ISO8601DateFormatter().string(from: $0) } ?? ""
             return #"{"text":"\#(esc(text))","lastModified":"\#(iso)"}"#
@@ -250,7 +284,12 @@ final class ObsidianBridge: NSObject {
             let fileURL    = folderPath.isEmpty
                 ? vault.appendingPathComponent(fileName)
                 : vault.appendingPathComponent(folderPath).appendingPathComponent(fileName)
-            guard let text = try? String(contentsOf: fileURL, encoding: .utf8) else { return "[]" }
+            // Missing → "[]" (no tasks); exists-but-unreadable → error envelope
+            // so JS never mistakes a failed read for a taskless note.
+            guard FileManager.default.fileExists(atPath: fileURL.path) else { return "[]" }
+            guard let text = try? String(contentsOf: fileURL, encoding: .utf8) else {
+                return #"{"error":"note read failed"}"#
+            }
 
             let taskRe = try? NSRegularExpression(pattern: #"^- \[([xX ])\] (.+)$"#)
             var items: [String] = []

@@ -275,7 +275,14 @@ export const nativeGetTasksFromNote = (path) => {
   const bridge = obsidianBridge();
   if (!bridge?.getTasksFromNote) return null;
   try {
-    return JSON.parse(bridge.getTasksFromNote(path));
+    const parsed = JSON.parse(bridge.getTasksFromNote(path));
+    // Failed-read envelope (read contract): success is always an ARRAY, so a
+    // non-array means the read failed — report null, never an empty task list.
+    if (!Array.isArray(parsed)) {
+      console.warn(`[Obsidian native] Tasks read from "${path}" failed:`, parsed?.error);
+      return null;
+    }
+    return parsed;
   } catch {
     return null;
   }
@@ -321,7 +328,15 @@ export const nativeGetNote = (path) => {
   try {
     const raw = bridge.getNote(path);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    // Failed-read envelope (read contract): the note exists but could not be
+    // read. Reported upward as null (same as absent) but logged, so a read
+    // failure is never silently mistaken for "no such note".
+    if (parsed && parsed.error) {
+      console.warn(`[Obsidian native] Note "${path}" read failed:`, parsed.error);
+      return null;
+    }
+    return parsed;
   } catch {
     return null;
   }

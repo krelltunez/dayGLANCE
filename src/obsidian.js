@@ -1380,8 +1380,19 @@ export function appendTaskToDailyNoteNative(dateStr, task, heading, template) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
   if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return false;
 
+  // READ CONTRACT (both bridges): "" = determinately absent-or-empty note;
+  // null = the read FAILED. A failed read must abort the append — falling
+  // back to the template here would OVERWRITE the real note with template
+  // plus one task line.
   const existing = bridge.getDailyNote(dateStr);
-  let content = (existing !== null && existing !== undefined) ? existing : (template || '');
+  if (existing === null || existing === undefined) {
+    console.error('[Obsidian native] Daily note read failed; not appending (the note may have content we cannot see)');
+    return false;
+  }
+  // "" (absent or empty note) keeps its longstanding native behavior: the
+  // task line starts the note. (The template fallback used to trigger only on
+  // a null read — which the failure contract above now correctly aborts.)
+  let content = existing;
 
   const taskLine = buildObsidianTaskLine(task, dateStr);
   const lines = content.split('\n');
@@ -1471,7 +1482,9 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
 
   try {
     const text = bridge.getDailyNote(date);
-    if (!text && text !== '') return false; // vault not configured
+    // null = vault not configured OR the read FAILED (the bridges' read
+    // contract) — either way, nothing can be safely rewritten.
+    if (!text && text !== '') return false;
 
     const lines = text.split('\n');
     const updated = updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId });
@@ -1607,13 +1620,29 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
       if (!fileName?.endsWith('.md')) continue;
       const dateStr = fileName.replace('.md', '');
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || dateStr < cutoffStr) continue;
-      try {
-        const text = bridge.getDailyNote(dateStr);
-        if (text !== null && text !== undefined) noteEntries.push({ date: dateStr, text });
-      } catch { /* skip unreadable notes */ }
+      // A LISTED note that cannot be read fails the WHOLE scan. Silently
+      // skipping it (the old behavior) removed the note key AND its task keys
+      // from the scan — feeding the deletion detector "these were deleted".
+      const text = bridge.getDailyNote(dateStr);
+      if (text === null || text === undefined) {
+        throw new Error(`Could not read daily note ${dateStr} from the vault`);
+      }
+      noteEntries.push({ date: dateStr, text });
     }
   } else {
     throw new Error('Obsidian bridge is missing required methods (getAllDailyNotes or listNotes)');
+  }
+
+  // FAILED-READ GATE. The native bridges signal a failed batch read as a JSON
+  // OBJECT `{"error":"…"}` where success is an ARRAY (iOS — its scheme handler
+  // cannot throw across the XHR shim), or by throwing (Android — surfaced
+  // above as a parse/dispatch error). This scan feeds the deletion detector:
+  // an unreadable vault that came back empty-shaped would tombstone task keys
+  // fleet-wide as user deletions. Failing here means the scan never happened —
+  // performObsidianSync's catch keeps the baseline, the tombstones, and the
+  // sync status untouched except for surfacing the error.
+  if (!Array.isArray(noteEntries)) {
+    throw new Error(noteEntries?.error || 'Vault read failed');
   }
 
   // Vault-wide duplicate-^dg-id guard, matching syncObsidianVault.

@@ -110,6 +110,24 @@ class ObsidianRepository(private val context: Context) {
     }
 
     /**
+     * True when a vault URI is configured but the persisted SAF grant behind
+     * it is gone — the OS or the user revoked it. DocumentFile hides this
+     * (listFiles just returns empty on a revoked grant), so this is the only
+     * way to tell "the vault is empty" from "we can no longer see the vault
+     * at all". The scan uses it to fail loudly instead of reporting an empty
+     * vault, and the answer names the user's fix: re-pick the folder.
+     */
+    private fun vaultGrantRevoked(): Boolean {
+        val uriString = dataStore.vaultPath ?: return false
+        return try {
+            val uri = Uri.parse(uriString)
+            context.contentResolver.persistedUriPermissions.none { it.uri == uri && it.isReadPermission }
+        } catch (e: Exception) {
+            false // can't tell — never invent an error
+        }
+    }
+
+    /**
      * Traverses from this DocumentFile to a relative path such as "Daily Notes/2026"
      * by walking each path segment. Returns null if any segment is missing.
      */
@@ -136,10 +154,19 @@ class ObsidianRepository(private val context: Context) {
         return current
     }
 
-    private fun readText(file: DocumentFile): String =
+    /**
+     * Returns the file's content, or NULL when the read FAILED — a null input
+     * stream (the provider refused to open the document). The read-side twin
+     * of writeText's contract: "unreadable" must never masquerade as "empty",
+     * because an empty read of a listed daily note erases its task keys from
+     * the scan, and the deletion detector then tombstones them fleet-wide
+     * (within its drop threshold) as if the user had deleted the lines.
+     * An IOException propagates to the caller, same outcome.
+     */
+    private fun readText(file: DocumentFile): String? =
         context.contentResolver.openInputStream(file.uri)?.use {
             it.bufferedReader().readText()
-        } ?: ""
+        }
 
     /**
      * Returns whether the write reached the stream. A null stream (the provider
@@ -277,26 +304,32 @@ class ObsidianRepository(private val context: Context) {
 
     /**
      * Returns the raw markdown content of the daily note for [date] (ISO: yyyy-MM-dd).
-     * Returns "" if vault isn't configured, the folder is missing, or the note doesn't exist.
+     *
+     * READ CONTRACT: "" means the note is DETERMINATELY absent or empty (the
+     * folder was listed, no such file — or the file is genuinely empty);
+     * NULL means the answer could not be determined — vault unconfigured, an
+     * invalid date/pattern, an unnavigable folder, or a read failure. The JS
+     * side must never treat null as an empty note: an "empty" daily note
+     * erases its tasks from the scan and arms the deletion detector.
      */
-    fun getDailyNote(date: String): String {
-        val root = vaultRoot() ?: return ""
+    fun getDailyNote(date: String): String? {
+        val root = vaultRoot() ?: return null
         val folder = dataStore.dailyNoteFolder
         val pattern = dataStore.dailyNotePattern
 
         val localDate = try {
             LocalDate.parse(date)
         } catch (e: DateTimeParseException) {
-            return ""
+            return null
         }
         val formatter = try {
             DateTimeFormatter.ofPattern(pattern)
         } catch (e: IllegalArgumentException) {
-            return ""
+            return null
         }
 
         val fileName = "${localDate.format(formatter)}.md"
-        val dir = if (folder.isBlank()) root else (root.navigateTo(folder) ?: return "")
+        val dir = if (folder.isBlank()) root else (root.navigateTo(folder) ?: return null)
         // Heal a crashed write first: without this, the post-delete crash
         // window reads as "note gone" — which the deletion detector upstream
         // would treat as a real vault deletion.
@@ -350,7 +383,11 @@ class ObsidianRepository(private val context: Context) {
         // could read a freshly-created empty original while the real content
         // sits in a temp, and the append would then wipe the note.
         recoverIn(dir, fileName)
-        val existing = dir.findFile(fileName)?.let { readText(it) } ?: ""
+        // A FAILED read of an existing note must abort the append: treating
+        // it as "" would rewrite the note as just the appended line — erasing
+        // its content. An absent file is genuinely "" (fresh note).
+        val existingFile = dir.findFile(fileName)
+        val existing = if (existingFile != null) (readText(existingFile) ?: return false) else ""
         // Ensure a newline separator before the new content
         val separator = if (existing.isNotEmpty() && !existing.endsWith("\n")) "\n" else ""
         replaceText(dir, fileName, "$existing$separator$content")
@@ -423,27 +460,51 @@ class ObsidianRepository(private val context: Context) {
      * Pass an empty [cutoff] to return all notes.
      * Returns "[]" if the vault isn't configured or the folder doesn't exist.
      *
+     * READ CONTRACT — this is the scan the deletion detector diffs, so a read
+     * that FAILED must never shape the result:
+     *   • a LISTED note that cannot be read THROWS (IOException) — an empty
+     *     "text" would erase the note's task keys from the scan, and within
+     *     the detector's drop threshold those keys would be tombstoned
+     *     fleet-wide as user deletions;
+     *   • an EMPTY LISTING with the vault's SAF grant revoked THROWS
+     *     (SecurityException naming the fix) — DocumentFile hides revocation
+     *     as an empty directory, which the detector would treat as a real
+     *     (fully) empty vault.
+     * The sync bridge propagates the exception; the async wrapper reports it
+     * through the error callback. Either way the JS scan fails loudly and is
+     * treated as never having happened.
+     *
      * Preferred over repeated getDailyNote calls because a single native round trip is
      * far cheaper than N synchronous JS→native calls (each blocking the JS thread).
      */
     fun getAllDailyNotes(folder: String, cutoff: String): String {
         val root = vaultRoot() ?: return "[]"
-        val dir = if (folder.isBlank()) root else (root.navigateTo(folder) ?: return "[]")
+        val dir = if (folder.isBlank()) root else root.navigateTo(folder)
+        if (dir == null) {
+            if (vaultGrantRevoked()) throw SecurityException("Vault access has been revoked — re-select the vault folder in Settings")
+            return "[]"
+        }
         // Sweep crashed-write residue before the listing: a note stuck in the
         // post-delete window would otherwise be missing from this scan, and
         // the deletion detector would read that as a vault deletion.
         recoverStrayTemps(dir)
+        val files = dir.listFiles()
+        if (files.isEmpty() && vaultGrantRevoked()) {
+            throw SecurityException("Vault access has been revoked — re-select the vault folder in Settings")
+        }
         val arr = JSONArray()
-        dir.listFiles()
+        files
             .filter { it.isFile && it.name?.endsWith(".md") == true }
             .forEach { file ->
                 val name = file.name ?: return@forEach
                 val dateStr = name.removeSuffix(".md")
                 if (!dateStr.matches(Regex("""\d{4}-\d{2}-\d{2}"""))) return@forEach
                 if (cutoff.isNotBlank() && dateStr < cutoff) return@forEach
+                val text = readText(file)
+                    ?: throw java.io.IOException("Could not read daily note $name from the vault")
                 arr.put(JSONObject().apply {
                     put("date", dateStr)
-                    put("text", readText(file))
+                    put("text", text)
                     // The file's REAL modification time, so the web frontend's merge
                     // uses a truthful last-writer-wins timestamp instead of stamping
                     // every scanned note as "now". Mirrors getNote() below.
@@ -485,7 +546,12 @@ class ObsidianRepository(private val context: Context) {
             DocumentFile.fromSingleUri(context, uri) ?: return ""
         }
 
+        // A failed read returns an error envelope (an OBJECT, where success is
+        // also an object but with "text") rather than pretending the note is
+        // empty — the JS wrapper logs it and reports "not found" upward, but
+        // the distinction is on the wire for callers that need it.
         val text = readText(file)
+            ?: return JSONObject().apply { put("error", "note read failed") }.toString()
         val lastModified = Instant.ofEpochMilli(file.lastModified()).toString()
         return JSONObject().apply {
             put("text", text)
@@ -551,9 +617,13 @@ class ObsidianRepository(private val context: Context) {
         recoverIn(dir, fileName)
         val file = dir.findFile(fileName) ?: return "[]"
 
+        // Failed read → error envelope (object, not array); the JS wrapper
+        // maps it to null so no caller mistakes "unreadable" for "no tasks".
+        val noteText = readText(file)
+            ?: return JSONObject().apply { put("error", "note read failed") }.toString()
         val taskRegex = Regex("""^- \[([xX ])] (.+)$""")
         val arr = JSONArray()
-        readText(file).lines().forEachIndexed { index, line ->
+        noteText.lines().forEachIndexed { index, line ->
             val match = taskRegex.find(line.trim()) ?: return@forEachIndexed
             arr.put(JSONObject().apply {
                 put("text", match.groupValues[2])
