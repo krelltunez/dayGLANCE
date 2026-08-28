@@ -161,10 +161,13 @@ class ObsidianBridge(private val context: Context, private val webView: android.
 
     /**
      * Returns the raw markdown content of the daily note for [date] (ISO: yyyy-MM-dd).
-     * Returns "" if vault isn't configured or the note doesn't exist.
+     * "" means determinately absent-or-empty; NULL means the answer could not
+     * be determined (vault unconfigured, folder unnavigable, read failure) —
+     * JS must treat null as a FAILED read, never as an empty note (see
+     * ObsidianRepository.getDailyNote's read contract).
      */
     @JavascriptInterface
-    fun getDailyNote(date: String): String = repository.getDailyNote(date)
+    fun getDailyNote(date: String): String? = repository.getDailyNote(date)
 
     /**
      * Returns a JSON array of note paths (relative to vault root) in [folder].

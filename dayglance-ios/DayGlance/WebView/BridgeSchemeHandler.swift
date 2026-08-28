@@ -19,7 +19,12 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
 
     // MARK: - Routing
 
-    private func route(_ url: URL?) -> String {
+    /// nil means the call FAILED (respond() answers with a 500, which the JS
+    /// shim's `xhr.status === 200` check turns into a JS `null`). This is the
+    /// out-of-band failure channel: it can never collide with content, unlike
+    /// any in-band sentinel string — a daily note's raw markdown could contain
+    /// anything.
+    private func route(_ url: URL?) -> String? {
         guard let url,
               let host = url.host else { return "null" }
 
@@ -34,7 +39,7 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
 
     /// Add cases here as bridge phases are implemented.
     /// Phase 1: all methods return null — the stubs are filled in Phases 2–11.
-    private func dispatch(namespace: String, method: String, args: [Any]) -> String {
+    private func dispatch(namespace: String, method: String, args: [Any]) -> String? {
         switch namespace {
         case "native":
             return dispatchNative(method: method, args: args)
@@ -288,7 +293,7 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
         }
     }
 
-    private func dispatchObsidian(method: String, args: [Any]) -> String {
+    private func dispatchObsidian(method: String, args: [Any]) -> String? {
         switch method {
         case "pickVault":
             ObsidianBridge.shared.pickVault()
@@ -308,7 +313,12 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
             ObsidianBridge.shared.setVaultSettings(folder: folder, pattern: pattern, newNotesFolder: newFolder)
             return "null"
         case "getDailyNote":
-            guard let date = args.first as? String else { return "" }
+            // nil (→ 500 → JS null) means the read FAILED — vault unconfigured,
+            // bookmark/access failure, or an unreadable file. "" means the note
+            // is determinately absent or empty. JS must never treat a failure
+            // as an empty note: an "empty" daily note erases its task keys
+            // from the scan and arms the deletion detector.
+            guard let date = args.first as? String else { return nil }
             return ObsidianBridge.shared.getDailyNote(date: date)
         case "writeDailyNote":
             guard args.count >= 2,
@@ -363,11 +373,12 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
         return array
     }
 
-    private func respond(to task: any WKURLSchemeTask, with json: String) {
-        let data = json.data(using: .utf8) ?? Data()
+    private func respond(to task: any WKURLSchemeTask, with json: String?) {
+        // nil = the bridge call FAILED → 500, which the JS shim maps to null.
+        let data = (json ?? "").data(using: .utf8) ?? Data()
         let response = HTTPURLResponse(
             url: task.request.url ?? URL(string: "about:blank")!,
-            statusCode: 200,
+            statusCode: json == nil ? 500 : 200,
             httpVersion: "HTTP/1.1",
             headerFields: ["Content-Type": "application/json; charset=utf-8"]
         )!
