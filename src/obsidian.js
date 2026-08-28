@@ -1367,9 +1367,18 @@ export async function syncObsidianVault(
  *
  * @param task {{ title, startTime, duration, isAllDay, date }}
  */
+// Native bridge write results are booleans on Android (@JavascriptInterface
+// marshals Kotlin's Boolean) but STRINGS on iOS — the dgbridge:// XHR shim
+// returns responseText, so a FAILED write comes back as the truthy string
+// "false". Success is exactly these two values; anything else (false, "false",
+// null, undefined) is a failed or unattempted write. Every native write site
+// must go through this — a raw truthiness check silently converts every iOS
+// failure into a success.
+const nativeWriteOk = (v) => v === true || v === 'true';
+
 export function appendTaskToDailyNoteNative(dateStr, task, heading, template) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
-  if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return;
+  if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return false;
 
   const existing = bridge.getDailyNote(dateStr);
   let content = (existing !== null && existing !== undefined) ? existing : (template || '');
@@ -1396,9 +1405,16 @@ export function appendTaskToDailyNoteNative(dateStr, task, heading, template) {
     ? sortTaskLinesInSection(lines, heading.trim(), dateStr)
     : lines;
   try {
-    bridge.writeDailyNote(dateStr, sorted.join('\n'));
+    // Honor the bridge's write result — mirrors the desktop caller, whose
+    // append promise rejects on a failed write and lands in a console.error.
+    if (!nativeWriteOk(bridge.writeDailyNote(dateStr, sorted.join('\n')))) {
+      console.error('[Obsidian native] Failed to write task to daily note: bridge reported write failure');
+      return false;
+    }
+    return true;
   } catch (err) {
     console.error('[Obsidian native] Failed to write task to daily note:', err);
+    return false;
   }
 }
 
@@ -1426,7 +1442,7 @@ export function writeDailyNoteNative(date, content) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
   if (!bridge?.writeDailyNote) return false;
   try {
-    return bridge.writeDailyNote(date, content);
+    return nativeWriteOk(bridge.writeDailyNote(date, content));
   } catch {
     return false;
   }
@@ -1440,9 +1456,14 @@ export function writeDailyNoteNative(date, content) {
  * as writeTaskStateToFile (shared updateTaskLines), then writes the result
  * back with writeDailyNote.
  *
- * @returns {boolean} whether a line was found and the note written — callers
- *   use this to commit a fresh block-id assignment only when it actually
- *   reached the vault.
+ * @returns {boolean} whether a line was found AND the bridge CONFIRMED the
+ *   write — callers use this to commit id/rawTitle bookkeeping (including a
+ *   fresh block-id assignment) only when it actually reached the vault. The
+ *   bridge's own result is honored via nativeWriteOk: returning `updated`
+ *   alone here once let a failed SAF write commit a block id no vault line
+ *   carried — an id no scan could ever match or tombstone. This is the native
+ *   half of the desktop contract, where the Electron shim's close() throws on
+ *   a failed write and the .then(commit) never runs.
  */
 export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null, blockId = null) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
@@ -1459,7 +1480,12 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
       const finalLines = taskHeading
         ? sortTaskLinesInSection(lines, taskHeading.trim(), date)
         : lines;
-      bridge.writeDailyNote(date, finalLines.join('\n'));
+      if (!nativeWriteOk(bridge.writeDailyNote(date, finalLines.join('\n')))) {
+        // Same surfacing as the desktop writeback's failure path: a console
+        // error, nothing user-facing.
+        console.error('Obsidian native writeback: vault write failed, not committing');
+        return false;
+      }
     }
     return updated;
   } catch (err) {

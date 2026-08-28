@@ -281,10 +281,16 @@ export const nativeGetTasksFromNote = (path) => {
   }
 };
 
+// Bridge write results are booleans on Android (@JavascriptInterface) but
+// STRINGS on iOS (the dgbridge:// XHR shim returns responseText, so a failed
+// write is the truthy string "false"). Write wrappers must normalize through
+// this — raw truthiness reads every iOS failure as success.
+const bridgeWriteOk = (v) => v === true || v === 'true';
+
 export const nativeAppendToNote = (path, content) => {
   const bridge = obsidianBridge();
   if (!bridge?.appendToNote) return false;
-  return bridge.appendToNote(path, content);
+  try { return bridgeWriteOk(bridge.appendToNote(path, content)); } catch { return false; }
 };
 
 /** Returns true if the vault root has been configured in the native settings. */
@@ -329,7 +335,7 @@ export const nativeGetNote = (path) => {
 export const nativeWriteNote = (path, content) => {
   const bridge = obsidianBridge();
   if (!bridge?.writeNote) return false;
-  try { return bridge.writeNote(path, content); } catch { return false; }
+  try { return bridgeWriteOk(bridge.writeNote(path, content)); } catch { return false; }
 };
 
 /**
@@ -339,7 +345,7 @@ export const nativeWriteNote = (path, content) => {
 export const nativeWriteDailyNote = (date, content) => {
   const bridge = obsidianBridge();
   if (!bridge?.writeDailyNote) return false;
-  try { return bridge.writeDailyNote(date, content); } catch { return false; }
+  try { return bridgeWriteOk(bridge.writeDailyNote(date, content)); } catch { return false; }
 };
 
 export const nativeScheduleReminder = (id, title, body, triggerAtMillis) => {
