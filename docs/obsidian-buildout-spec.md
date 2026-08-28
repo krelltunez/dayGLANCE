@@ -193,7 +193,7 @@ Relevant to Phases 6 and 7.
 
 ## 6. Phases
 
-Phases 0 through 2 are complete. Phases 2 through 4 are independent of the plugin and deliver value on their own.
+Phases 0 through 3 are complete. Phases 2 through 4 are independent of the plugin and deliver value on their own.
 
 ### Phase 0. Platform truth and write safety foundations — COMPLETE
 
@@ -280,7 +280,7 @@ Delivered by PRs #1435, #1444, #1445, and #1446; shipped with 4.7.0. See section
 
 ---
 
-### Phase 3. Write-safety hardening
+### Phase 3. Write-safety hardening — COMPLETE
 
 **Goal.** Make vault writes safe against concurrent edits and partial failures before expanding what gets written.
 
@@ -289,7 +289,7 @@ Delivered by PRs #1435, #1444, #1445, and #1446; shipped with 4.7.0. See section
 **Scope.**
 
 - Content-hash change detection, so a sync cycle with no delta writes nothing. *(Delivered: a no-delta scan cycle was measured to already write nothing by construction; the remaining redundancy — the cross-device echo write — is closed by a byte-identity skip in both task write paths: when the would-be output equals what was just read, the disk write is skipped while the confirmed-write semantics are kept. The first echo after an Obsidian-side edit still writes, deliberately — the section sort normalizes the file once and steady-state echoes then skip; avoiding that first write would mean loosening byte-equality into semantic equality, i.e. changing what gets written, which this deliberately is not.)*
-- Modified-since-last-read guard before overwrite, so an edit made in Obsidian between sync cycles is not clobbered.
+- Modified-since-last-read guard before overwrite, so an edit made in Obsidian between sync cycles is not clobbered. *(Investigated and DECLINED — recorded so it is not rediscovered as an open item. The pre-write read IS this guard, at the only granularity that matters and at the latest possible moment: every write path reads the file immediately before rewriting it, so "modified since last read" can only mean modified inside the read→write gap itself — single-digit milliseconds on desktop, ~10–50 ms through Android's SAF hops. The one surviving scenario needs Obsidian flushing a save into that gap ON THE SAME MACHINE (different machines write different vault copies), and even then Obsidian's editor re-saves its own buffer moments later and wins the file regardless, while the app-side state heals through the scan's completed-OR merge and the next writeback — permanent loss additionally requires Obsidian to quit before its next save. No transport offers compare-and-swap or locking, so the buildable minimum (a second read just before the write) closes only the compute microseconds of the window and buys effectively nothing; per-file mtime/hash state buys less (it was designed for write paths that don't read first, and all of ours provably do). The title dimension of the same race is separately closed by the write-time title guard below. WATCH SYMPTOM that would reopen this decision: text typed in Obsidian vanishing from a daily note whose task line just changed state on the same machine — seen more than once, it means the window is wider than analyzed, and the likely real culprit is a STALE READ BASIS (a transport serving cached reads), which wants a read-freshness fix on that transport, not this guard. Obsidian conflict banners or Sync conflicted copies clustering around dayGLANCE write times would point the same way.)*
 - Verify write atomicity per transport. FSA's `createWritable()` provides atomicity by default via a swap file and rename. The Electron main-process path and the Android SAF path need explicit verification. *(Delivered: Electron temp+fsync+rename; Android temp/delete/rename with deterministic recovery; iOS was atomic all along; the write/read failure contracts and their surfacing shipped alongside.)*
 
 **The two-sided retitle policy** (decided; `src/utils/obsidianTitleConflict.js`). A tagged task retitled in dayGLANCE **and** in Obsidian between syncs is detected by a three-string comparison — base = `obsidianRawTitle` (the vault line at our last successful observation, honest since the write-success contract), theirs = the parsed line now, ours = the app title stripped of the display tag; a conflict is both sides off the base, to different texts. Resolution: **the vault wins the title; the dayGLANCE rename is preserved as a durable record appended to `task.notes`** (idempotently — the record text is deterministic, so N devices' scans collapse to one line), plus a fire-and-forget neutral toast. A **write-time guard** funnels the write-first interleaving into the same single policy point: `updateTaskLines` compares the matched line's current bare title against the base and, on divergence, writes the state change while keeping the *line's* title (a state write must never revert an Obsidian retitle — that clobber destroyed its own evidence); if a retitle was also in flight it signals the conflict and the writeback skips the `titleUpdate` commit, so the base stays truthful and the next scan (≤5 min) resolves it — a delay, never a loss. The notes field is app-only and outside the writeback's change detection, so preservation can never itself trigger a vault write.
@@ -298,7 +298,7 @@ Delivered by PRs #1435, #1444, #1445, and #1446; shipped with 4.7.0. See section
 
 **Why this shape (recorded so it is not relitigated).** A conflict is a one-shot event, not a persisting condition — nothing broke, nothing retries, no recovery to await — so the failure-surfacing latch is the wrong channel: latched, a notice either evaporates before the user looks or squats on the error state blocking real failures, and it should not be red at all. The durable record belongs on the task, where the user will be looking when they notice the title is not what they typed. Rejected alternatives: **vault-wins-made-visible alone** (its honest version still wants somewhere durable for the old title, at which point it is this policy); **dayGLANCE wins** (reverts the user's edit in their own vault — hostile); **timestamp LWW** (built on sand: there is no per-line vault edit time, **file mtime on a synced vault reflects Obsidian Sync delivery, not edit time**, and clock skew applies — it would resolve confidently and sometimes wrongly, which is worse than not resolving); **conflict UI** (wrong cost/benefit for an event this rare). Untagged lines need no policy: they match by title equality, so a diverged untagged line simply re-imports under a new identity — the pre-existing benign behavior.
 
-**Exit criteria.** An edit made in Obsidian while dayGLANCE is running is never silently lost.
+**Exit criteria (met).** An edit made in Obsidian while dayGLANCE is running is never silently lost: atomicity per transport, the write and read failure contracts with surfacing, the two-sided retitle policy with its write-time guard, and the no-op write skip together close every identified loss channel; the declined guard's residual window is the same-machine sub-10 ms whole-file race documented above, dominated by Obsidian's own last write and self-healing in the app. Phase 4 is unblocked.
 
 ---
 
