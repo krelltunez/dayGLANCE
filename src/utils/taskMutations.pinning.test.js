@@ -526,14 +526,18 @@ describe('resize pin: applyResizeBlock vs the resize-loop write', () => {
 // toggle from the state whose flip equals the set.
 
 describe('completion pin: applySetCompletion vs toggleComplete', () => {
-  it('inbox complete: completed + completedAt(today) + transitionId', () => {
+  it('inbox complete: completed + completedAt(local-offset ISO datetime) + transitionId', () => {
+    // completedAt was a bare YYYY-MM-DD here for years; the completion-
+    // timestamp feature upgraded NEW stamps to full local-offset ISO
+    // datetimes on both branches (historical bare dates stay as they are).
     const inboxTask = { ...inboxTaskFixture(), completed: false };
     const { cap, actions } = useTaskActionsSetup({ unscheduledTasks: [inboxTask] });
     actions.toggleComplete('t-inbox', true);
     const uiTask = applyUpdaters(cap.calls.unscheduled, [inboxTask])[0];
+    expect(uiTask.completedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
 
     const res = applySetCompletion({ unscheduledTasks: [inboxTask], tasks: [] }, {
-      taskId: 't-inbox', completed: true, transitionId: UUID, todayStr: TODAY_STR, nowIso: NOW_ISO,
+      taskId: 't-inbox', completed: true, transitionId: UUID, nowIso: NOW_ISO,
     });
     pinShapes('completion(inbox, complete)', uiTask, res.task, {});
   });
@@ -550,16 +554,22 @@ describe('completion pin: applySetCompletion vs toggleComplete', () => {
     pinShapes('completion(inbox, un-complete)', uiTask, res.task, {});
   });
 
-  it('scheduled complete: completed + transitionId, and deliberately NO completedAt', () => {
+  it('scheduled complete: completed + completedAt(ISO datetime) + transitionId — the completion-timestamp contract flip', () => {
+    // FLIPPED PIN (deliberate, Obsidian completion timestamps): for years the
+    // scheduled branch wrote NO completedAt and this test asserted the
+    // absence. The marker feature requires the app to record what it writes
+    // to the vault, so BOTH branches now stamp a full local-offset ISO
+    // datetime. This pin now fails loudly if either side stops.
     const block = blockFixture();
     const { cap, actions } = useTaskActionsSetup({ tasks: [block] });
     actions.toggleComplete('b1', false);
     const uiTask = applyUpdaters(cap.calls.tasks, [block])[0];
-    expect('completedAt' in uiTask,
-      'the scheduled toggleComplete branch started writing completedAt; mirror it in applySetCompletion').toBe(false);
+    expect(uiTask.completedAt,
+      'the scheduled toggleComplete branch stopped writing completedAt; the Obsidian completion marker regenerates from it')
+      .toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
 
     const res = applySetCompletion({ unscheduledTasks: [], tasks: [block] }, {
-      taskId: 'b1', completed: true, transitionId: UUID, todayStr: TODAY_STR, nowIso: NOW_ISO,
+      taskId: 'b1', completed: true, transitionId: UUID, nowIso: NOW_ISO,
     });
     pinShapes('completion(scheduled)', uiTask, res.task, {});
   });

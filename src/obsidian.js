@@ -687,6 +687,71 @@ export async function scanVaultNotes(vaultHandle) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Tasks-plugin detection (completion-marker format selection)
+// ---------------------------------------------------------------------------
+
+// The Obsidian Tasks plugin's registry id, as it appears in
+// .obsidian/community-plugins.json (a flat JSON array of ENABLED plugin ids —
+// Obsidian rewrites it on enable/disable, so presence in the file IS the
+// enabled state).
+export const OBSIDIAN_TASKS_PLUGIN_ID = 'obsidian-tasks-plugin';
+
+/**
+ * Vault-level detection: is the Tasks plugin enabled? Reads
+ * .obsidian/community-plugins.json through the vault handle (File System
+ * Access in the browser; the Electron shim's stat/readFile reach dot-paths
+ * the same way).
+ *
+ * FAILURE DEFAULT (deliberate, from the gate review): missing, unreadable,
+ * or malformed → false → the Dataview inline-field format. A vault with no
+ * community plugins legitimately has no such file (the common case), and
+ * when detection is wrong the cost is cosmetic in the safe direction — the
+ * Tasks plugin ignores an unknown inline field, while Dataview still indexes
+ * it. Detection failure never blocks or fails the task write itself.
+ */
+export async function vaultHasTasksPlugin(vaultHandle) {
+  try {
+    const dir = await vaultHandle.getDirectoryHandle('.obsidian');
+    const fh = await dir.getFileHandle('community-plugins.json');
+    const file = await fh.getFile();
+    const arr = JSON.parse(await file.text());
+    return Array.isArray(arr) && arr.includes(OBSIDIAN_TASKS_PLUGIN_ID);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Native (Android/iOS) detection via the bridge's getCommunityPlugins, which
+ * follows the shared read contract: null = the read FAILED, "" = the file is
+ * determinately absent. Returns:
+ *   true / false — determinate answer;
+ *   null — could not determine (older native shell without the method, or a
+ *          failed read): the caller keeps its last known value rather than
+ *          flapping the format on a transient failure.
+ */
+export function detectTasksPluginNative() {
+  const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
+  if (!bridge?.getCommunityPlugins) return null;
+  try {
+    const text = bridge.getCommunityPlugins();
+    if (text === null || text === undefined) return null; // read failed
+    // The iOS shim is a Proxy (every method name "exists") and an OLD app
+    // shell's dispatcher answers unknown methods with the literal STRING
+    // "null" over HTTP 200 — the same string-transport trap as the write
+    // contract. That echo means "this shell doesn't have the method", i.e.
+    // undetermined — NOT "no plugins". A real vault answer is "" (absent
+    // file) or a JSON array.
+    if (text === 'null') return null;
+    if (text === '') return false; // determinately absent → no plugins enabled
+    const arr = JSON.parse(text);
+    return Array.isArray(arr) && arr.includes(OBSIDIAN_TASKS_PLUGIN_ID);
+  } catch {
+    return false; // malformed → the safe default (Dataview field)
+  }
+}
+
 /**
  * Strip leading date / date+time / time prefixes from a raw task line body
  * (the text after `- [x] `) to get the bare title, mirroring
@@ -736,15 +801,33 @@ function stripLinePrefixes(text) {
  *
  * @returns {boolean} whether any line was updated
  */
-export function updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId = null, onTitleConflict = null }) {
+export function updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId = null, onTitleConflict = null, completedAt = null, completionFormat = null }) {
   const timeStr = buildTimePrefix(startTime, duration);
   const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
   // When targetDate is provided (task rescheduled to a different day), write
   // an explicit inline date prefix so the task is attributed to the new date
   // while remaining in its original daily note file.
+  //
+  // The completion marker is a regenerated suffix from task state (see the
+  // marker section): the written title is always stripped of any trailing
+  // marker first — so a hand-written `✅ …` inside a title being stamped for
+  // the first time normalizes out in the same write instead of doubling —
+  // then the marker is re-emitted per (completed, completedAt, format). With
+  // completionFormat null nothing is re-emitted, which is how the OFF
+  // setting converges lines clean on their next touch.
   const rewrite = (i, indent, datePrefix, idSuffix, title = writtenTitle) => {
     const effectiveDatePrefix = targetDate ? `${targetDate} ` : datePrefix;
-    lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${effectiveDatePrefix}${timeStr}${title}${idSuffix}`;
+    // Markers live ONLY on tagged lines (the parse strips them only there).
+    // When this rewrite leaves the line untagged — no id to stamp, or a
+    // foreign block ref refused the stamp — the title stays byte-frozen and
+    // no marker is emitted: a marker the parse can't strip would become
+    // title text and silently change the line's content-derived identity.
+    const tagged = idSuffix !== '';
+    const emitTitle = tagged ? splitCompletionMarker(title).text.trimEnd() : title;
+    const markerSuffix = tagged
+      ? completionMarkerSuffix(completed, completedAt, completionFormat, emitTitle)
+      : '';
+    lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${effectiveDatePrefix}${timeStr}${emitTitle}${markerSuffix}${idSuffix}`;
   };
 
   let updated = false;
@@ -754,7 +837,13 @@ export function updateTaskLines(lines, { obsidianRawTitle, completed, startTime,
       if (!m) continue;
       const { text: body, blockId: lineId } = splitBlockId(m[3]);
       if (lineId !== blockId) continue;
-      const { bareTitle, datePrefix } = stripLinePrefixes(body);
+      // Marker-aware splitting: the completion marker is a regenerated
+      // decoration, never title text on a tagged line (the parse strips it
+      // the same way), so the write-time title guard below compares CLEAN
+      // titles — otherwise completing a task would read as a vault-side
+      // retitle.
+      const bodySansMarker = splitCompletionMarker(body).text;
+      const { bareTitle, datePrefix } = stripLinePrefixes(bodySansMarker);
       // WRITE-TIME TITLE GUARD (the two-sided retitle policy's funnel —
       // utils/obsidianTitleConflict.js). The line's CURRENT title is the
       // vault's truth; app state was built from obsidianRawTitle, our last
@@ -800,7 +889,7 @@ export function updateTaskLines(lines, { obsidianRawTitle, completed, startTime,
  *   callers use this to commit a fresh id assignment only when it actually
  *   reached the vault.
  */
-export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null, blockId = null, onTitleConflict = null) {
+export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null, blockId = null, onTitleConflict = null, completionMeta = null) {
   assertSafeDateStr(dateStr);
   if (targetDate) assertSafeDateStr(targetDate);
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
@@ -815,7 +904,11 @@ export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr,
   }
 
   const lines = text.split('\n');
-  const updated = updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId, onTitleConflict });
+  const updated = updateTaskLines(lines, {
+    obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId, onTitleConflict,
+    completedAt: completionMeta?.completedAt ?? null,
+    completionFormat: completionMeta?.format ?? null,
+  });
 
   if (updated) {
     const finalLines = taskHeading
@@ -998,6 +1091,77 @@ export function blockIdSuffix(blockId, writtenTitle) {
   return ` ^dg-${blockId}`;
 }
 
+// ---------------------------------------------------------------------------
+// Completion markers (docs/obsidian-buildout-spec.md — completion timestamps)
+//
+// When dayGLANCE completes a task it writes the completion date to the vault
+// line, in whichever of two formats fits the vault: the Tasks plugin's
+// `✅ YYYY-MM-DD` when that plugin is enabled (vault-level detection via
+// .obsidian/community-plugins.json), else a Dataview inline field
+// `[completed:: <ISO date or datetime>]`. The marker is a REGENERATED SUFFIX —
+// like the ^dg- token, it is never part of the stored title on either side —
+// which is what makes re-completion replace rather than append, and
+// uncompletion remove, with no dedicated machinery.
+//
+// IDENTITY SCOPING (the slice of the identity-freeze design this feature
+// needs): the marker is split off at parse time on ^dg--TAGGED LINES ONLY.
+// An untagged line stays byte-frozen exactly as today — a hand-written
+// `✅ 2026-08-10` there remains part of the title. Every line dayGLANCE
+// writes a marker to is tagged (writes stamp), so the strip covers exactly
+// the lines that need it. BOTH formats are always recognised at parse,
+// regardless of current plugin detection — otherwise toggling the Tasks
+// plugin would turn previously-written markers into title text and
+// manufacture title divergence.
+// ---------------------------------------------------------------------------
+
+const TASKS_DONE_MARKER_RE = /\s+✅\s*(\d{4}-\d{2}-\d{2})\s*$/u;
+const DATAVIEW_COMPLETED_RE = /\s+\[completed::\s*([^\]]*?)\s*\]\s*$/;
+
+/**
+ * Split a trailing completion marker (either format) off a task-line body
+ * that has already had its ^dg- token removed.
+ * @returns {{ text: string, completedAt: string|null }} completedAt is the
+ *   marker's value when it is ISO-shaped (starts YYYY-MM-DD), else null even
+ *   when a marker was stripped.
+ */
+export function splitCompletionMarker(text) {
+  let m = TASKS_DONE_MARKER_RE.exec(text);
+  if (m) return { text: text.slice(0, m.index), completedAt: m[1] };
+  m = DATAVIEW_COMPLETED_RE.exec(text);
+  if (m) {
+    return {
+      text: text.slice(0, m.index),
+      completedAt: /^\d{4}-\d{2}-\d{2}/.test(m[1]) ? m[1] : null,
+    };
+  }
+  return { text, completedAt: null };
+}
+
+/**
+ * The completion-marker suffix for a written line, or ''.
+ *
+ * Emission is DETERMINISTIC from the stored completedAt string — the ✅ date
+ * is completedAt.slice(0, 10) and the Dataview value is the stored string
+ * verbatim — never recomputed from "now" or a local timezone at write time,
+ * so every device regenerating the same state emits identical bytes (the
+ * no-op write skip depends on this). A date-only historical completedAt
+ * emits as a date rather than fabricating a midnight time.
+ *
+ * `format` null means no marker is written (setting off, or a caller that
+ * predates the feature): combined with the unconditional strip in the
+ * rewrite paths, turning the setting OFF converges lines clean on their
+ * next touch — never via a sweep.
+ *
+ * Like blockIdSuffix: never append after a user-authored trailing block
+ * reference — an Obsidian block id must be the last thing on its line.
+ */
+export function completionMarkerSuffix(completed, completedAt, format, writtenTitle) {
+  if (!completed || !completedAt || !format) return '';
+  if (hasForeignBlockId(writtenTitle)) return '';
+  if (format === 'tasks') return ` ✅ ${String(completedAt).slice(0, 10)}`;
+  return ` [completed:: ${completedAt}]`;
+}
+
 /**
  * Try to parse a time string from the beginning of text.
  * Supports single times ("09:00", "9:00 AM") and duration ranges ("09:00-10:00").
@@ -1107,9 +1271,22 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
     // untagged copy of the line would produce — that identity is what lets
     // ID-matching and text-matching fall back into each other cleanly.
     let blockId = null;
+    let lineCompletedAt = null;
     const idSplit = splitBlockId(rawTitle);
     if (idSplit.blockId) {
       rawTitle = idSplit.text.trim();
+      // TAGGED LINES ONLY: split the completion marker out of the title so it
+      // never becomes part of task identity (see the marker section above).
+      // The value is absorbed into completedAt only when the line is actually
+      // checked — a stray marker on an unchecked line is semantically wrong
+      // and is dropped (the next rewrite normalizes the line). Untagged lines
+      // below this branch stay byte-frozen: a hand-written marker there is
+      // title text, exactly as before this feature.
+      const markerSplit = splitCompletionMarker(rawTitle);
+      if (markerSplit.text !== rawTitle) {
+        rawTitle = markerSplit.text.trim();
+        if (completed) lineCompletedAt = markerSplit.completedAt;
+      }
       if (!seenBlockIds.has(idSplit.blockId)) {
         seenBlockIds.add(idSplit.blockId);
         blockId = idSplit.blockId;
@@ -1165,6 +1342,10 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
     const blockFields = blockId
       ? { obsidianBlockId: blockId, obsidianLegacyId: legacyId }
       : {};
+    // Only inject completedAt when a tagged line actually carried a marker —
+    // never an undefined key. The merge rule (app wins; the vault marker
+    // fills a blank) is applied at the sync merge sites, not here.
+    const completedAtFields = lineCompletedAt ? { completedAt: lineCompletedAt } : {};
 
     if (startTime) {
       // Timed task (with or without inline date)
@@ -1183,6 +1364,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
         obsidianRawTitle: rawTitle,
         obsidianFileDate: dateStr,
         ...blockFields,
+        ...completedAtFields,
       });
     } else if (isAllDay) {
       // Date-only task → all-day scheduled task
@@ -1201,6 +1383,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
         obsidianRawTitle: rawTitle,
         obsidianFileDate: dateStr,
         ...blockFields,
+        ...completedAtFields,
       });
     } else {
       // No date, no time → inbox
@@ -1217,6 +1400,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
         obsidianRawTitle: rawTitle,
         obsidianFileDate: dateStr,
         ...blockFields,
+        ...completedAtFields,
       });
     }
   }
@@ -1577,7 +1761,7 @@ export function writeDailyNoteNative(date, content) {
  *   half of the desktop contract, where the Electron shim's close() throws on
  *   a failed write and the .then(commit) never runs.
  */
-export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null, blockId = null, onWriteFailure = null, onTitleConflict = null) {
+export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null, blockId = null, onWriteFailure = null, onTitleConflict = null, completionMeta = null) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
   if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return false;
 
@@ -1593,7 +1777,11 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
     }
 
     const lines = text.split('\n');
-    const updated = updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId, onTitleConflict });
+    const updated = updateTaskLines(lines, {
+      obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId, onTitleConflict,
+      completedAt: completionMeta?.completedAt ?? null,
+      completionFormat: completionMeta?.format ?? null,
+    });
 
     if (updated) {
       const finalLines = taskHeading

@@ -32,7 +32,7 @@ export const mergeTaskArrays = (local, remote, deletedIds, syncHorizon = null) =
 const ALWAYS_LOCAL_KEYS = ['obsidianConfig'];
 // syncUrl/taskCalendarUrl/icsCalendars are device-local in multi-user because
 // each user's calendar config travels per-user via the calendarConfigByUser map instead.
-const MULTIUSER_LOCAL_KEYS = ['habitsEnabled', 'routinesEnabled', 'goalsProjectsEnabled', 'syncUrl', 'taskCalendarUrl', 'icsCalendars'];
+const MULTIUSER_LOCAL_KEYS = ['habitsEnabled', 'routinesEnabled', 'goalsProjectsEnabled', 'syncUrl', 'taskCalendarUrl', 'icsCalendars', 'obsidianCompletionDates'];
 
 // Per-user calendar config: {syncId → {syncUrl, taskCalendarUrl, auth?, updatedAt}}.
 // Union by syncId, keeping the newer entry per user (LWW). Each device reads only
@@ -358,6 +358,32 @@ export const mergeSyncData = (local, remote, retentionDays) => {
     const wj = JSON.stringify(winner);
     if (wj !== JSON.stringify(local?.icsCalendars ?? null)) result.localChanged = true;
     if (wj !== JSON.stringify(remote?.icsCalendars ?? null)) result.remoteChanged = true;
+  }
+
+  // "Write completion dates to Obsidian" (obsidianCompletionDates): scalar LWW
+  // by its UpdatedAt sibling, same shape as icsCalendars above. A SYNCED
+  // top-level key on purpose — it could not live inside obsidianConfig, which
+  // is ALWAYS_LOCAL_KEYS on this tier (and ALWAYS_DEVICE_LOCAL on the vault
+  // tier) because the vault genuinely differs per machine; this toggle is a
+  // vault CONVENTION the user wants consistent fleet-wide. The upstream merge
+  // predates the key and DROPS unknowns, hence this wrapper block. Remote wins
+  // ties, matching the vault bundle's pickByTs convention (dbAdapter.js) so
+  // the two tiers cannot disagree. In multi-user the device-local override
+  // below (MULTIUSER_LOCAL_KEYS) restores the local value afterwards — same
+  // reasoning as the feature toggles: one household member's choice must not
+  // flip everyone's vault convention.
+  if (local?.obsidianCompletionDates !== undefined || remote?.obsidianCompletionDates !== undefined) {
+    const cts = (v) => { const t = new Date(v ?? 0).getTime(); return Number.isNaN(t) ? 0 : t; };
+    const lts = cts(local?.obsidianCompletionDatesUpdatedAt);
+    const rts = cts(remote?.obsidianCompletionDatesUpdatedAt);
+    const remoteWins = rts >= lts && remote?.obsidianCompletionDates !== undefined;
+    const winner = remoteWins ? remote.obsidianCompletionDates : local?.obsidianCompletionDates;
+    result.data.obsidianCompletionDates = winner;
+    result.data.obsidianCompletionDatesUpdatedAt = remoteWins
+      ? (remote?.obsidianCompletionDatesUpdatedAt ?? null)
+      : (local?.obsidianCompletionDatesUpdatedAt ?? null);
+    if (winner !== local?.obsidianCompletionDates) result.localChanged = true;
+    if (winner !== remote?.obsidianCompletionDates) result.remoteChanged = true;
   }
 
   // Recurring completions ride inside the shared template row, which the upstream

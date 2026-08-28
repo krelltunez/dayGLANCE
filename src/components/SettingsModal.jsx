@@ -79,6 +79,7 @@ const SettingsModal = () => {
     availableCalendars, setAvailableCalendars, calendarFilter, setCalendarFilter,
     obsidianConfig, setObsidianConfig, obsidianSyncStatus, obsidianSyncError, obsidianLastSynced, setObsidianLastSynced,
     obsidianLaunchOnWrite, setObsidianLaunchOnWrite,
+    obsidianCompletionDates, setObsidianCompletionDates,
     obsidianVaultHandleRef, unportableVaultFiles, setUnportableVaultFiles,
     performObsidianSync,
     trmnlConfig, setTrmnlConfig, trmnlSyncStatus, trmnlLastSynced, performTrmnlSync,
@@ -1567,6 +1568,27 @@ const SettingsModal = () => {
                               </p>
                             </div>
                           )}
+                          {obsidianConfig?.enabled && (
+                            <div>
+                              <label className="flex items-center gap-3 cursor-pointer">
+                                <div className="relative">
+                                  <input
+                                    type="checkbox"
+                                    checked={obsidianCompletionDates}
+                                    onChange={(e) => setObsidianCompletionDates(e.target.checked)}
+                                    className="sr-only"
+                                  />
+                                  <div className={`w-10 h-6 rounded-full transition-colors ${obsidianCompletionDates ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${obsidianCompletionDates ? 'translate-x-5' : 'translate-x-1'}`} />
+                                  </div>
+                                </div>
+                                <span className={`text-sm ${textPrimary}`}>{t('settings.obsidianCompletionDates')}</span>
+                              </label>
+                              <p className={`text-xs ${textSecondary} mt-1`}>
+                                {t('settings.obsidianCompletionDatesHint')}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       ) : obsidianConfig?.enabled ? (
                         <div className="space-y-3">
@@ -1681,6 +1703,25 @@ const SettingsModal = () => {
                               </p>
                             </div>
                           )}
+                          <div>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                              <div className="relative">
+                                <input
+                                  type="checkbox"
+                                  checked={obsidianCompletionDates}
+                                  onChange={(e) => setObsidianCompletionDates(e.target.checked)}
+                                  className="sr-only"
+                                />
+                                <div className={`w-10 h-6 rounded-full transition-colors ${obsidianCompletionDates ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${obsidianCompletionDates ? 'translate-x-5' : 'translate-x-1'}`} />
+                                </div>
+                              </div>
+                              <span className={`text-sm ${textPrimary}`}>{t('settings.obsidianCompletionDates')}</span>
+                            </label>
+                            <p className={`text-xs ${textSecondary} mt-1`}>
+                              {t('settings.obsidianCompletionDatesHint')}
+                            </p>
+                          </div>
                           <div className="flex gap-2">
                             <button
                               onClick={() => performObsidianSync()}

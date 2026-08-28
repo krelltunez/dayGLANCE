@@ -357,6 +357,24 @@ class ObsidianRepository(private val context: Context) {
     }
 
     /**
+     * Content of .obsidian/community-plugins.json — the vault's enabled
+     * community-plugin ids, read for completion-marker format detection.
+     * Follows the shared read contract: "" = determinately ABSENT (no
+     * .obsidian folder or no such file — a vault with no community plugins
+     * legitimately has neither); NULL = could not be determined (vault
+     * unconfigured, or the read failed). The JS side defaults to the
+     * Dataview field format on "" and keeps its last known answer on null.
+     * SAF lists dot-named children normally — only our own note indexing
+     * skips them — so findFile reaches .obsidian directly.
+     */
+    fun getCommunityPlugins(): String? {
+        val root = vaultRoot() ?: return null
+        val dir = root.findFile(".obsidian") ?: return ""
+        val file = dir.findFile("community-plugins.json") ?: return ""
+        return readText(file)
+    }
+
+    /**
      * Returns a JSON array of note filenames in [folder] (relative to vault root).
      * Each entry is the path relative to the vault root, e.g. "Daily Notes/2026-03-08.md".
      * Returns "[]" if the vault isn't configured or the folder doesn't exist.

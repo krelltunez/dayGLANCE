@@ -1,7 +1,7 @@
 import { cleanTitle } from '../utils/suggestionParser.js';
 import { stripBucketId } from '../utils/bucketList.js';
 import { stripSpans } from '../utils/quickAddParser.js';
-import { dateToString, extractTags, formatDeadlineDate } from '../utils/taskUtils.js';
+import { dateToString, extractTags, formatDeadlineDate, completionTimestamp } from '../utils/taskUtils.js';
 import { TASK_COLORS } from '../utils/colorUtils.js';
 import { triggerHaptic } from '../native.js';
 
@@ -459,7 +459,7 @@ export default function useTaskActions({
 
     if (fromInbox) {
       setUnscheduledTasks(prev => prev.map(task =>
-        task.id === id ? { ...task, completed: !task.completed, completedAt: !task.completed ? dateToString(new Date()) : null, transitionId: crypto.randomUUID() } : task
+        task.id === id ? { ...task, completed: !task.completed, completedAt: !task.completed ? completionTimestamp() : null, transitionId: crypto.randomUUID() } : task
       ));
     } else {
       const task = tasks.find(t => t.id === id);
@@ -482,8 +482,12 @@ export default function useTaskActions({
           isAllDay: task.isAllDay
         });
       }
+      // completedAt on the scheduled branch is NEW (it deliberately didn't
+      // set one for years — the flip is pinned in taskMutations.pinning
+      // .test.js): the Obsidian completion marker regenerates from this
+      // stored value, so the app must record what it intends to write.
       setTasks(prev => prev.map(task =>
-        task.id === id ? { ...task, completed: !task.completed, transitionId: crypto.randomUUID() } : task
+        task.id === id ? { ...task, completed: !task.completed, completedAt: !task.completed ? completionTimestamp() : null, transitionId: crypto.randomUUID() } : task
       ));
     }
     if (taskToToggle && !taskToToggle.completed) {

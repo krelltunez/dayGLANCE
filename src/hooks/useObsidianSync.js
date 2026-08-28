@@ -6,6 +6,7 @@ import {
   simpleHash as obsidianSimpleHash,
   deriveBlockId, appIdForBlockId,
   readWikiNote, writeWikiNote, scanVaultNotes,
+  vaultHasTasksPlugin, detectTasksPluginNative,
   OBSIDIAN_IMPORT_WINDOW_DAYS, obsidianWindowCutoffDate,
 } from '../obsidian.js';
 import {
@@ -25,7 +26,7 @@ import {
   RETIRED_TASK_IDS_STORAGE_KEY,
   RETIRED_ID_DUAL_WRITE,
 } from '../utils/retiredTaskIds.js';
-import { blockIdWritesEnabled } from '../utils/obsidianWritePolicy.js';
+import { blockIdWritesEnabled, completionMarkerWritesEnabled } from '../utils/obsidianWritePolicy.js';
 import { titleConflictNoticeText } from '../utils/obsidianTitleConflict.js';
 import { withCreationFrontmatter } from '../utils/obsidianFrontmatter.js';
 
@@ -78,6 +79,7 @@ export default function useObsidianSync({
   setUnportableVaultFiles,
   obsidianConfig, setObsidianConfig,
   obsidianLaunchOnWrite,
+  obsidianCompletionDates,
   obsidianSyncError,
   setObsidianSyncStatus, setObsidianSyncError, setObsidianLastSynced,
   setObsidianSyncNotice,
@@ -169,6 +171,32 @@ export default function useObsidianSync({
 
   const taskWriteErrorRef = useRef(null); // the message we latched, or null
   const restoreErrorRef = useRef(null);   // ditto, for a failed note restore
+
+  // ── Tasks-plugin detection (completion-marker format) ─────────────────────
+  // Vault-level: is the Obsidian Tasks plugin enabled? Decides the marker
+  // format (✅ date vs [completed:: …] Dataview field) at WRITE TIME only —
+  // historical lines are never rewritten for a detection change (they adopt
+  // the current format the next time their task changes anyway). Refreshed on
+  // every sync cycle; persisted so the first write after an app start uses
+  // the last known answer instead of flapping the format. Default false →
+  // the Dataview field, the safe direction when nothing is known.
+  const tasksPluginRef = useRef((() => {
+    try { return localStorage.getItem('day-planner-obsidian-tasks-plugin') === 'true'; }
+    catch { return false; }
+  })());
+  const refreshTasksPluginDetection = async (handle) => {
+    try {
+      const detected = handle === 'native'
+        ? detectTasksPluginNative()
+        : await vaultHasTasksPlugin(handle);
+      // null = could not determine (old native shell / failed read): keep the
+      // last known value rather than flapping the format.
+      if (detected === true || detected === false) {
+        tasksPluginRef.current = detected;
+        try { localStorage.setItem('day-planner-obsidian-tasks-plugin', String(detected)); } catch { /* ignore */ }
+      }
+    } catch { /* detection must never fail a sync */ }
+  };
 
   const reportTaskWriteFailure = useCallback(() => {
     if (taskWriteErrorRef.current) return; // latched
@@ -297,6 +325,9 @@ export default function useObsidianSync({
       // persisting condition, so it never touches the error latch.
       const titleConflicts = [];
       const onTitleConflict = (c) => titleConflicts.push(c);
+      // Refresh the completion-marker format detection once per cycle (cheap:
+      // one small dotfile read; never fails the sync).
+      await refreshTasksPluginDetection(obsidianVaultHandleRef.current);
       const result = isNative
         ? await syncObsidianVaultNative(
             obsidianConfig?.dailyNotesPath || '',
@@ -322,6 +353,19 @@ export default function useObsidianSync({
       // task looked like a phantom change and re-stamped lastModified every load
       // (the DB-sync push churn). Only carry a value that is actually present so we
       // never inject undefined keys.
+      //
+      // completedAt now ALSO arrives from the vault (the parse absorbs a
+      // completion marker on tagged lines), and the carry below doubles as the
+      // merge rule the completion-timestamp feature settled on — APP WINS WHEN
+      // IT HAS A VALUE; THE VAULT MARKER FILLS THE BLANK: a title is
+      // user-authored content, so the vault is ground truth for titles — but a
+      // completion timestamp is dayGLANCE's own record of an action dayGLANCE
+      // performed, and the vault marker is an echo of it. Letting a stale echo
+      // overwrite the source would be backwards. The adoption case — vault has
+      // a marker, app has none (old.completedAt undefined) — isn't a conflict
+      // at all; it's importing data we lack, and the spread leaves the parsed
+      // value in place exactly there. An explicit null (the app uncompleted
+      // the task) is the app's statement and still wins.
       const preserveObsidianAppFields = (old) => ({
         ...(old.projectId ? { projectId: old.projectId } : {}),
         ...(old.deadline ? { deadline: old.deadline } : {}),
@@ -749,6 +793,18 @@ export default function useObsidianSync({
       // (utils/obsidianTitleConflict.js). A delay of one scan cycle, never a
       // loss. Only tagged lines can conflict (untagged lines match by title
       // equality), so no block-id assignment or retirement is ever involved.
+      // Completion marker (docs/obsidian-buildout-spec.md — completion
+      // timestamps): regenerated from task state at every rewrite. Format
+      // chosen by the per-cycle Tasks-plugin detection; the whole meta is
+      // null when the synced setting is off — updateTaskLines then still
+      // STRIPS an existing marker on the lines it rewrites (OFF converges
+      // clean per-touch, never via a sweep) but regenerates nothing.
+      // Gated twice: the §3.9 build-time write gate (correctness — may this
+      // build emit the format) AND the synced user setting (aesthetics).
+      const completionMeta = (completionMarkerWritesEnabled() && obsidianCompletionDates)
+        ? { completedAt: task.completedAt ?? null, format: tasksPluginRef.current ? 'tasks' : 'dataview' }
+        : null;
+
       let titleConflicted = false;
       const noteTitleConflict = () => { titleConflicted = true; };
       let titleUpdate = null;
@@ -790,6 +846,7 @@ export default function useObsidianSync({
           writeBlockId,
           reportTaskWriteFailure,
           noteTitleConflict,
+          completionMeta,
         );
         if (updated) nativeCommits.push(commit);
       } else {
@@ -806,6 +863,7 @@ export default function useObsidianSync({
           taskHeading,
           writeBlockId,
           noteTitleConflict,
+          completionMeta,
         ).then(updated => {
           // `updated` false here is the benign NotFound case (file gone —
           // the scan reconciles); a real write failure REJECTS instead.

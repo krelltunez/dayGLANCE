@@ -273,6 +273,8 @@
     "obsidianLaunchOnWrite": "Launch Obsidian after writes",
     "obsidianLaunchOnWriteHint": "After dayGLANCE writes to your vault, launch Obsidian so Obsidian Sync can push the change to your other devices. On macOS this happens in the background.",
     "obsidianLaunchOnWriteHintAndroid": "After dayGLANCE writes to your vault, leaving the app with Back opens Obsidian directly; leaving with Home or Recents shows a notification you can tap instead (Android doesn't let apps open over the Home screen). Either way, Obsidian Sync can then push the change to your other devices.",
+    "obsidianCompletionDates": "Write completion dates to Obsidian",
+    "obsidianCompletionDatesHint": "When you complete a task, its completion date is added to the task line in your vault — as ✅ 2026-01-15 when the Tasks plugin is enabled, or as a [completed:: …] Dataview field otherwise. Turning this off stops new markers; existing lines are left untouched until they next change.",
     "obsidianSyncComplete": "Sync complete",
     "obsidianSyncFailed": "Sync failed. Check console for details",
     "obsidianSelectVault": "Select Vault Folder",

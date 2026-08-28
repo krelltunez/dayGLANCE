@@ -97,6 +97,7 @@ const MobileSettingsPanel = () => {
     syncKeyReady, setSyncKeyReady,
     obsidianConfig, setObsidianConfig,
     obsidianLaunchOnWrite, setObsidianLaunchOnWrite,
+    obsidianCompletionDates, setObsidianCompletionDates,
     obsidianSyncStatus, obsidianSyncError, obsidianLastSynced, setObsidianLastSynced,
     wikilinkCandidates, setWikilinkCandidates,
     unportableVaultFiles, setUnportableVaultFiles,
@@ -1694,6 +1695,25 @@ const MobileSettingsPanel = () => {
               <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianLaunchOnWriteHintAndroid')}</p>
             </div>
           )}
+          {obsidianConfig?.enabled && (
+            <div>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={obsidianCompletionDates}
+                    onChange={(e) => setObsidianCompletionDates(e.target.checked)}
+                    className="sr-only"
+                  />
+                  <div className={`w-10 h-6 rounded-full transition-colors ${obsidianCompletionDates ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${obsidianCompletionDates ? 'translate-x-5' : 'translate-x-1'}`} />
+                  </div>
+                </div>
+                <span className={`text-sm ${textPrimary}`}>{t('settings.obsidianCompletionDates')}</span>
+              </label>
+              <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianCompletionDatesHint')}</p>
+            </div>
+          )}
           {obsidianSyncStatus === 'success' && <p className="text-xs text-green-500">{t('settings.obsidianSyncComplete')}</p>}
           {obsidianSyncStatus === 'error' && <p className="text-xs text-red-500">{t('settings.obsidianSyncFailed')}</p>}
           {obsidianLastSynced && obsidianConfig?.enabled && (
@@ -1786,6 +1806,23 @@ const MobileSettingsPanel = () => {
               <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianLaunchOnWriteHint')}</p>
             </div>
           )}
+          <div>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={obsidianCompletionDates}
+                  onChange={(e) => setObsidianCompletionDates(e.target.checked)}
+                  className="sr-only"
+                />
+                <div className={`w-10 h-6 rounded-full transition-colors ${obsidianCompletionDates ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${obsidianCompletionDates ? 'translate-x-5' : 'translate-x-1'}`} />
+                </div>
+              </div>
+              <span className={`text-sm ${textPrimary}`}>{t('settings.obsidianCompletionDates')}</span>
+            </label>
+            <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianCompletionDatesHint')}</p>
+          </div>
           <div className="flex gap-2">
             <button
               onClick={() => performObsidianSync()}

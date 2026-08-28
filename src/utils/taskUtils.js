@@ -13,6 +13,26 @@ export const dateToString = (date) => {
 // so callers throughout the codebase rely on being able to call it with no args.
 export const localDateStr = (d = new Date()) => dateToString(d);
 
+// Completion timestamp: full ISO-8601 datetime WITH THE LOCAL UTC OFFSET
+// (e.g. "2026-08-28T20:15:30-05:00"), stamped into task.completedAt when a
+// task is completed. Local-offset rather than toISOString()'s UTC because
+// slice(0, 10) of the stored string must be the user's LOCAL date at the
+// moment of completion — it becomes the `✅ YYYY-MM-DD` the Obsidian
+// completion marker shows, and an evening completion in the Americas must
+// not read as tomorrow. Derivations from the STORED string (never
+// recomputed later) keep marker emission byte-deterministic across devices.
+// Consumers that compare or sort (`new Date(...)`, lexical `>=` against a
+// YYYY-MM-DD cutoff) handle this form, bare dates, and UTC ISO alike.
+export const completionTimestamp = (d = new Date()) => {
+  const pad = (n) => String(n).padStart(2, '0');
+  const offMin = -d.getTimezoneOffset();
+  const sign = offMin >= 0 ? '+' : '-';
+  const abs = Math.abs(offMin);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
+    `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+};
+
 // Extract #hashtags from a task title (tags must start with a letter).
 // Accepts Obsidian's full tag alphabet — letters, digits, underscore, hyphen,
 // and `/` for nested tags — so `#work/deep` filters as `work/deep` rather

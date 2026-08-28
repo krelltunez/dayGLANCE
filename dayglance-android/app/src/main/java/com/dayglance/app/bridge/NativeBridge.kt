@@ -200,6 +200,10 @@ class NativeBridge(
     @JavascriptInterface
     fun getDailyNote(date: String): String? = obsidian.getDailyNote(date)
 
+    // Same "" = absent / NULL = undetermined contract as the repository.
+    @JavascriptInterface
+    fun getCommunityPlugins(): String? = obsidian.getCommunityPlugins()
+
     @JavascriptInterface
     fun listNotes(folder: String): String = obsidian.listNotes(folder)
 
