@@ -288,7 +288,7 @@ Delivered by PRs #1435, #1444, #1445, and #1446; shipped with 4.7.0. See section
 
 **Scope.**
 
-- Content-hash change detection, so a sync cycle with no delta writes nothing.
+- Content-hash change detection, so a sync cycle with no delta writes nothing. *(Delivered: a no-delta scan cycle was measured to already write nothing by construction; the remaining redundancy — the cross-device echo write — is closed by a byte-identity skip in both task write paths: when the would-be output equals what was just read, the disk write is skipped while the confirmed-write semantics are kept. The first echo after an Obsidian-side edit still writes, deliberately — the section sort normalizes the file once and steady-state echoes then skip; avoiding that first write would mean loosening byte-equality into semantic equality, i.e. changing what gets written, which this deliberately is not.)*
 - Modified-since-last-read guard before overwrite, so an edit made in Obsidian between sync cycles is not clobbered.
 - Verify write atomicity per transport. FSA's `createWritable()` provides atomicity by default via a swap file and rename. The Electron main-process path and the Android SAF path need explicit verification. *(Delivered: Electron temp+fsync+rename; Android temp/delete/rename with deterministic recovery; iOS was atomic all along; the write/read failure contracts and their surfacing shipped alongside.)*
 
