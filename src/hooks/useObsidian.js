@@ -34,6 +34,27 @@ const useObsidian = () => {
     return saved === 'on' || saved === 'off' ? saved : null;
   });
 
+  // "Write completion dates to Obsidian" — a SYNCED top-level setting
+  // (habitsEnabled pattern: value + UpdatedAt sibling, LWW across a user's
+  // own devices), default ON. Deliberately NOT a field of obsidianConfig:
+  // that object is device-local on every merge tier (mergeSync
+  // ALWAYS_LOCAL_KEYS, dbAdapter ALWAYS_DEVICE_LOCAL — the vault genuinely
+  // differs per machine), so a field there would never propagate — and this
+  // is a vault CONVENTION the user wants consistent fleet-wide, not a device
+  // preference. Aesthetic, not correctness: OFF means markers stop being
+  // regenerated and lines converge clean on their next touch (no sweep);
+  // reading both marker formats stays unconditional.
+  const [obsidianCompletionDates, setObsidianCompletionDates] = useState(() => {
+    try {
+      const saved = localStorage.getItem('day-planner-obsidian-completion-dates');
+      return saved === null ? true : JSON.parse(saved) === true;
+    } catch { return true; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('day-planner-obsidian-completion-dates', JSON.stringify(obsidianCompletionDates));
+  }, [obsidianCompletionDates]);
+
   // Persist Obsidian config
   useEffect(() => {
     if (obsidianConfig) {
@@ -56,6 +77,7 @@ const useObsidian = () => {
   return {
     obsidianConfig, setObsidianConfig,
     obsidianLaunchOnWrite, setObsidianLaunchOnWrite,
+    obsidianCompletionDates, setObsidianCompletionDates,
     obsidianSyncStatus, setObsidianSyncStatus,
     obsidianSyncNotice, setObsidianSyncNotice,
     obsidianSyncError, setObsidianSyncError,

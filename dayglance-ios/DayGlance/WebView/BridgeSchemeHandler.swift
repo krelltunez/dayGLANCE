@@ -320,6 +320,11 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
             // from the scan and arms the deletion detector.
             guard let date = args.first as? String else { return nil }
             return ObsidianBridge.shared.getDailyNote(date: date)
+        case "getCommunityPlugins":
+            // Same contract as getDailyNote: nil (→ 500 → JS null) = the read
+            // FAILED; "" = the file is determinately absent (no community
+            // plugins). Feeds completion-marker format detection only.
+            return ObsidianBridge.shared.getCommunityPlugins()
         case "writeDailyNote":
             guard args.count >= 2,
                   let date    = args[0] as? String,

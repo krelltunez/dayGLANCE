@@ -188,6 +188,14 @@ class ObsidianBridge(private val context: Context, private val webView: android.
     fun getDailyNote(date: String): String? = repository.getDailyNote(date)
 
     /**
+     * Content of .obsidian/community-plugins.json for completion-marker
+     * format detection. Same read contract: "" = determinately absent,
+     * NULL = could not be determined (see ObsidianRepository).
+     */
+    @JavascriptInterface
+    fun getCommunityPlugins(): String? = repository.getCommunityPlugins()
+
+    /**
      * Returns a JSON array of note paths (relative to vault root) in [folder].
      * Returns "[]" if vault isn't configured or the folder doesn't exist.
      */

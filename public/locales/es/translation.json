@@ -270,6 +270,8 @@
     "obsidianLaunchOnWrite": "Abrir Obsidian tras las escrituras",
     "obsidianLaunchOnWriteHint": "Después de que dayGLANCE escriba en tu vault, se abre Obsidian para que Obsidian Sync envíe el cambio a tus otros dispositivos. En macOS esto ocurre en segundo plano.",
     "obsidianLaunchOnWriteHintAndroid": "Después de que dayGLANCE escriba en tu vault, salir de la aplicación con Atrás abre Obsidian directamente; al salir con Inicio o Recientes se muestra una notificación que puedes tocar (Android no permite que las aplicaciones se abran sobre la pantalla de inicio). En ambos casos, Obsidian Sync puede enviar el cambio a tus otros dispositivos.",
+    "obsidianCompletionDates": "Escribir fechas de finalización en Obsidian",
+    "obsidianCompletionDatesHint": "Al completar una tarea, su fecha de finalización se añade a la línea de la tarea en tu vault — como ✅ 2026-01-15 si el plugin Tasks está activado, o como un campo Dataview [completed:: …] en caso contrario. Al desactivarlo no se escriben nuevas marcas; las líneas existentes quedan intactas hasta su próximo cambio.",
     "obsidianSyncComplete": "Sincronización completada",
     "obsidianSyncFailed": "Sincronización fallida. Ver consola para detalles",
     "obsidianSelectVault": "Seleccionar carpeta del vault",

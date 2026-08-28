@@ -149,6 +149,33 @@ describe('file-tier merge ingress', () => {
     expect(result.data.tasks.map((t) => t.id)).toEqual([GHOST_ID]);
   });
 
+  it('§3.9 DECORATED GHOST: a completion-marker-bearing stamped line mints a ghost that is contained the same way', () => {
+    // The completion marker is the first written line format since §3.9
+    // recorded the ^dg- token as the universal self-identifying carrier, so
+    // this is the standing per-format obligation: an old client parsing
+    // `- [x] Buy milk ✅ 2026-08-28 ^dg-k3x9q2mf` swallows marker AND token
+    // into the title. The token still sits at absolute end (rule 3), the
+    // ghost's id is the legacy hash of the FULL mangled text — decoration
+    // included (rule 4) — and the successor is live (rule 5): containment is
+    // inherited, nothing marker-specific needed.
+    const mangled = `Buy milk ✅ 2026-08-28 ^dg-${BLOCK}`;
+    const decoratedGhost = ghost({
+      id: legacyObsidianId(DATE, mangled),
+      obsidianRawTitle: mangled,
+      title: `${mangled} #obsidian`,
+      completed: true,
+      lastModified: '2026-08-26T12:00:00.000Z',
+    });
+    const local = { ...EMPTY, tasks: [successor()] };
+    const remote = { ...EMPTY, tasks: [successor(), decoratedGhost] };
+    const result = mergeSyncData(local, remote, 365);
+    expect(result.data.tasks).toHaveLength(1);
+    const s = result.data.tasks[0];
+    expect(s.id).toBe(DG_ID);
+    expect(s.completed).toBe(true);          // the newer edit survives the redirect
+    expect(s.title).not.toMatch(/\^dg-/);
+  });
+
   it('a legitimate token-lookalike title is not eaten by the merge', () => {
     const raw = 'Test three ^dg-testtest';
     const lookalike = ghost({ id: legacyObsidianId(DATE, raw), obsidianRawTitle: raw, title: `${raw} #obsidian` });

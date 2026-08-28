@@ -22,6 +22,8 @@
 // rejects _native explicitly — and none of this module touches localStorage,
 // so no day-planner-native-time-overrides entry can ever be written from it.
 
+import { completionTimestamp } from './taskUtils.js';
+
 export const WRITE_ERROR_CODES = Object.freeze({
   NOT_FOUND: 'not_found',
   VALIDATION: 'validation',
@@ -354,9 +356,11 @@ export function applyResizeBlock(state, { blockId, durationMinutes, transitionId
  *  - recurring instance (:415-431): completedDates membership on the template,
  *    stamped per-date in completedDatesTimestamps so sync resolves by
  *    last-writer-wins per date.
- *  - inbox (:449-452): completed + completedAt + transitionId.
- *  - scheduled (:474-476): completed + transitionId (no completedAt — the UI
- *    scheduled branch does not set it, and this module matches the UI).
+ *  - inbox: completed + completedAt + transitionId.
+ *  - scheduled: completed + completedAt + transitionId. The scheduled branch
+ *    stamping completedAt is NEW (Obsidian completion markers regenerate
+ *    from it — the UI branch stamps it too); for years it deliberately did
+ *    not, and the old absence was pinned by taskMutations.pinning.test.js.
  *
  * NOT supported here, rejected explicitly rather than half-done:
  *  - _native events (read-only, see module header)
@@ -508,7 +512,7 @@ export function applyUndoOps(state, ops, { nowIso }) {
   return { ok: true, tasks, unscheduledTasks: unscheduled, recurringTasks: recurring, recycleBin, undone, skipped };
 }
 
-export function applySetCompletion(state, { taskId, completed, transitionId, todayStr, nowIso }) {
+export function applySetCompletion(state, { taskId, completed, transitionId, nowIso }) {
   const tasks = state.tasks ?? [];
   const unscheduled = state.unscheduledTasks ?? [];
   const recurring = state.recurringTasks ?? [];
@@ -553,11 +557,18 @@ export function applySetCompletion(state, { taskId, completed, transitionId, tod
     return { ok: true, replayed: true, tasks, unscheduledTasks: unscheduled, task };
   }
 
+  // Both branches stamp completedAt with the SAME local-offset ISO datetime
+  // the UI stamps (completionTimestamp — not nowIso, so the two sides emit
+  // byte-identical values and the Obsidian completion marker regenerates the
+  // same bytes whichever side completed the task). The scheduled branch
+  // setting it is NEW: the marker regenerates from this stored value, so
+  // every completion path must record it. Mirrors useTaskActions.toggleComplete.
+  const completedAt = completed ? completionTimestamp() : null;
   if (inInbox) {
     const next = {
       ...task,
       completed,
-      completedAt: completed ? todayStr : null,
+      completedAt,
       ...(transitionId ? { transitionId } : {}),
     };
     return {
@@ -568,7 +579,7 @@ export function applySetCompletion(state, { taskId, completed, transitionId, tod
       task: next,
     };
   }
-  const next = { ...task, completed, ...(transitionId ? { transitionId } : {}) };
+  const next = { ...task, completed, completedAt, ...(transitionId ? { transitionId } : {}) };
   return {
     ok: true,
     replayed: false,

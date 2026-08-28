@@ -271,22 +271,24 @@ describe('applySetCompletion', () => {
     recurringTasks: [{ id: 'r1', title: 'Standup', completedDates: ['2026-08-09'], completedDatesTimestamps: {} }],
   };
 
-  it('completes a scheduled task with a transitionId and no completedAt (matching the UI scheduled branch)', () => {
-    const r = applySetCompletion({ tasks: [T()], unscheduledTasks: [] }, { taskId: 'b1', completed: true, transitionId: 'k4', todayStr: '2026-08-10', nowIso: NOW });
+  const LOCAL_ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/;
+
+  it('completes a scheduled task WITH completedAt (the completion-timestamp contract flip — matching the UI scheduled branch)', () => {
+    const r = applySetCompletion({ tasks: [T()], unscheduledTasks: [] }, { taskId: 'b1', completed: true, transitionId: 'k4', nowIso: NOW });
     expect(r.ok).toBe(true);
     expect(r.task).toMatchObject({ id: 'b1', completed: true, transitionId: 'k4' });
-    expect(r.task).not.toHaveProperty('completedAt');
+    expect(r.task.completedAt).toMatch(LOCAL_ISO_RE);
   });
 
-  it('completes an inbox task WITH completedAt (matching the UI inbox branch)', () => {
+  it('completes an inbox task WITH completedAt as a local-offset ISO datetime (matching the UI inbox branch)', () => {
     const r = applySetCompletion(
       { tasks: [], unscheduledTasks: [{ id: 'u1', title: 'x', completed: false }] },
-      { taskId: 'u1', completed: true, transitionId: 'k5', todayStr: '2026-08-10', nowIso: NOW },
+      { taskId: 'u1', completed: true, transitionId: 'k5', nowIso: NOW },
     );
-    expect(r.task.completedAt).toBe('2026-08-10');
+    expect(r.task.completedAt).toMatch(LOCAL_ISO_RE);
     const undo = applySetCompletion(
       { tasks: [], unscheduledTasks: [r.task] },
-      { taskId: 'u1', completed: false, todayStr: '2026-08-10', nowIso: NOW },
+      { taskId: 'u1', completed: false, nowIso: NOW },
     );
     expect(undo.task.completedAt).toBeNull();
   });

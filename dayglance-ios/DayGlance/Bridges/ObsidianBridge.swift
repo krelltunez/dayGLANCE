@@ -122,6 +122,22 @@ final class ObsidianBridge: NSObject {
         }
     }
 
+    /// Content of .obsidian/community-plugins.json — the vault's enabled
+    /// community-plugin ids, read for completion-marker format detection.
+    /// Same read contract as getDailyNote: "" = the file is determinately
+    /// absent (a vault with no community plugins legitimately has none);
+    /// nil (→ 500 → JS null) = the answer could not be determined (vault
+    /// unconfigured, bookmark/access failure, or an unreadable file). JS
+    /// defaults to the Dataview field on "" and keeps its last known answer
+    /// on null.
+    func getCommunityPlugins() -> String? {
+        withVault(fallback: nil) { vault -> String? in
+            let file = vault.appendingPathComponent(".obsidian/community-plugins.json")
+            guard FileManager.default.fileExists(atPath: file.path) else { return "" }
+            return try? String(contentsOf: file, encoding: .utf8) // read failure → nil
+        }
+    }
+
     func writeDailyNote(date: String, content: String) -> String {
         withVault(fallback: "false") { vault in
             guard let fileName = dailyNoteFileName(date: date) else { return "false" }

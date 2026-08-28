@@ -270,6 +270,8 @@
     "obsidianLaunchOnWrite": "Avvia Obsidian dopo le scritture",
     "obsidianLaunchOnWriteHint": "Dopo che dayGLANCE ha scritto nel tuo vault, Obsidian viene avviato così Obsidian Sync invia la modifica agli altri tuoi dispositivi. Su macOS avviene in background.",
     "obsidianLaunchOnWriteHintAndroid": "Dopo che dayGLANCE ha scritto nel tuo vault, uscire dall'app con Indietro apre Obsidian direttamente; uscendo con Home o le app recenti compare invece una notifica da toccare (Android non consente alle app di aprirsi sopra la schermata Home). In entrambi i casi, Obsidian Sync può poi inviare la modifica agli altri tuoi dispositivi.",
+    "obsidianCompletionDates": "Scrivi le date di completamento in Obsidian",
+    "obsidianCompletionDatesHint": "Quando completi un'attività, la data di completamento viene aggiunta alla riga dell'attività nel tuo vault — come ✅ 2026-01-15 se il plugin Tasks è attivo, altrimenti come campo Dataview [completed:: …]. Disattivandolo non vengono scritti nuovi contrassegni; le righe esistenti restano intatte fino alla prossima modifica.",
     "obsidianSyncComplete": "Sincronizzazione completata",
     "obsidianSyncFailed": "Sincronizzazione fallita. Controlla la console",
     "obsidianSelectVault": "Seleziona cartella vault",

@@ -110,6 +110,10 @@ const REPRESENTATIVE = {
   goalsProjectsEnabledUpdatedAt: ISO,
   obsidianConfig: { dailyNotesFolder: 'Daily' },
   obsidianConfigUpdatedAt: ISO,
+  // Synced vault-convention toggle (its own wrapper block in mergeSync.js —
+  // deliberately NOT inside device-local obsidianConfig).
+  obsidianCompletionDates: true,
+  obsidianCompletionDatesUpdatedAt: ISO,
   multiUserEnabled: false,
   multiUserEnabledUpdatedAt: ISO,
   users: [{ syncId: 'u1', name: 'Me', updatedAt: ISO }],

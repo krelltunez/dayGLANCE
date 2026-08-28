@@ -751,6 +751,7 @@ const DayPlanner = () => {
   const {
     obsidianConfig, setObsidianConfig,
     obsidianLaunchOnWrite, setObsidianLaunchOnWrite,
+    obsidianCompletionDates, setObsidianCompletionDates,
     obsidianSyncStatus, setObsidianSyncStatus,
     obsidianSyncError, setObsidianSyncError,
     obsidianSyncNotice, setObsidianSyncNotice,
@@ -2285,6 +2286,8 @@ const DayPlanner = () => {
   useEffect(() => { writeConfigTimestamp('day-planner-goals-projects-enabled-updated-at'); }, [goalsProjectsEnabled]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { writeConfigTimestamp('dayglance-multi-user-enabled-updated-at'); }, [multiUserEnabled]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { writeConfigTimestamp('day-planner-obsidian-completion-dates-updated-at'); }, [obsidianCompletionDates]);
   // Content-keyed (not identity-keyed) so a remote apply rebuilding an equal
   // array doesn't restamp; writeConfigTimestamp additionally skips remote applies.
   const icsCalendarsJson = JSON.stringify(icsCalendars);
@@ -2764,6 +2767,7 @@ const DayPlanner = () => {
     setUnportableVaultFiles,
     obsidianConfig, setObsidianConfig,
     obsidianLaunchOnWrite,
+    obsidianCompletionDates,
     obsidianSyncError,
     setObsidianSyncStatus, setObsidianSyncError, setObsidianLastSynced,
     setObsidianSyncNotice,
@@ -4526,6 +4530,7 @@ const DayPlanner = () => {
       habitLogs: JSON.parse(localStorage.getItem('day-planner-habit-logs') || '{}'),
       aiConfig: JSON.parse(localStorage.getItem('day-planner-ai-config') || 'null'),
       obsidianConfig: JSON.parse(localStorage.getItem('day-planner-obsidian-config') || 'null'),
+      obsidianCompletionDates: JSON.parse(localStorage.getItem('day-planner-obsidian-completion-dates') || 'true'),
       calendarFilter: JSON.parse(localStorage.getItem('day-planner-calendar-filter') || '[]'),
       goals: JSON.parse(localStorage.getItem('day-planner-goals') || '[]'),
       projects: JSON.parse(localStorage.getItem('day-planner-projects') || '[]'),
@@ -5497,6 +5502,8 @@ const DayPlanner = () => {
         goalsProjectsEnabledUpdatedAt: localStorage.getItem('day-planner-goals-projects-enabled-updated-at') || null,
         obsidianConfig: obsidianConfig ?? null,
         obsidianConfigUpdatedAt: localStorage.getItem('day-planner-obsidian-config-updated-at') || null,
+        obsidianCompletionDates,
+        obsidianCompletionDatesUpdatedAt: localStorage.getItem('day-planner-obsidian-completion-dates-updated-at') || null,
         multiUserEnabled,
         multiUserEnabledUpdatedAt: localStorage.getItem('dayglance-multi-user-enabled-updated-at') || null,
         users,
@@ -5825,6 +5832,11 @@ const DayPlanner = () => {
     }
     if (data.deletedGoalIds) localStorage.setItem('day-planner-deleted-goal-ids', JSON.stringify(data.deletedGoalIds));
     if (data.deletedProjectIds) localStorage.setItem('day-planner-deleted-project-ids', JSON.stringify(data.deletedProjectIds));
+    if (data.obsidianCompletionDates !== undefined) {
+      localStorage.setItem('day-planner-obsidian-completion-dates', JSON.stringify(data.obsidianCompletionDates));
+      setObsidianCompletionDates(data.obsidianCompletionDates === true);
+      if (data.obsidianCompletionDatesUpdatedAt) localStorage.setItem('day-planner-obsidian-completion-dates-updated-at', data.obsidianCompletionDatesUpdatedAt);
+    }
     if (data.obsidianConfig) {
       // On native apps, vault path and pattern are managed via native storage — only apply
       // the app-level fields so a desktop value doesn't break the native integration.
@@ -8487,6 +8499,7 @@ const DayPlanner = () => {
     // ── Obsidian ──────────────────────────────────────────────────────────────
     obsidianConfig, setObsidianConfig,
     obsidianLaunchOnWrite, setObsidianLaunchOnWrite,
+    obsidianCompletionDates, setObsidianCompletionDates,
     obsidianSyncStatus, setObsidianSyncStatus,
     obsidianSyncError, setObsidianSyncError,
     obsidianSyncNotice, setObsidianSyncNotice,

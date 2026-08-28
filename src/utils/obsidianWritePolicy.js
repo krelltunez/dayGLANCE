@@ -60,11 +60,37 @@ export const OBSIDIAN_BLOCK_ID_WRITES = true;
 // natural vehicle — the write release simply is the build where this reads
 // `true`.
 
+// ═══ COMPLETION-MARKER WRITES (the second gated format) ════════════════════
+// Grep anchor: OBSIDIAN_COMPLETION_MARKER_WRITES.
+export const OBSIDIAN_COMPLETION_MARKER_WRITES = true;
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Completion markers (`✅ YYYY-MM-DD` / `[completed:: …]`, the completion-
+// timestamp feature) ship READ+WRITE IN ONE RELEASE — a recorded deviation
+// from the two-release staging above, on these grounds: markers are emitted
+// ONLY onto ^dg--tagged lines, so an old client's misread is self-identifying
+// by the §3.9 universal-carrier consequence from day one (marker AND token
+// swallowed into the mangled title, whose trailing token still names the
+// successor — the decorated-ghost containment test pins it), which makes the
+// exposure exactly the bounded, temporary, self-healing inconvenience the
+// block-id analysis above already accepted. Staging would narrow that window
+// further and remains available: flip this to `false` for a read-only
+// release, `true` in the next. Unlike block ids the format also has a synced
+// USER setting (obsidianCompletionDates) — that setting is AESTHETIC (write
+// or don't write a cosmetic decoration); this constant is the CORRECTNESS
+// gate (may this build emit the format at all), which stays build-time per
+// the standing rule. Reading both marker formats is unconditional either way.
+
 let testOverride = null;
 
 /** The live gate the emit sites consult. */
 export function blockIdWritesEnabled() {
   return testOverride ?? OBSIDIAN_BLOCK_ID_WRITES;
+}
+
+/** The completion-marker emission gate (useObsidianSync's completionMeta). */
+export function completionMarkerWritesEnabled() {
+  return OBSIDIAN_COMPLETION_MARKER_WRITES;
 }
 
 /**

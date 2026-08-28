@@ -83,6 +83,7 @@ export const BUNDLE_OWNS = {
   routinesEnabled:      ['routinesEnabledUpdatedAt'],
   goalsProjectsEnabled: ['goalsProjectsEnabledUpdatedAt'],
   obsidianConfig:       ['obsidianConfigUpdatedAt'],
+  obsidianCompletionDates: ['obsidianCompletionDatesUpdatedAt'],
   multiUserEnabled:     ['multiUserEnabledUpdatedAt'],
   icsCalendars:         ['icsCalendarsUpdatedAt'],
 };
@@ -402,7 +403,7 @@ const ALWAYS_DEVICE_LOCAL = new Set([
 // multiUserEnabled flag (itself device-local, so stable regardless of merge order).
 const MULTIUSER_DEVICE_LOCAL = new Set([
   'habitsEnabled', 'routinesEnabled', 'goalsProjectsEnabled', 'syncUrl', 'taskCalendarUrl',
-  'icsCalendars',
+  'icsCalendars', 'obsidianCompletionDates',
 ]);
 // True when `key` must keep the local value rather than accept the pulled one,
 // given this device's multi-user state. Used by both the merge and the re-push
@@ -533,7 +534,13 @@ function mergeBundle(data, key, value, extra) {
     }
     case 'habitsEnabled':
     case 'routinesEnabled':
-    case 'goalsProjectsEnabled': {
+    case 'goalsProjectsEnabled':
+    // obsidianCompletionDates rides the same shape: a synced vault-convention
+    // toggle (NOT part of the device-local obsidianConfig — see useObsidian),
+    // LWW across a single user's devices, kept local under multi-user so one
+    // household member's choice doesn't flip everyone's vault convention.
+    // Mirrors the file tier (mergeSync.js) exactly.
+    case 'obsidianCompletionDates': {
       // Multi-user: keep local (device-local). Single-user: LWW across own devices.
       if (data.multiUserEnabled) return;
       const tsKey = `${key}UpdatedAt`;
