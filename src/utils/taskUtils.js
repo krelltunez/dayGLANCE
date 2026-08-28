@@ -14,8 +14,11 @@ export const dateToString = (date) => {
 export const localDateStr = (d = new Date()) => dateToString(d);
 
 // Extract #hashtags from a task title (tags must start with a letter).
+// Accepts Obsidian's full tag alphabet — letters, digits, underscore, hyphen,
+// and `/` for nested tags — so `#work/deep` filters as `work/deep` rather
+// than truncating to `work` (the old regex stopped at `/` and `-`).
 export const extractTags = (title) => {
-  const matches = title.match(/#(\p{L}[\p{L}\p{N}_]*)/gu);
+  const matches = title.match(/#(\p{L}[\p{L}\p{N}_/-]*)/gu);
   return matches ? matches.map(tag => tag.slice(1).toLowerCase()) : [];
 };
 

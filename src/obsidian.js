@@ -21,6 +21,7 @@ import {
 import { unportableEntryReason } from './utils/vaultPortability.js';
 import { blockIdWritesEnabled } from './utils/obsidianWritePolicy.js';
 import { detectTwoSidedRetitle, appendTitleConflictNote, stripObsidianDisplayTag } from './utils/obsidianTitleConflict.js';
+import { withCreationFrontmatter } from './utils/obsidianFrontmatter.js';
 
 // How far back the Obsidian daily-note scan reads, in days. DELIBERATELY FIXED and
 // decoupled from the calendar "Keep past events" retention (syncRetentionDays):
@@ -472,7 +473,14 @@ export async function appendTaskToDailyNote(vaultHandle, dailyNotesPath, dateStr
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
 
   const existing = await readDailyNoteFile(dirHandle, dateStr, pattern);
-  let content = existing ? existing.text : (template || '');
+  // Creation-from-template is the one daily-note path where dayGLANCE
+  // genuinely instantiates the note, so it gets the creation frontmatter —
+  // unless the user's template opens with its own `---` block, which wins
+  // (utils/obsidianFrontmatter.js; the ownership rule). An existing note is
+  // never decorated. (The native append has no template-instantiation path:
+  // its read contract cannot distinguish absent from empty, so it starts
+  // absent notes from the task line alone — pre-existing, unchanged.)
+  let content = existing ? existing.text : withCreationFrontmatter(template || '', dateStr);
 
   const taskLine = buildObsidianTaskLine(task, dateStr);
   const lines = content.split('\n');
@@ -603,6 +611,7 @@ export async function writeWikiNote(vaultHandle, noteName, content, newNotesFold
     fileHandle = await findFileHandleInDir(vaultHandle, mdFileName);
   }
 
+  const creating = !fileHandle;
   if (!fileHandle) {
     // CREATION ONLY: the portability gate.
     const reason = validateWikiNoteName(noteName);
@@ -635,8 +644,12 @@ export async function writeWikiNote(vaultHandle, noteName, content, newNotesFold
     }
   }
 
+  // Frontmatter on CREATION only (utils/obsidianFrontmatter.js): a note
+  // dayGLANCE brings into being gets the minimal queryable block; a note
+  // that already exists — whatever it contains — is never decorated.
+  const finalContent = creating ? withCreationFrontmatter(content) : content;
   const writable = await fileHandle.createWritable();
-  await writable.write(content);
+  await writable.write(finalContent);
   await writable.close();
 }
 
