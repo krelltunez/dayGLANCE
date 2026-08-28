@@ -2763,6 +2763,7 @@ const DayPlanner = () => {
     setUnportableVaultFiles,
     obsidianConfig, setObsidianConfig,
     obsidianLaunchOnWrite,
+    obsidianSyncError,
     setObsidianSyncStatus, setObsidianSyncError, setObsidianLastSynced,
     obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
     obsidianTasksRef, obsidianInboxRef,

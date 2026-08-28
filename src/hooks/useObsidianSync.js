@@ -42,6 +42,31 @@ import { blockIdWritesEnabled } from '../utils/obsidianWritePolicy.js';
  * handle and dedup refs) and are passed in, so existing persistence and
  * settings wiring is untouched.
  */
+// The one task-write failure message, latched (see the reporters below). It
+// names the CONDITION, never the tasks, and is precise about the actual retry
+// semantics: there is no background retry queue — a failed write re-attempts
+// when the task next changes.
+export const OBSIDIAN_TASK_WRITE_ERROR =
+  "Couldn't write to your Obsidian vault. Your changes are saved in dayGLANCE and will be written on the next edit.";
+
+// A note restore failed (Android crash-safe writes, SafeReplace RESTORE_FAILED):
+// the note is genuinely MISSING from the vault, so the task-write message's
+// reassurance ("your changes are saved in dayGLANCE") would be wrong — the
+// content at risk is the note's, and it is preserved in the hidden temp beside
+// where the note was.
+export const obsidianRestoreFailureMessage = (fileName) =>
+  `Vault note "${fileName}" is missing and couldn't be restored automatically. Its content is preserved in a hidden backup (".${fileName}.dgtmp") in the same folder — check the note in Obsidian.`;
+
+// Vault-ACCESS-LOSS scan errors persist instead of auto-dismissing: they are
+// the user's only signal (native reads used to fail silently — the #1461
+// contract made them throw these) and each names its own fix. Matched against
+// the bridge messages: Android's SecurityException "Vault access has been
+// revoked — re-select the vault folder in Settings" (ObsidianRepository
+// .getAllDailyNotes) and iOS's "vault access failed — the stored folder
+// bookmark could not be opened" (ObsidianBridge.getAllDailyNotes).
+export const isVaultAccessLossError = (message) =>
+  /revoked|bookmark could not be opened/i.test(message || '');
+
 export default function useObsidianSync({
   isTrayMode, dataLoaded,
   tasks, setTasks,
@@ -51,6 +76,7 @@ export default function useObsidianSync({
   setUnportableVaultFiles,
   obsidianConfig, setObsidianConfig,
   obsidianLaunchOnWrite,
+  obsidianSyncError,
   setObsidianSyncStatus, setObsidianSyncError, setObsidianLastSynced,
   obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
   obsidianTasksRef, obsidianInboxRef,
@@ -115,6 +141,72 @@ export default function useObsidianSync({
       setObsidianSyncStatus('error');
     }
   }, [obsidianConfig?.newNotesFolder, obsidianVaultHandleRef, setObsidianSyncError, setObsidianSyncStatus]);
+
+  // ── Task-write / restore failure surfacing ────────────────────────────────
+  //
+  // Task writes fire on every completion, reschedule and title edit, so the
+  // shape is a LATCH over the existing sync-error state, not per-failure
+  // alerts: the first failure sets the state once; further failures while
+  // latched do nothing (ten failed writes during an outage = one transition);
+  // and the error PERSISTS (no auto-dismiss) — the red sync-dot is the
+  // signal. Clearing: the next CONFIRMED task write (only when the displayed
+  // error is still ours — a concurrent wiki-note error must never be
+  // stomped), or the next successful scan (performObsidianSync's success path
+  // resets the channel wholesale, as it always has).
+
+  // Mirror of the displayed error, so the exact-match clears below can tell
+  // "our message is still showing" from "something else took the channel".
+  const syncErrorValueRef = useRef(obsidianSyncError);
+  useEffect(() => { syncErrorValueRef.current = obsidianSyncError; }, [obsidianSyncError]);
+
+  const taskWriteErrorRef = useRef(null); // the message we latched, or null
+  const restoreErrorRef = useRef(null);   // ditto, for a failed note restore
+
+  const reportTaskWriteFailure = useCallback(() => {
+    if (taskWriteErrorRef.current) return; // latched
+    taskWriteErrorRef.current = OBSIDIAN_TASK_WRITE_ERROR;
+    setObsidianSyncError(OBSIDIAN_TASK_WRITE_ERROR);
+    setObsidianSyncStatus('error');
+  }, [setObsidianSyncError, setObsidianSyncStatus]);
+
+  const reportTaskWriteSuccess = useCallback(() => {
+    const ours = taskWriteErrorRef.current;
+    if (!ours) return;
+    taskWriteErrorRef.current = null;
+    if (syncErrorValueRef.current === ours) {
+      setObsidianSyncError(null);
+      setObsidianSyncStatus('idle');
+    }
+  }, [setObsidianSyncError, setObsidianSyncStatus]);
+
+  // Android's crash-safe writes push restore outcomes up through this window
+  // hook (ObsidianBridge wires ObsidianRepository.onRestoreEvent to it).
+  // 'failed' = a note is missing from the vault and the restore didn't take —
+  // materially different from a failed write, hence its own message; a later
+  // 'restored' (every vault touch retries) clears it. Successful SILENT
+  // restores never reach here as errors — nothing to tell the user about a
+  // note that contains exactly what they last wrote.
+  useEffect(() => {
+    if (isTrayMode || typeof window === 'undefined') return undefined;
+    window.__dgVaultRestoreEvent = (outcome, fileName) => {
+      if (outcome === 'failed') {
+        if (restoreErrorRef.current) return; // latched — one indicator
+        const msg = obsidianRestoreFailureMessage(fileName);
+        restoreErrorRef.current = msg;
+        setObsidianSyncError(msg);
+        setObsidianSyncStatus('error');
+      } else if (outcome === 'restored') {
+        const ours = restoreErrorRef.current;
+        if (!ours) return;
+        restoreErrorRef.current = null;
+        if (syncErrorValueRef.current === ours) {
+          setObsidianSyncError(null);
+          setObsidianSyncStatus('idle');
+        }
+      }
+    };
+    return () => { delete window.__dgVaultRestoreEvent; };
+  }, [isTrayMode, setObsidianSyncError, setObsidianSyncStatus]);
 
   // Opens a vault note in the Obsidian app (Android) or via obsidian:// URI (web/desktop).
   const openInObsidian = useCallback((noteName) => {
@@ -323,14 +415,34 @@ export default function useObsidianSync({
       const now = new Date().toISOString();
       setObsidianLastSynced(now);
       localStorage.setItem('day-planner-obsidian-last-synced', now);
-      setObsidianSyncError(null);
-      setObsidianSyncStatus('success');
-      setTimeout(() => setObsidianSyncStatus(s => s === 'success' ? 'idle' : s), 3000);
+      // A successful scan proves the vault is reachable again — the channel
+      // reset clears any latched task-write error (clearing path 2).
+      taskWriteErrorRef.current = null;
+      if (restoreErrorRef.current) {
+        // …but a MISSING-NOTE condition outlives a successful scan (the scan
+        // legitimately completes without the missing file). Keep it showing;
+        // it clears on the 'restored' event when a retry lands.
+        setObsidianSyncError(restoreErrorRef.current);
+        setObsidianSyncStatus('error');
+      } else {
+        setObsidianSyncError(null);
+        setObsidianSyncStatus('success');
+        setTimeout(() => setObsidianSyncStatus(s => s === 'success' ? 'idle' : s), 3000);
+      }
     } catch (err) {
       console.error('Obsidian sync error:', err);
       setObsidianSyncError(err.message);
       setObsidianSyncStatus('error');
-      setTimeout(() => setObsidianSyncStatus(s => s === 'error' ? 'idle' : s), 5000);
+      // The scan error owns the channel now — release the task-write latch so
+      // a later write failure can re-report rather than being swallowed.
+      taskWriteErrorRef.current = null;
+      // Access-loss errors (revoked SAF grant, dead iOS bookmark — the #1461
+      // read contract throws these with the fix in the message) PERSIST: they
+      // are the user's only signal and don't heal on their own. Everything
+      // else keeps the longstanding transient flash.
+      if (!isVaultAccessLossError(err.message)) {
+        setTimeout(() => setObsidianSyncStatus(s => s === 'error' ? 'idle' : s), 5000);
+      }
     } finally {
       obsidianSyncInProgressRef.current = false;
       notifyNativeReady();
@@ -616,6 +728,10 @@ export default function useObsidianSync({
       };
 
       if (isNative) {
+        // onWriteFailure fires only on a GENUINE failure (unreadable note,
+        // refused write, exception) — never on the benign no-matching-line
+        // case, where the vault simply no longer has the line and the next
+        // scan reconciles. `updated` false alone can't tell the two apart.
         const updated = writeTaskStateNative(
           sourceDate,
           task.obsidianRawTitle,
@@ -626,6 +742,7 @@ export default function useObsidianSync({
           targetDate,
           taskHeading,
           writeBlockId,
+          reportTaskWriteFailure,
         );
         if (updated) nativeCommits.push(commit);
       } else {
@@ -642,8 +759,13 @@ export default function useObsidianSync({
           taskHeading,
           writeBlockId,
         ).then(updated => {
-          if (updated) commit();
-        }).catch(err => console.error('Obsidian: failed to write task state back', err));
+          // `updated` false here is the benign NotFound case (file gone —
+          // the scan reconciles); a real write failure REJECTS instead.
+          if (updated) { commit(); reportTaskWriteSuccess(); }
+        }).catch(err => {
+          console.error('Obsidian: failed to write task state back', err);
+          reportTaskWriteFailure();
+        });
       }
     }
 
@@ -665,6 +787,9 @@ export default function useObsidianSync({
     // on the fresh snapshot. (Desktop commits run in each write's own .then,
     // which also lands after this point.)
     for (const commit of nativeCommits) commit();
+    // Any confirmed native write proves the vault is writable again —
+    // clearing path 1 for a latched task-write error.
+    if (nativeCommits.length) reportTaskWriteSuccess();
     // Keyed on task changes — writeback fires when tasks change and reads the
     // current obsidianConfig paths + dedup refs at that moment. Adding the config
     // paths would re-run a writeback on a mere settings change.
