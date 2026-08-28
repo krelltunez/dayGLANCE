@@ -10,6 +10,10 @@ const useObsidian = () => {
   });
   const [obsidianSyncStatus, setObsidianSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'success' | 'error'
   const [obsidianSyncError, setObsidianSyncError] = useState(null);
+  // Fire-and-forget neutral notice (e.g. a two-sided retitle resolution) —
+  // separate from the ERROR channel on purpose: a conflict is a one-shot
+  // event, not a failure, and must never latch or show red.
+  const [obsidianSyncNotice, setObsidianSyncNotice] = useState(null);
   const [obsidianLastSynced, setObsidianLastSynced] = useState(() =>
     localStorage.getItem('day-planner-obsidian-last-synced') || null
   );
@@ -53,6 +57,7 @@ const useObsidian = () => {
     obsidianConfig, setObsidianConfig,
     obsidianLaunchOnWrite, setObsidianLaunchOnWrite,
     obsidianSyncStatus, setObsidianSyncStatus,
+    obsidianSyncNotice, setObsidianSyncNotice,
     obsidianSyncError, setObsidianSyncError,
     obsidianLastSynced, setObsidianLastSynced,
     obsidianVaultHandleRef,

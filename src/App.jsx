@@ -753,6 +753,7 @@ const DayPlanner = () => {
     obsidianLaunchOnWrite, setObsidianLaunchOnWrite,
     obsidianSyncStatus, setObsidianSyncStatus,
     obsidianSyncError, setObsidianSyncError,
+    obsidianSyncNotice, setObsidianSyncNotice,
     obsidianLastSynced, setObsidianLastSynced,
     obsidianVaultHandleRef,
     obsidianSyncInProgressRef,
@@ -2765,6 +2766,7 @@ const DayPlanner = () => {
     obsidianLaunchOnWrite,
     obsidianSyncError,
     setObsidianSyncStatus, setObsidianSyncError, setObsidianLastSynced,
+    setObsidianSyncNotice,
     obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
     obsidianTasksRef, obsidianInboxRef,
   });
@@ -8487,6 +8489,7 @@ const DayPlanner = () => {
     obsidianLaunchOnWrite, setObsidianLaunchOnWrite,
     obsidianSyncStatus, setObsidianSyncStatus,
     obsidianSyncError, setObsidianSyncError,
+    obsidianSyncNotice, setObsidianSyncNotice,
     obsidianLastSynced, setObsidianLastSynced,
     wikilinkCandidates, setWikilinkCandidates,
     unportableVaultFiles, setUnportableVaultFiles,

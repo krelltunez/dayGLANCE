@@ -20,6 +20,7 @@ import {
 } from './utils/obsidianFilename.js';
 import { unportableEntryReason } from './utils/vaultPortability.js';
 import { blockIdWritesEnabled } from './utils/obsidianWritePolicy.js';
+import { detectTwoSidedRetitle, appendTitleConflictNote, stripObsidianDisplayTag } from './utils/obsidianTitleConflict.js';
 
 // How far back the Obsidian daily-note scan reads, in days. DELIBERATELY FIXED and
 // decoupled from the calendar "Keep past events" retention (syncRetentionDays):
@@ -722,15 +723,15 @@ function stripLinePrefixes(text) {
  *
  * @returns {boolean} whether any line was updated
  */
-export function updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId = null }) {
+export function updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId = null, onTitleConflict = null }) {
   const timeStr = buildTimePrefix(startTime, duration);
   const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
   // When targetDate is provided (task rescheduled to a different day), write
   // an explicit inline date prefix so the task is attributed to the new date
   // while remaining in its original daily note file.
-  const rewrite = (i, indent, datePrefix, idSuffix) => {
+  const rewrite = (i, indent, datePrefix, idSuffix, title = writtenTitle) => {
     const effectiveDatePrefix = targetDate ? `${targetDate} ` : datePrefix;
-    lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${effectiveDatePrefix}${timeStr}${writtenTitle}${idSuffix}`;
+    lines[i] = `${indent}- [${completed ? 'x' : ' '}] ${effectiveDatePrefix}${timeStr}${title}${idSuffix}`;
   };
 
   let updated = false;
@@ -740,11 +741,24 @@ export function updateTaskLines(lines, { obsidianRawTitle, completed, startTime,
       if (!m) continue;
       const { text: body, blockId: lineId } = splitBlockId(m[3]);
       if (lineId !== blockId) continue;
-      const { datePrefix } = stripLinePrefixes(body);
+      const { bareTitle, datePrefix } = stripLinePrefixes(body);
+      // WRITE-TIME TITLE GUARD (the two-sided retitle policy's funnel —
+      // utils/obsidianTitleConflict.js). The line's CURRENT title is the
+      // vault's truth; app state was built from obsidianRawTitle, our last
+      // observation. When the line moved off that base, rebuilding it from
+      // app state would silently revert an Obsidian edit — the one hostile
+      // outcome — so the rewrite KEEPS THE LINE'S OWN TITLE while still
+      // writing the state change. If we were also trying to RETITLE
+      // (newRawTitle differs from the line too), that is a two-sided
+      // conflict: signal it so the caller skips the titleUpdate commit,
+      // obsidianRawTitle stays truthful as the merge base, and the next
+      // scan resolves through the single scan-time policy.
+      const lineDiverged = bareTitle !== obsidianRawTitle && bareTitle !== writtenTitle;
+      if (lineDiverged && newRawTitle !== undefined) onTitleConflict?.({ lineTitle: bareTitle });
       // Forced suffix: a line that already carried this id keeps it
       // unconditionally — the foreign-block-ref guard only applies to
       // FIRST-TIME stamping, never to preserving established identity.
-      rewrite(i, m[1], datePrefix, ` ^dg-${blockId}`);
+      rewrite(i, m[1], datePrefix, ` ^dg-${blockId}`, lineDiverged ? bareTitle : writtenTitle);
       updated = true;
     }
     if (updated) return true;
@@ -773,7 +787,7 @@ export function updateTaskLines(lines, { obsidianRawTitle, completed, startTime,
  *   callers use this to commit a fresh id assignment only when it actually
  *   reached the vault.
  */
-export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null, blockId = null) {
+export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null, blockId = null, onTitleConflict = null) {
   assertSafeDateStr(dateStr);
   if (targetDate) assertSafeDateStr(targetDate);
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
@@ -788,7 +802,7 @@ export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr,
   }
 
   const lines = text.split('\n');
-  const updated = updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId });
+  const updated = updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId, onTitleConflict });
 
   if (updated) {
     const finalLines = taskHeading
@@ -1218,6 +1232,31 @@ function vaultTitleWins(task, existing) {
 }
 
 /**
+ * Title ownership at the merge boundary — the TWO-SIDED RETITLE POLICY
+ * (utils/obsidianTitleConflict.js). One-sided cases are unchanged: DG-only
+ * rename preserved, Obsidian-only retitle adopted (vaultTitleWins). When BOTH
+ * sides moved off the base, the vault wins the title and the dayGLANCE rename
+ * is appended to task.notes as a durable record (idempotently — N devices'
+ * scans produce one line), with the conflict reported upward for the neutral
+ * toast. task.notes here already carries existing.notes (the merge copies it
+ * before title resolution at every call site), and notes are app-only — the
+ * append can never trigger a vault write.
+ */
+function resolveTitleOwnership(task, existing, onTitleConflict) {
+  if (existing.title === undefined) return;
+  if (!vaultTitleWins(task, existing)) {
+    task.title = existing.title;
+    return;
+  }
+  // Vault wins: task.title stays the parsed line's title.
+  const ours = stripObsidianDisplayTag(existing.title);
+  if (detectTwoSidedRetitle({ base: existing.obsidianRawTitle, theirs: task.obsidianRawTitle, ours })) {
+    task.notes = appendTitleConflictNote(task.notes, ours, new Date().toISOString().slice(0, 10));
+    onTitleConflict?.({ dgTitle: ours, vaultTitle: task.obsidianRawTitle });
+  }
+}
+
+/**
  * Sync daily notes + tasks from the Obsidian vault.
  *
  * @param {FileSystemDirectoryHandle} vaultHandle
@@ -1234,6 +1273,7 @@ export async function syncObsidianVault(
   existingTasks,
   existingInbox,
   pattern,
+  onTitleConflict = null,
 ) {
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
 
@@ -1338,7 +1378,7 @@ export async function syncObsidianVault(
         if (existing.date !== undefined) task.date = existing.date;
         if (existing.startTime !== undefined) task.startTime = existing.startTime;
         if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
-        if (existing.title !== undefined && !vaultTitleWins(task, existing)) task.title = existing.title;
+        resolveTitleOwnership(task, existing, onTitleConflict);
         // Preserve lastModified so cloud merge keeps recognising the
         // version the user actually edited rather than treating re-imports
         // as brand-new tasks with a fresh timestamp.
@@ -1367,7 +1407,7 @@ export async function syncObsidianVault(
         if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
         if (existing.color !== undefined) task.color = existing.color;
         if (existing.duration !== undefined) task.duration = existing.duration;
-        if (existing.title !== undefined && !vaultTitleWins(task, existing)) task.title = existing.title;
+        resolveTitleOwnership(task, existing, onTitleConflict);
         if (existing.lastModified) task.lastModified = existing.lastModified;
 
         // User scheduled this from inbox — respect the cross-array move
@@ -1510,7 +1550,7 @@ export function writeDailyNoteNative(date, content) {
  *   half of the desktop contract, where the Electron shim's close() throws on
  *   a failed write and the .then(commit) never runs.
  */
-export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null, blockId = null, onWriteFailure = null) {
+export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null, blockId = null, onWriteFailure = null, onTitleConflict = null) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
   if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return false;
 
@@ -1526,7 +1566,7 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
     }
 
     const lines = text.split('\n');
-    const updated = updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId });
+    const updated = updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId, onTitleConflict });
 
     if (updated) {
       const finalLines = taskHeading
@@ -1591,7 +1631,7 @@ export function nativeNoteLastModified(entry, nowIso) {
   return (entry && entry.lastModified) || nowIso;
 }
 
-export async function syncObsidianVaultNative(folder, retentionDays, existingTasks, existingInbox) {
+export async function syncObsidianVaultNative(folder, retentionDays, existingTasks, existingInbox, onTitleConflict = null) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
   if (!bridge) throw new Error('Obsidian bridge unavailable');
 
@@ -1714,7 +1754,7 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
         if (existing.date !== undefined) task.date = existing.date;
         if (existing.startTime !== undefined) task.startTime = existing.startTime;
         if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
-        if (existing.title !== undefined && !vaultTitleWins(task, existing)) task.title = existing.title;
+        resolveTitleOwnership(task, existing, onTitleConflict);
         if (existing.lastModified) task.lastModified = existing.lastModified;
         if (userInboxIds.has(String(existing.id))) { allInbox.push(task); continue; }
       } else {
@@ -1732,7 +1772,7 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
         if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
         if (existing.color !== undefined) task.color = existing.color;
         if (existing.duration !== undefined) task.duration = existing.duration;
-        if (existing.title !== undefined && !vaultTitleWins(task, existing)) task.title = existing.title;
+        resolveTitleOwnership(task, existing, onTitleConflict);
         if (existing.lastModified) task.lastModified = existing.lastModified;
         if (userScheduledIds.has(String(existing.id))) {
           if (existing.date !== undefined) task.date = existing.date;

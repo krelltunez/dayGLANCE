@@ -26,6 +26,7 @@ import {
   RETIRED_ID_DUAL_WRITE,
 } from '../utils/retiredTaskIds.js';
 import { blockIdWritesEnabled } from '../utils/obsidianWritePolicy.js';
+import { titleConflictNoticeText } from '../utils/obsidianTitleConflict.js';
 
 /**
  * Obsidian vault sync — extracted from App.jsx (see "App.jsx — Ongoing
@@ -78,6 +79,7 @@ export default function useObsidianSync({
   obsidianLaunchOnWrite,
   obsidianSyncError,
   setObsidianSyncStatus, setObsidianSyncError, setObsidianLastSynced,
+  setObsidianSyncNotice,
   obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
   obsidianTasksRef, obsidianInboxRef,
 }) {
@@ -283,12 +285,19 @@ export default function useObsidianSync({
       // The Obsidian scan window is FIXED (OBSIDIAN_IMPORT_WINDOW_DAYS), decoupled
       // from the calendar "Keep past events" retention (syncRetentionDays) — that
       // setting is about imported calendar events, not the vault. See obsidian.js.
+      // Two-sided retitle resolutions this scan performed (vault won the
+      // title; the DG rename was preserved in task.notes). Collected for ONE
+      // fire-and-forget notice below — a conflict is a one-shot event, not a
+      // persisting condition, so it never touches the error latch.
+      const titleConflicts = [];
+      const onTitleConflict = (c) => titleConflicts.push(c);
       const result = isNative
         ? await syncObsidianVaultNative(
             obsidianConfig?.dailyNotesPath || '',
             OBSIDIAN_IMPORT_WINDOW_DAYS,
             currentTasks,
             currentInbox,
+            onTitleConflict,
           )
         : await syncObsidianVault(
             obsidianVaultHandleRef.current,
@@ -297,6 +306,7 @@ export default function useObsidianSync({
             currentTasks,
             currentInbox,
             obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
+            onTitleConflict,
           );
 
       // App-only fields that live in dayGLANCE but NOT in the Obsidian markdown,
@@ -415,6 +425,14 @@ export default function useObsidianSync({
       const now = new Date().toISOString();
       setObsidianLastSynced(now);
       localStorage.setItem('day-planner-obsidian-last-synced', now);
+      // Fire-and-forget conflict notice: neutral, never red, never latched,
+      // auto-dismissing. The durable record is already on the task's notes.
+      if (titleConflicts.length && setObsidianSyncNotice) {
+        setObsidianSyncNotice(titleConflicts.length === 1
+          ? titleConflictNoticeText(titleConflicts[0].vaultTitle)
+          : `${titleConflicts.length} title conflicts: Obsidian's edits won. Your dayGLANCE renames are saved in each task's notes.`);
+        setTimeout(() => setObsidianSyncNotice(null), 8000);
+      }
       // A successful scan proves the vault is reachable again — the channel
       // reset clears any latched task-write error (clearing path 2).
       taskWriteErrorRef.current = null;
@@ -715,6 +733,18 @@ export default function useObsidianSync({
       //    the id, only obsidianRawTitle is refreshed;
       //  - untagged task: the legacy content-derived id is recomputed
       //    (then superseded by the block assignment from the same write).
+      //
+      // TWO-SIDED RETITLE GUARD: when updateTaskLines reports that the vault
+      // line moved off obsidianRawTitle while we were retitling, the write
+      // keeps the LINE's title and this flag makes commit() skip the
+      // titleUpdate — obsidianRawTitle stays truthful as the merge base, the
+      // DG rename stays in app state (title + snapshot untouched), and the
+      // next scan resolves it through the single scan-time policy
+      // (utils/obsidianTitleConflict.js). A delay of one scan cycle, never a
+      // loss. Only tagged lines can conflict (untagged lines match by title
+      // equality), so no block-id assignment or retirement is ever involved.
+      let titleConflicted = false;
+      const noteTitleConflict = () => { titleConflicted = true; };
       let titleUpdate = null;
       let postTitleId = task.id;
       if (titleChanged && newRawTitle) {
@@ -728,7 +758,7 @@ export default function useObsidianSync({
       // rawTitle bookkeeping, the block-id assignment, then tombstones for
       // every id the rename chain retired (task.id → postTitleId → dg id).
       const commit = () => {
-        if (titleUpdate) applyTitleUpdate(titleUpdate);
+        if (titleUpdate && !titleConflicted) applyTitleUpdate(titleUpdate);
         if (assignBlockId) applyBlockIdAssignment(postTitleId, assignBlockId);
         const finalId = assignBlockId ? appIdForBlockId(assignBlockId) : postTitleId;
         // Every retired id in the rename chain maps DIRECTLY to the final id —
@@ -753,6 +783,7 @@ export default function useObsidianSync({
           taskHeading,
           writeBlockId,
           reportTaskWriteFailure,
+          noteTitleConflict,
         );
         if (updated) nativeCommits.push(commit);
       } else {
@@ -768,6 +799,7 @@ export default function useObsidianSync({
           targetDate,
           taskHeading,
           writeBlockId,
+          noteTitleConflict,
         ).then(updated => {
           // `updated` false here is the benign NotFound case (file gone —
           // the scan reconciles); a real write failure REJECTS instead.
