@@ -808,9 +808,23 @@ export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr,
     const finalLines = taskHeading
       ? sortTaskLinesInSection(lines, taskHeading.trim(), dateStr)
       : lines;
-    const writable = await fileHandle.createWritable();
-    await writable.write(finalLines.join('\n'));
-    await writable.close();
+    // NO-OP WRITE SKIP (churn reducer, byte-identity only — never a change to
+    // WHAT gets written). The cross-device echo write rewrites a line already
+    // carrying the state; when the would-be output equals what we just read,
+    // skip the disk write: no mtime churn, no Obsidian Sync churn, no
+    // launch-on-write wake for a vacuous write. The FIRST echo after an
+    // Obsidian-side edit is usually byte-DIFFERENT (the section sort
+    // normalizes, e.g. dropping a trailing blank line) and correctly still
+    // writes — the file converges to canonical form once, then steady-state
+    // echoes skip. `updated` stays true either way: the vault line carries
+    // exactly this state, so callers commit normally (needed when adopting a
+    // deterministically-minted token another device already stamped).
+    const finalText = finalLines.join('\n');
+    if (finalText !== text) {
+      const writable = await fileHandle.createWritable();
+      await writable.write(finalText);
+      await writable.close();
+    }
   }
   return updated;
 }
@@ -1572,7 +1586,12 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
       const finalLines = taskHeading
         ? sortTaskLinesInSection(lines, taskHeading.trim(), date)
         : lines;
-      if (!nativeWriteOk(bridge.writeDailyNote(date, finalLines.join('\n')))) {
+      // NO-OP WRITE SKIP — same churn reducer as writeTaskStateToFile: when
+      // the would-be output equals what we just read, the vault already
+      // carries this state; skip the write (and its Obsidian wake), keep the
+      // confirmed-success semantics.
+      const finalText = finalLines.join('\n');
+      if (finalText !== text && !nativeWriteOk(bridge.writeDailyNote(date, finalText))) {
         console.error('Obsidian native writeback: vault write failed, not committing');
         onWriteFailure?.();
         return false;
