@@ -194,8 +194,11 @@ class NativeBridge(
 
     // ── Obsidian ────────────────────────────────────────────────────────────
 
+    // Read contract (#1461, same as ObsidianBridge.getDailyNote): "" means
+    // determinately absent-or-empty, NULL means the read failed — JS must
+    // never treat a failure as an empty note.
     @JavascriptInterface
-    fun getDailyNote(date: String): String = obsidian.getDailyNote(date)
+    fun getDailyNote(date: String): String? = obsidian.getDailyNote(date)
 
     @JavascriptInterface
     fun listNotes(folder: String): String = obsidian.listNotes(folder)
