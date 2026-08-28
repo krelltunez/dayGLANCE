@@ -4,16 +4,28 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 const ObsidianSyncToast = () => {
-  const { obsidianSyncStatus, obsidianSyncError } = useSyncCtx();
+  const { obsidianSyncStatus, obsidianSyncError, obsidianSyncNotice } = useSyncCtx();
   const { cardBg, borderClass, textPrimary, textSecondary, isMobile } = useDayPlannerCtx();
 
-  if (obsidianSyncStatus === 'idle') return null;
+  // Fire-and-forget NOTICE (e.g. a two-sided retitle resolution): neutral
+  // styling, never red — nothing failed, two edits disagreed and one won.
+  // It self-clears (the setter schedules its own dismiss) and deliberately
+  // does not touch the status machine below.
+  const notice = obsidianSyncStatus === 'idle' || obsidianSyncStatus === 'success'
+    ? obsidianSyncNotice
+    : null;
+
+  if (obsidianSyncStatus === 'idle' && !notice) return null;
 
   const isSyncing = obsidianSyncStatus === 'syncing';
   const isSuccess = obsidianSyncStatus === 'success';
 
   let icon, message, accentColor;
-  if (isSyncing) {
+  if (notice) {
+    icon = <CheckCircle size={16} className="text-blue-500 flex-shrink-0" />;
+    message = notice;
+    accentColor = 'bg-blue-500';
+  } else if (isSyncing) {
     icon = <Loader size={16} className="text-blue-500 animate-spin flex-shrink-0" />;
     message = 'Syncing Obsidian vault…';
     accentColor = 'bg-blue-500';

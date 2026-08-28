@@ -194,7 +194,7 @@ describe('parseTasksFromMarkdown — ^dg- ids', () => {
 });
 
 describe('updateTaskLines — ID-first matching with title fallback', () => {
-  it('matches by id even when the title was edited in Obsidian', () => {
+  it('matches by id even when the title was edited in Obsidian — and KEEPS that edit', () => {
     const lines = ['- [ ] Renamed in Obsidian ^dg-xxxxxxxx'];
     const updated = updateTaskLines(lines, {
       obsidianRawTitle: 'Old title dayGLANCE knew',
@@ -202,8 +202,12 @@ describe('updateTaskLines — ID-first matching with title fallback', () => {
       duration: null, targetDate: undefined, blockId: 'xxxxxxxx',
     });
     expect(updated).toBe(true);
-    // The title match would have failed; the id pinned the line.
-    expect(lines[0]).toBe('- [x] Old title dayGLANCE knew ^dg-xxxxxxxx');
+    // The title match would have failed; the id pinned the line. The state
+    // change lands, and — per the two-sided retitle policy's write-time
+    // guard — the line's own title survives: a state write must never revert
+    // an Obsidian retitle. (This test previously pinned the opposite,
+    // pre-policy behavior: rebuilding the line from the stale app title.)
+    expect(lines[0]).toBe('- [x] Renamed in Obsidian ^dg-xxxxxxxx');
   });
 
   it('with an id match, an untagged same-title line is left alone', () => {
