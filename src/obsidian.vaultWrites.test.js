@@ -88,10 +88,14 @@ describe('writeWikiNote — existence check BEFORE the portability gate', () => 
     expect(fs.newdir).toBeUndefined(); // the existence probe must not create directories
   });
 
-  it('valid name, missing → created in newNotesFolder; valid name, existing → written in place', async () => {
+  it('valid name, missing → created in newNotesFolder WITH creation frontmatter; valid name, existing → written in place, undecorated', async () => {
     const fs = {};
     await writeWikiNote(makeDir(fs), 'Fresh note', 'hello', 'dayGLANCE');
-    expect(fs.dayGLANCE['Fresh note.md']).toBe('hello');
+    // Phase 4: a note dayGLANCE brings into being carries the minimal
+    // queryable frontmatter block (utils/obsidianFrontmatter.js).
+    expect(fs.dayGLANCE['Fresh note.md']).toMatch(/^---\ncreated: \d{4}-\d{2}-\d{2}\nsource: dayGLANCE\n---\nhello$/);
+    // A note that already exists is NEVER decorated — the overwrite writes
+    // the caller's content verbatim (the ownership rule).
     await writeWikiNote(makeDir(fs), 'Fresh note', 'hello again', 'dayGLANCE');
     expect(fs.dayGLANCE['Fresh note.md']).toBe('hello again');
   });

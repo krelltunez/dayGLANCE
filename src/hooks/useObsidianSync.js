@@ -27,6 +27,7 @@ import {
 } from '../utils/retiredTaskIds.js';
 import { blockIdWritesEnabled } from '../utils/obsidianWritePolicy.js';
 import { titleConflictNoticeText } from '../utils/obsidianTitleConflict.js';
+import { withCreationFrontmatter } from '../utils/obsidianFrontmatter.js';
 
 /**
  * Obsidian vault sync — extracted from App.jsx (see "App.jsx — Ongoing
@@ -123,11 +124,16 @@ export default function useObsidianSync({
           return;
         }
       }
+      // Frontmatter on CREATION only — mirrors writeWikiNote's desktop
+      // branch (utils/obsidianFrontmatter.js): a note dayGLANCE brings into
+      // being gets the minimal queryable block; an existing note is never
+      // decorated.
+      const finalContent = existing ? content : withCreationFrontmatter(content);
       // Honor the bridge's write result, surfacing failure through the same
       // visible sync-error state the desktop branch below uses — a silently
       // ignored false return here was exactly the "silent write loss the user
       // could never see" this comment block already warns about.
-      if (!nativeWriteNote(notePath, content)) {
+      if (!nativeWriteNote(notePath, finalContent)) {
         setObsidianSyncError(`Note "${notePath}" was not written: the vault write failed.`);
         setObsidianSyncStatus('error');
       }
