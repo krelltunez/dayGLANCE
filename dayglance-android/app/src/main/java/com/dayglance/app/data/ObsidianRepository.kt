@@ -39,6 +39,18 @@ class ObsidianRepository(private val context: Context) {
     @Volatile
     var onVaultWrite: ((noteName: String) -> Unit)? = null
 
+    /**
+     * Crash-recovery outcome listener (surfacing, not control flow): invoked
+     * with 'failed' when a note is missing and its temp could not be restored
+     * (SafeReplace RESTORE_FAILED — the one recovery state a user may need to
+     * act on), and with 'restored' when a later retry lands, so the surfaced
+     * error can clear itself. Successful FIRST-TRY restores are deliberately
+     * silent — the note contains exactly what the interrupted write intended.
+     * ObsidianBridge wires this to a window event the web app listens on.
+     */
+    @Volatile
+    var onRestoreEvent: ((outcome: String, fileName: String) -> Unit)? = null
+
     // ── Note URI index ───────────────────────────────────────────────────────
     //
     // SAF recursive search (DocumentFile.listFiles + findFile) is expensive:
@@ -254,9 +266,15 @@ class ObsidianRepository(private val context: Context) {
             SafeReplace.Recovery.RESTORED_FROM_TEMP -> {
                 Log.w(TAG, "Restored $fileName from crashed write's temp")
                 onVaultWrite?.invoke(fileName.removeSuffix(".md"))
+                // Lets a previously SURFACED restore failure clear itself; a
+                // first-try restore stays silent (the JS listener ignores
+                // 'restored' unless a failure is latched).
+                onRestoreEvent?.invoke("restored", fileName)
             }
-            SafeReplace.Recovery.RESTORE_FAILED ->
+            SafeReplace.Recovery.RESTORE_FAILED -> {
                 Log.e(TAG, "Could not restore $fileName from crashed write's temp; leaving temp in place")
+                onRestoreEvent?.invoke("failed", fileName)
+            }
             SafeReplace.Recovery.NONE -> {}
         }
         return outcome

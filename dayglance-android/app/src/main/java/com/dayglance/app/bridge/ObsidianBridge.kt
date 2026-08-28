@@ -46,6 +46,24 @@ class ObsidianBridge(private val context: Context, private val webView: android.
 
     init {
         repository.onVaultWrite = { noteName -> launchPolicy.onWrite(noteName) }
+        // Crash-recovery outcomes → the web app's surfacing listener
+        // (useObsidianSync registers window.__dgVaultRestoreEvent). 'failed'
+        // means a note is missing and its temp couldn't be restored — the one
+        // recovery state a user may need to act on; 'restored' clears it.
+        // The outcome string is our own constant; the file name is escaped
+        // for the JS single-quoted literal.
+        repository.onRestoreEvent = { outcome, fileName ->
+            val safeName = fileName
+                .replace("\\", "\\\\")
+                .replace("'", "\\'")
+                .replace("\n", " ")
+            webView?.post {
+                webView.evaluateJavascript(
+                    "window.__dgVaultRestoreEvent && window.__dgVaultRestoreEvent('$outcome','$safeName')",
+                    null
+                )
+            }
+        }
     }
 
     /**

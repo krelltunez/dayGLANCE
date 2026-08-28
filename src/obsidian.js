@@ -1476,15 +1476,20 @@ export function writeDailyNoteNative(date, content) {
  *   half of the desktop contract, where the Electron shim's close() throws on
  *   a failed write and the .then(commit) never runs.
  */
-export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null, blockId = null) {
+export function writeTaskStateNative(date, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null, blockId = null, onWriteFailure = null) {
   const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
   if (!bridge?.getDailyNote || !bridge?.writeDailyNote) return false;
 
   try {
     const text = bridge.getDailyNote(date);
     // null = vault not configured OR the read FAILED (the bridges' read
-    // contract) — either way, nothing can be safely rewritten.
-    if (!text && text !== '') return false;
+    // contract) — either way, nothing can be safely rewritten. This IS a
+    // failure worth surfacing: the caller asked to write and the vault
+    // couldn't be reached.
+    if (!text && text !== '') {
+      onWriteFailure?.();
+      return false;
+    }
 
     const lines = text.split('\n');
     const updated = updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId });
@@ -1494,15 +1499,18 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
         ? sortTaskLinesInSection(lines, taskHeading.trim(), date)
         : lines;
       if (!nativeWriteOk(bridge.writeDailyNote(date, finalLines.join('\n')))) {
-        // Same surfacing as the desktop writeback's failure path: a console
-        // error, nothing user-facing.
         console.error('Obsidian native writeback: vault write failed, not committing');
+        onWriteFailure?.();
         return false;
       }
     }
+    // `updated` false without onWriteFailure is the BENIGN no-matching-line
+    // case: the vault no longer carries the line, which is the vault's truth
+    // and the next scan's job — not a write failure.
     return updated;
   } catch (err) {
     console.error('Obsidian native writeback error:', err);
+    onWriteFailure?.();
     return false;
   }
 }
