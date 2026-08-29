@@ -209,7 +209,7 @@ Relevant to Phases 6 and 7.
 
 ## 6. Phases
 
-Phases 0 through 3 are complete. Phases 2 through 4 are independent of the plugin and deliver value on their own.
+Phases 0 through 5 are complete. Phases 2 through 4 are independent of the plugin and deliver value on their own.
 
 ### Phase 0. Platform truth and write safety foundations — COMPLETE
 
@@ -370,7 +370,7 @@ Tags need no step: dayGLANCE's tag model is "hashtags are title text" — vault 
 
 ---
 
-### Phase 5. Bridge plugin, minimal, unlisted — BUILT (as-built record; exit criteria pending on-device verification)
+### Phase 5. Bridge plugin, minimal, unlisted — COMPLETE
 
 **Goal.** Establish the plugin as an artifact, running on your own devices, doing the smallest useful thing.
 
@@ -388,7 +388,7 @@ Tags need no step: dayGLANCE's tag model is "hashtags are title text" — vault 
 
 **Distribution.** BRAT or manual install (`manifest.json` + built `main.js` into `.obsidian/plugins/dayglance-bridge/`). Not submitted to the community directory.
 
-**Exit criteria.** Heartbeat visible and correctly interpreted by dayGLANCE on macOS, Android, and Windows. Phase 1 no longer launches Obsidian or posts a tap-to-open notification when Obsidian is already open. *(Code and tests landed; the on-device pass across the three platforms is the remaining box to tick.)*
+**Exit criteria (met).** Heartbeat visible and correctly interpreted by dayGLANCE on macOS, Android, and Windows. Phase 1 no longer launches Obsidian or posts a tap-to-open notification when Obsidian is already open. On-device verification passed on all three platforms, 2026-08-29 (PR #1472 shipped the code; this closure records the manual pass).
 
 ---
 
