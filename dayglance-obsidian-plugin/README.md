@@ -1,22 +1,33 @@
 # dayGLANCE Bridge (Obsidian plugin)
 
-Phase 5 of the dayGLANCE Obsidian build-out (`docs/obsidian-buildout-spec.md`
-in the dayGLANCE repo): the plugin exists, runs, and does the smallest useful
-thing. **Unlisted** — installed manually or via BRAT, not submitted to the
-community directory.
+Phases 5–6 of the dayGLANCE Obsidian build-out (`docs/obsidian-buildout-spec.md`
+in the dayGLANCE repo): heartbeat plus pairing. **Unlisted** — installed
+manually or via BRAT, not submitted to the community directory.
 
 ## What it does (all of it)
 
 - Writes `.dayglance/heartbeat` every 30 seconds while Obsidian has the vault
-  open — `{"paired": false, "accountId": null, "deviceId": "…", "ts": "…"}`.
+  open — `{"paired": bool, "accountId": string|null, "deviceId": "…", "ts": "…"}`.
   dayGLANCE reads this to skip launching Obsidian when it's already running,
-  and (from Phase 6) to decide vault-write arbitration. The file lives in a
-  dot-directory, so Obsidian's indexer, search, graph view, and Obsidian Sync
-  all ignore it.
-- Adds one command: **Sync now** (`dayglance-bridge:sync-now`). With no
-  transport yet, it refreshes the heartbeat immediately.
+  and (once arbitration lands) to decide vault-write arbitration. The file
+  lives in a dot-directory, so Obsidian's indexer, search, graph view, and
+  Obsidian Sync all ignore it. `deviceId` is a per-install id that rides
+  `data.json` (and therefore Obsidian's settings sync) — it identifies the
+  vault copy, not a device; see spec §3.3.
+- **Pairing** (spec §3.12): when dayGLANCE drops a sealed pairing offer at
+  `.dayglance/pairing`, the plugin shows a notice; the **Enter pairing code**
+  command opens a modal, the code typed there opens the offer, the carried
+  device token is verified against GLANCEvault with one authenticated call,
+  and the credentials (token + bridge-scoped subkey) are stored in
+  `data.json`. The offer file is deleted after use.
+- Three commands: **Sync now** (refreshes the heartbeat — no transport yet),
+  **Enter pairing code**, and **Unpair from GLANCEvault** (forgets the local
+  credentials; revoke the token server-side too).
 
-No settings tab, no network, no other vault writes.
+After pairing the plugin can talk to GLANCEvault but moves no data — the
+intent stream is the next phase. Network access happens only during pairing
+verification, only to the vault URL carried in the offer, via Obsidian's
+`requestUrl`.
 
 ## Build
 
@@ -35,4 +46,8 @@ Settings → Community plugins.
 
 This directory is deliberately self-contained (own package.json, no imports
 from dayGLANCE) so it can be extracted to its own public repository before
-any community-directory submission without surgery.
+any community-directory submission without surgery. Its two dependencies —
+`@glance-apps/obsidian-format` (the shared vault-format core, `file:`-linked
+while the plugin lives here) and `@glance-apps/sync` (only `vaultClient.js`
+is imported, so the bundle carries the HTTP client and none of the sync
+engine) — are bundled into `main.js`.

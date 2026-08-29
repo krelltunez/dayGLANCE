@@ -17,6 +17,7 @@ import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, forma
 import { validateDailyNotePattern, validateVaultFolderSetting } from '../utils/obsidianFilename.js';
 import { effectiveLaunchOnWrite } from '../utils/obsidianLaunchOnWrite.js';
 import UnportableVaultNamesPanel from './UnportableVaultNamesPanel.jsx';
+import BridgePairingPanel from './BridgePairingPanel.jsx';
 import { INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from '../intents/useIntentPoller.js';
 import { syncSharedUsers, syncSharedUsersViaICloud } from '../intents/sharedUsers.js';
 import { isAvailable as isICloudAvailable } from '../intents/icloudFileTransport.js';
@@ -1759,6 +1760,7 @@ const SettingsModal = () => {
                               {t('common.lastSynced')}: {new Date(obsidianLastSynced).toLocaleString()}
                             </p>
                           )}
+                          <BridgePairingPanel vaultHandleRef={obsidianVaultHandleRef} darkMode={darkMode} textPrimary={textPrimary} textSecondary={textSecondary} borderClass={borderClass} />
                           <UnportableVaultNamesPanel entries={unportableVaultFiles} darkMode={darkMode} textSecondary={textSecondary} />
                         </div>
                       ) : (
