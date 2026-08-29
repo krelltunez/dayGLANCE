@@ -41,6 +41,7 @@ export {
   simpleHash, deriveBlockId, appIdForBlockId, legacyObsidianId,
   splitBlockId, hasForeignBlockId, blockIdSuffix,
   splitCompletionMarker, completionMarkerSuffix,
+  dailyNoteFilename,
 } from '@glance-apps/obsidian-format';
 import { withCreationFrontmatter } from './utils/obsidianFrontmatter.js';
 
@@ -910,6 +911,133 @@ function adoptVaultMetadataEdits(task, edits, lineVals) {
  * @param {Array}  existingInbox    Current DG inbox tasks
  * @returns {{ dailyNotes, scheduledTasks, inboxTasks }}
  */
+// Build a lookup of ALL existing Obsidian task properties so a scan (or the
+// bridge observation applier) can preserve app-controlled fields through
+// sync. Also tracks which array (scheduled vs inbox) each task currently
+// lives in so cross-array moves the user made inside DG are honoured.
+//
+// The localStorage supplement handles the race on app open where the
+// Obsidian sync fires before cloud-sync's applyEngineData has had a chance
+// to push the remote state into React state. Without this, a desktop
+// session whose Obsidian sync wins the race would see an empty
+// existingTaskMap, default every duration to 30, then upload that stale
+// value with a fresh timestamp that beats Android's custom duration in the
+// next cloud merge.
+export function buildExistingObsidianTaskContext(existingTasks, existingInbox) {
+  const existingTaskMap = {};
+  const userScheduledIds = new Set();
+  const userInboxIds = new Set();
+  for (const t of existingTasks) {
+    if (t.importSource === 'obsidian') {
+      existingTaskMap[t.id] = t;
+      userScheduledIds.add(t.id);
+    }
+  }
+  for (const t of existingInbox) {
+    if (t.importSource === 'obsidian') {
+      existingTaskMap[t.id] = t;
+      userInboxIds.add(t.id);
+    }
+  }
+  try {
+    const lsTasks = JSON.parse(localStorage.getItem('day-planner-tasks') || '[]');
+    const lsUnsched = JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]');
+    for (const t of [...lsTasks, ...lsUnsched]) {
+      if (t.importSource === 'obsidian' && !existingTaskMap[t.id]) {
+        existingTaskMap[t.id] = t;
+      }
+    }
+  } catch { /* localStorage unavailable or corrupt — skip */ }
+  return { existingTaskMap, userScheduledIds, userInboxIds };
+}
+
+// The per-note task merge — ONE implementation for the FSA scan, the native
+// scan, and the bridge observation applier (spec §3.6 as amended: inbound
+// observations flow through the SAME pipeline as scanned files, which is
+// what keeps every §3.10 ownership ruling in exactly one place).
+//
+// Once imported, DG owns scheduling, title, and app-controlled properties;
+// Obsidian only controls task *existence* and initial values — EXCEPT the
+// title of a tagged line Obsidian edited since our last write, which the
+// vault wins (resolveTitleOwnership), and metadata FIELDS the vault
+// demonstrably edited (adoptVaultMetadataEdits). Cross-array moves the user
+// made in DG are honoured — UNLESS the vault itself just (un)scheduled the
+// line (⏳ added/removed): the vault's demonstrable edit wins the
+// classification too.
+export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
+  const { existingTaskMap, userScheduledIds, userInboxIds } = ctx;
+  const { allScheduled, allInbox } = out;
+  for (const task of parsed.scheduledTasks) {
+    const existing = resolveExistingObsidianTask(existingTaskMap, task);
+    if (existing) {
+      // Line-derived values, captured BEFORE the existing-fields copies
+      // overwrite them — the adoption below restores exactly the fields
+      // the vault demonstrably edited (vaultMetadataEdits).
+      const lineVals = { date: task.date, startTime: task.startTime, isAllDay: task.isAllDay, deadline: task.deadline, priority: task.priority };
+      const edits = vaultMetadataEdits(task, existing);
+      // Completed: OR logic — completed in DG OR in Obsidian → completed
+      if (existing.completed) task.completed = true;
+      if (existing.notes !== undefined) task.notes = existing.notes;
+      if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
+      if (existing.color !== undefined) task.color = existing.color;
+      if (existing.duration !== undefined) task.duration = existing.duration;
+      if (existing.priority !== undefined) task.priority = existing.priority;
+      if (existing.deadline !== undefined) task.deadline = existing.deadline;
+      if (existing.date !== undefined) task.date = existing.date;
+      if (existing.startTime !== undefined) task.startTime = existing.startTime;
+      if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
+      resolveTitleOwnership(task, existing, onTitleConflict);
+      adoptVaultMetadataEdits(task, edits, lineVals);
+      // Preserve lastModified so cloud merge keeps recognising the
+      // version the user actually edited rather than treating re-imports
+      // as brand-new tasks with a fresh timestamp.
+      if (existing.lastModified) task.lastModified = existing.lastModified;
+
+      // User moved this to inbox — respect the cross-array move (keyed by
+      // the id the task holds IN STATE, which during the one-time block-id
+      // switch is the legacy id, not the freshly parsed one).
+      if (userInboxIds.has(String(existing.id)) && !edits?.scheduled) {
+        allInbox.push(task);
+        continue;
+      }
+    } else {
+      // Fresh import with no local match — use epoch so cloud merge
+      // correctly prefers real user edits from other devices.
+      task.lastModified = new Date(0).toISOString();
+    }
+    allScheduled.push(task);
+  }
+  for (const task of parsed.inboxTasks) {
+    const existing = resolveExistingObsidianTask(existingTaskMap, task);
+    if (existing) {
+      const lineVals = { deadline: task.deadline, priority: task.priority };
+      const edits = vaultMetadataEdits(task, existing);
+      if (existing.completed) task.completed = true;
+      if (existing.priority !== undefined) task.priority = existing.priority;
+      if (existing.deadline !== undefined) task.deadline = existing.deadline;
+      if (existing.notes !== undefined) task.notes = existing.notes;
+      if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
+      if (existing.color !== undefined) task.color = existing.color;
+      if (existing.duration !== undefined) task.duration = existing.duration;
+      resolveTitleOwnership(task, existing, onTitleConflict);
+      adoptVaultMetadataEdits(task, edits, lineVals);
+      if (existing.lastModified) task.lastModified = existing.lastModified;
+
+      // User scheduled this from inbox — respect the cross-array move.
+      if (userScheduledIds.has(String(existing.id)) && !edits?.scheduled) {
+        if (existing.date !== undefined) task.date = existing.date;
+        if (existing.startTime !== undefined) task.startTime = existing.startTime;
+        if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
+        allScheduled.push(task);
+        continue;
+      }
+    } else {
+      task.lastModified = new Date(0).toISOString();
+    }
+    allInbox.push(task);
+  }
+}
+
 export async function syncObsidianVault(
   vaultHandle,
   dailyNotesPath,
@@ -928,41 +1056,7 @@ export async function syncObsidianVault(
   const allScheduled = [];
   const allInbox = [];
 
-  // Build a lookup of ALL existing Obsidian task properties so we can
-  // preserve app-controlled fields through sync.  Also track which array
-  // (scheduled vs inbox) each task currently lives in so we honour
-  // cross-array moves the user made inside DG.
-  const existingTaskMap = {};
-  const userScheduledIds = new Set();
-  const userInboxIds = new Set();
-  for (const t of existingTasks) {
-    if (t.importSource === 'obsidian') {
-      existingTaskMap[t.id] = t;
-      userScheduledIds.add(t.id);
-    }
-  }
-  for (const t of existingInbox) {
-    if (t.importSource === 'obsidian') {
-      existingTaskMap[t.id] = t;
-      userInboxIds.add(t.id);
-    }
-  }
-  // Supplement with localStorage — handles the race on app open where the
-  // Obsidian sync fires before cloud-sync's applyEngineData has had a chance
-  // to push the remote state into React state.  Without this, a desktop
-  // session whose Obsidian sync wins the race would see an empty
-  // existingTaskMap, default every duration to 30, then upload that stale
-  // value with a fresh timestamp that beats Android's custom duration in the
-  // next cloud merge.
-  try {
-    const lsTasks = JSON.parse(localStorage.getItem('day-planner-tasks') || '[]');
-    const lsUnsched = JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]');
-    for (const t of [...lsTasks, ...lsUnsched]) {
-      if (t.importSource === 'obsidian' && !existingTaskMap[t.id]) {
-        existingTaskMap[t.id] = t;
-      }
-    }
-  } catch { /* localStorage unavailable or corrupt — skip */ }
+  const ctx = buildExistingObsidianTaskContext(existingTasks, existingInbox);
 
   // Pre-build the filename parser for custom patterns (avoids re-compiling inside the loop)
   const isDefaultPattern = !pattern || pattern === 'yyyy-MM-dd';
@@ -996,94 +1090,12 @@ export async function syncObsidianVault(
     // Store daily note
     dailyNotes[dateStr] = { text, lastModified, fromObsidian: true };
 
-    // Parse tasks
-    const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(text, dateStr, seenBlockIds);
-
-    // Merge: once imported, DG owns scheduling, title, and app-controlled
-    // properties.  Obsidian only controls task *existence* and initial values.
-    // We also honour cross-array moves: if the user moved a vault-scheduled
-    // task into the inbox (or vice versa), the task goes into the array the
-    // user chose, not the one the vault dictates.
-    for (const task of scheduledTasks) {
-      const existing = resolveExistingObsidianTask(existingTaskMap, task);
-      if (existing) {
-        // Line-derived values, captured BEFORE the existing-fields copies
-        // overwrite them — the adoption below restores exactly the fields
-        // the vault demonstrably edited (vaultMetadataEdits).
-        const lineVals = { date: task.date, startTime: task.startTime, isAllDay: task.isAllDay, deadline: task.deadline, priority: task.priority };
-        const edits = vaultMetadataEdits(task, existing);
-        // Completed: OR logic — completed in DG OR in Obsidian → completed
-        if (existing.completed) task.completed = true;
-        // Preserve app-controlled properties the user may have changed in DG
-        if (existing.notes !== undefined) task.notes = existing.notes;
-        if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
-        if (existing.color !== undefined) task.color = existing.color;
-        if (existing.duration !== undefined) task.duration = existing.duration;
-        if (existing.priority !== undefined) task.priority = existing.priority;
-        if (existing.deadline !== undefined) task.deadline = existing.deadline;
-        // Preserve scheduling & title changes made in DG so sync never
-        // overwrites moves/renames the user made inside the app — EXCEPT the
-        // title of a tagged line Obsidian edited since our last write, which
-        // the vault wins (see vaultTitleWins), and metadata FIELDS the vault
-        // demonstrably edited (adoptVaultMetadataEdits below).
-        if (existing.date !== undefined) task.date = existing.date;
-        if (existing.startTime !== undefined) task.startTime = existing.startTime;
-        if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
-        resolveTitleOwnership(task, existing, onTitleConflict);
-        adoptVaultMetadataEdits(task, edits, lineVals);
-        // Preserve lastModified so cloud merge keeps recognising the
-        // version the user actually edited rather than treating re-imports
-        // as brand-new tasks with a fresh timestamp.
-        if (existing.lastModified) task.lastModified = existing.lastModified;
-
-        // User moved this to inbox — respect the cross-array move (keyed by
-        // the id the task holds IN STATE, which during the one-time block-id
-        // switch is the legacy id, not the freshly parsed one) — UNLESS the
-        // vault itself just rescheduled the line (⏳ added/edited): the
-        // vault's demonstrable edit wins the classification too.
-        if (userInboxIds.has(String(existing.id)) && !edits?.scheduled) {
-          allInbox.push(task);
-          continue;
-        }
-      } else {
-        // Fresh import with no local match — use epoch so cloud merge
-        // correctly prefers real user edits from other devices.
-        task.lastModified = new Date(0).toISOString();
-      }
-      allScheduled.push(task);
-    }
-    for (const task of inboxTasks) {
-      const existing = resolveExistingObsidianTask(existingTaskMap, task);
-      if (existing) {
-        const lineVals = { deadline: task.deadline, priority: task.priority };
-        const edits = vaultMetadataEdits(task, existing);
-        if (existing.completed) task.completed = true;
-        if (existing.priority !== undefined) task.priority = existing.priority;
-        if (existing.deadline !== undefined) task.deadline = existing.deadline;
-        if (existing.notes !== undefined) task.notes = existing.notes;
-        if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
-        if (existing.color !== undefined) task.color = existing.color;
-        if (existing.duration !== undefined) task.duration = existing.duration;
-        resolveTitleOwnership(task, existing, onTitleConflict);
-        adoptVaultMetadataEdits(task, edits, lineVals);
-        if (existing.lastModified) task.lastModified = existing.lastModified;
-
-        // User scheduled this from inbox — respect the cross-array move —
-        // UNLESS the vault just unscheduled the line (⏳ removed, which is
-        // why this parse classified it inbox): the vault's demonstrable
-        // edit wins the classification.
-        if (userScheduledIds.has(String(existing.id)) && !edits?.scheduled) {
-          if (existing.date !== undefined) task.date = existing.date;
-          if (existing.startTime !== undefined) task.startTime = existing.startTime;
-          if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
-          allScheduled.push(task);
-          continue;
-        }
-      } else {
-        task.lastModified = new Date(0).toISOString();
-      }
-      allInbox.push(task);
-    }
+    // Parse + merge through the shared per-note pipeline (see
+    // mergeParsedObsidianTasks above for the ownership commentary).
+    mergeParsedObsidianTasks(
+      parseTasksFromMarkdown(text, dateStr, seenBlockIds),
+      ctx, onTitleConflict, { allScheduled, allInbox },
+    );
   }
 
   return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox };
@@ -1308,26 +1320,9 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
   // Cutoff date string; '0000-00-00' when the window is unlimited (reads everything).
   const cutoffStr = obsidianWindowCutoffDate(retentionDays) ?? '0000-00-00';
 
-  // Build lookup of existing Obsidian tasks to preserve app-controlled properties
-  const existingTaskMap = {};
-  const userScheduledIds = new Set();
-  const userInboxIds = new Set();
-  for (const t of existingTasks) {
-    if (t.importSource === 'obsidian') { existingTaskMap[t.id] = t; userScheduledIds.add(t.id); }
-  }
-  for (const t of existingInbox) {
-    if (t.importSource === 'obsidian') { existingTaskMap[t.id] = t; userInboxIds.add(t.id); }
-  }
-  // Supplement with localStorage — same race-condition fix as syncObsidianVault.
-  try {
-    const lsTasks = JSON.parse(localStorage.getItem('day-planner-tasks') || '[]');
-    const lsUnsched = JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]');
-    for (const t of [...lsTasks, ...lsUnsched]) {
-      if (t.importSource === 'obsidian' && !existingTaskMap[t.id]) {
-        existingTaskMap[t.id] = t;
-      }
-    }
-  } catch { /* localStorage unavailable or corrupt — skip */ }
+  // Same existing-task context as syncObsidianVault (incl. its
+  // localStorage race-condition supplement).
+  const ctx = buildExistingObsidianTaskContext(existingTasks, existingInbox);
 
   const dailyNotes = {};
   const allScheduled = [];
@@ -1409,63 +1404,12 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
     // bridge builds that don't report it yet. See nativeNoteLastModified.
     dailyNotes[dateStr] = { text, lastModified: nativeNoteLastModified(entry, new Date().toISOString()), fromObsidian: true };
 
-    const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(text, dateStr, seenBlockIds);
-
-    // Same merge logic as syncObsidianVault — including the Step 2
-    // per-field vault-edit adoption (vaultMetadataEdits) and its
-    // classification override; see the FSA loops for the commentary.
-    for (const task of scheduledTasks) {
-      const existing = resolveExistingObsidianTask(existingTaskMap, task);
-      if (existing) {
-        const lineVals = { date: task.date, startTime: task.startTime, isAllDay: task.isAllDay, deadline: task.deadline, priority: task.priority };
-        const edits = vaultMetadataEdits(task, existing);
-        if (existing.completed) task.completed = true;
-        if (existing.notes !== undefined) task.notes = existing.notes;
-        if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
-        if (existing.color !== undefined) task.color = existing.color;
-        if (existing.duration !== undefined) task.duration = existing.duration;
-        if (existing.priority !== undefined) task.priority = existing.priority;
-        if (existing.deadline !== undefined) task.deadline = existing.deadline;
-        if (existing.date !== undefined) task.date = existing.date;
-        if (existing.startTime !== undefined) task.startTime = existing.startTime;
-        if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
-        resolveTitleOwnership(task, existing, onTitleConflict);
-        adoptVaultMetadataEdits(task, edits, lineVals);
-        if (existing.lastModified) task.lastModified = existing.lastModified;
-        if (userInboxIds.has(String(existing.id)) && !edits?.scheduled) { allInbox.push(task); continue; }
-      } else {
-        task.lastModified = new Date(0).toISOString();
-      }
-      allScheduled.push(task);
-    }
-
-    for (const task of inboxTasks) {
-      const existing = resolveExistingObsidianTask(existingTaskMap, task);
-      if (existing) {
-        const lineVals = { deadline: task.deadline, priority: task.priority };
-        const edits = vaultMetadataEdits(task, existing);
-        if (existing.completed) task.completed = true;
-        if (existing.priority !== undefined) task.priority = existing.priority;
-        if (existing.deadline !== undefined) task.deadline = existing.deadline;
-        if (existing.notes !== undefined) task.notes = existing.notes;
-        if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
-        if (existing.color !== undefined) task.color = existing.color;
-        if (existing.duration !== undefined) task.duration = existing.duration;
-        resolveTitleOwnership(task, existing, onTitleConflict);
-        adoptVaultMetadataEdits(task, edits, lineVals);
-        if (existing.lastModified) task.lastModified = existing.lastModified;
-        if (userScheduledIds.has(String(existing.id)) && !edits?.scheduled) {
-          if (existing.date !== undefined) task.date = existing.date;
-          if (existing.startTime !== undefined) task.startTime = existing.startTime;
-          if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
-          allScheduled.push(task);
-          continue;
-        }
-      } else {
-        task.lastModified = new Date(0).toISOString();
-      }
-      allInbox.push(task);
-    }
+    // Same shared per-note pipeline as syncObsidianVault — including the
+    // Step 2 per-field vault-edit adoption and its classification override.
+    mergeParsedObsidianTasks(
+      parseTasksFromMarkdown(text, dateStr, seenBlockIds),
+      ctx, onTitleConflict, { allScheduled, allInbox },
+    );
   }
 
   return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox };

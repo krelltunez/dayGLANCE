@@ -4,7 +4,8 @@ import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, Chev
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { hasNativeCalendar, electronGetCalendars, electronGetEventsByDate, electronRequestCalendarAccess, nativeEventToTask } from './utils/nativeCalendar.js';
 import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeWriteDailyNote, nativeClearVault, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeGetWidgetPendingAction, triggerHaptic } from './native.js';
-import { writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, simpleHash as obsidianSimpleHash, buildNewObsidianTaskMeta, appendTaskToDailyNote, appendTaskToDailyNoteNative } from './obsidian.js';
+import { writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, simpleHash as obsidianSimpleHash, buildNewObsidianTaskMeta, appendTaskToDailyNote, appendTaskToDailyNoteNative, dailyNoteFilename } from './obsidian.js';
+import { emitBridgeIntent } from './utils/obsidianBridgeStream.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
@@ -3223,6 +3224,15 @@ const DayPlanner = () => {
     });
     // If Obsidian integration is enabled, write the note to the vault
     if (obsidianConfig?.enabled && obsidianVaultHandleRef.current) {
+      // Bridge stream (Phase 6): the same write as a semantic intent for any
+      // paired vault copy. Path mirrors writeDailyNoteFile's resolution
+      // (pattern-aware filename under dailyNotesPath); fail-silent.
+      emitBridgeIntent('daily_note_write', {
+        path: (obsidianConfig.dailyNotesPath ? `${obsidianConfig.dailyNotesPath.replace(/\/+$/, '')}/` : '')
+          + dailyNoteFilename(dateStr, obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd'),
+        date: dateStr,
+        content: text || '',
+      });
       if (obsidianVaultHandleRef.current === 'native') {
         // writeDailyNoteNative is synchronous (JavascriptInterface blocks the JS thread
         // during the SAF write).  Defer it by one frame so the note modal closes
@@ -6918,6 +6928,17 @@ const DayPlanner = () => {
       ? (task) => {
           const todayStr = new Date().toISOString().split('T')[0];
           const heading = obsidianConfig.taskHeading || '## Tasks';
+          // Bridge stream (Phase 6): the same append as a semantic intent.
+          // applyBridgeIntent dedupes on the task's ^dg- block id, so a
+          // paired vault copy converges whichever side appends first.
+          emitBridgeIntent('task_append', {
+            path: (obsidianConfig.dailyNotesPath ? `${obsidianConfig.dailyNotesPath.replace(/\/+$/, '')}/` : '')
+              + dailyNoteFilename(todayStr, obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd'),
+            date: todayStr,
+            task,
+            heading,
+            template: dailyNoteTemplate,
+          });
           if (obsidianVaultHandleRef.current === 'native') {
             appendTaskToDailyNoteNative(todayStr, task, heading, dailyNoteTemplate);
           } else {

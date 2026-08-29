@@ -32,6 +32,7 @@ import {
 import { blockIdWritesEnabled, completionMarkerWritesEnabled } from '../utils/obsidianWritePolicy.js';
 import { titleConflictNoticeText } from '../utils/obsidianTitleConflict.js';
 import { withCreationFrontmatter } from '../utils/obsidianFrontmatter.js';
+import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, getBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
 
 /**
  * Obsidian vault sync — extracted from App.jsx (see "App.jsx — Ongoing
@@ -111,6 +112,14 @@ export default function useObsidianSync({
     if (!handle) return;
     // Strip [[Note#Heading]] fragment for write path too
     const notePath = noteName.split('#')[0].trim();
+    // Bridge stream (Phase 6): the same write as a semantic intent, applied
+    // by the plugin to any paired vault copy. Fail-silent, and convergent
+    // with the direct write below — applyBridgeIntent enforces the same
+    // creation-only portability gate and frontmatter rule, so a name
+    // refused here is refused there too.
+    emitBridgeIntent('wiki_note_write', {
+      noteName: notePath, content, newNotesFolder: obsidianConfig?.newNotesFolder ?? 'dayGLANCE',
+    });
     // Portability gate on CREATION ONLY (see writeWikiNote): the existence
     // check runs before the validator, so a note that already exists is
     // written whatever its name — the harm is in creating NEW unportable
@@ -349,6 +358,17 @@ export default function useObsidianSync({
       // fail the sync).
       await refreshTasksPluginDetection(obsidianVaultHandleRef.current);
       await refreshBridgeHeartbeat(obsidianVaultHandleRef.current);
+      // Bridge stream (Phase 6): once per cycle, refresh the pairing-meta
+      // discovery (it also gates the emit sites), retry anything the emit
+      // sites left queued, and (re)publish the config row the plugin's
+      // observation scope reads. All fail-silent and paired-gated inside —
+      // on an unpaired vault they are no-ops.
+      void getBridgePairingMeta().then(() => flushBridgeOutbox());
+      void publishBridgeConfig({
+        dailyNotesPath: obsidianConfig?.dailyNotesPath || '',
+        dailyNotePattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
+        taskHeading: obsidianConfig?.taskHeading || '## Tasks',
+      });
       const result = isNative
         ? await syncObsidianVaultNative(
             obsidianConfig?.dailyNotesPath || '',
@@ -861,6 +881,29 @@ export default function useObsidianSync({
         // stale L→M hop resolved later (resolveRetirement handles one anyway).
         recordRetirements([...new Set([task.id, postTitleId])].filter(id => id !== finalId), finalId);
       };
+
+      // Bridge stream (Phase 6): the same write as a semantic intent — a
+      // retitling write is task_retitle (it carries the state too: one
+      // write, one intent), any other state/schedule change is task_state.
+      // The path mirrors the direct write's file resolution exactly
+      // (writeTaskStateToFile: `${dateStr}.md` under dailyNotesPath), and
+      // applyBridgeIntent mirrors its line rewrite, so a paired vault
+      // copy converges byte-for-byte whichever side lands first.
+      // Fail-silent; a stream problem never touches the direct write.
+      emitBridgeIntent(titleChanged && newRawTitle ? 'task_retitle' : 'task_state', {
+        path: (obsidianConfig?.dailyNotesPath ? `${obsidianConfig.dailyNotesPath.replace(/\/+$/, '')}/` : '') + `${sourceDate}.md`,
+        date: sourceDate,
+        obsidianRawTitle: task.obsidianRawTitle,
+        completed: task.completed,
+        startTime: writeStartTime,
+        duration: writeDuration,
+        ...(titleChanged && newRawTitle ? { newRawTitle } : {}),
+        ...(targetDate ? { targetDate } : {}),
+        taskHeading,
+        blockId: writeBlockId,
+        completedAt: completionMeta?.completedAt ?? null,
+        completionFormat: completionMeta?.format ?? null,
+      });
 
       if (isNative) {
         // onWriteFailure fires only on a GENUINE failure (unreadable note,
