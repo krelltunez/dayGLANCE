@@ -13,5 +13,8 @@
     "esbuild": "^0.21.0",
     "obsidian": "^1.5.7",
     "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@glance-apps/obsidian-format": "file:../packages/obsidian-format"
   }
 }

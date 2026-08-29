@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitTasksMetadata, reattachTasksMetadata } from './obsidianTasksMetadata.js';
+import { splitTasksMetadata, reattachTasksMetadata } from './tasksMetadata.js';
 
 // The trailing-run grammar and its two invariants: the split is byte-exact
 // (text + metaText === input, always — the retitle-carry's losslessness),

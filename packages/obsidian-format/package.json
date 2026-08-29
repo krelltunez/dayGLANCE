@@ -1,0 +1,18 @@
+{
+  "name": "@glance-apps/obsidian-format",
+  "version": "0.1.0",
+  "description": "The dayGLANCE Obsidian vault line-format core: identity, decorations, line building/rewriting, note naming, and the task parser. Format, never policy.",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.js",
+  "types": "types/index.d.ts",
+  "files": ["src", "types", "README.md", "LICENSE"],
+  "scripts": {
+    "test": "vitest run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/krelltunez/dayGLANCE.git",
+    "directory": "packages/obsidian-format"
+  }
+}

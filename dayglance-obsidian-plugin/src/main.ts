@@ -29,6 +29,12 @@
 // cannot see dot-paths.
 
 import { Notice, Plugin, normalizePath } from 'obsidian';
+// The shared vault-format core — the SAME package dayGLANCE consumes, so the
+// heartbeat's writer and its readers can never drift apart (the first proof
+// the format-package boundary works in both directions). Bundled into
+// main.js by esbuild; `file:`-linked while the plugin lives in the dayGLANCE
+// repo, a published dependency after extraction.
+import { heartbeatPayload } from '@glance-apps/obsidian-format';
 
 const HEARTBEAT_DIR = '.dayglance';
 const HEARTBEAT_PATH = `${HEARTBEAT_DIR}/heartbeat`;
@@ -108,12 +114,9 @@ export default class DayGlanceBridgePlugin extends Plugin {
       if (!(await adapter.exists(dir))) {
         await adapter.mkdir(dir);
       }
-      const payload = {
-        paired: false, // Phase 6 flips this on successful GLANCEvault pairing
-        accountId: null as string | null,
-        deviceId: this.deviceId,
-        ts: new Date().toISOString(),
-      };
+      // Phase 5 values (paired false, accountId null) — Phase 6 pairing
+      // changes the values, never the shape.
+      const payload = heartbeatPayload({ deviceId: this.deviceId });
       await adapter.write(normalizePath(HEARTBEAT_PATH), JSON.stringify(payload));
     } catch (e) {
       // A liveness beacon must never nag: one console line, no Notice.
