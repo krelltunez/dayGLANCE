@@ -25,7 +25,17 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class ObsidianRepository(private val context: Context) {
 
-    private companion object { const val TAG = "ObsidianRepository" }
+    private companion object {
+        const val TAG = "ObsidianRepository"
+
+        // Bridge-plugin heartbeat staleness (Obsidian build-out Phase 5):
+        // 5 minutes — ten missed 30-second beats, comfortably longer than an
+        // Obsidian restart. MIRRORS src/utils/obsidianHeartbeat.js and
+        // electron/obsidianLaunch.ts; the three readers cannot share code, so
+        // the semantics are duplicated deliberately with these pointers.
+        // Missing, stale, and malformed are one case (false).
+        const val HEARTBEAT_STALE_MS = 5 * 60 * 1000L
+    }
 
     private val dataStore = SharedDataStore(context)
 
@@ -372,6 +382,44 @@ class ObsidianRepository(private val context: Context) {
         val dir = root.findFile(".obsidian") ?: return ""
         val file = dir.findFile("community-plugins.json") ?: return ""
         return readText(file)
+    }
+
+    /**
+     * The bridge-plugin heartbeat file (.dayglance/heartbeat — Phase 5).
+     * Same read contract as [getCommunityPlugins]: "" = determinately absent
+     * (no .dayglance folder or no file — no plugin, or it never beat);
+     * NULL = could not be determined (vault unconfigured, or the read
+     * failed). The JS side treats both like a missing heartbeat.
+     */
+    fun getHeartbeat(): String? {
+        val root = vaultRoot() ?: return null
+        val dir = root.findFile(".dayglance") ?: return ""
+        val file = dir.findFile("heartbeat") ?: return ""
+        return readText(file)
+    }
+
+    /**
+     * Fire/arm-time freshness check for launch-on-write suppression: a fresh
+     * heartbeat proves Obsidian is already running, so the Phase 1 wake would
+     * be redundant and the ARM is skipped (neither a direct launch nor a
+     * tap-to-open notification is produced — spec §6 Phase 5). Any failure —
+     * unreadable, malformed, bad ts, stale, far-future — answers false: when
+     * in doubt the launch machinery behaves exactly as before the plugin
+     * existed. On Android this window is naturally narrow: Obsidian's
+     * heartbeat freezes when it is backgrounded (which it is whenever the
+     * user is IN dayGLANCE), so only writes within the staleness window of
+     * Obsidian leaving the foreground are suppressed — the correct reading
+     * of "running", since a backgrounded Obsidian isn't syncing either.
+     */
+    fun bridgeHeartbeatFresh(nowMs: Long = System.currentTimeMillis()): Boolean {
+        val text = try { getHeartbeat() } catch (e: Exception) { null }
+        if (text.isNullOrBlank()) return false
+        return try {
+            val tsMs = Instant.parse(JSONObject(text).optString("ts", "")).toEpochMilli()
+            tsMs <= nowMs + HEARTBEAT_STALE_MS && nowMs - tsMs < HEARTBEAT_STALE_MS
+        } catch (e: Exception) {
+            false
+        }
     }
 
     /**

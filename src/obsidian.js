@@ -22,6 +22,7 @@ import { unportableEntryReason } from './utils/vaultPortability.js';
 import { blockIdWritesEnabled } from './utils/obsidianWritePolicy.js';
 import { detectTwoSidedRetitle, appendTitleConflictNote, stripObsidianDisplayTag } from './utils/obsidianTitleConflict.js';
 import { splitTasksMetadata, reattachTasksMetadata } from './utils/obsidianTasksMetadata.js';
+import { parseObsidianHeartbeat } from './utils/obsidianHeartbeat.js';
 import { withCreationFrontmatter } from './utils/obsidianFrontmatter.js';
 
 // How far back the Obsidian daily-note scan reads, in days. DELIBERATELY FIXED and
@@ -713,13 +714,60 @@ export const OBSIDIAN_TASKS_PLUGIN_ID = 'obsidian-tasks-plugin';
  */
 export async function vaultHasTasksPlugin(vaultHandle) {
   try {
-    const dir = await vaultHandle.getDirectoryHandle('.obsidian');
-    const fh = await dir.getFileHandle('community-plugins.json');
-    const file = await fh.getFile();
-    const arr = JSON.parse(await file.text());
+    const text = await readVaultDotFile(vaultHandle, '.obsidian', 'community-plugins.json');
+    if (text === null) return false;
+    const arr = JSON.parse(text);
     return Array.isArray(arr) && arr.includes(OBSIDIAN_TASKS_PLUGIN_ID);
   } catch {
     return false;
+  }
+}
+
+/**
+ * Read one file inside a dot-directory of the vault, through the FSA
+ * surface (real FSA in the browser; the Electron shim's stat/readFile reach
+ * dot-paths identically). Returns the text, or null for missing/unreadable —
+ * the shared transport path for everything that lives outside note space:
+ * Tasks-plugin detection (.obsidian/community-plugins.json, #1470) and the
+ * bridge-plugin heartbeat (.dayglance/heartbeat, Phase 5). Never creates
+ * anything: both callers are probes.
+ */
+async function readVaultDotFile(vaultHandle, dirName, fileName) {
+  try {
+    const dir = await vaultHandle.getDirectoryHandle(dirName);
+    const fh = await dir.getFileHandle(fileName);
+    const file = await fh.getFile();
+    return await file.text();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The bridge-plugin heartbeat (.dayglance/heartbeat — utils/obsidianHeartbeat.js
+ * documents the contract and consumers). Returns the parsed payload or null;
+ * missing, unreadable, and malformed are one case by design.
+ */
+export async function readVaultHeartbeat(vaultHandle) {
+  return parseObsidianHeartbeat(await readVaultDotFile(vaultHandle, '.dayglance', 'heartbeat'));
+}
+
+/**
+ * Native (Android/iOS) heartbeat read via the bridge's getHeartbeat, under
+ * the shared read contract — with the same legacy-shell guards as
+ * detectTasksPluginNative: a missing method (old Android shell) and the
+ * literal string "null" (old iOS dispatcher echo over HTTP 200) both mean
+ * "no answer", which for a liveness probe is simply null.
+ */
+export function readVaultHeartbeatNative() {
+  const bridge = typeof window !== 'undefined' ? window.DayGlanceObsidian : null;
+  if (!bridge?.getHeartbeat) return null;
+  try {
+    const text = bridge.getHeartbeat();
+    if (text === null || text === undefined || text === 'null') return null;
+    return parseObsidianHeartbeat(text);
+  } catch {
+    return null;
   }
 }
 

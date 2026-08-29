@@ -1,0 +1,17 @@
+{
+  "name": "dayglance-bridge",
+  "version": "0.1.0",
+  "description": "dayGLANCE bridge plugin for Obsidian (Phase 5: heartbeat)",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "dev": "node esbuild.config.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "esbuild": "^0.21.0",
+    "obsidian": "^1.5.7",
+    "typescript": "^5.4.0"
+  }
+}

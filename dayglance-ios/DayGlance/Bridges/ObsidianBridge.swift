@@ -138,6 +138,18 @@ final class ObsidianBridge: NSObject {
         }
     }
 
+    /// The bridge-plugin heartbeat (.dayglance/heartbeat, Phase 5) for the
+    /// web layer's arbitration plumbing. Same read contract as
+    /// getCommunityPlugins: "" = determinately absent, nil (→ 500 → JS
+    /// null) = could not be determined.
+    func getHeartbeat() -> String? {
+        withVault(fallback: nil) { vault -> String? in
+            let file = vault.appendingPathComponent(".dayglance/heartbeat")
+            guard FileManager.default.fileExists(atPath: file.path) else { return "" }
+            return try? String(contentsOf: file, encoding: .utf8) // read failure → nil
+        }
+    }
+
     func writeDailyNote(date: String, content: String) -> String {
         withVault(fallback: "false") { vault in
             guard let fileName = dailyNoteFileName(date: date) else { return "false" }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createLaunchScheduler, LAUNCH_ON_WRITE_QUIET_MS } from './obsidianLaunch.js';
+import { createLaunchScheduler, heartbeatSuppressesLaunch, LAUNCH_ON_WRITE_QUIET_MS } from './obsidianLaunch.js';
 
 // The debounce contract for launch-on-write (spec §6 Phase 1): a burst of
 // writes within the quiet window produces exactly one launch, writes separated
@@ -125,5 +125,78 @@ describe('createLaunchScheduler', () => {
     scheduler.setEnabled(true);
     scheduler.flush();
     expect(launches).toEqual([]);
+  });
+});
+
+// ── Phase 5: heartbeat suppression at fire time ─────────────────────────────
+
+function setupWithSuppress(quietMs = LAUNCH_ON_WRITE_QUIET_MS) {
+  const { timers, advance } = fakeTimers();
+  const launches: string[] = [];
+  const state = { suppress: false as boolean, throwing: false };
+  const scheduler = createLaunchScheduler((p) => launches.push(p), quietMs, timers, () => {
+    if (state.throwing) throw new Error('probe broke');
+    return state.suppress;
+  });
+  return { scheduler, launches, advance, state };
+}
+
+describe('heartbeat suppression (Phase 5)', () => {
+  it('evaluated at FIRE time, not write time: Obsidian opening during the quiet window suppresses the pending launch', () => {
+    const { scheduler, launches, advance, state } = setupWithSuppress();
+    scheduler.setEnabled(true);
+    scheduler.noteWrite('/vault/a.md'); // heartbeat stale at write…
+    state.suppress = true;              // …Obsidian opens before the window expires
+    advance(LAUNCH_ON_WRITE_QUIET_MS);
+    expect(launches).toEqual([]);       // consumed, not deferred
+    // A later write with Obsidian closed again fires normally.
+    state.suppress = false;
+    scheduler.noteWrite('/vault/b.md');
+    advance(LAUNCH_ON_WRITE_QUIET_MS);
+    expect(launches).toEqual(['/vault/b.md']);
+  });
+
+  it('flush (app quit) honors suppression too', () => {
+    const { scheduler, launches, state } = setupWithSuppress();
+    scheduler.setEnabled(true);
+    scheduler.noteWrite('/vault/a.md');
+    state.suppress = true;
+    scheduler.flush();
+    expect(launches).toEqual([]);
+  });
+
+  it('a broken probe never blocks the launch; no predicate behaves exactly as before Phase 5', () => {
+    const { scheduler, launches, advance, state } = setupWithSuppress();
+    scheduler.setEnabled(true);
+    state.throwing = true;
+    scheduler.noteWrite('/vault/a.md');
+    advance(LAUNCH_ON_WRITE_QUIET_MS);
+    expect(launches).toEqual(['/vault/a.md']);
+
+    const plain = setup();
+    plain.scheduler.setEnabled(true);
+    plain.scheduler.noteWrite('/vault/x.md');
+    plain.advance(LAUNCH_ON_WRITE_QUIET_MS);
+    expect(plain.launches).toEqual(['/vault/x.md']);
+  });
+});
+
+describe('heartbeatSuppressesLaunch — mirrors src/utils/obsidianHeartbeat.js (pointer pinned there too)', () => {
+  const NOW = Date.parse('2026-08-29T12:00:00.000Z');
+  const beat = (ts: string) => JSON.stringify({ paired: false, accountId: null, deviceId: 'd', ts });
+
+  it('fresh suppresses; stale, missing, malformed, bad-ts, and far-future do not', () => {
+    expect(heartbeatSuppressesLaunch(beat('2026-08-29T11:58:00.000Z'), NOW)).toBe(true);
+    expect(heartbeatSuppressesLaunch(beat('2026-08-29T11:54:59.000Z'), NOW)).toBe(false); // > 5 min
+    expect(heartbeatSuppressesLaunch(null, NOW)).toBe(false);
+    expect(heartbeatSuppressesLaunch('', NOW)).toBe(false);
+    expect(heartbeatSuppressesLaunch('not json', NOW)).toBe(false);
+    expect(heartbeatSuppressesLaunch(JSON.stringify({ ts: 'never' }), NOW)).toBe(false);
+    expect(heartbeatSuppressesLaunch(beat('2026-08-29T13:00:00.000Z'), NOW)).toBe(false); // far future
+  });
+
+  it('exactly at the threshold is stale (strict <)', () => {
+    expect(heartbeatSuppressesLaunch(beat('2026-08-29T11:55:00.000Z'), NOW)).toBe(false);
+    expect(heartbeatSuppressesLaunch(beat('2026-08-29T11:55:00.001Z'), NOW)).toBe(true);
   });
 });
