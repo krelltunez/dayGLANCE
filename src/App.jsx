@@ -2758,7 +2758,7 @@ const DayPlanner = () => {
   // re-sync, 5-minute poll, task writeback, iOS vault-settings persistence)
   // lives in useObsidianSync; state/refs stay owned by useObsidian above.
   const {
-    performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian,
+    performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, bridgeHeartbeatRef,
   } = useObsidianSync({
     isTrayMode, dataLoaded,
     tasks, setTasks,
@@ -3226,13 +3226,17 @@ const DayPlanner = () => {
     if (obsidianConfig?.enabled && obsidianVaultHandleRef.current) {
       // Bridge stream (Phase 6): the same write as a semantic intent for any
       // paired vault copy. Path mirrors writeDailyNoteFile's resolution
-      // (pattern-aware filename under dailyNotesPath); fail-silent.
+      // (pattern-aware filename under dailyNotesPath).
       emitBridgeIntent('daily_note_write', {
         path: (obsidianConfig.dailyNotesPath ? `${obsidianConfig.dailyNotesPath.replace(/\/+$/, '')}/` : '')
           + dailyNoteFilename(dateStr, obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd'),
         date: dateStr,
         content: text || '',
       });
+      // Arbitration (§3.2): plugin authoritative → the intent is the write;
+      // the note text itself is already durably in dailyNotes state, same
+      // as when a direct write fails.
+      if (bridgeHeartbeatRef.current.pluginAuthoritative) return;
       if (obsidianVaultHandleRef.current === 'native') {
         // writeDailyNoteNative is synchronous (JavascriptInterface blocks the JS thread
         // during the SAF write).  Defer it by one frame so the note modal closes
@@ -6939,6 +6943,12 @@ const DayPlanner = () => {
             heading,
             template: dailyNoteTemplate,
           });
+          // Arbitration (§3.2): plugin authoritative → the intent is the
+          // write; the appended line lands via the plugin, and the task's
+          // identity (creation-time ^dg- id, buildNewObsidianTaskMeta)
+          // round-trips through the observation exactly as it does through
+          // a scan.
+          if (bridgeHeartbeatRef.current.pluginAuthoritative) return;
           if (obsidianVaultHandleRef.current === 'native') {
             appendTaskToDailyNoteNative(todayStr, task, heading, dailyNoteTemplate);
           } else {

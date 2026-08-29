@@ -33,6 +33,8 @@ import { blockIdWritesEnabled, completionMarkerWritesEnabled } from '../utils/ob
 import { titleConflictNoticeText } from '../utils/obsidianTitleConflict.js';
 import { withCreationFrontmatter } from '../utils/obsidianFrontmatter.js';
 import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, getBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
+import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor } from '../utils/obsidianBridgeInbound.js';
+import { recordBridgeMode } from '../utils/obsidianBridgeMode.js';
 
 /**
  * Obsidian vault sync — extracted from App.jsx (see "App.jsx — Ongoing
@@ -113,13 +115,23 @@ export default function useObsidianSync({
     // Strip [[Note#Heading]] fragment for write path too
     const notePath = noteName.split('#')[0].trim();
     // Bridge stream (Phase 6): the same write as a semantic intent, applied
-    // by the plugin to any paired vault copy. Fail-silent, and convergent
-    // with the direct write below — applyBridgeIntent enforces the same
-    // creation-only portability gate and frontmatter rule, so a name
-    // refused here is refused there too.
-    emitBridgeIntent('wiki_note_write', {
+    // by the plugin to any paired vault copy. Convergent with the direct
+    // write below — applyBridgeIntent enforces the same creation-only
+    // portability gate and frontmatter rule, so a name refused here is
+    // refused there too.
+    const queued = emitBridgeIntent('wiki_note_write', {
       noteName: notePath, content, newNotesFolder: obsidianConfig?.newNotesFolder ?? 'dayGLANCE',
     });
+    // Arbitration (§3.2): plugin authoritative → the intent IS the write;
+    // a failed enqueue surfaces through the same visible error state the
+    // direct branches use (never a silent write loss).
+    if (bridgeHeartbeatRef.current.pluginAuthoritative) {
+      if (!queued) {
+        setObsidianSyncError(`Note "${notePath}" was not written: the bridge queue is unavailable.`);
+        setObsidianSyncStatus('error');
+      }
+      return;
+    }
     // Portability gate on CREATION ONLY (see writeWikiNote): the existence
     // check runs before the validator, so a note that already exists is
     // written whatever its name — the harm is in creating NEW unportable
@@ -311,6 +323,43 @@ export default function useObsidianSync({
     try { window.DayGlanceNative?.notifyAppReady?.(); } catch {}
   }, []);
 
+  // The shared tail of a successful sync cycle — direct scan or bridge
+  // inbound, one finish: last-synced stamps, the one-shot title-conflict
+  // notice, and the error-channel resets. A successful cycle of EITHER kind
+  // proves the pipeline is healthy, so the task-write latch clears here in
+  // both modes — which is exactly how a latch set in direct mode carries
+  // over a pairing flip and still clears (the channel is shared; only the
+  // proof changed from "scan completed" to "bridge cycle completed").
+  const finishObsidianCycle = async (syncStart, titleConflicts) => {
+    const elapsed = Date.now() - syncStart;
+    if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
+    const now = new Date().toISOString();
+    setObsidianLastSynced(now);
+    localStorage.setItem('day-planner-obsidian-last-synced', now);
+    // Fire-and-forget conflict notice: neutral, never red, never latched,
+    // auto-dismissing. The durable record is already on the task's notes.
+    if (titleConflicts.length && setObsidianSyncNotice) {
+      setObsidianSyncNotice(titleConflicts.length === 1
+        ? titleConflictNoticeText(titleConflicts[0].vaultTitle)
+        : `${titleConflicts.length} title conflicts: Obsidian's edits won. Your dayGLANCE renames are saved in each task's notes.`);
+      setTimeout(() => setObsidianSyncNotice(null), 8000);
+    }
+    // A successful cycle proves the vault pipeline is healthy again — the
+    // channel reset clears any latched task-write error (clearing path 2).
+    taskWriteErrorRef.current = null;
+    if (restoreErrorRef.current) {
+      // …but a MISSING-NOTE condition outlives a successful cycle (it
+      // legitimately completes without the missing file). Keep it showing;
+      // it clears on the 'restored' event when a retry lands.
+      setObsidianSyncError(restoreErrorRef.current);
+      setObsidianSyncStatus('error');
+    } else {
+      setObsidianSyncError(null);
+      setObsidianSyncStatus('success');
+      setTimeout(() => setObsidianSyncStatus(s => s === 'success' ? 'idle' : s), 3000);
+    }
+  };
+
   // Obsidian vault sync — reads daily notes + imports tasks
   const performObsidianSync = async () => {
     if (obsidianSyncInProgressRef.current) return;
@@ -369,31 +418,14 @@ export default function useObsidianSync({
         dailyNotePattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
         taskHeading: obsidianConfig?.taskHeading || '## Tasks',
       });
-      const result = isNative
-        ? await syncObsidianVaultNative(
-            obsidianConfig?.dailyNotesPath || '',
-            OBSIDIAN_IMPORT_WINDOW_DAYS,
-            currentTasks,
-            currentInbox,
-            onTitleConflict,
-          )
-        : await syncObsidianVault(
-            obsidianVaultHandleRef.current,
-            obsidianConfig?.dailyNotesPath || '',
-            OBSIDIAN_IMPORT_WINDOW_DAYS,
-            currentTasks,
-            currentInbox,
-            obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
-            onTitleConflict,
-          );
-
       // App-only fields that live in dayGLANCE but NOT in the Obsidian markdown,
       // so a re-parse (parseTasksFromMarkdown) can't reproduce them. They must be
       // carried over from the existing in-memory copy or every cold-open re-sync
       // silently wipes them — which for `archived`/`completedAt` on a completed
       // task looked like a phantom change and re-stamped lastModified every load
       // (the DB-sync push churn). Only carry a value that is actually present so we
-      // never inject undefined keys.
+      // never inject undefined keys. Shared by BOTH inbound sources below —
+      // an observed note carries exactly what a scanned one does.
       //
       // completedAt now ALSO arrives from the vault (the parse absorbs a
       // completion marker on tagged lines), and the carry below doubles as the
@@ -422,6 +454,84 @@ export default function useObsidianSync({
         // task drops it on every re-scan → the same per-cycle false-diff/re-push.
         ...(old.assignedUserSyncIds !== undefined ? { assignedUserSyncIds: old.assignedUserSyncIds } : {}),
       });
+
+      // ── ARBITRATION (§3.2, Phase 6 PR 3) ────────────────────────────────
+      // A fresh AND paired heartbeat means the plugin owns THIS vault copy:
+      // this device stops scanning and writing directly, and its inbound
+      // source becomes the observation stream — one inbound source per
+      // device, never both, so the stream and the scan can't churn against
+      // each other. Authority is re-evaluated every cycle from the
+      // heartbeat just refreshed above; a stale heartbeat (Obsidian closed,
+      // plugin disabled, unpaired) reverts to direct on the next cycle —
+      // §3.3's one revert path.
+      const authoritative = bridgeHeartbeatRef.current.pluginAuthoritative;
+      // Gate (b): EVERY mode transition, both directions, clears the
+      // deletion detector's baseline — see utils/obsidianBridgeMode.js.
+      recordBridgeMode(authoritative ? 'plugin' : 'direct');
+
+      // Deletion tombstones apply to BOTH inbound sources (they record
+      // past observed deletions; honoring them is not detecting new ones).
+      let tombstones = {};
+      try { tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-obsidian-keys') || '{}'); } catch { tombstones = {}; }
+
+      if (authoritative) {
+        // ── Plugin-mode inbound: apply the observation stream ───────────
+        // Observations flow through the SAME per-note pipeline as a scan
+        // (utils/obsidianBridgeInbound.js), then through the same merge
+        // helpers. The deletion detector does NOT run — observations can
+        // never establish scan completeness, so while paired this device
+        // detects no vault deletions (a deliberate, conservative gap:
+        // tasks linger rather than tombstone; recorded in the spec).
+        // The cursor commits only after the merges are dispatched, so a
+        // crash mid-cycle replays the batch — application is idempotent.
+        const fetched = await fetchBridgeObservations();
+        if (fetched) {
+          if (fetched.observations.length) {
+            const applied = applyBridgeObservations(fetched.observations, {
+              existingTasks: currentTasks,
+              existingInbox: currentInbox,
+              dailyNotesPath: obsidianConfig?.dailyNotesPath || '',
+              dailyNotePattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
+              onTitleConflict,
+            });
+            setDailyNotes(prev => mergeObsidianDailyNotes(prev, applied.dailyNotes, tombstones));
+            setTasks(prev => mergeObsidianTasks(prev, applied.scheduledTasks, applied.scannedIds, preserveObsidianAppFields, tombstones));
+            setUnscheduledTasks(prev => mergeObsidianTasks(prev, applied.inboxTasks, applied.scannedIds, preserveObsidianAppFields, tombstones));
+            // Refresh the writeback snapshot for the OBSERVED tasks only —
+            // observations are per-note, so untouched entries stay put.
+            // This is also how this device's own emitted writes settle
+            // their bookkeeping: the plugin applies the intent, the file
+            // comes back as an observation, and the existing adoption
+            // machinery (title ownership, ^dg- identity) absorbs it exactly
+            // like another device's write.
+            const snap = obsidianPrevTaskStateRef.current;
+            for (const t of [...applied.scheduledTasks, ...applied.inboxTasks]) {
+              snap[t.id] = { completed: t.completed, startTime: t.startTime || null, duration: t.duration || null, title: t.title, date: t.date || null };
+            }
+          }
+          if (fetched.maxSeq) commitBridgeObservationCursor(fetched.maxSeq);
+        }
+        await finishObsidianCycle(syncStart, titleConflicts);
+        return;
+      }
+
+      const result = isNative
+        ? await syncObsidianVaultNative(
+            obsidianConfig?.dailyNotesPath || '',
+            OBSIDIAN_IMPORT_WINDOW_DAYS,
+            currentTasks,
+            currentInbox,
+            onTitleConflict,
+          )
+        : await syncObsidianVault(
+            obsidianVaultHandleRef.current,
+            obsidianConfig?.dailyNotesPath || '',
+            OBSIDIAN_IMPORT_WINDOW_DAYS,
+            currentTasks,
+            currentInbox,
+            obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
+            onTitleConflict,
+          );
 
       // Keys this device's scan produced: daily-note dates + task ids (across BOTH
       // task lists, so a task that moved scheduled↔inbox counts as scanned and
@@ -457,9 +567,8 @@ export default function useObsidianSync({
       // so every device stops re-adding them). Only items THIS device scanned can
       // be reported, and an empty/large-drop scan is treated as incomplete and
       // reports nothing — so a not-yet-downloaded or partial vault can't delete
-      // real data. See utils/obsidianDeletions.js.
-      let tombstones = {};
-      try { tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-obsidian-keys') || '{}'); } catch { tombstones = {}; }
+      // real data. See utils/obsidianDeletions.js. (Tombstones were read
+      // above, shared with the plugin-mode branch.)
       let lastScanned = [];
       try { lastScanned = JSON.parse(localStorage.getItem('day-planner-obsidian-last-scanned') || '[]'); } catch { lastScanned = []; }
       // Sidecar of the PREVIOUS scan's key→date map — dates the missing-key
@@ -516,33 +625,7 @@ export default function useObsidianSync({
       }
       obsidianPrevTaskStateRef.current = snapshot;
 
-      const elapsed = Date.now() - syncStart;
-      if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
-      const now = new Date().toISOString();
-      setObsidianLastSynced(now);
-      localStorage.setItem('day-planner-obsidian-last-synced', now);
-      // Fire-and-forget conflict notice: neutral, never red, never latched,
-      // auto-dismissing. The durable record is already on the task's notes.
-      if (titleConflicts.length && setObsidianSyncNotice) {
-        setObsidianSyncNotice(titleConflicts.length === 1
-          ? titleConflictNoticeText(titleConflicts[0].vaultTitle)
-          : `${titleConflicts.length} title conflicts: Obsidian's edits won. Your dayGLANCE renames are saved in each task's notes.`);
-        setTimeout(() => setObsidianSyncNotice(null), 8000);
-      }
-      // A successful scan proves the vault is reachable again — the channel
-      // reset clears any latched task-write error (clearing path 2).
-      taskWriteErrorRef.current = null;
-      if (restoreErrorRef.current) {
-        // …but a MISSING-NOTE condition outlives a successful scan (the scan
-        // legitimately completes without the missing file). Keep it showing;
-        // it clears on the 'restored' event when a retry lands.
-        setObsidianSyncError(restoreErrorRef.current);
-        setObsidianSyncStatus('error');
-      } else {
-        setObsidianSyncError(null);
-        setObsidianSyncStatus('success');
-        setTimeout(() => setObsidianSyncStatus(s => s === 'success' ? 'idle' : s), 3000);
-      }
+      await finishObsidianCycle(syncStart, titleConflicts);
     } catch (err) {
       console.error('Obsidian sync error:', err);
       setObsidianSyncError(err.message);
@@ -687,6 +770,26 @@ export default function useObsidianSync({
     const allObsidian = [...tasks, ...unscheduledTasks].filter(t => t.importSource === 'obsidian' && t.obsidianRawTitle);
     const prev = obsidianPrevTaskStateRef.current;
     const isNative = obsidianVaultHandleRef.current === 'native';
+    // ── ARBITRATION (§3.2, Phase 6 PR 3) — gate (a): emit-in-same-tick ────
+    // When the plugin is authoritative, the intent emission below IS the
+    // write: the same tick that detects a change hands it to the transport
+    // instead of the direct writer, so there is no "skipped write" state
+    // for the snapshot to advance past — every advance is backed by exactly
+    // one action. The authority answer is at most one sync cycle old
+    // (refreshed per cycle); a write that lands through the WRONG side
+    // during that window is harmless by construction — both writers
+    // produce byte-identical output (the PR 2 convergence pins).
+    // Launch-on-write debounce across the flip: nothing to cancel here —
+    // suppression is evaluated at FIRE time against a fresh heartbeat read
+    // (electron/obsidianLaunch.ts, Android arm chokepoint), and a fresh
+    // AND paired heartbeat is by definition fresh, so any debounce armed
+    // just before the flip suppresses itself when it fires.
+    // Android SafeReplace note: with direct writes stopped, a stray .tmp
+    // from a write that crashed just before the flip stays in the vault
+    // until the next direct-mode write touches that note (the retry rides
+    // vault touches). Benign leftover, invisible to Obsidian, cleaned on
+    // the next direct cycle — accepted.
+    const authoritative = bridgeHeartbeatRef.current.pluginAuthoritative;
 
     // Write-success commits from synchronous native writes, run after the
     // snapshot rebuild below. (Desktop commits run in each write's own .then,
@@ -890,7 +993,7 @@ export default function useObsidianSync({
       // applyBridgeIntent mirrors its line rewrite, so a paired vault
       // copy converges byte-for-byte whichever side lands first.
       // Fail-silent; a stream problem never touches the direct write.
-      emitBridgeIntent(titleChanged && newRawTitle ? 'task_retitle' : 'task_state', {
+      const queued = emitBridgeIntent(titleChanged && newRawTitle ? 'task_retitle' : 'task_state', {
         path: (obsidianConfig?.dailyNotesPath ? `${obsidianConfig.dailyNotesPath.replace(/\/+$/, '')}/` : '') + `${sourceDate}.md`,
         date: sourceDate,
         obsidianRawTitle: task.obsidianRawTitle,
@@ -904,6 +1007,20 @@ export default function useObsidianSync({
         completedAt: completionMeta?.completedAt ?? null,
         completionFormat: completionMeta?.format ?? null,
       });
+
+      if (authoritative) {
+        // Plugin mode: the emitted intent above is this change's one write
+        // (gate a). NO commit() runs — the id/rawTitle/retirement
+        // bookkeeping is write-success-gated, and here "success" is the
+        // vault line coming BACK as an observation, which the existing
+        // adoption machinery absorbs exactly like another device's write
+        // (title ownership adopts the retitle, the ^dg- identity paths
+        // adopt the stamp). A failed ENQUEUE reuses the direct writer's
+        // latch discipline: user-visible error, retried when the task next
+        // changes — the same surface a failed direct write has always had.
+        if (!queued) reportTaskWriteFailure();
+        continue;
+      }
 
       if (isNative) {
         // onWriteFailure fires only on a GENUINE failure (unreadable note,

@@ -118,7 +118,10 @@ async function getBridgeSubkey(meta) {
 }
 
 /**
- * Queue one intent and kick a flush. Fail-silent by contract. The caller
+ * Queue one intent and kick a flush. Fail-silent by contract; returns
+ * whether the intent was durably QUEUED (false = dropped: unpaired vault
+ * or storage unavailable) so an authoritative caller — one for which this
+ * emission is the write itself — can latch a visible error. The caller
  * passes the type-specific fields; id/timestamps are minted here, before
  * anything that can fail.
  */
@@ -130,14 +133,18 @@ export function emitBridgeIntent(type, fields) {
     // to the fresh stream. The cost is at most a few dropped intents right
     // after pairing until the cache refreshes — the direct writes those
     // intents mirrored have already landed, so nothing is lost.
-    if (!readJson(META_CACHE_KEY, null)?.meta) return;
+    if (!readJson(META_CACHE_KEY, null)?.meta) return false;
     const outbox = readJson(OUTBOX_KEY, []);
     outbox.push({ v: 1, kind: 'intent', type, intentId: mintIntentId(), createdAt: new Date().toISOString(), ...fields });
     // A vault that unpaired mid-stream must not accrete forever: drop oldest.
     while (outbox.length > OUTBOX_CAP) outbox.shift();
-    writeJson(OUTBOX_KEY, outbox);
-  } catch { return; }
+    // Direct setItem, NOT writeJson: a swallowed storage failure would
+    // report "queued" for an intent that was never persisted — exactly the
+    // silent loss the return value exists to make visible (gate a).
+    localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox));
+  } catch { return false; }
   void flushBridgeOutbox();
+  return true;
 }
 
 /**
