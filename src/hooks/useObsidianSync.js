@@ -7,6 +7,7 @@ import {
   deriveBlockId, appIdForBlockId,
   readWikiNote, writeWikiNote, scanVaultNotes,
   vaultHasTasksPlugin, detectTasksPluginNative,
+  readVaultHeartbeat, readVaultHeartbeatNative,
   OBSIDIAN_IMPORT_WINDOW_DAYS, obsidianWindowCutoffDate,
 } from '../obsidian.js';
 import {
@@ -21,6 +22,7 @@ import { mergeObsidianDailyNotes } from '../utils/mergeObsidianDailyNotes.js';
 import { mergeObsidianTasks } from '../utils/mergeObsidianTasks.js';
 import { detectObsidianDeletions, addObsidianTombstones } from '../utils/obsidianDeletions.js';
 import { reattachTasksMetadata } from '../utils/obsidianTasksMetadata.js';
+import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
 import {
   readRetiredTaskIds,
   recordRetirements as recordRetirementEntries,
@@ -185,6 +187,22 @@ export default function useObsidianSync({
     try { return localStorage.getItem('day-planner-obsidian-tasks-plugin') === 'true'; }
     catch { return false; }
   })());
+  // ── Bridge-plugin heartbeat (Phase 5 arbitration plumbing) ────────────────
+  // Refreshed once per sync cycle. In Phase 5 NOTHING acts on it here —
+  // `paired` is always false, so pluginAuthoritative never fires; the wiring
+  // exists so Phase 6 only changes the decision (gate direct writes on
+  // pluginAuthoritative), not the plumbing. Launch-on-write suppression does
+  // NOT read this ref: the platform layers that own the launches (Electron
+  // main, Android ObsidianRepository) do their own freshness reads at
+  // fire/arm time, where the answer is current rather than up to a scan old.
+  const bridgeHeartbeatRef = useRef({ obsidianRunning: false, pluginAuthoritative: false });
+  const refreshBridgeHeartbeat = async (handle) => {
+    try {
+      const hb = handle === 'native' ? readVaultHeartbeatNative() : await readVaultHeartbeat(handle);
+      bridgeHeartbeatRef.current = obsidianHeartbeatState(hb);
+    } catch { /* a liveness probe must never fail a sync */ }
+  };
+
   const refreshTasksPluginDetection = async (handle) => {
     try {
       const detected = handle === 'native'
@@ -326,9 +344,11 @@ export default function useObsidianSync({
       // persisting condition, so it never touches the error latch.
       const titleConflicts = [];
       const onTitleConflict = (c) => titleConflicts.push(c);
-      // Refresh the completion-marker format detection once per cycle (cheap:
-      // one small dotfile read; never fails the sync).
+      // Refresh the completion-marker format detection and the bridge
+      // heartbeat once per cycle (cheap: two small dotfile reads; never
+      // fail the sync).
       await refreshTasksPluginDetection(obsidianVaultHandleRef.current);
+      await refreshBridgeHeartbeat(obsidianVaultHandleRef.current);
       const result = isNative
         ? await syncObsidianVaultNative(
             obsidianConfig?.dailyNotesPath || '',
@@ -942,5 +962,5 @@ export default function useObsidianSync({
     );
   }, [obsidianConfig?.dailyNotesPath, obsidianConfig?.dailyNotePattern, obsidianConfig?.newNotesFolder, obsidianConfig?.enabled]);
 
-  return { performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, notifyNativeReady };
+  return { performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, notifyNativeReady, bridgeHeartbeatRef };
 }

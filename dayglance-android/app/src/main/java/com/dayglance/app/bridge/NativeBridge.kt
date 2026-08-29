@@ -205,6 +205,9 @@ class NativeBridge(
     fun getCommunityPlugins(): String? = obsidian.getCommunityPlugins()
 
     @JavascriptInterface
+    fun getHeartbeat(): String? = obsidian.getHeartbeat()
+
+    @JavascriptInterface
     fun listNotes(folder: String): String = obsidian.listNotes(folder)
 
     @JavascriptInterface

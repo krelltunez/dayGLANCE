@@ -370,22 +370,25 @@ Tags need no step: dayGLANCE's tag model is "hashtags are title text" — vault 
 
 ---
 
-### Phase 5. Bridge plugin, minimal, unlisted
+### Phase 5. Bridge plugin, minimal, unlisted — BUILT (as-built record; exit criteria pending on-device verification)
 
 **Goal.** Establish the plugin as an artifact, running on your own devices, doing the smallest useful thing.
 
 **Dependencies.** None strictly, but sequencing after Phase 4 is sensible.
 
-**Scope.**
+**As built.**
 
-- Heartbeat: write `.dayglance/heartbeat` every 30 seconds while Obsidian is open, payload per 3.3.
-- A `dayglance-bridge:sync-now` command.
-- Nothing else. No transport, no GLANCEvault client.
-- dayGLANCE reads the heartbeat to suppress Phase 1 launch-on-write delivery when Obsidian is already running — the desktop debounced launch, and on Android the arming itself (so neither a direct launch nor a tap-to-open notification is produced) — and to determine arbitration state.
+- **The plugin** lives at `dayglance-obsidian-plugin/` in the dayGLANCE repo for now — deliberately self-contained (own package.json/tsconfig/esbuild, zero imports from dayGLANCE) so extraction to a public repo before directory submission is a move, not surgery. It writes `.dayglance/heartbeat` every 30 seconds while Obsidian has the vault open (adapter API — the vault API deliberately cannot see dot-paths), payload per 3.3: `{paired: false, accountId: null, deviceId, ts}` — the values are Phase 5, the SHAPE is final so Phase 6 changes values, never format. `deviceId` is minted once per install into the plugin's data.json. One command, `dayglance-bridge:sync-now`; with no transport yet its one honest effect is an immediate heartbeat refresh. A graceful unload removes the heartbeat (a disabled plugin equally means "no bridge here"); crashes leave it to go stale.
+- **Dot-directory facts, confirmed (the design's load-bearing assumptions):** Obsidian's indexer ignores hidden dot-paths entirely — `.dayglance/` appears in neither the file explorer, search, nor graph, for directories as for files — and **Obsidian Sync ignores all hidden files and directories** (long-documented behavior, still an open feature request as of 2025), so the heartbeat is genuinely per-device liveness under Obsidian Sync. **Third-party file sync caveat, recorded:** a vault synced by iCloud Drive/Syncthing/Dropbox WILL carry device A's heartbeat to device B, where it can wrongly suppress B's launch-on-write. This is benign for what the heartbeat gates: launch-on-write exists to wake OBSIDIAN SYNC, and on a third-party-synced vault the launch was pointless anyway — the file syncer moves bytes whether or not Obsidian runs. Arbitration (Phase 6) keys on `paired` + per-device pairing state, not freshness alone.
+- **Staleness: 5 minutes** — ten missed beats, comfortably longer than an Obsidian restart. Missing, stale, and malformed are ONE case everywhere (the 3.3 revert path is one path). The semantics live in `src/utils/obsidianHeartbeat.js` and are deliberately mirrored (with cross-pointers and tests on each side) in `electron/obsidianLaunch.ts` and Android's `ObsidianRepository`, which cannot import the JS.
+- **Mobile cadence:** on Obsidian mobile the interval freezes when the app is backgrounded, so the heartbeat goes stale on a backgrounded phone — the CORRECT signal, since a backgrounded Obsidian isn't syncing either. Consequence on the reading side: Android suppression is naturally narrow (Obsidian is backgrounded whenever the user is *in* dayGLANCE, so only writes within the staleness window of Obsidian leaving the foreground suppress); desktop, where Obsidian genuinely runs alongside, is where suppression does its work.
+- **Launch-on-write suppression, at the moment of truth on each platform:** desktop evaluates the heartbeat AT FIRE TIME (debounce expiry and quit-flush), injected into the scheduler as a predicate — Obsidian opening during the quiet window suppresses, a broken probe never blocks a launch, no plugin behaves exactly as before Phase 5. A suppressed launch is consumed, not deferred: Obsidian being open means Sync is already doing the job the launch existed to start. Android suppresses THE ARMING itself per this spec (fresh heartbeat at write time → neither a direct launch nor a tap-to-open notification is ever produced).
+- **Reading on every transport** rides #1470's dot-file path: the FSA/Electron read shares one helper with community-plugins detection; Android and iOS gained `getHeartbeat` bridge methods under the shared read contract (including the legacy-shell `"null"`-echo guard). The arbitration state (`obsidianRunning`, `pluginAuthoritative` = fresh AND paired) is refreshed once per sync cycle into a ref in useObsidianSync — in Phase 5 nothing acts on it, by design: Phase 6 changes the decision, not the plumbing.
+- **minAppVersion: 1.5.0.** The API surface used (Plugin, addCommand, registerInterval, vault.adapter) is far older, but 1.5.0 (Dec 2023) is the oldest version plausibly represented in the 2026 install base given Obsidian's default auto-update; the reach cost is effectively zero, and claiming an older floor would assert compatibility never tested.
 
-**Distribution.** BRAT or manual install. Not submitted to the community directory.
+**Distribution.** BRAT or manual install (`manifest.json` + built `main.js` into `.obsidian/plugins/dayglance-bridge/`). Not submitted to the community directory.
 
-**Exit criteria.** Heartbeat visible and correctly interpreted by dayGLANCE on macOS, Android, and Windows. Phase 1 no longer launches Obsidian or posts a tap-to-open notification when Obsidian is already open.
+**Exit criteria.** Heartbeat visible and correctly interpreted by dayGLANCE on macOS, Android, and Windows. Phase 1 no longer launches Obsidian or posts a tap-to-open notification when Obsidian is already open. *(Code and tests landed; the on-device pass across the three platforms is the remaining box to tick.)*
 
 ---
 

@@ -325,6 +325,10 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
             // FAILED; "" = the file is determinately absent (no community
             // plugins). Feeds completion-marker format detection only.
             return ObsidianBridge.shared.getCommunityPlugins()
+        case "getHeartbeat":
+            // Bridge-plugin heartbeat (Phase 5), same contract. Feeds the
+            // web layer's arbitration plumbing only.
+            return ObsidianBridge.shared.getHeartbeat()
         case "writeDailyNote":
             guard args.count >= 2,
                   let date    = args[0] as? String,

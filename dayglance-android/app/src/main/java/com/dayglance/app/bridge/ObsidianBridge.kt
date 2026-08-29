@@ -45,7 +45,15 @@ class ObsidianBridge(private val context: Context, private val webView: android.
     private val launchPolicy = LaunchOnWritePolicy()
 
     init {
-        repository.onVaultWrite = { noteName -> launchPolicy.onWrite(noteName) }
+        // Phase 5 heartbeat suppression happens at the ARM itself (spec §6
+        // Phase 5): a fresh bridge-plugin heartbeat means Obsidian is already
+        // running, so neither a direct launch nor a tap-to-open notification
+        // should ever be produced for this write. Checked per write — cheap
+        // (one SAF dot-file read on the write path) and honest at the moment
+        // the arm would be created.
+        repository.onVaultWrite = { noteName ->
+            if (!repository.bridgeHeartbeatFresh()) launchPolicy.onWrite(noteName)
+        }
         // Crash-recovery outcomes → the web app's surfacing listener
         // (useObsidianSync registers window.__dgVaultRestoreEvent). 'failed'
         // means a note is missing and its temp couldn't be restored — the one
@@ -194,6 +202,13 @@ class ObsidianBridge(private val context: Context, private val webView: android.
      */
     @JavascriptInterface
     fun getCommunityPlugins(): String? = repository.getCommunityPlugins()
+
+    /**
+     * The bridge-plugin heartbeat (.dayglance/heartbeat, Phase 5) for the
+     * web layer's arbitration plumbing. Same read contract as above.
+     */
+    @JavascriptInterface
+    fun getHeartbeat(): String? = repository.getHeartbeat()
 
     /**
      * Returns a JSON array of note paths (relative to vault root) in [folder].

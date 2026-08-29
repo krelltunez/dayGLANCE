@@ -2,7 +2,7 @@ import { ipcMain, app, dialog, shell, BrowserWindow } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { buildObsidianOpenUri, buildObsidianOpenPathUri } from './obsidianUri.js';
-import { createLaunchScheduler } from './obsidianLaunch.js';
+import { createLaunchScheduler, heartbeatSuppressesLaunch } from './obsidianLaunch.js';
 import { writeFileAtomicSync } from './atomicWrite.js';
 
 // ── Obsidian vault access (Electron) ─────────────────────────────────────────
@@ -46,6 +46,20 @@ const launchScheduler = createLaunchScheduler((absPath) => {
   // unregistered (AppImage installs), and the vault write already succeeded;
   // only the wake didn't. No error state, no toast.
   shell.openExternal(uri, { activate: false }).catch(() => { /* ignore */ });
+}, undefined, undefined, () => {
+  // Phase 5 heartbeat suppression, evaluated at fire time: a fresh
+  // .dayglance/heartbeat (written by the dayglance-bridge Obsidian plugin
+  // every 30s while Obsidian has this vault open) means the wake would be
+  // redundant. Read fresh from disk each fire — the fire is rare (once per
+  // quiet window) and only the fire-moment answer is honest. Any failure
+  // reads as "not running" and the launch proceeds, exactly as before the
+  // plugin existed.
+  if (!vaultBasePath) return false;
+  let text: string | null = null;
+  try {
+    text = fs.readFileSync(path.join(vaultBasePath, '.dayglance', 'heartbeat'), 'utf-8');
+  } catch { return false; }
+  return heartbeatSuppressesLaunch(text);
 });
 
 function configPath(): string {
