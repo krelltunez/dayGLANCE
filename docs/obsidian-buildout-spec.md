@@ -98,6 +98,8 @@ If the bridge plugin is present and paired to GLANCEvault on a device, the plugi
 
 **Critical qualifier: paired, not merely installed.** Obsidian Sync propagates installed community plugins across devices when that option is enabled, which most users leave on. A single deliberate install on one device therefore lands the plugin on others without a second deliberate act. An unpaired plugin must be inert: direct access continues, plugin does nothing. Authority transfers on successful pairing.
 
+**Amended (Phase 6 ruling): pairing granularity is per-vault, not per-device — "installed and paired" means *per vault-copy where the plugin runs*.** The plugin's credentials live in its `data.json`, which rides Obsidian's plugin-settings sync to every copy of the vault. Per-device credentials in a fleet-shared file would be either one token pretending to be many identities or every device's token visible in every copy — both worse than being honest about the actual unit. So one pairing pairs the plugin wherever that vault's copies run, every copy presents the same credential, and revocation is vault-wide: revoke the device token server-side and re-pair (which also rotates the subkey — §3.4/§3.12). Authority is still *evaluated* per reading device — each dayGLANCE install honors the heartbeat of the vault copy it can see — but the paired identity behind that heartbeat is the vault, not a device.
+
 ### 3.3 Pairing state is carried in the heartbeat payload
 
 The plugin writes `.dayglance/heartbeat` on an interval while Obsidian is open. Payload: `{paired, accountId, deviceId, ts}`.
@@ -105,6 +107,8 @@ The plugin writes `.dayglance/heartbeat` on an interval while Obsidian is open. 
 **Rationale.** Arbitration only matters on devices where dayGLANCE could write directly, and on precisely those devices dayGLANCE has vault access and can read the file. On iOS there is nothing to arbitrate and correspondingly no way to read it. The mechanism degrades exactly where it is irrelevant, and no separate signalling channel is needed.
 
 **Revert path.** A stale or missing heartbeat resumes direct writes, treated identically. Staleness threshold should be comfortably longer than an Obsidian restart, so minutes rather than seconds.
+
+**`deviceId` semantics (Phase 6 note).** The wire key `deviceId` predates the per-vault pairing ruling and is kept — the payload shape is final. Its semantics are *per vault-copy install id*: minted once per plugin install into `data.json`, which Obsidian settings-sync shares across the vault's copies exactly as it shares the pairing. It identifies which vault copy is beating (the heartbeat file itself never syncs, so liveness stays local), not a paired device.
 
 ### 3.4 HKDF bridge-scoped subkey, never the root E2E key
 
@@ -129,6 +133,8 @@ Phase 6 does not add a third implementation behind `obsidianElectronHandle.js`. 
 **Rationale.** A GLANCEvault-backed handle would satisfy the write path cleanly but has nothing to read unless the plugin maintains a mirror of vault content in GLANCEvault, which is real storage and real staleness for little benefit. dayGLANCE already knows its own task state from GLANCEvault; the only thing it needs from the vault is Obsidian-side edits, which arrive as inbound intents. This is a fork of the reconcile path rather than a reuse of it, but a smaller one than maintaining a mirror, and the boundary matches the ownership rule in 3.2.
 
 **Reversibility note.** This is the most reversible decision in the plan. If Phase 6 work repeatedly wants to change shared logic in `src/obsidian.js`, that is the signal to reconsider, and it is much cheaper to unwind early.
+
+**Amended (Phase 6 ruling): the stream is semantic *outbound* and observational *inbound* — a deliberate asymmetry, not an oversight.** Outbound (dayGLANCE → plugin) intents are semantic operations (`task_append`, `task_state`, `task_retitle`, `daily_note_write`, `wiki_note_write`): dayGLANCE knows exactly what changed and why, and a pure `(current file, intent) → new file` application is what makes convergence provable. Inbound (plugin → dayGLANCE) is *observations* — the plugin reports the latest observed file state per path, never inferred edits — because inferring semantics from raw vault edits is precisely the job dayGLANCE's scan-and-merge pipeline already does: per-field adoption, base diffing, and every §3.10 ownership ruling apply to an observed file unchanged, regardless of how the bytes arrived. An inbound "semantic" stream would re-implement that pipeline inside the plugin and create a second place where ownership rules live, which §3.10 exists to prevent.
 
 ### 3.7 Filename portability: refuse creation, permit writes to existing files
 
@@ -191,6 +197,18 @@ Extracted ahead of Phase 6 (which requires the plugin's intent-apply side to run
 **Repo/package plan (decided after checking Obsidian's actual submission requirements):** the community directory requires `manifest.json`, `README`, and `LICENSE` at the ROOT of the submitted repository and processes the manifest at HEAD of the default branch — so the plugin MUST get its own repo at submission time, and needs none of that during Phases 6–7 dogfooding (manual/BRAT installs work from release assets regardless of layout). Therefore: the plugin stays a dayGLANCE subdirectory through Phases 6–7; the package lives at `packages/obsidian-format/` under its FINAL npm name from day one, consumed by both dayGLANCE and the plugin via `file:` links (the plugin bundles it into `main.js`, so its shipped artifact is layout-independent); at the extraction event — directory submission — the package is published to npm and the plugin's new repo flips one dependency line. **Import specifiers never change across that move; that property is the point.**
 
 **Test custody:** frozen-behavior pins travel with the code (the deriveBlockId goldens, the marker/metadata/frontmatter grammars, parse identity, `updateTaskLines` rewrite mechanics); policy tests stay in dayGLANCE (title-conflict resolution, per-field adoption, containment, surfacing, the transport round trips — including the no-op-write suite, which tests the transport's skip).
+
+### 3.12 Pairing is a vault dead-drop under a one-time code
+
+The plugin obtains its GLANCEvault credentials through the vault itself: dayGLANCE (on a device with direct vault access) seals `{vaultUrl, accountId, deviceToken, subkeyB64, pairingSalt, generation, createdAt}` into `.dayglance/pairing`, encrypted under a key derived (PBKDF2, same iteration count as the passphrase derivation) from a one-time code it displays; the user types the code into the plugin's pairing modal; the plugin opens the offer, verifies the token against GLANCEvault with one authenticated call, stores the credentials in `data.json`, and deletes the file. Cancel overwrites the offer with `{}`; offers expire after 10 minutes; a wrong code and a tampered offer are indistinguishable (both are a GCM tag failure).
+
+**Rationale.** The vault is the one channel both sides already share on every platform, so pairing needs no server-side pairing endpoint (a surface that was considered and declined) and no copy-pasting of raw credentials. The steps a user takes are: mint a token, click Start pairing, type one code.
+
+**The code is 13 base32 characters (~65 bits) unconditionally — no same-device short-code path.** A third-party file syncer (iCloud Drive, Syncthing) can carry the offer file off-machine mid-pairing, so the offer must survive *offline* brute force for its whole lifetime; a convenience short code would quietly downgrade exactly the users who don't know their vault folder is synced.
+
+**The per-pairing salt is what makes revocation real.** The bridge subkey is HKDF-derived from the root sync key with a RANDOM salt minted per pairing (info string `dayglance:bridge:v1`, namespaced apart from the sync engine's per-entity derivations). Revoke-and-re-pair therefore rotates the subkey, not just the transport token — a fixed derivation would leave a leaked `data.json` able to decrypt captured stream ciphertext forever. The salt doubles as the pairing `generation`: a vault copy whose synced `data.json` carries a different generation than a newly opened offer knows the offer supersedes it.
+
+**Initiation is desktop/FSA-only, deliberately.** The dead-drop is a file, so the *offering* side needs direct vault access plus the root key — any normally-configured desktop or Chromium-FSA device qualifies. The native (Android/iOS) transports have read halves only and gained no write half for this; the platforms that lack direct access are the ones the *plugin* serves, and the plugin side of pairing (the modal) runs wherever Obsidian runs, mobile included.
 
 ---
 
@@ -410,7 +428,7 @@ Tags need no step: dayGLANCE's tag model is "hashtags are title text" — vault 
 
 **Scope.**
 
-- Plugin pairs to GLANCEvault as a device, obtaining per-device credentials and an HKDF bridge-scoped subkey per 3.4.
+- Plugin pairs to GLANCEvault via the vault dead-drop per 3.12, obtaining per-vault credentials (granularity per the 3.2 amendment) and an HKDF bridge-scoped subkey per 3.4.
 - Bidirectional semantic intent stream per 3.6. dayGLANCE emits task and note changes; the plugin applies them to the vault through Obsidian's own API and emits Obsidian-side edits back.
 - Arbitration per 3.2 and 3.3: on pairing, the plugin becomes authoritative and dayGLANCE stops writing directly on that device.
 - Idempotency: intent IDs assigned at write time in dayGLANCE and persisted. Plugin maintains a per-vault applied-ID set plus a high-water mark, so replay is a no-op.
@@ -422,6 +440,12 @@ Tags need no step: dayGLANCE's tag model is "hashtags are title text" — vault 
 **Idempotency lesson to apply.** The GLANCEintents `transitionId` failure was an ID that was undefined at emit time and did not survive the transport. Assign at write time, persist, verify it survives the round trip.
 
 **Exit criteria.** A task created in dayGLANCE on iOS appears correctly in the vault on macOS, and an edit made in Obsidian on macOS appears in dayGLANCE on iOS, with no duplication across repeated syncs.
+
+**Build record (in progress).** Built in one pass as three independently reviewable PRs:
+
+1. **Pairing and credentials** — the 3.12 dead-drop both sides (`bridgePairing.js` in the format package: wire format, PBKDF2 offer key, HKDF subkey with the per-pairing salt; `src/utils/obsidianBridgePairing.js` app-side flow; the plugin's `pairing.ts` modal + verification), the pairing panel in dayGLANCE settings, and the GLANCEvault client in the plugin (bundled `vaultClient.js` behind an Obsidian `requestUrl` fetch shim — CORS-free on desktop and mobile). Ends with a plugin that is paired and can talk to GLANCEvault but moves no data; pair, confirm, revoke, re-pair are each testable. The bridge stream will live in the app-scoped GLANCEvault namespace `dayglance-bridge`, fully separate from dayGLANCE's own rows.
+2. **Intent stream** — both directions per the amended 3.6, idempotency per the scope bullets; dayGLANCE keeps writing directly, so the stream is observable before it is load-bearing.
+3. **Arbitration and handoff** — `pluginAuthoritative` consumed, direct write paths stop per 3.2, the Settings mode indicator, and the handoff hazards (writeback snapshot, deletion-detector baseline) closed with their gate reports in the PR.
 
 ---
 
@@ -476,6 +500,6 @@ Not a phase. Submit the plugin to the Obsidian community directory once Phases 6
 ## 8. Open questions
 
 - **Phase 3 atomicity.** Is the Android SAF write path atomic? Is the Electron main-process write path atomic?
-- **Phase 6 pairing UX.** How does the plugin obtain GLANCEvault credentials? A pairing code shown in dayGLANCE settings is the obvious shape but is unspecified.
+- **Phase 6 pairing UX.** RESOLVED — vault dead-drop under a one-time code, recorded as decision 3.12 and built in Phase 6 PR 1.
 - **Phase 6 conflict policy.** What happens when the same task is edited in Obsidian and in dayGLANCE between syncs? Last-write-wins is the default assumption but should be deliberate.
 - **Phase 8 scope.** Deliberately deferred.

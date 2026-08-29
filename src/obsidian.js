@@ -598,6 +598,23 @@ async function readVaultDotFile(vaultHandle, dirName, fileName) {
 }
 
 /**
+ * Write one file inside a dot-directory of the vault, creating the directory
+ * if needed (FSA and the Electron shim). The write half of readVaultDotFile,
+ * added for Phase 6's pairing dead-drop (.dayglance/pairing). Throws on
+ * failure — pairing is a foreground user action whose errors are shown, not
+ * a probe. Native transports deliberately have no write half yet: pairing is
+ * a once-per-vault act performed from a desktop/FSA device (recorded in the
+ * spec's Phase 6 notes).
+ */
+export async function writeVaultDotFile(vaultHandle, dirName, fileName, content) {
+  const dir = await vaultHandle.getDirectoryHandle(dirName, { create: true });
+  const fh = await dir.getFileHandle(fileName, { create: true });
+  const writable = await fh.createWritable();
+  await writable.write(content);
+  await writable.close();
+}
+
+/**
  * The bridge-plugin heartbeat (.dayglance/heartbeat — utils/obsidianHeartbeat.js
  * documents the contract and consumers). Returns the parsed payload or null;
  * missing, unreadable, and malformed are one case by design.

@@ -86,3 +86,27 @@ export function obsidianHeartbeatState(
 export function heartbeatPayload(opts?: {
   deviceId?: string | null; paired?: boolean; accountId?: string | null; now?: Date;
 }): { paired: boolean; accountId: string | null; deviceId: string | null; ts: string };
+
+// ── bridge pairing (vault dead-drop) ────────────────────────────────────────
+export const PAIRING_DIR: string;
+export const PAIRING_PATH: string;
+export const PAIRING_OFFER_TTL_MS: number;
+export const BRIDGE_HKDF_INFO: string;
+export interface BridgePairingCredentials {
+  v: number;
+  vaultUrl: string;
+  accountId: string;
+  deviceToken: string;
+  subkeyB64: string;
+  pairingSalt: string;
+  generation: string;
+  createdAt: string;
+}
+export function generatePairingCode(): string;
+export function normalizePairingCode(code: string | null | undefined): string;
+export function sealPairingOffer(credentials: BridgePairingCredentials, code: string): Promise<string>;
+export function openPairingOffer(text: string, code: string): Promise<BridgePairingCredentials | null>;
+export function deriveBridgeSubkey(rootKey: CryptoKey, pairingSaltBytes: Uint8Array): Promise<CryptoKey>;
+export function exportBridgeSubkey(subkey: CryptoKey): Promise<string>;
+export function importBridgeSubkey(subkeyB64: string): Promise<CryptoKey>;
+export function pairingOfferFresh(createdAtIso: string, nowMs?: number): boolean;

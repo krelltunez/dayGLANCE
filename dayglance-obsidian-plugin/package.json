@@ -15,6 +15,7 @@
     "typescript": "^5.4.0"
   },
   "dependencies": {
-    "@glance-apps/obsidian-format": "file:../packages/obsidian-format"
+    "@glance-apps/obsidian-format": "file:../packages/obsidian-format",
+    "@glance-apps/sync": "1.10.0"
   }
 }

@@ -17,3 +17,4 @@ export * from './noteNames.js';
 export * from './frontmatter.js';
 export * from './filename.js';
 export * from './heartbeat.js';
+export * from './bridgePairing.js';
