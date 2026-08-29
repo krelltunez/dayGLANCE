@@ -182,6 +182,16 @@ Four ownership rulings landed across Phases 3 and 4. Each was made deliberately,
 
 The through-line: *user-authored content follows its editor; dayGLANCE's own records follow dayGLANCE; and "the vault edited it" is always established against a stored base observation, never assumed from mere difference.* Any change to these rules is an ownership decision and a hard stop, per the standing rule.
 
+### 3.11 The vault-format core is a shared package: @glance-apps/obsidian-format
+
+Extracted ahead of Phase 6 (which requires the plugin's intent-apply side to run the SAME line grammar dayGLANCE runs — a lookalike parser maintained separately is the #1146–48 identity divergence re-seeded, permanently, across two codebases).
+
+**The boundary principle: the package is format, never policy. It should not know an ownership rule exists.** It holds line identity (block ids, deterministic derivation, legacy hashing), decorations (completion markers, Tasks metadata, creation frontmatter), line building/rewriting (prefixes, the section sort, `updateTaskLines`), note naming (filename patterns, portability validators), the parser, and the heartbeat shape. It must never hold: transports, sync/merge, or any what-wins-on-divergence rule (3.10). The one seam where format brushes policy — `updateTaskLines`' write-time title guard — reports through the `onTitleConflict` callback and the CALLER resolves; that discipline is commented at the callsite because it is the erosion point.
+
+**Repo/package plan (decided after checking Obsidian's actual submission requirements):** the community directory requires `manifest.json`, `README`, and `LICENSE` at the ROOT of the submitted repository and processes the manifest at HEAD of the default branch — so the plugin MUST get its own repo at submission time, and needs none of that during Phases 6–7 dogfooding (manual/BRAT installs work from release assets regardless of layout). Therefore: the plugin stays a dayGLANCE subdirectory through Phases 6–7; the package lives at `packages/obsidian-format/` under its FINAL npm name from day one, consumed by both dayGLANCE and the plugin via `file:` links (the plugin bundles it into `main.js`, so its shipped artifact is layout-independent); at the extraction event — directory submission — the package is published to npm and the plugin's new repo flips one dependency line. **Import specifiers never change across that move; that property is the point.**
+
+**Test custody:** frozen-behavior pins travel with the code (the deriveBlockId goldens, the marker/metadata/frontmatter grammars, parse identity, `updateTaskLines` rewrite mechanics); policy tests stay in dayGLANCE (title-conflict resolution, per-field adoption, containment, surfacing, the transport round trips — including the no-op-write suite, which tests the transport's skip).
+
 ---
 
 ## 4. Obsidian community directory constraints
