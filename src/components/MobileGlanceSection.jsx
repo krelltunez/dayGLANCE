@@ -3,7 +3,7 @@ import {
   AlarmClock, AlertCircle, AlertTriangle, BookOpen, BrainCircuit,
   Calendar, CalendarClock, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
   ChevronUp, Clock, ExternalLink, FileText, Filter, Flag, Inbox, LayoutGrid,
-  Loader, Mic, Minus, Moon, Plus, RefreshCw,
+  Loader, Mic, Minus, Moon, Plus, RefreshCw, Repeat,
   Search, Settings, Sparkles, Sun, Target, Telescope, Trash2, X, Zap,
 } from 'lucide-react';
 import { nativeGetNextAlarm } from '../native.js';
@@ -939,6 +939,7 @@ const MobileGlanceSection = () => {
             <div className={`text-base font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
               {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
               {task.importSource === 'obsidian' && <BookOpen size={13} className="flex-shrink-0 opacity-60" title="From Obsidian" />}
+              {task.obsidianRecurrence && <Repeat size={13} className="flex-shrink-0 opacity-60" title="Recurring in Obsidian — this task's recurrence is managed by the Tasks plugin; completing it here won't create the next instance" />}
               <span className="truncate">{renderTitle(task.title)}</span>
             </div>
             <div className={`text-sm ${textSecondary} flex items-center gap-1`}>

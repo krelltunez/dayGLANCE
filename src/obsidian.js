@@ -21,6 +21,7 @@ import {
 import { unportableEntryReason } from './utils/vaultPortability.js';
 import { blockIdWritesEnabled } from './utils/obsidianWritePolicy.js';
 import { detectTwoSidedRetitle, appendTitleConflictNote, stripObsidianDisplayTag } from './utils/obsidianTitleConflict.js';
+import { splitTasksMetadata, reattachTasksMetadata } from './utils/obsidianTasksMetadata.js';
 import { withCreationFrontmatter } from './utils/obsidianFrontmatter.js';
 
 // How far back the Obsidian daily-note scan reads, in days. DELIBERATELY FIXED and
@@ -1327,8 +1328,26 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
       }
     }
 
-    // Add #obsidian tag if not already present
-    const title = rawTitle.includes('#obsidian') ? rawTitle : `${rawTitle} #obsidian`;
+    // TASKS METADATA (Phase 4 Step 2, utils/obsidianTasksMetadata.js) —
+    // non-destructive: rawTitle keeps the FULL text (metadata included), so
+    // identity hashing and write matching are untouched on every line,
+    // tagged or not. Extraction derives the display title and maps the
+    // confirmed fields; everything unrecognized stays as preserved text.
+    const meta = splitTasksMetadata(rawTitle);
+    // ⏳ scheduled → the timeline: date-only, so all-day unless the line's
+    // own time prefix supplied a time. An explicit inline date prefix WINS
+    // over ⏳ (it is dayGLANCE's own reschedule channel — when both exist,
+    // the prefix is the newer statement, written by a DG reschedule of a
+    // ⏳-carrying line).
+    if (!dateMatch && meta.fields.scheduled) {
+      taskDate = meta.fields.scheduled;
+      if (!startTime) isAllDay = true;
+    }
+
+    // Add #obsidian tag if not already present — to the DISPLAY title (the
+    // trailing metadata run stripped); rawTitle stays full.
+    const displayBase = meta.text;
+    const title = displayBase.includes('#obsidian') ? displayBase : `${displayBase} #obsidian`;
 
     // ID-first: a ^dg- tagged line gets its durable block-derived id; an
     // untagged line keeps the legacy content-derived id (date + title hash).
@@ -1346,6 +1365,15 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
     // never an undefined key. The merge rule (app wins; the vault marker
     // fills a blank) is applied at the sync merge sites, not here.
     const completedAtFields = lineCompletedAt ? { completedAt: lineCompletedAt } : {};
+    // Mapped Tasks metadata — again only ever present keys, no undefined
+    // injection. 📅 due → deadline (the inbox-deadline concept; a 📅-only
+    // line stays inbox). 🔁 is recognized, never mapped: the flag only
+    // drives the task-card badge saying recurrence is managed in Obsidian.
+    const metadataFields = {
+      ...(meta.fields.due ? { deadline: meta.fields.due } : {}),
+      ...(meta.fields.priority != null ? { priority: meta.fields.priority } : {}),
+      ...(meta.fields.recurrence ? { obsidianRecurrence: true } : {}),
+    };
 
     if (startTime) {
       // Timed task (with or without inline date)
@@ -1365,6 +1393,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
         obsidianFileDate: dateStr,
         ...blockFields,
         ...completedAtFields,
+        ...metadataFields,
       });
     } else if (isAllDay) {
       // Date-only task → all-day scheduled task
@@ -1384,6 +1413,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
         obsidianFileDate: dateStr,
         ...blockFields,
         ...completedAtFields,
+        ...metadataFields,
       });
     } else {
       // No date, no time → inbox
@@ -1401,6 +1431,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
         obsidianFileDate: dateStr,
         ...blockFields,
         ...completedAtFields,
+        ...metadataFields,
       });
     }
   }
@@ -1456,14 +1487,85 @@ function vaultTitleWins(task, existing) {
 function resolveTitleOwnership(task, existing, onTitleConflict) {
   if (existing.title === undefined) return;
   if (!vaultTitleWins(task, existing)) {
-    task.title = existing.title;
+    // DISPLAY-DERIVATION BRIDGE (Step 2's hazard 2): preserve existing.title
+    // only when it is a GENUINE dayGLANCE rename. An underived old-style
+    // title — display text equal to the raw line text, i.e. the user never
+    // renamed — adopts the current parse's display derivation instead, so
+    // pre-Step-2 tasks shed their in-title metadata without waiting for a
+    // vault-side edit. (For an unrenamed new-style title the parsed title is
+    // byte-identical to existing.title, so the adopt is a no-op.)
+    if (stripObsidianDisplayTag(existing.title) !== existing.obsidianRawTitle) {
+      task.title = existing.title;
+    }
     return;
   }
   // Vault wins: task.title stays the parsed line's title.
-  const ours = stripObsidianDisplayTag(existing.title);
+  //
+  // COMPARISON SPACE (Step 2's hazard 1, pinned by tests): base and theirs
+  // are FULL line space (raw titles, metadata included); ours starts as the
+  // app's DISPLAY title, which no longer contains the metadata run — so it
+  // must be carried back to full space through reattachTasksMetadata, the
+  // SAME helper the writeback's newRawTitle derivation uses. Compare display
+  // against full and every metadata-carrying task reads as permanently
+  // renamed, turning each vault edit into conflict-note spam.
+  const oursDisplay = stripObsidianDisplayTag(existing.title);
+  const ours = reattachTasksMetadata(oursDisplay, existing.obsidianRawTitle);
   if (detectTwoSidedRetitle({ base: existing.obsidianRawTitle, theirs: task.obsidianRawTitle, ours })) {
-    task.notes = appendTitleConflictNote(task.notes, ours, new Date().toISOString().slice(0, 10));
-    onTitleConflict?.({ dgTitle: ours, vaultTitle: task.obsidianRawTitle });
+    task.notes = appendTitleConflictNote(task.notes, oursDisplay, new Date().toISOString().slice(0, 10));
+    onTitleConflict?.({ dgTitle: oursDisplay, vaultTitle: splitTasksMetadata(task.obsidianRawTitle).text });
+  }
+}
+
+/**
+ * PER-FIELD VAULT-EDIT ADOPTION (Phase 4 Step 2 — the fourth ownership
+ * ruling; docs/obsidian-buildout-spec.md, "The ownership model").
+ *
+ * Which mapped metadata fields did the VAULT demonstrably edit since our
+ * last observation? Detected the same way vaultTitleWins detects a retitle —
+ * the tagged line's raw text moved off the stored base — but resolved at
+ * FIELD grain: extract the metadata from base and from theirs, and a field
+ * is adopted ONLY when its serialized value actually changed in the line.
+ * That is the narrow claim that makes this safe: an untouched ⏳ sitting in
+ * an edited line never clobbers a dayGLANCE reschedule; a vault edit
+ * overrides dayGLANCE only for the specific field the vault edited
+ * (add, change, or REMOVE — a removed field adopts too). The same-field
+ * two-sided race resolves vault-wins, consistent with the title policy;
+ * deliberately WITHOUT a notes record (a lost priority is one of four
+ * values, re-set with a tap, and the vault's version is still on the line —
+ * unlike a lost sentence of prose).
+ *
+ * Returns null when nothing is adoptable (untagged, no honest base, or the
+ * line hasn't changed) — the shipped existing-fields-win rule then applies
+ * unchanged.
+ */
+function vaultMetadataEdits(task, existing) {
+  if (!task.obsidianBlockId || existing.obsidianRawTitle === undefined) return null;
+  if (task.obsidianRawTitle === existing.obsidianRawTitle) return null;
+  const base = splitTasksMetadata(existing.obsidianRawTitle).fields;
+  const theirs = splitTasksMetadata(task.obsidianRawTitle).fields;
+  const edits = {
+    due: base.due !== theirs.due,
+    scheduled: base.scheduled !== theirs.scheduled,
+    priority: base.priority !== theirs.priority,
+  };
+  return (edits.due || edits.scheduled || edits.priority) ? edits : null;
+}
+
+/**
+ * Apply the adopted fields from the PARSED task's line-derived values
+ * (captured before the existing-fields copy overwrote them). Using the
+ * parsed values — not the extracted field directly — makes add, edit, and
+ * remove uniform: the line's whole date semantics (inline-prefix precedence
+ * included) reapply for `scheduled`, and a removed 📅 clears the deadline.
+ */
+function adoptVaultMetadataEdits(task, edits, lineVals) {
+  if (!edits) return;
+  if (edits.due) task.deadline = lineVals.deadline ?? null;
+  if (edits.priority) task.priority = lineVals.priority ?? 0;
+  if (edits.scheduled) {
+    if (lineVals.date !== undefined) task.date = lineVals.date;
+    if (lineVals.startTime !== undefined) task.startTime = lineVals.startTime;
+    if (lineVals.isAllDay !== undefined) task.isAllDay = lineVals.isAllDay;
   }
 }
 
@@ -1574,6 +1676,11 @@ export async function syncObsidianVault(
     for (const task of scheduledTasks) {
       const existing = resolveExistingObsidianTask(existingTaskMap, task);
       if (existing) {
+        // Line-derived values, captured BEFORE the existing-fields copies
+        // overwrite them — the adoption below restores exactly the fields
+        // the vault demonstrably edited (vaultMetadataEdits).
+        const lineVals = { date: task.date, startTime: task.startTime, isAllDay: task.isAllDay, deadline: task.deadline, priority: task.priority };
+        const edits = vaultMetadataEdits(task, existing);
         // Completed: OR logic — completed in DG OR in Obsidian → completed
         if (existing.completed) task.completed = true;
         // Preserve app-controlled properties the user may have changed in DG
@@ -1582,14 +1689,17 @@ export async function syncObsidianVault(
         if (existing.color !== undefined) task.color = existing.color;
         if (existing.duration !== undefined) task.duration = existing.duration;
         if (existing.priority !== undefined) task.priority = existing.priority;
+        if (existing.deadline !== undefined) task.deadline = existing.deadline;
         // Preserve scheduling & title changes made in DG so sync never
         // overwrites moves/renames the user made inside the app — EXCEPT the
         // title of a tagged line Obsidian edited since our last write, which
-        // the vault wins (see vaultTitleWins).
+        // the vault wins (see vaultTitleWins), and metadata FIELDS the vault
+        // demonstrably edited (adoptVaultMetadataEdits below).
         if (existing.date !== undefined) task.date = existing.date;
         if (existing.startTime !== undefined) task.startTime = existing.startTime;
         if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
         resolveTitleOwnership(task, existing, onTitleConflict);
+        adoptVaultMetadataEdits(task, edits, lineVals);
         // Preserve lastModified so cloud merge keeps recognising the
         // version the user actually edited rather than treating re-imports
         // as brand-new tasks with a fresh timestamp.
@@ -1597,8 +1707,10 @@ export async function syncObsidianVault(
 
         // User moved this to inbox — respect the cross-array move (keyed by
         // the id the task holds IN STATE, which during the one-time block-id
-        // switch is the legacy id, not the freshly parsed one)
-        if (userInboxIds.has(String(existing.id))) {
+        // switch is the legacy id, not the freshly parsed one) — UNLESS the
+        // vault itself just rescheduled the line (⏳ added/edited): the
+        // vault's demonstrable edit wins the classification too.
+        if (userInboxIds.has(String(existing.id)) && !edits?.scheduled) {
           allInbox.push(task);
           continue;
         }
@@ -1612,17 +1724,24 @@ export async function syncObsidianVault(
     for (const task of inboxTasks) {
       const existing = resolveExistingObsidianTask(existingTaskMap, task);
       if (existing) {
+        const lineVals = { deadline: task.deadline, priority: task.priority };
+        const edits = vaultMetadataEdits(task, existing);
         if (existing.completed) task.completed = true;
         if (existing.priority !== undefined) task.priority = existing.priority;
+        if (existing.deadline !== undefined) task.deadline = existing.deadline;
         if (existing.notes !== undefined) task.notes = existing.notes;
         if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
         if (existing.color !== undefined) task.color = existing.color;
         if (existing.duration !== undefined) task.duration = existing.duration;
         resolveTitleOwnership(task, existing, onTitleConflict);
+        adoptVaultMetadataEdits(task, edits, lineVals);
         if (existing.lastModified) task.lastModified = existing.lastModified;
 
-        // User scheduled this from inbox — respect the cross-array move
-        if (userScheduledIds.has(String(existing.id))) {
+        // User scheduled this from inbox — respect the cross-array move —
+        // UNLESS the vault just unscheduled the line (⏳ removed, which is
+        // why this parse classified it inbox): the vault's demonstrable
+        // edit wins the classification.
+        if (userScheduledIds.has(String(existing.id)) && !edits?.scheduled) {
           if (existing.date !== undefined) task.date = existing.date;
           if (existing.startTime !== undefined) task.startTime = existing.startTime;
           if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
@@ -1961,22 +2080,28 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
 
     const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(text, dateStr, seenBlockIds);
 
-    // Same merge logic as syncObsidianVault
+    // Same merge logic as syncObsidianVault — including the Step 2
+    // per-field vault-edit adoption (vaultMetadataEdits) and its
+    // classification override; see the FSA loops for the commentary.
     for (const task of scheduledTasks) {
       const existing = resolveExistingObsidianTask(existingTaskMap, task);
       if (existing) {
+        const lineVals = { date: task.date, startTime: task.startTime, isAllDay: task.isAllDay, deadline: task.deadline, priority: task.priority };
+        const edits = vaultMetadataEdits(task, existing);
         if (existing.completed) task.completed = true;
         if (existing.notes !== undefined) task.notes = existing.notes;
         if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
         if (existing.color !== undefined) task.color = existing.color;
         if (existing.duration !== undefined) task.duration = existing.duration;
         if (existing.priority !== undefined) task.priority = existing.priority;
+        if (existing.deadline !== undefined) task.deadline = existing.deadline;
         if (existing.date !== undefined) task.date = existing.date;
         if (existing.startTime !== undefined) task.startTime = existing.startTime;
         if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
         resolveTitleOwnership(task, existing, onTitleConflict);
+        adoptVaultMetadataEdits(task, edits, lineVals);
         if (existing.lastModified) task.lastModified = existing.lastModified;
-        if (userInboxIds.has(String(existing.id))) { allInbox.push(task); continue; }
+        if (userInboxIds.has(String(existing.id)) && !edits?.scheduled) { allInbox.push(task); continue; }
       } else {
         task.lastModified = new Date(0).toISOString();
       }
@@ -1986,15 +2111,19 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
     for (const task of inboxTasks) {
       const existing = resolveExistingObsidianTask(existingTaskMap, task);
       if (existing) {
+        const lineVals = { deadline: task.deadline, priority: task.priority };
+        const edits = vaultMetadataEdits(task, existing);
         if (existing.completed) task.completed = true;
         if (existing.priority !== undefined) task.priority = existing.priority;
+        if (existing.deadline !== undefined) task.deadline = existing.deadline;
         if (existing.notes !== undefined) task.notes = existing.notes;
         if (existing.subtasks !== undefined) task.subtasks = existing.subtasks;
         if (existing.color !== undefined) task.color = existing.color;
         if (existing.duration !== undefined) task.duration = existing.duration;
         resolveTitleOwnership(task, existing, onTitleConflict);
+        adoptVaultMetadataEdits(task, edits, lineVals);
         if (existing.lastModified) task.lastModified = existing.lastModified;
-        if (userScheduledIds.has(String(existing.id))) {
+        if (userScheduledIds.has(String(existing.id)) && !edits?.scheduled) {
           if (existing.date !== undefined) task.date = existing.date;
           if (existing.startTime !== undefined) task.startTime = existing.startTime;
           if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;

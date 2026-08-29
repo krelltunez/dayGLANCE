@@ -20,6 +20,7 @@ import { classifyVaultPaths } from '../utils/vaultPortability.js';
 import { mergeObsidianDailyNotes } from '../utils/mergeObsidianDailyNotes.js';
 import { mergeObsidianTasks } from '../utils/mergeObsidianTasks.js';
 import { detectObsidianDeletions, addObsidianTombstones } from '../utils/obsidianDeletions.js';
+import { reattachTasksMetadata } from '../utils/obsidianTasksMetadata.js';
 import {
   readRetiredTaskIds,
   recordRetirements as recordRetirementEntries,
@@ -366,9 +367,14 @@ export default function useObsidianSync({
       // at all; it's importing data we lack, and the spread leaves the parsed
       // value in place exactly there. An explicit null (the app uncompleted
       // the task) is the app's statement and still wins.
-      const preserveObsidianAppFields = (old) => ({
+      // `scanned` (the task the scan produced) guards the deadline carry:
+      // since Step 2, deadline is line-derived too — the scan merge carries
+      // the app value forward itself and the per-field adoption may have
+      // deliberately replaced it with the vault's edit, so this layer only
+      // fills a deadline the scan produced NOTHING for.
+      const preserveObsidianAppFields = (old, scanned = {}) => ({
         ...(old.projectId ? { projectId: old.projectId } : {}),
-        ...(old.deadline ? { deadline: old.deadline } : {}),
+        ...(old.deadline && scanned.deadline === undefined ? { deadline: old.deadline } : {}),
         ...(old.archived !== undefined ? { archived: old.archived } : {}),
         ...(old.completedAt !== undefined ? { completedAt: old.completedAt } : {}),
         // assignedUserSyncIds is an app-only synced field (user assignment) that
@@ -737,9 +743,16 @@ export default function useObsidianSync({
       const sourceDate = task.obsidianFileDate || task.id.match(/^obsidian-(\d{4}-\d{2}-\d{2})/)?.[1] || task.date;
       if (!sourceDate) continue;
 
-      // Derive the new raw title (strip #obsidian tag the app appends for display)
+      // Derive the new raw title: strip the #obsidian display tag, then
+      // RE-ATTACH the line's verbatim Tasks-metadata segment (Step 2's
+      // retitle-carry — a deliberate write-path change inside read support):
+      // display titles no longer contain the metadata run, so deriving the
+      // written line from the display alone would strip the user's 📅/⏳/🔁
+      // text off the vault line on every dayGLANCE rename. Same helper as
+      // the scan-time resolver's `ours` comparison, so what we compare and
+      // what we write can never diverge.
       const newRawTitle = titleChanged
-        ? task.title.replace(/\s*#obsidian\b/gi, '').trim()
+        ? reattachTasksMetadata(task.title.replace(/\s*#obsidian\b/gi, '').trim(), task.obsidianRawTitle)
         : undefined;
 
       // When the task has been rescheduled to a different day, pass the new date

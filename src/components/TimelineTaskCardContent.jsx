@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  BookOpen, Check, CheckSquare, Clock, ExternalLink,
+  BookOpen, Check, CheckSquare, Clock, ExternalLink, Repeat,
   FileText, Inbox, MapPin, MoreHorizontal,
   Pencil, RefreshCw, SkipForward, Trash2,
   Phone,
@@ -227,6 +227,7 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
                 )}
                 {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                 {task.importSource === 'obsidian' && <BookOpen size={12} className="flex-shrink-0 opacity-75" title="From Obsidian" />}
+                {task.obsidianRecurrence && <Repeat size={12} className="flex-shrink-0 opacity-75" title="Recurring in Obsidian — this task's recurrence is managed by the Tasks plugin; completing it here won't create the next instance" />}
                 {task.source_app === SOURCE_APPS.LASTGLANCE && <LastGlanceBadge size={12} className="flex-shrink-0" title="From lastGLANCE" />}
                 {multiUserEnabled && <UserAssignmentBadge users={users} assignedUserSyncIds={task.assignedUserSyncIds} size={14} />}
                 <div className="flex-1 min-w-0">
@@ -315,6 +316,7 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
                 )}
                 {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
                 {task.importSource === 'obsidian' && <BookOpen size={12} className="flex-shrink-0 opacity-75" title="From Obsidian" />}
+                {task.obsidianRecurrence && <Repeat size={12} className="flex-shrink-0 opacity-75" title="Recurring in Obsidian — this task's recurrence is managed by the Tasks plugin; completing it here won't create the next instance" />}
                 {task.source_app === SOURCE_APPS.LASTGLANCE && <LastGlanceBadge size={12} className="flex-shrink-0" title="From lastGLANCE" />}
                 {multiUserEnabled && <UserAssignmentBadge users={users} assignedUserSyncIds={task.assignedUserSyncIds} size={14} />}
                 <div className="flex-1 min-w-0">

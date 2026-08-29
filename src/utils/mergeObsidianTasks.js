@@ -36,7 +36,11 @@ export function mergeObsidianTasks(prevList, scannedList, scannedIdsAllLists, pr
     // its old id (see resolveExistingObsidianTask in obsidian.js).
     const old = oldMap.get(String(t.id))
       ?? (t.obsidianLegacyId ? oldMap.get(String(t.obsidianLegacyId)) : undefined);
-    return old ? { ...t, ...preserveAppFields(old) } : t;
+    // The scanned task is passed alongside so preserveAppFields can decline
+    // to stomp a value the SCAN itself produced — Step 2's per-field
+    // vault-edit adoption sets `deadline` on the scan result, and a blind
+    // old-side carry here would silently undo the adoption.
+    return old ? { ...t, ...preserveAppFields(old, t) } : t;
   }).filter(t => !isObsidianTombstoned(tombstones, String(t.id), t.lastModified));
   const retained = oldObsidian.filter(t =>
     !scannedIdsAllLists.has(String(t.id)) &&
