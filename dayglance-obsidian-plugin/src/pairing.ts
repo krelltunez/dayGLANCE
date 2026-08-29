@@ -20,6 +20,7 @@ import {
   openPairingOffer,
   pairingOfferFresh,
   PAIRING_PATH,
+  BRIDGE_VAULT_APP,
   type BridgePairingCredentials,
 } from '@glance-apps/obsidian-format';
 import { createVaultClient } from '@glance-apps/sync/src/vaultClient.js';
@@ -33,10 +34,6 @@ export interface BridgePairing {
   generation: string;
   pairedAt: string;
 }
-
-// The GLANCEvault namespace for everything the bridge stores. App-scoped
-// endpoints keep this fully separate from dayGLANCE's own 'dayglance' rows.
-export const BRIDGE_VAULT_APP = 'dayglance-bridge';
 
 // fetch shim over Obsidian's requestUrl — the sanctioned way to make
 // cross-origin requests from a plugin (plain fetch is CORS-bound in the

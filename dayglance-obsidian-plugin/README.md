@@ -20,14 +20,22 @@ manually or via BRAT, not submitted to the community directory.
   device token is verified against GLANCEvault with one authenticated call,
   and the credentials (token + bridge-scoped subkey) are stored in
   `data.json`. The offer file is deleted after use.
-- Three commands: **Sync now** (refreshes the heartbeat — no transport yet),
-  **Enter pairing code**, and **Unpair from GLANCEvault** (forgets the local
-  credentials; revoke the token server-side too).
+- **Intent stream** (spec §3.6): while paired, the plugin drains semantic
+  intents dayGLANCE emitted (task state changes, retitles, appends, note
+  writes) from GLANCEvault and applies them to the vault through a pure,
+  idempotent applier shared with dayGLANCE — drain on open plus a 30-second
+  interval while foregrounded, with an applied-ID set and high-water mark
+  persisted per batch so crash replay is a no-op. In the other direction it
+  reports plain **observations** — the latest state of daily notes and
+  task-marked files, one upserted row per path — and never interprets an
+  edit; that is dayGLANCE's scan pipeline's job.
+- Three commands: **Sync now** (drains pending intents + refreshes the
+  heartbeat), **Enter pairing code**, and **Unpair from GLANCEvault**
+  (forgets the local credentials; revoke the token server-side too).
 
-After pairing the plugin can talk to GLANCEvault but moves no data — the
-intent stream is the next phase. Network access happens only during pairing
-verification, only to the vault URL carried in the offer, via Obsidian's
-`requestUrl`.
+Network access happens only while paired (plus pairing verification), only
+to the vault URL carried in the offer, via Obsidian's `requestUrl`. All
+stream rows are AES-256-GCM under the pairing's bridge subkey.
 
 ## Build
 

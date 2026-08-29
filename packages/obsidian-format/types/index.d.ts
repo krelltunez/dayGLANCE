@@ -110,3 +110,19 @@ export function deriveBridgeSubkey(rootKey: CryptoKey, pairingSaltBytes: Uint8Ar
 export function exportBridgeSubkey(subkey: CryptoKey): Promise<string>;
 export function importBridgeSubkey(subkeyB64: string): Promise<CryptoKey>;
 export function pairingOfferFresh(createdAtIso: string, nowMs?: number): boolean;
+
+// ── bridge intent stream ────────────────────────────────────────────────────
+export const BRIDGE_VAULT_APP: string;
+export const BRIDGE_PAIRING_META_ID: string;
+export const BRIDGE_CONFIG_META_ID: string;
+export const BRIDGE_INTENT_PREFIX: string;
+export const BRIDGE_OBSERVATION_PREFIX: string;
+export function mintIntentId(): string;
+export function observationEntityId(path: string): Promise<string>;
+export function sealBridgeEnvelope(subkey: CryptoKey, payload: unknown): Promise<string>;
+export function openBridgeEnvelope(subkey: CryptoKey, text: string): Promise<unknown | null>;
+export function applyBridgeIntent(
+  currentText: string | null, intent: unknown,
+): { text: string | null; changed: boolean }
+ | { error: 'unportable_name'; reason: string }
+ | { unsupported: true };

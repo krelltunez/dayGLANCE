@@ -41,7 +41,9 @@ import { Notice, Plugin, normalizePath } from 'obsidian';
 // main.js by esbuild; `file:`-linked while the plugin lives in the dayGLANCE
 // repo, a published dependency after extraction.
 import { heartbeatPayload } from '@glance-apps/obsidian-format';
+import { TFile } from 'obsidian';
 import { PairingModal, readPairingOfferText, type BridgePairing } from './pairing';
+import { BridgeTransport, publishPairingMeta, type BridgeState } from './bridge';
 
 const HEARTBEAT_DIR = '.dayglance';
 const HEARTBEAT_PATH = `${HEARTBEAT_DIR}/heartbeat`;
@@ -57,6 +59,7 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 interface BridgeData {
   deviceId?: string;
   pairing?: BridgePairing;
+  bridge?: BridgeState;
 }
 
 const mintDeviceId = (): string => {
@@ -75,6 +78,7 @@ const mintDeviceId = (): string => {
 export default class DayGlanceBridgePlugin extends Plugin {
   private deviceId = '';
   private data: BridgeData = {};
+  private transport!: BridgeTransport;
   // One nudge per offer appearance: reset when the file disappears, so a
   // fresh offer (re-pair) nudges again but a sitting one doesn't nag.
   private offerNoticed = false;
@@ -87,15 +91,38 @@ export default class DayGlanceBridgePlugin extends Plugin {
     }
     this.deviceId = this.data.deviceId;
 
+    this.transport = new BridgeTransport({
+      app: this.app,
+      getPairing: () => this.data.pairing,
+      getBridgeState: () => this.data.bridge ?? { appliedIds: [], hwm: 0 },
+      saveBridgeState: async (state) => {
+        this.data.bridge = state;
+        await this.saveData(this.data);
+      },
+    });
+
+    // Outbound observations: report file state, never inferred edits
+    // (spec §3.6 as amended). Debounced per path inside the transport;
+    // inert while unpaired. layoutReady gates out the initial index churn.
+    this.app.workspace.onLayoutReady(() => {
+      this.registerEvent(this.app.vault.on('modify', (f) => { if (f instanceof TFile) this.transport.scheduleObservation(f); }));
+      this.registerEvent(this.app.vault.on('create', (f) => { if (f instanceof TFile) this.transport.scheduleObservation(f); }));
+      this.registerEvent(this.app.vault.on('delete', (f) => { if (f instanceof TFile) this.transport.reportDeleted(f.path); }));
+      this.registerEvent(this.app.vault.on('rename', (f, oldPath) => {
+        if (f instanceof TFile) { this.transport.reportDeleted(oldPath); this.transport.scheduleObservation(f); }
+      }));
+    });
+
     // Full ids in the palette: dayglance-bridge:<id> (Obsidian prefixes the
-    // manifest id). With no transport yet, sync-now's one honest effect is
-    // an immediate heartbeat refresh.
+    // manifest id). Sync now = drain pending intents + refresh the beat.
     this.addCommand({
       id: 'sync-now',
       name: 'Sync now',
       callback: () => {
-        void this.writeHeartbeat().then(() => {
-          new Notice('dayGLANCE bridge: heartbeat refreshed. Sync transport arrives in a later phase.');
+        void Promise.all([this.transport.drain(), this.writeHeartbeat()]).then(() => {
+          new Notice(this.data.pairing
+            ? 'dayGLANCE bridge: synced.'
+            : 'dayGLANCE bridge: heartbeat refreshed (not paired — nothing to sync).');
         });
       },
     });
@@ -109,7 +136,13 @@ export default class DayGlanceBridgePlugin extends Plugin {
           getPairing: () => this.data.pairing,
           storePairing: async (pairing) => {
             this.data.pairing = pairing;
+            // A re-pair rotates the subkey: old rows are unreadable, and the
+            // cursor state belongs to the superseded stream. Start clean.
+            this.data.bridge = { appliedIds: [], hwm: 0 };
             await this.saveData(this.data);
+            // Publish the plaintext pairing-meta row — how OTHER dayGLANCE
+            // devices discover the salt and start emitting (bridge.ts).
+            await publishPairingMeta(pairing).catch((e) => console.error('dayGLANCE bridge: meta publish failed', e));
             // Beat immediately so dayGLANCE's pairing panel confirms
             // without waiting out the interval.
             await this.writeHeartbeat();
@@ -126,22 +159,34 @@ export default class DayGlanceBridgePlugin extends Plugin {
           new Notice('dayGLANCE bridge: not paired.');
           return;
         }
+        const previous = this.data.pairing;
         delete this.data.pairing;
-        void this.saveData(this.data).then(() => this.writeHeartbeat()).then(() => {
-          new Notice('dayGLANCE bridge: unpaired. Also revoke the device token on your GLANCEvault server — unpairing only forgets the local credentials.');
-        });
+        delete this.data.bridge;
+        void this.saveData(this.data)
+          // Best-effort: clearing the meta row tells dayGLANCE devices to
+          // stop emitting; if the token is already revoked this just fails.
+          .then(() => publishPairingMeta(null, previous).catch(() => {}))
+          .then(() => this.writeHeartbeat())
+          .then(() => {
+            new Notice('dayGLANCE bridge: unpaired. Also revoke the device token on your GLANCEvault server — unpairing only forgets the local credentials.');
+          });
       },
     });
 
     // First beat immediately — registerInterval's first tick is a full
     // interval away, and dayGLANCE's staleness window shouldn't have to
-    // absorb Obsidian's startup. The offer check rides the same cadence.
+    // absorb Obsidian's startup. The offer check and the intent drain ride
+    // the same cadence: drain-on-open plus interval-while-foreground is the
+    // mobile story too (frozen background timers simply pause both, exactly
+    // like the heartbeat).
     void this.writeHeartbeat();
     void this.checkForPairingOffer();
+    void this.transport.drain();
     this.registerInterval(
       window.setInterval(() => {
         void this.writeHeartbeat();
         void this.checkForPairingOffer();
+        void this.transport.drain();
       }, HEARTBEAT_INTERVAL_MS),
     );
   }
