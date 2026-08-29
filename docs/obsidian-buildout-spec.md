@@ -209,7 +209,7 @@ Relevant to Phases 6 and 7.
 
 ## 6. Phases
 
-Phases 0 through 3 are complete. Phases 2 through 4 are independent of the plugin and deliver value on their own.
+Phases 0 through 5 are complete. Phases 2 through 4 are independent of the plugin and deliver value on their own.
 
 ### Phase 0. Platform truth and write safety foundations — COMPLETE
 
@@ -370,7 +370,7 @@ Tags need no step: dayGLANCE's tag model is "hashtags are title text" — vault 
 
 ---
 
-### Phase 5. Bridge plugin, minimal, unlisted — BUILT (as-built record; exit criteria pending on-device verification)
+### Phase 5. Bridge plugin, minimal, unlisted — COMPLETE
 
 **Goal.** Establish the plugin as an artifact, running on your own devices, doing the smallest useful thing.
 
@@ -378,7 +378,7 @@ Tags need no step: dayGLANCE's tag model is "hashtags are title text" — vault 
 
 **As built.**
 
-- **The plugin** lives at `dayglance-obsidian-plugin/` in the dayGLANCE repo for now — deliberately self-contained (own package.json/tsconfig/esbuild, zero imports from dayGLANCE) so extraction to a public repo before directory submission is a move, not surgery. It writes `.dayglance/heartbeat` every 30 seconds while Obsidian has the vault open (adapter API — the vault API deliberately cannot see dot-paths), payload per 3.3: `{paired: false, accountId: null, deviceId, ts}` — the values are Phase 5, the SHAPE is final so Phase 6 changes values, never format. `deviceId` is minted once per install into the plugin's data.json. One command, `dayglance-bridge:sync-now`; with no transport yet its one honest effect is an immediate heartbeat refresh. A graceful unload removes the heartbeat (a disabled plugin equally means "no bridge here"); crashes leave it to go stale.
+- **The plugin** lives at `dayglance-obsidian-plugin/` in the dayGLANCE repo for now — deliberately self-contained (own package.json/tsconfig/esbuild, zero imports from dayGLANCE) so extraction to a public repo before directory submission is a move, not surgery. It writes `.dayglance/heartbeat` every 30 seconds while Obsidian has the vault open (adapter API — the vault API deliberately cannot see dot-paths), payload per 3.3: `{paired: false, accountId: null, deviceId, ts}` — the values are Phase 5, the SHAPE is final so Phase 6 changes values, never format. `deviceId` is minted once per install into the plugin's data.json. One command, `dayglance-bridge:sync-now`; with no transport yet its one honest effect is an immediate heartbeat refresh. A graceful unload best-effort-removes the heartbeat (a disabled plugin equally means "no bridge here"), but the delete is an async op racing app teardown and often does NOT survive a real quit — so in practice launch-on-write stays suppressed for up to the staleness window (≤5 minutes) after quitting Obsidian. ACCEPTED COST, verified on macOS during the exit-criteria pass and initially mistaken for a failed negative control: the worst case is one delayed Sync wake, self-healing on the next edit after the window or the next Obsidian open — the same world every write lived in before Phase 1. Crashes leave the file to go stale, which is what the window is for.
 - **Dot-directory facts, confirmed (the design's load-bearing assumptions):** Obsidian's indexer ignores hidden dot-paths entirely — `.dayglance/` appears in neither the file explorer, search, nor graph, for directories as for files — and **Obsidian Sync ignores all hidden files and directories** (long-documented behavior, still an open feature request as of 2025), so the heartbeat is genuinely per-device liveness under Obsidian Sync. **Third-party file sync caveat, recorded:** a vault synced by iCloud Drive/Syncthing/Dropbox WILL carry device A's heartbeat to device B, where it can wrongly suppress B's launch-on-write. This is benign for what the heartbeat gates: launch-on-write exists to wake OBSIDIAN SYNC, and on a third-party-synced vault the launch was pointless anyway — the file syncer moves bytes whether or not Obsidian runs. Arbitration (Phase 6) keys on `paired` + per-device pairing state, not freshness alone.
 - **Staleness: 5 minutes** — ten missed beats, comfortably longer than an Obsidian restart. Missing, stale, and malformed are ONE case everywhere (the 3.3 revert path is one path). The semantics live in `src/utils/obsidianHeartbeat.js` and are deliberately mirrored (with cross-pointers and tests on each side) in `electron/obsidianLaunch.ts` and Android's `ObsidianRepository`, which cannot import the JS.
 - **Mobile cadence:** on Obsidian mobile the interval freezes when the app is backgrounded, so the heartbeat goes stale on a backgrounded phone — the CORRECT signal, since a backgrounded Obsidian isn't syncing either. Consequence on the reading side: Android suppression is naturally narrow (Obsidian is backgrounded whenever the user is *in* dayGLANCE, so only writes within the staleness window of Obsidian leaving the foreground suppress); desktop, where Obsidian genuinely runs alongside, is where suppression does its work.
@@ -388,7 +388,7 @@ Tags need no step: dayGLANCE's tag model is "hashtags are title text" — vault 
 
 **Distribution.** BRAT or manual install (`manifest.json` + built `main.js` into `.obsidian/plugins/dayglance-bridge/`). Not submitted to the community directory.
 
-**Exit criteria.** Heartbeat visible and correctly interpreted by dayGLANCE on macOS, Android, and Windows. Phase 1 no longer launches Obsidian or posts a tap-to-open notification when Obsidian is already open. *(Code and tests landed; the on-device pass across the three platforms is the remaining box to tick.)*
+**Exit criteria (met).** Heartbeat visible and correctly interpreted by dayGLANCE on macOS, Android, and Windows. Phase 1 no longer launches Obsidian or posts a tap-to-open notification when Obsidian is already open. On-device verification passed on all three platforms, 2026-08-29 (PR #1472 shipped the code; this closure records the manual pass).
 
 ---
 
