@@ -182,6 +182,18 @@ export class BridgeTransport {
     });
   }
 
+  // Best-effort intent-row cleanup, fire-and-forget by design (the applied-ID
+  // set and the HWM each independently prevent re-application) — but never
+  // SILENT: a swallowed 429 here is how the tombstone loop burned the budget
+  // for hours with a quiet console. Rate limits arm the brake like any other
+  // bridge request; other failures get one console line.
+  private deleteIntentRow(client: VaultClient, entityId: string, accountId: string): void {
+    void client.deleteRow(BRIDGE_VAULT_APP, entityId, accountId).catch((e) => {
+      if (isRateLimitError(e)) this.noteRateLimit();
+      else console.error('dayGLANCE bridge: intent row cleanup failed', e);
+    });
+  }
+
   private async subkeyFor(pairing: BridgePairing): Promise<CryptoKey> {
     if (!this.subkey || this.subkeyGeneration !== pairing.generation) {
       this.subkey = await importBridgeSubkey(pairing.subkeyB64);
@@ -209,12 +221,28 @@ export class BridgeTransport {
       while (hasMore) {
         const page = await client.list(BRIDGE_VAULT_APP, { accountId: pairing.accountId, since });
         hasMore = !!page.hasMore;
-        const rows = (page.rows ?? []) as Array<{ entityId?: string; envelope?: string; seq?: number }>;
+        const rows = (page.rows ?? []) as Array<{ entityId?: string; envelope?: string; seq?: number; deleted?: boolean }>;
         if (rows.length === 0) break;
         let batchMax = since;
         for (const row of rows) {
           const seq = Number(row.seq) || 0;
           if (seq > batchMax) batchMax = seq;
+          if (row.deleted) {
+            // TOMBSTONE — cursor movement only, NEVER a deleteRow. The server
+            // re-tombstones on every delete: soft-deleting an already-deleted
+            // row still assigns a FRESH seq and emits an SSE nudge, so
+            // deleting a tombstone resurrects it above our own cursor. The
+            // pre-fix drain did exactly that for every applied-intent
+            // tombstone (the applied-ids branch below fired on them), which
+            // built a silent perpetual loop: N tombstones re-deleted every
+            // 30s drain, each bump nudging every SSE client and burning the
+            // shared per-IP budget — the 2026-08-30 storm (~900 foreign seq
+            // events on an idle account), invisible in this console because
+            // the deletes were fire-and-forget. Skipping tombstones lets the
+            // cursor advance past the whole backlog once, after which they
+            // never re-seq and never return.
+            continue;
+          }
           const entityId = String(row.entityId ?? '');
           if (!entityId.startsWith(BRIDGE_INTENT_PREFIX)) {
             // meta rows and our own observations also live here; refresh the
@@ -227,7 +255,7 @@ export class BridgeTransport {
           }
           const intentId = entityId.slice(BRIDGE_INTENT_PREFIX.length);
           if (applied.has(intentId)) {
-            void client.deleteRow(BRIDGE_VAULT_APP, entityId, pairing.accountId).catch(() => {});
+            this.deleteIntentRow(client, entityId, pairing.accountId);
             continue;
           }
           const intent = row.envelope ? await openBridgeEnvelope(subkey, row.envelope) : null;
@@ -235,14 +263,14 @@ export class BridgeTransport {
             // Sealed under a rotated-away generation (or tampered): can never
             // be applied by anyone — treat as consumed.
             applied.add(intentId);
-            void client.deleteRow(BRIDGE_VAULT_APP, entityId, pairing.accountId).catch(() => {});
+            this.deleteIntentRow(client, entityId, pairing.accountId);
             continue;
           }
           try {
             const consumed = await this.applyOne(intent as Record<string, unknown>);
             applied.add(intentId);
             if (consumed) {
-              void client.deleteRow(BRIDGE_VAULT_APP, entityId, pairing.accountId).catch(() => {});
+              this.deleteIntentRow(client, entityId, pairing.accountId);
             }
           } catch (e) {
             // A vault-write failure leaves the row AND the id unapplied — the
