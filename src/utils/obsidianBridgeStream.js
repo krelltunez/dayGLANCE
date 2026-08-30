@@ -92,9 +92,26 @@ export function noteBridgeRateLimit() {
   console.info(`[bridge] BRAKE: rate-limited (429) — bridge requests paused for ~${Math.round(backoffMs / 1000)}s.`);
 }
 
+// DECAY, never amnesty — the plugin-side live bug of 2026-08-30, fixed on
+// both sides in the same shape. The first design zeroed the escalation on
+// ANY success, silently; on a per-IP budget saturated by other traffic an
+// occasional request slips into a fresh limiter window and succeeds, and
+// each lucky 200 wiped the whole 30→480s escalation — the client "backs
+// off, escalates, forgets, starts over", never settling at the ceiling
+// while the storm lasts. Now a success clears the GATE (the window
+// demonstrably has room) but only HALVES the memory, so the next 429
+// re-arms at the storm's level; a genuine recovery drains the memory to
+// zero within a few quiet successes. Both transitions log.
 export function noteBridgeRequestSuccess() {
-  backoffMs = 0;
   backoffUntil = 0;
+  if (backoffMs === 0) return;
+  backoffMs = Math.floor(backoffMs / 2);
+  if (backoffMs < BRIDGE_BACKOFF_BASE_MS) {
+    backoffMs = 0;
+    console.info('[bridge] brake released — bridge request succeeded.');
+  } else {
+    console.info(`[bridge] brake decaying — request succeeded (a new 429 would pause ~${Math.round(Math.min(backoffMs * 2, BRIDGE_BACKOFF_MAX_MS) / 1000)}s).`);
+  }
 }
 
 const readJson = (key, fallback) => {
