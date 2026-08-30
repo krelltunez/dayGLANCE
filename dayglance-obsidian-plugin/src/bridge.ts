@@ -149,9 +149,27 @@ export class BridgeTransport {
     console.info(`dayGLANCE bridge: rate-limited (429) — pausing bridge requests for ~${Math.round(this.backoffMs / 1000)}s.`);
   }
 
+  // DECAY, never amnesty — the live lesson of 2026-08-30. The first shape
+  // zeroed the escalation on ANY success, and successes were silent. On a
+  // per-IP budget saturated by OTHER traffic, an occasional cheap request
+  // slips into a fresh limiter window and succeeds; each lucky 200 then
+  // wiped the whole 30→480s escalation, so the observed log read
+  // "escalates, forgets, starts over at 30s" — never settling at the
+  // ceiling while the storm lasted. Now a success clears the GATE (the
+  // window demonstrably has room) but only HALVES the memory, so the next
+  // 429 re-arms at the storm's level; a genuine recovery drains the memory
+  // to zero within a few quiet successes. Both transitions log, so the
+  // interleaving that misled the first diagnosis is visible in the console.
   private noteSuccess(): void {
-    this.backoffMs = 0;
     this.backoffUntil = 0;
+    if (this.backoffMs === 0) return;
+    this.backoffMs = Math.floor(this.backoffMs / 2);
+    if (this.backoffMs < BACKOFF_BASE_MS) {
+      this.backoffMs = 0;
+      console.info('dayGLANCE bridge: request succeeded — brake released.');
+    } else {
+      console.info(`dayGLANCE bridge: request succeeded — brake decaying (a new 429 would pause ~${Math.round(Math.min(this.backoffMs * 2, BACKOFF_MAX_MS) / 1000)}s).`);
+    }
   }
 
   constructor(host: BridgeHost) {

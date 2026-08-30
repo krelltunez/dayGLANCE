@@ -189,6 +189,83 @@ describe('the bridge brake (429 backoff)', () => {
       vi.useRealTimers();
     }
   });
+
+  it('DECAY, never amnesty (the 2026-08-30 plugin lesson): one lucky success does NOT reset the escalation — the next 429 re-arms at the storm level', async () => {
+    vi.useFakeTimers();
+    const at = (iso) => vi.setSystemTime(new Date(iso));
+    const limited = async () => ({ ok: false, status: 429, json: async () => ({ error: 'too many requests' }) });
+    try {
+      // Escalate to a 60s arming: 429 (arms 30s), retry past the window 429s again (arms 60s).
+      at('2026-08-30T12:00:00.000Z');
+      // Re-stamp the meta cache under the FAKE clock so flushes serve it from
+      // cache — each network request that succeeds decays the memory once, and
+      // this test counts exactly the batch requests.
+      localStorage.setItem('dayglance-bridge-pairing-meta', JSON.stringify({ meta: META, fetchedAt: Date.now() }));
+      globalThis.fetch = limited;
+      emitBridgeIntent('daily_note_write', { path: 'a.md', content: '1' });
+      await flushBridgeOutbox();               // arms 30s, memory 30s
+      at('2026-08-30T12:00:31.000Z');
+      await flushBridgeOutbox();               // 429 again → arms 60s, memory 60s
+
+      // A lucky success past the window: gate opens, memory HALVES (60→30), not zeroed.
+      at('2026-08-30T12:01:32.000Z');
+      globalThis.fetch = makeFetch();
+      expect(await flushBridgeOutbox()).toBe(true);
+
+      // The storm is still on: the very next 429 re-arms at 60s (2×30s memory),
+      // NOT the fresh 30s base the amnesty design restarted from.
+      globalThis.fetch = limited;
+      emitBridgeIntent('daily_note_write', { path: 'b.md', content: '2' });
+      await flushBridgeOutbox();               // arms min(30*2, cap) = 60s
+
+      // 31s later — the amnesty design would already be retrying; the brake holds.
+      at('2026-08-30T12:02:03.000Z');
+      globalThis.fetch = makeFetch();
+      expect(await flushBridgeOutbox()).toBe(false);
+      expect(globalThis.fetch.batches).toHaveLength(0);
+
+      // Past the full 60s arming it opens again.
+      at('2026-08-30T12:02:33.000Z');
+      expect(await flushBridgeOutbox()).toBe(true);
+      expect(globalThis.fetch.batches).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a genuine recovery drains the memory: consecutive successes decay it to zero, and the next 429 arms at the 30s base again', async () => {
+    vi.useFakeTimers();
+    const at = (iso) => vi.setSystemTime(new Date(iso));
+    const limited = async () => ({ ok: false, status: 429, json: async () => ({ error: 'too many requests' }) });
+    try {
+      // Build 60s of memory as above.
+      at('2026-08-30T12:00:00.000Z');
+      localStorage.setItem('dayglance-bridge-pairing-meta', JSON.stringify({ meta: META, fetchedAt: Date.now() }));
+      globalThis.fetch = limited;
+      emitBridgeIntent('daily_note_write', { path: 'a.md', content: '1' });
+      await flushBridgeOutbox();
+      at('2026-08-30T12:00:31.000Z');
+      await flushBridgeOutbox();               // memory 60s
+
+      // Two quiet successes: 60 → 30 → 0 (released).
+      at('2026-08-30T12:01:32.000Z');
+      globalThis.fetch = makeFetch();
+      expect(await flushBridgeOutbox()).toBe(true);   // memory 30s
+      emitBridgeIntent('daily_note_write', { path: 'b.md', content: '2' });
+      expect(await flushBridgeOutbox()).toBe(true);   // memory 0 — released
+
+      // Fresh incident later: arms at the 30s base, so at +31s the gate is open.
+      globalThis.fetch = limited;
+      emitBridgeIntent('daily_note_write', { path: 'c.md', content: '3' });
+      await flushBridgeOutbox();               // arms 30s
+      at('2026-08-30T12:02:03.000Z');
+      globalThis.fetch = makeFetch();
+      expect(await flushBridgeOutbox()).toBe(true);
+      expect(globalThis.fetch.batches).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('round trip with the plugin-side seal', () => {
