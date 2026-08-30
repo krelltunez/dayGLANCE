@@ -11,7 +11,7 @@ import CalendarList from './CalendarList.jsx';
 import ICloudSyncToggle from './ICloudSyncToggle.jsx';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
-import { isNativeAndroid, isNativeApp, nativeGetCalendars, nativeGetAutomationIntentsEnabled, nativeSetAutomationIntentsEnabled } from '../native.js';
+import { isNativeAndroid, isNativeApp, nativePickVault, nativeGetCalendars, nativeGetAutomationIntentsEnabled, nativeSetAutomationIntentsEnabled } from '../native.js';
 import { hasNativeCalendar, electronCalendarAvailable, electronGetCalendars } from '../utils/nativeCalendar.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, formatDatePattern } from '../obsidian.js';
 import { validateDailyNotePattern, validateVaultFolderSetting } from '../utils/obsidianFilename.js';
@@ -1517,10 +1517,17 @@ const SettingsModal = () => {
                     </div>
                     </>)}
 
-                    {(!isMobile || isNativeAndroid()) && (<>
+                    {/* Hidden at mobile width ONLY for browsers, where FSA is
+                        unavailable on phones; a NATIVE app (Android or iOS)
+                        has vault access at any width. The old Android-only
+                        exception predated the iOS native bridge. */}
+                    {(!isMobile || isNativeApp()) && (<>
                     <hr className={borderClass} />
 
-                    {/* Obsidian Integration Section — desktop + Android native */}
+                    {/* Obsidian Integration Section — desktop (FSA) + native
+                        apps (Android SAF, iOS bookmark). MobileSettingsPanel
+                        carries the primary mobile surface; this section is the
+                        modal's counterpart wherever the modal is reachable. */}
                     <div className="space-y-3">
                       <button onClick={() => toggleSettingsSection('obsidian')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
                         <BookOpen size={16} className={textSecondary} />
@@ -1532,7 +1539,11 @@ const SettingsModal = () => {
                       <p className={`${textSecondary} text-xs`}>
                         Import tasks and sync daily notes with your Obsidian vault.
                       </p>
-                      {!isNativeAndroid() && !isFileSystemAccessSupported() && (
+                      {/* The Chromium/FSA requirement is a BROWSER constraint:
+                          a native app reaches the vault through its own bridge
+                          (SAF / iOS bookmark) and must not see this warning —
+                          gating on Android alone showed it, wrongly, on iPad. */}
+                      {!isNativeApp() && !isFileSystemAccessSupported() && (
                         <p className={`text-xs text-amber-500`}>
                           Obsidian integration requires a Chromium-based browser (Chrome, Edge, or Brave). Firefox and Safari do not support the File System Access API.
                         </p>
@@ -1786,6 +1797,18 @@ const SettingsModal = () => {
                       ) : (
                         <button
                           onClick={async () => {
+                            // Native app (iOS lands here; Android took its own
+                            // branch above): the vault is picked through the
+                            // NATIVE folder picker (UIDocumentPickerViewController
+                            // via nativePickVault, which reloads the webview
+                            // once a folder is chosen) — the FSA flow below is
+                            // browser-only and, gated on Android alone, used to
+                            // leave iPad with a dead connect button that could
+                            // only alert about Chromium.
+                            if (isNativeApp()) {
+                              nativePickVault();
+                              return;
+                            }
                             if (!isFileSystemAccessSupported()) {
                               alert('Your browser does not support the File System Access API. Please use a Chromium-based browser (e.g., Chrome, Edge, Brave) to connect an Obsidian vault.');
                               return;
