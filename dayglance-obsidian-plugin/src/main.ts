@@ -1,12 +1,12 @@
 // dayGLANCE Bridge — Obsidian build-out Phases 5–6
 // (docs/obsidian-buildout-spec.md in the dayGLANCE repo, §3.2–§3.4, §6).
 //
-// Still deliberately small: a liveness heartbeat, the pairing flow, and two
-// command-palette entries. No intent transport yet (that is the next phase);
-// after pairing the plugin can talk to GLANCEvault but moves no data. The
-// plugin is built to be EXTRACTED to its own public repo before directory
-// submission — it imports nothing from dayGLANCE and knows nothing about it
-// beyond the shared vault-format contracts.
+// Still deliberately small: a liveness heartbeat, the pairing flow (a
+// settings tab plus command-palette entries — settingsTab.ts / pairing.ts),
+// and the intent transport (bridge.ts). The plugin is built to be EXTRACTED
+// to its own public repo before directory submission — it imports nothing
+// from dayGLANCE and knows nothing about it beyond the shared vault-format
+// contracts.
 //
 // THE HEARTBEAT. `.dayglance/heartbeat` is written every 30 seconds while
 // Obsidian has this vault open. dayGLANCE reads it for two things:
@@ -43,6 +43,7 @@ import { Notice, Plugin, normalizePath } from 'obsidian';
 import { heartbeatPayload } from '@glance-apps/obsidian-format';
 import { TFile } from 'obsidian';
 import { PairingModal, readPairingOfferText, type BridgePairing } from './pairing';
+import { BridgeSettingTab, type BridgeSettingsHost } from './settingsTab';
 import { BridgeTransport, publishPairingMeta, type BridgeState } from './bridge';
 
 const HEARTBEAT_DIR = '.dayglance';
@@ -127,27 +128,34 @@ export default class DayGlanceBridgePlugin extends Plugin {
       },
     });
 
+    // ONE pairing host, shared by the settings tab (the Obsidian-idiomatic
+    // front door) and the command-palette modal — same flow, two entries.
+    const host: BridgeSettingsHost = {
+      app: this.app,
+      plugin: this,
+      getPairing: () => this.data.pairing,
+      storePairing: async (pairing) => {
+        this.data.pairing = pairing;
+        // A re-pair rotates the subkey: old rows are unreadable, and the
+        // cursor state belongs to the superseded stream. Start clean.
+        this.data.bridge = { appliedIds: [], hwm: 0 };
+        await this.saveData(this.data);
+        // Publish the plaintext pairing-meta row — how OTHER dayGLANCE
+        // devices discover the salt and start emitting (bridge.ts).
+        await publishPairingMeta(pairing).catch((e) => console.error('dayGLANCE bridge: meta publish failed', e));
+        // Beat immediately so dayGLANCE's pairing panel confirms
+        // without waiting out the interval.
+        await this.writeHeartbeat();
+      },
+      unpair: () => this.unpair(),
+    };
+    this.addSettingTab(new BridgeSettingTab(host));
+
     this.addCommand({
       id: 'enter-pairing-code',
       name: 'Enter pairing code',
       callback: () => {
-        new PairingModal({
-          app: this.app,
-          getPairing: () => this.data.pairing,
-          storePairing: async (pairing) => {
-            this.data.pairing = pairing;
-            // A re-pair rotates the subkey: old rows are unreadable, and the
-            // cursor state belongs to the superseded stream. Start clean.
-            this.data.bridge = { appliedIds: [], hwm: 0 };
-            await this.saveData(this.data);
-            // Publish the plaintext pairing-meta row — how OTHER dayGLANCE
-            // devices discover the salt and start emitting (bridge.ts).
-            await publishPairingMeta(pairing).catch((e) => console.error('dayGLANCE bridge: meta publish failed', e));
-            // Beat immediately so dayGLANCE's pairing panel confirms
-            // without waiting out the interval.
-            await this.writeHeartbeat();
-          },
-        }).open();
+        new PairingModal(host).open();
       },
     });
 
@@ -159,17 +167,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
           new Notice('dayGLANCE bridge: not paired.');
           return;
         }
-        const previous = this.data.pairing;
-        delete this.data.pairing;
-        delete this.data.bridge;
-        void this.saveData(this.data)
-          // Best-effort: clearing the meta row tells dayGLANCE devices to
-          // stop emitting; if the token is already revoked this just fails.
-          .then(() => publishPairingMeta(null, previous).catch(() => {}))
-          .then(() => this.writeHeartbeat())
-          .then(() => {
-            new Notice('dayGLANCE bridge: unpaired. Also revoke the device token on your GLANCEvault server — unpairing only forgets the local credentials.');
-          });
+        void this.unpair();
       },
     });
 
@@ -199,6 +197,20 @@ export default class DayGlanceBridgePlugin extends Plugin {
     void this.app.vault.adapter.remove(normalizePath(HEARTBEAT_PATH)).catch(() => {
       /* never surface — the file may simply not exist yet */
     });
+  }
+
+  // Forget the local credentials and start beating unpaired. Best-effort:
+  // clearing the meta row tells dayGLANCE devices to stop emitting; if the
+  // token is already revoked server-side that call just fails.
+  private async unpair(): Promise<void> {
+    const previous = this.data.pairing;
+    if (!previous) return;
+    delete this.data.pairing;
+    delete this.data.bridge;
+    await this.saveData(this.data);
+    await publishPairingMeta(null, previous).catch(() => {});
+    await this.writeHeartbeat();
+    new Notice('dayGLANCE bridge: unpaired. Also revoke the device token on your GLANCEvault server — unpairing only forgets the local credentials.');
   }
 
   private async writeHeartbeat(): Promise<void> {
@@ -236,7 +248,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
       }
       if (this.offerNoticed) return;
       this.offerNoticed = true;
-      new Notice('dayGLANCE bridge: pairing offer found — run "dayGLANCE Bridge: Enter pairing code".');
+      new Notice('dayGLANCE bridge: pairing offer found — enter the code in Settings → dayGLANCE Bridge.');
     } catch {
       /* a nudge must never surface errors */
     }

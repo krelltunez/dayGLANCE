@@ -15,10 +15,12 @@ manually or via BRAT, not submitted to the community directory.
   `data.json` (and therefore Obsidian's settings sync) — it identifies the
   vault copy, not a device; see spec §3.3.
 - **Pairing** (spec §3.12): when dayGLANCE drops a sealed pairing offer at
-  `.dayglance/pairing`, the plugin shows a notice; the **Enter pairing code**
-  command opens a modal, the code typed there opens the offer, the carried
-  device token is verified against GLANCEvault with one authenticated call,
-  and the credentials (token + bridge-scoped subkey) are stored in
+  `.dayglance/pairing`, the plugin shows a notice; the code is entered in
+  the plugin's **settings tab** (Settings → dayGLANCE Bridge — status,
+  code entry, unpair) or via the **Enter pairing code** command's modal,
+  both driving the same flow. The code opens the offer, the carried device
+  token is verified against GLANCEvault with one authenticated call, and
+  the credentials (token + bridge-scoped subkey) are stored in
   `data.json`. The offer file is deleted after use.
 - **Intent stream** (spec §3.6): while paired, the plugin drains semantic
   intents dayGLANCE emitted (task state changes, retitles, appends, note
