@@ -2,9 +2,10 @@
 // The command-palette entries remain (and the offer nudge points at both),
 // but Settings → Community plugins → dayGLANCE Bridge is where users
 // expect setup to live, and this tab is that: pairing status, code entry
-// when an offer is waiting, and unpair. All flow logic is shared with the
-// modal (submitPairingCode in pairing.ts) so the two entry points cannot
-// diverge.
+// when an offer is waiting, a Sync now button, unpair (two-step), and the
+// build stamp. All flow logic is shared with the modal (submitPairingCode
+// in pairing.ts) and with the command-palette entries (the host callbacks),
+// so the entry points cannot diverge.
 
 import { Notice, PluginSettingTab, Setting, type App, type Plugin } from 'obsidian';
 import {
@@ -14,10 +15,25 @@ import {
   type BridgePairing,
 } from './pairing';
 
+// Stamped by esbuild at bundle time (see esbuild.config.mjs `define`).
+// Guarded so a build without the define (tests, tooling) still runs.
+declare const __BUILD_TIME__: string | undefined;
+const buildTime = (): string => {
+  try {
+    if (typeof __BUILD_TIME__ === 'string') {
+      const t = Date.parse(__BUILD_TIME__);
+      if (Number.isFinite(t)) return new Date(t).toLocaleString();
+    }
+  } catch { /* fall through */ }
+  return 'unknown';
+};
+
 export interface BridgeSettingsHost extends PairingHost {
   app: App;
   plugin: Plugin;
   unpair(): Promise<void>;
+  /** Same action as the command-palette "Sync now": drain intents + refresh the heartbeat. */
+  syncNow(): Promise<void>;
 }
 
 const pairedSince = (pairing: BridgePairing): string => {
@@ -28,6 +44,7 @@ const pairedSince = (pairing: BridgePairing): string => {
 export class BridgeSettingTab extends PluginSettingTab {
   private host: BridgeSettingsHost;
   private busy = false;
+  private syncing = false;
 
   constructor(host: BridgeSettingsHost) {
     super(host.app, host.plugin);
@@ -43,16 +60,55 @@ export class BridgeSettingTab extends PluginSettingTab {
     } else {
       this.displayUnpaired();
     }
+    this.displayBuildInfo();
   }
 
   private displayPaired(pairing: BridgePairing): void {
     new Setting(this.containerEl)
       .setName('Paired with GLANCEvault')
-      .setDesc(`Since ${pairedSince(pairing)} · ${pairing.vaultUrl}. dayGLANCE syncs with this vault through the plugin; to pair again with fresh keys, unpair and start pairing in dayGLANCE.`)
+      .setDesc(`Since ${pairedSince(pairing)} · ${pairing.vaultUrl}. dayGLANCE syncs with this vault through the plugin; to pair again with fresh keys, unpair and start pairing in dayGLANCE.`);
+
+    new Setting(this.containerEl)
+      .setName('Sync now')
+      .setDesc('Drain pending dayGLANCE changes into this vault and refresh the heartbeat. The same action as the command-palette entry; syncing also runs on its own every 30 seconds while Obsidian is open.')
+      .addButton((btn) => btn
+        .setButtonText('Sync now')
+        .setCta()
+        .onClick(async () => {
+          if (this.syncing) return;
+          this.syncing = true;
+          btn.setButtonText('Syncing…').setDisabled(true);
+          try {
+            await this.host.syncNow();
+            new Notice('dayGLANCE bridge: synced.');
+          } finally {
+            this.syncing = false;
+            btn.setButtonText('Sync now').setDisabled(false);
+          }
+        }));
+
+    // Two-step unpair: a single stray click on a settings page must not tear
+    // down the pairing. The first click arms the button; the second (within
+    // the timeout) unpairs; anything else disarms.
+    let armed = false;
+    let disarmTimer: number | null = null;
+    new Setting(this.containerEl)
+      .setName('Unpair dayGLANCE')
+      .setDesc('Forget this vault’s pairing credentials and stop the bridge. dayGLANCE reverts to direct vault access on its next sync. Also revoke the device token on your GLANCEvault server — unpairing only forgets the local half.')
       .addButton((btn) => btn
         .setButtonText('Unpair')
         .setWarning()
         .onClick(async () => {
+          if (!armed) {
+            armed = true;
+            btn.setButtonText('Click again to unpair');
+            disarmTimer = window.setTimeout(() => {
+              armed = false;
+              btn.setButtonText('Unpair');
+            }, 5000);
+            return;
+          }
+          if (disarmTimer !== null) window.clearTimeout(disarmTimer);
           await this.host.unpair();
           this.display();
         }));
@@ -83,6 +139,17 @@ export class BridgeSettingTab extends PluginSettingTab {
         .setCta()
         .onClick(() => void this.pair(code, resultEl)));
     resultEl = this.containerEl.createEl('p', { text: '' });
+  }
+
+  // Shown in BOTH views: "which main.js is this vault actually loading?" is
+  // a debugging question that comes up exactly when things are broken, so it
+  // must not depend on pairing state.
+  private displayBuildInfo(): void {
+    const version = (this.host.plugin as Plugin & { manifest?: { version?: string } }).manifest?.version ?? '?';
+    this.containerEl.createEl('p', {
+      text: `dayGLANCE Bridge v${version} · built ${buildTime()}`,
+      cls: 'setting-item-description',
+    });
   }
 
   private async pair(code: string, resultEl: HTMLElement | null): Promise<void> {

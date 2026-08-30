@@ -148,6 +148,10 @@ export default class DayGlanceBridgePlugin extends Plugin {
         await this.writeHeartbeat();
       },
       unpair: () => this.unpair(),
+      // Same action as the "Sync now" command below — one behavior, two doors.
+      syncNow: async () => {
+        await Promise.all([this.transport.drain(), this.writeHeartbeat()]);
+      },
     };
     this.addSettingTab(new BridgeSettingTab(host));
 

@@ -16,6 +16,11 @@ const ctx = await esbuild.context({
   sourcemap: prod ? false : 'inline',
   treeShaking: true,
   outfile: 'main.js',
+  // Build stamp, shown in the settings tab so a running copy is identifiable
+  // ("which main.js is this vault actually loading?" — a recurring debugging
+  // question). Stamped at BUNDLE time; in watch mode this is the watcher's
+  // start time, which is close enough for dev.
+  define: { __BUILD_TIME__: JSON.stringify(new Date().toISOString()) },
 });
 
 if (prod) {
