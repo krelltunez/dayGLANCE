@@ -158,7 +158,7 @@ export default defineConfig({
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,png,ico,svg}'],
         globIgnores: ['**/service-worker.js'],
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MiB
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB — the main chunk crossed 3 MiB in 2026-08
       },
       manifest: {
         name: 'dayGLANCE',

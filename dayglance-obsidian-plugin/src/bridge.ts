@@ -47,6 +47,11 @@ export interface BridgeState {
 }
 
 const APPLIED_IDS_CAP = 1000;
+// Bound on the in-memory-only cursor advance (persist-on-intent-only rule in
+// drain): once the unpersisted gap exceeds this many seq, the cursor is
+// persisted anyway, capping how many non-intent rows a plugin reload can
+// re-list. Large enough that a normal editing day never trips it.
+const HWM_PERSIST_GAP = 500;
 const OBSERVE_DEBOUNCE_MS = 2000;
 // 429 backoff (mirrors the dayGLANCE side's bridge brake): the server
 // rate-limits per IP, a budget shared with every dayGLANCE device in the
@@ -138,6 +143,16 @@ export class BridgeTransport {
   // Per-path consecutive observation-failure counts, for the retry backoff
   // below. Reset on the path's first successful report.
   private observeRetryAttempts = new Map<string, number>();
+  // In-memory cursor for the persist-on-intent-only rule (see drain): pages
+  // that only skipped config/observation/tombstone rows advance the cursor
+  // HERE, not in data.json — every data.json save is a vault file write that
+  // Obsidian Sync must ship (the ~30s "Download cancelled because file was
+  // changed locally" churn of 2026-08-30 was exactly this). Keyed to the
+  // pairing generation because a re-pair resets the persisted state to
+  // hwm 0 behind our back (main.ts storePairing) and a stale memory cursor
+  // would silently skip the new stream's rows.
+  private memHwm = 0;
+  private memHwmGeneration: string | null = null;
 
   private rateLimited(): boolean {
     return Date.now() < this.backoffUntil;
@@ -219,7 +234,15 @@ export class BridgeTransport {
       }
       const state = this.host.getBridgeState();
       const applied = new Set(state.appliedIds);
-      let since = state.hwm;
+      if (this.memHwmGeneration !== pairing.generation) {
+        this.memHwm = 0;
+        this.memHwmGeneration = pairing.generation;
+      }
+      let since = Math.max(state.hwm, this.memHwm);
+      // The hwm actually in data.json — advanced only when we persist, so
+      // the gap-bound below measures real replay-on-reload exposure.
+      let persistedHwm = state.hwm;
+      let appliedDirty = false;
       let hasMore = true;
       while (hasMore) {
         const page = await client.list(BRIDGE_VAULT_APP, { accountId: pairing.accountId, since });
@@ -266,12 +289,14 @@ export class BridgeTransport {
             // Sealed under a rotated-away generation (or tampered): can never
             // be applied by anyone — treat as consumed.
             applied.add(intentId);
+            appliedDirty = true;
             this.deleteIntentRow(client, entityId, pairing.accountId);
             continue;
           }
           try {
             const consumed = await this.applyOne(intent as Record<string, unknown>);
             applied.add(intentId);
+            appliedDirty = true;
             if (consumed) {
               this.deleteIntentRow(client, entityId, pairing.accountId);
             }
@@ -282,12 +307,29 @@ export class BridgeTransport {
           }
         }
         since = batchMax;
-        // Persist per applied batch — the crash window replays, never skips.
-        const ids = [...applied];
-        await this.host.saveBridgeState({
-          appliedIds: ids.slice(Math.max(0, ids.length - APPLIED_IDS_CAP)),
-          hwm: since,
-        });
+        this.memHwm = Math.max(this.memHwm, since);
+        // PERSIST ON INTENT ACTIVITY ONLY. The old rule — persist per
+        // row-bearing page — meant every config row and every observation
+        // (including this plugin's own, listed right back on the next
+        // drain) rewrote data.json, i.e. one vault write per ~30s cadence
+        // that Obsidian Sync then fought ("Download cancelled because file
+        // was changed locally"). Now:
+        //  • applied-set changes persist immediately, same crash window as
+        //    before — an applied intent is never re-applied after a crash
+        //    (and replay would be idempotent anyway);
+        //  • cursor movement over NON-intent rows lives in memHwm only; a
+        //    plugin reload re-lists that backlog once and re-skips it —
+        //    cheap reads, no writes — bounded by the gap persist below so
+        //    the replay can't grow unboundedly on an intent-quiet stream.
+        if (appliedDirty || since - persistedHwm > HWM_PERSIST_GAP) {
+          const ids = [...applied];
+          await this.host.saveBridgeState({
+            appliedIds: ids.slice(Math.max(0, ids.length - APPLIED_IDS_CAP)),
+            hwm: since,
+          });
+          persistedHwm = since;
+          appliedDirty = false;
+        }
       }
       this.noteSuccess();
     } catch (e) {
