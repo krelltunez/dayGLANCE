@@ -35,6 +35,7 @@ import { createVaultClient } from '@glance-apps/sync/src/vaultClient.js';
 import {
   deriveBridgeSubkey,
   sealBridgeEnvelope,
+  decodePlainBridgeRow,
   mintIntentId,
   BRIDGE_VAULT_APP,
   BRIDGE_PAIRING_META_ID,
@@ -91,11 +92,10 @@ export async function getBridgePairingMeta({ force = false } = {}) {
   metaFetchInFlight = (async () => {
     try {
       const row = await ctx.client.getRow(BRIDGE_VAULT_APP, BRIDGE_PAIRING_META_ID, ctx.accountId);
-      let meta = null;
-      try {
-        const parsed = row?.envelope ? JSON.parse(row.envelope) : null;
-        if (parsed?.kind === 'pairing-meta' && parsed.generation && parsed.pairingSalt) meta = parsed;
-      } catch { /* malformed meta row = not paired */ }
+      // The server returns envelope BYTES base64-encoded (see the package's
+      // wire note); a malformed/undecodable row reads as not-paired.
+      const parsed = row?.envelope ? decodePlainBridgeRow(row.envelope) : null;
+      const meta = (parsed?.kind === 'pairing-meta' && parsed.generation && parsed.pairingSalt) ? parsed : null;
       writeJson(META_CACHE_KEY, { meta, fetchedAt: Date.now() });
       return meta;
     } catch {

@@ -4,6 +4,7 @@ import { getDbRootKey } from '@glance-apps/sync/src/dbCrypto.js';
 import {
   deriveBridgeSubkey,
   sealBridgeEnvelope,
+  encodePlainBridgeRow,
   observationEntityId,
 } from '@glance-apps/obsidian-format';
 import {
@@ -59,7 +60,7 @@ describe('fetchBridgeObservations', () => {
       { entityId: 'obs:deadbeef', seq: 4, envelope: 'not decryptable (rotated generation)' },
     ];
     globalThis.fetch = async (url) => {
-      if (url.includes('/meta')) return { ok: true, status: 200, json: async () => ({ entityId: 'meta:pairing', envelope: JSON.stringify(META) }) };
+      if (url.includes('/meta')) return { ok: true, status: 200, json: async () => ({ entityId: 'meta:pairing', envelope: encodePlainBridgeRow(META) }) };
       if (url.includes('/list')) return { ok: true, status: 200, json: async () => ({ rows, hasMore: false }) };
       return { ok: false, status: 404, json: async () => ({}) };
     };

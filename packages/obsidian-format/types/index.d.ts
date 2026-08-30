@@ -121,6 +121,8 @@ export function mintIntentId(): string;
 export function observationEntityId(path: string): Promise<string>;
 export function sealBridgeEnvelope(subkey: CryptoKey, payload: unknown): Promise<string>;
 export function openBridgeEnvelope(subkey: CryptoKey, text: string): Promise<unknown | null>;
+export function encodePlainBridgeRow(payload: unknown): string;
+export function decodePlainBridgeRow(text: string): unknown | null;
 export function applyBridgeIntent(
   currentText: string | null, intent: unknown,
 ): { text: string | null; changed: boolean }
