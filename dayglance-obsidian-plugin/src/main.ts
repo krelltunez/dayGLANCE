@@ -194,6 +194,9 @@ export default class DayGlanceBridgePlugin extends Plugin {
   }
 
   onunload(): void {
+    // Live sync (Phase 7): close the SSE stream and cancel its timers —
+    // a disabled plugin must not hold a socket open.
+    this.transport.shutdown();
     // Best-effort: a graceful quit (or a plugin disable — equally "no
     // bridge here") removes the file so readers see the truth immediately
     // instead of waiting out the staleness window. Crashes skip this, which
@@ -211,6 +214,9 @@ export default class DayGlanceBridgePlugin extends Plugin {
     if (!previous) return;
     delete this.data.pairing;
     delete this.data.bridge;
+    // Live sync must not outlive its credentials (armed-by-proof invariant):
+    // tear the stream down with the pairing, not a tick later.
+    this.transport.shutdown();
     await this.saveData(this.data);
     await publishPairingMeta(null, previous).catch(() => {});
     await this.writeHeartbeat();

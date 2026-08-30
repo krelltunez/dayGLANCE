@@ -121,6 +121,35 @@ export const BRIDGE_CONFIG_META_ID: string;
 export const BRIDGE_INTENT_PREFIX: string;
 export const BRIDGE_OBSERVATION_PREFIX: string;
 export function bridgeConfigAllowsStamping(config: { blockIdWrites?: unknown } | null | undefined): boolean;
+
+// ── bridge SSE (Phase 7 — pure half of the plugin's live-sync transport) ────
+export const SSE_BACKOFF_BASE_MS: number;
+export const SSE_BACKOFF_MAX_MS: number;
+export const SSE_READ_TIMEOUT_MS: number;
+export function sseBackoffMs(consecutiveFailures: number): number;
+export function parseSseFrame(block: string): { seq?: number } | null;
+export function drainSseBuffer(buffer: string, onEvent: (evt: { seq?: number }) => void): string;
+export interface SseArming {
+  noteDrainSuccess(): void;
+  noteAuthFailure(): void;
+  noteUnpaired(): void;
+  isProven(): boolean;
+  shouldConnect(inputs: { desktop: boolean; paired: boolean }): boolean;
+}
+export function createSseArming(): SseArming;
+export interface SseNudgeGate {
+  recordOwnSeq(seq: unknown): void;
+  handleEvent(evt: { seq?: number } | null | undefined): boolean;
+  cancel(): void;
+  getCursor(): number;
+}
+export function createSseNudgeGate(opts?: {
+  onDrain?: () => void;
+  debounceMs?: number;
+  ackCapacity?: number;
+  setTimeoutFn?: typeof setTimeout;
+  clearTimeoutFn?: typeof clearTimeout;
+}): SseNudgeGate;
 export function mintIntentId(): string;
 export function observationEntityId(path: string): Promise<string>;
 export function sealBridgeEnvelope(subkey: CryptoKey, payload: unknown): Promise<string>;
