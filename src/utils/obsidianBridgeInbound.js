@@ -104,6 +104,40 @@ export function commitBridgeObservationCursor(maxSeq) {
 }
 
 /**
+ * SSE-nudge PROBE (Phase 7 groundwork): are there observation rows above the
+ * cursor? The vault's /events stream carries only {seq} — the account seq is
+ * shared across apps, so a nudge cannot say whether a bridge row or a DB row
+ * advanced it. This probe is the cheap discriminator: ONE first-page list of
+ * the bridge namespace since the cursor, checking for `obs:`-prefixed rows —
+ * no decryption, no pairing meta, no pagination. dayGLANCE's own bridge
+ * writes are `int:`/`meta:` rows, so the prefix check structurally excludes
+ * them: only plugin-authored observations (and a `hasMore` page boundary,
+ * conservatively) answer true. The full sync cycle — merges, inference,
+ * writeback, the status UI — runs only on a true answer, so a nudge for
+ * foreign DB-tier activity costs one GET and wakes nothing.
+ *
+ * False on ANY doubt except hasMore: unpaired, disabled, braked
+ * (bridgeRateLimited — the poll floor covers), or unreachable. Never
+ * advances the cursor.
+ */
+export async function pendingBridgeObservations() {
+  try {
+    if (bridgeRateLimited()) return false;
+    const cfg = getVaultConfig();
+    if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId) return false;
+    let since = 0;
+    try { since = Number(localStorage.getItem(OBS_HWM_KEY)) || 0; } catch { /* fresh cursor */ }
+    const client = createVaultClient({ vaultUrl: cfg.vaultUrl, vaultToken: cfg.vaultToken });
+    const page = await client.list(BRIDGE_VAULT_APP, { accountId: cfg.accountId, since });
+    if (page.hasMore) return true; // rows beyond page 1 — wake conservatively
+    return (page.rows || []).some((row) =>
+      !row.deleted && String(row.entityId || '').startsWith(BRIDGE_OBSERVATION_PREFIX));
+  } catch {
+    return false; // rate-limited/unreachable — the poll floor covers
+  }
+}
+
+/**
  * Turn a batch of observations into the shape a (partial) vault scan
  * produces: { dailyNotes, scheduledTasks, inboxTasks, scannedIds }. Feed the
  * result through mergeObsidianDailyNotes / mergeObsidianTasks exactly like a

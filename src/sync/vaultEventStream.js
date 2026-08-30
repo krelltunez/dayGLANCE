@@ -282,6 +282,11 @@ export async function openWebSseStream({ connection, signal, onOpen, onEvent, fe
 export function createNudgeCoalescer({
   onDrain,
   debounceMs = 400,
+  // Which drains one coalesced nudge fans out to, in order. The default is
+  // the original pair; the app wiring adds 'obsidian' (the observation
+  // cycle — Phase 7 groundwork) after them, so DB state lands before the
+  // Obsidian cycle reads it.
+  kinds = ['sync', 'intents'],
   isOwnSeq,
   onOwnEcho,
   setTimeoutFn = setTimeout,
@@ -301,9 +306,8 @@ export function createNudgeCoalescer({
 
   const flush = () => {
     timer = null;
-    // Deterministic order: sync before intents.
-    runDrain('sync');
-    runDrain('intents');
+    // Deterministic order: sync before intents (before obsidian, when wired).
+    for (const kind of kinds) runDrain(kind);
   };
 
   // Coalesce a micro-burst of nudges into a single drain (debounce ONLY — no

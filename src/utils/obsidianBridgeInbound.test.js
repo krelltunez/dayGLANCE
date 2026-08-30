@@ -11,6 +11,7 @@ import {
   fetchBridgeObservations,
   commitBridgeObservationCursor,
   applyBridgeObservations,
+  pendingBridgeObservations,
 } from './obsidianBridgeInbound.js';
 
 // The inbound half's load-bearing claims: observations flow through the
@@ -77,6 +78,61 @@ describe('fetchBridgeObservations', () => {
   it('unpaired (no meta row) → null, and nothing touched', async () => {
     globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
     expect(await fetchBridgeObservations()).toBe(null);
+  });
+});
+
+describe('pendingBridgeObservations (the SSE-nudge probe)', () => {
+  // The /events stream carries only {seq} on an account counter shared
+  // across apps, so this probe is the discriminator: one list page, an
+  // obs:-prefix presence check, no decryption. dayGLANCE's own bridge
+  // writes are int:/meta: rows — structurally excluded, a second damping
+  // layer under the coalescer's exact-ack suppression.
+  const listFetch = (payload, calls = []) => async (url) => {
+    calls.push(url);
+    if (url.includes('/list')) return { ok: true, status: 200, json: async () => payload };
+    return { ok: false, status: 404, json: async () => ({}) };
+  };
+
+  it('wakes ONLY on live obs: rows above the cursor — int:/meta rows and tombstones never wake; hasMore wakes conservatively', async () => {
+    globalThis.fetch = listFetch({ rows: [
+      { entityId: 'int:abc', seq: 6 },
+      { entityId: 'meta:config', seq: 7 },
+      { entityId: 'obs:deadbeef', seq: 8, deleted: true },
+    ], hasMore: false });
+    expect(await pendingBridgeObservations()).toBe(false);
+
+    globalThis.fetch = listFetch({ rows: [
+      { entityId: 'int:abc', seq: 6 },
+      { entityId: 'obs:deadbeef', seq: 8 },
+    ], hasMore: false });
+    expect(await pendingBridgeObservations()).toBe(true);
+
+    // Page boundary: the obs row could be on page 2 — wake, don't paginate.
+    globalThis.fetch = listFetch({ rows: [{ entityId: 'int:abc', seq: 6 }], hasMore: true });
+    expect(await pendingBridgeObservations()).toBe(true);
+  });
+
+  it('lists from the persisted cursor, never advances it, and answers false on any doubt (disabled config, unreachable server)', async () => {
+    localStorage.setItem(OBS_HWM_KEY, '41');
+    const calls = [];
+    globalThis.fetch = listFetch({ rows: [], hasMore: false }, calls);
+    expect(await pendingBridgeObservations()).toBe(false);
+    expect(calls.some((u) => u.includes('since=41'))).toBe(true);
+    expect(localStorage.getItem(OBS_HWM_KEY)).toBe('41'); // cursor untouched
+
+    // Disabled vault: no request at all.
+    const calls2 = [];
+    globalThis.fetch = listFetch({ rows: [] }, calls2);
+    localStorage.setItem(VAULT_CONFIG_KEY, JSON.stringify({ enabled: false }));
+    expect(await pendingBridgeObservations()).toBe(false);
+    expect(calls2).toHaveLength(0);
+
+    // Unreachable: false, poll floor covers.
+    localStorage.setItem(VAULT_CONFIG_KEY, JSON.stringify({
+      enabled: true, vaultUrl: 'https://vault.example', vaultToken: 'tok', accountId: 'acct-1',
+    }));
+    globalThis.fetch = async () => { throw new Error('network down'); };
+    expect(await pendingBridgeObservations()).toBe(false);
   });
 });
 

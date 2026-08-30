@@ -33,7 +33,7 @@ import { blockIdWritesEnabled, completionMarkerWritesEnabled } from '../utils/ob
 import { titleConflictNoticeText } from '../utils/obsidianTitleConflict.js';
 import { withCreationFrontmatter } from '../utils/obsidianFrontmatter.js';
 import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, getBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
-import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor } from '../utils/obsidianBridgeInbound.js';
+import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations } from '../utils/obsidianBridgeInbound.js';
 import { recordBridgeMode, reconcileArchivedBaseline } from '../utils/obsidianBridgeMode.js';
 import { restoreBinnedVaultTasks, binRestoreNoticeText } from '../utils/obsidianBinRestore.js';
 import { inferNoteScopedDeletionCandidates, reconcileNoteScopedDeletions } from '../utils/obsidianNoteScopedDeletions.js';
@@ -820,6 +820,60 @@ export default function useObsidianSync({
     }
   };
 
+  // ── SSE → OBSIDIAN CYCLE (Phase 7 groundwork) ───────────────────────────
+  // Bridge-row writes advance the account seq and already reach this app as
+  // /events nudges (useVaultEventStream); this is the missing route from
+  // those nudges to the observation-consuming cycle, replacing "wait for
+  // the 5-minute poll or a visibility flip" with seconds. PACING, because
+  // trigger-speed loops have burned this project twice (#1455 ×2):
+  //  • the shared coalescer already debounces micro-bursts (400ms) and
+  //    suppresses this device's own write echoes by exact ack identity —
+  //    our stamps/intents/config publishes never wake a cycle; the PLUGIN's
+  //    writes are peer writes whose nudges we want (its observations);
+  //  • a cheap PROBE (pendingBridgeObservations: one list page, prefix
+  //    check, no crypto) gates the wake — foreign DB-tier activity costs
+  //    one GET and runs no cycle, no merges, no status flash;
+  //  • a hard MIN GAP between nudged cycles, trailing-coalesced: nudges
+  //    inside the gap collapse into one run at gap end;
+  //  • a nudge landing while a cycle is in flight retries after the gap
+  //    (performObsidianSync's in-progress guard DROPS overlapping calls, so
+  //    without the retry a burst's tail would wait for the poll);
+  //  • loop safety by construction: a nudged cycle that finds nothing
+  //    performs reads only — no seq advance, no self-nudge; one that emits
+  //    writes records its own acks, which the coalescer suppresses.
+  // Gated on plugin authority (observations are only consumed while
+  // paired-and-fresh; a direct-mode device's inbound is its own scan) and
+  // on the enabled flag. The 5-minute poll and visibility flips stay
+  // untouched as the correctness floor — SSE here is additive, exactly as
+  // it is for the DB drains.
+  const OBSIDIAN_NUDGE_MIN_GAP_MS = 5000;
+  const obsidianNudgeRef = useRef({ timer: null, lastRunAt: 0 });
+  const runNudgedObservationCycle = async () => {
+    const st = obsidianNudgeRef.current;
+    if (obsidianSyncInProgressRef.current) {
+      // A cycle (poll, visibility, manual, or a prior nudge) is mid-flight —
+      // it may not consume rows that land after its fetch. Retry after the
+      // gap; each retry is one cheap probe until it lands.
+      if (!st.timer) {
+        st.timer = setTimeout(() => { st.timer = null; void runNudgedObservationCycle(); }, OBSIDIAN_NUDGE_MIN_GAP_MS);
+      }
+      return;
+    }
+    st.lastRunAt = Date.now();
+    let pending = false;
+    try { pending = await pendingBridgeObservations(); } catch { pending = false; }
+    if (!pending) return;
+    await performObsidianSync();
+  };
+  const nudgeObsidianObservations = () => {
+    if (isTrayMode || !obsidianConfig?.enabled) return;
+    if (!bridgeHeartbeatRef.current.pluginAuthoritative) return;
+    const st = obsidianNudgeRef.current;
+    if (st.timer) return; // a run is already scheduled — coalesce into it
+    const wait = Math.max(0, st.lastRunAt + OBSIDIAN_NUDGE_MIN_GAP_MS - Date.now());
+    st.timer = setTimeout(() => { st.timer = null; void runNudgedObservationCycle(); }, wait);
+  };
+
   // Obsidian sync: restore vault handle on mount and do initial sync
   useEffect(() => {
     if (isTrayMode || !dataLoaded) return;
@@ -1365,5 +1419,5 @@ export default function useObsidianSync({
     );
   }, [obsidianConfig?.dailyNotesPath, obsidianConfig?.dailyNotePattern, obsidianConfig?.newNotesFolder, obsidianConfig?.enabled]);
 
-  return { performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, notifyNativeReady, bridgeHeartbeatRef };
+  return { performObsidianSync, nudgeObsidianObservations, loadWikiNote, saveWikiNote, openInObsidian, notifyNativeReady, bridgeHeartbeatRef };
 }
