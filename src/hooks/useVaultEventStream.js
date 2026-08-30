@@ -23,6 +23,7 @@ import {
   detectSseTransport,
   openWebSseStream,
 } from '../sync/vaultEventStream.js';
+import { isOwnWriteSeq } from '../sync/ownWrites.js';
 import { isTrayMode } from '../utils/trayMode.js';
 
 // The global the native shell invokes to push SSE messages into the renderer
@@ -98,6 +99,15 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
         if (sseDebug()) console.info('[vault-sse] drain →', kind);
         if (kind === 'sync') drainSyncRef.current?.();
         else if (kind === 'intents') drainIntentsRef.current?.();
+      },
+      // Own-echo damping (#1455): a nudge whose seq is exactly one our own
+      // writers were acked with is our own echo — advance the cursor, drain
+      // nothing. Cycles a war would have run at SSE speed now wait for the
+      // poll; a peer's nudge (its own seq, never ours) drains as always.
+      isOwnSeq: isOwnWriteSeq,
+      onOwnEcho: (seq) => {
+        diag.ownEchoesSuppressed = (diag.ownEchoesSuppressed || 0) + 1;
+        if (sseDebug()) console.info(`[vault-sse] own-echo suppressed (seq ${seq}) — no drain`);
       },
       onDrainError: (msg, err) => console.warn('[vault-sse]', msg, err?.message || err),
     });

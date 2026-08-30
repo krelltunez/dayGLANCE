@@ -565,7 +565,7 @@ function mergeBundle(data, key, value, extra) {
 // lastModified, ties broken by CROSS_LIST_PRIORITY — and report each removed
 // copy via onLoser so the caller can soft-delete its stale ${kind}:${id} row,
 // converging the vault. Deterministic, so every device picks the same winner.
-export function reconcileCrossList(data, onLoser, onCollision) {
+export function reconcileCrossList(data, onLoser, onCollision, shouldSuppress) {
   const byId = new Map();
   for (const kind of TASK_KINDS) {
     for (const item of (data[kind] || [])) {
@@ -594,6 +594,11 @@ export function reconcileCrossList(data, onLoser, onCollision) {
         losers: entries.slice(1).map((e) => e.kind),
       });
     }
+    // WAR GUARD seam (sync/reconcileWarGuard.js): a suppressed id keeps both
+    // copies this cycle — visibly duplicated beats invisibly at war. The
+    // guard only pauses THIS mechanism's action; the collision's what-wins
+    // ordering above is untouched.
+    if (shouldSuppress && shouldSuppress(id)) continue;
     for (const loser of entries.slice(1)) {
       data[loser.kind] = (data[loser.kind] || []).filter((x) => String(x.id) !== id);
       if (onLoser) onLoser(makeEntityId(loser.kind, id));

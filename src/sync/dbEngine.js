@@ -44,6 +44,8 @@ import { partitionSnapshotDeletes } from './snapshotDeleteGuard.js';
 import { isPayloadExcludedEntity, agedOutReleaseReason } from './payloadExclusions.js';
 import { shredHashes, hashMapsEqual, mergeMidCycleEdits } from './commitMerge.js';
 import { createSyncCycleBreaker, isRateLimitedError } from './syncBrakes.js';
+import { shouldSuppressReconcileDelete, consumeWarTripped } from './reconcileWarGuard.js';
+import { recordOwnWriteSeq } from './ownWrites.js';
 import { isObsidianTombstoned } from '../utils/obsidianDeletions.js';
 import { ghostSuccessorId, persistDerivedGhostRetirements } from '../utils/obsidianGhostRows.js';
 
@@ -781,6 +783,9 @@ export function createDbEngine(callbacks = {}) {
         debugPushEnabled()
           ? (c) => console.warn(`[reconcile] cross-list collision ${c.id} → keep ${c.winner}, delete [${c.losers.join(', ')}] |`, c.kinds)
           : undefined,
+        // WAR GUARD (#1455): the same id reconcile-deleted 3× in 10min is a
+        // delete/resupply war, not a resolution — suppress and brake below.
+        shouldSuppressReconcileDelete,
       );
       // Age tombstones out at the fixed 60-day window (src/sync/tombstoneRetention.js).
       // The vault bundle merge is grow-only (dbAdapter unionNewerIso), so a pull
@@ -804,6 +809,14 @@ export function createDbEngine(callbacks = {}) {
       // the acked-hash baseline for the no-op re-push skip in the diff.
       const dirtyBeforePush = typeof engine.getDirtySet === 'function' ? engine.getDirtySet() : null;
       const pushRes = await engine.pushDirtyRows();        // push merged superset + local changes
+      // Own-echo damping (#1455, sync/ownWrites.js): a push that WROTE gets a
+      // nudge back carrying exactly this maxSeq — record it so the SSE
+      // coalescer can suppress our own echo by identity. Only on an actual
+      // write: a no-op push returns the stale push-ack, which is not an
+      // echo anyone will emit.
+      if (pushRes && ((pushRes.written ?? 0) > 0 || (pushRes.deleted ?? 0) > 0)) {
+        recordOwnWriteSeq(pushRes.maxSeq);
+      }
       if (pushDbg) {
         const wrote = (pushRes?.written ?? 0) + (pushRes?.deleted ?? 0);
         // Only a cycle that actually moved data logs — wrote/deleted to the vault,
@@ -918,6 +931,15 @@ export function createDbEngine(callbacks = {}) {
       if (healRateLimited) {
         throttleAnnounced = false;
         breaker.onFailure({ status: 429, message: 'rate-limited during glitch-skip recovery' });
+      } else if (consumeWarTripped()) {
+        // WAR GUARD (#1455): the guard tripped inside an otherwise-SUCCESSFUL
+        // cycle — which is the entire failure class: every cycle of a
+        // delete/resupply war succeeds, so failure-armed braking never
+        // engages on its own. Count the trip as a strike so the next trigger
+        // (above all the SSE nudge that a war's own writes generate) meets a
+        // cooldown instead of running at trigger speed.
+        throttleAnnounced = false;
+        breaker.onFailure({ message: 'reconcile war guard tripped (delete/resupply loop)' });
       } else {
         breaker.onSuccess();
       }

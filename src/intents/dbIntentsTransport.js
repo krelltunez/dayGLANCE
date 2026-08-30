@@ -81,6 +81,7 @@ export class KeyUnavailableError extends Error {
 // The tray popup holds a read-only snapshot and must never poll — processing an
 // event would consume it before the main window can act (mirrors useIntentPoller).
 import { isTrayMode } from '../utils/trayMode.js';
+import { recordOwnWriteSeq } from '../sync/ownWrites.js';
 
 // Module-level lock: prevents React StrictMode's double-mount from running two
 // concurrent polls, which would both read the same cursor and double-process.
@@ -216,7 +217,12 @@ export async function sendIntentsDb(envelopes, opts = {}) {
     console.warn('[db-intent] batch POST failed:', res?.status);
     return undefined;
   }
-  return parseBody(res); // { written, maxSeq }
+  const ack = parseBody(res); // { written, maxSeq }
+  // Own-echo damping (#1455, sync/ownWrites.js): intent landings advance the
+  // same per-account seq and nudge it — record our ack so the SSE coalescer
+  // can tell our own echo from a peer's intent.
+  if (ack && typeof ack.maxSeq === 'number') recordOwnWriteSeq(ack.maxSeq);
+  return ack;
 }
 
 /**
