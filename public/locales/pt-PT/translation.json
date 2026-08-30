@@ -280,7 +280,7 @@
     "obsidianBridgeNotDetected": "Sem heartbeat do plugin — instale o plugin dayGLANCE Bridge neste vault e abra o Obsidian.",
     "obsidianBridgeHint": "Emparelhe o plugin dayGLANCE Bridge deste vault com o seu servidor GLANCEvault. A oferta de emparelhamento viaja apenas pela pasta do vault, selada com um código de utilização única mostrado aqui. Emparelhar de novo gera um código novo e roda a chave do bridge — use isso para voltar a emparelhar após revogar um token.",
     "obsidianBridgeToken": "Token de dispositivo do GLANCEvault",
-    "obsidianBridgeTokenHint": "Crie um token para o bridge no seu servidor GLANCEvault, tal como para qualquer dispositivo novo.",
+    "obsidianBridgeTokenHint": "Preenchido com o token do GLANCEvault deste dispositivo — num servidor de token partilhado o bridge usa o mesmo. Substitua apenas se usar uma credencial separada para o bridge.",
     "obsidianBridgeStart": "Iniciar emparelhamento",
     "obsidianBridgeCancel": "Cancelar emparelhamento",
     "obsidianBridgeCodeHint": "No Obsidian, execute o comando “dayGLANCE Bridge: Enter pairing code” e escreva este código. A oferta expira ao fim de 10 minutos.",

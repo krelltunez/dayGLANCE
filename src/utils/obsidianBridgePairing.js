@@ -15,9 +15,15 @@
 //
 // The pairing DEVICE must have: direct vault access (the dead-drop is a
 // file), GLANCEvault enabled, and the root sync key initialized — i.e. any
-// normally-configured desktop/FSA device. The device TOKEN is minted on the
-// GLANCEvault server by the operator, exactly like any other device's
-// (there is no mint endpoint — the declined-server-surface decision).
+// normally-configured desktop/FSA device. The device TOKEN: on a
+// shared-token GLANCEvault (the mode dayGLANCE uses — one instance-wide
+// token every device presents) the bridge's token IS the token this device
+// already stores, so the Settings panel prefills it; the field stays
+// editable for anyone running separate per-credential enrollment on their
+// server. There is no mint endpoint either way — the declined-server-
+// surface decision. Shared-mode consequence, recorded: revoking the bridge
+// means rotating the shared token everywhere (re-pairing still rotates the
+// encryption subkey regardless).
 
 import { getVaultConfig } from '../sync/vaultConfig.js';
 import { hasDbRootKey } from '@glance-apps/sync';
@@ -59,7 +65,7 @@ export async function startBridgePairing(vaultHandle, deviceToken) {
     throw e;
   }
   if (typeof deviceToken !== 'string' || deviceToken.trim() === '') {
-    const e = new Error('Enter the device token minted for the bridge on your GLANCEvault server.');
+    const e = new Error('Enter the GLANCEvault device token (the same one in Settings → Cloud Sync → GLANCEvault, unless the bridge has its own).');
     e.code = 'pairing_no_token';
     throw e;
   }

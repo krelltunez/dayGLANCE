@@ -4,6 +4,7 @@ import { readVaultHeartbeat } from '../obsidian.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
 import { startBridgePairing, cancelBridgePairing } from '../utils/obsidianBridgePairing.js';
 import { getBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
+import { getVaultConfig } from '../sync/vaultConfig.js';
 import { useTranslation } from 'react-i18next';
 
 // Bridge-plugin pairing (Obsidian build-out Phase 6, spec §3.2/§3.4): mints
@@ -18,7 +19,13 @@ import { useTranslation } from 'react-i18next';
 // readers — freshness checks happen where the answer needs to be current.
 const BridgePairingPanel = ({ vaultHandleRef, darkMode, textPrimary, textSecondary, borderClass }) => {
   const { t } = useTranslation();
-  const [token, setToken] = useState('');
+  // PREFILLED with this device's own GLANCEvault token: on a shared-token
+  // server (the mode dayGLANCE uses — one instance-wide token every device
+  // presents) the bridge's token IS that token, so asking the user to go
+  // find and re-paste a value the app already stores was pure friction.
+  // The field stays editable as an override for anyone running separate
+  // per-credential enrollment on their server.
+  const [token, setToken] = useState(() => getVaultConfig()?.vaultToken || '');
   const [code, setCode] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -66,7 +73,8 @@ const BridgePairingPanel = ({ vaultHandleRef, darkMode, textPrimary, textSeconda
     try {
       const result = await startBridgePairing(vaultHandleRef?.current, token);
       setCode(result.code);
-      setToken('');
+      // Reset to the prefill (not blank) so a later re-pair is one click.
+      setToken(getVaultConfig()?.vaultToken || '');
     } catch (e) {
       setError(e?.message || String(e));
     } finally {

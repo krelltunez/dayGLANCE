@@ -93,6 +93,66 @@ export async function deletePairingOffer(app: App): Promise<void> {
   }
 }
 
+export interface PairingAttempt {
+  ok: boolean;
+  message: string;
+  /** ok only: this pairing superseded a previous one. */
+  repaired?: boolean;
+}
+
+/**
+ * The whole pairing flow for one entered code — read the offer, open it,
+ * verify against GLANCEvault, store, tidy up. Shared by the modal and the
+ * plugin settings tab so the two entry points can never diverge. Never
+ * throws; the returned message is user-facing either way.
+ */
+export async function submitPairingCode(host: PairingHost, code: string): Promise<PairingAttempt> {
+  try {
+    const text = await readPairingOfferText(host.app);
+    if (text === null) {
+      return { ok: false, message: 'No pairing offer found in this vault. Start pairing in dayGLANCE first (Settings → Obsidian Integration → Bridge plugin).' };
+    }
+    const creds = await openPairingOffer(text, code);
+    if (creds === null) {
+      // Wrong code and unusable offer are indistinguishable by design.
+      return { ok: false, message: 'That code did not open the offer. Check the code, or start pairing again in dayGLANCE.' };
+    }
+    if (!pairingOfferFresh(creds.createdAt)) {
+      return { ok: false, message: 'This pairing offer has expired. Start pairing again in dayGLANCE.' };
+    }
+    const existing = host.getPairing();
+    if (existing && existing.generation === creds.generation) {
+      // Same generation = this very pairing, already stored (a synced
+      // data.json got here first). Nothing to do but tidy up.
+      await deletePairingOffer(host.app);
+      return { ok: true, message: 'Already paired with this offer.' };
+    }
+    await verifyBridgeCredentials(creds);
+    await host.storePairing({
+      vaultUrl: creds.vaultUrl,
+      accountId: creds.accountId,
+      deviceToken: creds.deviceToken,
+      subkeyB64: creds.subkeyB64,
+      pairingSalt: creds.pairingSalt,
+      generation: creds.generation,
+      pairedAt: new Date().toISOString(),
+    });
+    await deletePairingOffer(host.app);
+    return {
+      ok: true,
+      repaired: !!existing,
+      message: existing
+        ? 'Re-paired — the previous pairing is superseded.'
+        : 'Paired with GLANCEvault.',
+    };
+  } catch (e) {
+    // The offer opened but GLANCEvault rejected or was unreachable —
+    // nothing was stored, and the offer stays for a retry.
+    const detail = e instanceof Error ? e.message : String(e);
+    return { ok: false, message: `Could not verify with GLANCEvault: ${detail}` };
+  }
+}
+
 export class PairingModal extends Modal {
   private host: PairingHost;
   private busy = false;
@@ -127,50 +187,13 @@ export class PairingModal extends Modal {
     button.disabled = true;
     status.setText('Checking…');
     try {
-      const text = await readPairingOfferText(this.host.app);
-      if (text === null) {
-        status.setText('No pairing offer found in this vault. Start pairing in dayGLANCE first.');
-        return;
+      const result = await submitPairingCode(this.host, code);
+      if (result.ok) {
+        new Notice(`dayGLANCE bridge: ${result.message}`);
+        this.close();
+      } else {
+        status.setText(result.message);
       }
-      const creds = await openPairingOffer(text, code);
-      if (creds === null) {
-        // Wrong code and unusable offer are indistinguishable by design.
-        status.setText('That code did not open the offer. Check the code, or start pairing again in dayGLANCE.');
-        return;
-      }
-      if (!pairingOfferFresh(creds.createdAt)) {
-        status.setText('This pairing offer has expired. Start pairing again in dayGLANCE.');
-        return;
-      }
-      const existing = this.host.getPairing();
-      if (existing && existing.generation === creds.generation) {
-        // Same generation = this very pairing, already stored (a synced
-        // data.json got here first). Nothing to do but tidy up.
-        await deletePairingOffer(this.host.app);
-        status.setText('Already paired with this offer.');
-        return;
-      }
-      status.setText('Verifying with GLANCEvault…');
-      await verifyBridgeCredentials(creds);
-      await this.host.storePairing({
-        vaultUrl: creds.vaultUrl,
-        accountId: creds.accountId,
-        deviceToken: creds.deviceToken,
-        subkeyB64: creds.subkeyB64,
-        pairingSalt: creds.pairingSalt,
-        generation: creds.generation,
-        pairedAt: new Date().toISOString(),
-      });
-      await deletePairingOffer(this.host.app);
-      new Notice(existing
-        ? 'dayGLANCE bridge: re-paired — the previous pairing is superseded.'
-        : 'dayGLANCE bridge: paired with GLANCEvault.');
-      this.close();
-    } catch (e) {
-      // The offer opened but GLANCEvault rejected or was unreachable —
-      // nothing was stored, and the offer stays for a retry.
-      const detail = e instanceof Error ? e.message : String(e);
-      status.setText(`Could not verify with GLANCEvault: ${detail}`);
     } finally {
       this.busy = false;
       button.disabled = false;
