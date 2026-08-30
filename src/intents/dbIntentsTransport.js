@@ -82,6 +82,13 @@ export class KeyUnavailableError extends Error {
 // event would consume it before the main window can act (mirrors useIntentPoller).
 import { isTrayMode } from '../utils/trayMode.js';
 import { recordOwnWriteSeq } from '../sync/ownWrites.js';
+// The device-wide vault brake (sync/vaultRequestBrake.js): db-intents was the
+// LAST unbraked GLANCEvault caller — raw vaultFetch with no pacing, a 429
+// logged-and-abandoned per cycle while the deliverer re-queued at every flush
+// trigger. Now every request here gates on the shared brake (one per-IP
+// budget → one brake), 429s arm it (once-per-incident visibility instead of
+// a silent abandon), and successes decay it.
+import { vaultRateLimited, noteVaultRateLimit, noteVaultRequestSuccess } from '../sync/vaultRequestBrake.js';
 
 // Module-level lock: prevents React StrictMode's double-mount from running two
 // concurrent polls, which would both read the same cursor and double-process.
@@ -194,6 +201,10 @@ function parseBody(res) {
 export async function sendIntentsDb(envelopes, opts = {}) {
   const connection = opts.connection ?? getDbIntentsConnection();
   if (!connection) return undefined;
+  // Braked: no network. Fire-and-forget callers already tolerate an undefined
+  // ack (same surface as a failed POST); the durable path is the outbox, whose
+  // deliverer holds under the same brake.
+  if (vaultRateLimited()) return undefined;
 
   const cfg = opts.config ?? getDbIntentsConfig() ?? {};
   const ttlMs = cfg.ttlMs ?? DEFAULT_DB_INTENTS_TTL_MS;
@@ -214,9 +225,13 @@ export async function sendIntentsDb(envelopes, opts = {}) {
 
   const res = await vaultFetch('POST', url, headers, JSON.stringify(body));
   if (!res || !res.ok) {
-    console.warn('[db-intent] batch POST failed:', res?.status);
+    // 429 arms the shared brake (its arming line is the incident report);
+    // anything else keeps the existing per-failure warn.
+    if (res?.status === 429) noteVaultRateLimit('db-intent');
+    else console.warn('[db-intent] batch POST failed:', res?.status);
     return undefined;
   }
+  noteVaultRequestSuccess();
   const ack = parseBody(res); // { written, maxSeq }
   // Own-echo damping (#1455, sync/ownWrites.js): intent landings advance the
   // same per-account seq and nudge it — record our ack so the SSE coalescer
@@ -389,6 +404,11 @@ async function routeIncoming(raw, context, opts = {}) {
 export async function pollDbIntents(context, opts = {}) {
   const connection = opts.connection ?? getDbIntentsConnection();
   if (!connection) return;
+  // Braked: sit the poll out entirely — the cursor hasn't moved, so nothing
+  // is lost, and the next trigger (interval / focus / SSE drain) retries
+  // after the brake lifts. Silent by design: the brake's one arming line is
+  // the incident report; a line per gated poll would be the old noise.
+  if (vaultRateLimited()) return;
 
   const vaultFetch = opts.vaultFetch ?? defaultVaultFetch();
   // Test seam: lets tests drive the three-way model deterministically. Defaults
@@ -416,9 +436,15 @@ export async function pollDbIntents(context, opts = {}) {
       return;
     }
     if (!res || !res.ok) {
-      console.warn('[db-intent] list returned', res?.status);
+      // The old shape logged and abandoned the cycle — a silent-ish 429 that
+      // left the next trigger to retry at full cadence. Now a 429 arms the
+      // device-wide brake (which also holds the outbox deliverer); other
+      // failures keep the existing warn.
+      if (res?.status === 429) noteVaultRateLimit('db-intent');
+      else console.warn('[db-intent] list returned', res?.status);
       return;
     }
+    noteVaultRequestSuccess();
 
     const payload = parseBody(res);
     if (!payload) {

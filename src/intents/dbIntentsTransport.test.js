@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { buildEnvelope, buildIntentRow, ACTIONS, TABS } from '@glance-apps/intents';
 import { sendIntentsDb, pollDbIntents, DB_CURSOR_KEY, DB_RETRY_KEY, MAX_INTENT_RETRIES } from './dbIntentsTransport.js';
+import { __resetVaultBrakeForTests } from '../sync/vaultRequestBrake.js';
+import { bridgeRateLimited } from '../utils/obsidianBridgeStream.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // App-owned GLANCEvault DB intents transport. These exercise the REAL codec
@@ -99,6 +101,7 @@ function makeForeignNotify(i) {
 
 beforeEach(() => {
   global.localStorage = memLocalStorage();
+  __resetVaultBrakeForTests();
 });
 
 describe('DB intents — SEND (batch wrapper + idempotency)', () => {
@@ -344,5 +347,62 @@ describe('DB intents — RECEIVE bounded-retry model', () => {
     expect(server.calls.list).toHaveLength(1);
     expect(server.calls.list[0].since).toBe(1);
     expect(calls).toBe(1); // route NOT called again
+  });
+});
+
+describe('DB intents — the device-wide vault brake (the last unbraked caller, braked)', () => {
+  const limited = () => vi.fn(async () => ({ status: 429, ok: false, body: JSON.stringify({ error: 'rate limit exceeded' }) }));
+
+  it('a 429 on list arms the brake; subsequent polls make NO request; past the window it retries', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-30T12:00:00.000Z'));
+    try {
+      const fetch429 = limited();
+      await pollDbIntents({}, { connection: CONN, vaultFetch: fetch429 });
+      expect(fetch429).toHaveBeenCalledTimes(1); // the arming request
+
+      // Gated: interval / focus / SSE-drain triggers no longer hit the wire.
+      await pollDbIntents({}, { connection: CONN, vaultFetch: fetch429 });
+      await pollDbIntents({}, { connection: CONN, vaultFetch: fetch429 });
+      expect(fetch429).toHaveBeenCalledTimes(1);
+
+      // Past the 30s arming: the next trigger goes through again.
+      vi.setSystemTime(new Date('2026-08-30T12:00:31.000Z'));
+      const server = createMemoryIntentsServer();
+      await pollDbIntents({}, { connection: CONN, vaultFetch: server.vaultFetch });
+      expect(server.calls.list).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('sendIntentsDb is gated too: no batch POST while braked (callers already tolerate the undefined ack)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-30T12:00:00.000Z'));
+    try {
+      const fetch429 = limited();
+      await pollDbIntents({}, { connection: CONN, vaultFetch: fetch429 }); // arms
+      const server = createMemoryIntentsServer();
+      const env = buildEnvelope({ action: ACTIONS.OPEN, payload: { tab: TABS.TODAY }, emittedBy: 'app.dayglance' });
+      const ack = await sendIntentsDb(env, { connection: CONN, config: { ttlMs: 3600_000 }, vaultFetch: server.vaultFetch });
+      expect(ack).toBeUndefined();
+      expect(server.calls.batch).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('ONE budget, ONE brake: a db-intents 429 pauses the bridge paths as well', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-30T12:00:00.000Z'));
+    try {
+      expect(bridgeRateLimited()).toBe(false);
+      await pollDbIntents({}, { connection: CONN, vaultFetch: limited() });
+      // The per-IP budget is shared by every path on this device, so the
+      // brake is deliberately device-wide (sync/vaultRequestBrake.js).
+      expect(bridgeRateLimited()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

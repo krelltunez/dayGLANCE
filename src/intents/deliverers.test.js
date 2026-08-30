@@ -9,6 +9,7 @@ import {
   PERMANENT,
 } from './deliverers.js';
 import { HELD_NO_KEY_REASON } from './outbox.js';
+import { __resetVaultBrakeForTests } from '../sync/vaultRequestBrake.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Intents deliverers (stage 2a). These exercise the REAL deliverers and the REAL
@@ -28,7 +29,7 @@ function memLocalStorage() {
     clear: () => m.clear(),
   };
 }
-beforeEach(() => { global.localStorage = memLocalStorage(); });
+beforeEach(() => { global.localStorage = memLocalStorage(); __resetVaultBrakeForTests(); });
 afterAll(() => { delete global.localStorage; });
 
 const CONN = { vaultUrl: 'https://vault.example.com', vaultToken: 'tok-123', accountId: 'acct-1' };
@@ -148,8 +149,26 @@ describe('vault deliverer', () => {
 
     expect(await run(async () => ({ status: 503, ok: false, body: '' }))).toBe(TRANSIENT);
     expect(await run(async () => ({ status: 429, ok: false, body: '' }))).toBe(TRANSIENT);
+    __resetVaultBrakeForTests(); // the 429 armed the device-wide brake — clear it so the next run reaches the wire
     expect(await run(async () => ({ status: 400, ok: false, body: '' }))).toBe(PERMANENT);
     expect(await run(async () => { throw new TypeError('Failed to fetch'); })).toBe(TRANSIENT);
+  });
+
+  it('429 arms the DEVICE-WIDE brake: held transient, and further flush attempts make NO network request until it lifts', async () => {
+    const rootKey = await aRootKey(4);
+    const limited = vi.fn(async () => ({ status: 429, ok: false, body: '' }));
+    const run = () => vaultDeliverer(makeIntent(), {
+      connection: CONN, config: { ttlMs: 1000 }, vaultFetch: limited, loadKey: async () => rootKey,
+    });
+
+    expect(await run()).toBe(TRANSIENT);
+    expect(limited).toHaveBeenCalledTimes(1);
+    // Every subsequent flush trigger (emit, mount, focus, interval) used to
+    // re-POST against the same saturated window. Under the brake the intent
+    // stays held WITHOUT touching the network — the pacing the outbox lacked.
+    expect(await run()).toBe(TRANSIENT);
+    expect(await run()).toBe(TRANSIENT);
+    expect(limited).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -56,63 +56,26 @@ let cachedSubkeyGeneration = null;
 let flushInFlight = null; // the running flush's promise — callers coalesce
 let metaFetchInFlight = null;
 
-// ── THE BRIDGE BRAKE ─────────────────────────────────────────────────────────
-// 429-aware backoff shared by every bridge request path in the app (flush,
-// config publish, meta discovery, and — via the exports — the observation
-// fetch). The GLANCEvault server rate-limits per IP (default 600/min), a
-// budget the whole household's devices share with the main sync engine, the
-// intents poller, and the plugin; when it trips, everything else backs off
-// (the engine's own BRAKE) and the bridge must too — retrying at full
-// cadence just keeps the window saturated for everyone. Exponential:
-// 30s doubling to 10min, reset by the next successful bridge request.
-// While braked, emits still QUEUE (the outbox is the durable buffer) —
-// only network attempts pause.
-const BRIDGE_BACKOFF_BASE_MS = 30_000;
-const BRIDGE_BACKOFF_MAX_MS = 10 * 60_000;
-let backoffMs = 0;
-let backoffUntil = 0;
+// ── THE BRAKE (now device-wide) ──────────────────────────────────────────────
+// Born here as the bridge brake (#1481, decay semantics from the 2026-08-30
+// live bug), extracted to sync/vaultRequestBrake.js when db-intents — the
+// last unbraked GLANCEvault caller — joined it: the server's 600/min budget
+// is per IP, one budget for every path on this device, so one brake is the
+// honest model (a 429 on any path pauses them all). The names below stay
+// exported so this module's callers (and the inbound half) are unchanged;
+// noteBridgeRateLimit tags its armings with the bridge's own source label.
+import {
+  vaultRateLimited,
+  isRateLimitError,
+  noteVaultRateLimit,
+  noteVaultRequestSuccess,
+  __resetVaultBrakeForTests,
+} from '../sync/vaultRequestBrake.js';
 
-export function bridgeRateLimited(nowMs = Date.now()) {
-  return nowMs < backoffUntil;
-}
-
-/** True when the error is the server's rate limiter (or a 429 quota). */
-export function isRateLimitError(err) {
-  return err?.status === 429;
-}
-
-export function noteBridgeRateLimit() {
-  // One arming per burst: concurrent 429s from the same incident (a flush's
-  // meta GET and its batch both failing) must not compound. Escalation
-  // comes from failing again AFTER a brake lifted — the retry that proves
-  // the window wasn't long enough.
-  if (bridgeRateLimited()) return;
-  backoffMs = Math.min(backoffMs ? backoffMs * 2 : BRIDGE_BACKOFF_BASE_MS, BRIDGE_BACKOFF_MAX_MS);
-  backoffUntil = Date.now() + backoffMs;
-  console.info(`[bridge] BRAKE: rate-limited (429) — bridge requests paused for ~${Math.round(backoffMs / 1000)}s.`);
-}
-
-// DECAY, never amnesty — the plugin-side live bug of 2026-08-30, fixed on
-// both sides in the same shape. The first design zeroed the escalation on
-// ANY success, silently; on a per-IP budget saturated by other traffic an
-// occasional request slips into a fresh limiter window and succeeds, and
-// each lucky 200 wiped the whole 30→480s escalation — the client "backs
-// off, escalates, forgets, starts over", never settling at the ceiling
-// while the storm lasts. Now a success clears the GATE (the window
-// demonstrably has room) but only HALVES the memory, so the next 429
-// re-arms at the storm's level; a genuine recovery drains the memory to
-// zero within a few quiet successes. Both transitions log.
-export function noteBridgeRequestSuccess() {
-  backoffUntil = 0;
-  if (backoffMs === 0) return;
-  backoffMs = Math.floor(backoffMs / 2);
-  if (backoffMs < BRIDGE_BACKOFF_BASE_MS) {
-    backoffMs = 0;
-    console.info('[bridge] brake released — bridge request succeeded.');
-  } else {
-    console.info(`[bridge] brake decaying — request succeeded (a new 429 would pause ~${Math.round(Math.min(backoffMs * 2, BRIDGE_BACKOFF_MAX_MS) / 1000)}s).`);
-  }
-}
+export { isRateLimitError };
+export const bridgeRateLimited = (nowMs) => (nowMs === undefined ? vaultRateLimited() : vaultRateLimited(nowMs));
+export const noteBridgeRateLimit = () => noteVaultRateLimit('bridge');
+export const noteBridgeRequestSuccess = () => noteVaultRequestSuccess();
 
 const readJson = (key, fallback) => {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
@@ -294,12 +257,11 @@ export async function publishBridgeConfig({ dailyNotesPath, dailyNotePattern, ta
   }
 }
 
-/** Test seam: reset module caches (subkey, in-flight flags). */
+/** Test seam: reset module caches (subkey, in-flight flags) + the shared brake. */
 export function __resetBridgeStreamForTests() {
   cachedSubkey = null;
   cachedSubkeyGeneration = null;
   flushInFlight = null;
   metaFetchInFlight = null;
-  backoffMs = 0;
-  backoffUntil = 0;
+  __resetVaultBrakeForTests();
 }
