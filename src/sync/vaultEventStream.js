@@ -76,55 +76,14 @@
 //   bridge-fed nudges only ADD instant drains on top.
 
 // ─── SSE frame parsing ────────────────────────────────────────────────────────
-
-/**
- * Parse ONE SSE event block (the text between blank-line boundaries) into the
- * nudge object {seq}, or null if the block carries no usable data.
- *
- * The event NAME (`ready` | `activity`) is deliberately not surfaced: both carry
- * the same instruction — the account seq advanced past what we knew — so the
- * data line is the whole contract. Ignores comment lines (leading ':', used for
- * heartbeats) and non-data fields (event:, id:, retry: — the server sends only
- * event: and data: today; tolerating the rest is plain SSE-spec hygiene).
- * Concatenates multiple data: lines per the SSE spec, then JSON-parses. Returns
- * null on a heartbeat-only block or unparseable data so the caller can skip it.
- */
-export function parseSseFrame(block) {
-  if (!block) return null;
-  const dataLines = [];
-  for (const rawLine of block.split('\n')) {
-    const line = rawLine.replace(/\r$/, '');
-    if (!line || line.startsWith(':')) continue; // blank or comment (heartbeat)
-    const colon = line.indexOf(':');
-    const field = colon === -1 ? line : line.slice(0, colon);
-    let value = colon === -1 ? '' : line.slice(colon + 1);
-    if (value.startsWith(' ')) value = value.slice(1); // SSE strips one leading space
-    if (field === 'data') dataLines.push(value);
-  }
-  if (dataLines.length === 0) return null;
-  try {
-    return JSON.parse(dataLines.join('\n'));
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Feed a growing SSE text buffer, emitting each COMPLETE event (delimited by a
- * blank line) via onEvent and returning the unconsumed remainder to carry into
- * the next chunk. Normalizes CRLF/CR to LF first.
- */
-export function drainSseBuffer(buffer, onEvent) {
-  let buf = buffer.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  let idx;
-  while ((idx = buf.indexOf('\n\n')) !== -1) {
-    const block = buf.slice(0, idx);
-    buf = buf.slice(idx + 2);
-    const evt = parseSseFrame(block);
-    if (evt) onEvent(evt);
-  }
-  return buf;
-}
+//
+// The parsers moved VERBATIM to @glance-apps/obsidian-format (bridgeSse.js)
+// when Phase 7 gave the wire format a second consumer — the bridge plugin's
+// desktop SSE client. One wire format, one parser; re-exported here so this
+// module's API (and its tests, which double as the parser's pins) is
+// unchanged.
+import { parseSseFrame, drainSseBuffer } from '@glance-apps/obsidian-format';
+export { parseSseFrame, drainSseBuffer };
 
 // ─── transport detection ──────────────────────────────────────────────────────
 

@@ -468,7 +468,7 @@ Tags need no step: dayGLANCE's tag model is "hashtags are title text" — vault 
 
 ---
 
-### Phase 7. Live sync
+### Phase 7. Live sync — COMPLETE
 
 **Goal.** Near-real-time propagation while Obsidian is open.
 
@@ -481,6 +481,15 @@ Tags need no step: dayGLANCE's tag model is "hashtags are title text" — vault 
 - Self-nudge loop prevention: the plugin applying an inbound change must not emit that change back outbound. This is structurally the same failure identified in the lastGLANCE SSE audit; use lifeGLANCE's persisted-flag pattern.
 
 **Exit criteria.** A change made in dayGLANCE on one desktop appears in Obsidian on another within seconds, with no echo.
+
+**Build record.** Two halves, one channel: the dayGLANCE-side inbound nudge landed first (#1494 — bridge-row `/events` nudges wake the observation cycle, paced by probe + min-gap), and this build closes the outbound leg — the plugin consumes the SAME seq-only `/events` stream to drain intents on arrival instead of waiting out the 30-second timer. Decisions of record:
+
+- **THE CREDENTIAL INVARIANT: SSE is armed by proof and disarmed by refutation** — the stream opens only after a successful authenticated drain, closes on auth failure (401/403 at connect or from a drain) or a vanished pairing, and makes zero reconnect attempts in between; a de-paired plugin burns nothing. The 30-second drain tick is both the correctness floor for missed nudges AND the re-arm mechanism (the first drain that succeeds re-proves the credential), so a dead credential's total cost is polling's own benign failure mode: one failed drain per tick. Built for an observed failure, not a hypothetical — the 2026-08-31 plugin-settings-sync incident (§3.2's recorded dependency) silently stripped a device's pairing out of `data.json`.
+- **Transport is Node `http(s)`, deliberately**: Obsidian's `requestUrl` buffers whole responses and cannot stream SSE (the same limitation that made the mobile shells grow native readers), and renderer `fetch` enforces CORS, which would couple the stream to the server's `allowedOrigins` containing Obsidian's `app://` origin. Node's module has neither problem, and its availability (`window.require`, Electron renderer only) is a structural desktop gate alongside `Platform.isDesktopApp` — mobile cannot take this path even if the platform probe were wrong.
+- **The pure/wiring split is the build's shape** (a condition of the commission, same reason as normalize-then-observe): every decision the transport makes is pinned in `@glance-apps/obsidian-format`'s `bridgeSse.js` — the frame parsers (moved verbatim from dayGLANCE's `vaultEventStream.js`, which now re-exports them, so the one wire format has one parser), the arm/disarm state machine, the own-ack skip, the debounce/seq-cursor nudge gate, and the backoff schedule (5s doubling to 60s, reset on any received frame; ~60s read timeout = three missed server heartbeats, the detector for sleep and silent network loss on weeks-open machines). `bridge.ts` keeps only connection lifecycle and Node plumbing.
+- **Self-nudge safety is layered**: the exact-ack own-seq skip (both write paths return their resulting seq; one nudge per write operation — dayGLANCE's `ownWrites` principle, miniaturized) makes own echoes free, and beneath it the by-construction argument: a nudged drain's idle path performs no writes, so no cycle can sustain itself. **That argument leans on #1485's tombstone-is-cursor-movement-only rule and is annotated as such at both sites** — a future change to that rule invalidates this reasoning with it. A nudge landing while a drain is in flight sets a rerun flag instead of being dropped by the `draining` guard (the #1494 hazard, same fix).
+- **Rate budget**: an SSE connection costs one request at connect; heartbeats and nudges are free; reconnects are one each, bounded by the backoff (worst-case flap ~12/min at the floor) and further extended by the shared 429 brake. Server-side caps (64/account, 1024 total) are generous for a household fleet.
+- **Idle-nudge cost** (the shared account seq carries other apps' activity): one empty app-scoped list per debounced foreign nudge — the drain is its own probe, since `/sync/:app/list` returns only bridge-namespace rows. A future glance-vault `app` tag on activity frames would reduce this to zero and let dayGLANCE's #1494 probe be deleted; deliberately not built against (backward-compatible when it comes — both consumers ignore unknown frame fields).
 
 ---
 

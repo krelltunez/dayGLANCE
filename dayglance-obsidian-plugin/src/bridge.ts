@@ -23,7 +23,7 @@
 // plugin NEVER interprets an edit; inferring semantics is dayGLANCE's
 // scan pipeline's job.
 
-import { App, TFile, normalizePath, requestUrl } from 'obsidian';
+import { App, Platform, TFile, normalizePath, requestUrl } from 'obsidian';
 import {
   applyBridgeIntent,
   openBridgeEnvelope,
@@ -35,6 +35,11 @@ import {
   parseDateFromFilename,
   stampUntaggedTaskLines,
   bridgeConfigAllowsStamping,
+  drainSseBuffer,
+  createSseArming,
+  createSseNudgeGate,
+  sseBackoffMs,
+  SSE_READ_TIMEOUT_MS,
   BRIDGE_VAULT_APP,
   BRIDGE_PAIRING_META_ID,
   BRIDGE_CONFIG_META_ID,
@@ -176,6 +181,37 @@ export class BridgeTransport {
   private memHwm = 0;
   private memHwmGeneration: string | null = null;
 
+  // ── LIVE SYNC (Phase 7) — desktop SSE, replacing "wait out the 30s timer"
+  // for the intent-apply leg. THE INVARIANT: **SSE IS ARMED BY PROOF AND
+  // DISARMED BY REFUTATION — the stream opens only after a successful
+  // authenticated drain, closes on auth failure or a vanished pairing, and
+  // makes ZERO reconnect attempts in between. A de-paired plugin burns
+  // nothing.** Between refutation and the next proof, the 30-second drain
+  // timer is the only thing running (today's exact polling posture), and
+  // the first drain that succeeds re-arms the stream — so a dead
+  // credential's total cost is one failed drain per tick, the same benign
+  // failure mode polling always had. Built for an observed failure, not a
+  // hypothetical: Obsidian Sync's plugin-settings toggle flipped off on one
+  // device (2026-08-31) and silently stripped the pairing out of data.json.
+  //
+  // All DECISIONS are pure and pinned in @glance-apps/obsidian-format's
+  // bridgeSse.js (arm/disarm machine, own-ack skip, debounce/cursor gate,
+  // backoff schedule, frame parsers — the same parsers dayGLANCE's stream
+  // uses). This class holds only the wiring: the Node https plumbing and
+  // the connection lifecycle.
+  private sseArming = createSseArming();
+  private sseGate = createSseNudgeGate({ onDrain: () => this.drainFromNudge() });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private sseReq: any = null; // in-flight Node http(s) request, when connected/connecting
+  private sseReconnectTimer: number | null = null;
+  private sseReadTimer: number | null = null;
+  private sseFailures = 0;
+  // A nudge that lands while a drain is in flight must RE-RUN after it —
+  // the `draining` guard silently drops overlapping calls, and a dropped
+  // nudge strands the burst's tail until the 30s timer (the exact hazard
+  // dayGLANCE's #1494 fixed on its side with the same flag).
+  private pendingRedrain = false;
+
   private rateLimited(): boolean {
     return Date.now() < this.backoffUntil;
   }
@@ -228,10 +264,176 @@ export class BridgeTransport {
   // for hours with a quiet console. Rate limits arm the brake like any other
   // bridge request; other failures get one console line.
   private deleteIntentRow(client: VaultClient, entityId: string, accountId: string): void {
-    void client.deleteRow(BRIDGE_VAULT_APP, entityId, accountId).catch((e) => {
+    void client.deleteRow(BRIDGE_VAULT_APP, entityId, accountId).then((res) => {
+      // Own-ack capture (Phase 7): the soft-delete's resulting seq nudges
+      // every SSE client, us included — record it so our own echo never
+      // wakes an idle drain.
+      const seq = Number((res as { seq?: unknown } | null)?.seq);
+      if (Number.isFinite(seq)) this.sseGate.recordOwnSeq(seq);
+    }).catch((e) => {
       if (isRateLimitError(e)) this.noteRateLimit();
       else console.error('dayGLANCE bridge: intent row cleanup failed', e);
     });
+  }
+
+  // ── LIVE SYNC lifecycle (Phase 7) — wiring only; decisions in bridgeSse.js
+
+  private sseDesktop(): boolean {
+    return Platform.isDesktopApp === true;
+  }
+
+  /** The nudge → drain route, with the rerun flag (see the field comment). */
+  private drainFromNudge(): void {
+    if (!this.host.getPairing()) {
+      this.sseArming.noteUnpaired();
+      this.stopSse();
+      return;
+    }
+    if (this.draining) {
+      this.pendingRedrain = true;
+      return;
+    }
+    void this.drain();
+  }
+
+  /** Called after every successful drain — the PROOF site of the invariant. */
+  private maybeStartSse(): void {
+    if (!this.sseArming.shouldConnect({ desktop: this.sseDesktop(), paired: !!this.host.getPairing() })) return;
+    if (this.sseReq || this.sseReconnectTimer !== null) return;
+    if (this.rateLimited()) return; // brake gates connects too; the next drain re-attempts
+    this.connectSse();
+  }
+
+  /** Tear the stream down and cancel every pending SSE timer. Idempotent. */
+  private stopSse(): void {
+    if (this.sseReconnectTimer !== null) { window.clearTimeout(this.sseReconnectTimer); this.sseReconnectTimer = null; }
+    this.clearSseReadTimer();
+    this.sseGate.cancel();
+    if (this.sseReq) {
+      try { this.sseReq.destroy(); } catch { /* already dead */ }
+      this.sseReq = null;
+    }
+    this.sseFailures = 0;
+  }
+
+  /** Plugin unload. */
+  shutdown(): void {
+    this.stopSse();
+  }
+
+  private clearSseReadTimer(): void {
+    if (this.sseReadTimer !== null) { window.clearTimeout(this.sseReadTimer); this.sseReadTimer = null; }
+  }
+
+  // ~60s with the server heartbeating every ~20s: three missed heartbeats
+  // means the socket is dead even when TCP never said so — laptop sleep,
+  // silent network loss on a weeks-open machine.
+  private armSseReadTimeout(): void {
+    this.clearSseReadTimer();
+    this.sseReadTimer = window.setTimeout(() => {
+      this.sseReadTimer = null;
+      console.info('dayGLANCE bridge: live sync went quiet (3 missed heartbeats) — reconnecting.');
+      this.failSse();
+    }, SSE_READ_TIMEOUT_MS);
+  }
+
+  /** Non-auth failure path: reconnect with backoff — but ONLY while armed. */
+  private failSse(): void {
+    this.clearSseReadTimer();
+    if (this.sseReq) {
+      try { this.sseReq.destroy(); } catch { /* already dead */ }
+      this.sseReq = null;
+    }
+    if (!this.sseArming.shouldConnect({ desktop: this.sseDesktop(), paired: !!this.host.getPairing() })) return;
+    if (this.sseReconnectTimer !== null) return;
+    this.sseFailures += 1;
+    // 5s doubling to 60s (reset whenever a frame arrives); the 429 brake
+    // extends it so a rate-limit storm pauses SSE with everything else.
+    // Each reconnect is ONE request against the per-IP budget — a worst-case
+    // flap costs 12/min at the floor, ~1/min at the cap.
+    const brakeMs = Math.max(0, this.backoffUntil - Date.now());
+    const delay = Math.max(sseBackoffMs(this.sseFailures), brakeMs);
+    this.sseReconnectTimer = window.setTimeout(() => {
+      this.sseReconnectTimer = null;
+      this.connectSse();
+    }, delay);
+  }
+
+  private connectSse(): void {
+    const pairing = this.host.getPairing();
+    if (!pairing) { this.sseArming.noteUnpaired(); return; }
+    if (!this.sseDesktop() || this.sseReq) return;
+    // NODE HTTP(S), DELIBERATELY — the one transport here that can stream:
+    // Obsidian's requestUrl buffers whole responses, so it cannot carry SSE
+    // (the same limitation that made the mobile shells grow native
+    // readers), and plain fetch in the renderer enforces CORS, which would
+    // make the stream work or not depending on the server's allowedOrigins
+    // happening to include Obsidian's app:// origin. Node's http(s) module
+    // has neither problem — and its availability (window.require, Electron
+    // renderer only) is itself a structural desktop gate: mobile cannot
+    // take this path even if the platform probe were somehow wrong.
+    const nodeRequire = (window as unknown as { require?: (m: string) => unknown }).require;
+    if (typeof nodeRequire !== 'function') return;
+    let url: URL;
+    try {
+      url = new URL(`${pairing.vaultUrl.replace(/\/+$/, '')}/events?accountId=${encodeURIComponent(pairing.accountId)}`);
+    } catch {
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let mod: any;
+    try {
+      mod = nodeRequire(url.protocol === 'http:' ? 'http' : 'https');
+    } catch {
+      return;
+    }
+    let buffer = '';
+    const req = mod.request(url, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${pairing.deviceToken}`, Accept: 'text/event-stream' },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }, (res: any) => {
+      if (res.statusCode === 401 || res.statusCode === 403) {
+        // REFUTATION: the credential is dead — stop outright, no backoff
+        // retries against it. The 30s drain tick keeps running exactly as
+        // in the polling era, and the first drain that SUCCEEDS re-proves
+        // the credential and re-arms the stream. Total cost of a dead
+        // credential: one failed drain per tick — polling's own benign
+        // failure mode, preserved.
+        console.info(`dayGLANCE bridge: live sync refused (${res.statusCode}) — paused until a sync succeeds.`);
+        this.sseArming.noteAuthFailure();
+        this.stopSse();
+        return;
+      }
+      if (res.statusCode !== 200) {
+        console.info(`dayGLANCE bridge: live sync connect failed (${res.statusCode}) — will retry.`);
+        this.failSse();
+        return;
+      }
+      this.armSseReadTimeout();
+      res.setEncoding('utf8');
+      res.on('data', (chunk: string) => {
+        // Any received frame — heartbeat comment included — proves the
+        // stream is alive: reset the failure count and the read timeout.
+        this.sseFailures = 0;
+        this.armSseReadTimeout();
+        buffer = drainSseBuffer(buffer + chunk, (evt) => {
+          // A pairing that vanished mid-connection (the data.json incident)
+          // tears the stream down at the first event that would use it.
+          if (!this.host.getPairing()) {
+            this.sseArming.noteUnpaired();
+            this.stopSse();
+            return;
+          }
+          this.sseGate.handleEvent(evt as { seq?: number });
+        });
+      });
+      res.on('end', () => this.failSse());
+      res.on('error', () => this.failSse());
+    });
+    req.on('error', () => this.failSse());
+    req.end();
+    this.sseReq = req;
   }
 
   private async subkeyFor(pairing: BridgePairing): Promise<CryptoKey> {
@@ -245,7 +447,14 @@ export class BridgeTransport {
   /** Pull and apply pending intents. Safe to call on any cadence. */
   async drain(): Promise<void> {
     const pairing = this.host.getPairing();
-    if (!pairing || this.draining || this.rateLimited()) return;
+    if (!pairing) {
+      // REFUTATION: no pairing (unpaired, or the data.json incident) — the
+      // stream must not outlive its credentials. Idempotent when no stream.
+      this.sseArming.noteUnpaired();
+      this.stopSse();
+      return;
+    }
+    if (this.draining || this.rateLimited()) return;
     this.draining = true;
     try {
       const client = this.client(pairing);
@@ -289,6 +498,12 @@ export class BridgeTransport {
             // the deletes were fire-and-forget. Skipping tombstones lets the
             // cursor advance past the whole backlog once, after which they
             // never re-seq and never return.
+            //
+            // PHASE 7 LEANS ON THIS RULE: the SSE loop-safety argument —
+            // "a nudged drain's idle path performs no writes, so no cycle
+            // can sustain itself" — is only true BECAUSE tombstones are
+            // cursor-movement-only here. If this rule ever changes, that
+            // argument changes with it (see bridgeSse.js).
             continue;
           }
           const entityId = String(row.entityId ?? '');
@@ -354,11 +569,32 @@ export class BridgeTransport {
         }
       }
       this.noteSuccess();
+      // PROOF: a successful authenticated drain is what arms (or re-arms)
+      // live sync — the other half of the armed-by-proof invariant. The 30s
+      // tick runs drains regardless, so proof arrives within one tick of
+      // credentials working.
+      this.sseArming.noteDrainSuccess();
+      this.maybeStartSse();
     } catch (e) {
       if (isRateLimitError(e)) this.noteRateLimit();
-      else console.error('dayGLANCE bridge: drain failed', e);
+      else {
+        const status = (e as { status?: number } | null)?.status;
+        if (status === 401 || status === 403) {
+          // REFUTATION from the drain side: same rule as an SSE 401 — stop
+          // the stream, no reconnects until a drain succeeds again.
+          this.sseArming.noteAuthFailure();
+          this.stopSse();
+        }
+        console.error('dayGLANCE bridge: drain failed', e);
+      }
     } finally {
       this.draining = false;
+      if (this.pendingRedrain) {
+        // A nudge landed mid-drain; without this it would be silently
+        // dropped and the burst's tail would wait for the 30s timer.
+        this.pendingRedrain = false;
+        window.setTimeout(() => { void this.drain(); }, 250);
+      }
     }
   }
 
@@ -573,7 +809,7 @@ export class BridgeTransport {
         content, deleted: deleted || undefined,
         mtime, observedAt: new Date().toISOString(),
       };
-      await this.client(pairing).batch(BRIDGE_VAULT_APP, {
+      const ack = await this.client(pairing).batch(BRIDGE_VAULT_APP, {
         accountId: pairing.accountId,
         rows: [{
           entityId: await observationEntityId(path),
@@ -581,6 +817,11 @@ export class BridgeTransport {
           createdAt: Date.now(),
         }],
       });
+      // Own-ack capture (Phase 7): the server nudges every SSE client with
+      // this write's resulting seq, us included — record it so our own
+      // observation's echo never wakes an idle drain.
+      const ackSeq = Number((ack as { maxSeq?: unknown } | null)?.maxSeq);
+      if (Number.isFinite(ackSeq)) this.sseGate.recordOwnSeq(ackSeq);
       this.noteSuccess();
       this.observeRetryAttempts.delete(path);
     } catch (e) {
