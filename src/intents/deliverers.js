@@ -38,6 +38,7 @@ import {
 } from './dbIntentsConfig.js';
 import * as iCloudTransport from './icloudFileTransport.js';
 import { HELD_NO_KEY_REASON } from './outbox.js';
+import { vaultRateLimited, noteVaultRateLimit, noteVaultRequestSuccess } from '../sync/vaultRequestBrake.js';
 
 export const DELIVERED = 'delivered';
 export const TRANSIENT = 'transient';
@@ -117,6 +118,14 @@ export async function vaultDeliverer(intent, opts = {}) {
   // No vault connection configured yet — hold (may appear); never drop.
   if (!connection) return TRANSIENT;
 
+  // Device-wide vault brake (sync/vaultRequestBrake.js): while the server is
+  // rate-limiting ANY of this device's vault paths, hold WITHOUT a network
+  // attempt. This is what paces the outbox's retries — every flush trigger
+  // (emit, mount, focus, interval) used to re-POST a held intent against the
+  // same saturated window; now those triggers no-op until the brake lifts,
+  // and the intent stays durably queued.
+  if (vaultRateLimited()) return TRANSIENT;
+
   // ── load the ALREADY-CACHED vault intents key (its OWN slot) ──
   const rootKey = await (opts.loadKey ?? loadVaultIntentsRootKey)();
   if (!rootKey) {
@@ -159,6 +168,12 @@ export async function vaultDeliverer(intent, opts = {}) {
     return TRANSIENT;
   }
   if (!res) return TRANSIENT;
+  // Brake bookkeeping, vault tier only (the file tiers have their own
+  // servers and budgets): a 429 arms the shared brake — the once-per-
+  // incident line, instead of the old silent TRANSIENT re-queue — and a
+  // delivery decays it.
+  if (res.status === 429) noteVaultRateLimit('db-intent');
+  else if (res.status >= 200 && res.status < 300) noteVaultRequestSuccess();
   return mapHttpStatus(res.status);
 }
 
