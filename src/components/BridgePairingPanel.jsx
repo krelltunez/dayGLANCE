@@ -43,7 +43,12 @@ const BridgePairingPanel = ({ vaultHandleRef, darkMode, textPrimary, textSeconda
         // paired heartbeat means the displayed code has served its purpose.
         if (state.pluginAuthoritative) {
           setCode((prev) => (prev ? null : prev));
-          const meta = await getBridgePairingMeta();
+          // Right after pairing the cache may still hold the pre-pairing
+          // negative — force one refresh past the TTL so the indicator
+          // (and the emit gate it shares a cache with) sees the pairing
+          // now, not a TTL later.
+          const meta = (await getBridgePairingMeta())
+            ?? (await getBridgePairingMeta({ force: true }));
           if (cancelled) return;
           const t = meta?.pairedAt ? Date.parse(meta.pairedAt) : NaN;
           setPairedDays(Number.isFinite(t) ? Math.max(0, Math.floor((Date.now() - t) / 86400000)) : null);

@@ -49,11 +49,12 @@ vi.mock('../native.js', () => ({
   nativeSetLaunchOnWrite: vi.fn(),
 }));
 const emitBridgeIntent = vi.fn(() => true);
+const getBridgePairingMeta = vi.fn(async () => null);
 vi.mock('../utils/obsidianBridgeStream.js', () => ({
   emitBridgeIntent: (...a) => emitBridgeIntent(...a),
   flushBridgeOutbox: vi.fn(async () => true),
   publishBridgeConfig: vi.fn(async () => {}),
-  getBridgePairingMeta: vi.fn(async () => null),
+  getBridgePairingMeta: (...a) => getBridgePairingMeta(...a),
 }));
 const fetchBridgeObservations = vi.fn(async () => ({ observations: [], maxSeq: 0 }));
 vi.mock('../utils/obsidianBridgeInbound.js', () => ({
@@ -62,8 +63,10 @@ vi.mock('../utils/obsidianBridgeInbound.js', () => ({
   commitBridgeObservationCursor: vi.fn(),
 }));
 const recordBridgeMode = vi.fn();
+const reconcileArchivedBaseline = vi.fn(() => null);
 vi.mock('../utils/obsidianBridgeMode.js', () => ({
   recordBridgeMode: (...a) => recordBridgeMode(...a),
+  reconcileArchivedBaseline: (...a) => reconcileArchivedBaseline(...a),
 }));
 
 const { default: useObsidianSync } = await import('./useObsidianSync.js');
@@ -128,6 +131,8 @@ beforeEach(() => {
   emitBridgeIntent.mockReset(); emitBridgeIntent.mockReturnValue(true);
   syncObsidianVault.mockClear(); fetchBridgeObservations.mockClear();
   recordBridgeMode.mockClear(); setObsidianSyncError.mockClear();
+  reconcileArchivedBaseline.mockClear(); reconcileArchivedBaseline.mockReturnValue(null);
+  getBridgePairingMeta.mockClear(); getBridgePairingMeta.mockResolvedValue(null);
   readVaultHeartbeat.mockReset(); readVaultHeartbeat.mockResolvedValue(null);
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
@@ -164,21 +169,44 @@ describe('writeback under plugin authority (gate a: emit-in-same-tick)', () => {
 describe('sync cycle under plugin authority', () => {
   const pairedBeat = { paired: true, accountId: 'acct-1', deviceId: 'dev', tsMs: Date.now() };
 
-  it('authoritative: the direct scan is REPLACED by the observation stream; mode recorded as plugin', async () => {
+  it('authoritative: the direct scan is REPLACED by the observation stream; mode recorded as plugin; meta refresh FORCED past its TTL (the rising-edge fix)', async () => {
     readVaultHeartbeat.mockResolvedValue(pairedBeat);
     const { api } = useMountedHook({ authoritative: true });
     await api.performObsidianSync();
     expect(syncObsidianVault).not.toHaveBeenCalled();
     expect(fetchBridgeObservations).toHaveBeenCalledTimes(1);
     expect(recordBridgeMode).toHaveBeenCalledWith('plugin');
+    // Forced: a stale pre-pairing NEGATIVE cache must not gate emits off
+    // while direct writes are already stopped.
+    expect(getBridgePairingMeta).toHaveBeenCalledWith({ force: true });
   });
 
-  it('stale/unpaired heartbeat: the direct scan runs; mode recorded as direct (§3.3 one revert path)', async () => {
+  it('stale/unpaired heartbeat: the direct scan runs; mode recorded as direct (§3.3 one revert path); meta refresh unforced', async () => {
     readVaultHeartbeat.mockResolvedValue(null);
     const { api } = useMountedHook({ authoritative: false });
     await api.performObsidianSync();
     expect(syncObsidianVault).toHaveBeenCalledTimes(1);
     expect(fetchBridgeObservations).not.toHaveBeenCalled();
     expect(recordBridgeMode).toHaveBeenCalledWith('direct');
+    expect(getBridgePairingMeta).toHaveBeenCalledWith({ force: false });
+  });
+
+  it('direct mode reconciles a pending baseline archive: deletions tombstoned at the ARCHIVE time, before the merges', async () => {
+    readVaultHeartbeat.mockResolvedValue(null);
+    reconcileArchivedBaseline.mockReturnValue({
+      skipped: false, deletions: ['obsidian-dg-gone0001'], archivedAt: '2026-07-29T00:00:00.000Z',
+    });
+    const { api } = useMountedHook({ authoritative: false });
+    await api.performObsidianSync();
+    expect(reconcileArchivedBaseline).toHaveBeenCalledTimes(1);
+    const stored = JSON.parse(globalThis.localStorage.getItem('day-planner-deleted-obsidian-keys'));
+    expect(stored['obsidian-dg-gone0001']).toBe('2026-07-29T00:00:00.000Z'); // archive time, never now
+  });
+
+  it('plugin mode never touches the archive — reconcile runs only where scans do', async () => {
+    readVaultHeartbeat.mockResolvedValue(pairedBeat);
+    const { api } = useMountedHook({ authoritative: true });
+    await api.performObsidianSync();
+    expect(reconcileArchivedBaseline).not.toHaveBeenCalled();
   });
 });

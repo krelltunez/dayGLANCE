@@ -34,7 +34,7 @@ import { titleConflictNoticeText } from '../utils/obsidianTitleConflict.js';
 import { withCreationFrontmatter } from '../utils/obsidianFrontmatter.js';
 import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, getBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
 import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor } from '../utils/obsidianBridgeInbound.js';
-import { recordBridgeMode } from '../utils/obsidianBridgeMode.js';
+import { recordBridgeMode, reconcileArchivedBaseline } from '../utils/obsidianBridgeMode.js';
 
 /**
  * Obsidian vault sync — extracted from App.jsx (see "App.jsx — Ongoing
@@ -407,17 +407,6 @@ export default function useObsidianSync({
       // fail the sync).
       await refreshTasksPluginDetection(obsidianVaultHandleRef.current);
       await refreshBridgeHeartbeat(obsidianVaultHandleRef.current);
-      // Bridge stream (Phase 6): once per cycle, refresh the pairing-meta
-      // discovery (it also gates the emit sites), retry anything the emit
-      // sites left queued, and (re)publish the config row the plugin's
-      // observation scope reads. All fail-silent and paired-gated inside —
-      // on an unpaired vault they are no-ops.
-      void getBridgePairingMeta().then(() => flushBridgeOutbox());
-      void publishBridgeConfig({
-        dailyNotesPath: obsidianConfig?.dailyNotesPath || '',
-        dailyNotePattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
-        taskHeading: obsidianConfig?.taskHeading || '## Tasks',
-      });
       // App-only fields that live in dayGLANCE but NOT in the Obsidian markdown,
       // so a re-parse (parseTasksFromMarkdown) can't reproduce them. They must be
       // carried over from the existing in-memory copy or every cold-open re-sync
@@ -465,9 +454,28 @@ export default function useObsidianSync({
       // plugin disabled, unpaired) reverts to direct on the next cycle —
       // §3.3's one revert path.
       const authoritative = bridgeHeartbeatRef.current.pluginAuthoritative;
-      // Gate (b): EVERY mode transition, both directions, clears the
-      // deletion detector's baseline — see utils/obsidianBridgeMode.js.
+      // Gate (b), as amended: a direct→plugin transition ARCHIVES the
+      // detector baseline (stamped with the transition time); both
+      // directions clear the live one — see utils/obsidianBridgeMode.js,
+      // and the reconcile in the direct branch below.
       recordBridgeMode(authoritative ? 'plugin' : 'direct');
+      // Bridge stream (Phase 6): once per cycle, refresh the pairing-meta
+      // discovery (it also gates the emit sites), retry anything the emit
+      // sites left queued, and (re)publish the config row the plugin's
+      // observation scope reads. All fail-silent and paired-gated inside —
+      // on an unpaired vault they are no-ops. FORCED past the cache TTL
+      // while authoritative: on the authority rising edge a stale NEGATIVE
+      // cache (written by the last pre-pairing cycle) would otherwise gate
+      // emits off for up to a TTL while direct writes are already stopped —
+      // a systematic silent-drop window after every pairing. While
+      // authoritative the meta is load-bearing for every write, so the
+      // per-cycle refresh is the honest cadence.
+      void getBridgePairingMeta({ force: authoritative }).then(() => flushBridgeOutbox());
+      void publishBridgeConfig({
+        dailyNotesPath: obsidianConfig?.dailyNotesPath || '',
+        dailyNotePattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
+        taskHeading: obsidianConfig?.taskHeading || '## Tasks',
+      });
 
       // Deletion tombstones apply to BOTH inbound sources (they record
       // past observed deletions; honoring them is not detecting new ones).
@@ -601,6 +609,23 @@ export default function useObsidianSync({
       if (!skipped) {
         localStorage.setItem('day-planner-obsidian-last-scanned', JSON.stringify(scannedKeys));
         localStorage.setItem('day-planner-obsidian-last-scanned-dates', JSON.stringify(scannedKeyDates));
+      }
+
+      // ARCHIVE RECONCILE (gate b, amended): if this device spent time in
+      // plugin mode, its pre-pairing baseline is waiting in the archive —
+      // run the SAME detector against this fresh scan so deletions made in
+      // the vault while paired still propagate. The reconcile applies its
+      // own guards (window cutoff, empty-scan, drop-too-large → archive
+      // kept for the next scan) and its tombstones are stamped with the
+      // ARCHIVE time, never now — anything touched since the device
+      // entered plugin mode beats them under the existing LWW rule, so a
+      // month-late detection can only drop rows untouched since before the
+      // paired window. Runs before the merges below so the tombstones
+      // apply this cycle.
+      const reconciled = reconcileArchivedBaseline(scannedKeys, obsidianCutoff);
+      if (reconciled && !reconciled.skipped && reconciled.deletions.length) {
+        tombstones = addObsidianTombstones(tombstones, reconciled.deletions, reconciled.archivedAt);
+        localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(tombstones));
       }
 
       // Update daily notes — MERGE the scan in, don't replace. Replacing deletes

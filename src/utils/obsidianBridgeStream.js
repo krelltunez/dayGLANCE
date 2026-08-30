@@ -75,10 +75,14 @@ const vaultClientOrNull = () => {
  * The cached pairing meta ({generation, pairingSalt, pairedAt}) or null.
  * Refreshes from the meta:pairing row at most every META_TTL_MS; a vault
  * with no such row (never paired, or unpaired) caches the negative too.
+ * `force` bypasses the TTL (still coalescing with an in-flight fetch) —
+ * the authority rising edge uses it, because a stale NEGATIVE cached just
+ * before pairing completed would otherwise gate emits off for up to a TTL
+ * while direct writes have already stopped.
  */
-export async function getBridgePairingMeta() {
+export async function getBridgePairingMeta({ force = false } = {}) {
   const cached = readJson(META_CACHE_KEY, null);
-  if (cached && Date.now() - (cached.fetchedAt || 0) < META_TTL_MS) {
+  if (!force && cached && Date.now() - (cached.fetchedAt || 0) < META_TTL_MS) {
     return cached.meta;
   }
   if (metaFetchInFlight) return metaFetchInFlight;
