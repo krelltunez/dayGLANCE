@@ -9,7 +9,7 @@ import {
   PERMANENT,
 } from './deliverers.js';
 import { HELD_NO_KEY_REASON } from './outbox.js';
-import { __resetVaultBrakeForTests } from '../sync/vaultRequestBrake.js';
+import { resetVaultDiagnostics } from '@glance-apps/sync';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Intents deliverers (stage 2a). These exercise the REAL deliverers and the REAL
@@ -29,7 +29,7 @@ function memLocalStorage() {
     clear: () => m.clear(),
   };
 }
-beforeEach(() => { global.localStorage = memLocalStorage(); __resetVaultBrakeForTests(); });
+beforeEach(() => { global.localStorage = memLocalStorage(); resetVaultDiagnostics(); });
 afterAll(() => { delete global.localStorage; });
 
 const CONN = { vaultUrl: 'https://vault.example.com', vaultToken: 'tok-123', accountId: 'acct-1' };
@@ -149,7 +149,7 @@ describe('vault deliverer', () => {
 
     expect(await run(async () => ({ status: 503, ok: false, body: '' }))).toBe(TRANSIENT);
     expect(await run(async () => ({ status: 429, ok: false, body: '' }))).toBe(TRANSIENT);
-    __resetVaultBrakeForTests(); // the 429 armed the device-wide brake — clear it so the next run reaches the wire
+    resetVaultDiagnostics(); // the 429 armed the device-wide brake — clear it so the next run reaches the wire
     expect(await run(async () => ({ status: 400, ok: false, body: '' }))).toBe(PERMANENT);
     expect(await run(async () => { throw new TypeError('Failed to fetch'); })).toBe(TRANSIENT);
   });

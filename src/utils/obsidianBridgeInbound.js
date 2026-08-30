@@ -41,7 +41,7 @@ import {
   mergeParsedObsidianTasks,
   parseTasksFromMarkdown,
 } from '../obsidian.js';
-import { getBridgePairingMeta, bridgeRateLimited, isRateLimitError, noteBridgeRateLimit, noteBridgeRequestSuccess } from './obsidianBridgeStream.js';
+import { getBridgePairingMeta, bridgeRateLimited } from './obsidianBridgeStream.js';
 
 const OBS_HWM_KEY = 'dayglance-bridge-obs-hwm';
 
@@ -55,9 +55,11 @@ const OBS_HWM_KEY = 'dayglance-bridge-obs-hwm';
  */
 export async function fetchBridgeObservations() {
   try {
-    // Shared bridge brake (obsidianBridgeStream.js): while the server is
-    // rate-limiting, sit the cycle out — the cursor hasn't advanced, so
-    // nothing is lost, and the next cycle retries.
+    // The client's realm-wide brake (@glance-apps/sync 1.11.0): while the
+    // server is rate-limiting, sit the whole cycle out pre-flight — the
+    // cursor hasn't advanced, so nothing is lost, and the next cycle
+    // retries. (A braked client call would throw RATE_LIMITED anyway; this
+    // read just skips the ceremony for a multi-request cycle.)
     if (bridgeRateLimited()) return null;
     const cfg = getVaultConfig();
     if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId || !hasDbRootKey()) return null;
@@ -88,10 +90,10 @@ export async function fetchBridgeObservations() {
       }
       if (!page.rows?.length) break;
     }
-    noteBridgeRequestSuccess();
     return { observations: [...byPath.values()], maxSeq };
-  } catch (err) {
-    if (isRateLimitError(err)) noteBridgeRateLimit();
+  } catch {
+    // Rate-limited (the client armed the brake itself) or unreachable —
+    // the unadvanced cursor retries next cycle either way.
     return null;
   }
 }

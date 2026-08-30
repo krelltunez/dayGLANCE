@@ -30,7 +30,6 @@ import {
 } from '@glance-apps/intents';
 import { loadIntentsRootKey, loadVaultIntentsRootKey } from './intentsKeyStore.js';
 import { writeEventFile, writeEventFileICloud, INTENT_CONFIG_KEY } from './useIntentPoller.js';
-import { defaultVaultFetch } from './dbIntentsTransport.js';
 import {
   getDbIntentsConnection,
   getDbIntentsConfig,
@@ -38,7 +37,7 @@ import {
 } from './dbIntentsConfig.js';
 import * as iCloudTransport from './icloudFileTransport.js';
 import { HELD_NO_KEY_REASON } from './outbox.js';
-import { vaultRateLimited, noteVaultRateLimit, noteVaultRequestSuccess } from '../sync/vaultRequestBrake.js';
+import { intentsClientFor } from './dbIntentsTransport.js';
 
 export const DELIVERED = 'delivered';
 export const TRANSIENT = 'transient';
@@ -118,13 +117,13 @@ export async function vaultDeliverer(intent, opts = {}) {
   // No vault connection configured yet — hold (may appear); never drop.
   if (!connection) return TRANSIENT;
 
-  // Device-wide vault brake (sync/vaultRequestBrake.js): while the server is
-  // rate-limiting ANY of this device's vault paths, hold WITHOUT a network
-  // attempt. This is what paces the outbox's retries — every flush trigger
-  // (emit, mount, focus, interval) used to re-POST a held intent against the
-  // same saturated window; now those triggers no-op until the brake lifts,
-  // and the intent stays durably queued.
-  if (vaultRateLimited()) return TRANSIENT;
+  // The realm-wide brake now lives inside the vault client (1.11.0): while
+  // braked, the intentsBatch call below throws RATE_LIMITED BEFORE the
+  // network — the catch turns that into a held TRANSIENT. That is what paces
+  // the outbox's retries: every flush trigger (emit, mount, focus, interval)
+  // used to re-POST a held intent against the same saturated window; now
+  // those triggers no-op until the brake lifts, the intent stays durably
+  // queued, and no code here has to remember any of it.
 
   // ── load the ALREADY-CACHED vault intents key (its OWN slot) ──
   const rootKey = await (opts.loadKey ?? loadVaultIntentsRootKey)();
@@ -151,30 +150,23 @@ export async function vaultDeliverer(intent, opts = {}) {
   const cfg = opts.config ?? getDbIntentsConfig() ?? {};
   const ttlMs = cfg.ttlMs ?? DEFAULT_DB_INTENTS_TTL_MS;
   const row = buildIntentRow(envelope, { ttlMs });
-  const body = {
-    accountId: connection.accountId,
-    events: [{ eventId: row.eventId, envelope: row.envelope, expiresAt: row.expiresAt }],
-  };
-  const url = connection.vaultUrl.replace(/\/+$/, '') + '/intents/batch';
-  const headers = { Authorization: `Bearer ${connection.vaultToken}`, 'Content-Type': 'application/json' };
-  const vaultFetch = opts.vaultFetch ?? defaultVaultFetch();
 
-  let res;
   try {
-    res = await vaultFetch('POST', url, headers, JSON.stringify(body));
+    await intentsClientFor(connection, opts.vaultFetch).intentsBatch(connection.accountId, [
+      { eventId: row.eventId, envelope: row.envelope, expiresAt: row.expiresAt },
+    ]);
+    return DELIVERED;
   } catch (err) {
-    // Network error — transient.
+    // Braked (thrown BEFORE any network) — the held-transient that paces the
+    // outbox. The client's arming line already reported the incident.
+    if (err?.code === 'RATE_LIMITED') return TRANSIENT;
+    // A real HTTP failure surfaces as a VaultError with .status — map it
+    // through the same ladder as before (5xx/429/408 transient, other 4xx
+    // permanent). Anything without a status is a network error — transient.
+    if (typeof err?.status === 'number') return mapHttpStatus(err.status);
     console.warn('[deliver/vault] POST network error:', err?.message);
     return TRANSIENT;
   }
-  if (!res) return TRANSIENT;
-  // Brake bookkeeping, vault tier only (the file tiers have their own
-  // servers and budgets): a 429 arms the shared brake — the once-per-
-  // incident line, instead of the old silent TRANSIENT re-queue — and a
-  // delivery decays it.
-  if (res.status === 429) noteVaultRateLimit('db-intent');
-  else if (res.status >= 200 && res.status < 300) noteVaultRequestSuccess();
-  return mapHttpStatus(res.status);
 }
 
 // ─── 2. WEBDAV deliverer — existing encryption policy, durable wrapper ────────
