@@ -11,13 +11,14 @@ import CalendarList from './CalendarList.jsx';
 import ICloudSyncToggle from './ICloudSyncToggle.jsx';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
-import { isNativeAndroid, nativeGetCalendars, nativeGetAutomationIntentsEnabled, nativeSetAutomationIntentsEnabled } from '../native.js';
+import { isNativeAndroid, isNativeApp, nativeGetCalendars, nativeGetAutomationIntentsEnabled, nativeSetAutomationIntentsEnabled } from '../native.js';
 import { hasNativeCalendar, electronCalendarAvailable, electronGetCalendars } from '../utils/nativeCalendar.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, formatDatePattern } from '../obsidian.js';
 import { validateDailyNotePattern, validateVaultFolderSetting } from '../utils/obsidianFilename.js';
 import { effectiveLaunchOnWrite } from '../utils/obsidianLaunchOnWrite.js';
 import UnportableVaultNamesPanel from './UnportableVaultNamesPanel.jsx';
 import BridgePairingPanel from './BridgePairingPanel.jsx';
+import BridgeStatusPanel from './BridgeStatusPanel.jsx';
 import { INTENT_CONFIG_KEY, MULTI_USER_CONFIG_KEY } from '../intents/useIntentPoller.js';
 import { syncSharedUsers, syncSharedUsersViaICloud } from '../intents/sharedUsers.js';
 import { isAvailable as isICloudAvailable } from '../intents/icloudFileTransport.js';
@@ -1590,6 +1591,14 @@ const SettingsModal = () => {
                               </p>
                             </div>
                           )}
+                          {/* §6 mode indicator, native flavor: read-only bridge
+                              status (three states — see BridgeStatusPanel).
+                              Pairing itself stays a desktop act; this makes
+                              plugin mode, and especially the SILENTLY-UNPAIRED
+                              middle state, legible on this device. */}
+                          {obsidianConfig?.enabled && (
+                            <BridgeStatusPanel darkMode={darkMode} textPrimary={textPrimary} textSecondary={textSecondary} borderClass={borderClass} />
+                          )}
                         </div>
                       ) : obsidianConfig?.enabled ? (
                         <div className="space-y-3">
@@ -1760,7 +1769,18 @@ const SettingsModal = () => {
                               {t('common.lastSynced')}: {new Date(obsidianLastSynced).toLocaleString()}
                             </p>
                           )}
-                          <BridgePairingPanel vaultHandleRef={obsidianVaultHandleRef} darkMode={darkMode} textPrimary={textPrimary} textSecondary={textSecondary} borderClass={borderClass} />
+                          {/* Native app in this branch = iOS (isNativeAndroid
+                              took Android above): the pairing form's minting
+                              path needs direct FSA vault access the native
+                              bridge doesn't have — startBridgePairing can only
+                              throw pairing_no_vault_access here, and the
+                              form's status probe skips native handles. The
+                              read-only status block is the working equivalent;
+                              pairing happens once from a desktop and covers
+                              this device (per-vault granularity, spec §3.2). */}
+                          {isNativeApp()
+                            ? <BridgeStatusPanel darkMode={darkMode} textPrimary={textPrimary} textSecondary={textSecondary} borderClass={borderClass} />
+                            : <BridgePairingPanel vaultHandleRef={obsidianVaultHandleRef} darkMode={darkMode} textPrimary={textPrimary} textSecondary={textSecondary} borderClass={borderClass} />}
                           <UnportableVaultNamesPanel entries={unportableVaultFiles} darkMode={darkMode} textSecondary={textSecondary} />
                         </div>
                       ) : (
