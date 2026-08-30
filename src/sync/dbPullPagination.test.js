@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { setSyncPassphrase } from '@glance-apps/sync';
 import { createDbEngine } from './dbEngine.js';
 import { setVaultConfig } from './vaultConfig.js';
@@ -94,13 +94,28 @@ function makeDevice(name, vault, initial) {
 
 const taskIds = (device) => device.data.tasks.map((t) => t.id).sort();
 
+afterEach(() => { vi.useRealTimers(); });
 afterAll(() => { delete global.localStorage; });
+
+// Advance the faked Date past the package's 30s pull backoff window so the
+// next cycle is a genuine retry rather than a SYNC_SUPPRESSED pause.
+const pastPackageWindow = () => vi.setSystemTime(new Date(Date.now() + 31_000));
 
 describe('multi-page pull: mid-pagination failure must not strand rows below the cursor', () => {
   let vault;
   let seeder;
 
   beforeEach(async () => {
+    // 2.0.0 CLOCK NOTE (ruling 2 — deliberate, not a quiet edit): since 4a,
+    // a real pull failure opens the PACKAGE's own pull backoff window inside
+    // the primitives, so the immediate retry these tests used to make is now
+    // legitimately SUPPRESSED — the package working, not the test failing.
+    // The Date is faked so each post-failure "clean cycle" can first advance
+    // past the window's retryAt. What this suite pins is unchanged and still
+    // fails without the wrapper's rollback: a mid-pagination failure must
+    // not strand rows below the cursor.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-08-16T12:00:00.000Z'));
     global.localStorage = memLocalStorage();
     setVaultConfig({ enabled: true, vaultUrl: 'https://v', vaultToken: 't', accountId: 'acct' });
     setSyncPassphrase('pagination-test-passphrase');
@@ -140,6 +155,7 @@ describe('multi-page pull: mid-pagination failure must not strand rows below the
     await a.engine.dbSyncCycle();
     vault.disarm();
 
+    pastPackageWindow(); // ruling 2: wait out the 4a pull window, then retry
     await a.engine.dbSyncCycle();
     // Without the rollback this converges to only ['r3', 'r4']: r1/r2 sit
     // below the advanced cursor and no incremental pull ever re-lists them.
@@ -176,6 +192,7 @@ describe('multi-page pull: mid-pagination failure must not strand rows below the
     vault.disarm();
     expect(a.engine.getHighWaterMark()).toBe(settledHwm);
 
+    pastPackageWindow(); // ruling 2: wait out the 4a pull window, then retry
     await a.engine.dbSyncCycle();
     expect(taskIds(a)).toEqual(['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7']);
   });
