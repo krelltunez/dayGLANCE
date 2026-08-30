@@ -2758,7 +2758,7 @@ const DayPlanner = () => {
   // re-sync, 5-minute poll, task writeback, iOS vault-settings persistence)
   // lives in useObsidianSync; state/refs stay owned by useObsidian above.
   const {
-    performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian,
+    performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, bridgeHeartbeatRef,
   } = useObsidianSync({
     isTrayMode, dataLoaded,
     tasks, setTasks,
@@ -3226,13 +3226,25 @@ const DayPlanner = () => {
     if (obsidianConfig?.enabled && obsidianVaultHandleRef.current) {
       // Bridge stream (Phase 6): the same write as a semantic intent for any
       // paired vault copy. Path mirrors writeDailyNoteFile's resolution
-      // (pattern-aware filename under dailyNotesPath); fail-silent.
-      emitBridgeIntent('daily_note_write', {
+      // (pattern-aware filename under dailyNotesPath).
+      const queued = emitBridgeIntent('daily_note_write', {
         path: (obsidianConfig.dailyNotesPath ? `${obsidianConfig.dailyNotesPath.replace(/\/+$/, '')}/` : '')
           + dailyNoteFilename(dateStr, obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd'),
         date: dateStr,
         content: text || '',
       });
+      // Arbitration (§3.2): plugin authoritative → the intent is the write;
+      // the note text itself is already durably in dailyNotes state. A
+      // DROPPED emit surfaces — a systematic window (e.g. meta not yet
+      // discovered) must not be a silent vault-write loss even though the
+      // note re-emits on its next edit.
+      if (bridgeHeartbeatRef.current.pluginAuthoritative) {
+        if (!queued) {
+          setObsidianSyncError(`Daily note ${dateStr} was not written to your vault: the bridge queue is unavailable. It will be written the next time you edit it.`);
+          setObsidianSyncStatus('error');
+        }
+        return;
+      }
       if (obsidianVaultHandleRef.current === 'native') {
         // writeDailyNoteNative is synchronous (JavascriptInterface blocks the JS thread
         // during the SAF write).  Defer it by one frame so the note modal closes
@@ -6931,7 +6943,7 @@ const DayPlanner = () => {
           // Bridge stream (Phase 6): the same append as a semantic intent.
           // applyBridgeIntent dedupes on the task's ^dg- block id, so a
           // paired vault copy converges whichever side appends first.
-          emitBridgeIntent('task_append', {
+          const queued = emitBridgeIntent('task_append', {
             path: (obsidianConfig.dailyNotesPath ? `${obsidianConfig.dailyNotesPath.replace(/\/+$/, '')}/` : '')
               + dailyNoteFilename(todayStr, obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd'),
             date: todayStr,
@@ -6939,6 +6951,20 @@ const DayPlanner = () => {
             heading,
             template: dailyNoteTemplate,
           });
+          // Arbitration (§3.2): plugin authoritative → the intent is the
+          // write; the appended line lands via the plugin, and the task's
+          // identity (creation-time ^dg- id, buildNewObsidianTaskMeta)
+          // round-trips through the observation exactly as it does through
+          // a scan. A DROPPED emit surfaces: unlike a task-state change,
+          // nothing re-emits an append, so a silent drop here would leave
+          // the task app-only with no signal at all.
+          if (bridgeHeartbeatRef.current.pluginAuthoritative) {
+            if (!queued) {
+              setObsidianSyncError(`Task "${task.title}" was not written to your vault: the bridge queue is unavailable.`);
+              setObsidianSyncStatus('error');
+            }
+            return;
+          }
           if (obsidianVaultHandleRef.current === 'native') {
             appendTaskToDailyNoteNative(todayStr, task, heading, dailyNoteTemplate);
           } else {

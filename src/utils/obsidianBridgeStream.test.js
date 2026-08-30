@@ -120,6 +120,16 @@ describe('emit + flush', () => {
     expect(await getBridgePairingMeta()).toMatchObject({ generation: SALT_B64 });
   });
 
+  it('force bypasses a fresh NEGATIVE cache — the authority-rising-edge fix: pairing is seen now, not a TTL later', async () => {
+    localStorage.removeItem('dayglance-bridge-pairing-meta'); // start pre-discovery
+    globalThis.fetch = makeFetch({ meta: null });
+    expect(await getBridgePairingMeta()).toBe(null); // pre-pairing negative cached
+    globalThis.fetch = makeFetch(); // pairing completes; meta row now exists
+    expect(await getBridgePairingMeta()).toBe(null); // TTL still serves the negative…
+    expect(await getBridgePairingMeta({ force: true })).toMatchObject({ generation: SALT_B64 }); // …force does not
+    expect(await getBridgePairingMeta()).toMatchObject({ generation: SALT_B64 }); // and the cache is corrected
+  });
+
   it('publishBridgeConfig seals the config row once per distinct value', async () => {
     globalThis.fetch = makeFetch();
     const cfg = { dailyNotesPath: 'Daily', dailyNotePattern: 'yyyy-MM-dd', taskHeading: '## Tasks' };
