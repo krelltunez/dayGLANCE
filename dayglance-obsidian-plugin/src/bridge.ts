@@ -33,6 +33,8 @@ import {
   importBridgeSubkey,
   buildDateParser,
   parseDateFromFilename,
+  stampUntaggedTaskLines,
+  bridgeConfigAllowsStamping,
   BRIDGE_VAULT_APP,
   BRIDGE_PAIRING_META_ID,
   BRIDGE_CONFIG_META_ID,
@@ -47,6 +49,14 @@ export interface BridgeState {
 }
 
 const APPLIED_IDS_CAP = 1000;
+// Normalize-then-observe: how many times a stamp is deferred because the note
+// is the active editor file, before stamping anyway. Each deferral re-arms
+// the observation debounce, so the cap bounds the hold at roughly
+// CAP × OBSERVE_DEBOUNCE_MS of continued focus — unbounded deferral would
+// hold the note's observations hostage for as long as it stays open, which
+// starves dayGLANCE of the note entirely (worse than the annoyance the
+// deferral avoids).
+const STAMP_DEFER_CAP = 5;
 // Bound on the in-memory-only cursor advance (persist-on-intent-only rule in
 // drain): once the unpersisted gap exceeds this many seq, the cursor is
 // persisted anyway, capping how many non-intent rows a plugin reload can
@@ -66,6 +76,14 @@ interface BridgeConfigRow {
   dailyNotesPath: string;
   dailyNotePattern: string;
   taskHeading: string;
+  // The §3.9 block-id WRITE release, carried from dayGLANCE (see
+  // publishBridgeConfig there). Gates normalize-then-observe: stamping
+  // happens ONLY when this is exactly `true` — a missing config row, or a
+  // row from a dayGLANCE build predating the field, means NO stamping.
+  // Fail-closed on purpose: not stamping is recoverable (dayGLANCE's own
+  // stamp-on-sight backstop still covers the line), stamping against the
+  // user's setting is not.
+  blockIdWrites?: boolean;
 }
 
 export interface BridgeHost {
@@ -143,6 +161,10 @@ export class BridgeTransport {
   // Per-path consecutive observation-failure counts, for the retry backoff
   // below. Reset on the path's first successful report.
   private observeRetryAttempts = new Map<string, number>();
+  // Per-path count of normalize-then-observe stamps deferred because the
+  // note is the ACTIVE editor file (see emitObservation). Reset whenever the
+  // path stamps or needs no stamp.
+  private stampDeferrals = new Map<string, number>();
   // In-memory cursor for the persist-on-intent-only rule (see drain): pages
   // that only skipped config/observation/tombstone rows advance the cursor
   // HERE, not in data.json — every data.json save is a vault file write that
@@ -409,16 +431,25 @@ export class BridgeTransport {
   private isDailyNote(path: string): boolean {
     const cfg = this.config;
     if (!cfg) return /^\d{4}-\d{2}-\d{2}\.md$/.test(path.split('/').pop() ?? '');
+    return this.dailyNoteDate(path) !== null;
+  }
+
+  /** The note's own YYYY-MM-DD when `path` is a configured daily note, else
+   *  null. Null without a config row — normalize-then-observe (below) needs
+   *  the date AND the config gate, so pre-config paths never stamp. */
+  private dailyNoteDate(path: string): string | null {
+    const cfg = this.config;
+    if (!cfg) return null;
     const prefix = cfg.dailyNotesPath ? `${cfg.dailyNotesPath.replace(/\/+$/, '')}/` : '';
-    if (prefix ? !path.startsWith(prefix) : path.includes('/')) return false;
+    if (prefix ? !path.startsWith(prefix) : path.includes('/')) return null;
     const name = path.slice(prefix.length);
     if (!cfg.dailyNotePattern || cfg.dailyNotePattern === 'yyyy-MM-dd') {
-      return /^\d{4}-\d{2}-\d{2}\.md$/.test(name);
+      return /^\d{4}-\d{2}-\d{2}\.md$/.test(name) ? name.slice(0, -3) : null;
     }
     try {
-      return parseDateFromFilename(name, buildDateParser(cfg.dailyNotePattern)) !== null;
+      return parseDateFromFilename(name, buildDateParser(cfg.dailyNotePattern));
     } catch {
-      return false;
+      return null;
     }
   }
 
@@ -465,6 +496,77 @@ export class BridgeTransport {
         try { mtime = (await adapter.stat(path))?.mtime ?? null; } catch { /* stat optional */ }
       }
       if (deleted ? !this.isDailyNote(path) : !this.inScope(path, content)) return;
+
+      // ── NORMALIZE-THEN-OBSERVE (§3.10 ruling 7) ─────────────────────────
+      // Stamp untagged task lines BEFORE reporting a daily note, so no
+      // observation dayGLANCE receives contains an untagged task line —
+      // "visible in dayGLANCE" then structurally implies "already stamped",
+      // with no timing involved. Stamping is NOT interpreting (§3.6 stays
+      // intact): this writes a fact — a derived, unanimous block id — and
+      // then reports state; it never classifies an edit as a rename or a
+      // delete, which is what §3.6 was drawn to prevent. The token is
+      // deriveBlockId(note date, rawTitle) via the shared package's
+      // parse-parity stamper, so this mint and dayGLANCE's stamp-on-sight
+      // backstop always agree (unanimity — the policy lives in ONE place,
+      // only the trigger exists in two).
+      //
+      // GATE: bridgeConfigAllowsStamping — config.blockIdWrites must be
+      // EXACTLY true. No config row yet, or a row from an older dayGLANCE,
+      // means no stamping — fail closed (the shared, pinned decision; see
+      // BridgeConfigRow). Deleted observations and non-daily notes never
+      // stamp.
+      //
+      // ACTIVE-EDITOR DEFERRAL: this fires ≥2s after the note's last SAVE
+      // (the observation debounce), so the editor buffer is normally clean —
+      // but if the note is still the ACTIVE editor file, the stamp (and the
+      // observation with it — never report unstamped state) defers by
+      // re-arming the same debounce, up to STAMP_DEFER_CAP. Past the cap it
+      // stamps anyway via Vault.process (atomic read-modify-write; Obsidian
+      // propagates the change into open editors the same way it absorbs
+      // Obsidian Sync's writes, preserving cursor by content diff). The
+      // residual — a token appearing at the end of a line during an idle
+      // pause with the note focused — is bounded and self-consistent; a
+      // stamp lost to a rare dirty-buffer merge simply re-stamps on the
+      // next save's observation (derived ids make the write idempotent).
+      if (!deleted && content !== null && bridgeConfigAllowsStamping(this.config)) {
+        const noteDate = this.dailyNoteDate(path);
+        if (noteDate && stampUntaggedTaskLines(content, noteDate).changed) {
+          const deferrals = this.stampDeferrals.get(path) ?? 0;
+          if (this.host.app.workspace.activeEditor?.file?.path === path && deferrals < STAMP_DEFER_CAP) {
+            this.stampDeferrals.set(path, deferrals + 1);
+            const prior = this.observeTimers.get(path);
+            if (prior !== undefined) window.clearTimeout(prior);
+            this.observeTimers.set(path, window.setTimeout(() => {
+              this.observeTimers.delete(path);
+              void this.emitObservation(path, false);
+            }, OBSERVE_DEBOUNCE_MS));
+            return;
+          }
+          this.stampDeferrals.delete(path);
+          const file = this.host.app.vault.getAbstractFileByPath(normalizePath(path));
+          if (file instanceof TFile) {
+            // Re-derive inside process(): the callback's `data` is the
+            // file's CURRENT content, atomic against an edit landing between
+            // our read above and this write.
+            await this.host.app.vault.process(file, (data) => stampUntaggedTaskLines(data, noteDate).text);
+            // Observe the STAMPED state: re-arm the same per-path debounce
+            // (the write's own modify event coalesces into it) and emit on
+            // the next pass, which will find nothing left to stamp.
+            const prior = this.observeTimers.get(path);
+            if (prior !== undefined) window.clearTimeout(prior);
+            this.observeTimers.set(path, window.setTimeout(() => {
+              this.observeTimers.delete(path);
+              void this.emitObservation(path, false);
+            }, OBSERVE_DEBOUNCE_MS));
+            return;
+          }
+          // File lookup failed (rename/delete race) — fall through and
+          // report the state we read; the dayGLANCE backstop covers it.
+        } else {
+          this.stampDeferrals.delete(path);
+        }
+      }
+
       const subkey = await this.subkeyFor(pairing);
       const payload = {
         v: 1, kind: 'observation', path,

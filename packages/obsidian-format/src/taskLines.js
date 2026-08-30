@@ -8,7 +8,7 @@
 // resolving the conflict inside this function, instead of calling back, is
 // the moment format quietly becomes policy and the package boundary erodes.
 
-import { splitBlockId, blockIdSuffix, legacyObsidianId, appIdForBlockId } from './identity.js';
+import { splitBlockId, blockIdSuffix, legacyObsidianId, appIdForBlockId, deriveBlockId, hasForeignBlockId } from './identity.js';
 import { splitCompletionMarker, completionMarkerSuffix } from './completionMarkers.js';
 import { splitTasksMetadata } from './tasksMetadata.js';
 
@@ -484,6 +484,77 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
   }
 
   return { scheduledTasks: scheduled, inboxTasks: inbox };
+}
+
+/**
+ * NORMALIZE-THEN-OBSERVE (§3.10 ruling 7): stamp every untagged task line in
+ * a daily note with its derived `^dg-` block id. The bridge plugin runs this
+ * BEFORE reporting a daily note's state, so no observation dayGLANCE
+ * receives contains an untagged task line — "visible in dayGLANCE"
+ * structurally implies "already stamped", with no timing involved.
+ *
+ * PARSE PARITY IS THE CONTRACT of this function, and the reason it lives in
+ * this file: it must stamp exactly the lines parseTasksFromMarkdown above
+ * would import untagged, and derive each token from exactly the rawTitle the
+ * parse would produce — deriveBlockId's unanimity property (every minter
+ * agrees) only holds if every minter feeds it identical input. Concretely,
+ * per line:
+ *   • the same task-line match (`- [ ]` / `- [x]`, any indent — the parse
+ *     imports indented checkbox lines too);
+ *   • a line carrying ANY `^dg-` token is skipped — including a DUPLICATE
+ *     token (the parse treats a second occurrence as untagged, but stamping
+ *     a second token onto a line that textually carries one would corrupt
+ *     it; the duplicate-id corner keeps its existing first-occurrence-wins
+ *     resolution);
+ *   • a line ending in a user-authored block reference is skipped — the
+ *     same refusal as blockIdSuffix: Obsidian allows one block ref per
+ *     line, and appending ours would break the user's existing links (the
+ *     dayGLANCE-side backstop refuses these identically, so neither minter
+ *     ever writes one);
+ *   • rawTitle = the body after the leading date and/or time prefixes,
+ *     using the SAME extraction steps as the parse (inline date first,
+ *     then parseLeadingTime), completion markers and Tasks metadata left
+ *     in place exactly as the parse leaves them on untagged lines;
+ *   • the token = deriveBlockId(NOTE date, rawTitle) — the note's own
+ *     date, matching the dayGLANCE writeback's sourceDate, never the
+ *     line's inline date.
+ *
+ * The derivation makes stamping IDEMPOTENT and RACE-FREE against the
+ * dayGLANCE-side backstop: both mint the same token for the same line, so
+ * whoever writes first wins nothing — the other side's write is a no-op or
+ * a byte-identical rewrite.
+ *
+ * @param {string} content  the daily note's markdown
+ * @param {string} dateStr  the note's own YYYY-MM-DD date
+ * @returns {{ text: string, changed: boolean, stamped: Array<{blockId: string, rawTitle: string}> }}
+ */
+export function stampUntaggedTaskLines(content, dateStr) {
+  if (!content) return { text: content ?? '', changed: false, stamped: [] };
+  const lines = content.split('\n');
+  const stamped = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^\s*- \[([ xX])\]\s+(.+)$/);
+    if (!m) continue;
+    const body = m[2].trim();
+    if (splitBlockId(body).blockId) continue; // tagged (even a duplicate token)
+    if (hasForeignBlockId(body)) continue; // user's own block ref owns the line
+    // rawTitle exactly as parseTasksFromMarkdown derives it for an untagged
+    // line: strip an inline date, then a leading time/range; everything else
+    // (markers, metadata) stays.
+    let rawTitle = body;
+    const dateMatch = rawTitle.match(/^(\d{4}-\d{2}-\d{2})\s+(.+)$/);
+    if (dateMatch) {
+      const timePart = parseLeadingTime(dateMatch[2]);
+      rawTitle = timePart ? timePart.rest : dateMatch[2];
+    } else {
+      const timePart = parseLeadingTime(rawTitle);
+      if (timePart) rawTitle = timePart.rest;
+    }
+    const blockId = deriveBlockId(dateStr, rawTitle);
+    lines[i] = `${lines[i].replace(/\s+$/, '')} ^dg-${blockId}`;
+    stamped.push({ blockId, rawTitle });
+  }
+  return { text: lines.join('\n'), changed: stamped.length > 0, stamped };
 }
 
 export { taskLineSortKey, sortTaskLinesInSection, buildObsidianTaskLine, parseLeadingTime, buildTimePrefix, stripLinePrefixes };

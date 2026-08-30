@@ -146,6 +146,21 @@ describe('emit + flush', () => {
     const subkey = await deriveBridgeSubkey(getDbRootKey(), SALT);
     expect(await openBridgeEnvelope(subkey, rows[0].rows[0].envelope)).toMatchObject({ kind: 'config', dailyNotesPath: 'Daily' });
   });
+
+  it('the config row carries the block-id write release (§3.10 ruling 7 gate): true publishes true, omitted publishes an explicit false — never an absent field', async () => {
+    globalThis.fetch = makeFetch();
+    const base = { dailyNotesPath: 'Daily', dailyNotePattern: 'yyyy-MM-dd', taskHeading: '## Tasks' };
+    await publishBridgeConfig({ ...base, blockIdWrites: true });
+    await publishBridgeConfig(base); // release off → value change → republished
+    const rows = globalThis.fetch.batches.filter((b) => b.rows[0].entityId === 'meta:config');
+    expect(rows).toHaveLength(2);
+    const subkey = await deriveBridgeSubkey(getDbRootKey(), SALT);
+    expect(await openBridgeEnvelope(subkey, rows[0].rows[0].envelope)).toMatchObject({ blockIdWrites: true });
+    // An explicit false, so a plugin paired to a current build never sees an
+    // absent field once the release is off — same refusal either way
+    // (bridgeConfigAllowsStamping), but the row states it.
+    expect(await openBridgeEnvelope(subkey, rows[1].rows[0].envelope)).toMatchObject({ blockIdWrites: false });
+  });
 });
 
 describe('the bridge brake (429 backoff)', () => {

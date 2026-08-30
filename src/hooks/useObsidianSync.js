@@ -498,6 +498,11 @@ export default function useObsidianSync({
         dailyNotesPath: obsidianConfig?.dailyNotesPath || '',
         dailyNotePattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
         taskHeading: obsidianConfig?.taskHeading || '## Tasks',
+        // Carries the §3.9 block-id write release to the plugin, which gates
+        // normalize-then-observe (§3.10 ruling 7) on it — see
+        // publishBridgeConfig. Read fresh each cycle so a release flip
+        // reaches the plugin within one config republish.
+        blockIdWrites: blockIdWritesEnabled(),
       });
 
       // Deletion tombstones apply to BOTH inbound sources (they record

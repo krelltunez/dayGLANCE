@@ -78,6 +78,25 @@ const b64Text = (s) => b64(enc.encode(s));
 const unb64Text = (t) => new TextDecoder().decode(unb64(t));
 
 /** Assigned at write time, persisted with the intent. */
+/**
+ * The FAIL-CLOSED gate for normalize-then-observe (§3.10 ruling 7): the
+ * plugin stamps untagged task lines before reporting a daily note ONLY when
+ * the config row dayGLANCE published carries `blockIdWrites` EXACTLY true.
+ * Everything else — no config row seen yet (null/undefined), a row from a
+ * dayGLANCE build predating the field, an explicit false, any merely-truthy
+ * value — means NO stamping: not stamping is recoverable (dayGLANCE's own
+ * stamp-on-sight backstop still covers the line), stamping against the
+ * user's write-release setting is not. Kept here, beside the row codec, so
+ * the decision is one pinned function rather than an inline comparison that
+ * could drift.
+ *
+ * @param {{blockIdWrites?: unknown}|null|undefined} config  the decoded meta:config row
+ * @returns {boolean}
+ */
+export function bridgeConfigAllowsStamping(config) {
+  return config != null && config.blockIdWrites === true;
+}
+
 export function mintIntentId() {
   try {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
