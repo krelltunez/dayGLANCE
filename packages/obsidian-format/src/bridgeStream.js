@@ -65,8 +65,17 @@ export const BRIDGE_INTENT_PREFIX = 'int:';
 export const BRIDGE_OBSERVATION_PREFIX = 'obs:';
 
 const enc = new TextEncoder();
-const b64 = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
+// Chunked bytes→base64: String.fromCharCode(...bytes) blows the argument
+// limit (~64k) on large payloads, and an observation carries a whole note.
+const b64 = (bytes) => {
+  const u8 = new Uint8Array(bytes);
+  let s = '';
+  for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000));
+  return btoa(s);
+};
 const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const b64Text = (s) => b64(enc.encode(s));
+const unb64Text = (t) => new TextDecoder().decode(unb64(t));
 
 /** Assigned at write time, persisted with the intent. */
 export function mintIntentId() {
@@ -85,13 +94,23 @@ export async function observationEntityId(path) {
   return `${BRIDGE_OBSERVATION_PREFIX}${hex.slice(0, 32)}`;
 }
 
+// THE WIRE IS BASE64, NON-NEGOTIABLY: GLANCEvault's batch endpoint decodes
+// every row envelope with Buffer.from(envelope, 'base64') and stores the
+// BYTES, and list/get returns those bytes re-encoded as base64. Node's
+// base64 decoder never rejects — a non-base64 envelope (the first shape of
+// this module was raw JSON text) is silently shredded into garbage at
+// write time. So every envelope this module produces is a single valid
+// base64 string, and every reader decodes base64 first; the server round
+// trip is then byte-exact identity (pinned in the tests against the
+// server's exact Buffer semantics).
+
 /** Seal a payload into a row envelope under the bridge subkey. */
 export async function sealBridgeEnvelope(subkey, payload) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv }, subkey, enc.encode(JSON.stringify(payload)),
   );
-  return JSON.stringify({ v: 1, iv: b64(iv), ct: b64(ct) });
+  return b64Text(JSON.stringify({ v: 1, iv: b64(iv), ct: b64(ct) }));
 }
 
 /**
@@ -101,12 +120,30 @@ export async function sealBridgeEnvelope(subkey, payload) {
  */
 export async function openBridgeEnvelope(subkey, text) {
   try {
-    const envelope = JSON.parse(text);
+    const envelope = JSON.parse(unb64Text(text));
     if (!envelope || envelope.v !== 1) return null;
     const pt = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: unb64(envelope.iv) }, subkey, unb64(envelope.ct),
     );
     return JSON.parse(new TextDecoder().decode(pt));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Wire-encode a PLAINTEXT row (the meta:pairing row — deliberately not
+ * encrypted, see the module header; the salt it carries is not a secret).
+ * Base64 is transport framing here, not protection.
+ */
+export function encodePlainBridgeRow(payload) {
+  return b64Text(JSON.stringify(payload));
+}
+
+/** Decode a plaintext row; null for anything unusable. */
+export function decodePlainBridgeRow(text) {
+  try {
+    return JSON.parse(unb64Text(text));
   } catch {
     return null;
   }

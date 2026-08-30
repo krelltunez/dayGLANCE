@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   sealBridgeEnvelope,
   openBridgeEnvelope,
+  encodePlainBridgeRow,
+  decodePlainBridgeRow,
   applyBridgeIntent,
   mintIntentId,
   observationEntityId,
@@ -21,18 +23,46 @@ const otherKey = () => crypto.subtle.importKey(
   'raw', new Uint8Array(32).fill(4), 'AES-GCM', false, ['encrypt', 'decrypt'],
 );
 
+// THE SERVER'S ENVELOPE SEMANTICS, emulated exactly: GLANCEvault decodes
+// the wire envelope with Buffer.from(s, 'base64'), stores the bytes, and
+// serves them back with .toString('base64'). A non-base64 envelope is not
+// rejected — it is silently shredded. Every wire string this module emits
+// must survive this round trip byte-exactly.
+const serverRoundTrip = (envelope) => Buffer.from(envelope, 'base64').toString('base64');
+
 describe('row envelopes', () => {
   it('round-trip; wrong key, tampered, and malformed are ALL null (rotation makes old rows unreadable)', async () => {
     const key = await subkey();
     const sealed = await sealBridgeEnvelope(key, { kind: 'intent', type: 'daily_note_write' });
-    expect(JSON.parse(sealed).v).toBe(1);
     expect(sealed).not.toContain('daily_note_write');
     expect(await openBridgeEnvelope(key, sealed)).toEqual({ kind: 'intent', type: 'daily_note_write' });
     expect(await openBridgeEnvelope(await otherKey(), sealed)).toBe(null);
-    const parsed = JSON.parse(sealed);
-    parsed.ct = parsed.ct.slice(0, -4) + 'AAAA';
-    expect(await openBridgeEnvelope(key, JSON.stringify(parsed))).toBe(null);
+    expect(await openBridgeEnvelope(key, sealed.slice(0, -8) + 'AAAAAAAA')).toBe(null);
     expect(await openBridgeEnvelope(key, 'junk')).toBe(null);
+  });
+
+  it('every wire string SURVIVES the server (base64 bytes in, base64 bytes out) — the regression that shipped as raw JSON', async () => {
+    const key = await subkey();
+    const sealed = await sealBridgeEnvelope(key, { kind: 'observation', path: 'a.md', content: 'body' });
+    // Byte-exact through the server's Buffer round trip, and still opens.
+    expect(serverRoundTrip(sealed)).toBe(sealed);
+    expect(await openBridgeEnvelope(key, serverRoundTrip(sealed))).toMatchObject({ path: 'a.md' });
+    // The plaintext meta row rides the same wire and must survive it too.
+    const meta = encodePlainBridgeRow({ v: 1, kind: 'pairing-meta', generation: 'g', pairingSalt: 's' });
+    expect(serverRoundTrip(meta)).toBe(meta);
+    expect(decodePlainBridgeRow(serverRoundTrip(meta))).toMatchObject({ kind: 'pairing-meta' });
+    expect(decodePlainBridgeRow('not base64 json {')).toBe(null);
+    // The OLD wire format (raw JSON) does NOT survive — pinned so nobody
+    // reintroduces it: the server mangles it rather than rejecting it.
+    expect(serverRoundTrip('{"v":1,"iv":"aa","ct":"bb"}')).not.toBe('{"v":1,"iv":"aa","ct":"bb"}');
+  });
+
+  it('a whole-note-sized payload seals without blowing the argument limit (chunked base64)', async () => {
+    const key = await subkey();
+    const big = { kind: 'observation', path: 'big.md', content: 'x'.repeat(300_000) };
+    const sealed = await sealBridgeEnvelope(key, big);
+    expect(serverRoundTrip(sealed)).toBe(sealed);
+    expect(await openBridgeEnvelope(key, sealed)).toEqual(big);
   });
 
   it('ids: intent ids are unique; observation ids are stable per path and prefixed', async () => {

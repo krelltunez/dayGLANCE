@@ -38,7 +38,15 @@ const CODE_ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567';
 const CODE_LENGTH = 13;
 
 const enc = new TextEncoder();
-const b64 = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
+// Chunked bytes→base64 (String.fromCharCode arg-limit safety, matching
+// bridgeStream.js — offers are small today, but helpers shouldn't have
+// payload-size cliffs).
+const b64 = (bytes) => {
+  const u8 = new Uint8Array(bytes);
+  let s = '';
+  for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000));
+  return btoa(s);
+};
 const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
 /** Mint a pairing code: 13 base32 chars (~65 bits), grouped for typing. */

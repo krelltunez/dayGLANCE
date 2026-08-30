@@ -5,6 +5,7 @@ import {
   deriveBridgeSubkey,
   openBridgeEnvelope,
   sealBridgeEnvelope,
+  encodePlainBridgeRow,
 } from '@glance-apps/obsidian-format';
 import {
   emitBridgeIntent,
@@ -42,7 +43,8 @@ const makeFetch = ({ meta = META, failBatch = false } = {}) => {
     }
     if (url.includes('/sync/dayglance-bridge/meta')) {
       if (!meta) return { ok: false, status: 404, json: async () => ({}) };
-      return { ok: true, status: 200, json: async () => ({ entityId: 'meta:pairing', envelope: JSON.stringify(meta) }) };
+      // As the real server serves it: envelope bytes, base64-encoded.
+      return { ok: true, status: 200, json: async () => ({ entityId: 'meta:pairing', envelope: encodePlainBridgeRow(meta) }) };
     }
     return { ok: false, status: 404, json: async () => ({}) };
   };
@@ -87,6 +89,10 @@ describe('emit + flush', () => {
     const batch = globalThis.fetch.batches.at(-1);
     expect(batch.accountId).toBe('acct-1');
     expect(batch.rows[0].entityId).toBe(`int:${queued[0].intentId}`);
+    // The wire envelope must survive the real server's byte round trip
+    // (Buffer.from(base64) in, .toString('base64') out) — the raw-JSON
+    // regression is caught right here.
+    expect(Buffer.from(batch.rows[0].envelope, 'base64').toString('base64')).toBe(batch.rows[0].envelope);
     const subkey = await deriveBridgeSubkey(getDbRootKey(), SALT);
     const opened = await openBridgeEnvelope(subkey, batch.rows[0].envelope);
     expect(opened).toMatchObject({ kind: 'intent', type: 'daily_note_write', content: 'hi', intentId: queued[0].intentId });

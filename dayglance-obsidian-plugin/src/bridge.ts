@@ -28,6 +28,7 @@ import {
   applyBridgeIntent,
   openBridgeEnvelope,
   sealBridgeEnvelope,
+  encodePlainBridgeRow,
   observationEntityId,
   importBridgeSubkey,
   buildDateParser,
@@ -96,7 +97,9 @@ export async function publishPairingMeta(pairing: BridgePairing | null, previous
       accountId: pairing.accountId,
       rows: [{
         entityId: BRIDGE_PAIRING_META_ID,
-        envelope: JSON.stringify({
+        // Wire-encoded (base64), NOT encrypted — the server stores envelope
+        // bytes; see the format package's wire note.
+        envelope: encodePlainBridgeRow({
           v: 1, kind: 'pairing-meta',
           generation: pairing.generation, pairingSalt: pairing.pairingSalt, pairedAt: pairing.pairedAt,
         }),
@@ -116,6 +119,12 @@ export class BridgeTransport {
   private config: BridgeConfigRow | null = null;
   private observeTimers = new Map<string, number>();
   private warnedUnsupported = false;
+  // Once per plugin load (per generation), the drain re-asserts the
+  // meta:pairing row. Normally a no-op overwrite; it is also the self-heal
+  // for a row an older build wrote in the pre-base64 wire format (stored
+  // as garbage) — without it, dayGLANCE devices could never discover the
+  // pairing until the user re-paired.
+  private metaAssertedGeneration: string | null = null;
 
   constructor(host: BridgeHost) {
     this.host = host;
@@ -143,6 +152,10 @@ export class BridgeTransport {
     try {
       const client = this.client(pairing);
       const subkey = await this.subkeyFor(pairing);
+      if (this.metaAssertedGeneration !== pairing.generation) {
+        await publishPairingMeta(pairing);
+        this.metaAssertedGeneration = pairing.generation;
+      }
       const state = this.host.getBridgeState();
       const applied = new Set(state.appliedIds);
       let since = state.hwm;
