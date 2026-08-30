@@ -135,6 +135,9 @@ export class BridgeTransport {
   private metaAssertedGeneration: string | null = null;
   private backoffMs = 0;
   private backoffUntil = 0;
+  // Per-path consecutive observation-failure counts, for the retry backoff
+  // below. Reset on the path's first successful report.
+  private observeRetryAttempts = new Map<string, number>();
 
   private rateLimited(): boolean {
     return Date.now() < this.backoffUntil;
@@ -435,14 +438,35 @@ export class BridgeTransport {
         }],
       });
       this.noteSuccess();
+      this.observeRetryAttempts.delete(path);
     } catch (e) {
       if (isRateLimitError(e)) {
         // Arm the brake and requeue this path for after it lifts.
         this.noteRateLimit();
         void this.emitObservation(path, deleted);
       } else {
-        // Observations are best-effort; the next edit re-reports the file.
-        console.error('dayGLANCE bridge: observation failed', e);
+        // EVERY failure retries — not just 429 (the fourth swallowed-failure
+        // lesson of this project, live instance: a one-shot 502 from the
+        // reverse proxy dropped a stamped-line observation, and the app only
+        // learned about the stamp when the note happened to be edited again,
+        // ~50s later). The drain's failures all self-heal by cadence with
+        // the cursor unmoved; this was the one path where a non-429 error
+        // meant SILENT LOSS until the next edit. Now: exponential per-path
+        // backoff (5s doubling to 5min, uncapped attempts — each retry
+        // re-reads the file, so a long-failing path still reports CURRENT
+        // state when the server recovers), riding the same per-path timer
+        // as the debounce so a real edit in the meantime coalesces with the
+        // retry instead of racing it.
+        const attempt = (this.observeRetryAttempts.get(path) ?? 0) + 1;
+        this.observeRetryAttempts.set(path, attempt);
+        const delayMs = Math.min(5_000 * 2 ** (attempt - 1), 5 * 60_000);
+        console.error(`dayGLANCE bridge: observation failed (${path}) — retry ${attempt} in ~${Math.round(delayMs / 1000)}s`, e);
+        const prior = this.observeTimers.get(path);
+        if (prior !== undefined) window.clearTimeout(prior);
+        this.observeTimers.set(path, window.setTimeout(() => {
+          this.observeTimers.delete(path);
+          void this.emitObservation(path, deleted);
+        }, delayMs));
       }
     }
   }

@@ -140,3 +140,82 @@ describe('persistDerivedGhostRetirements', () => {
     expect(localStorage.getItem('day-planner-retired-task-ids')).toBeNull();
   });
 });
+
+describe('recognizer #2 — stamped orphans (the schedule-while-paired duplicate, 2026-08-30)', () => {
+  // The orphan exactly as the pre-general-rule plugin mode left one: legacy
+  // id over a CLEAN title (no swallowed token — this is not a parse mangle),
+  // no block id; and the successor the observation round-trip minted, whose
+  // parse-attached legacy hint names the orphan's id.
+  const O_DATE = '2026-08-30';
+  const O_RAW = 'Testing latest updates';
+  const ORPHAN_ID = legacyObsidianId(O_DATE, O_RAW);
+  const orphan = (extra = {}) => ({
+    id: ORPHAN_ID, title: `${O_RAW} #obsidian`, obsidianRawTitle: O_RAW,
+    obsidianFileDate: O_DATE, importSource: 'obsidian',
+    completed: false, notes: '', subtasks: [], duration: 15,
+    lastModified: '2026-08-30T17:26:06.657Z',
+    ...extra,
+  });
+  const O_BLOCK = '133duscr';
+  const O_DG = appIdForBlockId(O_BLOCK);
+  const stampedSuccessor = (extra = {}) => ({
+    id: O_DG, title: `${O_RAW} #obsidian`, obsidianRawTitle: O_RAW,
+    obsidianFileDate: O_DATE, obsidianBlockId: O_BLOCK, obsidianLegacyId: ORPHAN_ID,
+    importSource: 'obsidian',
+    completed: false, notes: '', subtasks: [], duration: 15,
+    lastModified: '2026-08-30T17:26:59.000Z',
+    ...extra,
+  });
+
+  it('collapses the pair: the orphan retires onto the hint-claimed successor, and the derived record carries the mapping', () => {
+    const out = containObsidianGhostRows({ tasks: [orphan(), stampedSuccessor()], unscheduledTasks: [] });
+    expect(out.tasks.map((t) => t.id)).toEqual([O_DG]);
+    expect(out.derived).toEqual({ [ORPHAN_ID]: O_DG });
+  });
+
+  it('a NEWER edit on the orphan copy survives on the successor (the retirement redirect, no new what-wins rule)', () => {
+    const out = containObsidianGhostRows({
+      tasks: [orphan({ completed: true, lastModified: '2026-08-30T18:00:00.000Z' }), stampedSuccessor()],
+      unscheduledTasks: [],
+    });
+    expect(out.tasks).toHaveLength(1);
+    expect(out.tasks[0].id).toBe(O_DG);
+    expect(out.tasks[0].completed).toBe(true); // the user's edit on the orphan carried over
+  });
+
+  it('cross-list: an orphan in the inbox retires onto a successor in the scheduled list', () => {
+    const out = containObsidianGhostRows({ tasks: [stampedSuccessor()], unscheduledTasks: [orphan()] });
+    expect(out.unscheduledTasks).toHaveLength(0);
+    expect(out.tasks.map((t) => t.id)).toEqual([O_DG]);
+  });
+
+  it('AMBIGUITY → leave alone: two tagged rows advertising the same hint authorize nothing', () => {
+    const second = stampedSuccessor({ id: appIdForBlockId('zzzz9999'), obsidianBlockId: 'zzzz9999' });
+    const out = containObsidianGhostRows({ tasks: [orphan(), stampedSuccessor(), second], unscheduledTasks: [] });
+    expect(out.tasks.map((t) => t.id).sort()).toEqual([ORPHAN_ID, O_DG, second.id].sort());
+    expect(out.derived).toEqual({});
+  });
+
+  it('no claimant (successor lacks the hint) → untouched: the pairing must be advertised, never inferred', () => {
+    const out = containObsidianGhostRows({
+      tasks: [orphan(), stampedSuccessor({ obsidianLegacyId: undefined })], unscheduledTasks: [],
+    });
+    expect(out.tasks).toHaveLength(2);
+    expect(out.derived).toEqual({});
+  });
+
+  it('rule-4 mirror: an orphan whose id is NOT the legacy hash of its own raw title is left alone', () => {
+    const out = containObsidianGhostRows({
+      tasks: [orphan({ obsidianRawTitle: 'Some other words' }), stampedSuccessor()], unscheduledTasks: [],
+    });
+    expect(out.tasks).toHaveLength(2);
+    expect(out.derived).toEqual({});
+  });
+
+  it('a row that already HAS a block id is never an orphan, whatever hints point at it', () => {
+    const tagged = orphan({ obsidianBlockId: 'aaaa1111' });
+    const out = containObsidianGhostRows({ tasks: [tagged, stampedSuccessor()], unscheduledTasks: [] });
+    expect(out.tasks).toHaveLength(2);
+    expect(out.derived).toEqual({});
+  });
+});

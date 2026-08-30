@@ -1090,35 +1090,48 @@ export default function useObsidianSync({
         // discipline: user-visible error, retried when the task next
         // changes — the same surface a failed direct write has always had.
         if (!queued) { reportTaskWriteFailure(); continue; }
-        // GATE (a) COMPLETION (corrected ruling — the rename-while-paired
-        // war of 2026-08-30; the correction record is in the spec's Phase 6
-        // build notes). The first shape ran NO commit() here, claiming the
-        // observation round-trip absorbs identity "like another device's
-        // write." True for tagged tasks — the ^dg- token bridges identity
-        // whatever the title says — and FALSE for a legacy-id task being
-        // retitled: its id is content-derived, the applied line's parse and
-        // legacy-id hint both derive from the NEW title, and a real other
-        // device would have recorded the retirement at write time — here
-        // nobody did, so the old-id copy lingered and the renamed line
-        // imported as a second task (the reconcile war's fuel).
+        // GATE (a), THE GENERAL RULE (third and final form — twice-corrected;
+        // the full record is in the spec's Phase 6 build notes):
         //
-        // So the retitle's commit() runs on SUCCESSFUL ENQUEUE. Gate (a)'s
-        // principle is that every snapshot advance is backed by exactly one
-        // action, and the id bookkeeping rides that same action: the outbox
-        // is durable, so enqueue is the write in every sense the snapshot
-        // already trusts. THE TRADE, weighed not missed: if an enqueued
-        // intent is later lost (revoked pairing, outbox overflow), the app
-        // briefly holds an id no vault line carries — bounded by the same
-        // latch-and-surface discipline, and a lost retitle already leaves
-        // visible divergence today. The alternative — teaching the
-        // observation side to bridge old ids — stays rejected: it means
-        // carrying rename semantics in observations, which §3.6
-        // deliberately forbids. Non-retitle intents still settle through
-        // the round-trip (the ^dg- token or the unchanged-title legacy
-        // hint bridges them), so only the case that was broken changes.
+        //   EVERY IDENTITY MOVE COMMITS ITS BOOKKEEPING ON THE SAME ACTION
+        //   THAT EMITS THE WRITE, REGARDLESS OF WHAT TRIGGERED THE WRITE.
+        //
+        // Two identity moves exist on this path — a retitle (legacy id
+        // recomputed from the new title) and the OPPORTUNISTIC BLOCK-ID
+        // STAMP (assignBlockId: legacy → ^dg-, fired by ANY write to an
+        // untagged task: a schedule, a completion, anything). Both ride the
+        // condition below. Enumerating triggers is what failed twice:
+        //   • Shape 1 ran no commit() at all, claiming the observation
+        //     round-trip absorbs identity "like another device's write" —
+        //     false for a retitled legacy task (the rename-while-paired
+        //     war of 2026-08-30, fixed in #1482).
+        //   • Shape 2 (#1482) committed for retitles only, claiming the
+        //     unchanged-title legacy hint bridges everything else. That
+        //     claim is true for the MERGE — the hint really does collapse
+        //     the copies there — and false ONE LAYER DOWN: the DB tier's
+        //     snapshot-delete guard sees the legacy id vanish with no
+        //     retirement on record, classifies the drop as a glitch, and
+        //     HEALS THE OLD COPY BACK FROM THE VAULT. The guard is doing
+        //     its job faithfully against missing bookkeeping — which is
+        //     what turned a missing record into a PERMANENT duplicate
+        //     (the schedule-while-paired duplicate of 2026-08-30).
+        //
+        // So commit() runs on SUCCESSFUL ENQUEUE for any write that moves
+        // identity. Gate (a)'s principle is that every snapshot advance is
+        // backed by exactly one action, and the id bookkeeping rides that
+        // same action: the outbox is durable, so enqueue is the write in
+        // every sense the snapshot already trusts. THE TRADE, weighed not
+        // missed: if an enqueued intent is later lost (revoked pairing,
+        // outbox overflow), the app briefly holds an id no vault line
+        // carries — bounded by the same latch-and-surface discipline. The
+        // alternative — teaching the observation side to bridge old ids —
+        // stays rejected: it means carrying rename semantics in
+        // observations, which §3.6 deliberately forbids. Identity-neutral
+        // writes (tagged task, no stamp) still settle through the
+        // round-trip: the ^dg- token IS their identity, nothing moves.
         // Deferred via nativeCommits so the entry moves operate on the
         // fresh snapshot, exactly like a confirmed native write.
-        if (titleUpdate) nativeCommits.push(commit);
+        if (titleUpdate || assignBlockId) nativeCommits.push(commit);
         continue;
       }
 

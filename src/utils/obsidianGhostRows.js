@@ -1,5 +1,10 @@
-// GHOST-ROW CONTAINMENT — recognizing and redirecting the duplicates an OLD
-// client mints from a block-id-stamped vault line.
+// GHOST-ROW CONTAINMENT — recognizing and redirecting duplicate rows whose
+// pairing to a live successor can be DERIVED from the rows themselves. Two
+// recognizers share the cure (derived retirement + the standard supersede):
+// the token ghosts an OLD client mints from a stamped line (below), and the
+// stamped orphans the pre-general-rule plugin mode left behind (recognizer
+// #2, in containObsidianGhostRows). Runs at every sync ingress and at boot,
+// so containment is idempotent and needs no one-shot migration.
 //
 // THE CORRUPTION IS SELF-IDENTIFYING. A pre-block-id client parses
 // `- [ ] Buy milk ^dg-k3x9q2mf` with no block-ref awareness: the token becomes
@@ -115,6 +120,51 @@ export function containObsidianGhostRows({ tasks, unscheduledTasks }) {
     const succ = ghostSuccessorId(row);
     if (succ && liveIds.has(succ)) derived[String(row.id)] = succ;
   }
+
+  // ── RECOGNIZER #2: STAMPED ORPHANS (the schedule-while-paired duplicate,
+  // 2026-08-30). A different corruption with the same cure: a plugin-mode
+  // write stamped an untagged line (the opportunistic block id — an identity
+  // move) before the gate (a) general rule existed, so no retirement was
+  // recorded; the legacy copy then survived every merge drop because the
+  // snapshot-delete guard — correctly — healed an unexplained vanish back
+  // from the vault. The pair is derivable with the same precision-over-
+  // recall discipline as the token ghosts, ALL of these holding:
+  //   1. the orphan is an obsidian import with NO obsidianBlockId;
+  //   2. a live TAGGED row's parse-attached obsidianLegacyId — recomputed
+  //      from the CURRENT vault line every scan — names the orphan's id
+  //      exactly: the line that would have minted the orphan now carries
+  //      that row's token;
+  //   3. exactly ONE such claimant (two rows advertising the same hint is
+  //      ambiguity → leave the pair alone rather than guess);
+  //   4. the orphan's id equals the legacy derivation of its own recorded
+  //      raw title (proving it was MINTED by the legacy parser from exactly
+  //      this line, not typed into some other identity);
+  //   5. the successor is live (shared with the token rules — with no live
+  //      successor the record authorizes nothing).
+  // Anything failing any rule passes through untouched. The supersede and
+  // the redirect-if-newer are the retirement machinery's own — no new
+  // what-wins rule; an edit made on the orphan copy survives on the
+  // successor.
+  const byLegacyHint = new Map(); // hint → successor id, or null when ambiguous
+  for (const row of [...t, ...u]) {
+    if (!row || !row.obsidianBlockId || !row.obsidianLegacyId) continue;
+    const hint = String(row.obsidianLegacyId);
+    byLegacyHint.set(hint, byLegacyHint.has(hint) ? null : String(row.id));
+  }
+  for (const row of [...t, ...u]) {
+    if (!row || row.importSource !== 'obsidian' || row.obsidianBlockId) continue;
+    const id = String(row.id);
+    if (derived[id]) continue; // already recognized as a token ghost
+    const succ = byLegacyHint.get(id);
+    if (!succ) continue; // no claimant, or an ambiguous one (null)
+    const dateMatch = /^obsidian-(\d{4}-\d{2}-\d{2})-/.exec(id);
+    if (!dateMatch) continue;
+    if (typeof row.obsidianRawTitle !== 'string') continue;
+    if (id !== legacyObsidianId(dateMatch[1], row.obsidianRawTitle)) continue;
+    if (!liveIds.has(succ)) continue;
+    derived[id] = succ;
+  }
+
   if (Object.keys(derived).length === 0) return { tasks: t, unscheduledTasks: u, derived };
 
   // Sanitize the ghosts before the supersede: the swallowed token is
