@@ -36,6 +36,7 @@ import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, getBridgePair
 import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor } from '../utils/obsidianBridgeInbound.js';
 import { recordBridgeMode, reconcileArchivedBaseline } from '../utils/obsidianBridgeMode.js';
 import { restoreBinnedVaultTasks, binRestoreNoticeText } from '../utils/obsidianBinRestore.js';
+import { inferNoteScopedDeletionCandidates, reconcileNoteScopedDeletions } from '../utils/obsidianNoteScopedDeletions.js';
 
 /**
  * Obsidian vault sync — extracted from App.jsx (see "App.jsx — Ongoing
@@ -397,6 +398,11 @@ export default function useObsidianSync({
       }
     }
     obsidianSyncInProgressRef.current = true;
+    // Set by the plugin branch when stampable (untagged) tasks exist after a
+    // merge: the writeback effect run that merge triggers is skipped by the
+    // in-progress guard above it, so the finally below re-triggers ONE pass
+    // once the guard is down. See "STAMP ON SIGHT" in the plugin branch.
+    let nudgeWriteback = false;
     const syncStart = Date.now();
     setObsidianSyncStatus('syncing');
 
@@ -503,22 +509,74 @@ export default function useObsidianSync({
         // ── Plugin-mode inbound: apply the observation stream ───────────
         // Observations flow through the SAME per-note pipeline as a scan
         // (utils/obsidianBridgeInbound.js), then through the same merge
-        // helpers. The deletion detector does NOT run — observations can
-        // never establish scan completeness, so while paired this device
-        // detects no vault deletions (a deliberate, conservative gap:
-        // tasks linger rather than tombstone; recorded in the spec).
+        // helpers. The VAULT-WIDE deletion detector does NOT run —
+        // observations can never establish scan completeness — but each
+        // observation IS complete at the grain of its one note, so
+        // NOTE-SCOPED deletion inference runs below instead
+        // (utils/obsidianNoteScopedDeletions.js): a task claiming to live
+        // in an observed note whose parse no longer carries its id or hint
+        // is tombstoned through the existing deletedObsidianKeys LWW
+        // channel, stamped at the observation's mtime, after a one-cycle
+        // confirmation hold. What remains conservative: notes never
+        // observed while paired still report nothing (§3.10 availability
+        // note, as amended).
         // The cursor commits only after the merges are dispatched, so a
         // crash mid-cycle replays the batch — application is idempotent.
         const fetched = await fetchBridgeObservations();
         if (fetched) {
-          if (fetched.observations.length) {
-            const applied = applyBridgeObservations(fetched.observations, {
-              existingTasks: currentTasks,
-              existingInbox: currentInbox,
-              dailyNotesPath: obsidianConfig?.dailyNotesPath || '',
-              dailyNotePattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
-              onTitleConflict,
-            });
+          const applied = fetched.observations.length
+            ? applyBridgeObservations(fetched.observations, {
+                existingTasks: currentTasks,
+                existingInbox: currentInbox,
+                dailyNotesPath: obsidianConfig?.dailyNotesPath || '',
+                dailyNotePattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
+                onTitleConflict,
+              })
+            : null;
+
+          // NOTE-SCOPED DELETION INFERENCE (see the util's header for the
+          // full rules). Runs on EVERY successful fetch — an empty fetch is
+          // still complete knowledge that no pended id reappeared, so it
+          // confirms the hold. Tombstones extend BEFORE the merges so a
+          // commit drops its task this cycle, and they are stamped with the
+          // observation's file mtime, never "now" — an app edit newer than
+          // the note beats them under the channel's existing LWW rule.
+          const batchScannedIds = applied ? applied.scannedIds : new Set();
+          let pendingNoteDeletions = {};
+          try { pendingNoteDeletions = JSON.parse(localStorage.getItem('day-planner-obsidian-pending-note-deletions') || '{}'); } catch { pendingNoteDeletions = {}; }
+          const liveObsidianIds = new Set(
+            [...currentTasks, ...currentInbox].filter(t => t?.importSource === 'obsidian').map(t => String(t.id)));
+          const candidates = applied
+            ? inferNoteScopedDeletionCandidates({
+                observedNotes: applied.dailyNotes,
+                scannedIds: batchScannedIds,
+                tasks: currentTasks,
+                inbox: currentInbox,
+              })
+            : [];
+          const { commits, nextPending } = reconcileNoteScopedDeletions({
+            pending: pendingNoteDeletions,
+            candidates,
+            scannedIds: batchScannedIds,
+            liveIds: liveObsidianIds,
+          });
+          if (commits.length) {
+            for (const c of commits) tombstones = addObsidianTombstones(tombstones, [c.id], c.deletedAt);
+            localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(tombstones));
+            // Loud on purpose: a deletion inference is the one action here
+            // that removes user-visible data, and its evidence should be on
+            // the record when it runs.
+            console.warn(
+              `Obsidian: ${commits.length} task line(s) confirmed removed from observed note(s) — tombstoning (LWW, stamped at note mtime):`,
+              commits.map(c => `${c.id} [note ${c.noteDate}, mtime ${c.deletedAt}]`).join('; '));
+          }
+          if (candidates.length) {
+            console.log('Obsidian: note-scoped deletion candidates pending one-cycle confirmation:',
+              candidates.map(c => `${c.id} [note ${c.noteDate}]`).join('; '));
+          }
+          try { localStorage.setItem('day-planner-obsidian-pending-note-deletions', JSON.stringify(nextPending)); } catch { /* re-inferred when the note is next observed */ }
+
+          if (applied) {
             // BIN-VERSUS-VAULT (§3.10 ruling 5): an observed line whose task
             // sits in the recycle bin restores it, visibly. In plugin mode
             // this fires when the note is next OBSERVED — observations are
@@ -549,6 +607,28 @@ export default function useObsidianSync({
             for (const t of [...binRestore.scheduledTasks, ...binRestore.inboxTasks]) {
               snap[t.id] = { completed: t.completed, startTime: t.startTime || null, duration: t.duration || null, title: t.title, date: t.date || null };
             }
+            // STAMP ON SIGHT (spec §3.10, identity-versus-content): an
+            // imported untagged line should acquire its ^dg- identity on
+            // first import, not on its next edit — the stamp is emitted by
+            // the writeback effect (the ONE emit site, so gate (a)'s
+            // commit-on-enqueue rule rides unchanged), but that effect's
+            // run for THIS merge is skipped by the sync-in-progress guard
+            // and would otherwise wait for an arbitrary later task change.
+            // Nudge one writeback pass after the cycle ends (the finally
+            // below) whenever stampable tasks exist. Self-limiting: once
+            // stamped, nothing here matches and the nudge stops firing.
+            if (blockIdWritesEnabled()
+              && [...binRestore.scheduledTasks, ...binRestore.inboxTasks, ...currentTasks, ...currentInbox]
+                .some(t => t?.importSource === 'obsidian' && t.obsidianRawTitle && !t.obsidianBlockId)) {
+              nudgeWriteback = true;
+            }
+          } else if (commits.length) {
+            // No observations this batch, but the hold just confirmed
+            // deletions — apply the tombstones to state now rather than on
+            // the next row-bearing merge. An empty scanned set retains
+            // everything except the newly tombstoned.
+            setTasks(prev => mergeObsidianTasks(prev, [], new Set(), preserveObsidianAppFields, tombstones));
+            setUnscheduledTasks(prev => mergeObsidianTasks(prev, [], new Set(), preserveObsidianAppFields, tombstones));
           }
           if (fetched.maxSeq) commitBridgeObservationCursor(fetched.maxSeq);
         }
@@ -718,6 +798,11 @@ export default function useObsidianSync({
       }
     } finally {
       obsidianSyncInProgressRef.current = false;
+      // Identity-only poke: re-runs the writeback effect now that the guard
+      // is down, so stamp-on-sight fires this cycle instead of riding the
+      // next unrelated task change. Content is untouched — only stampNeeded
+      // iterations (and any genuinely pending diffs) act on the pass.
+      if (nudgeWriteback) setTasks(prev => (prev || []).slice());
       notifyNativeReady();
     }
   };
@@ -955,7 +1040,36 @@ export default function useObsidianSync({
       // (not obsidianFileDate) so this is a one-shot trigger per reschedule.
       const dateChanged = !!(task.date && p.date && task.date !== p.date);
 
-      if (!titleChanged && !stateChanged && !dateChanged) continue;
+      // STAMP ON SIGHT (spec §3.10, identity-versus-content) — a NAMED new
+      // write-trigger class: the IDENTITY-ASSIGNMENT WRITE FIRED BY IMPORT.
+      // Obsidian owns task CONTENT; identity is a different question — an
+      // untagged line's only identity is its own text, so any inbound edit
+      // to it is structurally delete+create, and the task fractures on the
+      // first rename. Stamping is how dayGLANCE keeps track of a line whose
+      // content Obsidian owns; assigning it on FIRST IMPORT (not on the
+      // task's next edit, as the Phase 2 opportunistic rule alone did)
+      // closes that window. This is deliberately a write triggered by
+      // merely READING the vault — not slipped into the change detection
+      // above but its own condition, so the class stays visible. Scope:
+      //  • PLUGIN MODE ONLY (authoritative): the direct writers arm the
+      //    launch-on-write debounce at fire time, so a machine-initiated
+      //    stamp in direct mode could pop Obsidian open with no user action
+      //    behind it; direct mode also already janitors untagged renames
+      //    via the vault-wide deletion detector. Direct-mode stamp-on-sight
+      //    waits for a machine-write flag through the launch chokepoints
+      //    (named follow-up in the spec).
+      //  • Gated on the SAME block-id write release as every stamp
+      //    (blockIdWritesEnabled) — this is Phase 2's opportunistic stamp
+      //    with a widened trigger, not a second minting policy.
+      // The emit below is the normal task_state intent carrying the
+      // line's current state plus the derived block id; commit-on-enqueue
+      // (gate (a)'s general rule) books the identity move exactly as for
+      // any other stamping write.
+      const stampNeeded = authoritative
+        && !titleChanged && !stateChanged && !dateChanged
+        && !task.obsidianBlockId && blockIdWritesEnabled();
+
+      if (!titleChanged && !stateChanged && !dateChanged && !stampNeeded) continue;
 
       // Always write back to the original file the task was parsed from.
       // obsidianFileDate is set at parse time and never changes.
@@ -1099,7 +1213,10 @@ export default function useObsidianSync({
         // Two identity moves exist on this path — a retitle (legacy id
         // recomputed from the new title) and the OPPORTUNISTIC BLOCK-ID
         // STAMP (assignBlockId: legacy → ^dg-, fired by ANY write to an
-        // untagged task: a schedule, a completion, anything). Both ride the
+        // untagged task: a schedule, a completion, anything — and, since
+        // stamp-on-sight, by the import itself: the identity-assignment
+        // write class rides the SAME assignBlockId and the same condition,
+        // exactly as a trigger-agnostic rule demands). Both ride the
         // condition below. Enumerating triggers is what failed twice:
         //   • Shape 1 ran no commit() at all, claiming the observation
         //     round-trip absorbs identity "like another device's write" —
