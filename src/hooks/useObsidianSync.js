@@ -19,7 +19,7 @@ import { effectiveLaunchOnWrite } from '../utils/obsidianLaunchOnWrite.js';
 import { validateWikiNoteName } from '../utils/obsidianFilename.js';
 import { classifyVaultPaths } from '../utils/vaultPortability.js';
 import { mergeObsidianDailyNotes } from '../utils/mergeObsidianDailyNotes.js';
-import { mergeObsidianTasks } from '../utils/mergeObsidianTasks.js';
+import { mergeObsidianTasks, noteMtimesFromDailyNotes } from '../utils/mergeObsidianTasks.js';
 import { detectObsidianDeletions, addObsidianTombstones } from '../utils/obsidianDeletions.js';
 import { reattachTasksMetadata } from '../utils/obsidianTasksMetadata.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
@@ -594,8 +594,12 @@ export default function useObsidianSync({
               binRestores.push(...binRestore.restored);
             }
             setDailyNotes(prev => mergeObsidianDailyNotes(prev, applied.dailyNotes, tombstones));
-            setTasks(prev => mergeObsidianTasks(prev, binRestore.scheduledTasks, applied.scannedIds, preserveObsidianAppFields, tombstones));
-            setUnscheduledTasks(prev => mergeObsidianTasks(prev, binRestore.inboxTasks, applied.scannedIds, preserveObsidianAppFields, tombstones));
+            // The observed notes' mtimes are the revival evidence (§3.10
+            // ruling 6): a scanned line whose tombstone predates its note's
+            // mtime is re-admitted with lastModified lifted to that mtime.
+            const observedNoteMtimes = noteMtimesFromDailyNotes(applied.dailyNotes);
+            setTasks(prev => mergeObsidianTasks(prev, binRestore.scheduledTasks, applied.scannedIds, preserveObsidianAppFields, tombstones, observedNoteMtimes));
+            setUnscheduledTasks(prev => mergeObsidianTasks(prev, binRestore.inboxTasks, applied.scannedIds, preserveObsidianAppFields, tombstones, observedNoteMtimes));
             // Refresh the writeback snapshot for the OBSERVED tasks only —
             // observations are per-note, so untouched entries stay put.
             // This is also how this device's own emitted writes settle
@@ -771,8 +775,12 @@ export default function useObsidianSync({
       // Update tasks/inbox — same merge-not-replace + honor-tombstones rule; RETAIN
       // prior Obsidian tasks this scan didn't produce (another device's vault),
       // drop only those with a deletion tombstone. See mergeObsidianTasks.
-      setTasks(prev => mergeObsidianTasks(prev, binRestore.scheduledTasks, scannedObsidianIds, preserveObsidianAppFields, tombstones));
-      setUnscheduledTasks(prev => mergeObsidianTasks(prev, binRestore.inboxTasks, scannedObsidianIds, preserveObsidianAppFields, tombstones));
+      // The scanned notes' mtimes carry the revival evidence (§3.10 ruling 6),
+      // so a verbatim re-creation revives on a direct scan exactly as it does
+      // on an observation.
+      const scannedNoteMtimes = noteMtimesFromDailyNotes(result.dailyNotes);
+      setTasks(prev => mergeObsidianTasks(prev, binRestore.scheduledTasks, scannedObsidianIds, preserveObsidianAppFields, tombstones, scannedNoteMtimes));
+      setUnscheduledTasks(prev => mergeObsidianTasks(prev, binRestore.inboxTasks, scannedObsidianIds, preserveObsidianAppFields, tombstones, scannedNoteMtimes));
 
       // Snapshot the fresh task state so the writeback effect doesn't re-trigger
       const snapshot = {};
