@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link2, Loader } from 'lucide-react';
+import { Check, Copy, Link2, Loader } from 'lucide-react';
 import { readVaultHeartbeat } from '../obsidian.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
 import { startBridgePairing, cancelBridgePairing } from '../utils/obsidianBridgePairing.js';
@@ -29,6 +29,7 @@ const BridgePairingPanel = ({ vaultHandleRef, darkMode, textPrimary, textSeconda
   const [code, setCode] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
   const [hb, setHb] = useState({ obsidianRunning: false, pluginAuthoritative: false });
   // Days since pairing, from the discovered meta:pairing row — feeds the
   // §6 Phase 6 mode indicator ("Bridge plugin active (paired N days ago).
@@ -73,6 +74,7 @@ const BridgePairingPanel = ({ vaultHandleRef, darkMode, textPrimary, textSeconda
     try {
       const result = await startBridgePairing(vaultHandleRef?.current, token);
       setCode(result.code);
+      setCopied(false);
       // Reset to the prefill (not blank) so a later re-pair is one click.
       setToken(getVaultConfig()?.vaultToken || '');
     } catch (e) {
@@ -85,6 +87,15 @@ const BridgePairingPanel = ({ vaultHandleRef, darkMode, textPrimary, textSeconda
   const cancel = async () => {
     await cancelBridgePairing(vaultHandleRef?.current);
     setCode(null);
+    setCopied(false);
+  };
+
+  const copyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* clipboard unavailable — the code is on screen to copy by hand */ }
   };
 
   return (
@@ -106,8 +117,16 @@ const BridgePairingPanel = ({ vaultHandleRef, darkMode, textPrimary, textSeconda
       </p>
       {code ? (
         <div className="space-y-2">
-          <div className={`text-xl font-mono tracking-widest text-center py-2 rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-stone-100 text-stone-900'}`}>
-            {code}
+          <div className={`flex items-center justify-center gap-2 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-100'}`}>
+            <span className={`text-sm font-mono tracking-wider ${darkMode ? 'text-white' : 'text-stone-900'}`}>{code}</span>
+            <button
+              onClick={copyCode}
+              aria-label={t('settings.obsidianBridgeCopyCode')}
+              title={t('settings.obsidianBridgeCopyCode')}
+              className={`p-1 rounded ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-stone-200'} ${textSecondary}`}
+            >
+              {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+            </button>
           </div>
           <p className={`text-xs ${textSecondary}`}>{t('settings.obsidianBridgeCodeHint')}</p>
           <button

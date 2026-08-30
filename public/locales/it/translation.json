@@ -284,6 +284,7 @@
     "obsidianBridgeStart": "Avvia associazione",
     "obsidianBridgeCancel": "Annulla associazione",
     "obsidianBridgeCodeHint": "In Obsidian esegui il comando “dayGLANCE Bridge: Enter pairing code” e digita questo codice. L'offerta scade dopo 10 minuti.",
+    "obsidianBridgeCopyCode": "Copia codice",
     "obsidianSyncComplete": "Sincronizzazione completata",
     "obsidianSyncFailed": "Sincronizzazione fallita. Controlla la console",
     "obsidianSelectVault": "Seleziona cartella vault",

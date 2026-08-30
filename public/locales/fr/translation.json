@@ -284,6 +284,7 @@
     "obsidianBridgeStart": "Démarrer l'appairage",
     "obsidianBridgeCancel": "Annuler l'appairage",
     "obsidianBridgeCodeHint": "Dans Obsidian, lancez la commande “dayGLANCE Bridge: Enter pairing code” et saisissez ce code. L'offre expire au bout de 10 minutes.",
+    "obsidianBridgeCopyCode": "Copier le code",
     "obsidianSyncComplete": "Synchronisation terminée",
     "obsidianSyncFailed": "Échec de la synchronisation. Voir la console pour les détails",
     "obsidianSelectVault": "Sélectionner le dossier du coffre",
