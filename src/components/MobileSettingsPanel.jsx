@@ -15,6 +15,7 @@ import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
 import { testConnection, PROVIDER_MODELS, PROVIDER_LABELS } from '../ai.js';
 import { isFileSystemAccessSupported, requestVaultAccess, disconnectVault, scanVaultNotes, formatDatePattern } from '../obsidian.js';
 import UnportableVaultNamesPanel from './UnportableVaultNamesPanel.jsx';
+import BridgeStatusPanel from './BridgeStatusPanel.jsx';
 import { validateDailyNotePattern, validateVaultFolderSetting } from '../utils/obsidianFilename.js';
 import { effectiveLaunchOnWrite } from '../utils/obsidianLaunchOnWrite.js';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
@@ -1718,6 +1719,14 @@ const MobileSettingsPanel = () => {
           {obsidianSyncStatus === 'error' && <p className="text-xs text-red-500">{t('settings.obsidianSyncFailed')}</p>}
           {obsidianLastSynced && obsidianConfig?.enabled && (
             <p className={`text-xs ${textSecondary}`}>{t('common.lastSynced')}: {new Date(obsidianLastSynced).toLocaleString()}</p>
+          )}
+          {/* §6 mode indicator, native flavor (three states — see
+              BridgeStatusPanel): this panel is THE settings surface on
+              phones, so without it a phone that silently fell back to
+              direct mode (the 2026-08-31 plugin-settings-sync incident)
+              had no UI saying so anywhere it could see. */}
+          {obsidianConfig?.enabled && (
+            <BridgeStatusPanel darkMode={darkMode} textPrimary={textPrimary} textSecondary={textSecondary} borderClass={borderClass} />
           )}
         </div>
       ) : obsidianConfig?.enabled ? (
