@@ -28,7 +28,7 @@
 //     the PRE-merge (vault-consistent) mirror so those survivors diff dirty and
 //     push next cycle. See the commit block in dbSyncCycle.
 
-import { createDbSyncEngine, clearDbRootKey, initDbRootKey, decryptEntity } from '@glance-apps/sync';
+import { createDbSyncEngine, clearDbRootKey, initDbRootKey, decryptEntity, isSuppressedError } from '@glance-apps/sync';
 import { getVaultConfig, isVaultEnabled } from './vaultConfig.js';
 import { getDeviceId } from './deviceId.js';
 import {
@@ -750,7 +750,32 @@ export function createDbEngine(callbacks = {}) {
       // LOAD-BEARING ORDER: this pull must stay ahead of pushDirtyRows, in the
       // same try, with its failure left to throw — it is what keeps the HWM=0
       // seed gate above from turning into a push/nudge/re-seed loop.
-      const pull = await engine.pullRemoteChanges();   // merge remote into mirror first
+      let pull;
+      try {
+        pull = await engine.pullRemoteChanges();   // merge remote into mirror first
+      } catch (err) {
+        // ── 2.0.0 PER-HALF SUPPRESSION, pull half ─────────────────────────
+        // SYNC_SUPPRESSED is the package's OWN gate declining the call
+        // BEFORE any network (its 4a backoff/quota windows) — a pause, not
+        // a failure. Nothing ran: no rows applied, no cursor moved, so
+        // there is nothing to roll back and no strike to record — feeding
+        // this to breaker.onFailure would stack dayGLANCE's cooldown on
+        // top of the window that produced it, two brakes compounding from
+        // one cause. The TRIGGER is preserved by aligning the deferred
+        // retry to the window's own retryAt (the package changelog's
+        // guidance): a gated SSE nudge lands when the window lifts, not at
+        // the next poll. The early return also aborts the push — the
+        // pull-first-abort ordering the seed gate depends on is untouched.
+        // Real failures fall through to the outer catch (rollback +
+        // strike), unchanged.
+        if (!isSuppressedError(err)) throw err;
+        armDeferredRetry(Math.max(1000, err.retryInMs ?? 1000));
+        callbacks.onStatusChange?.('idle');
+        return {
+          applied: 0, skipped: 0, skippedEntityIds: [],
+          suppressed: true, direction: 'pull', reason: err.reason, retryInMs: err.retryInMs, retryPending: true,
+        };
+      }
       // The engine's onRowsSkipped fires from its own dbSyncCycle, which we
       // bypass — so surface undecryptable-row skips from the pull result here.
       if (pull && pull.skipped > 0) callbacks.onRowsSkipped?.(pull.skipped, pull.skippedEntityIds || []);
@@ -808,7 +833,28 @@ export function createDbEngine(callbacks = {}) {
       // rows the push below sends, and on success their pushed content becomes
       // the acked-hash baseline for the no-op re-push skip in the diff.
       const dirtyBeforePush = typeof engine.getDirtySet === 'function' ? engine.getDirtySet() : null;
-      const pushRes = await engine.pushDirtyRows();        // push merged superset + local changes
+      let pushRes = null;
+      let pushSuppressedRetryInMs = null;
+      try {
+        pushRes = await engine.pushDirtyRows();        // push merged superset + local changes
+      } catch (err) {
+        // ── 2.0.0 PER-HALF SUPPRESSION, push half ─────────────────────────
+        // THE CASE THE BLANKET SHAPE WOULD HAVE BROKEN (ruling 1): the pull
+        // above SUCCEEDED, and under 'end-of-pull' the package persisted the
+        // pull cursor at the end of pullRemoteChanges — so an abort here
+        // that skipped the rollback would discard the mirror with the
+        // cursor already past its rows: the permanent-loss window the
+        // rollback exists for. A suppressed push is therefore a SKIPPED
+        // push, mirroring the package cycle's own pushSkipped: the pulled
+        // mirror is good data, and committing it below is exactly what
+        // makes the pull's cursor advance honest. Nothing was acked, so
+        // the acked-hash recording below is skipped and the persisted
+        // dirty set is untouched — the rows push when the window lifts,
+        // via the deferred retry armed to the window's retryAt at the end
+        // of the cycle. No strike: the package already owns this pause.
+        if (!isSuppressedError(err)) throw err;
+        pushSuppressedRetryInMs = Math.max(1000, err.retryInMs ?? 1000);
+      }
       // Own-echo damping (#1455, sync/ownWrites.js): a push that WROTE gets a
       // nudge back carrying exactly this maxSeq — record it so the SSE
       // coalescer can suppress our own echo by identity. Only on an actual
@@ -863,11 +909,13 @@ export function createDbEngine(callbacks = {}) {
       // snapshot → 'new' in cycle N+1's diff → pushed. And for a pulled remote
       // change: in the snapshot AND in the commit → clean, no echo re-push.)
       const vaultSnapshot = shredHashes(mirror);
-      // The push above was fully acked (a throw would have skipped this), so
-      // record what the vault now holds for each pushed id: present in the
-      // mirror → its pushed content hash (vaultSnapshot is hashed from the
-      // exact mirror the push read); absent → an acked soft-delete.
-      if (dirtyBeforePush) {
+      // The push above was fully acked (a real throw would have skipped
+      // this, and a SUPPRESSED push skips it via the guard — nothing was
+      // sent, so nothing is acked), so record what the vault now holds for
+      // each pushed id: present in the mirror → its pushed content hash
+      // (vaultSnapshot is hashed from the exact mirror the push read);
+      // absent → an acked soft-delete.
+      if (dirtyBeforePush && pushSuppressedRetryInMs === null) {
         for (const id of dirtyBeforePush) {
           if (vaultSnapshot[id] !== undefined) {
             ackedUpsertHashes.set(id, vaultSnapshot[id]);
@@ -918,12 +966,21 @@ export function createDbEngine(callbacks = {}) {
           glitchUnresolved.slice(0, 25), glitchUnresolved.length > 25 ? `(+${glitchUnresolved.length - 25} more)` : ''
         );
       }
-      // This cycle COMPLETED (pull + push both ran), so it served whatever any
-      // gated trigger was announcing — a still-pending deferred retry would
-      // just run a pointless extra cycle. Cancel it. (A THROWN cycle skips
-      // this, deliberately: its pull may not have finished, and the retry
-      // re-arms itself through the gate anyway.)
-      cancelPendingRetry();
+      // This cycle COMPLETED (pull ran; push ran or was window-suppressed),
+      // so it served whatever any gated trigger was announcing — a
+      // still-pending deferred retry would just run a pointless extra
+      // cycle. Cancel it — UNLESS the push half is still owed: then keep
+      // exactly one retry armed for the package window's expiry, so the
+      // untouched dirty set lands when the window lifts rather than at the
+      // next poll. (A THROWN cycle skips this, deliberately: its pull may
+      // not have finished, and the retry re-arms itself through the gate
+      // anyway.)
+      if (pushSuppressedRetryInMs !== null) {
+        cancelPendingRetry();
+        armDeferredRetry(pushSuppressedRetryInMs);
+      } else {
+        cancelPendingRetry();
+      }
       // Breaker bookkeeping: a clean cycle resets the backoff. A cycle that
       // finished but was rate-limited inside the heal still counts as a strike —
       // the vault told us to slow down, and retrying the heal at full trigger
@@ -944,7 +1001,10 @@ export function createDbEngine(callbacks = {}) {
         breaker.onSuccess();
       }
       callbacks.onStatusChange?.('success');
-      return { applied: pull?.applied ?? 0, skipped: pull?.skipped ?? 0, skippedEntityIds: pull?.skippedEntityIds ?? [] };
+      return {
+        applied: pull?.applied ?? 0, skipped: pull?.skipped ?? 0, skippedEntityIds: pull?.skippedEntityIds ?? [],
+        ...(pushSuppressedRetryInMs !== null ? { pushSuppressed: true, retryInMs: pushSuppressedRetryInMs, retryPending: true } : {}),
+      };
     } catch (err) {
       // ROLL THE PULL CURSOR BACK to where this cycle started. This looks like
       // it is fighting the package, and it is — deliberately. As of

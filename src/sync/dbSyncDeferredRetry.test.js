@@ -184,9 +184,23 @@ describe('deferred retry — a nudge gated by a cooldown lands at cooldown expir
     await mac.engine.dbSyncCycle();
     expect(timers.pending()).toHaveLength(1);
 
-    // The timer fires at cooldown expiry → the deferred cycle runs and pulls
-    // the peer edit. Single-digit seconds after the 429, not the 5-minute poll.
-    vi.setSystemTime(atOffset(2000 + 5750));
+    // 2.0.0 (ruling 3): the same 429 that opened the LOCAL 7.5s cooldown
+    // also opened the PACKAGE's 30s pull window (4a moved enforcement into
+    // the primitives). The locally-aligned retry fires first — and instead
+    // of firing INTO the still-open package window at full cadence, the
+    // cycle is suppressed BEFORE any network and the retry re-arms to the
+    // window's own retryAt: max(local, package) achieved by chaining.
+    vi.setSystemTime(atOffset(2000 + 5750)); // t=7750
+    await timers.fire(timers.pending()[0]);
+    expect(macTitle(mac, 't1')).toBe('task t1'); // package window still open — no pull ran
+    expect(timers.pending()).toHaveLength(1);
+    // Re-armed for the package window's remainder: 30000 − 7750 + 250 pad.
+    expect(timers.pending()[0].ms).toBe(22500);
+
+    // The aligned retry fires when the package window lifts → the deferred
+    // cycle runs and pulls the peer edit — still seconds-scale after the
+    // window, not the 5-minute poll.
+    vi.setSystemTime(atOffset(7750 + 22500));
     await timers.fire(timers.pending()[0]);
     expect(macTitle(mac, 't1')).toBe('edited on peer');
     expect(timers.pending()).toHaveLength(0); // completed cycle left nothing armed
@@ -208,8 +222,10 @@ describe('deferred retry — a nudge gated by a cooldown lands at cooldown expir
     // The cooldown expires naturally and something else triggers first — a
     // foreground flip / manual "Sync now". That cycle completes and serves the
     // trigger, so it must CANCEL the pending retry rather than leave it to run
-    // an extra cycle.
-    vi.setSystemTime(atOffset(8000));
+    // an extra cycle. (2.0.0: "expires naturally" now means BOTH windows —
+    // the local 7.5s cooldown and the package's 30s pull window — so the
+    // manual trigger lands at t=31s, past the longer of the two.)
+    vi.setSystemTime(atOffset(31000));
     const manual = await mac.engine.dbSyncCycle();
     expect(manual.throttled).toBeUndefined();
     expect(macTitle(mac, 't1')).toBe('edited on peer');
@@ -228,8 +244,9 @@ describe('deferred retry — a nudge gated by a cooldown lands at cooldown expir
     vault.list = async () => { listCalls += 1; const e = new Error('list failed: 429'); e.status = 429; throw e; };
 
     let now = 0;
-    const windowDelays = [];
-    await mac.engine.dbSyncCycle(); // strike 1 — cooldown 7500ms
+    const localDelays = [];
+    const alignedDelays = [];
+    await mac.engine.dbSyncCycle(); // strike 1 — local cooldown 7500ms, package pull window 30s
     for (let window = 0; window < 3; window++) {
       // Continuous nudges throughout the cooldown: every one is gated and
       // coalesces into the single pending retry.
@@ -238,22 +255,40 @@ describe('deferred retry — a nudge gated by a cooldown lands at cooldown expir
         expect(gated.throttled).toBe(true);
       }
       expect(timers.pending()).toHaveLength(1);
-      const handle = timers.pending()[0];
-      windowDelays.push(handle.ms);
+      let handle = timers.pending()[0];
+      localDelays.push(handle.ms);
 
-      // The retry fires at expiry, attempts ONE cycle, fails again (429) — and
-      // that failure goes through the normal breaker path: the next cooldown
-      // is longer.
+      // HOP 1 (2.0.0, ruling 3): the locally-aligned retry fires while the
+      // package's LONGER window is still open — the cycle is suppressed
+      // BEFORE any network call (no list attempt burned against the vault)
+      // and the retry re-arms to the package window's own retryAt.
+      now += handle.ms;
+      vi.setSystemTime(atOffset(now));
+      const callsBeforeHop1 = listCalls;
+      await timers.fire(handle);
+      expect(listCalls).toBe(callsBeforeHop1); // suppressed = zero network
+      expect(timers.pending()).toHaveLength(1);
+      handle = timers.pending()[0];
+      alignedDelays.push(handle.ms);
+
+      // HOP 2: the package-aligned retry fires after the window lifts →
+      // exactly ONE real attempt → 429 → BOTH ladders escalate through
+      // their normal failure paths.
       now += handle.ms;
       vi.setSystemTime(atOffset(now));
       await timers.fire(handle);
     }
 
-    // Exactly one vault attempt per window (plus the initial strike): the
-    // storm stays damped even under continuous nudges.
+    // Exactly one REAL vault attempt per window (plus the initial strike):
+    // the storm stays damped even under continuous nudges, and no attempt
+    // is ever wasted against a window known to be closed.
     expect(listCalls).toBe(1 + 3);
-    // Escalation through breaker.onFailure: 7500 → 15000 → 30000 (+250ms pad).
-    expect(windowDelays).toEqual([7750, 15250, 30250]);
+    // The LOCAL ladder is unchanged from before 2.0.0: 7500 → 15000 → 30000
+    // (+250ms pad) — the adoption added alignment, not a different brake.
+    expect(localDelays).toEqual([7750, 15250, 30250]);
+    // And each hop-1 suppression re-armed to the PACKAGE window's remainder
+    // (30s/60s/120s ladder minus the time already waited, +250ms pad).
+    expect(alignedDelays).toEqual([22500, 45000, 90000]);
 
     vault.list = realList;
   });
