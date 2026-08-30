@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { setupDbRootKey, clearDbRootKey } from '@glance-apps/sync';
 import { getDbRootKey } from '@glance-apps/sync/src/dbCrypto.js';
 import {
@@ -145,6 +145,49 @@ describe('emit + flush', () => {
     expect(rows).toHaveLength(1);
     const subkey = await deriveBridgeSubkey(getDbRootKey(), SALT);
     expect(await openBridgeEnvelope(subkey, rows[0].rows[0].envelope)).toMatchObject({ kind: 'config', dailyNotesPath: 'Daily' });
+  });
+});
+
+describe('the bridge brake (429 backoff)', () => {
+  it('a 429 arms the brake: no bridge request until it lifts, then flush resumes and success resets it', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-30T12:00:00.000Z'));
+    try {
+      const limited = async () => ({ ok: false, status: 429, json: async () => ({ error: 'too many requests' }) });
+      globalThis.fetch = limited;
+      emitBridgeIntent('daily_note_write', { path: 'x.md', content: 'y' });
+      expect(await flushBridgeOutbox()).toBe(false); // 429 → brake armed
+      expect(JSON.parse(localStorage.getItem(OUTBOX_KEY))).toHaveLength(1); // nothing lost
+
+      // Brake active: the working server is NOT contacted at all.
+      globalThis.fetch = makeFetch();
+      expect(await flushBridgeOutbox()).toBe(false);
+      expect(globalThis.fetch.batches).toHaveLength(0);
+      // …and even a FORCED meta refresh serves the cache instead of fetching.
+      expect(await getBridgePairingMeta({ force: true })).toMatchObject({ generation: SALT_B64 });
+
+      // Past the window: flush goes through, queue drains, brake resets.
+      vi.setSystemTime(new Date('2026-08-30T12:00:31.000Z'));
+      expect(await flushBridgeOutbox()).toBe(true);
+      expect(globalThis.fetch.batches).toHaveLength(1);
+      expect(JSON.parse(localStorage.getItem(OUTBOX_KEY))).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('emits still QUEUE while braked — the brake pauses the network, never the outbox', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-30T12:00:00.000Z'));
+    try {
+      globalThis.fetch = async () => ({ ok: false, status: 429, json: async () => ({}) });
+      emitBridgeIntent('daily_note_write', { path: 'a.md', content: '1' });
+      await flushBridgeOutbox();
+      expect(emitBridgeIntent('daily_note_write', { path: 'b.md', content: '2' })).toBe(true);
+      expect(JSON.parse(localStorage.getItem(OUTBOX_KEY))).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -48,6 +48,14 @@ export interface BridgeState {
 
 const APPLIED_IDS_CAP = 1000;
 const OBSERVE_DEBOUNCE_MS = 2000;
+// 429 backoff (mirrors the dayGLANCE side's bridge brake): the server
+// rate-limits per IP, a budget shared with every dayGLANCE device in the
+// house — when it trips, retrying at full cadence keeps it tripped.
+const BACKOFF_BASE_MS = 30_000;
+const BACKOFF_MAX_MS = 10 * 60_000;
+
+const isRateLimitError = (e: unknown): boolean =>
+  typeof e === 'object' && e !== null && (e as { status?: number }).status === 429;
 
 interface BridgeConfigRow {
   dailyNotesPath: string;
@@ -125,6 +133,26 @@ export class BridgeTransport {
   // as garbage) — without it, dayGLANCE devices could never discover the
   // pairing until the user re-paired.
   private metaAssertedGeneration: string | null = null;
+  private backoffMs = 0;
+  private backoffUntil = 0;
+
+  private rateLimited(): boolean {
+    return Date.now() < this.backoffUntil;
+  }
+
+  private noteRateLimit(): void {
+    // One arming per burst (matches the dayGLANCE side): concurrent 429s
+    // don't compound; failing again after a brake lifted is what escalates.
+    if (this.rateLimited()) return;
+    this.backoffMs = Math.min(this.backoffMs ? this.backoffMs * 2 : BACKOFF_BASE_MS, BACKOFF_MAX_MS);
+    this.backoffUntil = Date.now() + this.backoffMs;
+    console.info(`dayGLANCE bridge: rate-limited (429) — pausing bridge requests for ~${Math.round(this.backoffMs / 1000)}s.`);
+  }
+
+  private noteSuccess(): void {
+    this.backoffMs = 0;
+    this.backoffUntil = 0;
+  }
 
   constructor(host: BridgeHost) {
     this.host = host;
@@ -147,7 +175,7 @@ export class BridgeTransport {
   /** Pull and apply pending intents. Safe to call on any cadence. */
   async drain(): Promise<void> {
     const pairing = this.host.getPairing();
-    if (!pairing || this.draining) return;
+    if (!pairing || this.draining || this.rateLimited()) return;
     this.draining = true;
     try {
       const client = this.client(pairing);
@@ -212,8 +240,10 @@ export class BridgeTransport {
           hwm: since,
         });
       }
+      this.noteSuccess();
     } catch (e) {
-      console.error('dayGLANCE bridge: drain failed', e);
+      if (isRateLimitError(e)) this.noteRateLimit();
+      else console.error('dayGLANCE bridge: drain failed', e);
     } finally {
       this.draining = false;
     }
@@ -323,6 +353,18 @@ export class BridgeTransport {
     try {
       const pairing = this.host.getPairing();
       if (!pairing) return;
+      if (this.rateLimited()) {
+        // Don't drop the report — this could be the note's LAST edit, and a
+        // dropped observation only re-reports on the next touch. Re-arm for
+        // just after the brake lifts (per-path, so re-edits coalesce).
+        const prior = this.observeTimers.get(path);
+        if (prior !== undefined) window.clearTimeout(prior);
+        this.observeTimers.set(path, window.setTimeout(() => {
+          this.observeTimers.delete(path);
+          void this.emitObservation(path, deleted);
+        }, Math.max(1000, this.backoffUntil - Date.now() + 1000)));
+        return;
+      }
       const adapter = this.host.app.vault.adapter;
       let content: string | null = null;
       let mtime: number | null = null;
@@ -346,9 +388,16 @@ export class BridgeTransport {
           createdAt: Date.now(),
         }],
       });
+      this.noteSuccess();
     } catch (e) {
-      // Observations are best-effort; the next edit re-reports the file.
-      console.error('dayGLANCE bridge: observation failed', e);
+      if (isRateLimitError(e)) {
+        // Arm the brake and requeue this path for after it lifts.
+        this.noteRateLimit();
+        void this.emitObservation(path, deleted);
+      } else {
+        // Observations are best-effort; the next edit re-reports the file.
+        console.error('dayGLANCE bridge: observation failed', e);
+      }
     }
   }
 }

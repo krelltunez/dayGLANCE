@@ -41,7 +41,7 @@ import {
   mergeParsedObsidianTasks,
   parseTasksFromMarkdown,
 } from '../obsidian.js';
-import { getBridgePairingMeta } from './obsidianBridgeStream.js';
+import { getBridgePairingMeta, bridgeRateLimited, isRateLimitError, noteBridgeRateLimit, noteBridgeRequestSuccess } from './obsidianBridgeStream.js';
 
 const OBS_HWM_KEY = 'dayglance-bridge-obs-hwm';
 
@@ -55,6 +55,10 @@ const OBS_HWM_KEY = 'dayglance-bridge-obs-hwm';
  */
 export async function fetchBridgeObservations() {
   try {
+    // Shared bridge brake (obsidianBridgeStream.js): while the server is
+    // rate-limiting, sit the cycle out — the cursor hasn't advanced, so
+    // nothing is lost, and the next cycle retries.
+    if (bridgeRateLimited()) return null;
     const cfg = getVaultConfig();
     if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId || !hasDbRootKey()) return null;
     const meta = await getBridgePairingMeta();
@@ -84,8 +88,10 @@ export async function fetchBridgeObservations() {
       }
       if (!page.rows?.length) break;
     }
+    noteBridgeRequestSuccess();
     return { observations: [...byPath.values()], maxSeq };
-  } catch {
+  } catch (err) {
+    if (isRateLimitError(err)) noteBridgeRateLimit();
     return null;
   }
 }
