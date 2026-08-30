@@ -35,6 +35,7 @@ import { withCreationFrontmatter } from '../utils/obsidianFrontmatter.js';
 import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, getBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
 import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor } from '../utils/obsidianBridgeInbound.js';
 import { recordBridgeMode, reconcileArchivedBaseline } from '../utils/obsidianBridgeMode.js';
+import { restoreBinnedVaultTasks, binRestoreNoticeText } from '../utils/obsidianBinRestore.js';
 
 /**
  * Obsidian vault sync — extracted from App.jsx (see "App.jsx — Ongoing
@@ -91,7 +92,13 @@ export default function useObsidianSync({
   setObsidianSyncNotice,
   obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
   obsidianTasksRef, obsidianInboxRef,
+  recycleBin, setRecycleBin,
 }) {
+  // Fresh bin contents for the async sync cycle (same staleness fix as the
+  // task refs above — interval-triggered syncs must not see the closure's
+  // render-time copy).
+  const recycleBinRef = useRef(recycleBin);
+  recycleBinRef.current = recycleBin;
   // Callbacks for reading/writing linked wiki notes from the vault
   const loadWikiNote = useCallback(async (noteName) => {
     const handle = obsidianVaultHandleRef.current;
@@ -330,18 +337,24 @@ export default function useObsidianSync({
   // both modes — which is exactly how a latch set in direct mode carries
   // over a pairing flip and still clears (the channel is shared; only the
   // proof changed from "scan completed" to "bridge cycle completed").
-  const finishObsidianCycle = async (syncStart, titleConflicts) => {
+  const finishObsidianCycle = async (syncStart, titleConflicts, binRestores = []) => {
     const elapsed = Date.now() - syncStart;
     if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
     const now = new Date().toISOString();
     setObsidianLastSynced(now);
     localStorage.setItem('day-planner-obsidian-last-synced', now);
-    // Fire-and-forget conflict notice: neutral, never red, never latched,
-    // auto-dismissing. The durable record is already on the task's notes.
-    if (titleConflicts.length && setObsidianSyncNotice) {
-      setObsidianSyncNotice(titleConflicts.length === 1
+    // Fire-and-forget notices: neutral, never red, never latched,
+    // auto-dismissing. The durable record is already on each task's notes —
+    // the toast is only the immediate half (§3.10 ruling 5, #1465 pattern).
+    const notices = [];
+    if (titleConflicts.length) {
+      notices.push(titleConflicts.length === 1
         ? titleConflictNoticeText(titleConflicts[0].vaultTitle)
         : `${titleConflicts.length} title conflicts: Obsidian's edits won. Your dayGLANCE renames are saved in each task's notes.`);
+    }
+    if (binRestores.length) notices.push(binRestoreNoticeText(binRestores));
+    if (notices.length && setObsidianSyncNotice) {
+      setObsidianSyncNotice(notices.join(' '));
       setTimeout(() => setObsidianSyncNotice(null), 8000);
     }
     // A successful cycle proves the vault pipeline is healthy again — the
@@ -402,6 +415,10 @@ export default function useObsidianSync({
       // persisting condition, so it never touches the error latch.
       const titleConflicts = [];
       const onTitleConflict = (c) => titleConflicts.push(c);
+      // Bin-versus-vault restores this cycle performed (§3.10 ruling 5) —
+      // same one-shot toast channel as title conflicts; the durable record
+      // is on each task's notes.
+      const binRestores = [];
       // Refresh the completion-marker format detection and the bridge
       // heartbeat once per cycle (cheap: two small dotfile reads; never
       // fail the sync).
@@ -502,9 +519,25 @@ export default function useObsidianSync({
               dailyNotePattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
               onTitleConflict,
             });
+            // BIN-VERSUS-VAULT (§3.10 ruling 5): an observed line whose task
+            // sits in the recycle bin restores it, visibly. In plugin mode
+            // this fires when the note is next OBSERVED — observations are
+            // per-changed-note, so a binned task whose note never changes
+            // waits for the next direct-mode scan (the same availability
+            // bound as deletion detection; §3.10's availability note).
+            const binRestore = restoreBinnedVaultTasks({
+              recycleBin: recycleBinRef.current,
+              scheduledTasks: applied.scheduledTasks,
+              inboxTasks: applied.inboxTasks,
+            });
+            if (binRestore.restored.length && setRecycleBin) {
+              const restoredIds = new Set(binRestore.restored.map(r => r.id));
+              setRecycleBin(prev => (prev || []).filter(t => !restoredIds.has(String(t.id))));
+              binRestores.push(...binRestore.restored);
+            }
             setDailyNotes(prev => mergeObsidianDailyNotes(prev, applied.dailyNotes, tombstones));
-            setTasks(prev => mergeObsidianTasks(prev, applied.scheduledTasks, applied.scannedIds, preserveObsidianAppFields, tombstones));
-            setUnscheduledTasks(prev => mergeObsidianTasks(prev, applied.inboxTasks, applied.scannedIds, preserveObsidianAppFields, tombstones));
+            setTasks(prev => mergeObsidianTasks(prev, binRestore.scheduledTasks, applied.scannedIds, preserveObsidianAppFields, tombstones));
+            setUnscheduledTasks(prev => mergeObsidianTasks(prev, binRestore.inboxTasks, applied.scannedIds, preserveObsidianAppFields, tombstones));
             // Refresh the writeback snapshot for the OBSERVED tasks only —
             // observations are per-note, so untouched entries stay put.
             // This is also how this device's own emitted writes settle
@@ -513,13 +546,13 @@ export default function useObsidianSync({
             // machinery (title ownership, ^dg- identity) absorbs it exactly
             // like another device's write.
             const snap = obsidianPrevTaskStateRef.current;
-            for (const t of [...applied.scheduledTasks, ...applied.inboxTasks]) {
+            for (const t of [...binRestore.scheduledTasks, ...binRestore.inboxTasks]) {
               snap[t.id] = { completed: t.completed, startTime: t.startTime || null, duration: t.duration || null, title: t.title, date: t.date || null };
             }
           }
           if (fetched.maxSeq) commitBridgeObservationCursor(fetched.maxSeq);
         }
-        await finishObsidianCycle(syncStart, titleConflicts);
+        await finishObsidianCycle(syncStart, titleConflicts, binRestores);
         return;
       }
 
@@ -637,20 +670,38 @@ export default function useObsidianSync({
       // a genuine vault deletion still propagates. See mergeObsidianDailyNotes.
       setDailyNotes(prev => mergeObsidianDailyNotes(prev, result.dailyNotes, tombstones));
 
+      // BIN-VERSUS-VAULT (§3.10 ruling 5): a scanned line whose task sits in
+      // the recycle bin restores it — the vault controls task existence, and
+      // this makes the win VISIBLE (notes record + toast) instead of the old
+      // silent shape, where the bin copy's fresher delete stamp sent the
+      // epoch-stamped re-import back through the cross-list reconciler every
+      // cycle (a #1455-class delete/resupply loop). The restored copy rides
+      // the scanned slot through the normal merges below.
+      const binRestore = restoreBinnedVaultTasks({
+        recycleBin: recycleBinRef.current,
+        scheduledTasks: result.scheduledTasks,
+        inboxTasks: result.inboxTasks,
+      });
+      if (binRestore.restored.length && setRecycleBin) {
+        const restoredIds = new Set(binRestore.restored.map(r => r.id));
+        setRecycleBin(prev => (prev || []).filter(t => !restoredIds.has(String(t.id))));
+        binRestores.push(...binRestore.restored);
+      }
+
       // Update tasks/inbox — same merge-not-replace + honor-tombstones rule; RETAIN
       // prior Obsidian tasks this scan didn't produce (another device's vault),
       // drop only those with a deletion tombstone. See mergeObsidianTasks.
-      setTasks(prev => mergeObsidianTasks(prev, result.scheduledTasks, scannedObsidianIds, preserveObsidianAppFields, tombstones));
-      setUnscheduledTasks(prev => mergeObsidianTasks(prev, result.inboxTasks, scannedObsidianIds, preserveObsidianAppFields, tombstones));
+      setTasks(prev => mergeObsidianTasks(prev, binRestore.scheduledTasks, scannedObsidianIds, preserveObsidianAppFields, tombstones));
+      setUnscheduledTasks(prev => mergeObsidianTasks(prev, binRestore.inboxTasks, scannedObsidianIds, preserveObsidianAppFields, tombstones));
 
       // Snapshot the fresh task state so the writeback effect doesn't re-trigger
       const snapshot = {};
-      for (const t of [...result.scheduledTasks, ...result.inboxTasks]) {
+      for (const t of [...binRestore.scheduledTasks, ...binRestore.inboxTasks]) {
         snapshot[t.id] = { completed: t.completed, startTime: t.startTime || null, duration: t.duration || null, title: t.title, date: t.date || null };
       }
       obsidianPrevTaskStateRef.current = snapshot;
 
-      await finishObsidianCycle(syncStart, titleConflicts);
+      await finishObsidianCycle(syncStart, titleConflicts, binRestores);
     } catch (err) {
       console.error('Obsidian sync error:', err);
       setObsidianSyncError(err.message);

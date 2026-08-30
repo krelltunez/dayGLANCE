@@ -2774,6 +2774,7 @@ const DayPlanner = () => {
     setObsidianSyncNotice,
     obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
     obsidianTasksRef, obsidianInboxRef,
+    recycleBin, setRecycleBin,
   });
 
   // Auto-backup timer
