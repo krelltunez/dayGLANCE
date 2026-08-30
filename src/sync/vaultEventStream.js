@@ -256,9 +256,25 @@ export async function openWebSseStream({ connection, signal, onOpen, onEvent, fe
  * planned today. It is invoked inside a try/catch so a throwing drain can never
  * break the debounce timer or the SSE loop.
  *
+ * OWN-ECHO DAMPING (#1455): the server stamps each nudge with the WRITING
+ * OPERATION'S own resulting seq (glance-vault routes/sync.ts,
+ * `emit(accountId, {seq: result.maxSeq})`), so "this nudge is the echo of a
+ * write this device made" is decidable by EXACT IDENTITY against the acks
+ * our own writers recorded (sync/ownWrites.js) — not by seq comparison,
+ * which would swallow a peer write that landed between our pull and our
+ * push (the #1450 freshness trap; a peer's nudge carries the PEER's seq,
+ * never one of ours, so it always drains). A suppressed echo still
+ * advances the cursor — it IS the newest seq we know — it just triggers no
+ * drain: a drain caused solely by our own just-acked write has nothing to
+ * fetch that the acking cycle didn't already hold, and removing that
+ * self-trigger is what takes a delete/resupply war from SSE speed down to
+ * poll cadence.
+ *
  * @param {object} p
  * @param {(kind:'sync'|'intents') => void} p.onDrain
  * @param {number} [p.debounceMs]     coalesce a micro-burst before draining
+ * @param {(seq:number) => boolean} [p.isOwnSeq]  exact-identity own-echo test
+ * @param {(seq:number) => void} [p.onOwnEcho]    diagnostic hook for a suppressed echo
  * @param {typeof setTimeout}  [p.setTimeoutFn]
  * @param {typeof clearTimeout}[p.clearTimeoutFn]
  * @param {(msg:string, err:any) => void} [p.onDrainError]
@@ -266,6 +282,8 @@ export async function openWebSseStream({ connection, signal, onOpen, onEvent, fe
 export function createNudgeCoalescer({
   onDrain,
   debounceMs = 400,
+  isOwnSeq,
+  onOwnEcho,
   setTimeoutFn = setTimeout,
   clearTimeoutFn = clearTimeout,
   onDrainError,
@@ -307,6 +325,13 @@ export function createNudgeCoalescer({
     if (!evt || typeof evt.seq !== 'number' || Number.isNaN(evt.seq)) return false;
     if (evt.seq <= lastSeq) return false; // not behind — coalesced/stale, ignore
     lastSeq = evt.seq;
+    if (isOwnSeq?.(evt.seq)) {
+      // Our own write's echo (exact ack identity — see the header): cursor
+      // advanced, no drain. A pending drain for an earlier PEER nudge keeps
+      // its timer; only the self-trigger is removed.
+      onOwnEcho?.(evt.seq);
+      return false;
+    }
     schedule();
     return true;
   };

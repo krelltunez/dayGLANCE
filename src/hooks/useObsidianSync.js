@@ -1035,15 +1035,39 @@ export default function useObsidianSync({
 
       if (authoritative) {
         // Plugin mode: the emitted intent above is this change's one write
-        // (gate a). NO commit() runs — the id/rawTitle/retirement
-        // bookkeeping is write-success-gated, and here "success" is the
-        // vault line coming BACK as an observation, which the existing
-        // adoption machinery absorbs exactly like another device's write
-        // (title ownership adopts the retitle, the ^dg- identity paths
-        // adopt the stamp). A failed ENQUEUE reuses the direct writer's
-        // latch discipline: user-visible error, retried when the task next
+        // (gate a). A failed ENQUEUE reuses the direct writer's latch
+        // discipline: user-visible error, retried when the task next
         // changes — the same surface a failed direct write has always had.
-        if (!queued) reportTaskWriteFailure();
+        if (!queued) { reportTaskWriteFailure(); continue; }
+        // GATE (a) COMPLETION (corrected ruling — the rename-while-paired
+        // war of 2026-08-30; the correction record is in the spec's Phase 6
+        // build notes). The first shape ran NO commit() here, claiming the
+        // observation round-trip absorbs identity "like another device's
+        // write." True for tagged tasks — the ^dg- token bridges identity
+        // whatever the title says — and FALSE for a legacy-id task being
+        // retitled: its id is content-derived, the applied line's parse and
+        // legacy-id hint both derive from the NEW title, and a real other
+        // device would have recorded the retirement at write time — here
+        // nobody did, so the old-id copy lingered and the renamed line
+        // imported as a second task (the reconcile war's fuel).
+        //
+        // So the retitle's commit() runs on SUCCESSFUL ENQUEUE. Gate (a)'s
+        // principle is that every snapshot advance is backed by exactly one
+        // action, and the id bookkeeping rides that same action: the outbox
+        // is durable, so enqueue is the write in every sense the snapshot
+        // already trusts. THE TRADE, weighed not missed: if an enqueued
+        // intent is later lost (revoked pairing, outbox overflow), the app
+        // briefly holds an id no vault line carries — bounded by the same
+        // latch-and-surface discipline, and a lost retitle already leaves
+        // visible divergence today. The alternative — teaching the
+        // observation side to bridge old ids — stays rejected: it means
+        // carrying rename semantics in observations, which §3.6
+        // deliberately forbids. Non-retitle intents still settle through
+        // the round-trip (the ^dg- token or the unchanged-title legacy
+        // hint bridges them), so only the case that was broken changes.
+        // Deferred via nativeCommits so the entry moves operate on the
+        // fresh snapshot, exactly like a confirmed native write.
+        if (titleUpdate) nativeCommits.push(commit);
         continue;
       }
 

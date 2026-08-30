@@ -27,6 +27,7 @@
 // outbound observations, refreshed whenever the values change.
 
 import { getVaultConfig } from '../sync/vaultConfig.js';
+import { recordOwnWriteSeq } from '../sync/ownWrites.js';
 import { hasDbRootKey } from '@glance-apps/sync';
 // Sanctioned deep imports (see obsidianBridgePairing.js for the root-key
 // rationale; vaultClient keeps the client constructible without the engine).
@@ -227,7 +228,10 @@ async function doFlush() {
         createdAt: Date.parse(intent.createdAt) || Date.now(),
       });
     }
-    await ctx.client.batch(BRIDGE_VAULT_APP, { accountId: ctx.accountId, rows });
+    const ack = await ctx.client.batch(BRIDGE_VAULT_APP, { accountId: ctx.accountId, rows });
+    // Own-echo damping (#1455): bridge writes advance the same per-account
+    // seq the engine's do — record the ack so our echo drains nothing.
+    recordOwnWriteSeq(ack?.maxSeq);
     noteBridgeRequestSuccess();
     // Only entries we actually sent leave the queue — an emit that raced in
     // during the network call stays for the next flush.
@@ -260,10 +264,11 @@ export async function publishBridgeConfig({ dailyNotesPath, dailyNotePattern, ta
     if (!ctx) return;
     const subkey = await getBridgeSubkey(await getBridgePairingMeta());
     if (!subkey) return;
-    await ctx.client.batch(BRIDGE_VAULT_APP, {
+    const ack = await ctx.client.batch(BRIDGE_VAULT_APP, {
       accountId: ctx.accountId,
       rows: [{ entityId: BRIDGE_CONFIG_META_ID, envelope: await sealBridgeEnvelope(subkey, payload), createdAt: Date.now() }],
     });
+    recordOwnWriteSeq(ack?.maxSeq);
     localStorage.setItem(CONFIG_HASH_KEY, hash);
     noteBridgeRequestSuccess();
   } catch (err) {
