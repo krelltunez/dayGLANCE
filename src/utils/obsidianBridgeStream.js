@@ -55,6 +55,47 @@ let cachedSubkeyGeneration = null;
 let flushInFlight = null; // the running flush's promise — callers coalesce
 let metaFetchInFlight = null;
 
+// ── THE BRIDGE BRAKE ─────────────────────────────────────────────────────────
+// 429-aware backoff shared by every bridge request path in the app (flush,
+// config publish, meta discovery, and — via the exports — the observation
+// fetch). The GLANCEvault server rate-limits per IP (default 600/min), a
+// budget the whole household's devices share with the main sync engine, the
+// intents poller, and the plugin; when it trips, everything else backs off
+// (the engine's own BRAKE) and the bridge must too — retrying at full
+// cadence just keeps the window saturated for everyone. Exponential:
+// 30s doubling to 10min, reset by the next successful bridge request.
+// While braked, emits still QUEUE (the outbox is the durable buffer) —
+// only network attempts pause.
+const BRIDGE_BACKOFF_BASE_MS = 30_000;
+const BRIDGE_BACKOFF_MAX_MS = 10 * 60_000;
+let backoffMs = 0;
+let backoffUntil = 0;
+
+export function bridgeRateLimited(nowMs = Date.now()) {
+  return nowMs < backoffUntil;
+}
+
+/** True when the error is the server's rate limiter (or a 429 quota). */
+export function isRateLimitError(err) {
+  return err?.status === 429;
+}
+
+export function noteBridgeRateLimit() {
+  // One arming per burst: concurrent 429s from the same incident (a flush's
+  // meta GET and its batch both failing) must not compound. Escalation
+  // comes from failing again AFTER a brake lifted — the retry that proves
+  // the window wasn't long enough.
+  if (bridgeRateLimited()) return;
+  backoffMs = Math.min(backoffMs ? backoffMs * 2 : BRIDGE_BACKOFF_BASE_MS, BRIDGE_BACKOFF_MAX_MS);
+  backoffUntil = Date.now() + backoffMs;
+  console.info(`[bridge] BRAKE: rate-limited (429) — bridge requests paused for ~${Math.round(backoffMs / 1000)}s.`);
+}
+
+export function noteBridgeRequestSuccess() {
+  backoffMs = 0;
+  backoffUntil = 0;
+}
+
 const readJson = (key, fallback) => {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
 };
@@ -86,6 +127,9 @@ export async function getBridgePairingMeta({ force = false } = {}) {
   if (!force && cached && Date.now() - (cached.fetchedAt || 0) < META_TTL_MS) {
     return cached.meta;
   }
+  // Under the brake, even a forced refresh serves what we have — the brake
+  // exists precisely because more requests won't help right now.
+  if (bridgeRateLimited()) return cached?.meta ?? null;
   if (metaFetchInFlight) return metaFetchInFlight;
   const ctx = vaultClientOrNull();
   if (!ctx) return cached?.meta ?? null;
@@ -96,9 +140,11 @@ export async function getBridgePairingMeta({ force = false } = {}) {
       // wire note); a malformed/undecodable row reads as not-paired.
       const parsed = row?.envelope ? decodePlainBridgeRow(row.envelope) : null;
       const meta = (parsed?.kind === 'pairing-meta' && parsed.generation && parsed.pairingSalt) ? parsed : null;
+      noteBridgeRequestSuccess();
       writeJson(META_CACHE_KEY, { meta, fetchedAt: Date.now() });
       return meta;
-    } catch {
+    } catch (err) {
+      if (isRateLimitError(err)) noteBridgeRateLimit();
       // Unreachable vault: keep whatever we knew; do not thrash.
       return cached?.meta ?? null;
     } finally {
@@ -165,6 +211,7 @@ export async function flushBridgeOutbox() {
 
 async function doFlush() {
   try {
+    if (bridgeRateLimited()) return false; // queued intents wait out the brake
     const outbox = readJson(OUTBOX_KEY, []);
     if (outbox.length === 0) return true;
     const ctx = vaultClientOrNull();
@@ -181,13 +228,15 @@ async function doFlush() {
       });
     }
     await ctx.client.batch(BRIDGE_VAULT_APP, { accountId: ctx.accountId, rows });
+    noteBridgeRequestSuccess();
     // Only entries we actually sent leave the queue — an emit that raced in
     // during the network call stays for the next flush.
     const sent = new Set(outbox.map((i) => i.intentId));
     const remaining = readJson(OUTBOX_KEY, []).filter((i) => !sent.has(i.intentId));
     writeJson(OUTBOX_KEY, remaining);
     return remaining.length === 0;
-  } catch {
+  } catch (err) {
+    if (isRateLimitError(err)) noteBridgeRateLimit();
     return false; // queued intents survive for the next flush
   }
 }
@@ -198,6 +247,7 @@ async function doFlush() {
  */
 export async function publishBridgeConfig({ dailyNotesPath, dailyNotePattern, taskHeading }) {
   try {
+    if (bridgeRateLimited()) return; // the unadvanced hash retries next cycle
     const payload = {
       v: 1, kind: 'config',
       dailyNotesPath: dailyNotesPath || '',
@@ -215,7 +265,11 @@ export async function publishBridgeConfig({ dailyNotesPath, dailyNotePattern, ta
       rows: [{ entityId: BRIDGE_CONFIG_META_ID, envelope: await sealBridgeEnvelope(subkey, payload), createdAt: Date.now() }],
     });
     localStorage.setItem(CONFIG_HASH_KEY, hash);
-  } catch { /* next cycle retries — the hash was not advanced */ }
+    noteBridgeRequestSuccess();
+  } catch (err) {
+    if (isRateLimitError(err)) noteBridgeRateLimit();
+    /* next cycle retries — the hash was not advanced */
+  }
 }
 
 /** Test seam: reset module caches (subkey, in-flight flags). */
@@ -224,4 +278,6 @@ export function __resetBridgeStreamForTests() {
   cachedSubkeyGeneration = null;
   flushInFlight = null;
   metaFetchInFlight = null;
+  backoffMs = 0;
+  backoffUntil = 0;
 }
