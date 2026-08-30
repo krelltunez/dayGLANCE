@@ -198,6 +198,26 @@ describe('createNudgeCoalescer — seq cursor + debounce', () => {
     expect(onDrain.mock.calls.map((a) => a[0])).toEqual(['sync', 'intents']);
   });
 
+  it('the kinds option adds the obsidian drain AFTER sync and intents (Phase 7 groundwork) — one drain each per flush, own echoes suppress ALL of them', () => {
+    const onDrain = vi.fn();
+    const c = createNudgeCoalescer({
+      onDrain, debounceMs: 100,
+      kinds: ['sync', 'intents', 'obsidian'],
+      isOwnSeq: (seq) => seq === 7,
+    });
+    c.handleEvent({ seq: 5 });
+    vi.advanceTimersByTime(100);
+    // Ordering matters: DB state lands before the Obsidian cycle reads it.
+    expect(onDrain.mock.calls.map((a) => a[0])).toEqual(['sync', 'intents', 'obsidian']);
+
+    // An own-write echo (our stamp intent's ack seq) wakes NOTHING — the
+    // obsidian drain included; exactly the same damping the DB drains have.
+    onDrain.mockClear();
+    c.handleEvent({ seq: 7 });
+    vi.advanceTimersByTime(200);
+    expect(onDrain).not.toHaveBeenCalled();
+  });
+
   it('the ready reconcile frame is just a nudge — an advanced seq drains both sides', () => {
     const onDrain = vi.fn();
     const c = createNudgeCoalescer({ onDrain, debounceMs: 100 });

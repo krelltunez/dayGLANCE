@@ -37,14 +37,21 @@ const NATIVE_SSE_RECEIVE = '__glanceVaultSseReceive';
  * @param {boolean}  p.dataLoaded    gate: don't connect before initial load
  * @param {() => (void|Promise<any>)} p.drainSync     triggers the EXISTING vault sync drain (dbSyncCycle)
  * @param {() => (void|Promise<any>)} p.drainIntents  triggers the EXISTING vault intents drain (drainDbIntents)
+ * @param {() => (void|Promise<any>)} [p.drainObsidian]  nudges the Obsidian observation
+ *   cycle (Phase 7 groundwork). The callee owns ALL of its own pacing —
+ *   probe, min gap, authority gate (useObsidianSync.nudgeObsidianObservations)
+ *   — so this hook treats it exactly like the other drains: fire per
+ *   coalesced peer nudge, after sync and intents.
  */
-export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
+export function useVaultEventStream({ dataLoaded, drainSync, drainIntents, drainObsidian }) {
   // Keep the drain callbacks fresh without re-running the effect (which would tear
   // down and re-open the connection on every render).
   const drainSyncRef = useRef(drainSync);
   drainSyncRef.current = drainSync;
   const drainIntentsRef = useRef(drainIntents);
   drainIntentsRef.current = drainIntents;
+  const drainObsidianRef = useRef(drainObsidian);
+  drainObsidianRef.current = drainObsidian;
 
   useEffect(() => {
     if (isTrayMode || !dataLoaded || !isVaultEnabled()) return undefined;
@@ -94,11 +101,13 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents }) {
       // Debounce-only (no throttle). The self-nudge loop is fixed at the root — a
       // no-content sync cycle no longer pushes/nudges (utils/tombstoneHorizon.js) —
       // so drains fire near-instantly on real changes, restoring SSE's low latency.
+      kinds: ['sync', 'intents', 'obsidian'],
       onDrain: (kind) => {
         diag.drains += 1;
         if (sseDebug()) console.info('[vault-sse] drain →', kind);
         if (kind === 'sync') drainSyncRef.current?.();
         else if (kind === 'intents') drainIntentsRef.current?.();
+        else if (kind === 'obsidian') drainObsidianRef.current?.();
       },
       // Own-echo damping (#1455): a nudge whose seq is exactly one our own
       // writers were acked with is our own echo — advance the cursor, drain

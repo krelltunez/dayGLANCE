@@ -1368,6 +1368,11 @@ const DayPlanner = () => {
   // frames through the bridge (native-bridge); an older native shell without the
   // reader degrades to polling. Nudges trigger the EXISTING drains: dbSyncCycle for
   // sync, drainDbIntents for intents. See useVaultEventStream / vaultEventStream.
+  // Filled after useObsidianSync mounts below (it needs the task state this
+  // section precedes); the SSE hook reads it per nudge via the callback, so
+  // the ordering costs nothing. All pacing — the observation probe, the min
+  // gap, the plugin-authority gate — lives in the callee.
+  const obsidianSseNudgeRef = useRef(null);
   useVaultEventStream({
     dataLoaded,
     drainSync: useCallback(() => dbEngineRef.current?.dbSyncCycle?.(), []),
@@ -1377,6 +1382,11 @@ const DayPlanner = () => {
       await ensureVaultIntentsKeyReady();
       return drainDbIntents(dbIntentContextRef.current);
     }, []),
+    // Phase 7 groundwork: the same nudge also wakes the Obsidian observation
+    // cycle — bridge rows advance the same account seq, so a plugin-observed
+    // vault edit reaches dayGLANCE in seconds instead of waiting out the
+    // 5-minute poll. See nudgeObsidianObservations in useObsidianSync.
+    drainObsidian: useCallback(() => obsidianSseNudgeRef.current?.(), []),
   });
   // Proactively (re-)derive the GLANCEvault INTENTS root key the moment sync is
   // established with the passphrase in memory — the same trigger that re-derives
@@ -2758,7 +2768,7 @@ const DayPlanner = () => {
   // re-sync, 5-minute poll, task writeback, iOS vault-settings persistence)
   // lives in useObsidianSync; state/refs stay owned by useObsidian above.
   const {
-    performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, bridgeHeartbeatRef,
+    performObsidianSync, nudgeObsidianObservations, loadWikiNote, saveWikiNote, openInObsidian, bridgeHeartbeatRef,
   } = useObsidianSync({
     isTrayMode, dataLoaded,
     tasks, setTasks,
@@ -2776,6 +2786,9 @@ const DayPlanner = () => {
     obsidianTasksRef, obsidianInboxRef,
     recycleBin, setRecycleBin,
   });
+  // Late-bind the SSE → Obsidian nudge (declared beside useVaultEventStream
+  // above, which mounts before this hook can exist).
+  obsidianSseNudgeRef.current = nudgeObsidianObservations;
 
   // Auto-backup timer
   useEffect(() => {
