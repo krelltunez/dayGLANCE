@@ -226,8 +226,16 @@ async function doFlush() {
 /**
  * Publish the meta:config row the plugin's observation scope needs, when
  * the values changed since last publish. Sealed like any stream row.
+ *
+ * blockIdWrites carries the §3.9 block-id WRITE release to the plugin: it
+ * gates normalize-then-observe (§3.10 ruling 7) — the plugin stamps
+ * untagged task lines before reporting a daily note ONLY when this is
+ * exactly true. The plugin's fail-closed contract: no config row seen, or a
+ * row from a build predating this field, means NO stamping — not stamping
+ * is recoverable (the dayGLANCE-side backstop still covers it), stamping
+ * against the user's setting is not.
  */
-export async function publishBridgeConfig({ dailyNotesPath, dailyNotePattern, taskHeading }) {
+export async function publishBridgeConfig({ dailyNotesPath, dailyNotePattern, taskHeading, blockIdWrites = false }) {
   try {
     if (bridgeRateLimited()) return; // the unadvanced hash retries next cycle
     const payload = {
@@ -235,6 +243,7 @@ export async function publishBridgeConfig({ dailyNotesPath, dailyNotePattern, ta
       dailyNotesPath: dailyNotesPath || '',
       dailyNotePattern: dailyNotePattern || 'yyyy-MM-dd',
       taskHeading: taskHeading || '## Tasks',
+      blockIdWrites: blockIdWrites === true,
     };
     const hash = JSON.stringify(payload);
     if (localStorage.getItem(CONFIG_HASH_KEY) === hash) return;

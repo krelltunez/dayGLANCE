@@ -53,6 +53,9 @@ export function updateTaskLines(lines: string[], opts: {
 export function parseTasksFromMarkdown(
   content: string, dateStr: string, seenBlockIds?: Set<string>,
 ): { scheduledTasks: Record<string, unknown>[]; inboxTasks: Record<string, unknown>[] };
+export function stampUntaggedTaskLines(
+  content: string, dateStr: string,
+): { text: string; changed: boolean; stamped: Array<{ blockId: string; rawTitle: string }> };
 
 // ── note naming ─────────────────────────────────────────────────────────────
 export function assertSafeDateStr(dateStr: string): void;
@@ -117,6 +120,7 @@ export const BRIDGE_PAIRING_META_ID: string;
 export const BRIDGE_CONFIG_META_ID: string;
 export const BRIDGE_INTENT_PREFIX: string;
 export const BRIDGE_OBSERVATION_PREFIX: string;
+export function bridgeConfigAllowsStamping(config: { blockIdWrites?: unknown } | null | undefined): boolean;
 export function mintIntentId(): string;
 export function observationEntityId(path: string): Promise<string>;
 export function sealBridgeEnvelope(subkey: CryptoKey, payload: unknown): Promise<string>;
