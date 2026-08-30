@@ -35,7 +35,6 @@ import {
   buildIntentRow,
   parseIntentRow,
   parseSince,
-  formatSince,
 } from '@glance-apps/intents';
 import { loadVaultIntentsRootKey } from './intentsKeyStore.js';
 import { handleIntent } from './handleIntent.js';
@@ -82,13 +81,16 @@ export class KeyUnavailableError extends Error {
 // event would consume it before the main window can act (mirrors useIntentPoller).
 import { isTrayMode } from '../utils/trayMode.js';
 import { recordOwnWriteSeq } from '../sync/ownWrites.js';
-// The device-wide vault brake (sync/vaultRequestBrake.js): db-intents was the
-// LAST unbraked GLANCEvault caller — raw vaultFetch with no pacing, a 429
-// logged-and-abandoned per cycle while the deliverer re-queued at every flush
-// trigger. Now every request here gates on the shared brake (one per-IP
-// budget → one brake), 429s arm it (once-per-incident visibility instead of
-// a silent abandon), and successes decay it.
-import { vaultRateLimited, noteVaultRateLimit, noteVaultRequestSuccess } from '../sync/vaultRequestBrake.js';
+// @glance-apps/sync 1.11.0: the client grew the /intents/* surface plus the
+// module-scope diagnostics (brake, budget meter, write-loop detector), so
+// db-intents now rides the SAME path as everything else — protection by
+// construction instead of by remembering. The interim app-side brake
+// (sync/vaultRequestBrake.js, item 3) is gone: the client gates every call
+// after a real 429 and throws a typed VaultError { status: 429, code:
+// 'RATE_LIMITED', retryInMs } BEFORE the network while braked. Callers here
+// treat that throw as the quiet sit-out it is — the client's arming line
+// already reported the incident once.
+import { createVaultClient } from '@glance-apps/sync';
 
 // Module-level lock: prevents React StrictMode's double-mount from running two
 // concurrent polls, which would both read the same cursor and double-process.
@@ -174,14 +176,38 @@ export function defaultVaultFetch() {
   };
 }
 
-function authHeaders(token, extra = {}) {
-  return { Authorization: `Bearer ${token}`, ...extra };
+// Adapt the POSITIONAL platform fetch above into the (url, init) Response-ish
+// shape createVaultClient's fetchImpl expects. Kept as a wrapper (rather than
+// rewriting defaultVaultFetch) so the platform routing AND the existing test
+// seam (opts.vaultFetch, positional) both survive the client migration intact.
+function toFetchImpl(vaultFetch) {
+  return async (url, init = {}) => {
+    const res = await vaultFetch(init.method ?? 'GET', url, init.headers ?? {}, init.body);
+    return {
+      ok: !!res?.ok,
+      status: res?.status ?? 0,
+      json: async () => {
+        if (res == null || res.body == null) return undefined;
+        if (typeof res.body !== 'string') return res.body;
+        try { return JSON.parse(res.body); } catch { return undefined; }
+      },
+    };
+  };
 }
 
-function parseBody(res) {
-  if (res == null || res.body == null) return undefined;
-  if (typeof res.body !== 'string') return res.body;
-  try { return JSON.parse(res.body); } catch { return undefined; }
+/**
+ * The shared client for the DB intents wire (exported for the vault
+ * deliverer, which POSTs the same /intents/batch). Inherits the 1.11.0
+ * module-scope diagnostics: braked calls throw RATE_LIMITED before the
+ * network, real 429s arm the realm-wide brake, the meter counts and the
+ * write-loop detector watches — none of which any caller has to remember.
+ */
+export function intentsClientFor(connection, vaultFetch) {
+  return createVaultClient({
+    vaultUrl: connection.vaultUrl,
+    vaultToken: connection.vaultToken,
+    fetchImpl: toFetchImpl(vaultFetch ?? defaultVaultFetch()),
+  });
 }
 
 // ─── SEND ─────────────────────────────────────────────────────────────────────
@@ -201,14 +227,9 @@ function parseBody(res) {
 export async function sendIntentsDb(envelopes, opts = {}) {
   const connection = opts.connection ?? getDbIntentsConnection();
   if (!connection) return undefined;
-  // Braked: no network. Fire-and-forget callers already tolerate an undefined
-  // ack (same surface as a failed POST); the durable path is the outbox, whose
-  // deliverer holds under the same brake.
-  if (vaultRateLimited()) return undefined;
 
   const cfg = opts.config ?? getDbIntentsConfig() ?? {};
   const ttlMs = cfg.ttlMs ?? DEFAULT_DB_INTENTS_TTL_MS;
-  const vaultFetch = opts.vaultFetch ?? defaultVaultFetch();
 
   const list = Array.isArray(envelopes) ? envelopes : [envelopes];
   const events = list.map((envelope) => {
@@ -219,20 +240,17 @@ export async function sendIntentsDb(envelopes, opts = {}) {
   });
   if (!events.length) return undefined;
 
-  const body = { accountId: connection.accountId, events };
-  const url = connection.vaultUrl.replace(/\/+$/, '') + '/intents/batch';
-  const headers = authHeaders(connection.vaultToken, { 'Content-Type': 'application/json' });
-
-  const res = await vaultFetch('POST', url, headers, JSON.stringify(body));
-  if (!res || !res.ok) {
-    // 429 arms the shared brake (its arming line is the incident report);
-    // anything else keeps the existing per-failure warn.
-    if (res?.status === 429) noteVaultRateLimit('db-intent');
-    else console.warn('[db-intent] batch POST failed:', res?.status);
+  let ack;
+  try {
+    ack = await intentsClientFor(connection, opts.vaultFetch).intentsBatch(connection.accountId, events);
+  } catch (err) {
+    // Braked: no network happened, the arming line already reported the
+    // incident. Fire-and-forget callers already tolerate an undefined ack
+    // (same surface as a failed POST); the durable path is the outbox, whose
+    // deliverer holds under the same brake.
+    if (err?.code !== 'RATE_LIMITED') console.warn('[db-intent] batch POST failed:', err?.status ?? err?.message);
     return undefined;
   }
-  noteVaultRequestSuccess();
-  const ack = parseBody(res); // { written, maxSeq }
   // Own-echo damping (#1455, sync/ownWrites.js): intent landings advance the
   // same per-account seq and nudge it — record our ack so the SSE coalescer
   // can tell our own echo from a peer's intent.
@@ -404,54 +422,29 @@ async function routeIncoming(raw, context, opts = {}) {
 export async function pollDbIntents(context, opts = {}) {
   const connection = opts.connection ?? getDbIntentsConnection();
   if (!connection) return;
-  // Braked: sit the poll out entirely — the cursor hasn't moved, so nothing
-  // is lost, and the next trigger (interval / focus / SSE drain) retries
-  // after the brake lifts. Silent by design: the brake's one arming line is
-  // the incident report; a line per gated poll would be the old noise.
-  if (vaultRateLimited()) return;
 
-  const vaultFetch = opts.vaultFetch ?? defaultVaultFetch();
+  const client = intentsClientFor(connection, opts.vaultFetch);
   // Test seam: lets tests drive the three-way model deterministically. Defaults
   // to the real router in production.
   const route = opts.routeIncoming ?? routeIncoming;
-  const headers = authHeaders(connection.vaultToken);
-  const base = connection.vaultUrl.replace(/\/+$/, '');
 
   let since = getReceiveCursor(); // seq number|null
   let hasMore = true;
 
   while (hasMore) {
-    const qs = new URLSearchParams({
-      accountId: connection.accountId,
-      since: formatSince(since), // null -> "0"; otherwise the seq as a string
-      limit: String(PAGE_LIMIT),
-    }).toString();
-    const url = `${base}/intents/list?${qs}`;
-
-    let res;
+    let payload;
     try {
-      res = await vaultFetch('GET', url, headers);
+      payload = await client.intentsList(connection.accountId, { since: since ?? 0, limit: PAGE_LIMIT });
     } catch (err) {
-      console.warn('[db-intent] list error:', err.message);
+      // RATE_LIMITED — braked, before any network: sit the poll out
+      // entirely. The cursor hasn't moved, so nothing is lost, and the next
+      // trigger (interval / focus / SSE drain) retries after the brake
+      // lifts. Silent by design: the client's one arming line is the
+      // incident report; a line per gated poll would be the old noise.
+      if (err?.code !== 'RATE_LIMITED') console.warn('[db-intent] list error:', err?.status ?? err?.message);
       return;
     }
-    if (!res || !res.ok) {
-      // The old shape logged and abandoned the cycle — a silent-ish 429 that
-      // left the next trigger to retry at full cadence. Now a 429 arms the
-      // device-wide brake (which also holds the outbox deliverer); other
-      // failures keep the existing warn.
-      if (res?.status === 429) noteVaultRateLimit('db-intent');
-      else console.warn('[db-intent] list returned', res?.status);
-      return;
-    }
-    noteVaultRequestSuccess();
-
-    const payload = parseBody(res);
-    if (!payload) {
-      console.warn('[db-intent] list: unparseable response body');
-      return;
-    }
-    const rows = Array.isArray(payload.rows) ? payload.rows : [];
+    const rows = Array.isArray(payload?.rows) ? payload.rows : [];
 
     for (const rawRow of rows) {
       // ── (1) DECODE / PERMANENT-BAD ──────────────────────────────────────────

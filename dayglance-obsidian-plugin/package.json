@@ -16,6 +16,6 @@
   },
   "dependencies": {
     "@glance-apps/obsidian-format": "file:../packages/obsidian-format",
-    "@glance-apps/sync": "1.10.0"
+    "@glance-apps/sync": "1.11.0"
   }
 }

@@ -56,26 +56,25 @@ let cachedSubkeyGeneration = null;
 let flushInFlight = null; // the running flush's promise — callers coalesce
 let metaFetchInFlight = null;
 
-// ── THE BRAKE (now device-wide) ──────────────────────────────────────────────
+// ── THE BRAKE (now inside the client) ────────────────────────────────────────
 // Born here as the bridge brake (#1481, decay semantics from the 2026-08-30
-// live bug), extracted to sync/vaultRequestBrake.js when db-intents — the
-// last unbraked GLANCEvault caller — joined it: the server's 600/min budget
-// is per IP, one budget for every path on this device, so one brake is the
-// honest model (a 429 on any path pauses them all). The names below stay
-// exported so this module's callers (and the inbound half) are unchanged;
-// noteBridgeRateLimit tags its armings with the bridge's own source label.
-import {
-  vaultRateLimited,
-  isRateLimitError,
-  noteVaultRateLimit,
-  noteVaultRequestSuccess,
-  __resetVaultBrakeForTests,
-} from '../sync/vaultRequestBrake.js';
+// live bug), extracted app-wide for item 3, and lifted into
+// @glance-apps/sync 1.11.0 for item 4: every createVaultClient call is now
+// gated, armed, and decayed at module scope inside the package — one brake
+// per bundle realm, protection by construction. This module keeps only the
+// PRE-FLIGHT reads (isVaultRateLimited) for the paths that prefer to sit a
+// whole cycle out rather than fire a call and catch RATE_LIMITED; the
+// arming/decay bookkeeping calls are gone — the client does both on the
+// real responses. A braked client call throws VaultError { status: 429,
+// code: 'RATE_LIMITED' } BEFORE the network; the catch blocks below treat
+// that identically to a real 429 (both are "not now"), which err.status
+// already covers.
+import { isVaultRateLimited, resetVaultDiagnostics } from '@glance-apps/sync';
 
-export { isRateLimitError };
-export const bridgeRateLimited = (nowMs) => (nowMs === undefined ? vaultRateLimited() : vaultRateLimited(nowMs));
-export const noteBridgeRateLimit = () => noteVaultRateLimit('bridge');
-export const noteBridgeRequestSuccess = () => noteVaultRequestSuccess();
+/** True when the error is the server's rate limiter (or the client's own
+ *  braked-call throw — same status, same meaning: not now). */
+export const isRateLimitError = (err) => err?.status === 429;
+export const bridgeRateLimited = () => isVaultRateLimited();
 
 const readJson = (key, fallback) => {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
@@ -121,12 +120,11 @@ export async function getBridgePairingMeta({ force = false } = {}) {
       // wire note); a malformed/undecodable row reads as not-paired.
       const parsed = row?.envelope ? decodePlainBridgeRow(row.envelope) : null;
       const meta = (parsed?.kind === 'pairing-meta' && parsed.generation && parsed.pairingSalt) ? parsed : null;
-      noteBridgeRequestSuccess();
       writeJson(META_CACHE_KEY, { meta, fetchedAt: Date.now() });
       return meta;
-    } catch (err) {
-      if (isRateLimitError(err)) noteBridgeRateLimit();
-      // Unreachable vault: keep whatever we knew; do not thrash.
+    } catch {
+      // Unreachable vault or rate-limited (the client armed the brake on a
+      // real 429 itself): keep whatever we knew; do not thrash.
       return cached?.meta ?? null;
     } finally {
       metaFetchInFlight = null;
@@ -212,16 +210,16 @@ async function doFlush() {
     // Own-echo damping (#1455): bridge writes advance the same per-account
     // seq the engine's do — record the ack so our echo drains nothing.
     recordOwnWriteSeq(ack?.maxSeq);
-    noteBridgeRequestSuccess();
     // Only entries we actually sent leave the queue — an emit that raced in
     // during the network call stays for the next flush.
     const sent = new Set(outbox.map((i) => i.intentId));
     const remaining = readJson(OUTBOX_KEY, []).filter((i) => !sent.has(i.intentId));
     writeJson(OUTBOX_KEY, remaining);
     return remaining.length === 0;
-  } catch (err) {
-    if (isRateLimitError(err)) noteBridgeRateLimit();
-    return false; // queued intents survive for the next flush
+  } catch {
+    // Rate-limited (the client armed on a real 429; a braked retry throws
+    // before the wire) or unreachable — queued intents survive either way.
+    return false;
   }
 }
 
@@ -250,18 +248,17 @@ export async function publishBridgeConfig({ dailyNotesPath, dailyNotePattern, ta
     });
     recordOwnWriteSeq(ack?.maxSeq);
     localStorage.setItem(CONFIG_HASH_KEY, hash);
-    noteBridgeRequestSuccess();
-  } catch (err) {
-    if (isRateLimitError(err)) noteBridgeRateLimit();
+  } catch {
     /* next cycle retries — the hash was not advanced */
   }
 }
 
-/** Test seam: reset module caches (subkey, in-flight flags) + the shared brake. */
+/** Test seam: reset module caches (subkey, in-flight flags) + the client's
+ *  module-scope diagnostics (brake/meter/write-history). */
 export function __resetBridgeStreamForTests() {
   cachedSubkey = null;
   cachedSubkeyGeneration = null;
   flushInFlight = null;
   metaFetchInFlight = null;
-  __resetVaultBrakeForTests();
+  resetVaultDiagnostics();
 }

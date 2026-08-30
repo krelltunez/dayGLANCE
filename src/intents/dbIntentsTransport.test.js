@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { buildEnvelope, buildIntentRow, ACTIONS, TABS } from '@glance-apps/intents';
 import { sendIntentsDb, pollDbIntents, DB_CURSOR_KEY, DB_RETRY_KEY, MAX_INTENT_RETRIES } from './dbIntentsTransport.js';
-import { __resetVaultBrakeForTests } from '../sync/vaultRequestBrake.js';
-import { bridgeRateLimited } from '../utils/obsidianBridgeStream.js';
+import { resetVaultDiagnostics, isVaultRateLimited } from '@glance-apps/sync';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // App-owned GLANCEvault DB intents transport. These exercise the REAL codec
@@ -101,7 +100,7 @@ function makeForeignNotify(i) {
 
 beforeEach(() => {
   global.localStorage = memLocalStorage();
-  __resetVaultBrakeForTests();
+  resetVaultDiagnostics();
 });
 
 describe('DB intents — SEND (batch wrapper + idempotency)', () => {
@@ -396,11 +395,11 @@ describe('DB intents — the device-wide vault brake (the last unbraked caller, 
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-30T12:00:00.000Z'));
     try {
-      expect(bridgeRateLimited()).toBe(false);
+      expect(isVaultRateLimited()).toBe(false);
       await pollDbIntents({}, { connection: CONN, vaultFetch: limited() });
       // The per-IP budget is shared by every path on this device, so the
       // brake is deliberately device-wide (sync/vaultRequestBrake.js).
-      expect(bridgeRateLimited()).toBe(true);
+      expect(isVaultRateLimited()).toBe(true);
     } finally {
       vi.useRealTimers();
     }
