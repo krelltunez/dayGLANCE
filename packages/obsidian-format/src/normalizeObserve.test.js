@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 
 import { stampUntaggedTaskLines, planStampInsertions, parseTasksFromMarkdown } from './taskLines.js';
 import { bridgeConfigAllowsStamping } from './bridgeStream.js';
-import { deriveBlockId } from './identity.js';
+import { deriveBlockId, blockIdSuffix } from './identity.js';
 
 const D = '2026-08-30';
 
@@ -120,6 +120,36 @@ describe('stampUntaggedTaskLines (normalize-then-observe)', () => {
     expect(bridgeConfigAllowsStamping({})).toBe(false); // row from a pre-field dayGLANCE build
     expect(bridgeConfigAllowsStamping({ blockIdWrites: 'true' })).toBe(false); // merely truthy never passes
     expect(bridgeConfigAllowsStamping({ blockIdWrites: 1 })).toBe(false);
+  });
+
+  it('THE CORRUPTED-LINE RULE (2026-08-31 war): a line containing ^dg- ANYWHERE is never stamped, by either minter — even though it parses as an untagged task', () => {
+    // The war's corruption shape: an Obsidian Sync auto-merge landed a token
+    // MID-LINE, the end-anchored parse saw an untagged task, and the stamper
+    // appended a SECOND token — compounding every cycle. The rule is the
+    // deliberate break from parse parity: damaged lines are a human's.
+    const corrupted = '- [ ] 17:45-18:00 Testing norma ^dg-kdt3uaon more text';
+    const note = `${corrupted}\n- [ ] Healthy line`;
+
+    // Plugin side: no plan entry, stamper untouched — for the corrupted
+    // line; the healthy line still stamps.
+    const plan = planStampInsertions(note, D);
+    expect(plan).toHaveLength(1);
+    expect(plan[0].rawTitle).toBe('Healthy line');
+    const { text } = stampUntaggedTaskLines(note, D);
+    expect(text.split('\n')[0]).toBe(corrupted);
+
+    // The corrupted line still PARSES as an untagged task (embedded token is
+    // title text) — it imports, it just never gets a token written to it.
+    const tasks = parseAll(text);
+    const damaged = tasks.find((t) => String(t.title).includes('^dg-kdt3uaon'));
+    expect(damaged).toBeTruthy();
+    expect(damaged.obsidianBlockId).toBeFalsy();
+
+    // dayGLANCE side: the writeback's suffix builder refuses the same title,
+    // so the stamp-on-sight backstop can't compound it either — the refusal
+    // is unanimous, like the mint.
+    expect(blockIdSuffix('abc12345', 'Testing norma ^dg-kdt3uaon more text')).toBe('');
+    expect(blockIdSuffix('abc12345', 'clean title')).toBe(' ^dg-abc12345');
   });
 
   it('an untagged line with a hand-written completion marker keeps the marker inside the identity input, exactly as the parse treats it', () => {

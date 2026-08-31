@@ -111,9 +111,19 @@ export function hasForeignBlockId(text) {
 
 /**
  * The ` ^dg-<id>` suffix for a written task line, or '' when there is no id to
- * write or the title carries a user-authored block reference (see above).
+ * write, the title carries a user-authored block reference (see above), or the
+ * title contains `^dg-` ANYWHERE. The last refusal is the dayGLANCE half of
+ * the corrupted-line rule (2026-08-31 SSE-speed war): a concurrent-edit
+ * auto-merge can drive a token into the MIDDLE of a title, where the
+ * end-anchored parse doesn't strip it — the line then imports as untagged
+ * with the embedded token as title text, and writing it back with a fresh
+ * suffix would put a second token on the line. A written title never
+ * legitimately contains our marker (splitBlockId strips a real trailing
+ * token before the title is formed), so any occurrence means the line is
+ * damaged: refuse, leave it for a human. planStampInsertions skips the same
+ * lines on the plugin side — the refusal is unanimous, like the mint.
  */
 export function blockIdSuffix(blockId, writtenTitle) {
-  if (!blockId || hasForeignBlockId(writtenTitle)) return '';
+  if (!blockId || String(writtenTitle).includes('^dg-') || hasForeignBlockId(writtenTitle)) return '';
   return ` ^dg-${blockId}`;
 }

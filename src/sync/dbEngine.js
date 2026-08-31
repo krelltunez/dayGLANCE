@@ -45,6 +45,7 @@ import { isPayloadExcludedEntity, agedOutReleaseReason } from './payloadExclusio
 import { shredHashes, hashMapsEqual, mergeMidCycleEdits } from './commitMerge.js';
 import { createSyncCycleBreaker, isRateLimitedError } from './syncBrakes.js';
 import { shouldSuppressReconcileDelete, consumeWarTripped } from './reconcileWarGuard.js';
+import { shouldSuppressRetirementHeal, consumeRetirementHealTripped } from './retirementHealBreaker.js';
 import { recordOwnWriteSeq } from './ownWrites.js';
 import { isObsidianTombstoned } from '../utils/obsidianDeletions.js';
 import { ghostSuccessorId, persistDerivedGhostRetirements } from '../utils/obsidianGhostRows.js';
@@ -669,7 +670,7 @@ export function createDbEngine(callbacks = {}) {
           if (typeof h !== 'string') return null;
           try { return JSON.parse(h); } catch { return null; }
         };
-        const { propagate, skipped, excluded, reasons } = partitionSnapshotDeletes(
+        const { propagate, skipped, excluded, reasons, successorTombstoned } = partitionSnapshotDeletes(
           wantDelete, cur, mirror, getPrevEntity,
           // Baseline-release classification: a baseline row whose last-known copy
           // can NEVER reappear in getData() is neither a delete nor a glitch, and
@@ -696,6 +697,24 @@ export function createDbEngine(callbacks = {}) {
           },
         );
         glitchSkipped = skipped;
+        // RETIREMENT-HEAL BREAKER (fix 4 of the 2026-08-31 war commission): a
+        // skipped row whose retirement successor is tombstoned-not-live is the
+        // retire/tombstone oscillation signature — healing it back every cycle
+        // is one half of a cross-device feedback loop that Phase 7's trigger
+        // speed turned from "slow self-correction" into a ~1.5s war. The
+        // breaker allows the first two heals in its window (a genuine
+        // transient still recovers) and LATCHES on the third: the id is
+        // removed from this cycle's heal set, so it is neither re-fetched nor
+        // re-pushed, and — because it is then absent from the mirror — the
+        // saved snapshot releases it from the diff baseline, ending this
+        // device's participation in the loop. The vault row is untouched.
+        if (successorTombstoned.length) {
+          const latched = new Set();
+          for (const { entityId, successor } of successorTombstoned) {
+            if (shouldSuppressRetirementHeal(entityId, successor)) latched.add(entityId);
+          }
+          if (latched.size) glitchSkipped = glitchSkipped.filter((eid) => !latched.has(eid));
+        }
         if (excluded.length) {
           // Released from the baseline, not deleted and not healed: the rows stay
           // untouched in the vault; the next SAVED snapshot (hashed from the
@@ -997,6 +1016,11 @@ export function createDbEngine(callbacks = {}) {
         // cooldown instead of running at trigger speed.
         throttleAnnounced = false;
         breaker.onFailure({ message: 'reconcile war guard tripped (delete/resupply loop)' });
+      } else if (consumeRetirementHealTripped()) {
+        // Same failure class, same strike: the retirement-heal breaker latched
+        // inside a successful cycle (fix 4, retire/tombstone oscillation).
+        throttleAnnounced = false;
+        breaker.onFailure({ message: 'retirement-heal breaker latched (retire/tombstone oscillation)' });
       } else {
         breaker.onSuccess();
       }

@@ -521,8 +521,10 @@ export default function useObsidianSync({
         // (utils/obsidianNoteScopedDeletions.js): a task claiming to live
         // in an observed note whose parse no longer carries its id or hint
         // is tombstoned through the existing deletedObsidianKeys LWW
-        // channel, stamped at the observation's mtime, after a one-cycle
-        // confirmation hold. What remains conservative: notes never
+        // channel, stamped at the observation's mtime, after the WALL-CLOCK
+        // confirmation hold (≥90s of continuous absence plus a subsequent
+        // complete fetch — never a cycle count; see the util's header for
+        // the 2026-08-31 lesson). What remains conservative: notes never
         // observed while paired still report nothing (§3.10 availability
         // note, as amended).
         // The cursor commits only after the merges are dispatched, so a
@@ -576,7 +578,7 @@ export default function useObsidianSync({
               commits.map(c => `${c.id} [note ${c.noteDate}, mtime ${c.deletedAt}]`).join('; '));
           }
           if (candidates.length) {
-            console.log('Obsidian: note-scoped deletion candidates pending one-cycle confirmation:',
+            console.log('Obsidian: note-scoped deletion candidates pending wall-clock confirmation (>=90s + a subsequent fetch):',
               candidates.map(c => `${c.id} [note ${c.noteDate}]`).join('; '));
           }
           try { localStorage.setItem('day-planner-obsidian-pending-note-deletions', JSON.stringify(nextPending)); } catch { /* re-inferred when the note is next observed */ }
