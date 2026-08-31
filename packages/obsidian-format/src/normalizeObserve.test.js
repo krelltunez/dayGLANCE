@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 // the one the ruling exists for: after stamping, a parse of the note
 // yields NO task without a block id.
 
-import { stampUntaggedTaskLines, planStampInsertions, parseTasksFromMarkdown } from './taskLines.js';
+import { stampUntaggedTaskLines, planStampInsertions, parseTasksFromMarkdown, partitionStampPlan } from './taskLines.js';
 import { bridgeConfigAllowsStamping } from './bridgeStream.js';
 import { deriveBlockId, blockIdSuffix } from './identity.js';
 
@@ -150,6 +150,43 @@ describe('stampUntaggedTaskLines (normalize-then-observe)', () => {
     // is unanimous, like the mint.
     expect(blockIdSuffix('abc12345', 'Testing norma ^dg-kdt3uaon more text')).toBe('');
     expect(blockIdSuffix('abc12345', 'clean title')).toBe(' ^dg-abc12345');
+  });
+
+  it('THE CURSOR GATE (premature identity assignment, 2026-08-31): a plan entry on a cursor-held line is deferred, the rest apply — and the deferred line stamps cleanly on the next pass, after the line is finished', () => {
+    // The tennis line: the user paused mid-word, the buffer went clean, and
+    // the stamper minted identity for the fragment "W" — the token landed
+    // at the cursor, so resumed typing split the word around it. The gate:
+    // a line holding a live cursor is a line someone may still be
+    // composing; skip it this pass. No write rule was violated in the
+    // incident (nothing was destroyed) — the unasked question was whether
+    // the line was FINISHED, and "no live cursor on it" is its best
+    // readable witness.
+    const midComposition = '## Tasks\n- [ ] Finished other task\n- [ ] 21:15-21:45 W';
+    const plan = planStampInsertions(midComposition, D);
+    expect(plan).toHaveLength(2);
+
+    // Cursor sits on line 2 (the half-typed line). Only the finished line
+    // applies; order is preserved; the fragment "W" is never minted.
+    const { apply, deferred } = partitionStampPlan(plan, new Set([2]));
+    expect(apply.map((p) => p.rawTitle)).toEqual(['Finished other task']);
+    expect(deferred.map((p) => p.line)).toEqual([2]);
+
+    // Next pass: the user finished the line and the cursor moved away. The
+    // full title is what gets minted — not the fragment.
+    const finished = '## Tasks\n- [ ] Finished other task ^dg-' + apply[0].blockId + '\n- [ ] 21:15-21:45 Watch tennis on ESPN';
+    const nextPlan = planStampInsertions(finished, D);
+    const next = partitionStampPlan(nextPlan, new Set());
+    expect(next.deferred).toEqual([]);
+    expect(next.apply.map((p) => p.rawTitle)).toEqual(['Watch tennis on ESPN']);
+    expect(next.apply[0].blockId).toBe(deriveBlockId(D, 'Watch tennis on ESPN'));
+
+    // Degenerate inputs: empty/missing held-set applies everything; a plan
+    // entirely on held lines applies nothing (the observation defers with
+    // it, per ruling 7's coupling — pinned in the wiring's comment).
+    expect(partitionStampPlan(plan, null).apply).toHaveLength(2);
+    expect(partitionStampPlan(plan, undefined).deferred).toEqual([]);
+    expect(partitionStampPlan(plan, new Set([1, 2])).apply).toEqual([]);
+    expect(partitionStampPlan([], new Set([1])).apply).toEqual([]);
   });
 
   it('an untagged line with a hand-written completion marker keeps the marker inside the identity input, exactly as the parse treats it', () => {

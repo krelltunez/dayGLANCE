@@ -59,6 +59,9 @@ export function stampUntaggedTaskLines(
 export function planStampInsertions(
   content: string, dateStr: string,
 ): Array<{ line: number; fromCh: number; toCh: number; insert: string; blockId: string; rawTitle: string }>;
+export function partitionStampPlan<T extends { line: number }>(
+  plan: T[], heldLines: Set<number> | null | undefined,
+): { apply: T[]; deferred: T[] };
 
 // ── note naming ─────────────────────────────────────────────────────────────
 export function assertSafeDateStr(dateStr: string): void;

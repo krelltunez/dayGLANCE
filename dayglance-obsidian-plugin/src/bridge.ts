@@ -35,6 +35,7 @@ import {
   parseDateFromFilename,
   stampUntaggedTaskLines,
   planStampInsertions,
+  partitionStampPlan,
   bridgeConfigAllowsStamping,
   drainSseBuffer,
   createSseArming,
@@ -883,9 +884,36 @@ export class BridgeTransport {
             const editorView = views[0];
             const buffer = editorView.getViewData();
             const plan = planStampInsertions(buffer, noteDate);
-            if (plan.length > 0) {
+            // THE CURSOR GATE (premature identity assignment — the
+            // 2026-08-31 "W ^dg-...atch tennis" line; rationale pinned on
+            // partitionStampPlan in the shared package): never stamp a line
+            // that currently holds a LIVE cursor. A clean buffer certifies
+            // a typing pause, not a finished line — the token would land at
+            // the cursor and resumed typing would continue after it,
+            // splitting the word around our stamp. "Live" means a cursor
+            // that can actually receive keystrokes: an editor with FOCUS.
+            // Parked cursors in background tabs are deliberately excluded —
+            // they never move on their own, so honoring them would defer
+            // the line's stamp AND the note's whole observation (ruling 7
+            // couples them) indefinitely for the commonest entry pattern
+            // (type a line, switch away, cursor left resting at its end):
+            // exactly the starvation this gate's design was chosen to avoid.
+            // The accepted residual: a mid-word tab-switch-away-and-back
+            // can still split — rare, humanly bounded, and the corrupted
+            // line is inert by the ^dg--anywhere rule.
+            const heldLines = new Set<number>();
+            for (const v of views) {
+              if (!v.editor.hasFocus()) continue;
+              for (const sel of v.editor.listSelections()) {
+                const lo = Math.min(sel.anchor.line, sel.head.line);
+                const hi = Math.max(sel.anchor.line, sel.head.line);
+                for (let l = lo; l <= hi; l++) heldLines.add(l);
+              }
+            }
+            const { apply } = partitionStampPlan(plan, heldLines);
+            if (apply.length > 0) {
               editorView.editor.transaction({
-                changes: plan.map((p) => ({
+                changes: apply.map((p) => ({
                   from: { line: p.line, ch: p.fromCh },
                   to: { line: p.line, ch: p.toCh },
                   text: p.insert,
@@ -894,7 +922,9 @@ export class BridgeTransport {
             }
             // Observe the STAMPED state on the next pass (Obsidian saves
             // the buffer on its own debounce; the explicit re-arm is the
-            // belt to that suspender).
+            // belt to that suspender). A cursor-deferred line re-enters
+            // here each pass and stamps on the first one after the cursor
+            // moves off it; until then the observation defers with it.
             rearm();
             return;
           }
