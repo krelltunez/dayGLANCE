@@ -236,6 +236,44 @@ describe('stamp on sight (fix 2): identity-assignment write fired by import', ()
     expect(emitBridgeIntent).not.toHaveBeenCalled();
   });
 
+  it('THE RE-MINT REFUSAL (2026-08-31 war): a resurrected legacy task whose retirement already names the derived successor, with that successor TOMBSTONED, is not stamped again — no intent, no identity move, id unchanged', () => {
+    __setBlockIdWritesForTests(true);
+    const task = restingLegacyTask();
+    const { state, prevRef } = useMountedSightHook({ tasks: [task], prevSnap: { [LEGACY_ID]: snapFor(task) } });
+    // The war's on-record state: this exact identity move already completed
+    // once (retirement names DG_ID) and its outcome is on the record too
+    // (DG_ID tombstoned via note-scoped deletion). Re-minting would re-run
+    // the loop's dayGLANCE edge every ~2s.
+    store.set(RETIRED_TASK_IDS_STORAGE_KEY, JSON.stringify({
+      [LEGACY_ID]: { retiredAt: '2026-08-31T04:00:00.000Z', successor: DG_ID },
+    }));
+    store.set('day-planner-deleted-obsidian-keys', JSON.stringify({ [DG_ID]: '2026-08-31T04:22:12.000Z' }));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let refusalLogged;
+    try {
+      runWritebackEffect();
+      // Loud on purpose: this refusal is the war's dayGLANCE edge being cut.
+      refusalLogged = errSpy.mock.calls.some(c => String(c[0]).includes('REFUSING to re-mint'));
+    } finally { errSpy.mockRestore(); }
+    expect(emitBridgeIntent).not.toHaveBeenCalled();
+    expect(state.tasks[0].id).toBe(LEGACY_ID); // no identity move
+    expect(prevRef.current[LEGACY_ID]).toBeDefined();
+    expect(refusalLogged).toBe(true);
+
+    // The refusal is NARROW: the same retirement WITHOUT the tombstone (an
+    // ordinary first stamp whose successor row simply isn't here yet) still
+    // stamps — determinism stays the unanimity feature everywhere else.
+    emitBridgeIntent.mockClear();
+    const again = restingLegacyTask();
+    useMountedSightHook({ tasks: [again], prevSnap: { [LEGACY_ID]: snapFor(again) } });
+    store.set(RETIRED_TASK_IDS_STORAGE_KEY, JSON.stringify({
+      [LEGACY_ID]: { retiredAt: '2026-08-31T04:00:00.000Z', successor: DG_ID },
+    }));
+    runWritebackEffect();
+    expect(emitBridgeIntent).toHaveBeenCalledTimes(1);
+    expect(emitBridgeIntent.mock.calls[0][1].blockId).toBe(BLOCK);
+  });
+
   it('first import: the cycle merges the new untagged task, nudges ONE writeback pass after the in-progress guard drops, and that pass stamps it', async () => {
     __setBlockIdWritesForTests(true);
     heartbeatMock.mockResolvedValue(pairedHeartbeat());

@@ -14,18 +14,28 @@
 // settings sync)" versus "the vault was never paired". Recorded beside the
 // per-vault granularity ruling in spec §3.2.
 //
-// @param {{obsidianRunning: boolean, pluginAuthoritative: boolean}|null} hb
+// STAMPING PASSTHROUGH (2026-08-31 config-null incident): an active plugin's
+// heartbeat now carries its normalize-then-observe arming tri-state —
+// 'armed' / 'off' / 'no-config' — and 'no-config' is the state that was
+// invisible while the fragment factory ran: the plugin held no config row,
+// so (pre-fix) it reported daily notes UNSTAMPED, and nothing on any screen
+// said so. Post-fix the plugin holds daily-note reporting instead (fail
+// closed), and this passthrough is what lets the panel say "paused, waiting
+// for configuration" rather than looking healthy. Only an ACTIVE plugin's
+// claim is surfaced; null = unknown (stale beat, or a pre-field build).
+//
+// @param {{obsidianRunning: boolean, pluginAuthoritative: boolean, stamping?: string|null}|null} hb
 //   obsidianHeartbeatState(...) of this device's heartbeat read
 // @param {{pairedAt?: string}|null} meta  the discovered meta:pairing row
 //   (null: vault unpaired, or unreachable/not yet fetched — callers treat
 //   absence conservatively)
 // @param {number} [nowMs]
-// @returns {{ state: 'active'|'unpairedHere'|'notDetected', vaultPaired: boolean, pairedDays: number|null }}
+// @returns {{ state: 'active'|'unpairedHere'|'notDetected', vaultPaired: boolean, pairedDays: number|null, stamping: 'armed'|'off'|'no-config'|null }}
 export function deriveBridgeStatus(hb, meta, nowMs = Date.now()) {
   const t = meta?.pairedAt ? Date.parse(meta.pairedAt) : NaN;
   const pairedDays = Number.isFinite(t) ? Math.max(0, Math.floor((nowMs - t) / 86400000)) : null;
   const vaultPaired = !!meta;
-  if (hb?.pluginAuthoritative) return { state: 'active', vaultPaired, pairedDays };
-  if (hb?.obsidianRunning) return { state: 'unpairedHere', vaultPaired, pairedDays };
-  return { state: 'notDetected', vaultPaired, pairedDays };
+  if (hb?.pluginAuthoritative) return { state: 'active', vaultPaired, pairedDays, stamping: hb.stamping ?? null };
+  if (hb?.obsidianRunning) return { state: 'unpairedHere', vaultPaired, pairedDays, stamping: null };
+  return { state: 'notDetected', vaultPaired, pairedDays, stamping: null };
 }

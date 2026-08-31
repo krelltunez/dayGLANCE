@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { partitionSnapshotDeletes, STALE_TOMBSTONE_EPSILON_MS } from './snapshotDeleteGuard.js';
+import { partitionSnapshotDeletes, reassertPropagatedDeletes, STALE_TOMBSTONE_EPSILON_MS } from './snapshotDeleteGuard.js';
 
 // cur is snapshotShred output: { entityId -> hash }. Only the KEYS matter here.
 const curOf = (...entityIds) => Object.fromEntries(entityIds.map((e) => [e, '#']));
@@ -312,5 +312,81 @@ describe('payload-excluded classification (the fresh-device churn fix)', () => {
     expect(excluded).toEqual([]);
     expect(skipped).toEqual(['tasks:X']);
     expect(reasons['tasks:X']).toBe('glitch');
+  });
+});
+
+describe('reassertPropagatedDeletes — the polarity reassert (2026-08-31 war, engine upsert-flip)', () => {
+  const T = Date.parse('2026-08-31T04:00:00.000Z');
+  const iso = (ms) => new Date(ms).toISOString();
+  const wrapped = (id, lastModifiedMs) =>
+    ({ _kind: 'tasks', value: { id, title: 't', lastModified: iso(lastModifiedMs) } });
+  const liveOf = (map) => (eid) => map[eid] ?? null;
+
+  it("THE WAR SHAPE ('tombstoned'): the pull re-supplied a copy the tombstone still at-least-ties — EVICT, the push must stay a delete", () => {
+    // written:2 deleted:0 on a delete-only dirty set was this exact flip: the
+    // own-echo pull put the row back in the mirror between diff and push.
+    const mirror = { deletedTaskIds: { X: iso(T + 60_000) } }; // tombstone newer than the copy
+    const { evict, accepted } = reassertPropagatedDeletes(
+      [{ entityId: 'tasks:X', reason: 'tombstoned' }], mirror,
+      liveOf({ 'tasks:X': wrapped('X', T) }),
+    );
+    expect(evict).toEqual([{ entityId: 'tasks:X', reason: 'tombstoned' }]);
+    expect(accepted).toEqual([]);
+  });
+
+  it('a copy GENUINELY newer than its tombstone (past the epsilon) is a revival — the flip is correct, ACCEPT it', () => {
+    const mirror = { deletedTaskIds: { X: iso(T) } };
+    const { evict, accepted } = reassertPropagatedDeletes(
+      [{ entityId: 'tasks:X', reason: 'tombstoned' }], mirror,
+      liveOf({ 'tasks:X': wrapped('X', T + STALE_TOMBSTONE_EPSILON_MS + 1000) }),
+    );
+    expect(evict).toEqual([]);
+    expect(accepted).toEqual([{ entityId: 'tasks:X', reason: 'tombstoned' }]);
+  });
+
+  it("'retired' evicts while the successor stays live (supersede regardless of timestamps — even a NEWER pulled copy), accepts when the successor vanished", () => {
+    const record = { OLD: { retiredAt: iso(T), successor: 'obsidian-dg-abc' } };
+    const withSucc = {
+      retiredTaskIds: record,
+      tasks: [{ id: 'obsidian-dg-abc', lastModified: iso(T) }],
+    };
+    // Pulled copy is NEWER than the retirement — still evicted: an edit under
+    // a retired id belongs to the successor (the apply path's rule), never a
+    // revival of the old id.
+    expect(reassertPropagatedDeletes(
+      [{ entityId: 'tasks:OLD', reason: 'retired' }], withSucc,
+      liveOf({ 'tasks:OLD': wrapped('OLD', T + 999_000) }),
+    ).evict).toHaveLength(1);
+    // Successor no longer live post-pull → conservative: accept the flip.
+    expect(reassertPropagatedDeletes(
+      [{ entityId: 'tasks:OLD', reason: 'retired' }], { retiredTaskIds: record, tasks: [] },
+      liveOf({ 'tasks:OLD': wrapped('OLD', T) }),
+    ).accepted).toHaveLength(1);
+  });
+
+  it('a row still ABSENT from the mirror needs nothing (polarity intact), cross-list reasons pass through, and empty input is a no-op', () => {
+    const out = reassertPropagatedDeletes(
+      [
+        { entityId: 'tasks:GONE', reason: 'tombstoned' },   // absent → untouched
+        { entityId: 'tasks:MOVED', reason: 'cross-list' },  // reconcile owns it
+      ],
+      { deletedTaskIds: { GONE: iso(T) } },
+      liveOf({ 'tasks:MOVED': wrapped('MOVED', T) }),
+    );
+    expect(out.evict).toEqual([]);
+    expect(out.accepted).toEqual([{ entityId: 'tasks:MOVED', reason: 'cross-list' }]);
+    expect(reassertPropagatedDeletes([], {}, () => null)).toEqual({ evict: [], accepted: [] });
+  });
+
+  it('the tombstone is re-read from the POST-pull mirror: a peer revival that also cleared the bundle downgrades to accept', () => {
+    // The partition saw a tombstone at diff time; by push time the pull has
+    // merged bundles WITHOUT one (retention pruned it fleet-side). No
+    // authorizing evidence any more → the delete must not stand.
+    const { evict, accepted } = reassertPropagatedDeletes(
+      [{ entityId: 'tasks:X', reason: 'tombstoned' }], {},
+      liveOf({ 'tasks:X': wrapped('X', T) }),
+    );
+    expect(evict).toEqual([]);
+    expect(accepted).toHaveLength(1);
   });
 });

@@ -22,6 +22,8 @@ import {
   createBridgeSseClient,
   detectSseTransport,
   openWebSseStream,
+  sseNudgesEnabled,
+  SSE_NUDGES_FLAG_KEY,
 } from '../sync/vaultEventStream.js';
 import { isOwnWriteSeq } from '../sync/ownWrites.js';
 import { isTrayMode } from '../utils/trayMode.js';
@@ -55,6 +57,18 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents, drain
 
   useEffect(() => {
     if (isTrayMode || !dataLoaded || !isVaultEnabled()) return undefined;
+
+    // THE SSE NUDGE GATE (2026-08-31 — see sseNudgesEnabled for the full
+    // record): default OFF until this commission's breakers are proven
+    // against live traffic. No stream is opened at all — the polling
+    // backstop (which never stopped running) IS the cadence. One info line
+    // so the posture is visible in any console capture.
+    if (!sseNudgesEnabled()) {
+      console.info(
+        `[vault-sse] live nudges are gated OFF (2026-08-31 war posture) — polling cadence only. ` +
+        `To re-arm for a supervised test: localStorage.setItem('${SSE_NUDGES_FLAG_KEY}', 'on') and reload.`);
+      return undefined;
+    }
 
     const transport = detectSseTransport();
     if (transport !== 'web' && transport !== 'native-bridge') {

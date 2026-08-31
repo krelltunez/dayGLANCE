@@ -36,6 +36,17 @@
 
 export const OBSIDIAN_HEARTBEAT_STALE_MS = 5 * 60 * 1000;
 
+// The stamping tri-state the heartbeat may carry (see parseObsidianHeartbeat):
+// 'armed'     — config row present and blockIdWrites === true: the plugin
+//               stamps untagged daily-note lines before reporting.
+// 'off'       — config row present, blockIdWrites off: reporting runs,
+//               stamping doesn't (the dayGLANCE backstop covers ids).
+// 'no-config' — NO config row known: daily-note reporting is HELD (fail
+//               closed) until one arrives. Persistent 'no-config' on a
+//               paired plugin is the visible symptom the 2026-08-31
+//               fragment factory never had.
+const STAMPING_STATES = new Set(['armed', 'off', 'no-config']);
+
 /**
  * Parse a heartbeat file's text. Returns the payload object or null for
  * anything unusable (malformed JSON, missing/unparseable ts) — callers
@@ -53,6 +64,12 @@ export function parseObsidianHeartbeat(text) {
       accountId: typeof hb.accountId === 'string' ? hb.accountId : null,
       deviceId: typeof hb.deviceId === 'string' ? hb.deviceId : null,
       tsMs,
+      // Stamping diagnosability (2026-08-31 config-null incident): the plugin
+      // reports whether normalize-then-observe is armed, so dayGLANCE's
+      // status panels can SHOW a plugin that never received its config row
+      // instead of the state being invisible until fragments appear. Absent
+      // (a pre-field plugin build) parses to null = unknown.
+      stamping: STAMPING_STATES.has(hb.stamping) ? hb.stamping : null,
     };
   } catch {
     return null;
@@ -72,6 +89,10 @@ export function obsidianHeartbeatState(heartbeat, nowMs = Date.now()) {
   return {
     obsidianRunning: fresh,
     pluginAuthoritative: fresh && heartbeat.paired === true,
+    // Passed through only from a FRESH beat: a stale plugin's stamping claim
+    // is as dead as its pairing claim. null = unknown (stale, missing, or a
+    // pre-field plugin build).
+    stamping: fresh ? (heartbeat.stamping ?? null) : null,
   };
 }
 
@@ -81,6 +102,10 @@ export function obsidianHeartbeatState(heartbeat, nowMs = Date.now()) {
  * package boundary works in both directions). Phase 5 values: paired is
  * false and accountId null until Phase 6 pairing exists; the SHAPE is final.
  */
-export function heartbeatPayload({ deviceId, paired = false, accountId = null, now = new Date() } = {}) {
-  return { paired, accountId, deviceId: deviceId ?? null, ts: now.toISOString() };
+export function heartbeatPayload({ deviceId, paired = false, accountId = null, stamping = null, now = new Date() } = {}) {
+  const payload = { paired, accountId, deviceId: deviceId ?? null, ts: now.toISOString() };
+  // Additive, never breaking: the field appears only when the writer supplies
+  // a known state, so pre-field readers see exactly the shape they always did.
+  if (STAMPING_STATES.has(stamping)) payload.stamping = stamping;
+  return payload;
 }

@@ -81,6 +81,28 @@ function bareId(entityId) {
 
 const parseTs = (v) => (v == null ? NaN : new Date(v).getTime());
 
+// Union of every deletion tombstone across all bundles in `m`, keeping the
+// NEWEST parseable timestamp per id (a real re-delete after a revive re-stamps
+// the tombstone, and the bundle merge keeps the newer value — unionNewerIso).
+// A missing/unparseable value maps to Infinity: it authorizes unconditionally
+// (the pre-timestamp-rule behavior; we cannot call it stale if we can't date
+// it). Shared by the partition below and the polarity reassert.
+function collectTombstones(m) {
+  const tombstoned = new Map();
+  for (const key of TOMBSTONE_BUNDLE_KEYS) {
+    const bundle = m[key];
+    if (bundle && typeof bundle === 'object') {
+      for (const [id, value] of Object.entries(bundle)) {
+        const t = parseTs(value);
+        const eff = Number.isNaN(t) ? Infinity : t;
+        const prev = tombstoned.get(String(id));
+        if (prev === undefined || eff > prev) tombstoned.set(String(id), eff);
+      }
+    }
+  }
+  return tombstoned;
+}
+
 /**
  * Split the snapshot-diff's would-be deletes into those safe to propagate and those
  * to skip as suspected local-state glitches.
@@ -128,24 +150,8 @@ export function partitionSnapshotDeletes(deleteEntityIds, cur, mirror, getDelete
   const liveBareIds = new Set();
   for (const eid of Object.keys(cur || {})) liveBareIds.add(bareId(eid));
 
-  // Union of every deletion tombstone across all bundles, keeping the NEWEST
-  // parseable timestamp per id (a real re-delete after a revive re-stamps the
-  // tombstone, and the bundle merge keeps the newer value — unionNewerIso). A
-  // missing/unparseable value maps to Infinity: it authorizes unconditionally
-  // (the pre-timestamp-rule behavior; we cannot call it stale if we can't date it).
-  const tombstoned = new Map();
   const m = mirror && typeof mirror === 'object' ? mirror : {};
-  for (const key of TOMBSTONE_BUNDLE_KEYS) {
-    const bundle = m[key];
-    if (bundle && typeof bundle === 'object') {
-      for (const [id, value] of Object.entries(bundle)) {
-        const t = parseTs(value);
-        const eff = Number.isNaN(t) ? Infinity : t;
-        const prev = tombstoned.get(String(id));
-        if (prev === undefined || eff > prev) tombstoned.set(String(id), eff);
-      }
-    }
-  }
+  const tombstoned = collectTombstones(m);
 
   // lastModified (epoch ms) of the copy being deleted; NaN when unavailable.
   const deletedLastModified = (eid) => {
@@ -234,4 +240,89 @@ export function partitionSnapshotDeletes(deleteEntityIds, cur, mirror, getDelete
     }
   }
   return { propagate, skipped, excluded, reasons, successorTombstoned };
+}
+
+/**
+ * THE POLARITY REASSERT (2026-08-31 db-tier war — the engine upsert-flip).
+ *
+ * The engine's push has no delete POLARITY: pushDirtyRows re-classifies each
+ * dirty entityId at push time by local presence — present in the mirror →
+ * UPSERT, absent → soft-delete (verified against @glance-apps/sync
+ * dbEngine.js). And the pull runs BETWEEN the snapshot diff (which authorized
+ * the delete and marked the id dirty) and the push. So a pulled row — above
+ * all this device's OWN echo, which the pull re-lists every cycle because a
+ * push never advances the pull cursor — re-supplies the mirror, and the
+ * blessed delete silently flips into an upsert ("written:2 deleted:0" on a
+ * delete-only dirty set): the war's resurrection primitive. The tombstone-LWW
+ * leg exists for the opposite direction (a pulled TOMBSTONE against a live
+ * local row, applyRemoteRow) but not for this one — a delete intent carries
+ * no timestamp into the push, so nothing ever weighed the pulled copy against
+ * the evidence that authorized the delete.
+ *
+ * This helper is that missing weighing, run AFTER the pull on the deletes the
+ * diff actually propagated:
+ *   • 'tombstoned' — the authorizing tombstone (recomputed from the POST-pull
+ *     mirror bundles, so a peer's fresher tombstone or revival counts) still
+ *     at-least-ties the resupplied copy's lastModified (same epsilon as the
+ *     partition) → EVICT: the delete stands; remove the pulled copy from the
+ *     mirror so the push keeps delete polarity. A copy NEWER than its
+ *     tombstone is a genuine revival → ACCEPT the flip (that upsert is
+ *     correct newest-write-wins behavior).
+ *   • 'retired' — supersede-regardless-of-timestamps, exactly as the
+ *     partition ruled it: the successor still live in the mirror → EVICT. A
+ *     successor no longer live → ACCEPT (conservative: never bless a delete
+ *     whose surviving copy this device can't see — the partition's own rule).
+ *   • any other reason → ACCEPT (cross-list moves resolve through reconcile).
+ *
+ * Pure: returns the split; the CALLER evicts (mirror mutation stays in
+ * dbEngine, beside the other mirror writes).
+ *
+ * @param {Array<{entityId: string, reason: string}>} propagated  deletes the
+ *   diff marked dirty this cycle (post acked-delete and latch filtering)
+ * @param {object} mirror  the POST-pull mirror (tombstone bundles, retirement
+ *   record, task lists)
+ * @param {(entityId: string) => object|null} getLiveEntity  the mirror's
+ *   current copy of the row ({ _kind, value }), null when absent
+ * @returns {{ evict: Array<{entityId: string, reason: string}>, accepted: Array<{entityId: string, reason: string}> }}
+ *   evict: delete still authorized — remove the resupplied copy pre-push;
+ *   accepted: the flip is legitimate (revival / vanished successor).
+ */
+export function reassertPropagatedDeletes(propagated, mirror, getLiveEntity) {
+  const m = mirror && typeof mirror === 'object' ? mirror : {};
+  const evict = [];
+  const accepted = [];
+  if (!Array.isArray(propagated) || propagated.length === 0) return { evict, accepted };
+  const tombstoned = collectTombstones(m);
+  const retiredRecord = m.retiredTaskIds && typeof m.retiredTaskIds === 'object' ? m.retiredTaskIds : {};
+  const liveTaskIds = new Set(
+    [...(Array.isArray(m.tasks) ? m.tasks : []), ...(Array.isArray(m.unscheduledTasks) ? m.unscheduledTasks : [])]
+      .filter(Boolean).map((t) => String(t.id)),
+  );
+  for (const { entityId, reason } of propagated) {
+    let live = null;
+    try { live = getLiveEntity(entityId); } catch { live = null; }
+    if (live == null) continue; // polarity intact — the push will delete
+    const id = bareId(entityId);
+    if (reason === 'retired') {
+      const successor = resolveRetirement(retiredRecord, id);
+      if (successor && successor !== id && liveTaskIds.has(successor)) {
+        evict.push({ entityId, reason });
+      } else {
+        accepted.push({ entityId, reason });
+      }
+      continue;
+    }
+    if (reason === 'tombstoned') {
+      const tombTs = tombstoned.get(id);
+      const liveTs = parseTs(getEntityLastModified(live));
+      if (tombTs !== undefined && (Number.isNaN(liveTs) || tombTs >= liveTs - STALE_TOMBSTONE_EPSILON_MS)) {
+        evict.push({ entityId, reason });
+      } else {
+        accepted.push({ entityId, reason });
+      }
+      continue;
+    }
+    accepted.push({ entityId, reason });
+  }
+  return { evict, accepted };
 }

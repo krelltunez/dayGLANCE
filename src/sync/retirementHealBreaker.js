@@ -92,8 +92,88 @@ export function consumeRetirementHealTripped() {
   return t;
 }
 
+// ── DELETE-PROPAGATION STREAK LATCH ─────────────────────────────────────────
+// (2026-08-31 db-tier war commission — the wall the retirement-heal breaker
+// above cannot provide.) That breaker guards the SKIPPED/heal arm; the
+// observed war never touched it: its rows propagated as '(retired)' and
+// '(tombstoned)' every ~2s — each cycle the pull re-supplied the row live,
+// something removed it from getData() again (the retirement apply path, the
+// tombstone), and the diff re-propagated the SAME delete, which the engine's
+// push then flipped into an upsert against the pulled-live mirror copy
+// (written:2 deleted:0 — the resurrection primitive). Every classification
+// was per-spec; the composition was a loop the skipped-arm breaker was
+// structurally unable to see.
+//
+// THE RULE: one entityId delete-propagated a 4th time inside 10 wall-clock
+// minutes has no legitimate script. A delete normally leaves the diff after
+// ONE propagation (the saved snapshot stops tracking the row); the benign
+// repeats are bounded — a failed push retries (behind the cycle breaker's
+// backoff), an acked delete is already skipped upstream (ackedDeletes) and
+// never reaches this counter. Four in ten minutes means the row keeps
+// RE-ENTERING the baseline between cycles: churn, whatever its shape — this
+// latch is deliberately shape-agnostic so the NEXT arm of this war hits the
+// same wall without needing its own diagnosis first.
+//
+// ON TRIP it LATCHES for the session, like the heal breaker and for the same
+// reason: the churn does not resolve by waiting, and a cooldown would resume
+// the war at trigger speed. While latched the delete is simply not marked
+// dirty — this device stops re-asserting the deletion; the vault row and
+// local state are both untouched by the latch itself. Worst case for a
+// false latch (a genuinely deleted row on a flaky network): the vault keeps
+// the row until another device propagates the delete or the user re-deletes
+// — visible, recoverable, loudly logged. The war costs more.
+
+const PROPAGATE_STREAK_N = 4;
+
+/** entityId → { hits: number[], latched: boolean, lastReason: string|null } */
+const propagateState = new Map();
+let propagateTrippedThisCycle = false;
+
+/**
+ * Note that the cycle wants to delete-propagate `entityId` (already past the
+ * acked-delete skip), and answer whether to SUPPRESS it. Latches on the
+ * PROPAGATE_STREAK_N-th propagation within WINDOW_MS.
+ *
+ * @param {string} entityId
+ * @param {string|null} reason  the guard's classification (for the log)
+ * @param {number} [nowMs]
+ * @returns {boolean} true → suppress this delete
+ */
+export function shouldSuppressDeletePropagation(entityId, reason = null, nowMs = Date.now()) {
+  let s = propagateState.get(entityId);
+  if (!s) { s = { hits: [], latched: false, lastReason: null }; propagateState.set(entityId, s); }
+  if (s.latched) return true;
+  s.lastReason = reason ?? s.lastReason;
+  s.hits = s.hits.filter((t) => nowMs - t < WINDOW_MS);
+  s.hits.push(nowMs);
+  if (s.hits.length < PROPAGATE_STREAK_N) return false;
+  s.latched = true;
+  s.hits = [];
+  propagateTrippedThisCycle = true;
+  console.error(
+    `[push] DELETE-PROPAGATION LATCH: ${entityId} was delete-propagated ${PROPAGATE_STREAK_N} times in ` +
+    `${WINDOW_MS / 60000}min (last classification: ${s.lastReason ?? 'unknown'}) — a delete leaves the ` +
+    `baseline after ONE propagation, so a streak means the row keeps being resurrected between cycles ` +
+    `(the 2026-08-31 retire/tombstone war shape). LATCHED for this session: this device stops ` +
+    `re-asserting the deletion (nothing is deleted or restored by the latch itself). If the row should ` +
+    `be gone, delete it again after reloading the app; reloading re-arms the latch.`
+  );
+  return true;
+}
+
+/** True once per cycle in which the propagation latch tripped; reading
+ *  clears it. The cycle counts it as a breaker strike, same as the heal
+ *  breaker — a war's trigger cadence must meet a cooldown. */
+export function consumeDeletePropagationTripped() {
+  const t = propagateTrippedThisCycle;
+  propagateTrippedThisCycle = false;
+  return t;
+}
+
 /** Test seam. */
 export function __resetRetirementHealBreakerForTests() {
   state.clear();
   trippedThisCycle = false;
+  propagateState.clear();
+  propagateTrippedThisCycle = false;
 }

@@ -115,6 +115,20 @@ const BridgePairingPanel = ({ vaultHandleRef, darkMode, textPrimary, textSeconda
             ? t('settings.obsidianBridgeRunning')
             : t('settings.obsidianBridgeNotDetected')}
       </p>
+      {/* Stamping tri-state from the plugin's heartbeat (2026-08-31
+          config-null incident): 'no-config' is the loud one — the plugin is
+          holding daily-note reporting, fail closed, until its config row
+          arrives (dayGLANCE republishes it each session). 'armed'/'off' are
+          quiet confirmations; absent (old plugin build) renders nothing. */}
+      {hb.pluginAuthoritative && hb.stamping === 'no-config' && (
+        <p className="text-xs text-amber-500">{t('settings.obsidianBridgeStampingNoConfig')}</p>
+      )}
+      {hb.pluginAuthoritative && hb.stamping === 'armed' && (
+        <p className={`text-xs ${textSecondary}`}>{t('settings.obsidianBridgeStampingArmed')}</p>
+      )}
+      {hb.pluginAuthoritative && hb.stamping === 'off' && (
+        <p className={`text-xs ${textSecondary}`}>{t('settings.obsidianBridgeStampingOff')}</p>
+      )}
       {code ? (
         <div className="space-y-2">
           <div className={`flex items-center justify-center gap-2 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-100'}`}>

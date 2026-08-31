@@ -29,6 +29,9 @@
 //     push next cycle. See the commit block in dbSyncCycle.
 
 import { createDbSyncEngine, clearDbRootKey, initDbRootKey, decryptEntity, isSuppressedError } from '@glance-apps/sync';
+// Sanctioned deep import (same rationale as obsidianBridgeStream.js): the
+// client alone, constructible without the engine, for the own-ack wrapper below.
+import { createVaultClient } from '@glance-apps/sync/src/vaultClient.js';
 import { getVaultConfig, isVaultEnabled } from './vaultConfig.js';
 import { getDeviceId } from './deviceId.js';
 import {
@@ -40,12 +43,15 @@ import {
   reconcileCrossList,
 } from './dbAdapter.js';
 import { pruneAllTombstones, tombstoneCutoff } from './tombstoneRetention.js';
-import { partitionSnapshotDeletes } from './snapshotDeleteGuard.js';
+import { partitionSnapshotDeletes, reassertPropagatedDeletes } from './snapshotDeleteGuard.js';
 import { isPayloadExcludedEntity, agedOutReleaseReason } from './payloadExclusions.js';
 import { shredHashes, hashMapsEqual, mergeMidCycleEdits } from './commitMerge.js';
 import { createSyncCycleBreaker, isRateLimitedError } from './syncBrakes.js';
 import { shouldSuppressReconcileDelete, consumeWarTripped } from './reconcileWarGuard.js';
-import { shouldSuppressRetirementHeal, consumeRetirementHealTripped } from './retirementHealBreaker.js';
+import {
+  shouldSuppressRetirementHeal, consumeRetirementHealTripped,
+  shouldSuppressDeletePropagation, consumeDeletePropagationTripped,
+} from './retirementHealBreaker.js';
 import { recordOwnWriteSeq } from './ownWrites.js';
 import { isObsidianTombstoned } from '../utils/obsidianDeletions.js';
 import { ghostSuccessorId, persistDerivedGhostRetirements } from '../utils/obsidianGhostRows.js';
@@ -309,6 +315,36 @@ export function createDbEngine(callbacks = {}) {
   // at the start of each cycle and committed at the end.
   let mirror = {};
 
+  // OWN-ACK COVERAGE FOR ENGINE DELETES (2026-08-31 war commission): the
+  // server emits ONE nudge per batch — carrying the batch's maxSeq, which the
+  // pushRes.maxSeq record after the push covers — but one nudge PER
+  // deleteRow, each carrying that delete's own seq (glance-vault
+  // routes/sync.ts, verified). pushDirtyRows folds the per-delete seqs into
+  // its returned maxSeq, so a push with two or more deletes left every
+  // non-max delete's echo looking FOREIGN to the exact-identity ownWrites
+  // ring — one guaranteed self-nudge (drain, cycle) per multi-delete push.
+  // The ring is exact-identity by design (no `<=` heuristic — the freshness
+  // trap), so the fix is to SEE every seq: build the client ourselves (the
+  // same construction the package would run) and record each delete ack at
+  // the source. An INJECTED client (tests) passes through untouched — tests
+  // live-swap methods on the object they hold, and a wrapping copy would
+  // sever that.
+  let vaultClient = callbacks.vaultClient;
+  if (!vaultClient && cfg.vaultUrl && cfg.vaultToken) {
+    try {
+      const inner = createVaultClient({ vaultUrl: cfg.vaultUrl, vaultToken: cfg.vaultToken, fetchImpl: loggingFetch });
+      vaultClient = {
+        ...inner,
+        deleteRow: async (...args) => {
+          const r = await inner.deleteRow(...args);
+          const seq = Number(r?.seq);
+          if (Number.isFinite(seq) && seq > 0) recordOwnWriteSeq(seq);
+          return r;
+        },
+      };
+    } catch { vaultClient = undefined; /* let the package build its own */ }
+  }
+
   const engine = createDbSyncEngine({
     storageKeyPrefix,
     appId: APP_ID,
@@ -319,7 +355,7 @@ export function createDbEngine(callbacks = {}) {
     accountId: cfg.accountId,
     fetchImpl: loggingFetch,
     deviceId: callbacks.deviceId || getDeviceId(),
-    vaultClient: callbacks.vaultClient,
+    vaultClient,
     nativeGetSyncKey,
     nativeStoreSyncKey,
     getLocalEntity: (entityId) => adapterGetLocalEntity(mirror, entityId),
@@ -619,6 +655,9 @@ export function createDbEngine(callbacks = {}) {
       const baseHashes = shredHashes(mirror);
       // Bug-2 state: glitch-suspect vanish-deletes the guard skipped this cycle.
       let glitchSkipped = [];
+      // Deletes the diff actually marked dirty this cycle (with the guard's
+      // classification), for the post-pull polarity reassert below.
+      let propagatedDeletes = [];
       // FULL-SEED GATE — re-fires EVERY cycle while HWM is 0, not just once:
       // HWM advances only when a pull succeeds and lists something. Safe solely
       // because this cycle pulls before it pushes inside one try (catch at the
@@ -744,7 +783,16 @@ export function createDbEngine(callbacks = {}) {
           // write. If the row ever comes back at the vault, the pull applies it
           // live (invalidating this entry) before any delete could be wanted.
           if (ackedDeletes.has(id)) continue;
+          // DELETE-PROPAGATION STREAK LATCH (retirementHealBreaker.js — the
+          // 2026-08-31 war's propagate-arm wall): a delete leaves the baseline
+          // after one propagation, so the same id propagating a 4th time in
+          // 10 wall-clock minutes means the row keeps being resurrected
+          // between cycles — churn hits this wall regardless of which
+          // classification it rides ('retired'/'tombstoned' in the observed
+          // war), where the heal breaker above only covers the skipped arm.
+          if (shouldSuppressDeletePropagation(id, reasons[id])) continue;
           engine.markDirty(id); // deletes
+          propagatedDeletes.push({ entityId: id, reason: reasons[id] });
           if (dbgChanges) dbgChanges.push({ id, kind: 'deleted', diff: [] });
         }
         // Diagnostic: name WHY each delete is being propagated (tombstoned = real
@@ -816,6 +864,31 @@ export function createDbEngine(callbacks = {}) {
         const heal = await healGlitchSkips(glitchSkipped);
         glitchUnresolved = heal.unresolved;
         healRateLimited = heal.rateLimited;
+      }
+      // THE POLARITY REASSERT (2026-08-31 war — the engine upsert-flip; full
+      // argument on reassertPropagatedDeletes): the push decides upsert-vs-
+      // delete by mirror PRESENCE at push time, and the pull above runs
+      // between the diff that authorized these deletes and that push — so a
+      // pulled row (above all this device's own echo, re-listed because a
+      // push never advances the pull cursor) re-supplies the mirror and
+      // silently flips a blessed delete into an upsert: "written:2 deleted:0"
+      // on a delete-only dirty set, the war's resurrection primitive. Weigh
+      // each resupplied copy against the evidence that authorized its delete
+      // (post-pull bundles, so a peer's fresher state counts): the delete
+      // still stands → EVICT the copy from the mirror so the push keeps
+      // delete polarity; a copy genuinely newer than its tombstone (or a
+      // vanished successor) → the flip is correct newest-write-wins, accept.
+      if (propagatedDeletes.length) {
+        const { evict } = reassertPropagatedDeletes(
+          propagatedDeletes, mirror, (eid) => adapterGetLocalEntity(mirror, eid));
+        if (evict.length) {
+          for (const { entityId } of evict) adapterApplyRemoteDelete(mirror, entityId);
+          console.warn(
+            '[push] polarity reassert: evicted', evict.length,
+            'pull-resupplied cop(ies) of blessed delete(s) so the push stays a delete (upsert-flip guard):',
+            evict.slice(0, 10).map(({ entityId, reason }) => `${entityId} (${reason})`),
+            evict.length > 10 ? `(+${evict.length - 10} more)` : '');
+        }
       }
       reconcileCrossList(
         mirror,
@@ -1021,6 +1094,11 @@ export function createDbEngine(callbacks = {}) {
         // inside a successful cycle (fix 4, retire/tombstone oscillation).
         throttleAnnounced = false;
         breaker.onFailure({ message: 'retirement-heal breaker latched (retire/tombstone oscillation)' });
+      } else if (consumeDeletePropagationTripped()) {
+        // And the propagate arm of the same class: the delete-propagation
+        // latch tripped inside a successful cycle (2026-08-31 war, fix 3).
+        throttleAnnounced = false;
+        breaker.onFailure({ message: 'delete-propagation latch tripped (resurrection churn)' });
       } else {
         breaker.onSuccess();
       }

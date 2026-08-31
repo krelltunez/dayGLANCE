@@ -53,6 +53,21 @@ import type { BridgePairing } from './pairing';
 export interface BridgeState {
   appliedIds: string[];
   hwm: number;
+  // The last meta:config row seen, persisted since the 2026-08-31 config-null
+  // incident: this.config used to be MEMORY-ONLY, refreshed only when a drain
+  // paged over the config row — but the row's seq sits below the persisted
+  // cursor after the first sighting, so it is never re-listed, and any plugin
+  // reload permanently orphaned the config. The dayGLANCE side's
+  // once-per-value publish guard (then persisted too) never republished, so
+  // the fleet ran config-null indefinitely — and config-null silently skipped
+  // the ENTIRE normalize-then-observe block: stamping, the write rule, the
+  // cursor gate, AND ruling 7's stamp/observe coupling. Fail-closed for
+  // writes had become fail-open for reporting: unstamped mid-typing states
+  // shipped at autosave cadence (the fragment factory). Persisting the config
+  // beside the cursor it rides under is the structural fix; emitObservation
+  // now also HOLDS daily-note reporting while config is null (fail closed on
+  // the reporting side), making ruling 7's invariant unconditional.
+  config?: BridgeConfigRow | null;
 }
 
 const APPLIED_IDS_CAP = 1000;
@@ -67,6 +82,10 @@ const APPLIED_IDS_CAP = 1000;
 // re-list. Large enough that a normal editing day never trips it.
 const HWM_PERSIST_GAP = 500;
 const OBSERVE_DEBOUNCE_MS = 2000;
+// Retry cadence for a daily-note report held on config-null (fail closed —
+// see emitObservation). Config arrives within one drain tick of load, so the
+// hold usually resolves on the first retry; the timer is local, no network.
+const CONFIG_HOLD_RETRY_MS = 15_000;
 // 429 backoff (mirrors the dayGLANCE side's bridge brake): the server
 // rate-limits per IP, a budget shared with every dayGLANCE device in the
 // house — when it trips, retrying at full cadence keeps it tripped.
@@ -151,7 +170,17 @@ export class BridgeTransport {
   private subkey: CryptoKey | null = null;
   private subkeyGeneration: string | null = null;
   private draining = false;
+  // Seeded from persisted BridgeState in the constructor (see the field's
+  // comment on BridgeState); refreshed by drains; recovered by a single-row
+  // GET when null (see drain). null = fail closed: no stamping AND no
+  // daily-note reporting.
   private config: BridgeConfigRow | null = null;
+  // One getRow attempt per pairing generation while config is null; reset on
+  // failure so the next drain retries.
+  private configFetchedGeneration: string | null = null;
+  // One loud console line per load for the held-reporting state — the hold
+  // itself re-arms silently per path.
+  private warnedConfigHold = false;
   private observeTimers = new Map<string, number>();
   private warnedUnsupported = false;
   // Once per plugin load (per generation), the drain re-asserts the
@@ -245,6 +274,43 @@ export class BridgeTransport {
 
   constructor(host: BridgeHost) {
     this.host = host;
+    // Config survives plugin reloads via data.json (the 2026-08-31 fix): a
+    // reloaded plugin resumes with the stamping decision it last knew instead
+    // of silently reverting to config-null. Drains keep it fresh.
+    const persisted = host.getBridgeState().config;
+    if (persisted && typeof persisted === 'object') {
+      this.config = persisted;
+      console.info(`dayGLANCE bridge: config restored from settings — stamping ${this.stampingState()}.`);
+    }
+  }
+
+  /** The normalize-then-observe arming tri-state, for the heartbeat and the
+   *  console: 'armed' (config present, blockIdWrites true), 'off' (config
+   *  present, writes gated off), 'no-config' (nothing known — daily-note
+   *  reporting is HELD until a config row arrives). */
+  stampingState(): 'armed' | 'off' | 'no-config' {
+    if (this.config === null) return 'no-config';
+    return bridgeConfigAllowsStamping(this.config) ? 'armed' : 'off';
+  }
+
+  /** Adopt a (freshly decrypted) config row: update memory, log arming
+   *  transitions, persist beside the cursor when the VALUE changed (an
+   *  identical republish costs no data.json write — Obsidian Sync churn). */
+  private async adoptConfig(cfg: BridgeConfigRow): Promise<void> {
+    const before = this.stampingState();
+    const changed = JSON.stringify(cfg) !== JSON.stringify(this.config);
+    this.config = cfg;
+    if (!changed) return;
+    const after = this.stampingState();
+    console.info(`dayGLANCE bridge: config ${before === 'no-config' ? 'received' : 'updated'} — stamping ${after}.`);
+    try {
+      const state = this.host.getBridgeState();
+      await this.host.saveBridgeState({ ...state, config: cfg });
+    } catch (e) {
+      // Memory still holds the config; the next drain's persist site (or the
+      // next config change) retries. Never let bookkeeping break a drain.
+      console.error('dayGLANCE bridge: config persist failed', e);
+    }
   }
 
   private client(pairing: BridgePairing): VaultClient {
@@ -458,6 +524,30 @@ export class BridgeTransport {
         await publishPairingMeta(pairing);
         this.metaAssertedGeneration = pairing.generation;
       }
+      // CONFIG RECOVERY BY DIRECT READ (2026-08-31 config-null incident):
+      // paging can never re-list a config row whose seq sits below the
+      // cursor, so a plugin that lost its config (a pre-persistence install
+      // upgrading, a data.json that never carried it) would wait forever for
+      // a republish. One single-row GET per pairing generation while config
+      // is null closes that unconditionally — after this, "config unknown"
+      // can only mean a genuinely fresh pairing whose first drain (cursor 0)
+      // is about to list the row anyway.
+      if (this.config === null && this.configFetchedGeneration !== pairing.generation) {
+        this.configFetchedGeneration = pairing.generation;
+        try {
+          const row = await client.getRow(BRIDGE_VAULT_APP, BRIDGE_CONFIG_META_ID, pairing.accountId) as
+            { envelope?: string; deleted?: boolean } | null;
+          if (row?.envelope && !row.deleted) {
+            const cfg = await openBridgeEnvelope(subkey, row.envelope) as (BridgeConfigRow & { kind?: string }) | null;
+            if (cfg?.kind === 'config') await this.adoptConfig(cfg);
+          }
+        } catch (e) {
+          this.configFetchedGeneration = null; // retry on the next drain
+          const status = (e as { status?: number } | null)?.status;
+          if (status === 429 || status === 401 || status === 403) throw e; // brake / refutation, classified below
+          console.error('dayGLANCE bridge: config fetch failed', e);
+        }
+      }
       const state = this.host.getBridgeState();
       const applied = new Set(state.appliedIds);
       if (this.memHwmGeneration !== pairing.generation) {
@@ -511,7 +601,7 @@ export class BridgeTransport {
             // config cache opportunistically, skip everything else.
             if (entityId === BRIDGE_CONFIG_META_ID && row.envelope) {
               const cfg = await openBridgeEnvelope(subkey, row.envelope) as (BridgeConfigRow & { kind?: string }) | null;
-              if (cfg?.kind === 'config') this.config = cfg;
+              if (cfg?.kind === 'config') await this.adoptConfig(cfg);
             }
             continue;
           }
@@ -580,6 +670,10 @@ export class BridgeTransport {
           await this.host.saveBridgeState({
             appliedIds: ids.slice(Math.max(0, ids.length - APPLIED_IDS_CAP)),
             hwm: Math.max(persistedHwm, cursor),
+            // Carry the config forward — this save REPLACES the state object,
+            // and dropping the field here would undo the persistence that
+            // closes the 2026-08-31 config-null hole.
+            config: this.config,
           });
           persistedHwm = Math.max(persistedHwm, cursor);
           appliedDirty = false;
@@ -803,6 +897,35 @@ export class BridgeTransport {
         try { mtime = (await adapter.stat(path))?.mtime ?? null; } catch { /* stat optional */ }
       }
       if (deleted ? !this.isDailyNote(path) : !this.inScope(path, content)) return;
+
+      // ── FAIL CLOSED WHILE CONFIG IS UNKNOWN (2026-08-31 incident) ───────
+      // With config null, the normalize block below cannot run — so reporting
+      // a daily note here would ship UNSTAMPED, possibly mid-typing, state at
+      // autosave cadence: the exact fragment factory. The old shape did that
+      // silently (config-null skipped stamping AND the deferral coupling but
+      // not the report itself — fail-closed writes had become fail-open
+      // reporting). Now ruling 7's invariant is UNCONDITIONAL: a daily-note
+      // report waits for the config row instead of running without the
+      // stamper. Self-resolving and short: config is persisted across
+      // reloads, recovered by a single-row GET, and republished per dayGLANCE
+      // session — the only real no-config state left is a fresh pairing's
+      // first ~30s. Deletion reports hold too: while config is unknown the
+      // daily-note classifier runs on its fallback regex, and feeding the
+      // note-scoped deletion inference from a guessed classification isn't
+      // worth the asymmetry.
+      if (this.config === null && this.isDailyNote(path)) {
+        if (!this.warnedConfigHold) {
+          this.warnedConfigHold = true;
+          console.warn('dayGLANCE bridge: no config row known yet — daily-note reporting held (fail closed) until it arrives.');
+        }
+        const prior = this.observeTimers.get(path);
+        if (prior !== undefined) window.clearTimeout(prior);
+        this.observeTimers.set(path, window.setTimeout(() => {
+          this.observeTimers.delete(path);
+          void this.emitObservation(path, deleted);
+        }, CONFIG_HOLD_RETRY_MS));
+        return;
+      }
 
       // ── NORMALIZE-THEN-OBSERVE (§3.10 ruling 7) ─────────────────────────
       // Stamp untagged task lines BEFORE reporting a daily note, so no

@@ -85,16 +85,19 @@ export function validateDailyNotePattern(
 
 // ── heartbeat ───────────────────────────────────────────────────────────────
 export const OBSIDIAN_HEARTBEAT_STALE_MS: number;
+export type BridgeStampingState = 'armed' | 'off' | 'no-config';
 export interface ObsidianHeartbeat {
   paired: boolean; accountId: string | null; deviceId: string | null; tsMs: number;
+  stamping: BridgeStampingState | null;
 }
 export function parseObsidianHeartbeat(text: string | null | undefined): ObsidianHeartbeat | null;
 export function obsidianHeartbeatState(
   heartbeat: ObsidianHeartbeat | null, nowMs?: number,
-): { obsidianRunning: boolean; pluginAuthoritative: boolean };
+): { obsidianRunning: boolean; pluginAuthoritative: boolean; stamping: BridgeStampingState | null };
 export function heartbeatPayload(opts?: {
-  deviceId?: string | null; paired?: boolean; accountId?: string | null; now?: Date;
-}): { paired: boolean; accountId: string | null; deviceId: string | null; ts: string };
+  deviceId?: string | null; paired?: boolean; accountId?: string | null;
+  stamping?: BridgeStampingState | null; now?: Date;
+}): { paired: boolean; accountId: string | null; deviceId: string | null; ts: string; stamping?: BridgeStampingState };
 
 // ── bridge pairing (vault dead-drop) ────────────────────────────────────────
 export const PAIRING_DIR: string;

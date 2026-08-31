@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { setSyncPassphrase } from '@glance-apps/sync';
 import { createDbEngine } from './dbEngine.js';
+import { __resetRetirementHealBreakerForTests } from './retirementHealBreaker.js';
 import { setVaultConfig } from './vaultConfig.js';
 import { rescueUnsyncedTasks } from '../utils/rescueUnsyncedTasks.js';
 import { mergeObsidianTasks } from '../utils/mergeObsidianTasks.js';
@@ -87,6 +88,11 @@ beforeEach(() => {
   global.localStorage = memLocalStorage();
   setVaultConfig({ enabled: true, vaultUrl: 'https://vault.test', vaultToken: 't', accountId: 'acct' });
   setSyncPassphrase('correct horse battery staple');
+  // The delete-propagation latch is module state and this file both FREEZES
+  // the clock (its 10-minute window never expires) and reuses the same war
+  // ids across tests — without a reset, deletes propagated in earlier tests
+  // count toward later tests' streaks.
+  __resetRetirementHealBreakerForTests();
 });
 afterEach(() => { vi.useRealTimers(); });
 afterAll(() => { delete global.localStorage; });
