@@ -55,13 +55,29 @@ const BridgeStatusPanel = ({ darkMode, textPrimary, textSecondary, borderClass }
         {t('settings.obsidianBridgeTitle')}
       </div>
       {status.state === 'active' && (
-        <p className="text-xs text-green-500">
-          {status.pairedDays === null
-            ? t('settings.obsidianBridgeActiveModeUnknown')
-            : status.pairedDays === 0
-              ? t('settings.obsidianBridgeActiveModeToday')
-              : t('settings.obsidianBridgeActiveMode', { days: status.pairedDays })}
-        </p>
+        <>
+          <p className="text-xs text-green-500">
+            {status.pairedDays === null
+              ? t('settings.obsidianBridgeActiveModeUnknown')
+              : status.pairedDays === 0
+                ? t('settings.obsidianBridgeActiveModeToday')
+                : t('settings.obsidianBridgeActiveMode', { days: status.pairedDays })}
+          </p>
+          {/* Stamping tri-state from the plugin's heartbeat (2026-08-31
+              config-null incident): 'no-config' is the one that must be
+              LOUD — the plugin is holding daily-note reporting, fail
+              closed, until its config row arrives. 'armed'/'off' are quiet
+              confirmations; null (old plugin build) renders nothing. */}
+          {status.stamping === 'no-config' && (
+            <p className="text-xs text-amber-500">{t('settings.obsidianBridgeStampingNoConfig')}</p>
+          )}
+          {status.stamping === 'armed' && (
+            <p className={`text-xs ${textSecondary}`}>{t('settings.obsidianBridgeStampingArmed')}</p>
+          )}
+          {status.stamping === 'off' && (
+            <p className={`text-xs ${textSecondary}`}>{t('settings.obsidianBridgeStampingOff')}</p>
+          )}
+        </>
       )}
       {status.state === 'unpairedHere' && (
         <>

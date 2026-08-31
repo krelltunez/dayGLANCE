@@ -85,6 +85,42 @@
 import { parseSseFrame, drainSseBuffer } from '@glance-apps/obsidian-format';
 export { parseSseFrame, drainSseBuffer };
 
+// ─── the SSE nudge gate (2026-08-31 — the tripwire, exercised) ───────────────
+//
+// Phase 7's post-build assessment set an explicit tripwire on SSE-speed
+// syncing: "if a speed-revealed incident shows a NEW CLASS rather than a
+// named leftover, disabling SSE is a one-line retreat." The 2026-08-31 night
+// produced three wars in succession — the buffer-merge corruption, the
+// premature-identity stamp split, and the db-tier retire/tombstone
+// oscillation — each a composition of individually-correct rules that only
+// trigger cadence turned pathological. The breakers for the third (re-mint
+// refusal, delete-propagation latch, polarity reassert) ship in the same
+// commission as this gate, UNPROVEN against live traffic. So: dayGLANCE's
+// nudge consumption defaults OFF until they are proven, reverting the
+// effective cadence to exactly the pre-Phase-7 posture — the 5-minute sync
+// poll, the 2-minute intents poll, the plugin's 30-second drain (the
+// plugin's own SSE stays: it only speeds the dayGLANCE→Obsidian intent leg,
+// and every war cycle has to pass through dayGLANCE's drain, which now runs
+// at poll cadence).
+//
+// The escape hatch is a localStorage flag, not a build: set
+// `dayglance-sse-nudges` to 'on' (and reload) to re-arm live nudges for a
+// supervised test; 'off' pins the gate closed even after the default flips.
+// The flag is read once per stream open (app load / foreground), like the
+// vault-enabled gate beside it.
+export const SSE_NUDGES_DEFAULT_ON = false;
+export const SSE_NUDGES_FLAG_KEY = 'dayglance-sse-nudges';
+
+/** Should this app session open the SSE stream and act on nudges? */
+export function sseNudgesEnabled() {
+  try {
+    const v = typeof localStorage !== 'undefined' ? localStorage.getItem(SSE_NUDGES_FLAG_KEY) : null;
+    if (v === 'on') return true;
+    if (v === 'off') return false;
+  } catch { /* storage unavailable → default */ }
+  return SSE_NUDGES_DEFAULT_ON;
+}
+
 // ─── transport detection ──────────────────────────────────────────────────────
 
 /**

@@ -161,6 +161,59 @@ describe('emit + flush', () => {
     // (bridgeConfigAllowsStamping), but the row states it.
     expect(await openBridgeEnvelope(subkey, rows[1].rows[0].envelope)).toMatchObject({ blockIdWrites: false });
   });
+
+  it('THE SESSION-SCOPED GUARD (2026-08-31 config-null incident): the once-per-value memory never touches localStorage, and a fresh session republishes the same value', async () => {
+    // The first shape PERSISTED the hash ('dayglance-bridge-config-hash'),
+    // which made "restart dayGLANCE" structurally incapable of republishing
+    // the row — the workaround the incident's plugin-side hole needed most.
+    // Pre-seed the legacy key exactly as the old code would have written it:
+    // it must be IGNORED (publish happens anyway) and CLEANED UP.
+    globalThis.fetch = makeFetch();
+    const cfg = { dailyNotesPath: 'Daily', dailyNotePattern: 'yyyy-MM-dd', taskHeading: '## Tasks' };
+    const legacyHash = JSON.stringify({
+      v: 1, kind: 'config', dailyNotesPath: 'Daily', dailyNotePattern: 'yyyy-MM-dd',
+      taskHeading: '## Tasks', blockIdWrites: false,
+    });
+    localStorage.setItem('dayglance-bridge-config-hash', legacyHash);
+    await publishBridgeConfig(cfg);
+    let rows = globalThis.fetch.batches.filter((b) => b.rows[0].entityId === 'meta:config');
+    expect(rows).toHaveLength(1); // legacy persisted hash did NOT suppress
+    expect(localStorage.getItem('dayglance-bridge-config-hash')).toBe(null); // and was retired
+
+    // Same value again in the same session → coalesced, and still nothing
+    // written to localStorage (the guard lives in module memory only).
+    await publishBridgeConfig(cfg);
+    rows = globalThis.fetch.batches.filter((b) => b.rows[0].entityId === 'meta:config');
+    expect(rows).toHaveLength(1);
+    expect(localStorage.getItem('dayglance-bridge-config-hash')).toBe(null);
+
+    // A new session (module state reset) republishes the SAME value once —
+    // the reachable recovery lever the persisted guard removed.
+    __resetBridgeStreamForTests();
+    await publishBridgeConfig(cfg);
+    rows = globalThis.fetch.batches.filter((b) => b.rows[0].entityId === 'meta:config');
+    expect(rows).toHaveLength(2);
+  });
+
+  it('A RE-PAIR REPUBLISHES: identical values under a NEW pairing generation publish again — the old sealed row is unreadable garbage to the rotated subkey', async () => {
+    globalThis.fetch = makeFetch();
+    const cfg = { dailyNotesPath: 'Daily', dailyNotePattern: 'yyyy-MM-dd', taskHeading: '## Tasks' };
+    await publishBridgeConfig(cfg);
+    // Re-pair: new salt, new generation, cached fresh (as the sync cycle's
+    // forced meta refresh would leave it).
+    const salt2 = new Uint8Array(16).fill(6);
+    const salt2B64 = btoa(String.fromCharCode(...salt2));
+    localStorage.setItem('dayglance-bridge-pairing-meta', JSON.stringify({
+      meta: { v: 1, kind: 'pairing-meta', generation: salt2B64, pairingSalt: salt2B64, pairedAt: '2026-08-31T00:00:00Z' },
+      fetchedAt: Date.now(),
+    }));
+    await publishBridgeConfig(cfg); // same VALUES — must still republish
+    const rows = globalThis.fetch.batches.filter((b) => b.rows[0].entityId === 'meta:config');
+    expect(rows).toHaveLength(2);
+    // Sealed under the NEW generation's subkey — the new stream can read it.
+    const subkey2 = await deriveBridgeSubkey(getDbRootKey(), salt2);
+    expect(await openBridgeEnvelope(subkey2, rows[1].rows[0].envelope)).toMatchObject({ kind: 'config', dailyNotesPath: 'Daily' });
+  });
 });
 
 describe('the bridge brake (429 backoff)', () => {

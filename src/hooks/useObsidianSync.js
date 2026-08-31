@@ -26,6 +26,7 @@ import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
 import {
   readRetiredTaskIds,
   recordRetirements as recordRetirementEntries,
+  isTombstonedRemint,
   RETIRED_TASK_IDS_STORAGE_KEY,
   RETIRED_ID_DUAL_WRITE,
 } from '../utils/retiredTaskIds.js';
@@ -1098,6 +1099,20 @@ export default function useObsidianSync({
       }
     };
 
+    // RE-MINT REFUSAL inputs (utils/retiredTaskIds.js isTombstonedRemint —
+    // the 2026-08-31 db-tier war's fix at the MINTING site). Read once per
+    // pass: the record, every bundle that can tombstone a dg successor, and
+    // the live-id set the refusal's live-successor exemption needs.
+    const remintRecord = readRetiredTaskIds();
+    let remintTombstoneBundles = [];
+    try {
+      remintTombstoneBundles = [
+        JSON.parse(localStorage.getItem('day-planner-deleted-task-ids') || '{}'),
+        JSON.parse(localStorage.getItem('day-planner-deleted-obsidian-keys') || '{}'),
+      ];
+    } catch { remintTombstoneBundles = []; }
+    const writebackLiveIds = new Set(allObsidian.map(t => String(t.id)));
+
     for (const task of allObsidian) {
       const p = prev[task.id];
       if (!p) continue;
@@ -1188,9 +1203,30 @@ export default function useObsidianSync({
       // token unanimously instead. Deriving from newRawTitle on a retitle
       // matters: the line will CARRY newRawTitle, and a later device deriving
       // from the parsed line must reach the same input.
-      const assignBlockId = (!task.obsidianBlockId && blockIdWritesEnabled())
+      let assignBlockId = (!task.obsidianBlockId && blockIdWritesEnabled())
         ? deriveBlockId(sourceDate, newRawTitle !== undefined ? newRawTitle : task.obsidianRawTitle)
         : null;
+
+      // THE RE-MINT REFUSAL (2026-08-31 db-tier war — see isTombstonedRemint
+      // for the full argument). deriveBlockId's determinism is the unanimity
+      // feature everywhere else, and exactly what armed the war here: every
+      // resurrection of this row derives the SAME successor, whose retirement
+      // is already on the record and whose row is already tombstoned. Minting
+      // again is not assigning identity — it is re-running a completed
+      // identity move whose outcome is known. Refuse at the minting site,
+      // loudly: the row keeps its legacy id (identity-neutral writes still
+      // work), and a stamp-only pass skips the write entirely. The refusal
+      // clears by itself the moment the state stops being contradictory — the
+      // successor revives (live → exemption) or its tombstone/retirement
+      // prunes at retention.
+      if (assignBlockId
+        && isTombstonedRemint(remintRecord, task.id, appIdForBlockId(assignBlockId), remintTombstoneBundles, writebackLiveIds)) {
+        console.error(
+          `Obsidian: REFUSING to re-mint ^dg-${assignBlockId} for ${task.id} — the retirement record already names this exact successor and that successor is tombstoned (retire/tombstone oscillation guard). Delete or edit the vault line to resolve.`);
+        assignBlockId = null;
+        // A stamp was this write's only reason → nothing left to write.
+        if (!titleChanged && !stateChanged && !dateChanged) continue;
+      }
       const writeBlockId = task.obsidianBlockId || assignBlockId;
 
       // Title bookkeeping is COMPUTED here but applied only on write success:

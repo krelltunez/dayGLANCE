@@ -6,6 +6,7 @@ import {
   resolveRetirement,
   applyTaskRetirements,
   applyRetirementsToTaskLists,
+  isTombstonedRemint,
 } from './retiredTaskIds.js';
 
 const T1 = '2026-07-08T10:00:00.000Z';
@@ -127,5 +128,46 @@ describe('applyTaskRetirements — the (d) supersede-regardless-of-timestamps ru
   it('returns the same array when the record touches nothing', () => {
     const list = [task('X', T1)];
     expect(applyTaskRetirements(list, REC, new Set(['X']))).toBe(list);
+  });
+});
+
+describe('isTombstonedRemint — the re-mint refusal (2026-08-31 db-tier retire/tombstone war)', () => {
+  // The war's exact shape: the legacy row resurrects each cycle, stamp-on-
+  // sight re-derives the SAME dg successor, whose retirement is already on
+  // the record and whose row is already tombstoned. All three legs must hold.
+  const LEGACY = 'obsidian-2026-08-30-j1wnjt';
+  const DG = 'obsidian-dg-l9691i4b';
+  const REC = { [LEGACY]: entry(T1, DG) };
+
+  it('REFUSES the war shape: record names this exact successor, successor tombstoned in ANY bundle, not live', () => {
+    expect(isTombstonedRemint(REC, LEGACY, DG, [{ [DG]: T2 }], new Set([LEGACY]))).toBe(true);
+    // Second bundle position works too (deletedTaskIds vs deletedObsidianKeys).
+    expect(isTombstonedRemint(REC, LEGACY, DG, [{}, { [DG]: T2 }], new Set([LEGACY]))).toBe(true);
+    // Tombstone value shape is irrelevant — membership is the fact.
+    expect(isTombstonedRemint(REC, LEGACY, DG, [{ [DG]: null }], new Set())).toBe(true);
+  });
+
+  it('resolves TRANSITIVELY: a chain ending at the tombstoned successor still refuses', () => {
+    const chained = { [LEGACY]: entry(T1, 'mid'), mid: entry(T2, DG) };
+    expect(isTombstonedRemint(chained, LEGACY, DG, [{ [DG]: T3 }], new Set())).toBe(true);
+  });
+
+  it('does NOT refuse a genuinely new identity: no record entry, or a record naming a DIFFERENT successor', () => {
+    expect(isTombstonedRemint({}, LEGACY, DG, [{ [DG]: T2 }], new Set())).toBe(false);
+    expect(isTombstonedRemint({ [LEGACY]: entry(T1, 'obsidian-dg-other') }, LEGACY, DG, [{ [DG]: T2 }], new Set())).toBe(false);
+  });
+
+  it('does NOT refuse when the successor is merely ABSENT without a tombstone — an ordinary first stamp mid-flight', () => {
+    expect(isTombstonedRemint(REC, LEGACY, DG, [{}, {}], new Set([LEGACY]))).toBe(false);
+    expect(isTombstonedRemint(REC, LEGACY, DG, [], new Set([LEGACY]))).toBe(false);
+  });
+
+  it('does NOT refuse a LIVE successor (even with a lingering tombstone) — the retirement apply path owns that case', () => {
+    expect(isTombstonedRemint(REC, LEGACY, DG, [{ [DG]: T2 }], new Set([LEGACY, DG]))).toBe(false);
+  });
+
+  it('malformed record entries never refuse (validEntry gates resolution)', () => {
+    expect(isTombstonedRemint({ [LEGACY]: { successor: DG } }, LEGACY, DG, [{ [DG]: T2 }], new Set())).toBe(false);
+    expect(isTombstonedRemint({ [LEGACY]: { retiredAt: T1 } }, LEGACY, DG, [{ [DG]: T2 }], new Set())).toBe(false);
   });
 });

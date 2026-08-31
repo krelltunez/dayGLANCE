@@ -183,6 +183,50 @@ export function resolveRetirement(record, id, maxHops = 10) {
   return resolved;
 }
 
+/**
+ * THE RE-MINT REFUSAL (2026-08-31 db-tier retire/tombstone war — the fix at
+ * the MINTING site). True when assigning `successorId` to `taskId` would
+ * re-create an identity this record shows was ALREADY minted for this exact
+ * task and then killed: the record resolves taskId to exactly successorId,
+ * the successor is NOT live anywhere, and a deletion tombstone names it.
+ *
+ * The war this refuses: an engine-side resurrection kept re-supplying a
+ * legacy row each cycle; stamp-on-sight re-derived the SAME dg successor
+ * (deriveBlockId is deterministic on (date, title) — that determinism is the
+ * unanimity feature everywhere else), re-recorded the same retirement, and
+ * re-created the successor row; the tombstone then killed it at the next
+ * apply boundary, ~2s around, indefinitely. Minting here is not assigning a
+ * NEW identity — it is re-running a completed identity move whose outcome
+ * (successor tombstoned) is already on the record. The line is a human's or
+ * the tombstone's; either way, minting again cannot converge.
+ *
+ * NOT refused (deliberately narrow — every leg read from the record, no
+ * proxies): a successor merely absent without a tombstone (a normal first
+ * stamp whose commit hasn't landed, or a device that hasn't pulled the row
+ * yet), a LIVE successor (the retirement apply path supersedes the old row —
+ * refusing would fight it), or a retirement resolving to a DIFFERENT
+ * successor (a retitle changed the derivation — a genuinely new identity).
+ *
+ * @param {Record<string,{retiredAt:string,successor:string}>} record  retiredTaskIds
+ * @param {string} taskId       the untagged task about to be stamped
+ * @param {string} successorId  the app id the derived token would mint (appIdForBlockId)
+ * @param {Array<Record<string,string>>} tombstoneBundles  deletion bundles
+ *   ({ id → deletedAt ISO }) — pass every bundle that can kill the successor
+ *   (deletedTaskIds, deletedObsidianKeys)
+ * @param {Set<string>} liveIds  ids currently live across the task lists
+ * @returns {boolean}
+ */
+export function isTombstonedRemint(record, taskId, successorId, tombstoneBundles, liveIds) {
+  const successor = resolveRetirement(record, taskId);
+  if (!successor || successor !== String(successorId)) return false;
+  if (liveIds instanceof Set && liveIds.has(String(successorId))) return false;
+  for (const bundle of tombstoneBundles || []) {
+    if (bundle && typeof bundle === 'object'
+        && Object.prototype.hasOwnProperty.call(bundle, String(successorId))) return true;
+  }
+  return false;
+}
+
 // Fields that belong to the successor's IDENTITY and must survive a content
 // redirect: everything else on the retired copy is user content and moves.
 const IDENTITY_FIELDS = ['id', 'importSource', 'obsidianBlockId', 'obsidianLegacyId', 'obsidianRawTitle', 'obsidianFileDate'];

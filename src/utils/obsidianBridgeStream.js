@@ -46,7 +46,9 @@ import {
 
 const OUTBOX_KEY = 'dayglance-bridge-outbox';
 const META_CACHE_KEY = 'dayglance-bridge-pairing-meta';
-const CONFIG_HASH_KEY = 'dayglance-bridge-config-hash';
+// The RETIRED localStorage key of the old persisted publish-once guard —
+// kept only so publishBridgeConfig can clean it up (see the guard below).
+const LEGACY_CONFIG_HASH_KEY = 'dayglance-bridge-config-hash';
 const META_TTL_MS = 5 * 60 * 1000;
 const OUTBOX_CAP = 500;
 
@@ -55,6 +57,22 @@ let cachedSubkey = null;
 let cachedSubkeyGeneration = null;
 let flushInFlight = null; // the running flush's promise — callers coalesce
 let metaFetchInFlight = null;
+// The publish-once guard for the config row — SESSION-SCOPED ON PURPOSE
+// (2026-08-31 config-null incident). The first shape persisted this hash in
+// localStorage, which quietly made "restart dayGLANCE" incapable of ever
+// republishing the row: a plugin that lost its config (memory-only cache, a
+// reload, a row seq below its cursor) had NO reachable recovery short of the
+// user hand-deleting the key — and config-null on the plugin side silently
+// skipped the entire normalize-then-observe block, turning fail-closed
+// stamping into fail-open unstamped reporting (the fragment factory).
+// Module memory means every app session republishes once per distinct
+// (generation, value) — one cheap sealed row per launch, a reachable
+// recovery lever, and no republish storm (the per-cycle caller still
+// coalesces on this guard within the session). Keyed on the pairing
+// GENERATION as well as the payload: a re-pair rotates the subkey, and a
+// row sealed under the old generation is unreadable garbage to the new
+// stream even when the VALUES never changed.
+let publishedConfigHash = null;
 
 // ── THE BRAKE (now inside the client) ────────────────────────────────────────
 // Born here as the bridge brake (#1481, decay semantics from the 2026-08-30
@@ -245,18 +263,26 @@ export async function publishBridgeConfig({ dailyNotesPath, dailyNotePattern, ta
       taskHeading: taskHeading || '## Tasks',
       blockIdWrites: blockIdWrites === true,
     };
-    const hash = JSON.stringify(payload);
-    if (localStorage.getItem(CONFIG_HASH_KEY) === hash) return;
+    const meta = await getBridgePairingMeta();
+    // Once per (pairing generation, value) per SESSION — see the
+    // publishedConfigHash comment for why this must not be persisted, and
+    // why the generation is part of the key (a re-pair's rotated subkey
+    // makes the old sealed row unreadable even with identical values).
+    const hash = `${meta?.generation ?? ''}|${JSON.stringify(payload)}`;
+    if (publishedConfigHash === hash) return;
     const ctx = vaultClientOrNull();
     if (!ctx) return;
-    const subkey = await getBridgeSubkey(await getBridgePairingMeta());
+    const subkey = await getBridgeSubkey(meta);
     if (!subkey) return;
     const ack = await ctx.client.batch(BRIDGE_VAULT_APP, {
       accountId: ctx.accountId,
       rows: [{ entityId: BRIDGE_CONFIG_META_ID, envelope: await sealBridgeEnvelope(subkey, payload), createdAt: Date.now() }],
     });
     recordOwnWriteSeq(ack?.maxSeq);
-    localStorage.setItem(CONFIG_HASH_KEY, hash);
+    publishedConfigHash = hash;
+    // Retire the old persisted guard so no stale key lingers to confuse a
+    // future diagnosis (it is never read any more).
+    try { localStorage.removeItem(LEGACY_CONFIG_HASH_KEY); } catch { /* storage unavailable */ }
   } catch {
     /* next cycle retries — the hash was not advanced */
   }
@@ -269,5 +295,6 @@ export function __resetBridgeStreamForTests() {
   cachedSubkeyGeneration = null;
   flushInFlight = null;
   metaFetchInFlight = null;
+  publishedConfigHash = null;
   resetVaultDiagnostics();
 }

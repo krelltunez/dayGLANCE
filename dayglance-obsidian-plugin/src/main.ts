@@ -234,6 +234,13 @@ export default class DayGlanceBridgePlugin extends Plugin {
         deviceId: this.deviceId,
         paired: !!this.data.pairing,
         accountId: this.data.pairing?.accountId ?? null,
+        // Stamping diagnosability (2026-08-31 config-null incident): the beat
+        // carries the transport's normalize-then-observe arming tri-state so
+        // dayGLANCE's bridge status panel can SHOW a plugin stuck without its
+        // config row ('no-config' = daily-note reporting held, fail closed)
+        // instead of the state being invisible until fragments appear.
+        // Meaningful only while paired; readers gate on freshness+paired.
+        stamping: this.data.pairing ? this.transport.stampingState() : null,
       });
       await adapter.write(normalizePath(HEARTBEAT_PATH), JSON.stringify(payload));
     } catch (e) {

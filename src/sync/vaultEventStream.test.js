@@ -8,6 +8,9 @@ import {
   createVaultEventClient,
   createBridgeSseClient,
   backoffDelayMs,
+  sseNudgesEnabled,
+  SSE_NUDGES_DEFAULT_ON,
+  SSE_NUDGES_FLAG_KEY,
 } from './vaultEventStream.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -721,5 +724,36 @@ describe('backoffDelayMs — equal jitter (mirrored by SseBackoff.kt; change bot
     expect(calls).toHaveLength(2);
     client.stop();
     vi.useRealTimers();
+  });
+});
+
+describe('sseNudgesEnabled — the nudge gate (2026-08-31 war posture)', () => {
+  afterEach(() => { delete globalThis.localStorage; });
+  const storeWith = (v) => {
+    globalThis.localStorage = {
+      getItem: (k) => (k === SSE_NUDGES_FLAG_KEY ? v : null),
+    };
+  };
+
+  it('DEFAULTS OFF: the tripwire is exercised — no flag means no stream, polling only', () => {
+    expect(SSE_NUDGES_DEFAULT_ON).toBe(false);
+    storeWith(null);
+    expect(sseNudgesEnabled()).toBe(false);
+  });
+
+  it("the escape hatch: 'on' re-arms for a supervised test; 'off' pins closed; anything else is the default", () => {
+    storeWith('on');
+    expect(sseNudgesEnabled()).toBe(true);
+    storeWith('off');
+    expect(sseNudgesEnabled()).toBe(false);
+    storeWith('yes please'); // not a recognized value
+    expect(sseNudgesEnabled()).toBe(SSE_NUDGES_DEFAULT_ON);
+  });
+
+  it('no localStorage (SSR / a throwing accessor) falls back to the default, never throws', () => {
+    delete globalThis.localStorage;
+    expect(sseNudgesEnabled()).toBe(SSE_NUDGES_DEFAULT_ON);
+    globalThis.localStorage = { getItem: () => { throw new Error('blocked'); } };
+    expect(sseNudgesEnabled()).toBe(SSE_NUDGES_DEFAULT_ON);
   });
 });
