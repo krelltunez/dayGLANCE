@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 // the one the ruling exists for: after stamping, a parse of the note
 // yields NO task without a block id.
 
-import { stampUntaggedTaskLines, parseTasksFromMarkdown } from './taskLines.js';
+import { stampUntaggedTaskLines, planStampInsertions, parseTasksFromMarkdown } from './taskLines.js';
 import { bridgeConfigAllowsStamping } from './bridgeStream.js';
 import { deriveBlockId } from './identity.js';
 
@@ -77,6 +77,35 @@ describe('stampUntaggedTaskLines (normalize-then-observe)', () => {
     const note = '# Heading\n\nprose\n- plain bullet\n* [ ] star checkbox is not the format\n';
     expect(stampUntaggedTaskLines(note, D)).toEqual({ text: note, changed: false, stamped: [] });
     expect(stampUntaggedTaskLines('', D)).toEqual({ text: '', changed: false, stamped: [] });
+  });
+
+  it('PLAN ≡ STAMP (the buffer-safe write path, post-2026-08-31): applying planStampInsertions to any content reproduces stampUntaggedTaskLines byte for byte', () => {
+    // The stamper is BUILT ON the planner, so this pin is the receipt that
+    // the editor-transaction path (which applies the plan to a live buffer)
+    // and the Vault.process path (which applies the stamper to a closed
+    // file) can never write different bytes for the same input — parse
+    // parity and every skip rule are inherited, not re-implemented.
+    const battery = [
+      '## Tasks\n- [ ] Plain line\n- [x] 09:00 Timed done   \n\t- [ ] Indented, trailing tab\t\n- [ ] Tagged stays ^dg-abc12345\n- [ ] Ref stays ^myref\nprose\n',
+      '- [ ] 2026-09-01 14:00 Dated timed 📅 2026-09-02  ',
+      '- [ ] Solo',
+      '',
+      '# No tasks at all\n',
+    ];
+    for (const content of battery) {
+      const plan = planStampInsertions(content, D);
+      const lines = content.split('\n');
+      for (const p of plan) {
+        expect(p.toCh).toBe(lines[p.line].length); // span ends at line end
+        expect(lines[p.line].slice(p.fromCh)).toMatch(/^\s*$/); // replaces only trailing whitespace
+        expect(p.insert).toBe(` ^dg-${p.blockId}`);
+        lines[p.line] = lines[p.line].slice(0, p.fromCh) + p.insert;
+      }
+      expect(lines.join('\n')).toBe(stampUntaggedTaskLines(content, D).text);
+    }
+    // Skip rules come with the parity: tagged, duplicate-token, and
+    // foreign-ref lines yield NO plan entries.
+    expect(planStampInsertions('- [ ] a ^dg-abc12345\n- [ ] a ^dg-abc12345\n- [ ] q ^myref', D)).toEqual([]);
   });
 
   it('THE FAIL-CLOSED GATE: stamping is allowed ONLY on blockIdWrites === true — write gate off means no stamping, no config row seen means no stamping', () => {
