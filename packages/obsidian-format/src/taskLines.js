@@ -531,7 +531,42 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
 export function stampUntaggedTaskLines(content, dateStr) {
   if (!content) return { text: content ?? '', changed: false, stamped: [] };
   const lines = content.split('\n');
-  const stamped = [];
+  const plan = planStampInsertions(content, dateStr);
+  for (const p of plan) {
+    lines[p.line] = lines[p.line].slice(0, p.fromCh) + p.insert;
+  }
+  return {
+    text: lines.join('\n'),
+    changed: plan.length > 0,
+    stamped: plan.map((p) => ({ blockId: p.blockId, rawTitle: p.rawTitle })),
+  };
+}
+
+/**
+ * The stamp as a PLAN of per-line edits instead of a rewritten text —
+ * the shape an EDITOR TRANSACTION needs (the buffer-safe write path for a
+ * note that is OPEN in Obsidian, after the 2026-08-31 truncation incident:
+ * a whole-file vault write to an open note races the editor buffer, an
+ * editor transaction composes with it). stampUntaggedTaskLines above is
+ * BUILT ON this planner, so the two can never diverge: applying the plan
+ * IS the stamp, and every parse-parity rule and skip rule documented above
+ * (and pinned in normalizeObserve.test.js) holds for both by construction.
+ *
+ * Each entry replaces the span [fromCh, toCh) of `line` — the line's
+ * trailing-whitespace run — with ` ^dg-<id>`, exactly reproducing the
+ * stamper's trim-then-append. Positions are {line, ch} in the same content
+ * the plan was computed from; the caller must apply them to THAT content
+ * (the wiring re-plans against the live buffer inside the transaction
+ * pass, never against a stale read).
+ *
+ * @param {string} content  the note text the plan targets
+ * @param {string} dateStr  the note's own YYYY-MM-DD date
+ * @returns {Array<{line: number, fromCh: number, toCh: number, insert: string, blockId: string, rawTitle: string}>}
+ */
+export function planStampInsertions(content, dateStr) {
+  if (!content) return [];
+  const lines = content.split('\n');
+  const plan = [];
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(/^\s*- \[([ xX])\]\s+(.+)$/);
     if (!m) continue;
@@ -551,10 +586,17 @@ export function stampUntaggedTaskLines(content, dateStr) {
       if (timePart) rawTitle = timePart.rest;
     }
     const blockId = deriveBlockId(dateStr, rawTitle);
-    lines[i] = `${lines[i].replace(/\s+$/, '')} ^dg-${blockId}`;
-    stamped.push({ blockId, rawTitle });
+    const trimmed = lines[i].replace(/\s+$/, '');
+    plan.push({
+      line: i,
+      fromCh: trimmed.length,
+      toCh: lines[i].length,
+      insert: ` ^dg-${blockId}`,
+      blockId,
+      rawTitle,
+    });
   }
-  return { text: lines.join('\n'), changed: stamped.length > 0, stamped };
+  return plan;
 }
 
 export { taskLineSortKey, sortTaskLinesInSection, buildObsidianTaskLine, parseLeadingTime, buildTimePrefix, stripLinePrefixes };

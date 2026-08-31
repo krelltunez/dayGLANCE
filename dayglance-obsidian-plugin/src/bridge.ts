@@ -23,7 +23,7 @@
 // plugin NEVER interprets an edit; inferring semantics is dayGLANCE's
 // scan pipeline's job.
 
-import { App, Platform, TFile, normalizePath, requestUrl } from 'obsidian';
+import { App, MarkdownView, Platform, TFile, normalizePath, requestUrl } from 'obsidian';
 import {
   applyBridgeIntent,
   openBridgeEnvelope,
@@ -34,6 +34,7 @@ import {
   buildDateParser,
   parseDateFromFilename,
   stampUntaggedTaskLines,
+  planStampInsertions,
   bridgeConfigAllowsStamping,
   drainSseBuffer,
   createSseArming,
@@ -54,14 +55,11 @@ export interface BridgeState {
 }
 
 const APPLIED_IDS_CAP = 1000;
-// Normalize-then-observe: how many times a stamp is deferred because the note
-// is the active editor file, before stamping anyway. Each deferral re-arms
-// the observation debounce, so the cap bounds the hold at roughly
-// CAP × OBSERVE_DEBOUNCE_MS of continued focus — unbounded deferral would
-// hold the note's observations hostage for as long as it stays open, which
-// starves dayGLANCE of the note entirely (worse than the annoyance the
-// deferral avoids).
-const STAMP_DEFER_CAP = 5;
+// (The stamp-deferral CAP that used to live here is deliberately GONE — it
+// authorized a vault write into a note with a dirty editor buffer, which is
+// how the 2026-08-31 truncation destroyed typed text. Deferral is now
+// condition-based — buffer differs from disk — and uncapped; see the write
+// rule in emitObservation.)
 // Bound on the in-memory-only cursor advance (persist-on-intent-only rule in
 // drain): once the unpersisted gap exceeds this many seq, the cursor is
 // persisted anyway, capping how many non-intent rows a plugin reload can
@@ -166,10 +164,6 @@ export class BridgeTransport {
   // Per-path consecutive observation-failure counts, for the retry backoff
   // below. Reset on the path's first successful report.
   private observeRetryAttempts = new Map<string, number>();
-  // Per-path count of normalize-then-observe stamps deferred because the
-  // note is the ACTIVE editor file (see emitObservation). Reset whenever the
-  // path stamps or needs no stamp.
-  private stampDeferrals = new Map<string, number>();
   // In-memory cursor for the persist-on-intent-only rule (see drain): pages
   // that only skipped config/observation/tombstone rows advance the cursor
   // HERE, not in data.json — every data.json save is a vault file write that
@@ -752,54 +746,99 @@ export class BridgeTransport {
       // BridgeConfigRow). Deleted observations and non-daily notes never
       // stamp.
       //
-      // ACTIVE-EDITOR DEFERRAL: this fires ≥2s after the note's last SAVE
-      // (the observation debounce), so the editor buffer is normally clean —
-      // but if the note is still the ACTIVE editor file, the stamp (and the
-      // observation with it — never report unstamped state) defers by
-      // re-arming the same debounce, up to STAMP_DEFER_CAP. Past the cap it
-      // stamps anyway via Vault.process (atomic read-modify-write; Obsidian
-      // propagates the change into open editors the same way it absorbs
-      // Obsidian Sync's writes, preserving cursor by content diff). The
-      // residual — a token appearing at the end of a line during an idle
-      // pause with the note focused — is bounded and self-consistent; a
-      // stamp lost to a rare dirty-buffer merge simply re-stamps on the
-      // next save's observation (derived ids make the write idempotent).
+      // THE WRITE RULE (corrected after the 2026-08-31 truncation incident;
+      // the spec's ruling-7 record carries the full correction): **never
+      // write a note whose editor buffer differs from disk; write
+      // open-clean notes through the EDITOR; write closed notes through
+      // Vault.process.**
+      //
+      // What the first shape got wrong, kept here because it teaches: it
+      // deferred while the note was the ACTIVE editor file, capped at ~10s,
+      // then stamped anyway via Vault.process — reasoning that firing ≥2s
+      // after the last save meant the buffer was "normally clean". But
+      // Obsidian DEFERS saves during sustained typing, so "2s since the
+      // last save" is satisfied precisely when the buffer is maximally
+      // dirty — the timing heuristic was ANTI-correlated with the condition
+      // it approximated. Past the cap, process() atomically stamped the
+      // last SAVED state (it cannot see the buffer), Obsidian reloaded the
+      // open note from disk, and the user's unsaved keystrokes were
+      // destroyed — mid-word, token appended after the truncation. The
+      // focus proxy also had a blind spot the real rule closes: a dirty
+      // note in a BACKGROUND pane was never protected at all.
+      //
+      // The real rule needs no cap, because DIRTY is detectable directly:
+      // MarkdownView.getViewData() is the live buffer (unsaved keystrokes
+      // included), so buffer !== disk IS the condition. Deferral is bounded
+      // by human behavior, not a counter — Obsidian saves ~2s after typing
+      // pauses, the buffer goes clean, and the next debounce stamps.
+      // Starving on a never-pausing typist is recoverable (the dayGLANCE
+      // stamp-on-sight backstop still exists); destroyed keystrokes are
+      // not. The stamp and the observation still defer TOGETHER — unstamped
+      // state is never reported (ruling 7's invariant, unchanged).
       if (!deleted && content !== null && bridgeConfigAllowsStamping(this.config)) {
         const noteDate = this.dailyNoteDate(path);
         if (noteDate && stampUntaggedTaskLines(content, noteDate).changed) {
-          const deferrals = this.stampDeferrals.get(path) ?? 0;
-          if (this.host.app.workspace.activeEditor?.file?.path === path && deferrals < STAMP_DEFER_CAP) {
-            this.stampDeferrals.set(path, deferrals + 1);
+          const rearm = () => {
             const prior = this.observeTimers.get(path);
             if (prior !== undefined) window.clearTimeout(prior);
             this.observeTimers.set(path, window.setTimeout(() => {
               this.observeTimers.delete(path);
               void this.emitObservation(path, false);
             }, OBSERVE_DEBOUNCE_MS));
+          };
+          // Every markdown view showing this path (active or background —
+          // the buffer is what matters, not focus).
+          const views = this.host.app.workspace.getLeavesOfType('markdown')
+            .map((leaf) => leaf.view)
+            .filter((v): v is MarkdownView => v instanceof MarkdownView && v.file?.path === path);
+          if (views.some((v) => v.getViewData() !== content)) {
+            // DIRTY: unsaved changes exist. Defer stamp AND observation,
+            // uncapped — re-armed by the same debounce; clears within ~2s
+            // of the user pausing, when Obsidian's own save lands.
+            rearm();
             return;
           }
-          this.stampDeferrals.delete(path);
+          if (views.length > 0) {
+            // OPEN AND CLEAN: write through the editor, not the vault — an
+            // editor transaction COMPOSES with concurrent typing instead of
+            // racing it, which eliminates the check-then-write window
+            // (a keystroke landing between the dirty check above and this
+            // write merges as an ordinary concurrent edit; nothing is
+            // clobbered by construction). The plan is computed against the
+            // LIVE buffer read in the same tick it is applied.
+            const editorView = views[0];
+            const buffer = editorView.getViewData();
+            const plan = planStampInsertions(buffer, noteDate);
+            if (plan.length > 0) {
+              editorView.editor.transaction({
+                changes: plan.map((p) => ({
+                  from: { line: p.line, ch: p.fromCh },
+                  to: { line: p.line, ch: p.toCh },
+                  text: p.insert,
+                })),
+              });
+            }
+            // Observe the STAMPED state on the next pass (Obsidian saves
+            // the buffer on its own debounce; the explicit re-arm is the
+            // belt to that suspender).
+            rearm();
+            return;
+          }
           const file = this.host.app.vault.getAbstractFileByPath(normalizePath(path));
           if (file instanceof TFile) {
-            // Re-derive inside process(): the callback's `data` is the
-            // file's CURRENT content, atomic against an edit landing between
-            // our read above and this write.
+            // CLOSED: no buffer exists to clobber — Vault.process is safe
+            // and atomic here. Re-derive inside process(): the callback's
+            // `data` is the file's CURRENT content, atomic against a write
+            // landing between our read above and this one.
             await this.host.app.vault.process(file, (data) => stampUntaggedTaskLines(data, noteDate).text);
             // Observe the STAMPED state: re-arm the same per-path debounce
             // (the write's own modify event coalesces into it) and emit on
             // the next pass, which will find nothing left to stamp.
-            const prior = this.observeTimers.get(path);
-            if (prior !== undefined) window.clearTimeout(prior);
-            this.observeTimers.set(path, window.setTimeout(() => {
-              this.observeTimers.delete(path);
-              void this.emitObservation(path, false);
-            }, OBSERVE_DEBOUNCE_MS));
+            rearm();
             return;
           }
           // File lookup failed (rename/delete race) — fall through and
           // report the state we read; the dayGLANCE backstop covers it.
-        } else {
-          this.stampDeferrals.delete(path);
         }
       }
 

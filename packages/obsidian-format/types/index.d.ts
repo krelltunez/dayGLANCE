@@ -56,6 +56,9 @@ export function parseTasksFromMarkdown(
 export function stampUntaggedTaskLines(
   content: string, dateStr: string,
 ): { text: string; changed: boolean; stamped: Array<{ blockId: string; rawTitle: string }> };
+export function planStampInsertions(
+  content: string, dateStr: string,
+): Array<{ line: number; fromCh: number; toCh: number; insert: string; blockId: string; rawTitle: string }>;
 
 // ── note naming ─────────────────────────────────────────────────────────────
 export function assertSafeDateStr(dateStr: string): void;
