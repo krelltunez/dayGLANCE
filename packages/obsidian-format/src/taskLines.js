@@ -501,11 +501,16 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
  * per line:
  *   • the same task-line match (`- [ ]` / `- [x]`, any indent — the parse
  *     imports indented checkbox lines too);
- *   • a line carrying ANY `^dg-` token is skipped — including a DUPLICATE
- *     token (the parse treats a second occurrence as untagged, but stamping
- *     a second token onto a line that textually carries one would corrupt
- *     it; the duplicate-id corner keeps its existing first-occurrence-wins
- *     resolution);
+ *   • a line containing `^dg-` ANYWHERE is skipped — a valid trailing
+ *     token, a DUPLICATE token (the parse treats a second occurrence as
+ *     untagged; first-occurrence-wins stays as it is), or a token embedded
+ *     MID-LINE by a concurrent-edit auto-merge (the 2026-08-31 war's
+ *     corruption shape). The last case is the one deliberate break from
+ *     parse parity: such a line DOES parse as an untagged task, but it is
+ *     damaged, and appending another token compounds the damage — the line
+ *     is left for a human, and the import simply carries it untagged until
+ *     then (blockIdSuffix refuses it on the dayGLANCE side for the same
+ *     reason, so neither minter touches it);
  *   • a line ending in a user-authored block reference is skipped — the
  *     same refusal as blockIdSuffix: Obsidian allows one block ref per
  *     line, and appending ours would break the user's existing links (the
@@ -570,8 +575,18 @@ export function planStampInsertions(content, dateStr) {
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(/^\s*- \[([ xX])\]\s+(.+)$/);
     if (!m) continue;
+    // ANY occurrence of '^dg-' anywhere on the line refuses the stamp — not
+    // just a valid trailing token. This widens the old two checks (tagged
+    // line, duplicate token) to cover the CORRUPTED case surfaced by the
+    // 2026-08-31 SSE-speed war: a concurrent-edit auto-merge (Obsidian
+    // Sync) can land a token MID-LINE, where the end-anchored splitBlockId
+    // doesn't see it — the line then parses as a new untagged task, and
+    // stamping it would append a SECOND token, compounding the corruption
+    // every cycle. A line that textually carries our marker is either
+    // already ours or damaged; either way another token is never the
+    // answer — a damaged line is left for a human to clean.
+    if (lines[i].includes('^dg-')) continue;
     const body = m[2].trim();
-    if (splitBlockId(body).blockId) continue; // tagged (even a duplicate token)
     if (hasForeignBlockId(body)) continue; // user's own block ref owns the line
     // rawTitle exactly as parseTasksFromMarkdown derives it for an untagged
     // line: strip an inline date, then a leading time/range; everything else

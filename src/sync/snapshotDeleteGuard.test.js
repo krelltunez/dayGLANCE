@@ -75,8 +75,70 @@ describe('partitionSnapshotDeletes', () => {
   });
 
   it('tolerates empty / missing inputs', () => {
-    expect(partitionSnapshotDeletes([], {}, {})).toEqual({ propagate: [], skipped: [], excluded: [], reasons: {} });
-    expect(partitionSnapshotDeletes(null, null, null)).toEqual({ propagate: [], skipped: [], excluded: [], reasons: {} });
+    const empty = { propagate: [], skipped: [], excluded: [], reasons: {}, successorTombstoned: [] };
+    expect(partitionSnapshotDeletes([], {}, {})).toEqual(empty);
+    expect(partitionSnapshotDeletes(null, null, null)).toEqual(empty);
+  });
+});
+
+describe('partitionSnapshotDeletes — the retire/tombstone oscillation flag (2026-08-31 war, fix 4)', () => {
+  // The war pair: OLD was retired to NEW (stamp-on-sight), then NEW was
+  // tombstoned (a peer's note-scoped inference on a Sync-lagged vault copy).
+  // OLD's vanish-delete can neither propagate (successor not live) nor be
+  // healed forever (that is the war) — the guard flags it for the breaker.
+  const retiredMirror = (extra = {}) => ({
+    retiredTaskIds: { OLD: { retiredAt: '2026-08-31T08:59:00.000Z', successor: 'NEW' } },
+    ...extra,
+  });
+
+  it('FLAGS a glitch-skipped row whose retirement successor is tombstoned-not-live', () => {
+    const mirror = retiredMirror({ deletedTaskIds: { NEW: '2026-08-31T09:00:00.000Z' } });
+    const { skipped, reasons, successorTombstoned } = partitionSnapshotDeletes(['tasks:OLD'], curOf(), mirror);
+    expect(skipped).toEqual(['tasks:OLD']);
+    expect(reasons['tasks:OLD']).toBe('glitch');
+    expect(successorTombstoned).toEqual([{ entityId: 'tasks:OLD', successor: 'NEW' }]);
+  });
+
+  it('FLAGS a stale-tombstone skip the same way (the war rows carried revival-fresh mtimes)', () => {
+    // OLD is tombstoned too, but its revived copy is newer (ruling-6 revival
+    // lifted it at the note mtime) → 'stale-tombstone' skip. NEW's tombstone
+    // lives in deletedObsidianKeys — the union covers every bundle.
+    const T = Date.parse('2026-08-31T09:00:00.000Z');
+    const iso = (ms) => new Date(ms).toISOString();
+    const mirror = retiredMirror({
+      deletedTaskIds: { OLD: iso(T) },
+      deletedObsidianKeys: { NEW: iso(T) },
+    });
+    const getDeleted = () => ({ _kind: 'tasks', value: { id: 'OLD', lastModified: iso(T + 60_000) } });
+    const { skipped, reasons, successorTombstoned } = partitionSnapshotDeletes(['tasks:OLD'], curOf(), mirror, getDeleted);
+    expect(skipped).toEqual(['tasks:OLD']);
+    expect(reasons['tasks:OLD']).toBe('stale-tombstone');
+    expect(successorTombstoned).toEqual([{ entityId: 'tasks:OLD', successor: 'NEW' }]);
+  });
+
+  it('does NOT flag: successor live (retired propagates), successor absent WITHOUT a tombstone (plain glitch), or the row itself propagating', () => {
+    // Successor live → 'retired', the healthy path.
+    const live = partitionSnapshotDeletes(['tasks:OLD'], curOf('tasks:NEW'), retiredMirror({ deletedTaskIds: { NEW: 't' } }));
+    expect(live.reasons['tasks:OLD']).toBe('retired');
+    expect(live.successorTombstoned).toEqual([]);
+
+    // Successor absent but NOT tombstoned → no oscillation evidence; the row
+    // stays an ordinary glitch and heals normally.
+    const absent = partitionSnapshotDeletes(['tasks:OLD'], curOf(), retiredMirror());
+    expect(absent.reasons['tasks:OLD']).toBe('glitch');
+    expect(absent.successorTombstoned).toEqual([]);
+
+    // OLD genuinely tombstoned newer than its copy → propagates as
+    // 'tombstoned'; a propagated row is never flagged (nothing to heal).
+    const T = Date.parse('2026-08-31T09:00:00.000Z');
+    const iso = (ms) => new Date(ms).toISOString();
+    const real = partitionSnapshotDeletes(
+      ['tasks:OLD'], curOf(),
+      retiredMirror({ deletedTaskIds: { OLD: iso(T), NEW: iso(T) } }),
+      () => ({ _kind: 'tasks', value: { id: 'OLD', lastModified: iso(T - 60_000) } }),
+    );
+    expect(real.reasons['tasks:OLD']).toBe('tombstoned');
+    expect(real.successorTombstoned).toEqual([]);
   });
 });
 

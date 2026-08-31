@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   inferNoteScopedDeletionCandidates,
   reconcileNoteScopedDeletions,
+  NOTE_DELETION_HOLD_MS,
 } from './obsidianNoteScopedDeletions.js';
 import { legacyObsidianId, deriveBlockId, appIdForBlockId } from '@glance-apps/obsidian-format';
 
@@ -75,29 +76,54 @@ describe('inferNoteScopedDeletionCandidates', () => {
   });
 });
 
-describe('reconcileNoteScopedDeletions (one-cycle confirmation hold)', () => {
+describe('reconcileNoteScopedDeletions (wall-clock confirmation hold)', () => {
   const live = new Set([ORPHAN_ID]);
   const cand = { id: ORPHAN_ID, noteDate: DATE, deletedAt: MTIME };
+  const T0 = Date.parse('2026-08-31T09:00:00.000Z');
+  const HOLD = NOTE_DELETION_HOLD_MS;
 
-  it('pends a fresh candidate; commits it on the NEXT successful fetch when it never reappeared', () => {
+  it('THE TIMESCALE PIN (2026-08-31 war): a commit requires ≥90s of wall-clock absence — any number of faster fetches never concludes it sooner', () => {
+    // Pend at T0.
     const first = reconcileNoteScopedDeletions({
-      pending: {}, candidates: [cand], scannedIds: new Set(), liveIds: live,
+      pending: {}, candidates: [cand], scannedIds: new Set(), liveIds: live, nowMs: T0,
     });
     expect(first.commits).toEqual([]);
-    expect(first.nextPending).toEqual({ [ORPHAN_ID]: { noteDate: DATE, deletedAt: MTIME } });
+    expect(first.nextPending).toEqual({ [ORPHAN_ID]: { noteDate: DATE, deletedAt: MTIME, pendedAt: T0 } });
 
-    // Next fetch: empty batch — complete knowledge that the id never came back.
-    const second = reconcileNoteScopedDeletions({
-      pending: first.nextPending, candidates: [], scannedIds: new Set(), liveIds: live,
+    // The war's shape: SSE-speed fetches every ~2s. Each is a subsequent
+    // complete fetch with the id absent — the OLD (cycle-counted) hold
+    // committed on the very first of these. The wall clock refuses them all.
+    let pending = first.nextPending;
+    for (let t = T0 + 2_000; t < T0 + HOLD; t += 2_000 * 15) {
+      const r = reconcileNoteScopedDeletions({
+        pending, candidates: [], scannedIds: new Set(), liveIds: live, nowMs: t,
+      });
+      expect(r.commits).toEqual([]);
+      // Carried forward with the ORIGINAL pendedAt — the clock never resets.
+      expect(r.nextPending[ORPHAN_ID].pendedAt).toBe(T0);
+      pending = r.nextPending;
+    }
+
+    // At T0+90s, a subsequent fetch with the id still absent commits.
+    const done = reconcileNoteScopedDeletions({
+      pending, candidates: [], scannedIds: new Set(), liveIds: live, nowMs: T0 + HOLD,
     });
-    expect(second.commits).toEqual([{ id: ORPHAN_ID, noteDate: DATE, deletedAt: MTIME }]);
-    expect(second.nextPending).toEqual({});
+    expect(done.commits).toEqual([{ id: ORPHAN_ID, noteDate: DATE, deletedAt: MTIME }]);
+    expect(done.nextPending).toEqual({});
   });
 
-  it('rescues a pended id that reappears in the next batch (the other half of a cross-note move)', () => {
+  it('the evidencing batch itself never commits, even when 90s have somehow already passed — a SUBSEQUENT fetch is still required', () => {
+    const r = reconcileNoteScopedDeletions({
+      pending: {}, candidates: [cand], scannedIds: new Set(), liveIds: live, nowMs: T0 + 10 * HOLD,
+    });
+    expect(r.commits).toEqual([]);
+    expect(r.nextPending[ORPHAN_ID]).toBeTruthy();
+  });
+
+  it('rescues a pended id that reappears (the other half of a cross-note move) — age is irrelevant to a rescue', () => {
     const { commits, nextPending } = reconcileNoteScopedDeletions({
-      pending: { [ORPHAN_ID]: { noteDate: DATE, deletedAt: MTIME } },
-      candidates: [], scannedIds: new Set([ORPHAN_ID]), liveIds: live,
+      pending: { [ORPHAN_ID]: { noteDate: DATE, deletedAt: MTIME, pendedAt: T0 - 10 * HOLD } },
+      candidates: [], scannedIds: new Set([ORPHAN_ID]), liveIds: live, nowMs: T0,
     });
     expect(commits).toEqual([]);
     expect(nextPending).toEqual({});
@@ -105,20 +131,45 @@ describe('reconcileNoteScopedDeletions (one-cycle confirmation hold)', () => {
 
   it('drops a pended id whose task is no longer live (someone else recorded its removal)', () => {
     const { commits, nextPending } = reconcileNoteScopedDeletions({
-      pending: { [ORPHAN_ID]: { noteDate: DATE, deletedAt: MTIME } },
-      candidates: [], scannedIds: new Set(), liveIds: new Set(),
+      pending: { [ORPHAN_ID]: { noteDate: DATE, deletedAt: MTIME, pendedAt: T0 - 10 * HOLD } },
+      candidates: [], scannedIds: new Set(), liveIds: new Set(), nowMs: T0,
     });
     expect(commits).toEqual([]);
     expect(nextPending).toEqual({});
   });
 
-  it('absent twice commits with the NEWEST evidence stamp and does not re-pend', () => {
+  it('an aged-out entry re-evidenced this batch commits with the NEWEST evidence stamp and does not re-pend', () => {
     const newer = { id: ORPHAN_ID, noteDate: DATE, deletedAt: '2026-08-30T18:00:00.000Z' };
     const { commits, nextPending } = reconcileNoteScopedDeletions({
-      pending: { [ORPHAN_ID]: { noteDate: DATE, deletedAt: MTIME } },
-      candidates: [newer], scannedIds: new Set(), liveIds: live,
+      pending: { [ORPHAN_ID]: { noteDate: DATE, deletedAt: MTIME, pendedAt: T0 - HOLD } },
+      candidates: [newer], scannedIds: new Set(), liveIds: live, nowMs: T0,
     });
     expect(commits).toEqual([newer]);
     expect(nextPending).toEqual({});
+  });
+
+  it('a still-young entry re-evidenced this batch keeps its ORIGINAL pendedAt but takes the newest evidence stamp', () => {
+    const newer = { id: ORPHAN_ID, noteDate: DATE, deletedAt: '2026-08-30T18:00:00.000Z' };
+    const { commits, nextPending } = reconcileNoteScopedDeletions({
+      pending: { [ORPHAN_ID]: { noteDate: DATE, deletedAt: MTIME, pendedAt: T0 - 60_000 } },
+      candidates: [newer], scannedIds: new Set(), liveIds: live, nowMs: T0,
+    });
+    expect(commits).toEqual([]);
+    expect(nextPending).toEqual({
+      [ORPHAN_ID]: { noteDate: DATE, deletedAt: newer.deletedAt, pendedAt: T0 - 60_000 },
+    });
+  });
+
+  it('MIGRATION: a persisted entry without pendedAt starts its clock NOW — never "assume it has already waited"', () => {
+    const first = reconcileNoteScopedDeletions({
+      pending: { [ORPHAN_ID]: { noteDate: DATE, deletedAt: MTIME } },
+      candidates: [], scannedIds: new Set(), liveIds: live, nowMs: T0,
+    });
+    expect(first.commits).toEqual([]);
+    expect(first.nextPending[ORPHAN_ID].pendedAt).toBe(T0);
+    const later = reconcileNoteScopedDeletions({
+      pending: first.nextPending, candidates: [], scannedIds: new Set(), liveIds: live, nowMs: T0 + HOLD,
+    });
+    expect(later.commits).toHaveLength(1);
   });
 });

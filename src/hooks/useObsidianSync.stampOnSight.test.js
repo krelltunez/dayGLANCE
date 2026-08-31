@@ -273,6 +273,10 @@ describe('note-scoped deletion inference (fix 1): observed notes are complete at
     maxSeq: 9,
   });
   const emptyFetch = () => ({ observations: [], maxSeq: 0 });
+  // The wall-clock confirmation hold (≥90s) means "the next fetch" only
+  // commits when it also lands past the hold — tests advance Date.now for
+  // the confirming cycle.
+  const REAL_NOW = Date.now();
 
   it('the founding orphan: a rename-in-Obsidian leaves the old untagged task; one observed cycle pends it, the next confirms — tombstoned at the note mtime, one task remains', async () => {
     __setBlockIdWritesForTests(false); // isolate fix 1 from the stamp
@@ -288,10 +292,17 @@ describe('note-scoped deletion inference (fix 1): observed notes are complete at
     expect(JSON.parse(store.get('day-planner-obsidian-pending-note-deletions'))).toHaveProperty(OLD_ID);
     expect(store.get('day-planner-deleted-obsidian-keys') ?? '{}').not.toContain(OLD_ID);
 
-    // Cycle 2: an empty fetch is complete knowledge the id never came back →
-    // committed through deletedObsidianKeys, stamped at the note's mtime.
-    fetchMock.mockResolvedValue(emptyFetch());
-    await h.api.performObsidianSync();
+    // Cycle 2: a subsequent empty fetch is complete knowledge the id never
+    // came back — but only PAST THE WALL-CLOCK HOLD (≥90s of real absence;
+    // the 2026-08-31 lesson: at SSE speed "next fetch" alone arrives in ~2s,
+    // faster than Obsidian Sync converges). Advance the clock, then commit
+    // through deletedObsidianKeys, stamped at the note's mtime.
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(REAL_NOW + 91_000);
+    try {
+      heartbeatMock.mockResolvedValue(pairedHeartbeat()); // keep the heartbeat fresh under the advanced clock
+      fetchMock.mockResolvedValue(emptyFetch());
+      await h.api.performObsidianSync();
+    } finally { nowSpy.mockRestore(); }
     expect(allIds(h.state)).toEqual([LEGACY_ID]);
     const tombs = JSON.parse(store.get('day-planner-deleted-obsidian-keys'));
     expect(tombs[OLD_ID]).toBe(MTIME_ISO);
@@ -308,8 +319,12 @@ describe('note-scoped deletion inference (fix 1): observed notes are complete at
     const h = useMountedSightHook({ tasks: [edited], prevSnap: { [OLD_ID]: snapFor(edited) } });
     fetchMock.mockResolvedValue(observationOf(NOTE));
     await h.api.performObsidianSync();
-    fetchMock.mockResolvedValue(emptyFetch());
-    await h.api.performObsidianSync();
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(REAL_NOW + 91_000);
+    try {
+      heartbeatMock.mockResolvedValue(pairedHeartbeat());
+      fetchMock.mockResolvedValue(emptyFetch());
+      await h.api.performObsidianSync();
+    } finally { nowSpy.mockRestore(); }
     // Tombstone recorded — and LOSES to the newer app edit, by the channel's
     // existing rule.
     expect(JSON.parse(store.get('day-planner-deleted-obsidian-keys'))[OLD_ID]).toBe(MTIME_ISO);
@@ -359,8 +374,12 @@ describe('note-scoped deletion inference (fix 1): observed notes are complete at
     const h = useMountedSightHook({ tasks: [tagged], prevSnap: { [DG_ID]: snapFor(tagged) } });
     fetchMock.mockResolvedValue(observationOf('# Day\n\n## Tasks\n')); // line deleted in the vault
     await h.api.performObsidianSync();
-    fetchMock.mockResolvedValue({ observations: [], maxSeq: 0 });
-    await h.api.performObsidianSync();
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(REAL_NOW + 91_000);
+    try {
+      heartbeatMock.mockResolvedValue(pairedHeartbeat());
+      fetchMock.mockResolvedValue({ observations: [], maxSeq: 0 });
+      await h.api.performObsidianSync();
+    } finally { nowSpy.mockRestore(); }
     expect(JSON.parse(store.get('day-planner-deleted-obsidian-keys'))[DG_ID]).toBe(MTIME_ISO);
     expect(h.state.tasks).toEqual([]);
   });

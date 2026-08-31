@@ -92,7 +92,19 @@ const parseTs = (v) => (v == null ? NaN : new Date(v).getTime());
  *   entity ({ _kind, value }) of the copy being deleted, so its lastModified can be
  *   compared against the tombstone (see THE TIMESTAMP RULE above). Omitted / null
  *   result / unparseable lastModified → the tombstone authorizes unconditionally.
- * @returns {{ propagate: string[], skipped: string[], excluded: string[], reasons: Record<string,string> }}
+ * @returns {{ propagate: string[], skipped: string[], excluded: string[], reasons: Record<string,string>, successorTombstoned: Array<{entityId: string, successor: string}> }}
+ *   successorTombstoned: the SKIPPED entityIds whose retirement record names a
+ *   successor that is TOMBSTONED-NOT-LIVE — the retire/tombstone oscillation
+ *   signature (2026-08-31 SSE-speed war). Such a row is in a contradictory
+ *   state the guard cannot resolve: the retirement says "the content lives on
+ *   under the successor", the tombstone says "the successor is deleted" — so
+ *   neither propagating the old id's delete (content loss if the tombstone is
+ *   the truth) nor healing the old id back (revival war if the retirement is
+ *   the truth) is safe to repeat forever. The caller runs these through the
+ *   retirement-heal breaker (retirementHealBreaker.js) instead of healing at
+ *   unbounded frequency. A successor merely ABSENT without a tombstone is NOT
+ *   this condition — that is an ordinary glitch/heal case with no oscillation
+ *   evidence.
  * @param {(entityId: string) => (boolean|string)} [isExcludedDeletedEntity]  called
  *   for a would-be 'glitch' row; return a truthy value when the vanished copy is
  *   one this device will NEVER reproduce in `cur`, so healing it every cycle is a
@@ -146,6 +158,7 @@ export function partitionSnapshotDeletes(deleteEntityIds, cur, mirror, getDelete
   const propagate = [];
   const skipped = [];
   const excluded = [];
+  const successorTombstoned = [];
   // Why each entityId landed where it did — 'retired' (an id-migration
   // retirement whose successor is live: superseded, propagate regardless of
   // timestamps), 'tombstoned' (a real deletion), a
@@ -195,6 +208,12 @@ export function partitionSnapshotDeletes(deleteEntityIds, cur, mirror, getDelete
       propagate.push(eid); reasons[eid] = 'retired';
       continue;
     }
+    // The oscillation signature, detected here and ACTED ON by the caller:
+    // this id was retired, but its successor is dead-with-a-tombstone rather
+    // than live. The row still classifies conservatively below (usually
+    // skipped); the flag is what routes it through the heal breaker.
+    const successorIsTombstonedNotLive =
+      !!successor && successor !== id && !liveBareIds.has(successor) && tombstoned.has(successor);
     if (tombstoned.has(id)) {
       const tombTs = tombstoned.get(id);
       const lastMod = deletedLastModified(eid);
@@ -210,6 +229,9 @@ export function partitionSnapshotDeletes(deleteEntityIds, cur, mirror, getDelete
     } else if (liveBareIds.has(id)) { propagate.push(eid); reasons[eid] = 'cross-list'; }
     else if ((rr = releaseReason(eid))) { excluded.push(eid); reasons[eid] = rr; }
     else { skipped.push(eid); reasons[eid] = 'glitch'; }
+    if (successorIsTombstonedNotLive && (reasons[eid] === 'glitch' || reasons[eid] === 'stale-tombstone')) {
+      successorTombstoned.push({ entityId: eid, successor });
+    }
   }
-  return { propagate, skipped, excluded, reasons };
+  return { propagate, skipped, excluded, reasons, successorTombstoned };
 }

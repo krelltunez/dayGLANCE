@@ -468,6 +468,10 @@ export class BridgeTransport {
       // the gap-bound below measures real replay-on-reload exposure.
       let persistedHwm = state.hwm;
       let appliedDirty = false;
+      // Lowest seq of an intent row this drain saw but did not consume
+      // (deferred on a dirty buffer, or apply failed). The drain cursor is
+      // clamped below it so the row stays listable — the retry mechanism.
+      let retryFloor = Infinity;
       let hasMore = true;
       while (hasMore) {
         const page = await client.list(BRIDGE_VAULT_APP, { accountId: pairing.accountId, since });
@@ -525,20 +529,38 @@ export class BridgeTransport {
             continue;
           }
           try {
-            const consumed = await this.applyOne(intent as Record<string, unknown>);
+            const outcome = await this.applyOne(intent as Record<string, unknown>);
+            if (outcome === 'deferred') {
+              // Dirty editor buffer — nothing was written. Hold the drain
+              // cursor below this row (see retryFloor) so the next drain
+              // re-lists and retries it.
+              retryFloor = Math.min(retryFloor, seq);
+              continue;
+            }
             applied.add(intentId);
             appliedDirty = true;
-            if (consumed) {
+            if (outcome === 'applied') {
               this.deleteIntentRow(client, entityId, pairing.accountId);
             }
           } catch (e) {
-            // A vault-write failure leaves the row AND the id unapplied — the
-            // next drain retries it (application is idempotent).
+            // A vault-write failure leaves the row AND the id unapplied — and
+            // the cursor floor below makes the retry REAL: before it, the
+            // cursor advanced past the failed row and stranded it until a
+            // plugin reload re-listed from the persisted hwm.
+            retryFloor = Math.min(retryFloor, seq);
             console.error('dayGLANCE bridge: intent apply failed', e);
           }
         }
         since = batchMax;
-        this.memHwm = Math.max(this.memHwm, since);
+        // THE CURSOR FLOOR: `since` keeps advancing so pagination works, but
+        // neither the in-memory nor the persisted cursor may pass an intent
+        // row that is still unconsumed (deferred on a dirty buffer, or
+        // failed) — the row's seq is fixed at write time, so a cursor past
+        // it makes it invisible to every future list. Rows between the floor
+        // and batchMax get re-listed next drain; re-seeing them is free
+        // (applied-set hits and tombstone skips are cursor-movement-only).
+        const cursor = Math.min(since, retryFloor - 1);
+        this.memHwm = Math.max(this.memHwm, cursor);
         // PERSIST ON INTENT ACTIVITY ONLY. The old rule — persist per
         // row-bearing page — meant every config row and every observation
         // (including this plugin's own, listed right back on the next
@@ -552,13 +574,13 @@ export class BridgeTransport {
         //    plugin reload re-lists that backlog once and re-skips it —
         //    cheap reads, no writes — bounded by the gap persist below so
         //    the replay can't grow unboundedly on an intent-quiet stream.
-        if (appliedDirty || since - persistedHwm > HWM_PERSIST_GAP) {
+        if (appliedDirty || cursor - persistedHwm > HWM_PERSIST_GAP) {
           const ids = [...applied];
           await this.host.saveBridgeState({
             appliedIds: ids.slice(Math.max(0, ids.length - APPLIED_IDS_CAP)),
-            hwm: since,
+            hwm: Math.max(persistedHwm, cursor),
           });
-          persistedHwm = since;
+          persistedHwm = Math.max(persistedHwm, cursor);
           appliedDirty = false;
         }
       }
@@ -592,9 +614,32 @@ export class BridgeTransport {
     }
   }
 
-  /** Apply one decrypted intent. Returns false only for unsupported types
-   *  (the row is left in place for newer builds; see the PR discussion). */
-  private async applyOne(intent: Record<string, unknown>): Promise<boolean> {
+  /** Apply one decrypted intent.
+   *  'applied'     → consumed; the drain deletes the row.
+   *  'unsupported' → unknown type; marked applied locally, row left for
+   *                  newer builds (see the PR discussion).
+   *  'deferred'    → the target note has a DIRTY editor buffer; nothing was
+   *                  written, nothing was consumed — the drain leaves the
+   *                  row AND holds its cursor below it, so the next drain
+   *                  retries (application is idempotent).
+   *
+   *  THE WRITE RULE (2026-08-31, second incident): never write a note whose
+   *  editor buffer differs from disk. This is the SAME rule the stamper in
+   *  emitObservation enforces, extended to intent applies after the SSE-speed
+   *  war: at Phase-7 speed an intent lands ~1s after the dayGLANCE action
+   *  that emitted it, which is exactly when the user's Obsidian buffer is
+   *  most likely mid-edit — the raw adapter.write here was the "modified
+   *  externally... merging changes automatically" source, and the merges
+   *  drove ^dg- tokens into the middle of titles. The dirty CHECK is shared
+   *  with the stamper (markdownViews + buffer-vs-disk); the WRITE path
+   *  cannot share the stamper's planner-and-transaction shape, because
+   *  applyBridgeIntent produces an arbitrary whole-text rewrite, not a plan
+   *  of positional insertions — there is no plan to feed a transaction. So:
+   *  dirty defers; open-clean and closed both write through Vault.process,
+   *  re-deriving against the file's CURRENT content inside the atomic
+   *  callback (a clean buffer means Obsidian's reload of the open note
+   *  destroys nothing — there are no unsaved keystrokes to lose). */
+  private async applyOne(intent: Record<string, unknown>): Promise<'applied' | 'unsupported' | 'deferred'> {
     const adapter = this.host.app.vault.adapter;
     let path: string;
     if (intent.type === 'wiki_note_write') {
@@ -614,7 +659,7 @@ export class BridgeTransport {
     } else {
       path = String(intent.path ?? '');
     }
-    if (!path) return true;
+    if (!path) return 'applied';
     path = normalizePath(path);
 
     const exists = await adapter.exists(path);
@@ -625,18 +670,49 @@ export class BridgeTransport {
         this.warnedUnsupported = true;
         console.warn(`dayGLANCE bridge: skipping intent type "${String(intent.type)}" this plugin build does not know`);
       }
-      return false;
+      return 'unsupported';
     }
     if ('error' in result) {
       // The refusal (e.g. unportable creation) IS the outcome — the emitting
       // side surfaced the same refusal to the user.
-      return true;
+      return 'applied';
     }
     if (result.changed && result.text !== null) {
-      await this.ensureParentDirs(path);
-      await adapter.write(path, result.text);
+      const file = this.host.app.vault.getAbstractFileByPath(path);
+      if (file instanceof TFile) {
+        if (current !== null && this.markdownViews(path).some((v) => v.getViewData() !== current)) {
+          // DIRTY: unsaved keystrokes exist. Writing now would make Obsidian
+          // auto-merge our rewrite into the live buffer — the war's
+          // corruption vector. Defer; the buffer goes clean ~2s after the
+          // user pauses, and the next drain applies.
+          return 'deferred';
+        }
+        // Open-clean or closed: Vault.process re-derives against the file's
+        // CURRENT content, atomic against a save landing between our read
+        // above and this write. If the content moved and the intent no
+        // longer changes anything, the callback returns data unchanged.
+        await this.host.app.vault.process(file, (data) => {
+          const r = applyBridgeIntent(data, intent);
+          if ('unsupported' in r || 'error' in r) return data;
+          return r.changed && r.text !== null ? r.text : data;
+        });
+      } else {
+        // No TFile — a brand-new note (or a rename race). No buffer can
+        // exist for a path the vault doesn't know; the raw write is safe.
+        await this.ensureParentDirs(path);
+        await adapter.write(path, result.text);
+      }
     }
-    return true;
+    return 'applied';
+  }
+
+  /** Every markdown view whose buffer shows `path` (active or background —
+   *  the buffer is what matters, not focus). Shared by the stamper's write
+   *  rule (emitObservation) and the intent applier (applyOne). */
+  private markdownViews(path: string): MarkdownView[] {
+    return this.host.app.workspace.getLeavesOfType('markdown')
+      .map((leaf) => leaf.view)
+      .filter((v): v is MarkdownView => v instanceof MarkdownView && v.file?.path === path);
   }
 
   private async ensureParentDirs(path: string): Promise<void> {
@@ -786,11 +862,9 @@ export class BridgeTransport {
               void this.emitObservation(path, false);
             }, OBSERVE_DEBOUNCE_MS));
           };
-          // Every markdown view showing this path (active or background —
-          // the buffer is what matters, not focus).
-          const views = this.host.app.workspace.getLeavesOfType('markdown')
-            .map((leaf) => leaf.view)
-            .filter((v): v is MarkdownView => v instanceof MarkdownView && v.file?.path === path);
+          // Every markdown view showing this path — the shared helper the
+          // intent applier's write rule uses too.
+          const views = this.markdownViews(path);
           if (views.some((v) => v.getViewData() !== content)) {
             // DIRTY: unsaved changes exist. Defer stamp AND observation,
             // uncapped — re-armed by the same debounce; clears within ~2s

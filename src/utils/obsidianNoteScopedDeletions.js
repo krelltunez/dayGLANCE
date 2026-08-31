@@ -22,19 +22,43 @@
 //   direct detector writes, and what wins on divergence is decided by the
 //   channel's existing rule, unchanged.
 //
-// ONE-CYCLE CONFIRMATION HOLD. A candidate is not tombstoned on the batch
-// that evidenced it — it is PENDED, and committed on the NEXT successful
-// fetch unless the id (or its hint) showed up in an observation in between.
-// This is the note-scoped analog of the detector's incomplete-scan
-// conservatism, and it exists for one concrete race: a tagged task moved
-// between notes in Obsidian (a reschedule by cut-and-paste) produces two
-// observations — source without the line, destination with it — and a fetch
-// landing between the two emits sees only the removal. Complete scans are
-// structurally immune to this (both notes in one scan); per-note
-// observations are not, so the hold waits one cycle for the other half of
-// the move. A successful fetch reads the stream exhaustively by seq, so
-// "the id appeared nowhere in the next fetch" is complete knowledge, not a
-// sample.
+// WALL-CLOCK CONFIRMATION HOLD (reshaped 2026-08-31, after the SSE-speed
+// war; §3.10's cycles-vs-wall-clock lesson). A candidate is not tombstoned
+// on the batch that evidenced it — it is PENDED, and committed only when
+// BOTH hold:
+//
+//   (1) a SUBSEQUENT complete fetch found the id (and its hint) still
+//       absent — a successful fetch reads the stream exhaustively by seq,
+//       so "appeared nowhere" is complete knowledge, not a sample; and
+//   (2) at least NOTE_DELETION_HOLD_MS (90s) of wall-clock time has passed
+//       since the candidate was first pended.
+//
+// The hold exists for one concrete race: a tagged task moved between notes
+// in Obsidian (a reschedule by cut-and-paste) produces two observations —
+// source without the line, destination with it — and a fetch landing
+// between the two emits sees only the removal. Complete scans are
+// structurally immune (both notes in one scan); per-note observations are
+// not, so the hold waits for the other half of the move — and the other
+// half can be delayed by REPLICATION, not just by emit order: with
+// Obsidian Sync, the destination edit may sit on another device for tens
+// of seconds before it syncs, is observed, and reaches the stream.
+//
+// Why wall-clock is load-bearing and "one more cycle" was not: the
+// original hold ("commit on the NEXT successful fetch") measured time in
+// CYCLES, implicitly sized by the 5-minute poll it was built under —
+// "one cycle" meant minutes of real time for the move's other half to
+// land. Phase 7 (SSE-triggered fetches) shrank a cycle to ~2 seconds
+// without touching this file, and the hold silently became no hold at
+// all: the janitor OUTRAN the replication it was waiting for, and
+// mid-flight states (a cross-device stamp round-trip, a Sync-lagged note)
+// were committed as deletions — one of the three interacting bugs in the
+// 2026-08-31 feedback war. The 90s minimum is anchored to the thing
+// actually being waited for (Obsidian Sync convergence plus an observation
+// round, wall-clock properties of the replication) and is INDEPENDENT OF
+// CYCLE SPEED BY CONSTRUCTION: however fast fetches fire, a commit cannot
+// happen before 90 real seconds of continuous absence. Faster cycles now
+// only mean absence is re-checked more often — never that it is concluded
+// sooner.
 //
 // NAMED ASSUMPTION (spec §3.10): daily-note dates are single-sourced per
 // account — every paired/scanning device sees the same daily notes (one
@@ -85,6 +109,12 @@ export function inferNoteScopedDeletionCandidates({ observedNotes, scannedIds, t
   return out;
 }
 
+/** The wall-clock minimum a candidate stays pended before it may commit —
+ *  sized to what the hold actually waits for (Obsidian Sync convergence of
+ *  a cross-note move's other half, plus an observation round), NOT to any
+ *  cycle cadence. See the module header. */
+export const NOTE_DELETION_HOLD_MS = 90_000;
+
 /**
  * Advance the confirmation hold by one successful fetch. Pure.
  *
@@ -92,34 +122,49 @@ export function inferNoteScopedDeletionCandidates({ observedNotes, scannedIds, t
  * other half of a cross-note move landed) and DROPPED when the task is no
  * longer live in app state (its removal is someone else's record — an
  * in-app delete, or an identity move whose retirement is already
- * bookkept). Everything else pends from a PREVIOUS fetch and this fetch is
- * complete knowledge that the id never came back → COMMIT. This batch's
- * fresh candidates become the next pending set; a candidate that was
- * already pending is the absent-twice case and commits (with the NEWEST
- * evidence stamp — the latest observation is the vault's latest statement,
- * matching how the detector stamps at detection time).
+ * bookkept). An entry that survives both checks COMMITS only when it has
+ * been pending for ≥ NOTE_DELETION_HOLD_MS of wall-clock time — this call
+ * being a subsequent complete fetch supplies the "never came back"
+ * knowledge, the clock supplies the minimum; both are required. A younger
+ * entry carries forward with its ORIGINAL pendedAt (absence is continuous;
+ * re-evidencing it doesn't restart the clock) and, when this batch
+ * re-evidenced it, the NEWEST evidence stamp — the latest observation is
+ * the vault's latest statement, matching how the detector stamps at
+ * detection time. Fresh candidates enter the pending set stamped at `now`.
  *
- * @param {Record<string, {noteDate: string, deletedAt: string}>} pending
+ * MIGRATION: a persisted entry without pendedAt (written by a pre-hold
+ * build) is treated conservatively — it gets `now` as its pendedAt, i.e.
+ * the clock starts here, never "assume it has already waited".
+ *
+ * @param {Record<string, {noteDate: string, deletedAt: string, pendedAt?: number}>} pending
  * @param {Array<{id, noteDate, deletedAt}>} candidates  this batch's (may be [])
  * @param {Set<string>} scannedIds  this batch's ids + hints (may be empty)
  * @param {Set<string>} liveIds  String ids of current obsidian tasks+inbox
- * @returns {{ commits: Array<{id, noteDate, deletedAt}>, nextPending: Record<string, {noteDate, deletedAt}> }}
+ * @param {number} [nowMs]  injection point for tests; defaults to Date.now()
+ * @returns {{ commits: Array<{id, noteDate, deletedAt}>, nextPending: Record<string, {noteDate, deletedAt, pendedAt: number}> }}
  */
-export function reconcileNoteScopedDeletions({ pending, candidates, scannedIds, liveIds }) {
+export function reconcileNoteScopedDeletions({ pending, candidates, scannedIds, liveIds, nowMs = Date.now() }) {
   const commits = [];
-  const committed = new Set();
+  const nextPending = {};
   const byId = new Map((candidates || []).map((c) => [c.id, c]));
   for (const [id, entry] of Object.entries(pending || {})) {
     if (scannedIds.has(id)) continue; // rescued — the line reappeared
     if (!liveIds.has(id)) continue; // task already gone; not this channel's record
     const fresh = byId.get(id);
-    commits.push(fresh || { id, ...entry });
-    committed.add(id);
+    const pendedAt = Number.isFinite(entry.pendedAt) ? entry.pendedAt : nowMs;
+    if (pendedAt <= nowMs - NOTE_DELETION_HOLD_MS) {
+      commits.push(fresh ? { id: fresh.id, noteDate: fresh.noteDate, deletedAt: fresh.deletedAt } : { id, noteDate: entry.noteDate, deletedAt: entry.deletedAt });
+    } else {
+      nextPending[id] = {
+        noteDate: fresh ? fresh.noteDate : entry.noteDate,
+        deletedAt: fresh ? fresh.deletedAt : entry.deletedAt,
+        pendedAt,
+      };
+    }
   }
-  const nextPending = {};
   for (const c of candidates || []) {
-    if (committed.has(c.id)) continue;
-    nextPending[c.id] = { noteDate: c.noteDate, deletedAt: c.deletedAt };
+    if (nextPending[c.id] || commits.some((k) => k.id === c.id)) continue;
+    nextPending[c.id] = { noteDate: c.noteDate, deletedAt: c.deletedAt, pendedAt: nowMs };
   }
   return { commits, nextPending };
 }
