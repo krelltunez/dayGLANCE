@@ -36,6 +36,7 @@ import {
   stampUntaggedTaskLines,
   planStampInsertions,
   partitionStampPlan,
+  settleStampPlan,
   bridgeConfigAllowsStamping,
   drainSseBuffer,
   createSseArming,
@@ -182,6 +183,16 @@ export class BridgeTransport {
   // itself re-arms silently per path.
   private warnedConfigHold = false;
   private observeTimers = new Map<string, number>();
+  // Settle-rule state (§3.10 seventh lesson — the cross-device arm of
+  // premature identity assignment): per path, the untagged lines awaiting a
+  // byte-identical re-observation ≥ STAMP_SETTLE_FLOOR_MS after first
+  // sight, as line-content → firstSeenMs. MEMORY-ONLY by design (nothing
+  // rides data.json; a reload restarts in-flight holds — conservative) and
+  // pruned every settle pass to lines still in the stamp plan, so it is
+  // bounded by each note's untagged-line count. Consulted only in the
+  // RECEIVING posture (note closed or unfocused); the authoring posture's
+  // cursor gate never touches it.
+  private stampSettle = new Map<string, Map<string, number>>();
   private warnedUnsupported = false;
   // Once per plugin load (per generation), the drain re-asserts the
   // meta:pairing row. Normally a no-op overwrite; it is also the self-heal
@@ -996,12 +1007,31 @@ export class BridgeTransport {
             rearm();
             return;
           }
-          if (views.length > 0) {
-            // OPEN AND CLEAN: write through the editor, not the vault — an
-            // editor transaction COMPOSES with concurrent typing instead of
-            // racing it, which eliminates the check-then-write window
-            // (a keystroke landing between the dirty check above and this
-            // write merges as an ordinary concurrent edit; nothing is
+          // POSTURE SPLIT (§3.10 seventh lesson): a FOCUSED editor on this
+          // note means this device holds the live composition surface — the
+          // cursor gate plus the dirty check above are strictly better
+          // evidence than any stability window, and that already-ruled path
+          // is untouched, so the authoring device stamps seconds after the
+          // cursor leaves the line, exactly as before. WITHOUT focus this
+          // device is in the RECEIVING posture (the note is closed, or open
+          // in a background pane while changes arrive — typically via
+          // Obsidian Sync from the device actually being typed at), and the
+          // local rules can't see the thing that matters: the cursor gate is
+          // local by construction — this device cannot see the cursor on the
+          // authoring device, and Sync ships mid-composition snapshots at
+          // seconds cadence (the "13: ^dg-q6wlym0v" incident: three
+          // keystrokes shipped, stamped remotely, merged back into the
+          // author's dirty buffer mid-line). So the receiving posture stamps
+          // only SETTLED lines — see settleStampPlan in the shared package
+          // for the full rule (byte-identical re-observation ≥ the settle
+          // floor, both halves load-bearing) and its starvation shapes.
+          const focused = views.some((v) => v.editor.hasFocus());
+          if (views.length > 0 && focused) {
+            // AUTHORING, OPEN AND CLEAN: write through the editor, not the
+            // vault — an editor transaction COMPOSES with concurrent typing
+            // instead of racing it, which eliminates the check-then-write
+            // window (a keystroke landing between the dirty check above and
+            // this write merges as an ordinary concurrent edit; nothing is
             // clobbered by construction). The plan is computed against the
             // LIVE buffer read in the same tick it is applied.
             const editorView = views[0];
@@ -1021,9 +1051,8 @@ export class BridgeTransport {
             // couples them) indefinitely for the commonest entry pattern
             // (type a line, switch away, cursor left resting at its end):
             // exactly the starvation this gate's design was chosen to avoid.
-            // The accepted residual: a mid-word tab-switch-away-and-back
-            // can still split — rare, humanly bounded, and the corrupted
-            // line is inert by the ^dg--anywhere rule.
+            // (The switch-away pattern now lands in the receiving posture
+            // below, where the settle rule covers it with real evidence.)
             const heldLines = new Set<number>();
             for (const v of views) {
               if (!v.editor.hasFocus()) continue;
@@ -1051,16 +1080,58 @@ export class BridgeTransport {
             rearm();
             return;
           }
+          if (views.length > 0) {
+            // RECEIVING, OPEN-UNFOCUSED AND CLEAN: settle rule, applied via
+            // the same editor-transaction path (composes with a late
+            // keystroke instead of racing it).
+            const editorView = views[0];
+            const buffer = editorView.getViewData();
+            const plan = planStampInsertions(buffer, noteDate);
+            const settled = settleStampPlan(plan, buffer.split('\n'), this.stampSettle.get(path), Date.now());
+            if (settled.nextState.size > 0) this.stampSettle.set(path, settled.nextState);
+            else this.stampSettle.delete(path);
+            if (settled.apply.length > 0) {
+              editorView.editor.transaction({
+                changes: settled.apply.map((p) => ({
+                  from: { line: p.line, ch: p.fromCh },
+                  to: { line: p.line, ch: p.toCh },
+                  text: p.insert,
+                })),
+              });
+            }
+            // Deferred (unsettled) lines re-enter on the re-armed debounce
+            // until they settle; the observation defers with them (ruling 7).
+            rearm();
+            return;
+          }
           const file = this.host.app.vault.getAbstractFileByPath(normalizePath(path));
           if (file instanceof TFile) {
-            // CLOSED: no buffer exists to clobber — Vault.process is safe
-            // and atomic here. Re-derive inside process(): the callback's
-            // `data` is the file's CURRENT content, atomic against a write
-            // landing between our read above and this one.
-            await this.host.app.vault.process(file, (data) => stampUntaggedTaskLines(data, noteDate).text);
+            // RECEIVING, CLOSED: no buffer exists to clobber — Vault.process
+            // is safe and atomic here. The settle DECISION is made on the
+            // content read above; inside process() the plan is re-derived
+            // against the file's CURRENT bytes and filtered to the settled
+            // lines by their exact content, so a write landing between our
+            // read and this one simply un-settles the moved lines for this
+            // pass (they re-enter on the re-arm).
+            const plan = planStampInsertions(content, noteDate);
+            const contentLines = content.split('\n');
+            const settled = settleStampPlan(plan, contentLines, this.stampSettle.get(path), Date.now());
+            if (settled.nextState.size > 0) this.stampSettle.set(path, settled.nextState);
+            else this.stampSettle.delete(path);
+            if (settled.apply.length > 0) {
+              const settledKeys = new Set(settled.apply.map((p) => contentLines[p.line]));
+              await this.host.app.vault.process(file, (data) => {
+                const lines = data.split('\n');
+                for (const p of planStampInsertions(data, noteDate)) {
+                  if (!settledKeys.has(lines[p.line])) continue;
+                  lines[p.line] = lines[p.line].slice(0, p.fromCh) + p.insert;
+                }
+                return lines.join('\n');
+              });
+            }
             // Observe the STAMPED state: re-arm the same per-path debounce
             // (the write's own modify event coalesces into it) and emit on
-            // the next pass, which will find nothing left to stamp.
+            // a later pass, once nothing in the plan is left unsettled.
             rearm();
             return;
           }

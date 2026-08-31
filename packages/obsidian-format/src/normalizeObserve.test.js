@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 // the one the ruling exists for: after stamping, a parse of the note
 // yields NO task without a block id.
 
-import { stampUntaggedTaskLines, planStampInsertions, parseTasksFromMarkdown, partitionStampPlan } from './taskLines.js';
+import { stampUntaggedTaskLines, planStampInsertions, parseTasksFromMarkdown, partitionStampPlan, settleStampPlan, STAMP_SETTLE_FLOOR_MS } from './taskLines.js';
 import { bridgeConfigAllowsStamping } from './bridgeStream.js';
 import { deriveBlockId, blockIdSuffix } from './identity.js';
 
@@ -187,6 +187,83 @@ describe('stampUntaggedTaskLines (normalize-then-observe)', () => {
     expect(partitionStampPlan(plan, undefined).deferred).toEqual([]);
     expect(partitionStampPlan(plan, new Set([1, 2])).apply).toEqual([]);
     expect(partitionStampPlan([], new Set([1])).apply).toEqual([]);
+  });
+
+  it('THE SETTLE RULE (cross-device premature identity, 2026-08-31 "13:" incident): a receiving device stamps only lines re-observed byte-identical at least the floor after first sight — and the frozen-bytes replay is pinned dead', () => {
+    // The incident: Obsidian Sync shipped the three-keystroke fragment
+    // "13:" to a device with the note closed; that device minted
+    // ^dg-q6wlym0v for it (verified: deriveBlockId('2026-08-31','13:')),
+    // and the stamp merged back into the author's dirty buffer mid-line.
+    const D2 = '2026-08-31';
+    const fragment = '## Tasks\n- [ ] 13:';
+    const lines = fragment.split('\n');
+    const plan = planStampInsertions(fragment, D2);
+    expect(plan).toHaveLength(1);
+    expect(plan[0].blockId).toBe('q6wlym0v'); // the incident token, exactly
+
+    const T0 = Date.parse('2026-08-31T13:30:00.000Z');
+    // First sight: nothing stamps, the line is recorded.
+    const pass1 = settleStampPlan(plan, lines, null, T0);
+    expect(pass1.apply).toEqual([]);
+    expect(pass1.deferred).toHaveLength(1);
+    expect(pass1.nextState.get('- [ ] 13:')).toBe(T0);
+
+    // THE FROZEN-BYTES PIN — why observation-counting alone was rejected:
+    // between Sync deliveries the receiving device's file is FROZEN, so the
+    // 2s re-arm re-reads identical bytes trivially. A pure "unchanged
+    // across two looks" rule stamps here, at +4s — replaying the incident.
+    // The floor refuses it: identical bytes BELOW the floor are still not
+    // evidence.
+    const pass2 = settleStampPlan(plan, lines, pass1.nextState, T0 + 4_000);
+    expect(pass2.apply).toEqual([]);
+    expect(pass2.nextState.get('- [ ] 13:')).toBe(T0); // clock NOT restarted
+
+    // Boundary: one ms under the floor defers; the floor exactly applies.
+    expect(settleStampPlan(plan, lines, pass1.nextState, T0 + STAMP_SETTLE_FLOOR_MS - 1).apply).toEqual([]);
+    const settled = settleStampPlan(plan, lines, pass1.nextState, T0 + STAMP_SETTLE_FLOOR_MS);
+    expect(settled.apply).toHaveLength(1);
+    expect(settled.apply[0].blockId).toBe('q6wlym0v');
+    expect(settled.nextState.size).toBe(0); // settled lines shed their state
+  });
+
+  it('SETTLE: any byte change re-records and restarts the wait — the identity requirement is what makes the waiting evidence, not cooldown', () => {
+    const D2 = '2026-08-31';
+    const T0 = Date.parse('2026-08-31T13:30:00.000Z');
+    const v1 = '## Tasks\n- [ ] 13:';
+    const s1 = settleStampPlan(planStampInsertions(v1, D2), v1.split('\n'), null, T0);
+
+    // +11s: past the floor, but the line CHANGED (the author finished it) —
+    // the old key's age must not bless the new content.
+    const v2 = '## Tasks\n- [ ] 13:30-13:45 Another test of tennis';
+    const plan2 = planStampInsertions(v2, D2);
+    const s2 = settleStampPlan(plan2, v2.split('\n'), s1.nextState, T0 + 11_000);
+    expect(s2.apply).toEqual([]);
+    expect(s2.nextState.get('- [ ] 13:30-13:45 Another test of tennis')).toBe(T0 + 11_000);
+    expect(s2.nextState.has('- [ ] 13:')).toBe(false); // pruned: no longer in the plan
+
+    // The finished line settles on its own clock, minting the full title.
+    const s3 = settleStampPlan(plan2, v2.split('\n'), s2.nextState, T0 + 11_000 + STAMP_SETTLE_FLOOR_MS);
+    expect(s3.apply).toHaveLength(1);
+    expect(s3.apply[0].rawTitle).toBe('Another test of tennis');
+  });
+
+  it('SETTLE: lines settle independently, state is pruned to the plan, and degenerate inputs are safe', () => {
+    const D2 = '2026-08-31';
+    const T0 = Date.parse('2026-08-31T13:30:00.000Z');
+    const note = '## Tasks\n- [ ] Old settled line\n- [ ] Brand new line';
+    const lines = note.split('\n');
+    const plan = planStampInsertions(note, D2);
+    const prior = new Map([['- [ ] Old settled line', T0 - STAMP_SETTLE_FLOOR_MS]]);
+    const out = settleStampPlan(plan, lines, prior, T0);
+    expect(out.apply.map((p) => p.rawTitle)).toEqual(['Old settled line']);
+    expect(out.deferred.map((p) => p.rawTitle)).toEqual(['Brand new line']);
+    expect([...out.nextState.keys()]).toEqual(['- [ ] Brand new line']);
+
+    // Degenerate: empty plan → empty state (a fully-stamped note holds no
+    // memory); null/undefined prior treated as empty; missing prior entry
+    // for a plan line simply records it now.
+    expect(settleStampPlan([], lines, prior, T0)).toEqual({ apply: [], deferred: [], nextState: new Map() });
+    expect(settleStampPlan(plan, lines, undefined, T0).apply).toEqual([]);
   });
 
   it('an untagged line with a hand-written completion marker keeps the marker inside the identity input, exactly as the parse treats it', () => {

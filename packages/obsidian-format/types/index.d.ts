@@ -62,6 +62,10 @@ export function planStampInsertions(
 export function partitionStampPlan<T extends { line: number }>(
   plan: T[], heldLines: Set<number> | null | undefined,
 ): { apply: T[]; deferred: T[] };
+export const STAMP_SETTLE_FLOOR_MS: number;
+export function settleStampPlan<T extends { line: number }>(
+  plan: T[], lines: string[], prior: Map<string, number> | null | undefined, nowMs: number,
+): { apply: T[]; deferred: T[]; nextState: Map<string, number> };
 
 // ── note naming ─────────────────────────────────────────────────────────────
 export function assertSafeDateStr(dateStr: string): void;

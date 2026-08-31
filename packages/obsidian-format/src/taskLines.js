@@ -656,4 +656,107 @@ export function partitionStampPlan(plan, heldLines) {
   return { apply, deferred };
 }
 
+/**
+ * THE SETTLE FLOOR — a MECHANICAL constant, sized to Obsidian Sync's
+ * delivery quantum, and deliberately NOT a typing-psychology guess (that
+ * distinction is what keeps it from aging like the ≥2s-after-save
+ * mitigation did). On a RECEIVING device the note's bytes change only when
+ * Sync delivers a snapshot; deliveries are save-gated on the authoring side
+ * (a save fires ~2s after a typing pause) plus network latency, so
+ * consecutive deliveries during active cross-device composition arrive
+ * seconds apart. A confirming look must be far enough from the first to
+ * STRADDLE a delivery, or it re-reads the same frozen snapshot and confirms
+ * nothing; 10s covers a save-plus-ship round with margin.
+ */
+export const STAMP_SETTLE_FLOOR_MS = 10_000;
+
+/**
+ * Split a stamp plan into entries whose lines have SETTLED — observed with
+ * byte-identical content on an earlier pass at least STAMP_SETTLE_FLOOR_MS
+ * ago — and entries to defer until they do. The gate against the
+ * CROSS-DEVICE ARM of premature identity assignment (§3.10's seventh
+ * lesson, the 2026-08-31 "13: ^dg-q6wlym0v" incident).
+ *
+ * What happened: the cursor gate above is LOCAL by construction — device B
+ * cannot see the cursor on device A. Obsidian Sync ships mid-composition
+ * snapshots at seconds cadence, so B received the three-keystroke fragment
+ * "13:", found it closed/clean/cursorless — every local rule satisfied —
+ * and minted identity for it; the stamped write synced back into A's dirty
+ * buffer, where Obsidian's auto-merge spliced the token into the WRONG
+ * line (a fuzzy "13:" context match). "Clean and cursorless on B" is
+ * anti-correlated with "finished on A" during active cross-device typing —
+ * the fifth lesson's proxy critique, verbatim, with the real condition now
+ * unreadable in principle rather than merely unread. Only reachable once
+ * the whole fleet ran stamping-armed simultaneously, which 2026-08-31 was
+ * the first morning of.
+ *
+ * THE RULE is evidence, not cooldown, in two halves that are BOTH load-
+ * bearing:
+ *   • BYTE-IDENTITY: a line is settled only when re-observed with exactly
+ *     the bytes recorded earlier — the identity requirement is what makes
+ *     the waiting evidence about the line rather than a timer about the
+ *     clock. Any change re-records and restarts the wait.
+ *   • THE FLOOR: the confirming look counts only ≥ STAMP_SETTLE_FLOOR_MS
+ *     after the first record. Without it the rule is vacuous on a receiving
+ *     device: between Sync deliveries the file is FROZEN, so the deferral
+ *     re-arm loop (2s) re-reads identical bytes trivially — a pure
+ *     "unchanged across two looks" rule replays the incident at +4s
+ *     instead of +2s, confirming Sync's delivery quantization, not the
+ *     line. (The frozen-bytes trace that ruled out observation-counting
+ *     alone.)
+ *
+ * SCOPE (the wiring's decision, recorded here): the hold applies only in
+ * the RECEIVING posture — note closed, or open without editor focus. Where
+ * this device holds the live composition surface, the cursor gate and the
+ * buffer-vs-disk dirty check are strictly better evidence and already
+ * ruled; that path is untouched, so the authoring device stamps seconds
+ * after the cursor leaves the line, exactly as before. The ten seconds
+ * lands only on devices nobody is typing at, whose imports are poll-paced
+ * anyway. Felt latency: none.
+ *
+ * STARVATION SHAPES, recorded honestly:
+ *   • A line some tool rewrites continuously (an auto-updating timestamp
+ *     inside a task line) never settles — and per ruling 7 it defers the
+ *     whole note's OBSERVATION with it, indefinitely. Same acceptance as
+ *     the cursor gate's residual, with the bound being "the line stops
+ *     changing" instead of "the human moves the cursor"; visible in the
+ *     console if it ever occurs.
+ *   • The tail no finite floor closes: a mid-word pause that ships a
+ *     fragment, followed by MORE than the floor of continuous typing
+ *     (Obsidian defers saves during sustained typing), keeps a receiving
+ *     device frozen past any T. The floor under that tail is the
+ *     ^dg--anywhere containment — demonstrated working in the incident
+ *     itself: the corrupted line is inert, visible, and non-compounding.
+ *
+ * Pure. State is the caller's, MEMORY-ONLY by design (nothing rides
+ * data.json — no Obsidian Sync churn; a plugin reload restarts in-flight
+ * holds, which errs conservative): a Map of line content → firstSeenMs for
+ * one note. The returned nextState is PRUNED to lines still in the plan,
+ * so stamped and deleted lines shed their entries every pass and the map
+ * is bounded by the note's untagged-line count (normally zero to a few).
+ *
+ * @param {Array<{line: number}>} plan  planStampInsertions output
+ * @param {string[]} lines  the note content split on '\n' (the same text
+ *   the plan was computed from — keys are the EXACT line bytes)
+ * @param {Map<string, number>|null|undefined} prior  contentKey → firstSeenMs
+ * @param {number} nowMs
+ * @returns {{ apply: Array<object>, deferred: Array<object>, nextState: Map<string, number> }}
+ */
+export function settleStampPlan(plan, lines, prior, nowMs) {
+  const apply = [];
+  const deferred = [];
+  const nextState = new Map();
+  for (const p of plan || []) {
+    const key = String(lines[p.line] ?? '');
+    const firstSeen = prior instanceof Map ? prior.get(key) : undefined;
+    if (typeof firstSeen === 'number' && nowMs - firstSeen >= STAMP_SETTLE_FLOOR_MS) {
+      apply.push(p);
+      continue;
+    }
+    deferred.push(p);
+    nextState.set(key, typeof firstSeen === 'number' ? firstSeen : nowMs);
+  }
+  return { apply, deferred, nextState };
+}
+
 export { taskLineSortKey, sortTaskLinesInSection, buildObsidianTaskLine, parseLeadingTime, buildTimePrefix, stripLinePrefixes };
