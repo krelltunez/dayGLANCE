@@ -614,4 +614,46 @@ export function planStampInsertions(content, dateStr) {
   return plan;
 }
 
+/**
+ * Split a stamp plan into the entries safe to apply now and the entries to
+ * DEFER because their target line currently holds a live editor cursor —
+ * the cursor gate against PREMATURE IDENTITY ASSIGNMENT (the 2026-08-31
+ * "W ^dg-...atch tennis" line; §3.10's fifth recorded lesson).
+ *
+ * Why this exists: the stamp trigger fires on save-plus-debounce, and a
+ * save certifies a PAUSE, not a finished line — Obsidian autosaves
+ * precisely at pauses, and a pause mid-word is common. A half-typed line
+ * ("21:15-21:45 W") is a perfectly valid task line to the parse, so the
+ * stamper minted identity for the fragment and the editor transaction put
+ * the token at the line's end — which was the cursor position, so resumed
+ * typing landed AFTER the token, splitting the word around it. No write
+ * rule was violated (the buffer was genuinely clean; nothing was
+ * destroyed); the unasked question was whether the line was FINISHED.
+ * "Finished" is not directly readable, but its best readable witness is:
+ * no live cursor on the line. A cursor's line is a line someone may still
+ * be composing — skip it this pass; the cursor moves, the next pass stamps.
+ * Per-line deliberately (a per-note "any open editor" rule would stop
+ * stamping for users who keep notes open, reopening the untagged
+ * population problem), and no cooldown deliberately (a "recently edited"
+ * timer is the proxy version of this condition, and proxies age badly —
+ * three recorded instances).
+ *
+ * Pure half of the gate: WHICH lines are held is the wiring's job (the
+ * plugin reads cursors from editors that can actually receive keystrokes);
+ * this function only pins the split. Entries keep their order; an empty or
+ * missing held-set applies everything.
+ *
+ * @param {Array<{line: number}>} plan  planStampInsertions output
+ * @param {Set<number>|null|undefined} heldLines  line numbers holding a live cursor
+ * @returns {{ apply: Array<object>, deferred: Array<object> }}
+ */
+export function partitionStampPlan(plan, heldLines) {
+  const apply = [];
+  const deferred = [];
+  for (const p of plan || []) {
+    (heldLines && heldLines.has(p.line) ? deferred : apply).push(p);
+  }
+  return { apply, deferred };
+}
+
 export { taskLineSortKey, sortTaskLinesInSection, buildObsidianTaskLine, parseLeadingTime, buildTimePrefix, stripLinePrefixes };
