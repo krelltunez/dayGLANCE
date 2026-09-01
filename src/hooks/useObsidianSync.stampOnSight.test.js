@@ -305,6 +305,41 @@ describe('stamp on sight (fix 2): identity-assignment write fired by import', ()
   });
 });
 
+describe('mid-cycle writeback re-poke (audit fix M1)', () => {
+  it('a task change landing DURING a sync cycle is flushed by the cycle\'s finally — not stranded until the next unrelated task change', async () => {
+    // The audit finding: the writeback effect early-returns while a cycle
+    // runs (cycles last >=2s and fire on the visibility flip that coincides
+    // with the user returning to click a task), and nothing re-ran it
+    // afterward — the change waited, unwritten, for the NEXT task change.
+    // Now the skipped pass leaves a marker and the finally pokes one pass.
+    __setBlockIdWritesForTests(true);
+    heartbeatMock.mockResolvedValue(pairedHeartbeat());
+    // An already-tagged task: NOTHING stampable, so the stamp nudge cannot
+    // be what fires the poke — only the M1 marker can.
+    const tagged = restingLegacyTask({ id: DG_ID, obsidianBlockId: BLOCK });
+    const h = useMountedSightHook({ tasks: [tagged], prevSnap: { [DG_ID]: snapFor(tagged) } });
+    fetchMock.mockImplementation(async () => {
+      // Mid-cycle: the user completes a task -> React fires the writeback
+      // effect -> the in-progress guard skips it (and, post-fix, marks the
+      // skip). Simulated by running the effect while the guard is up.
+      expect(h.syncRef.current).toBe(true);
+      runWritebackEffect();
+      return null;
+    });
+    setTasksCalls.length = 0;
+    await h.api.performObsidianSync();
+    // The finally poked one identity-only pass after the guard dropped.
+    expect(setTasksCalls.some(c => c.duringSync === false)).toBe(true);
+
+    // CONTRAST — no mid-cycle writeback, nothing stampable: no poke, so the
+    // re-poke cannot loop on quiet cycles.
+    fetchMock.mockReset(); fetchMock.mockResolvedValue(null);
+    setTasksCalls.length = 0;
+    await h.api.performObsidianSync();
+    expect(setTasksCalls.some(c => c.duringSync === false)).toBe(false);
+  });
+});
+
 describe('note-scoped deletion inference (fix 1): observed notes are complete at their own grain', () => {
   const observationOf = (content, mtime = MTIME) => ({
     observations: [{ path: `${DATE}.md`, content, mtime }],
@@ -327,7 +362,7 @@ describe('note-scoped deletion inference (fix 1): observed notes are complete at
     fetchMock.mockResolvedValue(observationOf(NOTE));
     await h.api.performObsidianSync();
     expect(allIds(h.state).sort()).toEqual([LEGACY_ID, OLD_ID].sort());
-    expect(JSON.parse(store.get('day-planner-obsidian-pending-note-deletions'))).toHaveProperty(OLD_ID);
+    expect(JSON.parse(store.get('day-planner-obsidian-pending-note-deletions')).entries).toHaveProperty(OLD_ID);
     expect(store.get('day-planner-deleted-obsidian-keys') ?? '{}').not.toContain(OLD_ID);
 
     // Cycle 2: a subsequent empty fetch is complete knowledge the id never
@@ -344,7 +379,7 @@ describe('note-scoped deletion inference (fix 1): observed notes are complete at
     expect(allIds(h.state)).toEqual([LEGACY_ID]);
     const tombs = JSON.parse(store.get('day-planner-deleted-obsidian-keys'));
     expect(tombs[OLD_ID]).toBe(MTIME_ISO);
-    expect(JSON.parse(store.get('day-planner-obsidian-pending-note-deletions'))).toEqual({});
+    expect(JSON.parse(store.get('day-planner-obsidian-pending-note-deletions')).entries).toEqual({});
   });
 
   it('LWW protection: an app edit NEWER than the note beats the mtime-stamped tombstone and the task survives', async () => {
@@ -383,7 +418,7 @@ describe('note-scoped deletion inference (fix 1): observed notes are complete at
     // The rescued id left pending. (The RENAMED line's task, imported in
     // cycle 1 and gone again in cycle 2's note, pends in its place — a
     // genuine vanish, correctly held for its own confirmation.)
-    expect(JSON.parse(store.get('day-planner-obsidian-pending-note-deletions'))).not.toHaveProperty(OLD_ID);
+    expect(JSON.parse(store.get('day-planner-obsidian-pending-note-deletions')).entries).not.toHaveProperty(OLD_ID);
     expect(allIds(h.state)).toContain(OLD_ID);
   });
 
@@ -399,7 +434,7 @@ describe('note-scoped deletion inference (fix 1): observed notes are complete at
     await h.api.performObsidianSync();
     fetchMock.mockResolvedValue({ observations: [], maxSeq: 0 });
     await h.api.performObsidianSync();
-    expect(JSON.parse(store.get('day-planner-obsidian-pending-note-deletions') ?? '{}')).toEqual({});
+    expect(JSON.parse(store.get('day-planner-obsidian-pending-note-deletions') ?? '{}').entries ?? {}).toEqual({});
     expect(store.get('day-planner-deleted-obsidian-keys') ?? '{}').not.toContain(other.id);
     // Untouched — still present alongside whatever the observed note imported.
     expect(allIds(h.state)).toContain(other.id);

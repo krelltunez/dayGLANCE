@@ -168,6 +168,18 @@ export async function publishPairingMeta(pairing: BridgePairing | null, previous
 
 export class BridgeTransport {
   private host: BridgeHost;
+  // THE UNLOAD LATCH (audit fix C2). Obsidian's onunload is not a process
+  // exit — the plugin object dies but its closures live on: an in-flight
+  // drain finishes AFTER shutdown() and used to re-arm SSE via its success
+  // tail (a ghost socket applying intents and writing the OLD instance's
+  // data.json over the new one's cursor state after an update), and the
+  // observation timers — debounce, config-hold, failure backoff, some
+  // self-re-arming — kept reading and WRITING the vault indefinitely after
+  // the plugin was disabled. During a plugin update that meant two stampers
+  // racing on one vault. `disposed` latches every entry point: new work
+  // refuses, in-flight drains stop at the next row and skip their persist
+  // and SSE re-arm, and shutdown() clears every pending timer.
+  private disposed = false;
   private subkey: CryptoKey | null = null;
   private subkeyGeneration: string | null = null;
   private draining = false;
@@ -308,6 +320,7 @@ export class BridgeTransport {
    *  transitions, persist beside the cursor when the VALUE changed (an
    *  identical republish costs no data.json write — Obsidian Sync churn). */
   private async adoptConfig(cfg: BridgeConfigRow): Promise<void> {
+    if (this.disposed) return; // unload latch — never persist on a dead instance
     const before = this.stampingState();
     const changed = JSON.stringify(cfg) !== JSON.stringify(this.config);
     this.config = cfg;
@@ -356,6 +369,7 @@ export class BridgeTransport {
 
   /** The nudge → drain route, with the rerun flag (see the field comment). */
   private drainFromNudge(): void {
+    if (this.disposed) return;
     if (!this.host.getPairing()) {
       this.sseArming.noteUnpaired();
       this.stopSse();
@@ -370,6 +384,11 @@ export class BridgeTransport {
 
   /** Called after every successful drain — the PROOF site of the invariant. */
   private maybeStartSse(): void {
+    // The unload latch, load-bearing HERE above all (audit fix C2): an
+    // in-flight drain completing after shutdown() used to re-arm the stream
+    // on the dead instance — a ghost socket, applying intents and fighting
+    // the reloaded instance's data.json indefinitely.
+    if (this.disposed) return;
     if (!this.sseArming.shouldConnect({ desktop: this.sseDesktop(), paired: !!this.host.getPairing() })) return;
     if (this.sseReq || this.sseReconnectTimer !== null) return;
     if (this.rateLimited()) return; // brake gates connects too; the next drain re-attempts
@@ -388,9 +407,14 @@ export class BridgeTransport {
     this.sseFailures = 0;
   }
 
-  /** Plugin unload. */
+  /** Plugin unload. Latches the instance dead (see the disposed field):
+   *  after this, no timer fires work, no drain starts or resumes its side
+   *  effects, and nothing persists to data.json. */
   shutdown(): void {
+    this.disposed = true;
     this.stopSse();
+    for (const timer of this.observeTimers.values()) window.clearTimeout(timer);
+    this.observeTimers.clear();
   }
 
   private clearSseReadTimer(): void {
@@ -518,6 +542,7 @@ export class BridgeTransport {
 
   /** Pull and apply pending intents. Safe to call on any cadence. */
   async drain(): Promise<void> {
+    if (this.disposed) return; // unload latch
     const pairing = this.host.getPairing();
     if (!pairing) {
       // REFUTATION: no pairing (unpaired, or the data.json incident) — the
@@ -575,7 +600,7 @@ export class BridgeTransport {
       // clamped below it so the row stays listable — the retry mechanism.
       let retryFloor = Infinity;
       let hasMore = true;
-      while (hasMore) {
+      while (hasMore && !this.disposed) {
         const page = await client.list(BRIDGE_VAULT_APP, { accountId: pairing.accountId, since });
         hasMore = !!page.hasMore;
         const rows = (page.rows ?? []) as Array<{ entityId?: string; envelope?: string; seq?: number; deleted?: boolean }>;
@@ -676,7 +701,7 @@ export class BridgeTransport {
         //    plugin reload re-lists that backlog once and re-skips it —
         //    cheap reads, no writes — bounded by the gap persist below so
         //    the replay can't grow unboundedly on an intent-quiet stream.
-        if (appliedDirty || cursor - persistedHwm > HWM_PERSIST_GAP) {
+        if (!this.disposed && (appliedDirty || cursor - persistedHwm > HWM_PERSIST_GAP)) {
           const ids = [...applied];
           await this.host.saveBridgeState({
             appliedIds: ids.slice(Math.max(0, ids.length - APPLIED_IDS_CAP)),
@@ -711,11 +736,12 @@ export class BridgeTransport {
       }
     } finally {
       this.draining = false;
-      if (this.pendingRedrain) {
+      if (this.pendingRedrain && !this.disposed) {
         // A nudge landed mid-drain; without this it would be silently
-        // dropped and the burst's tail would wait for the 30s timer.
+        // dropped and the burst's tail would wait for the 30s timer. The
+        // callback re-checks disposed — the timer itself is unregistered.
         this.pendingRedrain = false;
-        window.setTimeout(() => { void this.drain(); }, 250);
+        window.setTimeout(() => { if (!this.disposed) void this.drain(); }, 250);
       }
     }
   }
@@ -865,25 +891,35 @@ export class BridgeTransport {
     }
   }
 
-  /** Debounced per path; call from vault modify/create events. */
-  scheduleObservation(file: TFile): void {
-    if (!this.host.getPairing()) return;
-    const path = file.path;
+  /** The ONE way an observation timer is armed (audit fix C2): every
+   *  debounce, hold, retry, and re-arm goes through here, so the disposed
+   *  latch covers them all and shutdown() can cancel them all. Coalesces
+   *  per path (a newer arm replaces the pending one), like the inline
+   *  sites it replaced. */
+  private armObserve(path: string, deleted: boolean, delayMs: number): void {
+    if (this.disposed) return;
     const prior = this.observeTimers.get(path);
     if (prior !== undefined) window.clearTimeout(prior);
     this.observeTimers.set(path, window.setTimeout(() => {
       this.observeTimers.delete(path);
-      void this.emitObservation(path, false);
-    }, OBSERVE_DEBOUNCE_MS));
+      void this.emitObservation(path, deleted);
+    }, delayMs));
+  }
+
+  /** Debounced per path; call from vault modify/create events. */
+  scheduleObservation(file: TFile): void {
+    if (this.disposed || !this.host.getPairing()) return;
+    this.armObserve(file.path, false, OBSERVE_DEBOUNCE_MS);
   }
 
   /** Immediate; call from vault delete/rename events (old path). */
   reportDeleted(path: string): void {
-    if (!this.host.getPairing()) return;
+    if (this.disposed || !this.host.getPairing()) return;
     void this.emitObservation(path, true);
   }
 
   private async emitObservation(path: string, deleted: boolean): Promise<void> {
+    if (this.disposed) return; // unload latch — a stale timer firing is a no-op
     try {
       const pairing = this.host.getPairing();
       if (!pairing) return;
@@ -891,12 +927,7 @@ export class BridgeTransport {
         // Don't drop the report — this could be the note's LAST edit, and a
         // dropped observation only re-reports on the next touch. Re-arm for
         // just after the brake lifts (per-path, so re-edits coalesce).
-        const prior = this.observeTimers.get(path);
-        if (prior !== undefined) window.clearTimeout(prior);
-        this.observeTimers.set(path, window.setTimeout(() => {
-          this.observeTimers.delete(path);
-          void this.emitObservation(path, deleted);
-        }, Math.max(1000, this.backoffUntil - Date.now() + 1000)));
+        this.armObserve(path, deleted, Math.max(1000, this.backoffUntil - Date.now() + 1000));
         return;
       }
       const adapter = this.host.app.vault.adapter;
@@ -929,12 +960,7 @@ export class BridgeTransport {
           this.warnedConfigHold = true;
           console.warn('dayGLANCE bridge: no config row known yet — daily-note reporting held (fail closed) until it arrives.');
         }
-        const prior = this.observeTimers.get(path);
-        if (prior !== undefined) window.clearTimeout(prior);
-        this.observeTimers.set(path, window.setTimeout(() => {
-          this.observeTimers.delete(path);
-          void this.emitObservation(path, deleted);
-        }, CONFIG_HOLD_RETRY_MS));
+        this.armObserve(path, deleted, CONFIG_HOLD_RETRY_MS);
         return;
       }
 
@@ -989,14 +1015,7 @@ export class BridgeTransport {
       if (!deleted && content !== null && bridgeConfigAllowsStamping(this.config)) {
         const noteDate = this.dailyNoteDate(path);
         if (noteDate && stampUntaggedTaskLines(content, noteDate).changed) {
-          const rearm = () => {
-            const prior = this.observeTimers.get(path);
-            if (prior !== undefined) window.clearTimeout(prior);
-            this.observeTimers.set(path, window.setTimeout(() => {
-              this.observeTimers.delete(path);
-              void this.emitObservation(path, false);
-            }, OBSERVE_DEBOUNCE_MS));
-          };
+          const rearm = () => this.armObserve(path, false, OBSERVE_DEBOUNCE_MS);
           // Every markdown view showing this path — the shared helper the
           // intent applier's write rule uses too.
           const views = this.markdownViews(path);
@@ -1183,12 +1202,7 @@ export class BridgeTransport {
         this.observeRetryAttempts.set(path, attempt);
         const delayMs = Math.min(5_000 * 2 ** (attempt - 1), 5 * 60_000);
         console.error(`dayGLANCE bridge: observation failed (${path}) — retry ${attempt} in ~${Math.round(delayMs / 1000)}s`, e);
-        const prior = this.observeTimers.get(path);
-        if (prior !== undefined) window.clearTimeout(prior);
-        this.observeTimers.set(path, window.setTimeout(() => {
-          this.observeTimers.delete(path);
-          void this.emitObservation(path, deleted);
-        }, delayMs));
+        this.armObserve(path, deleted, delayMs);
       }
     }
   }

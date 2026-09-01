@@ -165,7 +165,7 @@ describe('revival stamping, end to end (§3.10 ruling 6)', () => {
     expect(revived).toBeDefined();
     expect(revived.lastModified).toBe(T2_ISO); // lifted — this is what propagates
     // The revived id was scanned, so note-scoped inference has nothing pending.
-    expect(JSON.parse(store.get('day-planner-obsidian-pending-note-deletions') ?? '{}')).toEqual({});
+    expect(JSON.parse(store.get('day-planner-obsidian-pending-note-deletions') ?? '{}').entries ?? {}).toEqual({});
     // Second device: the same row passes the apply gate against the same tombstone.
     expect(dropTombstonedObsidianTasks([revived], { [L]: T1_ISO })).toEqual([revived]);
   });

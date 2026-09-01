@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import {
   shouldSuppressRetirementHeal,
   consumeRetirementHealTripped,
-  shouldSuppressDeletePropagation,
+  isDeletePropagationLatched,
+  recordDeletePropagation,
   consumeDeletePropagationTripped,
   __resetRetirementHealBreakerForTests,
 } from './retirementHealBreaker.js';
@@ -68,44 +69,64 @@ describe('shouldSuppressRetirementHeal', () => {
   });
 });
 
-describe('shouldSuppressDeletePropagation — the propagate-arm wall (2026-08-31 war, fix 3)', () => {
+describe('delete-propagation latch — the propagate-arm wall (2026-08-31 war, fix 3; count-on-ack per audit fix H2)', () => {
   beforeEach(() => {
     __resetRetirementHealBreakerForTests();
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it("THE WAR SHAPE: the same entityId delete-propagated at ~2s cadence latches on the 4th — under the '(retired)'/'(tombstoned)' classifications the heal breaker never sees", () => {
-    // Three re-propagations stay allowed: a delete whose push fails retries
-    // legitimately, and the acked-delete skip already removes the benign
-    // stale-baseline re-fire upstream of this counter.
-    expect(shouldSuppressDeletePropagation('tasks:obsidian-2026-08-30-j1wnjt', 'retired', T0)).toBe(false);
-    expect(shouldSuppressDeletePropagation('tasks:obsidian-2026-08-30-j1wnjt', 'retired', T0 + 2_000)).toBe(false);
-    expect(shouldSuppressDeletePropagation('tasks:obsidian-2026-08-30-j1wnjt', 'tombstoned', T0 + 4_000)).toBe(false);
-    expect(shouldSuppressDeletePropagation('tasks:obsidian-2026-08-30-j1wnjt', 'tombstoned', T0 + 6_000)).toBe(true);
+  it("THE WAR SHAPE: the same entityId ACK-recorded at ~2s cadence latches on the 4th — under the '(retired)'/'(tombstoned)' classifications the heal breaker never sees", () => {
+    const id = 'tasks:obsidian-2026-08-30-j1wnjt';
+    recordDeletePropagation(id, 'retired', T0);
+    expect(isDeletePropagationLatched(id)).toBe(false);
+    recordDeletePropagation(id, 'retired', T0 + 2_000);
+    recordDeletePropagation(id, 'tombstoned', T0 + 4_000);
+    expect(isDeletePropagationLatched(id)).toBe(false); // three landed deletes stay allowed
+    recordDeletePropagation(id, 'tombstoned', T0 + 6_000);
+    expect(isDeletePropagationLatched(id)).toBe(true);
     expect(console.error).toHaveBeenCalledTimes(1);
-    expect(console.error.mock.calls[0][0]).toContain('tasks:obsidian-2026-08-30-j1wnjt');
+    expect(console.error.mock.calls[0][0]).toContain(id);
 
-    // LATCHED for the session: no cooldown, one loud line.
-    expect(shouldSuppressDeletePropagation('tasks:obsidian-2026-08-30-j1wnjt', 'retired', T0 + 3 * 60 * 60_000)).toBe(true);
+    // LATCHED for the session: no cooldown, one loud line, further records no-op.
+    recordDeletePropagation(id, 'retired', T0 + 3 * 60 * 60_000);
+    expect(isDeletePropagationLatched(id)).toBe(true);
     expect(console.error).toHaveBeenCalledTimes(1);
   });
 
-  it('WALL-CLOCK WINDOW: four propagations spread past 10 minutes never latch; per-entity streaks only', () => {
-    for (let i = 0; i < 4; i++) {
-      expect(shouldSuppressDeletePropagation('tasks:slow', 'tombstoned', T0 + i * 11 * 60_000)).toBe(false);
+  it('COUNT ON ACK (audit fix H2): the diff-phase CHECK never counts — an offline delete re-proposed every failed cycle can never latch', () => {
+    // The pre-fix shape: user deletes offline; focus flips + deferred
+    // retries re-run the diff at short intervals; every attempt counted.
+    // Now the check is pure — a hundred failed-cycle re-checks record
+    // nothing, and the genuine delete pushes cleanly when the network
+    // returns.
+    const id = 'tasks:deleted-while-offline';
+    for (let i = 0; i < 100; i++) {
+      expect(isDeletePropagationLatched(id)).toBe(false);
     }
+    // Connectivity returns: ONE acked push records ONE hit — no latch.
+    recordDeletePropagation(id, 'tombstoned', T0 + 100_000);
+    expect(isDeletePropagationLatched(id)).toBe(false);
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it('WALL-CLOCK WINDOW: four acked propagations spread past 10 minutes never latch; per-entity streaks only', () => {
+    for (let i = 0; i < 4; i++) {
+      recordDeletePropagation('tasks:slow', 'tombstoned', T0 + i * 11 * 60_000);
+    }
+    expect(isDeletePropagationLatched('tasks:slow')).toBe(false);
     // Four DIFFERENT entities in seconds (a real bulk delete) never latch.
     for (let i = 0; i < 4; i++) {
-      expect(shouldSuppressDeletePropagation(`tasks:bulk-${i}`, 'tombstoned', T0 + i * 100)).toBe(false);
+      recordDeletePropagation(`tasks:bulk-${i}`, 'tombstoned', T0 + i * 100);
+      expect(isDeletePropagationLatched(`tasks:bulk-${i}`)).toBe(false);
     }
   });
 
   it('consumeDeletePropagationTripped: the strike flag fires once per latch and is independent of the heal breaker flag', () => {
     expect(consumeDeletePropagationTripped()).toBe(false);
-    for (let i = 0; i < 3; i++) shouldSuppressDeletePropagation('tasks:W', 'retired', T0 + i * 1_000);
+    for (let i = 0; i < 3; i++) recordDeletePropagation('tasks:W', 'retired', T0 + i * 1_000);
     expect(consumeDeletePropagationTripped()).toBe(false); // not yet latched
-    shouldSuppressDeletePropagation('tasks:W', 'retired', T0 + 3_000);
+    recordDeletePropagation('tasks:W', 'retired', T0 + 3_000);
     expect(consumeDeletePropagationTripped()).toBe(true);
     expect(consumeDeletePropagationTripped()).toBe(false);
     expect(consumeRetirementHealTripped()).toBe(false); // the sibling flag never crossed

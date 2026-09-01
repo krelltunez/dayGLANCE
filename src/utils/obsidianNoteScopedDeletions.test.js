@@ -3,6 +3,11 @@ import {
   inferNoteScopedDeletionCandidates,
   reconcileNoteScopedDeletions,
   NOTE_DELETION_HOLD_MS,
+  applyPendingContinuityGuard,
+  readPendingNoteDeletions,
+  writePendingNoteDeletions,
+  PENDING_CONTINUITY_GAP_MS,
+  PENDING_NOTE_DELETIONS_KEY,
 } from './obsidianNoteScopedDeletions.js';
 import { legacyObsidianId, deriveBlockId, appIdForBlockId } from '@glance-apps/obsidian-format';
 
@@ -171,5 +176,76 @@ describe('reconcileNoteScopedDeletions (wall-clock confirmation hold)', () => {
       pending: first.nextPending, candidates: [], scannedIds: new Set(), liveIds: live, nowMs: T0 + HOLD,
     });
     expect(later.commits).toHaveLength(1);
+  });
+});
+
+describe('the continuity guard + pending store (audit fix C1)', () => {
+  const T0 = Date.parse('2026-08-31T09:00:00.000Z');
+  const entry = (pendedAt) => ({ noteDate: '2026-08-30', deletedAt: '2026-08-30T20:00:00.000Z', pendedAt });
+  const memStorage = (seed = {}) => {
+    const m = new Map(Object.entries(seed));
+    return {
+      getItem: (k) => (m.has(k) ? m.get(k) : null),
+      setItem: (k, v) => m.set(k, String(v)),
+      removeItem: (k) => m.delete(k),
+      _dump: (k) => m.get(k),
+    };
+  };
+
+  it('THE C1 PIN: a stale pending entry across a reconcile gap does NOT commit — its clock restarts, because absence was not being watched', () => {
+    // The audit's event sequence: entry pended in plugin mode; Obsidian
+    // closes; days of direct mode (or the app closed entirely); plugin mode
+    // resumes and the FIRST fetch (even empty) used to find an ancient
+    // pendedAt and tombstone a LIVE task. Now the gap restarts the clock.
+    const staleEntries = { 'obsidian-dg-abc12345': entry(T0 - 3 * 86_400_000) }; // pended 3 days ago
+    const lastTouch = T0 - 3 * 86_400_000 + 60_000; // reconcile last ran just after, then nothing
+    const guarded = applyPendingContinuityGuard(staleEntries, lastTouch, T0);
+    expect(guarded['obsidian-dg-abc12345'].pendedAt).toBe(T0); // clock restarted
+    // Fed into the reconcile that used to commit: it now pends, not commits.
+    const { commits, nextPending } = reconcileNoteScopedDeletions({
+      pending: guarded, candidates: [], scannedIds: new Set(),
+      liveIds: new Set(['obsidian-dg-abc12345']), nowMs: T0,
+    });
+    expect(commits).toEqual([]);
+    expect(nextPending['obsidian-dg-abc12345'].pendedAt).toBe(T0);
+    // And with CONTINUOUS watching (recent touch), the guard changes nothing
+    // and a genuinely held-and-confirmed entry still commits — the hold's
+    // normal operation is untouched.
+    const watched = { 'obsidian-dg-abc12345': entry(T0 - NOTE_DELETION_HOLD_MS - 1000) };
+    const passthrough = applyPendingContinuityGuard(watched, T0 - 30_000, T0);
+    expect(passthrough).toBe(watched); // same object — no rewrite
+    const confirmed = reconcileNoteScopedDeletions({
+      pending: passthrough, candidates: [], scannedIds: new Set(),
+      liveIds: new Set(['obsidian-dg-abc12345']), nowMs: T0,
+    });
+    expect(confirmed.commits).toHaveLength(1);
+  });
+
+  it('gap semantics: within the bound passes through; beyond it, unknown (null), and future-skewed touches all restart clocks', () => {
+    const entries = { id1: entry(T0 - 200_000) };
+    expect(applyPendingContinuityGuard(entries, T0 - PENDING_CONTINUITY_GAP_MS, T0)).toBe(entries); // exactly at bound = continuous
+    expect(applyPendingContinuityGuard(entries, T0 - PENDING_CONTINUITY_GAP_MS - 1, T0).id1.pendedAt).toBe(T0);
+    expect(applyPendingContinuityGuard(entries, null, T0).id1.pendedAt).toBe(T0); // v1 migration / fresh store
+    expect(applyPendingContinuityGuard(entries, T0 + 60_000, T0).id1.pendedAt).toBe(T0); // clock skew backward
+    expect(applyPendingContinuityGuard({}, null, T0)).toEqual({}); // empty stays empty
+  });
+
+  it('the store round-trips the v2 envelope and migrates a legacy v1 flat map with unknown continuity', () => {
+    const storage = memStorage();
+    // v2 round trip.
+    writePendingNoteDeletions({ a: entry(T0) }, T0, storage);
+    const back = readPendingNoteDeletions(storage);
+    expect(back.entries.a.pendedAt).toBe(T0);
+    expect(back.touchedAt).toBe(T0);
+    // Legacy v1 (bare entries map, the pre-fix shape) → entries kept,
+    // touchedAt null → the guard restarts clocks (conservative migration).
+    const legacy = memStorage({ [PENDING_NOTE_DELETIONS_KEY]: JSON.stringify({ b: entry(T0 - 86_400_000) }) });
+    const migrated = readPendingNoteDeletions(legacy);
+    expect(migrated.entries.b).toBeTruthy();
+    expect(migrated.touchedAt).toBe(null);
+    expect(applyPendingContinuityGuard(migrated.entries, migrated.touchedAt, T0).b.pendedAt).toBe(T0);
+    // Corruption reads empty.
+    const corrupt = memStorage({ [PENDING_NOTE_DELETIONS_KEY]: 'not json' });
+    expect(readPendingNoteDeletions(corrupt)).toEqual({ entries: {}, touchedAt: null });
   });
 });

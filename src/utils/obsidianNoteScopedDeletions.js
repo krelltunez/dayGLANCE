@@ -72,6 +72,33 @@
 // until the tombstone GCs, exactly as in direct mode (fresh imports carry
 // an epoch lastModified, so the documented re-creation revival is inert for
 // tasks — a pre-existing trait of the channel, inherited, not widened).
+//
+// THE CONTINUITY GUARD (audit fix C1, 2026-08-31/09-01). The hold's premise
+// is CONTINUOUS plugin-mode observation: "90s of absence" is only evidence
+// while something was watching for the id to reappear. That premise was
+// silently conditional — the pending set persists in localStorage, is
+// touched ONLY by the plugin-mode branch, and its clocks kept running
+// through every discontinuity: Obsidian closed (mode flips to direct), the
+// app itself closed, a re-pairing whose rotated subkey even destroys the
+// rescue evidence in unread rows. Days later, the FIRST plugin-mode fetch
+// (even an empty one) found ancient pendedAt values and committed stale
+// entries as deletions — a live task tombstoned on machine wake, with a
+// days-old mtime stamp that loses the LWW. Two closures, both conservative
+// (dropping or re-pending an entry never deletes anything; the worst cost
+// is re-inferring from fresh evidence):
+//   • the pending store now records WHEN reconcile last ran (touchedAt,
+//     the v2 envelope below); a gap beyond PENDING_CONTINUITY_GAP_MS
+//     restarts every entry's clock — absence was not being watched across
+//     the gap, so it must be re-established, never assumed. The gap bound
+//     is MECHANICAL: sized to the reconcile cadence (the 5-minute poll,
+//     the slowest thing that runs it), not to any typing/usage guess.
+//   • a successful DIRECT scan clears the pending set outright (wired in
+//     useObsidianSync): a vault-wide scan is strictly stronger evidence
+//     than any observation batch — present ids are rescued by definition,
+//     and absent ids are the vault-wide detector's jurisdiction with its
+//     own guards and channel.
+// A v1 store (bare entries map, no touchedAt) migrates conservatively:
+// unknown continuity is treated as broken, clocks restart.
 
 import { obsidianKeyDate } from './obsidianDeletions.js';
 
@@ -114,6 +141,76 @@ export function inferNoteScopedDeletionCandidates({ observedNotes, scannedIds, t
  *  a cross-note move's other half, plus an observation round), NOT to any
  *  cycle cadence. See the module header. */
 export const NOTE_DELETION_HOLD_MS = 90_000;
+
+// ── THE CONTINUITY GUARD (audit fix C1 — full rationale in the header) ──────
+
+/** localStorage key for the pending store (owned here so the reader, the
+ *  writer, and the direct-scan clear can never drift on the name). */
+export const PENDING_NOTE_DELETIONS_KEY = 'day-planner-obsidian-pending-note-deletions';
+
+/** Reconcile-gap bound beyond which observation continuity is considered
+ *  BROKEN and every pending clock restarts. MECHANICAL: sized to the
+ *  reconcile cadence — the 5-minute poll is the slowest trigger that runs
+ *  it, so three missed polls means the watcher was not running (app closed,
+ *  mode flipped to direct, plugin gone), never that the vault was quiet. */
+export const PENDING_CONTINUITY_GAP_MS = 15 * 60_000;
+
+/**
+ * Read the pending store: `{ entries, touchedAt }`. Handles both shapes —
+ * the v2 envelope `{v:2, touchedAt, entries}` and the legacy bare entries
+ * map, which migrates with `touchedAt: null` (unknown continuity is treated
+ * as broken by the guard below — conservative). Corruption reads as empty.
+ */
+export function readPendingNoteDeletions(storage = globalThis.localStorage) {
+  try {
+    const raw = JSON.parse(storage.getItem(PENDING_NOTE_DELETIONS_KEY) || '{}');
+    if (raw && typeof raw === 'object' && raw.v === 2) {
+      return {
+        entries: raw.entries && typeof raw.entries === 'object' ? raw.entries : {},
+        touchedAt: Number.isFinite(raw.touchedAt) ? raw.touchedAt : null,
+      };
+    }
+    return { entries: raw && typeof raw === 'object' ? raw : {}, touchedAt: null };
+  } catch {
+    return { entries: {}, touchedAt: null };
+  }
+}
+
+/** Write the pending store in the v2 envelope, stamping this reconcile's
+ *  touch time. Failures are swallowed (entries re-infer from fresh
+ *  evidence when the note is next observed — the store's standing rule). */
+export function writePendingNoteDeletions(entries, nowMs = Date.now(), storage = globalThis.localStorage) {
+  try {
+    storage.setItem(PENDING_NOTE_DELETIONS_KEY, JSON.stringify({ v: 2, touchedAt: nowMs, entries: entries || {} }));
+  } catch { /* re-inferred when the note is next observed */ }
+}
+
+/**
+ * The guard itself, pure: entries pass through unchanged while continuity
+ * held (a recent touch), and every entry's clock RESTARTS (pendedAt → now)
+ * when the reconcile gap exceeds the bound or is unknown (null touchedAt —
+ * a fresh install, a v1 migration). "90 seconds of absence" is only
+ * evidence while something was watching for the id to reappear; across a
+ * gap, absence must be re-established, never assumed. Restarting is
+ * conservative by construction — it can only delay a commit, never cause
+ * one.
+ *
+ * @param {Record<string, {noteDate, deletedAt, pendedAt?: number}>} entries
+ * @param {number|null} touchedAt  when reconcile last ran (null = unknown)
+ * @param {number} [nowMs]
+ * @returns {Record<string, {noteDate, deletedAt, pendedAt: number}>}
+ */
+export function applyPendingContinuityGuard(entries, touchedAt, nowMs = Date.now()) {
+  const src = entries && typeof entries === 'object' ? entries : {};
+  if (Object.keys(src).length === 0) return src;
+  const continuous = Number.isFinite(touchedAt) && nowMs - touchedAt <= PENDING_CONTINUITY_GAP_MS && nowMs >= touchedAt;
+  if (continuous) return src;
+  const out = {};
+  for (const [id, e] of Object.entries(src)) {
+    out[id] = { ...e, pendedAt: nowMs };
+  }
+  return out;
+}
 
 /**
  * Advance the confirmation hold by one successful fetch. Pure.

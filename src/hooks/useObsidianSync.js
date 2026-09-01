@@ -37,7 +37,11 @@ import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, getBridgePair
 import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations } from '../utils/obsidianBridgeInbound.js';
 import { recordBridgeMode, reconcileArchivedBaseline } from '../utils/obsidianBridgeMode.js';
 import { restoreBinnedVaultTasks, binRestoreNoticeText } from '../utils/obsidianBinRestore.js';
-import { inferNoteScopedDeletionCandidates, reconcileNoteScopedDeletions } from '../utils/obsidianNoteScopedDeletions.js';
+import {
+  inferNoteScopedDeletionCandidates, reconcileNoteScopedDeletions,
+  readPendingNoteDeletions, writePendingNoteDeletions, applyPendingContinuityGuard,
+  PENDING_NOTE_DELETIONS_KEY,
+} from '../utils/obsidianNoteScopedDeletions.js';
 
 /**
  * Obsidian vault sync — extracted from App.jsx (see "App.jsx — Ongoing
@@ -204,6 +208,14 @@ export default function useObsidianSync({
 
   const taskWriteErrorRef = useRef(null); // the message we latched, or null
   const restoreErrorRef = useRef(null);   // ditto, for a failed note restore
+  // Audit fix M1: set when the writeback effect fires DURING a sync cycle
+  // and is skipped by the in-progress guard — a task change landing in that
+  // window (cycles last ≥2s and are triggered by the visibility flip that
+  // coincides with the user returning to click something) used to wait for
+  // the next unrelated task change to be written. The cycle's finally reads
+  // this and pokes one writeback pass; a pass with nothing to diff is a
+  // no-op, so the poke can never loop.
+  const writebackPendingRef = useRef(false);
 
   // ── Tasks-plugin detection (completion-marker format) ─────────────────────
   // Vault-level: is the Obsidian Tasks plugin enabled? Decides the marker
@@ -550,8 +562,15 @@ export default function useObsidianSync({
           // observation's file mtime, never "now" — an app edit newer than
           // the note beats them under the channel's existing LWW rule.
           const batchScannedIds = applied ? applied.scannedIds : new Set();
-          let pendingNoteDeletions = {};
-          try { pendingNoteDeletions = JSON.parse(localStorage.getItem('day-planner-obsidian-pending-note-deletions') || '{}'); } catch { pendingNoteDeletions = {}; }
+          // THE CONTINUITY GUARD (audit fix C1 — rationale in the util's
+          // header): the store carries when reconcile last ran; a gap beyond
+          // the bound (app closed, mode flipped, plugin gone, re-pair)
+          // restarts every pending clock, because "90s of absence" is only
+          // evidence while something was watching. Without this, the first
+          // fetch after a days-long discontinuity committed stale entries
+          // as deletions of live tasks.
+          const pendingStore = readPendingNoteDeletions();
+          const pendingNoteDeletions = applyPendingContinuityGuard(pendingStore.entries, pendingStore.touchedAt);
           const liveObsidianIds = new Set(
             [...currentTasks, ...currentInbox].filter(t => t?.importSource === 'obsidian').map(t => String(t.id)));
           const candidates = applied
@@ -582,7 +601,7 @@ export default function useObsidianSync({
             console.log('Obsidian: note-scoped deletion candidates pending wall-clock confirmation (>=90s + a subsequent fetch):',
               candidates.map(c => `${c.id} [note ${c.noteDate}]`).join('; '));
           }
-          try { localStorage.setItem('day-planner-obsidian-pending-note-deletions', JSON.stringify(nextPending)); } catch { /* re-inferred when the note is next observed */ }
+          writePendingNoteDeletions(nextPending);
 
           if (applied) {
             // BIN-VERSUS-VAULT (§3.10 ruling 5): an observed line whose task
@@ -665,6 +684,16 @@ export default function useObsidianSync({
             obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
             onTitleConflict,
           );
+
+      // A successful DIRECT scan clears the note-scoped deletion pending set
+      // (audit fix C1, second closure — rationale in the util's header): a
+      // vault-wide scan is strictly stronger evidence than any observation
+      // batch. Every pended id the scan finds is rescued by definition, and
+      // every id it doesn't find is the vault-wide detector's jurisdiction
+      // (below), with its own completeness guards and channel. Dropping the
+      // entries is conservative — they re-infer from fresh evidence if
+      // plugin mode resumes with the line still gone.
+      try { localStorage.removeItem(PENDING_NOTE_DELETIONS_KEY); } catch { /* storage unavailable */ }
 
       // Keys this device's scan produced: daily-note dates + task ids (across BOTH
       // task lists, so a task that moved scheduled↔inbox counts as scanned and
@@ -815,10 +844,21 @@ export default function useObsidianSync({
     } finally {
       obsidianSyncInProgressRef.current = false;
       // Identity-only poke: re-runs the writeback effect now that the guard
-      // is down, so stamp-on-sight fires this cycle instead of riding the
-      // next unrelated task change. Content is untouched — only stampNeeded
-      // iterations (and any genuinely pending diffs) act on the pass.
-      if (nudgeWriteback) setTasks(prev => (prev || []).slice());
+      // is down. Two reasons to fire (audit fix M1 added the second): the
+      // plugin-mode stamp nudge (stamp-on-sight acts this cycle instead of
+      // riding the next unrelated task change), and a writeback pass the
+      // in-progress guard SKIPPED mid-cycle — that pass may carry a user
+      // change made during the cycle's ≥2s window, which otherwise stayed
+      // unwritten (vault silently stale) until the task list next changed.
+      // Content is untouched; a pass with nothing to diff is a no-op, so
+      // this cannot loop.
+      if (nudgeWriteback || writebackPendingRef.current) {
+        // Consume the marker at poke time (the poked pass would clear it
+        // anyway; consuming here keeps one skip = one poke even if the
+        // effect never runs, e.g. the hook unmounted mid-cycle).
+        writebackPendingRef.current = false;
+        setTasks(prev => (prev || []).slice());
+      }
       notifyNativeReady();
     }
   };
@@ -995,8 +1035,12 @@ export default function useObsidianSync({
   // Obsidian writeback: detect completion/scheduling/title changes and write back to vault
   useEffect(() => {
     if (isTrayMode || !obsidianConfig?.enabled || !obsidianVaultHandleRef.current) return;
-    // Skip writeback while a sync is replacing the task arrays
-    if (obsidianSyncInProgressRef.current) return;
+    // Skip writeback while a sync is replacing the task arrays — but leave a
+    // marker so the cycle's finally re-runs this pass (audit fix M1): the
+    // skipped run may carry a USER change, and without the re-poke it sat
+    // unwritten until the next unrelated task change.
+    if (obsidianSyncInProgressRef.current) { writebackPendingRef.current = true; return; }
+    writebackPendingRef.current = false;
 
     const allObsidian = [...tasks, ...unscheduledTasks].filter(t => t.importSource === 'obsidian' && t.obsidianRawTitle);
     const prev = obsidianPrevTaskStateRef.current;

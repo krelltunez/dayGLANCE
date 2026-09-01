@@ -122,6 +122,26 @@ export function consumeRetirementHealTripped() {
 // false latch (a genuinely deleted row on a flaky network): the vault keeps
 // the row until another device propagates the delete or the user re-deletes
 // — visible, recoverable, loudly logged. The war costs more.
+//
+// COUNT ON ACK, NOT ON INTENT (audit fix H2). The first shape recorded the
+// streak hit in the DIFF phase, before the pull/push ran — so a cycle that
+// FAILED (offline: the pull throws, the snapshot is withheld, the delete
+// stays in the baseline) re-counted the SAME pending delete on every
+// attempted cycle. A user deleting a task while offline, plus the ordinary
+// retry cadence (focus-triggered cycles, deferred cooldown retries), could
+// reach four counts inside ten minutes and latch a GENUINE delete as
+// "resurrection churn" that never happened — stranding any later delete of
+// that id for the session. The split below is the fix: the latch CHECK
+// (isDeletePropagationLatched) still gates the diff phase, but a streak
+// hit is RECORDED (recordDeletePropagation) only after the cycle's push
+// ACKED — a propagation only counts once the delete actually reached the
+// vault and the row still came back. Failed and suppressed cycles record
+// nothing, however many times they retry. (The caller also excludes
+// deletes the polarity reassert converted to accepted revivals — those
+// were not pushed as deletes at all.) Residual, accepted with eyes open: a
+// TRUE latch also suppresses a later user re-delete of the same id that
+// session — intended, because four acked delete-pushes in ten minutes
+// means the row's state is genuinely contested; a reload re-arms.
 
 const PROPAGATE_STREAK_N = 4;
 
@@ -130,35 +150,46 @@ const propagateState = new Map();
 let propagateTrippedThisCycle = false;
 
 /**
- * Note that the cycle wants to delete-propagate `entityId` (already past the
- * acked-delete skip), and answer whether to SUPPRESS it. Latches on the
- * PROPAGATE_STREAK_N-th propagation within WINDOW_MS.
+ * The diff-phase gate: is this entityId's delete propagation latched?
+ * Pure check — never counts (see COUNT ON ACK above).
+ *
+ * @param {string} entityId
+ * @returns {boolean} true → suppress this delete
+ */
+export function isDeletePropagationLatched(entityId) {
+  return propagateState.get(entityId)?.latched === true;
+}
+
+/**
+ * Record one ACKED delete propagation of `entityId` — call only after the
+ * cycle's push succeeded. Latches on the PROPAGATE_STREAK_N-th within
+ * WINDOW_MS; the latch takes effect from the NEXT cycle's diff (this
+ * cycle's delete already landed, which is fine — it is the resurrections
+ * between cycles the latch starves).
  *
  * @param {string} entityId
  * @param {string|null} reason  the guard's classification (for the log)
  * @param {number} [nowMs]
- * @returns {boolean} true → suppress this delete
  */
-export function shouldSuppressDeletePropagation(entityId, reason = null, nowMs = Date.now()) {
+export function recordDeletePropagation(entityId, reason = null, nowMs = Date.now()) {
   let s = propagateState.get(entityId);
   if (!s) { s = { hits: [], latched: false, lastReason: null }; propagateState.set(entityId, s); }
-  if (s.latched) return true;
+  if (s.latched) return;
   s.lastReason = reason ?? s.lastReason;
   s.hits = s.hits.filter((t) => nowMs - t < WINDOW_MS);
   s.hits.push(nowMs);
-  if (s.hits.length < PROPAGATE_STREAK_N) return false;
+  if (s.hits.length < PROPAGATE_STREAK_N) return;
   s.latched = true;
   s.hits = [];
   propagateTrippedThisCycle = true;
   console.error(
-    `[push] DELETE-PROPAGATION LATCH: ${entityId} was delete-propagated ${PROPAGATE_STREAK_N} times in ` +
+    `[push] DELETE-PROPAGATION LATCH: ${entityId} was delete-propagated (and ACKED) ${PROPAGATE_STREAK_N} times in ` +
     `${WINDOW_MS / 60000}min (last classification: ${s.lastReason ?? 'unknown'}) — a delete leaves the ` +
-    `baseline after ONE propagation, so a streak means the row keeps being resurrected between cycles ` +
-    `(the 2026-08-31 retire/tombstone war shape). LATCHED for this session: this device stops ` +
+    `baseline after ONE propagation, so a streak of landed deletes means the row keeps being resurrected ` +
+    `between cycles (the 2026-08-31 retire/tombstone war shape). LATCHED for this session: this device stops ` +
     `re-asserting the deletion (nothing is deleted or restored by the latch itself). If the row should ` +
     `be gone, delete it again after reloading the app; reloading re-arms the latch.`
   );
-  return true;
 }
 
 /** True once per cycle in which the propagation latch tripped; reading
