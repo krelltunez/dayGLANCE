@@ -112,10 +112,20 @@ export default function useObsidianSync({
     // Strip [[Note#Heading]] fragment — we load the whole note file, not just a section
     const notePath = noteName.split('#')[0].trim();
     if (handle === 'native') {
+      // Stays null on absence: the native read wrapper collapses "no such
+      // note" and "read failed" into one null (read contract), so absence is
+      // never PROVEN here. Reporting notFound on an unreadable existing note
+      // would offer a create editor whose save overwrites it — fail closed.
       return nativeGetNote(notePath);
     }
     try {
-      return await readWikiNote(handle, notePath);
+      const note = await readWikiNote(handle, notePath);
+      // readWikiNote returns null EXACTLY when the note is absent (NotFound
+      // on the path walk / whole-vault search) and throws on real failures,
+      // so null is proven absence: report it as creatable, not as an error.
+      // The linked-note panel turns notFound into an empty editor whose save
+      // creates the note (saveWikiNote's creation path, newNotesFolder).
+      return note === null ? { notFound: true } : note;
     } catch (err) {
       console.error('Failed to read wiki note:', err);
       return null;

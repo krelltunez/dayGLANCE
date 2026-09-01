@@ -126,7 +126,19 @@ const NotesSubtasksPanel = ({
     setLinkedNoteStates(prev => ({ ...prev, [noteName]: { text: '', lastModified: null, loading: true, error: null } }));
     onLoadWikiNote?.(noteName).then(result => {
       if (result === null) {
+        // Vault unavailable or the read failed — no editor, fail closed.
         setLinkedNoteStates(prev => ({ ...prev, [noteName]: { text: '', lastModified: null, loading: false, error: 'not_found' } }));
+        return;
+      }
+      if (result?.notFound) {
+        // The vault is reachable but the note doesn't exist yet: seed an
+        // EMPTY editor (not a dead-end error) so typing here creates the
+        // note — the ordinary save paths (blur / Shift+Enter / unmount
+        // flush) route through onSaveWikiNote's creation path.
+        setLinkedNoteStates(prev => ({ ...prev, [noteName]: { text: '', lastModified: null, loading: false, error: null } }));
+        setLinkedNoteEditing(prev => ({ ...prev, [noteName]: true }));
+        linkedNoteTextsRef.current[noteName] = '';
+        linkedNoteOriginalRef.current[noteName] = '';
         return;
       }
       const text = result?.text ?? '';
