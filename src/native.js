@@ -320,25 +320,35 @@ export const nativeGetVaultConfig = () => {
 /**
  * Reads an arbitrary vault note by wikilink name (e.g. "My Note" or "Folder/My Note").
  * Bare names are resolved by searching the vault recursively, matching Obsidian's behaviour.
- * Returns { text, lastModified } or null if not found / vault not configured.
+ *
+ * Returns:
+ *   { text, lastModified }  — the note exists and was read.
+ *   null                    — REPORTED absence: both platforms return "" on
+ *                             the wire only after looking (index/dir miss on
+ *                             Android, an explicit existence check on iOS).
+ *                             "" also covers an unconfigured vault, where
+ *                             every write path refuses visibly too.
+ *   { readFailed: true }    — the note exists (or may exist) but could not be
+ *                             read: the {"error":…} envelope, a mangled
+ *                             payload, or no usable bridge. Never collapsed
+ *                             into null (read contract): treating a failed
+ *                             read as absence invites callers to recreate or
+ *                             overwrite a note that is really there.
  */
 export const nativeGetNote = (path) => {
   const bridge = obsidianBridge();
-  if (!bridge?.getNote) return null;
+  if (!bridge?.getNote) return { readFailed: true };
   try {
     const raw = bridge.getNote(path);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    // Failed-read envelope (read contract): the note exists but could not be
-    // read. Reported upward as null (same as absent) but logged, so a read
-    // failure is never silently mistaken for "no such note".
     if (parsed && parsed.error) {
       console.warn(`[Obsidian native] Note "${path}" read failed:`, parsed.error);
-      return null;
+      return { readFailed: true };
     }
     return parsed;
   } catch {
-    return null;
+    return { readFailed: true };
   }
 };
 

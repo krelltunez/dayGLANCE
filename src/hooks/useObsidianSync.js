@@ -112,10 +112,24 @@ export default function useObsidianSync({
     // Strip [[Note#Heading]] fragment — we load the whole note file, not just a section
     const notePath = noteName.split('#')[0].trim();
     if (handle === 'native') {
-      return nativeGetNote(notePath);
+      const res = nativeGetNote(notePath);
+      // readFailed = the note exists (or may exist) but could not be read —
+      // fail closed: never offer a create editor whose save overwrites it.
+      if (res?.readFailed) return null;
+      // null = reported absence (both bridges return "" only after looking),
+      // so it is creatable. The residual: "" also covers an unconfigured
+      // vault, where a create attempt fails VISIBLY through nativeWriteNote's
+      // false return — fail-annoying, never data loss.
+      return res === null ? { notFound: true } : res;
     }
     try {
-      return await readWikiNote(handle, notePath);
+      const note = await readWikiNote(handle, notePath);
+      // readWikiNote returns null EXACTLY when the note is absent (NotFound
+      // on the path walk / whole-vault search) and throws on real failures,
+      // so null is proven absence: report it as creatable, not as an error.
+      // The linked-note panel turns notFound into an empty editor whose save
+      // creates the note (saveWikiNote's creation path, newNotesFolder).
+      return note === null ? { notFound: true } : note;
     } catch (err) {
       console.error('Failed to read wiki note:', err);
       return null;
@@ -154,7 +168,17 @@ export default function useObsidianSync({
     // silent write loss the user could never see.
     if (handle === 'native') {
       // Android: same ordering — only validate when the note doesn't exist yet.
-      const existing = await Promise.resolve(nativeGetNote(notePath)).catch(() => null);
+      const existing = await Promise.resolve(nativeGetNote(notePath)).catch(() => ({ readFailed: true }));
+      // A FAILED existence read refuses the write outright: before the
+      // readFailed sentinel this fell into the "existing" arm (no frontmatter,
+      // content written as-is) — or worse, with the old collapsed null, into
+      // the CREATION arm, decorating and overwriting a note that exists but
+      // couldn't be read.
+      if (existing?.readFailed) {
+        setObsidianSyncError(`Note "${notePath}" was not written: the note could not be read to verify whether it already exists.`);
+        setObsidianSyncStatus('error');
+        return;
+      }
       if (!existing) {
         const reason = validateWikiNoteName(notePath);
         if (reason) {

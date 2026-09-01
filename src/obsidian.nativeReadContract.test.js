@@ -116,13 +116,27 @@ describe('write paths refuse to act on a failed read', () => {
   });
 });
 
-describe('wiki-note read wrappers surface the failure envelope as null, never as content', () => {
-  it('nativeGetNote: {"error":…} → null (logged), success object passes', () => {
+describe('wiki-note read wrappers keep failure distinct from absence, and neither is ever content', () => {
+  it('nativeGetNote: {"error":…} → { readFailed: true } (logged), "" → null (reported absence), success object passes', () => {
+    // The three-way contract the wikilink-creation flow rides on: a caller
+    // that sees null may offer to CREATE the note; a caller that sees
+    // readFailed must not — the note may exist and be unreadable. Collapsing
+    // the envelope into null (the pre-creation-era behavior) is exactly what
+    // made native creation unshippable.
     installBridge({ getNote: vi.fn(() => JSON.stringify({ error: 'note read failed' })) });
-    expect(nativeGetNote('My Note')).toBeNull();
+    expect(nativeGetNote('My Note')).toEqual({ readFailed: true });
     expect(console.warn).toHaveBeenCalled();
+    installBridge({ getNote: vi.fn(() => '') });
+    expect(nativeGetNote('My Note')).toBeNull();
     installBridge({ getNote: vi.fn(() => JSON.stringify({ text: 'content', lastModified: 'x' })) });
     expect(nativeGetNote('My Note')).toEqual({ text: 'content', lastModified: 'x' });
+  });
+
+  it('nativeGetNote: a mangled payload or a missing bridge is readFailed, not absence', () => {
+    installBridge({ getNote: vi.fn(() => 'not json {') });
+    expect(nativeGetNote('My Note')).toEqual({ readFailed: true });
+    installBridge({ getNote: undefined });
+    expect(nativeGetNote('My Note')).toEqual({ readFailed: true });
   });
 
   it('nativeGetTasksFromNote: non-array → null, array passes', () => {
