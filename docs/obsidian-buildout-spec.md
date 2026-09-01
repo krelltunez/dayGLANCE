@@ -537,7 +537,7 @@ plugin-first (direct access frozen at feature-complete), completion log first,
 sidebar view, read-only scan scope, project/goal notes, then guarded
 Templater/Dataview delegation. Of the original candidates, project and goal
 notes survived as its 4.3, daily-note section templates became the guarded
-Templater delegation (its 4.6), and habit/routine frontmatter was deferred.
+Templater delegation (its 4.4), and habit/routine frontmatter was deferred.
 Read-write whole-vault scan scope was investigated and explicitly pushed to
 its own future phase — the identity machinery is date-keyed at every layer
 (its 6.2 records why). Phase 8 work begins after the current between-phases

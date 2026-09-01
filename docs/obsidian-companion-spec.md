@@ -1,7 +1,6 @@
 # dayGLANCE Obsidian companion — Phase 8
 
 **Status:** Draft for iteration
-**Supersedes:** `dayglance-obsidian-companion.md` (written before the bridge plugin existed)
 **Depends on:** Phases 0–7 of `obsidian-buildout-spec.md`
 
 ---
@@ -82,10 +81,6 @@ Phase 8 connects them, in both directions:
 ## 4. Features
 
 Ordered by dependency and risk, not by value.
-
-*(Numbering note: feature numbers carry over from v1, and v1's 4.4 and 4.5 did
-not survive into this phase — the jump from 4.3 to 4.6 is deliberate, not an
-omission. See §5 for what was dropped.)*
 
 ### 4.1 Completion log
 
@@ -324,7 +319,7 @@ rather than discovered.
 
 ---
 
-### 4.6 Templater, via guarded delegation
+### 4.4 Templater, via guarded delegation
 
 **Investigated and confirmed viable.** v1 proposed dayGLANCE implementing a
 subset of Templater's variables and leaving unsupported ones visible. The plugin
@@ -406,7 +401,7 @@ trigger leaves raw `<% %>` in the note. Visible, not corrupt.
 
 ---
 
-### 4.7 Dataview conventions, verified rather than assumed
+### 4.5 Dataview conventions, verified rather than assumed
 
 v1 defined a formatting standard and hoped Dataview would query it. The plugin
 can check.
