@@ -50,7 +50,7 @@ import { createSyncCycleBreaker, isRateLimitedError } from './syncBrakes.js';
 import { shouldSuppressReconcileDelete, consumeWarTripped } from './reconcileWarGuard.js';
 import {
   shouldSuppressRetirementHeal, consumeRetirementHealTripped,
-  shouldSuppressDeletePropagation, consumeDeletePropagationTripped,
+  isDeletePropagationLatched, recordDeletePropagation, consumeDeletePropagationTripped,
 } from './retirementHealBreaker.js';
 import { recordOwnWriteSeq } from './ownWrites.js';
 import { isObsidianTombstoned } from '../utils/obsidianDeletions.js';
@@ -790,7 +790,9 @@ export function createDbEngine(callbacks = {}) {
           // between cycles — churn hits this wall regardless of which
           // classification it rides ('retired'/'tombstoned' in the observed
           // war), where the heal breaker above only covers the skipped arm.
-          if (shouldSuppressDeletePropagation(id, reasons[id])) continue;
+          // CHECK only here (audit fix H2): the streak hit is recorded after
+          // the push ACKS, below — a failed cycle's retries never count.
+          if (isDeletePropagationLatched(id)) continue;
           engine.markDirty(id); // deletes
           propagatedDeletes.push({ entityId: id, reason: reasons[id] });
           if (dbgChanges) dbgChanges.push({ id, kind: 'deleted', diff: [] });
@@ -879,7 +881,7 @@ export function createDbEngine(callbacks = {}) {
       // delete polarity; a copy genuinely newer than its tombstone (or a
       // vanished successor) → the flip is correct newest-write-wins, accept.
       if (propagatedDeletes.length) {
-        const { evict } = reassertPropagatedDeletes(
+        const { evict, accepted } = reassertPropagatedDeletes(
           propagatedDeletes, mirror, (eid) => adapterGetLocalEntity(mirror, eid));
         if (evict.length) {
           for (const { entityId } of evict) adapterApplyRemoteDelete(mirror, entityId);
@@ -888,6 +890,13 @@ export function createDbEngine(callbacks = {}) {
             'pull-resupplied cop(ies) of blessed delete(s) so the push stays a delete (upsert-flip guard):',
             evict.slice(0, 10).map(({ entityId, reason }) => `${entityId} (${reason})`),
             evict.length > 10 ? `(+${evict.length - 10} more)` : '');
+        }
+        // An ACCEPTED flip is a legitimate revival — its delete polarity was
+        // deliberately dropped, so it must not count toward the propagation
+        // streak below (audit fix H2: only deletes that actually push count).
+        if (accepted.length) {
+          const acceptedIds = new Set(accepted.map(({ entityId }) => entityId));
+          propagatedDeletes = propagatedDeletes.filter(({ entityId }) => !acceptedIds.has(entityId));
         }
       }
       reconcileCrossList(
@@ -946,6 +955,15 @@ export function createDbEngine(callbacks = {}) {
         // of the cycle. No strike: the package already owns this pause.
         if (!isSuppressedError(err)) throw err;
         pushSuppressedRetryInMs = Math.max(1000, err.retryInMs ?? 1000);
+      }
+      // DELETE-PROPAGATION STREAK, recorded ON ACK (audit fix H2 — see the
+      // breaker's COUNT ON ACK note): a propagation counts only once its
+      // delete actually reached the vault and the push acknowledged. A
+      // thrown cycle never gets here; a window-suppressed push leaves
+      // pushRes null; reassert-accepted revivals were filtered out above —
+      // so offline/failed retries of one genuine delete can never latch it.
+      if (pushRes) {
+        for (const { entityId, reason } of propagatedDeletes) recordDeletePropagation(entityId, reason);
       }
       // Own-echo damping (#1455, sync/ownWrites.js): a push that WROTE gets a
       // nudge back carrying exactly this maxSeq — record it so the SSE
