@@ -83,6 +83,10 @@ Phase 8 connects them, in both directions:
 
 Ordered by dependency and risk, not by value.
 
+*(Numbering note: feature numbers carry over from v1, and v1's 4.4 and 4.5 did
+not survive into this phase — the jump from 4.3 to 4.6 is deliberate, not an
+omission. See §5 for what was dropped.)*
+
 ### 4.1 Completion log
 
 **The single highest-value item, and the safest.**
@@ -97,7 +101,8 @@ dayGLANCE-specific integration.
 **Why it's the safest thing in the phase:** it is append-only content under its
 own heading. It does not participate in identity, retitle, reconciliation, or
 any of the machinery that consumed Phases 2 through 7. A section that only ever
-grows has no war potential.
+grows has no war potential — **provided the scan-collision constraint below is
+designed in. As originally drafted it was not, and the claim was false.**
 
 **Foundation already built.** Phase 4's completion-timestamp work established
 the timestamp itself (`completedAt` on scheduled tasks, local-offset ISO), the
@@ -157,11 +162,54 @@ machinery. The moment it removes lines it acquires a find-and-modify path and
 joins the surface that has caused every problem in Phases 2 through 7. The
 decision is worth defending on those grounds alone if it is ever revisited.
 
+#### The scan-collision constraint (review finding, 2026-09-01)
+
+The safety claim above is only true if the scan and the stamper are made to
+ignore the log, and today they would not. Both dayGLANCE's task parser
+(`parseTasksFromMarkdown`) and the plugin's stamp-on-sight planner
+(`planStampInsertions`) are **heading-blind**: each matches every
+`- [x]` line in a daily note with the same regex, whatever section it sits
+under (verified in `packages/obsidian-format/src/taskLines.js` — neither
+function tracks headings). A log entry shaped `- [x] …` in a daily note would
+therefore, on the next observation or scan of that note:
+
+1. be **stamped on sight** by the plugin — an untagged task line in a daily
+   note gets a `^dg-` token and a minted identity; and
+2. be **imported by the scan as a new completed task** — a duplicate of the
+   task it logs, under a different identity (the label plus inline fields hash
+   differently), which then flows to the DB tier, deletion inference, and
+   every device.
+
+That is war surface, not append-only safety. The exclusion is a design input
+for the entry format, not a patch to apply later. Options:
+
+- **A non-task line shape** (leaning). Entries that cannot match the task
+  regex at all, e.g. `- ✅ 14:32 Review Q2 contract draft [completion:: …]`.
+  Dataview still queries inline fields on any list item; what is lost is the
+  literal checkbox rendering and Dataview's TASK-typed queries. No new parser
+  machinery anywhere, and safe by construction — the parser cannot import
+  what cannot match.
+- **Section-aware exclusion.** Teach the parser and the stamper to skip the
+  configured log heading's section. Keeps the checkbox shape, but adds heading
+  tracking to two hot paths that never had it, on every platform, and fails
+  open the moment a user renames the heading by hand.
+- **A marker-based skip** — some token on the line that both sides refuse.
+  The `^dg-`-anywhere refusal is precedent, but overloading it (or adding a
+  sibling marker) leaks identity semantics into a record whose whole point is
+  staying out of identity.
+
+Whichever wins, the constraint stands: **the log format is not free to be a
+naked `- [x]` line.** The entry-format table above is illustrative of fields,
+not a decided line shape.
+
 **Offline failure.** v1 recommended failing silently with a status indicator.
 Phase 3 built real failure surfacing (latched sync-error state, named causes,
 SAF revocation messaging). The log should use it rather than inventing a
 parallel story. Whether a failed entry is *queued* is a separate question, and
-the plugin's outbox is a natural home if so.
+the plugin's outbox is a natural home if so — with one sizing caveat: the
+outbox is a 500-entry FIFO with silent head-drop (audit finding M2, unfixed as
+of this writing), and a backlog flush of log entries is exactly the burst shape
+that would flood it. Fix or re-size M2 before leaning on it.
 
 **Should this extend to direct access?** Probably yes — it's file appending, the
 thing direct access does. Worth costing.
@@ -198,7 +246,18 @@ existing.
 - Live via SSE, or refreshed on view activation plus a poll? **Leaning SSE, same
   as Phase 7** — the plugin already holds a connection and the constraints are
   similar. Worth confirming that a passive view should hold one, since Phase 7's
-  connection exists to apply intents rather than to feed a display.
+  connection exists to apply intents rather than to feed a display. Posture
+  note: the SSE gate currently in force is on *dayGLANCE's nudge consumption*
+  (buildout §3.10, seventh record); the plugin's own connection was never
+  gated, so this view is unaffected by that gate — but the same 429 brake and
+  reconnect budget apply.
+- **What exactly does completing a task here write?** A task that lives in a
+  daily note has the observation path — checking the box in the note is the
+  supported action. A dayGLANCE-only task has no vault line, so completing it
+  means the plugin writing the account's data plane directly — a **new writer**
+  with own-ack and sequence obligations the plugin does not have today. That
+  needs its own small design; "completion is already cross-boundary" covers the
+  semantics, not the transport.
 - What does it show when the credential is missing or the vault unreachable?
 - Mobile layout — the sidebar metaphor differs on phones and tablets.
 
@@ -255,6 +314,12 @@ rather than discovered.
 - Does the frontmatter update on every change, or on a cadence? (The
   `data.json` churn lesson applies: frequent small writes to a synced file have
   costs.)
+- **Frontmatter ownership.** dayGLANCE-maintained frontmatter is a new write
+  class with no ownership rule yet: what happens when the user hand-edits a
+  maintained key (status, task count, percentage)? Reassert (dayGLANCE wins),
+  adopt (vault wins), or namespace the keys as explicitly machine-owned?
+  This is the what-wins-on-divergence category — it needs a ruling before the
+  first write ships, not after the first conflict.
 - What happens when the note or folder is deleted but the project remains?
 
 ---
@@ -410,6 +475,17 @@ setups. It's vault-scale *task discovery* that belongs plugin-side.
 global filter can be an optional *narrowing* for people who have it, never a
 requirement.
 
+**The TaskForge reference point.** TaskForge (taskforge.md) is a standalone
+native app — not an Obsidian plugin — that does whole-vault task discovery by
+reading and writing the vault's markdown directly, Tasks-*format* compatible
+(emoji metadata) without requiring the Tasks plugin, with no second copy of the
+data. Note what it does not do: no identity stamping, no cross-store
+reconciliation — it addresses task lines in place. That is the competitive
+proof that discovery alone was never the hard part; what makes read-write scope
+expensive for us is our identity machinery (6.2), which is also what buys the
+things TaskForge doesn't attempt (durable cross-device identity through
+retitles, deletes, and revivals).
+
 ### 6.2 Why read-write scope breaks the identity machinery
 
 Not cardinality. **A note's identity key is its date**, and that is woven through
@@ -507,3 +583,6 @@ Read-write scan scope is not in this phase. See 6.2.
 | 5 | Sidebar refresh mechanism | Leaning SSE, confirm for a passive view |
 | 6 | Read-only scan scope: which notes | Leaning daily notes plus wikilinked |
 | 7 | Note-key design for read-write scope | Deferred to its own phase; hard-stop category |
+| 8 | Completion-log line shape (scan-collision constraint, 4.1) | Leaning non-task shape; must be decided before the first write |
+| 9 | Sidebar completion write path for tasks with no vault line (4.2) | Open; a new data-plane writer, needs its own design |
+| 10 | Ownership rule for dayGLANCE-maintained frontmatter (4.3) | Open; what-wins-on-divergence category, ruling before first write |

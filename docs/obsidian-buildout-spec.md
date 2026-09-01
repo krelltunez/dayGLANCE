@@ -4,6 +4,14 @@
 **Date:** 2026-08-10
 **Scope:** Extending dayGLANCE's Obsidian integration from direct filesystem access to a full bridge, including a first-party Obsidian community plugin.
 
+**Current position (2026-09-01): between Phase 7 and Phase 8.** Phases 0–7 are
+built and deployed. The fleet is running at poll cadence with SSE nudge
+consumption gated off by default (§3.10, seventh record) while the audit-fix
+backlog is squashed and the fixes soak. The re-arm sequence — remaining
+breaker fixes, a supervised single-machine re-arm, then the fleet, then
+default-on — precedes Phase 8, whose scope now lives in
+`obsidian-companion-spec.md`.
+
 ---
 
 ## 1. Purpose
@@ -523,6 +531,19 @@ Tags need no step: dayGLANCE's tag model is "hashtags are title text" — vault 
 
 Deliberately underspecified. Scope this once the substrate is proven.
 
+**Scoped (2026-09-01).** The Phase 8 scope now lives in
+`obsidian-companion-spec.md`, which supersedes the candidate list above:
+plugin-first (direct access frozen at feature-complete), completion log first,
+sidebar view, read-only scan scope, project/goal notes, then guarded
+Templater/Dataview delegation. Of the original candidates, project and goal
+notes survived as its 4.3, daily-note section templates became the guarded
+Templater delegation (its 4.6), and habit/routine frontmatter was deferred.
+Read-write whole-vault scan scope was investigated and explicitly pushed to
+its own future phase — the identity machinery is date-keyed at every layer
+(its 6.2 records why). Phase 8 work begins after the current between-phases
+soak and the staged SSE re-arm described in the status note at the top of
+this document.
+
 ---
 
 ## 7. Directory submission milestone
@@ -546,4 +567,6 @@ Not a phase. Submit the plugin to the Obsidian community directory once Phases 6
 - **Phase 3 atomicity.** Is the Android SAF write path atomic? Is the Electron main-process write path atomic?
 - **Phase 6 pairing UX.** RESOLVED — vault dead-drop under a one-time code, recorded as decision 3.12 and built in Phase 6 PR 1.
 - **Phase 6 conflict policy.** What happens when the same task is edited in Obsidian and in dayGLANCE between syncs? Last-write-wins is the default assumption but should be deliberate.
-- **Phase 8 scope.** Deliberately deferred.
+- **Phase 8 scope.** RESOLVED (2026-09-01) — scoped in
+  `obsidian-companion-spec.md`: plugin-first, direct access frozen at
+  feature-complete, read-write scan scope deferred to its own phase.
