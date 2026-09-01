@@ -31,6 +31,12 @@ vi.mock('../obsidian.js', () => ({
   vaultHasTasksPlugin: vi.fn(async () => false),
   detectTasksPluginNative: vi.fn(() => null),
   OBSIDIAN_IMPORT_WINDOW_DAYS: 90,
+  // Real implementation (pure): the hook resolves intent paths through it (audit fix H1).
+  dailyNoteFilename: (dateStr, pattern) => {
+    if (!pattern || pattern === 'yyyy-MM-dd') return `${dateStr}.md`;
+    const [y, m, d] = dateStr.split('-');
+    return `${pattern.replace('yyyy', y).replace('MM', m).replace('dd', d)}.md`;
+  },
   obsidianWindowCutoffDate: vi.fn(() => null),
 }));
 vi.mock('../native.js', () => ({

@@ -4,7 +4,7 @@ import {
   syncObsidianVault, syncObsidianVaultNative,
   writeTaskStateToFile, writeTaskStateNative,
   simpleHash as obsidianSimpleHash,
-  deriveBlockId, appIdForBlockId,
+  deriveBlockId, appIdForBlockId, dailyNoteFilename,
   readWikiNote, writeWikiNote, scanVaultNotes,
   vaultHasTasksPlugin, detectTasksPluginNative,
   readVaultHeartbeat, readVaultHeartbeatNative,
@@ -1328,12 +1328,16 @@ export default function useObsidianSync({
       // retitling write is task_retitle (it carries the state too: one
       // write, one intent), any other state/schedule change is task_state.
       // The path mirrors the direct write's file resolution exactly
-      // (writeTaskStateToFile: `${dateStr}.md` under dailyNotesPath), and
-      // applyBridgeIntent mirrors its line rewrite, so a paired vault
-      // copy converges byte-for-byte whichever side lands first.
-      // Fail-silent; a stream problem never touches the direct write.
+      // (writeTaskStateToFile, PATTERN-AWARE since audit fix H1 — both
+      // sides used to hardcode `${dateStr}.md`, so on a custom-pattern
+      // vault the intent targeted a nonexistent file that applyBridgeIntent
+      // could never change while commit-on-enqueue had already booked the
+      // identity move), and applyBridgeIntent mirrors its line rewrite, so
+      // a paired vault copy converges byte-for-byte whichever side lands
+      // first. Fail-silent; a stream problem never touches the direct write.
       const queued = emitBridgeIntent(titleChanged && newRawTitle ? 'task_retitle' : 'task_state', {
-        path: (obsidianConfig?.dailyNotesPath ? `${obsidianConfig.dailyNotesPath.replace(/\/+$/, '')}/` : '') + `${sourceDate}.md`,
+        path: (obsidianConfig?.dailyNotesPath ? `${obsidianConfig.dailyNotesPath.replace(/\/+$/, '')}/` : '')
+          + dailyNoteFilename(sourceDate, obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd'),
         date: sourceDate,
         obsidianRawTitle: task.obsidianRawTitle,
         completed: task.completed,
@@ -1436,6 +1440,7 @@ export default function useObsidianSync({
           writeBlockId,
           noteTitleConflict,
           completionMeta,
+          obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd', // audit fix H1: pattern-aware
         ).then(updated => {
           // `updated` false here is the benign NotFound case (file gone —
           // the scan reconciles); a real write failure REJECTS instead.

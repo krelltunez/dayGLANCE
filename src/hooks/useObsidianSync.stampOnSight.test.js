@@ -109,7 +109,7 @@ const snapFor = (t) => ({
 
 let store;
 let setTasksCalls;
-function useMountedSightHook({ tasks = [], inbox = [], prevSnap = null, freshStore = true } = {}) {
+function useMountedSightHook({ tasks = [], inbox = [], prevSnap = null, freshStore = true, config = {} } = {}) {
   effects.length = 0;
   vi.stubGlobal('setTimeout', (cb, ms) => { if (!ms || ms < 3000) cb(); return 1; });
   vi.stubGlobal('setInterval', () => 1);
@@ -143,7 +143,7 @@ function useMountedSightHook({ tasks = [], inbox = [], prevSnap = null, freshSto
     tasks: state.tasks, setTasks,
     unscheduledTasks: state.inbox, setUnscheduledTasks,
     setDailyNotes: vi.fn(), setWikilinkCandidates: vi.fn(), setUnportableVaultFiles: vi.fn(),
-    obsidianConfig: { enabled: true, dailyNotesPath: '', dailyNotePattern: 'yyyy-MM-dd' },
+    obsidianConfig: { enabled: true, dailyNotesPath: '', dailyNotePattern: 'yyyy-MM-dd', ...config },
     setObsidianConfig: vi.fn(), obsidianLaunchOnWrite: null,
     obsidianCompletionDates: false,
     obsidianSyncError: null,
@@ -272,6 +272,22 @@ describe('stamp on sight (fix 2): identity-assignment write fired by import', ()
     runWritebackEffect();
     expect(emitBridgeIntent).toHaveBeenCalledTimes(1);
     expect(emitBridgeIntent.mock.calls[0][1].blockId).toBe(BLOCK);
+  });
+
+  it('AUDIT FIX H1: on a custom-pattern vault the emitted intent targets the PATTERNED filename, not `${date}.md`', () => {
+    // Pre-fix both the direct writer and this emit hardcoded `${date}.md`,
+    // so on a custom-pattern vault the intent targeted a nonexistent file
+    // applyBridgeIntent could never change — while commit-on-enqueue had
+    // already booked the identity move.
+    __setBlockIdWritesForTests(true);
+    const task = restingLegacyTask();
+    useMountedSightHook({
+      tasks: [task], prevSnap: { [LEGACY_ID]: snapFor(task) },
+      config: { dailyNotesPath: 'Daily', dailyNotePattern: 'dd.MM.yyyy' },
+    });
+    runWritebackEffect();
+    expect(emitBridgeIntent).toHaveBeenCalledTimes(1);
+    expect(emitBridgeIntent.mock.calls[0][1].path).toBe('Daily/30.08.2026.md'); // DATE = 2026-08-30
   });
 
   it('first import: the cycle merges the new untagged task, nudges ONE writeback pass after the in-progress guard drops, and that pass stamps it', async () => {

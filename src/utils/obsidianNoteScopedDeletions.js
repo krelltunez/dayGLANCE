@@ -10,8 +10,9 @@
 // file, so for the one note it covers, the parse is the complete truth of
 // which lines exist. This module closes the gap at that grain:
 //
-//   A task that claims to live in an observed note (obsidianFileDate — or,
-//   for legacy content-derived ids, the date baked into the id) and whose
+//   A task that claims to live in an observed note (obsidianFileDate ONLY,
+//   since audit fix H4 — the legacy-id fallback date is the TASK date, not
+//   the file date, and misattributed rescheduled lines) and whose
 //   id AND legacy hint are both absent from that note's parse has had its
 //   line removed from the vault → tombstone it through the EXISTING
 //   deletedObsidianKeys LWW channel, STAMPED AT THE OBSERVATION'S MTIME
@@ -100,7 +101,6 @@
 // A v1 store (bare entries map, no touchedAt) migrates conservatively:
 // unknown continuity is treated as broken, clocks restart.
 
-import { obsidianKeyDate } from './obsidianDeletions.js';
 
 /**
  * Candidates this batch evidences: tasks claiming to live in an observed
@@ -121,11 +121,21 @@ export function inferNoteScopedDeletionCandidates({ observedNotes, scannedIds, t
   for (const t of [...(tasks || []), ...(inbox || [])]) {
     if (!t || t.importSource !== 'obsidian') continue;
     const id = String(t.id);
-    // Where does this task claim its line lives? obsidianFileDate is the
-    // note the line was last parsed from; a legacy content-derived id
-    // carries its note date itself. Neither → conservatively skip (a task
-    // whose home note we can't name can't be judged by any note's parse).
-    const noteDate = t.obsidianFileDate || obsidianKeyDate(id);
+    // Where does this task claim its line lives? obsidianFileDate — the
+    // note the line was last parsed from — and NOTHING ELSE (audit fix H4).
+    // The first shape fell back to the date embedded in a legacy id, but
+    // that date is minted from the TASK date, not the file date
+    // (legacyObsidianId(taskDate, rawTitle)), and the two diverge exactly
+    // when a line carries an inline date prefix (a dayGLANCE reschedule
+    // written into its original note). A task missing obsidianFileDate —
+    // synced from a pre-field build and never rescanned on this device —
+    // was then judged by the parse of a note that NEVER contained its line:
+    // any observation of that note pended it, and the hold committed a
+    // false deletion of a live task. A task whose home note we cannot
+    // honestly name cannot be judged by any note's parse — skip it; the
+    // vault-wide detector still covers it on the next direct scan, and any
+    // observation re-import re-establishes obsidianFileDate.
+    const noteDate = t.obsidianFileDate;
     if (!noteDate) continue;
     const note = observedNotes[noteDate];
     if (!note) continue; // note not in this batch — no evidence either way

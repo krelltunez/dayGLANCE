@@ -229,10 +229,24 @@ export function applyBridgeIntent(currentText, intent) {
       if (currentText !== null) {
         const existingLines = currentText.split('\n');
         // Block ids are stored bare; the vault token is ^dg-<id> (identity.js).
-        const blockToken = intent.task?.blockId ? ` ^dg-${intent.task.blockId}` : null;
+        // THE REAL CONDITION is whether the line WE WOULD WRITE carries the
+        // token (audit fix H3): buildObsidianTaskLine routes the token
+        // through blockIdSuffix, which REFUSES it for titles carrying ^dg-
+        // anywhere or ending in a foreign ^ref — so keying the landed-check
+        // on intent.task.blockId alone made replays of such appends
+        // non-idempotent: the appended line never carried the token, the
+        // token check never matched, the exact-line fallback was skipped,
+        // and every crash-replay appended the line AGAIN — breaking the
+        // module contract ("dying between applying a batch and persisting
+        // the applied-ID set replays as no-ops") in exactly the scenario it
+        // exists for. Token comparisons also tolerate trailing whitespace a
+        // human may have left on the landed line.
+        const blockToken = intent.task?.blockId && taskLine.endsWith(` ^dg-${intent.task.blockId}`)
+          ? ` ^dg-${intent.task.blockId}`
+          : null;
         const landed = blockToken
-          ? existingLines.some((l) => l.endsWith(blockToken))
-          : existingLines.includes(taskLine);
+          ? existingLines.some((l) => l.trimEnd().endsWith(blockToken))
+          : existingLines.some((l) => l.trimEnd() === taskLine.trimEnd());
         if (landed) return { text: currentText, changed: false };
       }
       const base = currentText !== null

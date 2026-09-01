@@ -679,17 +679,24 @@ export function detectTasksPluginNative() {
  *
  * @param {string|null} [blockId]  the task's ^dg- block id (or a freshly
  *   assigned one to stamp on the matched line)
+ * @param {string} [pattern]  the daily-note FILENAME pattern (audit fix H1:
+ *   this writer used to open `${dateStr}.md` verbatim while every sibling —
+ *   the scan, the daily-note writers, the append, the intent emits —
+ *   resolved through dailyNoteFilename(dateStr, pattern). On a
+ *   custom-pattern vault the miss read as the benign "file gone" case, so
+ *   completions/retitles/reschedules/stamps silently never reached the
+ *   vault and were never retried.)
  * @returns {Promise<boolean>} whether a line was found and the file written —
  *   callers use this to commit a fresh id assignment only when it actually
  *   reached the vault.
  */
-export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null, blockId = null, onTitleConflict = null, completionMeta = null) {
+export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr, obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, taskHeading = null, blockId = null, onTitleConflict = null, completionMeta = null, pattern = undefined) {
   assertSafeDateStr(dateStr);
   if (targetDate) assertSafeDateStr(targetDate);
   const dirHandle = await getDailyNotesDir(vaultHandle, dailyNotesPath);
   let fileHandle, text;
   try {
-    fileHandle = await dirHandle.getFileHandle(`${dateStr}.md`);
+    fileHandle = await dirHandle.getFileHandle(dailyNoteFilename(dateStr, pattern));
     const file = await fileHandle.getFile();
     text = await file.text();
   } catch (err) {

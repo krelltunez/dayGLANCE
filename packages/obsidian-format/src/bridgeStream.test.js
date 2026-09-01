@@ -144,6 +144,33 @@ describe('applyBridgeIntent — task_append', () => {
     const replay = applyBridgeIntent(out.text, bare);
     expect(replay.changed).toBe(false);
   });
+
+  it('AUDIT FIX H3: replay stays idempotent when the TITLE refuses the token (foreign ^ref / embedded ^dg-) — the crash-replay contract holds', () => {
+    // buildObsidianTaskLine routes the token through blockIdSuffix, which
+    // refuses it for these titles — so the appended line carries NO token,
+    // and the old landed-check (keyed on intent.task.blockId alone) never
+    // matched: every replay appended the line AGAIN, breaking the module's
+    // "dying between apply and persist replays as no-ops" contract in the
+    // exact scenario it exists for.
+    for (const title of ['See ^quote1', 'Broken ^dg-embedded token #obsidian']) {
+      const refusing = { ...appendIntent, task: { ...appendIntent.task, title, blockId: 'abc12345' } };
+      const out = applyBridgeIntent('# Day\n\n## Tasks\n', refusing);
+      expect(out.changed).toBe(true);
+      expect(out.text).not.toContain('^dg-abc12345'); // token refused, as designed
+      const replay = applyBridgeIntent(out.text, refusing);
+      expect(replay.changed).toBe(false); // landed-check falls back to the exact line
+      expect(replay.text).toBe(out.text);
+    }
+  });
+
+  it('AUDIT FIX H3: a human adding trailing whitespace to the landed line no longer defeats the replay guard', () => {
+    const out = applyBridgeIntent('# Day\n\n## Tasks\n', appendIntent);
+    const withTrailing = out.text.replace(
+      '- [ ] New thing #obsidian ^dg-def67890',
+      '- [ ] New thing #obsidian ^dg-def67890   ');
+    const replay = applyBridgeIntent(withTrailing, appendIntent);
+    expect(replay.changed).toBe(false);
+  });
 });
 
 describe('applyBridgeIntent — notes', () => {
