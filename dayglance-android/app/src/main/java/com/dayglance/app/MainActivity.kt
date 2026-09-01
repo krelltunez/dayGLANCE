@@ -628,20 +628,16 @@ class MainActivity : AppCompatActivity() {
         exactAlarmPromptShown = true
 
         AlertDialog.Builder(this)
-            .setTitle("Enable precise reminders")
-            .setMessage(
-                "DayGlance needs permission to schedule exact alarms so your task " +
-                "reminders arrive on time, even when the app is closed.\n\n" +
-                "Tap \"Grant access\", then enable \"DayGlance\" on the next screen."
-            )
-            .setPositiveButton("Grant access") { _, _ ->
+            .setTitle(R.string.reminder_precise_title)
+            .setMessage(R.string.reminder_precise_message)
+            .setPositiveButton(R.string.grant_access) { _, _ ->
                 startActivity(
                     Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
                         data = Uri.fromParts("package", packageName, null)
                     }
                 )
             }
-            .setNegativeButton("Not now", null)
+            .setNegativeButton(R.string.not_now, null)
             .show()
     }
 

@@ -14,8 +14,10 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getHGBarsForDate } from '../hooks/useHyperGlance.js';
 import HyperGlanceBar from './HyperGlanceBar.jsx';
+import { useTranslation } from 'react-i18next';
 
 const MobileTimeGrid = () => {
+  const { t } = useTranslation();
   const {
     visibleDates, hours,
     calendarRef, timeGridRef, currentTimeRef,
@@ -72,7 +74,9 @@ const MobileTimeGrid = () => {
         <div className={`w-12 flex-shrink-0 px-1 py-1 text-xs ${textSecondary} border-r ${borderClass} text-center ${!darkMode ? 'bg-stone-100/80' : ''}`}>
           {use24HourClock
             ? `${hour.toString().padStart(2, '0')}:00`
-            : <>{hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}<span className="text-[9px] ml-0.5">{hour >= 12 ? 'PM' : 'AM'}</span></>
+            : <>{hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}<span className="text-[9px] ml-0.5">{hour >= 12
+              ? t('common.pm', { defaultValue: 'PM' })
+              : t('common.am', { defaultValue: 'AM' })}</span></>
           }
         </div>
         {visibleDates.map((date, idx) => (
@@ -362,16 +366,16 @@ const MobileTimeGrid = () => {
                   className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) || extractWikilinks(task.title).length > 0 ? '' : 'opacity-40'}`}
                 >
                   {isPhoneOnlyTask(task) ? <Phone size={14} /> : isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
-                  {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? 'Open Link' : 'Notes'}</span>}
+                  {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? t('task.openLink') : t('task.notes')}</span>}
                 </button>
                 {task.recurrenceType !== 'daily' && (
                   <button
                     onClick={(e) => { e.stopPropagation(); postponeTask(task.id); }}
                     className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                    title="Postpone to tomorrow"
+                    title={t('sched.postponeTomorrow')}
                   >
                     <SkipForward size={14} />
-                    {inMenu && <span className="text-xs">Postpone</span>}
+                    {inMenu && <span className="text-xs">{t('common.postpone')}</span>}
                   </button>
                 )}
               </>
@@ -412,14 +416,14 @@ const MobileTimeGrid = () => {
                     {!task.imported && (
                       <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${typeof task.id === 'string' && task.id.startsWith('recurring-') ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                         {typeof task.id === 'string' && task.id.startsWith('recurring-') ? (
-                          <><Trash2 size={14} className="mr-1" />Delete</>
+                          <><Trash2 size={14} className="mr-1" />{t('common.delete')}</>
                         ) : (
-                          <><Inbox size={14} className="mr-1" />Inbox</>
+                          <><Inbox size={14} className="mr-1" />{t('settings.inbox')}</>
                         )}
                       </div>
                     )}
                     <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
-                      Edit<Settings size={14} className="ml-1" />
+                      {t('common.edit')}<Settings size={14} className="ml-1" />
                     </div>
                   </>
                 )}
@@ -466,7 +470,7 @@ const MobileTimeGrid = () => {
                               setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                             }}
                             className="notes-toggle-button hover:bg-white/20 rounded p-0.5 transition-colors"
-                            title="View/edit description"
+                            title={t('task.viewEditDescription', { defaultValue: 'View/edit description' })}
                           >
                             <FileText size={11} />
                           </button>
@@ -474,7 +478,7 @@ const MobileTimeGrid = () => {
                         {!isNarrowWidth && (
                           <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1 ml-1">
                             <Clock size={10} />
-                            {formatTime(task.startTime)} • {task.duration}m
+                            {formatTime(task.startTime)} • {t('common.minutesShort', { count: task.duration })}
                           </div>
                         )}
                       </div>
@@ -500,7 +504,7 @@ const MobileTimeGrid = () => {
                     {!isNarrowWidth && (
                       <div className="text-xs opacity-90 whitespace-nowrap flex-shrink-0 flex items-center gap-1">
                         <Clock size={10} />
-                        {formatTime(task.startTime)} • {task.duration}m
+                        {formatTime(task.startTime)} • {t('common.minutesShort', { count: task.duration })}
                       </div>
                     )}
                   </div>
@@ -532,21 +536,23 @@ const MobileTimeGrid = () => {
                     </div>
                     {goalsProjectsEnabled && task.projectId ? (() => {
                       const proj = projects.find(p => p.id === task.projectId);
-                      if (!proj) return height >= 55 ? <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {task.duration}m</div> : null;
+                      if (!proj) return height >= 55 ? <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {t('common.minutesShort', { count: task.duration })}</div> : null;
                       return (
                         <div className="flex items-center gap-1 flex-wrap mt-0.5">
                           <button
                             onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); if (next) { setInboxPriorityFilter(0); setHideCompletedInbox(false); setHideProjectTasksInbox(false); setHideStandaloneTasksInbox(true); } else { setHideProjectTasksInbox(true); setHideStandaloneTasksInbox(false); } }}
                             className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 active:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
-                            title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                            title={projectFilter === task.projectId
+                              ? t('sched.clearProjectFilter')
+                              : t('sched.filterProject', { project: proj.title, defaultValue: 'Filter: {{project}}' })}
                           >
                             {proj.title}
                           </button>
-                          {height >= 55 && <span className="text-xs text-white/70">{formatTime(task.startTime)} · {task.duration}m</span>}
+                          {height >= 55 && <span className="text-xs text-white/70">{formatTime(task.startTime)} · {t('common.minutesShort', { count: task.duration })}</span>}
                         </div>
                       );
                     })() : height >= 55 ? (
-                      <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {task.duration}m</div>
+                      <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {t('common.minutesShort', { count: task.duration })}</div>
                     ) : null}
                   </div>
                 ) : (
@@ -571,21 +577,23 @@ const MobileTimeGrid = () => {
                     </div>
                     {goalsProjectsEnabled && task.projectId ? (() => {
                       const proj = projects.find(p => p.id === task.projectId);
-                      if (!proj) return height >= 55 ? <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {task.duration}m</div> : null;
+                      if (!proj) return height >= 55 ? <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {t('common.minutesShort', { count: task.duration })}</div> : null;
                       return (
                         <div className="flex items-center gap-1 flex-wrap mt-0.5">
                           <button
                             onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); if (next) { setInboxPriorityFilter(0); setHideCompletedInbox(false); setHideProjectTasksInbox(false); setHideStandaloneTasksInbox(true); } else { setHideProjectTasksInbox(true); setHideStandaloneTasksInbox(false); } }}
                             className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 active:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
-                            title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                            title={projectFilter === task.projectId
+                              ? t('sched.clearProjectFilter')
+                              : t('sched.filterProject', { project: proj.title, defaultValue: 'Filter: {{project}}' })}
                           >
                             {proj.title}
                           </button>
-                          {height >= 55 && <span className="text-xs text-white/70">{formatTime(task.startTime)} · {task.duration}m</span>}
+                          {height >= 55 && <span className="text-xs text-white/70">{formatTime(task.startTime)} · {t('common.minutesShort', { count: task.duration })}</span>}
                         </div>
                       );
                     })() : height >= 55 ? (
-                      <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {task.duration}m</div>
+                      <div className="text-xs text-white/70 mt-0.5">{formatTime(task.startTime)} · {t('common.minutesShort', { count: task.duration })}</div>
                     ) : null}
                   </div>
                 )}

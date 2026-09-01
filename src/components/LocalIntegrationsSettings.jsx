@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Check, ChevronDown, Copy, Plug, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 // Local integrations settings (docs/mcp-server-spec.md §6.2/§6.3/§6.4):
@@ -81,6 +82,7 @@ const READ_TIER_OPTIONS = [
  *    cards.)
  */
 const LocalIntegrationsSettings = ({ variant }) => {
+  const { t } = useTranslation();
   const {
     collapsedSettings, toggleSettingsSection,
     darkMode, borderClass, textPrimary, textSecondary,
@@ -100,6 +102,55 @@ const LocalIntegrationsSettings = ({ variant }) => {
   const [setupResult, setSetupResult] = useState(null);
   const [setupBusy, setSetupBusy] = useState(false);
   const copiedTimer = useRef(null);
+
+  const baseConsentCopy = {
+    ...MCP_BASE_CONSENT,
+    title: t('settings.mcpConsentReadTitle', { defaultValue: MCP_BASE_CONSENT.title }),
+    paragraphs: [
+      t('settings.mcpConsentReadParagraph1', { defaultValue: MCP_BASE_CONSENT.paragraphs[0] }),
+      t('settings.mcpConsentReadParagraph2', { defaultValue: MCP_BASE_CONSENT.paragraphs[1] }),
+      t('settings.mcpConsentReadParagraph3', { defaultValue: MCP_BASE_CONSENT.paragraphs[2] }),
+      t('settings.mcpConsentReadParagraph4', { defaultValue: MCP_BASE_CONSENT.paragraphs[3] }),
+    ],
+    accept: t('settings.mcpConsentReadAccept', { defaultValue: MCP_BASE_CONSENT.accept }),
+  };
+  const calendarConsentCopy = {
+    ...MCP_CALENDAR_CONSENT,
+    title: t('settings.mcpConsentCalendarTitle', { defaultValue: MCP_CALENDAR_CONSENT.title }),
+    paragraphs: [
+      t('settings.mcpConsentCalendarParagraph1', { defaultValue: MCP_CALENDAR_CONSENT.paragraphs[0] }),
+      t('settings.mcpConsentCalendarParagraph2', { defaultValue: MCP_CALENDAR_CONSENT.paragraphs[1] }),
+      t('settings.mcpConsentCalendarParagraph3', { defaultValue: MCP_CALENDAR_CONSENT.paragraphs[2] }),
+      t('settings.mcpConsentCalendarParagraph4', { defaultValue: MCP_CALENDAR_CONSENT.paragraphs[3] }),
+    ],
+    accept: t('settings.mcpConsentCalendarAccept', { defaultValue: MCP_CALENDAR_CONSENT.accept }),
+  };
+  const writesConsentCopy = {
+    ...MCP_WRITES_CONSENT,
+    title: t('settings.mcpConsentWritesTitle', { defaultValue: MCP_WRITES_CONSENT.title }),
+    paragraphs: [
+      t('settings.mcpConsentWritesParagraph1', { defaultValue: MCP_WRITES_CONSENT.paragraphs[0] }),
+      t('settings.mcpConsentWritesParagraph2', { defaultValue: MCP_WRITES_CONSENT.paragraphs[1] }),
+    ],
+    accept: t('settings.mcpConsentWritesAccept', { defaultValue: MCP_WRITES_CONSENT.accept }),
+  };
+  const readTierOptions = [
+    {
+      ...READ_TIER_OPTIONS[0],
+      label: t('common.off'),
+      description: t('settings.mcpReadOffDesc', { defaultValue: READ_TIER_OPTIONS[0].description }),
+    },
+    {
+      ...READ_TIER_OPTIONS[1],
+      label: t('settings.mcpReadDayglance', { defaultValue: READ_TIER_OPTIONS[1].label }),
+      description: t('settings.mcpReadDayglanceDesc', { defaultValue: READ_TIER_OPTIONS[1].description }),
+    },
+    {
+      ...READ_TIER_OPTIONS[2],
+      label: t('settings.mcpReadCalendar', { defaultValue: READ_TIER_OPTIONS[2].label }),
+      description: t('settings.mcpReadCalendarDesc', { defaultValue: READ_TIER_OPTIONS[2].description }),
+    },
+  ];
 
   useEffect(() => {
     if (!api) return undefined;
@@ -143,14 +194,14 @@ const LocalIntegrationsSettings = ({ variant }) => {
       // Enabling from off always passes the base notice; the calendar tier
       // then additionally passes its own notice, one dialog after the other.
       setConsent({
-        copy: MCP_BASE_CONSENT,
+        copy: baseConsentCopy,
         onAccept: () => {
           if (tier === 'dayglance') {
             setConsent(null);
             transition({ type: 'set-mcp-read-tier', tier, consentConfirmed: true });
           } else {
             setConsent({
-              copy: MCP_CALENDAR_CONSENT,
+              copy: calendarConsentCopy,
               onAccept: () => {
                 setConsent(null);
                 transition({
@@ -166,7 +217,7 @@ const LocalIntegrationsSettings = ({ variant }) => {
     }
     // Upgrade dayglance → dayglance_calendar: the calendar notice alone.
     setConsent({
-      copy: MCP_CALENDAR_CONSENT,
+      copy: calendarConsentCopy,
       onAccept: () => {
         setConsent(null);
         transition({ type: 'set-mcp-read-tier', tier, calendarConsentConfirmed: true });
@@ -181,7 +232,7 @@ const LocalIntegrationsSettings = ({ variant }) => {
       return;
     }
     setConsent({
-      copy: MCP_WRITES_CONSENT,
+      copy: writesConsentCopy,
       onAccept: () => {
         setConsent(null);
         transition({ type: 'set-mcp-writes', enabled: true, writesConsentConfirmed: true });
@@ -232,10 +283,122 @@ const LocalIntegrationsSettings = ({ variant }) => {
     </label>
   );
 
+  const formatIntegrationError = (message) => {
+    const text = String(message || '');
+    if (!text || text === 'The change was refused.') {
+      return t('settings.localIntegrationsChangeRefused', { defaultValue: 'The change was refused.' });
+    }
+    if (text === 'Enabling MCP reads requires accepting the consent notice') {
+      return t('settings.mcpErrorReadConsentRequired', { defaultValue: 'Accept the read-access notice before enabling MCP.' });
+    }
+    if (text === 'Including device calendar events requires accepting the device-calendar consent notice') {
+      return t('settings.mcpErrorCalendarConsentRequired', { defaultValue: 'Accept the device-calendar notice before sharing calendar events.' });
+    }
+    if (text === 'Writes require a read tier to be enabled first (§6.3)') {
+      return t('settings.mcpErrorReadTierRequired', { defaultValue: 'Enable MCP read access before allowing schedule changes.' });
+    }
+    if (text === 'Enabling MCP writes requires accepting the writes notice') {
+      return t('settings.mcpErrorWritesConsentRequired', { defaultValue: 'Accept the schedule-changes notice before allowing changes.' });
+    }
+    if (text === 'No token to rotate; enable MCP first') {
+      return t('settings.mcpErrorNoToken', { defaultValue: 'Enable MCP before generating a new access token.' });
+    }
+    if (text === 'MCP port 0 (ephemeral) would move on every launch; pick a fixed port') {
+      return t('settings.mcpErrorPortEphemeral', { defaultValue: 'Port 0 changes on every launch. Choose a fixed port from 1 to 65535.' });
+    }
+    if (text === 'MCP server could not start. See the startup log for details.') {
+      return t('settings.mcpServerStartFailed', { defaultValue: 'The MCP server could not start. See the startup log for details.' });
+    }
+
+    const unknownTier = text.match(/^Unknown read tier (.+)$/);
+    if (unknownTier) {
+      return t('settings.mcpErrorUnknownReadTier', {
+        tier: unknownTier[1],
+        defaultValue: 'The requested MCP read level is not supported ({{tier}}).',
+      });
+    }
+    const unknownAction = text.match(/^Unknown action (.+)$/);
+    if (unknownAction) {
+      return t('settings.localIntegrationsUnknownAction', {
+        action: unknownAction[1],
+        defaultValue: 'The requested local-integration change is not supported ({{action}}).',
+      });
+    }
+    const invalidPortType = text.match(/^Invalid MCP port override of type (.+)$/);
+    if (invalidPortType) {
+      return t('settings.mcpErrorPortTypeInvalid', {
+        type: invalidPortType[1],
+        defaultValue: 'The MCP port has an invalid value type ({{type}}). Enter a whole number from 1 to 65535.',
+      });
+    }
+    const nonIntegerPort = text.match(/^Invalid MCP port override: (.+) is not an integer$/);
+    if (nonIntegerPort) {
+      return t('settings.mcpErrorPortInvalid', {
+        value: nonIntegerPort[1],
+        defaultValue: 'The MCP port must be a whole number from 1 to 65535 (received {{value}}).',
+      });
+    }
+    const outOfRangePort = text.match(/^Invalid MCP port override: (.+) is outside 1-65535$/);
+    if (outOfRangePort) {
+      return t('settings.mcpErrorPortRange', {
+        value: outOfRangePort[1],
+        defaultValue: 'The MCP port must be between 1 and 65535 (received {{value}}).',
+      });
+    }
+    const invalidPort = text.match(/^Invalid MCP port override: (.+)$/);
+    if (invalidPort) {
+      return t('settings.mcpErrorPortInvalid', {
+        value: invalidPort[1],
+        defaultValue: 'The MCP port must be a whole number from 1 to 65535 (received {{value}}).',
+      });
+    }
+    const streamDeckPortInUse = text.match(/^Port (\d+) is already in use by another process\. The Stream Deck plugin expects this exact port,/);
+    if (streamDeckPortInUse) {
+      return t('settings.streamDeckPortInUse', {
+        port: streamDeckPortInUse[1],
+        defaultValue: 'Port {{port}} is already in use. The Stream Deck plugin requires this port, so quit the conflicting process, then turn Stream Deck support off and on.',
+      });
+    }
+    const streamDeckFailure = text.match(/^Stream Deck listener failed: (.+)$/);
+    if (streamDeckFailure) {
+      return t('settings.streamDeckListenerFailed', {
+        error: streamDeckFailure[1],
+        defaultValue: 'The Stream Deck listener failed: {{error}}',
+      });
+    }
+    const mcpPortInUse = text.match(/^MCP server could not start: port (\d+) is already in use by another process\./);
+    if (mcpPortInUse) {
+      return t('settings.mcpPortInUse', {
+        port: mcpPortInUse[1],
+        defaultValue: 'The MCP server could not start because port {{port}} is already in use. Choose a different fixed port in settings.',
+      });
+    }
+    const mcpPortDenied = text.match(/^MCP server could not start: binding 127\.0\.0\.1:(\d+) was denied \(([^)]+)\)\./);
+    if (mcpPortDenied) {
+      return t('settings.mcpPortPermissionDenied', {
+        port: mcpPortDenied[1],
+        error: mcpPortDenied[2],
+        defaultValue: 'The MCP server was not allowed to use port {{port}} ({{error}}). Ports below 1024 may require elevated privileges; choose a higher port.',
+      });
+    }
+    const mcpBindFailure = text.match(/^MCP server could not start on 127\.0\.0\.1:(\d+): (.+)$/);
+    if (mcpBindFailure) {
+      return t('settings.mcpServerBindFailed', {
+        port: mcpBindFailure[1],
+        error: mcpBindFailure[2],
+        defaultValue: 'The MCP server could not start on port {{port}}: {{error}}',
+      });
+    }
+    return t('settings.localIntegrationsErrorWithDetails', {
+      error: text,
+      defaultValue: 'Local integration error: {{error}}',
+    });
+  };
+
   const listenerError = (message) => (
     <div className={`p-3 rounded-lg border flex items-start gap-2 ${darkMode ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'}`}>
       <AlertTriangle size={14} className={`flex-shrink-0 mt-0.5 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
-      <p className={`text-xs ${darkMode ? 'text-red-300' : 'text-red-700'}`}>{message}</p>
+      <p className={`text-xs ${darkMode ? 'text-red-300' : 'text-red-700'}`}>{formatIntegrationError(message)}</p>
     </div>
   );
 
@@ -248,14 +411,14 @@ const LocalIntegrationsSettings = ({ variant }) => {
         {!isPage && (
           <button onClick={() => toggleSettingsSection('localIntegrations')} className={`font-medium ${textPrimary} flex items-center gap-2 w-full text-left`}>
             <Plug size={16} className={textSecondary} />
-            Local Integrations
+            {t('settings.localIntegrations')}
             {anyEnabled && <span className="mr-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
             <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsedSettings.localIntegrations ? '' : 'rotate-180'}`} />
           </button>
         )}
         {(isPage || !collapsedSettings.localIntegrations) && (<>
           <p className={`${textSecondary} text-xs`}>
-            Connections for other apps running on this computer. Both listen on 127.0.0.1 only and are never reachable from the network.
+            {t('settings.localIntegrationsDesc', { defaultValue: 'Connections for other apps running on this computer. Both listen on 127.0.0.1 only and are never reachable from the network.' })}
           </p>
 
           {/* Stream Deck (port 7892) — independent of the MCP server (§6.2) */}
@@ -263,20 +426,23 @@ const LocalIntegrationsSettings = ({ variant }) => {
             {toggle(
               config.streamDeck.enabled,
               (enabled) => transition({ type: 'set-stream-deck', enabled }),
-              'Stream Deck support',
-              `Lets the dayGLANCE Stream Deck plugin show and control your day (port ${ports.streamDeck}).`,
+              t('settings.streamDeckSupport', { defaultValue: 'Stream Deck support' }),
+              t('settings.streamDeckSupportDesc', {
+                port: ports.streamDeck,
+                defaultValue: 'Lets the dayGLANCE Stream Deck plugin show and control your day (port {{port}}).',
+              }),
             )}
             {config.streamDeck.enabled && status.streamDeck.error && listenerError(status.streamDeck.error)}
           </div>
 
           {/* MCP server (port 7893 by default) */}
           <div className="space-y-2 pt-1">
-            <h4 className={`text-sm font-medium ${textPrimary}`}>MCP server (AI assistants)</h4>
+            <h4 className={`text-sm font-medium ${textPrimary}`}>{t('settings.mcpServerTitle', { defaultValue: 'MCP server (AI assistants)' })}</h4>
             <p className={`text-xs ${textSecondary}`}>
-              Lets AI assistants on this computer read your schedule over the Model Context Protocol. What they can see is up to you:
+              {t('settings.mcpServerDesc', { defaultValue: 'Lets AI assistants on this computer read your schedule over the Model Context Protocol. What they can see is up to you:' })}
             </p>
-            <div className="space-y-1.5" role="radiogroup" aria-label="MCP read access">
-              {READ_TIER_OPTIONS.map(({ tier, label, description }) => (
+            <div className="space-y-1.5" role="radiogroup" aria-label={t('settings.mcpReadAccess', { defaultValue: 'MCP read access' })}>
+              {readTierOptions.map(({ tier, label, description }) => (
                 <label key={tier} className="flex items-start gap-2 cursor-pointer">
                   <input
                     type="radio"
@@ -297,13 +463,13 @@ const LocalIntegrationsSettings = ({ variant }) => {
               {toggle(
                 config.mcp.writesEnabled,
                 requestWrites,
-                'Allow schedule changes',
-                'Separate opt-in: connected apps may add, complete, move, and edit tasks.',
+                t('settings.mcpAllowScheduleChanges', { defaultValue: 'Allow schedule changes' }),
+                t('settings.mcpAllowScheduleChangesDesc', { defaultValue: 'Separate opt-in: connected apps may add, complete, move, and edit tasks.' }),
               )}
 
               {/* Token — displayed for manual copy into the MCP client's config. */}
               <div>
-                <label className={`block text-sm ${textSecondary} mb-1`}>Access token</label>
+                <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.mcpAccessToken', { defaultValue: 'Access token' })}</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
@@ -312,24 +478,24 @@ const LocalIntegrationsSettings = ({ variant }) => {
                     onFocus={(e) => e.target.select()}
                     className={`${inputClass} flex-1 min-w-0 font-mono text-xs`}
                   />
-                  <button onClick={copyToken} className={smallBtn} title="Copy token">
+                  <button onClick={copyToken} className={smallBtn} title={t('settings.mcpCopyToken', { defaultValue: 'Copy token' })}>
                     {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
                   </button>
-                  <button onClick={rotateToken} className={smallBtn} title="Generate a new token. The old one stops working immediately.">
+                  <button onClick={rotateToken} className={smallBtn} title={t('settings.mcpRotateTokenTitle', { defaultValue: 'Generate a new token. The old one stops working immediately.' })}>
                     <RefreshCw size={14} />
-                    Rotate
+                    {t('settings.mcpRotateToken', { defaultValue: 'Rotate' })}
                   </button>
                 </div>
                 <p className={`text-xs ${textSecondary} mt-1`}>
                   {rotated
-                    ? 'New token generated. The old one no longer works, so update your MCP clients.'
-                    : 'Paste this into your MCP client as the Bearer token. Rotating it cuts off every client using the old one.'}
+                    ? t('settings.mcpTokenRotatedHint', { defaultValue: 'New token generated. The old one no longer works, so update your MCP clients.' })
+                    : t('settings.mcpTokenHint', { defaultValue: 'Paste this into your MCP client as the Bearer token. Rotating it cuts off every client using the old one.' })}
                 </p>
               </div>
 
               {/* Port override — §3.4: one fixed port, collisions surface loudly, never scanned around. */}
               <div>
-                <label className={`block text-sm ${textSecondary} mb-1`}>Port</label>
+                <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.mcpPort', { defaultValue: 'Port' })}</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
@@ -341,12 +507,12 @@ const LocalIntegrationsSettings = ({ variant }) => {
                     className={`${inputClass} w-28`}
                   />
                   {portDraft !== null && (
-                    <button onClick={applyPort} className={smallBtn}>Apply</button>
+                    <button onClick={applyPort} className={smallBtn}>{t('common.apply')}</button>
                   )}
                 </div>
                 <p className={`text-xs ${textSecondary} mt-1`}>
-                  Endpoint: <code className={`px-1 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}>http://127.0.0.1:{ports.mcpEffective ?? ports.mcpDefault}/mcp</code>
-                  {'. '}Leave the port empty for the default. dayGLANCE never picks a different port by itself.
+                  {t('settings.mcpEndpoint', { defaultValue: 'Endpoint' })}: <code className={`px-1 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}>http://127.0.0.1:{ports.mcpEffective ?? ports.mcpDefault}/mcp</code>
+                  {'. '}{t('settings.mcpPortHint', { defaultValue: 'Leave the port empty for the default. dayGLANCE never picks a different port by itself.' })}
                 </p>
               </div>
 
@@ -381,31 +547,33 @@ const LocalIntegrationsSettings = ({ variant }) => {
                     }}
                     disabled={setupBusy}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'} transition-colors`}
-                    title="Adds a dayGLANCE entry to Claude Desktop's configuration, pointing at the bridge bundled with this app. Everything else in the file is preserved, and a backup is made first."
+                    title={t('settings.mcpSetupClaudeTitle', { defaultValue: "Adds a dayGLANCE entry to Claude Desktop's configuration, pointing at the bridge bundled with this app. Everything else in the file is preserved, and a backup is made first." })}
                   >
-                    {setupBusy ? 'Setting up' : 'Set up Claude Desktop'}
+                    {setupBusy
+                      ? t('settings.mcpSettingUp', { defaultValue: 'Setting up' })
+                      : t('settings.mcpSetupClaude', { defaultValue: 'Set up Claude Desktop' })}
                   </button>
                   {setupResult?.ok && (
                     <p className={`text-xs ${textSecondary} mt-1`}>
                       {setupResult.action === 'created'
-                        ? 'Claude Desktop configuration created.'
-                        : 'dayGLANCE entry added. Everything else in the file was preserved.'}
-                      {setupResult.backupPath ? ' A backup of the previous file was saved next to it.' : ''}
-                      {' '}Restart Claude Desktop to connect.
+                        ? t('settings.mcpSetupCreated', { defaultValue: 'Claude Desktop configuration created.' })
+                        : t('settings.mcpSetupAdded', { defaultValue: 'dayGLANCE entry added. Everything else in the file was preserved.' })}
+                      {setupResult.backupPath ? ` ${t('settings.mcpSetupBackup', { defaultValue: 'A backup of the previous file was saved next to it.' })}` : ''}
+                      {' '}{t('settings.mcpSetupRestart', { defaultValue: 'Restart Claude Desktop to connect.' })}
                     </p>
                   )}
                   {setupResult && !setupResult.ok && (
                     <div className={`text-xs ${textSecondary} mt-1 space-y-1`}>
                       <p className="text-amber-500">
                         {setupResult.reason === 'unparseable'
-                          ? 'Your Claude Desktop configuration file could not be parsed, so dayGLANCE did not touch it. To finish setup by hand, fix or empty the file, or paste this entry into it:'
+                          ? t('settings.mcpSetupUnparseable', { defaultValue: 'Your Claude Desktop configuration file could not be parsed, so dayGLANCE did not touch it. To finish setup by hand, fix or empty the file, or paste this entry into it:' })
                           : setupResult.reason === 'bridge_missing'
                             /* No manual entry offered here on purpose: it would name the
                                same missing file. Send them to the published bridge instead. */
-                            ? 'This build did not ship the bridge, so nothing was written. Install the bridge yourself with "npx -y @glance-apps/mcp-bridge", then follow the setup guide to point Claude Desktop at it. Please report this build as broken.'
+                            ? t('settings.mcpSetupBridgeMissing', { defaultValue: 'This build did not ship the bridge, so nothing was written. Install the bridge yourself with "npx -y @glance-apps/mcp-bridge", then follow the setup guide to point Claude Desktop at it. Please report this build as broken.' })
                             : setupResult.reason === 'unavailable'
-                              ? 'dayGLANCE could not run setup at all, so nothing was written. This is a fault in the app rather than in your configuration. Restart dayGLANCE, and if it persists, set the bridge up by hand with "npx -y @glance-apps/mcp-bridge" and please report the build.'
-                              : 'The configuration could not be written automatically. To finish setup by hand, paste this entry into your Claude Desktop configuration file:'}
+                              ? t('settings.mcpSetupUnavailable', { defaultValue: 'dayGLANCE could not run setup at all, so nothing was written. This is a fault in the app rather than in your configuration. Restart dayGLANCE, and if it persists, set the bridge up by hand with "npx -y @glance-apps/mcp-bridge" and please report the build.' })
+                              : t('settings.mcpSetupWriteFailed', { defaultValue: 'The configuration could not be written automatically. To finish setup by hand, paste this entry into your Claude Desktop configuration file:' })}
                       </p>
                       {setupResult.path && <p className="font-mono break-all">{setupResult.path}</p>}
                       {setupResult.manualEntry && (
@@ -417,21 +585,24 @@ const LocalIntegrationsSettings = ({ variant }) => {
               )}
               {__MAS_BUILD__ && (
                 <p className={`text-xs ${textSecondary}`}>
-                  To connect Claude Desktop or other MCP apps, see the{' '}
+                  {t('settings.mcpSetupGuidePrefix', { defaultValue: 'To connect Claude Desktop or other MCP apps, see the' })}{' '}
                   <a
                     href="https://glance-apps.com/dayglance/mcp"
                     target="_blank"
                     rel="noreferrer"
                     className="text-blue-500 hover:underline"
                   >
-                    setup guide
+                    {t('settings.mcpSetupGuide', { defaultValue: 'setup guide' })}
                   </a>
-                  . You will paste the access token above into your MCP client.
+                  {t('settings.mcpSetupGuideSuffix', { defaultValue: '. You will paste the access token above into your MCP client.' })}
                 </p>
               )}
 
               {status.mcp.running && (
-                <p className="text-xs text-green-500">MCP server running on 127.0.0.1:{ports.mcpEffective}.</p>
+                <p className="text-xs text-green-500">{t('settings.mcpServerRunning', {
+                  port: ports.mcpEffective,
+                  defaultValue: 'MCP server running on 127.0.0.1:{{port}}.',
+                })}</p>
               )}
               {status.mcp.error && listenerError(status.mcp.error)}
             </>)}
@@ -460,7 +631,7 @@ const LocalIntegrationsSettings = ({ variant }) => {
                 onClick={() => setConsent(null)}
                 className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={consent.onAccept}

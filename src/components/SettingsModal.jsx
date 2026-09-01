@@ -35,7 +35,11 @@ import { useTranslation } from 'react-i18next';
 import LanguagePicker from './LanguagePicker.jsx';
 
 const SettingsModal = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage || i18n.language;
+  const formatUnit = (value, unit) => new Intl.NumberFormat(locale, {
+    style: 'unit', unit, unitDisplay: 'long',
+  }).format(value);
   const {
     showSettings, setShowSettings,
     collapsedSettings, toggleSettingsSection,
@@ -65,6 +69,9 @@ const SettingsModal = () => {
     listEndOfDayTime, setListEndOfDayTime,
     formatTime,
   } = useDayPlannerCtx();
+  const formatHour = (hour) => new Intl.DateTimeFormat(locale, {
+    hour: 'numeric', hour12: !use24HourClock, timeZone: 'UTC',
+  }).format(new Date(Date.UTC(2020, 0, 1, hour)));
   const {
     handleFileUpload,
     cloudSyncConfig, setCloudSyncConfig, cloudSyncTest, cloudSyncLastSynced,
@@ -261,7 +268,7 @@ const SettingsModal = () => {
                           setUpdateInfo(null);
                         }}
                         className={`p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 flex-shrink-0`}
-                        title="Dismiss"
+                        title={t('common.dismiss')}
                       >
                         <X size={14} className={darkMode ? 'text-blue-400' : 'text-blue-600'} />
                       </button>
@@ -313,7 +320,7 @@ const SettingsModal = () => {
                                     : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                                 }`}
                               >
-                                {v === 'multi' ? t('settings.viewMultiDay') : v === 'day' ? t('settings.viewDay') : v === 'week' ? t('settings.viewWeek') : t('settings.viewSched', 'SCHED')}
+                                {v === 'multi' ? t('settings.viewMultiDay') : v === 'day' ? t('settings.viewDay') : v === 'week' ? t('settings.viewWeek') : t('settings.viewSched', { defaultValue: 'SCHED' })}
                               </button>
                             ))}
                           </div>
@@ -382,7 +389,7 @@ const SettingsModal = () => {
                                     : `${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'} ${hoverBg}`
                                 }`}
                               >
-                                {h === 0 ? '12am' : `${h}am`}
+                                {formatHour(h)}
                               </button>
                             ))}
                           </div>
@@ -436,7 +443,7 @@ const SettingsModal = () => {
                                       : `${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-stone-300'} ${textPrimary}`
                                   }`}
                                 >
-                                  {mode === 'grid' ? t('settings.viewGrid') : mode === 'list' ? t('settings.viewList') : t('settings.viewSched', 'SCHED')}
+                                  {mode === 'grid' ? t('settings.viewGrid') : mode === 'list' ? t('settings.viewList') : t('settings.viewSched', { defaultValue: 'SCHED' })}
                                 </button>
                               ))}
                             </div>
@@ -454,7 +461,7 @@ const SettingsModal = () => {
                                       : `${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-stone-300'} ${textPrimary}`
                                   }`}
                                 >
-                                  {v === 'multi' ? t('settings.viewMultiDay') : t('settings.viewSched', 'SCHED')}
+                                  {v === 'multi' ? t('settings.viewMultiDay') : t('settings.viewSched', { defaultValue: 'SCHED' })}
                                 </button>
                               ))}
                             </div>
@@ -464,7 +471,7 @@ const SettingsModal = () => {
                               <label className={`block text-xs font-medium ${textSecondary}`}>{t('settings.endOfDay')}</label>
                               <p className={`text-xs ${textSecondary} opacity-70`}>{t('settings.endOfDayHint')}</p>
                               <div className="flex flex-wrap gap-1.5">
-                                {[{ label: 'Off', value: null }, ...Array.from({ length: 13 }, (_, i) => {
+                                {[{ label: t('common.off'), value: null }, ...Array.from({ length: 13 }, (_, i) => {
                                   const totalMin = 18 * 60 + i * 30;
                                   const hh = String(Math.floor(totalMin / 60) % 24).padStart(2, '0');
                                   const mm = String(totalMin % 60).padStart(2, '0');
@@ -674,7 +681,7 @@ const SettingsModal = () => {
                             <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.weatherZipLabel')}</label>
                             <input
                               type="text"
-                              placeholder="e.g. 90210 or Seattle"
+                              placeholder={t('settings.weatherLocationPlaceholder', { defaultValue: 'e.g. 90210 or Seattle' })}
                               value={weatherZip}
                               onChange={(e) => setWeatherZip(e.target.value)}
                               onBlur={() => fetchWeather()}
@@ -885,7 +892,7 @@ const SettingsModal = () => {
                       {!hasNativeCalendar() && <CalendarList />}
                       {hasNativeCalendar() && (
                         <p className={`text-xs ${textSecondary}`}>
-                          Calendar events are read from your device accounts. Use the Device Calendars section below to choose which calendars to show.
+                          {t('settings.deviceCalendarDescription', { defaultValue: 'Calendar events are read from your device accounts. Use the Device Calendars section below to choose which calendars to show.' })}
                         </p>
                       )}
                       <div>
@@ -901,7 +908,7 @@ const SettingsModal = () => {
                           className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         />
                         <p className={`text-xs ${textSecondary} mt-1`}>
-                          Tasks appear with striped pattern; completion state persists across syncs
+                          {t('settings.taskCalendarHint', { defaultValue: 'Tasks appear with striped pattern; completion state persists across syncs' })}
                         </p>
                       </div>
                       {taskCalendarUrl && (
@@ -912,7 +919,7 @@ const SettingsModal = () => {
                               <label className={`block text-xs ${textSecondary} mb-1`}>{t('common.username')}</label>
                               <input
                                 type="text"
-                                placeholder="username"
+                                placeholder={t('common.username')}
                                 value={taskCalendarAuth.username}
                                 onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, username: e.target.value }))}
                                 className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
@@ -922,7 +929,7 @@ const SettingsModal = () => {
                               <label className={`block text-xs ${textSecondary} mb-1`}>{t('settings.appPassword')}</label>
                               <input
                                 type="password"
-                                placeholder="app-password"
+                                placeholder={t('settings.appPassword')}
                                 value={taskCalendarAuth.appPassword}
                                 onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, appPassword: e.target.value }))}
                                 className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
@@ -939,11 +946,11 @@ const SettingsModal = () => {
                               className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
                             />
                             <p className={`text-xs ${textSecondary} mt-0.5`}>
-                              For syncing completions back: the CalDAV collection URL (without ?export). In Nextcloud, the calendar ID in the URL may differ from the display name.
+                              {t('settings.calDAVSyncHint', { defaultValue: 'For syncing completions back: the CalDAV collection URL (without ?export). In Nextcloud, the calendar ID in the URL may differ from the display name.' })}
                             </p>
                           </div>
                           <p className={`text-xs ${textSecondary}`}>
-                            Username + password fetches protected task calendars. Adding a CalDAV Base URL also syncs completion status back to your server.
+                            {t('settings.taskCalendarCredentialsHint', { defaultValue: 'Username + password fetches protected task calendars. Adding a CalDAV Base URL also syncs completion status back to your server.' })}
                           </p>
                         </div>
                       )}
@@ -972,17 +979,17 @@ const SettingsModal = () => {
                           onChange={(e) => setSyncRetentionDays(Number(e.target.value))}
                           className={`px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         >
-                          <option value={7}>7 days</option>
-                          <option value={14}>14 days</option>
-                          <option value={30}>30 days</option>
-                          <option value={60}>60 days</option>
-                          <option value={90}>90 days</option>
-                          <option value={180}>6 months</option>
-                          <option value={365}>1 year</option>
-                          <option value={0}>All (no limit)</option>
+                          <option value={7}>{formatUnit(7, 'day')}</option>
+                          <option value={14}>{formatUnit(14, 'day')}</option>
+                          <option value={30}>{formatUnit(30, 'day')}</option>
+                          <option value={60}>{formatUnit(60, 'day')}</option>
+                          <option value={90}>{formatUnit(90, 'day')}</option>
+                          <option value={180}>{formatUnit(6, 'month')}</option>
+                          <option value={365}>{formatUnit(1, 'year')}</option>
+                          <option value={0}>{t('settings.keepPastEventsAll', { defaultValue: 'All (no limit)' })}</option>
                         </select>
                         <p className={`text-xs ${textSecondary} mt-1`}>
-                          Older imported events are dropped to save storage. Future events are always kept.
+                          {t('settings.keepPastEventsHint', { defaultValue: 'Older imported events are dropped to save storage. Future events are always kept.' })}
                         </p>
                       </div>
                       <button
@@ -995,7 +1002,7 @@ const SettingsModal = () => {
                       </button>
                       {calSyncLastSynced && (
                         <p className={`text-xs ${textSecondary}`}>
-                          {t('common.lastSynced')}: {new Date(calSyncLastSynced).toLocaleString()}
+                          {t('common.lastSynced')}: {new Date(calSyncLastSynced).toLocaleString(locale)}
                         </p>
                       )}
                       {hasNativeCalendar() && (
@@ -1010,9 +1017,9 @@ const SettingsModal = () => {
                             }} className={`text-xs ${textSecondary} underline`}>{t('common.refresh')}</button>
                           </div>
                           {availableCalendars.length === 0 ? (
-                            <p className={`text-xs ${textSecondary}`}>No calendars loaded — tap Refresh, or rebuild the app if this persists.</p>
+                            <p className={`text-xs ${textSecondary}`}>{t('settings.noDeviceCalendars', { defaultValue: 'No calendars loaded — tap Refresh, or rebuild the app if this persists.' })}</p>
                           ) : (<>
-                            <p className={`text-xs ${textSecondary}`}>Uncheck to hide calendars. Leave all checked to show everything.</p>
+                            <p className={`text-xs ${textSecondary}`}>{t('settings.deviceCalendarFilterHint', { defaultValue: 'Uncheck to hide calendars. Leave all checked to show everything.' })}</p>
                             {availableCalendars.map(cal => {
                               const isChecked = calendarFilter.length === 0 || calendarFilter.includes(cal.id);
                               return (
@@ -1083,6 +1090,7 @@ const SettingsModal = () => {
                             <button
                               type="button"
                               disabled={multiUserLocked}
+                              aria-label={t('settings.multiUserMode')}
                               onClick={() => {
                                 const next = !multiUserEnabled;
                                 setMultiUserEnabled(next);
@@ -1102,7 +1110,7 @@ const SettingsModal = () => {
                           )}
                           <div className="flex items-center justify-between gap-3">
                             <p className={`${textSecondary} text-xs`}>
-                              Share dayGLANCE with your household. Tasks can be assigned to specific people; unassigned tasks are visible to everyone.
+                              {t('settings.multiUserDescription', { defaultValue: 'Share dayGLANCE with your household. Tasks can be assigned to specific people; unassigned tasks are visible to everyone.' })}
                             </p>
                             {multiUserRosterSyncable && (
                               <button
@@ -1189,12 +1197,12 @@ const SettingsModal = () => {
                                         className={`px-2 py-1 rounded text-xs border transition-colors ${meUserSyncId === (u.syncId ?? u.id)
                                           ? 'border-green-500 bg-green-500/20 text-green-400'
                                           : `${borderClass} ${darkMode ? 'bg-transparent text-gray-400 hover:text-gray-200' : 'bg-transparent text-stone-500 hover:text-stone-700'}`}`}
-                                      >{meUserSyncId === (u.syncId ?? u.id) ? '✓ Me' : 'Me'}</button>
+                                      >{meUserSyncId === (u.syncId ?? u.id) ? `✓ ${t('settings.multiUserMe', { defaultValue: 'Me' })}` : t('settings.multiUserMe', { defaultValue: 'Me' })}</button>
                                       <button
                                         type="button"
                                         onClick={() => { setEditingUserId(u.id); setEditingUserName(u.name); }}
                                         className={`px-1.5 py-1 rounded text-xs ${darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-stone-400 hover:text-stone-600'}`}
-                                        aria-label="Edit"
+                                        aria-label={t('common.edit')}
                                       >✎</button>
                                       <button
                                         type="button"
@@ -1208,7 +1216,7 @@ const SettingsModal = () => {
                                           }
                                         }}
                                         className={`px-1.5 py-1 rounded text-xs ${darkMode ? 'text-gray-500 hover:text-red-400' : 'text-stone-400 hover:text-red-500'}`}
-                                        aria-label="Delete"
+                                        aria-label={t('common.delete')}
                                       >🗑</button>
                                     </>
                                   )}
@@ -1219,7 +1227,7 @@ const SettingsModal = () => {
                               <div className="flex items-center gap-2 mt-2">
                                 <input
                                   type="text"
-                                  placeholder="Name"
+                                  placeholder={t('common.name')}
                                   value={newUserName}
                                   onChange={e => setNewUserName(e.target.value)}
                                   className={`flex-1 px-2 py-1 border ${borderClass} rounded text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
@@ -1282,7 +1290,7 @@ const SettingsModal = () => {
                                 }}
                                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                               />
-                              <p className={`text-xs ${textSecondary} mt-1`}>WebDAV path where the shared user list is stored. Must match across all GLANCE apps.</p>
+                              <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.usersSyncPathHint', { defaultValue: 'WebDAV path where the shared user list is stored. Must match across all GLANCE apps.' })}</p>
                             </div>
                           )}
                         </div>
@@ -1303,7 +1311,7 @@ const SettingsModal = () => {
                       </button>
                       {!collapsedSettings.ai && (<>
                       <p className={`${textSecondary} text-xs`}>
-                        BYO API key — all calls go directly from your browser to your provider. No data leaves your device unless you enable AI.
+                        {t('settings.aiByoApiKey')}
                       </p>
 
                       {/* Master toggle */}
@@ -1344,7 +1352,13 @@ const SettingsModal = () => {
                               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                             >
                               {Object.entries(PROVIDER_LABELS).map(([key, label]) => (
-                                <option key={key} value={key}>{label}</option>
+                                <option key={key} value={key}>
+                                  {key === 'ollama'
+                                    ? t('settings.aiProviderOllama', { defaultValue: 'Ollama (Local)' })
+                                    : key === 'custom'
+                                      ? t('settings.aiProviderCustom', { defaultValue: 'Custom (OpenAI-compatible)' })
+                                      : label}
+                                </option>
                               ))}
                             </select>
                           </div>
@@ -1358,7 +1372,7 @@ const SettingsModal = () => {
                               </label>
                               <input
                                 type="password"
-                                placeholder={aiConfig.provider === 'openai' ? 'sk-...' : aiConfig.provider === 'anthropic' ? 'sk-ant-...' : 'API key'}
+                                placeholder={aiConfig.provider === 'openai' ? 'sk-...' : aiConfig.provider === 'anthropic' ? 'sk-ant-...' : t('settings.aiApiKey')}
                                 value={aiConfig.apiKey}
                                 onChange={(e) => {
                                   setAiConfig(prev => ({ ...prev, apiKey: e.target.value }));
@@ -1367,7 +1381,7 @@ const SettingsModal = () => {
                                 }}
                                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm font-mono`}
                               />
-                              <p className={`text-xs ${textSecondary} mt-0.5`}>Stored in browser localStorage — keep your device secure.</p>
+                              <p className={`text-xs ${textSecondary} mt-0.5`}>{t('settings.aiApiKeyHint')}</p>
                             </div>
                           )}
 
@@ -1376,7 +1390,9 @@ const SettingsModal = () => {
                             <div>
                               <label className={`block text-sm ${textSecondary} mb-1`}>
                                 <Server size={12} className="inline mr-1" />
-                                {aiConfig.provider === 'ollama' ? 'Ollama URL' : 'Base URL'}
+                                {aiConfig.provider === 'ollama'
+                                  ? t('settings.aiOllamaUrl', { defaultValue: 'Ollama URL' })
+                                  : t('settings.aiBaseUrl', { defaultValue: 'Base URL' })}
                               </label>
                               <input
                                 type="url"
@@ -1387,7 +1403,7 @@ const SettingsModal = () => {
                               />
                               {aiConfig.provider === 'custom' && (
                                 <p className={`text-xs ${textSecondary} mt-1`}>
-                                  Common providers: Groq → <code className="font-mono">https://api.groq.com/openai/v1</code> · Together AI → <code className="font-mono">https://api.together.xyz/v1</code> · LM Studio → <code className="font-mono">http://localhost:1234/v1</code>
+                                  {t('settings.aiCommonProviders', { defaultValue: 'Common providers:' })} Groq → <code className="font-mono">https://api.groq.com/openai/v1</code> · Together AI → <code className="font-mono">https://api.together.xyz/v1</code> · LM Studio → <code className="font-mono">http://localhost:1234/v1</code>
                                 </p>
                               )}
                             </div>
@@ -1403,13 +1419,13 @@ const SettingsModal = () => {
                                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                               >
                                 {(PROVIDER_MODELS[aiConfig.provider] || []).map(m => (
-                                  <option key={m.id} value={m.id}>{m.label}{m.recommended ? ' (Recommended)' : ''}</option>
+                                  <option key={m.id} value={m.id}>{m.label}{m.recommended ? ` (${t('settings.aiRecommended', { defaultValue: 'Recommended' })})` : ''}</option>
                                 ))}
                               </select>
                             ) : (
                               <input
                                 type="text"
-                                placeholder="Model name"
+                                placeholder={t('settings.aiModelPlaceholder', { defaultValue: 'Model name' })}
                                 value={aiConfig.model}
                                 onChange={(e) => setAiConfig(prev => ({ ...prev, model: e.target.value }))}
                                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
@@ -1453,11 +1469,11 @@ const SettingsModal = () => {
                             </div>
                             {aiOllamaHelp && (
                               <div className={`text-xs p-3 rounded-lg ${darkMode ? 'bg-red-900/30 border border-red-800/50' : 'bg-red-50 border border-red-200'}`}>
-                                <p className="text-red-500 font-medium mb-1.5">{aiOllamaHelp}</p>
+                                <p className="text-red-500 font-medium mb-1.5">{t('settings.aiOllamaConnectionError', { defaultValue: "Could not reach Ollama. Make sure it's running and CORS is enabled for this origin. See setup guide →" })}</p>
                                 <ul className={`${textSecondary} space-y-1 ml-3 list-disc mb-2`}>
-                                  <li>Ollama must be running on your computer</li>
-                                  <li>CORS must be enabled for this site&apos;s origin</li>
-                                  <li>Set: <code className={`text-xs px-1 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>OLLAMA_ORIGINS={window.electronAPI?.isElectron ? '*' : window.location.origin}</code></li>
+                                  <li>{t('settings.aiOllamaRunning', { defaultValue: 'Ollama must be running on your computer' })}</li>
+                                  <li>{t('settings.aiOllamaCors', { defaultValue: "CORS must be enabled for this site's origin" })}</li>
+                                  <li>{t('settings.aiOllamaSetEnv', { defaultValue: 'Set:' })} <code className={`text-xs px-1 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>OLLAMA_ORIGINS={window.electronAPI?.isElectron ? '*' : window.location.origin}</code></li>
                                 </ul>
                                 <a
                                   href="https://github.com/ollama/ollama/blob/main/docs/faq.md#how-do-i-configure-ollama-server"
@@ -1465,7 +1481,7 @@ const SettingsModal = () => {
                                   rel="noopener noreferrer"
                                   className="text-purple-500 hover:text-purple-400 underline flex items-center gap-1 w-fit"
                                 >
-                                  Ollama setup guide <ExternalLink size={11} />
+                                  {t('settings.aiOllamaSetupGuide', { defaultValue: 'Ollama setup guide' })} <ExternalLink size={11} />
                                 </a>
                               </div>
                             )}
@@ -1506,7 +1522,7 @@ const SettingsModal = () => {
                                 </div>
                                 <span className={`text-xs ${textPrimary} flex items-center gap-1.5`}>
                                   {f.icon} {f.label}
-                                  {f.comingSoon && <span className={`${textSecondary} italic`}>Coming soon</span>}
+                                  {f.comingSoon && <span className={`${textSecondary} italic`}>{t('common.comingSoon')}</span>}
                                 </span>
                               </label>
                             ))}
@@ -1537,7 +1553,7 @@ const SettingsModal = () => {
                       </button>
                       {!collapsedSettings.obsidian && (<>
                       <p className={`${textSecondary} text-xs`}>
-                        Import tasks and sync daily notes with your Obsidian vault.
+                        {t('settings.obsidianDesc')}
                       </p>
                       {/* The Chromium/FSA requirement is a BROWSER constraint:
                           a native app reaches the vault through its own bridge
@@ -1545,13 +1561,13 @@ const SettingsModal = () => {
                           gating on Android alone showed it, wrongly, on iPad. */}
                       {!isNativeApp() && !isFileSystemAccessSupported() && (
                         <p className={`text-xs text-amber-500`}>
-                          Obsidian integration requires a Chromium-based browser (Chrome, Edge, or Brave). Firefox and Safari do not support the File System Access API.
+                          {t('settings.obsidianBrowserRequirement', { defaultValue: 'Obsidian integration requires a Chromium-based browser (Chrome, Edge, or Brave). Firefox and Safari do not support the File System Access API.' })}
                         </p>
                       )}
                       {isNativeAndroid() ? (
                         <div className="space-y-3">
                           <p className={`text-xs ${textSecondary}`}>
-                            Vault access and daily note settings are configured in the app settings.
+                            {t('settings.obsidianNativeSettingsHint', { defaultValue: 'Vault access and daily note settings are configured in the app settings.' })}
                           </p>
                           <button
                             onClick={() => window.DayGlanceNative.openSettings()}
@@ -1615,7 +1631,7 @@ const SettingsModal = () => {
                         <div className="space-y-3">
                           <div className={`flex items-center gap-2 text-sm ${textPrimary}`}>
                             <FolderOpen size={14} className={textSecondary} />
-                            <span className="truncate">{obsidianConfig.vaultName || 'Vault connected'}</span>
+                            <span className="truncate">{obsidianConfig.vaultName || t('settings.obsidianVaultConnected')}</span>
                             <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
                           </div>
                           <div>
@@ -1624,13 +1640,13 @@ const SettingsModal = () => {
                             </label>
                             <input
                               type="text"
-                              placeholder="(vault root)"
+                              placeholder={t('settings.obsidianVaultRootPlaceholder', { defaultValue: '(vault root)' })}
                               value={obsidianConfig.dailyNotesPath || ''}
                               onChange={(e) => setObsidianConfig(prev => ({ ...prev, dailyNotesPath: e.target.value }))}
                               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                             />
                             <p className={`text-xs ${textSecondary} mt-1`}>
-                              Leave empty for vault root. Common: "Daily Notes" or "journals"
+                              {t('settings.obsidianDailyNotesFolderHint', { defaultValue: 'Leave empty for vault root. Common: "Daily Notes" or "journals"' })}
                             </p>
                           </div>
                           <div>
@@ -1650,7 +1666,7 @@ const SettingsModal = () => {
                               </p>
                             )}
                             <p className={`text-xs ${textSecondary} mt-1`}>
-                              Where new notes created in dayGLANCE are saved. Leave empty for vault root.
+                              {t('settings.obsidianNewNotesFolderHint', { defaultValue: 'Where new notes created in dayGLANCE are saved. Leave empty for vault root.' })}
                             </p>
                           </div>
                           <div>
@@ -1670,7 +1686,7 @@ const SettingsModal = () => {
                               </p>
                             )}
                             <p className={`text-xs ${textSecondary} mt-1`}>
-                              Date pattern for daily note filenames (without .md). e.g. "yyyy-MM-dd", "dd-MM-yyyy", "MMMM dd, yyyy"
+                              {t('settings.obsidianFilenamePatternHint', { defaultValue: 'Date pattern for daily note filenames (without .md). e.g. "yyyy-MM-dd", "dd-MM-yyyy", "MMMM dd, yyyy"' })}
                             </p>
                           </div>
                           <div>
@@ -1679,13 +1695,13 @@ const SettingsModal = () => {
                             </label>
                             <input
                               type="text"
-                              placeholder="## Tasks"
+                              placeholder={`## ${t('settings.tasks')}`}
                               value={obsidianConfig.taskHeading || ''}
                               onChange={(e) => setObsidianConfig(prev => ({ ...prev, taskHeading: e.target.value }))}
                               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                             />
                             <p className={`text-xs ${textSecondary} mt-1`}>
-                              Tasks tagged <code>#obsidian</code> are added under this heading in today's daily note
+                              {t('settings.obsidianTaskHeadingHintPrefix', { defaultValue: 'Tasks tagged' })} <code>#obsidian</code> {t('settings.obsidianTaskHeadingHintSuffix', { defaultValue: "are added under this heading in today's daily note" })}
                             </p>
                           </div>
                           <div>
@@ -1695,12 +1711,12 @@ const SettingsModal = () => {
                             <textarea
                               value={dailyNoteTemplate}
                               onChange={(e) => setDailyNoteTemplate(e.target.value)}
-                              placeholder="Template for new daily notes..."
+                              placeholder={t('settings.obsidianDailyNoteTemplatePlaceholder', { defaultValue: 'Template for new daily notes...' })}
                               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white placeholder:text-gray-500' : 'bg-white text-stone-900 placeholder:text-stone-400'} text-sm resize-y`}
                               rows={4}
                             />
                             <p className={`text-xs ${textSecondary} mt-1`}>
-                              Pre-filled when creating a new daily note
+                              {t('settings.obsidianDailyNoteTemplateHint', { defaultValue: 'Pre-filled when creating a new daily note' })}
                             </p>
                           </div>
                           {launchOnWritePlatform && (
@@ -1777,7 +1793,7 @@ const SettingsModal = () => {
                           )}
                           {obsidianLastSynced && (
                             <p className={`text-xs ${textSecondary}`}>
-                              {t('common.lastSynced')}: {new Date(obsidianLastSynced).toLocaleString()}
+                              {t('common.lastSynced')}: {new Date(obsidianLastSynced).toLocaleString(locale)}
                             </p>
                           )}
                           {/* Native app in this branch = iOS (isNativeAndroid
@@ -1810,7 +1826,7 @@ const SettingsModal = () => {
                               return;
                             }
                             if (!isFileSystemAccessSupported()) {
-                              alert('Your browser does not support the File System Access API. Please use a Chromium-based browser (e.g., Chrome, Edge, Brave) to connect an Obsidian vault.');
+                              alert(t('settings.obsidianBrowserUnsupported', { defaultValue: 'Your browser does not support the File System Access API. Please use a Chromium-based browser (e.g., Chrome, Edge, Brave) to connect an Obsidian vault.' }));
                               return;
                             }
                             const handle = await requestVaultAccess();
@@ -1841,7 +1857,7 @@ const SettingsModal = () => {
                       </button>
                       {!collapsedSettings.trmnl && (<>
                       <p className={`${textSecondary} text-xs`}>
-                        Push your daily schedule to a <a href="https://trmnl.com" target="_blank" rel="noopener noreferrer" className="underline">TRMNL</a> e-ink display via webhook. Install the <strong>DayGLANCE</strong> recipe from the TRMNL Recipe Library to get started.
+                        {t('settings.trmnlDescriptionPrefix', { defaultValue: 'Push your daily schedule to a' })} <a href="https://trmnl.com" target="_blank" rel="noopener noreferrer" className="underline">TRMNL</a> {t('settings.trmnlDescriptionSuffix', { defaultValue: 'e-ink display via webhook. Install the DayGLANCE recipe from the TRMNL Recipe Library to get started.' })}
                       </p>
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.trmnlWebhookUrl')}</label>
@@ -1853,14 +1869,14 @@ const SettingsModal = () => {
                           className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                         />
                         <p className={`text-xs ${textSecondary} mt-1`}>
-                          Found in your DayGLANCE recipe settings on TRMNL
+                          {t('settings.trmnlWebhookHint', { defaultValue: 'Found in your DayGLANCE recipe settings on TRMNL' })}
                         </p>
                       </div>
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.trmnlApiKey')}</label>
-                        <input
-                          type="password"
-                          placeholder="Bearer token"
+                          <input
+                            type="password"
+                            placeholder={t('settings.trmnlBearerTokenPlaceholder', { defaultValue: 'Bearer token' })}
                           value={trmnlConfig?.apiKey || ''}
                           onChange={(e) => setTrmnlConfig(prev => ({ ...prev, apiKey: e.target.value }))}
                           className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
@@ -1903,7 +1919,7 @@ const SettingsModal = () => {
                       {trmnlSyncStatus === 'error' && <p className="text-xs text-red-500">{t('settings.trmnlSyncError')}</p>}
                       {trmnlLastSynced && (
                         <p className={`text-xs ${textSecondary}`}>
-                          {t('common.lastSynced')}: {new Date(trmnlLastSynced).toLocaleString()}
+                          {t('common.lastSynced')}: {new Date(trmnlLastSynced).toLocaleString(locale)}
                         </p>
                       )}
 
@@ -1926,7 +1942,7 @@ const SettingsModal = () => {
                       </button>
                       {!collapsedSettings.intent && (<>
                       <p className={`${textSecondary} text-xs`}>
-                        Connect dayGLANCE to other Glance-compatible apps via a shared WebDAV event log.
+                        {t('settings.glanceIntegrationsDesc', { defaultValue: 'Connect dayGLANCE to other Glance-compatible apps via a shared WebDAV event log.' })}
                       </p>
                       <div className="space-y-3">
                         <div>
@@ -1944,7 +1960,7 @@ const SettingsModal = () => {
                             <label className={`block text-sm ${textSecondary} mb-1`}>{t('common.username')}</label>
                             <input
                               type="text"
-                              placeholder="your-username"
+                              placeholder={t('common.username')}
                               value={intentForm.username}
                               onChange={e => setIntentForm(p => ({ ...p, username: e.target.value }))}
                               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
@@ -1970,7 +1986,7 @@ const SettingsModal = () => {
                             onChange={e => setIntentForm(p => ({ ...p, eventsPath: e.target.value }))}
                             className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                           />
-                          <p className={`text-xs ${textSecondary} mt-1`}>Path on the WebDAV server where event files are stored.</p>
+                          <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.glanceEventsPathHint', { defaultValue: 'Path on the WebDAV server where event files are stored.' })}</p>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
@@ -1980,12 +1996,12 @@ const SettingsModal = () => {
                               onChange={e => setIntentForm(p => ({ ...p, foregroundInterval: Number(e.target.value) }))}
                               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                             >
-                              <option value={30000}>30 sec</option>
-                              <option value={60000}>1 min</option>
-                              <option value={120000}>2 min</option>
-                              <option value={300000}>5 min</option>
-                              <option value={600000}>10 min</option>
-                              <option value={1800000}>30 min</option>
+                              <option value={30000}>{formatUnit(30, 'second')}</option>
+                              <option value={60000}>{formatUnit(1, 'minute')}</option>
+                              <option value={120000}>{formatUnit(2, 'minute')}</option>
+                              <option value={300000}>{formatUnit(5, 'minute')}</option>
+                              <option value={600000}>{formatUnit(10, 'minute')}</option>
+                              <option value={1800000}>{formatUnit(30, 'minute')}</option>
                             </select>
                           </div>
                           <div>
@@ -1995,12 +2011,12 @@ const SettingsModal = () => {
                               onChange={e => setIntentForm(p => ({ ...p, backgroundInterval: Number(e.target.value) }))}
                               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                             >
-                              <option value={300000}>5 min</option>
-                              <option value={900000}>15 min</option>
-                              <option value={1800000}>30 min</option>
-                              <option value={3600000}>1 hr</option>
-                              <option value={21600000}>6 hr</option>
-                              <option value={86400000}>24 hr</option>
+                              <option value={300000}>{formatUnit(5, 'minute')}</option>
+                              <option value={900000}>{formatUnit(15, 'minute')}</option>
+                              <option value={1800000}>{formatUnit(30, 'minute')}</option>
+                              <option value={3600000}>{formatUnit(1, 'hour')}</option>
+                              <option value={21600000}>{formatUnit(6, 'hour')}</option>
+                              <option value={86400000}>{formatUnit(24, 'hour')}</option>
                             </select>
                           </div>
                         </div>
@@ -2014,7 +2030,7 @@ const SettingsModal = () => {
                             onChange={e => setIntentForm(p => ({ ...p, gcRetentionDays: e.target.value }))}
                             className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                           />
-                          <p className={`text-xs ${textSecondary} mt-1`}>Event files older than this are deleted automatically.</p>
+                          <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.glanceRetentionHint', { defaultValue: 'Event files older than this are deleted automatically.' })}</p>
                         </div>
                         <div className={`flex items-start gap-3 p-3 rounded-lg border ${borderClass} ${cloudSyncConfig?.encryptionEnabled ? '' : 'opacity-60'}`}>
                           <input
@@ -2027,12 +2043,12 @@ const SettingsModal = () => {
                           />
                           <div>
                             <label htmlFor="intent-encryption-toggle" className={`text-sm font-medium ${textPrimary} ${cloudSyncConfig?.encryptionEnabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
-                              Encrypt intent events
+                              {t('settings.glanceEncryptEvents', { defaultValue: 'Encrypt intent events' })}
                             </label>
                             {cloudSyncConfig?.encryptionEnabled ? (
-                              <p className={`text-xs ${textSecondary} mt-0.5`}>Uses your cloud sync passphrase. Set up once; remains active across sessions.</p>
+                              <p className={`text-xs ${textSecondary} mt-0.5`}>{t('settings.glanceEncryptionEnabledHint', { defaultValue: 'Uses your cloud sync passphrase. Set up once; remains active across sessions.' })}</p>
                             ) : (
-                              <p className={`text-xs ${textSecondary} mt-0.5`}>Requires cloud sync encryption to be enabled first.</p>
+                              <p className={`text-xs ${textSecondary} mt-0.5`}>{t('settings.glanceEncryptionRequiredHint', { defaultValue: 'Requires cloud sync encryption to be enabled first.' })}</p>
                             )}
                           </div>
                         </div>
@@ -2042,10 +2058,10 @@ const SettingsModal = () => {
                           <div className={`p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
                             <div className="flex items-center gap-2 mb-2">
                               <Lock size={13} className="text-blue-500 flex-shrink-0" />
-                              <span className={`text-sm font-medium ${textPrimary}`}>Enter your sync passphrase to complete setup</span>
+                              <span className={`text-sm font-medium ${textPrimary}`}>{t('settings.intentsPassphraseSetupTitle', { defaultValue: 'Enter your sync passphrase to complete setup' })}</span>
                             </div>
                             <p className={`text-xs ${textSecondary} mb-3`}>
-                              Required once to derive the intents encryption key. After this, no passphrase is needed across sessions.
+                              {t('settings.intentsPassphraseSetupHint', { defaultValue: 'Required once to derive the intents encryption key. After this, no passphrase is needed across sessions.' })}
                             </p>
                             <input
                               type="password"
@@ -2053,7 +2069,7 @@ const SettingsModal = () => {
                               value={intentPassphraseInput}
                               onChange={e => setIntentPassphraseInput(e.target.value)}
                               onKeyDown={e => { if (e.key === 'Escape') { setIntentSetupPhase(null); setIntentPassphraseInput(''); } }}
-                              placeholder="Your sync passphrase"
+                              placeholder={t('sync.passphrasePlaceholder', { defaultValue: 'Your sync passphrase' })}
                               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm mb-2`}
                             />
                             <div className="flex gap-2">
@@ -2097,17 +2113,17 @@ const SettingsModal = () => {
                         {intentSetupPhase === 'running' && (
                           <div className={`flex items-center gap-2 p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
                             <Loader size={14} className="animate-spin text-blue-500" />
-                            <span className={`text-sm ${textSecondary}`}>Setting up intents encryption…</span>
+                            <span className={`text-sm ${textSecondary}`}>{t('settings.intentsEncryptionSettingUp', { defaultValue: 'Setting up intents encryption…' })}</span>
                           </div>
                         )}
                         {intentSetupPhase?.error && (
                           <div className={`p-3 rounded-lg border border-red-300 ${darkMode ? 'bg-red-900/20' : 'bg-red-50'}`}>
-                            <p className="text-sm text-red-500">Setup failed: {intentSetupPhase.error}</p>
+                            <p className="text-sm text-red-500">{t('settings.intentsSetupFailed', { error: intentSetupPhase.error, defaultValue: 'Setup failed: {{error}}' })}</p>
                             <button
                               onClick={() => setIntentSetupPhase(null)}
                               className="mt-1 text-xs text-red-400 hover:text-red-300 underline"
                             >
-                              Dismiss
+                              {t('common.dismiss')}
                             </button>
                           </div>
                         )}
@@ -2191,11 +2207,11 @@ const SettingsModal = () => {
                       <div className={`mt-4 pt-4 border-t ${borderClass} space-y-3`}>
                         <div className="flex items-center gap-2">
                           <Server size={14} className={textSecondary} />
-                          <span className={`text-sm font-medium ${textPrimary}`}>GLANCEvault intents</span>
-                          <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-600'}`}>Beta</span>
+                          <span className={`text-sm font-medium ${textPrimary}`}>{t('settings.glanceVaultIntents', { defaultValue: 'GLANCEvault intents' })}</span>
+                          <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-600'}`}>{t('settings.beta', { defaultValue: 'Beta' })}</span>
                         </div>
                         <p className={`${textSecondary} text-xs`}>
-                          Deliver intents over your GLANCEvault server instead of (or alongside) the WebDAV event log. Uses the same vault connection as GLANCEvault sync — no separate URL or token needed.
+                          {t('settings.glanceVaultIntentsDesc', { defaultValue: 'Deliver intents over your GLANCEvault server instead of (or alongside) the WebDAV event log. Uses the same vault connection as GLANCEvault sync — no separate URL or token needed.' })}
                         </p>
 
                         {(() => {
@@ -2206,12 +2222,12 @@ const SettingsModal = () => {
                                 {dbConn ? (
                                   <span className="flex items-center gap-1.5">
                                     <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-                                    <span className={textSecondary}>Vault connection detected — ready to enable.</span>
+                                    <span className={textSecondary}>{t('settings.glanceVaultConnectionReady', { defaultValue: 'Vault connection detected — ready to enable.' })}</span>
                                   </span>
                                 ) : (
                                   <span className="flex items-center gap-1.5">
                                     <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
-                                    <span className={textSecondary}>No vault connection. Configure GLANCEvault in Cloud Sync settings first.</span>
+                                    <span className={textSecondary}>{t('settings.glanceVaultConnectionMissing', { defaultValue: 'No vault connection. Configure GLANCEvault in Cloud Sync settings first.' })}</span>
                                   </span>
                                 )}
                               </div>
@@ -2227,10 +2243,10 @@ const SettingsModal = () => {
                                 />
                                 <div>
                                   <label htmlFor="db-intents-toggle" className={`text-sm font-medium ${textPrimary} ${dbConn ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
-                                    Enable GLANCEvault intents
+                                    {t('settings.glanceVaultIntentsEnable', { defaultValue: 'Enable GLANCEvault intents' })}
                                   </label>
                                   <p className={`text-xs ${textSecondary} mt-0.5`}>
-                                    Independent of WebDAV intents and of GLANCEvault sync. Saving reloads the app so the poller restarts.
+                                    {t('settings.glanceVaultIntentsHint', { defaultValue: 'Independent of WebDAV intents and of GLANCEvault sync. Saving reloads the app so the poller restarts.' })}
                                   </p>
                                 </div>
                               </div>
@@ -2241,7 +2257,7 @@ const SettingsModal = () => {
                               {dbIntentsSetupPhase === 'passphrase-needed' && (
                                 <div className={`p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
                                   <p className={`text-sm ${textPrimary} mb-2`}>
-                                    GLANCEvault intents are always encrypted. Enter your sync passphrase to set up the encryption key.
+                                    {t('settings.glanceVaultPassphrasePrompt', { defaultValue: 'GLANCEvault intents are always encrypted. Enter your sync passphrase to set up the encryption key.' })}
                                   </p>
                                   <input
                                     type="password"
@@ -2249,7 +2265,7 @@ const SettingsModal = () => {
                                     value={dbIntentsPassphraseInput}
                                     onChange={e => setDbIntentsPassphraseInput(e.target.value)}
                                     onKeyDown={e => { if (e.key === 'Escape') { setDbIntentsSetupPhase(null); setDbIntentsPassphraseInput(''); setDbIntentsEnabled(false); } }}
-                                    placeholder="Your sync passphrase"
+                                    placeholder={t('sync.passphrasePlaceholder', { defaultValue: 'Your sync passphrase' })}
                                     className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm mb-2`}
                                   />
                                   <div className="flex gap-2">
@@ -2283,24 +2299,24 @@ const SettingsModal = () => {
                                     </button>
                                   </div>
                                   <p className="text-xs text-amber-500 mt-2">
-                                    Encryption setup is required — GLANCEvault intents won't be enabled until the key is set up.
+                                    {t('settings.glanceVaultEncryptionRequired', { defaultValue: "Encryption setup is required — GLANCEvault intents won't be enabled until the key is set up." })}
                                   </p>
                                 </div>
                               )}
                               {dbIntentsSetupPhase === 'running' && (
                                 <div className={`flex items-center gap-2 p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
                                   <Loader size={14} className="animate-spin text-blue-500" />
-                                  <span className={`text-sm ${textSecondary}`}>Setting up vault intents encryption…</span>
+                                  <span className={`text-sm ${textSecondary}`}>{t('settings.glanceVaultEncryptionSettingUp', { defaultValue: 'Setting up vault intents encryption…' })}</span>
                                 </div>
                               )}
                               {dbIntentsSetupPhase?.error && (
                                 <div className={`p-3 rounded-lg border border-red-300 ${darkMode ? 'bg-red-900/20' : 'bg-red-50'}`}>
-                                  <p className="text-sm text-red-500">Setup failed: {dbIntentsSetupPhase.error}</p>
+                                  <p className="text-sm text-red-500">{t('settings.intentsSetupFailed', { error: dbIntentsSetupPhase.error, defaultValue: 'Setup failed: {{error}}' })}</p>
                                   <button
                                     onClick={() => { setDbIntentsSetupPhase(null); setDbIntentsEnabled(false); }}
                                     className="mt-1 text-xs text-red-400 hover:text-red-300 underline"
                                   >
-                                    Dismiss
+                                    {t('common.dismiss')}
                                   </button>
                                 </div>
                               )}

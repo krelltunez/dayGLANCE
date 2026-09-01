@@ -69,12 +69,12 @@ const MobileWelcomeModal = () => {
             </div>
             <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>{t('onboarding.mobileGlance')}</h2>
             <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
-              <li>Your <strong className={textPrimary}>smart agenda</strong>: see <strong className={textPrimary}>overdue</strong>, <strong className={textPrimary}>in-progress</strong>, and <strong className={textPrimary}>upcoming</strong> tasks in real time</li>
-              <li>When it&apos;s time, <strong className={textPrimary}><span className="italic">GLANCE</span>ahead</strong> to see what tomorrow holds</li>
-              <li>Track your progress with <strong className={textPrimary}>daily</strong> and <strong className={textPrimary}>all-time summaries</strong> <BarChart3 size={14} className="inline mx-0.5" /></li>
-              <li><strong className={textPrimary}>Search</strong> <Search size={14} className="inline mx-0.5" /> across all your tasks and events, and filter your day by <strong className={textPrimary}>#tags</strong> <Filter size={14} className="inline mx-0.5" /></li>
-              <li>Deleted something by mistake? Restore it from the <strong className={textPrimary}>Recycle Bin</strong> <Trash2 size={14} className="inline mx-0.5" /></li>
-              <li>Tap <strong className={textPrimary}>Focus Mode</strong> <Target size={14} className="inline mx-0.5" /> on an in-progress task for a distraction-free deep work session</li>
+              <li>{t('onboarding.mobileGlanceSmartAgenda')}</li>
+              <li>{t('onboarding.mobileGlanceAhead')}</li>
+              <li>{t('onboarding.mobileGlanceProgress')} <BarChart3 size={14} className="inline mx-0.5" /></li>
+              <li>{t('onboarding.mobileGlanceSearch')} <Search size={14} className="inline mx-0.5" /> <Filter size={14} className="inline mx-0.5" /></li>
+              <li>{t('onboarding.mobileGlanceRecycleBin')} <Trash2 size={14} className="inline mx-0.5" /></li>
+              <li>{t('onboarding.mobileGlanceFocusMode')} <Target size={14} className="inline mx-0.5" /></li>
             </ul>
           </div>
         )}
@@ -85,11 +85,11 @@ const MobileWelcomeModal = () => {
             </div>
             <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>{t('onboarding.mobileTimelineTitle')}</h2>
             <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
-              <li>Swipe a task <strong className={textPrimary}>right</strong> to move it to inbox</li>
-              <li>Swipe a task <strong className={textPrimary}>left</strong> to edit it</li>
-              <li><strong className={textPrimary}>Long-press</strong> and drag to reschedule a task</li>
-              <li>Expand tasks to add <strong className={textPrimary}>notes</strong> and <strong className={textPrimary}>subtasks</strong></li>
-              <li>Tap <NotebookPen size={14} className="inline mx-0.5" /> on a date to write <strong className={textPrimary}>daily notes</strong></li>
+              <li>{t('onboarding.mobileTimelineSwipeRight')}</li>
+              <li>{t('onboarding.mobileTimelineSwipeLeft')}</li>
+              <li>{t('onboarding.mobileTimelineDrag')}</li>
+              <li>{t('onboarding.mobileTimelineExpand')}</li>
+              <li><NotebookPen size={14} className="inline mx-0.5" /> {t('onboarding.mobileTimelineDailyNotes')}</li>
             </ul>
           </div>
         )}
@@ -100,10 +100,10 @@ const MobileWelcomeModal = () => {
             </div>
             <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>{t('onboarding.mobileInboxTitle')}</h2>
             <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
-              <li>Swipe a task <strong className={textPrimary}>right</strong> to schedule it</li>
-              <li>Swipe a task <strong className={textPrimary}>left</strong> to edit it</li>
-              <li>Tap the <strong className={textPrimary}>+</strong> button to add a new inbox task</li>
-              <li>Use the <strong className={textPrimary}>priority filter</strong> to focus on what matters</li>
+              <li>{t('onboarding.mobileInboxSwipeRight')}</li>
+              <li>{t('onboarding.mobileInboxSwipeLeft')}</li>
+              <li>{t('onboarding.mobileInboxAdd')}</li>
+              <li>{t('onboarding.mobileInboxPriority')}</li>
             </ul>
           </div>
         )}
@@ -119,25 +119,25 @@ const MobileWelcomeModal = () => {
                 <span className="w-8 h-8 bg-teal-100 dark:bg-teal-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                   <RefreshCw size={16} className="text-teal-500" />
                 </span>
-                <span><strong className={textPrimary}>Routines</strong>: things you need to do regularly, like eat, sleep and exercise</span>
+                <span>{t('onboarding.mobileFeatureRoutines')}</span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-8 h-8 bg-rose-100 dark:bg-rose-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                   <Target size={16} className="text-rose-500" />
                 </span>
-                <span><strong className={textPrimary}>Habits</strong>: track regular habits with visual progress rings and saved history</span>
+                <span>{t('onboarding.mobileFeatureHabits')}</span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                   <Flag size={16} className="text-blue-500" />
                 </span>
-                <span><strong className={textPrimary}>Goals &amp; Projects</strong>: track your long-term goals and progress toward completion</span>
+                <span>{t('onboarding.mobileFeatureGoals')}</span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-8 h-8 bg-amber-100 dark:bg-amber-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                   <Mic size={16} className="text-amber-500" />
                 </span>
-                <span><strong className={textPrimary}>AI Features</strong>: voice input, morning briefings, and smart task parsing (BYO API key)</span>
+                <span>{t('onboarding.mobileFeatureAi')}</span>
               </div>
             </div>
           </div>
@@ -149,14 +149,14 @@ const MobileWelcomeModal = () => {
             </div>
             <h2 className={`text-xl font-bold ${textPrimary} mb-2`}>{t('onboarding.mobileSettingsTitle')}</h2>
             <ul className={`${textSecondary} text-sm text-center space-y-2 max-w-xs mx-auto list-none`}>
-              <li><strong className={textPrimary}>Quick toggles</strong> for common settings and optional features</li>
-              <li><strong className={textPrimary}>Sync</strong> your calendars</li>
-              <li>Set up <strong className={textPrimary}>cloud sync</strong> between devices</li>
-              <li><strong className={textPrimary}>Backup</strong> and restore your data</li>
-              <li><strong className={textPrimary}>Customize</strong> notification settings</li>
-              <li>Enable integration with <strong className={textPrimary}>other GLANCE apps</strong></li>
-              {obsidianAvailable && <li>Configure the optional <strong className={textPrimary}>Obsidian</strong> integration</li>}
-              <li>Set up <strong className={textPrimary}>multi-user</strong> for households</li>
+              <li>{t('onboarding.mobileSettingsToggles')}</li>
+              <li>{t('onboarding.mobileSettingsCalendars')}</li>
+              <li>{t('onboarding.mobileSettingsCloudSync')}</li>
+              <li>{t('onboarding.mobileSettingsBackup')}</li>
+              <li>{t('onboarding.mobileSettingsNotifications')}</li>
+              <li>{t('onboarding.mobileSettingsGlanceApps')}</li>
+              {obsidianAvailable && <li>{t('onboarding.mobileSettingsObsidian')}</li>}
+              <li>{t('onboarding.mobileSettingsMultiUser')}</li>
             </ul>
           </div>
         )}

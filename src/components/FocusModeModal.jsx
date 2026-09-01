@@ -10,7 +10,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const FocusModeModal = () => {
   const { t } = useTranslation();
-  const { currentTime, isPhone, isTablet, formatTime, minutesToTime, timeToMinutes } = useDayPlannerCtx();
+  const { currentTime, formatTime, minutesToTime, timeToMinutes } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
   const {
     exitFocusMode, startFocusTimer, dismissFocusStats, skipFocusPhase,
@@ -35,6 +35,7 @@ const FocusModeModal = () => {
       <button
         onClick={() => exitFocusMode(true)}
         className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10"
+        aria-label={t('common.close')}
       >
         <X size={28} />
       </button>
@@ -56,7 +57,7 @@ const FocusModeModal = () => {
                 <span className="text-gray-300 text-sm">{label}</span>
                 <div className="flex items-center gap-3">
                   <button onClick={() => set(Math.max(1, value - 5))} className="w-8 h-8 rounded-full bg-gray-700 text-white hover:bg-gray-600 flex items-center justify-center text-lg font-bold">-</button>
-                  <span className="text-white font-mono w-12 text-center">{value}m</span>
+                  <span className="text-white font-mono w-12 text-center">{t('voice.minutesShort', { count: value })}</span>
                   <button onClick={() => set(value + 5)} className="w-8 h-8 rounded-full bg-gray-700 text-white hover:bg-gray-600 flex items-center justify-center text-lg font-bold">+</button>
                 </div>
               </div>
@@ -70,7 +71,7 @@ const FocusModeModal = () => {
               <div key={task.id} className="flex items-center gap-3 bg-gray-800/50 rounded-lg px-3 py-2">
                 <div className={`w-3 h-3 rounded-full ${task.color} flex-shrink-0`} />
                 <span className="text-gray-200 text-sm truncate flex-1">{stripWikilinks(task.title)}</span>
-                <span className="text-gray-500 text-xs">{task.duration}m</span>
+                <span className="text-gray-500 text-xs">{t('voice.minutesShort', { count: task.duration })}</span>
               </div>
             ))}
           </div>
@@ -109,7 +110,9 @@ const FocusModeModal = () => {
             }`}>
               {focusPhase === 'work' ? t('focus.work') : focusPhase === 'shortBreak' ? t('focus.shortBreak') : t('focus.longBreak')}
             </span>
-            <span className="text-gray-500 text-sm">Cycle {(focusPhase === 'work' ? focusCycleCount % 4 : (focusCycleCount - 1 + 4) % 4) + 1} of 4</span>
+            <span className="text-gray-500 text-sm">
+              {t('focus.cycleOf', { n: (focusPhase === 'work' ? focusCycleCount % 4 : (focusCycleCount - 1 + 4) % 4) + 1 })}
+            </span>
           </div>
 
           {/* Countdown */}
@@ -122,13 +125,17 @@ const FocusModeModal = () => {
             <button
               onClick={() => setFocusTimerRunning(prev => !prev)}
               className="w-14 h-14 rounded-full bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center transition-colors"
+              aria-label={focusTimerRunning
+                ? t('focus.pause', { defaultValue: 'Pause' })
+                : t('focus.resume', { defaultValue: 'Resume' })}
             >
               {focusTimerRunning ? <Pause size={24} /> : <Play size={24} />}
             </button>
             <button
               onClick={skipFocusPhase}
               className="w-9 h-9 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-400 transition-colors"
-              title="Skip phase"
+              title={t('focus.skipPhase', { defaultValue: 'Skip phase' })}
+              aria-label={t('focus.skipPhase', { defaultValue: 'Skip phase' })}
             >
               <SkipForward size={16} />
             </button>
@@ -203,7 +210,7 @@ const FocusModeModal = () => {
           {/* Session elapsed time */}
           {focusSessionStart && (
             <div className="text-gray-500 text-sm mt-4">
-              Session: {Math.floor((currentTime - focusSessionStart) / 60000)}m elapsed
+              {t('focus.sessionElapsed', { minutes: Math.floor((currentTime - focusSessionStart) / 60000) })}
             </div>
           )}
         </div>
@@ -218,7 +225,7 @@ const FocusModeModal = () => {
           <div className="w-full space-y-3">
             <div className="flex justify-between bg-gray-800 rounded-lg px-4 py-3">
               <span className="text-gray-400">{t('focus.totalTime')}</span>
-              <span className="text-white font-medium">{focusSessionStart ? `${Math.floor((currentTime - focusSessionStart) / 60000)}m` : '0m'}</span>
+              <span className="text-white font-medium">{t('voice.minutesShort', { count: focusSessionStart ? Math.floor((currentTime - focusSessionStart) / 60000) : 0 })}</span>
             </div>
             <div className="flex justify-between bg-gray-800 rounded-lg px-4 py-3">
               <span className="text-gray-400">{t('focus.tasksCompleted')}</span>

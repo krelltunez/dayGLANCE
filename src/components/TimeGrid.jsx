@@ -365,7 +365,7 @@ const TimeGrid = () => {
                     <button
                       onClick={() => postponeTask(task.id)}
                       className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                      title="Postpone to tomorrow"
+                       title={t('sched.postponeTomorrow')}
                     >
                       <SkipForward size={14} />
                       {inMenu && <span className="text-xs">{t('common.postpone')}</span>}
@@ -375,7 +375,7 @@ const TimeGrid = () => {
                     <button
                       onClick={() => openMobileEditTask(task, false)}
                       className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                      title="Edit"
+                       title={t('common.edit')}
                     >
                       <Pencil size={14} />
                       {inMenu && <span className="text-xs">{t('common.edit')}</span>}
@@ -385,7 +385,7 @@ const TimeGrid = () => {
                     <button
                       onClick={() => moveToRecycleBin(task.id)}
                       className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                      title="Delete"
+                       title={t('common.delete')}
                     >
                       <Trash2 size={14} />
                       {inMenu && <span className="text-xs">{t('common.delete')}</span>}
@@ -401,7 +401,7 @@ const TimeGrid = () => {
                   <button
                     onClick={() => postponeTask(task.id)}
                     className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                    title="Postpone to tomorrow"
+                     title={t('sched.postponeTomorrow')}
                   >
                     <SkipForward size={14} />
                     {inMenu && <span className="text-xs">{t('common.postpone')}</span>}
@@ -410,7 +410,7 @@ const TimeGrid = () => {
                   <button
                     onClick={() => openMobileEditTask(task, false)}
                     className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                    title="Edit"
+                     title={t('common.edit')}
                   >
                     <Pencil size={14} />
                     {inMenu && <span className="text-xs">{t('common.edit')}</span>}
@@ -420,7 +420,7 @@ const TimeGrid = () => {
                   <button
                     onClick={() => moveToInbox(task.id)}
                     className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-                    title="Move to Inbox"
+                     title={t('task.moveToInbox')}
                   >
                     <Inbox size={14} />
                     {inMenu && <span className="text-xs">{t('common.toInbox')}</span>}
@@ -477,11 +477,11 @@ const TimeGrid = () => {
                       {isRecurringTask ? (
                         <><Trash2 size={14} className="mr-1" />{t('common.delete')}</>
                       ) : (
-                        <><Inbox size={14} className="mr-1" />Inbox</>
+                        <><Inbox size={14} className="mr-1" />{t('settings.inbox')}</>
                       )}
                     </div>
                     <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
-                      Edit<Settings size={14} className="ml-1" />
+                      {t('common.edit')}<Settings size={14} className="ml-1" />
                     </div>
                   </>
                 )}

@@ -1,9 +1,12 @@
 import React from 'react';
 import { Check, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { getRecurrencePresets } from '../utils/recurrenceEngine.js';
+import { formatLocalizedDate } from '../utils/localeFormatting.js';
 
 const EditRecurrenceModal = () => {
+  const { t, i18n } = useTranslation();
   const {
     editingRecurrenceTaskId, setEditingRecurrenceTaskId,
     recurringTasks, setRecurringTasks,
@@ -22,7 +25,7 @@ const EditRecurrenceModal = () => {
   const { templateId, dateStr } = parsed;
   const template = recurringTasks.find(t => t.id === templateId);
   if (!template) return null;
-  const presets = getRecurrencePresets(dateStr);
+  const presets = getRecurrencePresets(dateStr, t, i18n.resolvedLanguage || i18n.language || 'en');
   const currentRecurrence = template.recurrence;
 
   return (
@@ -37,7 +40,7 @@ const EditRecurrenceModal = () => {
                 <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
                   <RefreshCw size={20} className="text-blue-600 dark:text-blue-400" />
                 </div>
-                <h3 className={`text-lg font-semibold ${textPrimary}`}>Edit Recurrence</h3>
+                <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('modal.editRecurrenceTitle')}</h3>
               </div>
               <p className={`${textSecondary} mb-3 text-sm`}>
                 {template.title}
@@ -66,7 +69,7 @@ const EditRecurrenceModal = () => {
                   }}
                   className={`w-full text-left px-3 py-2 text-sm rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${textPrimary}`}
                 >
-                  None (convert to regular task)
+                  {t('modal.convertToRegular')}
                 </button>
                 <div className={`border-t ${borderClass} my-1`}></div>
                 {presets.filter(p => p.value !== null).map((preset, i) => {
@@ -94,7 +97,7 @@ const EditRecurrenceModal = () => {
                 })}
               </div>
               <div className={`mt-3 pt-3 border-t ${borderClass}`}>
-                <p className={`text-xs font-medium ${textSecondary} mb-2`}>Ends</p>
+                <p className={`text-xs font-medium ${textSecondary} mb-2`}>{t('task.recurrenceEnds')}</p>
                 <div className="flex flex-col gap-1">
                   <button
                     onClick={() => updateRecurrenceEndCondition(templateId, {})}
@@ -104,7 +107,7 @@ const EditRecurrenceModal = () => {
                   >
                     <span className="flex items-center gap-2">
                       {!currentRecurrence.endDate && !currentRecurrence.maxOccurrences && <Check size={14} className="flex-shrink-0" />}
-                      Never
+                      {t('common.never')}
                     </span>
                   </button>
                   <button
@@ -115,9 +118,9 @@ const EditRecurrenceModal = () => {
                   >
                     <span className="flex items-center gap-2">
                       {currentRecurrence.endDate && <Check size={14} className="flex-shrink-0" />}
-                      On date
+                      {t('recurrence.onDate', { defaultValue: 'On date' })}
                       {currentRecurrence.endDate && <span className="ml-auto text-xs opacity-75">
-                        {new Date(currentRecurrence.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {formatLocalizedDate(new Date(currentRecurrence.endDate + 'T12:00:00'), { month: 'short', day: 'numeric', year: 'numeric' })}
                       </span>}
                     </span>
                   </button>
@@ -134,7 +137,7 @@ const EditRecurrenceModal = () => {
                     >
                       <span className="flex items-center gap-2">
                         {currentRecurrence.maxOccurrences && <Check size={14} className="flex-shrink-0" />}
-                        After
+                        {t('recurrence.after', { defaultValue: 'After' })}
                       </span>
                     </button>
                     {currentRecurrence.maxOccurrences && (
@@ -151,7 +154,7 @@ const EditRecurrenceModal = () => {
                           className={`w-16 px-2 py-1 text-sm border ${borderClass} rounded ${darkMode ? 'bg-gray-700 text-white dark-spinner' : 'bg-white'}`}
                           onClick={(e) => e.stopPropagation()}
                         />
-                        <span className={`text-sm ${textSecondary}`}>times</span>
+                        <span className={`text-sm ${textSecondary}`}>{t('recurrence.times', { defaultValue: 'times' })}</span>
                       </div>
                     )}
                   </div>
@@ -161,7 +164,7 @@ const EditRecurrenceModal = () => {
                 onClick={() => setEditingRecurrenceTaskId(null)}
                 className={`w-full px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg} mt-3`}
               >
-                Done
+                {t('common.done')}
               </button>
             </div>
           </div>

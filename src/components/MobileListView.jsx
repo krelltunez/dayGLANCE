@@ -86,23 +86,23 @@ function gapHeight(gapMin) {
 
 // ─── Duration label ───────────────────────────────────────────────────────────
 
-function durLabel(min) {
+function durLabel(min, t) {
   if (!min) return '';
   const h = Math.floor(min / 60);
   const m = min % 60;
-  if (h && m) return `${h}h ${m}m`;
-  if (h)      return `${h}h`;
-  return `${m}m`;
+  if (h && m) return t('focus.hoursMinutesShort', { hours: h, minutes: m });
+  if (h)      return t('common.hoursShort', { count: h, defaultValue: '{{count}}h' });
+  return t('common.minutesShort', { count: m });
 }
 
 // ─── Format countdown text ────────────────────────────────────────────────────
 
-function countdownText(diffMin) {
+function countdownText(diffMin, t) {
   const h = Math.floor(diffMin / 60);
   const m = diffMin % 60;
-  if (h && m) return `${h}h ${m}m`;
-  if (h)      return `${h}h`;
-  return `${m}m`;
+  if (h && m) return t('focus.hoursMinutesShort', { hours: h, minutes: m });
+  if (h)      return t('common.hoursShort', { count: h, defaultValue: '{{count}}h' });
+  return t('common.minutesShort', { count: m });
 }
 
 // ─── SpineMarker ─────────────────────────────────────────────────────────────
@@ -181,8 +181,9 @@ const TaskCard = React.memo(({
   setExpandedNotesTaskId, postponeTask, moveToInbox, openMobileEditTask,
   dateStr,
 }) => {
+  const { t } = useTranslation();
   const endMin = timeToMinutes(item.startTime) + (item.duration || 30);
-  const timeStr = `${formatTime(item.startTime)}–${formatTime(minutesToTime(endMin))} · ${durLabel(item.duration)}`;
+  const timeStr = `${formatTime(item.startTime)}–${formatTime(minutesToTime(endMin))} · ${durLabel(item.duration, t)}`;
   const isRecurring = typeof item.id === 'string' && item.id.startsWith('recurring-');
   const notesLongPressTimer = useRef(null);
   const notesLongPressTriggered = useRef(false);
@@ -272,7 +273,7 @@ const TaskCard = React.memo(({
             }}
             className={`flex items-center justify-center transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'}`}
             style={{ opacity: hasNotes ? 0.85 : 0.35 }}
-            title="Notes / links"
+            title={t('task.notesLinks', { defaultValue: 'Notes / links' })}
           >
             <NoteIcon size={14} style={{ color: accentHex }} />
           </button>
@@ -281,7 +282,7 @@ const TaskCard = React.memo(({
             onClick={e => { e.stopPropagation(); postponeTask(item.id); }}
             className={`flex items-center justify-center transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'}`}
             style={{ opacity: 0.7 }}
-            title="Postpone"
+            title={t('common.postpone')}
           >
             <SkipForward size={14} style={{ color: accentHex }} />
           </button>
@@ -290,7 +291,7 @@ const TaskCard = React.memo(({
             onClick={e => { e.stopPropagation(); moveToInbox(item.id, dateStr); }}
             className={`flex items-center justify-center transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'}`}
             style={{ opacity: 0.7 }}
-            title="Move to inbox"
+            title={t('task.moveToInbox')}
           >
             <Inbox size={14} style={{ color: accentHex }} />
           </button>
@@ -299,7 +300,7 @@ const TaskCard = React.memo(({
             onClick={e => { e.stopPropagation(); openMobileEditTask(item, false); }}
             className={`flex items-center justify-center transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'}`}
             style={{ opacity: 0.7 }}
-            title="Edit"
+            title={t('common.edit')}
           >
             <Edit2 size={14} style={{ color: accentHex }} />
           </button>
@@ -313,6 +314,7 @@ TaskCard.displayName = 'TaskCard';
 // ─── RoutineChip ──────────────────────────────────────────────────────────────
 
 function RoutineChip({ routine, completed, onToggle, darkMode, compact, stretch }) {
+  const { t } = useTranslation();
   return (
     <button
       onClick={e => { e.stopPropagation(); onToggle(routine.id); }}
@@ -324,7 +326,7 @@ function RoutineChip({ routine, completed, onToggle, darkMode, compact, stretch 
     >
       <span className="truncate">{routine.name}</span>
       {routine.duration ? (
-        <span className="opacity-60 flex-shrink-0 text-[10px]">{durLabel(routine.duration)}</span>
+        <span className="opacity-60 flex-shrink-0 text-[10px]">{durLabel(routine.duration, t)}</span>
       ) : null}
     </button>
   );
@@ -333,11 +335,15 @@ function RoutineChip({ routine, completed, onToggle, darkMode, compact, stretch 
 // ─── OverlapRow ────────────────────────────────────────────────────────────────
 
 function OverlapRow({ overlapMin, textSecondary }) {
+  const { t } = useTranslation();
   return (
     <div style={{ display: 'flex', height: 20, alignItems: 'center', justifyContent: 'center', gap: 5 }}>
       <span className={`text-[9px] ${textSecondary}`} style={{ opacity: 0.4 }}>↑</span>
       <span className={`text-[9px] ${textSecondary}`} style={{ opacity: 0.4 }}>
-        {durLabel(overlapMin)} overlap
+        {t('mobileList.overlapDuration', {
+          duration: durLabel(overlapMin, t),
+          defaultValue: '{{duration}} overlap',
+        })}
       </span>
       <span className={`text-[9px] ${textSecondary}`} style={{ opacity: 0.4 }}>↓</span>
     </div>
@@ -352,6 +358,7 @@ const HGSessionCard = React.memo(({
   formatTime, canEnter, incompleteTaskCount,
   enterHyperGlanceMode, setPendingEditProjectId,
 }) => {
+  const { t } = useTranslation();
   const { project, date, isCompleted, isOverdue } = bar;
   const hg = project.hyperglance;
   const IconComp = LucideIcons[hg.icon] || LucideIcons.Sparkles;
@@ -365,7 +372,7 @@ const HGSessionCard = React.memo(({
   const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
   const timeStr = `${formatTime(normalizedTime)}–${formatTime(endTime)}`;
   const taskLabel = incompleteTaskCount > 0
-    ? `${incompleteTaskCount} task${incompleteTaskCount !== 1 ? 's' : ''}`
+    ? t('reminders.taskCount', { count: incompleteTaskCount })
     : null;
 
   const cardStyle = {
@@ -393,7 +400,7 @@ const HGSessionCard = React.memo(({
       className="flex items-center gap-0.5 px-2 py-1 rounded-full text-white text-[10px] font-bold opacity-80"
       style={{ background: accentHex }}
     >
-      <Zap size={10} />Start
+      <Zap size={10} />{t('common.start')}
     </button>
   ) : (
     <span className="text-[10px] font-bold opacity-30" style={{ color: accentHex }}>hG</span>
@@ -416,7 +423,7 @@ const HGSessionCard = React.memo(({
         <div className={`text-[10px] leading-none ${textSecondary}`}>
           {timeStr}
           {taskLabel && <span className="ml-1.5">· {taskLabel}</span>}
-          {isOverdue && <span className="ml-1.5 text-orange-500 font-semibold">overdue</span>}
+          {isOverdue && <span className="ml-1.5 text-orange-500 font-semibold">{t('common.overdue')}</span>}
         </div>
       </div>
       {/* Right column: pencil (top) + hG control (bottom) — mirrors task card action grid */}
@@ -424,7 +431,7 @@ const HGSessionCard = React.memo(({
         <button
           onClick={e => { e.stopPropagation(); setPendingEditProjectId(project.id); }}
           className={`flex items-center justify-center transition-colors ${darkMode ? 'hover:bg-white/10 active:bg-white/20' : 'hover:bg-black/10 active:bg-black/15'}`}
-          title="Edit project"
+          title={t('goals.editProject', { defaultValue: 'Edit project' })}
         >
           <Edit2 size={14} style={{ color: accentHex, opacity: 0.7 }} />
         </button>
@@ -505,6 +512,7 @@ function Row({ timeLabel, timeColour, spineColour, spineStyle, marker, cardHeigh
 // ─── GapRow ───────────────────────────────────────────────────────────────────
 
 function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minutesToTime, dragTargetMin, dragBlocked, darkMode, pageBg, eodMarkerMin }) {
+  const { t } = useTranslation();
   const h = gapHeight(toMin - fromMin);
   const showLabel = (toMin - fromMin) >= 45;
   const isTarget = dragTargetMin !== null && dragTargetMin >= fromMin && dragTargetMin < toMin;
@@ -579,12 +587,15 @@ function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minute
               color: dragBlocked ? (darkMode ? '#fca5a5' : '#991b1b') : (darkMode ? '#86efac' : '#166534'),
             }}
           >
-            {dragBlocked ? 'Blocked' : formatTime(minutesToTime(dragTargetMin))}
+            {dragBlocked ? t('common.blocked', { defaultValue: 'Blocked' }) : formatTime(minutesToTime(dragTargetMin))}
           </span>
         ) : (
           showLabel && (toMin - fromMin) >= 60 && (
             <span className={`text-[10px] ${textSecondary}`} style={{ opacity: 0.35 }}>
-              {durLabel(toMin - fromMin)} free
+              {t('mobileList.freeDuration', {
+                duration: durLabel(toMin - fromMin, t),
+                defaultValue: '{{duration}} free',
+              })}
             </span>
           )
         )}
@@ -602,7 +613,7 @@ function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minute
             <div style={{ flex: 1, height: 1, background: darkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)' }} />
             <LucideIcons.Moon size={10} style={{ color: darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)', flexShrink: 0 }} />
             <span style={{ fontSize: 10, color: darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)', flexShrink: 0, whiteSpace: 'nowrap' }}>
-              Good work · rest up
+              {t('mobileList.endOfDayMessage', { defaultValue: 'Good work · rest up' })}
             </span>
           </div>
         )}
@@ -614,12 +625,15 @@ function GapRow({ fromMin, toMin, spineColour, textSecondary, formatTime, minute
 // ─── NowRow ───────────────────────────────────────────────────────────────────
 
 function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24HourClock, pageBg }) {
+  const { t } = useTranslation();
   const nowLabel = (() => {
     const h = Math.floor(nowMin / 60);
     const m = nowMin % 60;
     const pad = v => String(v).padStart(2, '0');
     if (use24HourClock) return `${pad(h)}:${pad(m)}`;
-    const period = h >= 12 ? 'p' : 'a';
+    const period = h >= 12
+      ? t('common.pmShort', { defaultValue: 'p' })
+      : t('common.amShort', { defaultValue: 'a' });
     const h12 = h % 12 || 12;
     return `${h12}:${pad(m)}${period}`;
   })();
@@ -628,8 +642,12 @@ function NowRow({ nowMin, nextItem, formatTime, textSecondary, darkMode, use24Ho
   const rawTitle = nextItem?.title || nextItem?.name || nextItem?.label || '';
   const cleanTitle = rawTitle.replace(/\[\[[^\]]*\]\]/g, '').replace(/#\S+/g, '').replace(/\s+/g, ' ').trim();
   const countdownStr = diff !== null && diff > 0
-    ? `${countdownText(diff)} until ${cleanTitle}`
-    : 'Nothing planned';
+    ? t('mobileList.untilNext', {
+      duration: countdownText(diff, t),
+      title: cleanTitle,
+      defaultValue: '{{duration}} until {{title}}',
+    })
+    : t('planner.nothingScheduledYet');
 
   return (
     <div style={{ display: 'flex', minHeight: 40, alignItems: 'center' }}>
@@ -1368,7 +1386,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
               <span className={`text-[9px] font-bold uppercase tracking-widest flex-shrink-0 ${textSecondary}`}
                 style={{ marginRight: 2 }}>
-                All day
+                {t('task.allDay')}
               </span>
               {allItems.length === 0 && listDragItem && (
                 <span className={`text-[10px] ${textSecondary} opacity-50`}>{t('task.dropToAllDay')}</span>
@@ -1447,7 +1465,13 @@ const MobileListView = ({ hideInboxHandle = false }) => {
           className={`w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium ${textSecondary} border-b ${borderClass} ${darkMode ? 'hover:bg-white/5 active:bg-white/10' : 'hover:bg-black/5 active:bg-black/8'} transition-colors`}
         >
           {showPast ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-          {showPast ? 'Hide earlier items' : `Show ${pastItems.length} earlier item${pastItems.length !== 1 ? 's' : ''}`}
+          {showPast
+            ? t('mobileList.hideEarlierItems', { defaultValue: 'Hide earlier items' })
+            : t('mobileList.showEarlierItems', {
+              count: pastItems.length,
+              defaultValue_one: 'Show {{count}} earlier item',
+              defaultValue_other: 'Show {{count}} earlier items',
+            })}
         </button>
       )}
 
@@ -1492,12 +1516,12 @@ const MobileListView = ({ hideInboxHandle = false }) => {
             {isToday && pastItems.length > 0 ? (
               <>
                 <p className="text-sm font-medium">{t('app.nothingLeftToday')}</p>
-                <p className="text-xs mt-1 opacity-60">All done — or tap + to add more</p>
+                <p className="text-xs mt-1 opacity-60">{t('mobileList.allDoneHint', { defaultValue: 'All done — or tap + to add more' })}</p>
               </>
             ) : (
               <>
                 <p className="text-sm">{t('app.noItemsScheduled')}</p>
-                {isToday && <p className="text-xs mt-1 opacity-60">Tap + to add a task</p>}
+                {isToday && <p className="text-xs mt-1 opacity-60">{t('mobileList.addTaskHint', { defaultValue: 'Tap + to add a task' })}</p>}
               </>
             )}
           </div>
@@ -1595,9 +1619,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
             const borderColor = frameBorderColor(frame.color, darkMode);
             const availableSlots = computeAvailableSlots(frame, selectedDate);
             const totalAvail = availableSlots.reduce((sum, s) => sum + s.minutes, 0);
-            const availH = Math.floor(totalAvail / 60);
-            const availM = totalAvail % 60;
-            const availStr = availH > 0 ? `${availH}h${availM > 0 ? ` ${availM}m` : ''}` : `${availM}m`;
+            const availStr = durLabel(totalAvail, t);
             const frameStartMin = timeToMinutes(frame.start);
             const frameEndMin = timeToMinutes(frame.end);
             const taskCount = scheduledTasks.filter(t => {
@@ -1642,7 +1664,12 @@ const MobileListView = ({ hideInboxHandle = false }) => {
                       </span>
                     </div>
                     <div className={`text-[10px] ${textSecondary} mt-1`}>
-                      {taskCount} task{taskCount === 1 ? '' : 's'} scheduled · {availStr} available
+                      {t('mobileList.frameSummary', {
+                        count: taskCount,
+                        available: availStr,
+                        defaultValue_one: '{{count}} task scheduled · {{available}} available',
+                        defaultValue_other: '{{count}} tasks scheduled · {{available}} available',
+                      })}
                     </div>
                   </div>
                 </Row>
@@ -1721,7 +1748,13 @@ const MobileListView = ({ hideInboxHandle = false }) => {
                 style={{ opacity: isDragging ? 0.25 : 1, outline: isDragging ? '2px dashed rgba(100,100,100,0.4)' : isDropTarget ? '2px solid #22c55e' : undefined, transition: 'opacity 0.15s' }}
               >
                 <Row
-                  timeLabel={isInProgress ? `${remainingMin > 0 ? durLabel(remainingMin) : '<1m'} left` : formatTime(item.startTime)}
+                  timeLabel={isInProgress
+                    ? t('dial.timeLeft', {
+                      left: remainingMin > 0
+                        ? durLabel(remainingMin, t)
+                        : `<${t('common.minutesShort', { count: 1 })}`,
+                    })
+                    : formatTime(item.startTime)}
                   timeColour={isInProgress ? accentHex : undefined}
                   spineColour={sc}
                   spineStyle="solid"
@@ -1769,7 +1802,13 @@ const MobileListView = ({ hideInboxHandle = false }) => {
               style={{ opacity: isDragging ? 0.25 : 1, outline: isDragging ? '2px dashed rgba(100,100,100,0.4)' : isDropTarget ? '2px solid #22c55e' : undefined, transition: 'opacity 0.15s' }}
             >
               <Row
-                timeLabel={isInProgress ? `${remainingMin > 0 ? durLabel(remainingMin) : '<1m'} left` : formatTime(item.startTime)}
+                timeLabel={isInProgress
+                  ? t('dial.timeLeft', {
+                    left: remainingMin > 0
+                      ? durLabel(remainingMin, t)
+                      : `<${t('common.minutesShort', { count: 1 })}`,
+                  })
+                  : formatTime(item.startTime)}
                 timeColour={isInProgress ? accentHex : undefined}
                 spineColour={sc}
                 spineStyle="solid"
@@ -1865,7 +1904,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
             ${darkMode ? 'bg-gray-700 hover:bg-gray-600 active:bg-gray-600' : 'bg-white hover:bg-stone-50 active:bg-stone-100'}
             border-l border-b ${borderClass} rounded-bl-xl shadow-md`}
           style={{ top: '100%', width: 32 }}
-          title="Open inbox"
+          title={t('mobileList.openInbox', { defaultValue: 'Open inbox' })}
         >
           <Inbox size={14} className={textSecondary} />
           <span
@@ -1951,7 +1990,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
                       style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                       {renderTitle(task.title)}
                     </div>
-                    <div className={`text-[9px] mt-0.5 ${textSecondary}`}>{durLabel(task.duration)}</div>
+                    <div className={`text-[9px] mt-0.5 ${textSecondary}`}>{durLabel(task.duration, t)}</div>
                   </div>
                 );
               })

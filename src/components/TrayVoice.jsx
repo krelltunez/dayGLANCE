@@ -5,6 +5,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 export default function TrayVoice({ darkMode, onClose, autoStart = false }) {
+  const { t } = useTranslation();
   const { textPrimary, textSecondary, borderClass, cardBg } = useDayPlannerCtx();
   const {
     aiConfig,
@@ -27,6 +28,18 @@ export default function TrayVoice({ darkMode, onClose, autoStart = false }) {
   const hasParsed = voiceParsedTasks !== null && (voiceParsedTasks?.length > 0 || voiceParsedEdits?.length > 0);
   const isProcessing = voiceIsTranscribing || voiceIsParsing;
   const canParse = aiConfig?.enabled && (voiceHasTranscription || voiceTranscript?.trim());
+  const changeCount = (voiceParsedTasks?.length ?? 0) + (voiceParsedEdits?.length ?? 0);
+  const actionLabels = {
+    move: t('voice.actions.move'),
+    changeDuration: t('voice.actions.duration'),
+    rename: t('voice.actions.rename'),
+    delete: t('voice.actions.delete'),
+    complete: t('voice.actions.complete'),
+    uncomplete: t('voice.actions.uncomplete'),
+    changePriority: t('voice.actions.priority'),
+    addTag: t('voice.actions.addTag'),
+    removeTag: t('voice.actions.removeTag'),
+  };
 
   const handleApply = () => {
     voiceApplyAllChanges();
@@ -43,26 +56,28 @@ export default function TrayVoice({ darkMode, onClose, autoStart = false }) {
       <div className="flex-1 flex flex-col overflow-hidden px-3 pb-3">
         <div className={`flex items-center justify-between py-2.5 border-b ${borderClass} mb-3`}>
           <span className={`text-sm font-semibold ${textPrimary}`}>
-            {(voiceParsedTasks?.length ?? 0) + (voiceParsedEdits?.length ?? 0)} change{(voiceParsedTasks?.length ?? 0) + (voiceParsedEdits?.length ?? 0) !== 1 ? 's' : ''} to apply
+            {changeCount === 1
+              ? t('voice.changeToApply', { count: changeCount, defaultValue: '{{count}} change to apply' })
+              : t('voice.changesToApply', { count: changeCount, defaultValue: '{{count}} changes to apply' })}
           </span>
-          <button onClick={onClose} className={`${textSecondary} hover:opacity-70`}><X size={15} /></button>
+          <button onClick={onClose} className={`${textSecondary} hover:opacity-70`} aria-label={t('common.close')}><X size={15} /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto space-y-1.5 mb-3">
-          {(voiceParsedTasks || []).map((t, i) => (
+          {(voiceParsedTasks || []).map((task, i) => (
             <div key={i} className={`${cardBg} rounded-lg px-3 py-2`}>
-              <div className={`text-sm font-medium ${textPrimary} truncate`}>{t.title}</div>
-              {(t.date || t.startTime) && (
+              <div className={`text-sm font-medium ${textPrimary} truncate`}>{task.title}</div>
+              {(task.date || task.startTime) && (
                 <div className={`text-xs ${textSecondary} mt-0.5`}>
-                  {t.date && <span>{t.date}</span>}
-                  {t.startTime && <span> at {t.startTime}</span>}
+                  {task.date && <span>{task.date}</span>}
+                  {task.startTime && <span> {t('voice.at')} {task.startTime}</span>}
                 </div>
               )}
             </div>
           ))}
           {(voiceParsedEdits || []).map((edit, i) => (
             <div key={`edit-${i}`} className={`${cardBg} rounded-lg px-3 py-2`}>
-              <div className={`text-xs font-medium text-blue-400 mb-0.5 uppercase tracking-wide`}>{edit.action}</div>
+              <div className={`text-xs font-medium text-blue-400 mb-0.5 uppercase tracking-wide`}>{actionLabels[edit.action] ?? edit.action}</div>
               <div className={`text-sm ${textPrimary} truncate`}>{edit.taskTitle ?? edit.id}</div>
             </div>
           ))}
@@ -75,13 +90,13 @@ export default function TrayVoice({ darkMode, onClose, autoStart = false }) {
               darkMode ? 'bg-white/10 text-gray-300' : 'bg-black/5 text-stone-600'
             }`}
           >
-            Back
+            {t('common.back')}
           </button>
           <button
             onClick={handleApply}
             className="flex-1 py-2 rounded-lg text-sm font-semibold bg-blue-500 text-white transition-opacity hover:opacity-90"
           >
-            Add all
+            {t('voice.applyAll', { count: changeCount })}
           </button>
         </div>
       </div>
@@ -92,8 +107,8 @@ export default function TrayVoice({ darkMode, onClose, autoStart = false }) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden px-3 pb-3">
       <div className={`flex items-center justify-between py-2.5 border-b ${borderClass} mb-3`}>
-        <span className={`text-sm font-semibold ${textPrimary}`}>Voice input</span>
-        <button onClick={onClose} className={`${textSecondary} hover:opacity-70`}><X size={15} /></button>
+        <span className={`text-sm font-semibold ${textPrimary}`}>{t('voice.title')}</span>
+        <button onClick={onClose} className={`${textSecondary} hover:opacity-70`} aria-label={t('common.close')}><X size={15} /></button>
       </div>
 
       {/* Mic button */}
@@ -122,7 +137,7 @@ export default function TrayVoice({ darkMode, onClose, autoStart = false }) {
               onClick={() => setVoiceManualMode(true)}
               className={`ml-3 self-center text-xs ${textSecondary} hover:opacity-70 underline underline-offset-2`}
             >
-              type instead
+              {t('voice.typeInstead')}
             </button>
           )}
         </div>
@@ -131,7 +146,11 @@ export default function TrayVoice({ darkMode, onClose, autoStart = false }) {
       {/* Status */}
       {(voiceIsRecording || isProcessing) && (
         <p className={`text-xs text-center ${textSecondary} mb-2`}>
-          {voiceIsRecording ? 'Recording… tap to stop' : voiceIsTranscribing ? 'Transcribing…' : 'Parsing…'}
+          {voiceIsRecording
+            ? t('voice.trayRecording', { defaultValue: 'Recording… tap to stop' })
+            : voiceIsTranscribing
+              ? t('voice.transcribing')
+              : t('voice.parsing')}
         </p>
       )}
 
@@ -141,7 +160,7 @@ export default function TrayVoice({ darkMode, onClose, autoStart = false }) {
           className={`flex-1 text-sm px-3 py-2 rounded-lg outline-none resize-none ${
             darkMode ? 'bg-white/10 text-white placeholder-gray-500' : 'bg-black/5 text-stone-900 placeholder-stone-400'
           }`}
-          placeholder="Describe tasks to add or changes to make…"
+          placeholder={t('voice.placeholder')}
           value={voiceTranscript || ''}
           onChange={e => setVoiceTranscript(e.target.value)}
           rows={4}
@@ -162,7 +181,7 @@ export default function TrayVoice({ darkMode, onClose, autoStart = false }) {
           onClick={voiceParseWithAI}
           className="mt-3 flex-shrink-0 py-2 rounded-lg text-sm font-semibold bg-blue-500 text-white transition-opacity hover:opacity-90"
         >
-          Parse with AI
+          {t('voice.parseWithAI')}
         </button>
       )}
 
@@ -171,7 +190,7 @@ export default function TrayVoice({ darkMode, onClose, autoStart = false }) {
           onClick={() => { setVoiceManualMode(false); setVoiceTranscript(''); }}
           className={`mt-2 flex-shrink-0 flex items-center justify-center gap-1 text-xs ${textSecondary} hover:opacity-70`}
         >
-          <RotateCcw size={12} /> use mic instead
+          <RotateCcw size={12} /> {t('voice.useVoiceInstead')}
         </button>
       )}
     </div>

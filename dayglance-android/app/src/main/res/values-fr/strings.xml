@@ -39,6 +39,9 @@
     </plurals>
     <string name="widget_committed">%1$s réservées</string>
     <string name="widget_goal_stats">%1$d %% · %2$d/%3$d tâches</string>
+    <string name="widget_duration_hours">%1$d h</string>
+    <string name="widget_duration_hours_minutes">%1$d h %2$d min</string>
+    <string name="widget_duration_minutes">%1$d min</string>
     <string name="widget_due_overdue">%1$dj de retard</string>
     <string name="widget_due_today">Échéance aujourd\'hui</string>
     <string name="widget_due_left">%1$dj restants</string>
@@ -48,6 +51,10 @@
         <item quantity="one">+%d autre projet</item>
         <item quantity="other">+%d autres projets</item>
     </plurals>
+    <plurals name="widget_more_tasks">
+        <item quantity="one">+%d tâche supplémentaire</item>
+        <item quantity="other">+%d tâches supplémentaires</item>
+    </plurals>
     <string name="widget_reconfigure">Appui long sur le widget pour le reconfigurer</string>
     <string name="widget_goal_gone">Il a peut-être été supprimé ou terminé</string>
     <string name="widget_project_gone">Le projet a peut-être été supprimé ou archivé</string>
@@ -55,6 +62,12 @@
     <string name="config_select_project">Choisir un projet</string>
     <string name="config_choose_goal">Choisissez l\'objectif à afficher sur votre widget.</string>
     <string name="config_choose_project">Choisissez le projet à afficher sur votre widget.</string>
+    <string name="config_task_progress">%1$d/%2$d tâches</string>
+    <plurals name="config_project_count">
+        <item quantity="one">%d projet</item>
+        <item quantity="other">%d projets</item>
+    </plurals>
+    <string name="config_standalone">Sans objectif</string>
     <string name="config_no_goals">Aucun objectif actif trouvé.\n\nOuvrez dayGLANCE pour synchroniser vos données, puis ajoutez à nouveau le widget.</string>
     <string name="config_no_projects">Aucun projet actif trouvé.\n\nOuvrez dayGLANCE pour synchroniser vos données, puis ajoutez à nouveau le widget.</string>
     <string name="upnext_in_h">dans %1$dh</string>
@@ -70,6 +83,16 @@
     <string name="notif_starts_in_m">Commence dans %1$dm</string>
     <string name="notif_starting_now">Commence maintenant</string>
     <string name="notif_in_progress_ends">En cours · se termine à %1$s</string>
+    <string name="focus_phase_short_break">Pause courte</string>
+    <string name="focus_phase_long_break">Pause longue</string>
+    <string name="focus_phase_work">Travail</string>
+    <string name="focus_status_paused">En pause</string>
+    <string name="focus_status_in_progress">En cours</string>
+    <string name="focus_status_format">%1$s · %2$s · %3$d/4</string>
+    <string name="focus_action_resume">Reprendre</string>
+    <string name="focus_action_pause">Mettre en pause</string>
+    <string name="focus_action_stop">Arrêter</string>
+    <string name="share_backup">Enregistrer la sauvegarde</string>
     <string name="channel_reminders">Rappels</string>
     <string name="channel_reminders_desc">Rappels de tâches et d\'événements</string>
     <string name="channel_focus">Mode concentration</string>
@@ -91,4 +114,37 @@
     <string name="channel_obsidian_sync_desc">Rappels pour ouvrir Obsidian afin de synchroniser les modifications du coffre avec vos autres appareils</string>
     <string name="notif_obsidian_sync_title">Modifications écrites dans votre coffre</string>
     <string name="notif_obsidian_sync_body">Touchez pour ouvrir Obsidian et les synchroniser avec vos autres appareils</string>
+    <string name="action_save">Enregistrer</string>
+    <string name="action_refresh">Actualiser</string>
+    <string name="settings_title">Paramètres</string>
+    <string name="settings_saved">Paramètres enregistrés</string>
+    <string name="settings_obsidian_vault">Coffre Obsidian</string>
+    <string name="settings_vault_desc">Sélectionnez le dossier racine de votre coffre Obsidian pour activer la synchronisation des notes quotidiennes.</string>
+    <string name="settings_not_configured">Non configuré</string>
+    <string name="settings_select_vault">Sélectionner le dossier du coffre</string>
+    <string name="settings_daily_note_location">Emplacement des notes quotidiennes</string>
+    <string name="settings_daily_note_location_desc">Dossier de votre coffre où sont stockées les notes quotidiennes. Laissez ce champ vide pour utiliser la racine du coffre.</string>
+    <string name="settings_daily_note_folder_hint">Dossier des notes quotidiennes (p. ex. Daily Notes)</string>
+    <string name="settings_filename_pattern_desc">Format de date du nom de fichier de la note (sans .md). Utilise la syntaxe Java DateTimeFormatter.</string>
+    <string name="settings_filename_pattern_hint">Format du nom de fichier (p. ex. yyyy-MM-dd)</string>
+    <string name="settings_new_notes_folder">Dossier des nouvelles notes</string>
+    <string name="settings_new_notes_folder_desc">Dossier où sont enregistrées les notes créées dans dayGLANCE. Les notes existantes sont toujours mises à jour à leur emplacement, quel que soit ce paramètre.</string>
+    <string name="settings_new_notes_folder_hint">Dossier des nouvelles notes (p. ex. dayGLANCE)</string>
+    <string name="health_permissions_title">Autorisations Health Connect</string>
+    <string name="health_intro">dayGLANCE utilise Health Connect pour afficher votre progression quotidienne sous forme d’anneaux d’habitudes dans la vue principale du jour.</string>
+    <string name="health_steps">Pas</string>
+    <string name="health_steps_desc">Lit votre nombre de pas quotidien pour remplir l’anneau d’habitude des pas et afficher votre progression vers l’objectif quotidien que vous avez défini.</string>
+    <string name="health_sleep">Sommeil</string>
+    <string name="health_sleep_desc">Lit la durée de votre dernière session de sommeil pour remplir l’anneau d’habitude du sommeil et afficher votre progression vers l’objectif quotidien que vous avez défini.</string>
+    <string name="health_data_handling">Traitement de vos données</string>
+    <string name="health_local_only">• Les données de santé sont lues sur l’appareil et affichées localement dans l’application.</string>
+    <string name="health_no_analytics">• Elles ne sont jamais utilisées à des fins d’analyse, partagées avec des tiers ni réécrites dans Health Connect.</string>
+    <string name="health_no_servers">• dayGLANCE ne possède aucun serveur exploité par le développeur, aucun système de compte et aucune télémétrie.</string>
+    <string name="health_cloud_sync">• Si vous avez activé la synchronisation cloud facultative, les données d’habitudes sont incluses dans la charge de synchronisation avec un chiffrement à divulgation nulle AES-256-GCM. Le serveur de destination que vous contrôlez ne voit que le texte chiffré.</string>
+    <string name="health_optional">L’octroi des autorisations Health Connect est entièrement facultatif. dayGLANCE fonctionne normalement sans elles. Vous pouvez les révoquer à tout moment dans l’application Health Connect ou les paramètres système de votre appareil.</string>
+    <string name="health_privacy_policy">Lire la politique de confidentialité complète →</string>
+    <string name="reminder_precise_title">Activer les rappels précis</string>
+    <string name="reminder_precise_message">dayGLANCE a besoin de l’autorisation de programmer des alarmes exactes afin que vos rappels de tâches arrivent à l’heure, même lorsque l’application est fermée.\n\nTouchez « Accorder l’accès », puis activez « dayGLANCE » sur l’écran suivant.</string>
+    <string name="grant_access">Accorder l’accès</string>
+    <string name="not_now">Pas maintenant</string>
 </resources>

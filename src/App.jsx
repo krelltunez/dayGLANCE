@@ -35,6 +35,8 @@ import { evaluateSnapshotPush } from './utils/widgetSnapshotDedupe.js';
 import useFolderBackup from './hooks/useFolderBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
+import { defaultUse24HourClock, defaultWeekStartDay, formatLocalizedDate, formatLocalizedDurationMinutes } from './utils/localeFormatting.js';
+import { ENGLISH_DAILY_NOTE_TEMPLATE, buildLocalizedDailyNoteTemplate, localizeDefaultDailyNoteTemplate } from './utils/dailyNoteTemplate.js';
 import { notBucketed, demoteToBucket, normalizeBucketConfig } from './utils/bucketList.js';
 import { parseICS, parseDatetime, filterByDateWindow, expandMultiDayEvent } from './utils/icsParser.js';
 import { fetchIcsFeed, replaceFeedEvents, PRIMARY_FEED_ID, ICS_CALENDARS_KEY, loadIcsCalendars, isActiveIcsCalendar, hasActiveIcsCalendars, stripIcsCalendarCredentials, applyRemoteIcsCalendars, PRIMARY_CAL_META_KEY, defaultPrimaryCalendarMeta, injectPrimaryStub, splitPrimaryStub } from './utils/icsFeedSync.js';
@@ -42,7 +44,7 @@ import { nextPerUserCalendarEntry } from './utils/perUserCalendarEntry.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex, getProjectColor } from './utils/colorUtils.js';
 import { calculateGoalProgress } from './utils/goalProgress.js';
 import { HABIT_ICONS, HABIT_ICON_NAMES, HABIT_COLORS } from './constants/habits.js';
-import { FRAME_COLORS, DAY_LABELS } from './constants/frames.js';
+import { FRAME_COLORS } from './constants/frames.js';
 import { getOccurrencesInRange, getRecurrencePresets } from './utils/recurrenceEngine.js';
 import { getPartialTag, getFilteredTags, applyTagCompletion, getPartialDate, getPartialTime, getPartialDeadline, getPartialPriority, getPartialDuration, getDateCandidates, parseFlexibleDate, getTimeCandidates, parseFlexibleTime, completeShortcutText, cleanTitle, removeFromTitle } from './utils/suggestionParser.js';
 import ClockTimePicker from './components/ClockTimePicker.jsx';
@@ -247,6 +249,7 @@ const SPOTLIGHT_NATIVE_FUTURE_DAYS = 365;
 
 const DayPlanner = () => {
   const { t } = useTranslation();
+  const formatDuration = (minutes) => formatLocalizedDurationMinutes(minutes, i18n.resolvedLanguage || i18n.language);
   const { isPro, isLoading: subLoading, isAndroidApp, isIOSApp, isElectronApp, productId: subProductId, subscribe, restore, prices: subPrices, trialEligible, trialDays, billingEvent, clearBillingEvent, billingErrorMessage, consumeTestPurchase, canConsumeTestPurchase, isReviewerUnlocked, setReviewerUnlocked } = useSubscription();
   useEffect(() => { if (isReviewerUnlocked) console.info('[dayGLANCE] Reviewer unlock active'); }, [isReviewerUnlocked]);
   // Leave reviewer mode: clear the stored unlock and reload so the billing engine
@@ -458,7 +461,7 @@ const DayPlanner = () => {
   const { selectedTags, setSelectedTags, showUntagged, setShowUntagged, showMobileTagFilter, setShowMobileTagFilter, toggleTag, clearTagFilter } = useTagFilter();
   const [use24HourClock, setUse24HourClock] = useState(() => {
     const saved = localStorage.getItem('day-planner-use-24h-clock');
-    return saved !== null ? JSON.parse(saved) : false;
+    return saved !== null ? JSON.parse(saved) : defaultUse24HourClock();
   });
   const [inboxAutoArchiveDays, setInboxAutoArchiveDays] = useState(() => {
     const saved = localStorage.getItem('day-planner-inbox-auto-archive-days');
@@ -476,7 +479,7 @@ const DayPlanner = () => {
   useEffect(() => { localStorage.setItem('day-planner-live-activity', JSON.stringify(liveActivityEnabled)); }, [liveActivityEnabled]);
   const [weekStartDay, setWeekStartDay] = useState(() => {
     const saved = localStorage.getItem('day-planner-week-start-day');
-    return saved !== null ? JSON.parse(saved) : 0; // 0=Sunday, 1=Monday
+    return saved !== null ? JSON.parse(saved) : defaultWeekStartDay(); // 0=Sunday, 1=Monday
   });
   useEffect(() => { localStorage.setItem('day-planner-week-start-day', JSON.stringify(weekStartDay)); }, [weekStartDay]);
   const [homeTimezone, setHomeTimezone] = useState(() => {
@@ -742,10 +745,20 @@ const DayPlanner = () => {
       return saved ? JSON.parse(saved) : {};
     } catch { return {}; }
   });
+  const localizedDailyNoteTemplate = buildLocalizedDailyNoteTemplate(t);
   const [dailyNoteTemplate, setDailyNoteTemplate] = useState(() => {
     const saved = localStorage.getItem('day-planner-daily-note-template');
-    return saved !== null ? saved : '## Quick Notes\n## Thoughts\n## Accomplished\n## Tasks\n';
+    return saved !== null ? saved : localizedDailyNoteTemplate;
   });
+  const previousDefaultDailyNoteTemplateRef = useRef(ENGLISH_DAILY_NOTE_TEMPLATE);
+  useEffect(() => {
+    setDailyNoteTemplate(previous => localizeDefaultDailyNoteTemplate(
+      previous,
+      previousDefaultDailyNoteTemplateRef.current,
+      localizedDailyNoteTemplate,
+    ));
+    previousDefaultDailyNoteTemplateRef.current = localizedDailyNoteTemplate;
+  }, [localizedDailyNoteTemplate]);
 
 
   // Obsidian Integration state
@@ -4669,7 +4682,7 @@ const DayPlanner = () => {
       applyEngineData(data);
       window.location.reload();
     } catch (err) {
-      alert('Failed to restore backup: ' + err.message);
+      alert(t('backup.restoreFailed', { error: err.message }));
     }
   };
 
@@ -4687,7 +4700,7 @@ const DayPlanner = () => {
       applyEngineData(backup.data);
       window.location.reload();
     } catch (err) {
-      alert('Failed to restore remote backup: ' + err.message);
+      alert(t('backup.remoteRestoreFailed', { error: err.message }));
     }
   };
 
@@ -4820,13 +4833,13 @@ const DayPlanner = () => {
           window.location.reload();
         }
       } catch (err) {
-        alert('Failed to restore backup: ' + err.message);
+        alert(t('backup.restoreFailed', { error: err.message }));
         setPendingBackupFile(null);
         setShowRestoreConfirm(false);
       }
     };
     reader.onerror = () => {
-      alert('Failed to read backup file. On Android, try sharing the file directly to the app or using a file manager app.');
+      alert(t('backup.readFailedAndroid'));
       setPendingBackupFile(null);
       setShowRestoreConfirm(false);
     };
@@ -4841,7 +4854,7 @@ const DayPlanner = () => {
     try {
       const { payload } = await folderBackup.openForRestore();
       if (!payload?.data) {
-        alert(`No ${LIVE_BACKUP_FILENAME} backup was found in that folder.`);
+        alert(t('backup.folderBackupNotFound', { filename: LIVE_BACKUP_FILENAME }));
         return;
       }
       applyBackupToLocalStorage(payload.data);
@@ -4859,7 +4872,7 @@ const DayPlanner = () => {
       window.location.reload();
     } catch (err) {
       if (err?.name === 'AbortError') return; // user cancelled the picker
-      alert('Failed to restore from backup folder: ' + err.message);
+      alert(t('backup.folderRestoreFailed', { error: err.message }));
     }
   };
 
@@ -7645,7 +7658,7 @@ const DayPlanner = () => {
 
     const snapshot = {
       date: todayStr,
-      dateLabel: today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+      dateLabel: formatLocalizedDate(today, { weekday: 'short', month: 'short', day: 'numeric' }),
       steps,
       use24Hour: use24HourClock,
       overdue: overdueItems,
@@ -9002,7 +9015,7 @@ const DayPlanner = () => {
           return `${h}h ${m}m`;
         };
         const dayData = focusLog[focusLogModalDate] || { totalMinutes: 0, sessions: 0, cyclesCompleted: 0, tasksCompleted: 0 };
-        const displayDate = new Date(focusLogModalDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+        const displayDate = formatLocalizedDate(new Date(focusLogModalDate + 'T12:00:00'), { weekday: 'long', month: 'short', day: 'numeric' });
 
         // Last 7 days ending on focusLogModalDate
         const anchorDate = new Date(focusLogModalDate + 'T12:00:00');
@@ -9288,7 +9301,7 @@ const DayPlanner = () => {
                 onClick={() => { performUndo(); }}
                 className="font-semibold text-blue-400 hover:text-blue-300 ml-1"
               >
-                Undo
+                {t('shortcuts.undoAction')}
               </button>
             )}
           </div>
@@ -9303,7 +9316,7 @@ const DayPlanner = () => {
             onClick={() => { setShowFramesModal(true); setEditingFrame(null); }}
             className={`fixed z-40 w-14 h-14 rounded-full shadow-lg active:opacity-90 flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-600'}`}
             style={{ right: '1rem', bottom: '5.5rem' }}
-            title="GTD Frames & Smart Schedule"
+            title={`${t('settings.frames')} & ${t('shortcuts.smartSchedule')}`}
           >
             <LayoutGrid size={22} />
           </button>
@@ -9312,7 +9325,7 @@ const DayPlanner = () => {
             onClick={openNewTaskForm}
             className="fixed z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg active:bg-blue-700 flex items-center justify-center transition-colors"
             style={{ right: '1rem', bottom: '1.5rem' }}
-            title="New Scheduled Task"
+            title={t('shortcuts.newScheduledTask')}
           >
             <Plus size={28} />
           </button>
@@ -9332,7 +9345,7 @@ const DayPlanner = () => {
             onClick={() => { setShowFramesModal(true); setEditingFrame(null); }}
             className={`fixed z-40 w-14 h-14 rounded-full shadow-lg hover:opacity-90 flex items-center justify-center transition-colors ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-600'}`}
             style={{ right: '1.5rem', bottom: '5.5rem' }}
-            title="GTD Frames & Smart Schedule"
+            title={`${t('settings.frames')} & ${t('shortcuts.smartSchedule')}`}
           >
             <LayoutGrid size={22} />
           </button>
@@ -9340,7 +9353,7 @@ const DayPlanner = () => {
             onClick={openNewTaskForm}
             className="fixed z-40 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 flex items-center justify-center transition-colors"
             style={{ right: '1.5rem', bottom: '1.5rem' }}
-            title="New Scheduled Task"
+            title={t('shortcuts.newScheduledTask')}
           >
             <Plus size={28} />
           </button>
@@ -9373,7 +9386,7 @@ const DayPlanner = () => {
                 {recycleBin.filter(t => !t.isExample).length > 0 && (
                   <button onClick={emptyRecycleBin} className="text-xs text-red-500 font-medium px-2 py-1 rounded-lg hover:bg-red-500/5 active:bg-red-500/10 dark:hover:bg-red-500/10 dark:active:bg-red-500/20 transition-colors">{t('app.emptyAll')}</button>
                 )}
-                <button onClick={() => setShowMobileRecycleBin(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`} aria-label="Close recycle bin">
+                <button onClick={() => setShowMobileRecycleBin(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`} aria-label={t('common.close')}>
                   <X size={16} className={textSecondary} />
                 </button>
               </div>
@@ -9391,7 +9404,7 @@ const DayPlanner = () => {
                           {task._deletedFrom === 'inbox' ? <>{t('app.recycleBinInbox')} • {task.duration}min</> : task.startTime ? <>{formatTime(task.startTime)} • {task.duration}min</> : <>{task.duration}min</>}
                         </div>
                       </div>
-                      <button onClick={() => { undeleteTask(task.id); if (recycleBin.filter(t => !t.isExample).length <= 1) setShowMobileRecycleBin(false); }} className="bg-white/20 rounded-lg p-1.5 hover:bg-white/25 active:bg-white/30 transition-colors" title="Restore">
+                      <button onClick={() => { undeleteTask(task.id); if (recycleBin.filter(t => !t.isExample).length <= 1) setShowMobileRecycleBin(false); }} className="bg-white/20 rounded-lg p-1.5 hover:bg-white/25 active:bg-white/30 transition-colors" title={t('common.restore')}>
                         <Undo2 size={14} />
                       </button>
                     </div>
@@ -9422,7 +9435,7 @@ const DayPlanner = () => {
                 <BarChart3 size={18} className={textSecondary} />
                 <span className={`font-semibold ${textPrimary}`}>{t('app.dailySummary')}</span>
               </div>
-              <button onClick={() => setShowMobileDailySummary(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`} aria-label="Close">
+              <button onClick={() => setShowMobileDailySummary(false)} className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`} aria-label={t('common.close')}>
                 <X size={16} className={textSecondary} />
               </button>
             </div>
@@ -9445,22 +9458,22 @@ const DayPlanner = () => {
                         <span className={`absolute inset-0 flex items-center justify-center text-sm font-bold ${textPrimary}`}>{pct}%</span>
                       </div>
                       <div>
-                        <div className={`text-lg font-bold ${textPrimary}`}>{actualTodayCompletedTasks.length} of {actualTodayNonImportedTasks.length} done</div>
+                        <div className={`text-lg font-bold ${textPrimary}`}>{t('app.summaryProgress', { done: actualTodayCompletedTasks.length, total: actualTodayNonImportedTasks.length })}</div>
                         {todayIncompleteTasks.length > 0 && (
                           <button onClick={() => { setShowIncompleteTasks('today'); setShowMobileDailySummary(false); }} className="text-sm text-blue-500 hover:text-blue-600">
-                            {todayIncompleteTasks.length} incomplete
+                            {t('app.incompleteCount', { count: todayIncompleteTasks.length })}
                           </button>
                         )}
                         {inboxCompletedTodayCount > 0 && (
-                          <div className={`text-sm ${textSecondary}`}>+ {inboxCompletedTodayCount} inbox {inboxCompletedTodayCount === 1 ? 'task' : 'tasks'} done</div>
+                          <div className={`text-sm ${textSecondary}`}>+ {t('app.inboxTasksDone', { count: inboxCompletedTodayCount })}</div>
                         )}
                         {goalsProjectsEnabled && projectTasksCompletedTodayCount > 0 && (
-                          <div className={`text-sm ${textSecondary}`}>+ {projectTasksCompletedTodayCount} project {projectTasksCompletedTodayCount === 1 ? 'task' : 'tasks'} done</div>
+                          <div className={`text-sm ${textSecondary}`}>+ {t('app.projectTasksDone', { count: projectTasksCompletedTodayCount })}</div>
                         )}
                         {consecutiveDayStreak > 1 && (
                           <div className="flex items-center gap-1 text-sm text-orange-500 font-medium mt-0.5">
                             <Flame size={13} />
-                            {consecutiveDayStreak} day streak
+                            {t('app.dayStreak', { count: consecutiveDayStreak })}
                           </div>
                         )}
                       </div>
@@ -9489,17 +9502,17 @@ const DayPlanner = () => {
                     )}
                     <div className={`space-y-3 ${textSecondary}`}>
                       <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> Time spent</div>
-                        <span className={`font-medium ${textPrimary}`}>{Math.floor((actualTodayCompletedMinutes + inboxCompletedTodayMinutes) / 60)}h {(actualTodayCompletedMinutes + inboxCompletedTodayMinutes) % 60}m</span>
+                        <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> {t('app.timeSpent')}</div>
+                        <span className={`font-medium ${textPrimary}`}>{formatDuration(actualTodayCompletedMinutes + inboxCompletedTodayMinutes)}</span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2"><Clock size={14} className="text-blue-400" /> Time planned</div>
-                        <span className={`font-medium ${textPrimary}`}>{Math.floor(actualTodayPlannedMinutes / 60)}h {actualTodayPlannedMinutes % 60}m</span>
+                        <div className="flex items-center gap-2"><Clock size={14} className="text-blue-400" /> {t('app.timePlanned')}</div>
+                        <span className={`font-medium ${textPrimary}`}>{formatDuration(actualTodayPlannedMinutes)}</span>
                       </div>
                       {actualTodayFocusMinutes > 0 && (
                         <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2"><Target size={14} className="text-purple-400" /> Focus time</div>
-                          <span className={`font-medium ${textPrimary}`}>{Math.floor(actualTodayFocusMinutes / 60)}h {Math.round(actualTodayFocusMinutes % 60)}m</span>
+                          <div className="flex items-center gap-2"><Target size={14} className="text-purple-400" /> {t('app.focusTime')}</div>
+                          <span className={`font-medium ${textPrimary}`}>{formatDuration(actualTodayFocusMinutes)}</span>
                         </div>
                       )}
                     </div>
@@ -9538,10 +9551,10 @@ const DayPlanner = () => {
                                 <span className={`text-sm flex-1 min-w-0 truncate ${textPrimary}`}>{habit.name}</span>
                                 <div className="flex items-center gap-3 flex-shrink-0">
                                   <span className={`text-sm font-semibold ${s.current > 0 ? 'text-orange-500' : textSecondary}`}>
-                                    {s.current}d
+                                    {t('app.dayStreak', { count: s.current })}
                                   </span>
                                   <span className={`text-xs ${textSecondary}`}>
-                                    best {s.best}d
+                                    {t('app.bestStreak', { days: s.best })}
                                   </span>
                                 </div>
                               </div>
@@ -9550,7 +9563,7 @@ const DayPlanner = () => {
                           {overflow && (
                             <div className={`flex items-center gap-2 text-sm ${textSecondary}`}>
                               <MoreHorizontal size={16} className="flex-shrink-0" />
-                              <span>+{remaining} more habits</span>
+                              <span>{t('app.moreHabits', { count: remaining })}</span>
                             </div>
                           )}
                         </>
@@ -9577,22 +9590,22 @@ const DayPlanner = () => {
                 <div className={`space-y-2 text-sm ${textSecondary} mt-3`}>
                   {goalsProjectsEnabled && allTimeGoalsCreated > 0 && (
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2"><Flag size={14} className="text-amber-400" /> Goals</div>
-                      <span className={`font-medium ${textPrimary}`}>{allTimeGoalsCompleted}/{allTimeGoalsCreated} completed</span>
+                      <div className="flex items-center gap-2"><Flag size={14} className="text-amber-400" /> {t('app.goalsLabel')}</div>
+                      <span className={`font-medium ${textPrimary}`}>{t('app.completedRatio', { done: allTimeGoalsCompleted, total: allTimeGoalsCreated })}</span>
                     </div>
                   )}
                   {goalsProjectsEnabled && allTimeProjectsCreated > 0 && (
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2"><FolderOpen size={14} className="text-blue-400" /> Projects</div>
-                      <span className={`font-medium ${textPrimary}`}>{allTimeProjectsCompleted}/{allTimeProjectsCreated} completed</span>
+                      <div className="flex items-center gap-2"><FolderOpen size={14} className="text-blue-400" /> {t('app.projectsLabel')}</div>
+                      <span className={`font-medium ${textPrimary}`}>{t('app.completedRatio', { done: allTimeProjectsCompleted, total: allTimeProjectsCreated })}</span>
                     </div>
                   )}
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2"><CalendarDays size={14} className="text-blue-400" /> Tasks scheduled</div>
+                    <div className="flex items-center gap-2"><CalendarDays size={14} className="text-blue-400" /> {t('app.tasksScheduled')}</div>
                     <span className={`font-medium ${textPrimary}`}>{allTimeScheduledCount}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2"><CheckCircle size={14} className="text-green-400" /> Tasks completed</div>
+                    <div className="flex items-center gap-2"><CheckCircle size={14} className="text-green-400" /> {t('app.tasksCompleted')}</div>
                     <span className={`font-medium ${textPrimary}`}>
                       {allTimeCompletedCount}
                       {allTimeIncompleteTasks.length > 0 && (
@@ -9600,36 +9613,36 @@ const DayPlanner = () => {
                           onClick={() => { setShowIncompleteTasks('allTime'); setShowMobileDailySummary(false); }}
                           className="ml-1 text-blue-500 hover:text-blue-400"
                         >
-                          ({allTimeIncompleteTasks.length} incomplete)
+                          ({t('app.incompleteCount', { count: allTimeIncompleteTasks.length })})
                         </button>
                       )}
                     </span>
                   </div>
                   {allTimeInboxCompletedCount > 0 && (
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2"><Inbox size={14} className="text-amber-400" /> Inbox done</div>
+                      <div className="flex items-center gap-2"><Inbox size={14} className="text-amber-400" /> {t('app.inboxDone')}</div>
                       <span className={`font-medium ${textPrimary}`}>{allTimeInboxCompletedCount}</span>
                     </div>
                   )}
                   {goalsProjectsEnabled && allTimeUnscheduledProjectDoneCount > 0 && (
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2"><FolderOpen size={14} className="text-green-400" /> Project queue done</div>
+                      <div className="flex items-center gap-2"><FolderOpen size={14} className="text-green-400" /> {t('app.projectQueueDone')}</div>
                       <span className={`font-medium ${textPrimary}`}>{allTimeUnscheduledProjectDoneCount}</span>
                     </div>
                   )}
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> Time spent</div>
-                    <span className={`font-medium ${textPrimary}`}>{Math.floor((totalCompletedMinutes + allTimeInboxCompletedMinutes + allTimeUnscheduledProjectDoneMinutes) / 60)}h {(totalCompletedMinutes + allTimeInboxCompletedMinutes + allTimeUnscheduledProjectDoneMinutes) % 60}m</span>
+                    <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> {t('app.timeSpent')}</div>
+                    <span className={`font-medium ${textPrimary}`}>{formatDuration(totalCompletedMinutes + allTimeInboxCompletedMinutes + allTimeUnscheduledProjectDoneMinutes)}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2"><Clock size={14} className="text-blue-400" /> Time planned</div>
-                    <span className={`font-medium ${textPrimary}`}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
+                    <div className="flex items-center gap-2"><Clock size={14} className="text-blue-400" /> {t('app.timePlanned')}</div>
+                    <span className={`font-medium ${textPrimary}`}>{formatDuration(totalScheduledMinutes)}</span>
                   </div>
                   {allTimeFocusMinutes > 0 && (
                     <>
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2"><Target size={14} className="text-purple-400" /> Focus time</div>
-                        <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
+                        <div className="flex items-center gap-2"><Target size={14} className="text-purple-400" /> {t('app.focusTime')}</div>
+                        <span className={`font-medium ${textPrimary}`}>{formatDuration(allTimeFocusMinutes)}</span>
                       </div>
                     </>
                   )}
@@ -9726,7 +9739,7 @@ const DayPlanner = () => {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <div className={`font-semibold ${textPrimary}`}>
-                  {new Date(habitDayPopup + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  {formatLocalizedDate(new Date(habitDayPopup + 'T12:00:00'), { weekday: 'long', month: 'long', day: 'numeric' })}
                 </div>
                 <div className={`text-xs ${textSecondary} mt-0.5`}>{t('app.habitSummary')}</div>
               </div>
@@ -10197,7 +10210,7 @@ const DayPlanner = () => {
       {quickAddFrameModal && (() => {
         const { dateStr: qDateStr, startMinutes: qStart, endMinutes: qEnd } = quickAddFrameModal;
         const qDate = new Date(qDateStr + 'T12:00:00');
-        const dateDisplay = qDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+        const dateDisplay = formatLocalizedDate(qDate, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
         // Pick first color not already used on that date
         const usedColors = getFrameInstancesForDate(qDate).map(f => f.color);
         const defaultColor = FRAME_COLORS.find(c => !usedColors.includes(c.class))?.class || FRAME_COLORS[0].class;

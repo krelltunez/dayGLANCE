@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { X, Trash2 } from 'lucide-react';
-import { FRAME_COLORS, DAY_LABELS } from '../constants/frames.js';
+import { FRAME_COLORS } from '../constants/frames.js';
 import ClockTimePicker from './ClockTimePicker.jsx';
 import { useTranslation } from 'react-i18next';
+import { formatLocalizedDate, localizedWeekdays } from '../utils/localeFormatting.js';
 
 const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, textPrimary, textSecondary, borderClass, cardBg, hoverBg, existingFrames, use24HourClock, isTablet }) => {
   const { t } = useTranslation();
+  const dayLabels = localizedWeekdays('short');
   const [label, setLabel] = useState(frame?.label || '');
   const [days, setDays] = useState(frame?.days || [1, 2, 3, 4, 5]);
   const [start, setStart] = useState(frame?.start || '09:00');
@@ -19,6 +21,22 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
   const [singleDate, setSingleDate] = useState(frame?.singleDate || null);
   const [error, setError] = useState('');
 
+  const energyLabels = {
+    low: t('task.lowPriority'),
+    medium: t('task.mediumPriority'),
+    high: t('task.highPriority'),
+  };
+  const colorLabels = {
+    Indigo: t('frames.colors.indigo', { defaultValue: 'Indigo' }),
+    Amber: t('frames.colors.amber', { defaultValue: 'Amber' }),
+    Green: t('frames.colors.green', { defaultValue: 'Green' }),
+    Blue: t('frames.colors.blue', { defaultValue: 'Blue' }),
+    Rose: t('frames.colors.rose', { defaultValue: 'Rose' }),
+    Purple: t('frames.colors.purple', { defaultValue: 'Purple' }),
+    Teal: t('frames.colors.teal', { defaultValue: 'Teal' }),
+    Orange: t('frames.colors.orange', { defaultValue: 'Orange' }),
+  };
+
   const toggleDay = (d) => {
     setDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort());
   };
@@ -28,9 +46,9 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
   };
 
   const validate = () => {
-    if (!label.trim()) return 'Frame needs a name';
-    if (!singleDate && days.length === 0) return 'Select at least one day';
-    if (start >= end) return 'End time must be after start time';
+    if (!label.trim()) return t('frames.nameRequired', { defaultValue: 'Frame needs a name' });
+    if (!singleDate && days.length === 0) return t('frames.dayRequired', { defaultValue: 'Select at least one day' });
+    if (start >= end) return t('frames.endAfterStart', { defaultValue: 'End time must be after start time' });
     // Check overlap with existing frames (same day)
     const otherFrames = existingFrames.filter(f => f.id !== frame?.id && f.enabled);
     for (const other of otherFrames) {
@@ -38,14 +56,18 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
         // For single-date frames, check overlap on that specific date
         if (other.singleDate === singleDate || (!other.singleDate && other.days.includes(new Date(singleDate + 'T12:00:00').getDay()))) {
           if (start < other.end && end > other.start) {
-            return `Overlaps with "${other.label}"`;
+            return t('frames.overlap', { frame: other.label, defaultValue: 'Overlaps with "{{frame}}"' });
           }
         }
       } else {
         const sharedDays = days.filter(d => other.days.includes(d));
         if (sharedDays.length > 0) {
           if (start < other.end && end > other.start) {
-            return `Overlaps with "${other.label}" on ${sharedDays.map(d => DAY_LABELS[d]).join(', ')}`;
+            return t('frames.overlapOnDays', {
+              frame: other.label,
+              days: sharedDays.map(d => dayLabels[d]).join(', '),
+              defaultValue: 'Overlaps with "{{frame}}" on {{days}}',
+            });
           }
         }
       }
@@ -82,8 +104,8 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-2">
-        <h3 className={`text-lg font-semibold ${textPrimary}`}>{frame ? 'Edit Frame' : 'New Frame'}</h3>
-        <button onClick={onCancel} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`}>
+        <h3 className={`text-lg font-semibold ${textPrimary}`}>{frame ? t('frames.editFrame', { defaultValue: 'Edit Frame' }) : t('frames.newFrame')}</h3>
+        <button onClick={onCancel} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label={t('common.close')}>
           <X size={18} className={textSecondary} />
         </button>
       </div>
@@ -92,12 +114,12 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
 
       {/* Name */}
       <div>
-        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Name</label>
+        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>{t('common.name')}</label>
         <input
           type="text"
           value={label}
           onChange={e => setLabel(e.target.value)}
-          placeholder="e.g. Morning Deep Work"
+          placeholder={t('frames.namePlaceholder', { defaultValue: 'e.g. Morning Deep Work' })}
           className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-stone-900'} text-sm`}
           autoFocus
         />
@@ -106,24 +128,24 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
       {/* Days / Single Date */}
       {singleDate ? (
         <div>
-          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Schedule</label>
+          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>{t('common.schedule')}</label>
           <div className={`flex items-center justify-between px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800' : 'bg-stone-50'}`}>
             <span className={`text-sm ${textPrimary}`}>
-              {new Date(singleDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} only
+              {formatLocalizedDate(new Date(singleDate + 'T12:00:00'), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} · {t('frames.oneTime')}
             </span>
             <button
               onClick={() => { setSingleDate(null); setDays([new Date(singleDate + 'T12:00:00').getDay()]); }}
               className="text-xs text-blue-500 hover:text-blue-400 transition-colors"
             >
-              Make recurring
+              {t('goals.hgRecurring')}
             </button>
           </div>
         </div>
       ) : (
         <div>
-          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Days</label>
+          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>{t('common.days')}</label>
           <div className="flex gap-1">
-            {DAY_LABELS.map((d, i) => (
+            {dayLabels.map((d, i) => (
               <button
                 key={i}
                 onClick={() => toggleDay(i)}
@@ -139,14 +161,14 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
       {/* Time range */}
       <div className="flex gap-3">
         <div className="flex-1">
-          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Start</label>
+          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>{t('common.start')}</label>
           <button type="button" onClick={() => setTimePickerField('start')}
             className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-stone-900'} text-sm text-left`}>
             {start}
           </button>
         </div>
         <div className="flex-1">
-          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>End</label>
+          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>{t('common.end')}</label>
           <button type="button" onClick={() => setTimePickerField('end')}
             className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-stone-900'} text-sm text-left`}>
             {end}
@@ -156,7 +178,7 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
 
       {/* Color */}
       <div>
-        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Color</label>
+        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>{t('common.color')}</label>
         <div className="flex gap-2 flex-wrap">
           {FRAME_COLORS.map(c => (
             <button
@@ -164,7 +186,8 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
               onClick={() => setColor(c.class)}
               className={`w-7 h-7 rounded-full ${c.class} ${color === c.class ? 'ring-2 ring-blue-500 ring-offset-2' : ''} transition-all`}
               style={darkMode ? { ringOffsetColor: '#1f2937' } : {}}
-              title={c.name}
+              title={colorLabels[c.name] ?? c.name}
+              aria-label={colorLabels[c.name] ?? c.name}
             />
           ))}
         </div>
@@ -172,7 +195,7 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
 
       {/* Energy Level */}
       <div>
-        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Energy Level</label>
+        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>{t('frames.energyLevel')}</label>
         <div className="flex gap-1">
           {['low', 'medium', 'high'].map(level => (
             <button
@@ -180,7 +203,7 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
               onClick={() => setEnergyLevel(level)}
               className={`flex-1 py-1.5 rounded text-xs font-medium capitalize transition-colors ${energyLevel === level ? 'bg-blue-600 text-white' : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-stone-100 text-stone-500'}`}
             >
-              {level}
+              {energyLabels[level]}
             </button>
           ))}
         </div>
@@ -188,7 +211,9 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
 
       {/* Buffer */}
       <div>
-        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Buffer between tasks: {bufferMinutes} min</label>
+        <label className={`text-xs font-medium ${textSecondary} block mb-1`}>
+          {t('frames.taskBuffer', { minutes: bufferMinutes, defaultValue: 'Buffer between tasks: {{minutes}} min' })}
+        </label>
         <input type="range" min={0} max={30} step={5} value={bufferMinutes} onChange={e => setBufferMinutes(Number(e.target.value))}
           className="w-full" />
       </div>
@@ -196,7 +221,7 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
       {/* Tag Affinity */}
       {allTags.length > 0 && (
         <div>
-          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Tag Affinity</label>
+          <label className={`text-xs font-medium ${textSecondary} block mb-1`}>{t('frames.tagAffinity')}</label>
           <div className="flex gap-1.5 flex-wrap">
             {allTags.map(tag => (
               <button
@@ -218,16 +243,16 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
           <div className={`w-10 h-5 rounded-full transition-colors ${enabled ? 'bg-blue-600' : darkMode ? 'bg-gray-700' : 'bg-stone-300'}`} />
           <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${enabled ? 'translate-x-5' : ''}`} />
         </div>
-        <span className={`text-sm ${textPrimary}`}>Enabled</span>
+        <span className={`text-sm ${textPrimary}`}>{t('common.enabled')}</span>
       </label>
 
       {/* Actions */}
       <div className="flex gap-2 pt-2">
         <button onClick={handleSave} className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-          {frame ? 'Save Changes' : 'Create Frame'}
+          {frame ? t('task.saveChanges') : t('frames.createFrame')}
         </button>
         {frame && (
-          <button onClick={() => onDelete(frame.id)} className="px-4 py-2.5 bg-red-500/10 text-red-500 rounded-lg text-sm font-medium hover:bg-red-500/20 transition-colors">
+          <button onClick={() => onDelete(frame.id)} className="px-4 py-2.5 bg-red-500/10 text-red-500 rounded-lg text-sm font-medium hover:bg-red-500/20 transition-colors" aria-label={t('common.delete')}>
             <Trash2 size={16} />
           </button>
         )}

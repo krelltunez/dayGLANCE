@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Bell, BookOpen, ChevronLeft, ChevronRight, Cloud,
   HelpCircle, Moon, RefreshCw, Save, Settings, Sun,
 } from 'lucide-react';
 import { dateToString, formatDateRange } from '../utils/taskUtils.js';
+import { formatLocalizedDate, localizedWeekdays } from '../utils/localeFormatting.js';
 import { hasNativeCalendar } from '../utils/nativeCalendar.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useMcpStatus, McpBoltButton, McpStatusModal } from './McpStatusControls.jsx';
@@ -18,6 +20,7 @@ const DesktopHeader = () => {
     weekViewDates,
     selectedDate,
     darkMode, setDarkMode,
+    use24HourClock,
     showMonthView, setShowMonthView,
     setShowDayDial,
     viewedMonth, setViewedMonth,
@@ -41,6 +44,7 @@ const DesktopHeader = () => {
     cloudSyncUpload, syncAll, performObsidianSync,
   } = useSyncCtx();
   const { setShowRemindersSettings, activeReminders } = useFeaturesCtx();
+  const { t, i18n } = useTranslation();
 
   // Cloud-sync button: only meaningful once WebDAV and/or GLANCEvault is set up.
   // (Single-device or zero-config iCloud users get no button — Settings still has
@@ -52,6 +56,15 @@ const DesktopHeader = () => {
   const effSyncLastSynced = webdavOn ? cloudSyncLastSynced : vaultLastSynced;
   const effSyncing = effSyncStatus === 'uploading' || effSyncStatus === 'downloading';
   const triggerSync = () => { if (webdavOn) cloudSyncUpload(); if (vaultEnabled) vaultSyncNow?.(); };
+  const locale = i18n.resolvedLanguage || i18n.language;
+  const formatSyncTime = (timestamp) => new Intl.DateTimeFormat(locale, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: !use24HourClock,
+  }).format(new Date(timestamp));
+  const lastSynced = (timestamp) => (timestamp
+    ? ` — ${t('common.lastSynced')}: ${formatSyncTime(timestamp)}`
+    : '');
 
   // §6.5 canonical MCP surface: createTray() is darwin-gated, so this cluster
   // button is the only ambient bound-listener signal (and reachable kill
@@ -120,7 +133,7 @@ const DesktopHeader = () => {
         <div className="absolute inset-0 flex items-center justify-center max-[950px]:pr-36 pointer-events-none">
         <div className="pointer-events-auto">
           <div className="flex items-center gap-1 relative">
-            <button onClick={() => changeDate(-1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label="Previous day">
+            <button onClick={() => changeDate(-1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label={t('common.back')}>
               <ChevronLeft size={20} className={textSecondary} />
             </button>
             <button
@@ -136,14 +149,14 @@ const DesktopHeader = () => {
                 ? formatDateRange(weekViewDates)
                 : formatDateRange(visibleDates)}
             </button>
-            <button onClick={() => changeDate(1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label="Next day">
+            <button onClick={() => changeDate(1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label={t('common.next')}>
               <ChevronRight size={20} className={textSecondary} />
             </button>
             <button
               onClick={goToToday}
               className={`ml-1 px-3 py-1 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors${dateToString(selectedDate) === dateToString(new Date()) ? ' invisible' : ''}`}
             >
-              Today
+              {t('common.today')}
             </button>
             {/* Month View Popup */}
             {showMonthView && (
@@ -153,15 +166,15 @@ const DesktopHeader = () => {
                     <ChevronLeft size={18} className={textSecondary} />
                   </button>
                   <div className={`font-bold ${textPrimary}`}>
-                    {viewedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    {formatLocalizedDate(viewedMonth, { month: 'long', year: 'numeric' })}
                   </div>
                   <button type="button" onClick={(e) => { e.stopPropagation(); changeViewedMonth(1); }} className={`p-1 rounded ${hoverBg}`}>
                     <ChevronRight size={18} className={textSecondary} />
                   </button>
                 </div>
                 <div className="grid grid-cols-7 gap-1 mb-2">
-                  {(() => { const d = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']; return [...d.slice(weekStartDay), ...d.slice(0, weekStartDay)]; })().map(day => (
-                    <div key={day} className={`text-xs font-semibold ${textSecondary} text-center`}>{day}</div>
+                  {(() => { const d = localizedWeekdays('narrow'); return [...d.slice(weekStartDay), ...d.slice(0, weekStartDay)]; })().map((day, index) => (
+                    <div key={`${index}-${day}`} className={`text-xs font-semibold ${textSecondary} text-center`}>{day}</div>
                   ))}
                 </div>
                 <div className="grid grid-cols-7 gap-1">
@@ -208,7 +221,11 @@ const DesktopHeader = () => {
             }}
             disabled={isSyncing}
             className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} ${isSyncing ? 'opacity-70 cursor-not-allowed' : ''}`}
-            title={isSyncing ? "Syncing..." : (calSyncConfigured ? `Sync calendars${calSyncLastSynced ? ` — last: ${new Date(calSyncLastSynced).toLocaleTimeString()}` : ''}` : "Configure calendar sync")}
+            title={isSyncing
+              ? t('common.syncing')
+              : (calSyncConfigured
+                ? `${t('settings.syncCalendars')}${lastSynced(calSyncLastSynced)}`
+                : t('settings.calendarSync'))}
           >
             <RefreshCw size={18} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
             {calSyncConfigured && (
@@ -225,8 +242,8 @@ const DesktopHeader = () => {
             onClick={triggerSync}
             className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
             title={effSyncing
-              ? 'Syncing...'
-              : `${webdavOn ? 'Cloud' : 'GLANCEvault'} sync — last: ${effSyncLastSynced ? new Date(effSyncLastSynced).toLocaleTimeString() : 'never'}`}
+              ? t('common.syncing')
+              : `${webdavOn ? t('settings.cloudSync') : t('sync.form.vaultTitle')}${lastSynced(effSyncLastSynced) || ` — ${t('common.lastSynced')}: ${t('common.never')}`}`}
           >
             <Cloud size={18} className={`${textSecondary} ${effSyncing ? 'animate-pulse' : ''}`} />
             <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
@@ -241,7 +258,11 @@ const DesktopHeader = () => {
               onClick={() => performObsidianSync()}
               disabled={obsidianSyncStatus === 'syncing'}
               className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg} ${obsidianSyncStatus === 'syncing' ? 'opacity-70 cursor-not-allowed' : ''}`}
-              title={obsidianSyncStatus === 'syncing' ? 'Syncing...' : obsidianSyncStatus === 'error' && obsidianSyncError ? `Obsidian sync error: ${obsidianSyncError}` : `Obsidian sync — last: ${obsidianLastSynced ? new Date(obsidianLastSynced).toLocaleTimeString() : 'never'}`}
+              title={obsidianSyncStatus === 'syncing'
+                ? t('common.syncing')
+                : obsidianSyncStatus === 'error' && obsidianSyncError
+                  ? `${t('settings.obsidian')}: ${t('settings.obsidianSyncFailed')} (${obsidianSyncError})`
+                  : `${t('settings.obsidian')}${lastSynced(obsidianLastSynced) || ` — ${t('common.lastSynced')}: ${t('common.never')}`}`}
             >
               <BookOpen size={18} className={`${textSecondary} ${obsidianSyncStatus === 'syncing' ? 'animate-pulse' : ''}`} />
               <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
@@ -255,7 +276,7 @@ const DesktopHeader = () => {
           <button
             onClick={() => setShowSettings(true)}
             className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
-            title="Settings"
+            title={t('common.settings')}
           >
             <Settings size={18} className={textSecondary} />
             {updateInfo && (
@@ -265,7 +286,7 @@ const DesktopHeader = () => {
           <button
             onClick={() => setShowRemindersSettings(true)}
             className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
-            title="Reminders"
+            title={t('reminders.fallback')}
           >
             <Bell size={18} className={textSecondary} />
             {activeReminders.length > 0 && (
@@ -275,28 +296,28 @@ const DesktopHeader = () => {
           <button
             onClick={() => setShowDayDial(true)}
             className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
-            title="Day Dial (O)"
+            title={`${t('settings.viewCalendarDay')} (O)`}
           >
             <DayDialIcon className={textSecondary} />
           </button>
           <button
             onClick={() => setDarkMode(!darkMode)}
             className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
-            title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            title={darkMode ? t('settings.lightMode') : t('settings.darkMode')}
           >
             {darkMode ? <Sun size={18} className={textSecondary} /> : <Moon size={18} className={textSecondary} />}
           </button>
           <button
             onClick={() => setShowBackupMenu(true)}
             className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
-            title="Backup or restore data"
+            title={t('backup.title')}
           >
             <Save size={18} className={textSecondary} />
           </button>
           <button
             onClick={() => setShowHelpModal(true)}
             className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg ${hoverBg}`}
-            title="Help & Feedback"
+            title={t('app.helpFeedback')}
           >
             <HelpCircle size={18} className={textSecondary} />
           </button>

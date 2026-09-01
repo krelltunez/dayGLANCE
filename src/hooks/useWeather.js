@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 import { isTrayMode } from '../utils/trayMode.js';
 import { storeWeatherCoords } from '../utils/solar.js';
+import { formatLocalizedDate } from '../utils/localeFormatting.js';
 
 const getWeatherCondition = (code) => {
   if (code === 0) return 'Clear';
@@ -142,7 +143,7 @@ const useWeather = () => {
           // Append T12:00:00 to avoid timezone issues (date-only strings are parsed as UTC midnight)
           const date = new Date(data.daily.time[i] + 'T12:00:00');
           forecast.push({
-            day: date.toLocaleDateString('en-US', { weekday: 'short' }),
+            day: formatLocalizedDate(date, { weekday: 'short' }),
             high: Math.round(data.daily.temperature_2m_max[i]),
             low: Math.round(data.daily.temperature_2m_min[i]),
             icon: getWeatherIcon(data.daily.weather_code[i]),

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import {
   getOccurrencesInRange,
   getNextOccurrence,
+  getRecurrencePresets,
   getSelectedWeekdays,
   toggleRecurrenceDay,
   setRecurrenceFrequency,
@@ -133,6 +134,19 @@ describe('getNextOccurrence', () => {
 
 // 2026-08-19 is a Wednesday (day 3) — the date the picker is editing in these.
 const WED = '2026-08-19';
+
+describe('getRecurrencePresets', () => {
+  it('passes localized weekday and date values to translated labels', () => {
+    const t = (key, values) => {
+      if (key === 'recurrence.everyWeekOn') return `每周${values.day}`;
+      if (key === 'recurrence.yearlyOn') return `每年${values.date}`;
+      return values.defaultValue;
+    };
+    const presets = getRecurrencePresets(WED, t, 'zh-CN');
+    expect(presets[3].label).toBe('每周星期三');
+    expect(presets.at(-1).label).toBe('每年8月19日');
+  });
+});
 
 describe('getSelectedWeekdays', () => {
   it('reads an explicit day set, sorted', () => {

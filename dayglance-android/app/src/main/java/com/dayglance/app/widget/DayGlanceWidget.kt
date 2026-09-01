@@ -12,8 +12,6 @@ import com.dayglance.app.R
 import com.dayglance.app.data.SharedDataStore
 import org.json.JSONObject
 import java.text.SimpleDateFormat
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
 
@@ -81,12 +79,13 @@ class DayGlanceWidget : AppWidgetProvider() {
         try {
             val dataStore = SharedDataStore(context)
             val snapshot = dataStore.widgetSnapshot?.let { runCatching { JSONObject(it) }.getOrNull() }
-            val dateLabel = snapshot?.optString("dateLabel") ?: formatTodayLabel(context)
+            val dateLabel = snapshot?.optString("dateLabel")?.takeIf { it.isNotBlank() }
+                ?: formatTodayLabel(context)
             views.setTextViewText(R.id.tv_date, dateLabel)
 
             val updatedAt = dataStore.widgetSnapshotUpdatedAt
             if (updatedAt > 0) {
-                val use24Hour = snapshot?.optBoolean("use24Hour", false) ?: false
+                val use24Hour = widgetUses24HourClock(context, snapshot)
                 val pattern = if (use24Hour) "H:mm" else "h:mm a"
                 val time = SimpleDateFormat(pattern, Locale.getDefault()).format(Date(updatedAt))
                 views.setTextViewText(R.id.tv_updated, time)
@@ -148,7 +147,7 @@ class DayGlanceWidget : AppWidgetProvider() {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun formatTodayLabel(context: Context): String = try {
-        LocalDate.now().format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+        formatWidgetDate(context)
     } catch (_: Throwable) { context.getString(R.string.widget_today) }
 
     // ── Manual refresh broadcast ──────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Power, Undo2, X, Zap } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { mcpSurfaceState } from '../utils/mcpSurfaceState.js';
 
 // The §6.5 MCP surface, restructured as an ambient bolt button + inline
@@ -27,8 +28,26 @@ import { mcpSurfaceState } from '../utils/mcpSurfaceState.js';
 // panel can sit OUTSIDE the button's flex row (inline push-down, never a
 // popover) and so each surface opens collapsed.
 
+function formatMcpStatusError(t, message) {
+  const text = String(message || '');
+  if (!text || text === 'The change was refused.') return t('settings.localIntegrationsChangeRefused');
+  if (text === 'MCP server could not start. See the startup log for details.') return t('settings.mcpServerStartFailed');
+
+  const portInUse = text.match(/^MCP server could not start: port (\d+) is already in use by another process\./);
+  if (portInUse) return t('settings.mcpPortInUse', { port: portInUse[1] });
+
+  const portDenied = text.match(/^MCP server could not start: binding 127\.0\.0\.1:(\d+) was denied \(([^)]+)\)\./);
+  if (portDenied) return t('settings.mcpPortPermissionDenied', { port: portDenied[1], error: portDenied[2] });
+
+  const bindFailure = text.match(/^MCP server could not start on 127\.0\.0\.1:(\d+): (.+)$/);
+  if (bindFailure) return t('settings.mcpServerBindFailed', { port: bindFailure[1], error: bindFailure[2] });
+
+  return t('settings.localIntegrationsErrorWithDetails', { error: text });
+}
+
 /** Live MCP state for one host: snapshot + journal over the existing IPC pushes. */
 export function useMcpStatus() {
+  const { t } = useTranslation();
   const api = typeof window !== 'undefined' ? window.electronAPI : undefined;
   const [snapshot, setSnapshot] = useState(null);
   const [journal, setJournal] = useState({ total: 0, entries: [], groups: [] });
@@ -51,10 +70,10 @@ export function useMcpStatus() {
   // mutation-verified — including the AMBER state that keeps bulk undo
   // reachable after the kill switch while undoable entries remain.
   const surface = mcpSurfaceState({ bound: enabled, writesAutoDisabled, journalTotal: journal.total });
-  const tier = !enabled ? 'MCP server off'
+  const tier = !enabled ? t('settings.mcpStatusServerOff')
     : gates.includeWrites
-      ? (gates.includeNative ? 'Reads incl. device calendar + writes' : 'Reads dayGLANCE data + writes')
-      : (gates.includeNative ? 'Reads incl. device calendar' : 'Reads dayGLANCE data');
+      ? (gates.includeNative ? t('settings.mcpStatusTierCalendarWrites') : t('settings.mcpStatusTierDayglanceWrites'))
+      : (gates.includeNative ? t('settings.mcpStatusTierCalendar') : t('settings.mcpStatusTierDayglance'));
 
   return {
     api, snapshot, journal, enabled, writesAutoDisabled, tier,
@@ -74,6 +93,7 @@ export const DOT_CLASS = { green: 'bg-green-500', blue: 'bg-blue-500', red: 'bg-
  * reflows it.
  */
 export function McpBoltButton({ mcp, darkMode, open, onToggle, variant }) {
+  const { t } = useTranslation();
   if (!mcp.visible) return null;
 
   const dotBorder = darkMode ? 'border-gray-800' : 'border-white';
@@ -85,15 +105,23 @@ export function McpBoltButton({ mcp, darkMode, open, onToggle, variant }) {
       ? `relative flex-shrink-0 px-2.5 self-stretch flex items-center rounded-lg transition-colors ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-400'}`
       : `relative flex-shrink-0 p-2 rounded-lg transition-opacity hover:opacity-70 ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-500'}`;
 
+  const titleParts = [t(mcp.enabled ? 'settings.mcpStatusServerOn' : 'settings.mcpStatusServerOff')];
+  if (mcp.enabled) titleParts.push(mcp.tier);
+  if (mcp.journal.total > 0) {
+    const undoableChanges = t('settings.mcpStatusUndoableChanges', { count: mcp.journal.total });
+    titleParts.push(mcp.enabled
+      ? undoableChanges
+      : t('settings.mcpStatusChangesRemain', { changes: undoableChanges }));
+  }
+  if (mcp.writesAutoDisabled) titleParts.push(t('settings.mcpStatusWritesAutoDisabledShort'));
+
   return (
     <button
       onClick={onToggle}
       className={cls}
-      title={mcp.enabled
-        ? `MCP server on — ${mcp.tier}${mcp.journal.total > 0 ? ` · ${mcp.journal.total} undoable change${mcp.journal.total === 1 ? '' : 's'}` : ''}${mcp.writesAutoDisabled ? ' · writes auto-disabled' : ''}`
-        : `MCP server off · ${mcp.journal.total} undoable change${mcp.journal.total === 1 ? '' : 's'} remain`}
+      title={titleParts.join(' · ')}
       aria-expanded={open}
-      aria-label="MCP server status"
+      aria-label={t('settings.mcpStatusAriaLabel')}
     >
       <Zap size={variant === 'cluster' ? 18 : 16} className={variant === 'cluster' ? (darkMode ? 'text-gray-400' : 'text-stone-600') : undefined} />
       <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${dotBorder} ${DOT_CLASS[mcp.dot]}`} />
@@ -115,6 +143,7 @@ export function McpBoltButton({ mcp, darkMode, open, onToggle, variant }) {
  * a long session cannot outgrow the 320px tray strip or the modals.
  */
 function McpPanelBody({ mcp, darkMode, textScale = 'text-[11px]' }) {
+  const { t } = useTranslation();
   const [undoBusy, setUndoBusy] = useState(false);
   const [undoTaskBusy, setUndoTaskBusy] = useState(null); // groupKey mid-undo
   const [notice, setNotice] = useState(null);
@@ -125,15 +154,15 @@ function McpPanelBody({ mcp, darkMode, textScale = 'text-[11px]' }) {
   const { status, ports } = mcp.snapshot;
 
   const serverLine = status.mcp.error
-    ? status.mcp.error
+    ? formatMcpStatusError(t, status.mcp.error)
     : status.mcp.running
-      ? `Running on 127.0.0.1:${ports.mcpEffective}`
-      : 'Starting…';
+      ? t('settings.mcpStatusRunning', { port: ports.mcpEffective })
+      : t('settings.mcpStatusStarting');
 
   const killSwitch = async () => {
     setNotice(null);
     const r = await mcp.api.localIntegrations.transition({ type: 'set-mcp-read-tier', tier: 'off' });
-    if (!r?.ok) setNotice(r?.error || 'Could not turn the server off.');
+    if (!r?.ok) setNotice(r?.error ? formatMcpStatusError(t, r.error) : t('settings.mcpStatusTurnOffFailed'));
   };
 
   const undoAll = async () => {
@@ -142,8 +171,11 @@ function McpPanelBody({ mcp, darkMode, textScale = 'text-[11px]' }) {
     try {
       const r = await mcp.api.mcpJournal.undoAll();
       setNotice(r?.ok
-        ? `Undid ${r.undone} change${r.undone === 1 ? '' : 's'}${r.skipped ? ` (${r.skipped} no longer applicable)` : ''}.`
-        : (r?.error || 'Undo failed.'));
+        ? t(r.skipped ? 'settings.mcpStatusUndoAllSuccessSkipped' : 'settings.mcpStatusUndoAllSuccess', {
+          changes: t('settings.mcpStatusChangeCount', { count: r.undone }),
+          skipped: r.skipped,
+        })
+        : (r?.error ? formatMcpStatusError(t, r.error) : t('settings.mcpStatusUndoFailed')));
     } finally {
       setUndoBusy(false);
     }
@@ -157,8 +189,12 @@ function McpPanelBody({ mcp, darkMode, textScale = 'text-[11px]' }) {
     try {
       const r = await mcp.api.mcpJournal.undoTask(group.key);
       setNotice(r?.ok
-        ? `Undid ${r.undone} change${r.undone === 1 ? '' : 's'} to ${group.label}${r.skipped ? ` (${r.skipped} no longer applicable)` : ''}.`
-        : (r?.error || 'Undo failed.'));
+        ? t(r.skipped ? 'settings.mcpStatusUndoTaskSuccessSkipped' : 'settings.mcpStatusUndoTaskSuccess', {
+          changes: t('settings.mcpStatusChangeCount', { count: r.undone }),
+          skipped: r.skipped,
+          task: group.label,
+        })
+        : (r?.error ? formatMcpStatusError(t, r.error) : t('settings.mcpStatusUndoFailed')));
     } finally {
       setUndoTaskBusy(null);
     }
@@ -181,18 +217,20 @@ function McpPanelBody({ mcp, darkMode, textScale = 'text-[11px]' }) {
       <div className={`${textScale} ${textSecondary}`}>{mcp.tier}</div>
       {mcp.writesAutoDisabled && (
         <div className={`${textScale} text-red-500`}>
-          Writes auto-disabled after repeated rate-limit violations. Restart dayGLANCE to re-enable.
+          {t('settings.mcpStatusWritesAutoDisabled')}
         </div>
       )}
     </>) : (
       <div className={`${textScale} ${textSecondary}`}>
-        The server was turned off, but changes MCP clients made this session can still be undone.
+        {t('settings.mcpStatusOffUndoAvailable')}
       </div>
     )}
     <div className={`${textScale} ${textSecondary}`}>
       {mcp.journal.total > 0
-        ? `${mcp.journal.total} change${mcp.journal.total === 1 ? '' : 's'} by MCP this session`
-        : 'No changes by MCP this session'}
+        ? t('settings.mcpStatusSessionChanges', {
+          changes: t('settings.mcpStatusChangeCount', { count: mcp.journal.total }),
+        })
+        : t('settings.mcpStatusSessionNoChanges')}
     </div>
     {groups.length > 0 && (
       <div className="max-h-44 overflow-y-auto space-y-1.5" data-testid="mcp-journal-list">
@@ -208,10 +246,12 @@ function McpPanelBody({ mcp, darkMode, textScale = 'text-[11px]' }) {
                   onClick={() => undoTask(group)}
                   disabled={undoTaskBusy !== null || undoBusy}
                   className={`flex-shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded ${textScale} font-medium disabled:opacity-50 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'} transition-colors`}
-                  title={`Reverse ${group.count === 1 ? 'the change' : `all ${group.count} changes`} MCP clients made to this task, back to its state before MCP first touched it. An undone new task goes to the recycle bin.`}
+                  title={t('settings.mcpStatusUndoTaskTitle')}
                 >
                   <Undo2 size={10} />
-                  {undoTaskBusy === group.key ? 'Undoing…' : `Undo${group.count > 1 ? ` (${group.count})` : ''}`}
+                  {undoTaskBusy === group.key
+                    ? t('settings.mcpStatusUndoing')
+                    : t(group.count > 1 ? 'settings.mcpStatusUndoWithCount' : 'settings.mcpStatusUndo', { count: group.count })}
                 </button>
               </div>
               {rows.map((row) => (
@@ -221,7 +261,9 @@ function McpPanelBody({ mcp, darkMode, textScale = 'text-[11px]' }) {
               ))}
               {group.count > rows.length && (
                 <div className={`${textScale} ${textSecondary} italic`}>
-                  and {group.count - rows.length} earlier change{group.count - rows.length === 1 ? '' : 's'} not shown
+                  {t('settings.mcpStatusEarlierChangesHidden', {
+                    changes: t('settings.mcpStatusChangeCount', { count: group.count - rows.length }),
+                  })}
                 </div>
               )}
             </div>
@@ -234,10 +276,10 @@ function McpPanelBody({ mcp, darkMode, textScale = 'text-[11px]' }) {
         <button
           onClick={killSwitch}
           className={`flex items-center gap-1 px-2 py-1 rounded-lg ${textScale} font-medium ${darkMode ? 'bg-red-900/40 text-red-300 hover:bg-red-900/60' : 'bg-red-100 text-red-700 hover:bg-red-200'} transition-colors`}
-          title="Turn the MCP server off. No apps will be able to connect until you re-enable it in Settings."
+          title={t('settings.mcpStatusTurnOffTitle')}
         >
           <Power size={12} />
-          Turn off
+          {t('settings.mcpStatusTurnOff')}
         </button>
       )}
       {mcp.journal.total > 0 && (
@@ -245,10 +287,10 @@ function McpPanelBody({ mcp, darkMode, textScale = 'text-[11px]' }) {
           onClick={undoAll}
           disabled={undoBusy || undoTaskBusy !== null}
           className={`flex items-center gap-1 px-2 py-1 rounded-lg ${textScale} font-medium disabled:opacity-50 ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'} transition-colors`}
-          title="Reverse every change MCP clients made since dayGLANCE started (or since the last undo). Undone new tasks go to the recycle bin."
+          title={t('settings.mcpStatusUndoAllTitle')}
         >
           <Undo2 size={12} />
-          {undoBusy ? 'Undoing…' : `Undo all (${mcp.journal.total})`}
+          {undoBusy ? t('settings.mcpStatusUndoing') : t('settings.mcpStatusUndoAll', { count: mcp.journal.total })}
         </button>
       )}
     </div>
@@ -266,6 +308,7 @@ function McpPanelBody({ mcp, darkMode, textScale = 'text-[11px]' }) {
  * Renders null when the surface is hidden (unbound with an empty journal).
  */
 export function McpStatusPanel({ mcp, darkMode, open, borderClass, variant, cardBg }) {
+  const { t } = useTranslation();
   if (!mcp.visible) return null;
   if (variant !== 'card' && !open) return null;
 
@@ -279,7 +322,7 @@ export function McpStatusPanel({ mcp, darkMode, open, borderClass, variant, card
     <div className={container}>
       <div className={`text-xs font-semibold ${textPrimary} flex items-center gap-1.5`}>
         {variant === 'card' && <Zap size={12} className="text-amber-500" />}
-        {mcp.enabled ? 'MCP server on' : 'MCP server off'}
+        {t(mcp.enabled ? 'settings.mcpStatusServerOn' : 'settings.mcpStatusServerOff')}
       </div>
       <McpPanelBody mcp={mcp} darkMode={darkMode} />
     </div>
@@ -292,6 +335,7 @@ export function McpStatusPanel({ mcp, darkMode, open, borderClass, variant, card
  * to close). Renders null when hidden, closing the surface with it.
  */
 export function McpStatusModal({ mcp, darkMode, open, onClose, borderClass, cardBg }) {
+  const { t } = useTranslation();
   if (!open || !mcp.visible) return null;
 
   const textPrimary = darkMode ? 'text-gray-100' : 'text-stone-900';
@@ -314,14 +358,14 @@ export function McpStatusModal({ mcp, darkMode, open, onClose, borderClass, card
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="MCP server status"
+        aria-label={t('settings.mcpStatusAriaLabel')}
       >
         <div className={`flex items-center justify-between px-5 py-4 border-b ${borderClass}`}>
           <div className={`font-semibold ${textPrimary} flex items-center gap-2`}>
             <Zap size={16} className="text-amber-500" />
-            {mcp.enabled ? 'MCP server on' : 'MCP server off'}
+            {t(mcp.enabled ? 'settings.mcpStatusServerOn' : 'settings.mcpStatusServerOff')}
           </div>
-          <button onClick={onClose} className={`${textSecondary} hover:${textPrimary} transition-colors`} aria-label="Close">
+          <button onClick={onClose} className={`${textSecondary} hover:${textPrimary} transition-colors`} aria-label={t('common.close')}>
             <X size={18} />
           </button>
         </div>

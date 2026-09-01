@@ -183,7 +183,10 @@ class ProjectWidget : AppWidgetProvider() {
         // Overflow
         val overflow = total - taskRows.size
         if (overflow > 0) {
-            views.setTextViewText(R.id.tv_pw_more_tasks, "+$overflow more task${if (overflow != 1) "s" else ""}")
+            views.setTextViewText(
+                R.id.tv_pw_more_tasks,
+                context.resources.getQuantityString(R.plurals.widget_more_tasks, overflow, overflow),
+            )
             views.setViewVisibility(R.id.tv_pw_more_tasks, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.tv_pw_more_tasks, View.GONE)

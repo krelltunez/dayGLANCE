@@ -3,8 +3,11 @@ import { BarChart3, Bell, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import ClockTimePicker from './ClockTimePicker.jsx';
+import { localizedWeekdays } from '../utils/localeFormatting.js';
+import { useTranslation } from 'react-i18next';
 
 const RemindersSettingsModal = () => {
+  const { t } = useTranslation();
   const {
     darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     isTablet, use24HourClock, formatTime,
@@ -30,7 +33,7 @@ const RemindersSettingsModal = () => {
               <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
                 <Bell size={20} className="text-blue-600 dark:text-blue-400" />
               </div>
-              <h3 className={`text-lg font-semibold ${textPrimary}`}>Reminders</h3>
+              <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('settings.notifications')}</h3>
             </div>
 
             {/* Master toggle */}
@@ -46,7 +49,7 @@ const RemindersSettingsModal = () => {
                   <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
                 </div>
               </div>
-              <span className={`text-sm ${textPrimary}`}>Enable reminders</span>
+              <span className={`text-sm ${textPrimary}`}>{t('settings.enableReminders')}</span>
             </label>
 
             {reminderSettings.enabled && (
@@ -64,7 +67,7 @@ const RemindersSettingsModal = () => {
                       <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.inAppToasts !== false ? 'translate-x-5' : 'translate-x-1'}`} />
                     </div>
                   </div>
-                  <span className={`text-sm ${textPrimary}`}>In-app toasts</span>
+                  <span className={`text-sm ${textPrimary}`}>{t('settings.inAppToasts')}</span>
                 </label>
 
                 {/* Browser notifications toggle */}
@@ -87,22 +90,22 @@ const RemindersSettingsModal = () => {
                     </div>
                   </div>
                   <div>
-                    <span className={`text-sm ${textPrimary}`}>Browser notifications</span>
+                    <span className={`text-sm ${textPrimary}`}>{t('settings.browserNotifications')}</span>
                     <p className={`text-xs ${textSecondary}`}>
                       {typeof Notification !== 'undefined'
-                        ? Notification.permission === 'granted' ? 'Permission granted'
-                        : Notification.permission === 'denied' ? 'Permission denied — enable in browser settings'
-                        : 'Will request permission when enabled'
-                        : 'Not supported in this browser'}
+                        ? Notification.permission === 'granted' ? t('reminders.permissionGranted')
+                        : Notification.permission === 'denied' ? t('reminders.permissionDenied')
+                        : t('reminders.permissionRequest')
+                        : t('reminders.notSupported')}
                     </p>
                   </div>
                 </label>
 
                 {/* Presets */}
                 <div>
-                  <p className={`text-xs font-medium ${textSecondary} mb-2`}>Presets</p>
+                  <p className={`text-xs font-medium ${textSecondary} mb-2`}>{t('settings.presets')}</p>
                   <div className="flex gap-2">
-                    {[['standard', 'Standard'], ['aggressive', 'Aggressive'], ['minimal', 'Minimal']].map(([key, label]) => (
+                    {[['standard', t('reminders.presetStandard')], ['aggressive', t('reminders.presetAggressive')], ['minimal', t('reminders.presetMinimal')]].map(([key, label]) => (
                       <button
                         key={key}
                         onClick={() => applyReminderPreset(key)}
@@ -116,17 +119,17 @@ const RemindersSettingsModal = () => {
                       </button>
                     ))}
                     {reminderSettings.preset === 'custom' && (
-                      <span className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white">Custom</span>
+                      <span className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white">{t('reminders.presetCustom')}</span>
                     )}
                   </div>
                 </div>
 
                 {/* Per-category grids */}
                 {[
-                  ['calendarEvents', 'Calendar Events'],
-                  ['calendarTasks', 'Calendar Tasks'],
-                  ['scheduledTasks', 'Scheduled Tasks'],
-                  ['recurringTasks', 'Recurring Tasks'],
+                  ['calendarEvents', t('reminders.calendarEvents')],
+                  ['calendarTasks', t('reminders.calendarTasks')],
+                  ['scheduledTasks', t('reminders.scheduledTasks')],
+                  ['recurringTasks', t('reminders.recurringTasks')],
                 ].map(([catKey, catLabel]) => (
                   <div key={catKey}>
                     <p className={`text-xs font-medium ${textSecondary} mb-1.5`}>{catLabel}</p>
@@ -135,8 +138,8 @@ const RemindersSettingsModal = () => {
                         ['before15', '-15m'],
                         ['before10', '-10m'],
                         ['before5', '-5m'],
-                        ['atStart', 'Start'],
-                        ['atEnd', 'End'],
+                        ['atStart', t('common.start')],
+                        ['atEnd', t('common.end')],
                       ].map(([field, label]) => (
                         <button
                           key={field}
@@ -156,7 +159,7 @@ const RemindersSettingsModal = () => {
 
                 {/* All-day tasks */}
                 <div>
-                  <p className={`text-xs font-medium ${textSecondary} mb-1.5`}>All-Day Tasks</p>
+                  <p className={`text-xs font-medium ${textSecondary} mb-1.5`}>{t('reminders.allDayTasks')}</p>
                   <div className="flex items-center gap-3">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -165,7 +168,7 @@ const RemindersSettingsModal = () => {
                         onChange={(e) => updateCategoryReminder('allDayTasks', 'morningReminder', e.target.checked)}
                         className="rounded border-stone-300"
                       />
-                      <span className={`text-xs ${textPrimary}`}>Morning reminder at</span>
+                      <span className={`text-xs ${textPrimary}`}>{t('reminders.morningReminderAt')}</span>
                     </label>
                     <button
                       type="button"
@@ -183,7 +186,7 @@ const RemindersSettingsModal = () => {
             <div className={`border-t ${borderClass} mt-4 pt-4`}>
               <div className="flex items-center gap-2 mb-3">
                 <BarChart3 size={16} className="text-purple-500" />
-                <span className={`text-sm font-semibold ${textPrimary}`}>Weekly Review</span>
+                <span className={`text-sm font-semibold ${textPrimary}`}>{t('weeklyReview.title')}</span>
               </div>
               <label className="flex items-center gap-3 cursor-pointer mb-3">
                 <div className="relative">
@@ -197,14 +200,14 @@ const RemindersSettingsModal = () => {
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.weeklyReview?.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
                   </div>
                 </div>
-                <span className={`text-sm ${textPrimary}`}>Notify me for weekly review</span>
+                <span className={`text-sm ${textPrimary}`}>{t('settings.notifyWeeklyReview')}</span>
               </label>
               {reminderSettings.weeklyReview?.enabled && (
                 <div className="space-y-3 ml-1">
                   <div>
-                    <p className={`text-xs ${textSecondary} mb-1.5`}>Day</p>
+                    <p className={`text-xs ${textSecondary} mb-1.5`}>{t('task.date')}</p>
                     <div className="flex gap-1">
-                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((label, i) => (
+                      {localizedWeekdays('short').map((label, i) => (
                         <button
                           key={label}
                           onClick={() => setReminderSettings(prev => ({ ...prev, weeklyReview: { ...prev.weeklyReview, day: i } }))}
@@ -220,7 +223,7 @@ const RemindersSettingsModal = () => {
                     </div>
                   </div>
                   <div>
-                    <p className={`text-xs ${textSecondary} mb-1.5`}>Time</p>
+                    <p className={`text-xs ${textSecondary} mb-1.5`}>{t('task.time')}</p>
                     <button
                       type="button"
                       onClick={() => setShowWeeklyReviewTimePicker(true)}
@@ -238,7 +241,7 @@ const RemindersSettingsModal = () => {
             <div className={`border-t ${borderClass} mt-4 pt-4`}>
               <div className="flex items-center gap-2 mb-3">
                 <Zap size={16} className="text-indigo-500" />
-                <span className={`text-sm font-semibold ${textPrimary}`}>hyperGLANCE Sessions</span>
+                <span className={`text-sm font-semibold ${textPrimary}`}>{t('reminders.hyperGlanceSessions')}</span>
               </div>
               <label className="flex items-center gap-3 cursor-pointer mb-3">
                 <div className="relative">
@@ -252,13 +255,13 @@ const RemindersSettingsModal = () => {
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${reminderSettings.hyperGlance?.enabled !== false ? 'translate-x-5' : 'translate-x-1'}`} />
                   </div>
                 </div>
-                <span className={`text-sm ${textPrimary}`}>Notify me at session start</span>
+                <span className={`text-sm ${textPrimary}`}>{t('settings.notifySessionStart')}</span>
               </label>
               {reminderSettings.hyperGlance?.enabled !== false && (
                 <div>
-                  <p className={`text-xs ${textSecondary} mb-1.5`}>Session reminder</p>
+                  <p className={`text-xs ${textSecondary} mb-1.5`}>{t('reminders.sessionReminder')}</p>
                   <div className="flex gap-1.5 flex-wrap">
-                    {[[0, 'Off'], [5, '5m before'], [10, '10m before'], [15, '15m before'], [30, '30m before']].map(([mins, label]) => (
+                    {[[0, t('common.off')], [5, t('reminders.beforeMinutes', { count: 5 })], [10, t('reminders.beforeMinutes', { count: 10 })], [15, t('reminders.beforeMinutes', { count: 15 })], [30, t('reminders.beforeMinutes', { count: 30 })]].map(([mins, label]) => (
                       <button
                         key={mins}
                         onClick={() => setReminderSettings(prev => ({ ...prev, hyperGlance: { ...prev.hyperGlance, upNextMinutes: mins } }))}
@@ -281,7 +284,7 @@ const RemindersSettingsModal = () => {
               onClick={() => setShowRemindersSettings(false)}
               className={`w-full mt-6 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors text-sm`}
             >
-              Close
+              {t('common.close')}
             </button>
           </div>
         </div>

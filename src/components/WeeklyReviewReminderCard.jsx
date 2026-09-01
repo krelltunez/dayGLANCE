@@ -1,9 +1,11 @@
 import React from 'react';
 import { BarChart3, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const WeeklyReviewReminderCard = () => {
+  const { t } = useTranslation();
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary } = useDayPlannerCtx();
   const {
     showWeeklyReviewReminder, setShowWeeklyReviewReminder,
@@ -19,12 +21,13 @@ const WeeklyReviewReminderCard = () => {
             <div className="flex items-start gap-2">
               <BarChart3 size={16} className="text-purple-500 mt-0.5 flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${textPrimary}`}>Weekly Review</p>
-                <p className={`text-xs ${textSecondary}`}>Time for your weekly review!</p>
+                <p className={`text-sm font-medium ${textPrimary}`}>{t('weeklyReview.title')}</p>
+                <p className={`text-xs ${textSecondary}`}>{t('reminders.weeklyReview')}</p>
               </div>
               <button
                 onClick={() => { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReviewReminder(false); }}
                 className={`${textSecondary} hover:${textPrimary} flex-shrink-0`}
+                aria-label={t('common.dismiss')}
               >
                 <X size={14} />
               </button>
@@ -34,13 +37,13 @@ const WeeklyReviewReminderCard = () => {
                 onClick={() => { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReview(true); setShowWeeklyReviewReminder(false); }}
                 className="px-2.5 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
               >
-                Open Review
+                {t('weeklyReview.openReview', { defaultValue: 'Open Review' })}
               </button>
               <button
                 onClick={() => { weeklyReviewDismissedRef.current = lastWeeklyReviewFiredRef.current; localStorage.setItem('day-planner-weekly-review-dismissed', lastWeeklyReviewFiredRef.current); setShowWeeklyReviewReminder(false); }}
                 className={`px-2.5 py-1 text-xs rounded transition-colors ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-stone-200 text-stone-700 hover:bg-stone-300'}`}
               >
-                Dismiss
+                {t('common.dismiss')}
               </button>
             </div>
           </div>

@@ -5,6 +5,7 @@ import {
   RefreshCw, Save, Settings, Sun, Trash2, X,
 } from 'lucide-react';
 import { dateToString, extractWikilinks, formatDateRange } from '../utils/taskUtils.js';
+import { formatLocalizedDate, localizedWeekdays } from '../utils/localeFormatting.js';
 import { findRunningTask } from '../utils/runningTask.js';
 import { renderTitle } from '../utils/textFormatting.jsx';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
@@ -236,7 +237,7 @@ const DesktopLayout = () => {
     hideStandaloneTasksInbox, inboxTagFilter, inboxProjectFilter, setInboxProjectFilter,
     archiveInboxTask,
   } = useDayPlannerCtx();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const {
     autoBackupInProgressRef, syncAllRef,
@@ -312,6 +313,15 @@ const DesktopLayout = () => {
   const effSyncLastSynced = webdavOn ? cloudSyncLastSynced : vaultLastSynced;
   const effSyncing = effSyncStatus === 'uploading' || effSyncStatus === 'downloading';
   const triggerSync = () => { if (webdavOn) cloudSyncUpload(); if (vaultEnabled) vaultSyncNow?.(); };
+  const locale = i18n.resolvedLanguage || i18n.language;
+  const formatSyncTime = (timestamp) => new Intl.DateTimeFormat(locale, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: !use24HourClock,
+  }).format(new Date(timestamp));
+  const lastSynced = (timestamp) => (timestamp
+    ? ` — ${t('common.lastSynced')}: ${formatSyncTime(timestamp)}`
+    : '');
 
   const {
     voiceRecorderRef, voiceAudioChunksRef, voiceAutoStartRef,
@@ -491,7 +501,7 @@ const DesktopLayout = () => {
       {isTablet && (
         <div className={`${cardBg} border-b ${borderClass} px-4 flex items-center justify-between relative`} style={{ height: '56px' }}>
           <div className="flex items-center gap-1">
-              <button onClick={() => changeDate(-1)} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label="Previous day">
+                <button onClick={() => changeDate(-1)} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label={t('common.back')}>
                 <ChevronLeft size={20} className={textSecondary} />
               </button>
               <button
@@ -503,7 +513,7 @@ const DesktopLayout = () => {
               >
                 {formatDateRange(visibleDates)}
               </button>
-              <button onClick={() => changeDate(1)} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label="Next day">
+                <button onClick={() => changeDate(1)} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label={t('common.next')}>
                 <ChevronRight size={20} className={textSecondary} />
               </button>
               {dateToString(selectedDate) !== dateToString(new Date()) && (
@@ -511,7 +521,7 @@ const DesktopLayout = () => {
                   onClick={goToToday}
                   className="px-3 py-1 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 active:bg-blue-700 transition-colors"
                 >
-                  Today
+                  {t('common.today')}
                 </button>
               )}
           </div>
@@ -527,8 +537,12 @@ const DesktopLayout = () => {
               }}
               disabled={isSyncing}
               className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors ${isSyncing ? 'opacity-70' : ''}`}
-              title={isSyncing ? "Syncing..." : (calSyncConfigured ? `Sync calendars${calSyncLastSynced ? ` — last: ${new Date(calSyncLastSynced).toLocaleTimeString()}` : ''}` : "Configure calendar sync")}
-              aria-label={isSyncing ? "Syncing" : "Sync calendars"}
+              title={isSyncing
+                ? t('common.syncing')
+                : (calSyncConfigured
+                  ? `${t('settings.syncCalendars')}${lastSynced(calSyncLastSynced)}`
+                  : t('settings.calendarSync'))}
+              aria-label={isSyncing ? t('common.syncing') : t('settings.syncCalendars')}
             >
               <RefreshCw size={18} className={`${textSecondary} ${isSyncing ? 'animate-spin' : ''}`} />
               {calSyncConfigured && (
@@ -545,9 +559,9 @@ const DesktopLayout = () => {
               onClick={triggerSync}
               className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
               title={effSyncing
-                ? 'Syncing...'
-                : `${webdavOn ? 'Cloud' : 'GLANCEvault'} sync — last: ${effSyncLastSynced ? new Date(effSyncLastSynced).toLocaleTimeString() : 'never'}`}
-              aria-label="Cloud sync"
+                ? t('common.syncing')
+                : `${webdavOn ? t('settings.cloudSync') : t('sync.form.vaultTitle')}${lastSynced(effSyncLastSynced) || ` — ${t('common.lastSynced')}: ${t('common.never')}`}`}
+              aria-label={webdavOn ? t('settings.cloudSync') : t('sync.form.vaultTitle')}
             >
               <Cloud size={18} className={`${textSecondary} ${effSyncing ? 'animate-pulse' : ''}`} />
               <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
@@ -562,8 +576,12 @@ const DesktopLayout = () => {
                 onClick={() => performObsidianSync()}
                 disabled={obsidianSyncStatus === 'syncing'}
                 className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors ${obsidianSyncStatus === 'syncing' ? 'opacity-70 cursor-not-allowed' : ''}`}
-                title={obsidianSyncStatus === 'syncing' ? 'Syncing...' : obsidianSyncStatus === 'error' && obsidianSyncError ? `Obsidian sync error: ${obsidianSyncError}` : `Obsidian sync — last: ${obsidianLastSynced ? new Date(obsidianLastSynced).toLocaleTimeString() : 'never'}`}
-                aria-label="Obsidian sync"
+                title={obsidianSyncStatus === 'syncing'
+                  ? t('common.syncing')
+                  : obsidianSyncStatus === 'error' && obsidianSyncError
+                    ? `${t('settings.obsidian')}: ${t('settings.obsidianSyncFailed')} (${obsidianSyncError})`
+                    : `${t('settings.obsidian')}${lastSynced(obsidianLastSynced) || ` — ${t('common.lastSynced')}: ${t('common.never')}`}`}
+                aria-label={t('settings.obsidian')}
               >
                 <BookOpen size={18} className={`${textSecondary} ${obsidianSyncStatus === 'syncing' ? 'animate-pulse' : ''}`} />
                 <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} ${
@@ -576,8 +594,8 @@ const DesktopLayout = () => {
             <button
               onClick={() => setShowSettings(true)}
               className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
-              title="Settings"
-              aria-label="Settings"
+              title={t('common.settings')}
+              aria-label={t('common.settings')}
             >
               <Settings size={18} className={textSecondary} />
               {(updateInfo || Intl.DateTimeFormat().resolvedOptions().timeZone !== homeTimezone) && (
@@ -587,8 +605,8 @@ const DesktopLayout = () => {
             <button
               onClick={() => setShowRemindersSettings(true)}
               className={`relative p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
-              title="Reminders"
-              aria-label="Reminders"
+              title={t('reminders.fallback')}
+              aria-label={t('reminders.fallback')}
             >
               <Bell size={18} className={textSecondary} />
               {activeReminders.length > 0 && (
@@ -598,32 +616,32 @@ const DesktopLayout = () => {
             <button
               onClick={() => setShowDayDial(true)}
               className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
-              title="Day Dial"
-              aria-label="Day Dial"
+              title={t('settings.viewCalendarDay')}
+              aria-label={t('settings.viewCalendarDay')}
             >
               <DayDialIcon className={textSecondary} />
             </button>
             <button
               onClick={() => setDarkMode(!darkMode)}
               className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
-              title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-              aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+              title={darkMode ? t('settings.lightMode') : t('settings.darkMode')}
+              aria-label={darkMode ? t('settings.lightMode') : t('settings.darkMode')}
             >
               {darkMode ? <Sun size={18} className={textSecondary} /> : <Moon size={18} className={textSecondary} />}
             </button>
             <button
               onClick={() => setShowBackupMenu(true)}
               className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
-              title="Backup or restore data"
-              aria-label="Backup or restore data"
+              title={t('backup.title')}
+              aria-label={t('backup.title')}
             >
               <Save size={18} className={textSecondary} />
             </button>
             <button
               onClick={() => setShowHelpModal(true)}
               className={`p-2 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
-              title="Help & Feedback"
-              aria-label="Help & Feedback"
+              title={t('app.helpFeedback')}
+              aria-label={t('app.helpFeedback')}
             >
               <HelpCircle size={18} className={textSecondary} />
             </button>
@@ -632,19 +650,19 @@ const DesktopLayout = () => {
           {showMonthView && (
             <div className={`month-view-container absolute left-4 top-full mt-1 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-4 z-50 min-w-[300px]`}>
               <div className="flex items-center justify-between mb-3">
-                <button type="button" onClick={(e) => { e.stopPropagation(); changeViewedMonth(-1); }} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label="Previous month">
+                <button type="button" onClick={(e) => { e.stopPropagation(); changeViewedMonth(-1); }} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label={t('common.back')}>
                   <ChevronLeft size={18} className={textSecondary} />
                 </button>
                 <div className={`font-bold ${textPrimary}`}>
-                  {viewedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  {formatLocalizedDate(viewedMonth, { month: 'long', year: 'numeric' })}
                 </div>
-                <button type="button" onClick={(e) => { e.stopPropagation(); changeViewedMonth(1); }} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label="Next month">
+                <button type="button" onClick={(e) => { e.stopPropagation(); changeViewedMonth(1); }} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label={t('common.next')}>
                   <ChevronRight size={18} className={textSecondary} />
                 </button>
               </div>
               <div className="grid grid-cols-7 gap-1 mb-2">
-                {(() => { const d = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']; return [...d.slice(weekStartDay), ...d.slice(0, weekStartDay)]; })().map(day => (
-                  <div key={day} className={`text-xs font-semibold ${textSecondary} text-center`}>{day}</div>
+                {(() => { const d = localizedWeekdays('narrow'); return [...d.slice(weekStartDay), ...d.slice(0, weekStartDay)]; })().map((day, index) => (
+                  <div key={`${index}-${day}`} className={`text-xs font-semibold ${textSecondary} text-center`}>{day}</div>
                 ))}
               </div>
               <div className="grid grid-cols-7 gap-1">
@@ -695,7 +713,7 @@ const DesktopLayout = () => {
                   style={{ height: 'var(--header-row-h)' }}
                   className={`flex-1 flex items-center justify-center text-sm font-semibold transition-colors border-b-2 ${tabletActiveTab === 'glance' ? 'text-blue-500 border-blue-500' : `${textSecondary} border-transparent`}`}
                 >
-                  <span className="flex items-center justify-center gap-1.5"><Eye size={16} /> GLANCE</span>
+                  <span className="flex items-center justify-center gap-1.5"><Eye size={16} /> {t('common.glance')}</span>
                 </button>
                 <button
                   onClick={() => setTabletActiveTab('inbox')}
@@ -703,7 +721,7 @@ const DesktopLayout = () => {
                   className={`flex-1 flex items-center justify-center text-sm font-semibold transition-colors relative border-b-2 ${tabletActiveTab === 'inbox' ? 'text-blue-500 border-blue-500' : `${textSecondary} border-transparent`}`}
                 >
                   <span className="flex items-center justify-center gap-1.5">
-                    <Inbox size={16} /> Inbox
+                    <Inbox size={16} /> {t('task.inbox')}
                     {filteredUnscheduledTasks.filter(t => !t.isExample).length > 0 && (
                       <span className="bg-blue-600 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
                         {filteredUnscheduledTasks.filter(t => !t.isExample).length}
@@ -748,7 +766,7 @@ const DesktopLayout = () => {
                 style={{ height: 'var(--header-row-h)' }}
                 className={`flex-1 flex items-center justify-center text-sm font-semibold transition-colors border-b-2 ${tabletActiveTab === 'glance' ? 'text-blue-500 border-blue-500' : `${textSecondary} border-transparent`}`}
               >
-                <span className="flex items-center justify-center gap-1.5"><Eye size={16} /> GLANCE</span>
+                <span className="flex items-center justify-center gap-1.5"><Eye size={16} /> {t('common.glance')}</span>
               </button>
               <button
                 onClick={() => setTabletActiveTab('inbox')}
@@ -756,7 +774,7 @@ const DesktopLayout = () => {
                 className={`flex-1 flex items-center justify-center text-sm font-semibold transition-colors relative border-b-2 ${tabletActiveTab === 'inbox' ? 'text-blue-500 border-blue-500' : `${textSecondary} border-transparent`}`}
               >
                 <span className="flex items-center justify-center gap-1.5">
-                  <Inbox size={16} /> Inbox
+                    <Inbox size={16} /> {t('task.inbox')}
                   {filteredUnscheduledTasks.filter(t => !t.isExample).length > 0 && (
                     <span className="bg-blue-600 text-white text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
                       {filteredUnscheduledTasks.filter(t => !t.isExample).length}
@@ -865,7 +883,7 @@ const DesktopLayout = () => {
             >
               <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
                 <div className={`font-medium ${textPrimary} truncate flex-1`}>{renderTitle(noteTask.title)}</div>
-                <button onClick={() => setExpandedNotesTaskId(null)} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label="Close notes">
+                <button onClick={() => setExpandedNotesTaskId(null)} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label={t('common.close')}>
                   <X size={18} className={textSecondary} />
                 </button>
               </div>

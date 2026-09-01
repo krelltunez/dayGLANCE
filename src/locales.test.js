@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { languages, loaders, resolveLanguage } from './locales.js';
 
 // Guards the drift that shipped de/es/it/pt as files with no `resources` entry,
@@ -6,7 +8,7 @@ import { languages, loaders, resolveLanguage } from './locales.js';
 // only checked the files existed would have passed throughout that bug — the
 // assertions below go through the same loaders i18n.js resolves at runtime.
 describe('locale bundles', () => {
-  const EXPECTED = ['de', 'en', 'es', 'fr', 'it', 'pt-BR', 'pt-PT'];
+  const EXPECTED = ['de', 'en', 'es', 'fr', 'it', 'pt-BR', 'pt-PT', 'zh-CN'];
   const TRANSLATED = EXPECTED.filter((l) => l !== 'en');
 
   const bundles = {};
@@ -88,6 +90,48 @@ describe('locale bundles', () => {
   it.each(EXPECTED)('%s resolves to a non-empty bundle', (lng) => {
     expect(bundles[lng]).toBeTypeOf('object');
     expect(Object.keys(bundles[lng]).length).toBeGreaterThan(0);
+  });
+
+  it.each(EXPECTED)('%s defines each hyperGLANCE task reminder key exactly once', (lng) => {
+    const raw = readFileSync(join(process.cwd(), 'public', 'locales', lng, 'translation.json'), 'utf8');
+    for (const key of ['hgUpNextWithTasks_one', 'hgUpNextWithTasks_other']) {
+      expect(raw.match(new RegExp(`"${key}"\\s*:`, 'g')) ?? [], `${lng} duplicates ${key}`).toHaveLength(1);
+    }
+  });
+
+  it('defines every literal translation key used by source', () => {
+    const englishKeys = keysOf('en');
+    const sourceFiles = [];
+    const collect = (dir) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) collect(path);
+        else if (/\.(js|jsx)$/.test(entry.name) && !entry.name.includes('.test.')) sourceFiles.push(path);
+      }
+    };
+    collect(join(process.cwd(), 'src'));
+
+    const missing = new Map();
+    const literalCall = /\bt\(\s*['"]([^'"]+)['"]/g;
+    for (const file of sourceFiles) {
+      const source = readFileSync(file, 'utf8');
+      for (const match of source.matchAll(literalCall)) {
+        const key = match[1];
+        const covered = englishKeys.has(key)
+          || englishKeys.has(`${key}_one`)
+          || englishKeys.has(`${key}_other`);
+        if (!covered) {
+          const files = missing.get(key) || [];
+          files.push(file);
+          missing.set(key, files);
+        }
+      }
+    }
+
+    expect(
+      [...missing].map(([key, files]) => `${key}: ${[...new Set(files)].join(', ')}`),
+      'Every literal i18n call must have a real bundle entry instead of silently using an English defaultValue.',
+    ).toEqual([]);
   });
 
   // A bundle can resolve and still be a stub, or be a copy of English that was

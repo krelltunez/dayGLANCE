@@ -4,6 +4,7 @@ import { Search, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 export default function TraySpotlight({ darkMode, onClose }) {
+  const { t } = useTranslation();
   const {
     showSpotlight, setShowSpotlight,
     spotlightQuery, setSpotlightQuery,
@@ -13,6 +14,19 @@ export default function TraySpotlight({ darkMode, onClose }) {
   } = useDayPlannerCtx();
 
   const inputRef = useRef(null);
+  const sourceLabels = {
+    scheduled: t('planner.scheduled'),
+    event: t('reminders.calendarEvents'),
+    inbox: t('settings.inbox'),
+    archived: t('common.completed'),
+    recurring: t('sched.recurring'),
+    deleted: t('spotlight.groupDeleted'),
+  };
+  const matchFieldLabels = {
+    tag: t('sched.tags'),
+    notes: t('task.notes'),
+    subtask: t('task.subtasks'),
+  };
 
   // Enable spotlight result computation (normally gated on showSpotlight).
   useEffect(() => {
@@ -53,12 +67,12 @@ export default function TraySpotlight({ darkMode, onClose }) {
         <input
           ref={inputRef}
           className={`flex-1 text-sm bg-transparent outline-none ${textPrimary}`}
-          placeholder="Search tasks…"
+          placeholder={t('spotlight.placeholder')}
           value={spotlightQuery}
           onChange={e => { setSpotlightQuery(e.target.value); setSpotlightSelectedIndex(0); }}
           onKeyDown={handleKeyDown}
         />
-        <button onClick={onClose} className={`flex-shrink-0 ${textSecondary} hover:opacity-70 transition-opacity`}>
+        <button onClick={onClose} className={`flex-shrink-0 ${textSecondary} hover:opacity-70 transition-opacity`} aria-label={t('common.close')}>
           <X size={15} />
         </button>
       </div>
@@ -66,10 +80,10 @@ export default function TraySpotlight({ darkMode, onClose }) {
       {/* Results */}
       <div className="flex-1 overflow-y-auto mt-2 space-y-0.5">
         {!spotlightQuery.trim() && (
-          <p className={`text-sm ${textSecondary} text-center py-10`}>Type to search…</p>
+          <p className={`text-sm ${textSecondary} text-center py-10`}>{t('spotlight.typeToSearch')}</p>
         )}
         {spotlightQuery.trim() && spotlightResults.length === 0 && (
-          <p className={`text-sm ${textSecondary} text-center py-10`}>No results</p>
+          <p className={`text-sm ${textSecondary} text-center py-10`}>{t('spotlight.noResults')}</p>
         )}
         {spotlightResults.map((result, i) => {
           const { task, sourceLabel, match, date } = result;
@@ -90,8 +104,12 @@ export default function TraySpotlight({ darkMode, onClose }) {
                 <div className={`text-sm font-medium truncate ${textPrimary}`}>{task.title}</div>
                 <div className={`text-xs ${textSecondary} flex items-center gap-1`}>
                   {date && <span>{date}</span>}
-                  {sourceLabel && <span className="opacity-60">· {sourceLabel}</span>}
-                  {match.field !== 'title' && <span className="opacity-60">· in {match.field}</span>}
+                  {sourceLabel && <span className="opacity-60">· {sourceLabels[result.source] ?? sourceLabel}</span>}
+                  {match.field !== 'title' && (
+                    <span className="opacity-60">
+                      · {t('spotlight.matchIn', { field: matchFieldLabels[match.field] ?? match.field, defaultValue: 'in {{field}}' })}
+                    </span>
+                  )}
                 </div>
               </div>
             </button>

@@ -8,6 +8,7 @@ import { calculateProjectProgress, isProjectStalled } from '../utils/projectProg
 import { calculateGoalProgress } from '../utils/goalProgress.js';
 import { useTranslation } from 'react-i18next';
 import { notBucketed } from '../utils/bucketList.js';
+import { formatLocalizedDate } from '../utils/localeFormatting.js';
 
 const WeeklyReviewModal = () => {
   const {
@@ -165,7 +166,7 @@ const WeeklyReviewModal = () => {
             bestDayCount = count;
           }
         });
-        const bestDayName = bestDay ? new Date(bestDay + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }) : null;
+        const bestDayName = bestDay ? formatLocalizedDate(new Date(bestDay + 'T12:00:00'), { weekday: 'short' }) : null;
 
         // Incomplete list (future-today tasks already excluded from pastRegular/pastRecurringIncomplete)
         const pastIncomplete = [
@@ -238,18 +239,18 @@ const WeeklyReviewModal = () => {
             busiestMinutes = load.totalMinutes;
           }
         });
-        const busiestDayName = busiestDay ? new Date(busiestDay + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }) : null;
+        const busiestDayName = busiestDay ? formatLocalizedDate(new Date(busiestDay + 'T12:00:00'), { weekday: 'short' }) : null;
 
         // Open days (< 60 min of commitments)
         const openDays = nextWeekDates.filter(ds => dayLoad[ds].totalMinutes < 60);
-        const openDayNames = openDays.map(ds => new Date(ds + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }));
+        const openDayNames = openDays.map(ds => formatLocalizedDate(new Date(ds + 'T12:00:00'), { weekday: 'short' }));
 
         // Format date range
         const formatRange = (start, end) => {
           const s = new Date(start + 'T12:00:00');
           const e = new Date(end + 'T12:00:00');
-          const sMonth = s.toLocaleDateString('en-US', { month: 'short' });
-          const eMonth = e.toLocaleDateString('en-US', { month: 'short' });
+          const sMonth = formatLocalizedDate(s, { month: 'short' });
+          const eMonth = formatLocalizedDate(e, { month: 'short' });
           if (sMonth === eMonth) {
             return `${sMonth} ${s.getDate()} \u2014 ${e.getDate()}, ${s.getFullYear()}`;
           }
@@ -259,9 +260,9 @@ const WeeklyReviewModal = () => {
         const formatMinutes = (min) => {
           const h = Math.floor(min / 60);
           const m = min % 60;
-          if (h === 0) return `${m}m`;
-          if (m === 0) return `${h}h`;
-          return `${h}h ${m}m`;
+          if (h === 0) return t('weeklyReview.durationMinutes', { minutes: m });
+          if (m === 0) return t('weeklyReview.durationHours', { hours: h });
+          return t('weeklyReview.durationHoursMinutes', { hours: h, minutes: m });
         };
 
         // Tag breakdown for AI summary
@@ -527,7 +528,7 @@ const WeeklyReviewModal = () => {
                         }}
                         disabled={mobileReviewPage === 0}
                         className={`p-1 rounded-lg transition-colors ${mobileReviewPage === 0 ? 'opacity-30 cursor-default' : darkMode ? 'hover:bg-white/10' : 'hover:bg-stone-100'}`}
-                        aria-label="Previous page"
+                        aria-label={t('weeklyReview.previousPage')}
                       >
                         <ChevronLeft size={16} className={textSecondary} />
                       </button>
@@ -537,7 +538,7 @@ const WeeklyReviewModal = () => {
                         }}
                         disabled={mobileReviewPage === 1}
                         className={`p-1 rounded-lg transition-colors ${mobileReviewPage === 1 ? 'opacity-30 cursor-default' : darkMode ? 'hover:bg-white/10' : 'hover:bg-stone-100'}`}
-                        aria-label="Next page"
+                        aria-label={t('weeklyReview.nextPage')}
                       >
                         <ChevronRight size={16} className={textSecondary} />
                       </button>
@@ -546,7 +547,7 @@ const WeeklyReviewModal = () => {
                   <button
                     onClick={() => { setShowWeeklyReview(false); setMobileReviewPage(0); setWeeklyAISummary(null); setWeeklyAIError(''); }}
                     className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`}
-                    aria-label="Close weekly review"
+                    aria-label={t('weeklyReview.close')}
                   >
                     <X size={16} className={textSecondary} />
                   </button>
@@ -573,36 +574,36 @@ const WeeklyReviewModal = () => {
                   ) : (
                     <>
                       <div className="grid grid-cols-2 gap-3 mb-3">
-                        <StatCard value={`${pastCompleted}/${pastScheduled}`} label="Tasks done" icon={<CheckSquare size={16} className="text-green-400" />} />
-                        <StatCard value={`${pastCompletionRate}%`} label="Completion" icon={<Target size={16} className="text-blue-400" />} />
+                        <StatCard value={`${pastCompleted}/${pastScheduled}`} label={t('weeklyReview.tasksDone')} icon={<CheckSquare size={16} className="text-green-400" />} />
+                        <StatCard value={`${pastCompletionRate}%`} label={t('weeklyReview.completion')} icon={<Target size={16} className="text-blue-400" />} />
                       </div>
                       <div className="grid grid-cols-2 gap-3 mb-3">
-                        <StatCard value={formatMinutes(pastTimeSpent)} label="Time spent" icon={<Clock size={16} className="text-orange-400" />} />
-                        <StatCard value={formatMinutes(pastFocusMinutes)} label="Focus time" icon={<Target size={16} className="text-purple-400" />} />
+                        <StatCard value={formatMinutes(pastTimeSpent)} label={t('weeklyReview.timeSpent')} icon={<Clock size={16} className="text-orange-400" />} />
+                        <StatCard value={formatMinutes(pastFocusMinutes)} label={t('weeklyReview.focusTime')} icon={<Target size={16} className="text-purple-400" />} />
                       </div>
                       <div className="grid grid-cols-2 gap-3 mb-3">
-                        <StatCard value={`${pastRecurringCompleted}/${pastRecurringScheduled}`} label="Recurring" icon={<RefreshCw size={14} className="text-blue-400" />} />
+                        <StatCard value={`${pastRecurringCompleted}/${pastRecurringScheduled}`} label={t('weeklyReview.recurring')} icon={<RefreshCw size={14} className="text-blue-400" />} />
                         {bestDayName && (
-                          <StatCard value={bestDayName} label={`Best day (${bestDayCount})`} icon={<Trophy size={16} className="text-yellow-400" />} />
+                          <StatCard value={bestDayName} label={t('weeklyReview.bestDay', { count: bestDayCount })} icon={<Trophy size={16} className="text-yellow-400" />} />
                         )}
                       </div>
                       {goalsProjectsEnabled && (pastCompletedGoals.length > 0 || pastCompletedProjects.length > 0 || pastUnscheduledProjectDone.length > 0) && (
                         <div className="grid grid-cols-2 gap-3 mb-3">
                           {pastCompletedGoals.length > 0 && (
-                            <StatCard value={pastCompletedGoals.length} label={pastCompletedGoals.length === 1 ? 'Goal completed' : 'Goals completed'} icon={<Flag size={16} className="text-amber-400" />} />
+                            <StatCard value={pastCompletedGoals.length} label={t('weeklyReview.goalsCompleted', { count: pastCompletedGoals.length })} icon={<Flag size={16} className="text-amber-400" />} />
                           )}
                           {pastCompletedProjects.length > 0 && (
-                            <StatCard value={pastCompletedProjects.length} label={pastCompletedProjects.length === 1 ? 'Project completed' : 'Projects completed'} icon={<FolderOpen size={16} className="text-blue-400" />} />
+                            <StatCard value={pastCompletedProjects.length} label={t('weeklyReview.projectsCompleted', { count: pastCompletedProjects.length })} icon={<FolderOpen size={16} className="text-blue-400" />} />
                           )}
                           {pastUnscheduledProjectDone.length > 0 && (
-                            <StatCard value={pastUnscheduledProjectDone.length} label="Project queue done" icon={<TrendingUp size={16} className="text-green-400" />} />
+                            <StatCard value={pastUnscheduledProjectDone.length} label={t('weeklyReview.projectQueueDone')} icon={<TrendingUp size={16} className="text-green-400" />} />
                           )}
                         </div>
                       )}
                       {weeklyStreak >= 2 && (
                         <div className={`flex items-center gap-2 rounded-lg px-3 py-2 mb-3 text-sm font-medium ${darkMode ? 'bg-orange-900/30 text-orange-300' : 'bg-orange-50 text-orange-700'}`}>
                           <Flame size={15} className="flex-shrink-0" />
-                          {weeklyStreak} day streak — keep it going!
+                          {t('weeklyReview.dayStreak', { count: weeklyStreak })}
                         </div>
                       )}
                     </>
@@ -615,7 +616,7 @@ const WeeklyReviewModal = () => {
                         className={`flex items-center justify-between w-full py-1.5 text-xs font-semibold uppercase ${textSecondary} tracking-wider`}
                         onClick={() => setHabitsCollapsed(c => !c)}
                       >
-                        <span>Habits</span>
+                        <span>{t('weeklyReview.habits')}</span>
                         {habitsCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
                       </button>
                       {!habitsCollapsed && (
@@ -629,7 +630,7 @@ const WeeklyReviewModal = () => {
                                     key={i}
                                     className="w-4 h-4 rounded-full flex-shrink-0"
                                     style={{ backgroundColor: hit ? h.hexColor : (darkMode ? '#374151' : '#e7e5e4') }}
-                                    title={new Date(pastWeekDates[i] + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                    title={formatLocalizedDate(new Date(pastWeekDates[i] + 'T12:00:00'), { weekday: 'short', month: 'short', day: 'numeric' })}
                                   />
                                 ))}
                               </div>
@@ -681,7 +682,7 @@ const WeeklyReviewModal = () => {
                     <div className={`rounded-lg border ${darkMode ? 'border-red-800 bg-red-900/20' : 'border-red-200 bg-red-50'} p-3`}>
                       <div className={`flex items-center gap-2 ${darkMode ? 'text-red-300' : 'text-red-700'} font-bold text-sm mb-2`}>
                         <AlertCircle size={16} />
-                        {pastIncomplete.length} incomplete
+                        {t('weeklyReview.incompleteCount', { count: pastIncomplete.length })}
                       </div>
                       <div className="max-h-40 overflow-y-auto -mx-1">
                         {pastIncomplete.map((task) => (
@@ -698,7 +699,7 @@ const WeeklyReviewModal = () => {
                             <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${task.color || 'bg-blue-500'}`} />
                             <span className={`text-xs ${darkMode ? 'text-red-200' : 'text-red-900'} truncate flex-1`}>{stripWikilinks(task.title)}</span>
                             <span className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-500'} flex-shrink-0`}>
-                              {new Date(task.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              {formatLocalizedDate(new Date(task.date + 'T12:00:00'), { month: 'short', day: 'numeric' })}
                               {!isMobile && task.startTime ? ` \u00b7 ${formatTime(task.startTime)}` : ''}
                             </span>
                           </button>
@@ -746,14 +747,14 @@ const WeeklyReviewModal = () => {
                   <p className={`text-xs ${textSecondary} mb-4`}>{formatRange(nextStartStr, nextEndStr)}</p>
 
                   <div className="grid grid-cols-2 gap-3 mb-3">
-                    <StatCard value={nextScheduled} label="Scheduled" icon={<CalendarDays size={16} className="text-blue-400" />} />
-                    <StatCard value={formatMinutes(nextPlannedMinutes)} label="Planned" icon={<Clock size={16} className="text-orange-400" />} />
+                    <StatCard value={nextScheduled} label={t('weeklyReview.scheduled')} icon={<CalendarDays size={16} className="text-blue-400" />} />
+                    <StatCard value={formatMinutes(nextPlannedMinutes)} label={t('weeklyReview.planned')} icon={<Clock size={16} className="text-orange-400" />} />
                   </div>
                   {(() => {
                     const tiles = [];
-                    if (busiestDayName && busiestMinutes > 0) tiles.push({ key: 'busiest', value: busiestDayName, label: 'Busiest', icon: <Zap size={16} className="text-amber-400" /> });
-                    if (nextRecurringCount > 0) tiles.push({ key: 'recurring', value: nextRecurringCount, label: 'Recurring', icon: <RefreshCw size={14} className="text-blue-400" /> });
-                    if (nextFrameTotalMinutes > 0) tiles.push({ key: 'frames', value: formatMinutes(nextFrameAvailableMinutes), label: 'Frame availability', icon: <CalendarDays size={16} className="text-green-400" /> });
+                    if (busiestDayName && busiestMinutes > 0) tiles.push({ key: 'busiest', value: busiestDayName, label: t('weeklyReview.busiest'), icon: <Zap size={16} className="text-amber-400" /> });
+                    if (nextRecurringCount > 0) tiles.push({ key: 'recurring', value: nextRecurringCount, label: t('weeklyReview.recurring'), icon: <RefreshCw size={14} className="text-blue-400" /> });
+                    if (nextFrameTotalMinutes > 0) tiles.push({ key: 'frames', value: formatMinutes(nextFrameAvailableMinutes), label: t('weeklyReview.frameAvailability'), icon: <CalendarDays size={16} className="text-green-400" /> });
                     if (tiles.length === 0) return null;
                     return (
                       <div className="grid grid-cols-2 gap-3 mb-4">
@@ -779,7 +780,7 @@ const WeeklyReviewModal = () => {
                                 <span className={`text-sm font-medium ${textPrimary} truncate`}>{g.title}</span>
                               </div>
                               <span className={`text-xs flex-shrink-0 font-medium px-1.5 py-0.5 rounded ${g.progressPct >= 80 ? (darkMode ? 'bg-green-900/40 text-green-300' : 'bg-green-100 text-green-700') : (darkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-100 text-amber-700')}`}>
-                                {g.daysLeft === 0 ? 'Due today' : g.daysLeft === 1 ? 'Due tomorrow' : `${g.daysLeft}d left`}
+                                {g.daysLeft === 0 ? t('goals.dueToday') : g.daysLeft === 1 ? t('weeklyReview.dueTomorrow') : t('goals.daysLeft', { count: g.daysLeft })}
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -807,7 +808,7 @@ const WeeklyReviewModal = () => {
                       <div className="space-y-2">
                         {nextWeekProjects.map(p => {
                           const momentumColor = p.momentum === 'green' ? '#22c55e' : p.momentum === 'amber' ? '#f59e0b' : '#ef4444';
-                          const momentumLabel = p.momentum === 'green' ? 'Active' : p.momentum === 'amber' ? 'Slowing' : 'Stalled';
+                          const momentumLabel = p.momentum === 'green' ? t('common.active') : p.momentum === 'amber' ? t('weeklyReview.slowing') : t('goals.stalled');
                           const barColor = p.progressPct >= 100 ? '#22c55e' : p.progressPct >= 50 ? '#3b82f6' : p.progressPct >= 20 ? '#f59e0b' : '#ef4444';
                           return (
                             <div key={p.id} className="flex items-center gap-2">
@@ -836,7 +837,7 @@ const WeeklyReviewModal = () => {
                     <div className={`rounded-lg border ${darkMode ? 'border-green-800 bg-green-900/20' : 'border-green-200 bg-green-50'} p-3`}>
                       <div className={`flex items-center gap-2 ${darkMode ? 'text-green-300' : 'text-green-700'} font-medium text-sm`}>
                         <Sparkles size={16} />
-                        {openDayNames.join(', ')} {openDays.length === 1 ? 'is' : 'are'} open for deep work.
+                        {t('weeklyReview.openForDeepWork', { count: openDays.length, days: openDayNames.join(', ') })}
                       </div>
                     </div>
                   )}

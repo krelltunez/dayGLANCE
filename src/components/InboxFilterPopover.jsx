@@ -124,10 +124,10 @@ const InboxFilterPopover = ({ open, onClose, buttonRef }) => {
                 onClick={clearAll}
                 className={`text-xs px-2 py-0.5 rounded ${hoverBg} ${textSecondary} transition-colors`}
               >
-                Clear all
+                {t('sched.clearAll')}
               </button>
             )}
-            <button onClick={onClose} className={`p-1 rounded ${hoverBg} transition-colors`}>
+            <button onClick={onClose} className={`p-1 rounded ${hoverBg} transition-colors`} aria-label={t('common.close')}>
               <X size={13} className={textSecondary} />
             </button>
           </div>
@@ -136,19 +136,19 @@ const InboxFilterPopover = ({ open, onClose, buttonRef }) => {
         <div className="p-3 flex flex-col gap-3">
           {/* Status */}
           <div>
-            <SectionLabel>Status</SectionLabel>
+            <SectionLabel>{t('common.status')}</SectionLabel>
             <div className="flex gap-1.5 flex-wrap">
               <button
                 className={`${chipBase} ${!hideCompletedInbox ? chipOn : chipOff}`}
                 onClick={() => setHideCompletedInbox(false)}
               >
-                Incomplete &amp; Complete
+                {t('inbox.filter.incompleteAndComplete', { defaultValue: 'Incomplete & Complete' })}
               </button>
               <button
                 className={`${chipBase} ${hideCompletedInbox ? chipOn : chipOff}`}
                 onClick={() => setHideCompletedInbox(true)}
               >
-                Incomplete only
+                {t('inbox.filter.incompleteOnly', { defaultValue: 'Incomplete only' })}
               </button>
             </div>
           </div>
@@ -156,21 +156,21 @@ const InboxFilterPopover = ({ open, onClose, buttonRef }) => {
           {/* Type */}
           {goalsProjectsEnabled && (
             <div>
-              <SectionLabel>Type</SectionLabel>
+              <SectionLabel>{t('common.type')}</SectionLabel>
               <div className="flex gap-1.5 flex-wrap">
                 <button
                   className={`${chipBase} ${!hideProjectTasksInbox ? chipOn : chipOff}`}
                   onClick={() => setHideProjectTasksInbox(prev => !prev)}
-                  title="Tasks linked to a project"
+                  title={t('inbox.filter.projectTasksHint', { defaultValue: 'Tasks linked to a project' })}
                 >
-                  Project tasks
+                  {t('inbox.filter.projectTasks', { defaultValue: 'Project tasks' })}
                 </button>
                 <button
                   className={`${chipBase} ${!hideStandaloneTasksInbox ? chipOn : chipOff}`}
                   onClick={() => setHideStandaloneTasksInbox(prev => !prev)}
-                  title="Tasks not linked to any project"
+                  title={t('inbox.filter.standaloneHint', { defaultValue: 'Tasks not linked to any project' })}
                 >
-                  Standalone
+                  {t('sched.standalone')}
                 </button>
               </div>
             </div>
@@ -179,7 +179,7 @@ const InboxFilterPopover = ({ open, onClose, buttonRef }) => {
           {/* Projects */}
           {inboxProjects.length > 0 && (
             <div>
-              <SectionLabel>Projects</SectionLabel>
+              <SectionLabel>{t('sched.projects')}</SectionLabel>
               <div className="flex gap-1.5 flex-wrap">
                 {inboxProjects.map(p => (
                   <button
@@ -197,7 +197,7 @@ const InboxFilterPopover = ({ open, onClose, buttonRef }) => {
           {/* Tags */}
           {inboxTags.length > 0 && (
             <div>
-              <SectionLabel>Tags</SectionLabel>
+              <SectionLabel>{t('sched.tags')}</SectionLabel>
               <div className="flex gap-1.5 flex-wrap">
                 {inboxTags.map(tag => (
                   <button

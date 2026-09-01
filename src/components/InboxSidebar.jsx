@@ -76,6 +76,12 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
     inboxTagFilter.length > 0 ||
     inboxProjectFilter.length > 0;
   const isDesktop = variant === 'desktop';
+  const priorityLabels = [
+    t('task.noPriority'),
+    t('task.lowPriority'),
+    t('task.mediumPriority'),
+    t('task.highPriority'),
+  ];
 
   if (isDesktop) {
     return (
@@ -95,7 +101,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
         <button
           onClick={openNewInboxTask}
           className="px-2.5 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          title="New Inbox Task"
+          title={t('task.newInbox')}
         >
           <Plus size={14} strokeWidth={3} />
           <span className="text-xs font-medium">{t('common.newTask')}</span>
@@ -104,10 +110,10 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
           <button
             onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
             className="px-2.5 flex items-center justify-center gap-1 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            title="AI Smart Schedule"
+            title={t('inbox.aiSmartSchedule', { defaultValue: 'AI Smart Schedule' })}
           >
             <BrainCircuit size={14} />
-            <span className="text-xs font-medium">Schedule</span>
+            <span className="text-xs font-medium">{t('common.schedule')}</span>
           </button>
         )}
       </div>
@@ -118,7 +124,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
               ref={node => { if (node) inboxFilterBtnRef.current = node; }}
               onClick={() => { setShowInboxFilter(v => !v); playUISound('click'); }}
               className={`relative ${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
-              title="Filter inbox"
+              title={t('common.filterInbox')}
             >
               <Filter size={14} className={inboxFilterActive ? (darkMode ? 'text-blue-400' : 'text-blue-500') : (darkMode ? 'text-gray-400' : 'text-stone-500')} />
               {inboxFilterActive && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-blue-500" />}
@@ -126,7 +132,9 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
             <button
               onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
               className={`flex gap-0.5 ${hoverBg} rounded pl-1 pr-2 py-1.5 transition-colors`}
-              title={inboxPriorityFilter === 0 ? 'Showing all priorities (click to filter)' : `Showing priority ${inboxPriorityFilter}+ (click to change)`}
+              title={inboxPriorityFilter === 0
+                ? t('inbox.showingAllPrioritiesClick', { defaultValue: 'Showing all priorities (click to filter)' })
+                : t('inbox.showingPriorityClick', { priority: inboxPriorityFilter, defaultValue: 'Showing priority {{priority}}+ (click to change)' })}
             >
               {[0, 1, 2].map(i => (
                 <span
@@ -150,10 +158,10 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
       {filteredUnscheduledTasks.length === 0 ? (
         <p className={`text-sm ${textSecondary} text-center py-4`}>
           {unscheduledTasks.length === 0
-            ? "Drag tasks here to unschedule them"
+            ? t('inbox.dragToUnschedule', { defaultValue: 'Drag tasks here to unschedule them' })
             : unscheduledTasks.length === 0
-              ? "All tasks have overdue deadlines"
-              : "No tasks match current filter"}
+              ? t('inbox.allTasksOverdueHint', { defaultValue: 'All inbox tasks have overdue deadlines' })
+              : t('sched.noMatchingTasks')}
         </p>
       ) : (
         filteredUnscheduledTasks.map(task => (
@@ -182,7 +190,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
           >
             {task.isExample && (
               <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
-                Example
+                {t('common.example')}
               </span>
             )}
             <div className="flex items-start justify-between text-white">
@@ -231,13 +239,13 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                         e.stopPropagation();
                         startEditingTask(task, true);
                       }}
-                      title="Double-click to edit"
+                      title={t('task.doubleClickToEdit')}
                     >
                       {renderTitle(task.title)}
                     </div>
                   )}
                   <div className="text-xs opacity-90 mt-1 flex items-center gap-2 flex-wrap">
-                    <span>{task.duration} min</span>
+                    <span>{t('common.minutesShort', { count: task.duration })}</span>
                     {task.deadline && (
                       <span className="flex items-center gap-1">
                         <AlertCircle size={10} />
@@ -257,7 +265,9 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                             if (!active) { setInboxPriorityFilter(0); setHideCompletedInbox(false); setHideProjectTasksInbox(false); setHideStandaloneTasksInbox(true); } else { setHideProjectTasksInbox(true); setHideStandaloneTasksInbox(false); }
                           }}
                           className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 hover:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
-                          title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                          title={projectFilter === task.projectId
+                            ? t('sched.clearProjectFilter')
+                            : t('sched.filterProject', { project: proj.title, defaultValue: 'Filter: {{project}}' })}
                         >
                           {proj.title}
                         </button>
@@ -296,7 +306,9 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                       }
                     }}
                     className={`hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || extractWikilinks(task.title).length > 0 ? '' : 'opacity-40'}`}
-                    title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
+                    title={isLinkOnlyTask(task)
+                      ? `${getLinkUrl(task)} ${t('task.holdToEditHint')}`
+                      : t('sched.notesSubtasks')}
                   >
                     {isPhoneOnlyTask(task) ? <Phone size={14} /> : isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                   </button>
@@ -307,7 +319,9 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                         setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
                       }}
                       className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : 'opacity-40'}`}
-                      title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
+                      title={task.deadline
+                        ? t('task.deadlineWithDate', { date: formatDeadlineDate(task.deadline), defaultValue: 'Deadline: {{date}}' })
+                        : t('task.setDeadline', { defaultValue: 'Set deadline' })}
                     >
                       <Calendar size={14} />
                     </button>
@@ -322,7 +336,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                   <button
                     onClick={() => openMobileEditTask(task, true)}
                     className="hover:bg-white/20 rounded p-1 transition-colors"
-                    title="Edit"
+                    title={t('common.edit')}
                   >
                     <Pencil size={14} />
                   </button>
@@ -341,7 +355,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                     <button
                       onClick={(e) => { e.stopPropagation(); archiveInboxTask(task.id); }}
                       className="flex items-center gap-0.5 hover:bg-white/20 rounded px-1.5 py-1 transition-colors opacity-60 hover:opacity-100"
-                      title="Archive task"
+                      title={t('task.archiveTask', { defaultValue: 'Archive task' })}
                     >
                       <Archive size={11} className="text-white" />
                     </button>
@@ -352,7 +366,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                       cyclePriority(task.id);
                     }}
                     className="flex gap-0.5 hover:bg-white/20 rounded px-2 py-1.5 transition-colors"
-                    title={['No priority', 'Low priority', 'Medium priority', 'High priority'][pendingPriorities[task.id] ?? task.priority ?? 0]}
+                    title={priorityLabels[pendingPriorities[task.id] ?? task.priority ?? 0]}
                   >
                     {[0, 1, 2].map(i => (
                       <span
@@ -408,7 +422,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
       <button
         onClick={openNewInboxTask}
         className="p-2 flex items-center justify-center bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
-        title="New Inbox Task"
+        title={t('task.newInbox')}
       >
         <Plus size={16} strokeWidth={3} />
       </button>
@@ -416,7 +430,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
         <button
           onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}
           className="p-2 flex items-center justify-center bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
-          title="AI Smart Schedule"
+          title={t('inbox.aiSmartSchedule', { defaultValue: 'AI Smart Schedule' })}
         >
           <BrainCircuit size={16} />
         </button>
@@ -427,7 +441,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
         ref={node => { inboxFilterBtnRef.current = node; }}
         onClick={() => { inboxFilterBtnRef.current = document.activeElement; setShowInboxFilter(v => !v); playUISound('click'); }}
         className={`relative ${hoverBg} rounded px-2 py-1.5 transition-colors`}
-        title="Filter inbox"
+        title={t('common.filterInbox')}
       >
         <Filter size={14} className={inboxFilterActive ? (darkMode ? 'text-blue-400' : 'text-blue-500') : (darkMode ? 'text-gray-400' : 'text-stone-500')} />
         {inboxFilterActive && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-blue-500" />}
@@ -435,7 +449,9 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
       <button
         onClick={() => { setInboxPriorityFilter(prev => (prev + 1) % 4); playUISound('click'); }}
         className={`flex gap-0.5 ${hoverBg} rounded px-2 py-1.5 transition-colors`}
-        title={inboxPriorityFilter === 0 ? 'Showing all priorities' : `Showing priority ${inboxPriorityFilter}+`}
+        title={inboxPriorityFilter === 0
+          ? t('inbox.showingAllPrioritiesClick', { defaultValue: 'Showing all priorities (click to filter)' })
+          : t('inbox.showingPriorityClick', { priority: inboxPriorityFilter, defaultValue: 'Showing priority {{priority}}+ (click to change)' })}
       >
         {[0, 1, 2].map(i => (
           <span
@@ -463,17 +479,17 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
         </div>
         <p className={`text-base font-semibold ${textPrimary} mb-1`}>
           {unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0
-            ? "Inbox zero"
+            ? t('inbox.zero', { defaultValue: 'Inbox zero' })
             : unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0
-              ? "All overdue"
-              : "No matches"}
+              ? t('inbox.allOverdue', { defaultValue: 'All overdue' })
+              : t('inbox.noMatches', { defaultValue: 'No matches' })}
         </p>
         <p className={`text-sm ${textSecondary} text-center mb-5`}>
           {unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0
-            ? "Add tasks here to schedule later"
+            ? t('inbox.addTasksForLater', { defaultValue: 'Add tasks here to schedule later' })
             : unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0
-              ? "All inbox tasks have overdue deadlines"
-              : "No tasks match the current filter"}
+              ? t('inbox.allTasksOverdueHint', { defaultValue: 'All inbox tasks have overdue deadlines' })
+              : t('sched.noMatchingTasks')}
         </p>
         {unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0 && (
           <button
@@ -481,7 +497,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-emerald-500 text-white active:bg-emerald-600' : 'bg-emerald-500 text-white active:bg-emerald-600'} transition-colors`}
           >
             <Plus size={16} />
-            Add task
+            {t('task.addTask')}
           </button>
         )}
       </div>
@@ -491,10 +507,10 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
           <div className={`relative rounded-lg ${(showDeadlinePicker === task.id || expandedNotesTaskId === task.id) ? '' : 'overflow-hidden'}`}>
             {/* Swipe action strips */}
             <div data-swipe-strip="right" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-green-900/80 text-green-300' : 'bg-green-100 text-green-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
-              <Calendar size={14} className="mr-1" />Schedule
+              <Calendar size={14} className="mr-1" />{t('common.schedule')}
             </div>
             <div data-swipe-strip="left" style={{ display: 'none' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
-              Edit<Settings size={14} className="ml-1" />
+              {t('common.edit')}<Settings size={14} className="ml-1" />
             </div>
           <div
             data-ctx-menu
@@ -516,7 +532,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
           >
             {task.isExample && (
               <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
-                Example
+                {t('common.example')}
               </span>
             )}
             <div className="text-white">
@@ -539,7 +555,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                       {renderTitle(task.title)}
                     </div>
                     <div className="text-xs opacity-90 mt-1 flex items-center gap-2 flex-wrap">
-                      <span>{task.duration} min</span>
+                      <span>{t('common.minutesShort', { count: task.duration })}</span>
                       {task.deadline && (
                         <span className="flex items-center gap-1">
                           <AlertCircle size={10} />
@@ -558,7 +574,9 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                               setInboxProjectFilter(active ? [] : [task.projectId]);
                             }}
                             className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 hover:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
-                            title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                            title={projectFilter === task.projectId
+                              ? t('sched.clearProjectFilter')
+                              : t('sched.filterProject', { project: proj.title, defaultValue: 'Filter: {{project}}' })}
                           >
                             {proj.title}
                           </button>
@@ -603,7 +621,9 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                           setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
                         }}
                         className={`hover:bg-white/20 rounded p-1 transition-colors ${task.deadline ? 'bg-white/20' : 'opacity-40'}`}
-                        title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
+                        title={task.deadline
+                          ? t('task.deadlineWithDate', { date: formatDeadlineDate(task.deadline), defaultValue: 'Deadline: {{date}}' })
+                          : t('task.setDeadline', { defaultValue: 'Set deadline' })}
                       >
                         <Calendar size={14} />
                       </button>
@@ -630,7 +650,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
                       <button
                         onClick={(e) => { e.stopPropagation(); archiveInboxTask(task.id); }}
                         className="flex items-center gap-0.5 hover:bg-white/20 rounded px-1.5 py-1 transition-colors opacity-60 hover:opacity-100"
-                        title="Archive task"
+                        title={t('task.archiveTask', { defaultValue: 'Archive task' })}
                       >
                         <Archive size={11} className="text-white" />
                       </button>

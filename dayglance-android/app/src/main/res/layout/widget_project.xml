@@ -63,7 +63,7 @@
                 android:layout_marginStart="4dp"
                 android:src="@drawable/ic_widget_refresh"
                 android:padding="5dp"
-                android:contentDescription="Refresh" />
+                android:contentDescription="@string/action_refresh" />
 
         </LinearLayout>
 

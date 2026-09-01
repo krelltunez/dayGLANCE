@@ -90,7 +90,7 @@ class ProjectWidgetConfigureActivity : AppCompatActivity() {
             val p = allProjects.optJSONObject(i) ?: continue
             entries += ProjectEntry(
                 id           = p.optString("id", ""),
-                title        = p.optString("title", "Untitled"),
+                title        = p.optString("title", getString(R.string.widget_untitled)),
                 goalTitle    = p.optString("goalTitle", ""),
                 goalColorHex = p.optString("goalColorHex", ""),
                 pct          = p.optInt("progressPct", 0),
@@ -109,7 +109,7 @@ class ProjectWidgetConfigureActivity : AppCompatActivity() {
         var lastGoalTitle = "\u0000" // sentinel
         for (entry in sorted) {
             // Goal section header
-            val sectionLabel = entry.goalTitle.ifEmpty { "Standalone" }
+            val sectionLabel = entry.goalTitle.ifEmpty { getString(R.string.config_standalone) }
             if (sectionLabel != lastGoalTitle) {
                 lastGoalTitle = sectionLabel
                 root.addView(TextView(this).apply {
@@ -156,7 +156,11 @@ class ProjectWidgetConfigureActivity : AppCompatActivity() {
             textSize = 15f
             setTextColor(resolveAttrColor(android.R.attr.textColorPrimary))
         })
-        val subtitle = if (total > 0) "$done/$total tasks  ·  $pct%" else "$pct%"
+        val subtitle = if (total > 0) {
+            getString(R.string.config_task_progress, done, total) + "  ·  $pct%"
+        } else {
+            "$pct%"
+        }
         textCol.addView(TextView(this).apply {
             text = subtitle
             textSize = 12f

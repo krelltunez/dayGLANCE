@@ -3,6 +3,7 @@ import { ChevronRight, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { stripWikilinks } from '../utils/taskUtils.js';
 import { useTranslation } from 'react-i18next';
+import { formatLocalizedDate } from '../utils/localeFormatting.js';
 
 const IncompleteTasksModal = () => {
   const {
@@ -96,7 +97,7 @@ const IncompleteTasksModal = () => {
                           <div className={`text-xs ${textSecondary}`}>
                             {isDaily
                               ? (task.startTime ? formatTime(task.startTime) : 'All day')
-                              : [task.date && new Date(task.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), task.startTime && formatTime(task.startTime)].filter(Boolean).join(' · ') || 'No date'}
+                              : [task.date && formatLocalizedDate(new Date(task.date + 'T12:00:00'), { month: 'short', day: 'numeric' }), task.startTime && formatTime(task.startTime)].filter(Boolean).join(' · ') || t('spotlight.groupNoDate')}
                           </div>
                         </div>
                         <ChevronRight size={14} className={`${textSecondary} flex-shrink-0 opacity-40`} />

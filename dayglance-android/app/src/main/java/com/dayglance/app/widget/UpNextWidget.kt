@@ -13,7 +13,6 @@ import com.dayglance.app.MainActivity
 import com.dayglance.app.R
 import com.dayglance.app.data.SharedDataStore
 import org.json.JSONObject
-import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
@@ -61,10 +60,11 @@ class UpNextWidget : AppWidgetProvider() {
         val views = RemoteViews(context.packageName, R.layout.widget_upnext)
         val dataStore = SharedDataStore(context)
         val snapshot = dataStore.widgetSnapshot?.let { runCatching { JSONObject(it) }.getOrNull() }
-        val use24Hour = snapshot?.optBoolean("use24Hour", false) ?: false
+        val use24Hour = widgetUses24HourClock(context, snapshot)
 
         // Header date
-        val dateLabel = snapshot?.optString("dateLabel") ?: formatTodayLabel(context)
+        val dateLabel = snapshot?.optString("dateLabel")?.takeIf { it.isNotBlank() }
+            ?: formatTodayLabel(context)
         views.setTextViewText(R.id.tv_upnext_date, dateLabel)
 
         // Tap root to open app
@@ -233,7 +233,7 @@ class UpNextWidget : AppWidgetProvider() {
     }
 
     private fun formatTodayLabel(context: Context): String = try {
-        LocalDate.now().format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+        formatWidgetDate(context)
     } catch (_: Throwable) { context.getString(R.string.widget_today) }
 
     // ── Manual refresh broadcast ──────────────────────────────────────────────

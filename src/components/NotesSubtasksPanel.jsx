@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BookOpen, Loader, Sparkles, X, Check, Plus, ExternalLink } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { isOnlyUrl, renderFormattedText } from '../utils/textFormatting.jsx';
+import { activeLocale, formatLocalizedDate, formatLocalizedDurationMinutes } from '../utils/localeFormatting.js';
 
 /** Format an ISO timestamp as a human-readable relative or absolute string. */
 function formatNoteTimestamp(iso) {
@@ -8,18 +10,19 @@ function formatNoteTimestamp(iso) {
   const d = new Date(iso);
   const diffMs = Date.now() - d.getTime();
   const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
+  const relativeTime = new Intl.RelativeTimeFormat(activeLocale(), { numeric: 'auto', style: 'narrow' });
+  if (diffMin < 1) return relativeTime.format(0, 'second');
+  if (diffMin < 60) return relativeTime.format(-diffMin, 'minute');
   const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `${diffH}h ago`;
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (diffH < 24) return relativeTime.format(-diffH, 'hour');
+  return formatLocalizedDate(d, { month: 'short', day: 'numeric' });
 }
 
 /**
  * Render note text with [[wikilink]] patterns as clickable buttons.
  * Non-wikilink segments are passed through renderFormattedText.
  */
-function renderNoteContent(text, onWikilinkClick, darkMode) {
+function renderNoteContent(text, onWikilinkClick, darkMode, t) {
   if (!text) return null;
   const segments = text.split(/(\[\[[^\]]+\]\])/g);
   return segments.map((seg, i) => {
@@ -30,7 +33,7 @@ function renderNoteContent(text, onWikilinkClick, darkMode) {
           key={i}
           type="button"
           onClick={(e) => { e.stopPropagation(); onWikilinkClick(m[1]); }}
-          title={`Open "${m[1]}"`}
+          title={t('task.openWikiNote', { name: m[1] })}
           className={`underline decoration-dashed underline-offset-2 transition-colors ${darkMode ? 'text-purple-300 hover:text-purple-200' : 'text-purple-600 hover:text-purple-700'}`}
         >
           {m[1]}
@@ -61,6 +64,7 @@ const NotesSubtasksPanel = ({
   onSaveWikiNote,     // async (noteName, content) => void
   onOpenInObsidian,   // (noteName) => void — opens note in Obsidian app/desktop
 }) => {
+  const { t } = useTranslation();
   const isGeneratingSubtasks = aiSubtasksLoadingForTask === task.id;
   const [editingSubtaskId, setEditingSubtaskId] = useState(null);
   const [editingSubtaskText, setEditingSubtaskText] = useState('');
@@ -279,24 +283,25 @@ const NotesSubtasksPanel = ({
                     <button
                       type="button"
                       onClick={() => onOpenInObsidian(noteName)}
-                      title={`Open "${noteName}" in Obsidian`}
+                      title={t('task.openWikiNoteInObsidian', { name: noteName })}
+                      aria-label={t('task.openWikiNoteInObsidian', { name: noteName })}
                       className={`flex items-center gap-1 transition-opacity px-1 py-0.5 rounded ${th.obsBtn}`}
                     >
                       <ExternalLink size={12} />
-                      <span className="text-xs">Open in Obsidian</span>
+                      <span className="text-xs">{t('task.openInObsidian')}</span>
                     </button>
                   )}
                 </div>
                 {state.loading ? (
                   <div className={`flex items-center gap-1.5 py-2 text-xs opacity-60 ${noteMinH} ${th.label}`}>
                     <Loader size={12} className="animate-spin" />
-                    Loading…
+                    {t('common.loading')}
                   </div>
                 ) : state.error ? (
                   <div className={`text-xs italic opacity-60 ${noteMinH} ${th.label}`}>
                     {state.error === 'not_found'
-                      ? 'Note not found in vault — check that your vault is configured and the note exists.'
-                      : `Could not load note: ${state.error}`}
+                      ? t('task.wikiNoteNotFound')
+                      : t('task.wikiNoteLoadFailed', { error: state.error })}
                   </div>
                 ) : isEditingWiki ? (
                   <textarea
@@ -325,7 +330,8 @@ const NotesSubtasksPanel = ({
                         if (text) setLinkedNoteEditing(prev => ({ ...prev, [noteName]: false }));
                       }
                     }}
-                    placeholder="Empty note — start typing to create it in your vault"
+                    placeholder={t('task.emptyWikiNotePlaceholder')}
+                    aria-label={t('task.editWikiNote', { name: noteName })}
                     className={textareaClass}
                     autoFocus={!noAutoFocus}
                   />
@@ -334,7 +340,7 @@ const NotesSubtasksPanel = ({
                     onClick={() => setLinkedNoteEditing(prev => ({ ...prev, [noteName]: true }))}
                     className={`text-sm cursor-text p-2 rounded ${th.preview} ${noteMinH}`}
                   >
-                    {renderNoteContent(state.text, handleContentWikilinkClick, darkMode)}
+                    {renderNoteContent(state.text, handleContentWikilinkClick, darkMode, t)}
                   </div>
                 )}
               </div>
@@ -343,14 +349,15 @@ const NotesSubtasksPanel = ({
         </div>
       ) : (
         <div className="mb-3">
-          <div className={`text-xs font-semibold mb-1 ${th.label}`}>Notes</div>
+          <div className={`text-xs font-semibold mb-1 ${th.label}`}>{t('task.notes')}</div>
           {isEditingNotes ? (
             <textarea
               value={localNotes}
               onChange={handleNotesChange}
               onKeyDown={handleNotesKeyDown}
               onBlur={handleNotesBlur}
-              placeholder="Add notes... (**bold**, *italic*, __underline__, URLs) - Shift+Enter for preview"
+              placeholder={t('task.notesFormattingPlaceholder')}
+              aria-label={t('task.notes')}
               className={textareaClass}
               autoFocus={!noAutoFocus}
             />
@@ -381,19 +388,19 @@ const NotesSubtasksPanel = ({
       {/* Subtasks section */}
       <div>
         <div className={`text-xs font-semibold mb-1 flex items-center gap-1.5 ${th.label}`}>
-          <span>Subtasks {task.subtasks?.length > 0 && `(${task.subtasks.filter(st => st.completed).length}/${task.subtasks.length})`}</span>
+          <span>{t('task.subtasks')} {task.subtasks?.length > 0 && `(${task.subtasks.filter(st => st.completed).length}/${task.subtasks.length})`}</span>
           {aiConfig?.enabled && aiConfig.features?.aiSubtasks && onGenerateSubtasks && (
             <button
               type="button"
               onClick={() => onGenerateSubtasks(task.id, task.title, task.notes, isInbox)}
               disabled={isGeneratingSubtasks}
-              title="Generate subtasks with AI"
+              title={t('task.generateSubtasks')}
               className={`flex items-center gap-1 transition-colors disabled:opacity-40 ${th.aiBtn}`}
             >
               {isGeneratingSubtasks
                 ? <Loader size={11} className="animate-spin" />
                 : <Sparkles size={11} />}
-              <span className="text-[10px] font-normal">{isGeneratingSubtasks ? 'Generating…' : 'Generate with AI'}</span>
+              <span className="text-[10px] font-normal">{isGeneratingSubtasks ? t('task.generatingSubtasks') : t('task.generateSubtasks')}</span>
             </button>
           )}
         </div>
@@ -406,6 +413,8 @@ const NotesSubtasksPanel = ({
                 <button
                   type="button"
                   onClick={() => toggleSubtask(task.id, subtask.id, isInbox)}
+                  title={t(subtask.completed ? 'task.markSubtaskIncomplete' : 'task.markSubtaskComplete')}
+                  aria-label={t(subtask.completed ? 'task.markSubtaskIncomplete' : 'task.markSubtaskComplete')}
                   className={`rounded flex-shrink-0 border-2 w-4 h-4 flex items-center justify-center transition-colors ${th.checkbox} ${subtask.completed ? 'opacity-60' : ''}`}
                 >
                   {subtask.completed && <Check size={10} strokeWidth={3} className={th.checkIcon} />}
@@ -414,6 +423,7 @@ const NotesSubtasksPanel = ({
                   <input
                     type="text"
                     value={editingSubtaskText}
+                    aria-label={t('task.editSubtask')}
                     onChange={(e) => setEditingSubtaskText(e.target.value)}
                     onBlur={saveSubtaskEdit}
                     onKeyDown={(e) => {
@@ -431,7 +441,7 @@ const NotesSubtasksPanel = ({
                     {subtask.title}
                     {subtask.duration && (
                       <span className="opacity-40 text-xs ml-1.5">
-                        · {subtask.duration < 60 ? `${subtask.duration}m` : `${Math.round(subtask.duration / 60 * 10) / 10}h`}
+                        · {formatLocalizedDurationMinutes(subtask.duration)}
                       </span>
                     )}
                   </span>
@@ -440,7 +450,8 @@ const NotesSubtasksPanel = ({
                   type="button"
                   onClick={() => deleteSubtask(task.id, subtask.id, isInbox)}
                   className={`md:opacity-0 md:group-hover:opacity-100 opacity-60 rounded p-0.5 transition-opacity ${th.deleteBtn}`}
-                  title="Delete subtask"
+                  title={t('task.deleteSubtask')}
+                  aria-label={t('task.deleteSubtask')}
                 >
                   <X size={12} />
                 </button>
@@ -462,7 +473,8 @@ const NotesSubtasksPanel = ({
             value={localSubtaskText}
             onChange={(e) => setLocalSubtaskText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubtask(e); }}
-            placeholder="Add subtask..."
+            placeholder={t('task.subtaskPlaceholder')}
+            aria-label={t('task.addSubtask')}
             className={`flex-1 bg-transparent text-sm px-1 py-0.5 outline-none border-b ${th.addInput} ${th.addBorder}`}
           />
         </div>

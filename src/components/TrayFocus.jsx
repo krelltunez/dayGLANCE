@@ -1,7 +1,7 @@
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useTranslation } from 'react-i18next';
 
-const PHASE_LABELS = { work: 'Work', shortBreak: 'Short Break', longBreak: 'Long Break' };
+const PHASE_KEYS = { work: 'focus.work', shortBreak: 'focus.shortBreak', longBreak: 'focus.longBreak' };
 const PHASE_COLORS = {
   work: 'bg-blue-500/20 text-blue-400',
   shortBreak: 'bg-green-500/20 text-green-400',
@@ -16,6 +16,7 @@ function fmt(seconds) {
 
 export default function TrayFocus({ darkMode, focusState }) {
   const { textPrimary, textSecondary } = useDayPlannerCtx();
+  const { t } = useTranslation();
   const { phase, secondsRemaining, cycleCount } = focusState;
 
   const stop = () => window.electronAPI?.backgroundAction({ action: 'focus-stop' });
@@ -24,7 +25,7 @@ export default function TrayFocus({ darkMode, focusState }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 pb-6 gap-4">
       <div className={`px-3 py-1 rounded-full text-xs font-semibold ${PHASE_COLORS[phase] ?? 'bg-blue-500/20 text-blue-400'}`}>
-        {PHASE_LABELS[phase] ?? phase}
+        {t(PHASE_KEYS[phase], { defaultValue: phase })}
       </div>
 
       <div className={`text-5xl font-bold tabular-nums tracking-tight ${textPrimary}`}>
@@ -33,7 +34,7 @@ export default function TrayFocus({ darkMode, focusState }) {
 
       {cycleCount > 0 && (
         <div className={`text-xs ${textSecondary}`}>
-          {cycleCount} cycle{cycleCount !== 1 ? 's' : ''} completed
+          {t('focus.cyclesCompleted', { count: cycleCount })}
         </div>
       )}
 
@@ -44,13 +45,13 @@ export default function TrayFocus({ darkMode, focusState }) {
             darkMode ? 'bg-white/10 text-gray-300' : 'bg-black/5 text-stone-600'
           }`}
         >
-          Stop
+          {t('focus.stop')}
         </button>
         <button
           onClick={skip}
           className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-blue-500 text-white transition-opacity hover:opacity-90"
         >
-          Skip
+          {t('common.skip')}
         </button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import * as Icons from 'lucide-react';
 import { Pencil, Zap } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
@@ -14,6 +15,13 @@ import { hexToRgba } from '../utils/colorUtils.js';
 const HyperGlanceBar = ({ project, date, isCompleted, isOverdue, overrideTop, overrideFullHeight, overridePillHeight }) => {
   const { minutesToPosition, currentTime, use24HourClock, tasks, unscheduledTasks, getHourHeight, playUISound, frameResizingRef, setHoverPreviewTime, setHoverPreviewDate } = useDayPlannerCtx();
   const { enterHyperGlanceMode, setHgContextMenu, setPendingEditProjectId, updateProject } = useFeaturesCtx();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage || i18n.language;
+  const formatClock = (hour, minute) => new Intl.DateTimeFormat(locale, {
+    hour: use24HourClock ? '2-digit' : 'numeric',
+    minute: '2-digit',
+    hour12: !use24HourClock,
+  }).format(new Date(2024, 0, 1, hour, minute));
 
   const [showStats, setShowStats] = useState(false);
   const [statsPos, setStatsPos] = useState(null);
@@ -106,14 +114,11 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue, overrideTop, ov
 
   const timeLabel = (() => {
     if (!hg.scheduledTime) return '';
-    if (use24HourClock) return hg.scheduledTime;
-    const hour12 = startH === 0 ? 12 : startH > 12 ? startH - 12 : startH;
-    const ampm = startH < 12 ? 'AM' : 'PM';
-    return `${hour12}:${String(startM).padStart(2, '0')} ${ampm}`;
+    return formatClock(startH, startM);
   })();
 
   const taskCountLabel = incompleteTaskCount > 0
-    ? `${incompleteTaskCount} task${incompleteTaskCount !== 1 ? 's' : ''}`
+    ? t('reminders.taskCount', { count: incompleteTaskCount })
     : null;
 
   if (isCompleted) {
@@ -122,11 +127,7 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue, overrideTop, ov
     const completedTimeLabel = (() => {
       if (!completedAt) return null;
       const d = new Date(completedAt);
-      const h = d.getHours(), m = d.getMinutes();
-      if (use24HourClock) return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-      const ampm = h < 12 ? 'am' : 'pm';
-      return `${h12}:${String(m).padStart(2, '0')}${ampm}`;
+      return formatClock(d.getHours(), d.getMinutes());
     })();
 
     const formatElapsed = (seconds) => {
@@ -155,22 +156,22 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue, overrideTop, ov
           </div>
           {completedTimeLabel && (
             <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Completed at <span className="font-medium text-gray-900 dark:text-white">{completedTimeLabel}</span>
+              {t('common.completed')} <span className="font-medium text-gray-900 dark:text-white">{completedTimeLabel}</span>
             </div>
           )}
           {(completion?.tasksTotal > 0) && (
             <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Tasks <span className="font-medium text-gray-900 dark:text-white">{completion.tasksCompleted}/{completion.tasksTotal}</span>
+              {t('frames.allTasks')} <span className="font-medium text-gray-900 dark:text-white">{completion.tasksCompleted}/{completion.tasksTotal}</span>
             </div>
           )}
           {completion?.elapsedSeconds > 0 && (
             <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Duration <span className="font-medium text-gray-900 dark:text-white">{formatElapsed(completion.elapsedSeconds)}</span>
+              {t('common.duration')} <span className="font-medium text-gray-900 dark:text-white">{formatElapsed(completion.elapsedSeconds)}</span>
             </div>
           )}
           {completion?.cycleCount > 0 && (
             <div className="text-xs text-gray-500 dark:text-gray-400">
-              Cycles <span className="font-medium text-gray-900 dark:text-white">{completion.cycleCount}</span>
+              {t('focus.pomodoroCycles')} <span className="font-medium text-gray-900 dark:text-white">{completion.cycleCount}</span>
             </div>
           )}
         </div>
@@ -201,7 +202,7 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue, overrideTop, ov
                 setShowStats(s => !s);
               }}
               className="flex-shrink-0 ml-0.5 pointer-events-auto opacity-80 hover:opacity-100"
-              title="View session stats"
+              title={t('focus.sessionComplete')}
             >
               <Zap size={10} style={{ color: 'white' }} />
             </button>
@@ -245,7 +246,7 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue, overrideTop, ov
         <button
           onClick={(e) => { e.stopPropagation(); if (frameResizingRef.current) return; setPendingEditProjectId(project.id); }}
           className="absolute top-0.5 right-0.5 p-0.5 rounded opacity-40 hover:opacity-90 transition-opacity pointer-events-auto z-10"
-          title="Edit project"
+          title={t('common.edit')}
         >
           <Pencil size={9} style={{ color: barColor }} />
         </button>
@@ -264,14 +265,14 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue, overrideTop, ov
                 </span>
               )}
               {isOverdue && (
-                <span className="text-[9px] font-semibold text-orange-500">overdue</span>
+                <span className="text-[9px] font-semibold text-orange-500">{t('common.overdue')}</span>
               )}
               {canEnter && (
                 <button
                   onClick={() => enterHyperGlanceMode(project.id, date)}
                   className="flex items-center gap-0.5 px-2 py-1 rounded-full text-white text-[9px] font-bold animate-pulse pointer-events-auto"
                   style={{ backgroundColor: barColor }}
-                  title="Enter hyperGLANCE"
+                  title={t('focus.startSession')}
                 >
                   <Zap size={8} />
                   hyperGLANCE
@@ -315,7 +316,7 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue, overrideTop, ov
               </span>
             )}
             {isOverdue && fullHeight > 50 && (
-              <span className="text-[9px] font-semibold text-orange-500 px-1">overdue</span>
+              <span className="text-[9px] font-semibold text-orange-500 px-1">{t('common.overdue')}</span>
             )}
             <div className="flex-1" />
             {canEnter && fullHeight > 50 && (
@@ -323,7 +324,7 @@ const HyperGlanceBar = ({ project, date, isCompleted, isOverdue, overrideTop, ov
                 onClick={() => enterHyperGlanceMode(project.id, date)}
                 className="mb-1.5 flex items-center gap-0.5 px-2 py-0.5 rounded-full text-white text-[9px] font-bold animate-pulse pointer-events-auto"
                 style={{ backgroundColor: barColor }}
-                title="Enter hyperGLANCE"
+                title={t('focus.startSession')}
               >
                 <Zap size={8} />
                 hG

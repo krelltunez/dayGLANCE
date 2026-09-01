@@ -392,13 +392,21 @@ class NotificationBridge(private val context: Context) {
      * @param cycleCount       completed work cycles (0-based; used to show e.g. "1/4")
      */
     fun showFocusTimerNotification(phase: String, remainingSeconds: Int, isPaused: Boolean, cycleCount: Int) {
-        val phaseLabel = when (phase) {
-            "shortBreak" -> "Short Break"
-            "longBreak"  -> "Long Break"
-            else         -> "Work"
-        }
+        val phaseLabel = context.getString(when (phase) {
+            "shortBreak" -> R.string.focus_phase_short_break
+            "longBreak"  -> R.string.focus_phase_long_break
+            else         -> R.string.focus_phase_work
+        })
         val cycleInRound = (cycleCount % 4) + 1
-        val statusText = "${if (isPaused) "Paused" else "In Progress"} · $phaseLabel · $cycleInRound/4"
+        val statusLabel = context.getString(
+            if (isPaused) R.string.focus_status_paused else R.string.focus_status_in_progress
+        )
+        val statusText = context.getString(
+            R.string.focus_status_format,
+            statusLabel,
+            phaseLabel,
+            cycleInRound
+        )
 
         val views = RemoteViews(context.packageName, R.layout.notification_focus_timer)
         if (isPaused) {
@@ -420,7 +428,7 @@ class NotificationBridge(private val context: Context) {
 
         val builder = NotificationCompat.Builder(context, DayGlanceApplication.CHANNEL_FOCUS)
             .setSmallIcon(R.drawable.ic_notification)
-            .setSubText("Focus Mode")
+            .setSubText(context.getString(R.string.channel_focus))
             .setContentTitle(phaseLabel)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
@@ -432,13 +440,13 @@ class NotificationBridge(private val context: Context) {
             .setCustomContentView(views)
 
         if (isPaused) {
-            builder.addAction(0, "Resume", focusActionPendingIntent(
+            builder.addAction(0, context.getString(R.string.focus_action_resume), focusActionPendingIntent(
                 NotificationActionReceiver.ACTION_FOCUS_RESUME, FOCUS_RESUME_REQUEST))
         } else {
-            builder.addAction(0, "Pause", focusActionPendingIntent(
+            builder.addAction(0, context.getString(R.string.focus_action_pause), focusActionPendingIntent(
                 NotificationActionReceiver.ACTION_FOCUS_PAUSE, FOCUS_PAUSE_REQUEST))
         }
-        builder.addAction(0, "Stop", focusActionPendingIntent(
+        builder.addAction(0, context.getString(R.string.focus_action_stop), focusActionPendingIntent(
             NotificationActionReceiver.ACTION_FOCUS_STOP, FOCUS_STOP_REQUEST))
 
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

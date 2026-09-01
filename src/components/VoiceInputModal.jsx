@@ -1,11 +1,13 @@
 import React from 'react';
 import { BrainCircuit, Check, Loader, Mic, MicOff, Pencil, Plus, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import ClockTimePicker from './ClockTimePicker.jsx';
 import { supportsTranscription, PROVIDER_LABELS } from '../ai.js';
 
 const VoiceInputModal = () => {
+  const { t } = useTranslation();
   const {
     voiceTextareaRef,
     darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
@@ -27,6 +29,24 @@ const VoiceInputModal = () => {
     aiConfig,
   } = useFeaturesCtx();
 
+  const priorityLabels = [
+    t('voice.priorities.none', { defaultValue: 'None' }),
+    t('task.lowPriority', { defaultValue: 'Low' }),
+    t('task.mediumPriority', { defaultValue: 'Medium' }),
+    t('task.highPriority', { defaultValue: 'High' }),
+  ];
+  const actionLabels = {
+    move: t('voice.actions.move', { defaultValue: 'Move' }),
+    changeDuration: t('voice.actions.duration', { defaultValue: 'Duration' }),
+    rename: t('voice.actions.rename', { defaultValue: 'Rename' }),
+    delete: t('voice.actions.delete', { defaultValue: 'Delete' }),
+    complete: t('voice.actions.complete', { defaultValue: 'Complete' }),
+    uncomplete: t('voice.actions.uncomplete', { defaultValue: 'Uncomplete' }),
+    changePriority: t('voice.actions.priority', { defaultValue: 'Priority' }),
+    addTag: t('voice.actions.addTag', { defaultValue: 'Add Tag' }),
+    removeTag: t('voice.actions.removeTag', { defaultValue: 'Remove Tag' }),
+  };
+
   return (
     <>
       {showVoiceInput && (
@@ -40,7 +60,7 @@ const VoiceInputModal = () => {
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`text-lg font-semibold ${textPrimary} flex items-center gap-2`}>
                   <Mic size={20} className="text-purple-400" />
-                  Voice Input
+                  {t('voice.title')}
                 </h3>
                 <button onClick={() => { voiceStopRecording(); setShowVoiceInput(false); }} className={`p-1 rounded-lg ${hoverBg}`}>
                   <X size={18} className={textSecondary} />
@@ -56,7 +76,7 @@ const VoiceInputModal = () => {
                       {voiceIsTranscribing ? (
                         <div className="flex flex-col items-center gap-3 py-4">
                           <Loader size={32} className="animate-spin text-purple-400" />
-                          <p className={`text-sm ${textSecondary}`}>{voiceIsParsing ? 'Parsing tasks...' : 'Transcribing...'}</p>
+                          <p className={`text-sm ${textSecondary}`}>{voiceIsParsing ? t('voice.parsingTasks') : t('voice.transcribing')}</p>
                         </div>
                       ) : (
                         <>
@@ -72,7 +92,7 @@ const VoiceInputModal = () => {
                             {voiceIsRecording ? <MicOff size={32} className="text-white" /> : <Mic size={32} className="text-white" />}
                           </button>
                           <p className={`text-sm ${textSecondary}`}>
-                            {voiceIsRecording ? 'Recording... release Space or tap to stop' : 'Hold Space or tap to record'}
+                            {voiceIsRecording ? t('voice.recording') : t('voice.holdToRecord')}
                           </p>
                         </>
                       )}
@@ -89,7 +109,7 @@ const VoiceInputModal = () => {
                           onClick={() => setVoiceManualMode(true)}
                           className={`text-xs ${textSecondary} hover:underline`}
                         >
-                          Or type instead <kbd className="ml-1 px-1 py-0.5 rounded bg-black/20 text-[10px] font-mono">T</kbd>
+                          {t('voice.typeInstead', { defaultValue: 'Or type instead' })} <kbd className="ml-1 px-1 py-0.5 rounded bg-black/20 text-[10px] font-mono">T</kbd>
                         </button>
                       )}
                     </div>
@@ -99,15 +119,20 @@ const VoiceInputModal = () => {
                       {!voiceHasTranscription ? (
                         <p className={`text-xs ${textSecondary}`}>
                           {aiConfig.enabled && !supportsTranscription(aiConfig)
-                            ? `Voice recording isn't available here, and ${PROVIDER_LABELS[aiConfig.provider] || aiConfig.provider} doesn't support transcription. Type your tasks below — dates, times, and repeats are still understood.`
-                            : 'Voice recording is not available on this device. Type your tasks below — dates, times, and repeats are still understood.'}
+                            ? t('voice.transcriptionUnavailableWithProvider', {
+                              provider: PROVIDER_LABELS[aiConfig.provider] || aiConfig.provider,
+                              defaultValue: "Voice recording isn't available here, and {{provider}} doesn't support transcription. Type your tasks below — dates, times, and repeats are still understood.",
+                            })
+                            : t('voice.transcriptionUnavailable', {
+                              defaultValue: 'Voice recording is not available on this device. Type your tasks below — dates, times, and repeats are still understood.',
+                            })}
                         </p>
                       ) : null}
                       <textarea
                         ref={voiceTextareaRef}
                         value={voiceTranscript}
                         onChange={(e) => setVoiceTranscript(e.target.value)}
-                        placeholder="Add or edit tasks... e.g. &quot;call mom tomorrow at 3pm&quot; or &quot;move standup to Friday&quot; or &quot;mark report as done&quot;"
+                        placeholder={t('voice.placeholder', { defaultValue: 'Add or edit tasks... e.g. "call mom tomorrow at 3pm" or "move standup to Friday" or "mark report as done"' })}
                         className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white placeholder:text-gray-500' : 'bg-white text-stone-900 placeholder:text-stone-400'} text-sm resize-y min-h-[80px]`}
                         rows={3}
                         autoFocus
@@ -117,7 +142,7 @@ const VoiceInputModal = () => {
                           onClick={() => { setVoiceManualMode(false); setVoiceTranscript(''); }}
                           className={`text-xs ${textSecondary} hover:underline`}
                         >
-                          Use voice instead
+                          {t('voice.useVoiceInstead', { defaultValue: 'Use voice instead' })}
                         </button>
                       )}
                     </div>
@@ -138,7 +163,11 @@ const VoiceInputModal = () => {
                         ) : (
                           <Plus size={14} />
                         )}
-                        {voiceIsParsing ? 'Parsing...' : aiConfig.enabled ? 'Parse with AI' : 'Parse'}
+                        {voiceIsParsing
+                          ? t('voice.parsing', { defaultValue: 'Parsing...' })
+                          : aiConfig.enabled
+                            ? t('voice.parseWithAI', { defaultValue: 'Parse with AI' })
+                            : t('voice.parse', { defaultValue: 'Parse' })}
                         {!voiceIsParsing && <kbd className="ml-1 px-1 py-0.5 rounded bg-white/20 text-[10px] font-mono">↵</kbd>}
                       </button>
                     </div>
@@ -148,7 +177,10 @@ const VoiceInputModal = () => {
                     <p className="text-xs text-amber-500 mt-2">
                       {voiceManualMode
                         ? voiceParseError
-                        : `AI parsing error: ${voiceParseError}. Parsed without AI instead.`}
+                        : t('voice.aiParsingError', {
+                          error: voiceParseError,
+                          defaultValue: 'AI parsing error: {{error}}. Parsed without AI instead.',
+                        })}
                     </p>
                   )}
                 </>
@@ -158,12 +190,14 @@ const VoiceInputModal = () => {
                   {voiceParsedTasks && voiceParsedTasks.length > 0 && (
                   <div className="space-y-3">
                     <p className={`text-sm ${textSecondary}`}>
-                      {voiceParsedTasks.length === 1 ? '1 new task' : `${voiceParsedTasks.length} new tasks`}
-                      {voiceParseError && <span className="text-amber-500"> (fallback — AI error)</span>}
+                      {t('voice.newTask', {
+                        count: voiceParsedTasks.length,
+                        defaultValue: voiceParsedTasks.length === 1 ? '{{count}} new task' : '{{count}} new tasks',
+                      })}
+                      {voiceParseError && <span className="text-amber-500"> {t('voice.aiFallback', { defaultValue: '(fallback — AI error)' })}</span>}
                     </p>
 
                     {voiceParsedTasks.map((task, idx) => {
-                      const priorityLabels = ['None', 'Low', 'Medium', 'High'];
                       const priorityColors = ['text-gray-400', 'text-blue-400', 'text-yellow-400', 'text-red-400'];
                       return (
                         <div key={idx} className={`p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'} space-y-2`}>
@@ -193,7 +227,7 @@ const VoiceInputModal = () => {
                                   className={`px-2 py-1 border ${borderClass} rounded text-xs ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
                                 >
                                   {[15, 30, 45, 60, 90, 120].map(d => (
-                                    <option key={d} value={d}>{d}min</option>
+                                    <option key={d} value={d}>{t('voice.minutesShort', { count: d, defaultValue: '{{count}} min' })}</option>
                                   ))}
                                 </select>
                                 <select
@@ -211,7 +245,7 @@ const VoiceInputModal = () => {
                                   onClick={() => setVoiceEditingParsed(null)}
                                   className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
                                 >
-                                  Done
+                                  {t('common.done')}
                                 </button>
                               </div>
                             </div>
@@ -225,7 +259,7 @@ const VoiceInputModal = () => {
                                   ))}
                                   {task.date && <span>{task.date}</span>}
                                   {task.time && <span>{task.time}</span>}
-                                  <span>{task.duration}min</span>
+                                  <span>{t('voice.minutesShort', { count: task.duration, defaultValue: '{{count}} min' })}</span>
                                   {task.recurrenceDisplay && (
                                     <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">{task.recurrenceDisplay}</span>
                                   )}
@@ -234,21 +268,21 @@ const VoiceInputModal = () => {
                                       {'!'.repeat(task.priority)} {priorityLabels[task.priority]}
                                     </span>
                                   )}
-                                  {!task.date && <span className="italic">→ Inbox</span>}
+                                  {!task.date && <span className="italic">→ {t('common.toInbox')}</span>}
                                 </div>
                               </div>
                               <div className="flex items-center gap-1">
                                 <button
                                   onClick={() => setVoiceEditingParsed(idx)}
                                   className={`p-1 rounded ${hoverBg}`}
-                                  title="Edit"
+                                  title={t('common.edit')}
                                 >
                                   <Pencil size={14} className={textSecondary} />
                                 </button>
                                 <button
                                   onClick={() => setVoiceParsedTasks(prev => prev.filter((_, i) => i !== idx))}
                                   className={`p-1 rounded ${hoverBg}`}
-                                  title="Remove"
+                                  title={t('common.remove')}
                                 >
                                   <X size={14} className={textSecondary} />
                                 </button>
@@ -265,21 +299,22 @@ const VoiceInputModal = () => {
                   {voiceParsedEdits && voiceParsedEdits.length > 0 && (
                   <div className={`space-y-3 ${voiceParsedTasks && voiceParsedTasks.length > 0 ? 'mt-4' : ''}`}>
                     <p className={`text-sm ${textSecondary}`}>
-                      {voiceParsedEdits.length === 1 ? '1 edit' : `${voiceParsedEdits.length} edits`}
+                      {t('voice.editCount', {
+                        count: voiceParsedEdits.length,
+                        defaultValue: voiceParsedEdits.length === 1 ? '{{count}} edit' : '{{count}} edits',
+                      })}
                     </p>
 
                     {voiceParsedEdits.map((edit, idx) => {
-                      const actionLabels = { move: 'Move', changeDuration: 'Duration', rename: 'Rename', delete: 'Delete', complete: 'Complete', uncomplete: 'Uncomplete', changePriority: 'Priority', addTag: 'Add Tag', removeTag: 'Remove Tag' };
                       const actionColors = { move: 'bg-blue-500/20 text-blue-300', changeDuration: 'bg-orange-500/20 text-orange-300', rename: 'bg-purple-500/20 text-purple-300', delete: 'bg-red-500/20 text-red-300', complete: 'bg-green-500/20 text-green-300', uncomplete: 'bg-yellow-500/20 text-yellow-300', changePriority: 'bg-amber-500/20 text-amber-300', addTag: 'bg-teal-500/20 text-teal-300', removeTag: 'bg-pink-500/20 text-pink-300' };
-                      const priorityLabels = ['None', 'Low', 'Medium', 'High'];
                       // Describe what the edit will do
                       let changeDesc = '';
-                      if (edit.action === 'move') changeDesc = `→ ${edit.date || ''}${edit.time ? ` at ${edit.time}` : ''}`;
-                      else if (edit.action === 'changeDuration') changeDesc = `→ ${edit.duration}min`;
+                      if (edit.action === 'move') changeDesc = `→ ${edit.date || ''}${edit.time ? ` ${t('voice.at', { defaultValue: 'at' })} ${edit.time}` : ''}`;
+                      else if (edit.action === 'changeDuration') changeDesc = `→ ${t('voice.minutesShort', { count: edit.duration, defaultValue: '{{count}} min' })}`;
                       else if (edit.action === 'rename') changeDesc = `→ "${edit.newTitle}"`;
-                      else if (edit.action === 'changePriority') changeDesc = `→ ${priorityLabels[edit.priority] || 'None'}`;
+                      else if (edit.action === 'changePriority') changeDesc = `→ ${priorityLabels[edit.priority] || priorityLabels[0]}`;
                       else if (edit.action === 'addTag') changeDesc = `→ #${edit.tag}`;
-                      else if (edit.action === 'removeTag') changeDesc = `→ remove #${edit.tag}`;
+                      else if (edit.action === 'removeTag') changeDesc = `→ ${t('voice.removeTag', { defaultValue: 'remove' })} #${edit.tag}`;
 
                       return (
                         <div key={idx} className={`p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
@@ -292,7 +327,7 @@ const VoiceInputModal = () => {
                                 {edit.resolvedTask ? (
                                   <span className={`text-sm font-medium ${textPrimary}`}>{edit.resolvedTask.title}</span>
                                 ) : (
-                                  <span className="text-sm text-red-400 italic">"{edit.taskMatch}" — not found</span>
+                                  <span className="text-sm text-red-400 italic">"{edit.taskMatch}" — {t('voice.notFound', { defaultValue: 'not found' })}</span>
                                 )}
                               </div>
                               {changeDesc && (
@@ -302,7 +337,7 @@ const VoiceInputModal = () => {
                             <button
                               onClick={() => setVoiceParsedEdits(prev => prev.filter((_, i) => i !== idx))}
                               className={`p-1 rounded flex-shrink-0 ${hoverBg}`}
-                              title="Remove"
+                              title={t('common.remove')}
                             >
                               <X size={14} className={textSecondary} />
                             </button>
@@ -315,7 +350,7 @@ const VoiceInputModal = () => {
 
                   {/* No results message */}
                   {(!voiceParsedTasks || voiceParsedTasks.length === 0) && (!voiceParsedEdits || voiceParsedEdits.length === 0) && (
-                    <p className={`text-sm ${textSecondary}`}>No tasks or edits were parsed from your input.</p>
+                    <p className={`text-sm ${textSecondary}`}>{t('voice.noResults', { defaultValue: 'No tasks or edits were parsed from your input.' })}</p>
                   )}
 
                   {/* Action buttons */}
@@ -324,7 +359,7 @@ const VoiceInputModal = () => {
                       onClick={() => { setVoiceParsedTasks(null); setVoiceParsedEdits(null); setVoiceParseError(''); }}
                       className={`px-3 py-2 text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors`}
                     >
-                      Back
+                      {t('common.back')}
                     </button>
                     <button
                       onClick={voiceApplyAllChanges}
@@ -336,9 +371,15 @@ const VoiceInputModal = () => {
                         const newCount = voiceParsedTasks ? voiceParsedTasks.length : 0;
                         const editCount = voiceParsedEdits ? voiceParsedEdits.filter(e => e.resolvedTask).length : 0;
                         const total = newCount + editCount;
-                        if (newCount > 0 && editCount > 0) return `Apply All (${total})`;
-                        if (editCount > 0) return editCount === 1 ? 'Apply Edit' : `Apply Edits (${editCount})`;
-                        return newCount === 1 ? 'Add Task' : `Add All (${newCount})`;
+                        if (newCount > 0 && editCount > 0) return t('voice.applyAll', { count: total, defaultValue: 'Apply All ({{count}})' });
+                        if (editCount > 0) {
+                          return editCount === 1
+                            ? t('voice.applyEdit', { defaultValue: 'Apply Edit' })
+                            : t('voice.applyEdits', { count: editCount, defaultValue: 'Apply Edits ({{count}})' });
+                        }
+                        return newCount === 1
+                          ? t('voice.addTask', { defaultValue: 'Add Task' })
+                          : t('voice.addAll', { count: newCount, defaultValue: 'Add All ({{count}})' });
                       })()}
                       <kbd className="ml-1 px-1 py-0.5 rounded bg-white/20 text-[10px] font-mono">↵</kbd>
                     </button>

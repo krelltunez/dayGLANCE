@@ -2,8 +2,10 @@ import React from 'react';
 import { AlertCircle } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
+import { useTranslation } from 'react-i18next';
 
 const RestoreConfirmModal = () => {
+  const { t } = useTranslation();
   const { cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg } = useDayPlannerCtx();
   const {
     showRestoreConfirm, setShowRestoreConfirm,
@@ -23,26 +25,26 @@ const RestoreConfirmModal = () => {
               <div className="p-2 rounded-full bg-amber-100 dark:bg-amber-900/30">
                 <AlertCircle size={20} className="text-amber-600 dark:text-amber-400" />
               </div>
-              <h3 className={`text-lg font-semibold ${textPrimary}`}>Restore Backup</h3>
+              <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('backup.restoreBackup')}</h3>
             </div>
             <p className={`${textSecondary} mb-2`}>
-              Restore from "{pendingBackupFile?.name}"?
+              {t('backup.restoreFilePrompt', { name: pendingBackupFile?.name || '' })}
             </p>
             <p className={`${textSecondary} mb-6 text-sm`}>
-              This will replace all your current tasks, inbox items, recycle bin, and settings with the data from this backup. The page will reload after restoration.
+              {t('backup.restoreWarning')}
             </p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => { setShowRestoreConfirm(false); setPendingBackupFile(null); }}
                 className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={restoreBackup}
                 className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
               >
-                Restore
+                {t('common.restore')}
               </button>
             </div>
           </div>

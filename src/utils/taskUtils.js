@@ -1,3 +1,10 @@
+import {
+  activeLocale,
+  formatLocalizedDate,
+  isSimplifiedChinese,
+  localizedWeekdays,
+} from './localeFormatting.js';
+
 // Format a Date object as a YYYY-MM-DD string in local time.
 // Defined here (not inline in App.jsx) so that useState initialisers that
 // run before any in-component helpers can use it via import.
@@ -53,8 +60,54 @@ export const stripWikilinks = (title) =>
   title.replace(/\[\[[^\]]+\]\]/g, '').replace(/\s+/g, ' ').trim();
 
 // Human-readable label for a recurrence rule object.
-export const getRecurrenceLabel = (rec) => {
-  if (!rec) return 'None';
+export const getRecurrenceLabel = (rec, language = activeLocale()) => {
+  const useChinese = isSimplifiedChinese(language);
+  if (!rec) return useChinese ? '不重复' : 'None';
+
+  if (useChinese) {
+    const shortDayNames = localizedWeekdays('short', language);
+    const fullDayNames = localizedWeekdays('long', language);
+    const selectedDays = () => {
+      const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
+        ? [...rec.daysOfWeek].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7))
+        : rec.startDate ? [new Date(`${rec.startDate}T12:00:00`).getDay()] : [];
+      return days.map(day => shortDayNames[day]).join('、');
+    };
+
+    let label = '自定义';
+    if (rec.type === 'daily') label = '每天';
+    else if (rec.type === 'weekly') {
+      const days = selectedDays();
+      label = days ? `每周：${days}` : '每周';
+    } else if (rec.type === 'biweekly') {
+      const days = selectedDays();
+      label = days ? `每两周：${days}` : '每两周';
+    }
+    else if (rec.type === 'monthly') {
+      if (rec.monthWeekday) {
+        label = `每月第${rec.monthWeekday.week}个${fullDayNames[rec.monthWeekday.day]}`;
+      } else {
+        const day = rec.monthDay || (rec.startDate ? new Date(`${rec.startDate}T12:00:00`).getDate() : null);
+        label = day ? `每月${day}日` : '每月';
+      }
+    } else if (rec.type === 'yearly') {
+      if (rec.startDate) {
+        const startDate = new Date(`${rec.startDate}T12:00:00`);
+        label = `每年${startDate.getMonth() + 1}月${startDate.getDate()}日`;
+      } else {
+        label = '每年';
+      }
+    }
+
+    if (rec.endDate) {
+      const endDate = new Date(`${rec.endDate}T12:00:00`);
+      label += `，直到${endDate.getMonth() + 1}月${endDate.getDate()}日`;
+    } else if (rec.maxOccurrences) {
+      label += `（共${rec.maxOccurrences}次）`;
+    }
+    return label;
+  }
+
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -65,27 +118,35 @@ export const getRecurrenceLabel = (rec) => {
   else if (rec.type === 'weekly') {
     const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
       ? [...rec.daysOfWeek].sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
-      : dayNames[new Date(rec.startDate + 'T12:00:00').getDay()];
-    label = `Weekly on ${days}`;
+      : rec.startDate ? dayNames[new Date(rec.startDate + 'T12:00:00').getDay()] : null;
+    label = days ? `Weekly on ${days}` : 'Every week';
   }
   else if (rec.type === 'biweekly') {
     const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
       ? [...rec.daysOfWeek].sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
-      : dayNames[new Date(rec.startDate + 'T12:00:00').getDay()];
-    label = `Every 2 weeks on ${days}`;
+      : rec.startDate ? dayNames[new Date(rec.startDate + 'T12:00:00').getDay()] : null;
+    label = days ? `Every 2 weeks on ${days}` : 'Every 2 weeks';
   }
   else if (rec.type === 'monthly') {
     if (rec.monthWeekday) {
       label = `Monthly on the ${ordinals[rec.monthWeekday.week]} ${fullDayNames[rec.monthWeekday.day]}`;
     } else {
-      const d = rec.monthDay || new Date(rec.startDate + 'T12:00:00').getDate();
-      const suffix = d === 1 || d === 21 || d === 31 ? 'st' : d === 2 || d === 22 ? 'nd' : d === 3 || d === 23 ? 'rd' : 'th';
-      label = `Monthly on the ${d}${suffix}`;
+      const d = rec.monthDay || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : null);
+      if (d) {
+        const suffix = d === 1 || d === 21 || d === 31 ? 'st' : d === 2 || d === 22 ? 'nd' : d === 3 || d === 23 ? 'rd' : 'th';
+        label = `Monthly on the ${d}${suffix}`;
+      } else {
+        label = 'Every month';
+      }
     }
   }
   else if (rec.type === 'yearly') {
-    const sd = new Date(rec.startDate + 'T12:00:00');
-    label = `Yearly on ${monthNames[sd.getMonth()]} ${sd.getDate()}`;
+    if (rec.startDate) {
+      const sd = new Date(rec.startDate + 'T12:00:00');
+      label = `Yearly on ${monthNames[sd.getMonth()]} ${sd.getDate()}`;
+    } else {
+      label = 'Every year';
+    }
   }
 
   if (rec.endDate) {
@@ -98,50 +159,57 @@ export const getRecurrenceLabel = (rec) => {
 };
 
 // Format a Date object as "Monday, Jan 5".
-export const formatDate = (date) => {
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
-};
+export const formatDate = (date, language = activeLocale()) =>
+  formatLocalizedDate(date, { weekday: 'long', month: 'short', day: 'numeric' }, language);
 
 // Format an array of Date objects as a human-readable range string.
-export const formatDateRange = (dates) => {
+export const formatDateRange = (dates, language = activeLocale()) => {
   if (dates.length === 1) {
-    return formatDate(dates[0]);
+    return formatDate(dates[0], language);
   }
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const first = dates[0];
   const last = dates[dates.length - 1];
 
-  if (first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear()) {
-    return `${months[first.getMonth()]} ${first.getDate()} - ${last.getDate()}, ${first.getFullYear()}`;
-  } else if (first.getFullYear() === last.getFullYear()) {
-    return `${months[first.getMonth()]} ${first.getDate()} - ${months[last.getMonth()]} ${last.getDate()}, ${first.getFullYear()}`;
-  } else {
-    return `${months[first.getMonth()]} ${first.getDate()}, ${first.getFullYear()} - ${months[last.getMonth()]} ${last.getDate()}, ${last.getFullYear()}`;
+  if (isSimplifiedChinese(language)) {
+    if (first.getFullYear() === last.getFullYear() && first.getMonth() === last.getMonth()) {
+      return `${first.getFullYear()}年${first.getMonth() + 1}月${first.getDate()}日至${last.getDate()}日`;
+    }
+    if (first.getFullYear() === last.getFullYear()) {
+      return `${first.getFullYear()}年${first.getMonth() + 1}月${first.getDate()}日至${last.getMonth() + 1}月${last.getDate()}日`;
+    }
+    return `${first.getFullYear()}年${first.getMonth() + 1}月${first.getDate()}日至${last.getFullYear()}年${last.getMonth() + 1}月${last.getDate()}日`;
   }
+
+  const formatter = new Intl.DateTimeFormat(language, { year: 'numeric', month: 'short', day: 'numeric' });
+  return typeof formatter.formatRange === 'function'
+    ? formatter.formatRange(first, last)
+    : `${formatter.format(first)} – ${formatter.format(last)}`;
 };
 
 // Format a Date object as "Mon, Jan 5" (abbreviated day name).
-export const formatShortDate = (date) => {
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
-};
+export const formatShortDate = (date, language = activeLocale()) =>
+  formatLocalizedDate(date, { weekday: 'short', month: 'short', day: 'numeric' }, language);
 
 // Format a deadline YYYY-MM-DD string as "Today", "Tomorrow", or "Jan 5".
-export const formatDeadlineDate = (deadline) => {
+export const formatDeadlineDate = (deadline, language = activeLocale()) => {
   if (!deadline) return null;
   const todayStr = dateToString(new Date());
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = dateToString(tomorrow);
 
-  if (deadline === todayStr) return 'Today';
-  if (deadline === tomorrowStr) return 'Tomorrow';
+  const relative = new Intl.RelativeTimeFormat(language, { numeric: 'auto' });
+  if (deadline === todayStr) {
+    const label = relative.format(0, 'day');
+    return label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
+  }
+  if (deadline === tomorrowStr) {
+    const label = relative.format(1, 'day');
+    return label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
+  }
 
   const date = new Date(deadline + 'T12:00:00');
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return formatLocalizedDate(date, { month: 'short', day: 'numeric' }, language);
 };
 
 // Determine which previously-imported CalDAV task-calendar items have disappeared

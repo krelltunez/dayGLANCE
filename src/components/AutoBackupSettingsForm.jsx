@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Save, Cloud, FolderOpen } from 'lucide-react';
 import { autoBackupProviders } from '../utils/autoBackup.js';
 import { useTranslation } from 'react-i18next';
+import { formatLocalizedDate } from '../utils/localeFormatting.js';
 
 // Auto-Backup Settings Form (extracted to avoid hooks-in-conditional issues)
 const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrimary, textSecondary, borderClass, hoverBg, onRemoteBackupNow, folderBackup, onFolderRestore }) => {
@@ -58,7 +59,7 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
       <div>
         <h4 className={`font-medium ${textPrimary} mb-3 flex items-center gap-2`}>
           <Save size={16} />
-          Local Backups
+          {t('backup.localBackups')}
         </h4>
         <div className="space-y-3 ml-1">
           <label className="flex items-center gap-3 cursor-pointer">
@@ -71,8 +72,8 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
             <span className={textPrimary}>{t('backup.enableLocalBackups')}</span>
           </label>
           {localConfig.enabled && (
-            <div className="ml-7">
-              <label className={`block text-sm ${textSecondary} mb-1`}>Frequency</label>
+                <div className="ml-7">
+              <label className={`block text-sm ${textSecondary} mb-1`}>{t('backup.frequency')}</label>
               <select
                 value={localConfig.frequency}
                 onChange={(e) => updateLocal({ frequency: e.target.value })}
@@ -82,10 +83,10 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
                 <option value="daily">{t('backup.daily')}</option>
                 <option value="weekly">{t('backup.weekly')}</option>
               </select>
-              {status.local.lastBackup && (
-                <p className={`text-xs ${textSecondary} mt-1`}>
-                  Last backup: {new Date(status.local.lastBackup).toLocaleString()}
-                </p>
+                {status.local.lastBackup && (
+                  <p className={`text-xs ${textSecondary} mt-1`}>
+                  {t('backup.lastBackup', { time: formatLocalizedDate(new Date(status.local.lastBackup), { dateStyle: 'short', timeStyle: 'short' }) })}
+                  </p>
               )}
             </div>
           )}
@@ -99,75 +100,71 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
         <div>
           <h4 className={`font-medium ${textPrimary} mb-3 flex items-center gap-2`}>
             <FolderOpen size={16} />
-            Folder Backup
+            {t('backup.folderBackup')}
           </h4>
           <div className="space-y-3 ml-1">
             <p className={`text-xs ${textSecondary}`}>
-              Continuously saves your data to a folder on this computer, so it survives
-              even if the browser clears site data when it closes. Keeps a live copy
-              plus periodic snapshots. Nothing leaves this machine.
+              {t('backup.folderBackupDescription')}
             </p>
 
             {folderPrompt ? (
               <div className={`p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-amber-900/20' : 'bg-amber-50'} space-y-2`}>
                 <p className={`text-sm ${textPrimary}`}>
-                  This folder already contains a dayGLANCE backup
-                  {folderPrompt.savedAt ? ` (saved ${new Date(folderPrompt.savedAt).toLocaleString()})` : ''}.
-                  Restore it, or replace it with this device&apos;s current data?
+                  {t('backup.folderContainsBackup', {
+                    savedAt: folderPrompt.savedAt ? ` (${formatLocalizedDate(new Date(folderPrompt.savedAt), { dateStyle: 'short', timeStyle: 'short' })})` : '',
+                  })}
                 </p>
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={() => onFolderRestore()}
                     className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    Restore backup
+                    {t('backup.restoreBackup')}
                   </button>
                   <button
                     onClick={() => { folderBackup.armOverwrite(); updateFolder({ enabled: true }); setFolderPrompt(null); }}
                     className={`px-3 py-1.5 text-sm rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} transition-colors`}
                   >
-                    Replace with current data
+                    {t('backup.replaceWithCurrentData')}
                   </button>
                   <button
                     onClick={handleFolderDisconnect}
                     className={`px-3 py-1.5 text-sm rounded-lg ${textSecondary} ${hoverBg} transition-colors`}
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>
             ) : !folderConfig.enabled || !folderBackup.folderName ? (
               <div className="space-y-2">
-                {folderConfig.enabled && !folderBackup.folderName && (
-                  <p className={`text-xs ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}>
-                    Folder backup is enabled but the folder connection didn&apos;t survive —
-                    choose your backup folder to reconnect. If it already contains a
-                    backup, you&apos;ll be offered to restore it.
-                  </p>
-                )}
+                  {folderConfig.enabled && !folderBackup.folderName && (
+                    <p className={`text-xs ${darkMode ? 'text-amber-400' : 'text-amber-700'}`}>
+                     {t('backup.folderReconnectHint')}
+                    </p>
+                  )}
                 <button
                   onClick={handleFolderConnect}
                   className={`px-3 py-1.5 text-sm rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} transition-colors`}
                 >
-                  Choose folder…
+                  {t('backup.chooseFolder')}
                 </button>
               </div>
             ) : (
               <div className="space-y-3">
                 <p className={`text-sm ${textPrimary}`}>
-                  Backing up to <strong>{folderBackup.folderName}</strong>
+                  {t('backup.backingUpTo', { name: folderBackup.folderName })}
                 </p>
 
                 {folderBackup.permission === 'prompt' && (
                   <div className={`p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-amber-900/20' : 'bg-amber-50'}`}>
                     <p className={`text-xs ${darkMode ? 'text-amber-300' : 'text-amber-800'} mb-2`}>
-                      The browser needs permission again before backups can resume.
+                      {t('backup.permissionRequired')}
                     </p>
                     <button
                       onClick={() => folderBackup.reconnect()}
                       className="px-3 py-1.5 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
                     >
-                      Reconnect
+                      {t('backup.reconnect')}
                     </button>
                   </div>
                 )}
@@ -175,27 +172,25 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
                 {folderBackup.status === 'guarded' && (
                   <div className={`p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-amber-900/20' : 'bg-amber-50'}`}>
                     <p className={`text-xs ${darkMode ? 'text-amber-300' : 'text-amber-800'} mb-2`}>
-                      Backup paused: the folder&apos;s backup contains data but this app is
-                      currently empty, so it won&apos;t be overwritten. Restore the backup,
-                      or disconnect if you really want to start fresh.
+                      {t('backup.pausedEmpty')}
                     </p>
                     <button
                       onClick={() => onFolderRestore()}
                       className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     >
-                      Restore backup
+                      {t('backup.restoreBackup')}
                     </button>
                   </div>
                 )}
 
                 {folderBackup.status === 'error' && (
                   <p className="text-xs text-red-500">
-                    The last backup write failed — check that the folder still exists and is writable.
+                    {t('backup.lastWriteFailed')}
                   </p>
                 )}
 
                 <div>
-                  <label className={`block text-sm ${textSecondary} mb-1`}>Snapshot frequency</label>
+                  <label className={`block text-sm ${textSecondary} mb-1`}>{t('backup.snapshotFrequency')}</label>
                   <select
                     value={folderConfig.snapshotFrequency || 'daily'}
                     onChange={(e) => updateFolder({ snapshotFrequency: e.target.value })}
@@ -206,14 +201,13 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
                     <option value="weekly">{t('backup.weekly')}</option>
                   </select>
                   <p className={`text-xs ${textSecondary} mt-1`}>
-                    The live copy is updated within seconds of every change; snapshots are
-                    extra point-in-time files kept on this cadence.
+                    {t('backup.snapshotDescription')}
                   </p>
                 </div>
 
                 {folderBackup.lastWritten && (
                   <p className={`text-xs ${textSecondary}`}>
-                    Last saved: {new Date(folderBackup.lastWritten).toLocaleString()}
+                    {t('backup.lastSaved', { time: formatLocalizedDate(new Date(folderBackup.lastWritten), { dateStyle: 'short', timeStyle: 'short' }) })}
                   </p>
                 )}
 
@@ -221,7 +215,7 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
                   onClick={handleFolderDisconnect}
                   className={`px-3 py-1.5 text-sm rounded-lg ${textSecondary} ${hoverBg} transition-colors`}
                 >
-                  Disconnect
+                  {t('common.disconnect')}
                 </button>
               </div>
             )}
@@ -231,9 +225,9 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
 
       {/* Remote Backup Settings */}
       <div>
-        <h4 className={`font-medium ${textPrimary} mb-3 flex items-center gap-2`}>
-          <Cloud size={16} />
-          Remote Backups
+          <h4 className={`font-medium ${textPrimary} mb-3 flex items-center gap-2`}>
+            <Cloud size={16} />
+            {t('backup.remoteBackups')}
         </h4>
         <div className="space-y-3 ml-1">
           <label className="flex items-center gap-3 cursor-pointer">
@@ -246,26 +240,28 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
             <span className={textPrimary}>{t('backup.enableRemoteBackups')}</span>
           </label>
           <p className={`text-xs ${textSecondary} ml-7`}>
-            Only enable on one device. If you use multiple devices, use Cloud Sync to keep them in sync and set up remote backups on your primary device only.
+            {t('backup.remoteDeviceHint')}
           </p>
           {remoteConfig.enabled && (
             <div className="ml-7 space-y-3">
               <div>
-                <label className={`block text-sm ${textSecondary} mb-1`}>Provider</label>
+                <label className={`block text-sm ${textSecondary} mb-1`}>{t('backup.provider')}</label>
                 <select
                   value={providerKey}
                   onChange={(e) => updateRemote({ provider: e.target.value })}
                   className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
                 >
                   {Object.entries(autoBackupProviders).map(([key, p]) => (
-                    <option key={key} value={key}>{p.name}</option>
+                    <option key={key} value={key}>{t(`backup.providerNames.${key}`, { defaultValue: p.name })}</option>
                   ))}
                 </select>
               </div>
 
               {provider.configFields.map(field => (
                 <div key={field.key}>
-                  <label className={`block text-sm ${textSecondary} mb-1`}>{field.label}</label>
+                  <label className={`block text-sm ${textSecondary} mb-1`}>
+                    {t(`backup.fields.${field.key}`, { defaultValue: field.label })}
+                  </label>
                   <input
                     type={field.type}
                     placeholder={field.placeholder}
@@ -277,7 +273,7 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
               ))}
 
               <div>
-                <label className={`block text-sm ${textSecondary} mb-1`}>Frequency</label>
+                <label className={`block text-sm ${textSecondary} mb-1`}>{t('backup.frequency')}</label>
                 <select
                   value={remoteConfig.frequency}
                   onChange={(e) => updateRemote({ frequency: e.target.value })}
@@ -295,25 +291,25 @@ const AutoBackupSettingsForm = ({ config, setConfig, status, darkMode, textPrima
                   disabled={testing || !remoteFieldsFilled}
                   className={`px-3 py-1.5 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg transition-colors disabled:opacity-50 text-sm`}
                 >
-                  {testing ? 'Testing...' : 'Test Connection'}
+                  {testing ? t('backup.testing') : t('backup.testConnection')}
                 </button>
                 <button
                   onClick={() => onRemoteBackupNow(remoteConfig.frequency)}
                   disabled={status.remote.status === 'backing-up' || !remoteFieldsFilled}
                   className={`px-3 py-1.5 ${darkMode ? 'bg-blue-700 hover:bg-blue-600' : 'bg-blue-500 hover:bg-blue-600'} text-white rounded-lg transition-colors disabled:opacity-50 text-sm`}
                 >
-                  {status.remote.status === 'backing-up' ? 'Backing up...' : 'Backup Now'}
+                  {status.remote.status === 'backing-up' ? t('backup.backingUp') : t('backup.backupNow')}
                 </button>
                 {testResult && (
                   <span className={`text-sm ${testResult.success ? 'text-green-500' : 'text-red-500'}`}>
-                    {testResult.success ? 'Connected!' : testResult.error}
+                    {testResult.success ? t('backup.connected') : testResult.error}
                   </span>
                 )}
               </div>
 
               {status.remote.lastBackup && (
                 <p className={`text-xs ${textSecondary}`}>
-                  Last backup: {new Date(status.remote.lastBackup).toLocaleString()}
+                  {t('backup.lastBackup', { time: formatLocalizedDate(new Date(status.remote.lastBackup), { dateStyle: 'short', timeStyle: 'short' }) })}
                 </p>
               )}
             </div>

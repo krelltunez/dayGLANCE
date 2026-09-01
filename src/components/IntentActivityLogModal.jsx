@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowDownLeft, ArrowUpRight, ChevronRight, Trash2, Check, Clock, KeyRound } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { getActivityLog, clearActivityLog } from '../intents/intentLog.js';
+import { formatLocalizedDate } from '../utils/localeFormatting.js';
 
 const EVENT_COLORS = {
   completed:   'bg-green-100 text-green-700',
@@ -34,15 +36,30 @@ const EVENT_COLORS_DARK = {
   warn:        'bg-amber-900/40 text-amber-400',
 };
 
-const CRYPTO_ERROR_MESSAGES = {
-  NoKeyError:            'encryption not configured',
-  WrongKeyError:         'decryption failed (root key mismatch — try re-running intents encryption setup in Settings)',
-  NotEncryptedError:     'unexpected: envelope not encrypted',
-  MalformedEnvelopeError:'malformed envelope',
-  InvalidPayloadError:   'invalid payload for encryption',
-  setup_incomplete:      'intents encryption setup incomplete — open Settings to complete setup',
-  no_root_key:           'encrypted intent received but intents encryption not set up on this device',
-  no_key:                'key not ready — sent plaintext',
+const EVENT_LABEL_KEYS = {
+  completed: 'intentLog.eventCompleted',
+  uncompleted: 'intentLog.eventUncompleted',
+  deleted: 'intentLog.eventDeleted',
+  rescheduled: 'intentLog.eventRescheduled',
+  updated: 'intentLog.eventUpdated',
+  create: 'intentLog.eventCreate',
+  complete: 'intentLog.eventComplete',
+  open: 'intentLog.eventOpen',
+  query: 'intentLog.eventQuery',
+  notify: 'intentLog.eventNotify',
+  error: 'intentLog.eventError',
+  warn: 'intentLog.eventWarn',
+};
+
+const CRYPTO_ERROR_KEYS = {
+  NoKeyError:             'intentLog.errorNoKey',
+  WrongKeyError:          'intentLog.errorWrongKey',
+  NotEncryptedError:      'intentLog.errorNotEncrypted',
+  MalformedEnvelopeError: 'intentLog.errorMalformedEnvelope',
+  InvalidPayloadError:    'intentLog.errorInvalidPayload',
+  setup_incomplete:       'intentLog.errorSetupIncomplete',
+  no_root_key:            'intentLog.errorNoRootKey',
+  no_key:                 'intentLog.errorKeyNotReady',
 };
 
 function badgeClass(entry, darkMode) {
@@ -50,16 +67,18 @@ function badgeClass(entry, darkMode) {
   return darkMode ? (EVENT_COLORS_DARK[key] ?? EVENT_COLORS_DARK.updated) : (EVENT_COLORS[key] ?? EVENT_COLORS.updated);
 }
 
-function badgeLabel(entry) {
-  if (entry.status === 'error') return 'error';
-  if (entry.status === 'warn') return 'warn';
-  if (entry.event) return entry.event;
-  return entry.action;
+function badgeLabel(entry, t) {
+  const label = entry.status === 'error'
+    ? 'error'
+    : entry.status === 'warn'
+      ? 'warn'
+      : (entry.event ?? entry.action);
+  return EVENT_LABEL_KEYS[label] ? t(EVENT_LABEL_KEYS[label]) : label;
 }
 
-function errorMessage(entry) {
+function errorMessage(entry, t) {
   if (!entry.error) return null;
-  return CRYPTO_ERROR_MESSAGES[entry.error] ?? entry.error;
+  return CRYPTO_ERROR_KEYS[entry.error] ? t(CRYPTO_ERROR_KEYS[entry.error]) : entry.error;
 }
 
 function errorTextClass(entry) {
@@ -70,16 +89,17 @@ function errorTextClass(entry) {
 // on the vault/WebDAV) — or held while the intents encryption key isn't ready.
 // Inbound entries have no delivery field and render nothing here.
 const DELIVERY_CHIPS = {
-  queued:    { Icon: Clock,    label: 'queued',          cls: 'text-stone-400' },
-  held:      { Icon: KeyRound, label: 'waiting for key', cls: 'text-amber-500' },
-  delivered: { Icon: Check,    label: 'delivered',       cls: 'text-green-500' },
+  queued:    { Icon: Clock,    labelKey: 'intentLog.deliveryQueued',    cls: 'text-stone-400' },
+  held:      { Icon: KeyRound, labelKey: 'intentLog.deliveryHeld',      cls: 'text-amber-500' },
+  delivered: { Icon: Check,    labelKey: 'intentLog.deliveryDelivered', cls: 'text-green-500' },
 };
 
-function DeliveryChip({ entry }) {
+function DeliveryChip({ entry, t }) {
   if (entry.direction !== 'out' || !entry.delivery) return null;
   const chip = DELIVERY_CHIPS[entry.delivery];
   if (!chip) return null;
-  const { Icon, label, cls } = chip;
+  const { Icon, labelKey, cls } = chip;
+  const label = t(labelKey);
   return (
     <span className={`inline-flex items-center gap-0.5 text-[11px] ${cls}`} title={label}>
       <Icon size={11} className="flex-shrink-0" />
@@ -96,27 +116,28 @@ function shortApp(source_app) {
 
 function formatTime(iso) {
   try {
-    return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return formatLocalizedDate(new Date(iso), { hour: '2-digit', minute: '2-digit' });
   } catch {
     return '';
   }
 }
 
-function formatDate(iso) {
+function formatDate(iso, t) {
   try {
     const d = new Date(iso);
     const today = new Date();
-    if (d.toDateString() === today.toDateString()) return 'Today';
+    if (d.toDateString() === today.toDateString()) return t('common.today');
     const yesterday = new Date(today);
     yesterday.setDate(today.getDate() - 1);
-    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    if (d.toDateString() === yesterday.toDateString()) return t('common.yesterday');
+    return formatLocalizedDate(d, { month: 'short', day: 'numeric' });
   } catch {
     return '';
   }
 }
 
 const IntentActivityLogModal = () => {
+  const { t } = useTranslation();
   const { cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg } = useDayPlannerCtx();
   const { showIntentActivityLog, setShowIntentActivityLog } = useSyncCtx();
   const [entries, setEntries] = useState(() => getActivityLog());
@@ -156,6 +177,9 @@ const IntentActivityLogModal = () => {
       onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setShowIntentActivityLog(false); } }}
       tabIndex={-1}
       ref={el => el && el.focus()}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="intent-activity-log-title"
     >
       <div
         className={`${cardBg} rounded-t-2xl sm:rounded-2xl shadow-xl border ${borderClass} w-full sm:max-w-md mx-0 sm:mx-4 flex flex-col`}
@@ -164,18 +188,24 @@ const IntentActivityLogModal = () => {
       >
         {/* Header */}
         <div className={`flex items-center justify-between px-4 pt-4 pb-3 border-b ${borderClass} flex-shrink-0`}>
-          <h3 className={`text-sm font-semibold ${textPrimary}`}>Intent Activity Log</h3>
+          <h3 id="intent-activity-log-title" className={`text-sm font-semibold ${textPrimary}`}>{t('shortcuts.intentLog')}</h3>
           <div className="flex items-center gap-1">
             {entries.length > 0 && (
               <button
                 onClick={handleClear}
                 className={`p-1.5 rounded-lg ${hoverBg} flex items-center gap-1`}
-                title="Clear log"
+                title={t('intentLog.clearLog')}
+                aria-label={t('intentLog.clearLog')}
               >
                 <Trash2 size={14} className={textSecondary} />
               </button>
             )}
-            <button onClick={() => setShowIntentActivityLog(false)} className={`p-1.5 rounded-lg ${hoverBg}`}>
+            <button
+              onClick={() => setShowIntentActivityLog(false)}
+              className={`p-1.5 rounded-lg ${hoverBg}`}
+              title={t('common.close')}
+              aria-label={t('common.close')}
+            >
               <X size={16} className={textSecondary} />
             </button>
           </div>
@@ -185,13 +215,13 @@ const IntentActivityLogModal = () => {
         <div className="overflow-y-auto flex-1">
           {entries.length === 0 ? (
             <div className={`text-sm ${textSecondary} text-center py-10 px-4`}>
-              No activity yet.<br />
-              <span className="text-xs">Events appear here once the intent WebDAV endpoint is configured.</span>
+              {t('intentLog.emptyTitle')}<br />
+              <span className="text-xs">{t('intentLog.emptyHint')}</span>
             </div>
           ) : (
             <div className="py-1">
               {entries.map(entry => {
-                const dateLabel = formatDate(entry.timestamp);
+                const dateLabel = formatDate(entry.timestamp, t);
                 const showDateDivider = dateLabel !== lastDate;
                 lastDate = dateLabel;
                 return (
@@ -207,8 +237,8 @@ const IntentActivityLogModal = () => {
                       {/* Direction icon */}
                       <div className="mt-0.5 flex-shrink-0">
                         {entry.direction === 'in'
-                          ? <ArrowDownLeft size={13} className="text-blue-500" />
-                          : <ArrowUpRight size={13} className="text-purple-500" />
+                          ? <><ArrowDownLeft size={13} className="text-blue-500" /><span className="sr-only">{t('intentLog.inbound')}</span></>
+                          : <><ArrowUpRight size={13} className="text-purple-500" /><span className="sr-only">{t('intentLog.outbound')}</span></>
                         }
                       </div>
 
@@ -216,12 +246,12 @@ const IntentActivityLogModal = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${badgeClass(entry, darkMode)}`}>
-                            {badgeLabel(entry)}
+                            {badgeLabel(entry, t)}
                           </span>
                           {shortApp(entry.source_app) && (
                             <span className={`text-xs ${textSecondary}`}>{shortApp(entry.source_app)}</span>
                           )}
-                          <DeliveryChip entry={entry} />
+                          <DeliveryChip entry={entry} t={t} />
                         </div>
                         {entry.title && (
                           <p className={`text-xs ${textPrimary} mt-0.5 truncate`}>{entry.title}</p>
@@ -230,13 +260,14 @@ const IntentActivityLogModal = () => {
                           <div className="mt-0.5">
                             <button
                               onClick={() => toggleError(entry.id)}
+                              aria-expanded={expandedErrors.has(entry.id)}
                               className={`flex items-center gap-0.5 ${errorTextClass(entry)} hover:opacity-75 transition-opacity text-left w-full`}
                             >
                               <ChevronRight
                                 size={11}
                                 className={`flex-shrink-0 transition-transform ${expandedErrors.has(entry.id) ? 'rotate-90' : ''}`}
                               />
-                              <span className="text-xs">{errorMessage(entry)}</span>
+                              <span className="text-xs">{errorMessage(entry, t)}</span>
                             </button>
                             {expandedErrors.has(entry.id) && (
                               <pre className={`mt-1.5 text-[10px] font-mono rounded p-2 whitespace-pre-wrap break-all leading-relaxed ${darkMode ? 'bg-gray-900/60 text-gray-300' : 'bg-stone-100 text-stone-700'}`}>

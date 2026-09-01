@@ -5,8 +5,11 @@ import ClockTimePicker from './ClockTimePicker.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
+import { formatLocalizedDate, localizedWeekdays } from '../utils/localeFormatting.js';
+import { useTranslation } from 'react-i18next';
 
 const RoutinesDashboardModal = () => {
+  const { t } = useTranslation();
   const {
     getDayName, formatTime,
     isTablet, isMobile, darkMode, use24HourClock,
@@ -44,9 +47,9 @@ const RoutinesDashboardModal = () => {
                 <Wordmark className="text-5xl" darkMode={darkMode} />
                 <div>
                   <div className={`text-lg font-bold ${textPrimary}`}>
-                    {new Date().toLocaleDateString('en-US', { weekday: 'long' })}, {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+                    {formatLocalizedDate(new Date(), { weekday: 'long' })} · {formatLocalizedDate(new Date(), { month: 'long', day: 'numeric' })}
                   </div>
-                  <div className={`text-sm ${textSecondary}`}>What's in today's routine?</div>
+                  <div className={`text-sm ${textSecondary}`}>{t('routines.whatsInRoutine')}</div>
                 </div>
               </div>
               <button onClick={() => setShowRoutinesDashboard(false)} className={`p-2 rounded-lg ${hoverBg}`}>
@@ -63,19 +66,19 @@ const RoutinesDashboardModal = () => {
                   darkMode={darkMode}
                   borderClass={borderClass}
                   textSecondary={textSecondary}
-                  label="Routines for"
+                  label={t('routines.forOwner')}
                 />
                 {hasUnownedRoutines && meUserSyncId && hrViewUserSyncId === meUserSyncId && (
                   <div className={`mt-3 px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-amber-500/10' : 'bg-amber-50'} flex items-center justify-between gap-3`}>
                     <p className={`text-xs ${textSecondary}`}>
-                      Some routines aren't assigned to anyone yet. Claim them as yours so they stay tied to you across devices.
+                      {t('routines.unassignedHint')}
                     </p>
                     <button
                       type="button"
                       onClick={() => claimUnownedRoutines()}
                       className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500 text-white hover:bg-amber-600"
                     >
-                      Claim
+                      {t('routines.claim')}
                     </button>
                   </div>
                 )}
@@ -90,7 +93,9 @@ const RoutinesDashboardModal = () => {
               const todayDayName = getDayName(today);
               const leftBuckets = ['everyday', 'monday', 'tuesday', 'wednesday'];
               const rightBuckets = ['thursday', 'friday', 'saturday', 'sunday'];
-              const bucketLabel = (b) => b === 'everyday' ? 'Every Day' : b.charAt(0).toUpperCase() + b.slice(1);
+              const weekdayLabels = localizedWeekdays('long');
+              const weekDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+              const bucketLabel = (b) => b === 'everyday' ? t('routines.everyDay') : weekdayLabels[weekDays.indexOf(b) === 6 ? 0 : weekDays.indexOf(b) + 1];
               const isHighlighted = (b) => b === todayDayName || b === 'everyday';
 
               const renderBucket = (bucket) => {
@@ -110,7 +115,7 @@ const RoutinesDashboardModal = () => {
                           setRoutineNewChipName('');
                         }}
                         className={`p-0.5 rounded ${hoverBg}`}
-                        title="Add routine"
+                        title={t('routines.addRoutine')}
                       >
                         <Plus size={14} className={textSecondary} />
                       </button>
@@ -125,10 +130,10 @@ const RoutinesDashboardModal = () => {
                             if (e.key === 'Enter') addRoutineChip(bucket);
                             if (e.key === 'Escape') { setRoutineAddingToBucket(null); setRoutineNewChipName(''); }
                           }}
-                          placeholder="Name..."
+                          placeholder={t('routines.namePlaceholder')}
                           className={`flex-1 min-w-0 px-2 py-1 text-xs rounded ${darkMode ? 'bg-gray-600 text-white placeholder-gray-400' : 'bg-white text-stone-900 placeholder-stone-400 border border-stone-300'} focus:outline-none focus:ring-1 focus:ring-teal-500`}
                         />
-                        <button onClick={() => addRoutineChip(bucket)} className="px-2 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700">Add</button>
+                        <button onClick={() => addRoutineChip(bucket)} className="px-2 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700">{t('common.add')}</button>
                       </div>
                     )}
                     <div className={`flex flex-wrap ${isTablet ? 'gap-1.5' : 'gap-1'}`}>
@@ -162,7 +167,7 @@ const RoutinesDashboardModal = () => {
                               className={`absolute ${isTablet ? '-top-2 -right-2' : '-top-1.5 -right-1.5'} transition-opacity bg-red-500 text-white rounded-full ${isTablet ? 'w-5 h-5' : 'w-4 h-4'} flex items-center justify-center ${
                                 (isMobile || isTablet) ? (isFocused ? 'opacity-100' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100'
                               }`}
-                              title="Delete"
+                              title={t('common.delete')}
                             >
                               <X size={isTablet ? 12 : 10} />
                             </button>
@@ -170,7 +175,7 @@ const RoutinesDashboardModal = () => {
                         );
                       })}
                       {chips.length === 0 && !routineAddingToBucket && (
-                        <span className={`text-xs ${textSecondary} italic`}>No routines</span>
+                        <span className={`text-xs ${textSecondary} italic`}>{t('routines.none')}</span>
                       )}
                     </div>
                   </div>
@@ -188,7 +193,7 @@ const RoutinesDashboardModal = () => {
 
                   {/* Center: selected chips */}
                   <div className={`rounded-lg border-2 border-dashed ${darkMode ? 'border-gray-600' : 'border-stone-300'} p-4 flex flex-col items-center justify-start min-h-[300px]`}>
-                    <div className={`text-xs font-semibold uppercase tracking-wide mb-3 ${textSecondary}`}>Today's Routine</div>
+                    <div className={`text-xs font-semibold uppercase tracking-wide mb-3 ${textSecondary}`}>{t('routines.todaysRoutine')}</div>
                     {dashboardSelectedChips.length > 0 ? (
                       <div className={`flex flex-wrap ${isTablet ? 'gap-2' : 'gap-1.5'} justify-center`}>
                         {dashboardSelectedChips.map(chip => {
@@ -209,7 +214,7 @@ const RoutinesDashboardModal = () => {
                                 setRoutineTimePickerChipId(chip.id);
                               }
                             }}
-                            title={(isMobile || isTablet) ? 'Tap to show options' : 'Click to set time'}
+                            title={(isMobile || isTablet) ? t('routines.tapToShowOptions') : t('routines.clickToSetTime')}
                           >
                             <span className="flex items-center gap-1">
                               {chip.name}
@@ -223,7 +228,7 @@ const RoutinesDashboardModal = () => {
                                       setDashboardSelectedChips(prev => prev.map(c => c.id === chip.id ? { ...c, startTime: null } : c));
                                     }}
                                     className="hover:opacity-100 opacity-60 transition-opacity"
-                                    title="Clear time"
+                                      title={t('routines.clearTime')}
                                   >
                                     <X size={isTablet ? 12 : 10} />
                                   </button>
@@ -235,7 +240,7 @@ const RoutinesDashboardModal = () => {
                               className={`absolute ${isTablet ? '-top-2 -right-2' : '-top-1.5 -right-1.5'} transition-opacity rounded-full ${isTablet ? 'w-5 h-5' : 'w-4 h-4'} flex items-center justify-center ${darkMode ? 'bg-gray-500 text-white' : 'bg-stone-400 text-white'} ${
                                 (isMobile || isTablet) ? (isFocused ? 'opacity-100' : 'opacity-0 pointer-events-none') : 'opacity-0 group-hover:opacity-100'
                               }`}
-                              title="Remove from today"
+                              title={t('routines.removeFromToday')}
                             >
                               <Undo2 size={isTablet ? 12 : 10} />
                             </button>
@@ -248,8 +253,8 @@ const RoutinesDashboardModal = () => {
                         <Sparkles size={32} className={`${textSecondary} mb-3 opacity-40`} />
                         <p className={`text-sm ${textSecondary}`}>
                           {hasAnyChips
-                            ? 'Click chips from the day buckets to add them to today\'s routine'
-                            : 'Add routine chips to the day buckets using the + button, then click them to select for today'
+                            ? t('routines.emptySelectedWithChips')
+                            : t('routines.emptySelectedNoChips')
                           }
                         </p>
                       </div>
@@ -271,7 +276,7 @@ const RoutinesDashboardModal = () => {
               onClick={handleRoutinesDone}
               className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium transition-colors"
             >
-              Done
+              {t('routines.done')}
             </button>
           </div>
         </div>
@@ -299,23 +304,23 @@ const RoutinesDashboardModal = () => {
               <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
                 <Trash2 size={20} className="text-red-600 dark:text-red-400" />
               </div>
-              <h3 className={`text-lg font-semibold ${textPrimary}`}>Delete Routine</h3>
+              <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('routines.deleteTitle')}</h3>
             </div>
             <p className={`${textSecondary} mb-6`}>
-              Are you sure you want to delete <strong className={textPrimary}>"{routineDeleteConfirm.chipName}"</strong>? This cannot be undone.
+              {t('routines.deleteConfirm', { name: routineDeleteConfirm.chipName })}
             </p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setRoutineDeleteConfirm(null)}
                 className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={() => { deleteRoutineChip(routineDeleteConfirm.bucket, routineDeleteConfirm.chipId); setRoutineDeleteConfirm(null); }}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
-                Delete
+                {t('common.delete')}
               </button>
             </div>
           </div>

@@ -156,7 +156,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
       onClick={e => e.stopPropagation()}
     >
       <h3 className={`text-base font-semibold ${textPrimary}`}>
-        {initial ? 'Edit Goal' : 'New Goal'}
+        {initial ? t('goals.editGoal') : t('goals.newGoal')}
       </h3>
 
       {/* Title */}
@@ -166,7 +166,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
           autoFocus={!initial && !isMobile}
           value={title}
           onChange={e => setTitle(e.target.value)}
-          placeholder="e.g. Launch v2.0"
+          placeholder={t('goals.goalTitlePlaceholder')}
           className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
             darkMode ? 'bg-gray-700 text-gray-100 placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'
           }`}
@@ -175,11 +175,11 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
 
       {/* Description */}
       <div className="flex flex-col gap-1">
-        <label className={`text-xs font-medium ${textSecondary}`}>Description</label>
+        <label className={`text-xs font-medium ${textSecondary}`}>{t('common.description')}</label>
         <textarea
           value={description}
           onChange={e => setDescription(e.target.value)}
-          placeholder="Optional description…"
+          placeholder={t('goals.optionalDescription')}
           rows={2}
           className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
             darkMode ? 'bg-gray-700 text-gray-100 placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'
@@ -242,7 +242,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
 
       {/* Color */}
       <div className="flex flex-col gap-1.5">
-        <label className={`text-xs font-medium ${textSecondary}`}>Color</label>
+        <label className={`text-xs font-medium ${textSecondary}`}>{t('common.color')}</label>
         <div className="grid grid-cols-9 gap-2 w-full">
           {TASK_COLORS.map(c => (
             <button
@@ -252,7 +252,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
               className={`w-7 h-7 rounded-full ${c.class} transition-transform ${
                 color === c.class ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : 'hover:scale-110'
               }`}
-              aria-label={c.name}
+              aria-label={t(`colors.${c.name.toLowerCase()}`)}
             />
           ))}
         </div>
@@ -278,12 +278,12 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
       {/* Status — edit only */}
       {initial && (
         <div className="flex flex-col gap-1.5">
-          <label className={`text-xs font-medium ${textSecondary}`}>Status</label>
+          <label className={`text-xs font-medium ${textSecondary}`}>{t('common.status')}</label>
           <div className={`flex rounded-lg border ${borderClass} overflow-hidden`}>
             {[
-              { value: 'active', label: 'Active' },
-              { value: 'completed', label: 'Completed', disabled: !canComplete },
-              { value: 'archived', label: 'Archived' },
+              { value: 'active', label: t('common.active') },
+              { value: 'completed', label: t('common.completed'), disabled: !canComplete },
+              { value: 'archived', label: t('common.archived') },
             ].map(opt => (
               <button
                 key={opt.value}
@@ -304,7 +304,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
           </div>
           {!canComplete && (
             <p className={`text-xs ${textSecondary} opacity-60`}>
-              Complete all projects first to mark this goal as done.
+              {t('goals.completeProjectsFirst')}
             </p>
           )}
         </div>
@@ -338,7 +338,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
             onChange={e => setTrackInLifeGlance(e.target.checked)}
             className="w-4 h-4 rounded accent-blue-500"
           />
-          <span className={`text-sm ${textSecondary}`}>Track in lifeGLANCE</span>
+          <span className={`text-sm ${textSecondary}`}>{t('goals.trackInLifeGlance')}</span>
         </label>
       )}
       {alreadyShared && (
@@ -362,7 +362,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
                 : 'text-red-500 hover:bg-red-50'
             }`}
           >
-            Delete Goal
+            {t('goals.deleteGoal')}
           </button>
         )}
         <div className="flex gap-2 ml-auto">
@@ -371,14 +371,14 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
             onClick={onCancel}
             className={`px-3 py-1.5 text-sm rounded-lg ${hoverBg} ${textSecondary} transition-colors`}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             type="submit"
             disabled={!title.trim()}
             className="px-4 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {initial ? 'Save' : 'Create Goal'}
+            {initial ? t('common.save') : t('goals.createGoal')}
           </button>
         </div>
       </div>
@@ -436,7 +436,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
       onClick={e => e.stopPropagation()}
     >
       <h3 className={`text-base font-semibold ${textPrimary}`}>
-        {initial ? 'Edit Project' : 'New Project'}
+        {initial ? t('goals.editProject') : t('goals.newProject')}
       </h3>
 
       {/* Title */}
@@ -446,7 +446,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
           autoFocus={!initial && !isMobile}
           value={title}
           onChange={e => setTitle(e.target.value)}
-          placeholder="e.g. Cloud Sync"
+          placeholder={t('goals.projectTitlePlaceholder')}
           className={`px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
             darkMode ? 'bg-gray-700 text-gray-100 placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'
           }`}
@@ -469,7 +469,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
             darkMode ? 'bg-gray-700 text-gray-100' : 'bg-white text-stone-900'
           }`}
         >
-          <option value="">— No goal (standalone) —</option>
+          <option value="">{t('goals.noGoalStandalone')}</option>
           {activeGoals.map(g => (
             <option key={g.id} value={g.id}>{g.title}</option>
           ))}
@@ -488,7 +488,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
               className={`w-7 h-7 rounded-full ${c.class} transition-transform ${
                 color === c.class ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : 'hover:scale-110'
               }`}
-              aria-label={c.name}
+              aria-label={t(`colors.${c.name.toLowerCase()}`)}
             />
           ))}
         </div>
@@ -508,12 +508,12 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
       {/* Status — edit only */}
       {initial && (
         <div className="flex flex-col gap-1.5">
-          <label className={`text-xs font-medium ${textSecondary}`}>Status</label>
+          <label className={`text-xs font-medium ${textSecondary}`}>{t('common.status')}</label>
           <div className={`flex rounded-lg border ${borderClass} overflow-hidden`}>
             {[
-              { value: 'active', label: 'Active' },
-              { value: 'completed', label: 'Completed', disabled: !canComplete },
-              { value: 'archived', label: 'Archived' },
+              { value: 'active', label: t('common.active') },
+              { value: 'completed', label: t('common.completed'), disabled: !canComplete },
+              { value: 'archived', label: t('common.archived') },
             ].map(opt => (
               <button
                 key={opt.value}
@@ -534,7 +534,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
           </div>
           {!canComplete && (
             <p className={`text-xs ${textSecondary} opacity-60`}>
-              Complete all tasks first to mark this project as done.
+              {t('goals.completeTasksFirst')}
             </p>
           )}
         </div>
@@ -547,14 +547,14 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
           onClick={onCancel}
           className={`px-3 py-1.5 text-sm rounded-lg ${hoverBg} ${textSecondary} transition-colors`}
         >
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           type="submit"
           disabled={!title.trim()}
           className="px-4 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {initial ? 'Save' : 'Create Project'}
+          {initial ? t('common.save') : t('goals.createProject')}
         </button>
       </div>
     </form>
@@ -622,8 +622,11 @@ const GoalMiniCard = ({ goal, onClick }) => {
     const diff = Math.ceil(
       (new Date(goal.targetDate + 'T00:00:00') - today) / 86400000
     );
-    daysLabel =
-      diff === 0 ? 'Due today' : diff < 0 ? `${Math.abs(diff)}d overdue` : `${diff}d left`;
+    daysLabel = diff === 0
+      ? t('goals.dueToday')
+      : diff < 0
+        ? t('goals.daysOverdue', { count: Math.abs(diff) })
+        : t('goals.daysLeft', { count: diff });
     if (diff <= 7) labelColor = 'text-amber-500';
     if (diff < 0) isOverdue = true;
   }
@@ -651,7 +654,7 @@ const GoalMiniCard = ({ goal, onClick }) => {
           {goal.title}
         </p>
         {(goal.source_app === 'app.lifeglance' || goal.synced_to_lifeglance) && (
-          <span title="Linked with lifeGLANCE" className={`flex-shrink-0 ${textSecondary} opacity-60`}>
+          <span title={t('goals.linkedWithLifeGlance')} className={`flex-shrink-0 ${textSecondary} opacity-60`}>
             <Link2 size={11} />
           </span>
         )}
@@ -666,14 +669,14 @@ const GoalMiniCard = ({ goal, onClick }) => {
             <button
               onClick={e => { e.stopPropagation(); updateGoal(goal.id, { status: 'completed' }); }}
               className="ml-auto flex-shrink-0 text-emerald-500 hover:text-emerald-400 transition-colors"
-              aria-label="Mark goal complete"
+              aria-label={t('goals.markGoalComplete')}
             >
               <CircleCheckBig size={12} />
             </button>
           )}
         </div>
       ) : isCompleted ? (
-        <p className="text-xs mt-0.5 text-emerald-500">Completed</p>
+        <p className="text-xs mt-0.5 text-emerald-500">{t('common.completed')}</p>
       ) : null}
       <div className={`mt-2 w-full h-1 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}>
         <div
@@ -1033,7 +1036,7 @@ const DesktopDashboard = ({
                   }`}
                 >
                   <Layers size={10} />
-                  Standalone
+                  {t('goals.standalone')}
                 </div>
               </div>
             </div>
@@ -1143,13 +1146,13 @@ const DesktopDashboard = ({
         >
           <div className="flex items-center justify-between mb-4">
             <h3 className={`text-sm font-semibold ${textSecondary} uppercase tracking-wider`}>
-              Standalone Projects
+              {t('goals.standaloneProjects')}
             </h3>
             <button
               onClick={() => onNewProject(null)}
               className={`flex items-center gap-1.5 text-xs ${textSecondary} ${hoverBg} rounded-lg px-2 py-1 transition-colors`}
             >
-              <Layers size={12} /> Add Standalone Project
+              <Layers size={12} /> {t('goals.addStandaloneProject')}
             </button>
           </div>
           {(() => {
@@ -1239,7 +1242,7 @@ const DesktopDashboard = ({
           </div>
           <p className={`text-sm font-medium ${textPrimary}`}>{t('goals.noGoalsYet')}</p>
           <p className={`text-xs ${textSecondary} text-center max-w-xs`}>
-            Create a goal to track long-term progress, or add a standalone project to organise tasks without a goal.
+            {t('goals.emptyHint')}
           </p>
         </div>
       )}
@@ -1410,7 +1413,7 @@ const MobileDashboard = ({
         </div>
         <p className={`text-sm font-medium ${textPrimary}`}>{t('goals.noGoalsYet')}</p>
         <p className={`text-xs ${textSecondary} text-center`}>
-          Create a goal to track long-term progress, or add a standalone project to organise tasks without a goal.
+          {t('goals.emptyHint')}
         </p>
       </div>
     );
@@ -1490,7 +1493,11 @@ const MobileDashboard = ({
                   if (goal.targetDate) {
                     const today = new Date(); today.setHours(0, 0, 0, 0);
                     const diff = Math.ceil((new Date(goal.targetDate + 'T00:00:00') - today) / 86400000);
-                    daysLabel = diff === 0 ? 'Due today' : diff < 0 ? `${Math.abs(diff)}d overdue` : `${diff}d left`;
+                    daysLabel = diff === 0
+                      ? t('goals.dueToday')
+                      : diff < 0
+                        ? t('goals.daysOverdue', { count: Math.abs(diff) })
+                        : t('goals.daysLeft', { count: diff });
                     daysUrgent = diff <= 7;
                     isOverdue = diff < 0;
                   }
@@ -1519,7 +1526,7 @@ const MobileDashboard = ({
                             <button
                               onClick={() => updateGoal(goal.id, { status: 'completed' })}
                               className="text-emerald-500 hover:text-emerald-400 transition-colors"
-                              aria-label="Mark goal complete"
+                              aria-label={t('goals.markGoalComplete')}
                             >
                               <CircleCheckBig size={16} />
                             </button>
@@ -1527,7 +1534,7 @@ const MobileDashboard = ({
                           <button
                             onClick={() => onEditGoal(goal)}
                             className={`p-1 rounded-lg ${hoverBg} ${textSecondary} transition-colors`}
-                            aria-label="Edit goal"
+                            aria-label={t('goals.editGoal')}
                           >
                             <Edit2 size={14} />
                           </button>
@@ -1535,7 +1542,7 @@ const MobileDashboard = ({
                       </div>
                       {/* Completed label OR date/caution row */}
                       {isCompleted ? (
-                        <p className="text-xs mt-2 font-medium text-emerald-500">Completed</p>
+                        <p className="text-xs mt-2 font-medium text-emerald-500">{t('common.completed')}</p>
                       ) : (daysLabel || showCaution) ? (
                         <div className="flex items-center gap-1.5 mt-2">
                           {daysLabel && (
@@ -1559,14 +1566,14 @@ const MobileDashboard = ({
                         <div className="flex items-center justify-between mt-1.5">
                           <div className="flex items-center gap-2">
                             <span className={`text-xs ${textSecondary}`}>
-                              {nonArchivedProjects.length} project{nonArchivedProjects.length !== 1 ? 's' : ''}
+                              {t('goals.projectCount', { count: nonArchivedProjects.length })}
                             </span>
                             <button
                               type="button"
                               onClick={() => onNewProject(goal.id)}
                               className={`flex items-center gap-0.5 text-xs ${textSecondary} opacity-60 hover:opacity-100 transition-opacity`}
                             >
-                              <Plus size={10} /> Add
+                              <Plus size={10} /> {t('common.add')}
                             </button>
                           </div>
                           <span className={`text-xs font-medium ${goalProgress >= 1 ? 'text-green-500' : textSecondary}`}>
@@ -1587,7 +1594,7 @@ const MobileDashboard = ({
                       onClick={() => onNewProject(goal.id)}
                       className="flex items-center gap-1.5 text-sm text-emerald-500 hover:text-emerald-600"
                     >
-                      <Layers size={14} /> Add project
+                      <Layers size={14} /> {t('common.addProject')}
                     </button>
                   </div>
                 ) : (() => {
@@ -1652,7 +1659,7 @@ const MobileDashboard = ({
             >
               <div className="mt-2 mb-4">
                 <span className={`text-xs font-semibold uppercase tracking-wider ${textSecondary}`}>
-                  Standalone Projects
+                  {t('goals.standaloneProjects')}
                 </span>
               </div>
 
@@ -1664,7 +1671,7 @@ const MobileDashboard = ({
                     onClick={() => onNewProject(null)}
                     className="flex items-center gap-1.5 text-sm text-emerald-500 hover:text-emerald-600"
                   >
-                    <Layers size={14} /> Add Standalone Project
+                    <Layers size={14} /> {t('goals.addStandaloneProject')}
                   </button>
                 </div>
               ) : (
@@ -1727,7 +1734,7 @@ const MobileDashboard = ({
           >
             <div className="flex items-center justify-between mb-3">
               <span className={`text-sm font-semibold ${textPrimary}`}>
-                Move "{moveToProject.title}" to…
+                {t('goals.moveProjectTo', { project: moveToProject.title })}
               </span>
               <button onClick={() => setMoveToProject(null)} className={`p-1 rounded-lg ${hoverBg}`}>
                 <X size={16} className={textSecondary} />
@@ -1748,7 +1755,7 @@ const MobileDashboard = ({
                   >
                     <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: hex }} />
                     <span className={`text-sm ${textPrimary}`}>{g.title}</span>
-                    {isCurrent && <span className={`ml-auto text-xs ${textSecondary}`}>current</span>}
+                    {isCurrent && <span className={`ml-auto text-xs ${textSecondary}`}>{t('goals.current')}</span>}
                   </button>
                 );
               })}
@@ -1760,8 +1767,8 @@ const MobileDashboard = ({
                 }`}
               >
                 <Layers size={12} className={`flex-shrink-0 ${textSecondary}`} />
-                <span className={`text-sm ${textPrimary}`}>Standalone</span>
-                {!moveToProject.goalId && <span className={`ml-auto text-xs ${textSecondary}`}>current</span>}
+                <span className={`text-sm ${textPrimary}`}>{t('goals.standalone')}</span>
+                {!moveToProject.goalId && <span className={`ml-auto text-xs ${textSecondary}`}>{t('goals.current')}</span>}
               </button>
             </div>
           </div>
@@ -1858,7 +1865,7 @@ const ManageAreas = ({ onClose }) => {
     >
       <div className="flex items-center justify-between">
         <h3 className={`text-base font-semibold ${textPrimary}`}>{t('goals.manageAreas')}</h3>
-        <button type="button" onClick={onClose} className={`p-1.5 rounded-lg ${hoverBg}`} aria-label="Close">
+        <button type="button" onClick={onClose} className={`p-1.5 rounded-lg ${hoverBg}`} aria-label={t('common.close')}>
           <X size={16} className={textSecondary} />
         </button>
       </div>
@@ -1875,7 +1882,7 @@ const ManageAreas = ({ onClose }) => {
                   type="button"
                   onClick={() => setPaletteForId(paletteForId === area.id ? null : area.id)}
                   className={`w-6 h-6 rounded-full flex-shrink-0 ${area.color || 'bg-blue-500'} ring-1 ring-black/10`}
-                  aria-label="Area color"
+                  aria-label={t('goals.areaColor')}
                 />
                 {/* Name */}
                 <input
@@ -1888,16 +1895,16 @@ const ManageAreas = ({ onClose }) => {
                 />
                 {/* Reorder */}
                 <button type="button" onClick={() => move(idx, -1)} disabled={idx === 0}
-                  className={`p-1 rounded ${hoverBg} ${textSecondary} disabled:opacity-30`} aria-label="Move up">
+                  className={`p-1 rounded ${hoverBg} ${textSecondary} disabled:opacity-30`} aria-label={t('goals.moveUp')}>
                   <ChevronDown size={14} className="rotate-180" />
                 </button>
                 <button type="button" onClick={() => move(idx, 1)} disabled={idx === sorted.length - 1}
-                  className={`p-1 rounded ${hoverBg} ${textSecondary} disabled:opacity-30`} aria-label="Move down">
+                  className={`p-1 rounded ${hoverBg} ${textSecondary} disabled:opacity-30`} aria-label={t('goals.moveDown')}>
                   <ChevronDown size={14} />
                 </button>
                 {/* Delete */}
                 <button type="button" onClick={() => setConfirmDeleteId(area.id)}
-                  className={`p-1 rounded ${darkMode ? 'text-red-400 hover:bg-red-900/20' : 'text-red-500 hover:bg-red-50'}`} aria-label="Delete area">
+                  className={`p-1 rounded ${darkMode ? 'text-red-400 hover:bg-red-900/20' : 'text-red-500 hover:bg-red-50'}`} aria-label={t('goals.deleteArea')}>
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -1912,7 +1919,7 @@ const ManageAreas = ({ onClose }) => {
                       className={`w-6 h-6 rounded-full ${c.class} transition-transform ${
                         area.color === c.class ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : 'hover:scale-110'
                       }`}
-                      aria-label={c.name}
+                      aria-label={t(`colors.${c.name.toLowerCase()}`)}
                     />
                   ))}
                 </div>
@@ -1987,7 +1994,7 @@ const AreaForm = ({ initial, onClose }) => {
               className={`w-7 h-7 rounded-full ${c.class} transition-transform ${
                 color === c.class ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : 'hover:scale-110'
               }`}
-              aria-label={c.name}
+              aria-label={t(`colors.${c.name.toLowerCase()}`)}
             />
           ))}
         </div>
@@ -2118,7 +2125,7 @@ const GoalDetailPanel = ({ goal, projects, onEditGoal, onEditProject, onNewProje
           >
             <Layers size={13} /> {t('common.addProject')}
           </button>
-          <button onClick={onClose} className={`ml-auto flex-shrink-0 p-1.5 rounded-lg ${hoverBg}`} aria-label="Close">
+          <button onClick={onClose} className={`ml-auto flex-shrink-0 p-1.5 rounded-lg ${hoverBg}`} aria-label={t('common.close')}>
             <X size={15} className={textSecondary} />
           </button>
         </div>
@@ -2282,8 +2289,8 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
   const handleDeleteGoal = (goalId) => {
     setGoalForm(null);
     setConfirmDialog({
-      title: 'Delete Goal',
-      message: 'Its projects will become standalone. This cannot be undone.',
+      title: t('goals.deleteGoal'),
+      message: t('goals.deleteGoalConfirm'),
       onConfirm: () => {
         projects
           .filter(p => p.goalId === goalId)
@@ -2399,13 +2406,13 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
                 className={`flex items-center gap-2 text-xs ${textSecondary} ${hoverBg} px-3 py-2 transition-colors w-full`}
               >
                 <Archive size={13} className="flex-shrink-0" />
-                <span className="font-medium">Archived ({archivedCount})</span>
+                <span className="font-medium">{t('goals.archivedCount', { count: archivedCount })}</span>
                 <ChevronDown size={13} className={`ml-auto flex-shrink-0 transition-transform duration-200 ${showArchived ? 'rotate-180' : ''}`} />
               </button>
               {showArchived && (
                 <div className="flex gap-4 mt-2">
                   <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>Goals</p>
+                    <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>{t('goals.goals')}</p>
                     {archivedGoals.length === 0 ? (
                       <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>{t('goals.noArchivedGoals')}</p>
                     ) : (
@@ -2415,7 +2422,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
                             <Flag size={11} className="text-blue-400 flex-shrink-0" />
                             <span className={`text-xs ${textSecondary} flex-1 min-w-0 truncate`}>{g.title}</span>
                             <button onClick={() => updateGoal(g.id, { status: 'active' })} className={`flex-shrink-0 flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded ${darkMode ? 'text-blue-400 hover:bg-blue-900/30' : 'text-blue-600 hover:bg-blue-50'}`}>
-                              <RotateCcw size={9} /> Restore
+                              <RotateCcw size={9} /> {t('common.restore')}
                             </button>
                           </div>
                         ))}
@@ -2424,7 +2431,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
                   </div>
                   <div className={`w-px self-stretch ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`} />
                   <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>Projects</p>
+                    <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>{t('goals.projects')}</p>
                     {archivedProjects.length === 0 ? (
                       <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>{t('goals.noArchivedProjects')}</p>
                     ) : (
@@ -2434,7 +2441,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
                             <Layers size={11} className="text-emerald-400 flex-shrink-0" />
                             <span className={`text-xs ${textSecondary} flex-1 min-w-0 truncate`}>{p.title}</span>
                             <button onClick={() => updateProject(p.id, { status: 'active' })} className={`flex-shrink-0 flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded ${darkMode ? 'text-blue-400 hover:bg-blue-900/30' : 'text-blue-600 hover:bg-blue-50'}`}>
-                              <RotateCcw size={9} /> Restore
+                              <RotateCcw size={9} /> {t('common.restore')}
                             </button>
                           </div>
                         ))}
@@ -2495,7 +2502,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
               <div className="flex items-center gap-3">
                 <GitBranch size={20} className="text-blue-500" />
                 <h2 className={`text-base font-semibold ${textPrimary}`}>
-                  Goals &amp; Projects
+                  {t('goals.dashboardTitle')}
                 </h2>
               </div>
               <div className="flex items-center gap-2">
@@ -2522,7 +2529,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
                   className={`p-1.5 rounded-lg ${
                     darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'
                   } transition-colors`}
-                  aria-label="Close"
+                  aria-label={t('common.close')}
                 >
                   <X size={16} className={textSecondary} />
                 </button>
@@ -2575,7 +2582,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
                   className={`flex items-center gap-2 text-xs ${textSecondary} ${hoverBg} px-3 py-2 transition-colors w-full`}
                 >
                   <Archive size={13} className="flex-shrink-0" />
-                  <span className="font-medium">Archived ({archivedCount})</span>
+                  <span className="font-medium">{t('goals.archivedCount', { count: archivedCount })}</span>
                   <ChevronDown
                     size={13}
                     className={`ml-auto flex-shrink-0 transition-transform duration-200 ${showArchived ? 'rotate-180' : ''}`}
@@ -2586,7 +2593,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
                   <div className="flex gap-4 mt-2">
                     {/* Goals column */}
                     <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>Goals</p>
+                      <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>{t('goals.goals')}</p>
                       {archivedGoals.length === 0 ? (
                         <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>{t('goals.noArchivedGoals')}</p>
                       ) : (
@@ -2604,7 +2611,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
                                   darkMode ? 'text-blue-400 hover:bg-blue-900/30' : 'text-blue-600 hover:bg-blue-50'
                                 }`}
                               >
-                                <RotateCcw size={9} /> Restore
+                                <RotateCcw size={9} /> {t('common.restore')}
                               </button>
                             </div>
                           ))}
@@ -2617,7 +2624,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
 
                     {/* Projects column */}
                     <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>Projects</p>
+                      <p className={`text-xs font-medium ${textSecondary} opacity-60 uppercase tracking-wider mb-1.5 px-2`}>{t('goals.projects')}</p>
                       {archivedProjects.length === 0 ? (
                         <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>{t('goals.noArchivedProjects')}</p>
                       ) : (
@@ -2635,7 +2642,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
                                   darkMode ? 'text-blue-400 hover:bg-blue-900/30' : 'text-blue-600 hover:bg-blue-50'
                                 }`}
                               >
-                                <RotateCcw size={9} /> Restore
+                                <RotateCcw size={9} /> {t('common.restore')}
                               </button>
                             </div>
                           ))}

@@ -29,7 +29,7 @@ class PermissionsRationaleActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         supportActionBar?.apply {
-            title = "Health Connect Permissions"
+            title = getString(R.string.health_permissions_title)
             setDisplayHomeAsUpEnabled(true)
         }
 

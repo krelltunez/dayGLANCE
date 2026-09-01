@@ -13,8 +13,6 @@ import com.dayglance.app.MainActivity
 import com.dayglance.app.R
 import com.dayglance.app.data.SharedDataStore
 import org.json.JSONObject
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 /**
  * Goal widget — shows a pinned goal card plus its child projects.
@@ -63,7 +61,8 @@ class GoalWidget : AppWidgetProvider() {
         val snapshot = dataStore.widgetSnapshot?.let { runCatching { JSONObject(it) }.getOrNull() }
 
         // Header date
-        val dateLabel = snapshot?.optString("dateLabel") ?: formatTodayLabel(context)
+        val dateLabel = snapshot?.optString("dateLabel")?.takeIf { it.isNotBlank() }
+            ?: formatTodayLabel(context)
         views.setTextViewText(R.id.tv_goal_widget_date, dateLabel)
 
         // Tap root to open app
@@ -298,7 +297,7 @@ class GoalWidget : AppWidgetProvider() {
     }
 
     private fun formatTodayLabel(context: Context): String = try {
-        LocalDate.now().format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+        formatWidgetDate(context)
     } catch (_: Throwable) { context.getString(R.string.widget_today) }
 
     // ── Broadcast + refresh ───────────────────────────────────────────────────

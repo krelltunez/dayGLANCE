@@ -1,3 +1,10 @@
+import {
+  activeLocale,
+  defaultUse24HourClock,
+  formatLocalizedDate,
+  isSimplifiedChinese,
+} from './localeFormatting.js';
+
 // Suggestion parser — pure functions for parsing time/tag/date/priority/duration
 // shorthand syntax from task input text.  No React state dependencies.
 
@@ -129,7 +136,12 @@ export const getPartialDuration = (text, cursorPos) => {
 // Date candidates (@)
 // ---------------------------------------------------------------------------
 
-export const getDateCandidates = (partial) => {
+const capitalizeRelativeLabel = (label, language) =>
+  isSimplifiedChinese(language)
+    ? label
+    : label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
+
+export const getDateCandidates = (partial, language = activeLocale()) => {
   const today = new Date();
   today.setHours(12, 0, 0, 0);
   const currentYear = today.getFullYear();
@@ -137,15 +149,21 @@ export const getDateCandidates = (partial) => {
   if (!lowerPartial) return [];
 
   const candidates = [];
+  const useChinese = isSimplifiedChinese(language);
 
+  const relativeDate = new Intl.RelativeTimeFormat(language, { numeric: 'auto' });
   const naturalDates = [
-    { keywords: ['today', 'tod'], getDate: () => today, display: 'Today', keyword: 'today' },
-    { keywords: ['tomorrow', 'tom'], getDate: () => { const d = new Date(today); d.setDate(d.getDate() + 1); return d; }, display: 'Tomorrow', keyword: 'tomorrow' },
-    { keywords: ['yesterday'], getDate: () => { const d = new Date(today); d.setDate(d.getDate() - 1); return d; }, display: 'Yesterday', keyword: 'yesterday' },
+    { keywords: ['today', 'tod'], getDate: () => today, offset: 0, keyword: 'today' },
+    { keywords: ['tomorrow', 'tom'], getDate: () => { const d = new Date(today); d.setDate(d.getDate() + 1); return d; }, offset: 1, keyword: 'tomorrow' },
+    { keywords: ['yesterday'], getDate: () => { const d = new Date(today); d.setDate(d.getDate() - 1); return d; }, offset: -1, keyword: 'yesterday' },
   ];
   for (const nd of naturalDates) {
     if (nd.keywords.some(k => k.startsWith(lowerPartial) || lowerPartial === k)) {
-      candidates.push({ date: nd.getDate(), display: nd.display, keyword: nd.keyword });
+      candidates.push({
+        date: nd.getDate(),
+        display: capitalizeRelativeLabel(relativeDate.format(nd.offset, 'day'), language),
+        keyword: nd.keyword,
+      });
     }
   }
 
@@ -158,14 +176,22 @@ export const getDateCandidates = (partial) => {
       let daysToAdd = i - currentDay;
       if (daysToAdd <= 0) daysToAdd += 7;
       targetDate.setDate(targetDate.getDate() + daysToAdd);
-      candidates.push({ date: targetDate, display: dayNames[i].charAt(0).toUpperCase() + dayNames[i].slice(1), keyword: dayNames[i] });
+      candidates.push({
+        date: targetDate,
+        display: formatLocalizedDate(targetDate, { weekday: 'long' }, language),
+        keyword: dayNames[i],
+      });
     }
   }
 
   if ('next week'.startsWith(lowerPartial) || lowerPartial === 'next week') {
     const nextWeek = new Date(today);
     nextWeek.setDate(nextWeek.getDate() + 7);
-    candidates.push({ date: nextWeek, display: 'Next week', keyword: 'next week' });
+    candidates.push({
+      date: nextWeek,
+      display: capitalizeRelativeLabel(relativeDate.format(1, 'week'), language),
+      keyword: 'next week',
+    });
   }
 
   const nextDayMatch = lowerPartial.match(/^next\s+(\w+)$/);
@@ -178,7 +204,12 @@ export const getDateCandidates = (partial) => {
         let daysToAdd = i - currentDay;
         if (daysToAdd <= 0) daysToAdd += 7;
         targetDate.setDate(targetDate.getDate() + daysToAdd);
-        candidates.push({ date: targetDate, display: `Next ${dayNames[i].charAt(0).toUpperCase() + dayNames[i].slice(1)}`, keyword: `next ${dayNames[i]}` });
+        const weekday = formatLocalizedDate(targetDate, { weekday: useChinese ? 'short' : 'long' }, language);
+        candidates.push({
+          date: targetDate,
+          display: useChinese ? `下${weekday}` : `Next ${weekday}`,
+          keyword: `next ${dayNames[i]}`,
+        });
       }
     }
   }
@@ -197,7 +228,7 @@ export const getDateCandidates = (partial) => {
       if (day >= 1 && day <= 31) {
         const targetDate = new Date(year, monthIdx, day, 12, 0, 0);
         if (!isNaN(targetDate.getTime())) {
-          candidates.push({ date: targetDate, display: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) });
+          candidates.push({ date: targetDate, display: formatLocalizedDate(targetDate, { month: 'short', day: 'numeric', year: 'numeric' }, language) });
         }
       }
     }
@@ -212,7 +243,7 @@ export const getDateCandidates = (partial) => {
     if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
       const targetDate = new Date(year, month - 1, day, 12, 0, 0);
       if (!isNaN(targetDate.getTime())) {
-        candidates.push({ date: targetDate, display: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) });
+        candidates.push({ date: targetDate, display: formatLocalizedDate(targetDate, { month: 'short', day: 'numeric', year: 'numeric' }, language) });
       }
     }
   }
@@ -226,7 +257,7 @@ export const getDateCandidates = (partial) => {
     if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
       const targetDate = new Date(year, month - 1, day, 12, 0, 0);
       if (!isNaN(targetDate.getTime())) {
-        candidates.push({ date: targetDate, display: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) });
+        candidates.push({ date: targetDate, display: formatLocalizedDate(targetDate, { month: 'short', day: 'numeric', year: 'numeric' }, language) });
       }
     }
   }
@@ -244,23 +275,44 @@ export const parseFlexibleDate = (partial) => {
 // Time candidates (~)
 // ---------------------------------------------------------------------------
 
-export const getTimeCandidates = (partial) => {
+const formatSuggestionTime = (time, language, use24HourClock) => {
+  if (use24HourClock) return time;
+  const [hours, minutes] = time.split(':').map(Number);
+  return new Intl.DateTimeFormat(language, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(2024, 0, 1, hours, minutes)));
+};
+
+export const getTimeCandidates = (
+  partial,
+  language = activeLocale(),
+  use24HourClock = defaultUse24HourClock(language),
+) => {
   const lowerPartial = partial.toLowerCase().trim();
   if (!lowerPartial) return [];
 
   const candidates = [];
 
+  const useChinese = isSimplifiedChinese(language);
   const naturalTimes = [
-    { keywords: ['noon'], time: '12:00', display: '12:00 PM (Noon)', keyword: 'noon' },
-    { keywords: ['midnight'], time: '00:00', display: '12:00 AM (Midnight)', keyword: 'midnight' },
-    { keywords: ['morning', 'morn'], time: '09:00', display: '9:00 AM (Morning)', keyword: 'morning' },
-    { keywords: ['afternoon'], time: '14:00', display: '2:00 PM (Afternoon)', keyword: 'afternoon' },
-    { keywords: ['evening', 'eve'], time: '18:00', display: '6:00 PM (Evening)', keyword: 'evening' },
-    { keywords: ['night'], time: '21:00', display: '9:00 PM (Night)', keyword: 'night' },
+    { keywords: ['noon'], time: '12:00', label: useChinese ? '中午' : 'Noon', keyword: 'noon' },
+    { keywords: ['midnight'], time: '00:00', label: useChinese ? '午夜' : 'Midnight', keyword: 'midnight' },
+    { keywords: ['morning', 'morn'], time: '09:00', label: useChinese ? '早上' : 'Morning', keyword: 'morning' },
+    { keywords: ['afternoon'], time: '14:00', label: useChinese ? '下午' : 'Afternoon', keyword: 'afternoon' },
+    { keywords: ['evening', 'eve'], time: '18:00', label: useChinese ? '晚上' : 'Evening', keyword: 'evening' },
+    { keywords: ['night'], time: '21:00', label: useChinese ? '夜间' : 'Night', keyword: 'night' },
   ];
   for (const nt of naturalTimes) {
     if (nt.keywords.some(k => k.startsWith(lowerPartial) || lowerPartial === k)) {
-      candidates.push({ time: nt.time, display: nt.display, keyword: nt.keyword });
+      const time = formatSuggestionTime(nt.time, language, use24HourClock);
+      candidates.push({
+        time: nt.time,
+        display: useChinese ? `${time}（${nt.label}）` : `${time} (${nt.label})`,
+        keyword: nt.keyword,
+      });
     }
   }
 
@@ -270,11 +322,13 @@ export const getTimeCandidates = (partial) => {
     if (num >= 1 && num <= 12) {
       const amHour = num === 12 ? 0 : num;
       const pmHour = num === 12 ? 12 : num + 12;
-      candidates.push({ time: `${amHour.toString().padStart(2, '0')}:00`, display: `${num}:00 AM`, keyword: `${num}am` });
-      candidates.push({ time: `${pmHour.toString().padStart(2, '0')}:00`, display: `${num}:00 PM`, keyword: `${num}pm` });
+      const amTime = `${amHour.toString().padStart(2, '0')}:00`;
+      const pmTime = `${pmHour.toString().padStart(2, '0')}:00`;
+      candidates.push({ time: amTime, display: formatSuggestionTime(amTime, language, use24HourClock), keyword: `${num}am` });
+      candidates.push({ time: pmTime, display: formatSuggestionTime(pmTime, language, use24HourClock), keyword: `${num}pm` });
     } else if (num >= 13 && num <= 23) {
-      const displayHour = num > 12 ? num - 12 : num;
-      candidates.push({ time: `${num.toString().padStart(2, '0')}:00`, display: `${displayHour}:00 PM`, keyword: `${num}:00` });
+      const time = `${num.toString().padStart(2, '0')}:00`;
+      candidates.push({ time, display: formatSuggestionTime(time, language, use24HourClock), keyword: `${num}:00` });
     }
   }
 
@@ -285,10 +339,12 @@ export const getTimeCandidates = (partial) => {
     if (num >= 1 && num <= 12) {
       if (ap === 'a') {
         const hour = num === 12 ? 0 : num;
-        candidates.push({ time: `${hour.toString().padStart(2, '0')}:00`, display: `${num}:00 AM`, keyword: `${num}am` });
+        const time = `${hour.toString().padStart(2, '0')}:00`;
+        candidates.push({ time, display: formatSuggestionTime(time, language, use24HourClock), keyword: `${num}am` });
       } else {
         const hour = num === 12 ? 12 : num + 12;
-        candidates.push({ time: `${hour.toString().padStart(2, '0')}:00`, display: `${num}:00 PM`, keyword: `${num}pm` });
+        const time = `${hour.toString().padStart(2, '0')}:00`;
+        candidates.push({ time, display: formatSuggestionTime(time, language, use24HourClock), keyword: `${num}pm` });
       }
     }
   }
@@ -302,15 +358,16 @@ export const getTimeCandidates = (partial) => {
       for (const min of minuteOptions) {
         const amHour = hour === 12 ? 0 : hour;
         const pmHour = hour === 12 ? 12 : hour + 12;
-        candidates.push({ time: `${amHour.toString().padStart(2, '0')}:${min}`, display: `${hour}:${min} AM`, keyword: `${hour}:${min}am` });
-        candidates.push({ time: `${pmHour.toString().padStart(2, '0')}:${min}`, display: `${hour}:${min} PM`, keyword: `${hour}:${min}pm` });
+        const amTime = `${amHour.toString().padStart(2, '0')}:${min}`;
+        const pmTime = `${pmHour.toString().padStart(2, '0')}:${min}`;
+        candidates.push({ time: amTime, display: formatSuggestionTime(amTime, language, use24HourClock), keyword: `${hour}:${min}am` });
+        candidates.push({ time: pmTime, display: formatSuggestionTime(pmTime, language, use24HourClock), keyword: `${hour}:${min}pm` });
       }
     } else if (hour >= 13 && hour <= 23) {
       const minuteOptions = ['00', '15', '30', '45'].filter(m => m.startsWith(minPartial));
-      const displayHour = hour > 12 ? hour - 12 : hour;
-      const ampm = hour >= 12 ? 'PM' : 'AM';
       for (const min of minuteOptions) {
-        candidates.push({ time: `${hour.toString().padStart(2, '0')}:${min}`, display: `${displayHour}:${min} ${ampm}`, keyword: `${hour}:${min}` });
+        const time = `${hour.toString().padStart(2, '0')}:${min}`;
+        candidates.push({ time, display: formatSuggestionTime(time, language, use24HourClock), keyword: `${hour}:${min}` });
       }
     }
   }
@@ -321,9 +378,7 @@ export const getTimeCandidates = (partial) => {
     const minutes = militaryMatch[2];
     if (hours >= 0 && hours <= 23 && !candidates.some(c => c.time === `${hours.toString().padStart(2, '0')}:${minutes}`)) {
       const timeStr = `${hours.toString().padStart(2, '0')}:${minutes}`;
-      const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      candidates.push({ time: timeStr, display: `${displayHour}:${minutes} ${ampm}` });
+      candidates.push({ time: timeStr, display: formatSuggestionTime(timeStr, language, use24HourClock) });
     }
   }
 
@@ -337,9 +392,7 @@ export const getTimeCandidates = (partial) => {
       if (ampm === 'am' && hours === 12) hours = 0;
       const timeStr = `${hours.toString().padStart(2, '0')}:${minutes}`;
       if (!candidates.some(c => c.time === timeStr)) {
-        const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-        const displayAmpm = hours >= 12 ? 'PM' : 'AM';
-        candidates.push({ time: timeStr, display: `${displayHour}:${minutes} ${displayAmpm}` });
+        candidates.push({ time: timeStr, display: formatSuggestionTime(timeStr, language, use24HourClock) });
       }
     }
   }

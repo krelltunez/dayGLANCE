@@ -12,9 +12,9 @@ import { useTranslation } from 'react-i18next';
 
 const HyperGlanceModeModal = () => {
   const {
-    currentTime, darkMode, isPhone,
-    tasks, setTasks,
-    unscheduledTasks, setUnscheduledTasks,
+    isPhone,
+    tasks,
+    unscheduledTasks,
     toggleComplete,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
     aiSubtasksLoadingForTask,
@@ -26,7 +26,7 @@ const HyperGlanceModeModal = () => {
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
 
   const {
-    projects, updateProject,
+    projects,
     hyperGlanceProjectId,
     hyperGlanceSessionDate,
     hgTimerSeconds, setHgTimerSeconds,
@@ -203,13 +203,15 @@ const HyperGlanceModeModal = () => {
   };
 
   const formatElapsed = (seconds) => {
-    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 60) return t('focus.secondsShort', { count: seconds, defaultValue: '{{count}}s' });
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    return h > 0
+      ? t('focus.hoursMinutesShort', { hours: h, minutes: m, defaultValue: '{{hours}}h {{minutes}}m' })
+      : t('voice.minutesShort', { count: m });
   };
 
-  const phaseLabel = hgTimerPhase === 'work' ? 'Work' : hgTimerPhase === 'longBreak' ? 'Long Break' : 'Break';
+  const phaseLabel = hgTimerPhase === 'work' ? t('focus.work') : hgTimerPhase === 'longBreak' ? t('focus.longBreak') : t('focus.breakLabel');
   const phaseBg = hgTimerPhase === 'work' ? 'bg-blue-900 text-blue-300' : hgTimerPhase === 'longBreak' ? 'bg-purple-900 text-purple-300' : 'bg-green-900 text-green-300';
 
   const buildSessionStats = () => ({
@@ -255,7 +257,7 @@ const HyperGlanceModeModal = () => {
                 <div className="text-gray-400 text-sm">{hyperGlanceSessionDate}</div>
               </div>
             </div>
-            <button onClick={() => exitHyperGlanceMode()} className="text-gray-500 hover:text-gray-300 p-1">
+            <button onClick={() => exitHyperGlanceMode()} className="text-gray-500 hover:text-gray-300 p-1" aria-label={t('common.close')}>
               <X size={20} />
             </button>
           </div>
@@ -283,7 +285,7 @@ const HyperGlanceModeModal = () => {
                   className={inputCls} />
               </div>
             </div>
-            <p className="text-gray-600 text-xs">Long break replaces break every 4 cycles.</p>
+            <p className="text-gray-600 text-xs">{t('focus.longBreakEveryFourCycles', { defaultValue: 'Long break replaces break every 4 cycles.' })}</p>
           </div>
 
           {/* Android DND permission prompt */}
@@ -294,7 +296,7 @@ const HyperGlanceModeModal = () => {
                 onClick={nativeRequestDndPermission}
                 className="ml-3 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors flex-shrink-0"
               >
-                Grant access
+                {t('focus.grantAccess')}
               </button>
             </div>
           )}
@@ -303,7 +305,7 @@ const HyperGlanceModeModal = () => {
           {projectTasks.length > 0 && (
             <div className="space-y-2">
               <div className="text-gray-400 text-xs font-semibold uppercase tracking-wide">
-                Tasks ({projectTasks.filter(t => !t.completed).length} remaining)
+                {t('focus.tasksRemaining', { count: projectTasks.filter(t => !t.completed).length, defaultValue: 'Tasks ({{count}} remaining)' })}
               </div>
               <div className="space-y-1.5 max-h-48 overflow-y-auto">
                 {projectTasks.map(t => (
@@ -318,7 +320,7 @@ const HyperGlanceModeModal = () => {
 
           {projectTasks.length === 0 && (
             <p className="text-gray-500 text-sm text-center py-2">
-              No tasks yet — add project tasks in the Goals dashboard.
+              {t('focus.noProjectTasks', { defaultValue: 'No tasks — add them in the Goals dashboard.' })}
             </p>
           )}
 
@@ -328,7 +330,7 @@ const HyperGlanceModeModal = () => {
             style={{ backgroundColor: barColor }}
           >
             <Zap size={20} />
-            Start hyperGLANCE
+            {t('focus.startHyperGlance', { defaultValue: 'Start hyperGLANCE' })}
           </button>
         </div>
       </div>
@@ -346,7 +348,7 @@ const HyperGlanceModeModal = () => {
             <IconComp size={40} style={{ color: barColor }} />
           </div>
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-white">hyperGLANCE Session Complete!</h1>
+            <h1 className="text-2xl font-bold text-white">hyperGLANCE · {t('focus.sessionComplete')}</h1>
             <div className="text-gray-400 text-sm mt-1">{project.title}</div>
           </div>
 
@@ -380,7 +382,7 @@ const HyperGlanceModeModal = () => {
             className="w-full py-3 rounded-xl text-white font-semibold text-base"
             style={{ backgroundColor: barColor }}
           >
-            Done
+            {t('common.done')}
           </button>
         </div>
       </div>
@@ -395,27 +397,27 @@ const HyperGlanceModeModal = () => {
           <X size={40} className="text-gray-400" />
           <h2 className="text-xl font-bold text-white text-center">{t('focus.leaveHyperGlance')}</h2>
           <p className="text-gray-400 text-sm text-center">
-            Your progress is saved. You can return to this session later.
+            {t('focus.progressSaved', { defaultValue: 'Your progress is saved. You can return to this session later.' })}
           </p>
           <div className="w-full flex flex-col gap-3">
             <button
               onClick={() => { setHgTimerRunning(false); setHgExitConfirm(false); exitHyperGlanceMode(); }}
               className="w-full py-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-semibold transition-colors"
             >
-              Exit — I'll come back
+              {t('focus.exitAndReturn', { defaultValue: "Exit — I'll come back" })}
             </button>
             <button
               onClick={() => { setHgExitConfirm(false); setHgCompleted(true); playFocusSound('complete'); completeHyperGlanceSession(buildSessionStats()); }}
               className="w-full py-3 rounded-xl text-white font-semibold transition-opacity hover:opacity-90"
               style={{ backgroundColor: barColor }}
             >
-              End Session
+              {t('focus.endSession', { defaultValue: 'End Session' })}
             </button>
             <button
               onClick={() => setHgExitConfirm(false)}
               className="text-gray-500 hover:text-gray-300 text-sm text-center py-1"
             >
-              Cancel — keep going
+              {t('focus.cancelKeepGoing', { defaultValue: 'Cancel — keep going' })}
             </button>
           </div>
         </div>
@@ -436,9 +438,9 @@ const HyperGlanceModeModal = () => {
         </div>
         <div className="flex items-center gap-2">
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${phaseBg}`}>
-            {phaseLabel} · Cycle {hgCycleCount + 1}
+            {phaseLabel} · {t('focus.cycleNumber', { n: hgCycleCount + 1, defaultValue: 'Cycle {{n}}' })}
           </span>
-          <button onClick={() => setHgExitConfirm(true)} className="text-gray-500 hover:text-gray-300 p-1">
+          <button onClick={() => setHgExitConfirm(true)} className="text-gray-500 hover:text-gray-300 p-1" aria-label={t('common.close')}>
             <X size={18} />
           </button>
         </div>
@@ -456,13 +458,17 @@ const HyperGlanceModeModal = () => {
                 onClick={() => setHgTimerRunning(prev => !prev)}
                 className="w-12 h-12 rounded-full flex items-center justify-center text-white transition-colors"
                 style={{ backgroundColor: barColor }}
+                aria-label={hgTimerRunning
+                  ? t('focus.pause', { defaultValue: 'Pause' })
+                  : t('focus.resume', { defaultValue: 'Resume' })}
               >
                 {hgTimerRunning ? <Pause size={20} /> : <Play size={20} />}
               </button>
               <button
                 onClick={skipPhase}
                 className="w-9 h-9 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-400 transition-colors"
-                title="Skip phase"
+                title={t('focus.skipPhase', { defaultValue: 'Skip phase' })}
+                aria-label={t('focus.skipPhase', { defaultValue: 'Skip phase' })}
               >
                 <SkipForward size={16} />
               </button>
@@ -486,24 +492,24 @@ const HyperGlanceModeModal = () => {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-gray-400 text-xs font-semibold uppercase tracking-wide">
-                Tasks · {projectTasks.filter(t => !t.completed).length} remaining
+                {t('focus.tasksRemaining', { count: projectTasks.filter(t => !t.completed).length, defaultValue: 'Tasks ({{count}} remaining)' })}
               </span>
               {sessionElapsed > 0 && (
-                <span className="text-gray-600 text-xs">{formatElapsed(sessionElapsed)} elapsed</span>
+                <span className="text-gray-600 text-xs">
+                  {t('focus.elapsedDuration', { duration: formatElapsed(sessionElapsed), defaultValue: '{{duration}} elapsed' })}
+                </span>
               )}
             </div>
 
             {projectTasks.length === 0 && (
               <p className="text-gray-600 text-sm text-center py-4">
-                No tasks — add them in the Goals dashboard.
+                {t('focus.noProjectTasks', { defaultValue: 'No tasks — add them in the Goals dashboard.' })}
               </p>
             )}
 
             {projectTasks.map(task => {
               const isDone = task.completed;
               const isExpanded = expandedTaskIds.has(task.id);
-              const hasExtra = (task.notes && task.notes.trim()) || (task.subtasks && task.subtasks.length > 0);
-
               return (
                 <div
                   key={task.id}
@@ -512,6 +518,7 @@ const HyperGlanceModeModal = () => {
                   <div className="flex items-start gap-3">
                     <button
                       onClick={() => handleToggleTask(task.id)}
+                      aria-label={isDone ? t('sched.markIncomplete') : t('sched.markComplete')}
                       className={`w-5 h-5 rounded flex-shrink-0 mt-0.5 border-2 flex items-center justify-center transition-colors ${
                         isDone ? 'border-green-500 bg-green-500' : 'border-gray-500 bg-transparent hover:border-gray-300'
                       }`}
@@ -525,6 +532,7 @@ const HyperGlanceModeModal = () => {
                       <button
                         onClick={() => toggleExpanded(task.id)}
                         className="text-gray-500 hover:text-gray-300 p-0.5 flex-shrink-0"
+                        aria-label={isExpanded ? t('common.hideActions') : t('common.showActions')}
                       >
                         {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </button>
@@ -567,14 +575,16 @@ const HyperGlanceModeModal = () => {
           onClick={() => setHgTimerRunning(prev => !prev)}
           className="px-5 py-2 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-semibold text-sm transition-colors flex items-center gap-2"
         >
-          {hgTimerRunning ? <><Pause size={15} /> Pause</> : <><Play size={15} /> Resume</>}
+          {hgTimerRunning
+            ? <><Pause size={15} /> {t('focus.pause', { defaultValue: 'Pause' })}</>
+            : <><Play size={15} /> {t('focus.resume', { defaultValue: 'Resume' })}</>}
         </button>
         <button
           onClick={() => setHgExitConfirm(true)}
           className="px-5 py-2 rounded-xl text-white font-semibold text-sm transition-opacity hover:opacity-90"
           style={{ backgroundColor: barColor }}
         >
-          End Session
+          {t('focus.endSession', { defaultValue: 'End Session' })}
         </button>
       </div>
     </div>

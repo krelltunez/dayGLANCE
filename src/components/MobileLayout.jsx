@@ -14,6 +14,7 @@ import {
 import { isNativeAndroid, isNativeApp, nativeUpdateEvent } from '../native.js';
 import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, isObsidianNoteOnlyTask, renderFormattedText, openNoteAction, isPhoneOnlyTask } from '../utils/textFormatting.jsx';
 import { dateToString, extractTags, extractWikilinks, formatDate, formatDateRange, formatDeadlineDate, formatShortDate } from '../utils/taskUtils.js';
+import { formatLocalizedDate, localizedWeekdays } from '../utils/localeFormatting.js';
 import { findRunningTask } from '../utils/runningTask.js';
 import { HABIT_COLORS, HABIT_ICONS } from '../constants/habits.js';
 import { cloudSyncProviders } from '../utils/cloudSyncProviders.js';
@@ -489,7 +490,7 @@ const MobileLayout = () => {
             {mobileActiveTab === 'timeline' && (
               <div className={`${cardBg} border-b ${borderClass} flex-shrink-0 relative ${showMonthView ? 'z-50' : 'z-30'}`}>
                 <div className="flex items-center justify-between px-4 py-3">
-                  <button onClick={() => changeDate(-1)} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label="Previous day">
+                  <button onClick={() => changeDate(-1)} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label={t('shortcuts.prevNextDay')}>
                     <ChevronLeft size={20} className={textSecondary} />
                   </button>
                   <div className="flex flex-col items-center gap-1">
@@ -507,11 +508,11 @@ const MobileLayout = () => {
                         onClick={goToToday}
                         className="px-3 py-0.5 text-xs bg-blue-600 text-white rounded-full hover:bg-blue-700 active:bg-blue-700 transition-colors"
                       >
-                        Today
+                        {t('common.today')}
                       </button>
                     )}
                   </div>
-                  <button onClick={() => changeDate(1)} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label="Next day">
+                  <button onClick={() => changeDate(1)} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label={t('shortcuts.prevNextDay')}>
                     <ChevronRight size={20} className={textSecondary} />
                   </button>
                 </div>
@@ -523,25 +524,25 @@ const MobileLayout = () => {
                         type="button"
                         onClick={(e) => { e.stopPropagation(); changeViewedMonth(-1); }}
                         className={`p-1 rounded ${hoverBg} transition-colors`}
-                        aria-label="Previous month"
+                        aria-label={t('common.back')}
                       >
                         <ChevronLeft size={18} className={textSecondary} />
                       </button>
                       <div className={`font-bold ${textPrimary}`}>
-                        {viewedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                        {formatLocalizedDate(viewedMonth, { month: 'long', year: 'numeric' })}
                       </div>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); changeViewedMonth(1); }}
                         className={`p-1 rounded ${hoverBg} transition-colors`}
-                        aria-label="Next month"
+                        aria-label={t('common.next')}
                       >
                         <ChevronRight size={18} className={textSecondary} />
                       </button>
                     </div>
                     <div className="grid grid-cols-7 gap-1 mb-2">
-                      {(() => { const d = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']; return [...d.slice(weekStartDay), ...d.slice(0, weekStartDay)]; })().map(day => (
-                        <div key={day} className={`text-xs font-semibold ${textSecondary} text-center`}>
+                      {(() => { const d = localizedWeekdays('narrow'); return [...d.slice(weekStartDay), ...d.slice(0, weekStartDay)]; })().map((day, index) => (
+                        <div key={`${index}-${day}`} className={`text-xs font-semibold ${textSecondary} text-center`}>
                           {day}
                         </div>
                       ))}
@@ -586,7 +587,7 @@ const MobileLayout = () => {
               <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`} data-inbox-container>
                 <div className="px-4 pt-3 pb-1">
                   <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
-                    <Inbox size={20} /> Inbox
+                    <Inbox size={20} /> {t('settings.inbox')}
                   </h2>
                 </div>
                 <div className="flex items-center justify-between px-4 py-2">
@@ -594,7 +595,7 @@ const MobileLayout = () => {
                     <button
                       onClick={openNewInboxTask}
                       className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
-                      title="New Inbox Task"
+                       title={t('task.newInbox')}
                     >
                       <Plus size={14} strokeWidth={3} />
                       <span className="text-xs font-medium">{t('common.newTask')}</span>
@@ -603,10 +604,10 @@ const MobileLayout = () => {
                       <button
                         onClick={() => { setMobileActiveTab('settings'); setMobileSettingsView('frames'); setFramesModalTab('schedule'); setEditingFrame(null); }}
                         className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
-                        title="AI Smart Schedule"
+                         title={t('shortcuts.smartSchedule')}
                       >
                         <BrainCircuit size={14} />
-                        <span className="text-xs font-medium">Schedule</span>
+                         <span className="text-xs font-medium">{t('common.schedule')}</span>
                       </button>
                     )}
                   </div>
@@ -615,7 +616,7 @@ const MobileLayout = () => {
                       ref={inboxFilterBtnRef}
                       onClick={() => { setShowInboxFilter(v => !v); playUISound('click'); }}
                       className={`relative ${hoverBg} rounded px-1.5 py-1.5 transition-colors`}
-                      title="Filter inbox"
+                       title={t('common.filterInbox')}
                     >
                       <Filter size={14} className={inboxFilterActive ? (darkMode ? 'text-blue-400' : 'text-blue-500') : (darkMode ? 'text-gray-400' : 'text-stone-500')} />
                       {inboxFilterActive && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-blue-500" />}
@@ -679,7 +680,7 @@ const MobileLayout = () => {
               <div className={`${cardBg} border-b ${borderClass} sticky top-0 z-30`}>
                 <div className="flex items-center justify-between px-4 py-3">
                   <h2 className={`font-bold text-lg ${textPrimary} flex items-center gap-2`}>
-                    <Settings size={20} /> Settings
+                    <Settings size={20} /> {t('common.settings')}
                   </h2>
                 </div>
               </div>
@@ -694,8 +695,8 @@ const MobileLayout = () => {
                   <button
                     onClick={() => setShowDayDial(true)}
                     className={`absolute right-3 p-2.5 rounded-lg ${hoverBg} active:bg-black/10 dark:active:bg-white/10 transition-colors`}
-                    title={t('dial.open', 'Day Dial')}
-                    aria-label={t('dial.open', 'Day Dial')}
+                    title={t('shortcuts.dayDial', { defaultValue: 'Day Dial' })}
+                    aria-label={t('shortcuts.dayDial', { defaultValue: 'Day Dial' })}
                   >
                     <DayDialIcon size={22} className={textSecondary} />
                   </button>
@@ -764,21 +765,21 @@ const MobileLayout = () => {
                             });
                             setShowAddTask(true);
                           }}
-                          title="Tap to add all-day task"
+                           title={`${t('task.addTask')}: ${t('task.allDay')}`}
                         >
                           <div className={`font-bold text-sm flex items-center justify-center gap-1.5 ${isDateToday ? 'text-blue-600' : textPrimary}`}>
                             {formatShortDate(date)}
                             <button
                               onClick={(e) => { e.stopPropagation(); setDailyNotesModalDate(dateStr); }}
                               className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${dailyNotes[dateStr]?.text ? '' : 'opacity-50'}`}
-                              title="Daily notes"
+                               title={t('common.dailyNote')}
                             >
                               <NotebookPen size={14} />
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); setFocusLogModalDate(dateStr); }}
                               className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${focusLog[dateStr]?.totalMinutes > 0 ? '' : 'opacity-50'}`}
-                              title="Focus sessions"
+                               title={t('app.focusLog')}
                             >
                               <Target size={14} />
                             </button>
@@ -830,7 +831,7 @@ const MobileLayout = () => {
                       >
                         <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
                           <div className={`font-medium ${textPrimary} truncate flex-1`}>{renderTitle(noteTask.title)}</div>
-                          <button onClick={() => setExpandedNotesTaskId(null)} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label="Close notes">
+                           <button onClick={() => setExpandedNotesTaskId(null)} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label={`${t('common.close')} ${t('task.notes')}`}>
                             <X size={18} className={textSecondary} />
                           </button>
                         </div>
@@ -840,7 +841,7 @@ const MobileLayout = () => {
                               <div className={`text-xs font-semibold ${textSecondary} mb-1`}>{t('common.description')}</div>
                               <textarea
                                 defaultValue={noteTask.notes || ''}
-                                placeholder="Add description…"
+                                 placeholder={t('task.notesPlaceholder')}
                                 rows={4}
                                 className={`w-full text-sm p-3 rounded-lg resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-white/5 text-white placeholder:text-white/40' : 'bg-black/5 text-stone-900 placeholder:text-stone-400'}`}
                                 onBlur={async (e) => {
@@ -908,17 +909,17 @@ const MobileLayout = () => {
                       </div>
                       <p className={`text-base font-semibold ${textPrimary} mb-1`}>
                         {unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0
-                          ? "Inbox zero"
+                          ? t('inbox.zero', { defaultValue: 'Inbox zero' })
                           : unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0
-                            ? "All overdue"
-                            : "No matches"}
+                            ? t('inbox.allOverdue', { defaultValue: 'All overdue' })
+                            : t('inbox.noMatches', { defaultValue: 'No matches' })}
                       </p>
                       <p className={`text-sm ${textSecondary} text-center mb-5`}>
                         {unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0
-                          ? "Add tasks here to schedule later"
+                          ? t('inbox.addTasksForLater', { defaultValue: 'Add tasks here to schedule later' })
                           : unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0
-                            ? "All inbox tasks have overdue deadlines"
-                            : "No tasks match the current filter"}
+                            ? t('inbox.allTasksOverdueHint', { defaultValue: 'All inbox tasks have overdue deadlines' })
+                            : t('sched.noMatchingTasks', { defaultValue: 'No tasks match the current filters.' })}
                       </p>
                       {unscheduledTasks.filter(t => notBucketed(t) && !t.isExample).length === 0 && (
                         <button
@@ -926,7 +927,7 @@ const MobileLayout = () => {
                           className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-emerald-500 text-white active:bg-emerald-600' : 'bg-emerald-500 text-white active:bg-emerald-600'} transition-colors`}
                         >
                           <Plus size={16} />
-                          Add task
+                          {t('task.addTask', { defaultValue: 'Add task' })}
                         </button>
                       )}
                     </div>
@@ -1075,7 +1076,7 @@ const MobileLayout = () => {
                                     <button
                                       onClick={(e) => { e.stopPropagation(); archiveInboxTask(task.id); }}
                                       className="flex items-center gap-0.5 hover:bg-white/20 rounded px-1.5 py-1 transition-colors opacity-60 hover:opacity-100"
-                                      title="Archive task"
+                                       title={t('common.archived')}
                                     >
                                       <Archive size={11} className="text-white" />
                                     </button>
@@ -1119,7 +1120,7 @@ const MobileLayout = () => {
                       >
                         <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
                           <div className={`font-medium ${textPrimary} truncate flex-1`}>{renderTitle(noteTask.title)}</div>
-                          <button onClick={() => setExpandedNotesTaskId(null)} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label="Close notes">
+                          <button onClick={() => setExpandedNotesTaskId(null)} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label={t('common.close')}>
                             <X size={18} className={textSecondary} />
                           </button>
                         </div>
@@ -1197,7 +1198,7 @@ const MobileLayout = () => {
                   onClick={() => setDailyNotesModalDate(getTodayStr())}
                   className={`fixed left-4 z-40 ${fabClass(darkMode ? 'bg-gray-700 text-gray-300 active:bg-gray-600' : 'bg-stone-200 text-stone-600 active:bg-stone-300')}`}
                   style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))', ...delay(0) }}
-                  title="Today's daily note"
+                   title={`${t('common.today')} · ${t('common.dailyNote')}`}
                 >
                   {obsidianConfig?.enabled ? <BookOpen size={22} /> : <NotebookPen size={22} />}
                 </button>
