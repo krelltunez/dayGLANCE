@@ -35,12 +35,21 @@ describe('inferNoteScopedDeletionCandidates', () => {
     expect(out).toEqual([{ id: ORPHAN_ID, noteDate: DATE, deletedAt: MTIME }]);
   });
 
-  it('falls back to the date baked into a legacy id when obsidianFileDate is absent', () => {
+  it('AUDIT FIX H4 (flipped pin): a legacy id WITHOUT obsidianFileDate is never judged — the id-embedded date is the TASK date, not the file date', () => {
+    // The old fallback judged such a task by the parse of the note its
+    // legacy id names — but legacyObsidianId mints from the TASK date, and
+    // a line with an inline date prefix (a dayGLANCE reschedule) lives in a
+    // DIFFERENT note. A task synced from a pre-obsidianFileDate build was
+    // then pended against a note that never contained its line, and the
+    // hold committed a false deletion of a live task. A task whose home
+    // note we cannot honestly name is conservatively unjudgeable; the
+    // vault-wide detector covers it on the next direct scan, and any
+    // observation re-import re-establishes obsidianFileDate.
     const out = inferNoteScopedDeletionCandidates({
       observedNotes: NOTE, scannedIds: new Set(),
       tasks: [orphan({ obsidianFileDate: undefined })], inbox: [],
     });
-    expect(out.map(c => c.id)).toEqual([ORPHAN_ID]);
+    expect(out).toEqual([]);
   });
 
   it('never flags: id present, hint advertising the id, own hint present, unobserved note, non-obsidian task, undatable dg id', () => {
