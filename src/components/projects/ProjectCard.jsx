@@ -17,7 +17,7 @@ import ProjectProgress from './ProjectProgress.jsx';
 import RecurringSeriesRow from './RecurringSeriesRow.jsx';
 import NotesSubtasksPanel from '../NotesSubtasksPanel.jsx';
 import { renderTitle, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, getLinkUrl, isObsidianNoteOnlyTask, openNoteAction, isPhoneOnlyTask } from '../../utils/textFormatting.jsx';
-import { dateToString, extractWikilinks } from '../../utils/taskUtils.js';
+import { dateToString, extractWikilinks, completionTimestamp } from '../../utils/taskUtils.js';
 import { getNextOccurrence } from '../../utils/recurrenceEngine.js';
 import { getActiveHGInstance } from '../../hooks/useHyperGlance.js';
 
@@ -70,13 +70,15 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   const toggleTaskComplete = (taskId) => {
     const scheduled = tasks.find(t => t.id === taskId);
     if (scheduled) {
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t));
+      // completedAt matches toggleComplete's stamp (local-offset ISO) so the
+      // completion log carries a wall-clock time; the old shape stamped
+      // nothing here and a bare date below, which logged time-less entries.
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, completedAt: !t.completed ? completionTimestamp() : null } : t));
       return;
     }
     // Unscheduled: toggle + reorder within project
-    const todayStr = dateToString(new Date());
     setUnscheduledTasks(prev => {
-      const updated = prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, completedAt: !t.completed ? todayStr : null } : t);
+      const updated = prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, completedAt: !t.completed ? completionTimestamp() : null } : t);
       const nowComplete = updated.find(t => t.id === taskId)?.completed;
       const others = updated.filter(t => !(t.projectId === project.id && t.id === taskId));
       const moved = updated.find(t => t.id === taskId);
