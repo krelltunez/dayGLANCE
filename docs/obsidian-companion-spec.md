@@ -215,12 +215,29 @@ heading **configurable, default `## Completed`** (stored in the device-local
 direct-access users** (one shared formatter and applier; the direct routes
 apply the same `completion_log_append` intent shape locally); and **every
 single completion logs** — local, vault-originated (the device whose sync
-first applies the flip logs it; engine echoes on other devices are
-suppressed by the remote-apply guard), and recurring instances
+first applies the flip logs it), and recurring instances
 (`[recurring:: true]`, bucketed to the instance date). Transitions that
 happen while the log is disabled are consumed silently, never retro-logged
 on enable. M2 (the outbox cap and all-or-nothing flush) was fixed first, as
 the precursor the queue story depends on.
+
+**Hold, never consume (field correction, 2026-09-01).** The first build
+copied the notify emitters' echo semantics: a render under the engine's
+remote-apply flag consumed the whole snapshot diff, and the enabled gate
+included the vault handle, consuming edges while the handle was still
+restoring after launch. The first fleet evening falsified both: a
+cross-list delete/resupply war kept the remote-apply flag up in wide
+windows and silently swallowed local completions made inside them (the
+"nothing logs anymore" incident). The corrected detector distinguishes the
+user's intent from transient conditions — only *log disabled* consumes;
+a remote apply in progress and *no write route yet* (handle restoring,
+or a plugin-authoritative device with no local handle, whose emit route
+needs none) HOLD the snapshot, so the edge logs on the next viable render.
+Consequence, accepted deliberately: completions arriving from other devices
+now log on whichever enabled device sees them first, which is what the
+every-single-completion ruling wants (the completing device may have the
+log toggle off); double-writes collapse because entries are deterministic
+and the applier's landed-check scans the whole note, not just the section.
 
 **Offline failure.** v1 recommended failing silently with a status indicator.
 Phase 3 built real failure surfacing (latched sync-error state, named causes,

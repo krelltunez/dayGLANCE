@@ -23,12 +23,13 @@ import { isTrayMode } from '../utils/trayMode.js';
 //   merge): the device whose sync cycle first applies the flip observes it —
 //   those merges do not run under the engine's remote-apply flag, on
 //   purpose: SOME device must log them.
-// - Engine echoes (another device completed it, the change arrives via DB
-//   sync): suppressed by the remote-apply guard — the completing device
-//   already logged, and the entry rides the vault, not the DB.
-//   Residual: two devices independently observing the same vault-originated
-//   flip format the same deterministic entry, and the apply-side exact-line
-//   dedupe collapses them.
+// - Engine applies (a pull/merge is mutating task state): the diff is
+//   DEFERRED to the next quiet render, never consumed — see the hold note
+//   in planCompletionLog. Completions arriving from other devices then log
+//   here too, which is what ruling 4 wants (the completing device may have
+//   the log toggle off); a device that already logged the same completion
+//   is a no-op, because entries are deterministic and the applier's
+//   landed-check scans the whole note.
 // - Recurring instances (completedDates on the template): logged with
 //   [recurring:: true], bucketed to the INSTANCE date (the semantic
 //   completion date), timed by completedDatesTimestamps when present.
@@ -59,7 +60,23 @@ export function snapshotCompletionState(tasks, unscheduledTasks, recurringTasks)
 export function planCompletionLog(prev, next, { tasks, unscheduledTasks, recurringTasks, isRemoteApply = false, enabled = true, inFlight = false } = {}) {
   if (prev === null) return { candidates: [], advanceTo: next };
   if (inFlight) return { candidates: [], advanceTo: null };
-  if (isRemoteApply || !enabled) return { candidates: [], advanceTo: next };
+  // A remote apply HOLDS the snapshot — it must never CONSUME it. The first
+  // shape copied the notify emitter's consume semantics, and the 2026-09-01
+  // field test showed why that's wrong for a permanent record: during a
+  // cross-list delete/resupply war the engine applies fire continuously, the
+  // remote-apply flag is up in wide windows, and LOCAL completions landing
+  // inside those windows were swallowed forever (a global veto eats the
+  // whole diff, not just the remote half). Holding defers the diff to the
+  // next quiet render: local edges log late instead of never, and
+  // remote-arrived completions log too — which ruling 4 (every single
+  // completion) wants, since the completing device may have the log toggle
+  // off. Double-logging collapses in the applier: entries are deterministic
+  // when completedAt is present, and the landed-check scans the WHOLE note,
+  // so a second writer's identical line is a no-op wherever its heading is.
+  if (isRemoteApply) return { candidates: [], advanceTo: null };
+  // Disabled stays CONSUME, deliberately: transitions made while the user
+  // has the log off are never retro-logged on enable.
+  if (!enabled) return { candidates: [], advanceTo: next };
 
   const candidates = [];
   for (const t of [...(tasks || []), ...(unscheduledTasks || [])]) {
@@ -127,13 +144,21 @@ export default function useCompletionLog({
 }) {
   const prevRef = useRef(null);
   const inFlightRef = useRef(false);
+  const holdLoggedRef = useRef(false);
   const [, bump] = useReducer((x) => x + 1, 0);
 
   useEffect(() => {
     if (isTrayMode) return;
-    const enabled = !!(obsidianConfig?.enabled
-      && obsidianConfig?.completionLogEnabled
-      && obsidianVaultHandleRef.current);
+    // The ENABLED gate is the user's intent only (Obsidian on + log on).
+    // The vault handle is NOT part of it — the first shape gated on the
+    // handle too, which silently consumed every completion made while the
+    // handle was still restoring after launch, and would consume forever on
+    // plugin-authoritative devices with no local handle at all (the emit
+    // route needs none). Route availability is a HOLD below, never a
+    // consume.
+    const enabled = !!(obsidianConfig?.enabled && obsidianConfig?.completionLogEnabled);
+    const authoritative = !!bridgeHeartbeatRef?.current?.pluginAuthoritative;
+    const routeAvailable = authoritative || !!obsidianVaultHandleRef.current;
 
     const nextSnap = snapshotCompletionState(tasks, unscheduledTasks, recurringTasks);
     const { candidates, advanceTo } = planCompletionLog(prevRef.current, nextSnap, {
@@ -147,6 +172,20 @@ export default function useCompletionLog({
       if (advanceTo !== null) prevRef.current = advanceTo;
       return;
     }
+
+    if (!routeAvailable) {
+      // No way to write yet (vault handle restoring, pairing not
+      // authoritative): HOLD the snapshot so the edge stays in the diff and
+      // logs as soon as a route exists. Entries are deterministic, so the
+      // late write is byte-identical to what an on-time write would have
+      // been.
+      if (!holdLoggedRef.current) {
+        holdLoggedRef.current = true;
+        console.info(`[Obsidian] Completion log: ${candidates.length} completion(s) waiting for vault access.`);
+      }
+      return;
+    }
+    holdLoggedRef.current = false;
 
     inFlightRef.current = true;
     const fire = async () => {
