@@ -33,6 +33,7 @@ import {
 import { blockIdWritesEnabled, completionMarkerWritesEnabled } from '../utils/obsidianWritePolicy.js';
 import { titleConflictNoticeText } from '../utils/obsidianTitleConflict.js';
 import { withCreationFrontmatter } from '../utils/obsidianFrontmatter.js';
+import { writebackSnapshotEntry } from '../utils/obsidianWritebackSnapshot.js';
 import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, getBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
 import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations } from '../utils/obsidianBridgeInbound.js';
 import { recordBridgeMode, reconcileArchivedBaseline } from '../utils/obsidianBridgeMode.js';
@@ -665,7 +666,9 @@ export default function useObsidianSync({
             // like another device's write.
             const snap = obsidianPrevTaskStateRef.current;
             for (const t of [...binRestore.scheduledTasks, ...binRestore.inboxTasks]) {
-              snap[t.id] = { completed: t.completed, startTime: t.startTime || null, duration: t.duration || null, title: t.title, date: t.date || null };
+              // A line whose time differs from DG's is recorded with the
+              // LINE's time, so the writeback enforces DG's (see the helper).
+              snap[t.id] = writebackSnapshotEntry(t, applied.lineSchedule);
             }
             // STAMP ON SIGHT (spec §3.10, identity-versus-content): an
             // imported untagged line should acquire its ^dg- identity on
@@ -860,7 +863,9 @@ export default function useObsidianSync({
       // Snapshot the fresh task state so the writeback effect doesn't re-trigger
       const snapshot = {};
       for (const t of [...binRestore.scheduledTasks, ...binRestore.inboxTasks]) {
-        snapshot[t.id] = { completed: t.completed, startTime: t.startTime || null, duration: t.duration || null, title: t.title, date: t.date || null };
+        // A line whose time differs from DG's is recorded with the LINE's
+        // time, so the writeback enforces DG's (owned-schedule enforcement).
+        snapshot[t.id] = writebackSnapshotEntry(t, result.lineSchedule);
       }
       obsidianPrevTaskStateRef.current = snapshot;
 
