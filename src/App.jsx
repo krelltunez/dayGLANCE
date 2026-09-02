@@ -37,6 +37,9 @@ import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOn
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
 import { notBucketed, demoteToBucket, normalizeBucketConfig } from './utils/bucketList.js';
 import { parseICS, parseDatetime, filterByDateWindow, expandMultiDayEvent } from './utils/icsParser.js';
+import { absorbCalendarDays, absorbCalendarWindow, readCalendarProjectionCache, writeCalendarProjectionCache } from './utils/calendarProjectionCache.js';
+import { CALENDAR_PROJECTION_WINDOW_DAYS } from './utils/obsidianCalendarProjection.js';
+import { shiftDateStr } from '@glance-apps/agenda-core';
 import { fetchIcsFeed, replaceFeedEvents, PRIMARY_FEED_ID, ICS_CALENDARS_KEY, loadIcsCalendars, isActiveIcsCalendar, hasActiveIcsCalendars, stripIcsCalendarCredentials, applyRemoteIcsCalendars, PRIMARY_CAL_META_KEY, defaultPrimaryCalendarMeta, injectPrimaryStub, splitPrimaryStub } from './utils/icsFeedSync.js';
 import { nextPerUserCalendarEntry } from './utils/perUserCalendarEntry.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex, getProjectColor } from './utils/colorUtils.js';
@@ -3988,6 +3991,12 @@ const DayPlanner = () => {
         ...prev.filter(t => !t._native && !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
         ...fetchedWithOverrides,
       ]);
+      // Obsidian sidebar (companion 4.2): the calendar projection is built
+      // from a per-day cache, not this five-day window — record exactly the
+      // days just fetched so days outside the view keep their events.
+      try {
+        writeCalendarProjectionCache(absorbCalendarDays(readCalendarProjectionCache(), dates, fetchedWithOverrides, { multiUserEnabled }));
+      } catch { /* the cache is best-effort */ }
     };
 
     if (isNativeApp()) {
@@ -4939,6 +4948,14 @@ const DayPlanner = () => {
       // No active feeds — drop any leftover feed events (a feed was disabled or
       // its URL cleared and nothing else remains to sync them away).
       setTasks(prevTasks => replaceFeedEvents(prevTasks, []));
+      if (!hasNativeCalendar()) {
+        try {
+          const today = dateToString(new Date());
+          writeCalendarProjectionCache(absorbCalendarWindow(readCalendarProjectionCache(), [], {
+            from: shiftDateStr(today, -CALENDAR_PROJECTION_WINDOW_DAYS), to: shiftDateStr(today, CALENDAR_PROJECTION_WINDOW_DAYS),
+          }));
+        } catch { /* best-effort */ }
+      }
       return { success: false, error: 'no-url' };
     }
 
@@ -4995,6 +5012,19 @@ const DayPlanner = () => {
     // ones, keeping the previous events of feeds that failed this round.
     // Preserves file-imported events; uses functional form to avoid stale closures
     setTasks(prevTasks => replaceFeedEvents(prevTasks, freshEvents, { keepFeedIds: failedFeedIds }));
+    // Obsidian sidebar (companion 4.2): feed events feed the projection cache
+    // over the whole projection window (a feed is fetched whole). Skipped on
+    // native-calendar devices, where the EventKit fetch is the sole source
+    // and the merge above drops feed events again on its next run.
+    if (!hasNativeCalendar()) {
+      try {
+        const today = dateToString(new Date());
+        writeCalendarProjectionCache(absorbCalendarWindow(readCalendarProjectionCache(), freshEvents, {
+          from: shiftDateStr(today, -CALENDAR_PROJECTION_WINDOW_DAYS), to: shiftDateStr(today, CALENDAR_PROJECTION_WINDOW_DAYS),
+          keepFeedIds: failedFeedIds, multiUserEnabled,
+        }));
+      } catch { /* best-effort */ }
+    }
     return { success: true, count: freshEvents.length, urlUpdated, failedFeeds };
   };
 

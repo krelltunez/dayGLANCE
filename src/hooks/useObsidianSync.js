@@ -40,7 +40,12 @@ import {
   fetchBridgeActions, planBridgeActions, applyActionsToTasks, applyActionsToRecurring,
   deleteBridgeActions, commitBridgeActionCursor,
 } from '../utils/obsidianBridgeActions.js';
-import { buildCalendarProjection, calendarProjectionHash } from '../utils/obsidianCalendarProjection.js';
+import { buildCalendarProjection, calendarProjectionHash, isProjectedCalendarEvent, CALENDAR_PROJECTION_WINDOW_DAYS } from '../utils/obsidianCalendarProjection.js';
+import {
+  readCalendarProjectionCache, writeCalendarProjectionCache, pruneCalendarProjectionCache,
+  absorbCalendarWindow, calendarProjectionInput,
+} from '../utils/calendarProjectionCache.js';
+import { shiftDateStr } from '@glance-apps/agenda-core';
 import { getDeviceId } from '../sync/deviceId.js';
 import { dateToString } from '../utils/taskUtils.js';
 import { recordBridgeMode, reconcileArchivedBaseline } from '../utils/obsidianBridgeMode.js';
@@ -570,8 +575,26 @@ export default function useObsidianSync({
       // inside skips an unchanged calendar, and the daily window slide
       // republishes at least once a day. Paired-gated and fail-silent inside.
       try {
-        const projection = buildCalendarProjection(currentTasks, {
-          today: dateToString(new Date()), deviceId: getDeviceId(), multiUserEnabled,
+        const today = dateToString(new Date());
+        const window = { from: shiftDateStr(today, -CALENDAR_PROJECTION_WINDOW_DAYS), to: shiftDateStr(today, CALENDAR_PROJECTION_WINDOW_DAYS) };
+        // Built from the per-day CACHE (utils/calendarProjectionCache.js), not
+        // the live task list: on native-calendar devices that list holds only
+        // the five days around the viewed date, and nothing before the first
+        // fetch, which made the published events vanish and return. Seeded
+        // once from the live list when the cache is empty (first run after
+        // the change, or a cleared store) so the sidebar never regresses
+        // below what the old path published.
+        let cache = pruneCalendarProjectionCache(readCalendarProjectionCache(), window);
+        if (!Object.keys(cache.days).length) {
+          const live = currentTasks.filter(t => isProjectedCalendarEvent(t, { multiUserEnabled }));
+          if (live.length) {
+            cache = absorbCalendarWindow(cache, live, { ...window, multiUserEnabled });
+            writeCalendarProjectionCache(cache);
+          }
+        }
+        const input = calendarProjectionInput(cache, window);
+        const projection = buildCalendarProjection(input.tasks, {
+          today, deviceId: getDeviceId(), multiUserEnabled, days: input.days,
         });
         void publishBridgeCalendarProjection(projection, calendarProjectionHash(projection));
       } catch (e) {

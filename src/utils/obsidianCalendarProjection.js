@@ -25,9 +25,12 @@ export const isProjectedCalendarEvent = (t, { multiUserEnabled = false } = {}) =
 /**
  * Build the projection payload for [today-35, today+35].
  * @param {object[]} tasks  the app's scheduled list (imported + native rows ride in it)
- * @param {{ today: string, deviceId: string, now?: Date, multiUserEnabled?: boolean }} opts
+ * @param {{ today: string, deviceId: string, now?: Date, multiUserEnabled?: boolean, days?: Record<string,string> }} opts
+ *   `days`: per-day fetch stamps (date → ISO) from the projection cache, so a
+ *   reader can say how old a given day's events are and resolve two devices'
+ *   copies of a day by freshness.
  */
-export function buildCalendarProjection(tasks, { today, deviceId, now = new Date(), multiUserEnabled = false }) {
+export function buildCalendarProjection(tasks, { today, deviceId, now = new Date(), multiUserEnabled = false, days = null }) {
   const from = shiftDateStr(today, -CALENDAR_PROJECTION_WINDOW_DAYS);
   const to = shiftDateStr(today, CALENDAR_PROJECTION_WINDOW_DAYS);
   const events = [];
@@ -48,11 +51,18 @@ export function buildCalendarProjection(tasks, { today, deviceId, now = new Date
     });
   }
   events.sort((a, b) => (a.date === b.date ? String(a.id).localeCompare(String(b.id)) : (a.date < b.date ? -1 : 1)));
-  return { v: 1, kind: 'projection', type: 'calendar', deviceId, from, to, publishedAt: now.toISOString(), events };
+  const payload = { v: 1, kind: 'projection', type: 'calendar', deviceId, from, to, publishedAt: now.toISOString(), events };
+  if (days) {
+    payload.days = {};
+    for (const [d, at] of Object.entries(days)) if (d >= from && d <= to) payload.days[d] = at;
+  }
+  return payload;
 }
 
 /** Content identity for the publish guard: everything but the publish stamp. */
 export function calendarProjectionHash(payload) {
-  const { publishedAt: _omit, ...rest } = payload;
+  // The per-day stamps are excluded too: a re-fetch that changed nothing
+  // must not republish, or every navigation would cost a request.
+  const { publishedAt: _omit, days: _days, ...rest } = payload;
   return JSON.stringify(rest);
 }

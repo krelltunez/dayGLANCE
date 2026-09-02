@@ -66,11 +66,13 @@ export interface CalendarProjection {
   to: string;
   publishedAt: string;
   events: unknown[];
+  /** Per-day fetch stamps (date → ISO) from the publisher's projection cache; absent on older payloads. */
+  days?: Record<string, string>;
 }
 export function mergeCalendarProjections(
   projections: unknown[],
   opts: { from: string; to: string; nowMs?: number; maxAgeMs?: number },
-): { events: unknown[]; freshestAt: number | null };
+): { events: unknown[]; freshestAt: number | null; dayAsOf: Record<string, number> };
 
 export interface AgendaClock { today: string; nowMinutes: number }
 export function isCalendarEvent(item: AgendaItem | null | undefined): boolean;
