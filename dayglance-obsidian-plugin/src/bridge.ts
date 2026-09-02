@@ -115,6 +115,13 @@ export interface BridgeHost {
   getPairing(): BridgePairing | undefined;
   getBridgeState(): BridgeState;
   saveBridgeState(state: BridgeState): Promise<void>;
+  /**
+   * Fired after every successful authenticated drain — the same proof that
+   * arms SSE. The agenda store (agenda.ts) refreshes its mirror on it, so a
+   * nudge-driven drain also makes the sidebar live without the store holding
+   * a second stream of its own.
+   */
+  onSynced?(): void;
 }
 
 // Same requestUrl-backed fetch shim as pairing.ts (CORS-free everywhere).
@@ -722,6 +729,7 @@ export class BridgeTransport {
       // credentials working.
       this.sseArming.noteDrainSuccess();
       this.maybeStartSse();
+      if (!this.disposed) this.host.onSynced?.();
     } catch (e) {
       if (isRateLimitError(e)) this.noteRateLimit();
       else {

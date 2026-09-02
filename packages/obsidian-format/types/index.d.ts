@@ -142,6 +142,7 @@ export const BRIDGE_PAIRING_META_ID: string;
 export const BRIDGE_CONFIG_META_ID: string;
 export const BRIDGE_INTENT_PREFIX: string;
 export const BRIDGE_OBSERVATION_PREFIX: string;
+export const BRIDGE_ACTION_PREFIX: string;
 export function bridgeConfigAllowsStamping(config: { blockIdWrites?: unknown } | null | undefined): boolean;
 
 // ── bridge SSE (Phase 7 — pure half of the plugin's live-sync transport) ────

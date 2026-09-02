@@ -2786,6 +2786,7 @@ const DayPlanner = () => {
     obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
     obsidianTasksRef, obsidianInboxRef,
     recycleBin, setRecycleBin,
+    recurringTasks, setRecurringTasks,
   });
   // Completion log (companion spec 4.1): every task completion appends one
   // permanent line to the completion date's daily note. Mounted here, after
