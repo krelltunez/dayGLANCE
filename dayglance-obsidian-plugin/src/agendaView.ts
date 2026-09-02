@@ -98,6 +98,24 @@ const endOf = (hhmm: string, duration: number): string | null => {
   return formatTime(`${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`);
 };
 
+// dayGLANCE colors are Tailwind utility classes (colorUtils.js TASK_COLORS,
+// feed defaults like bg-gray-600); imported native events carry a real CSS
+// color. Map the classes to the palette's hex so the swatch renders; pass
+// real colors through; anything else gets no swatch.
+const TAILWIND: Record<string, string> = {
+  blue: '#3b82f6', purple: '#a855f7', green: '#22c55e', orange: '#f97316', pink: '#ec4899',
+  indigo: '#6366f1', red: '#ef4444', teal: '#14b8a6', yellow: '#eab308', gray: '#4b5563',
+  cyan: '#06b6d4', emerald: '#10b981', lime: '#84cc16', amber: '#f59e0b', rose: '#f43f5e',
+  violet: '#8b5cf6', fuchsia: '#d946ef', sky: '#0ea5e9', slate: '#64748b', stone: '#78716c',
+};
+const swatchColor = (color: string | null): string | null => {
+  if (!color) return null;
+  const m = /^bg-([a-z]+)-\d{3}$/.exec(color);
+  if (m) return TAILWIND[m[1]] ?? null;
+  if (color === 'task-calendar') return null;
+  return /^(#|rgb|hsl|[a-z]+$)/i.test(color) ? color : null;
+};
+
 const relativeAge = (ms: number): string => {
   const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
   if (s < 60) return 'just now';
@@ -268,10 +286,8 @@ export class AgendaView extends ItemView {
           if (!r.ok) { new Notice(`dayGLANCE: ${r.message}`); this.render(); }
         });
       });
-      if (item.color) {
-        const swatch = li.createDiv({ cls: 'dg-agenda-swatch' });
-        swatch.style.background = item.color;
-      }
+      const swatch = swatchColor(item.color);
+      if (swatch) li.createDiv({ cls: 'dg-agenda-swatch' }).style.background = swatch;
       const body = li.createDiv({ cls: 'dg-agenda-body' });
       if (!item.isAllDay && item.startTime) {
         const end = item.duration ? endOf(item.startTime, item.duration) : null;
@@ -280,7 +296,7 @@ export class AgendaView extends ItemView {
       const title = body.createSpan({ cls: 'dg-agenda-title' });
       this.renderTitle(title, item.title);
       if (item.recurring) title.createSpan({ cls: 'dg-agenda-badge', text: '↻', attr: { title: 'Recurring' } });
-      if (item.imported) title.createSpan({ cls: 'dg-agenda-badge', text: '📅', attr: { title: 'Imported calendar event' } });
+      if (item.imported) title.createSpan({ cls: 'dg-agenda-badge', text: '📅', attr: { title: item.calendarName ? `Calendar: ${item.calendarName}` : 'Imported calendar event' } });
     }
   }
 
@@ -323,6 +339,9 @@ export class AgendaView extends ItemView {
     else if (status.lastRefreshedAt) parts.push(`Updated ${relativeAge(status.lastRefreshedAt)}`);
     else parts.push('Loading…');
     if (status.undecryptable) parts.push(`${status.undecryptable} rows unreadable with this passphrase`);
+    // Calendar events come from dayGLANCE's projection, not the mirror: say
+    // how old that view is once it is stale enough to matter.
+    if (status.calendarAsOf && Date.now() - status.calendarAsOf > 60 * 60_000) parts.push(`Calendar as of ${relativeAge(status.calendarAsOf)}`);
     if (status.lastError) parts.push(status.lastError);
     const el = root.createDiv({ cls: 'dg-agenda-status', text: parts.join(' · ') });
     if (status.lastError || status.undecryptable) el.addClass('is-error');

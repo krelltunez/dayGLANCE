@@ -42,6 +42,7 @@ import {
   BRIDGE_PAIRING_META_ID,
   BRIDGE_CONFIG_META_ID,
   BRIDGE_INTENT_PREFIX,
+  bridgeCalendarProjectionId,
 } from '@glance-apps/obsidian-format';
 
 const OUTBOX_KEY = 'dayglance-bridge-outbox';
@@ -92,6 +93,9 @@ let metaFetchInFlight = null;
 // row sealed under the old generation is unreadable garbage to the new
 // stream even when the VALUES never changed.
 let publishedConfigHash = null;
+// Same session-scoped guard shape for the calendar projection row (see
+// publishBridgeCalendarProjection): once per (generation, content).
+let publishedProjectionHash = null;
 
 // ── THE BRAKE (now inside the client) ────────────────────────────────────────
 // Born here as the bridge brake (#1481, decay semantics from the 2026-08-30
@@ -317,11 +321,46 @@ export async function publishBridgeConfig({ dailyNotesPath, dailyNotePattern, ta
   }
 }
 
+/**
+ * Publish this device's calendar projection (companion 4.2, calendar
+ * events): the read-only calendar events the sync payload excludes, as one
+ * upserted `proj:calendar:<deviceId>` row sealed under the bridge subkey,
+ * for the plugin's agenda to union with the mirror. Derived data authored
+ * by the app — NOT a data-plane write, so the single-writer boundary is
+ * untouched. Session-scoped once-per-(generation, content) guard like the
+ * config row: the caller's hash (calendarProjectionHash) excludes the
+ * publish stamp, so an unchanged calendar costs no request; the window
+ * slides daily, which republishes at least once a day. Fail-silent.
+ */
+export async function publishBridgeCalendarProjection(payload, contentHash) {
+  try {
+    if (bridgeRateLimited()) return;
+    if (!payload?.deviceId) return;
+    const meta = await getBridgePairingMeta();
+    if (!meta) return; // unpaired: nothing reads projections
+    const hash = `${meta.generation}|${contentHash}`;
+    if (publishedProjectionHash === hash) return;
+    const ctx = vaultClientOrNull();
+    if (!ctx) return;
+    const subkey = await getBridgeSubkey(meta);
+    if (!subkey) return;
+    const ack = await ctx.client.batch(BRIDGE_VAULT_APP, {
+      accountId: ctx.accountId,
+      rows: [{ entityId: bridgeCalendarProjectionId(payload.deviceId), envelope: await sealBridgeEnvelope(subkey, payload), createdAt: Date.now() }],
+    });
+    recordOwnWriteSeq(ack?.maxSeq);
+    publishedProjectionHash = hash;
+  } catch {
+    /* next cycle retries — the hash was not advanced */
+  }
+}
+
 /** Test seam: reset module caches (subkey, in-flight flags) + the client's
  *  module-scope diagnostics (brake/meter/write-history). */
 export function __resetBridgeStreamForTests() {
   cachedSubkey = null;
   cachedSubkeyGeneration = null;
+  publishedProjectionHash = null;
   flushInFlight = null;
   metaFetchInFlight = null;
   publishedConfigHash = null;

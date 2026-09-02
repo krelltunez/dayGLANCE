@@ -34,12 +34,15 @@ import { blockIdWritesEnabled, completionMarkerWritesEnabled } from '../utils/ob
 import { titleConflictNoticeText } from '../utils/obsidianTitleConflict.js';
 import { withCreationFrontmatter } from '../utils/obsidianFrontmatter.js';
 import { writebackSnapshotEntry } from '../utils/obsidianWritebackSnapshot.js';
-import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, getBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
+import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, publishBridgeCalendarProjection, getBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
 import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations } from '../utils/obsidianBridgeInbound.js';
 import {
   fetchBridgeActions, planBridgeActions, applyActionsToTasks, applyActionsToRecurring,
   deleteBridgeActions, commitBridgeActionCursor,
 } from '../utils/obsidianBridgeActions.js';
+import { buildCalendarProjection, calendarProjectionHash } from '../utils/obsidianCalendarProjection.js';
+import { getDeviceId } from '../sync/deviceId.js';
+import { dateToString } from '../utils/taskUtils.js';
 import { recordBridgeMode, reconcileArchivedBaseline } from '../utils/obsidianBridgeMode.js';
 import { restoreBinnedVaultTasks, binRestoreNoticeText } from '../utils/obsidianBinRestore.js';
 import {
@@ -107,6 +110,9 @@ export default function useObsidianSync({
   // The sidebar's completion actions (companion spec 4.2) apply to recurring
   // templates too; optional so existing harnesses need no change.
   recurringTasks = [], setRecurringTasks = null,
+  // Multi-user changes which imported rows the sync payload excludes, and
+  // therefore which ones the calendar projection carries.
+  multiUserEnabled = false,
 }) {
   // Fresh bin contents for the async sync cycle (same staleness fix as the
   // task refs above — interval-triggered syncs must not see the closure's
@@ -555,6 +561,21 @@ export default function useObsidianSync({
         }
       } catch (e) {
         console.warn('[Obsidian] sidebar action pass failed (retried next cycle):', e);
+      }
+
+      // ── CALENDAR PROJECTION (companion spec 4.2) ────────────────────────
+      // Read-only calendar events never sync (payloadExclusions.js), so the
+      // plugin's mirror cannot show them. Publish this device's view of them
+      // for the sidebar's window as one upserted row; the publish guard
+      // inside skips an unchanged calendar, and the daily window slide
+      // republishes at least once a day. Paired-gated and fail-silent inside.
+      try {
+        const projection = buildCalendarProjection(currentTasks, {
+          today: dateToString(new Date()), deviceId: getDeviceId(), multiUserEnabled,
+        });
+        void publishBridgeCalendarProjection(projection, calendarProjectionHash(projection));
+      } catch (e) {
+        console.warn('[Obsidian] calendar projection build failed:', e);
       }
 
       // Gate (b), as amended: a direct→plugin transition ARCHIVES the

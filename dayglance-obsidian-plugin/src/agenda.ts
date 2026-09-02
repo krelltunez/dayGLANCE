@@ -32,12 +32,17 @@ import type { App } from 'obsidian';
 import { requestUrl } from 'obsidian';
 import {
   sealBridgeEnvelope,
+  openBridgeEnvelope,
   importBridgeSubkey,
   mintIntentId,
   BRIDGE_VAULT_APP,
   BRIDGE_ACTION_PREFIX,
+  BRIDGE_PROJECTION_PREFIX,
 } from '@glance-apps/obsidian-format';
-import { buildAgenda, routinesForDate, type AgendaItem, type RoutineItem } from '@glance-apps/agenda-core';
+import {
+  buildAgenda, routinesForDate, mergeCalendarProjections,
+  type AgendaItem, type RoutineItem, type CalendarProjection,
+} from '@glance-apps/agenda-core';
 import { createVaultClient, type VaultClient } from '@glance-apps/sync/src/vaultClient.js';
 import {
   setupDbRootKey,
@@ -84,6 +89,8 @@ export interface AgendaStatus {
   lastError: string | null;
   /** Rows the account key could not decrypt on the last full pass (a passphrase mismatch symptom). */
   undecryptable: number;
+  /** Publish stamp (epoch ms) of the freshest calendar projection in use, or null when none. */
+  calendarAsOf: number | null;
 }
 
 interface TaskRow { id: string; [k: string]: unknown }
@@ -127,9 +134,16 @@ export class AgendaStore {
   private recurring = new Map<string, TaskRow>();
   private routines = new Map<string, TaskRow>();
   private singletons = new Map<string, unknown>();
+  // Calendar projections (companion 4.2): read-only calendar events never
+  // sync, so each dayGLANCE device publishes its view as a bridge-stream row
+  // (`proj:calendar:<deviceId>`, sealed under the pairing subkey). Keyed by
+  // row id; merged freshest-wins per event at read time. Own cursor over the
+  // bridge namespace (the data-plane cursor above is a different app).
+  private projections = new Map<string, CalendarProjection>();
+  private bridgeCursor = 0;
   private cursor = 0;
   private cursorAccount: string | null = null;
-  private status: AgendaStatus = { key: 'unpaired', refreshing: false, lastRefreshedAt: null, lastError: null, undecryptable: 0 };
+  private status: AgendaStatus = { key: 'unpaired', refreshing: false, lastRefreshedAt: null, lastError: null, undecryptable: 0, calendarAsOf: null };
   private pending = new Map<string, number>(); // item id → marked-at ms
   private listeners = new Set<() => void>();
   private refreshChain: Promise<void> = Promise.resolve();
@@ -183,10 +197,12 @@ export class AgendaStore {
     }, dateStr);
   }
 
-  /** The agenda for an inclusive YYYY-MM-DD window, from the mirror. */
+  /** The agenda for an inclusive YYYY-MM-DD window, from the mirror plus the calendar projections. */
   agenda(from: string, to: string): Record<string, AgendaItem[]> {
+    const calendar = mergeCalendarProjections([...this.projections.values()], { from, to });
+    this.status.calendarAsOf = calendar.freshestAt;
     return buildAgenda(
-      { tasks: [...this.tasks.values()], recurringTasks: [...this.recurring.values()] },
+      { tasks: [...this.tasks.values()], recurringTasks: [...this.recurring.values()], calendarEvents: calendar.events },
       { from, to },
     );
   }
@@ -291,6 +307,7 @@ export class AgendaStore {
         }
       }
       this.cursor = since;
+      if (await this.refreshProjections(client, pairing)) changed = true;
       this.status.lastRefreshedAt = Date.now();
       this.status.lastError = null;
       this.status.undecryptable = undecryptable;
@@ -320,6 +337,38 @@ export class AgendaStore {
     if (kind === SINGLETON_KIND) return wrapped.value ?? null;
     if (!wrapped.value || typeof wrapped.value !== 'object') return null;
     return wrapped.value;
+  }
+
+  // Pull projection rows above the bridge cursor. Everything else in the
+  // namespace (intents, observations, meta, actions) is skipped by prefix
+  // without decryption. Returns whether a projection changed.
+  private async refreshProjections(client: VaultClient, pairing: BridgePairing): Promise<boolean> {
+    let since = this.bridgeCursor;
+    let hasMore = true;
+    let changed = false;
+    const subkey = await this.subkeyOf(pairing);
+    while (hasMore && !this.disposed) {
+      const page = await client.list(BRIDGE_VAULT_APP, { accountId: pairing.accountId, since });
+      hasMore = !!page.hasMore;
+      const rows = (page.rows ?? []) as Array<{ entityId?: string; seq?: number; deleted?: boolean; envelope?: string }>;
+      if (!rows.length) break;
+      for (const row of rows) {
+        const seq = Number(row.seq) || 0;
+        if (seq > since) since = seq;
+        const entityId = String(row.entityId ?? '');
+        if (!entityId.startsWith(BRIDGE_PROJECTION_PREFIX)) continue;
+        if (row.deleted || !row.envelope) {
+          if (this.projections.delete(entityId)) changed = true;
+          continue;
+        }
+        const payload = await openBridgeEnvelope(subkey, row.envelope) as Partial<CalendarProjection> | null;
+        if (payload?.kind !== 'projection' || payload.type !== 'calendar' || !Array.isArray(payload.events)) continue;
+        this.projections.set(entityId, payload as CalendarProjection);
+        changed = true;
+      }
+    }
+    this.bridgeCursor = since;
+    return changed;
   }
 
   // Drop optimistic marks the mirror has caught up with, and expired ones.
@@ -403,12 +452,15 @@ export class AgendaStore {
     this.recurring.clear();
     this.routines.clear();
     this.singletons.clear();
+    this.projections.clear();
     this.pending.clear();
     this.cursor = 0;
+    this.bridgeCursor = 0;
     this.cursorAccount = accountId;
     this.status.lastRefreshedAt = null;
     this.status.lastError = null;
     this.status.undecryptable = 0;
+    this.status.calendarAsOf = null;
   }
 
   private recomputeKeyState(): void {

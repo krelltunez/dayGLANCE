@@ -35,7 +35,10 @@ manually or via BRAT, not submitted to the community directory.
   month calendar over the selected day's agenda (scheduled tasks, recurring
   instances, imported calendar events; ±35 days around today; no inbox),
   with the day's placed routines as a pill strip underneath (name and start
-  time). Tags in titles render faded; `[[wikilinks]]` render as their display
+  time). Read-only calendar events never sync, so each running dayGLANCE
+  publishes a projection of the ones it holds (`proj:calendar:<deviceId>`
+  rows on the bridge stream) and the sidebar unions them, freshest copy per
+  event; the footer notes when that view is over an hour old. Tags in titles render faded; `[[wikilinks]]` render as their display
   text and click through to the note.
   It reads the account's task rows directly from GLANCEvault: enter your
   dayGLANCE **sync passphrase** once per device in the settings tab's
