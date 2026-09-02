@@ -1020,6 +1020,23 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
       resolveTitleOwnership(task, existing, onTitleConflict);
       adoptVaultMetadataEdits(task, edits, lineVals);
+      // OWNED-SCHEDULE ENFORCEMENT (§3.10, 2026-09-02 correction): DG owns
+      // scheduling once a task is imported, and the copy above enforces
+      // that IN MEMORY — but until now nothing pushed DG's time back to a
+      // line that disagreed, because the writeback only fires on a DG-side
+      // transition and the post-scan snapshot was built from this merged
+      // (already DG-valued) task. A lost writeback (the y0bm31lo war ate
+      // one) left the line diverged forever, silently. Report the LINE's
+      // time when it carries one that differs from DG's; the snapshot
+      // builders record the line's value, and the ordinary writeback diff
+      // then writes DG's time — the existing path, no new write code.
+      // Narrow on purpose: only a line that CARRIES a different time. An
+      // untimed line of a DG-scheduled task is not "a different time" and
+      // is left alone (its own ruling, if ever). A vault ⏳ edit adopted
+      // above makes the two equal and reports nothing.
+      if (out.lineSchedule && lineVals.startTime && task.startTime && lineVals.startTime !== task.startTime) {
+        out.lineSchedule[task.id] = { startTime: lineVals.startTime };
+      }
       // Preserve lastModified so cloud merge keeps recognising the
       // version the user actually edited rather than treating re-imports
       // as brand-new tasks with a fresh timestamp.
@@ -1086,6 +1103,7 @@ export async function syncObsidianVault(
 
   const dailyNotes = {};
   const allScheduled = [];
+  const lineSchedule = {}; // id → the line's own time when it differs from DG's (owned-schedule enforcement)
   const allInbox = [];
 
   const ctx = buildExistingObsidianTaskContext(existingTasks, existingInbox);
@@ -1126,11 +1144,11 @@ export async function syncObsidianVault(
     // mergeParsedObsidianTasks above for the ownership commentary).
     mergeParsedObsidianTasks(
       parseTasksFromMarkdown(text, dateStr, seenBlockIds),
-      ctx, onTitleConflict, { allScheduled, allInbox },
+      ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule },
     );
   }
 
-  return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox };
+  return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox, lineSchedule };
 }
 
 // ---------------------------------------------------------------------------
@@ -1358,6 +1376,7 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
 
   const dailyNotes = {};
   const allScheduled = [];
+  const lineSchedule = {}; // id → the line's own time when it differs from DG's (owned-schedule enforcement)
   const allInbox = [];
 
   // Prefer the batch getAllDailyNotesAsync method (non-blocking: SAF I/O runs on a
@@ -1440,9 +1459,9 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
     // Step 2 per-field vault-edit adoption and its classification override.
     mergeParsedObsidianTasks(
       parseTasksFromMarkdown(text, dateStr, seenBlockIds),
-      ctx, onTitleConflict, { allScheduled, allInbox },
+      ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule },
     );
   }
 
-  return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox };
+  return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox, lineSchedule };
 }

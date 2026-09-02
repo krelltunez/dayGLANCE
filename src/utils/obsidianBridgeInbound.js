@@ -155,6 +155,7 @@ export function applyBridgeObservations(observations, {
 }) {
   const dailyNotes = {};
   const allScheduled = [];
+  const lineSchedule = {}; // id → the line's own time when it differs from DG's (owned-schedule enforcement)
   const allInbox = [];
   const unapplied = [];
   const ctx = buildExistingObsidianTaskContext(existingTasks, existingInbox);
@@ -183,7 +184,7 @@ export function applyBridgeObservations(observations, {
     };
     mergeParsedObsidianTasks(
       parseTasksFromMarkdown(obs.content, dateStr, seenBlockIds),
-      ctx, onTitleConflict, { allScheduled, allInbox },
+      ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule },
     );
   }
 
@@ -191,5 +192,5 @@ export function applyBridgeObservations(observations, {
     ...[...allScheduled, ...allInbox].map((t) => String(t.id)),
     ...[...allScheduled, ...allInbox].filter((t) => t.obsidianLegacyId).map((t) => String(t.obsidianLegacyId)),
   ]);
-  return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox, scannedIds, unapplied };
+  return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox, scannedIds, unapplied, lineSchedule };
 }
