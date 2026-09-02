@@ -386,10 +386,40 @@ ruling below).
    projections older than seven days ignored, so a device that stops
    publishing cannot pin stale events). The status footer says "Calendar as
    of N h ago" once the freshest projection is over an hour old. Known
-   limits: a phone's native events are merged into its task list only for
-   the date it is viewing, so its projection carries native events for that
-   day alone; in multi-user mode each device projects its own user's feeds
-   and the plugin shows the union.
+   limit: in multi-user mode each device projects its own user's feeds and
+   the plugin shows the union.
+
+   **Correction (2026-09-02, the disappearing-events field report).** The
+   projection was first built from the live task list. On a native-calendar
+   device (macOS with EventKit, iOS, Android) that list holds calendar events
+   for only the five days around the date being viewed — App.jsx's native
+   effect replaces every calendar event, feed events included, with each
+   fetch — and holds none between launch and the first fetch. So the
+   published projection shrank to the current window on every navigation and
+   to nothing at startup, and the sidebar's events vanished and returned with
+   it ("only the next couple of days"; "they keep disappearing"). Three fixes
+   were weighed: a device-local per-day CACHE fed by the fetches the app
+   already makes (chosen); a dedicated 71-day native fetch per sync cycle
+   (spawns the EventKit helper every five minutes on the Mac, heavier on
+   phones); or widening the app's own view window (changes the app for the
+   sidebar's sake). Built: `utils/calendarProjectionCache.js` — never synced,
+   keyed by day, each day stamped with its fetch time. The native fetch
+   replaces exactly the days it fetched; a feed sync replaces every day of
+   the projection window, keeping the days' events of feeds that failed that
+   round, and is skipped on native-calendar devices (mirroring the app, which
+   drops feed events there). The projection publishes the cache and carries
+   the per-day stamps as `days`; the publish hash ignores them so an
+   unchanged re-fetch costs no request. The cache is seeded once from the
+   live list when empty so the first run after the change never publishes
+   less than before. Reader side (`mergeCalendarProjections`): PER-DAY
+   AUTHORITY — for each date, the freshest projection declaring that date
+   (its `days` stamp, or its whole window at publish time for older payloads)
+   supplies all of the date's events and the others supply none, so a device
+   that re-fetched a day and found an event gone removes it rather than an
+   older copy lingering in a union. The footer reads "Calendar for this day
+   as of N ago" once the selected day's stamp is over an hour old. Cost
+   accepted: a day not viewed recently shows the events from the last time
+   any device fetched it, labelled as such.
 
 **Owner ruling (2026-09-02, pending).** The owner expected the plugin to be
 "a GLANCEvault client like any other, with full access to dayGLANCE"; decision

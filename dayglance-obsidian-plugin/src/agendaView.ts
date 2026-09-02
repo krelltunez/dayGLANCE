@@ -126,7 +126,8 @@ const relativeAge = (ms: number): string => {
   const m = Math.round(s / 60);
   if (m < 60) return `${m} min ago`;
   const h = Math.round(m / 60);
-  return `${h} h ago`;
+  if (h < 48) return `${h} h ago`;
+  return `${Math.round(h / 24)} days ago`;
 };
 
 export class AgendaView extends ItemView {
@@ -366,9 +367,11 @@ export class AgendaView extends ItemView {
     else if (status.lastRefreshedAt) parts.push(`Updated ${relativeAge(status.lastRefreshedAt)}`);
     else parts.push('Loading…');
     if (status.undecryptable) parts.push(`${status.undecryptable} rows unreadable with this passphrase`);
-    // Calendar events come from dayGLANCE's projection, not the mirror: say
-    // how old that view is once it is stale enough to matter.
-    if (status.calendarAsOf && Date.now() - status.calendarAsOf > 60 * 60_000) parts.push(`Calendar as of ${relativeAge(status.calendarAsOf)}`);
+    // Calendar events come from dayGLANCE's projection, not the mirror, and
+    // each day's events are as old as the last time a device fetched that
+    // day: say so for the selected day once it is stale enough to matter.
+    const dayAt = status.calendarDayAsOf[this.selected] ?? status.calendarAsOf;
+    if (dayAt && Date.now() - dayAt > 60 * 60_000) parts.push(`Calendar for this day as of ${relativeAge(dayAt)}`);
     if (status.lastError) parts.push(status.lastError);
     const el = root.createDiv({ cls: 'dg-agenda-status', text: parts.join(' · ') });
     if (status.lastError || status.undecryptable) el.addClass('is-error');

@@ -37,9 +37,12 @@ manually or via BRAT, not submitted to the community directory.
   with the day's placed routines as a pill strip underneath (name and start
   time). Read-only calendar events never sync, so each running dayGLANCE
   publishes a projection of the ones it holds (`proj:calendar:<deviceId>`
-  rows on the bridge stream) and the sidebar unions them, freshest copy per
-  event; the footer notes when that view is over an hour old. Tags in titles render faded; `[[wikilinks]]` render as their display
-  text and click through to the note.
+  rows on the bridge stream, built from a per-day cache of the fetches the
+  app already makes) and the sidebar merges them with per-day authority (the
+  device that fetched a day most recently supplies that day's events); the
+  footer notes when the selected day's events are over an hour old. Tags in
+  titles render faded; `[[wikilinks]]` render as their display text and
+  click through to the note.
   It reads the account's task rows directly from GLANCEvault: enter your
   dayGLANCE **sync passphrase** once per device in the settings tab's
   "dayGLANCE account" section. The derived root key is kept in the plugin's

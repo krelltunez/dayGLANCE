@@ -91,6 +91,8 @@ export interface AgendaStatus {
   undecryptable: number;
   /** Publish stamp (epoch ms) of the freshest calendar projection in use, or null when none. */
   calendarAsOf: number | null;
+  /** Per date, when the events shown for it were fetched (epoch ms) — from the publishers' caches. */
+  calendarDayAsOf: Record<string, number>;
 }
 
 interface TaskRow { id: string; [k: string]: unknown }
@@ -143,7 +145,7 @@ export class AgendaStore {
   private bridgeCursor = 0;
   private cursor = 0;
   private cursorAccount: string | null = null;
-  private status: AgendaStatus = { key: 'unpaired', refreshing: false, lastRefreshedAt: null, lastError: null, undecryptable: 0, calendarAsOf: null };
+  private status: AgendaStatus = { key: 'unpaired', refreshing: false, lastRefreshedAt: null, lastError: null, undecryptable: 0, calendarAsOf: null, calendarDayAsOf: {} };
   private pending = new Map<string, number>(); // item id → marked-at ms
   private listeners = new Set<() => void>();
   private refreshChain: Promise<void> = Promise.resolve();
@@ -201,6 +203,7 @@ export class AgendaStore {
   agenda(from: string, to: string): Record<string, AgendaItem[]> {
     const calendar = mergeCalendarProjections([...this.projections.values()], { from, to });
     this.status.calendarAsOf = calendar.freshestAt;
+    this.status.calendarDayAsOf = calendar.dayAsOf;
     return buildAgenda(
       { tasks: [...this.tasks.values()], recurringTasks: [...this.recurring.values()], calendarEvents: calendar.events },
       { from, to },
@@ -461,6 +464,7 @@ export class AgendaStore {
     this.status.lastError = null;
     this.status.undecryptable = 0;
     this.status.calendarAsOf = null;
+    this.status.calendarDayAsOf = {};
   }
 
   private recomputeKeyState(): void {

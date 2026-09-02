@@ -7,20 +7,32 @@ const ev = (id, date, over = {}) => ({ id, title: `Event ${id}`, date, startTime
 
 describe('mergeCalendarProjections', () => {
   const now = Date.parse('2026-09-02T18:00:00Z');
-  it('unions devices, freshest copy wins per id, stale projections and out-of-window events drop', () => {
-    const { events, freshestAt } = mergeCalendarProjections([
+  it('legacy payloads (no days): freshest projection owns every day of its window; stale projections and out-of-window events drop', () => {
+    const { events, freshestAt, dayAsOf } = mergeCalendarProjections([
       proj('desk', '2026-09-02T17:00:00Z', [ev('a', '2026-09-03', { title: 'Old title' }), ev('b', '2026-09-04')]),
       proj('phone', '2026-09-02T17:30:00Z', [ev('a', '2026-09-03', { title: 'New title' }), ev('n', '2026-09-02'), ev('far', '2026-12-01')]),
       proj('dead', '2026-08-20T00:00:00Z', [ev('z', '2026-09-05')]),
       { kind: 'observation' },
     ], { from: '2026-08-01', to: '2026-10-01', nowMs: now });
-    expect(events.map((e) => e.id).sort()).toEqual(['a', 'b', 'n']);
+    // phone is fresher and declares the whole window, so desk's b (09-04) is NOT unioned in.
+    expect(events.map((e) => e.id).sort()).toEqual(['a', 'n']);
     expect(events.find((e) => e.id === 'a').title).toBe('New title');
     expect(events.every((e) => e.imported && e.projected)).toBe(true);
     expect(freshestAt).toBe(Date.parse('2026-09-02T17:30:00Z'));
+    expect(dayAsOf['2026-09-04']).toBe(Date.parse('2026-09-02T17:30:00Z'));
   });
-  it('nothing qualifying → empty, freshestAt null', () => {
-    expect(mergeCalendarProjections([], { from: '2026-08-01', to: '2026-10-01' })).toEqual({ events: [], freshestAt: null });
+  it('per-day stamps: each date goes to the projection that fetched it most recently, so a narrow fresh fetch does not erase other days', () => {
+    const desk = { ...proj('desk', '2026-09-02T17:00:00Z', [ev('a', '2026-09-03'), ev('b', '2026-09-10')]),
+      days: { '2026-09-03': '2026-09-02T17:00:00Z', '2026-09-10': '2026-09-02T17:00:00Z' } };
+    // The phone re-fetched 09-03 later and found `a` gone; it knows nothing about 09-10.
+    const phone = { ...proj('phone', '2026-09-02T17:30:00Z', [ev('c', '2026-09-03')]),
+      days: { '2026-09-03': '2026-09-02T17:30:00Z' } };
+    const { events, dayAsOf } = mergeCalendarProjections([desk, phone], { from: '2026-08-01', to: '2026-10-01', nowMs: now });
+    expect(events.map((e) => e.id).sort()).toEqual(['b', 'c']);
+    expect(dayAsOf).toEqual({ '2026-09-03': Date.parse('2026-09-02T17:30:00Z'), '2026-09-10': Date.parse('2026-09-02T17:00:00Z') });
+  });
+  it('nothing qualifying → empty', () => {
+    expect(mergeCalendarProjections([], { from: '2026-08-01', to: '2026-10-01' })).toEqual({ events: [], freshestAt: null, dayAsOf: {} });
   });
 });
 
