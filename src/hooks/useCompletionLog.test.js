@@ -79,12 +79,20 @@ describe('planCompletionLog (pure)', () => {
     expect(candidates[0]).toMatchObject({ title: 'A', completedAt: '2026-09-02T10:00:00-05:00', recurring: false });
   });
 
-  it('THE ECHO GUARD: a remote apply consumes the edge silently — the completing device already logged', () => {
+  it('THE APPLY HOLD (2026-09-01 field fix): a remote apply DEFERS the diff — the edge logs on the next quiet render, never silently dies', () => {
+    // The first shape consumed the snapshot on isRemoteApply, and a
+    // cross-list delete/resupply war (applies firing continuously) swallowed
+    // LOCAL completions landing in the apply windows — the field-test
+    // "nothing logs anymore" incident. A hold keeps the edge in the diff.
     const prev = snap([{ id: 'a', completed: false }]);
-    const tasks = [{ id: 'a', completed: true, title: 'A' }];
+    const tasks = [{ id: 'a', completed: true, title: 'A', completedAt: '2026-09-01T19:50:03-06:00' }];
     const next = snap(tasks);
-    const out = planCompletionLog(prev, next, { tasks, isRemoteApply: true });
-    expect(out).toEqual({ candidates: [], advanceTo: next });
+    expect(planCompletionLog(prev, next, { tasks, isRemoteApply: true }))
+      .toEqual({ candidates: [], advanceTo: null });
+    // Quiet render: same prev (held), edge still there → logs.
+    const { candidates } = planCompletionLog(prev, next, { tasks, isRemoteApply: false });
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({ title: 'A' });
   });
 
   it('disabled consumption is silent too: transitions while the log is off are never retro-logged on enable', () => {
@@ -197,6 +205,35 @@ describe('the hook glue', () => {
     await flush();
     expect(props.setObsidianSyncError).toHaveBeenCalledWith(expect.stringContaining('was not logged'));
     expect(props.setObsidianSyncStatus).toHaveBeenCalledWith('error');
+    expect(writeDailyNoteFile).not.toHaveBeenCalled();
+  });
+
+  it('NO ROUTE HOLDS (2026-09-01 field fix): a completion made while the vault handle is restoring logs when it arrives, never silently dies', async () => {
+    readDailyNoteFresh.mockResolvedValue({ text: '# Day\n' });
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const noRoute = (tasks) => baseProps(tasks, { obsidianVaultHandleRef: { current: null } });
+    useRenderedHook(noRoute([{ id: 'a', completed: false, title: 'A' }]));
+    // Completion lands while the handle is still null (post-launch restore).
+    useRenderedHook(noRoute([{ id: 'a', completed: true, title: 'A', completedAt: '2026-09-02T10:00:00-05:00' }]));
+    await flush();
+    expect(emitBridgeIntent).not.toHaveBeenCalled();
+    expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('waiting for vault access'));
+    // The handle restores on a later render: the HELD edge logs now.
+    useRenderedHook(baseProps([{ id: 'a', completed: true, title: 'A', completedAt: '2026-09-02T10:00:00-05:00' }]));
+    await flush();
+    expect(emitBridgeIntent).toHaveBeenCalledTimes(1);
+    expect(emitBridgeIntent.mock.calls[0][1].entry).toContain('10:00 A');
+  });
+
+  it('plugin-authoritative with NO local handle still logs — the emit route needs none (the iOS/plugin-only shape)', async () => {
+    const props = (tasks) => baseProps(tasks, {
+      obsidianVaultHandleRef: { current: null },
+      bridgeHeartbeatRef: { current: { pluginAuthoritative: true } },
+    });
+    useRenderedHook(props([{ id: 'a', completed: false, title: 'A' }]));
+    useRenderedHook(props([{ id: 'a', completed: true, title: 'A', completedAt: '2026-09-02T10:00:00-05:00' }]));
+    await flush();
+    expect(emitBridgeIntent).toHaveBeenCalledTimes(1);
     expect(writeDailyNoteFile).not.toHaveBeenCalled();
   });
 
