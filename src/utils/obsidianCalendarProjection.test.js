@@ -37,6 +37,15 @@ describe('buildCalendarProjection', () => {
     expect(payload.events[0]).toMatchObject({ color: '#ff0000', calendarName: 'Work' });
   });
 
+  it('carries the publishing device\'s user when given, and omits the field when single-user', () => {
+    const withUser = buildCalendarProjection([feed()], { today: '2026-09-02', deviceId: 'd', userSyncId: 'u-me' });
+    expect(withUser.userSyncId).toBe('u-me');
+    const single = buildCalendarProjection([feed()], { today: '2026-09-02', deviceId: 'd', userSyncId: null });
+    expect('userSyncId' in single).toBe(false);
+    // A viewer change is a content change: the projection republishes.
+    expect(calendarProjectionHash(withUser)).not.toBe(calendarProjectionHash(single));
+  });
+
   it('hash ignores the publish stamp so an unchanged projection is not republished', () => {
     const a = buildCalendarProjection([feed()], { today: '2026-09-02', deviceId: 'd', now: new Date('2026-09-02T10:00:00Z') });
     const b = buildCalendarProjection([feed()], { today: '2026-09-02', deviceId: 'd', now: new Date('2026-09-02T11:00:00Z') });

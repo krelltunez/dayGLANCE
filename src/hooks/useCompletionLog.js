@@ -141,6 +141,12 @@ export default function useCompletionLog({
   obsidianVaultHandleRef, bridgeHeartbeatRef,
   setObsidianSyncError, setObsidianSyncStatus,
   isRemoteApply,
+  // Multi-user (companion 4.1 amendment): the log is THIS user's record.
+  // App.jsx's visibility rule — unassigned, or assigned to me — decides
+  // which completions this device logs; another member's completions sync
+  // into the same state but are theirs to log. Optional: absent means
+  // everything is visible (single-user, or an older harness).
+  isVisibleForUser = null,
 }) {
   const prevRef = useRef(null);
   const inFlightRef = useRef(false);
@@ -160,9 +166,13 @@ export default function useCompletionLog({
     const authoritative = !!bridgeHeartbeatRef?.current?.pluginAuthoritative;
     const routeAvailable = authoritative || !!obsidianVaultHandleRef.current;
 
-    const nextSnap = snapshotCompletionState(tasks, unscheduledTasks, recurringTasks);
+    const visible = typeof isVisibleForUser === 'function' ? (list) => (list || []).filter((t) => t && isVisibleForUser(t)) : (list) => list;
+    const myTasks = visible(tasks);
+    const myInbox = visible(unscheduledTasks);
+    const myRecurring = visible(recurringTasks);
+    const nextSnap = snapshotCompletionState(myTasks, myInbox, myRecurring);
     const { candidates, advanceTo } = planCompletionLog(prevRef.current, nextSnap, {
-      tasks, unscheduledTasks, recurringTasks,
+      tasks: myTasks, unscheduledTasks: myInbox, recurringTasks: myRecurring,
       isRemoteApply: !!isRemoteApply?.(),
       enabled,
       inFlight: inFlightRef.current,

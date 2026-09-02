@@ -2790,7 +2790,7 @@ const DayPlanner = () => {
     obsidianTasksRef, obsidianInboxRef,
     recycleBin, setRecycleBin,
     recurringTasks, setRecurringTasks,
-    multiUserEnabled,
+    multiUserEnabled, meUserSyncId,
   });
   // Completion log (companion spec 4.1): every task completion appends one
   // permanent line to the completion date's daily note. Mounted here, after
@@ -2803,6 +2803,7 @@ const DayPlanner = () => {
     obsidianVaultHandleRef, bridgeHeartbeatRef,
     setObsidianSyncError, setObsidianSyncStatus,
     isRemoteApply,
+    isVisibleForUser,
   });
   // Late-bind the SSE → Obsidian nudge (declared beside useVaultEventStream
   // above, which mounts before this hook can exist).

@@ -150,6 +150,17 @@ mode, which makes it verifiable. A setting for parenthesis syntax can follow.
 | Query examples | App UI / docs / none | Docs only; Dataview isn't universally installed |
 | Offline failure | Queue and retry / fail with indicator | See below |
 
+**Multi-user (2026-09-02 amendment, built).** The log is THIS user's
+record. The first field test on a two-member account logged the other
+member's completions too: her tasks sync into the same state, and the
+detector logged every edge it saw. The rule is now the app's own visibility
+rule (App.jsx `isVisibleForUser`: unassigned, or assigned to me), applied to
+the three lists before the snapshot, so another member's completions are hers
+to log from her devices. Unassigned tasks log from every member's device: in
+a shared vault the exact-line dedupe collapses the duplicate, in separate
+vaults each gets its own line. Single-user accounts are unaffected (every
+task is visible).
+
 **Uncomplete: the entry stays. Decided.** The log is a historical record, not a
 reflection of current state. If a user uncompletes a task, the completion still
 happened — they marked it done at that moment, and that remains true regardless
@@ -420,6 +431,21 @@ ruling below).
    as of N ago" once the selected day's stamp is over an hour old. Cost
    accepted: a day not viewed recently shows the events from the last time
    any device fetched it, labelled as such.
+9. **User-awareness (2026-09-02, owner ruling).** The sidebar showed another
+   member's scheduled task: the mirror holds every task on the account with
+   no notion of a viewer. Ruling: one rule everywhere, the app's own —
+   tasks and recurring templates by visibility (unassigned, or assigned to
+   the viewer), routines by ownership, calendar projections by the
+   publishing device's user. The plugin learns its viewer from the PAIRING:
+   the dayGLANCE device that mints the offer includes its current user
+   (`userSyncId`, null when single-user), so pairing from your own device
+   needs no setup; a "Show tasks for" setting (populated from the synced
+   users, with "Everyone") overrides it, stored in data.json beside the
+   pairing. Owner's assumption of record: people do not share Obsidian
+   vaults, so a vault-scoped setting is the right scope. App side: the
+   projection carries `userSyncId` (the device's identity when multi-user is
+   on) and the completion log applies the visibility rule (4.1 amendment).
+   The direct-access writeback's user rule is a separate, pending ruling.
 
 **Owner ruling (2026-09-02, pending).** The owner expected the plugin to be
 "a GLANCEvault client like any other, with full access to dayGLANCE"; decision

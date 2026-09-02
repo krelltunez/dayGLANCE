@@ -126,6 +126,8 @@ export interface BridgePairingCredentials {
   pairingSalt: string;
   generation: string;
   createdAt: string;
+  /** The pairing device's current multi-user identity; the plugin's default viewer. Absent/null when single-user. */
+  userSyncId?: string | null;
 }
 export function generatePairingCode(): string;
 export function normalizePairingCode(code: string | null | undefined): string;
