@@ -18,6 +18,8 @@ export interface AgendaItem {
   completed: boolean;
   recurring: boolean;
   imported?: boolean;
+  /** An imported task-calendar to-do: imported, yet completable like a task. */
+  isTaskCalendar?: boolean;
   /** True for an event that came from a device's calendar projection (read-only). */
   projected?: boolean;
   calendarName?: string;
@@ -69,3 +71,8 @@ export function mergeCalendarProjections(
   projections: unknown[],
   opts: { from: string; to: string; nowMs?: number; maxAgeMs?: number },
 ): { events: unknown[]; freshestAt: number | null };
+
+export interface AgendaClock { today: string; nowMinutes: number }
+export function isCalendarEvent(item: AgendaItem | null | undefined): boolean;
+export function eventHasEnded(item: { date: string; startTime?: string | null; duration?: number | null; isAllDay?: boolean }, clock: AgendaClock): boolean;
+export function agendaClock(now?: Date): AgendaClock;

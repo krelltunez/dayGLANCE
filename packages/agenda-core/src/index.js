@@ -10,3 +10,4 @@ export * from './agenda.js';
 export * from './routines.js';
 export * from './title.js';
 export * from './calendar.js';
+export * from './events.js';

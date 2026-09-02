@@ -10,7 +10,10 @@
 // variables so the view follows the user's theme.
 
 import { ItemView, Keymap, Notice, WorkspaceLeaf } from 'obsidian';
-import { datesWithItems, localDateStr, shiftDateStr, splitTitle, weekdayOrder, type AgendaItem, type RoutineItem } from '@glance-apps/agenda-core';
+import {
+  datesWithItems, localDateStr, shiftDateStr, splitTitle, weekdayOrder, isCalendarEvent, eventHasEnded, agendaClock,
+  type AgendaItem, type RoutineItem,
+} from '@glance-apps/agenda-core';
 import type { AgendaStore } from './agenda';
 
 export const AGENDA_VIEW_TYPE = 'dayglance-agenda';
@@ -133,9 +136,11 @@ export class AgendaView extends ItemView {
   private month: { y: number; m: number }; // m is 0-based
   private unsubscribe: (() => void) | null = null;
   private root: HTMLElement | null = null;
-  // The view's own midnight guard: `today` moves without any store change.
+  // The view's own clock guard: `today` moves, and events END, without any
+  // store change. Once a minute, redraw only when either has happened.
   private clock: number | null = null;
   private renderedFor = '';
+  private renderedEnded = '';
 
   constructor(leaf: WorkspaceLeaf, store: AgendaStore, weekStartDay = 0) {
     super(leaf);
@@ -159,7 +164,7 @@ export class AgendaView extends ItemView {
     this.unsubscribe = this.store.onChange(() => this.render());
     this.clock = window.setInterval(() => {
       const today = localDateStr(new Date());
-      if (today !== this.renderedFor) this.render();
+      if (today !== this.renderedFor || this.endedKey() !== this.renderedEnded) this.render();
     }, 60_000);
     this.render();
     void this.store.refresh();
@@ -186,6 +191,7 @@ export class AgendaView extends ItemView {
     root.empty();
     const today = localDateStr(new Date());
     this.renderedFor = today;
+    this.renderedEnded = this.endedKey();
     const status = this.store.getStatus();
 
     if (status.key !== 'ready') {
@@ -252,8 +258,14 @@ export class AgendaView extends ItemView {
     const head = root.createDiv({ cls: 'dg-agenda-heading' });
     const label = this.selected === today ? 'Today' : DAY_FMT.format(noonOf(this.selected));
     head.createSpan({ cls: 'dg-agenda-heading-date', text: label });
-    const open = items.filter((i) => !i.completed).length;
-    head.createSpan({ cls: 'dg-agenda-heading-count', text: items.length ? `${open} open of ${items.length}` : '' });
+    // Events are not completable, so they never count as open: the count
+    // is over tasks, with events tallied separately.
+    const tasks = items.filter((i) => !isCalendarEvent(i));
+    const events = items.length - tasks.length;
+    const parts: string[] = [];
+    if (tasks.length) parts.push(`${tasks.filter((i) => !i.completed).length} open of ${tasks.length}`);
+    if (events) parts.push(`${events} event${events === 1 ? '' : 's'}`);
+    head.createSpan({ cls: 'dg-agenda-heading-count', text: parts.join(', ') });
 
     if (this.selected < from || this.selected > to) {
       root.createDiv({ cls: 'dg-agenda-empty', text: `Only ${AGENDA_WINDOW_DAYS} days either side of today are loaded here. Open dayGLANCE for the rest.` });
@@ -268,18 +280,23 @@ export class AgendaView extends ItemView {
 
   private renderItems(root: HTMLElement, items: AgendaItem[]): void {
     const list = root.createEl('ul', { cls: 'dg-agenda-list' });
+    const clock = agendaClock();
     for (const item of items) {
-      const pending = !item.completed && this.store.isPending(item.id);
+      const event = isCalendarEvent(item);
+      // An event is "done" once it has ended (owner ruling): same
+      // strikethrough and checked box as a completed task.
+      const done = item.completed || (event && eventHasEnded(item, clock));
+      const pending = !done && this.store.isPending(item.id);
       const li = list.createEl('li', { cls: 'dg-agenda-item' });
-      if (item.completed) li.addClass('is-done');
+      if (done) li.addClass('is-done');
       if (pending) li.addClass('is-pending');
       const box = li.createEl('input', { type: 'checkbox' });
-      box.checked = item.completed || pending;
+      box.checked = done || pending;
       // Completion only, and only from here for dayGLANCE-owned items:
-      // imported calendar events are completed in dayGLANCE (their
-      // completion lives in a different store); a done box stays done.
-      box.disabled = item.completed || pending || !!item.imported;
-      if (item.imported) box.setAttr('title', 'Imported calendar event: complete it in dayGLANCE');
+      // calendar events are never completed by hand (they end on their
+      // own); a done box stays done.
+      box.disabled = done || pending || event;
+      if (event) box.setAttr('title', done ? 'This event has ended' : 'Calendar event: it will be marked done once it ends');
       box.addEventListener('change', () => {
         if (!box.checked) return;
         box.disabled = true;
@@ -332,6 +349,15 @@ export class AgendaView extends ItemView {
       li.createSpan({ cls: 'dg-agenda-routine-name', text: r.name });
       li.setAttr('title', r.startTime ? `${r.name} at ${formatTime(r.startTime)}` : `${r.name} (any time)`);
     }
+  }
+
+  // Which of the selected day's events have ended, as a comparable key: the
+  // minute clock redraws when this changes, so an event flips to done on
+  // time without waiting for a store change.
+  private endedKey(): string {
+    const items = this.store.agenda(this.selected, this.selected)[this.selected] ?? [];
+    const clock = agendaClock();
+    return items.filter((i) => isCalendarEvent(i) && eventHasEnded(i, clock)).map((i) => i.id).join('|');
   }
 
   private renderStatus(root: HTMLElement, status: ReturnType<AgendaStore['getStatus']>): void {

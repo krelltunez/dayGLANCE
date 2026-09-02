@@ -61,7 +61,7 @@ export function buildAgenda(data, { from, to, includeImported = true } = {}) {
     push(t.date, {
       id: t.id, title: t.title, startTime: t.startTime || null, duration: t.duration ?? null,
       color: t.color || null, isAllDay: !!t.isAllDay, completed: !!t.completed,
-      recurring: false, imported: !!t.imported, date: t.date,
+      recurring: false, imported: !!t.imported, isTaskCalendar: !!t.isTaskCalendar, date: t.date,
       projectId: t.projectId ?? null,
     });
   }
