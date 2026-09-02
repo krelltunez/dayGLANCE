@@ -1743,6 +1743,39 @@ const SettingsModal = () => {
                               {t('settings.obsidianCompletionDatesHint')}
                             </p>
                           </div>
+                          <div>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                              <div className="relative">
+                                <input
+                                  type="checkbox"
+                                  checked={!!obsidianConfig.completionLogEnabled}
+                                  onChange={(e) => setObsidianConfig(prev => ({ ...prev, completionLogEnabled: e.target.checked }))}
+                                  className="sr-only"
+                                />
+                                <div className={`w-10 h-6 rounded-full transition-colors ${obsidianConfig.completionLogEnabled ? 'bg-purple-600' : darkMode ? 'bg-gray-600' : 'bg-stone-300'}`}>
+                                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${obsidianConfig.completionLogEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                                </div>
+                              </div>
+                              <span className={`text-sm ${textPrimary}`}>{t('settings.obsidianCompletionLog')}</span>
+                            </label>
+                            <p className={`text-xs ${textSecondary} mt-1`}>
+                              {t('settings.obsidianCompletionLogHint')}
+                            </p>
+                            {obsidianConfig.completionLogEnabled && (
+                              <div className="mt-2">
+                                <label className={`block text-sm ${textSecondary} mb-1`}>
+                                  {t('settings.obsidianCompletionLogHeading')}
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="## Completed"
+                                  value={obsidianConfig.completionLogHeading || ''}
+                                  onChange={(e) => setObsidianConfig(prev => ({ ...prev, completionLogHeading: e.target.value }))}
+                                  className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
+                                />
+                              </div>
+                            )}
+                          </div>
                           <div className="flex gap-2">
                             <button
                               onClick={() => performObsidianSync()}

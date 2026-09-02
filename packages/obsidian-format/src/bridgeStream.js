@@ -33,6 +33,9 @@
 //                     date,blockId}, heading, template}
 //   daily_note_write {path, content}
 //   wiki_note_write  {noteName, content, newNotesFolder}
+//   completion_log_append {path, date, heading, template, entry} — entry is
+//                     the FINISHED log line, formatted by the emitter
+//                     (completionLog.js), inserted at section end
 // `path` is always vault-root-relative and resolved BY THE EMITTER (the
 // emitter owns the dailyNotesPath/pattern config; the applier needs no
 // dayGLANCE settings). wiki_note_write is the one type without a resolved
@@ -271,6 +274,50 @@ export function applyBridgeIntent(currentText, intent) {
         ? sortTaskLinesInSection(lines, heading.trim(), intent.date)
         : lines;
       return { text: sorted.join('\n'), changed: true };
+    }
+
+    case 'completion_log_append': {
+      // Append-only completion record (companion spec 4.1). The entry is a
+      // NON-TASK line by ruled design — the scan-collision constraint: the
+      // task parser and the stamper must never be able to match it, so it
+      // carries no checkbox, no block token, and is never section-sorted.
+      // Dedupe is by exact line (trimEnd-tolerant), which is also the
+      // crash-replay idempotence story: re-applying the same intent to its
+      // own output is a no-op. Entries INSERT AT SECTION END — the log is
+      // chronological, newest last, unlike task_append's insert-at-top.
+      const entry = typeof intent.entry === 'string' ? intent.entry.trim() : '';
+      // A multi-line entry could smuggle a task-shaped line past the
+      // formatter's guarantee; refuse rather than write it.
+      if (!entry || entry.includes('\n')) return { text: currentText, changed: false };
+      if (currentText !== null) {
+        const landed = currentText.split('\n').some((l) => l.trimEnd() === entry);
+        if (landed) return { text: currentText, changed: false };
+      }
+      const logBase = currentText !== null
+        ? currentText
+        : withCreationFrontmatter(intent.template || '', intent.date);
+      const logLines = logBase.split('\n');
+      const logHeading = (intent.heading || '').trim();
+      if (!logHeading) return { text: currentText, changed: false }; // the log always has a home
+      const logHeadingIdx = logLines.findIndex((l) => l === logHeading);
+      if (logHeadingIdx === -1) {
+        if (logLines[logLines.length - 1] !== '') logLines.push('');
+        logLines.push(logHeading, entry, '');
+      } else {
+        // Walk to the section's end (next heading or EOF), then place the
+        // entry after the last non-blank line so it joins the list and any
+        // trailing blank separation stays put.
+        let sectionEnd = logLines.length;
+        for (let i = logHeadingIdx + 1; i < logLines.length; i++) {
+          if (/^#{1,6}\s/.test(logLines[i])) { sectionEnd = i; break; }
+        }
+        let insertAt = logHeadingIdx + 1;
+        for (let i = logHeadingIdx + 1; i < sectionEnd; i++) {
+          if (logLines[i].trim() !== '') insertAt = i + 1;
+        }
+        logLines.splice(insertAt, 0, entry);
+      }
+      return { text: logLines.join('\n'), changed: true };
     }
 
     case 'daily_note_write': {
