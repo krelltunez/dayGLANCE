@@ -930,21 +930,46 @@ function adoptVaultMetadataEdits(task, edits, lineVals) {
 // existingTaskMap, default every duration to 30, then upload that stale
 // value with a fresh timestamp that beats Android's custom duration in the
 // next cloud merge.
+//
+// THE CROSS-LIST SURVIVOR RULE (§3.10 ruling 5 correction, 2026-09-01): an
+// id live in BOTH lists is a collision, and the scan must resolve it the
+// SAME way the DB tier's reconcileCrossList does — newest lastModified wins,
+// ties to the scheduled list (CROSS_LIST_PRIORITY order) — so both tiers
+// pick the same copy and converge in one cycle. The first shape built the
+// map in two passes and let the inbox pass silently overwrite the scheduled
+// entry, leaving the id in BOTH move-sets: routing then inverted against
+// the line (a scheduled-shaped line became an inbox record carrying a
+// startTime), and the outer merge dropped whichever copy the DB tier had
+// just chosen to keep. The y0bm31lo war: each tier undid the other's
+// resolution every cycle, indefinitely, on one machine. Membership in a
+// list is only evidence of a user's move when it is unambiguous.
 export function buildExistingObsidianTaskContext(existingTasks, existingInbox) {
   const existingTaskMap = {};
   const userScheduledIds = new Set();
   const userInboxIds = new Set();
+  const scheduledById = new Map();
+  const inboxById = new Map();
   for (const t of existingTasks) {
-    if (t.importSource === 'obsidian') {
-      existingTaskMap[t.id] = t;
-      userScheduledIds.add(t.id);
-    }
+    if (t.importSource === 'obsidian') scheduledById.set(String(t.id), t);
   }
   for (const t of existingInbox) {
-    if (t.importSource === 'obsidian') {
-      existingTaskMap[t.id] = t;
-      userInboxIds.add(t.id);
-    }
+    if (t.importSource === 'obsidian') inboxById.set(String(t.id), t);
+  }
+  const stamp = (t) => {
+    const n = t?.lastModified ? Date.parse(t.lastModified) : 0;
+    return Number.isNaN(n) ? 0 : n;
+  };
+  for (const [id, s] of scheduledById) {
+    const i = inboxById.get(id);
+    if (i && stamp(i) > stamp(s)) continue; // the inbox copy survives; handled below
+    existingTaskMap[s.id] = s;
+    userScheduledIds.add(s.id);
+  }
+  for (const [id, i] of inboxById) {
+    const s = scheduledById.get(id);
+    if (s && stamp(i) <= stamp(s)) continue; // the scheduled copy survived above
+    existingTaskMap[i.id] = i;
+    userInboxIds.add(i.id);
   }
   try {
     const lsTasks = JSON.parse(localStorage.getItem('day-planner-tasks') || '[]');

@@ -638,11 +638,16 @@ export default function useObsidianSync({
               recycleBin: recycleBinRef.current,
               scheduledTasks: applied.scheduledTasks,
               inboxTasks: applied.inboxTasks,
+              liveIds: liveObsidianIds, // the live-copy guard (ruling 5 correction)
             });
-            if (binRestore.restored.length && setRecycleBin) {
-              const restoredIds = new Set(binRestore.restored.map(r => r.id));
-              setRecycleBin(prev => (prev || []).filter(t => !restoredIds.has(String(t.id))));
+            if ((binRestore.restored.length || binRestore.superseded.length) && setRecycleBin) {
+              const dropIds = new Set([...binRestore.restored, ...binRestore.superseded].map(r => r.id));
+              setRecycleBin(prev => (prev || []).filter(t => !dropIds.has(String(t.id))));
               binRestores.push(...binRestore.restored);
+              if (binRestore.superseded.length) {
+                console.info('[Obsidian] bin entries superseded by a live copy of the same task (dropped, not restored):',
+                  binRestore.superseded.map(s => `${s.id} "${s.title}"`));
+              }
             }
             setDailyNotes(prev => mergeObsidianDailyNotes(prev, applied.dailyNotes, tombstones));
             // The observed notes' mtimes are the revival evidence (§3.10
@@ -826,11 +831,20 @@ export default function useObsidianSync({
         recycleBin: recycleBinRef.current,
         scheduledTasks: result.scheduledTasks,
         inboxTasks: result.inboxTasks,
+        // The live-copy guard (ruling 5 correction): ids live in app state,
+        // either list, are binned DUPLICATES, never restore candidates.
+        liveIds: new Set(
+          [...(obsidianTasksRef.current || []), ...(obsidianInboxRef.current || [])]
+            .filter(t => t?.importSource === 'obsidian').map(t => String(t.id))),
       });
-      if (binRestore.restored.length && setRecycleBin) {
-        const restoredIds = new Set(binRestore.restored.map(r => r.id));
-        setRecycleBin(prev => (prev || []).filter(t => !restoredIds.has(String(t.id))));
+      if ((binRestore.restored.length || binRestore.superseded.length) && setRecycleBin) {
+        const dropIds = new Set([...binRestore.restored, ...binRestore.superseded].map(r => r.id));
+        setRecycleBin(prev => (prev || []).filter(t => !dropIds.has(String(t.id))));
         binRestores.push(...binRestore.restored);
+        if (binRestore.superseded.length) {
+          console.info('[Obsidian] bin entries superseded by a live copy of the same task (dropped, not restored):',
+            binRestore.superseded.map(s => `${s.id} "${s.title}"`));
+        }
       }
 
       // Update tasks/inbox — same merge-not-replace + honor-tombstones rule; RETAIN
