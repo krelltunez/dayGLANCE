@@ -52,7 +52,8 @@ const CSS = `
 .dg-agenda-routines-heading { color: var(--text-faint); font-size: var(--font-ui-smaller); text-transform: uppercase; letter-spacing: 0.06em; margin: 12px 2px 4px; }
 .dg-agenda-routines { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 0; padding: 0; list-style: none; }
 .dg-agenda-routine { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 8px; border-radius: 999px; background: var(--background-secondary-alt); border: 1px solid var(--background-modifier-border); color: var(--text-muted); font-size: var(--font-ui-smaller); max-width: 100%; }
-.dg-agenda-routine-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent); flex: 0 0 auto; opacity: 0.7; }
+.dg-agenda-routine-dot { width: 6px; height: 6px; border-radius: 50%; background: #0d9488; flex: 0 0 auto; }
+.theme-dark .dg-agenda-routine-dot { background: #14b8a6; }
 .dg-agenda-routine-time { font-variant-numeric: tabular-nums; color: var(--text-faint); }
 .dg-agenda-routine-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dg-agenda-routine.is-done { opacity: 0.55; }
