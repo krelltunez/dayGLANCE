@@ -64,6 +64,11 @@ interface BridgeData {
   deviceId?: string;
   pairing?: BridgePairing;
   bridge?: BridgeState;
+  // The agenda's viewer, when chosen explicitly in settings (companion 4.2,
+  // decision 9). Absent = the pairing's default. Rides data.json like the
+  // pairing itself: the owner's assumption of record is one person per
+  // vault, so vault scope is the right scope.
+  viewer?: { userSyncId: string | null };
 }
 
 const mintDeviceId = (): string => {
@@ -101,6 +106,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
     this.agenda = new AgendaStore({
       app: this.app,
       getPairing: () => this.data.pairing,
+      getViewer: () => this.viewer(),
     });
     void this.agenda.init();
 
@@ -179,6 +185,14 @@ export default class DayGlanceBridgePlugin extends Plugin {
       verifyPassphrase: (passphrase) => this.agenda.verifyPassphrase(passphrase),
       forgetPassphrase: () => this.agenda.forgetKey(),
       openAgenda: () => this.openAgenda(),
+      listUsers: () => this.agenda.users(),
+      getViewer: () => this.viewer(),
+      viewerIsDefault: () => this.data.viewer === undefined,
+      setViewer: async (userSyncId) => {
+        this.data.viewer = { userSyncId };
+        await this.saveData(this.data);
+        this.agenda.notifyViewerChanged();
+      },
     };
     this.addSettingTab(new BridgeSettingTab(host));
 
@@ -243,6 +257,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
     if (!previous) return;
     delete this.data.pairing;
     delete this.data.bridge;
+    delete this.data.viewer;
     // Live sync must not outlive its credentials (armed-by-proof invariant):
     // tear the stream down with the pairing, not a tick later.
     this.transport.shutdown();
@@ -253,6 +268,12 @@ export default class DayGlanceBridgePlugin extends Plugin {
     await publishPairingMeta(null, previous).catch(() => {});
     await this.writeHeartbeat();
     new Notice('dayGLANCE bridge: unpaired. Also revoke the device token on your GLANCEvault server — unpairing only forgets the local credentials.');
+  }
+
+  // Explicit choice wins; else the pairing device's user; else everyone.
+  private viewer(): string | null {
+    if (this.data.viewer) return this.data.viewer.userSyncId;
+    return this.data.pairing?.userSyncId ?? null;
   }
 
   // Reveal (or create, in the right sidebar) the agenda view, landing on

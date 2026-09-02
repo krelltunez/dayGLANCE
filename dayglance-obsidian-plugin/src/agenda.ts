@@ -65,7 +65,7 @@ const CRYPTO_DB_NAME = 'dayglance-bridge';
 // scheme), so the kind is readable before decryption. Routines are the
 // day's placed chips (todayRoutines) plus two singletons: the day they were
 // placed for and the day's completions.
-const AGENDA_KINDS = new Set(['tasks', 'recurringTasks', 'todayRoutines']);
+const AGENDA_KINDS = new Set(['tasks', 'recurringTasks', 'todayRoutines', 'users']);
 const SINGLETON_KIND = 'singleton';
 const AGENDA_SINGLETONS = new Set(['routinesDate', 'routineCompletions']);
 // Optimistic completion marks time out: dayGLANCE applies an action within
@@ -79,7 +79,18 @@ export type AgendaKeyState = 'unpaired' | 'no-key' | 'ready';
 export interface AgendaHost {
   app: App;
   getPairing(): BridgePairing | undefined;
+  /**
+   * The viewer (companion 4.2, decision 9): a user syncId, or null for
+   * everyone. Tasks and recurring templates show when unassigned or assigned
+   * to the viewer, routines when unowned or owned by the viewer, calendar
+   * projections when unstamped or stamped with the viewer — the app's own
+   * rules, applied at read time so a viewer change needs no re-fetch.
+   */
+  getViewer(): string | null;
 }
+
+/** A synced dayGLANCE user, as the settings picker lists them. */
+export interface AgendaUser { syncId: string; name: string }
 
 export interface AgendaStatus {
   key: AgendaKeyState;
@@ -135,6 +146,7 @@ export class AgendaStore {
   private tasks = new Map<string, TaskRow>();
   private recurring = new Map<string, TaskRow>();
   private routines = new Map<string, TaskRow>();
+  private members = new Map<string, TaskRow>();
   private singletons = new Map<string, unknown>();
   // Calendar projections (companion 4.2): read-only calendar events never
   // sync, so each dayGLANCE device publishes its view as a bridge-stream row
@@ -177,6 +189,11 @@ export class AgendaStore {
     return () => { this.listeners.delete(cb); };
   }
 
+  /** The viewer changed: filters are applied at read time, so just redraw. */
+  notifyViewerChanged(): void {
+    this.emit();
+  }
+
   getStatus(): AgendaStatus {
     this.recomputeKeyState();
     return { ...this.status };
@@ -190,10 +207,41 @@ export class AgendaStore {
     return true;
   }
 
+  /** The account's users, for the viewer picker (name-sorted). */
+  users(): AgendaUser[] {
+    const out: AgendaUser[] = [];
+    for (const u of this.members.values()) {
+      const syncId = String((u as { syncId?: unknown }).syncId ?? u.id ?? '');
+      if (!syncId) continue;
+      out.push({ syncId, name: String((u as { name?: unknown }).name ?? syncId) });
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  // The viewer filters (see AgendaHost.getViewer). A null viewer sees all.
+  private visibleTask(t: TaskRow): boolean {
+    const viewer = this.host.getViewer();
+    if (!viewer) return true;
+    const assigned = (t as { assignedUserSyncIds?: unknown }).assignedUserSyncIds;
+    return !Array.isArray(assigned) || assigned.length === 0 || assigned.includes(viewer);
+  }
+  private ownedRoutine(r: TaskRow): boolean {
+    const viewer = this.host.getViewer();
+    if (!viewer) return true;
+    const owner = (r as { ownerSyncId?: unknown }).ownerSyncId;
+    return !owner || owner === viewer;
+  }
+  private viewerProjection(p: CalendarProjection): boolean {
+    const viewer = this.host.getViewer();
+    if (!viewer) return true;
+    const stamped = (p as { userSyncId?: unknown }).userSyncId;
+    return !stamped || stamped === viewer;
+  }
+
   /** The routines placed for a day (only the day dayGLANCE stamped; see agenda-core). */
   routinesFor(dateStr: string): RoutineItem[] {
     return routinesForDate({
-      todayRoutines: [...this.routines.values()],
+      todayRoutines: [...this.routines.values()].filter((r) => this.ownedRoutine(r)),
       routinesDate: this.singletons.get('routinesDate') as string | null | undefined,
       routineCompletions: this.singletons.get('routineCompletions') as Record<string, string> | undefined,
     }, dateStr);
@@ -201,11 +249,15 @@ export class AgendaStore {
 
   /** The agenda for an inclusive YYYY-MM-DD window, from the mirror plus the calendar projections. */
   agenda(from: string, to: string): Record<string, AgendaItem[]> {
-    const calendar = mergeCalendarProjections([...this.projections.values()], { from, to });
+    const calendar = mergeCalendarProjections([...this.projections.values()].filter((p) => this.viewerProjection(p)), { from, to });
     this.status.calendarAsOf = calendar.freshestAt;
     this.status.calendarDayAsOf = calendar.dayAsOf;
     return buildAgenda(
-      { tasks: [...this.tasks.values()], recurringTasks: [...this.recurring.values()], calendarEvents: calendar.events },
+      {
+        tasks: [...this.tasks.values()].filter((t) => this.visibleTask(t)),
+        recurringTasks: [...this.recurring.values()].filter((t) => this.visibleTask(t)),
+        calendarEvents: calendar.events,
+      },
       { from, to },
     );
   }
@@ -324,7 +376,10 @@ export class AgendaStore {
   }
 
   private mapFor(kind: string): Map<string, TaskRow> {
-    return kind === 'tasks' ? this.tasks : kind === 'recurringTasks' ? this.recurring : this.routines;
+    if (kind === 'tasks') return this.tasks;
+    if (kind === 'recurringTasks') return this.recurring;
+    if (kind === 'users') return this.members;
+    return this.routines;
   }
 
   // undefined = undecryptable under this key; null = decryptable but not a
@@ -454,6 +509,7 @@ export class AgendaStore {
     this.tasks.clear();
     this.recurring.clear();
     this.routines.clear();
+    this.members.clear();
     this.singletons.clear();
     this.projections.clear();
     this.pending.clear();

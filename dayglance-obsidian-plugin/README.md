@@ -40,7 +40,12 @@ manually or via BRAT, not submitted to the community directory.
   rows on the bridge stream, built from a per-day cache of the fetches the
   app already makes) and the sidebar merges them with per-day authority (the
   device that fetched a day most recently supplies that day's events); the
-  footer notes when the selected day's events are over an hour old. Tags in
+  footer notes when the selected day's events are over an hour old. On a
+  multi-user account the agenda shows one person's view: tasks unassigned or
+  assigned to them, routines they own, and their devices' calendars. The
+  viewer defaults to the user of the dayGLANCE device that paired the vault
+  and can be changed (or set to Everyone) under "Show tasks for" in the
+  settings tab. Tags in
   titles render faded; `[[wikilinks]]` render as their display text and
   click through to the note.
   It reads the account's task rows directly from GLANCEvault: enter your

@@ -14,7 +14,7 @@ import {
   type PairingHost,
   type BridgePairing,
 } from './pairing';
-import type { AgendaKeyState } from './agenda';
+import type { AgendaKeyState, AgendaUser } from './agenda';
 
 // Stamped by esbuild at bundle time (see esbuild.config.mjs `define`).
 // Guarded so a build without the define (tests, tooling) still runs.
@@ -43,6 +43,12 @@ export interface BridgeSettingsHost extends PairingHost {
   verifyPassphrase(passphrase: string): Promise<{ ok: boolean; message: string }>;
   forgetPassphrase(): Promise<void>;
   openAgenda(): Promise<void>;
+  /** The viewer picker (companion 4.2, decision 9): who the agenda shows tasks for. */
+  listUsers(): AgendaUser[];
+  getViewer(): string | null;
+  /** True while the viewer is the pairing's default rather than an explicit choice. */
+  viewerIsDefault(): boolean;
+  setViewer(userSyncId: string | null): Promise<void>;
 }
 
 const pairedSince = (pairing: BridgePairing): string => {
@@ -134,6 +140,7 @@ export class BridgeSettingTab extends PluginSettingTab {
     this.containerEl.createEl('h3', { text: 'dayGLANCE account' });
     const state = this.host.agendaKeyState();
     if (state === 'ready') {
+      this.displayViewer();
       new Setting(this.containerEl)
         .setName('Sync passphrase verified on this device')
         .setDesc('The dayGLANCE agenda view can read your tasks. The key is stored only on this device; the passphrase itself was not kept.')
@@ -182,6 +189,29 @@ export class BridgeSettingTab extends PluginSettingTab {
         .setCta()
         .onClick(() => void submit()));
     resultEl = this.containerEl.createEl('p', { text: '', cls: 'setting-item-description' });
+  }
+
+  // Who the agenda is for. Defaults to the user of the dayGLANCE device
+  // that paired this vault; the account's synced users fill the list.
+  private displayViewer(): void {
+    const users = this.host.listUsers();
+    const viewer = this.host.getViewer();
+    const known = users.some((u) => u.syncId === viewer);
+    new Setting(this.containerEl)
+      .setName('Show tasks for')
+      .setDesc(this.host.viewerIsDefault()
+        ? 'Set from the dayGLANCE device that paired this vault. Tasks, routines and calendars are filtered to this user; choose Everyone to see the whole account.'
+        : 'Tasks, routines and calendars are filtered to this user; choose Everyone to see the whole account.')
+      .addDropdown((dd) => {
+        dd.addOption('', 'Everyone');
+        for (const u of users) dd.addOption(u.syncId, u.name);
+        if (viewer && !known) dd.addOption(viewer, `Unknown user (${viewer.slice(0, 8)})`);
+        dd.setValue(viewer ?? '');
+        dd.onChange(async (v) => {
+          await this.host.setViewer(v || null);
+          this.display();
+        });
+      });
   }
 
   private displayUnpaired(): void {
