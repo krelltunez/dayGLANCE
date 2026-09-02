@@ -50,7 +50,26 @@ const META_CACHE_KEY = 'dayglance-bridge-pairing-meta';
 // kept only so publishBridgeConfig can clean it up (see the guard below).
 const LEGACY_CONFIG_HASH_KEY = 'dayglance-bridge-config-hash';
 const META_TTL_MS = 5 * 60 * 1000;
+// AUDIT FIX M2 — the cap is a REFUSAL threshold, not a drop policy. The
+// original shape shifted the OLDEST entries out when full, which silently
+// unbooked writes whose identity moves were already committed on enqueue
+// (the commit-on-enqueue rule) while telling the newest caller "queued".
+// A full outbox now refuses the NEWEST emit instead: the return value
+// already means "not durably queued", authoritative callers latch a visible
+// error on it, and mirror-intent callers' direct writes have already
+// landed. The unpaired-accretion concern the shift addressed is handled
+// upstream — enqueue is gated on the cached pairing meta, which the sync
+// cycle keeps fresh, so an unpaired vault stops enqueueing within a TTL.
 const OUTBOX_CAP = 500;
+// AUDIT FIX M2, flush half — the backlog drains in bounded chunks, each
+// removed from the persisted outbox as its ack lands. The original shape
+// sent the ENTIRE outbox as one batch: a backlog big enough for the server
+// to reject could never flush at all (fail once, retry the same oversized
+// request forever), and a mid-request failure lost the whole attempt. With
+// chunks, a partial failure keeps every acked chunk's progress and retries
+// only the unsent tail. The value bounds per-request payload (intents can
+// carry whole-note content); it is not otherwise load-bearing.
+const FLUSH_CHUNK = 50;
 
 // Subkey cache, keyed by generation so a re-pair (new salt) re-derives.
 let cachedSubkey = null;
@@ -182,9 +201,10 @@ export function emitBridgeIntent(type, fields) {
     // intents mirrored have already landed, so nothing is lost.
     if (!readJson(META_CACHE_KEY, null)?.meta) return false;
     const outbox = readJson(OUTBOX_KEY, []);
+    // Full → refuse the NEWEST, visibly (see the M2 note at OUTBOX_CAP).
+    // Never shift out the oldest: those entries are booked.
+    if (outbox.length >= OUTBOX_CAP) return false;
     outbox.push({ v: 1, kind: 'intent', type, intentId: mintIntentId(), createdAt: new Date().toISOString(), ...fields });
-    // A vault that unpaired mid-stream must not accrete forever: drop oldest.
-    while (outbox.length > OUTBOX_CAP) outbox.shift();
     // Direct setItem, NOT writeJson: a swallowed storage failure would
     // report "queued" for an intent that was never persisted — exactly the
     // silent loss the return value exists to make visible (gate a).
@@ -216,24 +236,33 @@ async function doFlush() {
     const meta = await getBridgePairingMeta();
     const subkey = await getBridgeSubkey(meta);
     if (!subkey) return false;
-    const rows = [];
-    for (const intent of outbox) {
-      rows.push({
-        entityId: `${BRIDGE_INTENT_PREFIX}${intent.intentId}`,
-        envelope: await sealBridgeEnvelope(subkey, intent),
-        createdAt: Date.parse(intent.createdAt) || Date.now(),
-      });
+    // Chunked drain (M2): each chunk leaves the persisted outbox as soon as
+    // its ack lands, so a failure partway keeps every acked chunk's progress
+    // and retries only the unsent tail. The loop walks a snapshot — an emit
+    // that races in during a network call is not in it and simply stays
+    // queued for the next flush.
+    for (let start = 0; start < outbox.length; start += FLUSH_CHUNK) {
+      // A 429 partway through armed the brake on the real response; sending
+      // the next chunk into it would just deepen the escalation.
+      if (start > 0 && bridgeRateLimited()) return false;
+      const chunk = outbox.slice(start, start + FLUSH_CHUNK);
+      const rows = [];
+      for (const intent of chunk) {
+        rows.push({
+          entityId: `${BRIDGE_INTENT_PREFIX}${intent.intentId}`,
+          envelope: await sealBridgeEnvelope(subkey, intent),
+          createdAt: Date.parse(intent.createdAt) || Date.now(),
+        });
+      }
+      const ack = await ctx.client.batch(BRIDGE_VAULT_APP, { accountId: ctx.accountId, rows });
+      // Own-echo damping (#1455): bridge writes advance the same per-account
+      // seq the engine's do — record each ack so our echo drains nothing.
+      recordOwnWriteSeq(ack?.maxSeq);
+      const sent = new Set(chunk.map((i) => i.intentId));
+      const remaining = readJson(OUTBOX_KEY, []).filter((i) => !sent.has(i.intentId));
+      writeJson(OUTBOX_KEY, remaining);
     }
-    const ack = await ctx.client.batch(BRIDGE_VAULT_APP, { accountId: ctx.accountId, rows });
-    // Own-echo damping (#1455): bridge writes advance the same per-account
-    // seq the engine's do — record the ack so our echo drains nothing.
-    recordOwnWriteSeq(ack?.maxSeq);
-    // Only entries we actually sent leave the queue — an emit that raced in
-    // during the network call stays for the next flush.
-    const sent = new Set(outbox.map((i) => i.intentId));
-    const remaining = readJson(OUTBOX_KEY, []).filter((i) => !sent.has(i.intentId));
-    writeJson(OUTBOX_KEY, remaining);
-    return remaining.length === 0;
+    return readJson(OUTBOX_KEY, []).length === 0;
   } catch {
     // Rate-limited (the client armed on a real 429; a braked retry throws
     // before the wire) or unreachable — queued intents survive either way.
