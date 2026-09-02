@@ -86,9 +86,25 @@ export async function startBridgePairing(vaultHandle, deviceToken) {
     // generations tells the plugin an offer supersedes its stored pairing.
     generation: pairingSaltB64,
     createdAt: new Date().toISOString(),
+    // Multi-user (companion 4.2, user-awareness): the plugin's default
+    // "show tasks for" is the user this device is signed in as, so pairing
+    // from your own device needs no further setup. Null when single-user.
+    userSyncId: currentUserSyncId(),
   }, code);
   await writeVaultDotFile(vaultHandle, PAIRING_DIR, PAIRING_FILE, offer);
   return { code };
+}
+
+// The device-local multi-user choice (App.jsx keeps it in this key; it is
+// deliberately never synced, every device answers "who am I" for itself).
+export function currentUserSyncId() {
+  try {
+    if (JSON.parse(localStorage.getItem('dayglance-multi-user-enabled') || 'false') !== true) return null;
+    const cfg = JSON.parse(localStorage.getItem('dayglance-multi-user-config') || 'null');
+    return typeof cfg?.meUserSyncId === 'string' && cfg.meUserSyncId ? cfg.meUserSyncId : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Cancel an outstanding offer by overwriting it with the cancel form. */

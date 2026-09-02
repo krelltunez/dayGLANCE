@@ -30,7 +30,7 @@ export const isProjectedCalendarEvent = (t, { multiUserEnabled = false } = {}) =
  *   reader can say how old a given day's events are and resolve two devices'
  *   copies of a day by freshness.
  */
-export function buildCalendarProjection(tasks, { today, deviceId, now = new Date(), multiUserEnabled = false, days = null }) {
+export function buildCalendarProjection(tasks, { today, deviceId, now = new Date(), multiUserEnabled = false, days = null, userSyncId = null }) {
   const from = shiftDateStr(today, -CALENDAR_PROJECTION_WINDOW_DAYS);
   const to = shiftDateStr(today, CALENDAR_PROJECTION_WINDOW_DAYS);
   const events = [];
@@ -52,6 +52,10 @@ export function buildCalendarProjection(tasks, { today, deviceId, now = new Date
   }
   events.sort((a, b) => (a.date === b.date ? String(a.id).localeCompare(String(b.id)) : (a.date < b.date ? -1 : 1)));
   const payload = { v: 1, kind: 'projection', type: 'calendar', deviceId, from, to, publishedAt: now.toISOString(), events };
+  // Multi-user: a device's calendars belong to the user it is signed in as
+  // (feeds are per-user; a phone's native calendar is its owner's), so the
+  // plugin can keep only its viewer's projections. Absent when single-user.
+  if (userSyncId) payload.userSyncId = userSyncId;
   if (days) {
     payload.days = {};
     for (const [d, at] of Object.entries(days)) if (d >= from && d <= to) payload.days[d] = at;

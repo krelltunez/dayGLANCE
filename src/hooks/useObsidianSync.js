@@ -118,6 +118,9 @@ export default function useObsidianSync({
   // Multi-user changes which imported rows the sync payload excludes, and
   // therefore which ones the calendar projection carries.
   multiUserEnabled = false,
+  // The device's multi-user identity; stamped on the calendar projection so
+  // the plugin can show its viewer's calendars only.
+  meUserSyncId = null,
 }) {
   // Fresh bin contents for the async sync cycle (same staleness fix as the
   // task refs above — interval-triggered syncs must not see the closure's
@@ -595,6 +598,7 @@ export default function useObsidianSync({
         const input = calendarProjectionInput(cache, window);
         const projection = buildCalendarProjection(input.tasks, {
           today, deviceId: getDeviceId(), multiUserEnabled, days: input.days,
+          userSyncId: multiUserEnabled ? meUserSyncId : null,
         });
         void publishBridgeCalendarProjection(projection, calendarProjectionHash(projection));
       } catch (e) {

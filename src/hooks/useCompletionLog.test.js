@@ -195,6 +195,26 @@ describe('the hook glue', () => {
     expect(emitBridgeIntent).toHaveBeenCalledTimes(1);
   });
 
+  it('multi-user: only completions the current user would see are logged (unassigned, or assigned to me)', async () => {
+    readDailyNoteFresh.mockResolvedValue({ text: '# Day\n' });
+    const me = 'u-me';
+    const isVisibleForUser = (t) => !(t.assignedUserSyncIds?.length) || t.assignedUserSyncIds.includes(me);
+    const before = [
+      { id: 'mine', completed: false, title: 'Mine', assignedUserSyncIds: [me] },
+      { id: 'hers', completed: false, title: 'Hers', assignedUserSyncIds: ['u-wife'] },
+      { id: 'shared', completed: false, title: 'Shared' },
+    ];
+    const done = (t) => ({ ...t, completed: true, completedAt: '2026-09-02T10:00:00-05:00' });
+    useRenderedHook(baseProps(before, { isVisibleForUser }));
+    useRenderedHook(baseProps(before.map(done), { isVisibleForUser }));
+    await flush();
+    const logged = emitBridgeIntent.mock.calls.map(([, f]) => f.entry);
+    expect(logged).toHaveLength(2);
+    expect(logged.join('\n')).toContain('Mine');
+    expect(logged.join('\n')).toContain('Shared');
+    expect(logged.join('\n')).not.toContain('Hers');
+  });
+
   it('plugin authoritative: the intent is the write; a dropped emit latches the visible error', async () => {
     emitBridgeIntent.mockReturnValue(false);
     const props = baseProps([{ id: 'a', completed: false, title: 'A' }], {
