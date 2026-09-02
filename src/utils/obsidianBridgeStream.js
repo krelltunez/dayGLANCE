@@ -143,6 +143,15 @@ const vaultClientOrNull = () => {
  * before pairing completed would otherwise gate emits off for up to a TTL
  * while direct writes have already stopped.
  */
+/**
+ * The cached pairing meta, synchronously (no fetch): what the last
+ * getBridgePairingMeta refresh learned, or null. For callers that run in a
+ * render effect and need the vault's viewer (`userSyncId`) without awaiting.
+ */
+export function cachedBridgePairingMeta() {
+  return readJson(META_CACHE_KEY, null)?.meta ?? null;
+}
+
 export async function getBridgePairingMeta({ force = false } = {}) {
   const cached = readJson(META_CACHE_KEY, null);
   if (!force && cached && Date.now() - (cached.fetchedAt || 0) < META_TTL_MS) {

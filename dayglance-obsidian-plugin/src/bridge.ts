@@ -148,7 +148,14 @@ const obsidianFetch = async (
  * point: it carries the pairing salt that other dayGLANCE devices need
  * BEFORE they can derive the subkey — an HKDF salt is not a secret.
  */
-export async function publishPairingMeta(pairing: BridgePairing | null, previous?: BridgePairing): Promise<void> {
+export async function publishPairingMeta(
+  pairing: BridgePairing | null, previous?: BridgePairing,
+  // The vault's viewer (companion 4.2 decision 9): dayGLANCE devices read
+  // it to scope what they write into this vault and whom a first-imported
+  // line is assigned to. Defaults to the pairing's own user; main.ts passes
+  // the settings override when one is set.
+  viewer: string | null | undefined = pairing?.userSyncId ?? null,
+): Promise<void> {
   const creds = pairing ?? previous;
   if (!creds) return;
   const client = createVaultClient({
@@ -164,6 +171,7 @@ export async function publishPairingMeta(pairing: BridgePairing | null, previous
         envelope: encodePlainBridgeRow({
           v: 1, kind: 'pairing-meta',
           generation: pairing.generation, pairingSalt: pairing.pairingSalt, pairedAt: pairing.pairedAt,
+          ...(viewer ? { userSyncId: viewer } : {}),
         }),
         createdAt: Date.now(),
       }],

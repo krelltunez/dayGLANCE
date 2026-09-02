@@ -445,7 +445,33 @@ ruling below).
    vaults, so a vault-scoped setting is the right scope. App side: the
    projection carries `userSyncId` (the device's identity when multi-user is
    on) and the completion log applies the visibility rule (4.1 amendment).
-   The direct-access writeback's user rule is a separate, pending ruling.
+10. **Vault scan and writeback user rule (2026-09-02, owner ruling; built).**
+   Two shapes were weighed for a task typed into the vault: assign it to
+   "me" on import (chosen), or require a designation marker in the note
+   with undesignated lines left unassigned. In dayGLANCE "unassigned" means
+   shared with every member, and a personal vault is a personal capture
+   surface, so shared is the wrong default; a marker would also add grammar
+   to the parser and the stamper — where the identity hazards have lived —
+   for a case the app already covers (a task meant to be shared is
+   unassigned in dayGLANCE after import). Rules, in
+   `utils/obsidianUserScope.js`:
+   - **Which "me": the vault's viewer, never the importing device's user.**
+     On the plugin path every dayGLANCE device on the account applies the
+     same observation stream, so the importing device's user is wrong half
+     the time. The plugin publishes the viewer in the plaintext pairing-meta
+     row (`userSyncId`: the pairing's default or the "Show tasks for"
+     override, republished on change) and dayGLANCE reads it from the cached
+     meta. On direct access the vault is on this device, so the viewer is
+     the device's user. No viewer (single-user, Everyone, or a plugin
+     predating the field) means the pre-ruling behavior.
+   - **First import only.** A task not known to the app (either live list or
+     the recycle bin) and carrying no assignment is assigned to the viewer as
+     it enters; known tasks are never touched, so assignment stays app-owned
+     (the preserve-app-fields carry already guaranteed that for the merge).
+   - **The write side mirrors it.** The writeback effect considers only
+     tasks visible to the viewer, on both the direct writer and the intent
+     emitter, so another member's tasks never land in this person's notes.
+     Lines written before the ruling are not removed.
 
 **Owner ruling (2026-09-02, pending).** The owner expected the plugin to be
 "a GLANCEvault client like any other, with full access to dayGLANCE"; decision
@@ -781,4 +807,5 @@ Read-write scan scope is not in this phase. See 6.2.
 | 9 | Sidebar completion write path for tasks with no vault line (4.2) | **Decided: action rows** (`act:` on the bridge stream), applied by dayGLANCE as the single data-plane writer; built |
 | 11 | Plugin reads the data plane with a device-local root key derived from the sync passphrase (4.2, decision 1) | Built under a standing veto; owner ruling pending |
 | 12 | Calendar events in the sidebar (excluded from sync by design) | **Decided: dayGLANCE publishes a per-device projection row** on the bridge stream; the plugin unions them (4.2, decision 8); built |
+| 13 | Multi-user: whose tasks the sidebar, the completion log and the vault writeback handle | **Decided: the vault's viewer**, defaulted from the pairing, overridable in the plugin; first-import assignment to the viewer, writes scoped to the viewer (4.2, decisions 9 and 10); built |
 | 10 | Ownership rule for dayGLANCE-maintained frontmatter (4.3) | Open; what-wins-on-divergence category, ruling before first write |

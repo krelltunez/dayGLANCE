@@ -57,6 +57,7 @@ vi.mock('../native.js', () => ({
 const emitBridgeIntent = vi.fn(() => true);
 const getBridgePairingMeta = vi.fn(async () => null);
 vi.mock('../utils/obsidianBridgeStream.js', () => ({
+  cachedBridgePairingMeta: () => null,
   emitBridgeIntent: (...a) => emitBridgeIntent(...a),
   flushBridgeOutbox: vi.fn(async () => true),
   publishBridgeConfig: vi.fn(async () => {}),

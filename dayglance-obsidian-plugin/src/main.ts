@@ -171,7 +171,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
         await this.saveData(this.data);
         // Publish the plaintext pairing-meta row — how OTHER dayGLANCE
         // devices discover the salt and start emitting (bridge.ts).
-        await publishPairingMeta(pairing).catch((e) => console.error('dayGLANCE bridge: meta publish failed', e));
+        await publishPairingMeta(pairing, undefined, this.viewer()).catch((e) => console.error('dayGLANCE bridge: meta publish failed', e));
         // Beat immediately so dayGLANCE's pairing panel confirms
         // without waiting out the interval.
         await this.writeHeartbeat();
@@ -192,6 +192,12 @@ export default class DayGlanceBridgePlugin extends Plugin {
         this.data.viewer = { userSyncId };
         await this.saveData(this.data);
         this.agenda.notifyViewerChanged();
+        // The viewer scopes what dayGLANCE writes into this vault too:
+        // republish the meta row so its devices pick the change up on their
+        // next cycle (the row is plaintext; a user id is not a secret).
+        if (this.data.pairing) {
+          await publishPairingMeta(this.data.pairing, undefined, userSyncId).catch((e) => console.error('dayGLANCE bridge: meta publish failed', e));
+        }
       },
     };
     this.addSettingTab(new BridgeSettingTab(host));
