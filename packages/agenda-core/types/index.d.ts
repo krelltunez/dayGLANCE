@@ -68,6 +68,8 @@ export interface CalendarProjection {
   events: unknown[];
   /** Per-day fetch stamps (date → ISO) from the publisher's projection cache; absent on older payloads. */
   days?: Record<string, string>;
+  /** The publishing device's multi-user identity; absent when single-user. */
+  userSyncId?: string | null;
 }
 export function mergeCalendarProjections(
   projections: unknown[],
