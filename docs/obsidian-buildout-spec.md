@@ -545,9 +545,11 @@ sidebar view, read-only scan scope, project/goal notes, then guarded
 Templater/Dataview delegation. Of the original candidates, project and goal
 notes survived as its 4.3, daily-note section templates became the guarded
 Templater delegation (its 4.4), and habit/routine frontmatter was deferred.
-Read-write whole-vault scan scope was investigated and explicitly pushed to
-its own future phase — the identity machinery is date-keyed at every layer
-(its 6.2 records why). Phase 8 work begins after the current between-phases
+Read-write whole-vault scan scope was first pushed to its own future phase
+and then, on 2026-09-02, brought back into Phase 8 as a plugin-only feature
+once the date's three roles (minting namespace, note locator, schedule) were
+separated — the companion's §6 records the design and the six rulings it
+requests. Phase 8 work begins after the current between-phases
 soak and the staged SSE re-arm described in the status note at the top of
 this document.
 
