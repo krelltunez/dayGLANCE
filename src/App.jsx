@@ -95,6 +95,7 @@ import useFocusMode from './hooks/useFocusMode.js';
 import useTrmnlSync from './hooks/useTrmnlSync.js';
 import useObsidian from './hooks/useObsidian.js';
 import useObsidianSync from './hooks/useObsidianSync.js';
+import useCompletionLog from './hooks/useCompletionLog.js';
 import useDailyBriefings from './hooks/useDailyBriefings.js';
 import useVoiceInput from './hooks/useVoiceInput.js';
 import useCloudSync from './hooks/useCloudSync.js';
@@ -2785,6 +2786,18 @@ const DayPlanner = () => {
     obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
     obsidianTasksRef, obsidianInboxRef,
     recycleBin, setRecycleBin,
+  });
+  // Completion log (companion spec 4.1): every task completion appends one
+  // permanent line to the completion date's daily note. Mounted here, after
+  // useObsidianSync, because it writes through the same arbitration
+  // (bridgeHeartbeatRef) and error latch. The isRemoteApply guard (declared
+  // beside the notify emitters) keeps engine echoes from double-logging.
+  useCompletionLog({
+    tasks, unscheduledTasks, recurringTasks, projects,
+    obsidianConfig, dailyNoteTemplate,
+    obsidianVaultHandleRef, bridgeHeartbeatRef,
+    setObsidianSyncError, setObsidianSyncStatus,
+    isRemoteApply,
   });
   // Late-bind the SSE → Obsidian nudge (declared beside useVaultEventStream
   // above, which mounts before this hook can exist).

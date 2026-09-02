@@ -106,13 +106,22 @@ directly.
 
 #### Entry format
 
+**Ruled (2026-09-02), as built:** the non-task line shape, with the wall-clock
+time up front and the stored completion timestamp verbatim in the field:
+
 ```markdown
 ## Completed
 
-- [x] Review Q2 contract draft [completion:: 2026-04-06T14:32:00] [project:: Acme migration] [priority:: 2] #legal #review
-- [x] Call accountant [completion:: 2026-04-06T11:15:00] [priority:: 1] #finance
-- [x] Update roadmap [completion:: 2026-04-06T09:45:00] [project:: dayGLANCE]
+- ✅ 09:45 Update roadmap [completion:: 2026-04-06T09:45:00-05:00] [project:: dayGLANCE]
+- ✅ 11:15 Call accountant [completion:: 2026-04-06T11:15:00-05:00] [priority:: 1] #finance
+- ✅ 14:32 Review Q2 contract draft [completion:: 2026-04-06T14:32:00-05:00] [project:: Acme migration] [priority:: 2] #legal #review
 ```
+
+Entries insert at SECTION END, so the section reads chronologically, newest
+last. A completion whose stored timestamp is a bare date or absent renders
+with no time and the date bucket as the completion field, deterministically
+(so two devices independently observing the same vault-originated completion
+format the identical line and the exact-line dedupe collapses them).
 
 | dayGLANCE field | Log format | Notes |
 |---|---|---|
@@ -194,8 +203,24 @@ for the entry format, not a patch to apply later. Options:
   staying out of identity.
 
 Whichever wins, the constraint stands: **the log format is not free to be a
-naked `- [x]` line.** The entry-format table above is illustrative of fields,
-not a decided line shape.
+naked `- [x]` line.**
+
+**Ruled (2026-09-02): the non-task line shape.** Safe by construction — the
+`- ✅ ` prefix cannot match the parsers' `- [([ xX])]` shape, pinned by a
+test that feeds hostile titles through the real parser and stamper. The
+applier additionally refuses multi-line entries so nothing task-shaped can
+be smuggled past the formatter. The other rulings landed with the build:
+heading **configurable, default `## Completed`** (stored in the device-local
+`obsidianConfig`, like the task heading); the log is **available to
+direct-access users** (one shared formatter and applier; the direct routes
+apply the same `completion_log_append` intent shape locally); and **every
+single completion logs** — local, vault-originated (the device whose sync
+first applies the flip logs it; engine echoes on other devices are
+suppressed by the remote-apply guard), and recurring instances
+(`[recurring:: true]`, bucketed to the instance date). Transitions that
+happen while the log is disabled are consumed silently, never retro-logged
+on enable. M2 (the outbox cap and all-or-nothing flush) was fixed first, as
+the precursor the queue story depends on.
 
 **Offline failure.** v1 recommended failing silently with a status indicator.
 Phase 3 built real failure surfacing (latched sync-error state, named causes,
@@ -571,13 +596,13 @@ Read-write scan scope is not in this phase. See 6.2.
 
 | # | Decision | Status |
 |---|---|---|
-| 1 | Completion log heading fixed or configurable | Leaning configurable |
-| 2 | Completion log for direct-access users too | Probably yes, needs costing |
+| 1 | Completion log heading fixed or configurable | **Decided: configurable, default `## Completed`** |
+| 2 | Completion log for direct-access users too | **Decided: yes** (shared formatter/applier, both routes) |
 | 3 | What "create the project workspace" produces | Open |
 | 4 | Project frontmatter update cadence | Open; `data.json` churn lesson applies |
 | 5 | Sidebar refresh mechanism | Leaning SSE, confirm for a passive view |
 | 6 | Read-only scan scope: which notes | Leaning daily notes plus wikilinked |
 | 7 | Note-key design for read-write scope | Deferred to its own phase; hard-stop category |
-| 8 | Completion-log line shape (scan-collision constraint, 4.1) | Leaning non-task shape; must be decided before the first write |
+| 8 | Completion-log line shape (scan-collision constraint, 4.1) | **Decided: non-task shape** (`- ✅ …`), built |
 | 9 | Sidebar completion write path for tasks with no vault line (4.2) | Open; a new data-plane writer, needs its own design |
 | 10 | Ownership rule for dayGLANCE-maintained frontmatter (4.3) | Open; what-wins-on-divergence category, ruling before first write |

@@ -67,6 +67,15 @@ export function settleStampPlan<T extends { line: number }>(
   plan: T[], lines: string[], prior: Map<string, number> | null | undefined, nowMs: number,
 ): { apply: T[]; deferred: T[]; nextState: Map<string, number> };
 
+// ── completion log (companion spec 4.1) ─────────────────────────────────────
+export const DEFAULT_COMPLETION_LOG_HEADING: string;
+export function formatCompletionLogEntry(fields: {
+  title: string; completedAt?: string | null; fallbackDate: string;
+  projectName?: string | null; priority?: number | null;
+  deadline?: string | null; recurring?: boolean;
+}): string;
+export function completionLogDate(completedAt: string | null | undefined, localToday: string): string;
+
 // ── note naming ─────────────────────────────────────────────────────────────
 export function assertSafeDateStr(dateStr: string): void;
 export function formatDatePattern(date: Date, pattern?: string): string;
