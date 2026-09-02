@@ -253,11 +253,12 @@ and the applier's landed-check scans the whole note, not just the section.
 **Offline failure.** v1 recommended failing silently with a status indicator.
 Phase 3 built real failure surfacing (latched sync-error state, named causes,
 SAF revocation messaging). The log should use it rather than inventing a
-parallel story. Whether a failed entry is *queued* is a separate question, and
-the plugin's outbox is a natural home if so — with one sizing caveat: the
-outbox is a 500-entry FIFO with silent head-drop (audit finding M2, unfixed as
-of this writing), and a backlog flush of log entries is exactly the burst shape
-that would flood it. Fix or re-size M2 before leaning on it.
+parallel story. Failed entries ARE queued: the write goes through the bridge
+outbox (`emitBridgeIntent`) like every vault write. The sizing caveat this
+paragraph originally carried — a 500-entry FIFO with silent head-drop, audit
+finding M2 — was fixed before the log shipped (PR #1510: the outbox refuses at
+its cap instead of dropping its head, and flushes in 50-entry chunks), which
+is why M2 was sequenced first.
 
 **Should this extend to direct access?** Probably yes — it's file appending, the
 thing direct access does. Worth costing.
@@ -396,9 +397,10 @@ ruling below).
    (`mergeCalendarProjections` in agenda-core: freshest copy per event id,
    projections older than seven days ignored, so a device that stops
    publishing cannot pin stale events). The status footer says "Calendar as
-   of N h ago" once the freshest projection is over an hour old. Known
-   limit: in multi-user mode each device projects its own user's feeds and
-   the plugin shows the union.
+   of N h ago" once the freshest projection is over an hour old. (The
+   original known limit — in multi-user mode the plugin showed the union of
+   every device's feeds — was closed by decision 9: projections carry their
+   device's user and the plugin keeps its viewer's.)
 
    **Correction (2026-09-02, the disappearing-events field report).** The
    projection was first built from the live task list. On a native-calendar
@@ -473,13 +475,14 @@ ruling below).
      emitter, so another member's tasks never land in this person's notes.
      Lines written before the ruling are not removed.
 
-**Owner ruling (2026-09-02, pending).** The owner expected the plugin to be
-"a GLANCEvault client like any other, with full access to dayGLANCE"; decision
-1 delivers exactly that. The MECHANISM — the sync passphrase entered once per
-device in the plugin's settings, the derived key held device-locally — was
-proposed while the owner was away and built under an explicit standing veto.
-If vetoed, the read half is removed and the view falls back to what the
-observation stream can carry; this record is then amended.
+**Owner ruling (2026-09-02): accepted in use.** The owner expected the plugin
+to be "a GLANCEvault client like any other, with full access to dayGLANCE";
+decision 1 delivers exactly that. The MECHANISM — the sync passphrase entered
+once per device in the plugin's settings, the derived key held device-locally
+— was proposed while the owner was away and built under an explicit standing
+veto. The veto lapsed unexercised: the owner verified the passphrase, used the
+view daily, and commissioned three features on top of it (routines, calendar
+projections, the viewer). The design is settled.
 
 ---
 
@@ -805,7 +808,10 @@ Read-write scan scope is not in this phase. See 6.2.
 | 7 | Note-key design for read-write scope | Deferred to its own phase; hard-stop category |
 | 8 | Completion-log line shape (scan-collision constraint, 4.1) | **Decided: non-task shape** (`- ✅ …`), built |
 | 9 | Sidebar completion write path for tasks with no vault line (4.2) | **Decided: action rows** (`act:` on the bridge stream), applied by dayGLANCE as the single data-plane writer; built |
-| 11 | Plugin reads the data plane with a device-local root key derived from the sync passphrase (4.2, decision 1) | Built under a standing veto; owner ruling pending |
-| 12 | Calendar events in the sidebar (excluded from sync by design) | **Decided: dayGLANCE publishes a per-device projection row** on the bridge stream; the plugin unions them (4.2, decision 8); built |
-| 13 | Multi-user: whose tasks the sidebar, the completion log and the vault writeback handle | **Decided: the vault's viewer**, defaulted from the pairing, overridable in the plugin; first-import assignment to the viewer, writes scoped to the viewer (4.2, decisions 9 and 10); built |
 | 10 | Ownership rule for dayGLANCE-maintained frontmatter (4.3) | Open; what-wins-on-divergence category, ruling before first write |
+| 11 | Plugin reads the data plane with a device-local root key derived from the sync passphrase (4.2, decision 1) | **Accepted in use** (2026-09-02); the standing veto lapsed |
+| 12 | Calendar events in the sidebar (excluded from sync by design) | **Decided: dayGLANCE publishes a per-device projection row** on the bridge stream, merged with per-day authority (4.2, decision 8); built |
+| 13 | Multi-user: whose tasks the sidebar, the completion log and the vault writeback handle | **Decided: the vault's viewer**, defaulted from the pairing, overridable in the plugin; first-import assignment to the viewer, writes scoped to the viewer (4.2, decisions 9 and 10); built |
+
+Still open, in sequencing order: 6 (read-only scan scope: which notes), then
+3, 4 and 10 (project notes), then 7 (read-write scope, its own phase).

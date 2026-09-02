@@ -4,13 +4,16 @@
 **Date:** 2026-08-10
 **Scope:** Extending dayGLANCE's Obsidian integration from direct filesystem access to a full bridge, including a first-party Obsidian community plugin.
 
-**Current position (2026-09-01): between Phase 7 and Phase 8.** Phases 0–7 are
-built and deployed. The fleet is running at poll cadence with SSE nudge
+**Current position (2026-09-02): Phase 8 in progress, SSE soak alongside.**
+Phases 0–7 are built and deployed. Phase 8 (`obsidian-companion-spec.md`) is
+underway: the completion log (its 4.1) and the sidebar view (its 4.2) are
+built and in daily use, with multi-user scoping across the log, the sidebar
+and the vault writeback. The fleet still runs at poll cadence with SSE nudge
 consumption gated off by default (§3.10, seventh record) while the audit-fix
-backlog is squashed and the fixes soak. The re-arm sequence — remaining
-breaker fixes, a supervised single-machine re-arm, then the fleet, then
-default-on — precedes Phase 8, whose scope now lives in
-`obsidian-companion-spec.md`.
+backlog soaks; the re-arm sequence — remaining breaker fixes, a supervised
+single-machine re-arm, then the fleet, then default-on — is still owed, and
+every plugin-to-app path (sidebar completions included) runs at the
+five-minute poll until it lands.
 
 ---
 
