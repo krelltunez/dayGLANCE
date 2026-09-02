@@ -336,6 +336,97 @@ describe('the bridge brake (429 backoff)', () => {
   });
 });
 
+describe('AUDIT FIX M2 — the outbox never silently unbooks, and big backlogs drain in chunks', () => {
+  // Entries shaped exactly as emitBridgeIntent persists them.
+  const seedOutbox = (n) => {
+    const entries = Array.from({ length: n }, (_, i) => ({
+      v: 1, kind: 'intent', type: 'daily_note_write', intentId: `int-seed-${i}`,
+      createdAt: '2026-09-01T00:00:00.000Z', path: `${i}.md`, content: `c${i}`,
+    }));
+    localStorage.setItem(OUTBOX_KEY, JSON.stringify(entries));
+    return entries;
+  };
+
+  it('THE CAP PIN: a full outbox refuses the NEWEST emit and keeps the oldest — no shift, no silent unbooking', async () => {
+    globalThis.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) }); // flush can't drain
+    seedOutbox(500);
+    expect(emitBridgeIntent('daily_note_write', { path: 'new.md', content: 'z' })).toBe(false);
+    await new Promise((r) => setTimeout(r, 0));
+    const outbox = JSON.parse(localStorage.getItem(OUTBOX_KEY));
+    expect(outbox).toHaveLength(500);
+    // The oldest booked entry is STILL THERE (the pre-fix shape shifted it
+    // out and reported the new emit as queued).
+    expect(outbox[0].intentId).toBe('int-seed-0');
+    expect(outbox.some((i) => i.path === 'new.md')).toBe(false);
+  });
+
+  it('one below the cap still queues (contrast)', async () => {
+    globalThis.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
+    seedOutbox(499);
+    expect(emitBridgeIntent('daily_note_write', { path: 'new.md', content: 'z' })).toBe(true);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(JSON.parse(localStorage.getItem(OUTBOX_KEY))).toHaveLength(500);
+  });
+
+  it('a 120-entry backlog drains as 50/50/20 chunks, oldest first, and the queue empties', async () => {
+    globalThis.fetch = makeFetch();
+    seedOutbox(120);
+    expect(await flushBridgeOutbox()).toBe(true);
+    const sizes = globalThis.fetch.batches.map((b) => b.rows.length);
+    expect(sizes).toEqual([50, 50, 20]);
+    expect(globalThis.fetch.batches[0].rows[0].entityId).toBe('int:int-seed-0');
+    expect(JSON.parse(localStorage.getItem(OUTBOX_KEY))).toHaveLength(0);
+  });
+
+  it('THE PARTIAL-FAILURE PIN: a failure on chunk 2 keeps chunk 1 flushed and retries ONLY the unsent tail', async () => {
+    let calls = 0;
+    const batches = [];
+    globalThis.fetch = async (url, init = {}) => {
+      if (url.includes('/sync/dayglance-bridge/batch')) {
+        calls += 1;
+        if (calls === 2) return { ok: false, status: 500, json: async () => ({}) };
+        batches.push(JSON.parse(init.body));
+        return { ok: true, status: 200, json: async () => ({ written: 1, maxSeq: calls }) };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    };
+    seedOutbox(120);
+    expect(await flushBridgeOutbox()).toBe(false);
+    // First chunk's 50 are gone for good; the failed chunk and the tail stay.
+    let remaining = JSON.parse(localStorage.getItem(OUTBOX_KEY));
+    expect(remaining).toHaveLength(70);
+    expect(remaining[0].intentId).toBe('int-seed-50');
+    // The pre-fix all-or-nothing shape would now retry all 120 as one
+    // request; the retry sends exactly the 70 left, in two chunks.
+    expect(await flushBridgeOutbox()).toBe(true);
+    expect(batches.map((b) => b.rows.length)).toEqual([50, 50, 20]);
+    expect(JSON.parse(localStorage.getItem(OUTBOX_KEY))).toHaveLength(0);
+  });
+
+  it('an emit racing in during the flush survives it untouched', async () => {
+    let injected = false;
+    globalThis.fetch = async (url, init = {}) => {
+      if (url.includes('/sync/dayglance-bridge/batch')) {
+        if (!injected) {
+          injected = true;
+          // Simulate a concurrent emit landing while the request is in flight.
+          const raced = JSON.parse(localStorage.getItem(OUTBOX_KEY));
+          raced.push({ v: 1, kind: 'intent', type: 'daily_note_write', intentId: 'int-raced', createdAt: '2026-09-01T00:00:01.000Z', path: 'raced.md', content: 'r' });
+          localStorage.setItem(OUTBOX_KEY, JSON.stringify(raced));
+        }
+        JSON.parse(init.body);
+        return { ok: true, status: 200, json: async () => ({ written: 1, maxSeq: 1 }) };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    };
+    seedOutbox(60);
+    // Not empty after the attempt (the raced entry remains) → false.
+    expect(await flushBridgeOutbox()).toBe(false);
+    const remaining = JSON.parse(localStorage.getItem(OUTBOX_KEY));
+    expect(remaining.map((i) => i.intentId)).toEqual(['int-raced']);
+  });
+});
+
 describe('round trip with the plugin-side seal', () => {
   it('a row the plugin seals under the imported subkey opens on the app side (both directions, one wire format)', async () => {
     const subkey = await deriveBridgeSubkey(getDbRootKey(), SALT);
