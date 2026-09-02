@@ -41,7 +41,8 @@ const timeKey = (t) => (t.isAllDay || !t.startTime ? '' : t.startTime);
 /**
  * Build the agenda for a date window.
  *
- * @param {{ tasks?: object[], recurringTasks?: object[] }} data  the app's lists
+ * @param {{ tasks?: object[], recurringTasks?: object[], calendarEvents?: object[] }} data  the app's lists
+ *   (calendarEvents: read-only events merged from device projections — see calendar.js)
  * @param {{ from: string, to: string, includeImported?: boolean }} opts  inclusive YYYY-MM-DD bounds
  * @returns {Record<string, object[]>}  date → items sorted all-day first, then by time
  *
@@ -66,6 +67,17 @@ export function buildAgenda(data, { from, to, includeImported = true } = {}) {
   }
   for (const r of data?.recurringTasks || []) {
     for (const inst of expandRecurringTemplate(r, from, to)) push(inst.date, inst);
+  }
+  if (includeImported) {
+    for (const e of data?.calendarEvents || []) {
+      if (!e || !e.date || e.date < from || e.date > to) continue;
+      push(e.date, {
+        id: String(e.id), title: e.title ?? '', startTime: e.isAllDay ? null : (e.startTime || null), duration: e.duration ?? null,
+        color: e.color || null, isAllDay: !!e.isAllDay, completed: !!e.completed,
+        recurring: false, imported: true, projected: true, date: e.date, projectId: null,
+        ...(e.calendarName ? { calendarName: e.calendarName } : {}),
+      });
+    }
   }
   for (const list of Object.values(byDate)) {
     list.sort((a, b) => {

@@ -18,6 +18,9 @@ export interface AgendaItem {
   completed: boolean;
   recurring: boolean;
   imported?: boolean;
+  /** True for an event that came from a device's calendar projection (read-only). */
+  projected?: boolean;
+  calendarName?: string;
   date: string;
   projectId?: string | null;
   templateId?: string;
@@ -26,7 +29,7 @@ export interface AgendaItem {
 export function recurringInstanceId(templateId: string, dateStr: string): string;
 export function expandRecurringTemplate(template: unknown, fromStr: string, toStr: string): AgendaItem[];
 export function buildAgenda(
-  data: { tasks?: unknown[]; recurringTasks?: unknown[] },
+  data: { tasks?: unknown[]; recurringTasks?: unknown[]; calendarEvents?: unknown[] },
   opts: { from: string; to: string; includeImported?: boolean },
 ): Record<string, AgendaItem[]>;
 export function datesWithItems(agenda: Record<string, AgendaItem[]>): Set<string>;
@@ -51,3 +54,18 @@ export type TitleSegment =
   | { type: 'tag'; text: string; tag: string }
   | { type: 'link'; text: string; target: string };
 export function splitTitle(title: string): TitleSegment[];
+
+export interface CalendarProjection {
+  v: number;
+  kind: 'projection';
+  type: 'calendar';
+  deviceId: string;
+  from: string;
+  to: string;
+  publishedAt: string;
+  events: unknown[];
+}
+export function mergeCalendarProjections(
+  projections: unknown[],
+  opts: { from: string; to: string; nowMs?: number; maxAgeMs?: number },
+): { events: unknown[]; freshestAt: number | null };

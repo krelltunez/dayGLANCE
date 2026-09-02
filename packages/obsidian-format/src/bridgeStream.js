@@ -75,6 +75,17 @@ export const BRIDGE_OBSERVATION_PREFIX = 'obs:';
 // dayGLANCE deletes an action row after applying it (idempotent by actionId).
 export const BRIDGE_ACTION_PREFIX = 'act:';
 
+// Projection rows (companion 4.2, calendar events): dayGLANCE publishes a
+// derived, device-authored view of data it deliberately does NOT sync — the
+// read-only calendar events the payload builder excludes — so the plugin's
+// agenda can show them without becoming a calendar client. One upserted row
+// per publishing device, `proj:calendar:<deviceId>`, sealed under the
+// pairing subkey. Payload `{v:1, kind:'projection', type:'calendar',
+// deviceId, from, to, publishedAt, events:[…]}`. Readers union the rows and
+// prefer the freshest copy of an event id. Never deleted by the reader.
+export const BRIDGE_PROJECTION_PREFIX = 'proj:';
+export const bridgeCalendarProjectionId = (deviceId) => `${BRIDGE_PROJECTION_PREFIX}calendar:${deviceId}`;
+
 const enc = new TextEncoder();
 // Chunked bytes→base64: String.fromCharCode(...bytes) blows the argument
 // limit (~64k) on large payloads, and an observation carries a whole note.

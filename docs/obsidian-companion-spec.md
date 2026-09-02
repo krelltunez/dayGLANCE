@@ -361,6 +361,35 @@ ruling below).
    unreachable, rows unreadable under this passphrase) once ready.
 7. **Mobile.** The same `ItemView` opens in the right sidebar drawer on mobile;
    no separate layout in v1.
+8. **Calendar events ride a projection, not the data plane (2026-09-02, owner
+   ruling: option 1).** The first field test showed no calendar events: the
+   sync payload structurally excludes read-only calendar events
+   (`payloadExclusions.js` — subscription feeds are re-fetched per device,
+   native device-calendar rows never leave the phone), so no mirror can carry
+   them. Three options were weighed: (1) each running dayGLANCE publishes a
+   PROJECTION of the events it holds; (2) the plugin fetches the feeds itself
+   (feed URLs and credentials leaving the app, a second import pipeline, a
+   wider network footprint for directory review); (3) stop excluding the
+   events from sync (reopens the glitch-loop and multi-user-leak ground the
+   exclusion settled). The owner chose (1), having arrived at it from (2).
+   Built: `utils/obsidianCalendarProjection.js` builds `{v:1,
+   kind:'projection', type:'calendar', deviceId, from, to, publishedAt,
+   events}` for ±35 days from exactly the excluded classes;
+   `publishBridgeCalendarProjection` seals it under the bridge subkey into one
+   upserted `proj:calendar:<deviceId>` row (`BRIDGE_PROJECTION_PREFIX`) per
+   cycle, guarded once-per-(generation, content) so an unchanged calendar
+   costs no request and the daily window slide republishes at least daily.
+   Derived data authored by the app: NOT a data-plane write, so the
+   single-writer boundary is untouched. The plugin keeps a second cursor over
+   the bridge namespace for `proj:` rows and unions them
+   (`mergeCalendarProjections` in agenda-core: freshest copy per event id,
+   projections older than seven days ignored, so a device that stops
+   publishing cannot pin stale events). The status footer says "Calendar as
+   of N h ago" once the freshest projection is over an hour old. Known
+   limits: a phone's native events are merged into its task list only for
+   the date it is viewing, so its projection carries native events for that
+   day alone; in multi-user mode each device projects its own user's feeds
+   and the plugin shows the union.
 
 **Owner ruling (2026-09-02, pending).** The owner expected the plugin to be
 "a GLANCEvault client like any other, with full access to dayGLANCE"; decision
@@ -695,4 +724,5 @@ Read-write scan scope is not in this phase. See 6.2.
 | 8 | Completion-log line shape (scan-collision constraint, 4.1) | **Decided: non-task shape** (`- ✅ …`), built |
 | 9 | Sidebar completion write path for tasks with no vault line (4.2) | **Decided: action rows** (`act:` on the bridge stream), applied by dayGLANCE as the single data-plane writer; built |
 | 11 | Plugin reads the data plane with a device-local root key derived from the sync passphrase (4.2, decision 1) | Built under a standing veto; owner ruling pending |
+| 12 | Calendar events in the sidebar (excluded from sync by design) | **Decided: dayGLANCE publishes a per-device projection row** on the bridge stream; the plugin unions them (4.2, decision 8); built |
 | 10 | Ownership rule for dayGLANCE-maintained frontmatter (4.3) | Open; what-wins-on-divergence category, ruling before first write |
