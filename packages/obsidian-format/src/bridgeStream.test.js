@@ -194,6 +194,55 @@ describe('applyBridgeIntent — notes', () => {
     expect(existing).toEqual({ text: 'x', changed: true });
   });
 
+  it('completion_log_append: inserts at SECTION END, dedupes by exact line, creates the note when absent', () => {
+    const entry = '- ✅ 14:32 Review Q2 contract draft [completion:: 2026-04-06T14:32:00] #legal';
+    const intent = { type: 'completion_log_append', path: '2026-04-06.md', date: '2026-04-06', heading: '## Completed', template: '# My day\n', entry };
+    // Creation: frontmatter + template + heading + entry.
+    const created = applyBridgeIntent(null, intent);
+    expect(created.changed).toBe(true);
+    expect(created.text.startsWith('---\n')).toBe(true);
+    expect(created.text).toContain('# My day');
+    expect(created.text).toContain(`## Completed\n${entry}`);
+    // Section-end insertion: a second entry lands BELOW the first (the log
+    // is chronological, newest last), and the next section is untouched.
+    const second = '- ✅ 15:01 Call accountant [completion:: 2026-04-06T15:01:00]';
+    const two = applyBridgeIntent(created.text, { ...intent, entry: second });
+    expect(two.text).toContain(`${entry}\n${second}`);
+    // Replay is a no-op — including against a hand-added trailing space.
+    expect(applyBridgeIntent(two.text, { ...intent, entry: second }).changed).toBe(false);
+    const padded = two.text.replace(second, `${second}  `);
+    expect(applyBridgeIntent(padded, { ...intent, entry: second }).changed).toBe(false);
+  });
+
+  it('completion_log_append: entries under the heading never disturb other sections; a missing heading is created at note end', () => {
+    const note = '# Day\n\n## Tasks\n- [ ] Open thing\n\n## Notes\nfree text\n';
+    const entry = '- ✅ 09:45 Update roadmap [completion:: 2026-04-06T09:45:00]';
+    const out = applyBridgeIntent(note, { type: 'completion_log_append', path: 'x.md', date: '2026-04-06', heading: '## Completed', template: '', entry });
+    expect(out.changed).toBe(true);
+    // Appended at the end with its heading; Tasks and Notes untouched.
+    expect(out.text).toContain('## Tasks\n- [ ] Open thing');
+    expect(out.text).toContain('## Notes\nfree text');
+    expect(out.text).toContain(`## Completed\n${entry}`);
+    // Now with the heading present mid-note: the entry stays INSIDE that
+    // section, before the next heading.
+    const mid = '# Day\n\n## Completed\n- ✅ 08:00 Early thing [completion:: 2026-04-06T08:00:00]\n\n## Notes\ntext\n';
+    const out2 = applyBridgeIntent(mid, { type: 'completion_log_append', path: 'x.md', date: '2026-04-06', heading: '## Completed', template: '', entry });
+    expect(out2.text).toContain(`Early thing [completion:: 2026-04-06T08:00:00]\n${entry}\n\n## Notes`);
+  });
+
+  it('completion_log_append: THE SCAN-COLLISION GUARD — a multi-line or headingless entry is refused, never written', () => {
+    // A multi-line entry could smuggle a task-shaped line past the
+    // formatter's non-task guarantee; the applier refuses it outright.
+    const smuggle = '- ✅ ok\n- [ ] smuggled task';
+    const base = '# Day\n';
+    expect(applyBridgeIntent(base, { type: 'completion_log_append', path: 'x.md', date: 'd', heading: '## Completed', template: '', entry: smuggle }))
+      .toEqual({ text: base, changed: false });
+    expect(applyBridgeIntent(base, { type: 'completion_log_append', path: 'x.md', date: 'd', heading: '', template: '', entry: '- ✅ ok' }))
+      .toEqual({ text: base, changed: false });
+    expect(applyBridgeIntent(base, { type: 'completion_log_append', path: 'x.md', date: 'd', heading: '## Completed', template: '', entry: '' }))
+      .toEqual({ text: base, changed: false });
+  });
+
   it('unknown intent types are unsupported, never a throw (forward compatibility)', () => {
     expect(applyBridgeIntent('x', { type: 'task_delete' })).toEqual({ unsupported: true });
     expect(applyBridgeIntent('x', null)).toEqual({ unsupported: true });
