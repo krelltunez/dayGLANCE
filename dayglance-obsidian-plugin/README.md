@@ -33,7 +33,10 @@ manually or via BRAT, not submitted to the community directory.
   edit; that is dayGLANCE's scan pipeline's job.
 - **Agenda sidebar** (companion spec 4.2): a right-sidebar view — mini
   month calendar over the selected day's agenda (scheduled tasks, recurring
-  instances, imported calendar events; ±35 days around today; no inbox).
+  instances, imported calendar events; ±35 days around today; no inbox),
+  with the day's placed routines as a pill strip underneath (name and start
+  time). Tags in titles render faded; `[[wikilinks]]` render as their display
+  text and click through to the note.
   It reads the account's task rows directly from GLANCEvault: enter your
   dayGLANCE **sync passphrase** once per device in the settings tab's
   "dayGLANCE account" section. The derived root key is kept in the plugin's

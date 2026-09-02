@@ -37,7 +37,7 @@ import {
   BRIDGE_VAULT_APP,
   BRIDGE_ACTION_PREFIX,
 } from '@glance-apps/obsidian-format';
-import { buildAgenda, type AgendaItem } from '@glance-apps/agenda-core';
+import { buildAgenda, routinesForDate, type AgendaItem, type RoutineItem } from '@glance-apps/agenda-core';
 import { createVaultClient, type VaultClient } from '@glance-apps/sync/src/vaultClient.js';
 import {
   setupDbRootKey,
@@ -57,8 +57,12 @@ const DAYGLANCE_APP = 'dayglance';
 const CRYPTO_DB_NAME = 'dayglance-bridge';
 // Row kinds the agenda reads. The inbox (unscheduledTasks) is deliberately
 // absent — the v1 scope ruling. entityIds are `${kind}:${id}` (dbAdapter's
-// scheme), so the kind is readable before decryption.
-const AGENDA_KINDS = new Set(['tasks', 'recurringTasks']);
+// scheme), so the kind is readable before decryption. Routines are the
+// day's placed chips (todayRoutines) plus two singletons: the day they were
+// placed for and the day's completions.
+const AGENDA_KINDS = new Set(['tasks', 'recurringTasks', 'todayRoutines']);
+const SINGLETON_KIND = 'singleton';
+const AGENDA_SINGLETONS = new Set(['routinesDate', 'routineCompletions']);
 // Optimistic completion marks time out: dayGLANCE applies an action within
 // one poll (5 min) once it runs, and a mark older than this with no mirror
 // change behind it means nothing is consuming — show the box unchecked
@@ -121,6 +125,8 @@ export class AgendaStore {
   private host: AgendaHost;
   private tasks = new Map<string, TaskRow>();
   private recurring = new Map<string, TaskRow>();
+  private routines = new Map<string, TaskRow>();
+  private singletons = new Map<string, unknown>();
   private cursor = 0;
   private cursorAccount: string | null = null;
   private status: AgendaStatus = { key: 'unpaired', refreshing: false, lastRefreshedAt: null, lastError: null, undecryptable: 0 };
@@ -166,6 +172,15 @@ export class AgendaStore {
     if (at === undefined) return false;
     if (Date.now() - at > PENDING_TTL_MS) { this.pending.delete(id); return false; }
     return true;
+  }
+
+  /** The routines placed for a day (only the day dayGLANCE stamped; see agenda-core). */
+  routinesFor(dateStr: string): RoutineItem[] {
+    return routinesForDate({
+      todayRoutines: [...this.routines.values()],
+      routinesDate: this.singletons.get('routinesDate') as string | null | undefined,
+      routineCompletions: this.singletons.get('routineCompletions') as Record<string, string> | undefined,
+    }, dateStr);
   }
 
   /** The agenda for an inclusive YYYY-MM-DD window, from the mirror. */
@@ -258,16 +273,20 @@ export class AgendaStore {
           if (!entityId || isReservedEntityId(entityId)) continue;
           const colon = entityId.indexOf(':');
           const kind = colon < 0 ? '' : entityId.slice(0, colon);
-          if (!AGENDA_KINDS.has(kind)) continue;
-          const map = kind === 'tasks' ? this.tasks : this.recurring;
+          const key = entityId.slice(colon + 1);
+          const map = kind === SINGLETON_KIND
+            ? (AGENDA_SINGLETONS.has(key) ? this.singletons : null)
+            : (AGENDA_KINDS.has(kind) ? this.mapFor(kind) : null);
+          if (!map) continue;
+          const mapKey = kind === SINGLETON_KIND ? key : entityId;
           if (row.deleted || !row.envelope) {
-            if (map.delete(entityId)) changed = true;
+            if (map.delete(mapKey)) changed = true;
             continue;
           }
           const value = await this.decryptRow(row.envelope, entityId, kind);
           if (value === undefined) { undecryptable += 1; continue; }
           if (value === null) continue;
-          map.set(entityId, value);
+          map.set(mapKey, value as TaskRow);
           changed = true;
         }
       }
@@ -284,16 +303,23 @@ export class AgendaStore {
     }
   }
 
+  private mapFor(kind: string): Map<string, TaskRow> {
+    return kind === 'tasks' ? this.tasks : kind === 'recurringTasks' ? this.recurring : this.routines;
+  }
+
   // undefined = undecryptable under this key; null = decryptable but not a
-  // row of the expected kind (never routed); otherwise the task value.
-  private async decryptRow(envelope: string, entityId: string, kind: string): Promise<TaskRow | null | undefined> {
+  // row of the expected kind (never routed); otherwise the entity's value
+  // (a task/chip object for collections, the bare value for singletons).
+  private async decryptRow(envelope: string, entityId: string, kind: string): Promise<unknown | null | undefined> {
     let entity: unknown;
     try { entity = await decryptEntity(envelope, entityId); }
     catch { return undefined; }
     if (!entity || typeof entity !== 'object') return null;
     const wrapped = entity as { _kind?: unknown; value?: unknown };
-    if (wrapped._kind !== kind || !wrapped.value || typeof wrapped.value !== 'object') return null;
-    return wrapped.value as TaskRow;
+    if (wrapped._kind !== kind) return null;
+    if (kind === SINGLETON_KIND) return wrapped.value ?? null;
+    if (!wrapped.value || typeof wrapped.value !== 'object') return null;
+    return wrapped.value;
   }
 
   // Drop optimistic marks the mirror has caught up with, and expired ones.
@@ -375,6 +401,8 @@ export class AgendaStore {
   private resetMirror(accountId: string | null = null): void {
     this.tasks.clear();
     this.recurring.clear();
+    this.routines.clear();
+    this.singletons.clear();
     this.pending.clear();
     this.cursor = 0;
     this.cursorAccount = accountId;

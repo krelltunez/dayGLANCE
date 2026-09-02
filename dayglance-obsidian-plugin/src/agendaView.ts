@@ -9,8 +9,8 @@
 // here (no styles.css to ship) and lean entirely on Obsidian's theme
 // variables so the view follows the user's theme.
 
-import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
-import { datesWithItems, localDateStr, shiftDateStr, weekdayOrder, type AgendaItem } from '@glance-apps/agenda-core';
+import { ItemView, Keymap, Notice, WorkspaceLeaf } from 'obsidian';
+import { datesWithItems, localDateStr, shiftDateStr, splitTitle, weekdayOrder, type AgendaItem, type RoutineItem } from '@glance-apps/agenda-core';
 import type { AgendaStore } from './agenda';
 
 export const AGENDA_VIEW_TYPE = 'dayglance-agenda';
@@ -46,6 +46,17 @@ const CSS = `
 .dg-agenda-time { color: var(--text-muted); font-size: var(--font-ui-smaller); font-variant-numeric: tabular-nums; }
 .dg-agenda-title { overflow-wrap: anywhere; }
 .dg-agenda-badge { color: var(--text-faint); font-size: var(--font-ui-smaller); margin-left: 4px; }
+.dg-agenda-tag { color: var(--text-faint); font-style: italic; }
+.dg-agenda-link { color: var(--link-color); text-decoration: none; cursor: pointer; }
+.dg-agenda-link:hover { text-decoration: underline; }
+.dg-agenda-routines-heading { color: var(--text-faint); font-size: var(--font-ui-smaller); text-transform: uppercase; letter-spacing: 0.06em; margin: 12px 2px 4px; }
+.dg-agenda-routines { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 0; padding: 0; list-style: none; }
+.dg-agenda-routine { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 8px; border-radius: 999px; background: var(--background-secondary-alt); border: 1px solid var(--background-modifier-border); color: var(--text-muted); font-size: var(--font-ui-smaller); max-width: 100%; }
+.dg-agenda-routine-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent); flex: 0 0 auto; opacity: 0.7; }
+.dg-agenda-routine-time { font-variant-numeric: tabular-nums; color: var(--text-faint); }
+.dg-agenda-routine-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dg-agenda-routine.is-done { opacity: 0.55; }
+.dg-agenda-routine.is-done .dg-agenda-routine-name { text-decoration: line-through; }
 .dg-agenda-swatch { flex: 0 0 4px; width: 4px; align-self: stretch; border-radius: 2px; }
 .dg-agenda-empty { color: var(--text-muted); padding: 8px 2px; }
 .dg-agenda-status { color: var(--text-faint); font-size: var(--font-ui-smaller); margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--background-modifier-border); }
@@ -231,8 +242,12 @@ export class AgendaView extends ItemView {
     }
     if (!items.length) {
       root.createDiv({ cls: 'dg-agenda-empty', text: 'Nothing scheduled.' });
-      return;
     }
+    if (items.length) this.renderItems(root, items);
+    this.renderRoutines(root, this.store.routinesFor(this.selected));
+  }
+
+  private renderItems(root: HTMLElement, items: AgendaItem[]): void {
     const list = root.createEl('ul', { cls: 'dg-agenda-list' });
     for (const item of items) {
       const pending = !item.completed && this.store.isPending(item.id);
@@ -262,9 +277,43 @@ export class AgendaView extends ItemView {
         const end = item.duration ? endOf(item.startTime, item.duration) : null;
         body.createSpan({ cls: 'dg-agenda-time', text: end ? `${formatTime(item.startTime)} to ${end}` : formatTime(item.startTime) });
       }
-      const title = body.createSpan({ cls: 'dg-agenda-title', text: item.title });
+      const title = body.createSpan({ cls: 'dg-agenda-title' });
+      this.renderTitle(title, item.title);
       if (item.recurring) title.createSpan({ cls: 'dg-agenda-badge', text: '↻', attr: { title: 'Recurring' } });
       if (item.imported) title.createSpan({ cls: 'dg-agenda-badge', text: '📅', attr: { title: 'Imported calendar event' } });
+    }
+  }
+
+  // Tags faded and italic; wikilinks shown as their display text and
+  // clickable (mod-click opens in a new leaf, like Obsidian's own links).
+  private renderTitle(el: HTMLElement, title: string): void {
+    for (const seg of splitTitle(title)) {
+      if (seg.type === 'text') { el.appendText(seg.text); continue; }
+      if (seg.type === 'tag') { el.createSpan({ cls: 'dg-agenda-tag', text: seg.text }); continue; }
+      const a = el.createEl('a', { cls: 'dg-agenda-link', text: seg.text, attr: { 'aria-label': `Open ${seg.target}` } });
+      a.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        void this.app.workspace.openLinkText(seg.target, '', Keymap.isModEvent(evt));
+      });
+    }
+  }
+
+  // The day's placed routines, visually a different species from tasks: a
+  // strip of pills (no checkbox, no swatch), name and start time only.
+  // Routines are day-scoped in dayGLANCE (placed each morning, cleared at
+  // midnight), so only the stamped day ever has any.
+  private renderRoutines(root: HTMLElement, routines: RoutineItem[]): void {
+    if (!routines.length) return;
+    root.createDiv({ cls: 'dg-agenda-routines-heading', text: 'Routines' });
+    const list = root.createEl('ul', { cls: 'dg-agenda-routines' });
+    for (const r of routines) {
+      const li = list.createEl('li', { cls: 'dg-agenda-routine' });
+      if (r.completed) li.addClass('is-done');
+      li.createSpan({ cls: 'dg-agenda-routine-dot' });
+      if (r.startTime) li.createSpan({ cls: 'dg-agenda-routine-time', text: formatTime(r.startTime) });
+      li.createSpan({ cls: 'dg-agenda-routine-name', text: r.name });
+      li.setAttr('title', r.startTime ? `${r.name} at ${formatTime(r.startTime)}` : `${r.name} (any time)`);
     }
   }
 

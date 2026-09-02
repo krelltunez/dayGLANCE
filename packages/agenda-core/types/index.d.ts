@@ -32,3 +32,22 @@ export function buildAgenda(
 export function datesWithItems(agenda: Record<string, AgendaItem[]>): Set<string>;
 export function localDateStr(date: Date): string;
 export function shiftDateStr(dateStr: string, days: number): string;
+
+export interface RoutineItem {
+  id: string;
+  name: string;
+  startTime: string | null;
+  duration: number | null;
+  isAllDay: boolean;
+  completed: boolean;
+}
+export function routinesForDate(
+  data: { todayRoutines?: unknown[]; routinesDate?: string | null; routineCompletions?: Record<string, string> },
+  dateStr: string,
+): RoutineItem[];
+
+export type TitleSegment =
+  | { type: 'text'; text: string }
+  | { type: 'tag'; text: string; tag: string }
+  | { type: 'link'; text: string; target: string };
+export function splitTitle(title: string): TitleSegment[];

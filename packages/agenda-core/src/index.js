@@ -7,3 +7,5 @@
 // only — ownership policy stays in dayGLANCE.
 export * from './recurrence.js';
 export * from './agenda.js';
+export * from './routines.js';
+export * from './title.js';
