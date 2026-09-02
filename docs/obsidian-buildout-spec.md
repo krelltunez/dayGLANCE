@@ -548,6 +548,14 @@ its own future phase — the identity machinery is date-keyed at every layer
 soak and the staged SSE re-arm described in the status note at the top of
 this document.
 
+**Progress (2026-09-02).** The completion log (companion 4.1) and the sidebar
+view (companion 4.2) are built; the sidebar's full-reader design is recorded
+there with a pending owner ruling. A second shared package,
+`@glance-apps/agenda-core` (`packages/agenda-core`: the recurrence engine plus
+day-agenda expansion), now sits beside `@glance-apps/obsidian-format` under
+the same boundary rule (§3.11) — the app's `src/utils/recurrenceEngine.js`
+re-exports it, and the plugin bundles it.
+
 ---
 
 ## 7. Directory submission milestone

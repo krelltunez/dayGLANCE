@@ -15,6 +15,7 @@
     "typescript": "^5.4.0"
   },
   "dependencies": {
+    "@glance-apps/agenda-core": "file:../packages/agenda-core",
     "@glance-apps/obsidian-format": "file:../packages/obsidian-format",
     "@glance-apps/sync": "2.0.0"
   }

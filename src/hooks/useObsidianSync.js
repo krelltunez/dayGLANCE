@@ -36,6 +36,10 @@ import { withCreationFrontmatter } from '../utils/obsidianFrontmatter.js';
 import { writebackSnapshotEntry } from '../utils/obsidianWritebackSnapshot.js';
 import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, getBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
 import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations } from '../utils/obsidianBridgeInbound.js';
+import {
+  fetchBridgeActions, planBridgeActions, applyActionsToTasks, applyActionsToRecurring,
+  deleteBridgeActions, commitBridgeActionCursor,
+} from '../utils/obsidianBridgeActions.js';
 import { recordBridgeMode, reconcileArchivedBaseline } from '../utils/obsidianBridgeMode.js';
 import { restoreBinnedVaultTasks, binRestoreNoticeText } from '../utils/obsidianBinRestore.js';
 import {
@@ -100,12 +104,17 @@ export default function useObsidianSync({
   obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
   obsidianTasksRef, obsidianInboxRef,
   recycleBin, setRecycleBin,
+  // The sidebar's completion actions (companion spec 4.2) apply to recurring
+  // templates too; optional so existing harnesses need no change.
+  recurringTasks = [], setRecurringTasks = null,
 }) {
   // Fresh bin contents for the async sync cycle (same staleness fix as the
   // task refs above — interval-triggered syncs must not see the closure's
   // render-time copy).
   const recycleBinRef = useRef(recycleBin);
   recycleBinRef.current = recycleBin;
+  const recurringTasksRef = useRef(recurringTasks);
+  recurringTasksRef.current = recurringTasks;
   // Callbacks for reading/writing linked wiki notes from the vault
   const loadWikiNote = useCallback(async (noteName) => {
     const handle = obsidianVaultHandleRef.current;
@@ -515,6 +524,39 @@ export default function useObsidianSync({
       // plugin disabled, unpaired) reverts to direct on the next cycle —
       // §3.3's one revert path.
       const authoritative = bridgeHeartbeatRef.current.pluginAuthoritative;
+
+      // ── SIDEBAR ACTIONS (companion spec 4.2) ────────────────────────────
+      // The plugin's agenda view completes a task by emitting an `act:` row;
+      // dayGLANCE — the single data-plane writer — applies it here through
+      // the ordinary setters, so the completion log, the vault writeback and
+      // DB sync all see a completion made in the app. Runs in BOTH
+      // arbitration modes: the row was written by a paired plugin, but the
+      // Obsidian that wrote it may be a phone that has since gone to sleep,
+      // leaving this device's heartbeat stale. Unknown targets are held
+      // (the cursor stops below them); consumed rows are deleted.
+      try {
+        const fetchedActions = await fetchBridgeActions();
+        if (fetchedActions) {
+          const plan = planBridgeActions(fetchedActions.actions, {
+            tasks: currentTasks, unscheduledTasks: currentInbox, recurringTasks: recurringTasksRef.current,
+          });
+          if (plan.apply.length) {
+            setTasks(prev => applyActionsToTasks(prev, plan.apply));
+            setUnscheduledTasks(prev => applyActionsToTasks(prev, plan.apply));
+            if (setRecurringTasks) setRecurringTasks(prev => applyActionsToRecurring(prev, plan.apply));
+            console.info('[Obsidian] sidebar completion action(s) applied:',
+              plan.apply.map(a => a.templateId ? `${a.templateId}@${a.instanceDate}` : a.taskId).join(', '));
+          }
+          if (plan.hold.length) {
+            console.info('[Obsidian] sidebar action(s) held (target not on this device yet):', plan.hold.map(a => a.actionId).join(', '));
+          }
+          await deleteBridgeActions([...plan.apply, ...plan.stale]);
+          commitBridgeActionCursor(fetchedActions.maxSeq, plan.hold);
+        }
+      } catch (e) {
+        console.warn('[Obsidian] sidebar action pass failed (retried next cycle):', e);
+      }
+
       // Gate (b), as amended: a direct→plugin transition ARCHIVES the
       // detector baseline (stamped with the transition time); both
       // directions clear the live one — see utils/obsidianBridgeMode.js,

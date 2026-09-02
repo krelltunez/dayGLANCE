@@ -45,6 +45,9 @@ import { TFile } from 'obsidian';
 import { PairingModal, readPairingOfferText, type BridgePairing } from './pairing';
 import { BridgeSettingTab, type BridgeSettingsHost } from './settingsTab';
 import { BridgeTransport, publishPairingMeta, type BridgeState } from './bridge';
+import { AgendaStore } from './agenda';
+import { localDateStr } from '@glance-apps/agenda-core';
+import { AgendaView, AGENDA_VIEW_TYPE, removeAgendaStyles } from './agendaView';
 
 const HEARTBEAT_DIR = '.dayglance';
 const HEARTBEAT_PATH = `${HEARTBEAT_DIR}/heartbeat`;
@@ -80,6 +83,9 @@ export default class DayGlanceBridgePlugin extends Plugin {
   private deviceId = '';
   private data: BridgeData = {};
   private transport!: BridgeTransport;
+  // The sidebar view's data (companion spec 4.2): a read mirror of the
+  // account's task rows plus the completion-action emitter.
+  private agenda!: AgendaStore;
   // One nudge per offer appearance: reset when the file disappears, so a
   // fresh offer (re-pair) nudges again but a sitting one doesn't nag.
   private offerNoticed = false;
@@ -92,6 +98,12 @@ export default class DayGlanceBridgePlugin extends Plugin {
     }
     this.deviceId = this.data.deviceId;
 
+    this.agenda = new AgendaStore({
+      app: this.app,
+      getPairing: () => this.data.pairing,
+    });
+    void this.agenda.init();
+
     this.transport = new BridgeTransport({
       app: this.app,
       getPairing: () => this.data.pairing,
@@ -100,6 +112,17 @@ export default class DayGlanceBridgePlugin extends Plugin {
         this.data.bridge = state;
         await this.saveData(this.data);
       },
+      // A successful drain (tick or SSE nudge) is the agenda's refresh
+      // signal too: dayGLANCE's pushes advance the same account seq.
+      onSynced: () => { void this.agenda.refresh(); },
+    });
+
+    this.registerView(AGENDA_VIEW_TYPE, (leaf) => new AgendaView(leaf, this.agenda));
+    this.addRibbonIcon('calendar-check', 'Open dayGLANCE agenda', () => { void this.openAgenda(); });
+    this.addCommand({
+      id: 'open-agenda',
+      name: 'Open agenda',
+      callback: () => { void this.openAgenda(); },
     });
 
     // Outbound observations: report file state, never inferred edits
@@ -152,6 +175,10 @@ export default class DayGlanceBridgePlugin extends Plugin {
       syncNow: async () => {
         await Promise.all([this.transport.drain(), this.writeHeartbeat()]);
       },
+      agendaKeyState: () => this.agenda.getStatus().key,
+      verifyPassphrase: (passphrase) => this.agenda.verifyPassphrase(passphrase),
+      forgetPassphrase: () => this.agenda.forgetKey(),
+      openAgenda: () => this.openAgenda(),
     };
     this.addSettingTab(new BridgeSettingTab(host));
 
@@ -197,6 +224,8 @@ export default class DayGlanceBridgePlugin extends Plugin {
     // Live sync (Phase 7): close the SSE stream and cancel its timers —
     // a disabled plugin must not hold a socket open.
     this.transport.shutdown();
+    this.agenda.dispose();
+    removeAgendaStyles(document);
     // Best-effort: a graceful quit (or a plugin disable — equally "no
     // bridge here") removes the file so readers see the truth immediately
     // instead of waiting out the staleness window. Crashes skip this, which
@@ -217,10 +246,25 @@ export default class DayGlanceBridgePlugin extends Plugin {
     // Live sync must not outlive its credentials (armed-by-proof invariant):
     // tear the stream down with the pairing, not a tick later.
     this.transport.shutdown();
+    // The account key is scoped to the pairing's account: forget it too, so
+    // a re-pair to a different account never decrypts with the wrong key.
+    await this.agenda.forgetKey();
     await this.saveData(this.data);
     await publishPairingMeta(null, previous).catch(() => {});
     await this.writeHeartbeat();
     new Notice('dayGLANCE bridge: unpaired. Also revoke the device token on your GLANCEvault server — unpairing only forgets the local credentials.');
+  }
+
+  // Reveal (or create, in the right sidebar) the agenda view, landing on
+  // today. One leaf: reuse an existing one rather than stacking copies.
+  private async openAgenda(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(AGENDA_VIEW_TYPE)[0];
+    const leaf = existing ?? this.app.workspace.getRightLeaf(false);
+    if (!leaf) return;
+    if (!existing) await leaf.setViewState({ type: AGENDA_VIEW_TYPE, active: true });
+    void this.app.workspace.revealLeaf(leaf);
+    const view = leaf.view;
+    if (view instanceof AgendaView) view.showDate(localDateStr(new Date()));
   }
 
   private async writeHeartbeat(): Promise<void> {

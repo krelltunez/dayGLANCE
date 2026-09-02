@@ -279,7 +279,7 @@ This is GLANCEvault-only by construction. That is accepted: it's consistent with
 the freeze decision, and it is a genuine argument in favor of GLANCEvault Pro
 existing.
 
-#### Open questions
+#### Open questions (as originally posed)
 - Live via SSE, or refreshed on view activation plus a poll? **Leaning SSE, same
   as Phase 7** — the plugin already holds a connection and the constraints are
   similar. Worth confirming that a passive view should hold one, since Phase 7's
@@ -297,6 +297,78 @@ existing.
   semantics, not the transport.
 - What does it show when the credential is missing or the vault unreachable?
 - Mobile layout — the sidebar metaphor differs on phones and tablets.
+
+#### Built (2026-09-02) — the decisions of record
+
+Built overnight on accepted defaults, with a standing veto (see the owner
+ruling below).
+
+1. **The plugin is a full GLANCEvault READER, never a data-plane writer.** The
+   first cut assumed the plugin could not read task rows (they are sealed under
+   the account root key; the pairing carries only the HKDF bridge subkey). That
+   was wrong by omission: the plugin can derive the root key from the sync
+   passphrase exactly like any dayGLANCE client — PBKDF2 over the passphrase and
+   the account salt, proven by decrypting the engine's keycheck row. So the
+   settings tab gained a **dayGLANCE account** section: enter the sync
+   passphrase once per device; the derived key is persisted in IndexedDB under
+   the plugin's own database name (`dayglance-bridge-db`), and **neither the
+   passphrase nor the root bytes are ever written to `data.json`** — that file
+   rides Obsidian Sync to every copy of the vault, and a passphrase-equivalent
+   must not travel with it. Unpairing forgets the key with the credentials.
+   With the key, the store lists the `dayglance` app namespace, decrypts the
+   `tasks:` and `recurringTasks:` rows into an in-memory mirror (cursor-driven;
+   a plugin reload re-lists from seq 0, reads only), and the view is built from
+   it. The plugin **never** `encryptEntity()`s a data-plane row: dayGLANCE's
+   engine stays the single writer, and the own-ack/sequence obligations the
+   open question worried about are never taken on.
+2. **Completion travels as an ACTION ROW, applied by dayGLANCE.** Checking a box
+   seals `{v:1, kind:'action', type:'task_complete', actionId, taskId |
+   templateId+instanceDate, completedAt, createdAt}` under the pairing subkey
+   into an `act:`-prefixed row on the bridge stream (`BRIDGE_ACTION_PREFIX`).
+   dayGLANCE's sync cycle fetches action rows (in BOTH arbitration modes — the
+   phone that wrote the row may be asleep, leaving the desktop's heartbeat
+   stale), applies them through the ordinary state setters
+   (`utils/obsidianBridgeActions.js`: completed + completedAt from the action +
+   transitionId + lastModified; recurring instances join `completedDates` with a
+   per-date timestamp), and deletes the consumed rows. Because the completion
+   is made *in* dayGLANCE, the completion log (4.1), the vault writeback of the
+   checkbox, and DB sync all fire exactly as for an in-app completion. Unknown
+   targets are **held** — the cursor stops below the oldest held row so a task
+   that hasn't synced to this device yet is applied on a later cycle or by
+   another device — and consumed as stale after seven days. The view marks an
+   emitted completion as pending until the mirror reflects it (a 15-minute
+   optimistic mark, then the box reverts rather than lie).
+3. **Latency.** The mirror refreshes on the transport's cadence: the 30-second
+   tick and the drain's success tail (`BridgeHost.onSynced`), so an SSE nudge
+   makes the sidebar live without the store holding a second stream. The action
+   is consumed on dayGLANCE's side at its poll cadence (five minutes) until SSE
+   nudge consumption is re-armed; the owner accepted this, noting it matters
+   only if SSE stays off.
+4. **Scope.** Projection window of ±35 days around today; scheduled tasks,
+   recurring instances (exceptions and completedDates honored via the shared
+   expansion), and imported calendar events (shown, but completed in
+   dayGLANCE — their completion lives in a different store). **No inbox.** Only
+   completion; a completed box stays completed (no un-complete from here).
+5. **Shared expansion, one answer.** The recurrence engine moved out of
+   `src/utils/recurrenceEngine.js` into a new shared package
+   **`@glance-apps/agenda-core`** (`packages/agenda-core`: recurrence +
+   `buildAgenda`/`expandRecurringTemplate`), consumed verbatim by the app (the
+   old module re-exports it) and bundled into the plugin — so "what does today
+   hold" is computed by the same code in both places. Same boundary discipline
+   as `@glance-apps/obsidian-format` (buildout §3.11): expansion, never policy.
+6. **Missing credential / unreachable.** The view shows a setup line while
+   unpaired or keyless, and a status footer (last refreshed, rate-limited,
+   unreachable, rows unreadable under this passphrase) once ready.
+7. **Mobile.** The same `ItemView` opens in the right sidebar drawer on mobile;
+   no separate layout in v1.
+
+**Owner ruling (2026-09-02, pending).** The owner expected the plugin to be
+"a GLANCEvault client like any other, with full access to dayGLANCE"; decision
+1 delivers exactly that. The MECHANISM — the sync passphrase entered once per
+device in the plugin's settings, the derived key held device-locally — was
+proposed while the owner was away and built under an explicit standing veto.
+If vetoed, the read half is removed and the view falls back to what the
+observation stream can carry; this record is then amended.
 
 ---
 
@@ -617,9 +689,10 @@ Read-write scan scope is not in this phase. See 6.2.
 | 2 | Completion log for direct-access users too | **Decided: yes** (shared formatter/applier, both routes) |
 | 3 | What "create the project workspace" produces | Open |
 | 4 | Project frontmatter update cadence | Open; `data.json` churn lesson applies |
-| 5 | Sidebar refresh mechanism | Leaning SSE, confirm for a passive view |
+| 5 | Sidebar refresh mechanism | **Decided: no second stream.** The mirror refreshes on the transport's 30s tick and the drain success tail, so the existing SSE nudge feeds it (4.2, built) |
 | 6 | Read-only scan scope: which notes | Leaning daily notes plus wikilinked |
 | 7 | Note-key design for read-write scope | Deferred to its own phase; hard-stop category |
 | 8 | Completion-log line shape (scan-collision constraint, 4.1) | **Decided: non-task shape** (`- ✅ …`), built |
-| 9 | Sidebar completion write path for tasks with no vault line (4.2) | Open; a new data-plane writer, needs its own design |
+| 9 | Sidebar completion write path for tasks with no vault line (4.2) | **Decided: action rows** (`act:` on the bridge stream), applied by dayGLANCE as the single data-plane writer; built |
+| 11 | Plugin reads the data plane with a device-local root key derived from the sync passphrase (4.2, decision 1) | Built under a standing veto; owner ruling pending |
 | 10 | Ownership rule for dayGLANCE-maintained frontmatter (4.3) | Open; what-wins-on-divergence category, ruling before first write |

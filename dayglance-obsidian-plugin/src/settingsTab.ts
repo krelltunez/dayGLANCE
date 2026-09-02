@@ -14,6 +14,7 @@ import {
   type PairingHost,
   type BridgePairing,
 } from './pairing';
+import type { AgendaKeyState } from './agenda';
 
 // Stamped by esbuild at bundle time (see esbuild.config.mjs `define`).
 // Guarded so a build without the define (tests, tooling) still runs.
@@ -34,6 +35,14 @@ export interface BridgeSettingsHost extends PairingHost {
   unpair(): Promise<void>;
   /** Same action as the command-palette "Sync now": drain intents + refresh the heartbeat. */
   syncNow(): Promise<void>;
+  /**
+   * The sidebar's account-key half (agenda.ts). The passphrase is used once
+   * to derive the root key into device-local storage; it is never stored.
+   */
+  agendaKeyState(): AgendaKeyState;
+  verifyPassphrase(passphrase: string): Promise<{ ok: boolean; message: string }>;
+  forgetPassphrase(): Promise<void>;
+  openAgenda(): Promise<void>;
 }
 
 const pairedSince = (pairing: BridgePairing): string => {
@@ -57,6 +66,7 @@ export class BridgeSettingTab extends PluginSettingTab {
     const pairing = this.host.getPairing();
     if (pairing) {
       this.displayPaired(pairing);
+      this.displayAccount();
     } else {
       this.displayUnpaired();
     }
@@ -112,6 +122,66 @@ export class BridgeSettingTab extends PluginSettingTab {
           await this.host.unpair();
           this.display();
         }));
+  }
+
+  // The sidebar view reads the account's task rows directly from
+  // GLANCEvault, which needs the account root key on this device. The
+  // passphrase field is transient: it derives the key (PBKDF2, the same
+  // derivation dayGLANCE runs) into the plugin's own IndexedDB store and is
+  // discarded. Nothing here is written to data.json, which Obsidian Sync
+  // would carry to every copy of the vault.
+  private displayAccount(): void {
+    this.containerEl.createEl('h3', { text: 'dayGLANCE account' });
+    const state = this.host.agendaKeyState();
+    if (state === 'ready') {
+      new Setting(this.containerEl)
+        .setName('Sync passphrase verified on this device')
+        .setDesc('The dayGLANCE agenda view can read your tasks. The key is stored only on this device; the passphrase itself was not kept.')
+        .addButton((btn) => btn
+          .setButtonText('Open agenda')
+          .setCta()
+          .onClick(() => void this.host.openAgenda()))
+        .addButton((btn) => btn
+          .setButtonText('Forget')
+          .setWarning()
+          .onClick(async () => {
+            await this.host.forgetPassphrase();
+            this.display();
+          }));
+      return;
+    }
+    let passphrase = '';
+    let resultEl: HTMLElement | null = null;
+    const submit = async () => {
+      if (this.busy) return;
+      this.busy = true;
+      resultEl?.setText('Checking…');
+      try {
+        const result = await this.host.verifyPassphrase(passphrase);
+        if (result.ok) {
+          new Notice(`dayGLANCE bridge: ${result.message}`);
+          this.display();
+        } else {
+          resultEl?.setText(result.message);
+        }
+      } finally {
+        this.busy = false;
+      }
+    };
+    new Setting(this.containerEl)
+      .setName('Sync passphrase')
+      .setDesc('Your dayGLANCE database-sync passphrase. Needed once per device so the agenda view can decrypt your tasks. It is used to derive a key and then discarded.')
+      .addText((text) => {
+        text.setPlaceholder('passphrase').onChange((v) => { passphrase = v; });
+        text.inputEl.type = 'password';
+        text.inputEl.autocomplete = 'off';
+        text.inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') void submit(); });
+      })
+      .addButton((btn) => btn
+        .setButtonText('Verify')
+        .setCta()
+        .onClick(() => void submit()));
+    resultEl = this.containerEl.createEl('p', { text: '', cls: 'setting-item-description' });
   }
 
   private displayUnpaired(): void {

@@ -66,6 +66,14 @@ export const BRIDGE_PAIRING_META_ID = 'meta:pairing';
 export const BRIDGE_CONFIG_META_ID = 'meta:config';
 export const BRIDGE_INTENT_PREFIX = 'int:';
 export const BRIDGE_OBSERVATION_PREFIX = 'obs:';
+// ACTION rows (companion spec 4.2, the sidebar view): plugin-authored,
+// dayGLANCE-consumed — the reverse of intents. The plugin READS the data
+// plane (its own root key) but never WRITES it; a sidebar completion is an
+// action row dayGLANCE applies itself, so dayGLANCE stays the data plane's
+// single writer. Payload: { v:1, kind:'action', type:'task_complete',
+// actionId, taskId | (templateId, instanceDate), completedAt, createdAt }.
+// dayGLANCE deletes an action row after applying it (idempotent by actionId).
+export const BRIDGE_ACTION_PREFIX = 'act:';
 
 const enc = new TextEncoder();
 // Chunked bytes→base64: String.fromCharCode(...bytes) blows the argument

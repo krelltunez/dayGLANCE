@@ -31,9 +31,23 @@ manually or via BRAT, not submitted to the community directory.
   reports plain **observations** — the latest state of daily notes and
   task-marked files, one upserted row per path — and never interprets an
   edit; that is dayGLANCE's scan pipeline's job.
-- Three commands: **Sync now** (drains pending intents + refreshes the
-  heartbeat), **Enter pairing code**, and **Unpair from GLANCEvault**
-  (forgets the local credentials; revoke the token server-side too).
+- **Agenda sidebar** (companion spec 4.2): a right-sidebar view — mini
+  month calendar over the selected day's agenda (scheduled tasks, recurring
+  instances, imported calendar events; ±35 days around today; no inbox).
+  It reads the account's task rows directly from GLANCEvault: enter your
+  dayGLANCE **sync passphrase** once per device in the settings tab's
+  "dayGLANCE account" section. The derived root key is kept in the plugin's
+  own IndexedDB store on that device only; neither the passphrase nor the
+  key is ever written to `data.json` (which Obsidian Sync would carry to
+  every copy of the vault). The plugin never writes a data-plane row:
+  checking a task's box emits a completion **action** on the bridge stream
+  that a running dayGLANCE applies (so its completion log, vault writeback
+  and sync all fire), and the box shows as pending until the mirror
+  reflects it. Ribbon icon and **Open agenda** command.
+- Four commands: **Sync now** (drains pending intents + refreshes the
+  heartbeat), **Enter pairing code**, **Unpair from GLANCEvault**
+  (forgets the local credentials and the account key; revoke the token
+  server-side too), and **Open agenda**.
 
 Network access happens only while paired (plus pairing verification), only
 to the vault URL carried in the offer, via Obsidian's `requestUrl`. All
