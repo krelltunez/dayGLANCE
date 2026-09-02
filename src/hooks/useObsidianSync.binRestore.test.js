@@ -67,6 +67,7 @@ vi.mock('../native.js', () => ({
   nativeSetLaunchOnWrite: vi.fn(),
 }));
 vi.mock('../utils/obsidianBridgeStream.js', () => ({
+  cachedBridgePairingMeta: () => null,
   emitBridgeIntent: vi.fn(() => true),
   flushBridgeOutbox: vi.fn(async () => true),
   publishBridgeConfig: vi.fn(async () => {}),

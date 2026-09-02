@@ -34,7 +34,8 @@ import { blockIdWritesEnabled, completionMarkerWritesEnabled } from '../utils/ob
 import { titleConflictNoticeText } from '../utils/obsidianTitleConflict.js';
 import { withCreationFrontmatter } from '../utils/obsidianFrontmatter.js';
 import { writebackSnapshotEntry } from '../utils/obsidianWritebackSnapshot.js';
-import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, publishBridgeCalendarProjection, getBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
+import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, publishBridgeCalendarProjection, getBridgePairingMeta, cachedBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
+import { vaultViewerFor, visibleToViewer, assignVaultViewer, knownTaskIds } from '../utils/obsidianUserScope.js';
 import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations } from '../utils/obsidianBridgeInbound.js';
 import {
   fetchBridgeActions, planBridgeActions, applyActionsToTasks, applyActionsToRecurring,
@@ -745,8 +746,15 @@ export default function useObsidianSync({
             // ruling 6): a scanned line whose tombstone predates its note's
             // mtime is re-admitted with lastModified lifted to that mtime.
             const observedNoteMtimes = noteMtimesFromDailyNotes(applied.dailyNotes);
-            setTasks(prev => mergeObsidianTasks(prev, binRestore.scheduledTasks, applied.scannedIds, preserveObsidianAppFields, tombstones, observedNoteMtimes));
-            setUnscheduledTasks(prev => mergeObsidianTasks(prev, binRestore.inboxTasks, applied.scannedIds, preserveObsidianAppFields, tombstones, observedNoteMtimes));
+            // FIRST-IMPORT ASSIGNMENT (utils/obsidianUserScope.js): a task new
+            // to the app is the vault's viewer's — here the pairing meta's
+            // user, since every device on the account applies this stream.
+            const viewer = vaultViewerFor({ authoritative: true, meta: cachedBridgePairingMeta() });
+            const known = knownTaskIds(currentTasks, currentInbox, recycleBinRef.current);
+            const scheduledIn = assignVaultViewer(binRestore.scheduledTasks, { viewer, knownIds: known });
+            const inboxIn = assignVaultViewer(binRestore.inboxTasks, { viewer, knownIds: known });
+            setTasks(prev => mergeObsidianTasks(prev, scheduledIn, applied.scannedIds, preserveObsidianAppFields, tombstones, observedNoteMtimes));
+            setUnscheduledTasks(prev => mergeObsidianTasks(prev, inboxIn, applied.scannedIds, preserveObsidianAppFields, tombstones, observedNoteMtimes));
             // Refresh the writeback snapshot for the OBSERVED tasks only —
             // observations are per-note, so untouched entries stay put.
             // This is also how this device's own emitted writes settle
@@ -947,8 +955,15 @@ export default function useObsidianSync({
       // so a verbatim re-creation revives on a direct scan exactly as it does
       // on an observation.
       const scannedNoteMtimes = noteMtimesFromDailyNotes(result.dailyNotes);
-      setTasks(prev => mergeObsidianTasks(prev, binRestore.scheduledTasks, scannedObsidianIds, preserveObsidianAppFields, tombstones, scannedNoteMtimes));
-      setUnscheduledTasks(prev => mergeObsidianTasks(prev, binRestore.inboxTasks, scannedObsidianIds, preserveObsidianAppFields, tombstones, scannedNoteMtimes));
+      // FIRST-IMPORT ASSIGNMENT (utils/obsidianUserScope.js): on direct
+      // access the vault is on this device, so the viewer is this device's
+      // user. Known tasks keep the app's own assignment.
+      const directViewer = vaultViewerFor({ authoritative: false, multiUserEnabled, meUserSyncId });
+      const directKnown = knownTaskIds(currentTasks, currentInbox, recycleBinRef.current);
+      const scheduledIn = assignVaultViewer(binRestore.scheduledTasks, { viewer: directViewer, knownIds: directKnown });
+      const inboxIn = assignVaultViewer(binRestore.inboxTasks, { viewer: directViewer, knownIds: directKnown });
+      setTasks(prev => mergeObsidianTasks(prev, scheduledIn, scannedObsidianIds, preserveObsidianAppFields, tombstones, scannedNoteMtimes));
+      setUnscheduledTasks(prev => mergeObsidianTasks(prev, inboxIn, scannedObsidianIds, preserveObsidianAppFields, tombstones, scannedNoteMtimes));
 
       // Snapshot the fresh task state so the writeback effect doesn't re-trigger
       const snapshot = {};
@@ -1175,7 +1190,16 @@ export default function useObsidianSync({
     if (obsidianSyncInProgressRef.current) { writebackPendingRef.current = true; return; }
     writebackPendingRef.current = false;
 
-    const allObsidian = [...tasks, ...unscheduledTasks].filter(t => t.importSource === 'obsidian' && t.obsidianRawTitle);
+    // USER SCOPE (utils/obsidianUserScope.js): only tasks visible to the
+    // vault's viewer are written, so another member's tasks never land in
+    // this person's notes. The viewer is this device's user on direct access
+    // and the pairing meta's user when the plugin is authoritative.
+    const writeViewer = vaultViewerFor({
+      authoritative: bridgeHeartbeatRef.current.pluginAuthoritative,
+      meta: cachedBridgePairingMeta(), multiUserEnabled, meUserSyncId,
+    });
+    const allObsidian = [...tasks, ...unscheduledTasks]
+      .filter(t => t.importSource === 'obsidian' && t.obsidianRawTitle && visibleToViewer(t, writeViewer));
     const prev = obsidianPrevTaskStateRef.current;
     const isNative = obsidianVaultHandleRef.current === 'native';
     // ── ARBITRATION (§3.2, Phase 6 PR 3) — gate (a): emit-in-same-tick ────

@@ -45,7 +45,9 @@ manually or via BRAT, not submitted to the community directory.
   assigned to them, routines they own, and their devices' calendars. The
   viewer defaults to the user of the dayGLANCE device that paired the vault
   and can be changed (or set to Everyone) under "Show tasks for" in the
-  settings tab. Tags in
+  settings tab. The viewer is also published in the pairing-meta row, and
+  dayGLANCE uses it to scope what it writes into this vault and to assign a
+  task first seen in the vault to that person. Tags in
   titles render faded; `[[wikilinks]]` render as their display text and
   click through to the note.
   It reads the account's task rows directly from GLANCEvault: enter your
