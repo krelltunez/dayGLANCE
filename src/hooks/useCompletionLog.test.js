@@ -128,7 +128,10 @@ describe('buildCompletionLogWrite (pure)', () => {
     const write = buildCompletionLogWrite(
       { title: 'Ship it #dev', completedAt: '2026-09-02T18:05:00-05:00', projectId: 'p1', priority: 2, deadline: null, recurring: false, bucketOverride: null },
       {
-        projects: [{ id: 'p1', name: 'Acme migration' }],
+        // Projects carry their display name in `title` (17 UI sites render
+        // project.title; `name` is the AREA field) — the field-test bug was
+        // this fixture and the lookup agreeing on the WRONG field.
+        projects: [{ id: 'p1', title: 'Acme migration', name: 'wrong-field decoy' }],
         obsidianConfig: { ...CFG, dailyNotePattern: 'dd.MM.yyyy' },
         dailyNoteTemplate: '# Day\n', localToday: '2026-09-03',
       },

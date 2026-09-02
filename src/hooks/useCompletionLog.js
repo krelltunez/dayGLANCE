@@ -97,8 +97,10 @@ export function buildCompletionLogWrite(candidate, { projects, obsidianConfig, d
     title: candidate.title,
     completedAt: candidate.completedAt,
     fallbackDate: bucket,
+    // Projects carry their display name in `title` (every UI surface renders
+    // project.title; `name` is the AREA shape's field).
     projectName: candidate.projectId
-      ? (projects || []).find((p) => p.id === candidate.projectId)?.name ?? null
+      ? (projects || []).find((p) => p.id === candidate.projectId)?.title ?? null
       : null,
     priority: candidate.priority,
     deadline: candidate.deadline,
