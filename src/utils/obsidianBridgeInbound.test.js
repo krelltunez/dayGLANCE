@@ -224,3 +224,25 @@ describe('applyBridgeObservations — vault task scope (companion §6)', () => {
     expect(out.inboxTasks).toEqual([]);
   });
 });
+
+describe('ruling H: scoped lines in a linked project note adopt the project on first import', () => {
+  it('a fresh line gets the project; a known task keeps its own; an unlinked note assigns nothing', () => {
+    const content = '- [ ] Order tiles ^dg-aaaaaaaa\n- [ ] Paint hall ^dg-bbbbbbbb\n';
+    const known = { id: 'obsidian-dg-bbbbbbbb', title: 'Paint hall #obsidian', obsidianBlockId: 'bbbbbbbb', obsidianRawTitle: 'Paint hall', obsidianNotePath: 'Projects/House.md', projectId: 'other', lastModified: '2026-09-01T00:00:00.000Z', importSource: 'obsidian' };
+    const out = applyBridgeObservations(
+      [{ path: 'Projects/House.md', content, scoped: true, mtime: Date.parse('2026-09-03T10:00:00Z') }],
+      { existingTasks: [], existingInbox: [known], today: '2026-09-03', projectByNotePath: { 'Projects/House.md': 'p1' } },
+    );
+    const byId = Object.fromEntries(out.inboxTasks.map((t) => [t.id, t]));
+    expect(byId['obsidian-dg-aaaaaaaa'].projectId).toBe('p1');
+    // A known task is not stamped here (its app-side project is carried by
+    // the downstream merge, which keeps app-only fields from the existing row).
+    expect(byId['obsidian-dg-bbbbbbbb'].projectId).not.toBe('p1');
+    expect(byId['obsidian-dg-bbbbbbbb'].lastModified).toBe('2026-09-01T00:00:00.000Z');
+    const none = applyBridgeObservations(
+      [{ path: 'Projects/Other.md', content, scoped: true, mtime: Date.parse('2026-09-03T10:00:00Z') }],
+      { existingTasks: [], existingInbox: [], today: '2026-09-03', projectByNotePath: { 'Projects/House.md': 'p1' } },
+    );
+    expect(none.inboxTasks.every((t) => !t.projectId)).toBe(true);
+  });
+});

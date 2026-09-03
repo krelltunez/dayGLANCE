@@ -54,6 +54,9 @@ const OBS_HWM_KEY = 'dayglance-bridge-obs-hwm';
  * advanced here — call commitBridgeObservationCursor after the caller has
  * durably applied the batch, so a crash replays instead of losing it.
  */
+// The merge's fresh-import marker (obsidian.js mergeParsedObsidianTasks).
+const FRESH_IMPORT_TS = new Date(0).toISOString();
+
 export async function fetchBridgeObservations() {
   try {
     // The client's realm-wide brake (@glance-apps/sync 1.11.0): while the
@@ -161,6 +164,10 @@ export function applyBridgeObservations(observations, {
   // `scope` (ruling E). A `withdrawn: true` observation means the note left
   // the scope (ruling C): its path is returned for the caller to withdraw.
   scope = null, today = null,
+  // Project notes (companion §4.3, ruling H): path → project id for linked
+  // notes whose note is present; a task line that imports FRESH from such a
+  // note (no existing task to match) starts assigned to that project.
+  projectByNotePath = null,
 }) {
   const dailyNotes = {};
   const scopedNotes = {}; // path → { lastModified, deleted? } for scoped (non-daily) notes in this batch
@@ -200,10 +207,21 @@ export function applyBridgeObservations(observations, {
         continue;
       }
       scopedNotes[obs.path] = { lastModified: at };
+      const beforeScheduled = allScheduled.length;
+      const beforeInbox = allInbox.length;
       mergeParsedObsidianTasks(
         parseTasksFromMarkdown(obs.content, today || '1970-01-01', seenBlockIds, { notePath: obs.path, completedSince }),
         ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule },
       );
+      const projectId = projectByNotePath?.[obs.path];
+      if (projectId) {
+        // First import only (the merge stamps a fresh import with the epoch
+        // lastModified); a task already known keeps whatever project the
+        // user gave it in the app.
+        for (const list of [allScheduled.slice(beforeScheduled), allInbox.slice(beforeInbox)]) {
+          for (const t of list) if (!t.projectId && t.lastModified === FRESH_IMPORT_TS) t.projectId = projectId;
+        }
+      }
       continue;
     }
     if (obs.deleted || obs.content == null) { unapplied.push(obs); continue; }

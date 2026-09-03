@@ -16,6 +16,7 @@
 //                          absent while this is set)
 
 import { noteKeyForPath } from '@glance-apps/obsidian-format';
+import { noteWikilink } from '@glance-apps/agenda-core';
 
 /** A user-typed note reference → a normalized vault path ending in .md, or ''. */
 export function normalizeNotePath(input) {
@@ -42,6 +43,32 @@ export function noteLinkOf(entity) {
   const path = typeof entity?.obsidianNotePath === 'string' ? entity.obsidianNotePath : '';
   if (!path) return null;
   return { path, name: noteDisplayName(path), missing: !!entity.obsidianNoteMissingAt };
+}
+
+/**
+ * The project as the completion log names it (companion §4.3, ruling G):
+ * `[[Note|Title]]` when the project has a present linked note, so the note's
+ * backlinks pane becomes the record of everything completed toward it; the
+ * bare title otherwise (unlinked, or the note is missing).
+ */
+export function projectLogName(project) {
+  if (!project) return null;
+  const link = noteLinkOf(project);
+  const title = project.title ?? null;
+  return link && !link.missing ? noteWikilink(link.path, title) : title;
+}
+
+/**
+ * path → project id for every project whose note is present (ruling H: a
+ * scoped task line inside a linked note imports with that project set).
+ */
+export function projectByNotePath(projects) {
+  const out = {};
+  for (const p of projects || []) {
+    const link = noteLinkOf(p);
+    if (link && !link.missing) out[link.path] = String(p.id);
+  }
+  return out;
 }
 
 /**

@@ -23,7 +23,7 @@ import { mergeObsidianTasks, noteMtimesFromDailyNotes, noteMtimesFromScopedNotes
 import { detectObsidianDeletions, addObsidianTombstones } from '../utils/obsidianDeletions.js';
 import { reattachTasksMetadata } from '../utils/obsidianTasksMetadata.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
-import { planNoteLinkUpdates, normalizeNotePath } from '../utils/obsidianProjectNotes.js';
+import { planNoteLinkUpdates, normalizeNotePath, projectByNotePath } from '../utils/obsidianProjectNotes.js';
 import {
   readRetiredTaskIds,
   recordRetirements as recordRetirementEntries,
@@ -693,6 +693,8 @@ export default function useObsidianSync({
                 // comes from the plugin's pairing-meta row.
                 scope: cachedBridgePairingMeta()?.scope ?? null,
                 today: dateToString(new Date()),
+                // Project notes (companion §4.3, ruling H).
+                projectByNotePath: projectByNotePath(projectsRef.current),
               })
             : null;
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeNotePath, noteDisplayName, noteLinkOf, planNoteLinkUpdates } from './obsidianProjectNotes.js';
+import { normalizeNotePath, noteDisplayName, noteLinkOf, planNoteLinkUpdates, projectLogName, projectByNotePath } from './obsidianProjectNotes.js';
 
 describe('normalizeNotePath / noteDisplayName / noteLinkOf', () => {
   it('accepts a bare name, a wikilink, a heading suffix, and a path; adds .md; normalizes slashes', () => {
@@ -62,5 +62,20 @@ describe('planNoteLinkUpdates (rulings A and F)', () => {
       { targetId: 'p1', path: 'A.md', observedAt: '2026-09-03T10:00:01.000Z' },
     ], { projects: [P] });
     expect(plan.projects).toEqual([{ id: 'p1', updates: { obsidianNotePath: 'B.md', obsidianNoteMissingAt: null } }]);
+  });
+});
+
+describe('projectLogName / projectByNotePath (rulings G and H)', () => {
+  it('names a linked project as a wikilink, a missing or unlinked one by title; maps present notes to project ids', () => {
+    const linked = { id: 'p1', title: 'House', obsidianNotePath: 'Projects/House.md' };
+    const aliased = { id: 'p2', title: 'The garden', obsidianNotePath: 'Projects/Garden.md' };
+    const missing = { id: 'p3', title: 'Attic', obsidianNotePath: 'Projects/Attic.md', obsidianNoteMissingAt: '2026-09-03T10:00:00.000Z' };
+    const bare = { id: 'p4', title: 'Loose' };
+    expect(projectLogName(linked)).toBe('[[Projects/House]]');
+    expect(projectLogName(aliased)).toBe('[[Projects/Garden|The garden]]');
+    expect(projectLogName(missing)).toBe('Attic');
+    expect(projectLogName(bare)).toBe('Loose');
+    expect(projectLogName(null)).toBe(null);
+    expect(projectByNotePath([linked, aliased, missing, bare])).toEqual({ 'Projects/House.md': 'p1', 'Projects/Garden.md': 'p2' });
   });
 });

@@ -270,3 +270,15 @@ describe('the hook glue', () => {
     expect(errSpy).toHaveBeenCalled();
   });
 });
+
+describe('ruling G: a linked project is named as a wikilink in the log line', () => {
+  it('buildCompletionLogWrite writes [[Note|Title]] for a linked project and the title for a missing note', async () => {
+    const { buildCompletionLogWrite } = await import('./useCompletionLog.js');
+    const base = { title: 'Ship it', completedAt: '2026-09-02T18:05:00-05:00', projectId: 'p1', priority: 0, deadline: null, recurring: false };
+    const cfg = { obsidianConfig: { dailyNotesPath: '', dailyNotePattern: 'yyyy-MM-dd' }, dailyNoteTemplate: '', localToday: '2026-09-02' };
+    const linked = buildCompletionLogWrite(base, { ...cfg, projects: [{ id: 'p1', title: 'Acme', obsidianNotePath: 'Projects/Acme migration.md' }] });
+    expect(linked.entry).toContain('[project:: [[Projects/Acme migration|Acme]]]');
+    const missing = buildCompletionLogWrite(base, { ...cfg, projects: [{ id: 'p1', title: 'Acme', obsidianNotePath: 'Projects/Acme migration.md', obsidianNoteMissingAt: '2026-09-03T00:00:00Z' }] });
+    expect(missing.entry).toContain('[project:: Acme]');
+  });
+});
