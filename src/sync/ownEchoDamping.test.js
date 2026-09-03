@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { recordOwnWriteSeq, isOwnWriteSeq, __resetOwnWritesForTests } from './ownWrites.js';
+import { recordOwnWriteSeq, isOwnWriteSeq, withOwnAckRecording, __resetOwnWritesForTests } from './ownWrites.js';
 import { createNudgeCoalescer } from './vaultEventStream.js';
 
 // OWN-ECHO SSE DAMPING (#1455). The server emits each nudge with THE WRITING
@@ -116,5 +116,41 @@ describe('coalescer own-echo suppression', () => {
     expect(c.handleEvent({ seq: 10 })).toBe(true);
     vi.advanceTimersByTime(100);
     expect(onDrain).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('withOwnAckRecording — every write ack recorded at the source (audit M13)', () => {
+  beforeEach(() => __resetOwnWritesForTests());
+
+  it('a MIXED push records the batch maxSeq AND each delete seq, so no nudge of the push looks foreign', async () => {
+    // The server nudges once per batch (batch maxSeq) and once per deleteRow
+    // (that delete's seq). Deletes follow the batch, so the fold pushDirtyRows
+    // returns (12) is above the batch's own ack (10): recording only the fold
+    // left the batch nudge as a self-drain. Wrapped, all three are ours.
+    const inner = {
+      async batch() { return { written: 2, maxSeq: 10 }; },
+      async deleteRow() { return { seq: 11 }; },
+      async list() { return { rows: [] }; },
+    };
+    const client = withOwnAckRecording(inner);
+    expect(await client.batch('dayglance', { accountId: 'a', rows: [] })).toEqual({ written: 2, maxSeq: 10 });
+    await client.deleteRow('dayglance', 'tasks:x', 'a', {});
+    const r2 = await inner.deleteRow(); // an unwrapped call records nothing
+    expect(r2).toEqual({ seq: 11 });
+    expect(isOwnWriteSeq(10)).toBe(true);
+    expect(isOwnWriteSeq(11)).toBe(true);
+    expect(isOwnWriteSeq(12)).toBe(false);
+    // Non-writers pass through untouched; a missing method is not invented.
+    expect(client.list).toBe(inner.list);
+    expect(withOwnAckRecording({ async batch() { return null; } }).deleteRow).toBeUndefined();
+  });
+
+  it('records into an injected registry, ignores malformed acks, and never swallows the response', async () => {
+    const seen = [];
+    const client = withOwnAckRecording({ async batch() { return undefined; }, async deleteRow() { return { seq: 'x' }; } }, (s) => seen.push(s));
+    expect(await client.batch()).toBeUndefined();
+    expect(await client.deleteRow()).toEqual({ seq: 'x' });
+    expect(seen).toEqual([]);
+    expect(withOwnAckRecording(null)).toBe(null);
   });
 });

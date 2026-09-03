@@ -287,13 +287,19 @@ export function applyTaskRetirements(list, record, liveIds) {
 
 /**
  * Convenience wrapper for a { tasks, unscheduledTasks } pair: builds the
- * cross-list live-id set and applies the record to both lists.
+ * cross-list live-id set and applies the record to both lists. `recycleBin`
+ * (and any other task-shaped list passed) contributes to the LIVE set only:
+ * a successor sitting in the bin is still the identity the content moved to,
+ * so the retired copy is superseded rather than kept (audit M8 — the same
+ * every-kind rule the snapshot-delete partition applies). The bin itself is
+ * returned untouched.
  */
-export function applyRetirementsToTaskLists({ tasks, unscheduledTasks }, record) {
+export function applyRetirementsToTaskLists({ tasks, unscheduledTasks, recycleBin }, record) {
   const t = Array.isArray(tasks) ? tasks : [];
   const u = Array.isArray(unscheduledTasks) ? unscheduledTasks : [];
+  const b = Array.isArray(recycleBin) ? recycleBin : [];
   if (!record || Object.keys(record).length === 0) return { tasks: t, unscheduledTasks: u };
-  const liveIds = new Set([...t, ...u].filter(Boolean).map((x) => String(x.id)));
+  const liveIds = new Set([...t, ...u, ...b].filter(Boolean).map((x) => String(x.id)));
   return {
     tasks: applyTaskRetirements(t, record, liveIds),
     unscheduledTasks: applyTaskRetirements(u, record, liveIds),

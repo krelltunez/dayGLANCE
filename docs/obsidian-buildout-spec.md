@@ -10,10 +10,16 @@ underway: the completion log (its 4.1) and the sidebar view (its 4.2) are
 built and in daily use, with multi-user scoping across the log, the sidebar
 and the vault writeback. The fleet still runs at poll cadence with SSE nudge
 consumption gated off by default (§3.10, seventh record) while the audit-fix
-backlog soaks; the re-arm sequence — remaining breaker fixes, a supervised
-single-machine re-arm, then the fleet, then default-on — is still owed, and
-every plugin-to-app path (sidebar completions included) runs at the
-five-minute poll until it lands.
+backlog soaks. The last two breaker fixes landed 2026-09-03 (audit M13: the
+own-ack registry now records every write ack at the source, batch and
+delete alike, so a mixed push leaks no self-nudge; M8: the polarity
+reassert and the retirement applier judge a successor's liveness across
+every task kind, recycle bin included, like the partition does). What
+remains of the re-arm sequence is a supervised single-machine flip
+(`dayglance-sse-nudges` = `on`), then the fleet, then default-on; it runs
+ALONGSIDE the Phase 8 project-notes build (owner, 2026-09-03), and every
+plugin-to-app path (sidebar completions included) runs at the five-minute
+poll until it lands.
 
 ---
 
