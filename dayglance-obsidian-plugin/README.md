@@ -67,10 +67,19 @@ manually or via BRAT, not submitted to the community directory.
   and reported like daily-note tasks, a few notes per tick when a scope is
   first added. A note leaving the scope is reported as withdrawn. The
   scope rides the pairing-meta row so dayGLANCE applies the same window.
-- Four commands: **Sync now** (drains pending intents + refreshes the
+- **Project and goal notes** (companion spec §4.3): a note can be linked to
+  a dayGLANCE project or goal. The link's identity is a `dayglance-id`
+  frontmatter key the plugin writes; the path is only a cached locator on
+  the dayGLANCE record. **Link current note to a dayGLANCE project or
+  goal** picks from the mirror; **Unlink current note from dayGLANCE**
+  removes the key. The plugin follows renames, reports a deleted note as
+  missing (dayGLANCE keeps the project and offers a relink), re-finds a
+  note by its key on a periodic walk, and applies link and unlink requests
+  made from dayGLANCE. Nothing else in the note is read or written.
+- Six commands: **Sync now** (drains pending intents + refreshes the
   heartbeat), **Enter pairing code**, **Unpair from GLANCEvault**
   (forgets the local credentials and the account key; revoke the token
-  server-side too), and **Open agenda**.
+  server-side too), **Open agenda**, and the two link commands above.
 
 Network access happens only while paired (plus pairing verification), only
 to the vault URL carried in the offer, via Obsidian's `requestUrl`. All

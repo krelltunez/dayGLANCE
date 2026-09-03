@@ -35,6 +35,8 @@ import {
 } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
+import { useSyncCtx } from '../../context/SyncContext.jsx';
+import { noteLinkOf } from '../../utils/obsidianProjectNotes.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, hexToRgba, PROJECT_FALLBACK_COLOR } from '../../utils/colorUtils.js';
 import { dateToString } from '../../utils/taskUtils.js';
 import { calculateGoalProgress } from '../../utils/goalProgress.js';
@@ -390,6 +392,70 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
 
 // ─── Project form (create / edit) ─────────────────────────────────────────────
 
+/**
+ * ProjectNoteRow — the project's Obsidian note (companion spec §4.3). Links
+ * an EXISTING vault note by path (the plugin writes the id key), opens it,
+ * unlinks it, and shows the missing state with a relink (ruling F). Reads the
+ * live project so the row reflects the link as soon as it lands.
+ */
+const ProjectNoteRow = ({ projectId }) => {
+  const { darkMode, borderClass, textPrimary, textSecondary } = useDayPlannerCtx();
+  const { projects } = useFeaturesCtx();
+  const { obsidianConfig, linkProjectNote, unlinkProjectNote, openInObsidian } = useSyncCtx();
+  const project = (projects || []).find(p => p.id === projectId);
+  const link = noteLinkOf(project);
+  const [path, setPath] = useState(link?.name || '');
+  const [error, setError] = useState('');
+  if (!project || (!obsidianConfig?.enabled && !link)) return null;
+  const inputCls = `px-3 py-2 text-sm rounded-lg border ${borderClass} focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+    darkMode ? 'bg-gray-700 text-gray-100 placeholder-gray-500' : 'bg-white text-stone-900 placeholder-stone-400'
+  }`;
+  const btnCls = `px-2.5 py-1.5 text-xs rounded-lg border ${borderClass} ${textPrimary} hover:bg-blue-500/10`;
+  const submit = () => {
+    setError('');
+    if (!linkProjectNote?.('project', project.id, path)) {
+      setError('Could not link. Enter a vault path and make sure the dayGLANCE bridge plugin is paired.');
+    }
+  };
+  return (
+    <div className="flex flex-col gap-1">
+      <label className={`text-xs font-medium ${textSecondary}`}>Obsidian note</label>
+      {link && !link.missing ? (
+        <div className="flex items-center gap-2 text-sm">
+          <span className={`${textPrimary} truncate flex-1 min-w-0`} title={link.path}>{link.name}</span>
+          <button type="button" className={btnCls} onClick={() => openInObsidian?.(link.name)}>Open</button>
+          <button type="button" className={btnCls} onClick={() => unlinkProjectNote?.('project', project.id)}>Unlink</button>
+        </div>
+      ) : (
+        <>
+          {link?.missing && (
+            <div className="text-xs text-amber-600 dark:text-amber-400">
+              The linked note is missing from the vault ({link.name}). Relink it, or unlink the project.
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <input
+              value={path}
+              onChange={e => setPath(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }}
+              placeholder="Projects/House"
+              className={`${inputCls} flex-1 min-w-0`}
+            />
+            <button type="button" className={btnCls} onClick={submit}>{link?.missing ? 'Relink' : 'Link'}</button>
+            {link?.missing && (
+              <button type="button" className={btnCls} onClick={() => unlinkProjectNote?.('project', project.id)}>Unlink</button>
+            )}
+          </div>
+          <div className={`text-[11px] ${textSecondary}`}>
+            Vault path of an existing note. The dayGLANCE bridge plugin writes the link into the note.
+          </div>
+          {error && <div className="text-xs text-red-500">{error}</div>}
+        </>
+      )}
+    </div>
+  );
+};
+
 export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, mobile }) => {
   const { darkMode, cardBg, borderClass, textPrimary, textSecondary, hoverBg, tasks, unscheduledTasks, use24HourClock, isMobile, isTablet } =
     useDayPlannerCtx();
@@ -475,6 +541,9 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
           ))}
         </select>
       </div>
+
+      {/* Obsidian note (companion §4.3) */}
+      {initial && <ProjectNoteRow projectId={initial.id} />}
 
       {/* Color — defaults to the goal's color (blue when standalone) until overridden */}
       <div className="flex flex-col gap-1.5">

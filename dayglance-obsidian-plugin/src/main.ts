@@ -49,6 +49,7 @@ import { AgendaStore } from './agenda';
 import { normalizeScope, scopeIsActive, type VaultScope } from '@glance-apps/obsidian-format';
 import { localDateStr } from '@glance-apps/agenda-core';
 import { AgendaView, AGENDA_VIEW_TYPE, removeAgendaStyles } from './agendaView';
+import { LinkTargetModal } from './linkModal';
 
 const HEARTBEAT_DIR = '.dayglance';
 const HEARTBEAT_PATH = `${HEARTBEAT_DIR}/heartbeat`;
@@ -145,8 +146,46 @@ export default class DayGlanceBridgePlugin extends Plugin {
       this.registerEvent(this.app.vault.on('create', (f) => { if (f instanceof TFile) this.transport.scheduleObservation(f); }));
       this.registerEvent(this.app.vault.on('delete', (f) => { if (f instanceof TFile) this.transport.reportDeleted(f.path); }));
       this.registerEvent(this.app.vault.on('rename', (f, oldPath) => {
-        if (f instanceof TFile) { this.transport.reportDeleted(oldPath); this.transport.scheduleObservation(f); }
+        if (f instanceof TFile) {
+          // A linked project note keeps its link across the rename (companion §4.3, ruling A).
+          this.transport.noteRenamed(oldPath, f.path);
+          this.transport.reportDeleted(oldPath);
+          this.transport.scheduleObservation(f);
+        }
       }));
+      // Frontmatter edits (the id key) surface as metadata changes, not file modifies.
+      this.registerEvent(this.app.metadataCache.on('changed', (f) => { if (f instanceof TFile) this.transport.noteMetaChanged(f.path); }));
+    });
+
+    // Project and goal notes (companion §4.3): link or unlink the active note.
+    this.addCommand({
+      id: 'link-note-to-project',
+      name: 'Link current note to a dayGLANCE project or goal',
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file || file.extension !== 'md') return false;
+        if (checking) return true;
+        if (!this.data.pairing) { new Notice('dayGLANCE bridge: not paired.'); return true; }
+        const targets = this.agenda.linkTargets();
+        if (!targets.length) {
+          new Notice('dayGLANCE bridge: no projects or goals in the mirror yet. Open the agenda once, then retry.');
+          return true;
+        }
+        new LinkTargetModal(this.app, targets, (t) => {
+          void this.transport.linkNote(file, t.id).then((r) => new Notice(`dayGLANCE bridge: ${r.message}`));
+        }).open();
+        return true;
+      },
+    });
+    this.addCommand({
+      id: 'unlink-note-from-project',
+      name: 'Unlink current note from dayGLANCE',
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file || file.extension !== 'md') return false;
+        if (!checking) void this.transport.unlinkNote(file).then((r) => new Notice(`dayGLANCE bridge: ${r.message}`));
+        return true;
+      },
     });
 
     // Full ids in the palette: dayglance-bridge:<id> (Obsidian prefixes the
@@ -249,13 +288,14 @@ export default class DayGlanceBridgePlugin extends Plugin {
     void this.transport.drain();
     // Scope adoption walks the metadata cache, which is complete only after
     // layout is ready; the tick then reports a few notes per interval.
-    this.app.workspace.onLayoutReady(() => this.transport.adoptTick());
+    this.app.workspace.onLayoutReady(() => { this.transport.adoptTick(); this.transport.linkTick(); });
     this.registerInterval(
       window.setInterval(() => {
         void this.writeHeartbeat();
         void this.checkForPairingOffer();
         void this.transport.drain();
         this.transport.adoptTick();
+        this.transport.linkTick();
       }, HEARTBEAT_INTERVAL_MS),
     );
   }

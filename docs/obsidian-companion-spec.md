@@ -620,6 +620,30 @@ action, matching the task badge from §6 step 3.
    project / nested under goal); creation from dayGLANCE through a plugin
    intent, template via the §4.4 ladder (D, E); goal links and blocks.
 
+**Step 1 record (2026-09-03, built).** The record carries `obsidianNotePath`
+(synced locator) and `obsidianNoteMissingAt` (ruling F's mark; the path is
+KEPT while set so a relink can prefill, and every reader treats the link as
+absent). The plugin owns the vault side: it writes and removes the
+`dayglance-id` key through Obsidian's frontmatter API under the same
+dirty-buffer rule as every other write; watches metadata changes, renames
+and deletes; walks the whole vault's frontmatter at layout-ready and every
+five minutes (how a rename made while the plugin was off is re-found by
+key); and reports LINK observations — one row per target id, upserted, so a
+rename replaces the row's path and a deletion replaces it with a deleted
+mark — reconciled against a persisted path→id map so a reload re-emits
+nothing. Two palette commands (link the current note, picking from the
+mirror's active projects and goals; unlink it) and two intents from
+dayGLANCE (`project_note_link`, `project_note_unlink`; a link to a note
+that does not exist reports it missing). dayGLANCE's project form links by
+path (the record updates only once the intent is durably queued), opens,
+relinks and unlinks; the project card carries the note badge, or a warning
+while the note is missing. Goals ride the same machinery in the record and
+the plugin; their form row is step 3. *Judgment calls:* the missing mark
+keeps the path rather than clearing it (the ruling's intent — nothing reads
+a missing link — holds; the relink prefills); linking from dayGLANCE takes
+a typed path rather than a vault picker, since the vault index lives in the
+plugin, whose picker is the primary way to link.
+
 ---
 
 ### 4.4 Templater, via guarded delegation

@@ -36,6 +36,13 @@
 //   completion_log_append {path, date, heading, template, entry} — entry is
 //                     the FINISHED log line, formatted by the emitter
 //                     (completionLog.js), inserted at section end
+//   project_note_link   {path, targetId} — write the `dayglance-id` key
+//                     (PROJECT_NOTE_ID_KEY) into the note's frontmatter
+//                     (companion §4.3, ruling A); applied by the PLUGIN via
+//                     Obsidian's frontmatter API, never by the text applier
+//                     below (which reports it unsupported)
+//   project_note_unlink {path, targetId} — remove that key when it names
+//                     targetId
 // `path` is always vault-root-relative and resolved BY THE EMITTER (the
 // emitter owns the dailyNotesPath/pattern config; the applier needs no
 // dayGLANCE settings). wiki_note_write is the one type without a resolved
@@ -46,6 +53,10 @@
 // OBSERVATION payloads (sealed): { v:1, kind:'observation', path,
 // content|null, deleted?, mtime, observedAt }. One row per path, upserted
 // (entityId from observationEntityId), so the row IS the latest state.
+// LINK observations (companion §4.3): { v:1, kind:'observation', link:true,
+// targetId, path, deleted?, unlinked?, previousPath?, observedAt } — one row
+// per TARGET id (linkObservationEntityId), upserted, so a rename simply
+// replaces the row's path and a deletion replaces it with deleted:true.
 //
 // APPLYING IS A PURE FUNCTION of (current file text, intent) — the spec's
 // convergence requirement. It is also IDEMPOTENT: applying an intent to a
@@ -84,6 +95,12 @@ export const BRIDGE_ACTION_PREFIX = 'act:';
 // deviceId, from, to, publishedAt, events:[…]}`. Readers union the rows and
 // prefer the freshest copy of an event id. Never deleted by the reader.
 export const BRIDGE_PROJECTION_PREFIX = 'proj:';
+// Project and goal notes (companion §4.3, ruling A): the frontmatter key that
+// holds the entity's dayGLANCE id — the durable identity of the link; the
+// path on the entity record is only the cached locator.
+export const PROJECT_NOTE_ID_KEY = 'dayglance-id';
+/** The link observation row for one project or goal id (see the header). */
+export const linkObservationEntityId = (targetId) => `${BRIDGE_OBSERVATION_PREFIX}link:${String(targetId)}`;
 export const bridgeCalendarProjectionId = (deviceId) => `${BRIDGE_PROJECTION_PREFIX}calendar:${deviceId}`;
 
 const enc = new TextEncoder();

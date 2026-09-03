@@ -23,6 +23,7 @@ import { mergeObsidianTasks, noteMtimesFromDailyNotes, noteMtimesFromScopedNotes
 import { detectObsidianDeletions, addObsidianTombstones } from '../utils/obsidianDeletions.js';
 import { reattachTasksMetadata } from '../utils/obsidianTasksMetadata.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
+import { planNoteLinkUpdates, normalizeNotePath } from '../utils/obsidianProjectNotes.js';
 import {
   readRetiredTaskIds,
   recordRetirements as recordRetirementEntries,
@@ -136,7 +137,14 @@ export default function useObsidianSync({
   // The device's multi-user identity; stamped on the calendar projection so
   // the plugin can show its viewer's calendars only.
   meUserSyncId = null,
+  // Project and goal notes (companion §4.3): the plugin's link observations
+  // update these records; optional so existing harnesses need no change.
+  projects = [], goals = [], updateProject = null, updateGoal = null,
 }) {
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
+  const goalsRef = useRef(goals);
+  goalsRef.current = goals;
   // Fresh bin contents for the async sync cycle (same staleness fix as the
   // task refs above — interval-triggered syncs must not see the closure's
   // render-time copy).
@@ -687,6 +695,17 @@ export default function useObsidianSync({
                 today: dateToString(new Date()),
               })
             : null;
+
+          // PROJECT AND GOAL NOTES (companion §4.3, rulings A and F): the
+          // plugin reports which note carries each entity's id key — on
+          // link, rename (new path, same id), deletion (the note is missing;
+          // the record keeps its path and is marked) and unlink. The record
+          // is the synced locator; the key in the vault is the identity.
+          if (applied?.links?.length) {
+            const plan = planNoteLinkUpdates(applied.links, { projects: projectsRef.current, goals: goalsRef.current });
+            for (const { id, updates } of plan.projects) updateProject?.(id, updates);
+            for (const { id, updates } of plan.goals) updateGoal?.(id, updates);
+          }
 
           // WITHDRAWAL (companion §6, ruling C): a note that left the scope
           // takes its tasks out of dayGLANCE — tombstoned through the
@@ -1750,5 +1769,29 @@ export default function useObsidianSync({
     );
   }, [obsidianConfig?.dailyNotesPath, obsidianConfig?.dailyNotePattern, obsidianConfig?.newNotesFolder, obsidianConfig?.enabled]);
 
-  return { performObsidianSync, nudgeObsidianObservations, loadWikiNote, saveWikiNote, openInObsidian, notifyNativeReady, bridgeHeartbeatRef };
+  // ── Project and goal notes: link and unlink from dayGLANCE (companion §4.3) ──
+  // The intent is the write (the plugin puts the id key into the note's
+  // frontmatter, or removes it); the record updates only once the intent is
+  // durably queued, so an unpaired vault never shows a link the vault does
+  // not carry. Returns whether the link was queued.
+  const linkProjectNote = useCallback((kind, id, rawPath) => {
+    const path = normalizeNotePath(rawPath);
+    const update = kind === 'goal' ? updateGoal : updateProject;
+    if (!path || !update) return false;
+    if (!emitBridgeIntent('project_note_link', { path, targetId: String(id) })) return false;
+    update(id, { obsidianNotePath: path, obsidianNoteMissingAt: null });
+    return true;
+  }, [updateProject, updateGoal]);
+  const unlinkProjectNote = useCallback((kind, id) => {
+    const list = kind === 'goal' ? goalsRef.current : projectsRef.current;
+    const update = kind === 'goal' ? updateGoal : updateProject;
+    const entity = (list || []).find((e) => e && String(e.id) === String(id));
+    if (!update) return false;
+    const path = entity?.obsidianNotePath; // read before the update (the record may be mutated in place)
+    update(id, { obsidianNotePath: null, obsidianNoteMissingAt: null });
+    if (path) emitBridgeIntent('project_note_unlink', { path, targetId: String(id) });
+    return true;
+  }, [updateProject, updateGoal]);
+
+  return { performObsidianSync, nudgeObsidianObservations, loadWikiNote, saveWikiNote, openInObsidian, notifyNativeReady, bridgeHeartbeatRef, linkProjectNote, unlinkProjectNote };
 }
