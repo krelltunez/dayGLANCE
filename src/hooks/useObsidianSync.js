@@ -1795,5 +1795,20 @@ export default function useObsidianSync({
     return true;
   }, [updateProject, updateGoal]);
 
-  return { performObsidianSync, nudgeObsidianObservations, loadWikiNote, saveWikiNote, openInObsidian, notifyNativeReady, bridgeHeartbeatRef, linkProjectNote, unlinkProjectNote };
+  // Workspace creation (companion §4.3, rulings D and E): ask the plugin to
+  // create the entity's note where its layout setting says and link it. The
+  // fields travel with the intent because a just-created entity is not in
+  // the lists yet; the link lands through the observation stream. Returns
+  // whether the request was durably queued.
+  const createProjectNote = useCallback((kind, id, { title, goalId = null } = {}) => {
+    const name = String(title ?? '').trim();
+    if (!name) return false;
+    const goal = goalId ? (goalsRef.current || []).find((g) => g && String(g.id) === String(goalId)) : null;
+    return emitBridgeIntent('project_note_create', {
+      targetId: String(id), kind: kind === 'goal' ? 'goal' : 'project', title: name,
+      ...(goal ? { goalId: String(goal.id), goalTitle: String(goal.title ?? '') } : {}),
+    });
+  }, []);
+
+  return { performObsidianSync, nudgeObsidianObservations, loadWikiNote, saveWikiNote, openInObsidian, notifyNativeReady, bridgeHeartbeatRef, linkProjectNote, unlinkProjectNote, createProjectNote };
 }

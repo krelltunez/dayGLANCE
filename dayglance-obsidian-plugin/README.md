@@ -80,7 +80,14 @@ manually or via BRAT, not submitted to the community directory.
   percent, next scheduled date for a project; progress and its projects as
   wikilinks for a goal), rewritten only when a value changes, at most once
   every five minutes per note, never into unsaved edits. dayGLANCE wins
-  inside that map; nothing outside it is read or written.
+  inside that map; nothing outside it is read or written. A project or goal
+  born in dayGLANCE can create its note here: the **Project and goal notes**
+  settings choose the layout (one note; a folder with an index note; folders
+  nested under the goal), the projects and goals folders, and optional
+  template notes (rendered by Templater when it is installed and the
+  template asks nothing interactively, otherwise `{{title}}`, `{{date}}`
+  and `{{goal}}` are filled and the rest is left visible). Placement happens
+  at creation only; linking an existing note never creates or moves.
 - Six commands: **Sync now** (drains pending intents + refreshes the
   heartbeat), **Enter pairing code**, **Unpair from GLANCEvault**
   (forgets the local credentials and the account key; revoke the token

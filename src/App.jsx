@@ -2773,7 +2773,7 @@ const DayPlanner = () => {
   // lives in useObsidianSync; state/refs stay owned by useObsidian above.
   const {
     performObsidianSync, nudgeObsidianObservations, loadWikiNote, saveWikiNote, openInObsidian, bridgeHeartbeatRef,
-    linkProjectNote, unlinkProjectNote,
+    linkProjectNote, unlinkProjectNote, createProjectNote,
   } = useObsidianSync({
     isTrayMode, dataLoaded,
     tasks, setTasks,
@@ -8685,7 +8685,7 @@ const DayPlanner = () => {
     vaultEnabled: isVaultEnabled(),
     syncAll,
     performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, nativeClearVault,
-    linkProjectNote, unlinkProjectNote,
+    linkProjectNote, unlinkProjectNote, createProjectNote,
     performTrmnlSync,
     performLocalBackup, performRemoteBackup,
     buildAutoBackupPayload, loadAutoBackupHistory,

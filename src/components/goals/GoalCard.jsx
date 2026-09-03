@@ -1,8 +1,10 @@
 import React, { forwardRef } from 'react';
-import { AlertTriangle, Calendar, CircleCheckBig, Edit2, FolderOpen, Layers, Link2, Plus } from 'lucide-react';
+import { AlertTriangle, Calendar, CircleCheckBig, Edit2, FileText, FolderOpen, Layers, Link2, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
+import { useSyncCtx } from '../../context/SyncContext.jsx';
+import { noteLinkOf } from '../../utils/obsidianProjectNotes.js';
 import { calculateGoalProgress } from '../../utils/goalProgress.js';
 import { isProjectStalled } from '../../utils/projectProgress.js';
 import GoalProgress from './GoalProgress.jsx';
@@ -31,6 +33,9 @@ const GoalCard = forwardRef(
       borderClass, textPrimary, textSecondary, hoverBg,
     } = useDayPlannerCtx();
     const { updateGoal, isVisibleForUser, areas = [] } = useFeaturesCtx();
+    const { openInObsidian } = useSyncCtx();
+    // Goal note (companion §4.3, ruling E): open the linked note, or warn while it is missing.
+    const noteLink = noteLinkOf(goal);
     const { t } = useTranslation();
 
     // Multi-user: progress and stalled state reflect only the current user's tasks.
@@ -77,6 +82,17 @@ const GoalCard = forwardRef(
           <span className="flex-1 text-white font-semibold text-sm leading-tight truncate">
             {goal.title}
           </span>
+          {noteLink && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); if (!noteLink.missing) openInObsidian?.(noteLink.name); }}
+              className={`flex-shrink-0 ${noteLink.missing ? 'text-amber-200' : 'text-white/70 hover:text-white'}`}
+              title={noteLink.missing ? `Obsidian note missing: ${noteLink.name}` : `Open "${noteLink.name}" in Obsidian`}
+              aria-label={noteLink.missing ? 'Obsidian note missing' : 'Open goal note in Obsidian'}
+            >
+              {noteLink.missing ? <AlertTriangle size={12} /> : <FileText size={12} />}
+            </button>
+          )}
           {(goal.source_app === 'app.lifeglance' || goal.synced_to_lifeglance) && (
             <span title="Linked with lifeGLANCE" className="flex-shrink-0 text-white/70">
               <Link2 size={12} />

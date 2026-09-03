@@ -208,3 +208,14 @@ export function applyBridgeIntent(
 ): { text: string | null; changed: boolean }
  | { error: 'unportable_name'; reason: string }
  | { unsupported: true };
+
+// ── project and goal note workspaces (companion §4.3, rulings D and E) ─────
+export type ProjectNoteLayout = 'note' | 'folder' | 'nested';
+export const PROJECT_NOTE_LAYOUTS: ProjectNoteLayout[];
+export interface ProjectNoteSettings { layout: ProjectNoteLayout; projectsFolder: string; goalsFolder: string; projectTemplate: string; goalTemplate: string }
+export function normalizeProjectNoteSettings(s: Partial<ProjectNoteSettings> | null | undefined): ProjectNoteSettings;
+export function noteNameFromTitle(title: string): string;
+export function projectNotePath(a: { kind: 'project' | 'goal'; title: string; layout?: string; projectsFolder?: string; goalsFolder?: string; goalFolder?: string | null }): string;
+export function uniqueNotePath(path: string, exists: (path: string) => boolean): string;
+export function templateNeedsUser(text: string): boolean;
+export function renderNoteTemplateSubset(text: string, vars?: { title?: string; date?: string; goal?: string }): string;
