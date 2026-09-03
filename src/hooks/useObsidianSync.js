@@ -4,7 +4,7 @@ import {
   syncObsidianVault, syncObsidianVaultNative,
   writeTaskStateToFile, writeTaskStateNative,
   simpleHash as obsidianSimpleHash,
-  deriveBlockId, appIdForBlockId, dailyNoteFilename,
+  deriveBlockId, appIdForBlockId,
   readWikiNote, writeWikiNote, scanVaultNotes,
   vaultHasTasksPlugin, detectTasksPluginNative,
   readVaultHeartbeat, readVaultHeartbeatNative,
@@ -36,6 +36,8 @@ import { withCreationFrontmatter } from '../utils/obsidianFrontmatter.js';
 import { writebackSnapshotEntry } from '../utils/obsidianWritebackSnapshot.js';
 import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, publishBridgeCalendarProjection, getBridgePairingMeta, cachedBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
 import { vaultViewerFor, visibleToViewer, assignVaultViewer, knownTaskIds } from '../utils/obsidianUserScope.js';
+import { writebackTargetFor } from '../utils/obsidianWritebackTarget.js';
+import { noteTaskId } from '@glance-apps/obsidian-format';
 import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations } from '../utils/obsidianBridgeInbound.js';
 import {
   fetchBridgeActions, planBridgeActions, applyActionsToTasks, applyActionsToRecurring,
@@ -1198,8 +1200,15 @@ export default function useObsidianSync({
       authoritative: bridgeHeartbeatRef.current.pluginAuthoritative,
       meta: cachedBridgePairingMeta(), multiUserEnabled, meUserSyncId,
     });
+    // NON-DAILY TASKS (companion §6, ruling F) are plugin-only: their writes
+    // are intents, so they enter the writeback only while the plugin is
+    // authoritative. In direct mode they are left out of the pass — and out
+    // of its snapshot — rather than handed to a date-addressed writer that
+    // cannot locate them.
+    const noteTasksWritable = !!bridgeHeartbeatRef.current.pluginAuthoritative;
     const allObsidian = [...tasks, ...unscheduledTasks]
-      .filter(t => t.importSource === 'obsidian' && t.obsidianRawTitle && visibleToViewer(t, writeViewer));
+      .filter(t => t.importSource === 'obsidian' && t.obsidianRawTitle && visibleToViewer(t, writeViewer)
+        && (noteTasksWritable || !t.obsidianNotePath));
     const prev = obsidianPrevTaskStateRef.current;
     const isNative = obsidianVaultHandleRef.current === 'native';
     // ── ARBITRATION (§3.2, Phase 6 PR 3) — gate (a): emit-in-same-tick ────
@@ -1356,10 +1365,14 @@ export default function useObsidianSync({
 
       if (!titleChanged && !stateChanged && !dateChanged && !stampNeeded) continue;
 
-      // Always write back to the original file the task was parsed from.
-      // obsidianFileDate is set at parse time and never changes.
-      const sourceDate = task.obsidianFileDate || task.id.match(/^obsidian-(\d{4}-\d{2}-\d{2})/)?.[1] || task.date;
-      if (!sourceDate) continue;
+      // Always write back to the original file the task was parsed from:
+      // the daily note for obsidianFileDate, or the note at obsidianNotePath
+      // (companion §6: the locator is the path, the note key the minting
+      // namespace — utils/obsidianWritebackTarget.js). Set at parse time,
+      // never changed here.
+      const target = writebackTargetFor(task, obsidianConfig);
+      if (!target) continue;
+      const sourceDate = target.date;
 
       // Derive the new raw title: strip the #obsidian display tag, then
       // RE-ATTACH the line's verbatim Tasks-metadata segment (Step 2's
@@ -1376,13 +1389,17 @@ export default function useObsidianSync({
       // When the task has been rescheduled to a different day, pass the new date
       // so the write adds/updates an inline date prefix in the original file
       // (e.g. "- [ ] 2026-03-20 10:00 Task").  No new file is created.
-      const targetDate = dateChanged ? task.date : undefined;
+      // A non-daily line's schedule is written as metadata, not an inline
+      // date prefix (ruling B) — that write lands with the import step; until
+      // then a reschedule of a note task rewrites the line's state only.
+      const targetDate = dateChanged && !target.isNoteTask ? task.date : undefined;
 
       // All-day tasks have startTime: '00:00' in state but must write back with no
       // time prefix so the line stays as "YYYY-MM-DD Task" (not "YYYY-MM-DD 00:00-00:30 Task").
       const writeStartTime = task.isAllDay ? null : (task.startTime || null);
       const writeDuration = task.isAllDay ? null : (task.duration || null);
-      const taskHeading = obsidianConfig?.taskHeading || '## Tasks';
+      // No section sort inside a non-daily note: it is the user's document.
+      const taskHeading = target.taskHeading;
 
       // Phase 2 opportunistic migration: a changed task with no block id gets
       // one assigned at THIS write — updateTaskLines stamps it onto the
@@ -1405,7 +1422,7 @@ export default function useObsidianSync({
       // matters: the line will CARRY newRawTitle, and a later device deriving
       // from the parsed line must reach the same input.
       let assignBlockId = (!task.obsidianBlockId && blockIdWritesEnabled())
-        ? deriveBlockId(sourceDate, newRawTitle !== undefined ? newRawTitle : task.obsidianRawTitle)
+        ? deriveBlockId(target.noteKey, newRawTitle !== undefined ? newRawTitle : task.obsidianRawTitle)
         : null;
 
       // THE RE-MINT REFUSAL (2026-08-31 db-tier war — see isTombstonedRemint
@@ -1463,7 +1480,9 @@ export default function useObsidianSync({
       let postTitleId = task.id;
       if (titleChanged && newRawTitle) {
         // Mirrors parseTasksFromMarkdown's content-derived id for untagged tasks.
-        const newId = task.obsidianBlockId ? task.id : `obsidian-${sourceDate}-${obsidianSimpleHash(newRawTitle)}`;
+        const newId = task.obsidianBlockId ? task.id
+          : target.isNoteTask ? noteTaskId(target.noteKey, newRawTitle)
+          : `obsidian-${sourceDate}-${obsidianSimpleHash(newRawTitle)}`;
         titleUpdate = { oldId: task.id, newId, newRawTitle };
         postTitleId = newId;
       }
@@ -1493,8 +1512,7 @@ export default function useObsidianSync({
       // a paired vault copy converges byte-for-byte whichever side lands
       // first. Fail-silent; a stream problem never touches the direct write.
       const queued = emitBridgeIntent(titleChanged && newRawTitle ? 'task_retitle' : 'task_state', {
-        path: (obsidianConfig?.dailyNotesPath ? `${obsidianConfig.dailyNotesPath.replace(/\/+$/, '')}/` : '')
-          + dailyNoteFilename(sourceDate, obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd'),
+        path: target.path,
         date: sourceDate,
         obsidianRawTitle: task.obsidianRawTitle,
         completed: task.completed,

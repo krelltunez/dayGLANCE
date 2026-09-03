@@ -768,15 +768,15 @@ moved note keeps its stamped ids intact.
     bodies of non-daily notes are NOT mirrored (the daily-note editor stays a
     daily-note feature).
 
-### 6.3 Rulings requested (hard-stop category, owner)
+### 6.3 Rulings (hard-stop category; owner, 2026-09-02: "yes to all")
 
-| | Ruling | Proposal |
+| | Ruling | Decided |
 |---|---|---|
 | A | Minting namespace for non-daily notes | The note's vault-relative path; daily notes keep the date. |
 | B | How a schedule is written to a non-daily line | Scheduled-date metadata in the vault's detected format, plus the leading time prefix for a slot; the line never moves. |
 | C | A note leaving scope | Tasks withdrawn from dayGLANCE ("out of scope" tombstone class), stamps untouched; re-entry re-imports under the same ids. |
 | D | Where the scope lives | Plugin settings (folders + tags, union), published in `meta:config`. |
-| E | Completion window for non-daily notes | 14 days. |
+| E | Completion window for non-daily notes | **30 days, user-configurable in the plugin's scope settings, bounded to 7–90** (a year-long window would re-create the adoption burst the throttle exists to prevent); published beside the scope in `meta:config`. A completed line with no completion date counts as older than the window. |
 | F | Direct access | Stays daily-notes-only (§2); non-daily scope is plugin-only. |
 
 ### 6.4 Build order
@@ -788,11 +788,26 @@ moved note keeps its stamped ids intact.
 2. **Plugin discovery.** Scope settings (folders, tags), published in the
    config row; `inScope` and the stamping gate extended from "is a daily
    note" to "is a daily note or in scope"; throttled adoption.
-3. **App import.** The observation classifier admits in-scope non-daily
-   notes; parse under the path key; schedule from metadata, inbox otherwise;
-   the note badge; moves; the out-of-scope withdrawal.
-4. **Scheduling write.** The metadata write on the line.
-5. **Field test** on a real project folder before widening defaults.
+3. **App import, with the scheduling write.** The observation classifier
+   admits in-scope non-daily notes; parse under the path key; schedule from
+   metadata, inbox otherwise; the note badge; moves; the out-of-scope
+   withdrawal; AND the metadata write for a reschedule (ruling B) — folded
+   in here so no non-daily task ever exists in the app without its full
+   write path.
+4. **Field test** on a real project folder before widening defaults.
+
+**Step 1 record (2026-09-02, built).** `deriveBlockId` takes a note key
+(`noteKeyForPath` normalizes a path: NFC, forward slashes, no leading
+slash); `noteTaskId` is the provisional id of an untagged non-daily line.
+`parseTasksFromMarkdown` gains `{ notePath }`: the note's own date is never
+a task date, lines carry `obsidianNotePath` instead of `obsidianFileDate`,
+dateless lines are inbox. The writeback resolves its target through
+`writebackTargetFor` — path and date-as-schedule for a note task, with no
+section sort and the path as the minting key; unchanged for daily notes —
+and admits note tasks only while the plugin is authoritative (ruling F).
+Pinned: same title in two notes mints two ids; the stamp planner mints
+under whatever key it is given; a daily-note derivation is byte-identical
+before and after.
 
 **The TaskForge reference point** stands from the earlier text: discovery
 was never the hard part; identity is what buys cross-device durability
@@ -831,7 +846,7 @@ through retitles, deletes and revivals, and it is what this section pays for.
 | 4 | Project frontmatter update cadence | Open; `data.json` churn lesson applies |
 | 5 | Sidebar refresh mechanism | **Decided: no second stream.** The mirror refreshes on the transport's 30s tick and the drain success tail, so the existing SSE nudge feeds it (4.2, built) |
 | 6 | Vault task scope: which notes | **Decided: opt-in folders and/or tags, union**, chosen in the plugin (§6.2 item 4) |
-| 7 | Note-key design for two-way scope | **Requested** as ruling A (§6.3): the note's path for non-daily notes, the date for daily notes |
+| 7 | Note-key design for two-way scope | **Decided (ruling A, §6.3)**: the note's path for non-daily notes, the date for daily notes |
 | 8 | Completion-log line shape (scan-collision constraint, 4.1) | **Decided: non-task shape** (`- ✅ …`), built |
 | 9 | Sidebar completion write path for tasks with no vault line (4.2) | **Decided: action rows** (`act:` on the bridge stream), applied by dayGLANCE as the single data-plane writer; built |
 | 10 | Ownership rule for dayGLANCE-maintained frontmatter (4.3) | Open; what-wins-on-divergence category, ruling before first write |
@@ -839,7 +854,6 @@ through retitles, deletes and revivals, and it is what this section pays for.
 | 12 | Calendar events in the sidebar (excluded from sync by design) | **Decided: dayGLANCE publishes a per-device projection row** on the bridge stream, merged with per-day authority (4.2, decision 8); built |
 | 13 | Multi-user: whose tasks the sidebar, the completion log and the vault writeback handle | **Decided: the vault's viewer**, defaulted from the pairing, overridable in the plugin; first-import assignment to the viewer, writes scoped to the viewer (4.2, decisions 9 and 10); built |
 
-| 14 | Vault task scope rulings B–F (§6.3): schedule-as-metadata, leaving scope, where scope lives, completion window, direct access stays daily-only | **Requested** with proposals |
+| 14 | Vault task scope rulings B–F (§6.3): schedule-as-metadata, leaving scope, where scope lives, completion window (30 days, configurable 7–90), direct access stays daily-only | **Decided**, 2026-09-02 |
 
-Still open, in sequencing order: 7 and 14 (vault task scope, rulings A–F
-requested), then 3, 4 and 10 (project notes).
+Still open, in sequencing order: 3, 4 and 10 (project notes).
