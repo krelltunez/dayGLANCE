@@ -43,6 +43,11 @@
 //                     below (which reports it unsupported)
 //   project_note_unlink {path, targetId} — remove that key when it names
 //                     targetId
+//   project_note_create {targetId, kind:'project'|'goal', title, goalId?,
+//                     goalTitle?} — create the entity's note where the
+//                     plugin's layout setting says (projectNotes.js), from
+//                     its template through the §4.4 ladder, and link it;
+//                     idempotent (an already-linked target is a no-op)
 // `path` is always vault-root-relative and resolved BY THE EMITTER (the
 // emitter owns the dailyNotesPath/pattern config; the applier needs no
 // dayGLANCE settings). wiki_note_write is the one type without a resolved

@@ -53,7 +53,15 @@ import {
   completedSinceFor,
   PROJECT_NOTE_ID_KEY,
   linkObservationEntityId,
+  normalizeProjectNoteSettings,
+  projectNotePath,
+  uniqueNotePath,
+  noteNameFromTitle,
+  templateNeedsUser,
+  renderNoteTemplateSubset,
+  withCreationFrontmatter,
   type VaultScope,
+  type ProjectNoteSettings,
 } from '@glance-apps/obsidian-format';
 import { createVaultClient, type VaultClient } from '@glance-apps/sync/src/vaultClient.js';
 import type { BridgePairing } from './pairing';
@@ -151,6 +159,8 @@ export interface BridgeHost {
    * inactive means daily notes only.
    */
   getScope?(): VaultScope | null;
+  /** Project and goal note workspaces (companion §4.3, rulings D and E). */
+  getProjectNotes?(): ProjectNoteSettings;
 }
 
 // Same requestUrl-backed fetch shim as pairing.ts (CORS-free everywhere).
@@ -843,6 +853,9 @@ export class BridgeTransport {
     if (intent.type === 'project_note_link' || intent.type === 'project_note_unlink') {
       return this.applyLinkIntent(intent);
     }
+    if (intent.type === 'project_note_create') {
+      return this.applyCreateIntent(intent);
+    }
     if (intent.type === 'wiki_note_write') {
       // Wikilink resolution is the applier's job (the one intent type
       // without an emitter-resolved path): an existing note anywhere in
@@ -1073,6 +1086,93 @@ export class BridgeTransport {
     if (!views.length) return false;
     const current = await this.host.app.vault.adapter.read(path);
     return views.some((v) => v.getViewData() !== current);
+  }
+
+  // ── Workspace creation (companion §4.3, rulings D and E) ─────────────────
+
+  /** The linked note's path for a dayGLANCE id, or null. */
+  private linkedPathOf(targetId: string): string | null {
+    for (const [path, id] of this.linked) if (id === targetId) return path;
+    return null;
+  }
+
+  /**
+   * Render a template note for a new project or goal note through the §4.4
+   * ladder: Templater when it is installed, its render methods feature-detect,
+   * and the template asks nothing interactively (`tp.system.` would open a
+   * modal nobody is looking at and never settle); otherwise the subset
+   * renderer, leaving unsupported variables visible. Null when the template
+   * note does not exist.
+   */
+  private async renderTemplate(templatePath: string, target: TFile, vars: { title: string; date: string; goal: string }): Promise<string | null> {
+    const tfile = this.host.app.vault.getAbstractFileByPath(normalizePath(templatePath));
+    if (!(tfile instanceof TFile)) return null;
+    const text = await this.host.app.vault.read(tfile);
+    const subset = renderNoteTemplateSubset(text, vars);
+    if (templateNeedsUser(text)) return subset;
+    type Fn = (...args: unknown[]) => unknown;
+    const plugins = (this.host.app as unknown as { plugins?: { plugins?: Record<string, unknown> } }).plugins?.plugins;
+    const templater = (plugins?.['templater-obsidian'] as { templater?: Record<string, unknown> } | undefined)?.templater;
+    const create = templater?.create_running_config;
+    const parse = templater?.read_and_parse_template;
+    if (typeof create !== 'function' || typeof parse !== 'function') return subset;
+    try {
+      // RunMode.CreateNewFromTemplate is 0 in every Templater release since 1.12.
+      const config = (create as Fn).call(templater, tfile, target, 0);
+      const out = await (parse as Fn).call(templater, config);
+      return typeof out === 'string' ? renderNoteTemplateSubset(out, vars) : subset;
+    } catch (e) {
+      console.warn('dayGLANCE bridge: Templater render failed; using the subset renderer', e);
+      return subset;
+    }
+  }
+
+  private async applyCreateIntent(intent: Record<string, unknown>): Promise<'applied'> {
+    const targetId = String(intent.targetId ?? '').trim();
+    const kind = intent.kind === 'goal' ? 'goal' : 'project';
+    const title = String(intent.title ?? '').trim();
+    if (!targetId || !title) return 'applied';
+    if (this.linkedPathOf(targetId)) return 'applied'; // idempotent replay, or linked meanwhile
+    const settings = normalizeProjectNoteSettings(this.host.getProjectNotes?.() ?? null);
+    const goalId = typeof intent.goalId === 'string' ? intent.goalId : '';
+    const goalTitle = typeof intent.goalTitle === 'string' ? intent.goalTitle : '';
+    // Nested layout: a project with a goal goes inside the goal's folder —
+    // wherever the goal's note actually lives when it is linked, else the
+    // folder the goal would get.
+    let goalFolder: string | null = null;
+    if (kind === 'project' && settings.layout === 'nested' && goalId) {
+      const goalPath = this.linkedPathOf(goalId);
+      if (goalPath) goalFolder = goalPath.includes('/') ? goalPath.slice(0, goalPath.lastIndexOf('/')) : '';
+      else if (goalTitle) goalFolder = `${settings.goalsFolder}/${noteNameFromTitle(goalTitle)}`;
+      if (goalFolder === '') goalFolder = null; // a goal note at the vault root nests nothing
+    }
+    let path = normalizePath(projectNotePath({ kind, title, ...settings, goalFolder }));
+    const existing = this.host.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof TFile) {
+      // A note already named for it: adopt when it belongs to nobody, step
+      // aside when it is another entity's.
+      const owner = this.noteLinkId(path);
+      if (!owner) { await this.setNoteLink(existing, targetId); return 'applied'; }
+      if (owner === targetId) return 'applied';
+      path = uniqueNotePath(path, (p) => this.host.app.vault.getAbstractFileByPath(p) !== null);
+    }
+    await this.ensureParentDirs(path);
+    const today = new Date().toISOString().slice(0, 10);
+    const vars = { title, date: today, goal: goalTitle };
+    let created: TFile;
+    try {
+      created = await this.host.app.vault.create(path, withCreationFrontmatter(`# ${title}\n`, today));
+    } catch (e) {
+      console.error(`dayGLANCE bridge: could not create ${path}`, e);
+      return 'applied';
+    }
+    const templatePath = kind === 'goal' ? settings.goalTemplate : settings.projectTemplate;
+    if (templatePath) {
+      const body = await this.renderTemplate(templatePath, created, vars);
+      if (body !== null) await this.host.app.vault.modify(created, withCreationFrontmatter(body, today));
+    }
+    await this.setNoteLink(created, targetId);
+    return 'applied';
   }
 
   /** The palette command: link the given note to a project or goal. */

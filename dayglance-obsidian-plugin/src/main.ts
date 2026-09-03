@@ -46,7 +46,7 @@ import { PairingModal, readPairingOfferText, type BridgePairing } from './pairin
 import { BridgeSettingTab, type BridgeSettingsHost } from './settingsTab';
 import { BridgeTransport, publishPairingMeta, type BridgeState } from './bridge';
 import { AgendaStore } from './agenda';
-import { normalizeScope, scopeIsActive, type VaultScope } from '@glance-apps/obsidian-format';
+import { normalizeScope, scopeIsActive, normalizeProjectNoteSettings, type VaultScope, type ProjectNoteSettings } from '@glance-apps/obsidian-format';
 import { localDateStr } from '@glance-apps/agenda-core';
 import { AgendaView, AGENDA_VIEW_TYPE, removeAgendaStyles } from './agendaView';
 import { LinkTargetModal } from './linkModal';
@@ -76,6 +76,9 @@ interface BridgeData {
   // notes are task sources, and the completion window (ruling E). Absent =
   // daily notes only.
   scope?: VaultScope;
+  // Project and goal note workspaces (companion §4.3, rulings D and E):
+  // where a note born in dayGLANCE goes and which template it uses.
+  projectNotes?: ProjectNoteSettings;
 }
 
 const mintDeviceId = (): string => {
@@ -131,6 +134,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
       // note blocks re-render from the refreshed mirror (companion §4.3).
       onSynced: () => { void this.agenda.refresh().then(() => this.noteBlocks.tick()); },
       getScope: () => this.scope(),
+      getProjectNotes: () => normalizeProjectNoteSettings(this.data.projectNotes),
     });
     this.noteBlocks = new NoteBlockWriter({
       app: this.app,
@@ -253,6 +257,11 @@ export default class DayGlanceBridgePlugin extends Plugin {
         if (this.data.pairing) {
           await publishPairingMeta(this.data.pairing, undefined, userSyncId, this.scope()).catch((e) => console.error('dayGLANCE bridge: meta publish failed', e));
         }
+      },
+      getProjectNotes: () => normalizeProjectNoteSettings(this.data.projectNotes),
+      setProjectNotes: async (s) => {
+        this.data.projectNotes = normalizeProjectNoteSettings(s);
+        await this.saveData(this.data);
       },
       getScope: () => this.scope(),
       setScope: async (scope) => {

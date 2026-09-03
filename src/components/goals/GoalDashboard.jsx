@@ -132,6 +132,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
   const [assignedUserSyncIds, setAssignedUserSyncIds] = useState(initial?.assignedUserSyncIds || []);
   const [hideStalled, setHideStalled] = useState(initial?.hideStalled || false);
   const [trackInLifeGlance, setTrackInLifeGlance] = useState(false);
+  const [createNote, setCreateNote] = useState(false);
 
   // "Completed" only available when all child projects are completed (or none exist)
   const activeChildProjects = childProjects.filter(p => p.status !== 'archived');
@@ -148,7 +149,7 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onSave({ title: title.trim(), description: description.trim(), areaId: areaId || undefined, startDate: startDate || undefined, targetDate: targetDate || undefined, color, status, assignedUserSyncIds, hideStalled, trackInLifeGlance: showLifeGlanceCheckbox && !alreadyShared && trackInLifeGlance });
+    onSave({ title: title.trim(), description: description.trim(), areaId: areaId || undefined, startDate: startDate || undefined, targetDate: targetDate || undefined, color, status, assignedUserSyncIds, hideStalled, trackInLifeGlance: showLifeGlanceCheckbox && !alreadyShared && trackInLifeGlance, createNote: !initial && createNote });
   };
 
   return (
@@ -352,6 +353,9 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
         </div>
       )}
 
+      {/* Obsidian note (companion §4.3, ruling E): goals ride the same link machinery */}
+      {initial ? <NoteLinkRow kind="goal" id={initial.id} /> : <CreateNoteCheckbox checked={createNote} onChange={setCreateNote} />}
+
       {/* Actions */}
       <div className="flex gap-2 items-center">
         {initial && onDelete && (
@@ -393,16 +397,16 @@ const GoalForm = ({ initial, childProjects = [], onSave, onCancel, onDelete, mob
 // ─── Project form (create / edit) ─────────────────────────────────────────────
 
 /**
- * ProjectNoteRow — the project's Obsidian note (companion spec §4.3). Links
- * an EXISTING vault note by path (the plugin writes the id key), opens it,
- * unlinks it, and shows the missing state with a relink (ruling F). Reads the
- * live project so the row reflects the link as soon as it lands.
+ * NoteLinkRow — a project's or goal's Obsidian note (companion spec §4.3).
+ * Links an EXISTING vault note by path (the plugin writes the id key), opens
+ * it, unlinks it, and shows the missing state with a relink (ruling F). Reads
+ * the live entity so the row reflects the link as soon as it lands.
  */
-const ProjectNoteRow = ({ projectId }) => {
+const NoteLinkRow = ({ kind = 'project', id }) => {
   const { darkMode, borderClass, textPrimary, textSecondary } = useDayPlannerCtx();
-  const { projects } = useFeaturesCtx();
+  const { projects, goals } = useFeaturesCtx();
   const { obsidianConfig, linkProjectNote, unlinkProjectNote, openInObsidian } = useSyncCtx();
-  const project = (projects || []).find(p => p.id === projectId);
+  const project = ((kind === 'goal' ? goals : projects) || []).find(e => e.id === id);
   const link = noteLinkOf(project);
   const [path, setPath] = useState(link?.name || '');
   const [error, setError] = useState('');
@@ -413,7 +417,7 @@ const ProjectNoteRow = ({ projectId }) => {
   const btnCls = `px-2.5 py-1.5 text-xs rounded-lg border ${borderClass} ${textPrimary} hover:bg-blue-500/10`;
   const submit = () => {
     setError('');
-    if (!linkProjectNote?.('project', project.id, path)) {
+    if (!linkProjectNote?.(kind, project.id, path)) {
       setError('Could not link. Enter a vault path and make sure the dayGLANCE bridge plugin is paired.');
     }
   };
@@ -424,13 +428,13 @@ const ProjectNoteRow = ({ projectId }) => {
         <div className="flex items-center gap-2 text-sm">
           <span className={`${textPrimary} truncate flex-1 min-w-0`} title={link.path}>{link.name}</span>
           <button type="button" className={btnCls} onClick={() => openInObsidian?.(link.name)}>Open</button>
-          <button type="button" className={btnCls} onClick={() => unlinkProjectNote?.('project', project.id)}>Unlink</button>
+          <button type="button" className={btnCls} onClick={() => unlinkProjectNote?.(kind, project.id)}>Unlink</button>
         </div>
       ) : (
         <>
           {link?.missing && (
             <div className="text-xs text-amber-600 dark:text-amber-400">
-              The linked note is missing from the vault ({link.name}). Relink it, or unlink the project.
+              The linked note is missing from the vault ({link.name}). Relink it, or unlink it.
             </div>
           )}
           <div className="flex items-center gap-2">
@@ -443,7 +447,7 @@ const ProjectNoteRow = ({ projectId }) => {
             />
             <button type="button" className={btnCls} onClick={submit}>{link?.missing ? 'Relink' : 'Link'}</button>
             {link?.missing && (
-              <button type="button" className={btnCls} onClick={() => unlinkProjectNote?.('project', project.id)}>Unlink</button>
+              <button type="button" className={btnCls} onClick={() => unlinkProjectNote?.(kind, project.id)}>Unlink</button>
             )}
           </div>
           <div className={`text-[11px] ${textSecondary}`}>
@@ -453,6 +457,19 @@ const ProjectNoteRow = ({ projectId }) => {
         </>
       )}
     </div>
+  );
+};
+
+/** "Create a note in Obsidian" for a NEW project or goal (rulings D and E); shown only with the vault enabled. */
+const CreateNoteCheckbox = ({ checked, onChange }) => {
+  const { textSecondary } = useDayPlannerCtx();
+  const { obsidianConfig, createProjectNote } = useSyncCtx();
+  if (!obsidianConfig?.enabled || !createProjectNote) return null;
+  return (
+    <label className={`flex items-center gap-2 text-xs ${textSecondary} cursor-pointer select-none`}>
+      <input type="checkbox" checked={!!checked} onChange={e => onChange(e.target.checked)} className="rounded" />
+      Create a note in Obsidian (where the bridge plugin's layout puts it)
+    </label>
   );
 };
 
@@ -478,6 +495,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
     initial?.assignedUserSyncIds || (initial ? [] : initialGoal?.assignedUserSyncIds || [])
   );
   const [usersTouched, setUsersTouched] = useState(!!initial);
+  const [createNote, setCreateNote] = useState(false);
 
   // "Completed" only available when all project tasks are completed (or none exist)
   const projectTasks = initial
@@ -490,7 +508,7 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
     if (!title.trim()) return;
     // description and hyperglance are managed in the Project Planner now;
     // omitting them here preserves existing values on save (updateProject merges).
-    onSave({ title: title.trim(), goalId: goalId || undefined, status, color, assignedUserSyncIds });
+    onSave({ title: title.trim(), goalId: goalId || undefined, status, color, assignedUserSyncIds, createNote: !initial && createNote });
   };
 
   const activeGoals = goals.filter(g => g.status !== 'archived');
@@ -542,8 +560,8 @@ export const ProjectForm = ({ initial, goals, defaultGoalId, onSave, onCancel, m
         </select>
       </div>
 
-      {/* Obsidian note (companion §4.3) */}
-      {initial && <ProjectNoteRow projectId={initial.id} />}
+      {/* Obsidian note (companion §4.3): link an existing note, or create one with the project */}
+      {initial ? <NoteLinkRow kind="project" id={initial.id} /> : <CreateNoteCheckbox checked={createNote} onChange={setCreateNote} />}
 
       {/* Color — defaults to the goal's color (blue when standalone) until overridden */}
       <div className="flex flex-col gap-1.5">
@@ -2240,6 +2258,8 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
     plannerProjectId, setPlannerProjectId,
     isVisibleForUser,
   } = useFeaturesCtx();
+  // Workspace creation (companion §4.3, rulings D and E): the plugin creates and links the note.
+  const { createProjectNote } = useSyncCtx();
   const { t } = useTranslation();
 
   const [goalForm, setGoalForm] = useState(null);
@@ -2314,7 +2334,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
   const archivedCount = archivedGoals.length + archivedProjects.length;
 
   const handleSaveGoal = (fields) => {
-    const { trackInLifeGlance, ...goalFields } = fields;
+    const { trackInLifeGlance, createNote, ...goalFields } = fields;
     if (goalForm.editing) {
       const wasArchived = goalForm.editing.status === 'archived';
       const nowArchived = goalFields.status === 'archived';
@@ -2344,6 +2364,7 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
     } else {
       const newGoal = addGoal({ ...goalFields, ...(trackInLifeGlance ? { synced_to_lifeglance: true } : {}) });
       if (trackInLifeGlance) emitGoalCreate(newGoal);
+      if (createNote && newGoal?.id) createProjectNote?.('goal', newGoal.id, { title: newGoal.title });
     }
     setGoalForm(null);
   };
@@ -2363,7 +2384,8 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
     });
   };
 
-  const handleSaveProject = (fields) => {
+  const handleSaveProject = (allFields) => {
+    const { createNote, ...fields } = allFields;
     if (projectForm.editing) {
       const wasArchived = projectForm.editing.status === 'archived';
       const nowArchived = fields.status === 'archived';
@@ -2382,7 +2404,8 @@ const GoalDashboard = ({ embedded = false, isActive = false, addGoalTrigger = 0,
       }
       updateProject(projectForm.editing.id, fields);
     } else {
-      addProject(fields);
+      const created = addProject(fields);
+      if (createNote && created?.id) createProjectNote?.('project', created.id, { title: created.title, goalId: created.goalId });
     }
     setProjectForm(null);
   };

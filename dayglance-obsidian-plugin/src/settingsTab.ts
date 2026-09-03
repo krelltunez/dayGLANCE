@@ -15,7 +15,7 @@ import {
   type BridgePairing,
 } from './pairing';
 import type { AgendaKeyState, AgendaUser } from './agenda';
-import { normalizeScope, SCOPE_WINDOW_MIN_DAYS, SCOPE_WINDOW_MAX_DAYS, SCOPE_WINDOW_DEFAULT_DAYS, type VaultScope } from '@glance-apps/obsidian-format';
+import { normalizeScope, SCOPE_WINDOW_MIN_DAYS, SCOPE_WINDOW_MAX_DAYS, SCOPE_WINDOW_DEFAULT_DAYS, type VaultScope, normalizeProjectNoteSettings, PROJECT_NOTE_LAYOUTS, type ProjectNoteSettings } from '@glance-apps/obsidian-format';
 
 // Stamped by esbuild at bundle time (see esbuild.config.mjs `define`).
 // Guarded so a build without the define (tests, tooling) still runs.
@@ -53,6 +53,9 @@ export interface BridgeSettingsHost extends PairingHost {
   /** Vault task scope (companion §6): which non-daily notes are task sources. */
   getScope(): VaultScope | null;
   setScope(scope: VaultScope): Promise<void>;
+  /** Project and goal note workspaces (companion §4.3, rulings D and E). */
+  getProjectNotes(): ProjectNoteSettings;
+  setProjectNotes(s: ProjectNoteSettings): Promise<void>;
 }
 
 const pairedSince = (pairing: BridgePairing): string => {
@@ -78,6 +81,7 @@ export class BridgeSettingTab extends PluginSettingTab {
       this.displayPaired(pairing);
       this.displayAccount();
       this.displayScope();
+      this.displayProjectNotes();
     } else {
       this.displayUnpaired();
     }
@@ -264,6 +268,57 @@ export class BridgeSettingTab extends PluginSettingTab {
         text.inputEl.min = String(SCOPE_WINDOW_MIN_DAYS);
         text.inputEl.max = String(SCOPE_WINDOW_MAX_DAYS);
         text.inputEl.addEventListener('blur', () => void save());
+      });
+  }
+
+  private displayProjectNotes(): void {
+    this.containerEl.createEl('h3', { text: 'Project and goal notes' });
+    const cur = this.host.getProjectNotes();
+    const draft: ProjectNoteSettings = { ...cur };
+    const save = async () => { await this.host.setProjectNotes(normalizeProjectNoteSettings(draft)); };
+    this.containerEl.createEl('p', {
+      cls: 'setting-item-description',
+      text: 'A dayGLANCE project or goal can create its own note here (from dayGLANCE, when the project is created). Linking an existing note never creates or moves anything; placement happens at creation only.',
+    });
+    const layoutLabels: Record<string, string> = {
+      note: 'One note per project or goal',
+      folder: 'A folder per project or goal, with an index note',
+      nested: 'Folders nested under the goal (Goals/<goal>/<project>/)',
+    };
+    new Setting(this.containerEl)
+      .setName('Layout')
+      .setDesc('Where a new note goes. Nested: a goal gets a folder under the goals folder, and a project with a goal gets its folder inside it.')
+      .addDropdown((d) => {
+        for (const l of PROJECT_NOTE_LAYOUTS) d.addOption(l, layoutLabels[l] ?? l);
+        d.setValue(cur.layout).onChange((v) => { draft.layout = v as ProjectNoteSettings['layout']; void save(); });
+      });
+    new Setting(this.containerEl)
+      .setName('Projects folder')
+      .setDesc('Vault-relative folder for new project notes (standalone projects under the nested layout too).')
+      .addText((t) => {
+        t.setPlaceholder('Projects').setValue(cur.projectsFolder).onChange((v) => { draft.projectsFolder = v; });
+        t.inputEl.addEventListener('blur', () => void save());
+      });
+    new Setting(this.containerEl)
+      .setName('Goals folder')
+      .setDesc('Vault-relative folder for new goal notes.')
+      .addText((t) => {
+        t.setPlaceholder('Goals').setValue(cur.goalsFolder).onChange((v) => { draft.goalsFolder = v; });
+        t.inputEl.addEventListener('blur', () => void save());
+      });
+    new Setting(this.containerEl)
+      .setName('Project template')
+      .setDesc('Optional: vault path of a template note. Rendered by Templater when it is installed and the template asks nothing interactively; otherwise {{title}}, {{date}} and {{goal}} are filled and the rest is left as is.')
+      .addText((t) => {
+        t.setPlaceholder('Templates/Project.md').setValue(cur.projectTemplate).onChange((v) => { draft.projectTemplate = v; });
+        t.inputEl.addEventListener('blur', () => void save());
+      });
+    new Setting(this.containerEl)
+      .setName('Goal template')
+      .setDesc('Optional: vault path of a template note for goals, rendered the same way.')
+      .addText((t) => {
+        t.setPlaceholder('Templates/Goal.md').setValue(cur.goalTemplate).onChange((v) => { draft.goalTemplate = v; });
+        t.inputEl.addEventListener('blur', () => void save());
       });
   }
 

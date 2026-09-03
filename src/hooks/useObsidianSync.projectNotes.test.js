@@ -162,3 +162,14 @@ describe('project notes: link and unlink from dayGLANCE', () => {
     expect(emitBridgeIntent).toHaveBeenCalledWith('project_note_unlink', { path: 'Projects/House.md', targetId: 'p1' });
   });
 });
+
+describe('project notes: workspace creation from dayGLANCE (rulings D and E)', () => {
+  it('createProjectNote queues the create intent with the title and the goal (id and title); nothing without a title', () => {
+    const h = useMountedHook({ projects: [], goals: [{ id: 'g1', title: 'Home' }] });
+    expect(h.api.createProjectNote('project', 'p9', { title: 'House', goalId: 'g1' })).toBe(true);
+    expect(emitBridgeIntent).toHaveBeenCalledWith('project_note_create', { targetId: 'p9', kind: 'project', title: 'House', goalId: 'g1', goalTitle: 'Home' });
+    expect(h.api.createProjectNote('goal', 'g2', { title: 'Health' })).toBe(true);
+    expect(emitBridgeIntent).toHaveBeenLastCalledWith('project_note_create', { targetId: 'g2', kind: 'goal', title: 'Health' });
+    expect(h.api.createProjectNote('project', 'p9', { title: '  ' })).toBe(false);
+  });
+});

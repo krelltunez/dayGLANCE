@@ -664,6 +664,34 @@ from the title), the bare title while the note is missing. Ruling H: a task
 line that imports FRESH from a scoped note whose path is a present project
 link starts with that project; a known task keeps whatever the app gave it.
 
+**Step 3 record (2026-09-03, built).** `projectNotes.js` in the shared
+package decides placement (rulings D and E): `note` (default,
+`Projects/House.md`), `folder` (`Projects/House/House.md`), `nested`
+(`Goals/Home/House/House.md` for a project with a goal — under the goal's
+linked note's own folder wherever that is, else the folder the goal would
+get; a standalone project falls back to the folder layout); a portable note
+name from any title; a bounded ` 2`, ` 3` suffix past a taken path; and the
+§4.4 pieces (the `tp.system.` guard, the `{{title}}`/`{{date}}`/`{{goal}}`
+subset). The plugin's settings section holds the layout, both folders and
+the two template paths (plugin-local, like the scope). A `project_note_create`
+intent from dayGLANCE (the "Create a note in Obsidian" checkbox on a NEW
+project or goal; the fields ride the intent because the entity is not in
+any list yet) creates the note with dayGLANCE's creation frontmatter and a
+title heading, renders the template through the ladder (Templater's
+`create_running_config` + `read_and_parse_template` when both feature-detect
+and the template is non-interactive, else the subset), then links it —
+which is the same key write, map update and link observation as step 1, so
+the record learns its locator through the observation stream. Idempotent:
+an already-linked target is a no-op. A note already named for the entity is
+ADOPTED when it carries no id key, stepped past when it is another's.
+Goals: the form row and the goal-card badge land here; the record and
+plugin machinery were already shared. *Judgment calls:* adopting an
+unowned note that already sits at the computed path (it is named for the
+project, in the projects folder; suffixing would leave the obvious note
+unlinked); the subset renderer is three variables rather than v1's fuller
+set (nothing in the repo implements the fuller set, and Templater covers
+the rest when present).
+
 ---
 
 ### 4.4 Templater, via guarded delegation
