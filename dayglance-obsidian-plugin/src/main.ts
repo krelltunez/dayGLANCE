@@ -46,6 +46,7 @@ import { PairingModal, readPairingOfferText, type BridgePairing } from './pairin
 import { BridgeSettingTab, type BridgeSettingsHost } from './settingsTab';
 import { BridgeTransport, publishPairingMeta, type BridgeState } from './bridge';
 import { AgendaStore } from './agenda';
+import { normalizeScope, scopeIsActive, type VaultScope } from '@glance-apps/obsidian-format';
 import { localDateStr } from '@glance-apps/agenda-core';
 import { AgendaView, AGENDA_VIEW_TYPE, removeAgendaStyles } from './agendaView';
 
@@ -69,6 +70,10 @@ interface BridgeData {
   // pairing itself: the owner's assumption of record is one person per
   // vault, so vault scope is the right scope.
   viewer?: { userSyncId: string | null };
+  // Vault task scope (companion §6, ruling D): folders and/or tags whose
+  // notes are task sources, and the completion window (ruling E). Absent =
+  // daily notes only.
+  scope?: VaultScope;
 }
 
 const mintDeviceId = (): string => {
@@ -121,6 +126,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
       // A successful drain (tick or SSE nudge) is the agenda's refresh
       // signal too: dayGLANCE's pushes advance the same account seq.
       onSynced: () => { void this.agenda.refresh(); },
+      getScope: () => this.scope(),
     });
 
     this.registerView(AGENDA_VIEW_TYPE, (leaf) => new AgendaView(leaf, this.agenda));
@@ -171,7 +177,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
         await this.saveData(this.data);
         // Publish the plaintext pairing-meta row — how OTHER dayGLANCE
         // devices discover the salt and start emitting (bridge.ts).
-        await publishPairingMeta(pairing, undefined, this.viewer()).catch((e) => console.error('dayGLANCE bridge: meta publish failed', e));
+        await publishPairingMeta(pairing, undefined, this.viewer(), this.scope()).catch((e) => console.error('dayGLANCE bridge: meta publish failed', e));
         // Beat immediately so dayGLANCE's pairing panel confirms
         // without waiting out the interval.
         await this.writeHeartbeat();
@@ -196,8 +202,18 @@ export default class DayGlanceBridgePlugin extends Plugin {
         // republish the meta row so its devices pick the change up on their
         // next cycle (the row is plaintext; a user id is not a secret).
         if (this.data.pairing) {
-          await publishPairingMeta(this.data.pairing, undefined, userSyncId).catch((e) => console.error('dayGLANCE bridge: meta publish failed', e));
+          await publishPairingMeta(this.data.pairing, undefined, userSyncId, this.scope()).catch((e) => console.error('dayGLANCE bridge: meta publish failed', e));
         }
+      },
+      getScope: () => this.scope(),
+      setScope: async (scope) => {
+        this.data.scope = normalizeScope(scope);
+        await this.saveData(this.data);
+        if (this.data.pairing) {
+          await publishPairingMeta(this.data.pairing, undefined, this.viewer(), this.scope()).catch((e) => console.error('dayGLANCE bridge: meta publish failed', e));
+        }
+        this.transport.scopeChanged();
+        this.transport.adoptTick();
       },
     };
     this.addSettingTab(new BridgeSettingTab(host));
@@ -231,11 +247,15 @@ export default class DayGlanceBridgePlugin extends Plugin {
     void this.writeHeartbeat();
     void this.checkForPairingOffer();
     void this.transport.drain();
+    // Scope adoption walks the metadata cache, which is complete only after
+    // layout is ready; the tick then reports a few notes per interval.
+    this.app.workspace.onLayoutReady(() => this.transport.adoptTick());
     this.registerInterval(
       window.setInterval(() => {
         void this.writeHeartbeat();
         void this.checkForPairingOffer();
         void this.transport.drain();
+        this.transport.adoptTick();
       }, HEARTBEAT_INTERVAL_MS),
     );
   }
@@ -274,6 +294,12 @@ export default class DayGlanceBridgePlugin extends Plugin {
     await publishPairingMeta(null, previous).catch(() => {});
     await this.writeHeartbeat();
     new Notice('dayGLANCE bridge: unpaired. Also revoke the device token on your GLANCEvault server — unpairing only forgets the local credentials.');
+  }
+
+  // The active vault task scope, or null when none is configured.
+  private scope(): VaultScope | null {
+    const s = this.data.scope ? normalizeScope(this.data.scope) : null;
+    return s && scopeIsActive(s) ? s : null;
   }
 
   // Explicit choice wins; else the pairing device's user; else everyone.

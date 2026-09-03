@@ -308,7 +308,19 @@ export function updateTaskLines(lines, { obsidianRawTitle, completed, startTime,
  *   tasks. The sync passes ONE set across every file in the scan so the rule
  *   holds vault-wide, not merely per file.
  */
-export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(), { notePath = null } = {}) {
+/** The completion date a line's marker carries (YYYY-MM-DD), or null. */
+export function completionDateOfLine(body) {
+  const { completedAt } = splitCompletionMarker(String(body ?? ''));
+  return typeof completedAt === 'string' && /^\d{4}-\d{2}-\d{2}/.test(completedAt) ? completedAt.slice(0, 10) : null;
+}
+
+/** True when a completed line's marker date is on or after `completedSince`. Undated → false. */
+export function completedLineInWindow(body, completedSince) {
+  const d = completionDateOfLine(body);
+  return d !== null && d >= completedSince;
+}
+
+export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(), { notePath = null, completedSince = null } = {}) {
   const scheduled = [];
   const inbox = [];
   if (!content) return { scheduledTasks: scheduled, inboxTasks: inbox };
@@ -330,6 +342,9 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
     if (!match) continue;
 
     const completed = match[1] !== ' ';
+    // Completion window (ruling E): in a non-daily note, a completed line
+    // outside the window — or with no completion date — is not a task.
+    if (notePath && completedSince && completed && !completedLineInWindow(splitBlockId(match[2].trim()).text, completedSince)) continue;
     let rawTitle = match[2].trim();
 
     // Strip a trailing ^dg-<id> block reference BEFORE any other parsing, so
@@ -551,10 +566,10 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
  * @param {string} dateStr  the note's own YYYY-MM-DD date
  * @returns {{ text: string, changed: boolean, stamped: Array<{blockId: string, rawTitle: string}> }}
  */
-export function stampUntaggedTaskLines(content, dateStr) {
+export function stampUntaggedTaskLines(content, noteKey, opts = {}) {
   if (!content) return { text: content ?? '', changed: false, stamped: [] };
   const lines = content.split('\n');
-  const plan = planStampInsertions(content, dateStr);
+  const plan = planStampInsertions(content, noteKey, opts);
   for (const p of plan) {
     lines[p.line] = lines[p.line].slice(0, p.fromCh) + p.insert;
   }
@@ -586,13 +601,18 @@ export function stampUntaggedTaskLines(content, dateStr) {
  * @param {string} dateStr  the note's own YYYY-MM-DD date
  * @returns {Array<{line: number, fromCh: number, toCh: number, insert: string, blockId: string, rawTitle: string}>}
  */
-export function planStampInsertions(content, dateStr) {
+export function planStampInsertions(content, noteKey, { completedSince = null } = {}) {
   if (!content) return [];
   const lines = content.split('\n');
   const plan = [];
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(/^\s*- \[([ xX])\]\s+(.+)$/);
     if (!m) continue;
+    // COMPLETION WINDOW (companion §6, ruling E — non-daily notes only, the
+    // caller passes `completedSince`): a completed line is stamped only when
+    // its completion date is inside the window; an undated completed line
+    // is older than any window. Open lines are never windowed.
+    if (completedSince && m[1] !== ' ' && !completedLineInWindow(m[2], completedSince)) continue;
     // ANY occurrence of '^dg-' anywhere on the line refuses the stamp — not
     // just a valid trailing token. This widens the old two checks (tagged
     // line, duplicate token) to cover the CORRUPTED case surfaced by the
@@ -618,7 +638,7 @@ export function planStampInsertions(content, dateStr) {
       const timePart = parseLeadingTime(rawTitle);
       if (timePart) rawTitle = timePart.rest;
     }
-    const blockId = deriveBlockId(dateStr, rawTitle);
+    const blockId = deriveBlockId(noteKey, rawTitle);
     const trimmed = lines[i].replace(/\s+$/, '');
     plan.push({
       line: i,

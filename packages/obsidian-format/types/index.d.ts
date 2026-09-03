@@ -55,14 +55,27 @@ export function updateTaskLines(lines: string[], opts: {
 }): boolean;
 export function parseTasksFromMarkdown(
   content: string, dateStr: string, seenBlockIds?: Set<string>,
-  opts?: { notePath?: string | null },
+  opts?: { notePath?: string | null; completedSince?: string | null },
 ): { scheduledTasks: Record<string, unknown>[]; inboxTasks: Record<string, unknown>[] };
+export function completionDateOfLine(body: string): string | null;
+export function completedLineInWindow(body: string, completedSince: string): boolean;
+/** noteKey: the note's date for a daily note, noteKeyForPath(path) otherwise; completedSince windows completed lines (non-daily). */
 export function stampUntaggedTaskLines(
-  content: string, dateStr: string,
+  content: string, noteKey: string, opts?: { completedSince?: string | null },
 ): { text: string; changed: boolean; stamped: Array<{ blockId: string; rawTitle: string }> };
 export function planStampInsertions(
-  content: string, dateStr: string,
+  content: string, noteKey: string, opts?: { completedSince?: string | null },
 ): Array<{ line: number; fromCh: number; toCh: number; insert: string; blockId: string; rawTitle: string }>;
+
+// ── vault task scope (companion §6, rulings D and E) ────────────────────────
+export interface VaultScope { folders: string[]; tags: string[]; completionWindowDays: number }
+export const SCOPE_WINDOW_MIN_DAYS: number;
+export const SCOPE_WINDOW_MAX_DAYS: number;
+export const SCOPE_WINDOW_DEFAULT_DAYS: number;
+export function normalizeScope(scope: Partial<VaultScope> | null | undefined): VaultScope;
+export function scopeIsActive(scope: Partial<VaultScope> | null | undefined): boolean;
+export function noteInScope(path: string, tags: string[] | null | undefined, scope: Partial<VaultScope> | null | undefined): boolean;
+export function completedSinceFor(scope: Partial<VaultScope> | null | undefined, today: string): string;
 export function partitionStampPlan<T extends { line: number }>(
   plan: T[], heldLines: Set<number> | null | undefined,
 ): { apply: T[]; deferred: T[] };

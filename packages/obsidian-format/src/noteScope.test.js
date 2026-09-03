@@ -74,3 +74,52 @@ describe('parseTasksFromMarkdown with notePath (non-daily note)', () => {
     expect(daily.inboxTasks[0].obsidianNotePath).toBeUndefined();
   });
 });
+
+// ── scope classifier and the completion window (rulings D and E) ────────────
+import {
+  normalizeScope, noteInScope, scopeIsActive, completedSinceFor, completedLineInWindow, stampUntaggedTaskLines,
+} from './index.js';
+
+describe('normalizeScope / noteInScope', () => {
+  it('folders and tags are equal citizens, a note is in scope by either; nested tags match their parent; the window clamps to 7..90', () => {
+    const scope = normalizeScope({ folders: ['/Projects/', 'Areas\\Home', ''], tags: ['#Project', 'client/acme', '  '], completionWindowDays: 400 });
+    expect(scope).toEqual({ folders: ['Projects', 'Areas/Home'], tags: ['project', 'client/acme'], completionWindowDays: 90 });
+    expect(normalizeScope({ completionWindowDays: 2 }).completionWindowDays).toBe(7);
+    expect(normalizeScope({}).completionWindowDays).toBe(30);
+    expect(noteInScope('Projects/House.md', [], scope)).toBe(true);
+    expect(noteInScope('Projects.md', [], scope)).toBe(false); // a file named like the folder is not under it
+    expect(noteInScope('Notes/Kitchen.md', ['#project/house'], scope)).toBe(true);
+    expect(noteInScope('Notes/Kitchen.md', ['client/acme/2026'], scope)).toBe(true);
+    expect(noteInScope('Notes/Kitchen.md', ['#projects'], scope)).toBe(false);
+    expect(noteInScope('Notes/Kitchen.png', ['#project'], scope)).toBe(false);
+    expect(noteInScope('.trash/Old.md', ['#project'], scope)).toBe(false);
+    expect(scopeIsActive({ folders: [], tags: [] })).toBe(false);
+    expect(scopeIsActive({ tags: ['x'] })).toBe(true);
+  });
+});
+
+describe('completion window', () => {
+  it('completedSinceFor counts back the window; only dated completions inside it count', () => {
+    expect(completedSinceFor({ completionWindowDays: 30 }, '2026-09-02')).toBe('2026-08-03');
+    expect(completedLineInWindow('Pick paint ✅ 2026-08-30', '2026-08-03')).toBe(true);
+    expect(completedLineInWindow('Pick paint ✅ 2026-07-30', '2026-08-03')).toBe(false);
+    expect(completedLineInWindow('Pick paint [completed:: 2026-08-30T10:00:00-05:00]', '2026-08-03')).toBe(true);
+    expect(completedLineInWindow('Pick paint', '2026-08-03')).toBe(false);
+  });
+
+  it('the stamper and the parser skip completed lines outside the window in a non-daily note, and never window open lines', () => {
+    const content = [
+      '- [ ] Open forever',
+      '- [x] Recent ✅ 2026-08-30',
+      '- [x] Ancient ✅ 2024-01-01',
+      '- [x] Undated done',
+    ].join('\n');
+    const stamped = stampUntaggedTaskLines(content, 'Projects/House.md', { completedSince: '2026-08-03' });
+    expect(stamped.stamped.map((s) => s.rawTitle)).toEqual(['Open forever', 'Recent ✅ 2026-08-30']);
+    const { scheduledTasks, inboxTasks } = parseTasksFromMarkdown(stamped.text, '2026-09-02', new Set(), { notePath: 'Projects/House.md', completedSince: '2026-08-03' });
+    expect(scheduledTasks).toHaveLength(0);
+    expect(inboxTasks.map((t) => t.title.replace(/ #obsidian$/, ''))).toEqual(['Open forever', 'Recent']);
+    // Daily notes are never windowed: the option is simply not passed.
+    expect(stampUntaggedTaskLines(content, '2026-09-02').stamped).toHaveLength(4);
+  });
+});

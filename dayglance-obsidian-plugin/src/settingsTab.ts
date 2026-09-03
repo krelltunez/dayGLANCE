@@ -15,6 +15,7 @@ import {
   type BridgePairing,
 } from './pairing';
 import type { AgendaKeyState, AgendaUser } from './agenda';
+import { normalizeScope, SCOPE_WINDOW_MIN_DAYS, SCOPE_WINDOW_MAX_DAYS, SCOPE_WINDOW_DEFAULT_DAYS, type VaultScope } from '@glance-apps/obsidian-format';
 
 // Stamped by esbuild at bundle time (see esbuild.config.mjs `define`).
 // Guarded so a build without the define (tests, tooling) still runs.
@@ -49,6 +50,9 @@ export interface BridgeSettingsHost extends PairingHost {
   /** True while the viewer is the pairing's default rather than an explicit choice. */
   viewerIsDefault(): boolean;
   setViewer(userSyncId: string | null): Promise<void>;
+  /** Vault task scope (companion §6): which non-daily notes are task sources. */
+  getScope(): VaultScope | null;
+  setScope(scope: VaultScope): Promise<void>;
 }
 
 const pairedSince = (pairing: BridgePairing): string => {
@@ -73,6 +77,7 @@ export class BridgeSettingTab extends PluginSettingTab {
     if (pairing) {
       this.displayPaired(pairing);
       this.displayAccount();
+      this.displayScope();
     } else {
       this.displayUnpaired();
     }
@@ -211,6 +216,54 @@ export class BridgeSettingTab extends PluginSettingTab {
           await this.host.setViewer(v || null);
           this.display();
         });
+      });
+  }
+
+  // Which notes beyond the daily notes are task sources. Folders and tags
+  // are two ways to organize a vault; both are offered, neither privileged.
+  private displayScope(): void {
+    this.containerEl.createEl('h3', { text: 'Vault task scope' });
+    const current = this.host.getScope() ?? { folders: [], tags: [], completionWindowDays: SCOPE_WINDOW_DEFAULT_DAYS };
+    let folders = current.folders.join('\n');
+    let tags = current.tags.join('\n');
+    let windowDays = String(current.completionWindowDays);
+    const save = async () => {
+      const next = normalizeScope({
+        folders: folders.split(/\r?\n/),
+        tags: tags.split(/\r?\n/),
+        completionWindowDays: Number(windowDays),
+      });
+      await this.host.setScope(next);
+    };
+    this.containerEl.createEl('p', {
+      cls: 'setting-item-description',
+      text: 'Daily notes are always task sources. Add folders and/or tags to include other notes: their open tasks (and tasks completed within the window) become dayGLANCE tasks, stamped with an identity like daily-note tasks. Notes are brought in a few at a time.',
+    });
+    new Setting(this.containerEl)
+      .setName('Folders')
+      .setDesc('One vault-relative folder per line, e.g. Projects. Every note under it is included.')
+      .addTextArea((ta) => {
+        ta.setPlaceholder('Projects\nAreas/Home').setValue(folders).onChange((v) => { folders = v; });
+        ta.inputEl.rows = 3;
+        ta.inputEl.addEventListener('blur', () => void save());
+      });
+    new Setting(this.containerEl)
+      .setName('Tags')
+      .setDesc('One tag per line, with or without #. A note carrying the tag (or a nested tag under it) is included.')
+      .addTextArea((ta) => {
+        ta.setPlaceholder('project\nclient/acme').setValue(tags).onChange((v) => { tags = v; });
+        ta.inputEl.rows = 3;
+        ta.inputEl.addEventListener('blur', () => void save());
+      });
+    new Setting(this.containerEl)
+      .setName('Completed-task window (days)')
+      .setDesc(`In included notes, completed tasks are tracked only when completed within this many days (${SCOPE_WINDOW_MIN_DAYS} to ${SCOPE_WINDOW_MAX_DAYS}). Open tasks are always tracked.`)
+      .addText((text) => {
+        text.setPlaceholder(String(SCOPE_WINDOW_DEFAULT_DAYS)).setValue(windowDays).onChange((v) => { windowDays = v; });
+        text.inputEl.type = 'number';
+        text.inputEl.min = String(SCOPE_WINDOW_MIN_DAYS);
+        text.inputEl.max = String(SCOPE_WINDOW_MAX_DAYS);
+        text.inputEl.addEventListener('blur', () => void save());
       });
   }
 

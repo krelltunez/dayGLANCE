@@ -809,6 +809,21 @@ Pinned: same title in two notes mints two ids; the stamp planner mints
 under whatever key it is given; a daily-note derivation is byte-identical
 before and after.
 
+**Step 2 record (2026-09-02, built).** The shared package gains the scope
+classifier (`normalizeScope`, `noteInScope`, `scopeIsActive`,
+`completedSinceFor`; window clamped to 7–90, default 30) and the stamper
+and parser take `completedSince` for non-daily notes. Plugin: a "Vault task
+scope" settings section (folders, tags, window) stored in data.json and
+published in the pairing-meta row as `scope` (ruling D, amended: the
+plugin's own row rather than the app-authored config row, since the plugin
+is the author); `inScope` admits scoped notes (tags from `metadataCache`);
+the stamp key is the note date or `noteKeyForPath(path)` (ruling A) with
+the window applied to scoped notes only; observations of scoped notes carry
+`scoped: true`, deletions of reported scoped paths report; adoption walks
+the metadata cache once per scope change and reports three notes per 30s
+tick, the adopted set persisted beside the cursor so a reload does not
+re-emit; a note leaving scope emits `withdrawn: true` (ruling C).
+
 **The TaskForge reference point** stands from the earlier text: discovery
 was never the hard part; identity is what buys cross-device durability
 through retitles, deletes and revivals, and it is what this section pays for.
