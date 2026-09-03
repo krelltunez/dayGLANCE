@@ -824,6 +824,25 @@ the metadata cache once per scope change and reports three notes per 30s
 tick, the adopted set persisted beside the cursor so a reload does not
 re-emit; a note leaving scope emits `withdrawn: true` (ruling C).
 
+**Step 3 record (2026-09-02, built).** App import: `applyBridgeObservations`
+parses a `scoped` observation under its path with the completion window
+from the pairing meta's `scope`, returns `scopedNotes` (path → evidence
+time; a deleted scoped note is complete knowledge that none of its lines
+exist) and `withdrawn` paths. Note-scoped deletion inference judges a task
+by the observation of the note it names — `obsidianNotePath` for a scoped
+task, the date for a daily one — and revival stamping reads the same
+path-keyed evidence. Withdrawal (ruling C) tombstones the note's tasks
+through the vault-origin channel at the withdrawal time, so every device
+drops them while the vault and its stamps are untouched; the path is
+remembered device-locally so the note's next scoped observation counts as
+fresh evidence and revival re-admits the same ids. Schedule (ruling B):
+`withScheduledMetadata` replaces, appends or removes the ⏳ /
+`[scheduled::]` segment on a line, in the vault's detected format; the
+writeback routes a non-daily task's date change (including to and from the
+inbox) through the retitle path, so the raw title changes and the display
+title does not, and the parser reads the date back. Task cards carry a note
+badge naming the note. Direct access is untouched (ruling F).
+
 **The TaskForge reference point** stands from the earlier text: discovery
 was never the hard part; identity is what buys cross-device durability
 through retitles, deletes and revivals, and it is what this section pays for.

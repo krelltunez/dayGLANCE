@@ -1,10 +1,6 @@
 import React, { useRef } from 'react';
 import {
-  AlarmClock, AlertCircle, AlertTriangle, BookOpen, BrainCircuit,
-  Calendar, CalendarClock, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown,
-  ChevronUp, Clock, Filter, Flag, Hash, Inbox, LayoutGrid, Loader,
-  Mic, Minus, Moon, Plus, RefreshCw, Repeat, Search,
-  Settings, Sparkles, Sun, Target, Telescope, Trash2, X, Zap,
+  AlarmClock, AlertCircle, AlertTriangle, BookOpen, BrainCircuit, Calendar, CalendarClock, CalendarDays, Check, CheckCircle, CheckSquare, ChevronDown, ChevronUp, Clock, Filter, Flag, Hash, Inbox, LayoutGrid, Loader, Mic, Minus, Moon, Plus, RefreshCw, Repeat, Search, Settings, Sparkles, Sun, Target, Telescope, Trash2, X, Zap, FileText,
 } from 'lucide-react';
 import { renderTitle } from '../utils/textFormatting.jsx';
 import { nativeGetNextAlarm } from '../native.js';
@@ -1030,6 +1026,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
               {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
               {task.importSource === 'obsidian' && <BookOpen size={13} className="flex-shrink-0 opacity-60" title="From Obsidian" />}
               {task.obsidianRecurrence && <Repeat size={13} className="flex-shrink-0 opacity-60" title="Recurring in Obsidian — this task's recurrence is managed by the Tasks plugin; completing it here won't create the next instance" />}
+              {task.obsidianNotePath && <FileText size={13} className="flex-shrink-0 opacity-60" title={`In ${task.obsidianNotePath.replace(/\.md$/, '')} (Obsidian)`} />}
               <span className="truncate">{renderTitle(task.title)}</span>
             </div>
             <div className={`text-sm ${textSecondary} flex items-center gap-1`}>

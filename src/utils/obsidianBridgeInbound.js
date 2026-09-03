@@ -35,6 +35,7 @@ import {
   parseDateFromFilename,
   BRIDGE_VAULT_APP,
   BRIDGE_OBSERVATION_PREFIX,
+  completedSinceFor,
 } from '@glance-apps/obsidian-format';
 import {
   buildExistingObsidianTaskContext,
@@ -152,12 +153,21 @@ export async function pendingBridgeObservations() {
  */
 export function applyBridgeObservations(observations, {
   existingTasks, existingInbox, dailyNotesPath = '', dailyNotePattern = 'yyyy-MM-dd', onTitleConflict = null,
+  // VAULT TASK SCOPE (companion §6): the plugin flags a non-daily note in
+  // the user's scope with `scoped: true`; such a note parses under its PATH
+  // key (ruling A) with the completion window from the pairing meta's
+  // `scope` (ruling E). A `withdrawn: true` observation means the note left
+  // the scope (ruling C): its path is returned for the caller to withdraw.
+  scope = null, today = null,
 }) {
   const dailyNotes = {};
+  const scopedNotes = {}; // path → { lastModified, deleted? } for scoped (non-daily) notes in this batch
+  const withdrawn = [];   // paths that left the scope
   const allScheduled = [];
   const lineSchedule = {}; // id → the line's own time when it differs from DG's (owned-schedule enforcement)
   const allInbox = [];
   const unapplied = [];
+  const completedSince = scope && today ? completedSinceFor(scope, today) : null;
   const ctx = buildExistingObsidianTaskContext(existingTasks, existingInbox);
   const isDefaultPattern = !dailyNotePattern || dailyNotePattern === 'yyyy-MM-dd';
   const dateParser = isDefaultPattern ? null : buildDateParser(dailyNotePattern);
@@ -165,6 +175,23 @@ export function applyBridgeObservations(observations, {
   const seenBlockIds = new Set();
 
   for (const obs of observations) {
+    if (obs.withdrawn) { withdrawn.push(obs.path); continue; }
+    if (obs.scoped) {
+      const at = obs.mtime ? new Date(obs.mtime).toISOString() : (obs.observedAt || new Date().toISOString());
+      if (obs.deleted || obs.content == null) {
+        // A deleted scoped note: complete knowledge that none of its lines
+        // exist — the note-scoped inference tombstones its tasks after the
+        // hold, exactly as for a deleted daily note.
+        scopedNotes[obs.path] = { lastModified: obs.observedAt || at, deleted: true };
+        continue;
+      }
+      scopedNotes[obs.path] = { lastModified: at };
+      mergeParsedObsidianTasks(
+        parseTasksFromMarkdown(obs.content, today || '1970-01-01', seenBlockIds, { notePath: obs.path, completedSince }),
+        ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule },
+      );
+      continue;
+    }
     if (obs.deleted || obs.content == null) { unapplied.push(obs); continue; }
     const path = obs.path;
     if (folderPrefix ? !path.startsWith(folderPrefix) : path.includes('/')) { unapplied.push(obs); continue; }
@@ -192,5 +219,5 @@ export function applyBridgeObservations(observations, {
     ...[...allScheduled, ...allInbox].map((t) => String(t.id)),
     ...[...allScheduled, ...allInbox].filter((t) => t.obsidianLegacyId).map((t) => String(t.obsidianLegacyId)),
   ]);
-  return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox, scannedIds, unapplied, lineSchedule };
+  return { dailyNotes, scopedNotes, withdrawn, scheduledTasks: allScheduled, inboxTasks: allInbox, scannedIds, unapplied, lineSchedule };
 }

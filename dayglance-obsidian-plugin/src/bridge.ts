@@ -1322,8 +1322,9 @@ export class BridgeTransport {
       // A scoped (non-daily) note is flagged so dayGLANCE parses it under
       // the path key and never as a daily note; remembered so its deletion
       // reports too.
-      const scoped = !deleted && !this.isDailyNote(path) && this.scopedNote(path);
-      if (scoped) this.scopedPaths.add(path);
+      const scoped = !this.isDailyNote(path) && (deleted ? this.scopedPaths.has(path) : this.scopedNote(path));
+      if (scoped && !deleted) this.scopedPaths.add(path);
+      if (deleted) this.scopedPaths.delete(path);
       const subkey = await this.subkeyFor(pairing);
       const payload = {
         v: 1, kind: 'observation', path,

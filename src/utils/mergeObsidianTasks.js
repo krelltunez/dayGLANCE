@@ -83,7 +83,9 @@ const reviveScannedAgainstTombstone = (t, tombstones, noteMtimes) => {
   // fresh import keeps epoch, and a row with a real content-LWW stamp must
   // not have it regressed toward an (older) note mtime.
   if (!at || ts(at) < ts(t.lastModified)) return t;
-  const noteDate = t.obsidianFileDate || obsidianKeyDate(String(t.id));
+  // A non-daily task's note is named by path (companion §6); dates and
+  // paths share the map without colliding.
+  const noteDate = t.obsidianNotePath || t.obsidianFileDate || obsidianKeyDate(String(t.id));
   const mtime = noteDate ? noteMtimes[noteDate] : undefined;
   // The row is about to be dropped; the note was written AFTER the deletion
   // statement → revive. mtime > at >= lastModified, so the lift is always
@@ -115,6 +117,15 @@ export function mergeObsidianTasks(prevList, scannedList, scannedIdsAllLists, pr
     !scannedIdsAllLists.has(String(t.id)) &&
     !isObsidianTombstoned(tombstones, String(t.id), t.lastModified));
   return [...nonObsidian, ...merged, ...retained];
+}
+
+/** Note path → lastModified ISO, from an observation batch's scopedNotes shape (companion §6). */
+export function noteMtimesFromScopedNotes(scopedNotes) {
+  const out = {};
+  for (const [path, note] of Object.entries(scopedNotes || {})) {
+    if (note && note.lastModified) out[path] = note.lastModified;
+  }
+  return out;
 }
 
 /** Note date → lastModified ISO, from a scan/observation's dailyNotes shape. */
