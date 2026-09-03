@@ -2773,6 +2773,7 @@ const DayPlanner = () => {
   // lives in useObsidianSync; state/refs stay owned by useObsidian above.
   const {
     performObsidianSync, nudgeObsidianObservations, loadWikiNote, saveWikiNote, openInObsidian, bridgeHeartbeatRef,
+    linkProjectNote, unlinkProjectNote,
   } = useObsidianSync({
     isTrayMode, dataLoaded,
     tasks, setTasks,
@@ -2791,6 +2792,7 @@ const DayPlanner = () => {
     recycleBin, setRecycleBin,
     recurringTasks, setRecurringTasks,
     multiUserEnabled, meUserSyncId,
+    projects, goals, updateProject, updateGoal,
   });
   // Completion log (companion spec 4.1): every task completion appends one
   // permanent line to the completion date's daily note. Mounted here, after
@@ -8686,6 +8688,7 @@ const DayPlanner = () => {
     vaultEnabled: isVaultEnabled(),
     syncAll,
     performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, nativeClearVault,
+    linkProjectNote, unlinkProjectNote,
     performTrmnlSync,
     performLocalBackup, performRemoteBackup,
     buildAutoBackupPayload, loadAutoBackupHistory,

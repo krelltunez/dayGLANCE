@@ -20,6 +20,7 @@ import { renderTitle, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, getLi
 import { dateToString, extractWikilinks, completionTimestamp } from '../../utils/taskUtils.js';
 import { getNextOccurrence } from '../../utils/recurrenceEngine.js';
 import { getActiveHGInstance } from '../../hooks/useHyperGlance.js';
+import { noteLinkOf } from '../../utils/obsidianProjectNotes.js';
 
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
 
@@ -63,6 +64,20 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     mobileActiveTab,
   } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
+  // Project note (companion §4.3): a badge that opens the linked note, or a
+  // warning while the note is missing from the vault (ruling F).
+  const noteLink = noteLinkOf(project);
+  const noteBadge = noteLink && (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); if (!noteLink.missing) openInObsidian?.(noteLink.name); }}
+      className={`flex-shrink-0 p-1 rounded ${noteLink.missing ? 'text-amber-500' : `${textSecondary} opacity-60 hover:opacity-100`}`}
+      title={noteLink.missing ? `Obsidian note missing: ${noteLink.name}` : `Open "${noteLink.name}" in Obsidian`}
+      aria-label={noteLink.missing ? 'Obsidian note missing' : 'Open project note in Obsidian'}
+    >
+      {noteLink.missing ? <AlertTriangle size={12} /> : <FileText size={12} />}
+    </button>
+  );
   const { goals, deleteProject, updateProject, setPlannerProjectId, generateAISubtasks, aiSubtasksLoadingForTask, aiConfig, showGoalsDashboard, enterHyperGlanceMode, isVisibleForUser } = useFeaturesCtx();
 
   const isScheduled = (t) => !!tasks.find(s => s.id === t.id);
@@ -310,6 +325,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
             <span className={`text-sm font-medium ${textPrimary} flex-1 min-w-0 truncate`}>
               {project.title}
             </span>
+            {noteBadge}
             {onMoveToClick && (
               <button onClick={() => onMoveToClick(project)} className={`${btnBase} ${editBtn}`} title="Move to…" aria-label="Move to goal">
                 <LogIn size={12} />
@@ -396,6 +412,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
           <span className={`text-sm font-semibold ${textPrimary} leading-tight flex-1 min-w-0`}>
             {project.title}
           </span>
+          {noteBadge}
           {project.hyperglance?.enabled && project.status !== 'completed' && !project.archived && (() => {
               const instance = getActiveHGInstance(project, currentTimeMinutes);
               if (!instance) return null;

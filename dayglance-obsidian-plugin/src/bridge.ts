@@ -51,6 +51,8 @@ import {
   noteInScope,
   scopeIsActive,
   completedSinceFor,
+  PROJECT_NOTE_ID_KEY,
+  linkObservationEntityId,
   type VaultScope,
 } from '@glance-apps/obsidian-format';
 import { createVaultClient, type VaultClient } from '@glance-apps/sync/src/vaultClient.js';
@@ -78,9 +80,17 @@ export interface BridgeState {
   // already reported since they entered scope. Adoption re-reports only what
   // is not here, so a plugin reload does not re-emit every note in scope.
   adoptedScope?: string[];
+  // Project and goal notes (companion §4.3, ruling A): the notes this vault
+  // copy has reported as carrying a `dayglance-id` key, path → id. The
+  // reconciliation walk compares the vault against this map and reports
+  // only the differences, so a reload re-emits nothing.
+  linkedNotes?: Record<string, string>;
 }
 
 const APPLIED_IDS_CAP = 1000;
+// The full link rescan (every markdown file's frontmatter, from the
+// metadata cache) runs at most this often; per-file events cover the rest.
+const LINK_RESCAN_MS = 5 * 60_000;
 // (The stamp-deferral CAP that used to live here is deliberately GONE — it
 // authorized a vault write into a note with a dirty editor buffer, which is
 // how the 2026-08-31 truncation destroyed typed text. Deferral is now
@@ -258,6 +268,10 @@ export class BridgeTransport {
   // Vault task scope: paths reported as scoped (deletions of these report),
   // the persisted adopted set, and the throttled adoption queue.
   private scopedPaths = new Set<string>();
+  // Project and goal notes (companion §4.3): path → dayGLANCE id, as last
+  // reported. Persisted (BridgeState.linkedNotes); see LINK_RESCAN_MS.
+  private linked = new Map<string, string>();
+  private linkScanAt = 0;
   private adopted = new Set<string>();
   private adoptQueue: string[] = [];
   private adoptScanned = false;
@@ -351,6 +365,9 @@ export class BridgeTransport {
     }
     for (const p of host.getBridgeState().adoptedScope ?? []) {
       if (typeof p === 'string') { this.adopted.add(p); this.scopedPaths.add(p); }
+    }
+    for (const [path, id] of Object.entries(host.getBridgeState().linkedNotes ?? {})) {
+      if (typeof path === 'string' && typeof id === 'string' && id) this.linked.set(path, id);
     }
   }
 
@@ -823,6 +840,9 @@ export class BridgeTransport {
   private async applyOne(intent: Record<string, unknown>): Promise<'applied' | 'unsupported' | 'deferred'> {
     const adapter = this.host.app.vault.adapter;
     let path: string;
+    if (intent.type === 'project_note_link' || intent.type === 'project_note_unlink') {
+      return this.applyLinkIntent(intent);
+    }
     if (intent.type === 'wiki_note_write') {
       // Wikilink resolution is the applier's job (the one intent type
       // without an emitter-resolved path): an existing note anywhere in
@@ -885,6 +905,182 @@ export class BridgeTransport {
       }
     }
     return 'applied';
+  }
+
+  // ── Project and goal notes (companion §4.3) ─────────────────────────────
+  //
+  // Ruling A: the durable identity of a link is the `dayglance-id` key in the
+  // note's frontmatter; the path on the dayGLANCE record is a cached locator.
+  // The plugin is the only writer of the key and the only observer of
+  // renames and deletes, so it reports LINK observations — one row per
+  // target id (linkObservationEntityId), upserted: the row is the latest
+  // state — and reconciles the vault against `linked` (what it last
+  // reported) on every relevant event plus a periodic full walk, which is
+  // how a rename that happened while the plugin was off is re-found by key.
+
+  /** The dayGLANCE id a note's frontmatter carries, or null. */
+  private noteLinkId(path: string): string | null | undefined {
+    const file = this.host.app.vault.getAbstractFileByPath(normalizePath(path));
+    if (!(file instanceof TFile)) return undefined; // no such note
+    if (file.extension !== 'md') return null;
+    const raw = this.host.app.metadataCache.getFileCache(file)?.frontmatter?.[PROJECT_NOTE_ID_KEY];
+    const id = typeof raw === 'string' ? raw.trim() : (typeof raw === 'number' ? String(raw) : '');
+    return id && id.length <= 64 ? id : null;
+  }
+
+  /** Reconcile one path against what was last reported; emit on change. A
+   *  failed emission rolls the map back so the next pass re-derives it. */
+  private async syncLink(path: string, deleted: boolean): Promise<void> {
+    if (this.disposed) return;
+    const prev = this.linked.get(path);
+    const id = deleted ? undefined : this.noteLinkId(path);
+    if (id === undefined) {
+      // The note is gone (event, or a walk that no longer finds it).
+      if (prev === undefined) return;
+      this.linked.delete(path);
+      if (!(await this.emitLink({ targetId: prev, path, deleted: true }))) this.linked.set(path, prev);
+      void this.persistLinked();
+      return;
+    }
+    if (id === prev || (id === null && prev === undefined)) return;
+    if (id) {
+      this.linked.set(path, id);
+      if (prev && prev !== id) void this.emitLink({ targetId: prev, path, unlinked: true });
+      if (!(await this.emitLink({ targetId: id, path }))) { if (prev) this.linked.set(path, prev); else this.linked.delete(path); }
+    } else if (prev !== undefined) {
+      this.linked.delete(path);
+      if (!(await this.emitLink({ targetId: prev, path, unlinked: true }))) this.linked.set(path, prev);
+    }
+    void this.persistLinked();
+  }
+
+  /** A note's metadata changed (frontmatter edits arrive here, not on modify). */
+  noteMetaChanged(path: string): void {
+    if (this.disposed || !this.host.getPairing()) return;
+    void this.syncLink(path, false);
+  }
+
+  /** A rename keeps the link: the row for the id simply moves to the new path. */
+  noteRenamed(oldPath: string, newPath: string): void {
+    if (this.disposed) return;
+    const id = this.linked.get(oldPath);
+    if (id === undefined) return;
+    this.linked.delete(oldPath);
+    this.linked.set(newPath, id);
+    void this.persistLinked();
+    void this.emitLink({ targetId: id, path: newPath, previousPath: oldPath }).then((ok) => {
+      if (ok) return;
+      // Roll back to the old path: the next walk reports the delete and the
+      // new note's key as two ordinary observations.
+      this.linked.delete(newPath);
+      this.linked.set(oldPath, id);
+      void this.persistLinked();
+    });
+  }
+
+  /** The periodic full walk (layout ready, then every LINK_RESCAN_MS): every
+   *  markdown file's key against the map, and every mapped path's existence. */
+  linkTick(): void {
+    if (this.disposed || !this.host.getPairing()) return;
+    const now = Date.now();
+    if (now - this.linkScanAt < LINK_RESCAN_MS) return;
+    this.linkScanAt = now;
+    const seen = new Set<string>();
+    for (const f of this.host.app.vault.getMarkdownFiles()) {
+      seen.add(f.path);
+      void this.syncLink(f.path, false);
+    }
+    for (const path of [...this.linked.keys()]) if (!seen.has(path)) void this.syncLink(path, true);
+  }
+
+  private async persistLinked(): Promise<void> {
+    if (this.disposed) return;
+    try {
+      const state = this.host.getBridgeState();
+      const next = Object.fromEntries([...this.linked].sort(([a], [b]) => a.localeCompare(b)));
+      if (JSON.stringify(state.linkedNotes ?? {}) === JSON.stringify(next)) return;
+      await this.host.saveBridgeState({ ...state, linkedNotes: next });
+    } catch (e) {
+      console.error('dayGLANCE bridge: could not persist the linked notes', e);
+    }
+  }
+
+  private async emitLink(fields: { targetId: string; path: string; deleted?: boolean; unlinked?: boolean; previousPath?: string }): Promise<boolean> {
+    try {
+      const pairing = this.host.getPairing();
+      if (!pairing || this.rateLimited()) return false;
+      const subkey = await this.subkeyFor(pairing);
+      const payload: Record<string, unknown> = { v: 1, kind: 'observation', link: true, ...fields, observedAt: new Date().toISOString() };
+      const ack = await this.client(pairing).batch(BRIDGE_VAULT_APP, {
+        accountId: pairing.accountId,
+        rows: [{ entityId: linkObservationEntityId(fields.targetId), envelope: await sealBridgeEnvelope(subkey, payload), createdAt: Date.now() }],
+      });
+      const ackSeq = Number((ack as { maxSeq?: unknown } | null)?.maxSeq);
+      if (Number.isFinite(ackSeq)) this.sseGate.recordOwnSeq(ackSeq);
+      return true;
+    } catch (e) {
+      if (isRateLimitError(e)) this.noteRateLimit();
+      console.warn('dayGLANCE bridge: link report failed (re-derived on the next pass)', e);
+      return false;
+    }
+  }
+
+  /** Write (or remove) the id key through Obsidian's frontmatter API. The
+   *  same dirty-buffer rule as every other write: unsaved keystrokes defer. */
+  private async setNoteLink(file: TFile, targetId: string | null): Promise<'applied' | 'deferred'> {
+    const path = file.path;
+    const current = await this.host.app.vault.adapter.read(path);
+    if (this.markdownViews(path).some((v) => v.getViewData() !== current)) return 'deferred';
+    const prev = this.linked.get(path);
+    await this.host.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+      if (targetId) fm[PROJECT_NOTE_ID_KEY] = targetId;
+      else delete fm[PROJECT_NOTE_ID_KEY];
+    });
+    if (targetId) {
+      this.linked.set(path, targetId);
+      if (prev && prev !== targetId) void this.emitLink({ targetId: prev, path, unlinked: true });
+      if (prev !== targetId && !(await this.emitLink({ targetId, path }))) { if (prev) this.linked.set(path, prev); else this.linked.delete(path); }
+    } else if (prev !== undefined) {
+      this.linked.delete(path);
+      if (!(await this.emitLink({ targetId: prev, path, unlinked: true }))) this.linked.set(path, prev);
+    }
+    void this.persistLinked();
+    return 'applied';
+  }
+
+  private async applyLinkIntent(intent: Record<string, unknown>): Promise<'applied' | 'deferred'> {
+    const path = normalizePath(String(intent.path ?? ''));
+    const targetId = String(intent.targetId ?? '').trim();
+    if (!path || !targetId) return 'applied';
+    const file = this.host.app.vault.getAbstractFileByPath(path);
+    const link = intent.type === 'project_note_link';
+    if (!(file instanceof TFile) || file.extension !== 'md') {
+      // The note dayGLANCE named does not exist here: ruling F, the record
+      // learns its note is missing (a relink or an unlink resolves it).
+      if (link) await this.emitLink({ targetId, path, deleted: true });
+      return 'applied';
+    }
+    if (!link && this.noteLinkId(path) !== targetId) return 'applied'; // not ours to remove
+    return this.setNoteLink(file, link ? targetId : null);
+  }
+
+  /** The palette command: link the given note to a project or goal. */
+  async linkNote(file: TFile, targetId: string): Promise<{ ok: boolean; message: string }> {
+    if (!this.host.getPairing()) return { ok: false, message: 'not paired.' };
+    const r = await this.setNoteLink(file, targetId);
+    return r === 'deferred'
+      ? { ok: false, message: 'the note has unsaved changes; save it and retry.' }
+      : { ok: true, message: `linked "${file.basename}".` };
+  }
+
+  /** The palette command: remove the note's link, whatever it names. */
+  async unlinkNote(file: TFile): Promise<{ ok: boolean; message: string }> {
+    if (!this.host.getPairing()) return { ok: false, message: 'not paired.' };
+    if (!this.noteLinkId(file.path)) return { ok: true, message: `"${file.basename}" is not linked.` };
+    const r = await this.setNoteLink(file, null);
+    return r === 'deferred'
+      ? { ok: false, message: 'the note has unsaved changes; save it and retry.' }
+      : { ok: true, message: `unlinked "${file.basename}".` };
   }
 
   /** Every markdown view whose buffer shows `path` (active or background —
@@ -1086,6 +1282,9 @@ export class BridgeTransport {
         this.armObserve(path, deleted, Math.max(1000, this.backoffUntil - Date.now() + 1000));
         return;
       }
+      // Project and goal notes (companion §4.3): reconcile this note's link
+      // before any scope gate — a linked note need not be a task source.
+      await this.syncLink(path, deleted);
       const adapter = this.host.app.vault.adapter;
       let content: string | null = null;
       let mtime: number | null = null;

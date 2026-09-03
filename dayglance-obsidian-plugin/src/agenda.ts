@@ -65,7 +65,9 @@ const CRYPTO_DB_NAME = 'dayglance-bridge';
 // scheme), so the kind is readable before decryption. Routines are the
 // day's placed chips (todayRoutines) plus two singletons: the day they were
 // placed for and the day's completions.
-const AGENDA_KINDS = new Set(['tasks', 'recurringTasks', 'todayRoutines', 'users']);
+// Projects and goals ride the mirror too (companion §4.3): the link picker
+// lists them, and the maintained frontmatter block is rendered from them.
+const AGENDA_KINDS = new Set(['tasks', 'recurringTasks', 'todayRoutines', 'users', 'projects', 'goals']);
 const SINGLETON_KIND = 'singleton';
 const AGENDA_SINGLETONS = new Set(['routinesDate', 'routineCompletions']);
 // Optimistic completion marks time out: dayGLANCE applies an action within
@@ -91,6 +93,9 @@ export interface AgendaHost {
 
 /** A synced dayGLANCE user, as the settings picker lists them. */
 export interface AgendaUser { syncId: string; name: string }
+
+/** A project or goal the link picker can name (companion §4.3). */
+export interface LinkTarget { kind: 'project' | 'goal'; id: string; title: string; goalTitle?: string }
 
 export interface AgendaStatus {
   key: AgendaKeyState;
@@ -148,6 +153,8 @@ export class AgendaStore {
   private routines = new Map<string, TaskRow>();
   private members = new Map<string, TaskRow>();
   private singletons = new Map<string, unknown>();
+  private projectRows = new Map<string, TaskRow>();
+  private goalRows = new Map<string, TaskRow>();
   // Calendar projections (companion 4.2): read-only calendar events never
   // sync, so each dayGLANCE device publishes its view as a bridge-stream row
   // (`proj:calendar:<deviceId>`, sealed under the pairing subkey). Keyed by
@@ -216,6 +223,23 @@ export class AgendaStore {
       out.push({ syncId, name: String((u as { name?: unknown }).name ?? syncId) });
     }
     return out.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * Active projects and goals the viewer can see, for the link picker
+   * (companion §4.3). Title-sorted; a project carries its goal's title.
+   */
+  linkTargets(): LinkTarget[] {
+    const goals = [...this.goalRows.values()].filter((g) => g.status !== 'archived' && this.visibleTask(g));
+    const goalTitle = new Map(goals.map((g) => [String(g.id), String(g.title ?? '')]));
+    const out: LinkTarget[] = [];
+    for (const p of this.projectRows.values()) {
+      if (p.status === 'archived' || !this.visibleTask(p)) continue;
+      const goalId = (p as { goalId?: unknown }).goalId;
+      out.push({ kind: 'project', id: String(p.id), title: String(p.title ?? ''), goalTitle: goalId ? goalTitle.get(String(goalId)) : undefined });
+    }
+    for (const g of goals) out.push({ kind: 'goal', id: String(g.id), title: String(g.title ?? '') });
+    return out.sort((a, b) => a.title.localeCompare(b.title));
   }
 
   // The viewer filters (see AgendaHost.getViewer). A null viewer sees all.
@@ -379,6 +403,8 @@ export class AgendaStore {
     if (kind === 'tasks') return this.tasks;
     if (kind === 'recurringTasks') return this.recurring;
     if (kind === 'users') return this.members;
+    if (kind === 'projects') return this.projectRows;
+    if (kind === 'goals') return this.goalRows;
     return this.routines;
   }
 

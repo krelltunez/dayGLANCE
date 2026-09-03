@@ -87,7 +87,9 @@ export async function fetchBridgeObservations() {
         // Unreadable rows (rotated-away generation, tamper) are skipped, not
         // fatal — the cursor still advances past them.
         if (payload?.kind !== 'observation' || typeof payload.path !== 'string') continue;
-        byPath.set(payload.path, payload);
+        // Keyed by the ROW, not the path: a note's observation row and a
+        // project-note LINK row (companion §4.3) can name the same path.
+        byPath.set(String(row.entityId), payload);
       }
       if (!page.rows?.length) break;
     }
@@ -163,6 +165,7 @@ export function applyBridgeObservations(observations, {
   const dailyNotes = {};
   const scopedNotes = {}; // path → { lastModified, deleted? } for scoped (non-daily) notes in this batch
   const withdrawn = [];   // paths that left the scope
+  const links = [];       // project/goal note link observations (companion §4.3), for the caller
   const allScheduled = [];
   const lineSchedule = {}; // id → the line's own time when it differs from DG's (owned-schedule enforcement)
   const allInbox = [];
@@ -175,6 +178,17 @@ export function applyBridgeObservations(observations, {
   const seenBlockIds = new Set();
 
   for (const obs of observations) {
+    if (obs.link) {
+      if (typeof obs.targetId === 'string' && obs.targetId) {
+        links.push({
+          targetId: obs.targetId, path: obs.path,
+          deleted: !!obs.deleted, unlinked: !!obs.unlinked,
+          previousPath: typeof obs.previousPath === 'string' ? obs.previousPath : undefined,
+          observedAt: obs.observedAt || new Date().toISOString(),
+        });
+      }
+      continue;
+    }
     if (obs.withdrawn) { withdrawn.push(obs.path); continue; }
     if (obs.scoped) {
       const at = obs.mtime ? new Date(obs.mtime).toISOString() : (obs.observedAt || new Date().toISOString());
@@ -219,5 +233,5 @@ export function applyBridgeObservations(observations, {
     ...[...allScheduled, ...allInbox].map((t) => String(t.id)),
     ...[...allScheduled, ...allInbox].filter((t) => t.obsidianLegacyId).map((t) => String(t.obsidianLegacyId)),
   ]);
-  return { dailyNotes, scopedNotes, withdrawn, scheduledTasks: allScheduled, inboxTasks: allInbox, scannedIds, unapplied, lineSchedule };
+  return { dailyNotes, scopedNotes, withdrawn, links, scheduledTasks: allScheduled, inboxTasks: allInbox, scannedIds, unapplied, lineSchedule };
 }

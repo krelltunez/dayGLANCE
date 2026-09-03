@@ -197,6 +197,8 @@ export function createSseNudgeGate(opts?: {
 }): SseNudgeGate;
 export function mintIntentId(): string;
 export function observationEntityId(path: string): Promise<string>;
+export const PROJECT_NOTE_ID_KEY: string;
+export function linkObservationEntityId(targetId: string): string;
 export function sealBridgeEnvelope(subkey: CryptoKey, payload: unknown): Promise<string>;
 export function openBridgeEnvelope(subkey: CryptoKey, text: string): Promise<unknown | null>;
 export function encodePlainBridgeRow(payload: unknown): string;
