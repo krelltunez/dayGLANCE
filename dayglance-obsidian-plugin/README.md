@@ -75,7 +75,12 @@ manually or via BRAT, not submitted to the community directory.
   removes the key. The plugin follows renames, reports a deleted note as
   missing (dayGLANCE keeps the project and offers a relink), re-finds a
   note by its key on a periodic walk, and applies link and unlink requests
-  made from dayGLANCE. Nothing else in the note is read or written.
+  made from dayGLANCE. A linked note also carries a `dayglance:` frontmatter
+  map the plugin maintains from its mirror (status, open, done, total,
+  percent, next scheduled date for a project; progress and its projects as
+  wikilinks for a goal), rewritten only when a value changes, at most once
+  every five minutes per note, never into unsaved edits. dayGLANCE wins
+  inside that map; nothing outside it is read or written.
 - Six commands: **Sync now** (drains pending intents + refreshes the
   heartbeat), **Enter pairing code**, **Unpair from GLANCEvault**
   (forgets the local credentials and the account key; revoke the token

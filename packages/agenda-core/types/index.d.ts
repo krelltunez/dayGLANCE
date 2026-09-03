@@ -80,3 +80,18 @@ export interface AgendaClock { today: string; nowMinutes: number }
 export function isCalendarEvent(item: AgendaItem | null | undefined): boolean;
 export function eventHasEnded(item: { date: string; startTime?: string | null; duration?: number | null; isAllDay?: boolean }, clock: AgendaClock): boolean;
 export function agendaClock(now?: Date): AgendaClock;
+
+// ── progress math and the maintained note block (companion §4.3) ────────────
+export function calculateProjectProgress(projectId: string, allTasks: unknown[]): number | null;
+export function projectProgressPercent(projectId: string, allTasks: unknown[]): number | null;
+export function getProjectTotalDuration(projectId: string, allTasks: unknown[]): number;
+export function isProjectStalled(projectId: string, allTasks: unknown[], project: unknown, recurringTasks?: unknown[]): boolean;
+export function calculateGoalProgress(goalId: string, projects: unknown[], allTasks: unknown[]): number;
+export const NOTE_BLOCK_KEY: string;
+export interface ProjectNoteBlock { kind: 'project'; status: string; open: number; done: number; total: number; percent: number | null; next: string | null; updated?: string }
+export interface GoalNoteBlock { kind: 'goal'; status: string; projects: string[]; open: number; done: number; total: number; percent: number | null; updated?: string }
+export function noteWikilink(path: string, title: string): string;
+export function projectNoteBlock(project: { id: string; status?: string }, ctx: { tasks: unknown[]; today: string }): ProjectNoteBlock;
+export function goalNoteBlock(goal: { id: string; status?: string }, ctx: { projects: unknown[]; tasks: unknown[]; notePathOf?: (id: string) => string | null }): GoalNoteBlock;
+export function noteBlockChanged(prev: unknown, next: unknown): boolean;
+export function withUpdatedStamp<T extends object>(prev: unknown, next: T, nowIso: string): T & { updated: string };

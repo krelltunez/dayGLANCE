@@ -3,6 +3,7 @@ import {
   formatCompletionLogEntry, completionLogDate, DEFAULT_COMPLETION_LOG_HEADING,
   applyBridgeIntent, dailyNoteFilename,
 } from '@glance-apps/obsidian-format';
+import { projectLogName } from '../utils/obsidianProjectNotes.js';
 import { emitBridgeIntent } from '../utils/obsidianBridgeStream.js';
 import {
   readDailyNoteFresh, writeDailyNoteFile, readDailyNoteNative, writeDailyNoteNative,
@@ -115,9 +116,10 @@ export function buildCompletionLogWrite(candidate, { projects, obsidianConfig, d
     completedAt: candidate.completedAt,
     fallbackDate: bucket,
     // Projects carry their display name in `title` (every UI surface renders
-    // project.title; `name` is the AREA shape's field).
+    // project.title; `name` is the AREA shape's field). A project with a
+    // linked note is named as a wikilink (companion §4.3, ruling G).
     projectName: candidate.projectId
-      ? (projects || []).find((p) => p.id === candidate.projectId)?.title ?? null
+      ? projectLogName((projects || []).find((p) => p.id === candidate.projectId))
       : null,
     priority: candidate.priority,
     deadline: candidate.deadline,

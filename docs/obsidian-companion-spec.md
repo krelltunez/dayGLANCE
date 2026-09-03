@@ -644,6 +644,26 @@ a missing link — holds; the relink prefills); linking from dayGLANCE takes
 a typed path rather than a vault picker, since the vault index lives in the
 plugin, whose picker is the primary way to link.
 
+**Step 2 record (2026-09-03, built).** The progress math moved into
+`@glance-apps/agenda-core` (`progress.js`; the app's utils re-export it), so
+the plugin's numbers and the app's are one function. `noteBlock.js` renders
+the `dayglance:` map (ruling B: one namespaced key, nothing outside it is
+touched): for a project `status, open, done, total, percent, next`; for a
+goal `status, projects` (wikilinks to linked project notes, bare titles
+otherwise) plus the same counts and percent; `updated` is the time of the
+last CHANGE, carried forward when nothing changed, so an unchanged block is
+byte-identical. The plugin's `NoteBlockWriter` (ruling C) runs after every
+successful drain's mirror refresh and on the 30-second tick, over the linked
+map, from the mirror (which now carries the inbox and projects and goals
+rows; the block counts every user's tasks, not the viewer's share), writes
+through Obsidian's frontmatter API only when the block differs from the
+file's, with a five-minute wall-clock floor per note and the dirty-buffer
+rule. Completion log (ruling G): a linked project is written as
+`[project:: [[Note|Title]]]` (aliased only when the note's basename differs
+from the title), the bare title while the note is missing. Ruling H: a task
+line that imports FRESH from a scoped note whose path is a present project
+link starts with that project; a known task keeps whatever the app gave it.
+
 ---
 
 ### 4.4 Templater, via guarded delegation

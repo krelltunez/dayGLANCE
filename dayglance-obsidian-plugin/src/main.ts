@@ -50,6 +50,7 @@ import { normalizeScope, scopeIsActive, type VaultScope } from '@glance-apps/obs
 import { localDateStr } from '@glance-apps/agenda-core';
 import { AgendaView, AGENDA_VIEW_TYPE, removeAgendaStyles } from './agendaView';
 import { LinkTargetModal } from './linkModal';
+import { NoteBlockWriter } from './noteBlocks';
 
 const HEARTBEAT_DIR = '.dayglance';
 const HEARTBEAT_PATH = `${HEARTBEAT_DIR}/heartbeat`;
@@ -94,6 +95,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
   private deviceId = '';
   private data: BridgeData = {};
   private transport!: BridgeTransport;
+  private noteBlocks!: NoteBlockWriter;
   // The sidebar view's data (companion spec 4.2): a read mirror of the
   // account's task rows plus the completion-action emitter.
   private agenda!: AgendaStore;
@@ -125,9 +127,17 @@ export default class DayGlanceBridgePlugin extends Plugin {
         await this.saveData(this.data);
       },
       // A successful drain (tick or SSE nudge) is the agenda's refresh
-      // signal too: dayGLANCE's pushes advance the same account seq.
-      onSynced: () => { void this.agenda.refresh(); },
+      // signal too: dayGLANCE's pushes advance the same account seq. The
+      // note blocks re-render from the refreshed mirror (companion §4.3).
+      onSynced: () => { void this.agenda.refresh().then(() => this.noteBlocks.tick()); },
       getScope: () => this.scope(),
+    });
+    this.noteBlocks = new NoteBlockWriter({
+      app: this.app,
+      paired: () => !!this.data.pairing,
+      linkedNotes: () => this.transport.linkedNotes(),
+      blockInputs: () => this.agenda.blockInputs(),
+      bufferDirty: (path) => this.transport.bufferDirty(path),
     });
 
     this.registerView(AGENDA_VIEW_TYPE, (leaf) => new AgendaView(leaf, this.agenda));
@@ -296,6 +306,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
         void this.transport.drain();
         this.transport.adoptTick();
         this.transport.linkTick();
+        void this.noteBlocks.tick();
       }, HEARTBEAT_INTERVAL_MS),
     );
   }
@@ -304,6 +315,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
     // Live sync (Phase 7): close the SSE stream and cancel its timers —
     // a disabled plugin must not hold a socket open.
     this.transport.shutdown();
+    this.noteBlocks.dispose();
     this.agenda.dispose();
     removeAgendaStyles(document);
     // Best-effort: a graceful quit (or a plugin disable — equally "no

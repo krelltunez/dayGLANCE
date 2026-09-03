@@ -1064,6 +1064,17 @@ export class BridgeTransport {
     return this.setNoteLink(file, link ? targetId : null);
   }
 
+  /** Every linked note, path → dayGLANCE id (for the block writer). */
+  linkedNotes(): ReadonlyMap<string, string> { return this.linked; }
+
+  /** The shared write rule, for writers outside this class: unsaved keystrokes exist for `path`. */
+  async bufferDirty(path: string): Promise<boolean> {
+    const views = this.markdownViews(path);
+    if (!views.length) return false;
+    const current = await this.host.app.vault.adapter.read(path);
+    return views.some((v) => v.getViewData() !== current);
+  }
+
   /** The palette command: link the given note to a project or goal. */
   async linkNote(file: TFile, targetId: string): Promise<{ ok: boolean; message: string }> {
     if (!this.host.getPairing()) return { ok: false, message: 'not paired.' };
