@@ -530,20 +530,95 @@ follow. Obsidian's rename event is observable by the plugin, which is exactly
 the kind of thing only the plugin can see. That should be designed explicitly
 rather than discovered.
 
-**Open questions**
-- What exactly does "create the workspace" produce — a folder plus index note, a
-  configurable template, or something the user defines per project?
-- Where do goals differ from projects here?
-- Does the frontmatter update on every change, or on a cadence? (The
-  `data.json` churn lesson applies: frequent small writes to a synced file have
-  costs.)
-- **Frontmatter ownership.** dayGLANCE-maintained frontmatter is a new write
-  class with no ownership rule yet: what happens when the user hand-edits a
-  maintained key (status, task count, percentage)? Reassert (dayGLANCE wins),
-  adopt (vault wins), or namespace the keys as explicitly machine-owned?
-  This is the what-wins-on-divergence category — it needs a ruling before the
-  first write ships, not after the first conflict.
-- What happens when the note or folder is deleted but the project remains?
+#### Rulings (2026-09-03; owner: "agree with all recommendations")
+
+The open questions above are closed by the rulings below. A and B are in the
+hard-stop category (identity derivation; what-wins-on-divergence); nothing in
+this section is built ahead of them.
+
+- **A. Link identity.** Two pieces. The DURABLE identity is one frontmatter
+  key in the note, `dayglance-id`, holding the project's (or goal's) existing
+  UUID. The CACHED locator is `obsidianNotePath` on the project record,
+  synced like any project field so every device shows the link. The plugin
+  watches Obsidian's rename event and reports old path → new path as an
+  observation; dayGLANCE updates the locator. A rename that happens with the
+  plugin off is recovered by scanning the metadata cache for the id key. The
+  project analogue of the block-id stamp: the id lives in the vault, the path
+  is only a hint.
+- **B. Frontmatter ownership.** Namespace and reassert. Every maintained key
+  lives under ONE map key, `dayglance:` (status, open task count, next
+  scheduled date, completion percentage, updated-at). dayGLANCE wins inside
+  the block; nothing outside it is ever read or touched, so the user's own
+  frontmatter is safe by construction. The block is a rendered view, not an
+  input: a hand edit inside it is overwritten on the next update. (Adopting
+  `status` from the vault — archiving a project from Obsidian — was
+  considered and deferred; it is a second write channel into project state.)
+- **C. Who computes the block, and how often.** The PLUGIN, from the mirror it
+  already holds: the mirror gains `projects:` and `goals:` rows, and the
+  progress math moves into the shared package so both sides agree. The plugin
+  renders on its 30-second tick and writes only when the rendered block
+  differs from the one in the file, with a wall-clock floor of five minutes
+  between writes to the same note. No new row type on the bridge stream, no
+  per-change write from the app; the dirty-buffer and cursor gates apply.
+  Direct access does not get project notes at all (§2; §6 ruling F).
+- **D. What "create the workspace" produces.** ONE NOTE by default. A project
+  born in dayGLANCE can create its note in a configured projects folder
+  (default `Projects`), named after the project, from an optional user
+  template rendered through the §4.4 ladder (Templater delegation when
+  installed and the template has no interactive calls; otherwise the subset
+  renderer with unsupported variables left visible). The note gets the id key
+  and the block. Workspace LAYOUT is a plugin setting with three values:
+  *note only* (default), *folder per project* (a folder plus an index note of
+  the same name), or *folders nested under the goal* (see E).
+- **E. Goals.** Same machinery, built second: a goal links to a note by the
+  same id key and locator; its block carries goal progress and a list of
+  wikilinks to its linked projects' notes. *Amendment (owner, 2026-09-03):*
+  nested folders are supported, opt-in via the layout setting — a goal born in
+  dayGLANCE gets a folder plus index note under the goals folder (default
+  `Goals`), and a project with a goal gets its folder INSIDE the goal's folder
+  (`Goals/dayGLANCE Development/iOS App/iOS App.md`); standalone projects stay
+  under the projects folder. Two rules keep this from becoming folder
+  management: placement happens at CREATION TIME ONLY (moving a project to
+  another goal in dayGLANCE never moves a folder; a user moving folders by hand
+  is a rename the link follows under A), and linking an EXISTING note never
+  creates or moves anything.
+- **F. Note or folder deleted while the project remains.** Unlink and say so.
+  On an observed delete of a linked note the locator is cleared and the
+  project card shows "Obsidian note missing" with a relink action. The project
+  is never deleted and the note is never recreated on its own. A trash restore
+  relinks by the id key on the next scan. A deleted folder is the same case
+  through its index note.
+- **G. Where the link appears in vault writes.** The completion log ONLY, for
+  now: an entry for a linked project writes `[project:: [[Note name]]]`
+  instead of the bare name, so the note's backlinks pane becomes the record of
+  everything completed toward it. Task lines in daily notes are unchanged —
+  writing project metadata onto every task line would retitle every line of
+  every linked project, and daily-note retitle churn is the cost Phase 7 spent
+  itself driving down.
+- **H. Tasks found inside a linked project note.** Assigned to that project on
+  FIRST IMPORT: if a linked note is also in the §6 vault task scope, its task
+  lines import with the project's id set, so a checklist in the project note
+  is that project's task list in dayGLANCE. First import only; a later
+  reassignment in the app is not undone by the note. (The composition §6
+  promised with this section; cheap because the path-keyed import exists.)
+
+Two defaults set without a ruling: renaming the project in dayGLANCE does not
+rename the note, and vice versa (the link is by id; names decouple after
+creation); and the project card carries a note badge with an open-in-Obsidian
+action, matching the task badge from §6 step 3.
+
+#### Build order
+
+1. **Link.** `obsidianNotePath` on projects (synced); the `dayglance-id` key;
+   the plugin's rename and delete observations and the id-key rescan; link,
+   relink and unlink in the app; the missing-note state (F); the badge.
+2. **The block and the backlinks.** `projects:`/`goals:` rows in the plugin
+   mirror; shared progress math; the `dayglance:` block rendered on the tick
+   with the five-minute floor (B, C); completion-log wikilinks (G); first-import
+   project assignment for scoped lines in a linked note (H).
+3. **Workspace creation and goals.** The layout setting (note only / folder per
+   project / nested under goal); creation from dayGLANCE through a plugin
+   intent, template via the §4.4 ladder (D, E); goal links and blocks.
 
 ---
 
@@ -876,18 +951,19 @@ through retitles, deletes and revivals, and it is what this section pays for.
 |---|---|---|
 | 1 | Completion log heading fixed or configurable | **Decided: configurable, default `## Completed`** |
 | 2 | Completion log for direct-access users too | **Decided: yes** (shared formatter/applier, both routes) |
-| 3 | What "create the project workspace" produces | Open |
-| 4 | Project frontmatter update cadence | Open; `data.json` churn lesson applies |
+| 3 | What "create the project workspace" produces | **Decided (ruling D, 4.3)**: one note by default, from an optional template through the 4.4 ladder; layout setting adds folder-per-project and nested-under-goal (E amendment) |
+| 4 | Project frontmatter update cadence | **Decided (ruling C, 4.3)**: the plugin renders from its mirror on the 30s tick, writes only on change, five-minute wall-clock floor per note |
 | 5 | Sidebar refresh mechanism | **Decided: no second stream.** The mirror refreshes on the transport's 30s tick and the drain success tail, so the existing SSE nudge feeds it (4.2, built) |
 | 6 | Vault task scope: which notes | **Decided: opt-in folders and/or tags, union**, chosen in the plugin (§6.2 item 4) |
 | 7 | Note-key design for two-way scope | **Decided (ruling A, §6.3)**: the note's path for non-daily notes, the date for daily notes |
 | 8 | Completion-log line shape (scan-collision constraint, 4.1) | **Decided: non-task shape** (`- ✅ …`), built |
 | 9 | Sidebar completion write path for tasks with no vault line (4.2) | **Decided: action rows** (`act:` on the bridge stream), applied by dayGLANCE as the single data-plane writer; built |
-| 10 | Ownership rule for dayGLANCE-maintained frontmatter (4.3) | Open; what-wins-on-divergence category, ruling before first write |
+| 10 | Ownership rule for dayGLANCE-maintained frontmatter (4.3) | **Decided (ruling B, 4.3)**: one namespaced `dayglance:` map, dayGLANCE wins inside it, nothing outside is touched |
 | 11 | Plugin reads the data plane with a device-local root key derived from the sync passphrase (4.2, decision 1) | **Accepted in use** (2026-09-02); the standing veto lapsed |
 | 12 | Calendar events in the sidebar (excluded from sync by design) | **Decided: dayGLANCE publishes a per-device projection row** on the bridge stream, merged with per-day authority (4.2, decision 8); built |
 | 13 | Multi-user: whose tasks the sidebar, the completion log and the vault writeback handle | **Decided: the vault's viewer**, defaulted from the pairing, overridable in the plugin; first-import assignment to the viewer, writes scoped to the viewer (4.2, decisions 9 and 10); built |
 
 | 14 | Vault task scope rulings B–F (§6.3): schedule-as-metadata, leaving scope, where scope lives, completion window (30 days, configurable 7–90), direct access stays daily-only | **Decided**, 2026-09-02 |
+| 15 | Project and goal notes rulings A–H (4.3): link identity (id key + locator), frontmatter ownership, block cadence, workspace shape, goals and nested folders, deletion, where links appear, in-note task adoption | **Decided**, 2026-09-03 |
 
-Still open, in sequencing order: 3, 4 and 10 (project notes).
+Nothing in this table is open. The SSE re-arm sequence (buildout spec status note) runs alongside the project-notes build, not ahead of it (owner, 2026-09-03).
