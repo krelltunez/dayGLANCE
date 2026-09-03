@@ -515,7 +515,8 @@ export const mergeSyncData = (local, remote, retentionDays) => {
   // must not resurrect a retired id. This also keeps retired rows out of the
   // uploaded sync file, so the v4.7.x fleet stops re-ingesting them.
   const retApplied = applyRetirementsToTaskLists(
-    { tasks: result.data.tasks, unscheduledTasks: result.data.unscheduledTasks }, retiredMerged,
+    { tasks: result.data.tasks, unscheduledTasks: result.data.unscheduledTasks, recycleBin: result.data.recycleBin },
+    retiredMerged,
   );
   if (retApplied.tasks !== result.data.tasks || retApplied.unscheduledTasks !== result.data.unscheduledTasks) {
     result.data.tasks = retApplied.tasks;

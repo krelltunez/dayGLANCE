@@ -52,7 +52,7 @@ import {
   shouldSuppressRetirementHeal, consumeRetirementHealTripped,
   isDeletePropagationLatched, recordDeletePropagation, consumeDeletePropagationTripped,
 } from './retirementHealBreaker.js';
-import { recordOwnWriteSeq } from './ownWrites.js';
+import { recordOwnWriteSeq, withOwnAckRecording } from './ownWrites.js';
 import { isObsidianTombstoned } from '../utils/obsidianDeletions.js';
 import { ghostSuccessorId, persistDerivedGhostRetirements } from '../utils/obsidianGhostRows.js';
 
@@ -315,33 +315,26 @@ export function createDbEngine(callbacks = {}) {
   // at the start of each cycle and committed at the end.
   let mirror = {};
 
-  // OWN-ACK COVERAGE FOR ENGINE DELETES (2026-08-31 war commission): the
-  // server emits ONE nudge per batch — carrying the batch's maxSeq, which the
-  // pushRes.maxSeq record after the push covers — but one nudge PER
-  // deleteRow, each carrying that delete's own seq (glance-vault
-  // routes/sync.ts, verified). pushDirtyRows folds the per-delete seqs into
-  // its returned maxSeq, so a push with two or more deletes left every
-  // non-max delete's echo looking FOREIGN to the exact-identity ownWrites
-  // ring — one guaranteed self-nudge (drain, cycle) per multi-delete push.
-  // The ring is exact-identity by design (no `<=` heuristic — the freshness
+  // OWN-ACK COVERAGE FOR ENGINE WRITES (2026-08-31 war commission; audit M13
+  // closed 2026-09-03): the server emits ONE nudge per batch — carrying the
+  // BATCH's maxSeq — and one nudge PER deleteRow, each carrying that delete's
+  // own seq (glance-vault routes/sync.ts, verified). pushDirtyRows folds all
+  // of them into the single maxSeq it returns, so recording only the fold
+  // left every non-max ack looking FOREIGN to the exact-identity ownWrites
+  // ring: one self-nudge per multi-delete push (the original fix covered
+  // deletes), and — M13 — one per MIXED upsert+delete push, because deletes
+  // follow the batch and push the fold above the batch's own maxSeq. The
+  // ring is exact-identity by design (no `<=` heuristic — the freshness
   // trap), so the fix is to SEE every seq: build the client ourselves (the
-  // same construction the package would run) and record each delete ack at
-  // the source. An INJECTED client (tests) passes through untouched — tests
-  // live-swap methods on the object they hold, and a wrapping copy would
-  // sever that.
+  // same construction the package would run) and record every write ack at
+  // the source (withOwnAckRecording wraps batch AND deleteRow). An INJECTED
+  // client (tests) passes through untouched — tests live-swap methods on the
+  // object they hold, and a wrapping copy would sever that.
   let vaultClient = callbacks.vaultClient;
   if (!vaultClient && cfg.vaultUrl && cfg.vaultToken) {
     try {
-      const inner = createVaultClient({ vaultUrl: cfg.vaultUrl, vaultToken: cfg.vaultToken, fetchImpl: loggingFetch });
-      vaultClient = {
-        ...inner,
-        deleteRow: async (...args) => {
-          const r = await inner.deleteRow(...args);
-          const seq = Number(r?.seq);
-          if (Number.isFinite(seq) && seq > 0) recordOwnWriteSeq(seq);
-          return r;
-        },
-      };
+      vaultClient = withOwnAckRecording(
+        createVaultClient({ vaultUrl: cfg.vaultUrl, vaultToken: cfg.vaultToken, fetchImpl: loggingFetch }));
     } catch { vaultClient = undefined; /* let the package build its own */ }
   }
 

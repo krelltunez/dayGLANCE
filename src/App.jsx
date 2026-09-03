@@ -5694,13 +5694,16 @@ const DayPlanner = () => {
     // deletion: without this, a retired-id copy re-stamped newer than its
     // tombstone (offline edit crossing a stamp, peer re-stamp) landed here as
     // a resurrected duplicate and fed the scan-evict ↔ guard-heal war. The
-    // live-id set spans BOTH lists so a cross-list successor still counts as
-    // live; a row with no live successor is left alone (deletion tombstones
-    // still govern it).
+    // live-id set spans BOTH lists AND the recycle bin (audit M8: a binned
+    // successor is still the identity the content moved to, exactly as the
+    // snapshot-delete partition judges it), so a cross-list or binned
+    // successor still counts as live; a row with no live successor is left
+    // alone (deletion tombstones still govern it).
     const retiredRecord = data.retiredTaskIds || readRetiredTaskIds();
     const retiredLiveIds = new Set([
       ...(normalizedTasks || tasksLiveRef.current || []),
       ...(normalizedUnsched || unscheduledLiveRef.current || []),
+      ...(data.recycleBin || recycleBin || []),
     ].filter(Boolean).map(t => String(t.id)));
     if (normalizedTasks) normalizedTasks = applyTaskRetirements(normalizedTasks, retiredRecord, retiredLiveIds);
     if (normalizedUnsched) normalizedUnsched = applyTaskRetirements(normalizedUnsched, retiredRecord, retiredLiveIds);

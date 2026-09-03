@@ -125,6 +125,16 @@ describe('applyTaskRetirements — the (d) supersede-regardless-of-timestamps ru
     expect(unscheduledTasks).toEqual([]);
   });
 
+  it('a successor in the RECYCLE BIN counts as live: the retired copy is superseded, the bin is untouched (audit M8)', () => {
+    const bin = [task('S', T2)];
+    const { tasks, unscheduledTasks } = applyRetirementsToTaskLists(
+      { tasks: [task('L', T3)], unscheduledTasks: [], recycleBin: bin }, REC,
+    );
+    expect(tasks).toEqual([]);
+    expect(unscheduledTasks).toEqual([]);
+    expect(bin.map((t) => t.id)).toEqual(['S']);
+  });
+
   it('returns the same array when the record touches nothing', () => {
     const list = [task('X', T1)];
     expect(applyTaskRetirements(list, REC, new Set(['X']))).toBe(list);

@@ -41,6 +41,39 @@ export function isOwnWriteSeq(seq) {
   return set.has(seq);
 }
 
+/**
+ * Wrap a vault client so every content write's ack lands in the registry AT
+ * THE SOURCE (audit M13, 2026-09-03). The server emits one nudge per `batch`
+ * (carrying the BATCH's maxSeq) and one per `deleteRow` (carrying that
+ * delete's seq). pushDirtyRows folds all of them into the single maxSeq it
+ * returns, so recording only the folded value leaves every non-max ack
+ * looking foreign: a mixed upsert+delete push (deletes follow the batch, so
+ * the batch's maxSeq is below the fold) leaked its batch nudge as one
+ * spurious self-drain per push — dormant while SSE nudge consumption is
+ * gated off, live the moment it returns. Wrapping both writers records each
+ * ack exactly, which is the only thing the exact-identity ring can use.
+ * Other methods pass through untouched; an injected test client is never
+ * wrapped (the caller decides), so live-swapped spies keep working.
+ */
+export function withOwnAckRecording(inner, record = recordOwnWriteSeq) {
+  if (!inner || typeof inner !== 'object') return inner;
+  const recordAck = (r) => {
+    if (!r || typeof r !== 'object') return;
+    if (typeof r.seq === 'number') record(r.seq);
+    if (typeof r.maxSeq === 'number') record(r.maxSeq);
+  };
+  const wrapped = { ...inner };
+  for (const method of ['batch', 'deleteRow']) {
+    if (typeof inner[method] !== 'function') continue;
+    wrapped[method] = async (...args) => {
+      const r = await inner[method](...args);
+      recordAck(r);
+      return r;
+    };
+  }
+  return wrapped;
+}
+
 /** Test seam. */
 export function __resetOwnWritesForTests() {
   ring.length = 0;
