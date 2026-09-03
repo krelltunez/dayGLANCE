@@ -665,114 +665,138 @@ completion log is the queryable record.
 
 ---
 
-## 6. Scan scope: read-only in Phase 8, read-write is its own phase
+## 6. Vault task scope: two-way, plugin-only
 
-Investigated. The answer split.
+**Ruled (2026-09-02).** The read-only tier this section originally proposed
+is dropped: "I don't have any interest in dayGLANCE showing tasks that can't
+be manipulated in any way." Two-way scope — tasks in any in-scope note,
+completable, renamable and schedulable from dayGLANCE, with the vault kept in
+step — is a Phase 8 feature, built plugin-only (§2: direct access is frozen
+at feature-complete, which here means daily notes). The original §6 text
+(the reuse argument, the identity concerns, the read-only tier) is
+superseded by this section; the concerns it raised are answered below one by
+one rather than deferred.
 
-dayGLANCE reads one folder. An Obsidian user's tasks live in project notes,
-meeting notes, and everywhere else. "dayGLANCE only sees my daily notes" is the
-most obvious gap a real Obsidian user would name.
+### 6.1 What the date was doing
 
-### 6.1 The reuse argument fails, and the plugin is a better home anyway
+The earlier analysis listed every layer keyed on the note's date as if each
+needed a redesign. It does not. In a daily note the note's name is the
+task's date, so ONE field did three jobs:
 
-The wikilink walk (`scanVaultNotes`) **never opens a file**. It iterates
-directory entries, keeps names, and classifies portability from the name alone —
-which is exactly why #1358's single-pass classify worked. It also doesn't run
-per sync cycle, only on mount, vault reconnect, and settings connect.
+1. the **minting namespace** — what keeps "Call the plumber" in two notes
+   from hashing to the same block id;
+2. the **note locator** — the file the writeback opens to find the line;
+3. the **schedule** — the day the task sits on in dayGLANCE.
 
-Task classification needs every file's **contents** plus a per-file date, every
-cycle. Per-file reads over FSA, IPC, and SAF, versus zero today. The traversal
-skeleton is reusable; the cheapness that justified reusing it is not.
+A project note breaks only the coincidence. Each job gets its own field, and
+the machinery on top is plumbing.
 
-**The plugin is the right home, and it changes the answer.** It already receives
-modify and create events for every vault file, its observation stores are
-path-keyed, and it holds `metadataCache` — where Obsidian has *already parsed*
-every file's checkboxes (`getFileCache(file).listItems`, per-item task flags, no
-file reads). Event-driven plus cache-backed discovery beats any walk.
+**The part the earlier analysis got wrong.** The `^dg-` stamp is written
+into the file. The date matters only at the moment a line is FIRST stamped;
+after that, identity travels with the line. Using the path as the namespace
+for non-daily notes changes no existing daily-note id (the frozen algorithm
+keeps the date as its first argument for daily notes), and a renamed or
+moved note keeps its stamped ids intact.
 
-The wikilink index stays app-side: names-only is cheap and it serves pluginless
-setups. It's vault-scale *task discovery* that belongs plugin-side.
+### 6.2 The design
 
-**No Tasks-plugin dependency.** Checkbox parsing is Obsidian core —
-`metadataCache.listItems` marks task items natively. Honoring the Tasks plugin's
-global filter can be an optional *narrowing* for people who have it, never a
-requirement.
+1. **Identity: the minting namespace is the note key.** `deriveBlockId(noteKey,
+   rawTitle)`, same frozen algorithm, at the same three minting sites (the
+   app's stamp-on-sight, the plugin's stamper, the writeback's re-mint). The
+   note key is the note's date for a daily note (unchanged) and its
+   vault-relative path (NFC, forward slashes, `.md` included) for any other
+   note. The tombstoned-remint refusal keys on the same value. **Hard-stop
+   ruling A**, requested below.
+2. **Locator: a task carries its note's path.** New task field
+   `obsidianNotePath`. Daily-note tasks keep `obsidianFileDate`; when both
+   are present the path wins. The direct writer gains a path-addressed sibling
+   of `writeTaskStateToFile`; the plugin needs NO new intent types — the
+   `task_state`, `task_retitle` and `task_append` intents already carry the
+   target `path` (audit fix H1 made the file resolution explicit), with
+   `date` used only for section sorting and the line's date prefix.
+3. **Schedule: from line metadata, never from the note.** A non-daily task's
+   date comes only from `⏳ YYYY-MM-DD` / `[scheduled:: …]` (and its deadline
+   from `📅` / `[due:: …]`), which Phase 4's metadata parser already reads. No
+   scheduled date means the task is an inbox item. Scheduling it in dayGLANCE
+   WRITES the scheduled field onto the line, plus the existing leading time
+   prefix for a timed slot, in the vault's detected metadata format (the
+   completion-marker rule already picks Tasks emoji versus Dataview brackets).
+   The line never moves between notes. **Ruling B.**
+4. **Discovery and scope: plugin-only, opt-in, folders and tags.** The user
+   picks folders and/or tags to include; a note is in scope when it sits
+   under an included folder OR carries an included tag (frontmatter or
+   inline). Both are offered on equal footing — "they are two separate ways
+   to organize a vault and neither is right or wrong" (owner, 2026-09-02).
+   Daily notes stay in scope regardless. Configured in the plugin's settings,
+   published to dayGLANCE in the `meta:config` row so both sides classify a
+   path identically. Candidates come from `metadataCache` (Obsidian has
+   already parsed every checkbox; no file reads); in-scope notes then flow
+   through the SAME path-keyed observation stream as daily notes.
+5. **Adoption without the burst.** Ruling 7 (visible implies stamped) holds
+   per note: a note is reported only after its stamping settled. Stamping is
+   confined to OPEN task lines plus lines completed within the window
+   (below), and throttled to a few notes per drain, so bringing a large
+   folder into scope spreads its edits over minutes instead of one Obsidian
+   Sync burst. Ten daily notes produced five wars; this is the same surface
+   and gets the same discipline: the settle rule, the cursor gate and the
+   buffer-safe write path all apply unchanged.
+6. **Bounds without a date window.** Non-daily notes have no ninety-day
+   window. The bound is instead: open tasks, plus tasks completed within the
+   completion window (proposal: 14 days). Older completed lines are neither
+   stamped nor imported. **Ruling E** on the window.
+7. **Leaving scope.** When a note leaves scope (folder or tag removed from
+   the setting, tag removed from the note) its tasks are WITHDRAWN from
+   dayGLANCE — not deleted anywhere, and the stamps stay in the file. A note
+   re-entering scope re-imports under the same stamped ids, so nothing is
+   minted twice. This is a new tombstone class ("out of scope"), distinct
+   from a deletion. **Ruling C.**
+8. **Moves and deletions.** The plugin sees renames: a moved note updates
+   `obsidianNotePath` on every task carrying the old path, by id, with no
+   tombstones. A deleted note, or a line removed from a note, flows through
+   note-scoped deletion inference exactly as a daily note does (path-keyed
+   already; the wall-clock hold applies). The direct-access path does not
+   participate (§2), so the "moved note looks like a deletion" hazard of a
+   file scan never arises.
+9. **Multi-user.** Decision 10 applies as written: first import assigns to
+   the vault's viewer; writes are scoped to the viewer.
+10. **In dayGLANCE.** A non-daily task appears wherever its schedule puts it —
+    the timeline when scheduled, the inbox otherwise — carrying a note badge
+    (the note's name, opening the note via the existing open-in-Obsidian
+    route). The sidebar needs nothing: the tasks are ordinary rows in the
+    mirror.
+11. **DB tier.** Task rows carry the new field; nothing else changes. Note
+    bodies of non-daily notes are NOT mirrored (the daily-note editor stays a
+    daily-note feature).
 
-**The TaskForge reference point.** TaskForge (taskforge.md) is a standalone
-native app — not an Obsidian plugin — that does whole-vault task discovery by
-reading and writing the vault's markdown directly, Tasks-*format* compatible
-(emoji metadata) without requiring the Tasks plugin, with no second copy of the
-data. Note what it does not do: no identity stamping, no cross-store
-reconciliation — it addresses task lines in place. That is the competitive
-proof that discovery alone was never the hard part; what makes read-write scope
-expensive for us is our identity machinery (6.2), which is also what buys the
-things TaskForge doesn't attempt (durable cross-device identity through
-retitles, deletes, and revivals).
+### 6.3 Rulings requested (hard-stop category, owner)
 
-### 6.2 Why read-write scope breaks the identity machinery
+| | Ruling | Proposal |
+|---|---|---|
+| A | Minting namespace for non-daily notes | The note's vault-relative path; daily notes keep the date. |
+| B | How a schedule is written to a non-daily line | Scheduled-date metadata in the vault's detected format, plus the leading time prefix for a slot; the line never moves. |
+| C | A note leaving scope | Tasks withdrawn from dayGLANCE ("out of scope" tombstone class), stamps untouched; re-entry re-imports under the same ids. |
+| D | Where the scope lives | Plugin settings (folders + tags, union), published in `meta:config`. |
+| E | Completion window for non-daily notes | 14 days. |
+| F | Direct access | Stays daily-notes-only (§2); non-daily scope is plugin-only. |
 
-Not cardinality. **A note's identity key is its date**, and that is woven through
-every layer:
+### 6.4 Build order
 
-- **Minting.** `deriveBlockId(dateStr, rawTitle)` is a frozen algorithm whose
-  hash input is the daily note's date. `Projects/House.md` has no date to feed
-  it. Inventing a note key — path, path-hash, anything — changes identity
-  derivation, which is a hard-stop category, and it must change *unanimously* at
-  all three minting sites or unanimity breaks. `isTombstonedRemint` also relies
-  on date-plus-title separating identical lines in different notes; a keyless
-  scheme collides them.
-- **`obsidianFileDate` is the note's only name downstream.** Note-scoped deletion
-  inference skips dateless tasks entirely. The revival lift needs a date-to-mtime
-  map. The vault-wide detector's window check permanently excludes undatable
-  keys, making them *untombstoneable*. The DB tier's `dailyNotes` rows are
-  date-keyed with no row shape for a path-named note.
-- **The writeback corrupts on fallback.** `sourceDate = task.obsidianFileDate ||
-  … || task.date`. A task from a non-daily note would write its completion into
-  the daily note for the task's date — the wrong file. There is no
-  path-addressed task-line write anywhere; `wiki_note_write` is whole-note only.
-- **Ruling 7 breaks on day one.** The plugin's `inScope` already admits any note
-  containing `^dg-` or `#obsidian`, but stamping runs only when
-  `dailyNoteDate(path)` is non-null. Opening the inbound tap would ship
-  *unstamped* task lines — exactly the visible-implies-stamped invariant ruling 7
-  exists to hold. Non-daily-note deletions are never reported at all.
-- **Guards sized to a folder.** The deletion detector's drop guard,
-  `max(5, 25% of last scan)`, grows linearly with vault size — a real mass
-  deletion slips under it while one project-folder rename trips it. The
-  500-entry outbox cap head-drops entries whose identity moves were already
-  committed on enqueue. And initial adoption would stamp **every checkbox in the
-  vault at once**, a vault-wide modification burst that Obsidian Sync then
-  replays to every device. Ten notes produced five wars; this is that surface
-  multiplied by the vault, in one hour.
-- **No volume bound.** The 90-day import window is the only thing bounding scan
-  size and store growth today, and it is date-derived. Path-keyed notes have no
-  window, so `deletedObsidianKeys`, the retired-ids bundle, and the scan
-  baselines become grow-only against vault size.
+1. **Identity and locator.** `noteKey` threaded to the three minting sites;
+   `obsidianNotePath`; the path-addressed direct write; pins: same title in
+   two notes mints two ids, a renamed note keeps its ids, a daily-note id is
+   byte-identical before and after.
+2. **Plugin discovery.** Scope settings (folders, tags), published in the
+   config row; `inScope` and the stamping gate extended from "is a daily
+   note" to "is a daily note or in scope"; throttled adoption.
+3. **App import.** The observation classifier admits in-scope non-daily
+   notes; parse under the path key; schedule from metadata, inbox otherwise;
+   the note badge; moves; the out-of-scope withdrawal.
+4. **Scheduling write.** The metadata write on the line.
+5. **Field test** on a real project folder before widening defaults.
 
-**Verdict: read-write scan scope is its own phase.** It needs a note-key design
-ruled explicitly (the frozen-hash question), a path-addressed write route, a DB
-row shape, reworked deletion inference, and a re-derived ruling 7. Sequenced
-behind the substrate being boring for a while.
-
-### 6.3 What Phase 8 gets: the read-only tier
-
-Genuinely useful and touches none of the above:
-
-- Plugin-side discovery via `metadataCache`.
-- Tasks from non-daily notes **displayed** in dayGLANCE.
-- Never stamped, never written back, never fed to deletion inference.
-- Identity ephemeral per scan — never enters the DB tier or the tombstone
-  stores.
-
-It also composes with project notes: **daily notes plus the notes your tasks
-already wikilink to** is a natural first scope.
-
-**Write-policy tiers, for the record.** Read-only is safe now and Phase
-8-compatible. Complete-by-path needs the path-addressed write route, which
-doesn't exist. Full stamping needs everything in 6.2.
-
-**Open:** which scope — all notes, configured subtrees, a tag or filter, or
-daily-notes-plus-wikilinked. Leaning the last, as the smallest thing that closes
-the real gap.
+**The TaskForge reference point** stands from the earlier text: discovery
+was never the hard part; identity is what buys cross-device durability
+through retitles, deletes and revivals, and it is what this section pays for.
 
 ---
 
@@ -782,16 +806,18 @@ the real gap.
    establishes the write pattern everything else follows.
 2. **Sidebar view.** Independent of everything else; the most visible proof the
    plugin is more than plumbing.
-3. **Read-only scan scope.** Plugin-side discovery via `metadataCache`, tasks
-   from other notes displayed but never written. Small, safe, and closes the
-   most obvious gap.
+3. **Vault task scope, two-way, plugin-only (§6).** Tasks in any in-scope
+   note (folders and tags the user picks), completable, renamable and
+   schedulable from dayGLANCE. Ahead of project notes because the wikilinked
+   notes and the project notes are the same set, and this gives project
+   notes something to link to.
 4. **Project and goal notes**, including vault-structure creation. Highest value
    of the remaining items, and needs the completion log to be worth much
    (backlinks from completions are half the point). Composes with 3 — the
    wikilinked-notes scope and project notes are the same set.
 5. **Templater and Dataview delegation.**
 
-Read-write scan scope is not in this phase. See 6.2.
+(The 2026-09-02 ruling brought two-way scope into this phase; the read-only tier is gone. See §6.)
 
 ---
 
@@ -804,8 +830,8 @@ Read-write scan scope is not in this phase. See 6.2.
 | 3 | What "create the project workspace" produces | Open |
 | 4 | Project frontmatter update cadence | Open; `data.json` churn lesson applies |
 | 5 | Sidebar refresh mechanism | **Decided: no second stream.** The mirror refreshes on the transport's 30s tick and the drain success tail, so the existing SSE nudge feeds it (4.2, built) |
-| 6 | Read-only scan scope: which notes | Leaning daily notes plus wikilinked |
-| 7 | Note-key design for read-write scope | Deferred to its own phase; hard-stop category |
+| 6 | Vault task scope: which notes | **Decided: opt-in folders and/or tags, union**, chosen in the plugin (§6.2 item 4) |
+| 7 | Note-key design for two-way scope | **Requested** as ruling A (§6.3): the note's path for non-daily notes, the date for daily notes |
 | 8 | Completion-log line shape (scan-collision constraint, 4.1) | **Decided: non-task shape** (`- ✅ …`), built |
 | 9 | Sidebar completion write path for tasks with no vault line (4.2) | **Decided: action rows** (`act:` on the bridge stream), applied by dayGLANCE as the single data-plane writer; built |
 | 10 | Ownership rule for dayGLANCE-maintained frontmatter (4.3) | Open; what-wins-on-divergence category, ruling before first write |
@@ -813,5 +839,7 @@ Read-write scan scope is not in this phase. See 6.2.
 | 12 | Calendar events in the sidebar (excluded from sync by design) | **Decided: dayGLANCE publishes a per-device projection row** on the bridge stream, merged with per-day authority (4.2, decision 8); built |
 | 13 | Multi-user: whose tasks the sidebar, the completion log and the vault writeback handle | **Decided: the vault's viewer**, defaulted from the pairing, overridable in the plugin; first-import assignment to the viewer, writes scoped to the viewer (4.2, decisions 9 and 10); built |
 
-Still open, in sequencing order: 6 (read-only scan scope: which notes), then
-3, 4 and 10 (project notes), then 7 (read-write scope, its own phase).
+| 14 | Vault task scope rulings B–F (§6.3): schedule-as-metadata, leaving scope, where scope lives, completion window, direct access stays daily-only | **Requested** with proposals |
+
+Still open, in sequencing order: 7 and 14 (vault task scope, rulings A–F
+requested), then 3, 4 and 10 (project notes).
