@@ -148,6 +148,24 @@ export function splitTasksMetadata(input) {
  * @param {string} rawTitle      the task's frozen obsidianRawTitle (full
  *   line space) — the metadata source
  */
+/**
+ * Write a scheduled date INTO a line's metadata run (companion §6, ruling
+ * B — the schedule of a non-daily task lives on its line, never in a note
+ * date). Replaces an existing ⏳ / [scheduled::] segment, appends one when
+ * absent, removes it when `dateStr` is null; every other segment is kept
+ * verbatim. `format` is 'tasks' (⏳ emoji) or 'dataview' ([scheduled:: …]).
+ * Returns the full raw title (display text + metadata run).
+ */
+export function withScheduledMetadata(rawTitle, dateStr, format = 'tasks') {
+  const raw = String(rawTitle ?? '');
+  const { text, metaText } = splitTasksMetadata(raw);
+  const SCHED_SEG = new RegExp(`\\s+(?:\\u{23F3}${VS}\\s*\\d{4}-\\d{2}-\\d{2}|\\[scheduled::[^\\]]*\\])`, 'gu');
+  const base = (metaText ? text.trimEnd() + metaText.replace(SCHED_SEG, '') : raw.trimEnd()).trimEnd();
+  if (!dateStr) return base;
+  const seg = format === 'dataview' ? `[scheduled:: ${dateStr}]` : `\u{23F3} ${dateStr}`;
+  return `${base} ${seg}`;
+}
+
 export function reattachTasksMetadata(displayTitle, rawTitle) {
   const { metaText } = splitTasksMetadata(String(rawTitle ?? ''));
   if (!metaText) return displayTitle;

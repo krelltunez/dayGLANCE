@@ -940,6 +940,7 @@ const MobileGlanceSection = () => {
               {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
               {task.importSource === 'obsidian' && <BookOpen size={13} className="flex-shrink-0 opacity-60" title="From Obsidian" />}
               {task.obsidianRecurrence && <Repeat size={13} className="flex-shrink-0 opacity-60" title="Recurring in Obsidian — this task's recurrence is managed by the Tasks plugin; completing it here won't create the next instance" />}
+              {task.obsidianNotePath && <FileText size={13} className="flex-shrink-0 opacity-60" title={`In ${task.obsidianNotePath.replace(/\.md$/, '')} (Obsidian)`} />}
               <span className="truncate">{renderTitle(task.title)}</span>
             </div>
             <div className={`text-sm ${textSecondary} flex items-center gap-1`}>

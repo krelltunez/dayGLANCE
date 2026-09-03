@@ -33,6 +33,7 @@ export function splitTasksMetadata(input: string): {
   text: string; metaText: string; fields: TasksMetadataFields;
 };
 export function reattachTasksMetadata(displayTitle: string, rawTitle: string): string;
+export function withScheduledMetadata(rawTitle: string, dateStr: string | null, format?: 'tasks' | 'dataview'): string;
 
 // ── task lines ──────────────────────────────────────────────────────────────
 export function taskLineSortKey(line: string, noteDate: string): string;

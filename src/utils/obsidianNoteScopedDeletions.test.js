@@ -258,3 +258,21 @@ describe('the continuity guard + pending store (audit fix C1)', () => {
     expect(readPendingNoteDeletions(corrupt)).toEqual({ entries: {}, touchedAt: null });
   });
 });
+
+describe('inferNoteScopedDeletionCandidates — path-keyed notes (companion §6)', () => {
+  it('a task claiming a scoped note by path is judged by that path\'s observation; a daily task never by a path', () => {
+    const tasks = [
+      { id: 'obsidian-dg-a', importSource: 'obsidian', obsidianNotePath: 'Projects/House.md' },
+      { id: 'obsidian-dg-b', importSource: 'obsidian', obsidianNotePath: 'Projects/House.md' },
+      { id: 'obsidian-dg-c', importSource: 'obsidian', obsidianNotePath: 'Projects/Other.md' },
+      { id: 'obsidian-dg-d', importSource: 'obsidian', obsidianFileDate: '2026-09-02' },
+    ];
+    const out = inferNoteScopedDeletionCandidates({
+      observedNotes: {},
+      observedPaths: { 'Projects/House.md': { lastModified: '2026-09-02T10:00:00Z' } },
+      scannedIds: new Set(['obsidian-dg-a']),
+      tasks, inbox: [],
+    });
+    expect(out).toEqual([{ id: 'obsidian-dg-b', noteDate: 'Projects/House.md', deletedAt: '2026-09-02T10:00:00Z' }]);
+  });
+});

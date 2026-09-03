@@ -185,3 +185,42 @@ describe('applyBridgeObservations', () => {
     expect(out.scheduledTasks[0].lastModified).toBe(new Date(0).toISOString());
   });
 });
+
+describe('applyBridgeObservations — vault task scope (companion §6)', () => {
+  const HOUSE = [
+    '# House',
+    '- [ ] Call the plumber ^dg-aaaaaaaa',
+    '- [ ] Order tiles ⏳ 2026-09-12 ^dg-bbbbbbbb',
+    '- [x] Pick paint ✅ 2026-08-30 ^dg-cccccccc',
+    '- [x] Ancient ✅ 2024-01-01 ^dg-dddddddd',
+  ].join('\n');
+
+  it('a scoped note parses under its path: dateless lines are inbox, ⏳ schedules, old completions drop, no daily-note entry is made', () => {
+    const out = applyBridgeObservations(
+      [{ path: 'Projects/House.md', content: HOUSE, mtime: 1756400000000, observedAt: '2026-09-02T12:00:00Z', scoped: true }],
+      { existingTasks: [], existingInbox: [], dailyNotesPath: 'Daily', scope: { completionWindowDays: 30 }, today: '2026-09-02' },
+    );
+    expect(Object.keys(out.dailyNotes)).toEqual([]);
+    expect(out.scopedNotes['Projects/House.md']).toMatchObject({ lastModified: new Date(1756400000000).toISOString() });
+    expect(out.scheduledTasks.map((t) => t.id)).toEqual(['obsidian-dg-bbbbbbbb']);
+    expect(out.scheduledTasks[0]).toMatchObject({ date: '2026-09-12', obsidianNotePath: 'Projects/House.md' });
+    expect(out.inboxTasks.map((t) => t.id).sort()).toEqual(['obsidian-dg-aaaaaaaa', 'obsidian-dg-cccccccc']);
+    expect(out.inboxTasks.every((t) => t.obsidianNotePath === 'Projects/House.md' && t.obsidianFileDate === undefined)).toBe(true);
+    expect(out.scannedIds.has('obsidian-dg-dddddddd')).toBe(false);
+    expect(out.unapplied).toEqual([]);
+  });
+
+  it('a withdrawn note and a deleted scoped note are reported for the caller, not parsed', () => {
+    const out = applyBridgeObservations(
+      [
+        { path: 'Projects/Old.md', withdrawn: true, observedAt: '2026-09-02T12:00:00Z' },
+        { path: 'Projects/Gone.md', deleted: true, content: null, scoped: true, observedAt: '2026-09-02T12:00:00Z' },
+      ],
+      { existingTasks: [], existingInbox: [], dailyNotesPath: 'Daily', today: '2026-09-02' },
+    );
+    expect(out.withdrawn).toEqual(['Projects/Old.md']);
+    expect(out.scopedNotes['Projects/Gone.md']).toMatchObject({ deleted: true, lastModified: '2026-09-02T12:00:00Z' });
+    expect(out.scheduledTasks).toEqual([]);
+    expect(out.inboxTasks).toEqual([]);
+  });
+});

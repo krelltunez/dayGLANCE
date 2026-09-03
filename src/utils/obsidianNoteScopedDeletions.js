@@ -115,9 +115,11 @@
  * @param {object[]} inbox  current inbox tasks (pre-merge)
  * @returns {Array<{id: string, noteDate: string, deletedAt: string}>}
  */
-export function inferNoteScopedDeletionCandidates({ observedNotes, scannedIds, tasks, inbox }) {
+export function inferNoteScopedDeletionCandidates({ observedNotes, observedPaths = null, scannedIds, tasks, inbox }) {
   const out = [];
-  if (!observedNotes || Object.keys(observedNotes).length === 0) return out;
+  const paths = observedPaths || {};
+  const notes = observedNotes || {};
+  if (Object.keys(notes).length === 0 && Object.keys(paths).length === 0) return out;
   for (const t of [...(tasks || []), ...(inbox || [])]) {
     if (!t || t.importSource !== 'obsidian') continue;
     const id = String(t.id);
@@ -135,9 +137,11 @@ export function inferNoteScopedDeletionCandidates({ observedNotes, scannedIds, t
     // honestly name cannot be judged by any note's parse — skip it; the
     // vault-wide detector still covers it on the next direct scan, and any
     // observation re-import re-establishes obsidianFileDate.
-    const noteDate = t.obsidianFileDate;
+    // A non-daily task (companion §6) claims its line by obsidianNotePath
+    // and is judged by that path's observation, the same way.
+    const noteDate = t.obsidianNotePath || t.obsidianFileDate;
     if (!noteDate) continue;
-    const note = observedNotes[noteDate];
+    const note = t.obsidianNotePath ? paths[t.obsidianNotePath] : notes[noteDate];
     if (!note) continue; // note not in this batch — no evidence either way
     if (scannedIds.has(id)) continue; // line present (or a tagged line advertises this id as its hint)
     if (t.obsidianLegacyId && scannedIds.has(String(t.obsidianLegacyId))) continue;

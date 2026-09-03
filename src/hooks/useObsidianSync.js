@@ -19,7 +19,7 @@ import { effectiveLaunchOnWrite } from '../utils/obsidianLaunchOnWrite.js';
 import { validateWikiNoteName } from '../utils/obsidianFilename.js';
 import { classifyVaultPaths } from '../utils/vaultPortability.js';
 import { mergeObsidianDailyNotes } from '../utils/mergeObsidianDailyNotes.js';
-import { mergeObsidianTasks, noteMtimesFromDailyNotes } from '../utils/mergeObsidianTasks.js';
+import { mergeObsidianTasks, noteMtimesFromDailyNotes, noteMtimesFromScopedNotes } from '../utils/mergeObsidianTasks.js';
 import { detectObsidianDeletions, addObsidianTombstones } from '../utils/obsidianDeletions.js';
 import { reattachTasksMetadata } from '../utils/obsidianTasksMetadata.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
@@ -37,7 +37,7 @@ import { writebackSnapshotEntry } from '../utils/obsidianWritebackSnapshot.js';
 import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, publishBridgeCalendarProjection, getBridgePairingMeta, cachedBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
 import { vaultViewerFor, visibleToViewer, assignVaultViewer, knownTaskIds } from '../utils/obsidianUserScope.js';
 import { writebackTargetFor } from '../utils/obsidianWritebackTarget.js';
-import { noteTaskId } from '@glance-apps/obsidian-format';
+import { noteTaskId, withScheduledMetadata } from '@glance-apps/obsidian-format';
 import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations } from '../utils/obsidianBridgeInbound.js';
 import {
   fetchBridgeActions, planBridgeActions, applyActionsToTasks, applyActionsToRecurring,
@@ -78,6 +78,18 @@ import {
 // names the CONDITION, never the tasks, and is precise about the actual retry
 // semantics: there is no background retry queue — a failed write re-attempts
 // when the task next changes.
+// Vault task scope (companion §6, ruling C): notes withdrawn from the scope,
+// path → withdrawal time, so a note re-entering the scope is treated as
+// fresh vault evidence for its tasks' revival. Device-local bookkeeping.
+const WITHDRAWN_NOTES_KEY = 'day-planner-withdrawn-obsidian-notes';
+const readWithdrawnNotes = () => {
+  try { const v = JSON.parse(localStorage.getItem(WITHDRAWN_NOTES_KEY) || '{}'); return v && typeof v === 'object' ? v : {}; }
+  catch { return {}; }
+};
+const writeWithdrawnNotes = (store) => {
+  try { localStorage.setItem(WITHDRAWN_NOTES_KEY, JSON.stringify(store)); } catch { /* best-effort */ }
+};
+
 export const OBSIDIAN_TASK_WRITE_ERROR =
   "Couldn't write to your Obsidian vault. Your changes are saved in dayGLANCE and will be written on the next edit.";
 
@@ -669,8 +681,49 @@ export default function useObsidianSync({
                 dailyNotesPath: obsidianConfig?.dailyNotesPath || '',
                 dailyNotePattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
                 onTitleConflict,
+                // Vault task scope (companion §6): the window for scoped notes
+                // comes from the plugin's pairing-meta row.
+                scope: cachedBridgePairingMeta()?.scope ?? null,
+                today: dateToString(new Date()),
               })
             : null;
+
+          // WITHDRAWAL (companion §6, ruling C): a note that left the scope
+          // takes its tasks out of dayGLANCE — tombstoned through the
+          // vault-origin channel at the withdrawal time, so every device
+          // drops them; nothing is deleted in the vault and the stamps stay.
+          // Re-entry re-imports under the same ids: the path is remembered
+          // so its next scoped observation counts as fresh vault evidence
+          // (its mtime alone may predate the withdrawal).
+          if (applied?.withdrawn?.length) {
+            const withdrawnAt = new Date().toISOString();
+            const withdrawnPaths = new Set(applied.withdrawn);
+            const ids = [...currentTasks, ...currentInbox]
+              .filter(t => t?.importSource === 'obsidian' && withdrawnPaths.has(t.obsidianNotePath))
+              .map(t => String(t.id));
+            if (ids.length) {
+              tombstones = addObsidianTombstones(tombstones, ids, withdrawnAt);
+              localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(tombstones));
+              console.info('[Obsidian] vault task scope: note(s) left the scope; withdrawing', ids.length, 'task(s):', applied.withdrawn.join(', '));
+            }
+            const store = readWithdrawnNotes();
+            for (const p of applied.withdrawn) store[p] = withdrawnAt;
+            writeWithdrawnNotes(store);
+          }
+          if (applied?.scopedNotes) {
+            // A withdrawn note re-entering the scope: lift its evidence time
+            // past the withdrawal so revival stamping re-admits its tasks.
+            const store = readWithdrawnNotes();
+            let touched = false;
+            for (const [p, note] of Object.entries(applied.scopedNotes)) {
+              if (!store[p]) continue;
+              const lifted = new Date(Math.max(Date.parse(note.lastModified || 0) || 0, (Date.parse(store[p]) || 0) + 1000)).toISOString();
+              applied.scopedNotes[p] = { ...note, lastModified: lifted };
+              delete store[p];
+              touched = true;
+            }
+            if (touched) writeWithdrawnNotes(store);
+          }
 
           // NOTE-SCOPED DELETION INFERENCE (see the util's header for the
           // full rules). Runs on EVERY successful fetch — an empty fetch is
@@ -694,6 +747,7 @@ export default function useObsidianSync({
           const candidates = applied
             ? inferNoteScopedDeletionCandidates({
                 observedNotes: applied.dailyNotes,
+                observedPaths: applied.scopedNotes,
                 scannedIds: batchScannedIds,
                 tasks: currentTasks,
                 inbox: currentInbox,
@@ -747,7 +801,7 @@ export default function useObsidianSync({
             // The observed notes' mtimes are the revival evidence (§3.10
             // ruling 6): a scanned line whose tombstone predates its note's
             // mtime is re-admitted with lastModified lifted to that mtime.
-            const observedNoteMtimes = noteMtimesFromDailyNotes(applied.dailyNotes);
+            const observedNoteMtimes = { ...noteMtimesFromDailyNotes(applied.dailyNotes), ...noteMtimesFromScopedNotes(applied.scopedNotes) };
             // FIRST-IMPORT ASSIGNMENT (utils/obsidianUserScope.js): a task new
             // to the app is the vault's viewer's — here the pairing meta's
             // user, since every device on the account applies this stream.
@@ -1333,6 +1387,10 @@ export default function useObsidianSync({
       // Detect rescheduling to a different day by comparing against the prev snapshot
       // (not obsidianFileDate) so this is a one-shot trigger per reschedule.
       const dateChanged = !!(task.date && p.date && task.date !== p.date);
+      // A non-daily task moved to the inbox (date cleared) or given a date
+      // it did not have: its ⏳ metadata must follow (ruling B), a change
+      // the daily-note flags above cannot express.
+      const scheduleChanged = !!task.obsidianNotePath && (!!p.date !== !!task.date);
 
       // STAMP ON SIGHT (spec §3.10, identity-versus-content) — a NAMED new
       // write-trigger class: the IDENTITY-ASSIGNMENT WRITE FIRED BY IMPORT.
@@ -1363,7 +1421,7 @@ export default function useObsidianSync({
         && !titleChanged && !stateChanged && !dateChanged
         && !task.obsidianBlockId && blockIdWritesEnabled();
 
-      if (!titleChanged && !stateChanged && !dateChanged && !stampNeeded) continue;
+      if (!titleChanged && !stateChanged && !dateChanged && !scheduleChanged && !stampNeeded) continue;
 
       // Always write back to the original file the task was parsed from:
       // the daily note for obsidianFileDate, or the note at obsidianNotePath
@@ -1382,9 +1440,20 @@ export default function useObsidianSync({
       // text off the vault line on every dayGLANCE rename. Same helper as
       // the scan-time resolver's `ours` comparison, so what we compare and
       // what we write can never diverge.
-      const newRawTitle = titleChanged
+      let newRawTitle = titleChanged
         ? reattachTasksMetadata(task.title.replace(/\s*#obsidian\b/gi, '').trim(), task.obsidianRawTitle)
         : undefined;
+      // SCHEDULE AS METADATA (companion §6, ruling B): a non-daily task's
+      // date is written onto its line as ⏳ / [scheduled::] — never as an
+      // inline date prefix, never by moving the line — in the vault's
+      // detected format. It rides the retitle path: the raw title (display
+      // text plus metadata run) changes, the display title does not.
+      if (target.isNoteTask && (dateChanged || scheduleChanged || titleChanged)) {
+        const withSchedule = withScheduledMetadata(
+          newRawTitle ?? task.obsidianRawTitle, task.date || null, tasksPluginRef.current ? 'tasks' : 'dataview');
+        newRawTitle = withSchedule !== task.obsidianRawTitle ? withSchedule : newRawTitle;
+      }
+      const rawTitleChanged = newRawTitle !== undefined && newRawTitle !== task.obsidianRawTitle;
 
       // When the task has been rescheduled to a different day, pass the new date
       // so the write adds/updates an inline date prefix in the original file
@@ -1478,7 +1547,7 @@ export default function useObsidianSync({
       const noteTitleConflict = () => { titleConflicted = true; };
       let titleUpdate = null;
       let postTitleId = task.id;
-      if (titleChanged && newRawTitle) {
+      if (rawTitleChanged) {
         // Mirrors parseTasksFromMarkdown's content-derived id for untagged tasks.
         const newId = task.obsidianBlockId ? task.id
           : target.isNoteTask ? noteTaskId(target.noteKey, newRawTitle)
@@ -1511,14 +1580,14 @@ export default function useObsidianSync({
       // identity move), and applyBridgeIntent mirrors its line rewrite, so
       // a paired vault copy converges byte-for-byte whichever side lands
       // first. Fail-silent; a stream problem never touches the direct write.
-      const queued = emitBridgeIntent(titleChanged && newRawTitle ? 'task_retitle' : 'task_state', {
+      const queued = emitBridgeIntent(rawTitleChanged ? 'task_retitle' : 'task_state', {
         path: target.path,
         date: sourceDate,
         obsidianRawTitle: task.obsidianRawTitle,
         completed: task.completed,
         startTime: writeStartTime,
         duration: writeDuration,
-        ...(titleChanged && newRawTitle ? { newRawTitle } : {}),
+        ...(rawTitleChanged ? { newRawTitle } : {}),
         ...(targetDate ? { targetDate } : {}),
         taskHeading,
         blockId: writeBlockId,

@@ -198,6 +198,7 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
               <Calendar size={14} className="flex-shrink-0" />
               {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
               {task.obsidianRecurrence && <Repeat size={12} className="flex-shrink-0 opacity-75" title="Recurring in Obsidian — this task's recurrence is managed by the Tasks plugin; completing it here won't create the next instance" />}
+              {task.obsidianNotePath && <FileText size={12} className="flex-shrink-0 opacity-75" title={`In ${task.obsidianNotePath.replace(/\.md$/, '')} (Obsidian)`} />}
               {task.source_app === SOURCE_APPS.LASTGLANCE && <LastGlanceBadge size={12} className="flex-shrink-0" title="From lastGLANCE" />}
               {multiUserEnabled && <UserAssignmentBadge users={users} assignedUserSyncIds={task.assignedUserSyncIds} size={14} />}
               <div
