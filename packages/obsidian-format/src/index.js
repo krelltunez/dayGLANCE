@@ -21,3 +21,4 @@ export * from './bridgePairing.js';
 export * from './bridgeStream.js';
 export * from './bridgeSse.js';
 export * from './completionLog.js';
+export * from './noteScope.js';

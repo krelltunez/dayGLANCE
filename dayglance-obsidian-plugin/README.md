@@ -60,6 +60,13 @@ manually or via BRAT, not submitted to the community directory.
   that a running dayGLANCE applies (so its completion log, vault writeback
   and sync all fire), and the box shows as pending until the mirror
   reflects it. Ribbon icon and **Open agenda** command.
+- **Vault task scope** (companion spec §6): beyond daily notes, the settings
+  tab takes folders and/or tags whose notes are task sources. Their open
+  tasks, and tasks completed within a configurable window (30 days by
+  default, 7 to 90), are stamped with an identity under the note's path
+  and reported like daily-note tasks, a few notes per tick when a scope is
+  first added. A note leaving the scope is reported as withdrawn. The
+  scope rides the pairing-meta row so dayGLANCE applies the same window.
 - Four commands: **Sync now** (drains pending intents + refreshes the
   heartbeat), **Enter pairing code**, **Unpair from GLANCEvault**
   (forgets the local credentials and the account key; revoke the token

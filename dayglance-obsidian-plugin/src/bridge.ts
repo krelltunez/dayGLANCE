@@ -23,7 +23,7 @@
 // plugin NEVER interprets an edit; inferring semantics is dayGLANCE's
 // scan pipeline's job.
 
-import { App, MarkdownView, Platform, TFile, normalizePath, requestUrl } from 'obsidian';
+import { App, MarkdownView, Platform, TFile, getAllTags, normalizePath, requestUrl } from 'obsidian';
 import {
   applyBridgeIntent,
   openBridgeEnvelope,
@@ -47,6 +47,11 @@ import {
   BRIDGE_PAIRING_META_ID,
   BRIDGE_CONFIG_META_ID,
   BRIDGE_INTENT_PREFIX,
+  noteKeyForPath,
+  noteInScope,
+  scopeIsActive,
+  completedSinceFor,
+  type VaultScope,
 } from '@glance-apps/obsidian-format';
 import { createVaultClient, type VaultClient } from '@glance-apps/sync/src/vaultClient.js';
 import type { BridgePairing } from './pairing';
@@ -69,6 +74,10 @@ export interface BridgeState {
   // now also HOLDS daily-note reporting while config is null (fail closed on
   // the reporting side), making ruling 7's invariant unconditional.
   config?: BridgeConfigRow | null;
+  // Vault task scope (companion §6): the non-daily notes this vault copy has
+  // already reported since they entered scope. Adoption re-reports only what
+  // is not here, so a plugin reload does not re-emit every note in scope.
+  adoptedScope?: string[];
 }
 
 const APPLIED_IDS_CAP = 1000;
@@ -82,6 +91,10 @@ const APPLIED_IDS_CAP = 1000;
 // persisted anyway, capping how many non-intent rows a plugin reload can
 // re-list. Large enough that a normal editing day never trips it.
 const HWM_PERSIST_GAP = 500;
+// Adoption throttle (companion §6.2 item 5): notes newly in scope are
+// reported this many per 30s tick, so bringing a large folder into scope
+// spreads its stamping over minutes instead of one Obsidian Sync burst.
+const ADOPT_PER_TICK = 3;
 const OBSERVE_DEBOUNCE_MS = 2000;
 // Retry cadence for a daily-note report held on config-null (fail closed —
 // see emitObservation). Config arrives within one drain tick of load, so the
@@ -122,6 +135,12 @@ export interface BridgeHost {
    * a second stream of its own.
    */
   onSynced?(): void;
+  /**
+   * The vault task scope (companion §6, rulings D and E): the folders and
+   * tags whose notes are task sources, and the completion window. Null or
+   * inactive means daily notes only.
+   */
+  getScope?(): VaultScope | null;
 }
 
 // Same requestUrl-backed fetch shim as pairing.ts (CORS-free everywhere).
@@ -155,6 +174,9 @@ export async function publishPairingMeta(
   // line is assigned to. Defaults to the pairing's own user; main.ts passes
   // the settings override when one is set.
   viewer: string | null | undefined = pairing?.userSyncId ?? null,
+  // The vault task scope (ruling D): dayGLANCE reads the completion window
+  // from here so both sides drop the same old completed lines.
+  scope: VaultScope | null = null,
 ): Promise<void> {
   const creds = pairing ?? previous;
   if (!creds) return;
@@ -172,6 +194,7 @@ export async function publishPairingMeta(
           v: 1, kind: 'pairing-meta',
           generation: pairing.generation, pairingSalt: pairing.pairingSalt, pairedAt: pairing.pairedAt,
           ...(viewer ? { userSyncId: viewer } : {}),
+          ...(scope ? { scope } : {}),
         }),
         createdAt: Date.now(),
       }],
@@ -232,6 +255,12 @@ export class BridgeTransport {
   // Per-path consecutive observation-failure counts, for the retry backoff
   // below. Reset on the path's first successful report.
   private observeRetryAttempts = new Map<string, number>();
+  // Vault task scope: paths reported as scoped (deletions of these report),
+  // the persisted adopted set, and the throttled adoption queue.
+  private scopedPaths = new Set<string>();
+  private adopted = new Set<string>();
+  private adoptQueue: string[] = [];
+  private adoptScanned = false;
   // In-memory cursor for the persist-on-intent-only rule (see drain): pages
   // that only skipped config/observation/tombstone rows advance the cursor
   // HERE, not in data.json — every data.json save is a vault file write that
@@ -319,6 +348,9 @@ export class BridgeTransport {
     if (persisted && typeof persisted === 'object') {
       this.config = persisted;
       console.info(`dayGLANCE bridge: config restored from settings — stamping ${this.stampingState()}.`);
+    }
+    for (const p of host.getBridgeState().adoptedScope ?? []) {
+      if (typeof p === 'string') { this.adopted.add(p); this.scopedPaths.add(p); }
     }
   }
 
@@ -725,6 +757,7 @@ export class BridgeTransport {
             // and dropping the field here would undo the persistence that
             // closes the 2026-08-31 config-null hole.
             config: this.config,
+            adoptedScope: [...this.adopted],
           });
           persistedHwm = Math.max(persistedHwm, cursor);
           appliedDirty = false;
@@ -879,7 +912,114 @@ export class BridgeTransport {
   private inScope(path: string, content: string | null): boolean {
     if (!path.endsWith('.md') || path.startsWith('.')) return false;
     if (this.isDailyNote(path)) return true;
+    if (this.scopedNote(path)) return true;
     return content !== null && (content.includes('^dg-') || /#obsidian\b/i.test(content));
+  }
+
+  // ── Vault task scope (companion §6) ──────────────────────────────────────
+
+  /** A non-daily note in the user's scope (folders and/or tags, ruling D). */
+  private scopedNote(path: string): boolean {
+    const scope = this.host.getScope?.() ?? null;
+    if (!scope || !scopeIsActive(scope)) return false;
+    if (!path.endsWith('.md') || path.startsWith('.') || this.isDailyNote(path)) return false;
+    const file = this.host.app.vault.getAbstractFileByPath(normalizePath(path));
+    const cache = file instanceof TFile ? this.host.app.metadataCache.getFileCache(file) : null;
+    const tags = cache ? (getAllTags(cache) ?? []) : [];
+    return noteInScope(path, tags, scope);
+  }
+
+  /** The minting key for stamping (ruling A): the note date, or the path for a scoped note; null = never stamp. */
+  private stampKey(path: string): string | null {
+    const date = this.dailyNoteDate(path);
+    if (date) return date;
+    return this.scopedNote(path) ? noteKeyForPath(path) : null;
+  }
+
+  /** Stamp options: the completion window applies to scoped notes only (ruling E). */
+  private stampOptions(path: string): { completedSince: string | null } {
+    if (this.dailyNoteDate(path)) return { completedSince: null };
+    const scope = this.host.getScope?.() ?? null;
+    if (!scope) return { completedSince: null };
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return { completedSince: completedSinceFor(scope, today) };
+  }
+
+  /**
+   * ADOPTION, throttled: report notes that entered scope and have not been
+   * reported since, ADOPT_PER_TICK per call (main.ts calls this on the 30s
+   * tick). The candidate walk runs once per scope change, over Obsidian's
+   * already-parsed metadata cache — no file reads until a note is reported.
+   */
+  adoptTick(): void {
+    if (this.disposed || !this.host.getPairing()) return;
+    const scope = this.host.getScope?.() ?? null;
+    if (!scope || !scopeIsActive(scope)) return;
+    if (!this.adoptScanned) {
+      this.adoptScanned = true;
+      this.adoptQueue = this.host.app.vault.getMarkdownFiles()
+        .map((f) => f.path)
+        .filter((path) => !this.adopted.has(path) && this.scopedNote(path))
+        .sort();
+      if (this.adoptQueue.length) console.info(`dayGLANCE bridge: ${this.adoptQueue.length} note(s) entering the task scope; reporting ${ADOPT_PER_TICK} per tick.`);
+    }
+    const batch = this.adoptQueue.splice(0, ADOPT_PER_TICK);
+    if (!batch.length) return;
+    for (const path of batch) {
+      this.adopted.add(path);
+      this.armObserve(path, false, 0);
+    }
+    void this.persistAdopted();
+  }
+
+  /**
+   * The scope setting changed: notes that left it are WITHDRAWN (ruling C —
+   * dayGLANCE drops their tasks; stamps stay in the file), and the adoption
+   * walk re-runs so notes that entered it are reported.
+   */
+  scopeChanged(): void {
+    if (this.disposed) return;
+    for (const path of [...this.adopted]) {
+      if (this.scopedNote(path)) continue;
+      this.adopted.delete(path);
+      this.scopedPaths.delete(path);
+      void this.emitWithdrawal(path);
+    }
+    this.adoptScanned = false;
+    this.adoptQueue = [];
+    void this.persistAdopted();
+  }
+
+  private async persistAdopted(): Promise<void> {
+    if (this.disposed) return;
+    try {
+      const state = this.host.getBridgeState();
+      const next = [...this.adopted];
+      const prev = state.adoptedScope ?? [];
+      if (prev.length === next.length && prev.every((p, i) => p === next[i])) return;
+      await this.host.saveBridgeState({ ...state, adoptedScope: next });
+    } catch (e) {
+      console.error('dayGLANCE bridge: could not persist the adopted scope', e);
+    }
+  }
+
+  /** A note left the scope: tell dayGLANCE to withdraw its tasks (no deletion anywhere). */
+  private async emitWithdrawal(path: string): Promise<void> {
+    try {
+      const pairing = this.host.getPairing();
+      if (!pairing || this.rateLimited()) return;
+      const subkey = await this.subkeyFor(pairing);
+      const payload = { v: 1, kind: 'observation', path, withdrawn: true, observedAt: new Date().toISOString() };
+      const ack = await this.client(pairing).batch(BRIDGE_VAULT_APP, {
+        accountId: pairing.accountId,
+        rows: [{ entityId: await observationEntityId(path), envelope: await sealBridgeEnvelope(subkey, payload), createdAt: Date.now() }],
+      });
+      const ackSeq = Number((ack as { maxSeq?: unknown } | null)?.maxSeq);
+      if (Number.isFinite(ackSeq)) this.sseGate.recordOwnSeq(ackSeq);
+    } catch (e) {
+      console.warn('dayGLANCE bridge: withdrawal report failed (the note is simply no longer reported)', e);
+    }
   }
 
   private isDailyNote(path: string): boolean {
@@ -954,7 +1094,7 @@ export class BridgeTransport {
         content = await adapter.read(path);
         try { mtime = (await adapter.stat(path))?.mtime ?? null; } catch { /* stat optional */ }
       }
-      if (deleted ? !this.isDailyNote(path) : !this.inScope(path, content)) return;
+      if (deleted ? !(this.isDailyNote(path) || this.scopedPaths.has(path)) : !this.inScope(path, content)) return;
 
       // ── FAIL CLOSED WHILE CONFIG IS UNKNOWN (2026-08-31 incident) ───────
       // With config null, the normalize block below cannot run — so reporting
@@ -1029,8 +1169,12 @@ export class BridgeTransport {
       // not. The stamp and the observation still defer TOGETHER — unstamped
       // state is never reported (ruling 7's invariant, unchanged).
       if (!deleted && content !== null && bridgeConfigAllowsStamping(this.config)) {
-        const noteDate = this.dailyNoteDate(path);
-        if (noteDate && stampUntaggedTaskLines(content, noteDate).changed) {
+        // The stamp key is the note date, or the path for a scoped note
+        // (ruling A); scoped notes stamp only lines inside the completion
+        // window (ruling E). Wiki notes carrying ^dg- text have no key.
+        const noteDate = this.stampKey(path);
+        const stampOpts = this.stampOptions(path);
+        if (noteDate && stampUntaggedTaskLines(content, noteDate, stampOpts).changed) {
           const rearm = () => this.armObserve(path, false, OBSERVE_DEBOUNCE_MS);
           // Every markdown view showing this path — the shared helper the
           // intent applier's write rule uses too.
@@ -1071,7 +1215,7 @@ export class BridgeTransport {
             // LIVE buffer read in the same tick it is applied.
             const editorView = views[0];
             const buffer = editorView.getViewData();
-            const plan = planStampInsertions(buffer, noteDate);
+            const plan = planStampInsertions(buffer, noteDate, stampOpts);
             // THE CURSOR GATE (premature identity assignment — the
             // 2026-08-31 "W ^dg-...atch tennis" line; rationale pinned on
             // partitionStampPlan in the shared package): never stamp a line
@@ -1121,7 +1265,7 @@ export class BridgeTransport {
             // keystroke instead of racing it).
             const editorView = views[0];
             const buffer = editorView.getViewData();
-            const plan = planStampInsertions(buffer, noteDate);
+            const plan = planStampInsertions(buffer, noteDate, stampOpts);
             const settled = settleStampPlan(plan, buffer.split('\n'), this.stampSettle.get(path), Date.now());
             if (settled.nextState.size > 0) this.stampSettle.set(path, settled.nextState);
             else this.stampSettle.delete(path);
@@ -1148,7 +1292,7 @@ export class BridgeTransport {
             // lines by their exact content, so a write landing between our
             // read and this one simply un-settles the moved lines for this
             // pass (they re-enter on the re-arm).
-            const plan = planStampInsertions(content, noteDate);
+            const plan = planStampInsertions(content, noteDate, stampOpts);
             const contentLines = content.split('\n');
             const settled = settleStampPlan(plan, contentLines, this.stampSettle.get(path), Date.now());
             if (settled.nextState.size > 0) this.stampSettle.set(path, settled.nextState);
@@ -1157,7 +1301,7 @@ export class BridgeTransport {
               const settledKeys = new Set(settled.apply.map((p) => contentLines[p.line]));
               await this.host.app.vault.process(file, (data) => {
                 const lines = data.split('\n');
-                for (const p of planStampInsertions(data, noteDate)) {
+                for (const p of planStampInsertions(data, noteDate, stampOpts)) {
                   if (!settledKeys.has(lines[p.line])) continue;
                   lines[p.line] = lines[p.line].slice(0, p.fromCh) + p.insert;
                 }
@@ -1175,10 +1319,16 @@ export class BridgeTransport {
         }
       }
 
+      // A scoped (non-daily) note is flagged so dayGLANCE parses it under
+      // the path key and never as a daily note; remembered so its deletion
+      // reports too.
+      const scoped = !deleted && !this.isDailyNote(path) && this.scopedNote(path);
+      if (scoped) this.scopedPaths.add(path);
       const subkey = await this.subkeyFor(pairing);
       const payload = {
         v: 1, kind: 'observation', path,
         content, deleted: deleted || undefined,
+        scoped: scoped || undefined,
         mtime, observedAt: new Date().toISOString(),
       };
       const ack = await this.client(pairing).batch(BRIDGE_VAULT_APP, {
