@@ -5,7 +5,10 @@
 
 // ── identity ────────────────────────────────────────────────────────────────
 export function simpleHash(str: string): string;
-export function deriveBlockId(dateStr: string, rawTitle: string): string;
+/** noteKey: the note's date for a daily note, noteKeyForPath(path) for any other note (companion §6, ruling A). */
+export function deriveBlockId(noteKey: string, rawTitle: string): string;
+export function noteKeyForPath(path: string): string;
+export function noteTaskId(noteKey: string, rawTitle: string): string;
 export function appIdForBlockId(blockId: string): string;
 export function legacyObsidianId(taskDate: string, rawTitle: string): string;
 export function splitBlockId(text: string): { text: string; blockId: string | null };
@@ -52,6 +55,7 @@ export function updateTaskLines(lines: string[], opts: {
 }): boolean;
 export function parseTasksFromMarkdown(
   content: string, dateStr: string, seenBlockIds?: Set<string>,
+  opts?: { notePath?: string | null },
 ): { scheduledTasks: Record<string, unknown>[]; inboxTasks: Record<string, unknown>[] };
 export function stampUntaggedTaskLines(
   content: string, dateStr: string,

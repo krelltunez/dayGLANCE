@@ -66,8 +66,8 @@ export function simpleHash(str) {
  * first-occurrence-wins rule; 36^8 ≈ 2.8e12 makes unrelated collisions
  * vanishingly unlikely at vault scale.
  */
-export function deriveBlockId(dateStr, rawTitle) {
-  const input = `${dateStr}\u0000${String(rawTitle ?? '').normalize('NFC').trim()}`;
+export function deriveBlockId(noteKey, rawTitle) {
+  const input = `${noteKey}\u0000${String(rawTitle ?? '').normalize('NFC').trim()}`;
   let h = 0xcbf29ce484222325n; // FNV-1a 64-bit offset basis
   for (const byte of new TextEncoder().encode(input)) {
     h ^= BigInt(byte);
@@ -78,6 +78,31 @@ export function deriveBlockId(dateStr, rawTitle) {
 
 export function appIdForBlockId(blockId) {
   return `obsidian-dg-${blockId}`;
+}
+
+// ── note keys (companion spec §6, ruling A) ─────────────────────────────────
+// deriveBlockId's first argument is the NOTE KEY: the minting namespace that
+// keeps "Call the plumber" in two notes from hashing to one id. For a daily
+// note it is the note's date (unchanged since Phase 2 — every existing id
+// keeps deriving byte-identically). For any other note it is the note's
+// vault-relative path, normalized here so every device derives the same key
+// from the same file. The key matters only at first minting: once the
+// `^dg-` token is in the file, identity travels with the line, and a
+// renamed or moved note keeps its ids.
+
+/** The note key for a non-daily note: its vault-relative path, NFC, forward slashes, no leading slash. */
+export function noteKeyForPath(path) {
+  return String(path ?? '').normalize('NFC').replace(/\\/g, '/').replace(/^\/+/, '');
+}
+
+/**
+ * The provisional id of an UNTAGGED line in a non-daily note (the
+ * counterpart of legacyObsidianId, whose date the note does not have).
+ * Under ruling 7 the plugin stamps before reporting, so dayGLANCE rarely
+ * sees one; it exists so a line is never id-less between report and stamp.
+ */
+export function noteTaskId(noteKey, rawTitle) {
+  return `obsidian-note-${simpleHash(noteKey)}-${simpleHash(rawTitle)}`;
 }
 
 /** The legacy content-derived id for an untagged line (and pre-Phase-2 tasks). */

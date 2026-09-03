@@ -8,7 +8,16 @@
 // resolving the conflict inside this function, instead of calling back, is
 // the moment format quietly becomes policy and the package boundary erodes.
 
-import { splitBlockId, blockIdSuffix, legacyObsidianId, appIdForBlockId, deriveBlockId, hasForeignBlockId } from './identity.js';
+import {
+  splitBlockId,
+  blockIdSuffix,
+  legacyObsidianId,
+  appIdForBlockId,
+  deriveBlockId,
+  hasForeignBlockId,
+  noteKeyForPath,
+  noteTaskId,
+} from './identity.js';
 import { splitCompletionMarker, completionMarkerSuffix } from './completionMarkers.js';
 import { splitTasksMetadata } from './tasksMetadata.js';
 
@@ -299,10 +308,19 @@ export function updateTaskLines(lines, { obsidianRawTitle, completed, startTime,
  *   tasks. The sync passes ONE set across every file in the scan so the rule
  *   holds vault-wide, not merely per file.
  */
-export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set()) {
+export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(), { notePath = null } = {}) {
   const scheduled = [];
   const inbox = [];
   if (!content) return { scheduledTasks: scheduled, inboxTasks: inbox };
+  // NON-DAILY NOTES (companion spec §6): `notePath` names the note instead
+  // of a date. The note key (ruling A) is the path; a line's date comes only
+  // from its own text (an inline prefix, or ⏳ scheduled metadata) — never
+  // from the note — so a line with neither is an inbox item; and the task
+  // carries obsidianNotePath (the writeback's locator) in place of
+  // obsidianFileDate. Everything else — markers, metadata, block ids — is
+  // exactly the daily-note grammar.
+  const noteKey = notePath ? noteKeyForPath(notePath) : dateStr;
+  const noteFields = notePath ? { obsidianNotePath: noteKeyForPath(notePath) } : { obsidianFileDate: dateStr };
 
   const lines = content.split('\n');
 
@@ -343,7 +361,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
       // an untagged task (blockId stays null).
     }
 
-    let taskDate = dateStr;
+    let taskDate = notePath ? null : dateStr;
     let startTime = null;
     let isAllDay = false;
     let parsedDuration = null;
@@ -398,7 +416,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
 
     // ID-first: a ^dg- tagged line gets its durable block-derived id; an
     // untagged line keeps the legacy content-derived id (date + title hash).
-    const legacyId = legacyObsidianId(taskDate, rawTitle);
+    const legacyId = notePath ? noteTaskId(noteKey, rawTitle) : legacyObsidianId(taskDate, rawTitle);
     const id = blockId ? appIdForBlockId(blockId) : legacyId;
     // obsidianLegacyId is a PER-SCAN bridge hint, not an identity: it is what
     // this line's id would have been without the tag, recomputed from current
@@ -422,7 +440,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
       ...(meta.fields.recurrence ? { obsidianRecurrence: true } : {}),
     };
 
-    if (startTime) {
+    if (startTime && taskDate) {
       // Timed task (with or without inline date)
       scheduled.push({
         id,
@@ -437,12 +455,12 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
         subtasks: [],
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,
-        obsidianFileDate: dateStr,
+        ...noteFields,
         ...blockFields,
         ...completedAtFields,
         ...metadataFields,
       });
-    } else if (isAllDay) {
+    } else if (isAllDay && taskDate) {
       // Date-only task → all-day scheduled task
       scheduled.push({
         id,
@@ -457,7 +475,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
         subtasks: [],
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,
-        obsidianFileDate: dateStr,
+        ...noteFields,
         ...blockFields,
         ...completedAtFields,
         ...metadataFields,
@@ -475,7 +493,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
         color: 'bg-purple-600',
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,
-        obsidianFileDate: dateStr,
+        ...noteFields,
         ...blockFields,
         ...completedAtFields,
         ...metadataFields,
