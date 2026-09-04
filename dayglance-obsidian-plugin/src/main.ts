@@ -157,15 +157,12 @@ export default class DayGlanceBridgePlugin extends Plugin {
     // inert while unpaired. layoutReady gates out the initial index churn.
     this.app.workspace.onLayoutReady(() => {
       this.registerEvent(this.app.vault.on('modify', (f) => { if (f instanceof TFile) this.transport.scheduleObservation(f); }));
-      this.registerEvent(this.app.vault.on('create', (f) => { if (f instanceof TFile) this.transport.scheduleObservation(f); }));
+      this.registerEvent(this.app.vault.on('create', (f) => { if (f instanceof TFile) this.transport.noteCreated(f); }));
       this.registerEvent(this.app.vault.on('delete', (f) => { if (f instanceof TFile) this.transport.reportDeleted(f.path); }));
       this.registerEvent(this.app.vault.on('rename', (f, oldPath) => {
-        if (f instanceof TFile) {
-          // A linked project note keeps its link across the rename (companion §4.3, ruling A).
-          this.transport.noteRenamed(oldPath, f.path);
-          this.transport.reportDeleted(oldPath);
-          this.transport.scheduleObservation(f);
-        }
+        // Link following, scope re-classification (a move out is a
+        // withdrawal, a move in an entry), arrival time, then the reports.
+        if (f instanceof TFile) this.transport.noteRenamed(oldPath, f);
       }));
       // Frontmatter edits (the id key) surface as metadata changes, not file modifies.
       this.registerEvent(this.app.metadataCache.on('changed', (f) => { if (f instanceof TFile) this.transport.noteMetaChanged(f.path); }));

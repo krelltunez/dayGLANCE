@@ -990,6 +990,23 @@ inbox) through the retitle path, so the raw title changes and the display
 title does not, and the parser reads the date back. Task cards carry a note
 badge naming the note. Direct access is untouched (ruling F).
 
+**Field-test record (2026-09-04): moves.** A note moved OUT of the scope
+and back did not revive its tasks. Two causes, both in the plugin's rename
+handling: a rename reported the old path as a deleted scoped note (so the
+app's note-scoped inference tombstoned the tasks at observation time, the
+deletion channel rather than ruling C's withdrawal), and a move does not
+touch a file's mtime, so the note's return reported content OLDER than
+those tombstones and ruling 6's existence LWW kept it dead until someone
+edited it. Fixed: the rename handler re-classifies the scope — old path
+scoped and new path out is a WITHDRAWAL (the app's path store then lifts
+the re-entry), new path in is an adoption on the spot, both in carries the
+adoption — and every scoped note carries a memory-only ARRIVAL time (create
+or rename) that its observations report as the later of mtime and arrival,
+so a note that reappears anywhere in the scope is evidence as of its
+arrival. Daily notes are untouched. *Remaining gap, recorded:* an arrival is
+memory-only, so a note moved back while the plugin is closed and then left
+unedited reports its old mtime after the reload; an edit revives it.
+
 **The TaskForge reference point** stands from the earlier text: discovery
 was never the hard part; identity is what buys cross-device durability
 through retitles, deletes and revivals, and it is what this section pays for.
