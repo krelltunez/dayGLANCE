@@ -97,6 +97,17 @@ Network access happens only while paired (plus pairing verification), only
 to the vault URL carried in the offer, via Obsidian's `requestUrl`. All
 stream rows are AES-256-GCM under the pairing's bridge subkey.
 
+## Tests
+
+The plugin has no unit tests of its own; it is exercised end to end by the
+bridge scenario harness in `test/`, which runs from the repository root
+with the rest of the suite (`npx vitest run`). The harness stubs the
+`obsidian` module (`test/obsidianStub.ts`), serves an in-memory GLANCEvault
+(`test/fakeGlanceVault.ts`), and drives the real transport plus the real
+dayGLANCE sync hook against it (`test/harness.ts`). Add a scenario to
+`test/scope.scenarios.test.ts` for any change to what the plugin stamps,
+reports, or applies.
+
 ## Build
 
 ```

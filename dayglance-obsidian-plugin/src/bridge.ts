@@ -161,6 +161,8 @@ export interface BridgeHost {
   getScope?(): VaultScope | null;
   /** Project and goal note workspaces (companion §4.3, rulings D and E). */
   getProjectNotes?(): ProjectNoteSettings;
+  /** The vault's viewer override (companion 4.2, decision 9); undefined = the pairing's default. */
+  getViewer?(): string | null;
 }
 
 // Same requestUrl-backed fetch shim as pairing.ts (CORS-free everywhere).
@@ -639,7 +641,10 @@ export class BridgeTransport {
       const client = this.client(pairing);
       const subkey = await this.subkeyFor(pairing);
       if (this.metaAssertedGeneration !== pairing.generation) {
-        await publishPairingMeta(pairing);
+        // The row carries the viewer override and the task scope too
+        // (harness finding, 2026-09-04): republishing it bare after every
+        // reload silently dropped both until the settings were touched.
+        await publishPairingMeta(pairing, undefined, this.host.getViewer?.() ?? pairing.userSyncId ?? null, this.host.getScope?.() ?? null);
         this.metaAssertedGeneration = pairing.generation;
       }
       // CONFIG RECOVERY BY DIRECT READ (2026-08-31 config-null incident):
@@ -1472,11 +1477,19 @@ export class BridgeTransport {
       // daily-note classifier runs on its fallback regex, and feeding the
       // note-scoped deletion inference from a guessed classification isn't
       // worth the asymmetry.
-      if (this.config === null && this.isDailyNote(path)) {
+      // A SCOPED note holds too (harness finding, 2026-09-04): its lines
+      // are stamped by the same block, so reporting it config-null would
+      // ship untagged lines and mint provisional ids in dayGLANCE — the
+      // fragment factory, one scope over.
+      if (this.config === null && !deleted && (this.isDailyNote(path) || this.scopedNote(path))) {
         if (!this.warnedConfigHold) {
           this.warnedConfigHold = true;
-          console.warn('dayGLANCE bridge: no config row known yet — daily-note reporting held (fail closed) until it arrives.');
+          console.warn('dayGLANCE bridge: no config row known yet — note reporting held (fail closed) until it arrives.');
         }
+        this.armObserve(path, deleted, CONFIG_HOLD_RETRY_MS);
+        return;
+      }
+      if (this.config === null && deleted && this.isDailyNote(path)) {
         this.armObserve(path, deleted, CONFIG_HOLD_RETRY_MS);
         return;
       }

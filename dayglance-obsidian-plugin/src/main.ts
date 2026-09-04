@@ -135,6 +135,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
       onSynced: () => { void this.agenda.refresh().then(() => this.noteBlocks.tick()); },
       getScope: () => this.scope(),
       getProjectNotes: () => normalizeProjectNoteSettings(this.data.projectNotes),
+      getViewer: () => this.viewer(),
     });
     this.noteBlocks = new NoteBlockWriter({
       app: this.app,
