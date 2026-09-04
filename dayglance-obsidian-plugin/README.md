@@ -76,12 +76,17 @@ manually or via BRAT, not submitted to the community directory.
   missing (dayGLANCE keeps the project and offers a relink), re-finds a
   note by its key on a periodic walk, and applies link and unlink requests
   made from dayGLANCE. A linked note also carries a `dayglance:` frontmatter
-  map the plugin maintains from its mirror (status, open, done, total,
-  percent, next scheduled date for a project; progress and its projects as
-  wikilinks for a goal), rewritten only when a value changes, at most once
-  every five minutes per note, never into unsaved edits. dayGLANCE wins
-  inside that map; nothing outside it is read or written. A project or goal
-  born in dayGLANCE can create its note here: the **Project and goal notes**
+  map the plugin maintains from its mirror: `kind`, `status`, and on a
+  project note `goal` (a wikilink to the goal's note when it is linked).
+  Counts and dates are deliberately not in it, so it is rewritten only when
+  a status or a goal assignment changes, at most once every five minutes
+  per note, never into unsaved edits. dayGLANCE wins inside that map;
+  nothing outside it is read or written. A project or goal born in
+  dayGLANCE can create its note here (the default body has a tasks
+  section, a completions section, notes, decisions and a dated log; with
+  Dataview installed the completions and, on a goal note, the projects
+  table and monthly progress are live queries, otherwise a plain sentence
+  stands in each place; chosen once at creation): the **Project and goal notes**
   settings choose the layout (one note; a folder with an index note; folders
   nested under the goal), the projects and goals folders, and optional
   template notes (rendered by Templater when it is installed and the

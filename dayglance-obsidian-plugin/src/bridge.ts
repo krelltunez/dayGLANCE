@@ -60,6 +60,8 @@ import {
   templateNeedsUser,
   renderNoteTemplateSubset,
   withCreationFrontmatter,
+  defaultProjectNote,
+  defaultGoalNote,
   type VaultScope,
   type ProjectNoteSettings,
 } from '@glance-apps/obsidian-format';
@@ -1215,9 +1217,17 @@ export class BridgeTransport {
     await this.ensureParentDirs(path);
     const today = new Date().toISOString().slice(0, 10);
     const vars = { title, date: today, goal: goalTitle };
+    // The default body (companion §4.3, templates ruling): chosen ONCE, at
+    // creation, by whether Dataview is installed; never maintained after.
+    const plugins = (this.host.app as unknown as { plugins?: { plugins?: Record<string, unknown> } }).plugins?.plugins ?? {};
+    const hasDataview = !!plugins['dataview'];
+    const dailyFolder = this.config?.dailyNotesPath ?? '';
+    const defaultBody = kind === 'goal'
+      ? defaultGoalNote({ title, date: today, hasDataview, dailyFolder })
+      : defaultProjectNote({ title, date: today, hasDataview, dailyFolder });
     let created: TFile;
     try {
-      created = await this.host.app.vault.create(path, withCreationFrontmatter(`# ${title}\n`, today));
+      created = await this.host.app.vault.create(path, withCreationFrontmatter(defaultBody, today));
     } catch (e) {
       console.error(`dayGLANCE bridge: could not create ${path}`, e);
       return 'applied';

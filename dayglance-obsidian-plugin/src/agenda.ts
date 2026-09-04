@@ -67,9 +67,7 @@ const CRYPTO_DB_NAME = 'dayglance-bridge';
 // placed for and the day's completions.
 // Projects and goals ride the mirror too (companion §4.3): the link picker
 // lists them, and the maintained frontmatter block is rendered from them.
-// The inbox (unscheduledTasks) is mirrored for the BLOCK's counts only; the
-// agenda itself still shows scheduled work (the v1 scope ruling stands).
-const AGENDA_KINDS = new Set(['tasks', 'recurringTasks', 'todayRoutines', 'users', 'projects', 'goals', 'unscheduledTasks']);
+const AGENDA_KINDS = new Set(['tasks', 'recurringTasks', 'todayRoutines', 'users', 'projects', 'goals']);
 const SINGLETON_KIND = 'singleton';
 const AGENDA_SINGLETONS = new Set(['routinesDate', 'routineCompletions']);
 // Optimistic completion marks time out: dayGLANCE applies an action within
@@ -157,7 +155,6 @@ export class AgendaStore {
   private singletons = new Map<string, unknown>();
   private projectRows = new Map<string, TaskRow>();
   private goalRows = new Map<string, TaskRow>();
-  private inboxRows = new Map<string, TaskRow>();
   // Calendar projections (companion 4.2): read-only calendar events never
   // sync, so each dayGLANCE device publishes its view as a bridge-stream row
   // (`proj:calendar:<deviceId>`, sealed under the pairing subkey). Keyed by
@@ -245,17 +242,9 @@ export class AgendaStore {
     return out.sort((a, b) => a.title.localeCompare(b.title));
   }
 
-  /**
-   * Inputs for the maintained note block (companion §4.3, ruling C): every
-   * task of every user (the block counts the project, not the viewer's
-   * share of it), scheduled and inbox, plus projects and goals.
-   */
-  blockInputs(): { tasks: TaskRow[]; projects: TaskRow[]; goals: TaskRow[] } {
-    return {
-      tasks: [...this.tasks.values(), ...this.inboxRows.values()],
-      projects: [...this.projectRows.values()],
-      goals: [...this.goalRows.values()],
-    };
+  /** Inputs for the maintained note map (companion §4.3, ruling C as amended): projects and goals. */
+  blockInputs(): { projects: TaskRow[]; goals: TaskRow[] } {
+    return { projects: [...this.projectRows.values()], goals: [...this.goalRows.values()] };
   }
 
   // The viewer filters (see AgendaHost.getViewer). A null viewer sees all.
@@ -421,7 +410,6 @@ export class AgendaStore {
     if (kind === 'users') return this.members;
     if (kind === 'projects') return this.projectRows;
     if (kind === 'goals') return this.goalRows;
-    if (kind === 'unscheduledTasks') return this.inboxRows;
     return this.routines;
   }
 

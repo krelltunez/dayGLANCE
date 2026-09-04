@@ -886,8 +886,12 @@ function vaultMetadataEdits(task, existing) {
     due: base.due !== theirs.due,
     scheduled: base.scheduled !== theirs.scheduled,
     priority: base.priority !== theirs.priority,
+    // The project field (companion §4.3, ruling G as amended): the line's
+    // current value rides along so the adopter can resolve it.
+    project: base.project !== theirs.project,
+    projectRef: theirs.project,
   };
-  return (edits.due || edits.scheduled || edits.priority) ? edits : null;
+  return (edits.due || edits.scheduled || edits.priority || edits.project) ? edits : null;
 }
 
 /**
@@ -897,8 +901,17 @@ function vaultMetadataEdits(task, existing) {
  * remove uniform: the line's whole date semantics (inline-prefix precedence
  * included) reapply for `scheduled`, and a removed 📅 clears the deadline.
  */
-function adoptVaultMetadataEdits(task, edits, lineVals) {
+function adoptVaultMetadataEdits(task, edits, lineVals, resolveProject = null) {
   if (!edits) return;
+  // A vault edit of `[project:: …]` reassigns (or, removed, unassigns) the
+  // task on the plugin path, where the app supplies the resolver; a name
+  // that resolves to nothing leaves the assignment alone.
+  if (edits.project && typeof resolveProject === 'function') {
+    // An explicit null (never undefined) so the downstream merge's app-field
+    // carry can tell "the vault unassigned it" from "the parse has no opinion".
+    if (!edits.projectRef) task.projectId = null;
+    else { const id = resolveProject(edits.projectRef); if (id) task.projectId = id; }
+  }
   if (edits.due) task.deadline = lineVals.deadline ?? null;
   if (edits.priority) task.priority = lineVals.priority ?? 0;
   if (edits.scheduled) {
@@ -1019,7 +1032,7 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       if (existing.startTime !== undefined) task.startTime = existing.startTime;
       if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
       resolveTitleOwnership(task, existing, onTitleConflict);
-      adoptVaultMetadataEdits(task, edits, lineVals);
+      adoptVaultMetadataEdits(task, edits, lineVals, ctx.resolveProject);
       // OWNED-SCHEDULE ENFORCEMENT (§3.10, 2026-09-02 correction): DG owns
       // scheduling once a task is imported, and the copy above enforces
       // that IN MEMORY — but until now nothing pushed DG's time back to a
@@ -1053,6 +1066,7 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       // Fresh import with no local match — use epoch so cloud merge
       // correctly prefers real user edits from other devices.
       task.lastModified = new Date(0).toISOString();
+      adoptLineProject(task, ctx.resolveProject);
     }
     allScheduled.push(task);
   }
@@ -1069,7 +1083,7 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       if (existing.color !== undefined) task.color = existing.color;
       if (existing.duration !== undefined) task.duration = existing.duration;
       resolveTitleOwnership(task, existing, onTitleConflict);
-      adoptVaultMetadataEdits(task, edits, lineVals);
+      adoptVaultMetadataEdits(task, edits, lineVals, ctx.resolveProject);
       if (existing.lastModified) task.lastModified = existing.lastModified;
 
       // User scheduled this from inbox — respect the cross-array move.
@@ -1082,9 +1096,20 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       }
     } else {
       task.lastModified = new Date(0).toISOString();
+      adoptLineProject(task, ctx.resolveProject);
     }
     allInbox.push(task);
   }
+}
+
+// A line first seen carrying `[project:: …]` imports under that project
+// (companion §4.3, ruling G as amended); plugin path only (the resolver).
+function adoptLineProject(task, resolveProject) {
+  if (typeof resolveProject !== 'function' || task.projectId) return;
+  const ref = splitTasksMetadata(String(task.obsidianRawTitle ?? '')).fields.project;
+  if (!ref) return;
+  const id = resolveProject(ref);
+  if (id) task.projectId = id;
 }
 
 export async function syncObsidianVault(

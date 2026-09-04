@@ -79,3 +79,35 @@ describe('projectLogName / projectByNotePath (rulings G and H)', () => {
     expect(projectByNotePath([linked, aliased, missing, bare])).toEqual({ 'Projects/House.md': 'p1', 'Projects/Garden.md': 'p2' });
   });
 });
+
+import { projectRefFor, resolveProjectRef } from './obsidianProjectNotes.js';
+
+describe('the project field (ruling G as amended): projectRefFor / resolveProjectRef', () => {
+  const house = { id: 'p1', title: 'House', obsidianNotePath: 'Projects/House.md' };
+  const garden = { id: 'p2', title: 'Garden' };
+  const missing = { id: 'p3', title: 'Attic', obsidianNotePath: 'Projects/Attic.md', obsidianNoteMissingAt: '2026-09-04T10:00:00Z' };
+  const projects = [house, garden, missing];
+
+  it('writes a wikilink for a linked project, the title for an unlinked or missing one, null for none', () => {
+    expect(projectRefFor(house)).toBe('[[Projects/House]]');
+    expect(projectRefFor({ ...house, title: 'The house' })).toBe('[[Projects/House|The house]]');
+    expect(projectRefFor(garden)).toBe('Garden');
+    expect(projectRefFor(missing)).toBe('Attic');
+    expect(projectRefFor(null)).toBe(null);
+  });
+
+  it('resolves a wikilink by note path (alias ignored), a bare name by a unique title, and refuses ambiguity', () => {
+    expect(resolveProjectRef('[[Projects/House|House]]', projects)).toBe('p1');
+    expect(resolveProjectRef('[[Projects/House]]', projects)).toBe('p1');
+    expect(resolveProjectRef('[[Projects/House#Plan|x]]', projects)).toBe('p1');
+    expect(resolveProjectRef('Garden', projects)).toBe('p2');
+    expect(resolveProjectRef('garden', projects)).toBe('p2');
+    // A link to a note nobody is linked to falls back to its alias, then basename, as a title.
+    expect(resolveProjectRef('[[Notes/Somewhere|Garden]]', projects)).toBe('p2');
+    expect(resolveProjectRef('[[Notes/Garden]]', projects)).toBe('p2');
+    expect(resolveProjectRef('Nope', projects)).toBe(null);
+    expect(resolveProjectRef('House', [house, { id: 'p9', title: 'House' }])).toBe(null);
+    expect(resolveProjectRef('House', [house, { id: 'p9', title: 'House', status: 'archived' }])).toBe('p1');
+    expect(resolveProjectRef('', projects)).toBe(null);
+  });
+});

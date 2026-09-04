@@ -1,49 +1,30 @@
 import { describe, it, expect } from 'vitest';
-import { projectNoteBlock, goalNoteBlock, noteBlockChanged, withUpdatedStamp, noteWikilink } from './noteBlock.js';
+import { projectNoteBlock, goalNoteBlock, noteBlockChanged, noteWikilink } from './noteBlock.js';
 
-const P = { id: 'p1', title: 'House', status: 'active', goalId: 'g1' };
-const Q = { id: 'p2', title: 'Garden', status: 'active', goalId: 'g1', sortOrder: -1 };
-const G = { id: 'g1', title: 'Home', status: 'active' };
-const tasks = [
-  { id: 't1', projectId: 'p1', completed: true, duration: 60, date: '2026-09-01' },
-  { id: 't2', projectId: 'p1', completed: false, duration: 30, date: '2026-09-10' },
-  { id: 't3', projectId: 'p1', completed: false, duration: 30, date: '2026-09-05' },
-  { id: 't4', projectId: 'p1', completed: false, archived: true, date: '2026-09-02' },
-  { id: 't5', projectId: 'p2', completed: false },
-];
-
-describe('projectNoteBlock', () => {
-  it('counts active tasks, weights percent by duration, and picks the earliest upcoming date', () => {
-    expect(projectNoteBlock(P, { tasks, today: '2026-09-03' })).toEqual({
-      kind: 'project', status: 'active', open: 2, done: 1, total: 3, percent: 50, next: '2026-09-05',
-    });
-    // Nothing to measure → percent null, next null.
-    expect(projectNoteBlock({ id: 'zz' }, { tasks, today: '2026-09-03' })).toMatchObject({ total: 0, percent: null, next: null });
+describe('the maintained map (rulings B and C, shrunk)', () => {
+  it('a project carries kind, status and its goal as a wikilink when the goal note is linked, its title otherwise, nothing when standalone', () => {
+    const goal = { id: 'g1', title: 'Home', status: 'active' };
+    expect(projectNoteBlock({ id: 'p1', status: 'active', goalId: 'g1' }, { goal, goalNotePath: 'Goals/Home.md' }))
+      .toEqual({ kind: 'project', status: 'active', goal: '[[Goals/Home]]' });
+    expect(projectNoteBlock({ id: 'p1', status: 'completed', goalId: 'g1' }, { goal, goalNotePath: 'Areas/Home stuff.md' }))
+      .toEqual({ kind: 'project', status: 'completed', goal: '[[Areas/Home stuff|Home]]' });
+    expect(projectNoteBlock({ id: 'p1' }, { goal })).toEqual({ kind: 'project', status: 'active', goal: 'Home' });
+    expect(projectNoteBlock({ id: 'p1' })).toEqual({ kind: 'project', status: 'active' });
+    expect(goalNoteBlock({ id: 'g1', status: 'archived' })).toEqual({ kind: 'goal', status: 'archived' });
   });
-});
-
-describe('goalNoteBlock', () => {
-  it('lists child projects as wikilinks when linked, titles otherwise, in sort order', () => {
-    const b = goalNoteBlock(G, { projects: [P, Q], tasks, notePathOf: (id) => (id === 'p1' ? 'Projects/House.md' : null) });
-    expect(b.projects).toEqual(['Garden', '[[Projects/House]]']);
-    expect(b).toMatchObject({ kind: 'goal', open: 3, done: 1, total: 4 });
-    expect(typeof b.percent).toBe('number');
+  it('no counts, no dates: a task change never changes the map; a status or goal change does', () => {
+    const a = projectNoteBlock({ id: 'p1', status: 'active' });
+    expect(noteBlockChanged(a, projectNoteBlock({ id: 'p1', status: 'active' }))).toBe(false);
+    expect(noteBlockChanged({ status: 'active', kind: 'project' }, a)).toBe(false);
+    expect(noteBlockChanged(a, projectNoteBlock({ id: 'p1', status: 'completed' }))).toBe(true);
+    expect(noteBlockChanged(a, projectNoteBlock({ id: 'p1' }, { goal: { title: 'Home' } }))).toBe(true);
+    expect(noteBlockChanged(null, a)).toBe(true);
+    // An old block with counts differs from the new shape exactly once (the upgrade write).
+    expect(noteBlockChanged({ kind: 'project', status: 'active', open: 3, updated: 'x' }, a)).toBe(true);
   });
-});
-
-describe('noteWikilink / noteBlockChanged / withUpdatedStamp', () => {
-  it('aliases only when the basename differs from the title', () => {
+  it('noteWikilink aliases only when the basename differs from the title', () => {
     expect(noteWikilink('Projects/House.md', 'House')).toBe('[[Projects/House]]');
     expect(noteWikilink('Projects/House.md', 'The house')).toBe('[[Projects/House|The house]]');
     expect(noteWikilink('', 'Loose')).toBe('Loose');
-  });
-  it('an unchanged block keeps its updated stamp (no write); a change takes the new stamp', () => {
-    const prev = { kind: 'project', open: 1, done: 0, total: 1, percent: 0, next: null, status: 'active', updated: '2026-09-01T00:00:00Z' };
-    const same = { status: 'active', kind: 'project', open: 1, done: 0, total: 1, percent: 0, next: null };
-    expect(noteBlockChanged(prev, same)).toBe(false);
-    expect(withUpdatedStamp(prev, same, '2026-09-03T00:00:00Z').updated).toBe('2026-09-01T00:00:00Z');
-    expect(noteBlockChanged(prev, { ...same, open: 2 })).toBe(true);
-    expect(withUpdatedStamp(prev, { ...same, open: 2 }, '2026-09-03T00:00:00Z').updated).toBe('2026-09-03T00:00:00Z');
-    expect(noteBlockChanged(null, same)).toBe(true);
   });
 });

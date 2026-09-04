@@ -37,6 +37,13 @@
 //   scheduled (⏳ / [scheduled::]) → the timeline date
 //   priority (emoji / [priority::]) → 0–3 (see mapping below)
 //   recurrence (🔁 / [repeat::])  → recognized, NOT mapped — badge only
+//   project ([project:: …])       → the app project (companion §4.3, ruling
+//                                   G as amended 2026-09-04): a wikilink
+//                                   resolves by note path, a bare name by
+//                                   title; resolved by the APP on the plugin
+//                                   path, exposed raw here as `fields.project`
+// A Dataview field's value may itself contain a wikilink ([project::
+// [[Projects/House|House]]]): the field grammar nests one level of [[ ]].
 // ✅ done-dates: the TRAILING marker is #1470's (split before this module
 // runs, absorbed into completedAt). A ✅ or [completion:: …] sitting
 // non-trailing inside the run is user/plugin-authored frozen text: it is
@@ -60,7 +67,7 @@ const VS = '\\uFE0F?';
 const SEG = `(?:${DATE_EMOJI}${VS}\\s*\\d{4}-\\d{2}-\\d{2}` +
   `|${PRIORITY_EMOJI}${VS}` +
   `|${RECUR_EMOJI}${VS}[^\\u{1F4C5}\\u{23F3}\\u{1F6EB}\\u{2705}\\u{2795}\\u{274C}\\u{1F53A}\\u{23EB}\\u{1F53C}\\u{1F53D}\\u{23EC}\\u{1F501}\\[\\]]*` +
-  `|\\[[A-Za-z][A-Za-z0-9_-]*::[^\\]]*\\])`;
+  `|\\[[A-Za-z][A-Za-z0-9_-]*::(?:[^\\[\\]]|\\[\\[[^\\]]*\\]\\])*\\])`;
 
 const TRAILING_RUN_RE = new RegExp(`(?:\\s+${SEG})+\\s*$`, 'u');
 
@@ -70,6 +77,9 @@ const SCHEDULED_RE = new RegExp(`(?:\\u{23F3}${VS}\\s*(\\d{4}-\\d{2}-\\d{2}))|\\
 const PRIORITY_EMOJI_RE = new RegExp(`(\\u{1F53A}|\\u{23EB}|\\u{1F53C}|\\u{1F53D}|\\u{23EC})${VS}`, 'u');
 const PRIORITY_DV_RE = /\[priority::\s*(highest|high|medium|low|lowest)\s*\]/iu;
 const RECUR_RE = new RegExp(`${RECUR_EMOJI}${VS}|\\[repeat::[^\\]]*\\]`, 'u');
+// The project field's value, wikilink or bare, trimmed.
+const PROJECT_RE = /\[project::\s*((?:[^\[\]]|\[\[[^\]]*\]\])*?)\s*\]/u;
+const PROJECT_SEG = /\s+\[project::(?:[^\[\]]|\[\[[^\]]*\]\])*\]/gu;
 
 const PRIORITY_BY_EMOJI = {
   '\u{1F53A}': 3, // 🔺 highest
@@ -97,7 +107,7 @@ const PRIORITY_BY_WORD = { highest: 3, high: 3, medium: 2, low: 1, lowest: 1 };
  */
 export function splitTasksMetadata(input) {
   const s = String(input ?? '');
-  const none = { text: s, metaText: '', fields: { due: null, scheduled: null, priority: null, recurrence: false } };
+  const none = { text: s, metaText: '', fields: { due: null, scheduled: null, priority: null, recurrence: false, project: null } };
   const m = TRAILING_RUN_RE.exec(s);
   if (!m) return none;
   const text = s.slice(0, m.index);
@@ -118,6 +128,7 @@ export function splitTasksMetadata(input) {
       scheduled: scheduled ? (scheduled[1] ?? scheduled[2]) : null,
       priority: pe ? PRIORITY_BY_EMOJI[pe[1]] : (pw ? PRIORITY_BY_WORD[pw[1].toLowerCase()] : null),
       recurrence: RECUR_RE.test(metaText),
+      project: (PROJECT_RE.exec(metaText)?.[1] ?? '').trim() || null,
     },
   };
 }
@@ -164,6 +175,22 @@ export function withScheduledMetadata(rawTitle, dateStr, format = 'tasks') {
   if (!dateStr) return base;
   const seg = format === 'dataview' ? `[scheduled:: ${dateStr}]` : `\u{23F3} ${dateStr}`;
   return `${base} ${seg}`;
+}
+
+/**
+ * Write a project reference INTO a line's metadata run (companion §4.3,
+ * ruling G as amended): `[project:: [[Projects/House|House]]]` for a
+ * project with a linked note, `[project:: House]` for one without, removed
+ * when `ref` is null. Replaces an existing segment, keeps every other
+ * segment verbatim. Returns the full raw title.
+ */
+export function withProjectMetadata(rawTitle, ref) {
+  const raw = String(rawTitle ?? '');
+  const { text, metaText } = splitTasksMetadata(raw);
+  const base = (metaText ? text.trimEnd() + metaText.replace(PROJECT_SEG, '') : raw.trimEnd()).trimEnd();
+  const r = String(ref ?? '').trim();
+  if (!r) return base;
+  return `${base} [project:: ${r}]`;
 }
 
 export function reattachTasksMetadata(displayTitle, rawTitle) {

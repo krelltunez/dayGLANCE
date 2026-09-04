@@ -173,3 +173,4 @@ describe('project notes: workspace creation from dayGLANCE (rulings D and E)', (
     expect(h.api.createProjectNote('project', 'p9', { title: '  ' })).toBe(false);
   });
 });
+

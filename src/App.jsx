@@ -14,6 +14,8 @@ import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { tombstoneCutoff } from './sync/tombstoneRetention.js';
 import { preserveArchived } from './utils/preserveArchived.js';
 import { rescueUnsyncedTasks } from './utils/rescueUnsyncedTasks.js';
+import { withProjectMetadata } from '@glance-apps/obsidian-format';
+import { projectRefFor } from './utils/obsidianProjectNotes.js';
 import { readRetiredTaskIds, applyTaskRetirements, RETIRED_TASK_IDS_STORAGE_KEY } from './utils/retiredTaskIds.js';
 import { dropTombstonedObsidianTasks, dropTombstonedObsidianNotes } from './utils/obsidianDeletions.js';
 import { containObsidianGhostRows, persistDerivedGhostRetirements } from './utils/obsidianGhostRows.js';
@@ -6999,7 +7001,12 @@ const DayPlanner = () => {
       // block id on the write release, legacy content-derived id on the read
       // release. See obsidian.js buildNewObsidianTaskMeta and
       // utils/obsidianWritePolicy.js.
-      ? (rawTitle) => buildNewObsidianTaskMeta(rawTitle, new Date().toISOString().split('T')[0])
+      // A task created under a project carries `[project:: …]` on its line
+      // from the first write (companion §4.3, ruling G as amended); the
+      // identity derives from the line as written.
+      ? (rawTitle, projectId) => buildNewObsidianTaskMeta(
+          withProjectMetadata(rawTitle, projectRefFor(projectId ? projects.find(pr => pr.id === projectId) : null)),
+          new Date().toISOString().split('T')[0])
       : null,
     onWriteObsidianTask: obsidianConfig?.enabled && obsidianVaultHandleRef.current
       ? (task) => {
