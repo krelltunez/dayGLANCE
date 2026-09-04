@@ -285,6 +285,14 @@ export class BridgeTransport {
   private adopted = new Set<string>();
   private adoptQueue: string[] = [];
   private adoptScanned = false;
+  // When a note ARRIVED at a path (create or rename), epoch ms. A move does
+  // not touch a file's mtime, so a note moved back into the scope would
+  // report content older than the tombstones its leaving produced and never
+  // revive (field test, 2026-09-04). Its presence at this path is evidence as
+  // of its arrival: scoped observations report max(mtime, arrival). Memory
+  // only; after a reload the plain mtime is reported again, which is right
+  // for a note that has simply been sitting there.
+  private arrivedAt = new Map<string, number>();
   // In-memory cursor for the persist-on-intent-only rule (see drain): pages
   // that only skipped config/observation/tombstone rows advance the cursor
   // HERE, not in data.json — every data.json save is a vault file write that
@@ -974,8 +982,51 @@ export class BridgeTransport {
   }
 
   /** A rename keeps the link: the row for the id simply moves to the new path. */
-  noteRenamed(oldPath: string, newPath: string): void {
+  /** A note appeared at a path (vault create event): remember the arrival, then observe. */
+  noteCreated(file: TFile): void {
     if (this.disposed) return;
+    this.arrivedAt.set(file.path, Date.now());
+    this.scheduleObservation(file);
+  }
+
+  /**
+   * A rename or move (vault rename event). Three things ride it:
+   *   • a linked project note keeps its link (companion §4.3, ruling A);
+   *   • the TASK SCOPE is re-classified (companion §6, ruling C): a scoped
+   *     note leaving the scope is WITHDRAWN, never reported deleted — the
+   *     note still exists, and the withdrawal path is the one that remembers
+   *     it for re-entry; a note entering the scope is adopted on the spot;
+   *     a move within the scope carries its adoption to the new path;
+   *   • the new path records an arrival time (see arrivedAt).
+   * Then the old path reports (a deletion, if it was daily or still counts
+   * as scoped) and the new path is observed.
+   */
+  noteRenamed(oldPath: string, file: TFile): void {
+    if (this.disposed) return;
+    const newPath = file.path;
+    this.arrivedAt.set(newPath, Date.now());
+    this.moveLink(oldPath, newPath);
+    const wasScoped = this.scopedPaths.has(oldPath) || this.adopted.has(oldPath);
+    const nowScoped = this.scopedNote(newPath);
+    if (wasScoped) {
+      this.adopted.delete(oldPath);
+      this.scopedPaths.delete(oldPath);
+      if (nowScoped) {
+        this.adopted.add(newPath);
+      } else {
+        // Left the scope by moving out: withdrawn (ruling C), not deleted.
+        void this.emitWithdrawal(oldPath);
+      }
+      void this.persistAdopted();
+    } else if (nowScoped) {
+      this.adopted.add(newPath);
+      void this.persistAdopted();
+    }
+    this.reportDeleted(oldPath);
+    this.scheduleObservation(file);
+  }
+
+  private moveLink(oldPath: string, newPath: string): void {
     const id = this.linked.get(oldPath);
     if (id === undefined) return;
     this.linked.delete(oldPath);
@@ -1634,7 +1685,13 @@ export class BridgeTransport {
       // reports too.
       const scoped = !this.isDailyNote(path) && (deleted ? this.scopedPaths.has(path) : this.scopedNote(path));
       if (scoped && !deleted) this.scopedPaths.add(path);
-      if (deleted) this.scopedPaths.delete(path);
+      if (deleted) { this.scopedPaths.delete(path); this.arrivedAt.delete(path); }
+      // A scoped note that arrived here by create or move is evidence as of
+      // its arrival (see arrivedAt): revival after a withdrawal or a
+      // deletion needs the note to be NEWER than the tombstone, and a move
+      // leaves the file's own mtime untouched.
+      const arrival = this.arrivedAt.get(path);
+      if (scoped && !deleted && arrival !== undefined && (mtime === null || arrival > mtime)) mtime = arrival;
       const subkey = await this.subkeyFor(pairing);
       const payload = {
         v: 1, kind: 'observation', path,
