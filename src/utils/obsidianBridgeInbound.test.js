@@ -192,10 +192,11 @@ describe('applyBridgeObservations — vault task scope (companion §6)', () => {
     '- [ ] Call the plumber ^dg-aaaaaaaa',
     '- [ ] Order tiles ⏳ 2026-09-12 ^dg-bbbbbbbb',
     '- [x] Pick paint ✅ 2026-08-30 ^dg-cccccccc',
-    '- [x] Ancient ✅ 2024-01-01 ^dg-dddddddd',
+    '- [x] Ancient but tracked ✅ 2024-01-01 ^dg-dddddddd',
+    '- [x] Ancient and untracked ✅ 2024-01-01',
   ].join('\n');
 
-  it('a scoped note parses under its path: dateless lines are inbox, ⏳ schedules, old completions drop, no daily-note entry is made', () => {
+  it('a scoped note parses under its path: dateless lines are inbox, ⏳ schedules, an UNTRACKED old completion drops (a tracked one is kept), no daily-note entry is made', () => {
     const out = applyBridgeObservations(
       [{ path: 'Projects/House.md', content: HOUSE, mtime: 1756400000000, observedAt: '2026-09-02T12:00:00Z', scoped: true }],
       { existingTasks: [], existingInbox: [], dailyNotesPath: 'Daily', scope: { completionWindowDays: 30 }, today: '2026-09-02' },
@@ -204,9 +205,12 @@ describe('applyBridgeObservations — vault task scope (companion §6)', () => {
     expect(out.scopedNotes['Projects/House.md']).toMatchObject({ lastModified: new Date(1756400000000).toISOString() });
     expect(out.scheduledTasks.map((t) => t.id)).toEqual(['obsidian-dg-bbbbbbbb']);
     expect(out.scheduledTasks[0]).toMatchObject({ date: '2026-09-12', obsidianNotePath: 'Projects/House.md' });
-    expect(out.inboxTasks.map((t) => t.id).sort()).toEqual(['obsidian-dg-aaaaaaaa', 'obsidian-dg-cccccccc']);
+    // The window governs ADOPTION: a block-tagged completion is tracked
+    // whatever its date (ruling E as amended by the harness finding).
+    expect(out.inboxTasks.map((t) => t.id).sort()).toEqual(['obsidian-dg-aaaaaaaa', 'obsidian-dg-cccccccc', 'obsidian-dg-dddddddd']);
     expect(out.inboxTasks.every((t) => t.obsidianNotePath === 'Projects/House.md' && t.obsidianFileDate === undefined)).toBe(true);
-    expect(out.scannedIds.has('obsidian-dg-dddddddd')).toBe(false);
+    expect(out.scannedIds.has('obsidian-dg-dddddddd')).toBe(true);
+    expect(out.inboxTasks.some((t) => t.title.startsWith('Ancient and untracked'))).toBe(false);
     expect(out.unapplied).toEqual([]);
   });
 

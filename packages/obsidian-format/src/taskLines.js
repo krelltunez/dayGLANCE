@@ -342,9 +342,17 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
     if (!match) continue;
 
     const completed = match[1] !== ' ';
-    // Completion window (ruling E): in a non-daily note, a completed line
-    // outside the window — or with no completion date — is not a task.
-    if (notePath && completedSince && completed && !completedLineInWindow(splitBlockId(match[2].trim()).text, completedSince)) continue;
+    // Completion window (ruling E): in a non-daily note, an UNTRACKED
+    // completed line outside the window — or with no completion date — is
+    // not a task. A line already carrying a block id is tracked: dayGLANCE
+    // knows it, so its completion is adopted whatever the line's date says
+    // (harness finding, 2026-09-04: a tracked task checked off by hand in
+    // Obsidian, with no ✅ date, vanished from the parse and would have been
+    // inferred deleted). The window governs adoption, not tracking.
+    if (notePath && completedSince && completed) {
+      const { text: body, blockId } = splitBlockId(match[2].trim());
+      if (!blockId && !completedLineInWindow(body, completedSince)) continue;
+    }
     let rawTitle = match[2].trim();
 
     // Strip a trailing ^dg-<id> block reference BEFORE any other parsing, so

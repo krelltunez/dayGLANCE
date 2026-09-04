@@ -122,4 +122,16 @@ describe('completion window', () => {
     // Daily notes are never windowed: the option is simply not passed.
     expect(stampUntaggedTaskLines(content, '2026-09-02').stamped).toHaveLength(4);
   });
+
+  it('a TRACKED (block-tagged) completed line is imported whatever its date: the window governs adoption, not tracking', () => {
+    const content = [
+      '- [x] Checked by hand, no date ^dg-11111111',
+      '- [x] Ancient but tracked ✅ 2024-01-01 ^dg-22222222',
+      '- [x] Untracked and undated',
+    ].join('\n');
+    const { inboxTasks } = parseTasksFromMarkdown(content, '2026-09-02', new Set(), { notePath: 'Projects/House.md', completedSince: '2026-08-03' });
+    expect(inboxTasks.map((t) => [appIdForBlockId(t.obsidianBlockId), t.completed])).toEqual([
+      [appIdForBlockId('11111111'), true], [appIdForBlockId('22222222'), true],
+    ]);
+  });
 });

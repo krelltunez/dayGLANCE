@@ -1007,6 +1007,33 @@ arrival. Daily notes are untouched. *Remaining gap, recorded:* an arrival is
 memory-only, so a note moved back while the plugin is closed and then left
 unedited reports its old mtime after the reload; an edit revives it.
 
+**The scenario harness (2026-09-04, built).** The field-test checklist is
+now scripted: `dayglance-obsidian-plugin/test/` holds a stub of the
+`obsidian` module (an in-memory vault with the plugin's events, a metadata
+cache that parses frontmatter and tags, editors the test opens on purpose),
+an in-memory GLANCEvault serving the row endpoints, and a scenario runner
+that stands up the REAL plugin transport and any number of dayGLANCE
+"devices" running the REAL sync hook through the real bridge modules, under
+fake time. `scope.scenarios.test.ts` covers adoption and stamping, rename,
+move out and back (the field bug above, pinned), deletion with the hold,
+schedule-as-metadata and its removal, a second device, the completion
+window, ten idle minutes with no churn, retitle and completion in both
+directions, and the reload republish. What stays manual, by design:
+Obsidian Sync replication timing, real editor buffers, the metadata cache's
+own latency, Templater. *Three findings on the first run, all fixed:* the
+drain republished the pairing-meta row BARE after every plugin reload,
+dropping the viewer override and the task scope until the settings were
+touched; a scoped note was reported while the config row was still unknown
+(the fragment factory one scope over — the config-null hold now covers
+scoped notes); and **ruling E is amended in implementation**: the
+completion window governs ADOPTION only — a line already carrying a block
+id is tracked, so a tracked task checked off by hand in Obsidian with no
+completion date is adopted as completed instead of vanishing from the
+parse and being inferred deleted. *Harness caveat, recorded:* both sides
+share one process, so module singletons (the root key, the brake, the
+own-write ring) are one instance; the plugin's own copy of the sync package
+is aliased to the app's for tests.
+
 **The TaskForge reference point** stands from the earlier text: discovery
 was never the hard part; identity is what buys cross-device durability
 through retitles, deletes and revivals, and it is what this section pays for.
