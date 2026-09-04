@@ -755,15 +755,23 @@ Three rulings and a verification:
   frontmatter parse as links. Not run in a live vault (none here); the
   harness pins the note bodies, not Dataview's rendering.
 
-**Backfill of existing lines: pending the owner's decision.** A backfill is
-one retitle intent per block-tagged, project-assigned daily-note task, once,
-idempotent (a line already carrying the right field is skipped). The
-costs: every touched daily note is rewritten and re-observed; the outbox
-refuses past 500 queued intents and flushes 50 per request; the plugin
-applies a drain's intents note by note under the dirty-buffer rule; and
-each device runs the writeback, so two devices could emit the same retitle
-(idempotent on apply, doubled traffic). Legacy-id tasks are excluded on
-purpose: they stamp first, then pick the field up on their next write.
+*Considered and declined (owner, 2026-09-04): a backfill of existing
+lines.* Recorded beside the routing deferral so it is read later as a
+deliberate omission, not an obvious missing piece. A backfill would be one
+retitle intent per block-tagged, project-assigned daily-note task, once,
+idempotent (a line already carrying the right field skipped). Its costs:
+every touched daily note rewritten and re-observed; the outbox refusing
+past 500 queued intents and flushing 50 per request; the plugin applying a
+drain's intents note by note under the dirty-buffer rule; every device
+running the writeback, so two devices could emit the same retitle
+(idempotent on apply, doubled traffic); and, given this project's history,
+a burst of retitle intents across the vault is exactly the shape that has
+started wars, so it would have needed pacing (about 25 per sync cycle, one
+device, one-shot) to be safe at all. Legacy-id tasks would have been
+excluded regardless: on those the raw title is the identity. Declined
+because new lines and any line touched for another reason pick the field
+up on their own, and the old lines it would reach are the ones least
+likely to matter in a Done query.
 
 ---
 
@@ -1154,6 +1162,6 @@ through retitles, deletes and revivals, and it is what this section pays for.
 
 | 14 | Vault task scope rulings B–F (§6.3): schedule-as-metadata, leaving scope, where scope lives, completion window (30 days, configurable 7–90), direct access stays daily-only | **Decided**, 2026-09-02 |
 | 15 | Project and goal notes rulings A–H (4.3): link identity (id key + locator), frontmatter ownership, block cadence, workspace shape, goals and nested folders, deletion, where links appear, in-note task adoption | **Decided**, 2026-09-03 |
-| 16 | Project notes, templates round (4.3): the project as a Dataview field on daily-note task lines (G amended), the maintained map shrunk to kind/status/goal (C amended), Dataview-presence note bodies chosen at creation; routing project tasks to the project note considered and deferred | **Decided**, 2026-09-04; the backfill of existing lines **open** (owner) |
+| 16 | Project notes, templates round (4.3): the project as a Dataview field on daily-note task lines (G amended), the maintained map shrunk to kind/status/goal (C amended), Dataview-presence note bodies chosen at creation; routing project tasks to the project note considered and deferred | **Decided**, 2026-09-04; the backfill of existing lines **declined** (owner, 2026-09-04; cost recorded in 4.3) |
 
 Nothing in this table is open. The SSE re-arm sequence (buildout spec status note) runs alongside the project-notes build, not ahead of it (owner, 2026-09-03).
