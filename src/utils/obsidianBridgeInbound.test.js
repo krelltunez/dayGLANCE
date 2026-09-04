@@ -250,3 +250,29 @@ describe('ruling H: scoped lines in a linked project note adopt the project on f
     expect(none.inboxTasks.every((t) => !t.projectId)).toBe(true);
   });
 });
+
+describe('ruling G as amended: the [project:: …] field on daily-note lines', () => {
+  const projects = [{ id: 'p1', title: 'House', obsidianNotePath: 'Projects/House.md' }, { id: 'p2', title: 'Garden' }];
+  const daily = (line) => [{ path: 'Daily/2026-09-04.md', content: `## Tasks\n${line}\n`, mtime: Date.parse('2026-09-04T09:00:00Z') }];
+
+  it('a fresh line carrying the field imports under that project (link by path, bare by title); an unresolvable name imports unassigned', () => {
+    const cfg = { existingTasks: [], existingInbox: [], dailyNotesPath: 'Daily', projects };
+    expect(applyBridgeObservations(daily('- [ ] Call the plumber [project:: [[Projects/House|House]]] ^dg-aaaaaaaa'), cfg).inboxTasks[0].projectId).toBe('p1');
+    expect(applyBridgeObservations(daily('- [ ] Weed the beds [project:: Garden] ^dg-bbbbbbbb'), cfg).inboxTasks[0].projectId).toBe('p2');
+    expect(applyBridgeObservations(daily('- [ ] Loose [project:: Nope] ^dg-cccccccc'), cfg).inboxTasks[0].projectId).toBeUndefined();
+  });
+
+  it('a vault edit of the field reassigns a known task; removing it unassigns; an untouched field keeps the app assignment', () => {
+    const known = {
+      id: 'obsidian-dg-aaaaaaaa', title: 'Call the plumber #obsidian', importSource: 'obsidian', obsidianBlockId: 'aaaaaaaa',
+      obsidianRawTitle: 'Call the plumber [project:: [[Projects/House|House]]]', obsidianFileDate: '2026-09-04', projectId: 'p1', lastModified: '2026-09-04T08:00:00.000Z',
+    };
+    const cfg = { existingTasks: [], existingInbox: [known], dailyNotesPath: 'Daily', projects };
+    expect(applyBridgeObservations(daily('- [ ] Call the plumber [project:: Garden] ^dg-aaaaaaaa'), cfg).inboxTasks[0].projectId).toBe('p2');
+    expect(applyBridgeObservations(daily('- [ ] Call the plumber ^dg-aaaaaaaa'), cfg).inboxTasks[0].projectId).toBeNull(); // explicit: the vault unassigned it
+    // App-side reassignment with the line unchanged: the merge keeps the app's project (preserveAppFields carries it downstream).
+    const moved = { ...known, projectId: 'p2' };
+    const out = applyBridgeObservations(daily('- [ ] Call the plumber [project:: [[Projects/House|House]]] ^dg-aaaaaaaa'), { ...cfg, existingInbox: [moved] });
+    expect(out.inboxTasks[0].projectId).toBeUndefined(); // not adopted here; the hook's merge carries the app value
+  });
+});

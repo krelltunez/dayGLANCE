@@ -33,6 +33,7 @@ export function splitTasksMetadata(input: string): {
   text: string; metaText: string; fields: TasksMetadataFields;
 };
 export function reattachTasksMetadata(displayTitle: string, rawTitle: string): string;
+export function withProjectMetadata(rawTitle: string, ref: string | null): string;
 export function withScheduledMetadata(rawTitle: string, dateStr: string | null, format?: 'tasks' | 'dataview'): string;
 
 // ── task lines ──────────────────────────────────────────────────────────────
@@ -219,3 +220,8 @@ export function projectNotePath(a: { kind: 'project' | 'goal'; title: string; la
 export function uniqueNotePath(path: string, exists: (path: string) => boolean): string;
 export function templateNeedsUser(text: string): boolean;
 export function renderNoteTemplateSubset(text: string, vars?: { title?: string; date?: string; goal?: string }): string;
+export function projectCompletionsQuery(dailyFolder?: string): string;
+export function goalProjectsQuery(): string;
+export function goalProgressQuery(dailyFolder?: string): string;
+export function defaultProjectNote(a: { title: string; date: string; hasDataview?: boolean; dailyFolder?: string }): string;
+export function defaultGoalNote(a: { title: string; date: string; hasDataview?: boolean; dailyFolder?: string }): string;

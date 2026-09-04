@@ -98,3 +98,87 @@ export function renderNoteTemplateSubset(text, { title = '', date = '', goal = '
     .replace(/\{\{\s*date\s*\}\}/gi, date)
     .replace(/\{\{\s*goal\s*\}\}/gi, goal);
 }
+
+// ── Default note bodies (companion §4.3, templates ruling of 2026-09-04) ────
+//
+// Used when no template note is configured. Two variants, chosen ONCE at
+// creation by whether Dataview is installed: with it, the live sections are
+// queries over what dayGLANCE already writes (the completion log's
+// `[project:: [[…]]]` links and the maintained `dayglance.goal` map); without
+// it, one plain sentence stands where each query would be, so the note reads
+// as finished either way. Nothing here is ever maintained afterwards.
+
+const fence = (query) => '```dataview\n' + query.trim() + '\n```';
+const fromDaily = (dailyFolder) => (dailyFolder ? `FROM "${String(dailyFolder).replace(/\/+$/, '')}"\n` : '');
+
+/** Completions logged for this project, newest first (needs the completion-log wikilink). */
+export const projectCompletionsQuery = (dailyFolder = '') =>
+  `TABLE WITHOUT ID dateformat(item.completion, "yyyy-MM-dd HH:mm") AS "When", regexreplace(item.text, "\\\\s*\\\\[\\\\w+::(?:[^\\\\[\\\\]]|\\\\[\\\\[[^\\\\]]*\\\\]\\\\])*\\\\]", "") AS "Done"\n`
+  + fromDaily(dailyFolder)
+  + 'FLATTEN file.lists AS item\nWHERE item.project = this.file.link\nSORT item.completion DESC';
+
+/** A goal's projects with status and live open counts from each project note's own tasks. */
+export const goalProjectsQuery = () =>
+  'TABLE WITHOUT ID file.link AS Project, dayglance.status AS Status, length(filter(file.tasks, (t) => !t.completed)) AS Open\n'
+  + 'WHERE dayglance.goal = this.file.link\nSORT dayglance.status, file.name';
+
+/** Completions across a goal's projects, by month. */
+export const goalProgressQuery = (dailyFolder = '') =>
+  'TABLE WITHOUT ID key AS Month, length(rows) AS Completed\n'
+  + fromDaily(dailyFolder)
+  + 'FLATTEN file.lists AS item\nWHERE item.project AND item.project.dayglance.goal = this.file.link\n'
+  + 'GROUP BY dateformat(item.completion, "yyyy-MM")\nSORT key DESC';
+
+/**
+ * The default body of a new PROJECT note (no frontmatter; the caller adds
+ * dayGLANCE's creation frontmatter and the plugin the id key and the map).
+ */
+export function defaultProjectNote({ title, date, hasDataview = false, dailyFolder = '' }) {
+  const done = hasDataview
+    ? fence(projectCompletionsQuery(dailyFolder))
+    : 'With the Dataview plugin installed, this section lists every completion logged for this project in the daily notes, newest first.';
+  return [
+    `# ${title}`,
+    'One line on what done looks like.',
+    '',
+    '## Tasks',
+    '- [ ] ',
+    '',
+    '## Done',
+    done,
+    '',
+    '## Notes',
+    '',
+    '## Decisions',
+    '',
+    '## Log',
+    `- ${date} Created`,
+    '',
+  ].join('\n');
+}
+
+/** The default body of a new GOAL note. */
+export function defaultGoalNote({ title, date, hasDataview = false, dailyFolder = '' }) {
+  const projects = hasDataview
+    ? fence(goalProjectsQuery())
+    : 'With the Dataview plugin installed, this section lists the projects under this goal with their status and open task counts.';
+  const progress = hasDataview
+    ? fence(goalProgressQuery(dailyFolder))
+    : 'With the Dataview plugin installed, this section shows completions across this goal\'s projects by month.';
+  return [
+    `# ${title}`,
+    'Why this matters, and what finished looks like.',
+    '',
+    '## Projects',
+    projects,
+    '',
+    '## Progress',
+    progress,
+    '',
+    '## Notes',
+    '',
+    '## Log',
+    `- ${date} Created`,
+    '',
+  ].join('\n');
+}

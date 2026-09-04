@@ -41,3 +41,34 @@ describe('templates (the §4.4 ladder pieces)', () => {
       .toBe('# House\nGoal: Home\n2026-09-03 <% tp.date.now() %>');
   });
 });
+
+import { defaultProjectNote, defaultGoalNote, projectCompletionsQuery, goalProgressQuery } from './index.js';
+
+describe('default note bodies (the templates ruling)', () => {
+  it('a project note with Dataview carries one query section; without it, a sentence stands in its place; both seed the log', () => {
+    const withDv = defaultProjectNote({ title: 'House', date: '2026-09-04', hasDataview: true, dailyFolder: 'Daily' });
+    expect(withDv.startsWith('# House\n')).toBe(true);
+    expect(withDv).toContain('## Tasks\n- [ ] \n');
+    expect(withDv).toContain('## Done\n```dataview\n');
+    expect(withDv).toContain('FROM "Daily"\nFLATTEN file.lists AS item\nWHERE item.project = this.file.link');
+    expect(withDv).toContain('## Log\n- 2026-09-04 Created\n');
+    expect((withDv.match(/```dataview/g) || []).length).toBe(1);
+    const plain = defaultProjectNote({ title: 'House', date: '2026-09-04', hasDataview: false });
+    expect(plain).not.toContain('```');
+    expect(plain).toContain('## Done\nWith the Dataview plugin installed, this section lists every completion');
+    expect(plain).toContain('## Decisions\n');
+    // Daily notes at the vault root: no FROM clause.
+    expect(projectCompletionsQuery('')).not.toContain('FROM');
+  });
+  it('a goal note carries the projects table and the monthly progress, or the two sentences', () => {
+    const withDv = defaultGoalNote({ title: 'Home', date: '2026-09-04', hasDataview: true, dailyFolder: 'Daily/' });
+    expect(withDv).toContain('## Projects\n```dataview\nTABLE WITHOUT ID file.link AS Project, dayglance.status AS Status');
+    expect(withDv).toContain('WHERE dayglance.goal = this.file.link');
+    expect(withDv).toContain('## Progress\n```dataview\n');
+    expect(goalProgressQuery('Daily/')).toContain('FROM "Daily"\n');
+    expect(goalProgressQuery('Daily/')).toContain('item.project.dayglance.goal = this.file.link');
+    const plain = defaultGoalNote({ title: 'Home', date: '2026-09-04' });
+    expect(plain).not.toContain('```');
+    expect(plain).toContain('## Log\n- 2026-09-04 Created\n');
+  });
+});

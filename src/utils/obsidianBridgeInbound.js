@@ -43,6 +43,7 @@ import {
   parseTasksFromMarkdown,
 } from '../obsidian.js';
 import { getBridgePairingMeta, bridgeRateLimited } from './obsidianBridgeStream.js';
+import { resolveProjectRef } from './obsidianProjectNotes.js';
 
 const OBS_HWM_KEY = 'dayglance-bridge-obs-hwm';
 
@@ -168,6 +169,10 @@ export function applyBridgeObservations(observations, {
   // notes whose note is present; a task line that imports FRESH from such a
   // note (no existing task to match) starts assigned to that project.
   projectByNotePath = null,
+  // The app's projects, so a line's `[project:: …]` field resolves to an id
+  // (companion §4.3, ruling G as amended): on first import and on a vault
+  // edit of the field.
+  projects = null,
 }) {
   const dailyNotes = {};
   const scopedNotes = {}; // path → { lastModified, deleted? } for scoped (non-daily) notes in this batch
@@ -179,6 +184,7 @@ export function applyBridgeObservations(observations, {
   const unapplied = [];
   const completedSince = scope && today ? completedSinceFor(scope, today) : null;
   const ctx = buildExistingObsidianTaskContext(existingTasks, existingInbox);
+  if (Array.isArray(projects)) ctx.resolveProject = (ref) => resolveProjectRef(ref, projects);
   const isDefaultPattern = !dailyNotePattern || dailyNotePattern === 'yyyy-MM-dd';
   const dateParser = isDefaultPattern ? null : buildDateParser(dailyNotePattern);
   const folderPrefix = dailyNotesPath ? `${dailyNotesPath.replace(/\/+$/, '')}/` : '';

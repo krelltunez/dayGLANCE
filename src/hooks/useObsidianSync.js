@@ -23,7 +23,7 @@ import { mergeObsidianTasks, noteMtimesFromDailyNotes, noteMtimesFromScopedNotes
 import { detectObsidianDeletions, addObsidianTombstones } from '../utils/obsidianDeletions.js';
 import { reattachTasksMetadata } from '../utils/obsidianTasksMetadata.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
-import { planNoteLinkUpdates, normalizeNotePath, projectByNotePath } from '../utils/obsidianProjectNotes.js';
+import { planNoteLinkUpdates, normalizeNotePath, projectByNotePath, projectRefFor } from '../utils/obsidianProjectNotes.js';
 import {
   readRetiredTaskIds,
   recordRetirements as recordRetirementEntries,
@@ -38,7 +38,7 @@ import { writebackSnapshotEntry } from '../utils/obsidianWritebackSnapshot.js';
 import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, publishBridgeCalendarProjection, getBridgePairingMeta, cachedBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
 import { vaultViewerFor, visibleToViewer, assignVaultViewer, knownTaskIds } from '../utils/obsidianUserScope.js';
 import { writebackTargetFor } from '../utils/obsidianWritebackTarget.js';
-import { noteTaskId, withScheduledMetadata } from '@glance-apps/obsidian-format';
+import { noteTaskId, withScheduledMetadata, withProjectMetadata } from '@glance-apps/obsidian-format';
 import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations } from '../utils/obsidianBridgeInbound.js';
 import {
   fetchBridgeActions, planBridgeActions, applyActionsToTasks, applyActionsToRecurring,
@@ -541,7 +541,12 @@ export default function useObsidianSync({
       // deliberately replaced it with the vault's edit, so this layer only
       // fills a deadline the scan produced NOTHING for.
       const preserveObsidianAppFields = (old, scanned = {}) => ({
-        ...(old.projectId ? { projectId: old.projectId } : {}),
+        // The project is app-owned, carried across re-scans — unless the SCAN
+        // adopted a vault edit of the line's [project:: …] field (companion
+        // §4.3, ruling G as amended): a resolved id wins, an explicit null
+        // (the field removed) unassigns.
+        ...(scanned.projectId === null ? { projectId: undefined }
+          : old.projectId && scanned.projectId === undefined ? { projectId: old.projectId } : {}),
         ...(old.deadline && scanned.deadline === undefined ? { deadline: old.deadline } : {}),
         ...(old.archived !== undefined ? { archived: old.archived } : {}),
         ...(old.completedAt !== undefined ? { completedAt: old.completedAt } : {}),
@@ -695,6 +700,7 @@ export default function useObsidianSync({
                 today: dateToString(new Date()),
                 // Project notes (companion §4.3, ruling H).
                 projectByNotePath: projectByNotePath(projectsRef.current),
+                projects: projectsRef.current,
               })
             : null;
 
@@ -1412,6 +1418,13 @@ export default function useObsidianSync({
       // it did not have: its ⏳ metadata must follow (ruling B), a change
       // the daily-note flags above cannot express.
       const scheduleChanged = !!task.obsidianNotePath && (!!p.date !== !!task.date);
+      // PROJECT AS METADATA (companion §4.3, ruling G as amended): a
+      // reassignment in the app writes the line's [project:: …] field. Only
+      // a snapshot that RECORDED the project can say it changed (an older
+      // snapshot has no opinion), so an upgrade never fires a burst; and
+      // only a block-tagged task carries the field, because on a legacy id
+      // the raw title IS the identity and the segment would move it.
+      const projectChanged = !!task.obsidianBlockId && p.projectId !== undefined && (p.projectId ?? null) !== (task.projectId || null);
 
       // STAMP ON SIGHT (spec §3.10, identity-versus-content) — a NAMED new
       // write-trigger class: the IDENTITY-ASSIGNMENT WRITE FIRED BY IMPORT.
@@ -1442,7 +1455,7 @@ export default function useObsidianSync({
         && !titleChanged && !stateChanged && !dateChanged
         && !task.obsidianBlockId && blockIdWritesEnabled();
 
-      if (!titleChanged && !stateChanged && !dateChanged && !scheduleChanged && !stampNeeded) continue;
+      if (!titleChanged && !stateChanged && !dateChanged && !scheduleChanged && !projectChanged && !stampNeeded) continue;
 
       // Always write back to the original file the task was parsed from:
       // the daily note for obsidianFileDate, or the note at obsidianNotePath
@@ -1473,6 +1486,17 @@ export default function useObsidianSync({
         const withSchedule = withScheduledMetadata(
           newRawTitle ?? task.obsidianRawTitle, task.date || null, tasksPluginRef.current ? 'tasks' : 'dataview');
         newRawTitle = withSchedule !== task.obsidianRawTitle ? withSchedule : newRawTitle;
+      }
+      // The project field rides EVERY write of a block-tagged task (adoption
+      // is piecemeal by ruling: a line picks the field up on its next write,
+      // never by a sweep), except inside the project's own note, where the
+      // note is the project (ruling H) and the field would be noise.
+      if (task.obsidianBlockId && (titleChanged || stateChanged || dateChanged || scheduleChanged || projectChanged)) {
+        const project = task.projectId ? (projectsRef.current || []).find(pr => pr && String(pr.id) === String(task.projectId)) : null;
+        const ownNote = !!project?.obsidianNotePath && project.obsidianNotePath === task.obsidianNotePath;
+        const ref = ownNote ? null : projectRefFor(project);
+        const withProject = withProjectMetadata(newRawTitle ?? task.obsidianRawTitle, ref);
+        if (withProject !== (newRawTitle ?? task.obsidianRawTitle)) newRawTitle = withProject;
       }
       const rawTitleChanged = newRawTitle !== undefined && newRawTitle !== task.obsidianRawTitle;
 

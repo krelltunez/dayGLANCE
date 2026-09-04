@@ -692,6 +692,79 @@ unlinked); the subset renderer is three variables rather than v1's fuller
 set (nothing in the repo implements the fuller set, and Templater covers
 the rest when present).
 
+**Templates and the maintained map (2026-09-04, owner rulings; built).**
+The design principle: dayGLANCE writes as little into these notes as
+possible, and anything Dataview can produce live beats a maintained copy.
+Three rulings and a verification:
+
+- **Ruling G, amended: the project rides daily-note task lines as a
+  Dataview field**, `[project:: [[Projects/House|House]]]` for a project
+  with a linked note and `[project:: House]` otherwise, written by the same
+  metadata writer as the schedule. It is written at creation (a task born
+  under a project carries it from its first line, and its identity derives
+  from the line as written) and on a task's NEXT write for any other reason
+  (title, state, date, schedule) or on a reassignment in the app, which is
+  its own trigger. Never by a sweep: adoption is piecemeal by ruling, and
+  the backfill of existing lines is a separate decision (below). Only a
+  block-tagged task carries it: on a legacy id the raw title IS the
+  identity and the segment would move it. Never inside the project's own
+  note, where the note is the project (ruling H). On the way in, the field
+  resolves by note path for a link and by unique title for a bare name; a
+  line first seen with it imports under that project, a vault edit of it
+  reassigns or (removed) unassigns through the per-field adoption rule, and
+  an unresolvable name leaves the assignment alone. The field grammar now
+  nests one level of `[[ ]]` inside a Dataview field value, which it did
+  not before (a wikilink value was title text). *Considered and deferred:
+  routing a project-assigned task to the project note instead of the daily
+  note.* It would make the open-tasks query need no link at all, but it
+  moves the working surface: the daily note stops showing that part of the
+  day, and the task's date becomes line metadata. Recorded here so it is not
+  rediscovered; it stays available as a later ruling if the link turns out
+  not to be enough.
+- **Ruling C, amended: the maintained map shrinks to `kind`, `status` and,
+  on a project note, `goal`** (a wikilink to the goal's note when it is
+  linked, the goal's title otherwise; absent for a standalone project).
+  `open`, `done`, `total`, `percent`, `next`, `updated` and the goal's
+  `projects` list are gone. The deciding fact: the map was write-only,
+  nothing in dayGLANCE read it, so the counts were never a cache anyone
+  depended on but output that cost a synced-file write every time a task
+  moved; `updated` was the key that turned any change into a write. The map
+  now changes only when a status or a goal assignment changes. `goal` is the
+  one new key: it is what lets a goal note query its projects live. The
+  first tick after upgrading rewrites each linked note's map once.
+- **The default note bodies, chosen once at creation by whether Dataview is
+  installed, never maintained.** A project note: the title, a one-line
+  prompt, `## Tasks` (the section IS the project's open list, by ruling H;
+  no query), `## Done` (the completions query, or one sentence saying what
+  would be there with Dataview), `## Notes`, `## Decisions`, `## Log` seeded
+  with the creation date. A goal note: the title, a prompt, `## Projects`
+  (the table of its projects with status and live open counts computed from
+  each project note's own tasks), `## Progress` (completions across its
+  projects by month), `## Notes`, `## Log`. Without Dataview a plain
+  sentence stands where each query would be, so the note reads as finished
+  either way. A configured template note still overrides the default and
+  renders through the §4.4 ladder.
+- **Dataview, verified at source (0.5.68 lib, master importer) before the
+  queries shipped:** inline fields on list items parse with bracket nesting
+  (`[project:: [[Projects/House|House]]]` is one field); every link in a
+  list item's fields is canonicalized at index time to the resolved file
+  path, and `=` on links compares paths ignoring the alias, so
+  `item.project = this.file.link` holds for the aliased form; indexing into
+  a link value resolves the linked page's fields, so
+  `item.project.dayglance.goal` traverses; quoted wikilink strings in
+  frontmatter parse as links. Not run in a live vault (none here); the
+  harness pins the note bodies, not Dataview's rendering.
+
+**Backfill of existing lines: pending the owner's decision.** A backfill is
+one retitle intent per block-tagged, project-assigned daily-note task, once,
+idempotent (a line already carrying the right field is skipped). The
+costs: every touched daily note is rewritten and re-observed; the outbox
+refuses past 500 queued intents and flushes 50 per request; the plugin
+applies a drain's intents note by note under the dirty-buffer rule; and
+each device runs the writeback, so two devices could emit the same retitle
+(idempotent on apply, doubled traffic). Legacy-id tasks are excluded on
+purpose: they stamp first, then pick the field up on their next write.
+
 ---
 
 ### 4.4 Templater, via guarded delegation
@@ -1081,5 +1154,6 @@ through retitles, deletes and revivals, and it is what this section pays for.
 
 | 14 | Vault task scope rulings B–F (§6.3): schedule-as-metadata, leaving scope, where scope lives, completion window (30 days, configurable 7–90), direct access stays daily-only | **Decided**, 2026-09-02 |
 | 15 | Project and goal notes rulings A–H (4.3): link identity (id key + locator), frontmatter ownership, block cadence, workspace shape, goals and nested folders, deletion, where links appear, in-note task adoption | **Decided**, 2026-09-03 |
+| 16 | Project notes, templates round (4.3): the project as a Dataview field on daily-note task lines (G amended), the maintained map shrunk to kind/status/goal (C amended), Dataview-presence note bodies chosen at creation; routing project tasks to the project note considered and deferred | **Decided**, 2026-09-04; the backfill of existing lines **open** (owner) |
 
 Nothing in this table is open. The SSE re-arm sequence (buildout spec status note) runs alongside the project-notes build, not ahead of it (owner, 2026-09-03).

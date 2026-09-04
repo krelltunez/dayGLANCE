@@ -26,5 +26,8 @@ export function writebackSnapshotEntry(t, lineSchedule) {
     duration: t.duration || null,
     title: t.title,
     date: t.date || null,
+    // The project rides the line as metadata (companion §4.3, ruling G as
+    // amended); tracked so a reassignment in the app is a write trigger.
+    projectId: t.projectId || null,
   };
 }

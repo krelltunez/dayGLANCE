@@ -72,7 +72,7 @@ describe('the writeback snapshot records the LINE\'s time so the ordinary diff f
   it('with a reported divergence the entry carries the line\'s time; without one, DG\'s', () => {
     const t = dgTask();
     const diverged = writebackSnapshotEntry(t, { [ID]: { startTime: '10:15' } });
-    expect(diverged).toEqual({ completed: true, startTime: '10:15', duration: 30, title: t.title, date: '2026-09-01' });
+    expect(diverged).toEqual({ completed: true, startTime: '10:15', duration: 30, title: t.title, date: '2026-09-01', projectId: null });
     // The writeback's own comparison — p.startTime !== task.startTime — now
     // sees a change, and writes DG's 09:30 through the existing path.
     expect(diverged.startTime).not.toBe(t.startTime);

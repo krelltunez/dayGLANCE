@@ -52,10 +52,46 @@ export function noteLinkOf(entity) {
  * bare title otherwise (unlinked, or the note is missing).
  */
 export function projectLogName(project) {
+  return projectRefFor(project);
+}
+
+/**
+ * How a project is written into a line's `[project:: …]` field and the
+ * completion log: a wikilink to its note when linked (and not missing),
+ * its title otherwise, null for no project.
+ */
+export function projectRefFor(project) {
   if (!project) return null;
   const link = noteLinkOf(project);
   const title = project.title ?? null;
   return link && !link.missing ? noteWikilink(link.path, title) : title;
+}
+
+/**
+ * The reverse: a `[project:: …]` value read off a line → the project id it
+ * names, or null. A wikilink resolves by note path (the linked records);
+ * a bare name by title, only when exactly one active project carries it.
+ */
+export function resolveProjectRef(ref, projects) {
+  const raw = String(ref ?? '').trim();
+  if (!raw || !Array.isArray(projects)) return null;
+  const m = /^\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]$/.exec(raw);
+  if (m) {
+    const path = normalizeNotePath(m[1]);
+    const byPath = projects.find((p) => p && p.obsidianNotePath === path);
+    if (byPath) return String(byPath.id);
+    // A link whose note is not linked to any project: fall back to the alias or basename as a title.
+    const alias = /\|([^\]]*)\]\]$/.exec(raw)?.[1]?.trim() || noteDisplayName(path).split('/').pop();
+    return byTitle(alias, projects);
+  }
+  return byTitle(raw, projects);
+}
+
+function byTitle(name, projects) {
+  const key = String(name ?? '').trim().toLowerCase();
+  if (!key) return null;
+  const hits = projects.filter((p) => p && String(p.title ?? '').trim().toLowerCase() === key && p.status !== 'archived');
+  return hits.length === 1 ? String(hits[0].id) : null;
 }
 
 /**
