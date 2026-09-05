@@ -129,6 +129,22 @@ describe('planBridgeActions', () => {
     expect(hold.map((a) => a.actionId)).toEqual(['d', 'f']);
     expect(stale.map((a) => a.actionId)).toEqual(['e', 'g']);
   });
+
+  it('a tombstoned target is consumed as stale at once; a retired target is redirected to its live successor', () => {
+    const now = Date.parse('2026-09-05T16:00:00Z');
+    const { apply, hold, stale } = planBridgeActions([
+      action({ actionId: 'gone', taskId: 'obsidian-dg-e5m0licf' }),
+      action({ actionId: 'moved', taskId: 'legacy-1' }),
+      action({ actionId: 'unknown', taskId: 'never-seen' }),
+    ], {
+      ...lists, nowMs: now,
+      isTombstoned: (id) => id === 'obsidian-dg-e5m0licf',
+      resolveId: (id) => (id === 'legacy-1' ? 't1' : id),
+    });
+    expect(stale.map((a) => a.actionId)).toEqual(['gone']);
+    expect(apply.map((a) => [a.actionId, a.taskId])).toEqual([['moved', 't1']]);
+    expect(hold.map((a) => a.actionId)).toEqual(['unknown']);
+  });
 });
 
 describe('applyActionsToTasks / applyActionsToRecurring', () => {

@@ -374,9 +374,21 @@ export function createDbEngine(callbacks = {}) {
       if (obsTombs && entity && typeof entity === 'object') {
         const k = entity._kind;
         const v = entity.value;
+        // DROP AND DELETE (the 2026-09-05 stray-row finding). Dropping alone
+        // left the VAULT row alive forever: this device never admits the
+        // row, so its snapshot never holds it, so the snapshot-diff never
+        // sees it vanish, so the guard never propagates a delete — and the
+        // cursor moves past the row, so it is never re-listed either. The
+        // row then outlives every device's tombstone, visible to anything
+        // that reads the vault directly (the plugin's sidebar mirror showed
+        // a task dayGLANCE had dropped days earlier). Same shape as the
+        // ghost-row containment below: absent from the mirror, a dirty id
+        // is pushed as a soft-delete this cycle, and the row dies at the
+        // source. LWW unchanged: a copy NEWER than its tombstone still
+        // applies (a genuine revive).
         if ((k === 'tasks' || k === 'unscheduledTasks') && v && v.importSource === 'obsidian'
-            && isObsidianTombstoned(obsTombs, String(v.id), v.lastModified)) return;
-        if (k === 'dailyNotes' && isObsidianTombstoned(obsTombs, String(entity._key), v && v.lastModified)) return;
+            && isObsidianTombstoned(obsTombs, String(v.id), v.lastModified)) { engine.markDirty(entityId); return; }
+        if (k === 'dailyNotes' && isObsidianTombstoned(obsTombs, String(entity._key), v && v.lastModified)) { engine.markDirty(entityId); return; }
       }
       // Ghost-row CONTAINMENT at the DB-tier pull — the third ingress (the
       // #1454 lesson: gate the mirror too, or the guard's blessed delete-marks

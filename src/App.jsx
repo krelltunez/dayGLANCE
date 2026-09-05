@@ -2178,6 +2178,28 @@ const DayPlanner = () => {
     registerDbEngine(engine);
     setVaultLastSynced(engine.getLastSynced?.() || null);
     const runCycle = () => engine.dbSyncCycle().catch(() => { /* surfaced via onError */ });
+    // Console maintenance hooks (2026-09-05 stray-row finding). A vault row
+    // this device no longer holds and whose seq the pull cursor has passed
+    // is unreachable by every ordinary path; these are the two ways to reach
+    // it from the developer console, documented in the companion spec.
+    //   __dayglance.purgeVaultRow('tasks:<id>')  marks the entity dirty and
+    //     runs a cycle: absent locally, it is pushed as a soft-delete (fleet-
+    //     wide, LWW against any newer copy); present locally, it is merely
+    //     re-upserted.
+    //   __dayglance.resyncVault()  clears the sync cursors and reloads, so
+    //     the next cycle full-pulls and LWW-merges; every tombstoned row the
+    //     vault still holds is then dropped AND deleted at the apply gate.
+    window.__dayglance = {
+      purgeVaultRow: (entityId) => {
+        const id = String(entityId || '');
+        if (!/^[a-zA-Z]+:.+$/.test(id)) { console.warn('[dayglance] purgeVaultRow: expected "<kind>:<id>", e.g. tasks:obsidian-dg-xxxxxxxx'); return false; }
+        engine.markDirty(id);
+        console.info('[dayglance] purgeVaultRow: marked dirty, running a sync cycle:', id);
+        runCycle();
+        return true;
+      },
+      resyncVault: () => { resetVaultSyncCursor(); window.location.reload(); },
+    };
     runCycle(); // initial
     const onVisible = () => { if (document.visibilityState === 'visible') runCycle(); };
     document.addEventListener('visibilitychange', onVisible);
@@ -2186,6 +2208,7 @@ const DayPlanner = () => {
       document.removeEventListener('visibilitychange', onVisible);
       clearInterval(interval);
       registerDbEngine(null);
+      if (window.__dayglance) delete window.__dayglance;
       // Cancels any pending deferred cooldown-retry and makes stray timer
       // firings no-ops — a timer must never run a cycle against a dead engine.
       engine.dispose?.();

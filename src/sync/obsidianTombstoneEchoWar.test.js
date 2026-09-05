@@ -317,6 +317,40 @@ describe('the echo war — FIXED by symmetric enforcement at the apply boundary'
     expect(dev.visible.tasks.some((t) => t.id === TASK_ID)).toBe(false);
   });
 
+  it('the stray row (2026-09-05): a tombstoned row the vault supplies to a device that never held it is DELETED at the source by the gate, not orphaned', async () => {
+    // Field shape: device A pushed the row; device B tombstoned the task
+    // (note-scoped inference) and, because B never admits the row, B's
+    // snapshot never holds it, B's diff never sees it vanish, and B's cursor
+    // moves past it. Before the fix the vault row outlived every tombstone,
+    // visible to whatever reads the vault directly (the sidebar mirror).
+    const vault = createMemoryVault();
+    const A = makeLaggedDevice('a', vault, { ...EMPTY, tasks: [warTask()] });
+    await A.engine.dbSyncCycle();
+    await A.engine.dbSyncCycle();
+    A.flush();
+    expect(vault._row(`tasks:${TASK_ID}`).deleted).toBe(false);
+
+    localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify({ [TASK_ID]: T_TOMB }));
+    const B = makeLaggedDevice('b', vault, { ...EMPTY, deletedObsidianKeys: { [TASK_ID]: T_TOMB } });
+    await B.engine.dbSyncCycle(); // pull: the gate drops the row and marks it dirty; push: soft-delete
+    B.flush();
+    expect(B.visible.tasks.some((t) => t.id === TASK_ID)).toBe(false);
+    expect(vault._row(`tasks:${TASK_ID}`).deleted).toBe(true);
+
+    // A pulls the delete: its older copy loses the LWW and goes too.
+    await A.engine.dbSyncCycle();
+    A.flush();
+    expect(A.visible.tasks.some((t) => t.id === TASK_ID)).toBe(false);
+
+    // Converged: no further writes from either side.
+    const settledSeq = vault._seq();
+    for (let round = 0; round < 2; round++) {
+      await A.engine.dbSyncCycle(); A.flush();
+      await B.engine.dbSyncCycle(); B.flush();
+    }
+    expect(vault._seq()).toBe(settledSeq);
+  });
+
   it('legitimate restore: a copy whose lastModified beats its tombstone by even a small margin passes the gate, survives every merge, and syncs fleet-wide', async () => {
     const vault = createMemoryVault();
     const dev = await seedWar(vault);

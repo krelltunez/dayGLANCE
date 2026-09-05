@@ -30,6 +30,7 @@ import {
   isTombstonedRemint,
   RETIRED_TASK_IDS_STORAGE_KEY,
   RETIRED_ID_DUAL_WRITE,
+  resolveRetirement,
 } from '../utils/retiredTaskIds.js';
 import { blockIdWritesEnabled, completionMarkerWritesEnabled } from '../utils/obsidianWritePolicy.js';
 import { titleConflictNoticeText } from '../utils/obsidianTitleConflict.js';
@@ -585,8 +586,18 @@ export default function useObsidianSync({
       try {
         const fetchedActions = await fetchBridgeActions();
         if (fetchedActions) {
+          // A target tombstoned on this device (user delete, detector or
+          // note-scoped inference, or sitting in the recycle bin) never
+          // arrives; a retired one is redirected to its successor.
+          const readBundle = (key) => { try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch { return {}; } };
+          const deletedIds = readBundle('day-planner-deleted-task-ids');
+          const obsidianTombs = readBundle('day-planner-deleted-obsidian-keys');
+          const retiredRecord = readRetiredTaskIds();
+          const binned = new Set((recycleBinRef.current || []).map(t => String(t?.id)));
           const plan = planBridgeActions(fetchedActions.actions, {
             tasks: currentTasks, unscheduledTasks: currentInbox, recurringTasks: recurringTasksRef.current,
+            isTombstoned: (id) => !!deletedIds[id] || !!obsidianTombs[id] || binned.has(id),
+            resolveId: (id) => resolveRetirement(retiredRecord, id) || id,
           });
           if (plan.apply.length) {
             setTasks(prev => applyActionsToTasks(prev, plan.apply));
@@ -596,7 +607,12 @@ export default function useObsidianSync({
               plan.apply.map(a => a.templateId ? `${a.templateId}@${a.instanceDate}` : a.taskId).join(', '));
           }
           if (plan.hold.length) {
-            console.info('[Obsidian] sidebar action(s) held (target not on this device yet):', plan.hold.map(a => a.actionId).join(', '));
+            console.info('[Obsidian] sidebar action(s) held (target not on this device yet):',
+              plan.hold.map(a => `${a.actionId} → ${a.templateId ? `${a.templateId}@${a.instanceDate}` : a.taskId}`).join(', '));
+          }
+          if (plan.stale.some(a => a && a.type === 'task_complete')) {
+            console.info('[Obsidian] sidebar action(s) consumed as stale (target tombstoned, binned, or past the window):',
+              plan.stale.filter(a => a && a.type === 'task_complete').map(a => `${a.actionId} → ${a.taskId ?? `${a.templateId}@${a.instanceDate}`}`).join(', '));
           }
           await deleteBridgeActions([...plan.apply, ...plan.stale]);
           commitBridgeActionCursor(fetchedActions.maxSeq, plan.hold);
@@ -777,9 +793,13 @@ export default function useObsidianSync({
           const pendingNoteDeletions = applyPendingContinuityGuard(pendingStore.entries, pendingStore.touchedAt);
           const liveObsidianIds = new Set(
             [...currentTasks, ...currentInbox].filter(t => t?.importSource === 'obsidian').map(t => String(t.id)));
+          // A DELETED daily note is complete knowledge that none of its lines
+          // exist (2026-09-05 finding: it used to be parked unread). Its tasks
+          // enter the same wall-clock hold as any other absent line; the
+          // note's own copy is tombstoned below at the deletion's stamp.
           const candidates = applied
             ? inferNoteScopedDeletionCandidates({
-                observedNotes: applied.dailyNotes,
+                observedNotes: { ...applied.dailyNotes, ...(applied.deletedDailyNotes || {}) },
                 observedPaths: applied.scopedNotes,
                 scannedIds: batchScannedIds,
                 tasks: currentTasks,
@@ -829,6 +849,12 @@ export default function useObsidianSync({
                 console.info('[Obsidian] bin entries superseded by a live copy of the same task (dropped, not restored):',
                   binRestore.superseded.map(s => `${s.id} "${s.title}"`));
               }
+            }
+            const deletedDates = Object.entries(applied.deletedDailyNotes || {});
+            if (deletedDates.length) {
+              for (const [date, note] of deletedDates) tombstones = addObsidianTombstones(tombstones, [date], note.lastModified);
+              localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(tombstones));
+              console.info('[Obsidian] daily note(s) deleted in the vault; their copies drop now, their tasks after the confirmation hold:', deletedDates.map(([d]) => d).join(', '));
             }
             setDailyNotes(prev => mergeObsidianDailyNotes(prev, applied.dailyNotes, tombstones));
             // The observed notes' mtimes are the revival evidence (§3.10

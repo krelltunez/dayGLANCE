@@ -124,14 +124,28 @@ const has = (list, id) => (list || []).some((t) => t && String(t.id) === String(
  * Only `task_complete` actions are understood; anything else is consumed as
  * stale so an unknown future type never wedges the cursor.
  */
-export function planBridgeActions(actions, { tasks, unscheduledTasks, recurringTasks, nowMs = Date.now() }) {
+export function planBridgeActions(actions, { tasks, unscheduledTasks, recurringTasks, nowMs = Date.now(), isTombstoned = null, resolveId = null }) {
   const apply = [], hold = [], stale = [];
   for (const a of actions || []) {
     if (!a || a.type !== 'task_complete') { stale.push(a); continue; }
+    // A retired id (an identity move: legacy → block id, or a routing
+    // bind) is redirected onto its successor, the way every other consumer
+    // of the retirement record resolves one.
+    let taskId = a.taskId;
+    if (taskId != null && typeof resolveId === 'function') {
+      const r = resolveId(String(taskId));
+      if (r && String(r) !== String(taskId)) taskId = String(r);
+    }
     const targetKnown = a.templateId
       ? has(recurringTasks, a.templateId) && /^\d{4}-\d{2}-\d{2}$/.test(String(a.instanceDate || ''))
-      : a.taskId != null && (has(tasks, a.taskId) || has(unscheduledTasks, a.taskId));
-    if (targetKnown) { apply.push(a); continue; }
+      : taskId != null && (has(tasks, taskId) || has(unscheduledTasks, taskId));
+    if (targetKnown) { apply.push(taskId !== a.taskId ? { ...a, taskId } : a); continue; }
+    // A target this device has TOMBSTONED (deleted here, or inferred deleted
+    // from the vault) will never arrive: consumed as stale now rather than
+    // held for seven days (2026-09-05 finding: a completion sent from the
+    // sidebar for a task dayGLANCE had dropped sat on the stream, re-listed
+    // every cycle, for as long as the stale window).
+    if (!a.templateId && taskId != null && typeof isTombstoned === 'function' && isTombstoned(String(taskId))) { stale.push(a); continue; }
     const created = Date.parse(a.createdAt || '');
     const age = Number.isFinite(created) ? nowMs - created : Infinity;
     (age > ACTION_STALE_MS ? stale : hold).push(a);
