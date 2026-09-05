@@ -1136,9 +1136,15 @@ export default function useObsidianSync({
   //    suppresses this device's own write echoes by exact ack identity —
   //    our stamps/intents/config publishes never wake a cycle; the PLUGIN's
   //    writes are peer writes whose nudges we want (its observations);
+  //  • the APP TAG on activity frames (2026-09-05) keeps this cycle asleep
+  //    for DB-tier and intents nudges outright (useVaultEventStream's
+  //    kindFilter) — they no longer reach this function; an untagged frame
+  //    from an older server still does, and takes the path below unchanged;
   //  • a cheap PROBE (pendingBridgeObservations: one list page, prefix
-  //    check, no crypto) gates the wake — foreign DB-tier activity costs
-  //    one GET and runs no cycle, no merges, no status flash;
+  //    check, no crypto) gates the wake — bridge-namespace writes that are
+  //    not observations (a peer device's intents, the plugin's intent-row
+  //    soft-deletes, meta rows) cost one GET and run no cycle, no merges,
+  //    no status flash;
   //  • a hard MIN GAP between nudged cycles, trailing-coalesced: nudges
   //    inside the gap collapse into one run at gap end;
   //  • a nudge landing while a cycle is in flight retries after the gap

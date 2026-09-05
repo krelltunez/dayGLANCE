@@ -330,7 +330,7 @@ export class BridgeTransport {
   // uses). This class holds only the wiring: the Node https plumbing and
   // the connection lifecycle.
   private sseArming = createSseArming();
-  private sseGate = createSseNudgeGate({ onDrain: () => this.drainFromNudge() });
+  private sseGate = createSseNudgeGate({ app: BRIDGE_VAULT_APP, onDrain: () => this.drainFromNudge() });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private sseReq: any = null; // in-flight Node http(s) request, when connected/connecting
   private sseReconnectTimer: number | null = null;

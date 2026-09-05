@@ -757,3 +757,55 @@ describe('sseNudgesEnabled — the nudge gate (2026-08-31 war posture)', () => {
     expect(sseNudgesEnabled()).toBe(SSE_NUDGES_DEFAULT_ON);
   });
 });
+
+
+describe('the app tag on activity frames (2026-09-05): kindFilter routes per nudge, missing tag drains everything', () => {
+  const setup = () => {
+    vi.useFakeTimers();
+    const drains = [];
+    const c = createNudgeCoalescer({
+      kinds: ['sync', 'intents', 'obsidian'],
+      kindFilter: (kind, evt) => kind !== 'obsidian' || typeof evt?.app !== 'string' || evt.app === 'dayglance-bridge',
+      onDrain: (k) => drains.push(k),
+      debounceMs: 100,
+    });
+    return { c, drains, done: () => vi.useRealTimers() };
+  };
+
+  it('an UNTAGGED frame (older server) wakes every kind, exactly as before the tag existed', () => {
+    const { c, drains, done } = setup();
+    expect(c.handleEvent({ seq: 1 })).toBe(true);
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual(['sync', 'intents', 'obsidian']);
+    done();
+  });
+
+  it('a DB-tier or intents tag wakes sync and intents but not the Obsidian cycle; the cursor still advances', () => {
+    const { c, drains, done } = setup();
+    c.handleEvent({ seq: 5, app: 'dayglance' });
+    c.handleEvent({ seq: 6, app: 'intents' });
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual(['sync', 'intents']);
+    expect(c.getCursor()).toBe(6);
+    done();
+  });
+
+  it('a bridge-namespace tag wakes all three; a burst mixing tags wakes the union, once', () => {
+    const { c, drains, done } = setup();
+    c.handleEvent({ seq: 7, app: 'dayglance' });
+    c.handleEvent({ seq: 8, app: 'dayglance-bridge' });
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual(['sync', 'intents', 'obsidian']);
+    done();
+  });
+
+  it('without a kindFilter every nudge wakes every kind (the pre-tag coalescer, unchanged)', () => {
+    vi.useFakeTimers();
+    const drains = [];
+    const c = createNudgeCoalescer({ kinds: ['sync', 'intents', 'obsidian'], onDrain: (k) => drains.push(k), debounceMs: 100 });
+    c.handleEvent({ seq: 9, app: 'something-else' });
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual(['sync', 'intents', 'obsidian']);
+    vi.useRealTimers();
+  });
+});

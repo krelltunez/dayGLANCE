@@ -2,17 +2,21 @@
 //
 // WIRE CONTRACT (verified against the glance-vault server source — routes/events.ts
 // frame(), realtime/hub.ts Nudge): the server emits authenticated per-account
-// named SSE events at GET {vaultUrl}/events whose data is exactly {"seq":N}:
-//   • `event: ready`    — once per successful connection, carrying the account's
-//     latest seq (0 for a never-written account); the reconnect reconcile point.
-//   • `event: activity` — whenever the account seq advances.
-// plus comment-line heartbeats (`: ...`) every ~20s. Nothing else is on the wire:
-// no kind/scope discriminator, no `id:`, no `retry:` (reconnect timing is entirely
-// client-owned; the server never reads Last-Event-ID). A nudge carries ONLY the
-// latest account seq — no payload, and no hint of WHAT advanced: sync writes,
-// intent landings, and blob bookkeeping all draw from the one per-account counter
-// (blob bookkeeping without even emitting), so the only correct response to any
-// nudge is to drain everything.
+// named SSE events at GET {vaultUrl}/events:
+//   • `event: ready`    — once per successful connection, data {"seq":N}: the
+//     account's latest seq (0 for a never-written account); the reconnect
+//     reconcile point. Seq-only, no app tag.
+//   • `event: activity` — whenever the account seq advances, data
+//     {"seq":N,"app":"<tag>"} since the 2026-09-05 server change: sync batch
+//     and soft-delete tag their route namespace (e.g. "dayglance",
+//     "dayglance-bridge"), intents inserts tag "intents".
+// plus comment-line heartbeats (`: ...`) every ~20s. No `id:`, no `retry:`
+// (reconnect timing is entirely client-owned; the server never reads
+// Last-Event-ID). The seq is the one per-account counter every app draws
+// from; the tag says which namespace advanced it. THE MISSING-TAG CONTRACT:
+// a frame without `app` (an older server) means "unknown" and is handled
+// exactly as before the tag existed — drain everything. Consumers that
+// filter on the tag do so only when it is present.
 //
 // This module is the PURE, transport-level core (no React). It exists to let
 // dayGLANCE drain INSTANTLY on a nudge instead of waiting for the poll, while the
@@ -246,10 +250,13 @@ export async function openWebSseStream({ connection, signal, onOpen, onEvent, fe
  * Rapid nudges within debounceMs coalesce into a single drain pair.
  *
  * onDrain(kind) is called with 'sync' then 'intents' on each flush. The split
- * callback is kept deliberately: it is the ONE seam where routing would slot in
- * if a future server ever scoped its nudges — no such protocol exists or is
- * planned today. It is invoked inside a try/catch so a throwing drain can never
- * break the debounce timer or the SSE loop.
+ * callback is the seam where routing slots in now that the server tags its
+ * activity frames: `kindFilter(kind, evt)` decides, per received nudge, which
+ * kinds that nudge wakes; a flush runs a kind if ANY coalesced nudge wanted
+ * it. Without a filter every nudge wakes every kind (the pre-tag behavior,
+ * and the behavior for an untagged frame under any filter that honors the
+ * missing-tag contract). It is invoked inside a try/catch so a throwing
+ * drain can never break the debounce timer or the SSE loop.
  *
  * OWN-ECHO DAMPING (#1455): the server stamps each nudge with the WRITING
  * OPERATION'S own resulting seq (glance-vault routes/sync.ts,
@@ -268,6 +275,7 @@ export async function openWebSseStream({ connection, signal, onOpen, onEvent, fe
  * @param {object} p
  * @param {(kind:'sync'|'intents') => void} p.onDrain
  * @param {number} [p.debounceMs]     coalesce a micro-burst before draining
+ * @param {(kind:string, evt:object) => boolean} [p.kindFilter]  which kinds a nudge wakes (default: all)
  * @param {(seq:number) => boolean} [p.isOwnSeq]  exact-identity own-echo test
  * @param {(seq:number) => void} [p.onOwnEcho]    diagnostic hook for a suppressed echo
  * @param {typeof setTimeout}  [p.setTimeoutFn]
@@ -282,6 +290,7 @@ export function createNudgeCoalescer({
   // cycle — Phase 7 groundwork) after them, so DB state lands before the
   // Obsidian cycle reads it.
   kinds = ['sync', 'intents'],
+  kindFilter = null,
   isOwnSeq,
   onOwnEcho,
   setTimeoutFn = setTimeout,
@@ -290,6 +299,8 @@ export function createNudgeCoalescer({
 } = {}) {
   let lastSeq = -Infinity;
   let timer = null;
+  // Kinds the coalesced burst has asked for so far (reset on flush).
+  let wanted = new Set();
 
   const runDrain = (kind) => {
     try {
@@ -301,8 +312,10 @@ export function createNudgeCoalescer({
 
   const flush = () => {
     timer = null;
+    const want = wanted;
+    wanted = new Set();
     // Deterministic order: sync before intents (before obsidian, when wired).
-    for (const kind of kinds) runDrain(kind);
+    for (const kind of kinds) if (want.has(kind)) runDrain(kind);
   };
 
   // Coalesce a micro-burst of nudges into a single drain (debounce ONLY — no
@@ -331,6 +344,14 @@ export function createNudgeCoalescer({
       onOwnEcho?.(evt.seq);
       return false;
     }
+    // Which kinds this nudge wakes (the app tag, when present, decides for
+    // the kinds that filter on it). A nudge that wakes nothing advances the
+    // cursor and neither schedules nor cancels a pending flush.
+    let any = false;
+    for (const kind of kinds) {
+      if (!kindFilter || kindFilter(kind, evt)) { wanted.add(kind); any = true; }
+    }
+    if (!any) return false;
     schedule();
     return true;
   };
