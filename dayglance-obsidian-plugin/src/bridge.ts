@@ -165,6 +165,8 @@ export interface BridgeHost {
   getProjectNotes?(): ProjectNoteSettings;
   /** The vault's viewer override (companion 4.2, decision 9); undefined = the pairing's default. */
   getViewer?(): string | null;
+  /** The linked-notes map changed (a link made, moved or broken). Display-only consumers. */
+  onLinkedNotesChanged?(): void;
 }
 
 // Same requestUrl-backed fetch shim as pairing.ts (CORS-free everywhere).
@@ -1071,6 +1073,7 @@ export class BridgeTransport {
       const next = Object.fromEntries([...this.linked].sort(([a], [b]) => a.localeCompare(b)));
       if (JSON.stringify(state.linkedNotes ?? {}) === JSON.stringify(next)) return;
       await this.host.saveBridgeState({ ...state, linkedNotes: next });
+      this.host.onLinkedNotesChanged?.();
     } catch (e) {
       console.error('dayGLANCE bridge: could not persist the linked notes', e);
     }

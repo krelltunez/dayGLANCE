@@ -102,10 +102,24 @@ Network access happens only while paired (plus pairing verification), only
 to the vault URL carried in the offer, via Obsidian's `requestUrl`. All
 stream rows are AES-256-GCM under the pairing's bridge subkey.
 
+- **Editor hiding** (display only, `src/editorHiding.ts`): two settings
+  under Settings → dayGLANCE Bridge → Editor. *Hide dayGLANCE block ids*
+  (default on) hides a well-formed `^dg-` token at the end of a line in
+  Live Preview, except on the cursor line; block ids the user created are
+  untouched, which is why this is a CodeMirror decoration rather than the
+  vault-wide CSS snippet it replaces (CSS cannot match text). *Hide
+  completed tasks in project and goal notes* (default off) hides checked
+  task lines in notes linked to a dayGLANCE project or goal, in Live
+  Preview and Reading view, again except on the cursor line; daily notes
+  are unaffected. Both add CSS classes and let a stylesheet do the hiding;
+  neither writes to a note. The line rules are pure
+  (`src/editorHidingRules.ts`) and pinned by `test/editorHidingRules.test.ts`.
+
 ## Tests
 
-The plugin has no unit tests of its own; it is exercised end to end by the
-bridge scenario harness in `test/`, which runs from the repository root
+Apart from the pure editor-hiding rules, the plugin has no unit tests of its
+own; it is exercised end to end by the bridge scenario harness in `test/`,
+which runs from the repository root
 with the rest of the suite (`npx vitest run`). The harness stubs the
 `obsidian` module (`test/obsidianStub.ts`), serves an in-memory GLANCEvault
 (`test/fakeGlanceVault.ts`), and drives the real transport plus the real

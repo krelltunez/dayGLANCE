@@ -9,6 +9,8 @@
     "dev": "node esbuild.config.mjs"
   },
   "devDependencies": {
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/view": "^6.38.6",
     "@types/node": "^20.11.0",
     "esbuild": "^0.21.0",
     "obsidian": "^1.5.7",
