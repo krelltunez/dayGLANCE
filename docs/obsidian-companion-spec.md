@@ -773,6 +773,41 @@ because new lines and any line touched for another reason pick the field
 up on their own, and the old lines it would reach are the ones least
 likely to matter in a Done query.
 
+#### Editor hiding (2026-09-05; display only)
+
+Two cosmetic rules, one plugin extension, no writes and nothing touching
+identity. Both add CSS classes and let a stylesheet hide; both exempt the
+cursor line through Obsidian's `.cm-active`, because seeing the token or
+the line when the cursor is on it has been the diagnostic window every
+time something went wrong.
+
+- **dayGLANCE's own block ids** (`^dg-` plus eight base-36 characters, in
+  block-id position: whitespace before, end of line) are hidden in Live
+  Preview. Default on: it can only ever hide our tokens. A token anywhere
+  else on a line is a damaged line (the stamper refuses those) and stays
+  visible, deliberately. Reading view already strips block ids.
+  *Considered and rejected:* the vault-wide CSS snippet behind a toggle. It
+  hides every block id including the user's own, and CSS cannot match on
+  text; a CodeMirror mark decoration is the same effort and scoped by
+  construction.
+- **Checked task lines in linked notes** (the transport's linked map, not
+  the id key alone: a stale key can outlive its project) are hidden in
+  Live Preview and, through a post-processor on the source path, in
+  Reading view. Daily notes untouched. Default off: without Dataview a
+  linked note has no Done list, so a hidden line would be visible only in
+  dayGLANCE. *Considered and rejected:* scoping to the `## Tasks` section.
+  A Templater override need not carry that heading, and the rule would
+  need a scan from the top of the note on every change; any checked line
+  in a linked note behaves the same.
+
+The costs, accepted: a hidden line cannot be clicked to un-check (arrow
+onto it, un-complete in dayGLANCE, or flip the toggle); its indented
+children stay visible; find-in-note can match invisible text. The settings
+ride data.json, so Obsidian's settings sync carries a flip to every copy of
+the vault (§3.2's recorded dependency, harmless here). The line rules are
+pure and pinned (`editorHidingRules.test.ts`); rendering stays a manual
+check.
+
 ---
 
 ### 4.4 Templater, via guarded delegation

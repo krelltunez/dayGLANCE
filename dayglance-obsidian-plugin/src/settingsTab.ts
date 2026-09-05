@@ -15,6 +15,7 @@ import {
   type BridgePairing,
 } from './pairing';
 import type { AgendaKeyState, AgendaUser } from './agenda';
+import type { EditorHidingSettings } from './editorHidingRules';
 import { normalizeScope, SCOPE_WINDOW_MIN_DAYS, SCOPE_WINDOW_MAX_DAYS, SCOPE_WINDOW_DEFAULT_DAYS, type VaultScope, normalizeProjectNoteSettings, PROJECT_NOTE_LAYOUTS, type ProjectNoteSettings } from '@glance-apps/obsidian-format';
 
 // Stamped by esbuild at bundle time (see esbuild.config.mjs `define`).
@@ -56,6 +57,9 @@ export interface BridgeSettingsHost extends PairingHost {
   /** Project and goal note workspaces (companion §4.3, rulings D and E). */
   getProjectNotes(): ProjectNoteSettings;
   setProjectNotes(s: ProjectNoteSettings): Promise<void>;
+  /** Editor hiding (display only, editorHiding.ts). */
+  getEditorHiding(): EditorHidingSettings;
+  setEditorHiding(s: EditorHidingSettings): Promise<void>;
 }
 
 const pairedSince = (pairing: BridgePairing): string => {
@@ -85,6 +89,7 @@ export class BridgeSettingTab extends PluginSettingTab {
     } else {
       this.displayUnpaired();
     }
+    this.displayEditor();
     this.displayBuildInfo();
   }
 
@@ -320,6 +325,20 @@ export class BridgeSettingTab extends PluginSettingTab {
         t.setPlaceholder('Templates/Goal.md').setValue(cur.goalTemplate).onChange((v) => { draft.goalTemplate = v; });
         t.inputEl.addEventListener('blur', () => void save());
       });
+  }
+
+  private displayEditor(): void {
+    this.containerEl.createEl('h3', { text: 'Editor' });
+    const cur = this.host.getEditorHiding();
+    const save = (patch: Partial<EditorHidingSettings>) => void this.host.setEditorHiding({ ...this.host.getEditorHiding(), ...patch });
+    new Setting(this.containerEl)
+      .setName('Hide dayGLANCE block ids')
+      .setDesc('In Live Preview, hide the ^dg- identity token at the end of a task line, except on the line the cursor is on. Block ids you created yourself are not affected.')
+      .addToggle((t) => t.setValue(cur.hideBlockIds).onChange((v) => save({ hideBlockIds: v })));
+    new Setting(this.containerEl)
+      .setName('Hide completed tasks in project and goal notes')
+      .setDesc('In notes linked to a dayGLANCE project or goal, hide checked task lines in Live Preview and Reading view. The line stays in the note and shows again when the cursor is on it. Daily notes are not affected.')
+      .addToggle((t) => t.setValue(cur.hideCompletedInLinkedNotes).onChange((v) => save({ hideCompletedInLinkedNotes: v })));
   }
 
   private displayUnpaired(): void {

@@ -51,6 +51,8 @@ import { localDateStr } from '@glance-apps/agenda-core';
 import { AgendaView, AGENDA_VIEW_TYPE, removeAgendaStyles } from './agendaView';
 import { LinkTargetModal } from './linkModal';
 import { NoteBlockWriter } from './noteBlocks';
+import { applyEditorHidingSettings, editorHidingExtension, injectEditorHidingStyles, markCompletedInReadingView, refreshEditorHiding, removeEditorHidingStyles, type EditorHidingHost } from './editorHiding';
+import { normalizeEditorHidingSettings, type EditorHidingSettings } from './editorHidingRules';
 
 const HEARTBEAT_DIR = '.dayglance';
 const HEARTBEAT_PATH = `${HEARTBEAT_DIR}/heartbeat`;
@@ -79,6 +81,9 @@ interface BridgeData {
   // Project and goal note workspaces (companion §4.3, rulings D and E):
   // where a note born in dayGLANCE goes and which template it uses.
   projectNotes?: ProjectNoteSettings;
+  // Editor hiding (display only, editorHiding.ts): dayGLANCE's own block
+  // ids off the cursor line, and checked lines in linked notes.
+  editorHiding?: Partial<EditorHidingSettings>;
 }
 
 const mintDeviceId = (): string => {
@@ -136,6 +141,9 @@ export default class DayGlanceBridgePlugin extends Plugin {
       getScope: () => this.scope(),
       getProjectNotes: () => normalizeProjectNoteSettings(this.data.projectNotes),
       getViewer: () => this.viewer(),
+      // A note linked or unlinked while open: its completed-line hiding
+      // follows the map without waiting for the next edit.
+      onLinkedNotesChanged: () => refreshEditorHiding(this.app),
     });
     this.noteBlocks = new NoteBlockWriter({
       app: this.app,
@@ -144,6 +152,18 @@ export default class DayGlanceBridgePlugin extends Plugin {
       blockInputs: () => this.agenda.blockInputs(),
       bufferDirty: (path) => this.transport.bufferDirty(path),
     });
+
+    // Editor hiding (display only): the decorations always run; the two
+    // settings only toggle body classes the stylesheet keys on.
+    const hidingHost: EditorHidingHost = {
+      app: this.app,
+      isLinkedNote: (path) => this.transport.linkedNotes().has(path),
+      getSettings: () => this.editorHiding(),
+    };
+    this.registerEditorExtension(editorHidingExtension(hidingHost));
+    this.registerMarkdownPostProcessor((el, ctx) => markCompletedInReadingView(hidingHost, el, ctx.sourcePath));
+    injectEditorHidingStyles(document);
+    applyEditorHidingSettings(document, this.editorHiding());
 
     this.registerView(AGENDA_VIEW_TYPE, (leaf) => new AgendaView(leaf, this.agenda));
     this.addRibbonIcon('calendar-check', 'Open dayGLANCE agenda', () => { void this.openAgenda(); });
@@ -261,6 +281,12 @@ export default class DayGlanceBridgePlugin extends Plugin {
         this.data.projectNotes = normalizeProjectNoteSettings(s);
         await this.saveData(this.data);
       },
+      getEditorHiding: () => this.editorHiding(),
+      setEditorHiding: async (s) => {
+        this.data.editorHiding = normalizeEditorHidingSettings(s);
+        await this.saveData(this.data);
+        applyEditorHidingSettings(document, this.editorHiding());
+      },
       getScope: () => this.scope(),
       setScope: async (scope) => {
         this.data.scope = normalizeScope(scope);
@@ -325,6 +351,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
     this.noteBlocks.dispose();
     this.agenda.dispose();
     removeAgendaStyles(document);
+    removeEditorHidingStyles(document);
     // Best-effort: a graceful quit (or a plugin disable — equally "no
     // bridge here") removes the file so readers see the truth immediately
     // instead of waiting out the staleness window. Crashes skip this, which
@@ -356,6 +383,10 @@ export default class DayGlanceBridgePlugin extends Plugin {
   }
 
   // The active vault task scope, or null when none is configured.
+  private editorHiding(): EditorHidingSettings {
+    return normalizeEditorHidingSettings(this.data.editorHiding);
+  }
+
   private scope(): VaultScope | null {
     const s = this.data.scope ? normalizeScope(this.data.scope) : null;
     return s && scopeIsActive(s) ? s : null;
