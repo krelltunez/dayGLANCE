@@ -282,6 +282,23 @@ export async function openWebSseStream({ connection, signal, onOpen, onEvent, fe
  * @param {typeof clearTimeout}[p.clearTimeoutFn]
  * @param {(msg:string, err:any) => void} [p.onDrainError]
  */
+/**
+ * The standard kind filter for a tagged frame: each fan-out kind names the
+ * server namespace whose writes it reads, and a tagged nudge wakes exactly
+ * the kinds whose namespace it names. An untagged frame (an older server,
+ * or the seq-only `ready`) wakes every kind — THE MISSING-TAG CONTRACT — and
+ * a kind with no namespace entry wakes on every nudge.
+ *
+ * @param {Record<string, string>} namespaces  kind → server app tag
+ */
+export function createKindFilter(namespaces) {
+  return (kind, evt) => {
+    if (typeof evt?.app !== 'string') return true;
+    const ns = namespaces?.[kind];
+    return typeof ns !== 'string' || evt.app === ns;
+  };
+}
+
 export function createNudgeCoalescer({
   onDrain,
   debounceMs = 400,

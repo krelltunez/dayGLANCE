@@ -11,6 +11,7 @@ import {
   sseNudgesEnabled,
   SSE_NUDGES_DEFAULT_ON,
   SSE_NUDGES_FLAG_KEY,
+  createKindFilter,
 } from './vaultEventStream.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -765,7 +766,7 @@ describe('the app tag on activity frames (2026-09-05): kindFilter routes per nud
     const drains = [];
     const c = createNudgeCoalescer({
       kinds: ['sync', 'intents', 'obsidian'],
-      kindFilter: (kind, evt) => kind !== 'obsidian' || typeof evt?.app !== 'string' || evt.app === 'dayglance-bridge',
+      kindFilter: createKindFilter({ sync: 'dayglance', intents: 'intents', obsidian: 'dayglance-bridge' }),
       onDrain: (k) => drains.push(k),
       debounceMs: 100,
     });
@@ -780,22 +781,40 @@ describe('the app tag on activity frames (2026-09-05): kindFilter routes per nud
     done();
   });
 
-  it('a DB-tier or intents tag wakes sync and intents but not the Obsidian cycle; the cursor still advances', () => {
+  it('each tag wakes exactly the drain that reads its namespace; the cursor still advances', () => {
     const { c, drains, done } = setup();
     c.handleEvent({ seq: 5, app: 'dayglance' });
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual(['sync']);
     c.handleEvent({ seq: 6, app: 'intents' });
     vi.advanceTimersByTime(100);
     expect(drains).toEqual(['sync', 'intents']);
-    expect(c.getCursor()).toBe(6);
+    c.handleEvent({ seq: 7, app: 'dayglance-bridge' });
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual(['sync', 'intents', 'obsidian']);
+    expect(c.getCursor()).toBe(7);
     done();
   });
 
-  it('a bridge-namespace tag wakes all three; a burst mixing tags wakes the union, once', () => {
+  it("a sibling app's tag wakes nothing: the cursor advances, no flush is scheduled, a pending flush is not cancelled", () => {
     const { c, drains, done } = setup();
-    c.handleEvent({ seq: 7, app: 'dayglance' });
-    c.handleEvent({ seq: 8, app: 'dayglance-bridge' });
+    expect(c.handleEvent({ seq: 8, app: 'lifeglance' })).toBe(false);
     vi.advanceTimersByTime(100);
-    expect(drains).toEqual(['sync', 'intents', 'obsidian']);
+    expect(drains).toEqual([]);
+    expect(c.getCursor()).toBe(8);
+    c.handleEvent({ seq: 9, app: 'dayglance' });
+    c.handleEvent({ seq: 10, app: 'lifeglance' });
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual(['sync']);
+    done();
+  });
+
+  it('a burst mixing tags wakes the union, once, in fan-out order', () => {
+    const { c, drains, done } = setup();
+    c.handleEvent({ seq: 11, app: 'dayglance-bridge' });
+    c.handleEvent({ seq: 12, app: 'dayglance' });
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual(['sync', 'obsidian']);
     done();
   });
 

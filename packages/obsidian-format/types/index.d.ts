@@ -194,7 +194,11 @@ export function createSseNudgeGate(opts?: {
   /** This consumer's namespace: a tagged nudge from another app drains nothing; an untagged one drains as before the tag. */
   app?: string | null;
   debounceMs?: number;
+  /** Own-ack memory: acks older than this are forgotten (default 10 minutes). */
+  ackTtlMs?: number;
+  /** Memory backstop on the own-ack ring, not the guard (default 4096). */
   ackCapacity?: number;
+  now?: () => number;
   setTimeoutFn?: typeof setTimeout;
   clearTimeoutFn?: typeof clearTimeout;
 }): SseNudgeGate;
