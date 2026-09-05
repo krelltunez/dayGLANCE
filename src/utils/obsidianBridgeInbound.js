@@ -27,7 +27,6 @@
 import { getVaultConfig } from '../sync/vaultConfig.js';
 import { hasDbRootKey } from '@glance-apps/sync';
 import { getDbRootKey } from '@glance-apps/sync/src/dbCrypto.js';
-import { createVaultClient } from '@glance-apps/sync/src/vaultClient.js';
 import {
   deriveBridgeSubkey,
   openBridgeEnvelope,
@@ -42,7 +41,7 @@ import {
   mergeParsedObsidianTasks,
   parseTasksFromMarkdown,
 } from '../obsidian.js';
-import { getBridgePairingMeta, bridgeRateLimited } from './obsidianBridgeStream.js';
+import { getBridgePairingMeta, bridgeRateLimited, bridgeVaultClientFor } from './obsidianBridgeStream.js';
 import { resolveProjectRef } from './obsidianProjectNotes.js';
 
 const OBS_HWM_KEY = 'dayglance-bridge-obs-hwm';
@@ -72,7 +71,7 @@ export async function fetchBridgeObservations() {
     if (!meta) return null;
     const salt = Uint8Array.from(atob(meta.pairingSalt), (c) => c.charCodeAt(0));
     const subkey = await deriveBridgeSubkey(getDbRootKey(), salt);
-    const client = createVaultClient({ vaultUrl: cfg.vaultUrl, vaultToken: cfg.vaultToken });
+    const client = bridgeVaultClientFor(cfg);
 
     let since = 0;
     try { since = Number(localStorage.getItem(OBS_HWM_KEY)) || 0; } catch { /* fresh cursor */ }
@@ -134,7 +133,7 @@ export async function pendingBridgeObservations() {
     if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId) return false;
     let since = 0;
     try { since = Number(localStorage.getItem(OBS_HWM_KEY)) || 0; } catch { /* fresh cursor */ }
-    const client = createVaultClient({ vaultUrl: cfg.vaultUrl, vaultToken: cfg.vaultToken });
+    const client = bridgeVaultClientFor(cfg);
     const page = await client.list(BRIDGE_VAULT_APP, { accountId: cfg.accountId, since });
     if (page.hasMore) return true; // rows beyond page 1 — wake conservatively
     return (page.rows || []).some((row) =>

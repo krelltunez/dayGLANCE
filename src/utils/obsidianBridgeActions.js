@@ -28,14 +28,13 @@
 import { getVaultConfig } from '../sync/vaultConfig.js';
 import { hasDbRootKey } from '@glance-apps/sync';
 import { getDbRootKey } from '@glance-apps/sync/src/dbCrypto.js';
-import { createVaultClient } from '@glance-apps/sync/src/vaultClient.js';
 import {
   deriveBridgeSubkey,
   openBridgeEnvelope,
   BRIDGE_VAULT_APP,
   BRIDGE_ACTION_PREFIX,
 } from '@glance-apps/obsidian-format';
-import { getBridgePairingMeta, bridgeRateLimited } from './obsidianBridgeStream.js';
+import { getBridgePairingMeta, bridgeRateLimited, bridgeVaultClientFor } from './obsidianBridgeStream.js';
 
 const ACT_HWM_KEY = 'dayglance-bridge-act-hwm';
 export const ACTION_STALE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -55,7 +54,7 @@ export async function fetchBridgeActions() {
     if (!meta) return null;
     const salt = Uint8Array.from(atob(meta.pairingSalt), (c) => c.charCodeAt(0));
     const subkey = await deriveBridgeSubkey(getDbRootKey(), salt);
-    const client = createVaultClient({ vaultUrl: cfg.vaultUrl, vaultToken: cfg.vaultToken });
+    const client = bridgeVaultClientFor(cfg);
 
     let since = readActionCursor();
     const byActionId = new Map();
@@ -109,7 +108,7 @@ export async function deleteBridgeActions(actions) {
   try {
     const cfg = getVaultConfig();
     if (!cfg?.vaultUrl || !cfg.vaultToken || !cfg.accountId) return;
-    const client = createVaultClient({ vaultUrl: cfg.vaultUrl, vaultToken: cfg.vaultToken });
+    const client = bridgeVaultClientFor(cfg);
     for (const a of actions) {
       try { await client.deleteRow(BRIDGE_VAULT_APP, a.entityId, cfg.accountId); }
       catch { /* replayed next cycle; application is idempotent */ }

@@ -33,6 +33,8 @@ import { hasDbRootKey } from '@glance-apps/sync';
 // rationale; vaultClient keeps the client constructible without the engine).
 import { getDbRootKey } from '@glance-apps/sync/src/dbCrypto.js';
 import { createVaultClient } from '@glance-apps/sync/src/vaultClient.js';
+import { defaultVaultFetch } from '../intents/dbIntentsTransport.js';
+import { adaptFetchForVaultClient } from '../intents/vaultIntentsSetup.js';
 import {
   deriveBridgeSubkey,
   sealBridgeEnvelope,
@@ -124,11 +126,34 @@ const writeJson = (key, value) => {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable */ }
 };
 
+// NATIVE-SAFE TRANSPORT (2026-09-05 finding). The vault client defaults to
+// global fetch, which is the WebView's CORS-bound fetch on Android
+// (origin appassets.androidplatform.net) and iOS (the dg:// scheme) — the
+// same reason the DB sync engine and the intents transport route through
+// the native HTTP bridge there, and through the main-process proxy on
+// Electron. Every bridge-stream module built its client on global fetch, so
+// on the phones the pairing-meta lookup, the intent flush, the observation
+// and action fetches and the config publish all died at the CORS wall: no
+// cached meta, every emit refused, "the bridge queue is unavailable" on
+// every write — and no observations consumed while paired. One client
+// factory for all of them, over the transport the other tiers already use.
+// Browser/PWA (and the harness) keep global fetch, unchanged.
+function bridgeFetchImpl() {
+  const w = typeof window !== 'undefined' ? window : null;
+  const nativeOrElectron = !!(w?.DayGlanceNative?.httpRequest || w?.electronAPI?.isElectron);
+  return nativeOrElectron ? adaptFetchForVaultClient(defaultVaultFetch()) : undefined;
+}
+
+/** The bridge stream's GLANCEvault client for a vault config: the ONE construction site. */
+export function bridgeVaultClientFor(cfg) {
+  return createVaultClient({ vaultUrl: cfg.vaultUrl, vaultToken: cfg.vaultToken, fetchImpl: bridgeFetchImpl() });
+}
+
 const vaultClientOrNull = () => {
   const cfg = getVaultConfig();
   if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId) return null;
   try {
-    return { client: createVaultClient({ vaultUrl: cfg.vaultUrl, vaultToken: cfg.vaultToken }), accountId: cfg.accountId };
+    return { client: bridgeVaultClientFor(cfg), accountId: cfg.accountId };
   } catch {
     return null;
   }
