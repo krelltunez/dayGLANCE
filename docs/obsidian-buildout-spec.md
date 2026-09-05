@@ -4,22 +4,31 @@
 **Date:** 2026-08-10
 **Scope:** Extending dayGLANCE's Obsidian integration from direct filesystem access to a full bridge, including a first-party Obsidian community plugin.
 
-**Current position (2026-09-02): Phase 8 in progress, SSE soak alongside.**
+**Current position (2026-09-05): Phase 8 built; the phones on the stream; SSE re-arm next.**
 Phases 0–7 are built and deployed. Phase 8 (`obsidian-companion-spec.md`) is
-underway: the completion log (its 4.1) and the sidebar view (its 4.2) are
-built and in daily use, with multi-user scoping across the log, the sidebar
-and the vault writeback. The fleet still runs at poll cadence with SSE nudge
-consumption gated off by default (§3.10, seventh record) while the audit-fix
-backlog soaks. The last two breaker fixes landed 2026-09-03 (audit M13: the
-own-ack registry now records every write ack at the source, batch and
-delete alike, so a mixed push leaks no self-nudge; M8: the polarity
-reassert and the retirement applier judge a successor's liveness across
-every task kind, recycle bin included, like the partition does). What
-remains of the re-arm sequence is a supervised single-machine flip
-(`dayglance-sse-nudges` = `on`), then the fleet, then default-on; it runs
-ALONGSIDE the Phase 8 project-notes build (owner, 2026-09-03), and every
-plugin-to-app path (sidebar completions included) runs at the five-minute
-poll until it lands.
+built end to end and in daily use: the completion log (4.1), the sidebar view
+(4.2), two-way vault task scope (§6), project and goal notes with workspace
+creation, the maintained map, default bodies and project routing (4.3,
+rulings A–H and the 2026-09-04/05 rounds), and Templater and Dataview
+delegation (4.4, 4.5). Multi-user scoping runs across the log, the sidebar
+and the writeback. The bridge scenario harness (`dayglance-obsidian-plugin/
+test/`) drives the real plugin transport and the real sync hook against a
+stub vault, and every change to what the plugin stamps, reports or applies
+adds a scenario there. The week's field findings each closed with a record:
+the stray vault row (§3.10, seventh record's addendum: the apply gate now
+deletes what it drops), deleted daily notes while paired (§3.10, the
+note-scoped deletion amendment), and the mobile transport gap (Phase 6 PR 1's
+note: the bridge modules now ride the native-safe fetch, so Android and iOS
+are on the bridge stream for the first time as of 2026-09-05).
+
+What is NOT done, in order: (1) a day's soak with the phones on the stream
+under the polling posture; (2) the SSE re-arm sequence — a supervised
+single-machine flip (`dayglance-sse-nudges` = `on`), then the fleet, then
+default-on — every plugin-to-app path, sidebar completions included, runs at
+the five-minute poll until it lands; (3) the direct-tier half of project
+routing (companion 4.3, project routing: desktop has path-addressed reads
+and writes, each mobile bridge needs two native methods), wanted only where
+direct mode is relied on. Deferred by design, not planned: companion §5.
 
 ---
 
