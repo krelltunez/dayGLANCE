@@ -137,6 +137,37 @@ describe('createSseNudgeGate — cursor, own-ack skip, debounce', () => {
     done();
   });
 
+  it('THE APP TAG: a foreign namespace advances the cursor and drains nothing; our own namespace drains; an UNTAGGED frame drains as before the tag', () => {
+    const onDrain = vi.fn();
+    const g = make(onDrain, { app: 'dayglance-bridge' });
+    expect(g.handleEvent({ seq: 10, app: 'dayglance' })).toBe(false);
+    expect(g.handleEvent({ seq: 11, app: 'intents' })).toBe(false);
+    vi.advanceTimersByTime(100);
+    expect(onDrain).not.toHaveBeenCalled();
+    expect(g.getCursor()).toBe(11); // the cursor still moved: a later stale seq stays stale
+    expect(g.handleEvent({ seq: 12, app: 'dayglance-bridge' })).toBe(true);
+    vi.advanceTimersByTime(100);
+    expect(onDrain).toHaveBeenCalledTimes(1);
+    expect(g.handleEvent({ seq: 13 })).toBe(true); // missing tag: unknown, behave as today
+    vi.advanceTimersByTime(100);
+    expect(onDrain).toHaveBeenCalledTimes(2);
+    // A foreign nudge landing during a pending own-namespace debounce does not cancel it.
+    g.handleEvent({ seq: 14, app: 'dayglance-bridge' });
+    g.handleEvent({ seq: 15, app: 'dayglance' });
+    vi.advanceTimersByTime(100);
+    expect(onDrain).toHaveBeenCalledTimes(3);
+    done();
+  });
+
+  it('without an `app` option the gate ignores the tag entirely (a consumer that has not opted in drains on every nudge)', () => {
+    const onDrain = vi.fn();
+    const g = make(onDrain);
+    g.handleEvent({ seq: 20, app: 'dayglance' });
+    vi.advanceTimersByTime(100);
+    expect(onDrain).toHaveBeenCalledTimes(1);
+    done();
+  });
+
   it('cancel clears a pending drain (unload path)', () => {
     const onDrain = vi.fn();
     const g = make(onDrain);

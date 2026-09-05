@@ -125,6 +125,13 @@ export function commitBridgeObservationCursor(maxSeq) {
  * False on ANY doubt except hasMore: unpaired, disabled, braked
  * (bridgeRateLimited — the poll floor covers), or unreachable. Never
  * advances the cursor.
+ *
+ * Since the server's app tag (2026-09-05) the coalescer already keeps
+ * foreign-namespace nudges away from the Obsidian cycle; this probe is the
+ * row-level layer beneath it, still needed because the bridge namespace
+ * carries more than observations (a peer device's intents, the plugin's
+ * intent-row soft-deletes, meta rows), and the whole gate for an untagged
+ * frame from an older server.
  */
 export async function pendingBridgeObservations() {
   try {

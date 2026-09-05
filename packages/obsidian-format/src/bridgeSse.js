@@ -139,6 +139,15 @@ export function createSseArming() {
  *    miniaturized). Without this, every own write costs one idle drain;
  *    with it, zero.
  *  • DEBOUNCE — a micro-burst of peer nudges collapses into one onDrain.
+ *  • THE APP TAG (2026-09-05) — activity frames carry `app`, the namespace
+ *    that advanced the seq. A tag that is not ours (`app` option) is a
+ *    foreign write: the cursor advances, nothing drains, and a pending
+ *    debounce for an earlier own-namespace nudge keeps its timer. THE
+ *    MISSING-TAG CONTRACT: a frame without `app` (an older server, or the
+ *    seq-only `ready` frame) is "unknown" and drains exactly as before the
+ *    tag existed. Before the tag, the drain was its own probe — one empty
+ *    app-scoped list per debounced foreign nudge; now a foreign nudge costs
+ *    nothing.
  *
  * LOOP SAFETY IS BY CONSTRUCTION, NOT ONLY BY THIS SKIP: even a nudge that
  * slips through to drain() cannot sustain a cycle, because the drain's idle
@@ -151,6 +160,7 @@ export function createSseArming() {
  */
 export function createSseNudgeGate({
   onDrain,
+  app = null,
   debounceMs = 400,
   ackCapacity = 64,
   setTimeoutFn = setTimeout,
@@ -176,6 +186,7 @@ export function createSseNudgeGate({
       if (evt.seq <= lastSeq) return false; // stale/coalesced
       lastSeq = evt.seq;
       if (ackSet.has(evt.seq)) return false; // our own write's echo
+      if (app && typeof evt.app === 'string' && evt.app !== app) return false; // a foreign namespace's write
       if (timer !== null) clearTimeoutFn(timer);
       timer = setTimeoutFn(() => { timer = null; onDrain?.(); }, debounceMs);
       return true;

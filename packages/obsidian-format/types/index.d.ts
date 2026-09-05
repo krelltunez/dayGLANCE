@@ -191,6 +191,8 @@ export interface SseNudgeGate {
 }
 export function createSseNudgeGate(opts?: {
   onDrain?: () => void;
+  /** This consumer's namespace: a tagged nudge from another app drains nothing; an untagged one drains as before the tag. */
+  app?: string | null;
   debounceMs?: number;
   ackCapacity?: number;
   setTimeoutFn?: typeof setTimeout;
