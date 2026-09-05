@@ -808,6 +808,76 @@ the vault (§3.2's recorded dependency, harmless here). The line rules are
 pure and pinned (`editorHidingRules.test.ts`); rendering stays a manual
 check.
 
+#### Project routing (owner, 2026-09-05): a project's tasks live in its note
+
+*The deferral above is closed.* The owner's requirement, verbatim in
+substance: it is critical that the task list in a linked Obsidian project
+note matches the project card in dayGLANCE. Until this round it did not:
+dayGLANCE wrote a task into the vault only when its import source was
+Obsidian (a scanned line, or a task created with the `#obsidian` tag), so
+a project task born in dayGLANCE reached the vault only as a completion-log
+entry. The rule now:
+
+- **A task assigned to a project with a linked note lives in that note.**
+  Born in dayGLANCE, its line is created there (at the end of the `## Tasks`
+  section, or under a new heading at the end of the note; never sorted, the
+  note is the user's document; never created if the note is missing). Typed
+  in the note, it imports assigned (ruling H, unchanged). Reassigned
+  between linked projects, the line moves. Unassigned, or reassigned to a
+  project without a note, **the line is removed** and the task stays in
+  dayGLANCE, app-only: a task is in the vault because something puts it
+  there, and membership in a linked project is the second such reason
+  after the tag; remove the reason and the line goes, exactly as if the
+  task had been created as a plain inbox or scheduled task. A line the user
+  typed in the note and later unassigns in dayGLANCE is removed too; the
+  list matches the card. A scheduled project task keeps its date as line
+  metadata (ruling B) and no longer occupies the daily note; the daily
+  note shows its completion-log entry. Open tasks only: a completed task's
+  record is the completion log and the Done query.
+- **Identity.** A vault task's app id is `obsidian-dg-` plus its token, and
+  the scanner matches lines by that id, so a dayGLANCE-born task's id
+  switches to the derived form when its line is written: the stamping
+  identity move (gate (a), commit on enqueue, the retirement record, the
+  re-mint refusal), applied to a native task. The token is derived in the
+  note's namespace (ruling A) from the line as written. **A token is for
+  life**: unassignment clears the vault fields but keeps the token and the
+  id, so a later reassignment writes the same token and no second move
+  happens.
+- **The link is the scope.** A linked note is observed and stamped whether
+  or not its folder is in the §6 scope: the plugin adopts a note when it
+  becomes linked and withdraws it (ruling C) when the link goes and no
+  folder or tag holds it. Without a scope setting the completion window
+  is the default. This closes the setup trap of a linked note whose folder
+  was never scoped, found in the field on 2026-09-05.
+- **Where it runs.** A placement step at the head of the writeback pass
+  reconciles each task's home (its `obsidianNotePath`) against what its
+  assignment implies, so every assignment site in the app (task editor,
+  project card, planner, archive cascade) is covered without knowing the
+  step exists. The old line's removal is emitted before the new line's
+  append (`task_remove`, a new intent; `task_append` with `noteTask`);
+  the two notes' observations may arrive in either order, the cross-note
+  case the wall-clock confirmation hold exists for. Removal clears the
+  task's vault fields in the same action, so the note's next observation
+  finds no task claiming the missing line and tombstones nothing. Paced at
+  25 placements per pass: a fresh link fills its note over a few passes
+  (the declined-backfill cost, bounded to one note). Plugin-authoritative
+  only: the direct tier reads and writes by date, so it follows in its own
+  PR once the plugin round is field-tested (desktop has path read and
+  write already; each mobile bridge needs two methods).
+- **Creation.** A task created under a linked project, tagged or not, is
+  created as a plain task and placed by the next pass; the tagged
+  daily-note path is used only when the project has no note.
+
+*Considered and rejected:* returning an unassigned task to the daily note
+of its date. Every imported task carries the display tag, so a tag-based
+carve-out could not distinguish a daily-born task from a note-born one,
+and the owner's rule is the simpler one: no reason, no line. The one
+consequence accepted with it: a task typed in a daily note, assigned to a
+linked project and later unassigned, leaves the vault. Pinned by
+`projectNotes.scenarios.test.ts` 5 through 8 (creation, the daily-note
+move and the app-only unassignment across both notes' observations, the
+link as scope with a move between two linked notes, the pacing).
+
 ---
 
 ### 4.4 Templater, via guarded delegation
@@ -1197,6 +1267,7 @@ through retitles, deletes and revivals, and it is what this section pays for.
 
 | 14 | Vault task scope rulings B–F (§6.3): schedule-as-metadata, leaving scope, where scope lives, completion window (30 days, configurable 7–90), direct access stays daily-only | **Decided**, 2026-09-02 |
 | 15 | Project and goal notes rulings A–H (4.3): link identity (id key + locator), frontmatter ownership, block cadence, workspace shape, goals and nested folders, deletion, where links appear, in-note task adoption | **Decided**, 2026-09-03 |
-| 16 | Project notes, templates round (4.3): the project as a Dataview field on daily-note task lines (G amended), the maintained map shrunk to kind/status/goal (C amended), Dataview-presence note bodies chosen at creation; routing project tasks to the project note considered and deferred | **Decided**, 2026-09-04; the backfill of existing lines **declined** (owner, 2026-09-04; cost recorded in 4.3) |
+| 16 | Project notes, templates round (4.3): the project as a Dataview field on daily-note task lines (G amended), the maintained map shrunk to kind/status/goal (C amended), Dataview-presence note bodies chosen at creation; routing project tasks to the project note considered and deferred | **Decided**, 2026-09-04; the backfill of existing lines **declined** (owner, 2026-09-04; cost recorded in 4.3); the routing deferral **closed** by row 17 |
+| 17 | Project routing (4.3): a task assigned to a linked project lives in that note (created there, moved on reassignment, removed on unassignment, the token for life, the link as scope); direct tier to follow | **Decided**, 2026-09-05 (owner); plugin tier built |
 
 Nothing in this table is open. The SSE re-arm sequence (buildout spec status note) runs alongside the project-notes build, not ahead of it (owner, 2026-09-03).
