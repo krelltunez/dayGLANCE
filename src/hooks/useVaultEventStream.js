@@ -16,6 +16,7 @@
 
 import { useEffect, useRef } from 'react';
 import { BRIDGE_VAULT_APP } from '@glance-apps/obsidian-format';
+import { createKindFilter } from '../sync/vaultEventStream.js';
 import { isVaultEnabled, getVaultConfig } from '../sync/vaultConfig.js';
 import {
   createNudgeCoalescer,
@@ -118,13 +119,14 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents, drain
       // so drains fire near-instantly on real changes, restoring SSE's low latency.
       kinds: ['sync', 'intents', 'obsidian'],
       // THE APP TAG (glance-vault activity frames carry `app` since
-      // 2026-09-05): the Obsidian observation cycle wakes only on nudges from
-      // the bridge namespace — a DB-tier or intents write on this account no
-      // longer costs it a probe. The sync and intents drains are unchanged:
-      // every nudge wakes them, as before the tag. THE MISSING-TAG CONTRACT:
-      // an untagged frame (an older server) is "unknown" and wakes the
-      // Obsidian cycle exactly as it did before, probe and all.
-      kindFilter: (kind, evt) => kind !== 'obsidian' || typeof evt?.app !== 'string' || evt.app === BRIDGE_VAULT_APP,
+      // 2026-09-05): each drain wakes only on nudges from the namespace it
+      // reads — the DB sync drain on the app's own rows, the intents drain
+      // on intents inserts, the Obsidian observation cycle on the bridge
+      // namespace. A sibling app's write, or a bridge observation the phones
+      // now produce, no longer costs the DB tier a cycle. THE MISSING-TAG
+      // CONTRACT: an untagged frame (an older server, or `ready`) is
+      // "unknown" and wakes every drain exactly as before the tag.
+      kindFilter: createKindFilter({ sync: 'dayglance', intents: 'intents', obsidian: BRIDGE_VAULT_APP }),
       onDrain: (kind) => {
         diag.drains += 1;
         if (sseDebug()) console.info('[vault-sse] drain →', kind);
