@@ -2247,3 +2247,24 @@ describe('mergeSyncData — additional ICS calendars (icsCalendars)', () => {
     expect(mergeSyncData(local, remote).data.icsCalendars).toEqual(CAL_A);
   });
 });
+
+describe('mergeSyncData — retirement record retention (audit fix M9, file tier in lockstep with the vault tier)', () => {
+  const DAY = 86400000;
+  const daysAgo = (n) => new Date(Date.now() - n * DAY).toISOString();
+  const base = () => ({
+    tasks: [], unscheduledTasks: [], recurringTasks: [], recycleBin: [], dailyNotes: {},
+    completedTaskUids: [], deletedTaskIds: {},
+  });
+
+  it('an aged retirement survives while a surviving tombstone names its successor, and drops once that tombstone ages out', () => {
+    const local = { ...base(), retiredTaskIds: { L: { retiredAt: daysAgo(70), successor: 'S' } }, deletedObsidianKeys: { S: daysAgo(20) } };
+    const remote = { ...base() };
+    const kept = mergeSyncData(local, remote);
+    expect(kept.data.retiredTaskIds).toEqual({ L: { retiredAt: expect.any(String), successor: 'S' } });
+
+    const local2 = { ...base(), retiredTaskIds: { L: { retiredAt: daysAgo(90), successor: 'S' } }, deletedObsidianKeys: { S: daysAgo(70) } };
+    const gone = mergeSyncData(local2, { ...base() });
+    expect(gone.data.retiredTaskIds).toEqual({});
+    expect(gone.data.deletedObsidianKeys).toEqual({});
+  });
+});

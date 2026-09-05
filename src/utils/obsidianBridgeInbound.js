@@ -57,6 +57,14 @@ const OBS_HWM_KEY = 'dayglance-bridge-obs-hwm';
 // The merge's fresh-import marker (obsidian.js mergeParsedObsidianTasks).
 const FRESH_IMPORT_TS = new Date(0).toISOString();
 
+// Why the last fetch returned null (audit low: a plugin-mode cycle whose
+// inbound fetch produced nothing used to finish GREEN — "last synced" stamped,
+// the error latch cleared — on a dead stream). The hook reads this to surface
+// the state instead; a successful fetch clears it.
+let lastInboundFailure = null;
+export function lastBridgeInboundFailure() { return lastInboundFailure; }
+const fail = (reason) => { lastInboundFailure = reason; return null; };
+
 export async function fetchBridgeObservations() {
   try {
     // The client's realm-wide brake (@glance-apps/sync 1.11.0): while the
@@ -64,11 +72,11 @@ export async function fetchBridgeObservations() {
     // cursor hasn't advanced, so nothing is lost, and the next cycle
     // retries. (A braked client call would throw RATE_LIMITED anyway; this
     // read just skips the ceremony for a multi-request cycle.)
-    if (bridgeRateLimited()) return null;
+    if (bridgeRateLimited()) return fail('rate-limited');
     const cfg = getVaultConfig();
-    if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId || !hasDbRootKey()) return null;
+    if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId || !hasDbRootKey()) return fail('unconfigured');
     const meta = await getBridgePairingMeta();
-    if (!meta) return null;
+    if (!meta) return fail('unpaired');
     const salt = Uint8Array.from(atob(meta.pairingSalt), (c) => c.charCodeAt(0));
     const subkey = await deriveBridgeSubkey(getDbRootKey(), salt);
     const client = bridgeVaultClientFor(cfg);
@@ -96,11 +104,12 @@ export async function fetchBridgeObservations() {
       }
       if (!page.rows?.length) break;
     }
+    lastInboundFailure = null;
     return { observations: [...byPath.values()], maxSeq };
   } catch {
     // Rate-limited (the client armed the brake itself) or unreachable —
     // the unadvanced cursor retries next cycle either way.
-    return null;
+    return fail(bridgeRateLimited() ? 'rate-limited' : 'unreachable');
   }
 }
 

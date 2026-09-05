@@ -6,6 +6,7 @@ import { getDeviceId } from './deviceId.js';
 import { registerDbEngine, markDirty, schedulePush } from './dirtyTracker.js';
 import { tombstoneCutoff } from './tombstoneRetention.js';
 import { keepImportedTask } from './payloadExclusions.js';
+import { shouldSuppressReconcileDelete, consumeWarTripped, __resetWarGuardForTests } from './reconcileWarGuard.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STAGE 2 PART B — live wiring. These exercise the REAL @glance-apps/sync
@@ -1280,5 +1281,76 @@ describe('issue #1196 — the midnight rollover speaks the vanish-delete guard\'
 
     expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('GUARD'))).toBe(true);
     expect(A.data.todayRoutines.map((r) => r.id)).toContain('chipA');
+  });
+});
+
+describe('AUDIT lows — the commit-merge cross-list reconcile carries the war guard; thrown cycles drain the trip flags', () => {
+  beforeEach(() => {
+    global.localStorage = memLocalStorage();
+    setVaultConfig({ enabled: true, vaultUrl: 'https://vault.test', vaultToken: 'tok', accountId: 'acct1' });
+    setSyncPassphrase('correct horse battery staple');
+    __resetWarGuardForTests();
+  });
+  afterEach(() => { __resetWarGuardForTests(); });
+
+  function onNextPull(vault, fn) {
+    const origList = vault.list.bind(vault);
+    let fired = false;
+    vault.list = async (...args) => {
+      if (!fired) { fired = true; fn(); }
+      return origList(...args);
+    };
+    return () => { vault.list = origList; };
+  }
+
+  it('a mid-cycle resupply of a second-kind copy hits the guard on the COMMIT-MERGE reconcile: the third hit keeps both copies instead of deleting the loser again', async () => {
+    const vault = createMemoryVault();
+    const A = makeDevice('A', vault, { ...EMPTY, tasks: [task(1, '2026-06-18T10:00:00.000Z')] });
+    const B = makeDevice('B', vault, { ...EMPTY });
+    await runRounds(A, B);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      // Three cycles, each with the same OLDER recycleBin copy of task 1
+      // injected mid-pull (live data, after the mirror was cloned) — the
+      // resupply shape of a delete/resupply war landing in the commit merge.
+      for (let round = 1; round <= 3; round++) {
+        const restore = onNextPull(vault, () => {
+          A.data.recycleBin.push(task(1, '2026-06-18T09:00:00.000Z', { deletedAt: '2026-06-18T09:00:00.000Z' }));
+        });
+        await A.engine.dbSyncCycle();
+        restore();
+        expect(A.data.tasks.map((t) => t.id)).toEqual([1]); // the newer copy wins every time
+        if (round < 3) {
+          // Hits 1 and 2: the loser is reconciled away as before.
+          expect(A.data.recycleBin).toEqual([]);
+        }
+      }
+      // Hit 3: STREAK_N reached — suppressed, both copies retained (visibly
+      // duplicated beats invisibly at war), and the trip was logged.
+      expect(A.data.recycleBin.map((t) => t.id)).toEqual([1]);
+      expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('WAR GUARD'))).toBe(true);
+    } finally { warnSpy.mockRestore(); }
+  });
+
+  it('a guard that tripped inside a cycle that then THROWS does not charge the next cycle a strike (the flag is drained with the failure)', async () => {
+    const vault = createMemoryVault();
+    const A = makeDevice('A', vault, { ...EMPTY, tasks: [task(1, '2026-06-18T10:00:00.000Z')] });
+    await A.engine.dbSyncCycle();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const origList = vault.list.bind(vault);
+    try {
+      vault.list = async () => {
+        // The guard trips mid-cycle, then the cycle dies.
+        const now = Date.now();
+        shouldSuppressReconcileDelete('warring-id', now);
+        shouldSuppressReconcileDelete('warring-id', now);
+        shouldSuppressReconcileDelete('warring-id', now);
+        throw new Error('network down');
+      };
+      const res = await A.engine.dbSyncCycle();
+      expect(res.error).toBe('network down');
+      // Drained: the next (successful) cycle finds nothing to misattribute.
+      expect(consumeWarTripped()).toBe(false);
+    } finally { vault.list = origList; warnSpy.mockRestore(); }
   });
 });

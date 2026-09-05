@@ -112,6 +112,46 @@ export function addObsidianTombstones(tombstones, keys, deletedAtIso) {
   return out;
 }
 
+export const OBSIDIAN_TOMBSTONES_STORAGE_KEY = 'day-planner-deleted-obsidian-keys';
+
+/**
+ * Union two {key → deletedAt ISO} maps, newest per key. Pure. The same rule
+ * addObsidianTombstones applies per key, over whole maps — the merge the
+ * commit below needs, and the one the vault/file tiers already apply to
+ * this bundle (grow-only newest-per-key).
+ */
+export function mergeObsidianTombstones(a, b) {
+  const out = { ...(a || {}) };
+  for (const [k, at] of Object.entries(b || {})) {
+    if (!out[k] || ts(at) > ts(out[k])) out[k] = at;
+  }
+  return out;
+}
+
+/**
+ * Persist `additions` into the deletedObsidianKeys bundle — RE-READING the
+ * stored bundle first (audit fix M11). A sync cycle holds its in-memory copy
+ * of this bundle across multi-second awaits (the observation fetch, the
+ * scan); the DB engine's apply can land a peer's tombstone in storage in
+ * that window, and a write of the stale in-memory copy clobbered it. The
+ * grow-only union re-added it on the next pull, so the exposure was a
+ * transient resurrection window — one the merges that ran off the stale
+ * copy could act on. Every write of the bundle goes through here: fresh
+ * storage ∪ additions, newest per key. Returns the merged map, which is
+ * what the caller should keep using for the rest of the cycle.
+ *
+ * @param {Record<string,string>} additions  {key → deletedAt ISO}
+ * @param {{getItem:Function,setItem:Function}} [storage]  test seam
+ * @returns {Record<string,string>} the bundle as written
+ */
+export function commitObsidianTombstones(additions, storage = globalThis.localStorage) {
+  let fresh = {};
+  try { fresh = JSON.parse(storage.getItem(OBSIDIAN_TOMBSTONES_STORAGE_KEY) || '{}') || {}; } catch { fresh = {}; }
+  const merged = mergeObsidianTombstones(fresh, additions);
+  try { storage.setItem(OBSIDIAN_TOMBSTONES_STORAGE_KEY, JSON.stringify(merged)); } catch { /* storage unavailable */ }
+  return merged;
+}
+
 // ─── Symmetric enforcement at the APPLY boundary ─────────────────────────────
 //
 // For a long time deletedObsidianKeys was honored on the way OUT but ignored

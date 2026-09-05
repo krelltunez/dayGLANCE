@@ -501,8 +501,11 @@ export const mergeSyncData = (local, remote, retentionDays) => {
     const ka = Object.keys(a); const kb = Object.keys(b);
     return ka.length === kb.length && ka.every((k) => retiredEntryEq(a[k], b[k]));
   };
+  // The successor-tombstone bundles (already merged + pruned above) extend an
+  // aged entry's life while they still name its successor (audit fix M9).
   const retiredMerged = pruneRetiredTaskIds(
     mergeRetiredTaskIds(local?.retiredTaskIds || {}, remote?.retiredTaskIds || {}), tsCutoff,
+    [result.data.deletedTaskIds, result.data.deletedObsidianKeys],
   );
   result.data.retiredTaskIds = retiredMerged;
   if (!retiredMapsEqual(retiredMerged, local?.retiredTaskIds || {})) result.localChanged = true;

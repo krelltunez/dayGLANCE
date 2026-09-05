@@ -20,7 +20,7 @@ import { validateWikiNoteName } from '../utils/obsidianFilename.js';
 import { classifyVaultPaths } from '../utils/vaultPortability.js';
 import { mergeObsidianDailyNotes } from '../utils/mergeObsidianDailyNotes.js';
 import { mergeObsidianTasks, noteMtimesFromDailyNotes, noteMtimesFromScopedNotes } from '../utils/mergeObsidianTasks.js';
-import { detectObsidianDeletions, addObsidianTombstones } from '../utils/obsidianDeletions.js';
+import { detectObsidianDeletions, addObsidianTombstones, commitObsidianTombstones } from '../utils/obsidianDeletions.js';
 import { reattachTasksMetadata } from '../utils/obsidianTasksMetadata.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
 import { planNoteLinkUpdates, normalizeNotePath, projectByNotePath, projectRefFor } from '../utils/obsidianProjectNotes.js';
@@ -46,7 +46,7 @@ import { writebackTargetFor } from '../utils/obsidianWritebackTarget.js';
 // that has started wars (the declined-backfill cost record).
 const PLACEMENT_PER_PASS = 25;
 import { noteTaskId, withScheduledMetadata, withProjectMetadata } from '@glance-apps/obsidian-format';
-import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations } from '../utils/obsidianBridgeInbound.js';
+import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations, lastBridgeInboundFailure } from '../utils/obsidianBridgeInbound.js';
 import {
   fetchBridgeActions, planBridgeActions, applyActionsToTasks, applyActionsToRecurring,
   deleteBridgeActions, commitBridgeActionCursor,
@@ -100,6 +100,15 @@ const writeWithdrawnNotes = (store) => {
 
 export const OBSIDIAN_TASK_WRITE_ERROR =
   "Couldn't write to your Obsidian vault. Your changes are saved in dayGLANCE and will be written on the next edit.";
+
+// A plugin-mode cycle whose inbound fetch produced nothing (audit low): the
+// stream is the ONLY way vault changes reach this device while the plugin is
+// authoritative, so a cycle that could not read it is not a successful sync.
+// It used to finish green (last-synced stamped, latches cleared).
+export const BRIDGE_INBOUND_UNAVAILABLE_ERROR =
+  'Vault changes are not arriving: the Obsidian bridge stream could not be read. The next sync cycle retries.';
+export const BRIDGE_INBOUND_RATE_LIMITED_ERROR =
+  'Vault changes are paused: the Obsidian bridge is rate limited. They will catch up when the pause lifts.';
 
 // A note restore failed (Android crash-safe writes, SafeReplace RESTORE_FAILED):
 // the note is genuinely MISSING from the vault, so the task-write message's
@@ -294,6 +303,8 @@ export default function useObsidianSync({
   // this and pokes one writeback pass; a pass with nothing to diff is a
   // no-op, so the poke can never loop.
   const writebackPendingRef = useRef(false);
+  // (task id)>(token) pairs whose re-mint refusal has been logged this session.
+  const remintRefusalLoggedRef = useRef(new Set());
 
   // ── Tasks-plugin detection (completion-marker format) ─────────────────────
   // Vault-level: is the Obsidian Tasks plugin enabled? Decides the marker
@@ -685,6 +696,10 @@ export default function useObsidianSync({
 
       // Deletion tombstones apply to BOTH inbound sources (they record
       // past observed deletions; honoring them is not detecting new ones).
+      // Every WRITE of this bundle below goes through commitObsidianTombstones,
+      // which re-reads storage first (audit fix M11): this copy is held across
+      // multi-second awaits, and a peer's tombstone the engine applies in
+      // that window must not be clobbered by it.
       let tombstones = {};
       try { tombstones = JSON.parse(localStorage.getItem('day-planner-deleted-obsidian-keys') || '{}'); } catch { tombstones = {}; }
 
@@ -751,8 +766,7 @@ export default function useObsidianSync({
               .filter(t => t?.importSource === 'obsidian' && withdrawnPaths.has(t.obsidianNotePath))
               .map(t => String(t.id));
             if (ids.length) {
-              tombstones = addObsidianTombstones(tombstones, ids, withdrawnAt);
-              localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(tombstones));
+              tombstones = commitObsidianTombstones(addObsidianTombstones({}, ids, withdrawnAt));
               console.info('[Obsidian] vault task scope: note(s) left the scope; withdrawing', ids.length, 'task(s):', applied.withdrawn.join(', '));
             }
             const store = readWithdrawnNotes();
@@ -813,8 +827,9 @@ export default function useObsidianSync({
             liveIds: liveObsidianIds,
           });
           if (commits.length) {
-            for (const c of commits) tombstones = addObsidianTombstones(tombstones, [c.id], c.deletedAt);
-            localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(tombstones));
+            let committed = {};
+            for (const c of commits) committed = addObsidianTombstones(committed, [c.id], c.deletedAt);
+            tombstones = commitObsidianTombstones(committed);
             // Loud on purpose: a deletion inference is the one action here
             // that removes user-visible data, and its evidence should be on
             // the record when it runs.
@@ -852,8 +867,9 @@ export default function useObsidianSync({
             }
             const deletedDates = Object.entries(applied.deletedDailyNotes || {});
             if (deletedDates.length) {
-              for (const [date, note] of deletedDates) tombstones = addObsidianTombstones(tombstones, [date], note.lastModified);
-              localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(tombstones));
+              let deletedNotes = {};
+              for (const [date, note] of deletedDates) deletedNotes = addObsidianTombstones(deletedNotes, [date], note.lastModified);
+              tombstones = commitObsidianTombstones(deletedNotes);
               console.info('[Obsidian] daily note(s) deleted in the vault; their copies drop now, their tasks after the confirmation hold:', deletedDates.map(([d]) => d).join(', '));
             }
             setDailyNotes(prev => mergeObsidianDailyNotes(prev, applied.dailyNotes, tombstones));
@@ -907,8 +923,21 @@ export default function useObsidianSync({
             setUnscheduledTasks(prev => mergeObsidianTasks(prev, [], new Set(), preserveObsidianAppFields, tombstones));
           }
           if (fetched.maxSeq) commitBridgeObservationCursor(fetched.maxSeq);
+          await finishObsidianCycle(syncStart, titleConflicts, binRestores);
+        } else {
+          // No fetch = no inbound this cycle (audit low). The stream is the
+          // only inbound while the plugin is authoritative, so this is not
+          // a successful sync: "last synced" stays where it was, the
+          // task-write latch stays set, and the state shows — a dead stream
+          // used to finish green. The next successful cycle clears it
+          // through finishObsidianCycle like any other channel error.
+          const reason = lastBridgeInboundFailure();
+          console.warn(`[Obsidian] plugin-mode cycle read no observations (${reason || 'unknown'}); last synced left unchanged.`);
+          if (!restoreErrorRef.current) {
+            setObsidianSyncError(reason === 'rate-limited' ? BRIDGE_INBOUND_RATE_LIMITED_ERROR : BRIDGE_INBOUND_UNAVAILABLE_ERROR);
+            setObsidianSyncStatus('error');
+          }
         }
-        await finishObsidianCycle(syncStart, titleConflicts, binRestores);
         return;
       }
 
@@ -999,8 +1028,7 @@ export default function useObsidianSync({
         // writes deletedObsidianKeys — the conservative, LWW-revivable
         // channel — and never retiredTaskIds (commit-that-renames) or
         // deletedTaskIds (user-pressed delete).
-        tombstones = addObsidianTombstones(tombstones, deletions, new Date().toISOString());
-        localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(tombstones));
+        tombstones = commitObsidianTombstones(addObsidianTombstones({}, deletions, new Date().toISOString()));
       }
       // Only advance the baseline on a scan we trusted — a skipped (incomplete) scan
       // leaves lastScanned intact so the next clean scan can still catch the delete.
@@ -1023,8 +1051,7 @@ export default function useObsidianSync({
       // apply this cycle.
       const reconciled = reconcileArchivedBaseline(scannedKeys, obsidianCutoff);
       if (reconciled && !reconciled.skipped && reconciled.deletions.length) {
-        tombstones = addObsidianTombstones(tombstones, reconciled.deletions, reconciled.archivedAt);
-        localStorage.setItem('day-planner-deleted-obsidian-keys', JSON.stringify(tombstones));
+        tombstones = commitObsidianTombstones(addObsidianTombstones({}, reconciled.deletions, reconciled.archivedAt));
       }
 
       // Update daily notes — MERGE the scan in, don't replace. Replacing deletes
@@ -1441,6 +1468,17 @@ export default function useObsidianSync({
       ];
     } catch { remintTombstoneBundles = []; }
     const writebackLiveIds = new Set(allObsidian.map(t => String(t.id)));
+    // Log-once (audit low): a refused task is re-evaluated every pass — the
+    // stamp nudge fires each cycle, which is how the refusal clears itself
+    // once the contradiction is gone — but the refusal is news exactly
+    // once per (task, token). The evaluation stays; only the log dedupes,
+    // and a later stamp of the same pair forgets it so a recurrence logs.
+    const logRemintRefusalOnce = (taskId, token, message) => {
+      const key = `${taskId}>${token}`;
+      if (remintRefusalLoggedRef.current.has(key)) return;
+      remintRefusalLoggedRef.current.add(key);
+      console.error(message);
+    };
 
     // ── PLACEMENT (companion §4.3, project routing; owner 2026-09-05) ────
     // A task assigned to a project with a linked note LIVES IN THAT NOTE:
@@ -1489,9 +1527,10 @@ export default function useObsidianSync({
         if (wantsMove && !blockId) {
           minted = deriveBlockId(home, rawTitle);
           if (isTombstonedRemint(remintRecord, task.id, appIdForBlockId(minted), remintTombstoneBundles, writebackLiveIds)) {
-            console.error(`Obsidian: REFUSING to re-mint ^dg-${minted} for ${task.id} while placing it in ${home} (retire/tombstone oscillation guard).`);
+            logRemintRefusalOnce(task.id, minted, `Obsidian: REFUSING to re-mint ^dg-${minted} for ${task.id} while placing it in ${home} (retire/tombstone oscillation guard).`);
             continue;
           }
+          remintRefusalLoggedRef.current.delete(`${task.id}>${minted}`);
           blockId = minted;
         }
 
@@ -1693,11 +1732,13 @@ export default function useObsidianSync({
       // prunes at retention.
       if (assignBlockId
         && isTombstonedRemint(remintRecord, task.id, appIdForBlockId(assignBlockId), remintTombstoneBundles, writebackLiveIds)) {
-        console.error(
+        logRemintRefusalOnce(task.id, assignBlockId,
           `Obsidian: REFUSING to re-mint ^dg-${assignBlockId} for ${task.id} — the retirement record already names this exact successor and that successor is tombstoned (retire/tombstone oscillation guard). Delete or edit the vault line to resolve.`);
         assignBlockId = null;
         // A stamp was this write's only reason → nothing left to write.
         if (!titleChanged && !stateChanged && !dateChanged) continue;
+      } else if (assignBlockId) {
+        remintRefusalLoggedRef.current.delete(`${task.id}>${assignBlockId}`);
       }
       const writeBlockId = task.obsidianBlockId || assignBlockId;
 
