@@ -159,18 +159,19 @@ describe('applyBridgeObservations', () => {
     expect(out.scannedIds.has(String(task.id))).toBe(true);
   });
 
-  it('out-of-scope paths and deletions are returned unapplied — never tombstoned here', () => {
+  it('out-of-scope paths are returned unapplied; a DELETED daily note is returned as evidence (deletedDailyNotes); nothing is tombstoned here', () => {
     const out = applyBridgeObservations(
       [
         { path: 'Some Note.md', content: 'wiki body' },
-        { path: 'Daily/2026-08-28.md', content: null, deleted: true },
+        { path: 'Daily/2026-08-28.md', content: null, deleted: true, observedAt: '2026-08-29T12:00:00Z' },
         { path: 'Daily/notadate.md', content: 'x' },
       ],
       { existingTasks: [], existingInbox: [], dailyNotesPath: 'Daily' },
     );
     expect(Object.keys(out.dailyNotes)).toHaveLength(0);
+    expect(out.deletedDailyNotes).toEqual({ '2026-08-28': { lastModified: '2026-08-29T12:00:00Z' } });
     expect(out.scheduledTasks).toHaveLength(0);
-    expect(out.unapplied).toHaveLength(3);
+    expect(out.unapplied).toHaveLength(2);
     // The detector's baselines are not this module's to touch.
     expect(localStorage.getItem('day-planner-obsidian-last-scanned')).toBe(null);
     expect(localStorage.getItem('day-planner-deleted-obsidian-keys')).toBe(null);

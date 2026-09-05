@@ -347,9 +347,23 @@ ruling below).
    checkbox, and DB sync all fire exactly as for an in-app completion. Unknown
    targets are **held** — the cursor stops below the oldest held row so a task
    that hasn't synced to this device yet is applied on a later cycle or by
-   another device — and consumed as stale after seven days. The view marks an
-   emitted completion as pending until the mirror reflects it (a 15-minute
-   optimistic mark, then the box reverts rather than lie).
+   another device — and consumed as stale after seven days. *(Amended
+   2026-09-05: a target this device has tombstoned — a user delete, a
+   detector or note-scoped inference, or a recycle-bin entry — will never
+   arrive and is consumed as stale at once; a retired id is redirected to its
+   successor. The held log names the target, not only the action.)* The view
+   marks an emitted completion as pending until the mirror reflects it (a
+   15-minute optimistic mark, then the box reverts rather than lie).
+   **Maintenance hooks (2026-09-05).** The mirror reads the vault directly,
+   so it shows any row dayGLANCE no longer holds. A row past every device's
+   pull cursor is unreachable by the ordinary paths; two console hooks reach
+   it: `window.__dayglance.purgeVaultRow('tasks:<id>')` marks the entity
+   dirty and runs a cycle (absent locally it is pushed as a soft-delete,
+   fleet-wide under LWW; present locally it is merely re-upserted), and
+   `window.__dayglance.resyncVault()` clears the sync cursors and reloads so
+   the next cycle full-pulls and runs every stray through the apply gate,
+   which now drops and deletes (buildout spec §3.10, seventh record's
+   addendum).
 3. **Latency.** The mirror refreshes on the transport's cadence: the 30-second
    tick and the drain's success tail (`BridgeHost.onSynced`), so an SSE nudge
    makes the sidebar live without the store holding a second stream. The action

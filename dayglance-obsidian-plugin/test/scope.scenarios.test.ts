@@ -242,6 +242,22 @@ describe('vault task scope, end to end', () => {
     expect(A.all()).toHaveLength(0);
   });
 
+  it('4b. a deleted DAILY note drops its tasks after the hold and tombstones the date (2026-09-05 finding: it used to delete nothing while paired)', async () => {
+    await bootWithScopedNote();
+    await s.write('Daily/2026-09-04.md', '## Tasks\n- [ ] Call the plumber\n- [ ] Pay the bill\n');
+    await s.settle();
+    await A.sync();
+    expect(A.all()).toHaveLength(3);
+    await s.plugin.app.vault.delete(s.file('Daily/2026-09-04.md'));
+    await s.settle();
+    await A.sync();
+    expect(A.all()).toHaveLength(3); // the hold: not yet
+    expect(JSON.parse(A.store.get('day-planner-deleted-obsidian-keys') ?? '{}')['2026-09-04']).toBeTruthy(); // the note's copy: at once
+    await s.advance(95_000);
+    await A.sync();
+    expect(A.all().map((t) => t.title)).toEqual([`${LINE} #obsidian`]);
+  });
+
   it('5. scheduling from dayGLANCE writes the date as line metadata; clearing it removes the segment and nothing else', async () => {
     await bootWithScopedNote();
     const id = A.byPath(NOTE)[0].id;

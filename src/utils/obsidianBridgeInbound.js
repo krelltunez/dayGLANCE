@@ -176,6 +176,13 @@ export function applyBridgeObservations(observations, {
 }) {
   const dailyNotes = {};
   const scopedNotes = {}; // path → { lastModified, deleted? } for scoped (non-daily) notes in this batch
+  // date → { lastModified } for DAILY notes the plugin reported deleted
+  // (2026-09-05 finding: these were parked in `unapplied`, which nothing
+  // read, so deleting a daily note while paired deleted nothing in
+  // dayGLANCE). A deleted note is complete knowledge that none of its
+  // lines exist — the same evidence a deleted scoped note gives — and the
+  // caller feeds it to the note-scoped inference under the same hold.
+  const deletedDailyNotes = {};
   const withdrawn = [];   // paths that left the scope
   const links = [];       // project/goal note link observations (companion §4.3), for the caller
   const allScheduled = [];
@@ -230,7 +237,6 @@ export function applyBridgeObservations(observations, {
       }
       continue;
     }
-    if (obs.deleted || obs.content == null) { unapplied.push(obs); continue; }
     const path = obs.path;
     if (folderPrefix ? !path.startsWith(folderPrefix) : path.includes('/')) { unapplied.push(obs); continue; }
     const name = path.slice(folderPrefix.length);
@@ -241,6 +247,12 @@ export function applyBridgeObservations(observations, {
       dateStr = parseDateFromFilename(name, dateParser);
     }
     if (!dateStr) { unapplied.push(obs); continue; }
+    if (obs.deleted || obs.content == null) {
+      // No mtime for a note that is gone: the plugin's sighting of the
+      // deletion is the evidence stamp (an app edit newer than it wins).
+      deletedDailyNotes[dateStr] = { lastModified: obs.observedAt || new Date().toISOString() };
+      continue;
+    }
 
     dailyNotes[dateStr] = {
       text: obs.content,
@@ -257,5 +269,5 @@ export function applyBridgeObservations(observations, {
     ...[...allScheduled, ...allInbox].map((t) => String(t.id)),
     ...[...allScheduled, ...allInbox].filter((t) => t.obsidianLegacyId).map((t) => String(t.obsidianLegacyId)),
   ]);
-  return { dailyNotes, scopedNotes, withdrawn, links, scheduledTasks: allScheduled, inboxTasks: allInbox, scannedIds, unapplied, lineSchedule };
+  return { dailyNotes, deletedDailyNotes, scopedNotes, withdrawn, links, scheduledTasks: allScheduled, inboxTasks: allInbox, scannedIds, unapplied, lineSchedule };
 }
