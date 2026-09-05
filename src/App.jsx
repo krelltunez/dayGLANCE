@@ -12,7 +12,7 @@ import { taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt,
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
 import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
-import { tombstoneCutoff } from './sync/tombstoneRetention.js';
+import { tombstoneCutoff, pruneCompletedTaskUids } from './sync/tombstoneRetention.js';
 import { preserveArchived } from './utils/preserveArchived.js';
 import { rescueUnsyncedTasks } from './utils/rescueUnsyncedTasks.js';
 import { withProjectMetadata } from '@glance-apps/obsidian-format';
@@ -5506,12 +5506,10 @@ const DayPlanner = () => {
     // avoid a stale-read race when a state change hasn't flushed to localStorage yet.
     // Task arrays need timestamp-stamping (mirrors saveData); tombstone maps that
     // have no React state counterpart still fall back to localStorage.
-    const uidCutoff = syncRetentionDays > 0 ? new Date(Date.now() - syncRetentionDays * 86400000) : null;
-    const prunedUids = [...completedTaskUids].filter(uid => {
-      if (!uidCutoff) return true;
-      const m = uid.match(/::(\d{4}-\d{2}-\d{2})$/);
-      return !m || new Date(m[1]) >= uidCutoff;
-    });
+    // completedTaskUids prunes at the FIXED window every writer applies
+    // (sync/tombstoneRetention.js, audit fix M7) — not at syncRetentionDays,
+    // which is per device and ping-ponged with the vault tier's union.
+    const prunedUids = pruneCompletedTaskUids(completedTaskUids);
     // Imported-task sync rule — the actual predicate lives in
     // src/sync/payloadExclusions.js (single source of truth, shared with the
     // DB engine's snapshot-delete classifier; see that module for the rule

@@ -876,7 +876,10 @@ export default function useObsidianSync({
             // The observed notes' mtimes are the revival evidence (§3.10
             // ruling 6): a scanned line whose tombstone predates its note's
             // mtime is re-admitted with lastModified lifted to that mtime.
-            const observedNoteMtimes = { ...noteMtimesFromDailyNotes(applied.dailyNotes), ...noteMtimesFromScopedNotes(applied.scopedNotes) };
+            // Real mtimes only (audit fix M10): a note the plugin reported
+            // without an mtime is no revival evidence at all.
+            const observedNoteMtimes = applied.noteMtimes
+              ?? { ...noteMtimesFromDailyNotes(applied.dailyNotes), ...noteMtimesFromScopedNotes(applied.scopedNotes) };
             // FIRST-IMPORT ASSIGNMENT (utils/obsidianUserScope.js): a task new
             // to the app is the vault's viewer's — here the pairing meta's
             // user, since every device on the account applies this stream.
@@ -1096,7 +1099,10 @@ export default function useObsidianSync({
       // The scanned notes' mtimes carry the revival evidence (§3.10 ruling 6),
       // so a verbatim re-creation revives on a direct scan exactly as it does
       // on an observation.
-      const scannedNoteMtimes = noteMtimesFromDailyNotes(result.dailyNotes);
+      // Real mtimes only (audit fix M10): the native scan's "now" fallback for
+      // an old bridge build is a note-text stamp, not the vault's statement
+      // time, so it is excluded from the evidence (result.noteMtimes).
+      const scannedNoteMtimes = result.noteMtimes ?? noteMtimesFromDailyNotes(result.dailyNotes);
       // FIRST-IMPORT ASSIGNMENT (utils/obsidianUserScope.js): on direct
       // access the vault is on this device, so the viewer is this device's
       // user. Known tasks keep the app's own assignment.

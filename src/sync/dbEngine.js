@@ -45,7 +45,8 @@ import {
 import { pruneAllTombstones, tombstoneCutoff } from './tombstoneRetention.js';
 import { partitionSnapshotDeletes, reassertPropagatedDeletes } from './snapshotDeleteGuard.js';
 import { isPayloadExcludedEntity, agedOutReleaseReason } from './payloadExclusions.js';
-import { shredHashes, hashMapsEqual, mergeMidCycleEdits } from './commitMerge.js';
+import { shredHashes, hashMapsEqual, hashEntity, mergeMidCycleEdits } from './commitMerge.js';
+import { noteGlitchUnresolved, clearGlitchUnresolved } from './glitchHealLatch.js';
 import { createSyncCycleBreaker, isRateLimitedError } from './syncBrakes.js';
 import { shouldSuppressReconcileDelete, consumeWarTripped } from './reconcileWarGuard.js';
 import {
@@ -414,13 +415,25 @@ export function createDbEngine(callbacks = {}) {
           }
         }
       }
-      // The vault's content for this row changed under us — whatever we last
-      // acked there is stale, so the no-op re-push skip below must not apply.
-      ackedUpsertHashes.delete(entityId);
       ackedDeletes.delete(entityId);
       // Bundle merges may leave us richer than the clobbered vault row; re-push
       // the superset so it converges at the vault (see dbAdapter / stage-2 doc).
       for (const id of adapterApplyRemoteEntity(mirror, entity)) engine.markDirty(id);
+      // The ack survives only if the vault still holds exactly what we acked
+      // (audit fix M5). A push never advances the pull cursor, so this
+      // device's OWN pushed rows re-list on the next pull; invalidating the
+      // ack on every applied row therefore threw away the ack for our own
+      // echo — and with a withheld snapshot the stale baseline then re-marked
+      // the row dirty: one identical, seq-advancing re-push every other cycle
+      // per changed insert-only row (singletons, recurring templates, whose
+      // merge is a union of identical content). Compare the applied mirror
+      // row's hash — the same hash the snapshot uses — against the ack: equal
+      // means the echo, keep it; different means real remote content, drop it.
+      const acked = ackedUpsertHashes.get(entityId);
+      if (acked !== undefined) {
+        const now = adapterGetLocalEntity(mirror, entityId);
+        if (now == null || hashEntity(now) !== acked) ackedUpsertHashes.delete(entityId);
+      }
     },
     applyRemoteDelete: (entityId) => {
       // TEMP diagnostic (gated): a remote DELETE row for a row we still hold live
@@ -869,8 +882,15 @@ export function createDbEngine(callbacks = {}) {
       let healRateLimited = false;
       if (glitchSkipped.length) {
         const heal = await healGlitchSkips(glitchSkipped);
-        glitchUnresolved = heal.unresolved;
         healRateLimited = heal.rateLimited;
+        // GLITCH-HEAL LATCH (audit fix M6; sync/glitchHealLatch.js): an id
+        // unresolved on enough attempts over enough wall-clock time is
+        // released from the unresolved set, so a persistently unhealable row
+        // cannot withhold the snapshot forever. Resolved ids end their streak.
+        const unresolvedSet = new Set(heal.unresolved);
+        for (const eid of glitchSkipped) if (!unresolvedSet.has(eid)) clearGlitchUnresolved(eid);
+        const nowMs = Date.now();
+        glitchUnresolved = heal.unresolved.filter((eid) => !noteGlitchUnresolved(eid, nowMs));
       }
       // THE POLARITY REASSERT (2026-08-31 war — the engine upsert-flip; full
       // argument on reassertPropagatedDeletes): the push decides upsert-vs-
@@ -997,7 +1017,13 @@ export function createDbEngine(callbacks = {}) {
           }
         }
       }
-      await engine.updateDeviceCursor();
+      // (The device-cursor report moved BELOW the commit — audit low: it
+      // reads the live HWM, and a commit-phase throw rolls that HWM back in
+      // the catch, so a report made here left the server's lastSeenSeq ahead
+      // of what this device had committed; a tombstone GC'd in that gap was
+      // never re-pulled. Reporting after the commit keeps the invariant the
+      // rollback exists for: the server never believes we consumed more than
+      // we kept.)
 
       // ── MERGE-AWARE COMMIT ─────────────────────────────────────────────────
       // The mirror was cloned from app state at cycle START; any user write made
@@ -1092,6 +1118,9 @@ export function createDbEngine(callbacks = {}) {
           glitchUnresolved.slice(0, 25), glitchUnresolved.length > 25 ? `(+${glitchUnresolved.length - 25} more)` : ''
         );
       }
+      // Device cursor: reported only once the pulled state is committed and
+      // the HWM can no longer be rolled back (see the note above the commit).
+      await engine.updateDeviceCursor();
       // This cycle COMPLETED (pull ran; push ran or was window-suppressed),
       // so it served whatever any gated trigger was announcing — a
       // still-pending deferred retry would just run a pointless extra
