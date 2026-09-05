@@ -49,6 +49,7 @@ import {
   BRIDGE_INTENT_PREFIX,
   noteKeyForPath,
   noteInScope,
+  normalizeScope,
   scopeIsActive,
   completedSinceFor,
   PROJECT_NOTE_ID_KEY,
@@ -982,6 +983,27 @@ export class BridgeTransport {
       if (!(await this.emitLink({ targetId: prev, path, unlinked: true }))) this.linked.set(path, prev);
     }
     void this.persistLinked();
+    this.linkScopeChanged(path);
+  }
+
+  /**
+   * The link is the scope (companion §4.3, project routing): a note that
+   * became linked is adopted on the spot; one that stopped being linked is
+   * withdrawn (ruling C) unless the folder/tag scope still holds it.
+   */
+  private linkScopeChanged(path: string): void {
+    if (this.isDailyNote(path)) return;
+    const scoped = this.scopedNote(path);
+    if (scoped && !this.adopted.has(path)) {
+      this.adopted.add(path);
+      this.armObserve(path, false, 0);
+      void this.persistAdopted();
+    } else if (!scoped && this.adopted.has(path)) {
+      this.adopted.delete(path);
+      this.scopedPaths.delete(path);
+      void this.emitWithdrawal(path);
+      void this.persistAdopted();
+    }
   }
 
   /** A note's metadata changed (frontmatter edits arrive here, not on modify). */
@@ -1294,8 +1316,14 @@ export class BridgeTransport {
 
   // ── Vault task scope (companion §6) ──────────────────────────────────────
 
-  /** A non-daily note in the user's scope (folders and/or tags, ruling D). */
+  /**
+   * A non-daily note in the user's scope (folders and/or tags, ruling D) —
+   * or a note LINKED to a dayGLANCE project or goal (companion §4.3, project
+   * routing): the link is the scope. A project's task list lives in its
+   * note, so the note is observed whether or not its folder is scoped.
+   */
   private scopedNote(path: string): boolean {
+    if (this.linked.has(path)) return !this.isDailyNote(path);
     const scope = this.host.getScope?.() ?? null;
     if (!scope || !scopeIsActive(scope)) return false;
     if (!path.endsWith('.md') || path.startsWith('.') || this.isDailyNote(path)) return false;
@@ -1315,7 +1343,9 @@ export class BridgeTransport {
   /** Stamp options: the completion window applies to scoped notes only (ruling E). */
   private stampOptions(path: string): { completedSince: string | null } {
     if (this.dailyNoteDate(path)) return { completedSince: null };
-    const scope = this.host.getScope?.() ?? null;
+    // A linked note with no scope setting takes the default window: the
+    // window governs adoption of untracked completed lines only.
+    const scope = this.host.getScope?.() ?? (this.linked.has(path) ? normalizeScope(null) : null);
     if (!scope) return { completedSince: null };
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -1331,7 +1361,7 @@ export class BridgeTransport {
   adoptTick(): void {
     if (this.disposed || !this.host.getPairing()) return;
     const scope = this.host.getScope?.() ?? null;
-    if (!scope || !scopeIsActive(scope)) return;
+    if (!(scope && scopeIsActive(scope)) && this.linked.size === 0) return;
     if (!this.adoptScanned) {
       this.adoptScanned = true;
       this.adoptQueue = this.host.app.vault.getMarkdownFiles()

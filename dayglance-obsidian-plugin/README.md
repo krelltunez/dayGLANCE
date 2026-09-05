@@ -93,6 +93,14 @@ manually or via BRAT, not submitted to the community directory.
   template asks nothing interactively, otherwise `{{title}}`, `{{date}}`
   and `{{goal}}` are filled and the rest is left visible). Placement happens
   at creation only; linking an existing note never creates or moves.
+  **A project's tasks live in its note** (companion §4.3, project routing):
+  a task assigned to a linked project in dayGLANCE is written into the
+  note's `## Tasks` section (created there, moved there on reassignment,
+  removed on unassignment, its schedule as line metadata), and a task typed
+  in the note imports assigned to the project. A linked note is in the task
+  scope by virtue of the link, folder setting or not. The plugin applies
+  `task_append` (note-task placement: section end, never sorted, never a
+  missing note) and `task_remove` (the line carrying a block id) for this.
 - Six commands: **Sync now** (drains pending intents + refreshes the
   heartbeat), **Enter pairing code**, **Unpair from GLANCEvault**
   (forgets the local credentials and the account key; revoke the token

@@ -70,6 +70,7 @@
 // persisting its applied-ID set simply re-applies as no-ops.
 
 import { updateTaskLines, sortTaskLinesInSection, buildObsidianTaskLine } from './taskLines.js';
+import { splitBlockId } from './identity.js';
 import { withCreationFrontmatter } from './frontmatter.js';
 import { validateWikiNoteName } from './filename.js';
 
@@ -269,6 +270,16 @@ export function applyBridgeIntent(currentText, intent) {
       // guard the transport gets for free from being called once: a line
       // already carrying the task's block id (or the exact line, for a
       // tokenless task) means this intent has landed — replay is a no-op.
+      //
+      // NOTE TASK (companion §4.3, project routing): `noteTask: true`
+      // targets a linked project or goal note rather than a daily note.
+      // Three differences, all because the note is the user's document:
+      // a missing note is never created (a deleted project note stays
+      // deleted; dayGLANCE's missing-note state is the surface), the line
+      // goes at the END of the heading's section rather than the top, and
+      // the section is never sorted.
+      const noteTask = intent.noteTask === true;
+      if (noteTask && currentText === null) return { text: null, changed: false };
       const taskLine = buildObsidianTaskLine(intent.task, intent.date);
       if (currentText !== null) {
         const existingLines = currentText.split('\n');
@@ -301,7 +312,15 @@ export function applyBridgeIntent(currentText, intent) {
       if (heading && heading.trim()) {
         const headingStr = heading.trim();
         const headingLineIdx = lines.findIndex((l) => l === headingStr);
-        if (headingLineIdx !== -1) {
+        if (headingLineIdx !== -1 && noteTask) {
+          // Section end: after the last non-blank line before the next
+          // heading (or the end of the note).
+          let end = headingLineIdx + 1;
+          while (end < lines.length && !/^#{1,6}\s/.test(lines[end])) end++;
+          let at = end;
+          while (at > headingLineIdx + 1 && lines[at - 1].trim() === '') at--;
+          lines.splice(at, 0, taskLine);
+        } else if (headingLineIdx !== -1) {
           lines.splice(headingLineIdx + 1, 0, taskLine);
         } else {
           if (lines[lines.length - 1] !== '') lines.push('');
@@ -311,10 +330,34 @@ export function applyBridgeIntent(currentText, intent) {
         if (lines[lines.length - 1] !== '') lines.push('');
         lines.push(taskLine);
       }
-      const sorted = heading && heading.trim()
+      const sorted = heading && heading.trim() && !noteTask
         ? sortTaskLinesInSection(lines, heading.trim(), intent.date)
         : lines;
       return { text: sorted.join('\n'), changed: true };
+    }
+
+    case 'task_remove': {
+      // The line leaves the note (companion §4.3, project routing: a task
+      // unassigned from a linked project, or moved to another project's
+      // note). Matched by block id — the only identity a line has once it
+      // is stamped — or, for a tokenless line, by its exact raw title.
+      // Idempotent: no matching line means the removal has landed. Only
+      // the line goes; the section, its heading and its other lines are the
+      // user's.
+      if (currentText === null) return { text: null, changed: false };
+      const lines = currentText.split('\n');
+      const wantId = intent.blockId ? String(intent.blockId) : null;
+      const wantRaw = typeof intent.obsidianRawTitle === 'string' ? intent.obsidianRawTitle.trim() : null;
+      const idx = lines.findIndex((line) => {
+        const m = line.match(/^\s*- \[[ xX]\]\s+(.+)$/);
+        if (!m) return false;
+        const { text: body, blockId: lineId } = splitBlockId(m[1].trim());
+        if (wantId) return lineId === wantId;
+        return !lineId && wantRaw !== null && body.trim() === wantRaw;
+      });
+      if (idx === -1) return { text: currentText, changed: false };
+      lines.splice(idx, 1);
+      return { text: lines.join('\n'), changed: true };
     }
 
     case 'completion_log_append': {

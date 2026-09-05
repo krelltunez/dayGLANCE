@@ -248,3 +248,42 @@ describe('applyBridgeIntent — notes', () => {
     expect(applyBridgeIntent('x', null)).toEqual({ unsupported: true });
   });
 });
+
+describe('applyBridgeIntent — note tasks (companion §4.3, project routing)', () => {
+  const note = '---\ndayglance-id: p1\n---\n# House\n\n## Tasks\n- [ ] Fix the gate ^dg-aaaaaaaa\n- [ ] Paint the fence ^dg-bbbbbbbb\n\n## Done\nquery here\n';
+  const append = {
+    type: 'task_append', path: 'Projects/House.md', date: null, noteTask: true,
+    task: { title: 'Call the plumber [scheduled:: 2026-09-10]', startTime: '10:00', duration: 30, isAllDay: false, blockId: 'cccccccc' },
+    heading: '## Tasks',
+  };
+
+  it('appends at the END of the Tasks section, before the next heading, without sorting', () => {
+    const out = applyBridgeIntent(note, append);
+    expect(out.changed).toBe(true);
+    expect(out.text).toBe('---\ndayglance-id: p1\n---\n# House\n\n## Tasks\n- [ ] Fix the gate ^dg-aaaaaaaa\n- [ ] Paint the fence ^dg-bbbbbbbb\n- [ ] 10:00-10:30 Call the plumber [scheduled:: 2026-09-10] ^dg-cccccccc\n\n## Done\nquery here\n');
+    expect(applyBridgeIntent(out.text, append).changed).toBe(false); // replay
+  });
+
+  it('never creates a missing note (a deleted project note stays deleted)', () => {
+    expect(applyBridgeIntent(null, append)).toEqual({ text: null, changed: false });
+  });
+
+  it('adds the heading at the end when the note has none', () => {
+    const out = applyBridgeIntent('# House\nsome text\n', append);
+    expect(out.text).toBe('# House\nsome text\n\n## Tasks\n- [ ] 10:00-10:30 Call the plumber [scheduled:: 2026-09-10] ^dg-cccccccc\n');
+  });
+
+  it('task_remove drops exactly the line carrying the block id; replay is a no-op; other lines untouched', () => {
+    const out = applyBridgeIntent(note, { type: 'task_remove', path: 'Projects/House.md', blockId: 'aaaaaaaa' });
+    expect(out.changed).toBe(true);
+    expect(out.text).toBe('---\ndayglance-id: p1\n---\n# House\n\n## Tasks\n- [ ] Paint the fence ^dg-bbbbbbbb\n\n## Done\nquery here\n');
+    expect(applyBridgeIntent(out.text, { type: 'task_remove', path: 'Projects/House.md', blockId: 'aaaaaaaa' }).changed).toBe(false);
+    expect(applyBridgeIntent(null, { type: 'task_remove', path: 'x.md', blockId: 'aaaaaaaa' })).toEqual({ text: null, changed: false });
+  });
+
+  it('task_remove without a block id matches a tokenless line by its exact raw title only', () => {
+    const plain = '## Tasks\n- [ ] Alpha\n- [x] Alpha ^dg-dddddddd\n- [ ] Beta\n';
+    const out = applyBridgeIntent(plain, { type: 'task_remove', path: 'n.md', blockId: null, obsidianRawTitle: 'Alpha' });
+    expect(out.text).toBe('## Tasks\n- [x] Alpha ^dg-dddddddd\n- [ ] Beta\n');
+  });
+});

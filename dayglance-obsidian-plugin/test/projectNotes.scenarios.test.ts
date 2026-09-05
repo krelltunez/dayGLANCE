@@ -83,12 +83,26 @@ function mountDevice(name: string, lists: { projects?: Row[]; goals?: Row[] } = 
         if (JSON.parse(store.get('dayglance-bridge-outbox') ?? '[]').length === 0) break;
       }
     }),
-    writeback: () => run(async () => { for (const e of myEffects) if (e.deps?.length === 3) e.fn(); await advanceFake(50); await until(flushBridgeOutbox()); }),
+    /** Run the writeback effect, then push EVERYTHING it queued (a pass can emit several intents; the first emit's own flush may read the outbox before the rest land). */
+    writeback: () => run(async () => {
+      for (const e of myEffects) if (e.deps?.length === 3) e.fn();
+      await advanceFake(50);
+      for (let i = 0; i < 6; i++) {
+        await until(flushBridgeOutbox());
+        if (JSON.parse(store.get('dayglance-bridge-outbox') ?? '[]').length === 0) break;
+      }
+    }),
     patch: (id: string, fields: Row) => {
       const bump = (list: Row[]) => list.map((x) => (x.id === id ? { ...x, ...fields, lastModified: new Date().toISOString() } : x));
       setTasks(bump); setUnscheduledTasks(bump);
     },
     all: () => [...state.tasks, ...state.inbox],
+    /** A task born in dayGLANCE (random id, no vault fields), scheduled or in the inbox. */
+    add: (task: Row) => {
+      const t = { id: `t-${Math.random().toString(36).slice(2, 10)}`, completed: false, lastModified: new Date().toISOString(), ...task };
+      if (t.date) setTasks((prev) => [...prev, t]); else setUnscheduledTasks((prev) => [...prev, t]);
+      return t.id;
+    },
   };
 }
 
@@ -191,8 +205,8 @@ describe('project and goal notes: creation, the maintained map, the project fiel
     expect(s.plugin.app.vault.writes).toBe(writes + 1);
   });
 
-  it('4. a daily-note task reassigned in dayGLANCE gets the project wikilink on its line; an Obsidian edit of the field reassigns it back', async () => {
-    const projects = [{ id: 'p1', title: 'House', status: 'active', obsidianNotePath: 'Projects/House.md' }, { id: 'p2', title: 'Garden', status: 'active' }];
+  it('4. a daily-note task reassigned to an UNLINKED project gets the project field on its line; an Obsidian edit of the field reassigns it back', async () => {
+    const projects = [{ id: 'p2', title: 'Garden', status: 'active' }, { id: 'p3', title: 'Attic', status: 'active' }];
     await boot({ projects });
     await s.write('Daily/2026-09-04.md', '## Tasks\n- [ ] Call the plumber\n');
     for (let i = 0; i < 40; i++) await s.advance(1000);
@@ -201,20 +215,158 @@ describe('project and goal notes: creation, the maintained map, the project fiel
     expect(task.id).toMatch(/^obsidian-dg-/);
     expect(task.projectId).toBeUndefined();
 
-    A.patch(task.id, { projectId: 'p1' });
+    A.patch(task.id, { projectId: 'p2' });
     await A.writeback();
     await s.plugin.transport.drain();
-    // The note's basename equals the title, so the wikilink needs no alias.
-    expect(s.text('Daily/2026-09-04.md')).toMatch(/- \[ \] Call the plumber \[project:: \[\[Projects\/House\]\]\] \^dg-/);
-    for (let i = 0; i < 40; i++) await s.advance(1000);
-    await A.sync();
-    expect(A.all()[0].projectId).toBe('p1');
-    expect(A.all()[0].title).toBe('Call the plumber #obsidian');
-
-    const edited = s.text('Daily/2026-09-04.md')!.replace('[project:: [[Projects/House]]]', '[project:: Garden]');
-    await s.write('Daily/2026-09-04.md', edited);
+    expect(s.text('Daily/2026-09-04.md')).toMatch(/- \[ \] Call the plumber \[project:: Garden\] \^dg-/);
     for (let i = 0; i < 40; i++) await s.advance(1000);
     await A.sync();
     expect(A.all()[0].projectId).toBe('p2');
+    expect(A.all()[0].title).toBe('Call the plumber #obsidian');
+
+    const edited = s.text('Daily/2026-09-04.md')!.replace('[project:: Garden]', '[project:: Attic]');
+    await s.write('Daily/2026-09-04.md', edited);
+    for (let i = 0; i < 40; i++) await s.advance(1000);
+    await A.sync();
+    expect(A.all()[0].projectId).toBe('p3');
+  });
+
+  // ── Project routing (owner, 2026-09-05): a task assigned to a linked
+  // project LIVES in that note. No folder scope is set in any of these:
+  // the link is the scope.
+  const NOTE = 'Projects/House.md';
+  async function bootLinked(extraProjects: Row[] = []): Promise<Row> {
+    const project = { id: 'p1', title: 'House', status: 'active' };
+    await boot({ projects: [project, ...extraProjects] });
+    expect(A.api.createProjectNote('project', 'p1', { title: 'House' })).toBe(true);
+    await A.flush();
+    await s.plugin.transport.drain();
+    await s.advance(3000);
+    await A.sync();
+    expect(project.obsidianNotePath).toBe(NOTE);
+    expect(s.plugin.transport.linkedNotes().has(NOTE)).toBe(true);
+    return project;
+  }
+  const lineFor = (title: string) => new RegExp(`- \\[ \\] ${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\^dg-[a-z0-9]{8}`);
+
+  it('5. a task born in dayGLANCE under a linked project lands in the note under a derived token, the schedule as metadata, and round-trips under that id', async () => {
+    await bootLinked();
+    const before = A.all().length;
+    const scheduledId = A.add({ title: 'Buy hinges', projectId: 'p1', date: '2026-09-06', startTime: '10:00', duration: 30 });
+    const inboxId = A.add({ title: 'Price the gate', projectId: 'p1' });
+    await A.writeback();
+    await s.plugin.transport.drain();
+    const text = s.text(NOTE)!;
+    expect(text).toMatch(/- \[ \] 10:00-10:30 Buy hinges \[scheduled:: 2026-09-06\] \^dg-[a-z0-9]{8}/);
+    expect(text).toMatch(lineFor('Price the gate'));
+    // Under ## Tasks, at the section's end, before ## Done.
+    expect(text.indexOf('## Tasks')).toBeLessThan(text.indexOf('Buy hinges'));
+    expect(text.indexOf('Buy hinges')).toBeLessThan(text.indexOf('## Done'));
+    // Identity moved on enqueue: the app task now carries the derived id and its home.
+    const bound = A.all().filter((t) => t.projectId === 'p1');
+    expect(bound).toHaveLength(2);
+    for (const t of bound) {
+      expect(t.id).toMatch(/^obsidian-dg-/);
+      expect(t.obsidianNotePath).toBe(NOTE);
+      expect(t.importSource).toBe('obsidian');
+      expect(t.title).toMatch(/ #obsidian$/);
+    }
+    expect(A.all().find((t) => t.id === scheduledId)).toBeUndefined();
+    expect(A.all().find((t) => t.id === inboxId)).toBeUndefined();
+    const ids = bound.map((t) => t.id).sort();
+    // The observation round trip keeps ONE task per line, same ids, same assignment and schedule.
+    await s.settle();
+    await A.sync();
+    expect(A.all().length).toBe(before + 2);
+    expect(A.all().filter((t) => t.projectId === 'p1').map((t) => t.id).sort()).toEqual(ids);
+    expect(A.state.tasks.find((t) => t.title.startsWith('Buy hinges'))).toMatchObject({ date: '2026-09-06', startTime: '10:00', projectId: 'p1' });
+    expect(A.state.inbox.find((t) => t.title.startsWith('Price the gate'))).toMatchObject({ projectId: 'p1' });
+    // A second writeback pass writes nothing more.
+    const writes = s.plugin.app.vault.writes;
+    await A.writeback();
+    await s.plugin.transport.drain();
+    expect(s.plugin.app.vault.writes).toBe(writes);
+  });
+
+  it('6. assigning an existing daily-note task moves its line into the note under the SAME id; unassigning removes the line and the task stays in dayGLANCE, app-only', async () => {
+    await bootLinked();
+    await s.write('Daily/2026-09-04.md', '## Tasks\n- [ ] Call the plumber\n');
+    await s.settle();
+    await A.sync();
+    const task = A.all().find((t) => t.title.startsWith('Call the plumber'))!;
+    const id = task.id;
+    expect(task.obsidianFileDate).toBe('2026-09-04');
+
+    A.patch(id, { projectId: 'p1' });
+    await A.writeback();
+    await s.plugin.transport.drain();
+    expect(s.text('Daily/2026-09-04.md')).not.toContain('Call the plumber');
+    expect(s.text(NOTE)).toMatch(new RegExp(`- \\[ \\] Call the plumber \\^dg-${id.slice('obsidian-dg-'.length)}`));
+    expect(A.all().find((t) => t.id === id)).toMatchObject({ obsidianNotePath: NOTE, projectId: 'p1' });
+    // Both notes re-observed, in whatever order: still one task, same id.
+    await s.settle();
+    await A.sync();
+    await s.advance(100_000);
+    await A.sync();
+    expect(A.all().filter((t) => t.title.startsWith('Call the plumber')).map((t) => t.id)).toEqual([id]);
+    expect(A.all().find((t) => t.id === id)).toMatchObject({ obsidianNotePath: NOTE, projectId: 'p1' });
+
+    A.patch(id, { projectId: undefined });
+    await A.writeback();
+    await s.plugin.transport.drain();
+    expect(s.text(NOTE)).not.toContain('Call the plumber');
+    expect(s.text('Daily/2026-09-04.md')).not.toContain('Call the plumber');
+    const gone = A.all().find((t) => t.id === id)!;
+    expect(gone).toBeDefined();
+    expect(gone.importSource).toBeNull();
+    expect(gone.obsidianNotePath).toBeNull();
+    expect(gone.obsidianBlockId).toBe(id.slice('obsidian-dg-'.length)); // the token is for life
+    // The note's next observation (line absent) tombstones nothing: no task claims it.
+    await s.settle();
+    await A.sync();
+    await s.advance(100_000);
+    await A.sync();
+    expect(A.all().filter((t) => t.id === id)).toHaveLength(1);
+  });
+
+  it('7. a line typed in the linked note imports assigned (the link is the scope); reassigning to another linked project moves it between notes', async () => {
+    await bootLinked([{ id: 'p2', title: 'Garden', status: 'active' }]);
+    expect(A.api.createProjectNote('project', 'p2', { title: 'Garden' })).toBe(true);
+    await A.flush();
+    await s.plugin.transport.drain();
+    await s.advance(3000);
+    await A.sync();
+    const GARDEN = 'Projects/Garden.md';
+    expect(s.plugin.transport.linkedNotes().has(GARDEN)).toBe(true);
+
+    await s.write(NOTE, s.text(NOTE)!.replace('## Tasks\n', '## Tasks\n- [ ] Fix the gate\n'));
+    await s.settle();
+    await A.sync();
+    const task = A.all().find((t) => t.title.startsWith('Fix the gate'))!;
+    expect(task).toMatchObject({ projectId: 'p1', obsidianNotePath: NOTE });
+    expect(task.id).toMatch(/^obsidian-dg-/);
+
+    A.patch(task.id, { projectId: 'p2' });
+    await A.writeback();
+    await s.plugin.transport.drain();
+    expect(s.text(NOTE)).not.toContain('Fix the gate');
+    expect(s.text(GARDEN)).toMatch(new RegExp(`- \\[ \\] Fix the gate \\^dg-${task.id.slice('obsidian-dg-'.length)}`));
+    await s.settle();
+    await A.sync();
+    await s.advance(100_000);
+    await A.sync();
+    expect(A.all().filter((t) => t.title.startsWith('Fix the gate')).map((t) => t.id)).toEqual([task.id]);
+    expect(A.all().find((t) => t.id === task.id)).toMatchObject({ projectId: 'p2', obsidianNotePath: GARDEN });
+  });
+
+  it('8. a fresh link fills the note over passes, not in one burst', async () => {
+    await bootLinked();
+    for (let i = 0; i < 30; i++) A.add({ title: `Chore ${String(i).padStart(2, '0')}`, projectId: 'p1' });
+    await A.writeback();
+    await s.plugin.transport.drain();
+    expect((s.text(NOTE)!.match(/- \[ \] Chore /g) ?? []).length).toBe(25);
+    await A.writeback();
+    await s.plugin.transport.drain();
+    expect((s.text(NOTE)!.match(/- \[ \] Chore /g) ?? []).length).toBe(30);
   });
 });

@@ -38,6 +38,12 @@ import { writebackSnapshotEntry } from '../utils/obsidianWritebackSnapshot.js';
 import { emitBridgeIntent, flushBridgeOutbox, publishBridgeConfig, publishBridgeCalendarProjection, getBridgePairingMeta, cachedBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
 import { vaultViewerFor, visibleToViewer, assignVaultViewer, knownTaskIds } from '../utils/obsidianUserScope.js';
 import { writebackTargetFor } from '../utils/obsidianWritebackTarget.js';
+
+// PLACEMENT pacing (companion §4.3, project routing): at most this many
+// tasks bound, moved or removed per writeback pass. A fresh link fills its
+// note over a few passes; a vault-wide burst of line writes is the shape
+// that has started wars (the declined-backfill cost record).
+const PLACEMENT_PER_PASS = 25;
 import { noteTaskId, withScheduledMetadata, withProjectMetadata } from '@glance-apps/obsidian-format';
 import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations } from '../utils/obsidianBridgeInbound.js';
 import {
@@ -1404,7 +1410,109 @@ export default function useObsidianSync({
     } catch { remintTombstoneBundles = []; }
     const writebackLiveIds = new Set(allObsidian.map(t => String(t.id)));
 
+    // ── PLACEMENT (companion §4.3, project routing; owner 2026-09-05) ────
+    // A task assigned to a project with a linked note LIVES IN THAT NOTE:
+    // its line is created there, moved there on reassignment, removed on
+    // unassignment. The project card and the note's task list are one
+    // list. Reconciled here, every pass, from what the task says about its
+    // home (obsidianNotePath) against what its assignment implies — so
+    // every assignment site in the app is covered without knowing this
+    // step exists. Plugin-authoritative only (ruling F: non-daily notes
+    // are plugin-only until the direct tier's own PR). Open tasks only:
+    // a completed task's record is the completion log. Paced, see
+    // PLACEMENT_PER_PASS. Identity: a token is for life — a task without
+    // one gets it here, in the new note's namespace (ruling A), through
+    // the same re-mint refusal as every minting site, and the id switch
+    // commits on enqueue like every identity move (gate (a)).
+    const placed = new Set();
+    if (authoritative && blockIdWritesEnabled()) {
+      const projectsNow = projectsRef.current || [];
+      const noteOf = (pr) => (pr && pr.obsidianNotePath && !pr.obsidianNoteMissingAt ? normalizeNotePath(pr.obsidianNotePath) : null);
+      const linkedProjectPaths = new Set(projectsNow.map(noteOf).filter(Boolean));
+      const homeFor = (t) => noteOf(t.projectId ? projectsNow.find(pr => pr && String(pr.id) === String(t.projectId)) : null);
+      const schedFmt = tasksPluginRef.current ? 'tasks' : 'dataview';
+      let budget = PLACEMENT_PER_PASS;
+      for (const task of [...tasks, ...unscheduledTasks]) {
+        if (budget <= 0) break;
+        if (!task || task.archived || task.recurrence || task.recurringTemplateId) continue;
+        if (!visibleToViewer(task, writeViewer)) continue;
+        const isVault = task.importSource === 'obsidian' && !!task.obsidianRawTitle;
+        const here = isVault && task.obsidianNotePath ? normalizeNotePath(task.obsidianNotePath) : null;
+        const home = homeFor(task);
+        // Into (or between) linked notes: the task is open and not already home.
+        const wantsMove = !!home && !task.completed && here !== home;
+        // Out of a linked note with nowhere to go: unassigned, reassigned to
+        // an unlinked project, or completed while being reassigned.
+        const leaves = isVault && !!here && linkedProjectPaths.has(here) && here !== home && !wantsMove;
+        if (!wantsMove && !leaves) continue;
+        budget--;
+
+        // The line as it will read in its new home: no project field (the
+        // note is the project, ruling H), the schedule as metadata (B).
+        const baseRaw = isVault ? task.obsidianRawTitle : String(task.title || '').replace(/\s*#obsidian\b/gi, '').trim();
+        const rawTitle = wantsMove ? withScheduledMetadata(withProjectMetadata(baseRaw, null), task.date || null, schedFmt) : null;
+
+        let blockId = task.obsidianBlockId || null;
+        let minted = null;
+        if (wantsMove && !blockId) {
+          minted = deriveBlockId(home, rawTitle);
+          if (isTombstonedRemint(remintRecord, task.id, appIdForBlockId(minted), remintTombstoneBundles, writebackLiveIds)) {
+            console.error(`Obsidian: REFUSING to re-mint ^dg-${minted} for ${task.id} while placing it in ${home} (retire/tombstone oscillation guard).`);
+            continue;
+          }
+          blockId = minted;
+        }
+
+        // The old line goes, then the new one lands. The two notes'
+        // observations may arrive in either order — the cross-note case
+        // the wall-clock confirmation hold exists for.
+        let ok = true;
+        if (isVault) {
+          const from = writebackTargetFor(task, obsidianConfig);
+          if (from) ok = !!emitBridgeIntent('task_remove', { path: from.path, blockId: task.obsidianBlockId || null, obsidianRawTitle: task.obsidianRawTitle });
+        }
+        if (wantsMove && ok) {
+          ok = !!emitBridgeIntent('task_append', {
+            path: home, date: null, noteTask: true, heading: '## Tasks',
+            task: {
+              title: rawTitle,
+              startTime: task.isAllDay ? null : (task.startTime || null),
+              duration: task.isAllDay ? null : (task.duration || null),
+              isAllDay: !!task.isAllDay,
+              blockId,
+            },
+          });
+        }
+        if (!ok) { reportTaskWriteFailure(); continue; }
+        placed.add(String(task.id));
+
+        // Commit on enqueue (gate (a), the general rule): the outbox is
+        // durable, so the enqueue is the write and the bookkeeping rides it.
+        // Deferred via nativeCommits so the snapshot moves operate on the
+        // fresh snapshot, like every confirmed write.
+        const oldId = task.id;
+        const newId = minted ? appIdForBlockId(minted) : task.id;
+        const displayTitle = /#obsidian\b/i.test(String(task.title || '')) ? task.title : `${String(task.title || '').trim()} #obsidian`;
+        const fields = wantsMove
+          ? { id: newId, importSource: 'obsidian', obsidianRawTitle: rawTitle, obsidianNotePath: home, obsidianFileDate: undefined, obsidianBlockId: blockId, title: displayTitle }
+          // Leaving the vault: app-only again, the token kept for life.
+          : { importSource: null, obsidianRawTitle: null, obsidianNotePath: null, obsidianFileDate: undefined };
+        nativeCommits.push(() => {
+          const apply = t => (t.id === oldId ? { ...t, ...fields } : t);
+          setTasks(prevTasks => prevTasks.map(apply));
+          setUnscheduledTasks(prevTasks => prevTasks.map(apply));
+          const snap = obsidianPrevTaskStateRef.current;
+          delete snap[oldId];
+          if (wantsMove) {
+            snap[newId] = { completed: task.completed, startTime: task.startTime || null, duration: task.duration || null, title: displayTitle, date: task.date || null, projectId: task.projectId || null };
+            if (minted) recordRetirements([oldId], newId);
+          }
+        });
+      }
+    }
+
     for (const task of allObsidian) {
+      if (placed.has(String(task.id))) continue;
       const p = prev[task.id];
       if (!p) continue;
 
@@ -1750,7 +1858,7 @@ export default function useObsidianSync({
     // Include date so we can detect future rescheduling to a different day.
     const next = {};
     for (const task of allObsidian) {
-      next[task.id] = { completed: task.completed, startTime: task.startTime || null, duration: task.duration || null, title: task.title, date: task.date || null };
+      next[task.id] = { completed: task.completed, startTime: task.startTime || null, duration: task.duration || null, title: task.title, date: task.date || null, projectId: task.projectId || null };
     }
     obsidianPrevTaskStateRef.current = next;
 
