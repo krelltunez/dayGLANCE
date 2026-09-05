@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { recordOwnWriteSeq, isOwnWriteSeq, withOwnAckRecording, __resetOwnWritesForTests } from './ownWrites.js';
+import { recordOwnWriteSeq, isOwnWriteSeq, withOwnAckRecording, __resetOwnWritesForTests, OWN_ACK_TTL_MS } from './ownWrites.js';
 import { createNudgeCoalescer } from './vaultEventStream.js';
 
 // OWN-ECHO SSE DAMPING (#1455). The server emits each nudge with THE WRITING
@@ -31,18 +31,20 @@ describe('own-write ack registry', () => {
     expect(isOwnWriteSeq(7)).toBe(false);
   });
 
-  it('is bounded: old acks age out of the ring, recent ones stay', () => {
-    for (let i = 1; i <= 70; i++) recordOwnWriteSeq(i);
-    expect(isOwnWriteSeq(1)).toBe(false);   // evicted (capacity 64)
-    expect(isOwnWriteSeq(6)).toBe(false);   // evicted
-    expect(isOwnWriteSeq(7)).toBe(true);    // oldest survivor
-    expect(isOwnWriteSeq(70)).toBe(true);
+  it('is bounded IN TIME, not in count: a bulk push of hundreds of acks keeps every one; an ack older than the TTL is forgotten', () => {
+    const t0 = 1_000_000;
+    for (let i = 1; i <= 500; i++) recordOwnWriteSeq(i, t0); // a >64-row bulk delete, all in flight
+    expect(isOwnWriteSeq(1, t0 + 1000)).toBe(true);
+    expect(isOwnWriteSeq(500, t0 + 1000)).toBe(true);
+    recordOwnWriteSeq(501, t0 + OWN_ACK_TTL_MS + 1); // a later ack prunes the expired window
+    expect(isOwnWriteSeq(1, t0 + OWN_ACK_TTL_MS + 1)).toBe(false);
+    expect(isOwnWriteSeq(500, t0 + OWN_ACK_TTL_MS + 1)).toBe(false);
+    expect(isOwnWriteSeq(501, t0 + OWN_ACK_TTL_MS + 1)).toBe(true);
   });
 
-  it('dedupes a re-recorded ack without burning capacity', () => {
+  it('dedupes a re-recorded ack', () => {
     recordOwnWriteSeq(5);
     recordOwnWriteSeq(5);
-    for (let i = 100; i < 163; i++) recordOwnWriteSeq(i); // 63 more — exactly fills
     expect(isOwnWriteSeq(5)).toBe(true);
   });
 });
