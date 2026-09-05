@@ -123,8 +123,10 @@ export function pruneAllTombstones(data, cutoff = tombstoneCutoff()) {
   // fixed window, keyed on retiredAt — but its values are objects, not bare ISO
   // strings, so it cannot ride TOMBSTONE_BUNDLE_KEYS / pruneTombstoneMap. Its
   // own pruner keeps the two transports in the same lockstep.
+  // The bundles were pruned above, so an entry survives past the cutoff only
+  // while a tombstone that itself survives still names its successor (M9).
   if (data.retiredTaskIds && typeof data.retiredTaskIds === 'object') {
-    const pruned = pruneRetiredTaskIds(data.retiredTaskIds, cutoff);
+    const pruned = pruneRetiredTaskIds(data.retiredTaskIds, cutoff, [data.deletedTaskIds, data.deletedObsidianKeys]);
     if (pruned !== data.retiredTaskIds) {
       data.retiredTaskIds = pruned;
       changed = true;

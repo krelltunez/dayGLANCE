@@ -4,7 +4,8 @@ import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, Chev
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { hasNativeCalendar, electronGetCalendars, electronGetEventsByDate, electronRequestCalendarAccess, nativeEventToTask } from './utils/nativeCalendar.js';
 import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeWriteDailyNote, nativeClearVault, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeGetWidgetPendingAction, triggerHaptic } from './native.js';
-import { writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, simpleHash as obsidianSimpleHash, buildNewObsidianTaskMeta, appendTaskToDailyNote, appendTaskToDailyNoteNative, dailyNoteFilename } from './obsidian.js';
+import { readDailyNoteFresh, readDailyNoteNative, simpleHash as obsidianSimpleHash, buildNewObsidianTaskMeta, dailyNoteFilename } from './obsidian.js';
+import { appendTaskDirect, writeDailyNoteDirect } from './utils/obsidianDirectWrites.js';
 import { emitBridgeIntent } from './utils/obsidianBridgeStream.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
@@ -3305,21 +3306,17 @@ const DayPlanner = () => {
         }
         return;
       }
-      if (obsidianVaultHandleRef.current === 'native') {
-        // writeDailyNoteNative is synchronous (JavascriptInterface blocks the JS thread
-        // during the SAF write).  Defer it by one frame so the note modal closes
-        // immediately rather than waiting ~100–200 ms for the I/O to complete.
-        const _d = dateStr, _t = text || '';
-        setTimeout(() => writeDailyNoteNative(_d, _t), 0);
-      } else {
-        writeDailyNoteFile(
-          obsidianVaultHandleRef.current,
-          obsidianConfig.dailyNotesPath || '',
-          dateStr,
-          text || '',
-          obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd'
-        ).catch(err => console.error('Obsidian: failed to write daily note', err));
-      }
+      // Direct tier (audit fix M3; utils/obsidianDirectWrites.js): the native
+      // write stays deferred one macrotask so the modal closes first, and a
+      // failed write on either shell surfaces like the dropped emit above.
+      writeDailyNoteDirect({
+        handle: obsidianVaultHandleRef.current,
+        dailyNotesPath: obsidianConfig.dailyNotesPath || '',
+        dateStr,
+        text: text || '',
+        pattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
+        onFailure: (message) => { setObsidianSyncError(message); setObsidianSyncStatus('error'); },
+      });
     }
   };
 
@@ -7068,19 +7065,19 @@ const DayPlanner = () => {
             }
             return;
           }
-          if (obsidianVaultHandleRef.current === 'native') {
-            appendTaskToDailyNoteNative(todayStr, task, heading, dailyNoteTemplate);
-          } else {
-            appendTaskToDailyNote(
-              obsidianVaultHandleRef.current,
-              obsidianConfig.dailyNotesPath || '',
-              todayStr,
-              task,
-              heading,
-              dailyNoteTemplate,
-              obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
-            ).catch(err => console.error('[Obsidian] Failed to write task to daily note:', err));
-          }
+          // Direct tier: the failure surfaces exactly like the dropped emit
+          // above (audit fix M3; utils/obsidianDirectWrites.js) — a task the
+          // vault never received must not sit tagged and silent.
+          appendTaskDirect({
+            handle: obsidianVaultHandleRef.current,
+            dailyNotesPath: obsidianConfig.dailyNotesPath || '',
+            dateStr: todayStr,
+            task,
+            heading,
+            template: dailyNoteTemplate,
+            pattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
+            onFailure: (message) => { setObsidianSyncError(message); setObsidianSyncStatus('error'); },
+          });
         }
       : null,
   });

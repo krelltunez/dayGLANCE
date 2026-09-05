@@ -1047,7 +1047,18 @@ export function createDbEngine(callbacks = {}) {
         // An injected mid-cycle row can collide cross-list with a pulled copy of
         // the same id under another kind — dedupe deterministically; the loser
         // is marked dirty so its stale vault row is soft-deleted next push.
-        reconcileCrossList(mirror, (id) => engine.markDirty(id));
+        // Same war guard as the pull-side call (audit low): a delete/resupply
+        // war whose resupply arrives mid-cycle counts its hits here too —
+        // without the seam this site deleted the loser unconditionally every
+        // cycle while the guard on the other site never saw a strike.
+        reconcileCrossList(
+          mirror,
+          (id) => engine.markDirty(id),
+          debugPushEnabled()
+            ? (c) => console.warn(`[reconcile] commit-merge cross-list collision ${c.id} → keep ${c.winner}, delete [${c.losers.join(', ')}] |`, c.kinds)
+            : undefined,
+          shouldSuppressReconcileDelete,
+        );
         if (debugPushEnabled()) {
           console.log('[commit] mid-cycle merge — survivors:', survivors, 'honored deletes:', honoredDeletes);
         }
@@ -1162,6 +1173,14 @@ export function createDbEngine(callbacks = {}) {
       // is all-or-nothing. Making the benefit safe here would need durable
       // per-page commits, which is an architecture change, not a bump.
       try { engine.setHighWaterMark(preCycleHwm); } catch { /* storage unavailable */ }
+      // Drain the per-cycle trip flags (audit low). A guard or latch that
+      // tripped inside THIS cycle is accounted for by the failure strike
+      // below; left set, the flag would surface in the NEXT cycle's success
+      // path and charge that cycle a war/heal/propagation strike it did not
+      // earn (strike misattribution), extending the cooldown for nothing.
+      consumeWarTripped();
+      consumeRetirementHealTripped();
+      consumeDeletePropagationTripped();
       // Failed cycle → impose/extend the cooldown so the next trigger (interval,
       // debounced push, SSE nudge) cannot immediately re-run us against a vault
       // that just rejected us.

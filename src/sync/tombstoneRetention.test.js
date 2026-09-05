@@ -162,3 +162,24 @@ describe('vault cycle — grow-union pull + 60-day prune is a stable no-op', () 
     expect(rePush).toEqual([makeEntityId(SINGLETON_KIND, 'deletedTaskIds')]);
   });
 });
+
+describe('AUDIT FIX M9 — pruneAllTombstones extends an aged retirement while its successor\'s tombstone survives', () => {
+  it('kept while the successor tombstone is inside the window; dropped once that tombstone prunes too', () => {
+    const data = {
+      retiredTaskIds: { L: { retiredAt: daysAgo(70), successor: 'S' } },
+      deletedObsidianKeys: { S: daysAgo(20) },
+      deletedTaskIds: {},
+    };
+    expect(pruneAllTombstones(data, tombstoneCutoff())).toBe(false);
+    expect(data.retiredTaskIds).toEqual({ L: { retiredAt: expect.any(String), successor: 'S' } });
+
+    const aged = {
+      retiredTaskIds: { L: { retiredAt: daysAgo(90), successor: 'S' } },
+      deletedObsidianKeys: { S: daysAgo(70) },
+      deletedTaskIds: {},
+    };
+    expect(pruneAllTombstones(aged, tombstoneCutoff())).toBe(true);
+    expect(aged.deletedObsidianKeys).toEqual({});
+    expect(aged.retiredTaskIds).toEqual({});
+  });
+});
