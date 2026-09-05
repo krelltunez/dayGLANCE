@@ -96,7 +96,23 @@ export interface BridgeState {
   // reconciliation walk compares the vault against this map and reports
   // only the differences, so a reload re-emits nothing.
   linkedNotes?: Record<string, string>;
+  // Observations armed but not yet reported (audit fix M4): a plugin reload
+  // (an update, a mobile webview kill) used to drop the debounced report of
+  // the last edit, leaving the note stale in dayGLANCE until its next touch —
+  // and the heartbeat resumed fast enough that direct-mode fallback never
+  // covered it. Re-armed on construction; cleared when the report lands or
+  // is legitimately dropped.
+  pendingObservations?: string[];
+  // Intent ids this build could not apply ('unsupported'): marked applied so
+  // they are never retried here, but their ROWS are left for a newer build
+  // (the leave-for-newer-builds policy). The applied-set fast path used to
+  // delete them when a retryFloor clamp re-listed them (audit low).
+  unsupportedIds?: string[];
 }
+
+// Every persisted BridgeState field lives device-locally (main.ts,
+// localState.ts) except `config`, which main.ts keeps in the shared
+// data.json — the transport sees one object either way.
 
 const APPLIED_IDS_CAP = 1000;
 // The full link rescan (every markdown file's frontmatter, from the
@@ -126,11 +142,15 @@ const CONFIG_HOLD_RETRY_MS = 15_000;
 // house — when it trips, retrying at full cadence keeps it tripped.
 const BACKOFF_BASE_MS = 30_000;
 const BACKOFF_MAX_MS = 10 * 60_000;
+// A live-sync connect with no response inside this window is a hung connect
+// (audit low): it used to occupy `sseReq` forever — no reconnect, no
+// failure path, live sync silently dead until reload.
+const SSE_CONNECT_TIMEOUT_MS = 20_000;
 
 const isRateLimitError = (e: unknown): boolean =>
   typeof e === 'object' && e !== null && (e as { status?: number }).status === 429;
 
-interface BridgeConfigRow {
+export interface BridgeConfigRow {
   dailyNotesPath: string;
   dailyNotePattern: string;
   taskHeading: string;
@@ -204,14 +224,16 @@ export async function publishPairingMeta(
   // The vault task scope (ruling D): dayGLANCE reads the completion window
   // from here so both sides drop the same old completed lines.
   scope: VaultScope | null = null,
-): Promise<void> {
+): Promise<number | null> {
   const creds = pairing ?? previous;
-  if (!creds) return;
+  if (!creds) return null;
   const client = createVaultClient({
     vaultUrl: creds.vaultUrl, vaultToken: creds.deviceToken, fetchImpl: obsidianFetch,
   });
+  // Returns the write's seq so the caller can record it as its own (the
+  // server nudges every SSE client with it, this plugin included).
   if (pairing) {
-    await client.batch(BRIDGE_VAULT_APP, {
+    const ack = await client.batch(BRIDGE_VAULT_APP, {
       accountId: pairing.accountId,
       rows: [{
         entityId: BRIDGE_PAIRING_META_ID,
@@ -225,10 +247,13 @@ export async function publishPairingMeta(
         }),
         createdAt: Date.now(),
       }],
-    });
-  } else {
-    await client.deleteRow(BRIDGE_VAULT_APP, BRIDGE_PAIRING_META_ID, creds.accountId);
+    }) as { maxSeq?: unknown } | null;
+    const seq = Number(ack?.maxSeq);
+    return Number.isFinite(seq) ? seq : null;
   }
+  const res = await client.deleteRow(BRIDGE_VAULT_APP, BRIDGE_PAIRING_META_ID, creds.accountId) as { seq?: unknown } | null;
+  const seq = Number(res?.seq);
+  return Number.isFinite(seq) ? seq : null;
 }
 
 export class BridgeTransport {
@@ -288,6 +313,10 @@ export class BridgeTransport {
   // Project and goal notes (companion §4.3): path → dayGLANCE id, as last
   // reported. Persisted (BridgeState.linkedNotes); see LINK_RESCAN_MS.
   private linked = new Map<string, string>();
+  // Unsupported intent ids (see BridgeState.unsupportedIds).
+  private unsupported = new Set<string>();
+  // Paths with an observation armed or in flight (see BridgeState.pendingObservations).
+  private pendingObs = new Set<string>();
   private linkScanAt = 0;
   private adopted = new Set<string>();
   private adoptQueue: string[] = [];
@@ -394,6 +423,68 @@ export class BridgeTransport {
     for (const [path, id] of Object.entries(host.getBridgeState().linkedNotes ?? {})) {
       if (typeof path === 'string' && typeof id === 'string' && id) this.linked.set(path, id);
     }
+    for (const id of host.getBridgeState().unsupportedIds ?? []) {
+      if (typeof id === 'string') this.unsupported.add(id);
+    }
+    for (const p of host.getBridgeState().pendingObservations ?? []) {
+      if (typeof p === 'string') this.pendingObs.add(p);
+    }
+    // Reports that a reload cut off (audit fix M4) are re-armed at the normal
+    // debounce; a path that vanished meanwhile reports the deletion instead.
+    void this.resumePendingObservations();
+  }
+
+  /** The full state to persist: memory is the source of truth for every
+   *  field the transport owns, so no persist site can drop another's field
+   *  (the drain's save used to replace the object without linkedNotes). */
+  private stateSnapshot(overrides: Partial<BridgeState> = {}): BridgeState {
+    return {
+      ...this.host.getBridgeState(),
+      config: this.config,
+      adoptedScope: [...this.adopted],
+      linkedNotes: Object.fromEntries([...this.linked].sort(([a], [b]) => a.localeCompare(b))),
+      unsupportedIds: [...this.unsupported].slice(-APPLIED_IDS_CAP),
+      pendingObservations: [...this.pendingObs],
+      ...overrides,
+    };
+  }
+
+  /** Record the seq of a bridge write made outside the transport (the
+   *  pairing-meta publish in main.ts) as our own, so its SSE echo never
+   *  wakes an idle drain (audit low: that ack was never recorded). */
+  recordOwnSeq(seq: number | null | undefined): void {
+    if (typeof seq === 'number' && Number.isFinite(seq)) this.sseGate.recordOwnSeq(seq);
+  }
+
+  private async resumePendingObservations(): Promise<void> {
+    if (this.disposed || this.pendingObs.size === 0) return;
+    const adapter = this.host.app.vault.adapter;
+    for (const path of [...this.pendingObs]) {
+      if (this.disposed) return;
+      let exists = false;
+      try { exists = await adapter.exists(path); } catch { exists = false; }
+      this.armObserve(path, !exists, OBSERVE_DEBOUNCE_MS);
+    }
+  }
+
+  private markPending(path: string): void {
+    if (this.pendingObs.has(path)) return;
+    this.pendingObs.add(path);
+    void this.persistPending();
+  }
+
+  private clearPending(path: string): void {
+    if (!this.pendingObs.delete(path)) return;
+    void this.persistPending();
+  }
+
+  private async persistPending(): Promise<void> {
+    if (this.disposed) return;
+    try {
+      await this.host.saveBridgeState(this.stateSnapshot());
+    } catch (e) {
+      console.error('dayGLANCE bridge: could not persist the pending observations', e);
+    }
   }
 
   /** The normalize-then-observe arming tri-state, for the heartbeat and the
@@ -417,8 +508,7 @@ export class BridgeTransport {
     const after = this.stampingState();
     console.info(`dayGLANCE bridge: config ${before === 'no-config' ? 'received' : 'updated'} — stamping ${after}.`);
     try {
-      const state = this.host.getBridgeState();
-      await this.host.saveBridgeState({ ...state, config: cfg });
+      await this.host.saveBridgeState(this.stateSnapshot({ config: cfg }));
     } catch (e) {
       // Memory still holds the config; the next drain's persist site (or the
       // next config change) retries. Never let bookkeeping break a drain.
@@ -573,11 +663,16 @@ export class BridgeTransport {
       return;
     }
     let buffer = '';
+    // Connect timeout (audit low): no response headers inside the window →
+    // the same failure path a refused connect takes (reconnect with backoff).
+    let connectTimer: number | null = null;
+    const clearConnectTimer = () => { if (connectTimer !== null) { window.clearTimeout(connectTimer); connectTimer = null; } };
     const req = mod.request(url, {
       method: 'GET',
       headers: { Authorization: `Bearer ${pairing.deviceToken}`, Accept: 'text/event-stream' },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }, (res: any) => {
+      clearConnectTimer();
       if (res.statusCode === 401 || res.statusCode === 403) {
         // REFUTATION: the credential is dead — stop outright, no backoff
         // retries against it. The 30s drain tick keeps running exactly as
@@ -616,9 +711,16 @@ export class BridgeTransport {
       res.on('end', () => this.failSse());
       res.on('error', () => this.failSse());
     });
-    req.on('error', () => this.failSse());
+    req.on('error', () => { clearConnectTimer(); this.failSse(); });
+    req.on('close', clearConnectTimer);
     req.end();
     this.sseReq = req;
+    connectTimer = window.setTimeout(() => {
+      connectTimer = null;
+      if (this.sseReq !== req) return; // already torn down or replaced
+      console.info(`dayGLANCE bridge: live sync connect timed out after ${Math.round(SSE_CONNECT_TIMEOUT_MS / 1000)}s — will retry.`);
+      this.failSse();
+    }, SSE_CONNECT_TIMEOUT_MS);
   }
 
   private async subkeyFor(pairing: BridgePairing): Promise<CryptoKey> {
@@ -649,7 +751,7 @@ export class BridgeTransport {
         // The row carries the viewer override and the task scope too
         // (harness finding, 2026-09-04): republishing it bare after every
         // reload silently dropped both until the settings were touched.
-        await publishPairingMeta(pairing, undefined, this.host.getViewer?.() ?? pairing.userSyncId ?? null, this.host.getScope?.() ?? null);
+        this.recordOwnSeq(await publishPairingMeta(pairing, undefined, this.host.getViewer?.() ?? pairing.userSyncId ?? null, this.host.getScope?.() ?? null));
         this.metaAssertedGeneration = pairing.generation;
       }
       // CONFIG RECOVERY BY DIRECT READ (2026-08-31 config-null incident):
@@ -735,7 +837,11 @@ export class BridgeTransport {
           }
           const intentId = entityId.slice(BRIDGE_INTENT_PREFIX.length);
           if (applied.has(intentId)) {
-            this.deleteIntentRow(client, entityId, pairing.accountId);
+            // A re-listed row we already consumed (a retryFloor clamp re-lists
+            // everything above the floor): clean it up — unless it is an
+            // UNSUPPORTED intent, whose row is deliberately left for a newer
+            // build (audit low: this branch used to delete those too).
+            if (!this.unsupported.has(intentId)) this.deleteIntentRow(client, entityId, pairing.accountId);
             continue;
           }
           const intent = row.envelope ? await openBridgeEnvelope(subkey, row.envelope) : null;
@@ -760,6 +866,8 @@ export class BridgeTransport {
             appliedDirty = true;
             if (outcome === 'applied') {
               this.deleteIntentRow(client, entityId, pairing.accountId);
+            } else {
+              this.unsupported.add(intentId); // persisted with the applied set below
             }
           } catch (e) {
             // A vault-write failure leaves the row AND the id unapplied — and
@@ -795,15 +903,14 @@ export class BridgeTransport {
         //    the replay can't grow unboundedly on an intent-quiet stream.
         if (!this.disposed && (appliedDirty || cursor - persistedHwm > HWM_PERSIST_GAP)) {
           const ids = [...applied];
-          await this.host.saveBridgeState({
+          // stateSnapshot carries every other field (config, adopted scope,
+          // linked notes, pending observations, unsupported ids) forward —
+          // this save REPLACES the state object, and a bare object here
+          // once dropped the linked-note map on every intent persist.
+          await this.host.saveBridgeState(this.stateSnapshot({
             appliedIds: ids.slice(Math.max(0, ids.length - APPLIED_IDS_CAP)),
             hwm: Math.max(persistedHwm, cursor),
-            // Carry the config forward — this save REPLACES the state object,
-            // and dropping the field here would undo the persistence that
-            // closes the 2026-08-31 config-null hole.
-            config: this.config,
-            adoptedScope: [...this.adopted],
-          });
+          }));
           persistedHwm = Math.max(persistedHwm, cursor);
           appliedDirty = false;
         }
@@ -1094,7 +1201,7 @@ export class BridgeTransport {
       const state = this.host.getBridgeState();
       const next = Object.fromEntries([...this.linked].sort(([a], [b]) => a.localeCompare(b)));
       if (JSON.stringify(state.linkedNotes ?? {}) === JSON.stringify(next)) return;
-      await this.host.saveBridgeState({ ...state, linkedNotes: next });
+      await this.host.saveBridgeState(this.stateSnapshot({ linkedNotes: next }));
       this.host.onLinkedNotesChanged?.();
     } catch (e) {
       console.error('dayGLANCE bridge: could not persist the linked notes', e);
@@ -1404,7 +1511,7 @@ export class BridgeTransport {
       const next = [...this.adopted];
       const prev = state.adoptedScope ?? [];
       if (prev.length === next.length && prev.every((p, i) => p === next[i])) return;
-      await this.host.saveBridgeState({ ...state, adoptedScope: next });
+      await this.host.saveBridgeState(this.stateSnapshot({ adoptedScope: next }));
     } catch (e) {
       console.error('dayGLANCE bridge: could not persist the adopted scope', e);
     }
@@ -1460,6 +1567,7 @@ export class BridgeTransport {
    *  sites it replaced. */
   private armObserve(path: string, deleted: boolean, delayMs: number): void {
     if (this.disposed) return;
+    this.markPending(path);
     const prior = this.observeTimers.get(path);
     if (prior !== undefined) window.clearTimeout(prior);
     this.observeTimers.set(path, window.setTimeout(() => {
@@ -1482,9 +1590,19 @@ export class BridgeTransport {
 
   private async emitObservation(path: string, deleted: boolean): Promise<void> {
     if (this.disposed) return; // unload latch — a stale timer firing is a no-op
+    this.markPending(path);
     try {
       const pairing = this.host.getPairing();
       if (!pairing) return;
+      // A DELETED report re-checks existence at emit time (audit fix M12):
+      // a deleted report's retry (armed on a failure) coalesces per path with
+      // a recreated file's pending live observation, so the stale retry used
+      // to cancel that observation and report the note gone while it stood.
+      // The live path had this check; the deleted path skipped it. Now a
+      // path that exists is reported as it is, whatever the event said.
+      if (deleted) {
+        try { if (await this.host.app.vault.adapter.exists(path)) deleted = false; } catch { /* keep the report */ }
+      }
       if (this.rateLimited()) {
         // Don't drop the report — this could be the note's LAST edit, and a
         // dropped observation only re-reports on the next touch. Re-arm for
@@ -1499,11 +1617,11 @@ export class BridgeTransport {
       let content: string | null = null;
       let mtime: number | null = null;
       if (!deleted) {
-        if (!(await adapter.exists(path))) return;
+        if (!(await adapter.exists(path))) { this.clearPending(path); return; }
         content = await adapter.read(path);
         try { mtime = (await adapter.stat(path))?.mtime ?? null; } catch { /* stat optional */ }
       }
-      if (deleted ? !(this.isDailyNote(path) || this.scopedPaths.has(path)) : !this.inScope(path, content)) return;
+      if (deleted ? !(this.isDailyNote(path) || this.scopedPaths.has(path)) : !this.inScope(path, content)) { this.clearPending(path); return; }
 
       // ── FAIL CLOSED WHILE CONFIG IS UNKNOWN (2026-08-31 incident) ───────
       // With config null, the normalize block below cannot run — so reporting
@@ -1770,6 +1888,9 @@ export class BridgeTransport {
       if (Number.isFinite(ackSeq)) this.sseGate.recordOwnSeq(ackSeq);
       this.noteSuccess();
       this.observeRetryAttempts.delete(path);
+      // Reported: the pending mark is released only if no NEWER arm for the
+      // path replaced this one while it was in flight (that arm re-marks).
+      if (!this.observeTimers.has(path)) this.clearPending(path);
     } catch (e) {
       if (isRateLimitError(e)) {
         // Arm the brake and requeue this path for after it lifts.

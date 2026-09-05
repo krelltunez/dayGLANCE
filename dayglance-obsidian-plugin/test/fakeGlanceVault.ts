@@ -11,6 +11,8 @@ export class FakeGlanceVault {
   private seq = 0;
   private rows = new Map<string, Map<string, VaultRow>>(); // app → entityId → row
   requests: Array<{ method: string; path: string; who: string; at: number }> = [];
+  /** Test control: fail this many upcoming batch writes with a 502 (a reverse-proxy hiccup). */
+  failNextBatches = 0;
 
   private table(app: string): Map<string, VaultRow> {
     if (!this.rows.has(app)) this.rows.set(app, new Map());
@@ -32,6 +34,7 @@ export class FakeGlanceVault {
     const app = decodeURIComponent(m[1]);
     const tail = m[2] ? decodeURIComponent(m[2]) : null;
     if (method === 'POST' && tail === 'batch') {
+      if (this.failNextBatches > 0) { this.failNextBatches -= 1; return json(502, { error: 'bad gateway' }); }
       const parsed = JSON.parse(body ?? '{}') as { rows?: Array<{ entityId: string; envelope: string; createdAt?: number }> };
       let maxSeq = this.seq;
       const t = this.table(app);

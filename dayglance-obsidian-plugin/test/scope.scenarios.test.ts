@@ -51,8 +51,8 @@ vi.mock('../../src/utils/obsidianBridgeMode.js', () => ({
 
 const { createScenario, VAULT_URL, ACCOUNT_ID, until, advanceFake } = await import('./harness');
 const { default: useObsidianSync } = await import('../../src/hooks/useObsidianSync.js');
-const { flushBridgeOutbox, __resetBridgeStreamForTests } = await import('../../src/utils/obsidianBridgeStream.js');
-const { PROJECT_NOTE_ID_KEY } = await import('@glance-apps/obsidian-format');
+const { flushBridgeOutbox, emitBridgeIntent, __resetBridgeStreamForTests } = await import('../../src/utils/obsidianBridgeStream.js');
+const { PROJECT_NOTE_ID_KEY, BRIDGE_PAIRING_META_ID, BRIDGE_VAULT_APP } = await import('@glance-apps/obsidian-format');
 void PROJECT_NOTE_ID_KEY;
 
 type Task = Record<string, any>;
@@ -144,6 +144,11 @@ function mountDevice(name: string) {
     },
     all: () => [...state.tasks, ...state.inbox],
     byPath: (p: string) => [...state.tasks, ...state.inbox].filter((t) => t.obsidianNotePath === p),
+    /** Emit one raw intent from this device and push it to the vault (the harness's hand-rolled writeback). */
+    emit: (type: string, fields: Record<string, unknown>) => run(async () => {
+      if (!emitBridgeIntent(type, fields)) throw new Error(`emit ${type} refused`);
+      await until(flushBridgeOutbox());
+    }),
   };
 }
 
@@ -375,5 +380,95 @@ describe('vault task scope, end to end', () => {
     const row = s.vault.live('dayglance-bridge').find((r) => r.entityId === 'meta:pairing');
     const meta = JSON.parse(atob(row!.envelope!));
     expect(meta.scope).toMatchObject({ folders: ['Projects'] });
+  });
+});
+
+describe('plugin resilience (the post-soak audit batch)', () => {
+  const intentRows = () => s.vault.live(BRIDGE_VAULT_APP).filter((r) => r.entityId.startsWith('int:')).map((r) => r.entityId);
+
+  it('R1 (M4): an edit whose report was still debouncing when the plugin reloaded is reported after the reload', async () => {
+    await bootWithScopedNote();
+    const stamped = s.text(NOTE)!;
+    await s.write(NOTE, `${stamped}- [ ] Fix the gate\n`);
+    // The report is armed (2s debounce) and the pending path persisted...
+    expect(s.plugin.data.bridge!.pendingObservations).toEqual([NOTE]);
+    // ...then the plugin reloads before it fires (an update, a webview kill).
+    s.plugin.reload();
+    await s.settle();
+    await A.sync();
+    expect(A.byPath(NOTE).map((t) => String(t.title).replace(/ #obsidian$/, '')).sort()).toEqual(['Call the plumber', 'Fix the gate']);
+    expect(s.plugin.data.bridge!.pendingObservations).toEqual([]);
+  });
+
+  it('R1b (M4): a report that FAILED and was waiting to retry survives the reload too', async () => {
+    await bootWithScopedNote();
+    const stamped = s.text(NOTE)!;
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      s.vault.failNextBatches = 1; // the observation's write meets a 502
+      await s.write(NOTE, `${stamped}- [ ] Fix the gate\n`);
+      // Debounce, settle floor, re-arm, then the report (~14s): attempted and
+      // failed, its 5s retry armed — and the plugin reloads before that fires.
+      await s.advance(16_000);
+      expect(s.vault.failNextBatches).toBe(0);
+      expect(s.plugin.data.bridge!.pendingObservations).toEqual([NOTE]);
+      s.plugin.reload();
+      await s.settle();
+      await A.sync();
+      expect(A.byPath(NOTE)).toHaveLength(2);
+    } finally { errSpy.mockRestore(); }
+  });
+
+  it('R2 (M12): a deleted report for a path that EXISTS reports the note as it stands, never as gone', async () => {
+    await bootWithScopedNote();
+    // A stale deleted-report retry firing after the file was recreated: the
+    // event said "deleted", the vault says the note is there.
+    s.plugin.transport.reportDeleted(NOTE);
+    await s.settle();
+    await A.sync();
+    await s.advance(95_000);
+    await A.sync();
+    await A.sync();
+    expect(A.byPath(NOTE)).toHaveLength(1);
+    expect(JSON.parse(A.store.get('day-planner-deleted-obsidian-keys') ?? '{}')).toEqual({});
+  });
+
+  it('R3: an UNSUPPORTED intent row re-listed under a retryFloor clamp is left for a newer build, not deleted', async () => {
+    await bootWithScopedNote();
+    const token = /\^dg-([a-z0-9]{8})/.exec(s.text(NOTE)!)![1];
+    // A dirty editor on the note DEFERS the first intent (retryFloor below it)...
+    s.plugin.app.workspace.openEditor(s.file(NOTE), `${s.text(NOTE)}typing…`);
+    await A.emit('task_state', { path: NOTE, blockId: token, obsidianRawTitle: LINE, completed: true });
+    // ...and the second row, an intent type this build does not know, sits above it.
+    await A.emit('frobnicate', { path: NOTE });
+    const before = intentRows();
+    expect(before).toHaveLength(2);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      for (let i = 0; i < 3; i++) { await s.plugin.transport.drain(); await s.advance(500); }
+    } finally { warnSpy.mockRestore(); }
+    // Both rows still stand: the deferred one for the retry, the unsupported one for a newer build.
+    expect(intentRows().sort()).toEqual(before.sort());
+    expect(s.plugin.data.bridge!.unsupportedIds).toHaveLength(1);
+  });
+
+  it('R4: the linked-note map survives an intent persist (the drain\'s save used to replace the state without it)', async () => {
+    await bootWithScopedNote();
+    s.plugin.data.bridge = { ...s.plugin.data.bridge!, linkedNotes: { 'Projects/Plan.md': 'proj-1' } };
+    s.plugin.reload();
+    const token = /\^dg-([a-z0-9]{8})/.exec(s.text(NOTE)!)![1];
+    await A.emit('task_state', { path: NOTE, blockId: token, obsidianRawTitle: LINE, completed: true });
+    await s.plugin.transport.drain();
+    await s.advance(500);
+    expect(s.text(NOTE)).toMatch(/- \[x\] Call the plumber/);
+    expect(s.plugin.data.bridge!.linkedNotes).toEqual({ 'Projects/Plan.md': 'proj-1' });
+  });
+
+  it('R5: the pairing-meta publish\'s ack is recorded as our own, so its SSE echo does not wake a drain', async () => {
+    await s.plugin.transport.drain(); // publishes meta:pairing
+    const meta = s.vault.all(BRIDGE_VAULT_APP).find((r) => r.entityId === BRIDGE_PAIRING_META_ID)!;
+    expect(meta).toBeDefined();
+    const gate = (s.plugin.transport as any).sseGate as { handleEvent(evt: { seq: number; app?: string }): boolean };
+    expect(gate.handleEvent({ seq: meta.seq, app: BRIDGE_VAULT_APP })).toBe(false);
   });
 });

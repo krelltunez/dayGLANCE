@@ -44,7 +44,8 @@ import { heartbeatPayload } from '@glance-apps/obsidian-format';
 import { TFile } from 'obsidian';
 import { PairingModal, readPairingOfferText, type BridgePairing } from './pairing';
 import { BridgeSettingTab, type BridgeSettingsHost } from './settingsTab';
-import { BridgeTransport, publishPairingMeta, type BridgeState } from './bridge';
+import { BridgeTransport, publishPairingMeta, type BridgeState, type BridgeConfigRow } from './bridge';
+import { localStateStoreFor, migrateToLocalState, splitBridgeState, joinBridgeState, type LocalBridgeData, type LocalStateStore } from './localState';
 import { AgendaStore } from './agenda';
 import { normalizeScope, scopeIsActive, normalizeProjectNoteSettings, type VaultScope, type ProjectNoteSettings } from '@glance-apps/obsidian-format';
 import { localDateStr } from '@glance-apps/agenda-core';
@@ -66,9 +67,16 @@ const HEARTBEAT_PATH = `${HEARTBEAT_DIR}/heartbeat`;
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
 interface BridgeData {
+  // LEGACY on an Obsidian with device-local storage (localState.ts): the
+  // device id and the bridge bookkeeping live per copy now, and these two
+  // fields are migrated out of data.json on load. They remain the live
+  // shape only on an Obsidian without the local-storage API.
   deviceId?: string;
   pairing?: BridgePairing;
   bridge?: BridgeState;
+  // The shared config-row cache (the one BridgeState field that is
+  // legitimately fleet-wide: dayGLANCE publishes one config per account).
+  bridgeConfig?: BridgeConfigRow | null;
   // The agenda's viewer, when chosen explicitly in settings (companion 4.2,
   // decision 9). Absent = the pairing's default. Rides data.json like the
   // pairing itself: the owner's assumption of record is one person per
@@ -102,6 +110,9 @@ const mintDeviceId = (): string => {
 export default class DayGlanceBridgePlugin extends Plugin {
   private deviceId = '';
   private data: BridgeData = {};
+  // Per-copy state (localState.ts). Empty when the store is unavailable.
+  private local: LocalBridgeData = {};
+  private localStore!: LocalStateStore;
   private transport!: BridgeTransport;
   private noteBlocks!: NoteBlockWriter;
   // The sidebar view's data (companion spec 4.2): a read mirror of the
@@ -113,11 +124,24 @@ export default class DayGlanceBridgePlugin extends Plugin {
 
   async onload(): Promise<void> {
     this.data = ((await this.loadData()) as BridgeData | null) ?? {};
-    if (!this.data.deviceId) {
-      this.data.deviceId = mintDeviceId();
-      await this.saveData(this.data);
+    this.localStore = localStateStoreFor(this.app);
+    if (this.localStore.available) {
+      // Device-local bookkeeping (localState.ts): seed from data.json once,
+      // strip the per-copy fields from the shared file, and mint a per-copy
+      // device id when none is known here.
+      const migrated = migrateToLocalState(this.data, this.localStore.load());
+      this.local = migrated.local;
+      if (migrated.dataChanged) await this.saveData(this.data);
+      if (!this.local.deviceId) this.local.deviceId = mintDeviceId();
+      this.localStore.save(this.local);
+      this.deviceId = this.local.deviceId;
+    } else {
+      if (!this.data.deviceId) {
+        this.data.deviceId = mintDeviceId();
+        await this.saveData(this.data);
+      }
+      this.deviceId = this.data.deviceId;
     }
-    this.deviceId = this.data.deviceId;
 
     this.agenda = new AgendaStore({
       app: this.app,
@@ -129,11 +153,8 @@ export default class DayGlanceBridgePlugin extends Plugin {
     this.transport = new BridgeTransport({
       app: this.app,
       getPairing: () => this.data.pairing,
-      getBridgeState: () => this.data.bridge ?? { appliedIds: [], hwm: 0 },
-      saveBridgeState: async (state) => {
-        this.data.bridge = state;
-        await this.saveData(this.data);
-      },
+      getBridgeState: () => this.bridgeState(),
+      saveBridgeState: (state) => this.saveBridgeState(state),
       // A successful drain (tick or SSE nudge) is the agenda's refresh
       // signal too: dayGLANCE's pushes advance the same account seq. The
       // note blocks re-render from the refreshed mirror (companion §4.3).
@@ -244,11 +265,12 @@ export default class DayGlanceBridgePlugin extends Plugin {
         this.data.pairing = pairing;
         // A re-pair rotates the subkey: old rows are unreadable, and the
         // cursor state belongs to the superseded stream. Start clean.
-        this.data.bridge = { appliedIds: [], hwm: 0 };
+        this.resetBridgeState();
         await this.saveData(this.data);
         // Publish the plaintext pairing-meta row — how OTHER dayGLANCE
-        // devices discover the salt and start emitting (bridge.ts).
-        await publishPairingMeta(pairing, undefined, this.viewer(), this.scope()).catch((e) => console.error('dayGLANCE bridge: meta publish failed', e));
+        // devices discover the salt and start emitting (bridge.ts). Its
+        // ack is ours: recorded so the echo never wakes an idle drain.
+        this.transport.recordOwnSeq(await publishPairingMeta(pairing, undefined, this.viewer(), this.scope()).catch((e) => { console.error('dayGLANCE bridge: meta publish failed', e); return null; }));
         // Beat immediately so dayGLANCE's pairing panel confirms
         // without waiting out the interval.
         await this.writeHeartbeat();
@@ -273,7 +295,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
         // republish the meta row so its devices pick the change up on their
         // next cycle (the row is plaintext; a user id is not a secret).
         if (this.data.pairing) {
-          await publishPairingMeta(this.data.pairing, undefined, userSyncId, this.scope()).catch((e) => console.error('dayGLANCE bridge: meta publish failed', e));
+          this.transport.recordOwnSeq(await publishPairingMeta(this.data.pairing, undefined, userSyncId, this.scope()).catch((e) => { console.error('dayGLANCE bridge: meta publish failed', e); return null; }));
         }
       },
       getProjectNotes: () => normalizeProjectNoteSettings(this.data.projectNotes),
@@ -292,7 +314,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
         this.data.scope = normalizeScope(scope);
         await this.saveData(this.data);
         if (this.data.pairing) {
-          await publishPairingMeta(this.data.pairing, undefined, this.viewer(), this.scope()).catch((e) => console.error('dayGLANCE bridge: meta publish failed', e));
+          this.transport.recordOwnSeq(await publishPairingMeta(this.data.pairing, undefined, this.viewer(), this.scope()).catch((e) => { console.error('dayGLANCE bridge: meta publish failed', e); return null; }));
         }
         this.transport.scopeChanged();
         this.transport.adoptTick();
@@ -368,7 +390,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
     const previous = this.data.pairing;
     if (!previous) return;
     delete this.data.pairing;
-    delete this.data.bridge;
+    this.clearBridgeState();
     delete this.data.viewer;
     // Live sync must not outlive its credentials (armed-by-proof invariant):
     // tear the stream down with the pairing, not a tick later.
@@ -377,9 +399,49 @@ export default class DayGlanceBridgePlugin extends Plugin {
     // a re-pair to a different account never decrypts with the wrong key.
     await this.agenda.forgetKey();
     await this.saveData(this.data);
-    await publishPairingMeta(null, previous).catch(() => {});
+    this.transport.recordOwnSeq(await publishPairingMeta(null, previous).catch(() => null));
     await this.writeHeartbeat();
     new Notice('dayGLANCE bridge: unpaired. Also revoke the device token on your GLANCEvault server — unpairing only forgets the local credentials.');
+  }
+
+  // ── Bridge bookkeeping: per copy where the platform allows (localState.ts) ──
+  private bridgeState(): BridgeState {
+    if (!this.localStore.available) return this.data.bridge ?? { appliedIds: [], hwm: 0 };
+    return joinBridgeState(this.local.bridge, this.data.bridgeConfig);
+  }
+
+  /** The per-copy half goes to device-local storage; data.json is written
+   *  only when the shared config cache's VALUE changed. */
+  private async saveBridgeState(state: BridgeState): Promise<void> {
+    if (!this.localStore.available) {
+      this.data.bridge = state;
+      await this.saveData(this.data);
+      return;
+    }
+    const { local, config } = splitBridgeState(state);
+    this.local.bridge = local;
+    this.localStore.save(this.local);
+    if (config !== undefined && JSON.stringify(config ?? null) !== JSON.stringify(this.data.bridgeConfig ?? null)) {
+      this.data.bridgeConfig = config;
+      await this.saveData(this.data);
+    }
+  }
+
+  /** A re-pair starts the stream clean (the caller saves data.json). */
+  private resetBridgeState(): void {
+    delete this.data.bridgeConfig;
+    if (!this.localStore.available) { this.data.bridge = { appliedIds: [], hwm: 0 }; return; }
+    this.local.bridge = { appliedIds: [], hwm: 0 };
+    this.localStore.save(this.local);
+  }
+
+  /** Unpair forgets the bookkeeping everywhere (the caller saves data.json). */
+  private clearBridgeState(): void {
+    delete this.data.bridge;
+    delete this.data.bridgeConfig;
+    if (!this.localStore.available) return;
+    delete this.local.bridge;
+    this.localStore.save(this.local);
   }
 
   // The active vault task scope, or null when none is configured.
