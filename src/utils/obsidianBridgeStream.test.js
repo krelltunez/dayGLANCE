@@ -434,3 +434,28 @@ describe('round trip with the plugin-side seal', () => {
     expect(await openBridgeEnvelope(subkey, sealed)).toMatchObject({ kind: 'observation', path: 'a.md' });
   });
 });
+
+
+describe('native-safe transport (2026-09-05): the bridge client rides the native HTTP bridge where one exists', () => {
+  it('on a native shell the pairing-meta lookup goes through DayGlanceNative.httpRequest, not global fetch', async () => {
+    const httpRequest = vi.fn((method, url) => {
+      if (method === 'GET' && url.includes('/sync/dayglance-bridge/meta')) {
+        return JSON.stringify({ status: 200, ok: true, body: JSON.stringify({ entityId: 'meta:pairing', envelope: encodePlainBridgeRow(META) }) });
+      }
+      return JSON.stringify({ status: 404, ok: false, body: '{}' });
+    });
+    const browserFetch = vi.fn(async () => { throw new TypeError('Failed to fetch'); }); // the CORS wall
+    vi.stubGlobal('fetch', browserFetch);
+    vi.stubGlobal('window', { DayGlanceNative: { httpRequest } });
+    try {
+      const meta = await getBridgePairingMeta({ force: true });
+      expect(meta?.generation).toBe(META.generation);
+      expect(httpRequest).toHaveBeenCalled();
+      expect(httpRequest.mock.calls[0][0]).toBe('GET');
+      expect(httpRequest.mock.calls[0][1]).toContain('/sync/dayglance-bridge/meta');
+      expect(browserFetch).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

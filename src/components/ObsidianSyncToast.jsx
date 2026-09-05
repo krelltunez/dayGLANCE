@@ -4,7 +4,7 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 const ObsidianSyncToast = () => {
-  const { obsidianSyncStatus, obsidianSyncError, obsidianSyncNotice } = useSyncCtx();
+  const { obsidianSyncStatus, obsidianSyncError, obsidianSyncNotice, setObsidianSyncStatus, setObsidianSyncError } = useSyncCtx();
   const { cardBg, borderClass, textPrimary, textSecondary, isMobile } = useDayPlannerCtx();
 
   // Fire-and-forget NOTICE (e.g. a two-sided retitle resolution): neutral
@@ -19,6 +19,16 @@ const ObsidianSyncToast = () => {
 
   const isSyncing = obsidianSyncStatus === 'syncing';
   const isSuccess = obsidianSyncStatus === 'success';
+  const isError = !notice && !isSyncing && !isSuccess;
+  // An error only cleared on the next successful cycle; on a phone every
+  // note edit re-raised it, so it stayed until a restart (2026-09-05). A
+  // tap dismisses it; the underlying condition, if it persists, raises it
+  // again on the next write and is still shown in Settings.
+  const dismiss = () => {
+    if (!isError) return;
+    setObsidianSyncError?.(null);
+    setObsidianSyncStatus?.('idle');
+  };
 
   let icon, message, accentColor;
   if (notice) {
@@ -44,10 +54,20 @@ const ObsidianSyncToast = () => {
       className={`fixed z-50 animate-in slide-in-from-bottom-2 duration-200 ${isMobile ? 'left-0 right-0 flex justify-center' : 'bottom-6 left-6'}`}
       style={isMobile ? { bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' } : undefined}
     >
-      <div className={`flex items-center gap-3 ${cardBg} border ${borderClass} rounded-xl shadow-xl px-4 py-3 max-w-xs`}>
+      <div
+        className={`flex items-center gap-3 ${cardBg} border ${borderClass} rounded-xl shadow-xl px-4 py-3 max-w-xs ${isError ? 'cursor-pointer' : ''}`}
+        role={isError ? 'button' : undefined}
+        tabIndex={isError ? 0 : undefined}
+        onClick={dismiss}
+        onKeyDown={(e) => { if (isError && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); dismiss(); } }}
+        aria-label={isError ? 'Dismiss sync error' : undefined}
+      >
         <div className={`w-1.5 self-stretch rounded-full flex-shrink-0 ${accentColor}`} />
         {icon}
-        <p className={`text-sm font-medium ${textPrimary}`}>{message}</p>
+        <div className="min-w-0">
+          <p className={`text-sm font-medium ${textPrimary}`}>{message}</p>
+          {isError && <p className={`text-xs ${textSecondary}`}>Tap to dismiss</p>}
+        </div>
       </div>
     </div>
   );
