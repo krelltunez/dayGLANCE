@@ -84,6 +84,8 @@ struct WebView: UIViewRepresentable {
         SpeechBridge.shared.webView = webView
         // Same for the native SSE reader — it pushes frames via __glanceVaultSseReceive.
         VaultSseBridge.shared.webView = webView
+        // And the vault bridge — its asynchronous scan answers via __obsidianDispatch.
+        ObsidianBridge.shared.webView = webView
 
         webView.load(URLRequest(url: URL(string: "dg:///index.html")!))
         return webView
