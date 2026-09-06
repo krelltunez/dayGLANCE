@@ -8,6 +8,7 @@ import {
   tombstoneCutoff,
   pruneTombstoneMap,
   unionNewerIso as unionTombstones,
+  pruneCompletedTaskUids,
 } from './sync/tombstoneRetention.js';
 import { mergeRetiredTaskIds, pruneRetiredTaskIds, applyRetirementsToTaskLists } from './utils/retiredTaskIds.js';
 import { dropTombstonedObsidianTasks, dropTombstonedObsidianNotes } from './utils/obsidianDeletions.js';
@@ -266,10 +267,17 @@ const tombstoneMapsEqual = (a = {}, b = {}) => {
 export const mergeSyncData = (local, remote, retentionDays) => {
   const result = upstreamMergeSyncData(local, remote, retentionDays);
   // Tombstone GC is its OWN fixed 60-day policy (src/sync/tombstoneRetention.js),
-  // NOT the user's "Keep past events" window (retentionDays). retentionDays still
-  // prunes imported events (completedTaskUids) inside the upstream merge above;
-  // we override only the tombstone bundles below so both sync transports agree.
+  // NOT the user's "Keep past events" window (retentionDays). The upstream merge
+  // prunes completedTaskUids at retentionDays; that is overridden below too
+  // (audit fix M7): the set is re-unioned from BOTH raw sides and pruned at the
+  // fixed window every writer applies, so the file tier, the vault tier and the
+  // app's payload build agree on one set regardless of any device's setting.
   const tsCutoff = tombstoneCutoff();
+  const uidsMerged = pruneCompletedTaskUids([...(local?.completedTaskUids || []), ...(remote?.completedTaskUids || [])]);
+  const uidSetEq = (a = [], b = []) => a.length === b.length && new Set(a).size === new Set([...a, ...b]).size;
+  result.data.completedTaskUids = uidsMerged;
+  if (!uidSetEq(uidsMerged, local?.completedTaskUids || [])) result.localChanged = true;
+  if (!uidSetEq(uidsMerged, remote?.completedTaskUids || [])) result.remoteChanged = true;
   const habitLogsFix = mergeHabitLogs(
     local?.habitLogs || {},
     remote?.habitLogs || {},

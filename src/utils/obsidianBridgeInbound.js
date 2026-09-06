@@ -191,6 +191,12 @@ export function applyBridgeObservations(observations, {
 }) {
   const dailyNotes = {};
   const scopedNotes = {}; // path → { lastModified, deleted? } for scoped (non-daily) notes in this batch
+  // date-or-path → the note's REAL mtime, only when the plugin reported one
+  // (audit fix M10): revival evidence (§3.10 ruling 6) must be the vault's
+  // statement time, never the observation time a missing mtime falls back to
+  // below — a fabricated "after the deletion" would revive every tombstoned
+  // row the note carries.
+  const noteMtimes = {};
   // date → { lastModified } for DAILY notes the plugin reported deleted
   // (2026-09-05 finding: these were parked in `unapplied`, which nothing
   // read, so deleting a daily note while paired deleted nothing in
@@ -235,6 +241,7 @@ export function applyBridgeObservations(observations, {
         continue;
       }
       scopedNotes[obs.path] = { lastModified: at };
+      if (obs.mtime) noteMtimes[obs.path] = at;
       const beforeScheduled = allScheduled.length;
       const beforeInbox = allInbox.length;
       mergeParsedObsidianTasks(
@@ -274,6 +281,7 @@ export function applyBridgeObservations(observations, {
       lastModified: obs.mtime ? new Date(obs.mtime).toISOString() : (obs.observedAt || new Date().toISOString()),
       fromObsidian: true,
     };
+    if (obs.mtime) noteMtimes[dateStr] = dailyNotes[dateStr].lastModified;
     mergeParsedObsidianTasks(
       parseTasksFromMarkdown(obs.content, dateStr, seenBlockIds),
       ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule },
@@ -284,5 +292,5 @@ export function applyBridgeObservations(observations, {
     ...[...allScheduled, ...allInbox].map((t) => String(t.id)),
     ...[...allScheduled, ...allInbox].filter((t) => t.obsidianLegacyId).map((t) => String(t.obsidianLegacyId)),
   ]);
-  return { dailyNotes, deletedDailyNotes, scopedNotes, withdrawn, links, scheduledTasks: allScheduled, inboxTasks: allInbox, scannedIds, unapplied, lineSchedule };
+  return { dailyNotes, noteMtimes, deletedDailyNotes, scopedNotes, withdrawn, links, scheduledTasks: allScheduled, inboxTasks: allInbox, scannedIds, unapplied, lineSchedule };
 }
