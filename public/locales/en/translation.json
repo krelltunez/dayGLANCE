@@ -284,7 +284,7 @@
     "obsidianBridgeActiveModeUnknown": "Bridge plugin active. Direct vault access disabled.",
     "obsidianBridgeRunning": "Plugin heartbeat detected — not paired yet.",
     "obsidianBridgeNotDetected": "No plugin heartbeat — install the dayGLANCE Bridge plugin in this vault and open Obsidian.",
-    "obsidianBridgeWaiting": "Syncing through the Plugin Bridge. Vault changes will apply the next time Obsidian runs on this device. Tasks keep syncing in the meantime.",
+    "obsidianBridgeWaiting": "Vault changes will apply the next time Obsidian runs here. Tasks keep syncing through the Plugin Bridge in the meantime.",
     "obsidianBridgeWaitingLastSeen": "Obsidian last ran here {{when}}.",
     "obsidianBridgeWaitingNeverSeen": "Obsidian has not run with the plugin on this device yet.",
     "obsidianBridgeStampingNoConfig": "The plugin is waiting for its configuration from dayGLANCE. Task import from daily notes is paused until it arrives (usually under a minute).",

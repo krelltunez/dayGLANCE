@@ -281,7 +281,7 @@
     "obsidianBridgeActiveModeUnknown": "Plugin Bridge actif. Accès direct au coffre désactivé.",
     "obsidianBridgeRunning": "Battement du plugin détecté — pas encore appairé.",
     "obsidianBridgeNotDetected": "Aucun battement du plugin — installez le plugin dayGLANCE Bridge dans ce coffre et ouvrez Obsidian.",
-    "obsidianBridgeWaiting": "Synchronisation via le Plugin Bridge. Les modifications du coffre seront appliquées au prochain lancement d’Obsidian sur cet appareil. Les tâches continuent de se synchroniser entre-temps.",
+    "obsidianBridgeWaiting": "Les modifications du coffre seront appliquées au prochain lancement d’Obsidian ici. Les tâches continuent de se synchroniser via le Plugin Bridge entre-temps.",
     "obsidianBridgeWaitingLastSeen": "Obsidian a fonctionné ici pour la dernière fois {{when}}.",
     "obsidianBridgeWaitingNeverSeen": "Obsidian n’a pas encore fonctionné avec le plugin sur cet appareil.",
     "obsidianBridgeStampingNoConfig": "Le plugin attend sa configuration depuis dayGLANCE. L'import des tâches depuis les notes quotidiennes est en pause jusqu'à sa réception (généralement moins d'une minute).",

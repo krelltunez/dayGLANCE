@@ -281,7 +281,7 @@
     "obsidianBridgeActiveModeUnknown": "Plugin Bridge activo. Acceso directo al vault desactivado.",
     "obsidianBridgeRunning": "Latido del plugin detectado — aún sin emparejar.",
     "obsidianBridgeNotDetected": "Sin latido del plugin — instala el plugin dayGLANCE Bridge en este vault y abre Obsidian.",
-    "obsidianBridgeWaiting": "Sincronizando a través del Plugin Bridge. Los cambios del vault se aplicarán la próxima vez que Obsidian se ejecute en este dispositivo. Mientras tanto, las tareas siguen sincronizándose.",
+    "obsidianBridgeWaiting": "Los cambios del vault se aplicarán la próxima vez que Obsidian se ejecute aquí. Mientras tanto, las tareas siguen sincronizándose a través del Plugin Bridge.",
     "obsidianBridgeWaitingLastSeen": "Obsidian se ejecutó aquí por última vez {{when}}.",
     "obsidianBridgeWaitingNeverSeen": "Obsidian aún no se ha ejecutado con el plugin en este dispositivo.",
     "obsidianBridgeStampingNoConfig": "El plugin está esperando su configuración de dayGLANCE. La importación de tareas desde las notas diarias está en pausa hasta que llegue (normalmente menos de un minuto).",

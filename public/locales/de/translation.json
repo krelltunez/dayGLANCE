@@ -281,7 +281,7 @@
     "obsidianBridgeActiveModeUnknown": "Bridge-Plugin aktiv. Direkter Tresorzugriff deaktiviert.",
     "obsidianBridgeRunning": "Plugin-Heartbeat erkannt — noch nicht gekoppelt.",
     "obsidianBridgeNotDetected": "Kein Plugin-Heartbeat — installieren Sie das dayGLANCE-Bridge-Plugin in diesem Tresor und öffnen Sie Obsidian.",
-    "obsidianBridgeWaiting": "Synchronisierung über die Plugin-Bridge. Änderungen am Vault werden übernommen, sobald Obsidian das nächste Mal auf diesem Gerät läuft. Aufgaben werden währenddessen weiter synchronisiert.",
+    "obsidianBridgeWaiting": "Änderungen am Vault werden übernommen, sobald Obsidian hier das nächste Mal läuft. Aufgaben werden währenddessen weiter über die Plugin-Bridge synchronisiert.",
     "obsidianBridgeWaitingLastSeen": "Obsidian lief hier zuletzt {{when}}.",
     "obsidianBridgeWaitingNeverSeen": "Obsidian ist auf diesem Gerät noch nicht mit dem Plugin gelaufen.",
     "obsidianBridgeStampingNoConfig": "Das Plugin wartet auf seine Konfiguration von dayGLANCE. Der Aufgabenimport aus täglichen Notizen ist pausiert, bis sie eintrifft (in der Regel unter einer Minute).",
