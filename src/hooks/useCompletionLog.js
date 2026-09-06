@@ -229,7 +229,12 @@ export default function useCompletionLog({
             // never applied templates — the append precedent).
             const note = readDailyNoteNative(write.date);
             if (note === null) { console.error('[Obsidian] Completion log: daily note read failed, entry skipped:', write.date); continue; }
-            const applied = applyBridgeIntent(note.text, { type: 'completion_log_append', ...write });
+            // "" is absent-or-empty on native; it reads as ABSENT here so the
+            // entry's note is created from the template — the accepted
+            // tradeoff recorded at appendTaskToDailyNoteNative (a genuinely
+            // empty note gets the template prepended; a bare note would
+            // silently never have it).
+            const applied = applyBridgeIntent(note.text === '' ? null : note.text, { type: 'completion_log_append', ...write });
             if (applied.changed && !writeDailyNoteNative(write.date, applied.text)) {
               console.error('[Obsidian] Completion log: daily note write failed:', write.date);
             }

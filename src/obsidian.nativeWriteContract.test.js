@@ -74,6 +74,29 @@ describe('appendTaskToDailyNoteNative', () => {
     expect(appendTaskToDailyNoteNative('2026-08-28', task, '## Tasks', '')).toBe(true);
   });
 
+  // Companion §4.4 build record (2026-09-06), the accepted tradeoff: "" is
+  // absent-or-empty on native and reads as ABSENT, so the note is created
+  // from the template like the FSA append. A genuinely empty existing note
+  // gets the template prepended — small and recoverable; a bare note that
+  // silently never carried the configured structure was not.
+  it('"" with a template creates the note from the template (subset filled) with the task line under its heading', () => {
+    const bridge = installBridge({ getDailyNote: vi.fn(() => '') });
+    expect(appendTaskToDailyNoteNative('2026-08-28', task, '## Tasks', '# {{date}}\n\n## Tasks\n')).toBe(true);
+    const written = bridge.writeDailyNote.mock.calls[0][1];
+    expect(written.startsWith('---\n')).toBe(true);
+    expect(written).toContain('# 2026-08-28');
+    expect(written).toMatch(/## Tasks\n- \[ \] New task/);
+    expect(written).not.toContain('{{date}}');
+  });
+
+  it('an existing non-empty note is never decorated with the template', () => {
+    const bridge = installBridge({ getDailyNote: vi.fn(() => '## Notes\nhello\n') });
+    expect(appendTaskToDailyNoteNative('2026-08-28', task, '## Tasks', '# {{date}}\n')).toBe(true);
+    const written = bridge.writeDailyNote.mock.calls[0][1];
+    expect(written).not.toContain('# 2026-08-28');
+    expect(written.startsWith('## Notes')).toBe(true);
+  });
+
   it('returns false and logs when the bridge reports failure (boolean or iOS string)', () => {
     installBridge({ writeDailyNote: vi.fn(() => false) });
     expect(appendTaskToDailyNoteNative('2026-08-28', task, '## Tasks', '')).toBe(false);

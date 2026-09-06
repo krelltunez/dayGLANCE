@@ -22,7 +22,15 @@ const trimFolder = (s, fallback) => {
   return t || fallback;
 };
 
-/** Canonical settings: a known layout, non-empty folders, template paths as typed. */
+/**
+ * Canonical settings: a known layout, non-empty folders, template paths as
+ * typed. `dailyTemplate` (companion §4.4 build record, 2026-09-06) is the
+ * daily-note template note, rendered through the same ladder at the
+ * plugin's creation point; it lives here, plugin-local beside the project
+ * and goal ones, because only the plugin can render it — a synced app
+ * setting pointing at a vault path would be one some devices could act on
+ * and others could not.
+ */
 export function normalizeProjectNoteSettings(s) {
   const layout = PROJECT_NOTE_LAYOUTS.includes(s?.layout) ? s.layout : 'note';
   return {
@@ -31,6 +39,7 @@ export function normalizeProjectNoteSettings(s) {
     goalsFolder: trimFolder(s?.goalsFolder, 'Goals'),
     projectTemplate: String(s?.projectTemplate ?? '').trim(),
     goalTemplate: String(s?.goalTemplate ?? '').trim(),
+    dailyTemplate: String(s?.dailyTemplate ?? '').trim(),
   };
 }
 

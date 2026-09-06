@@ -72,6 +72,23 @@
 import { updateTaskLines, sortTaskLinesInSection, buildObsidianTaskLine } from './taskLines.js';
 import { splitBlockId } from './identity.js';
 import { withCreationFrontmatter } from './frontmatter.js';
+import { renderNoteTemplateSubset } from './projectNotes.js';
+
+/**
+ * The body a daily note is CREATED from when an intent finds no note: the
+ * app's text template with the §4.4 subset filled — `{{date}}`, and
+ * `{{title}}` as the note's name (the date under the default pattern).
+ * Companion §4.4 build record (2026-09-06): the same substitution runs at
+ * every creation point (the FSA and native appends on the direct tier, the
+ * two creating intents here), so a template reads the same wherever the
+ * note is born. A template NOTE configured in the plugin renders through
+ * the full ladder at the plugin's creation point instead; this is the
+ * fallback body everyone gets who never sets one.
+ */
+export function dailyNoteCreationBody(template, date, path = null) {
+  const stem = typeof path === 'string' && path ? path.split('/').pop().replace(/\.md$/i, '') : String(date ?? '');
+  return withCreationFrontmatter(renderNoteTemplateSubset(template || '', { title: stem, date: String(date ?? '') }), date);
+}
 import { validateWikiNoteName } from './filename.js';
 
 // The GLANCEvault app namespace for everything the bridge stores.
@@ -306,7 +323,7 @@ export function applyBridgeIntent(currentText, intent) {
       }
       const base = currentText !== null
         ? currentText
-        : withCreationFrontmatter(intent.template || '', intent.date);
+        : dailyNoteCreationBody(intent.template, intent.date, intent.path);
       const lines = base.split('\n');
       const heading = intent.heading;
       if (heading && heading.trim()) {
@@ -379,7 +396,7 @@ export function applyBridgeIntent(currentText, intent) {
       }
       const logBase = currentText !== null
         ? currentText
-        : withCreationFrontmatter(intent.template || '', intent.date);
+        : dailyNoteCreationBody(intent.template, intent.date, intent.path);
       const logLines = logBase.split('\n');
       const logHeading = (intent.heading || '').trim();
       if (!logHeading) return { text: currentText, changed: false }; // the log always has a home

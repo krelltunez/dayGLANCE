@@ -97,6 +97,13 @@ manually or via BRAT, not submitted to the community directory.
   template asks nothing interactively, otherwise `{{title}}`, `{{date}}`
   and `{{goal}}` are filled and the rest is left visible). Placement happens
   at creation only; linking an existing note never creates or moves.
+  **Daily notes** the plugin creates (a task added to today from dayGLANCE,
+  a completion-log entry) render an optional **Daily note template** the
+  same way, here, at creation; without one, the daily note template text
+  from dayGLANCE settings is used with `{{date}}` filled. With Templater's
+  "trigger on new file creation" on, a template that asks for input is not
+  applied at all (the trigger would run that prompt unattended); the
+  settings tab says so.
   **A project's tasks live in its note** (companion §4.3, project routing):
   a task assigned to a linked project in dayGLANCE is written into the
   note's `## Tasks` section (created there, moved there on reassignment,

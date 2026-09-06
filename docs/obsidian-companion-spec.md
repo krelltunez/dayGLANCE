@@ -974,6 +974,93 @@ trigger leaves raw `<% %>` in the note. Visible, not corrupt.
 - Register nothing before `onLayoutReady` — Templater's own setup, including its
   WASM parser, is async.
 
+
+#### Build record (2026-09-06): daily notes on the ladder
+
+Project and goal notes shipped with the ladder; daily notes had a separate,
+older mechanism — a plain-text template typed into a textarea in dayGLANCE
+settings, written verbatim at creation, no Templater, no substitution, not
+even the date — and six creation points across three code paths, one of
+which (the native direct-tier append) applied no template at all. This
+record closes that.
+
+**What was built.**
+
+1. **A daily-note template path in the plugin's settings**, beside the
+   project and goal ones (`dailyTemplate`, `normalizeProjectNoteSettings`).
+   The plugin renders it through the existing ladder at its creation point
+   for the two daily-note-creating intents, `task_append` (daily notes only;
+   a note task never creates) and `completion_log_append`. The pre-scan
+   covers it for free. Subset variables: `{{date}}`, and `{{title}}` as the
+   note's name. *Ruling: plugin settings, not a synced app setting.* Only the
+   plugin can render, so a synced setting pointing at a vault path would be
+   one some devices could act on and others could not — the split-brain
+   shape the posture ruling exists to eliminate.
+2. **The app's text template stays as the fallback body** when no path is
+   configured, now with the subset filled on both tiers
+   (`dailyNoteCreationBody`, one function under every creation point: the
+   FSA and native appends, the two intents, the completion log's direct
+   path, and the editor's seed). Nothing changes for anyone who never sets a
+   path except that `{{date}}` now works.
+3. **The native direct-tier gap is closed.** `""` is absent-or-empty under
+   the native read contract; it now reads as absent, and the note is created
+   from the template as the FSA append does. *Ruling, the accepted cost:* a
+   genuinely empty existing note gets the template prepended — small and
+   recoverable, the user deletes it. The alternative was every native
+   direct-tier daily note bare forever, which is not recoverable because
+   nobody knows it happened. Recorded at the site
+   (`appendTaskToDailyNoteNative`; the completion log's native branch).
+4. **Templater's on-create trigger is detected**, for daily, project and
+   goal notes alike, since it is one mechanism and one exposure. THE SECOND
+   DOOR: the pre-scan guards the render *we* perform, but with "trigger
+   Templater on new file creation" on, Templater renders every new file
+   itself whether we delegated or not, and an interactive call in it hangs
+   invisibly outside our guard — the sharp edge arriving through a door the
+   guard did not cover. The rule: a non-interactive template is delegated as
+   before, trigger or no trigger (Templater's second pass over rendered
+   output has nothing left to render); an interactive template under the
+   trigger is refused outright — the subset would leave the interactive call
+   visible for the trigger to run — and the fallback body stands, itself
+   pre-scanned under the trigger (an interactive app text template drops to
+   the bare note). Both homes of the setting are read: the device-local
+   `templater-local-settings` (2.21+) and the synced plugin settings of
+   older builds. Refusals, a missing template note, and a failed render
+   surface in the plugin's settings tab as a template line, the way the
+   stamping tri-state does.
+
+**Two things worth writing down.**
+
+- **The rendering context is whichever Obsidian applies the intent.** If a
+  desktop's plugin drains a phone's intent, the daily note is created by the
+  desktop's Obsidian, and Templater's context — `tp.file`, `tp.date`, the
+  machine's clock and locale, anything reading that machine — is that
+  desktop. Fine for date variables, arbitrary for anything
+  machine-specific. A user with a machine-dependent daily template should
+  expect the note to reflect whichever Obsidian was open, not the device
+  that made the edit.
+- **The posture ruling fixed the unattended case as a side effect.** The
+  worry was a daily note created by dayGLANCE with no plugin present,
+  untemplated, at any hour. Since the posture ruling (build-out spec §3.2,
+  2026-09-06) a paired device with Obsidian closed queues an intent rather
+  than creating anything, so the note is created by a running Obsidian at
+  apply time. Render at apply time, in the plugin, never in the app — the
+  shape the ladder wanted, and it arrived by way of a different ruling.
+  What remains untemplated by the ladder is confined to the direct tier
+  (unpaired vaults), where the text fallback applies on both shells now.
+
+**Creation points after the build**, for the record:
+
+| Creation point | Tier | Body |
+|---|---|---|
+| Plugin `task_append`, `completion_log_append` | stream | template note through the ladder; else the text fallback, subset filled |
+| Task append, FSA desktop | direct | the text fallback, subset filled |
+| Task append and completion log, Android and iOS | direct | the text fallback, subset filled (was: nothing) |
+| Daily note editor in the app | both | the text fallback seeded into the editor, subset filled, for the user to edit |
+
+Harness scenarios 9, 9b, 10 and 11 in `projectNotes.scenarios.test.ts` pin
+the ladder at the creation point, the fallback, the interactive refusal
+under the trigger, and delegation against a fake Templater.
+
 ---
 
 ### 4.5 Dataview conventions, verified rather than assumed

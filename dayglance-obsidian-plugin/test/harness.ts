@@ -19,7 +19,7 @@ import type { BridgePairing } from '../src/pairing';
 // The SAME specifier the app uses, so the root key lands in the module instance the app reads.
 import { setupDbRootKey, hasDbRootKey } from '@glance-apps/sync';
 import { getDbRootKey, hasDbRootKey as hasDbRootKeyDirect } from '@glance-apps/sync/src/dbCrypto.js';
-import { deriveBridgeSubkey, exportBridgeSubkey, normalizeScope, normalizeProjectNoteSettings, type VaultScope } from '@glance-apps/obsidian-format';
+import { deriveBridgeSubkey, exportBridgeSubkey, normalizeScope, normalizeProjectNoteSettings, type VaultScope, type ProjectNoteSettings } from '@glance-apps/obsidian-format';
 
 export const VAULT_URL = 'https://vault.test';
 
@@ -61,7 +61,7 @@ let generationCounter = 0;
 export interface PluginSide {
   app: App;
   transport: BridgeTransport;
-  data: { pairing?: BridgePairing; bridge?: BridgeState; scope?: VaultScope; saves: number };
+  data: { pairing?: BridgePairing; bridge?: BridgeState; scope?: VaultScope; projectNotes?: Partial<ProjectNoteSettings>; saves: number };
   setScope(scope: Partial<VaultScope>): Promise<void>;
   /** Simulate a plugin reload: a fresh transport over the same data.json. */
   reload(): void;
@@ -117,7 +117,7 @@ export async function createScenario(): Promise<Scenario> {
     getBridgeState: () => data.bridge ?? { appliedIds: [], hwm: 0 },
     saveBridgeState: async (state: BridgeState) => { data.bridge = state; data.saves++; },
     getScope: () => (data.scope ? normalizeScope(data.scope) : null),
-    getProjectNotes: () => normalizeProjectNoteSettings(null),
+    getProjectNotes: () => normalizeProjectNoteSettings(data.projectNotes ?? null),
     getViewer: () => pairing.userSyncId ?? null,
   });
   const boot = () => { transport = new BridgeTransport(host()); wireVaultEvents(app, transport); };

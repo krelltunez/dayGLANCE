@@ -106,6 +106,7 @@ export function dailyNoteFilename(dateStr: string, pattern?: string): string;
 export function hasFrontmatter(text: string): boolean;
 export function dgFrontmatter(dateIso?: string): string;
 export function withCreationFrontmatter(content: string, dateIso?: string): string;
+export function dailyNoteCreationBody(template: string | null | undefined, date: string, path?: string | null): string;
 
 // ── filename portability ────────────────────────────────────────────────────
 export function validateVaultNameSegment(segment: string): string | null;
@@ -219,7 +220,7 @@ export function applyBridgeIntent(
 // ── project and goal note workspaces (companion §4.3, rulings D and E) ─────
 export type ProjectNoteLayout = 'note' | 'folder' | 'nested';
 export const PROJECT_NOTE_LAYOUTS: ProjectNoteLayout[];
-export interface ProjectNoteSettings { layout: ProjectNoteLayout; projectsFolder: string; goalsFolder: string; projectTemplate: string; goalTemplate: string }
+export interface ProjectNoteSettings { layout: ProjectNoteLayout; projectsFolder: string; goalsFolder: string; projectTemplate: string; goalTemplate: string; dailyTemplate: string }
 export function normalizeProjectNoteSettings(s: Partial<ProjectNoteSettings> | null | undefined): ProjectNoteSettings;
 export function noteNameFromTitle(title: string): string;
 export function projectNotePath(a: { kind: 'project' | 'goal'; title: string; layout?: string; projectsFolder?: string; goalsFolder?: string; goalFolder?: string | null }): string;

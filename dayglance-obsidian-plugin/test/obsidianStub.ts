@@ -276,6 +276,10 @@ export class App {
   workspace = new Workspace();
   fileManager = new FileManager(this.vault);
   plugins = { plugins: {} as Record<string, unknown> };
+  /** Obsidian's device-local key/value store (App.loadLocalStorage / saveLocalStorage). */
+  localStorageData = new Map<string, unknown>();
+  loadLocalStorage(key: string): unknown { return this.localStorageData.has(key) ? this.localStorageData.get(key) : null; }
+  saveLocalStorage(key: string, value: unknown): void { if (value === null || value === undefined) this.localStorageData.delete(key); else this.localStorageData.set(key, value); }
 }
 
 export const Platform = { isDesktopApp: false, isMobile: false, isMobileApp: false };
