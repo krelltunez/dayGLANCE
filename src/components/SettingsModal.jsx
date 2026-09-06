@@ -1700,7 +1700,7 @@ const SettingsModal = () => {
                               rows={4}
                             />
                             <p className={`text-xs ${textSecondary} mt-1`}>
-                              Pre-filled when creating a new daily note
+                              Pre-filled when creating a new daily note. {'{{date}}'} becomes the note's date. A template note configured in the Bridge plugin takes precedence when the plugin creates the note.
                             </p>
                           </div>
                           {launchOnWritePlatform && (

@@ -37,7 +37,7 @@ vi.mock('../../src/utils/obsidianBridgeMode.js', () => ({ recordBridgeMode: vi.f
 
 const { createScenario, VAULT_URL, ACCOUNT_ID, until, advanceFake } = await import('./harness');
 const { default: useObsidianSync } = await import('../../src/hooks/useObsidianSync.js');
-const { flushBridgeOutbox, __resetBridgeStreamForTests } = await import('../../src/utils/obsidianBridgeStream.js');
+const { flushBridgeOutbox, emitBridgeIntent, __resetBridgeStreamForTests } = await import('../../src/utils/obsidianBridgeStream.js');
 const { NoteBlockWriter } = await import('../src/noteBlocks');
 const { parseYaml } = await import('obsidian');
 
@@ -97,6 +97,11 @@ function mountDevice(name: string, lists: { projects?: Row[]; goals?: Row[] } = 
       setTasks(bump); setUnscheduledTasks(bump);
     },
     all: () => [...state.tasks, ...state.inbox],
+    /** Emit one raw intent from this device and push it to the vault. */
+    emit: (type: string, fields: Record<string, unknown>) => run(async () => {
+      if (!emitBridgeIntent(type, fields)) throw new Error(`emit ${type} refused`);
+      await until(flushBridgeOutbox());
+    }),
     /** A task born in dayGLANCE (random id, no vault fields), scheduled or in the inbox. */
     add: (task: Row) => {
       const t = { id: `t-${Math.random().toString(36).slice(2, 10)}`, completed: false, lastModified: new Date().toISOString(), ...task };
@@ -368,5 +373,118 @@ describe('project and goal notes: creation, the maintained map, the project fiel
     await A.writeback();
     await s.plugin.transport.drain();
     expect((s.text(NOTE)!.match(/- \[ \] Chore /g) ?? []).length).toBe(30);
+  });
+});
+
+// ── Daily-note templates (companion §4.4 build record, 2026-09-06) ──────────
+// A daily note is created because dayGLANCE needed somewhere to write, and
+// since the posture ruling that creation always happens HERE, in a running
+// Obsidian, at apply time — so the plugin's creation point is where a
+// template note renders through the ladder. The stub has no Templater, so
+// the ladder's subset rung is what runs unless a scenario installs a fake.
+describe('daily-note templates: the ladder at the plugin\'s creation point', () => {
+  const DAILY = 'Daily/2026-09-10.md';
+  const TEMPLATE = 'Templates/Daily.md';
+  const appendFields = {
+    path: DAILY, date: '2026-09-10', heading: '## Tasks', template: '## Fallback\n',
+    task: { title: 'Water the plants #obsidian', startTime: null, duration: null, isAllDay: true, date: '2026-09-10', blockId: 'abc12345' },
+  };
+  const templaterFake = () => ({
+    templater: {
+      create_running_config: vi.fn((tf: unknown, target: { basename: string }, mode: number) => ({ tf, target, mode })),
+      read_and_parse_template: vi.fn(async (cfg: { target: { basename: string } }) => `# Rendered by Templater for ${cfg.target.basename}\n\n## Tasks\n`),
+    },
+  });
+
+  it('9. a task append that finds no note creates it from the configured template note (subset here), with the line under its heading, not from the text fallback', async () => {
+    await boot({});
+    await s.write(TEMPLATE, '# {{title}}\n\nToday is {{date}}.\n\n## Journal\n\n## Tasks\n');
+    s.plugin.data.projectNotes = { dailyTemplate: TEMPLATE };
+    await A.emit('task_append', appendFields);
+    await s.plugin.transport.drain();
+    const text = s.text(DAILY)!;
+    expect(text.startsWith('---\n')).toBe(true);
+    expect(text).toContain('# 2026-09-10');
+    expect(text).toContain('Today is 2026-09-10.');
+    expect(text).toContain('## Journal');
+    expect(text).toMatch(/## Tasks\n- \[ \] Water the plants #obsidian \^dg-abc12345/);
+    expect(text).not.toContain('## Fallback');
+    expect(s.plugin.transport.templateStatus()).toBeNull();
+    // Replay is a no-op: the note exists now and already carries the line.
+    await A.emit('task_append', appendFields);
+    await s.plugin.transport.drain();
+    expect(s.text(DAILY)).toBe(text);
+  });
+
+  it('9b. a completion-log entry creates the day\'s note from the same template; without a template note the text fallback stands', async () => {
+    await boot({});
+    await s.write(TEMPLATE, '# {{date}}\n\n## Done\n');
+    s.plugin.data.projectNotes = { dailyTemplate: TEMPLATE };
+    await A.emit('completion_log_append', { path: DAILY, date: '2026-09-10', heading: '## Done', entry: '- 10:00 Did the thing', template: '## Fallback\n' });
+    await s.plugin.transport.drain();
+    expect(s.text(DAILY)).toContain('# 2026-09-10');
+    expect(s.text(DAILY)).toContain('## Done\n- 10:00 Did the thing');
+    // No template note configured: the app's text template, subset filled.
+    s.plugin.data.projectNotes = {};
+    const OTHER = 'Daily/2026-09-11.md';
+    await A.emit('completion_log_append', { path: OTHER, date: '2026-09-11', heading: '## Done', entry: '- 11:00 Another', template: '# {{date}} fallback\n' });
+    await s.plugin.transport.drain();
+    expect(s.text(OTHER)).toContain('# 2026-09-11 fallback');
+  });
+
+  it('10. an INTERACTIVE template: without Templater\'s on-create trigger the subset leaves the call visible; with the trigger on it is refused, the fallback stands, and the settings tab says why', async () => {
+    await boot({});
+    await s.write(TEMPLATE, '# {{date}}\n<% tp.system.prompt("Mood?") %>\n\n## Tasks\n');
+    s.plugin.data.projectNotes = { dailyTemplate: TEMPLATE };
+    await A.emit('task_append', appendFields);
+    await s.plugin.transport.drain();
+    expect(s.text(DAILY)).toContain('<% tp.system.prompt("Mood?") %>'); // inert residue, Templater\'s own on-create behavior
+    expect(s.plugin.transport.templateStatus()).toBeNull();
+
+    // THE SECOND DOOR: the trigger renders every new file itself.
+    s.plugin.app.localStorageData.set('templater-local-settings', JSON.stringify({ trigger_on_file_creation: true }));
+    const D2 = 'Daily/2026-09-12.md';
+    await A.emit('task_append', { ...appendFields, path: D2, date: '2026-09-12', task: { ...appendFields.task, date: '2026-09-12' } });
+    await s.plugin.transport.drain();
+    const text = s.text(D2)!;
+    expect(text).not.toContain('tp.system');
+    expect(text).toContain('## Fallback');
+    expect(text).toMatch(/- \[ \] Water the plants #obsidian \^dg-abc12345/);
+    expect(s.plugin.transport.templateStatus()).toMatch(/asks for input/);
+
+    // The fallback text gets the same pre-scan under the trigger.
+    const D3 = 'Daily/2026-09-13.md';
+    await A.emit('task_append', { ...appendFields, path: D3, date: '2026-09-13', task: { ...appendFields.task, date: '2026-09-13' }, template: '<% tp.system.suggester(["a"],["a"]) %>\n' });
+    await s.plugin.transport.drain();
+    expect(s.text(D3)).not.toContain('tp.system');
+    expect(s.text(D3)).toMatch(/- \[ \] Water the plants/);
+  });
+
+  it('11. Templater installed: a non-interactive template is delegated (with the trigger on too: the second pass has nothing left to render); an interactive one never reaches it', async () => {
+    await boot({});
+    const fake = templaterFake();
+    s.plugin.app.plugins.plugins['templater-obsidian'] = fake;
+    await s.write(TEMPLATE, '# <% tp.date.now() %>\n\n## Tasks\n');
+    s.plugin.data.projectNotes = { dailyTemplate: TEMPLATE };
+    await A.emit('task_append', appendFields);
+    await s.plugin.transport.drain();
+    expect(fake.templater.read_and_parse_template).toHaveBeenCalledTimes(1);
+    expect(fake.templater.create_running_config.mock.calls[0][2]).toBe(0); // RunMode.CreateNewFromTemplate
+    expect(s.text(DAILY)).toContain('# Rendered by Templater for 2026-09-10');
+    expect(s.text(DAILY)).toMatch(/## Tasks\n- \[ \] Water the plants #obsidian \^dg-abc12345/);
+
+    (fake as { settings?: Record<string, unknown> }).settings = { trigger_on_file_creation: true }; // the pre-2.21 synced form of the trigger
+    const D2 = 'Daily/2026-09-12.md';
+    await A.emit('task_append', { ...appendFields, path: D2, date: '2026-09-12', task: { ...appendFields.task, date: '2026-09-12' } });
+    await s.plugin.transport.drain();
+    expect(fake.templater.read_and_parse_template).toHaveBeenCalledTimes(2);
+    expect(s.text(D2)).toContain('# Rendered by Templater for 2026-09-12');
+
+    await s.write(TEMPLATE, '<% tp.system.prompt("x") %>\n');
+    const D3 = 'Daily/2026-09-13.md';
+    await A.emit('task_append', { ...appendFields, path: D3, date: '2026-09-13', task: { ...appendFields.task, date: '2026-09-13' } });
+    await s.plugin.transport.drain();
+    expect(fake.templater.read_and_parse_template).toHaveBeenCalledTimes(2); // never delegated
+    expect(s.text(D3)).toContain('## Fallback');
   });
 });

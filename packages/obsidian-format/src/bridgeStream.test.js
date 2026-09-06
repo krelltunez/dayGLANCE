@@ -9,6 +9,7 @@ import {
   observationEntityId,
   BRIDGE_INTENT_PREFIX,
   BRIDGE_OBSERVATION_PREFIX,
+  dailyNoteCreationBody,
 } from './bridgeStream.js';
 
 // The stream's load-bearing claims: envelopes round-trip and fail closed;
@@ -285,5 +286,43 @@ describe('applyBridgeIntent — note tasks (companion §4.3, project routing)', 
     const plain = '## Tasks\n- [ ] Alpha\n- [x] Alpha ^dg-dddddddd\n- [ ] Beta\n';
     const out = applyBridgeIntent(plain, { type: 'task_remove', path: 'n.md', blockId: null, obsidianRawTitle: 'Alpha' });
     expect(out.text).toBe('## Tasks\n- [x] Alpha ^dg-dddddddd\n- [ ] Beta\n');
+  });
+});
+
+
+// ── Companion §4.4 build record (2026-09-06): the daily-note creation body ──
+// Every point that CREATES a daily note renders the app's text template
+// through the same subset — `{{date}}`, and `{{title}}` as the note's name
+// — so a template reads the same wherever the note is born.
+describe('dailyNoteCreationBody / creation through the two daily-note intents', () => {
+  it('fills {{date}} and {{title}} (the note name from the path, else the date) and adds the creation frontmatter', () => {
+    const body = dailyNoteCreationBody('# {{title}}\n\nToday is {{date}}.\n', '2026-09-10', 'Daily/2026-09-10.md');
+    expect(body.startsWith('---\n')).toBe(true);
+    expect(body).toContain('# 2026-09-10');
+    expect(body).toContain('Today is 2026-09-10.');
+    expect(dailyNoteCreationBody('{{title}}', '2026-09-10')).toContain('2026-09-10');
+    expect(dailyNoteCreationBody('', '2026-09-10').startsWith('---\n')).toBe(true);
+  });
+
+  it('task_append on an absent note renders the template subset', () => {
+    const out = applyBridgeIntent(null, {
+      type: 'task_append', path: 'Daily/2026-09-10.md', date: '2026-09-10',
+      task: { title: 'Water #obsidian', startTime: null, duration: null, isAllDay: true, date: '2026-09-10', blockId: 'abc12345' },
+      heading: '## Tasks', template: '# {{title}}\n\n## Tasks\n',
+    });
+    expect(out.changed).toBe(true);
+    expect(out.text).toContain('# 2026-09-10');
+    expect(out.text).not.toContain('{{title}}');
+    expect(out.text).toMatch(/## Tasks\n- \[ \] Water #obsidian \^dg-abc12345/);
+  });
+
+  it('completion_log_append on an absent note renders the same subset', () => {
+    const out = applyBridgeIntent(null, {
+      type: 'completion_log_append', path: 'Daily/2026-09-10.md', date: '2026-09-10',
+      heading: '## Done', entry: '- 10:00 Did the thing', template: '# {{date}}\n',
+    });
+    expect(out.changed).toBe(true);
+    expect(out.text).toContain('# 2026-09-10');
+    expect(out.text).toContain('## Done\n- 10:00 Did the thing');
   });
 });

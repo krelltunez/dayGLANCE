@@ -5,7 +5,8 @@ import {
 
 describe('normalizeProjectNoteSettings / noteNameFromTitle', () => {
   it('defaults the layout and folders; makes any title portable', () => {
-    expect(normalizeProjectNoteSettings(null)).toEqual({ layout: 'note', projectsFolder: 'Projects', goalsFolder: 'Goals', projectTemplate: '', goalTemplate: '' });
+    expect(normalizeProjectNoteSettings(null)).toEqual({ layout: 'note', projectsFolder: 'Projects', goalsFolder: 'Goals', projectTemplate: '', goalTemplate: '', dailyTemplate: '' });
+    expect(normalizeProjectNoteSettings({ dailyTemplate: ' Templates/Daily.md ' }).dailyTemplate).toBe('Templates/Daily.md');
     expect(normalizeProjectNoteSettings({ layout: 'nested', projectsFolder: '/Work/Projects/', goalsFolder: '' }).projectsFolder).toBe('Work/Projects');
     expect(normalizeProjectNoteSettings({ layout: 'bogus' }).layout).toBe('note');
     expect(noteNameFromTitle('iOS App: v2 / launch?')).toBe('iOS App- v2 - launch-');

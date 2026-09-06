@@ -271,6 +271,36 @@ describe('the hook glue', () => {
   });
 });
 
+describe('native direct tier: "" reads as absent (companion §4.4 build record, the accepted tradeoff)', () => {
+  const baseProps = (tasks, over = {}) => ({
+    tasks, unscheduledTasks: [], recurringTasks: [], projects: [],
+    obsidianConfig: CFG, dailyNoteTemplate: '# T\n',
+    obsidianVaultHandleRef: { current: { kind: 'directory' } },
+    bridgeHeartbeatRef: { current: { pluginAuthoritative: false } },
+    setObsidianSyncError: vi.fn(), setObsidianSyncStatus: vi.fn(),
+    isRemoteApply: () => false,
+    ...over,
+  });
+
+  it('a "" read creates the day\'s note from the template (subset filled) with the entry under the log heading', async () => {
+    readDailyNoteNative.mockReturnValue({ text: '' });
+    writeDailyNoteNative.mockReturnValue(true);
+    const props = baseProps([{ id: 'a', completed: false, title: 'A' }], {
+      obsidianVaultHandleRef: { current: 'native' },
+      obsidianConfig: { ...CFG, completionLogHeading: '## Done' },
+      dailyNoteTemplate: '# {{date}}\n',
+    });
+    useRenderedHook(props);
+    useRenderedHook({ ...props, tasks: [{ id: 'a', completed: true, title: 'A', completedAt: '2026-09-02T10:00:00-05:00' }] });
+    await flush();
+    expect(writeDailyNoteNative).toHaveBeenCalledTimes(1);
+    const written = writeDailyNoteNative.mock.calls[0][1];
+    expect(written.startsWith('---\n')).toBe(true);
+    expect(written).toContain('# 2026-09-02');
+    expect(written).toContain('## Done');
+  });
+});
+
 describe('ruling G: a linked project is named as a wikilink in the log line', () => {
   it('buildCompletionLogWrite writes [[Note|Title]] for a linked project and the title for a missing note', async () => {
     const { buildCompletionLogWrite } = await import('./useCompletionLog.js');

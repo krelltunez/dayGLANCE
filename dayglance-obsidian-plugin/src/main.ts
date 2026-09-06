@@ -303,6 +303,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
         this.data.projectNotes = normalizeProjectNoteSettings(s);
         await this.saveData(this.data);
       },
+      templateStatus: () => this.transport.templateStatus(),
       getEditorHiding: () => this.editorHiding(),
       setEditorHiding: async (s) => {
         this.data.editorHiding = normalizeEditorHidingSettings(s);

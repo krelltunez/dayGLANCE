@@ -57,6 +57,8 @@ export interface BridgeSettingsHost extends PairingHost {
   /** Project and goal note workspaces (companion §4.3, rulings D and E). */
   getProjectNotes(): ProjectNoteSettings;
   setProjectNotes(s: ProjectNoteSettings): Promise<void>;
+  /** The last template problem (companion §4.4): a missing note, a refused interactive template, a failed render. Null when none. */
+  templateStatus?(): string | null;
   /** Editor hiding (display only, editorHiding.ts). */
   getEditorHiding(): EditorHidingSettings;
   setEditorHiding(s: EditorHidingSettings): Promise<void>;
@@ -325,6 +327,17 @@ export class BridgeSettingTab extends PluginSettingTab {
         t.setPlaceholder('Templates/Goal.md').setValue(cur.goalTemplate).onChange((v) => { draft.goalTemplate = v; });
         t.inputEl.addEventListener('blur', () => void save());
       });
+    new Setting(this.containerEl)
+      .setName('Daily note template')
+      .setDesc('Optional: vault path of a template note for daily notes dayGLANCE creates (a task added to today, a completion-log entry). Rendered the same way, here, when the note is created; {{date}} and {{title}} are the note\'s date. Without it, the daily note template text from dayGLANCE settings is used.')
+      .addText((t) => {
+        t.setPlaceholder('Templates/Daily.md').setValue(cur.dailyTemplate).onChange((v) => { draft.dailyTemplate = v; });
+        t.inputEl.addEventListener('blur', () => void save());
+      });
+    const issue = this.host.templateStatus?.() ?? null;
+    if (issue) {
+      this.containerEl.createEl('p', { cls: 'setting-item-description', text: `Template: ${issue}` });
+    }
   }
 
   private displayEditor(): void {

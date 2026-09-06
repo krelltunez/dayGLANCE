@@ -35,6 +35,7 @@ import {
   splitCompletionMarker, completionMarkerSuffix,
   splitTasksMetadata, reattachTasksMetadata,
   parseObsidianHeartbeat,
+  dailyNoteCreationBody,
 } from '@glance-apps/obsidian-format';
 export {
   formatDatePattern, updateTaskLines, parseTasksFromMarkdown,
@@ -334,10 +335,10 @@ export async function appendTaskToDailyNote(vaultHandle, dailyNotesPath, dateStr
   // genuinely instantiates the note, so it gets the creation frontmatter —
   // unless the user's template opens with its own `---` block, which wins
   // (utils/obsidianFrontmatter.js; the ownership rule). An existing note is
-  // never decorated. (The native append has no template-instantiation path:
-  // its read contract cannot distinguish absent from empty, so it starts
-  // absent notes from the task line alone — pre-existing, unchanged.)
-  let content = existing ? existing.text : withCreationFrontmatter(template || '', dateStr);
+  // never decorated. The body is the app's text template with the §4.4
+  // subset filled (`{{date}}`, `{{title}}`) — dailyNoteCreationBody, the
+  // same function every creation point uses (companion §4.4 build record).
+  let content = existing ? existing.text : dailyNoteCreationBody(template, dateStr, dailyNoteFilename(dateStr, pattern));
 
   const taskLine = buildObsidianTaskLine(task, dateStr);
   const lines = content.split('\n');
@@ -1211,10 +1212,18 @@ export function appendTaskToDailyNoteNative(dateStr, task, heading, template) {
     console.error('[Obsidian native] Daily note read failed; not appending (the note may have content we cannot see)');
     return false;
   }
-  // "" (absent or empty note) keeps its longstanding native behavior: the
-  // task line starts the note. (The template fallback used to trigger only on
-  // a null read — which the failure contract above now correctly aborts.)
-  let content = existing;
+  // "" is ABSENT-OR-EMPTY: the native read contract cannot tell the two
+  // apart. THE RULING (companion §4.4 build record, 2026-09-06): treat it
+  // as absent and create from the template, the way the FSA append does.
+  // The cost, accepted deliberately: a genuinely empty existing note gets
+  // the template prepended — a small, recoverable harm (the user deletes
+  // it). The alternative was every native direct-tier daily note staying
+  // bare forever, silently never carrying the structure the user
+  // configured, which is not recoverable because nobody knows it happened.
+  // (Before this the task line alone started the note here; the template
+  // used to trigger only on a null read, which the failure contract above
+  // now correctly aborts.)
+  let content = existing === '' ? dailyNoteCreationBody(template, dateStr, `${dateStr}.md`) : existing;
 
   const taskLine = buildObsidianTaskLine(task, dateStr);
   const lines = content.split('\n');

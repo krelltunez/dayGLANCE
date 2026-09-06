@@ -190,6 +190,12 @@ export interface BridgeHost {
   onLinkedNotesChanged?(): void;
 }
 
+/** The intents that CREATE a daily note when it is missing (the template ladder's daily creation point). */
+function isDailyNoteCreation(intent: Record<string, unknown>): boolean {
+  if (intent.type === 'completion_log_append') return true;
+  return intent.type === 'task_append' && intent.noteTask !== true;
+}
+
 // Same requestUrl-backed fetch shim as pairing.ts (CORS-free everywhere).
 const obsidianFetch = async (
   url: string,
@@ -1003,6 +1009,19 @@ export class BridgeTransport {
 
     const exists = await adapter.exists(path);
     const current = exists ? await adapter.read(path) : null;
+    // DAILY-NOTE CREATION THROUGH THE TEMPLATE LADDER (companion §4.4 build
+    // record, 2026-09-06). A daily note is created because dayGLANCE needed
+    // somewhere to write — a task append or a completion-log entry — and
+    // since the posture ruling that creation ALWAYS happens here, in a
+    // running Obsidian, at apply time: a paired device with Obsidian closed
+    // queues the intent rather than creating anything. So this is the one
+    // creation point a template note can be rendered at, through the same
+    // ladder project and goal notes use. Without a template note the
+    // intent's own text template stands (dailyNoteCreationBody, below).
+    if (current === null && isDailyNoteCreation(intent)) {
+      const dailyTemplate = normalizeProjectNoteSettings(this.host.getProjectNotes?.() ?? null).dailyTemplate;
+      if (dailyTemplate) return this.applyDailyNoteCreation(path, intent, dailyTemplate);
+    }
     const result = applyBridgeIntent(current, intent);
     if ('unsupported' in result) {
       if (!this.warnedUnsupported) {
@@ -1287,19 +1306,108 @@ export class BridgeTransport {
   }
 
   /**
-   * Render a template note for a new project or goal note through the §4.4
-   * ladder: Templater when it is installed, its render methods feature-detect,
-   * and the template asks nothing interactively (`tp.system.` would open a
-   * modal nobody is looking at and never settle); otherwise the subset
-   * renderer, leaving unsupported variables visible. Null when the template
-   * note does not exist.
+   * Create a daily note from the configured template note, then apply the
+   * intent to it. Two steps on purpose: the note is created first with the
+   * intent's own fallback body (a NON-EMPTY file, so a Templater folder
+   * template never races the write, and so the note already stands
+   * correct if the render fails), then rendered against that TFile —
+   * Templater's running config wants the real target — and rewritten with
+   * the intent applied to the rendered body.
+   */
+  private async applyDailyNoteCreation(path: string, intent: Record<string, unknown>, templatePath: string): Promise<'applied' | 'deferred'> {
+    const date = String(intent.date ?? '');
+    // Under Templater's on-create trigger the fallback text is rendered by
+    // Templater too, so it gets the same pre-scan as a template note.
+    const safeIntent = { ...intent, template: this.safeFallbackTemplate(String(intent.template ?? '')) };
+    const first = applyBridgeIntent(null, safeIntent);
+    if ('unsupported' in first || 'error' in first || !first.changed || first.text === null) return 'applied';
+    await this.ensureParentDirs(path);
+    let created: TFile;
+    try {
+      created = await this.host.app.vault.create(path, first.text);
+    } catch (e) {
+      // The path appeared between the existence check and the create (a
+      // race with Obsidian or a sync): the ordinary apply path handles an
+      // existing note on the next drain.
+      console.warn(`dayGLANCE bridge: could not create ${path}; retrying on the next drain`, e);
+      return 'deferred';
+    }
+    const body = await this.renderTemplate(templatePath, created, { title: created.basename, date, goal: '' });
+    if (body === null) return 'applied'; // template missing or refused: the fallback note stands
+    const second = applyBridgeIntent(withCreationFrontmatter(body, date), safeIntent);
+    if ('unsupported' in second || 'error' in second || second.text === null) return 'applied';
+    await this.host.app.vault.modify(created, second.text);
+    return 'applied';
+  }
+
+  /**
+   * Is Templater's "trigger on new file creation" on? THE SECOND DOOR
+   * (companion §4.4, build caution): our pre-scan guards the render WE
+   * perform, but with this trigger on Templater renders every new file
+   * itself, whether we delegated or not — and an interactive call in it
+   * hangs invisibly outside our guard. As of Templater 2.21 the setting is
+   * device-local (`templater-local-settings` in Obsidian's local storage);
+   * older builds kept it in the synced plugin settings. Both are read.
+   */
+  private templaterOnCreateTrigger(): boolean {
+    try {
+      const app = this.host.app as unknown as { loadLocalStorage?: (k: string) => unknown; plugins?: { plugins?: Record<string, unknown> } };
+      const raw = typeof app.loadLocalStorage === 'function' ? app.loadLocalStorage('templater-local-settings') : null;
+      const local = typeof raw === 'string' ? JSON.parse(raw) as unknown : raw;
+      if (local && typeof local === 'object' && (local as Record<string, unknown>).trigger_on_file_creation === true) return true;
+      const tp = app.plugins?.plugins?.['templater-obsidian'] as { settings?: Record<string, unknown> } | undefined;
+      return tp?.settings?.trigger_on_file_creation === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * The app's text template as a fallback BODY: under the on-create
+   * trigger Templater will render whatever we write, so an interactive
+   * call in it is the same hang; strip to the bare note and say so.
+   */
+  private safeFallbackTemplate(text: string): string {
+    if (!text || !templateNeedsUser(text) || !this.templaterOnCreateTrigger()) return text;
+    this.noteTemplateIssue('The daily-note text template from dayGLANCE was not applied: it contains a tp.system.* call and Templater\'s "trigger on new file creation" is on, which would run that prompt unattended. Turn the trigger off, or take the prompt out of the template.');
+    return '';
+  }
+
+  private templateIssue: string | null = null;
+  /** The last template problem worth a settings-tab line (null: none since the plugin loaded). */
+  templateStatus(): string | null { return this.templateIssue; }
+  private noteTemplateIssue(message: string): void {
+    if (this.templateIssue !== message) console.warn(`dayGLANCE bridge: ${message}`);
+    this.templateIssue = message;
+  }
+
+  /**
+   * Render a template note for a new project, goal or daily note through
+   * the §4.4 ladder: Templater when it is installed, its render methods
+   * feature-detect, and the template asks nothing interactively
+   * (`tp.system.` would open a modal nobody is looking at and never settle);
+   * otherwise the subset renderer, leaving unsupported variables visible.
+   * Null when the template note does not exist — or when it is interactive
+   * AND Templater's on-create trigger is on: the subset would leave the
+   * interactive call visible, and the trigger would then run it on the new
+   * file outside our guard. Delegating a non-interactive template under the
+   * trigger is safe: Templater's second pass finds nothing left to render.
    */
   private async renderTemplate(templatePath: string, target: TFile, vars: { title: string; date: string; goal: string }): Promise<string | null> {
     const tfile = this.host.app.vault.getAbstractFileByPath(normalizePath(templatePath));
-    if (!(tfile instanceof TFile)) return null;
+    if (!(tfile instanceof TFile)) {
+      this.noteTemplateIssue(`Template note "${templatePath}" was not found; the default body was used.`);
+      return null;
+    }
     const text = await this.host.app.vault.read(tfile);
     const subset = renderNoteTemplateSubset(text, vars);
-    if (templateNeedsUser(text)) return subset;
+    if (templateNeedsUser(text)) {
+      if (this.templaterOnCreateTrigger()) {
+        this.noteTemplateIssue(`Template "${templatePath}" was not applied: it asks for input (tp.system.*) and Templater's "trigger on new file creation" is on, which would run that prompt unattended. Turn the trigger off, or take the prompt out of the template.`);
+        return null;
+      }
+      return subset;
+    }
     type Fn = (...args: unknown[]) => unknown;
     const plugins = (this.host.app as unknown as { plugins?: { plugins?: Record<string, unknown> } }).plugins?.plugins;
     const templater = (plugins?.['templater-obsidian'] as { templater?: Record<string, unknown> } | undefined)?.templater;
@@ -1310,9 +1418,14 @@ export class BridgeTransport {
       // RunMode.CreateNewFromTemplate is 0 in every Templater release since 1.12.
       const config = (create as Fn).call(templater, tfile, target, 0);
       const out = await (parse as Fn).call(templater, config);
-      return typeof out === 'string' ? renderNoteTemplateSubset(out, vars) : subset;
+      if (typeof out !== 'string') {
+        this.noteTemplateIssue(`Templater returned nothing for "${templatePath}"; the subset renderer was used.`);
+        return subset;
+      }
+      return renderNoteTemplateSubset(out, vars);
     } catch (e) {
       console.warn('dayGLANCE bridge: Templater render failed; using the subset renderer', e);
+      this.noteTemplateIssue(`Templater failed to render "${templatePath}"; the subset renderer was used.`);
       return subset;
     }
   }
