@@ -125,3 +125,42 @@ describe('rescueUnsyncedTasks', () => {
     });
   });
 });
+
+describe('THE CROSS-LIST GUARD (2026-09-05, the phone-soak duplicate)', () => {
+  const ID = 'obsidian-dg-j0g0ahza';
+  const T = '2026-09-05T22:41:29.477Z';
+
+  it('a peer scheduled the task: the inbox copy is NOT rescued when the id is live in the incoming tasks list', () => {
+    // The Mac held the task in its inbox; the phone scheduled it. The pull's
+    // reconcile kept the scheduled copy and dropped the inbox copy from the
+    // incoming inbox list. The per-list rescue used to put it straight back.
+    const prevInbox = [obsidian(ID, T)];
+    const incomingTasks = [{ ...obsidian(ID, T), date: '2026-09-05', startTime: '17:15' }];
+    const liveIds = new Set([...incomingTasks, ...merged('other')].map((t) => t.id));
+    const out = rescueUnsyncedTasks(merged('other'), prevInbox, {}, undefined, {}, liveIds);
+    expect(out.map((t) => t.id)).toEqual(['other']);
+  });
+
+  it('the apply\'s composition: two lists, one live set — the moved id ends up in exactly one list, and a genuine race-add is still rescued', () => {
+    const prevTasks = [plain('t1')];
+    const prevInbox = [obsidian(ID, T), obsidian('obsidian-dg-fresh00', '1970-01-01T00:00:00.000Z')];
+    const incomingTasks = [plain('t1'), { ...obsidian(ID, T), date: '2026-09-05', startTime: '17:15' }];
+    const incomingInbox = []; // the race-add has not reached the vault yet; the moved id was reconciled out
+    const liveIds = new Set([...incomingTasks, ...incomingInbox].map((t) => String(t.id)));
+    const tasks = rescueUnsyncedTasks(incomingTasks, prevTasks, {}, undefined, {}, liveIds);
+    const inbox = rescueUnsyncedTasks(incomingInbox, prevInbox, {}, undefined, {}, liveIds);
+    expect(tasks.map((t) => t.id)).toEqual(['t1', ID]);
+    expect(inbox.map((t) => t.id)).toEqual(['obsidian-dg-fresh00']); // the race-add survives; the moved copy does not
+  });
+
+  it('a binned id is live too (audit M8 alignment): a prev-only copy of a task the result holds in the recycle bin is not resurrected', () => {
+    const prevInbox = [obsidian(ID, T)];
+    const liveIds = new Set([ID]); // the caller folds recycleBin ids into the set
+    expect(rescueUnsyncedTasks([], prevInbox, {}, undefined, {}, liveIds)).toEqual([]);
+  });
+
+  it('without a live set the old behavior stands (callers that only see one list)', () => {
+    const prevInbox = [obsidian(ID, T)];
+    expect(rescueUnsyncedTasks([], prevInbox, {}, undefined, {}).map((t) => t.id)).toEqual([ID]);
+  });
+});
