@@ -320,6 +320,37 @@ export function completedLineInWindow(body, completedSince) {
   return d !== null && d >= completedSince;
 }
 
+/**
+ * THE LINE-OWNED TASK FIELDS — every key the parser below can put on a task.
+ *
+ * dayGLANCE's scan/observation merge rebuilds an Obsidian task from its line
+ * on every pass and carries the app's copy forward BY EXCLUSION: every field
+ * NOT in this list survives a re-parse untouched, and a field in it is
+ * whatever the line (and the app's per-field ownership rulings) say it is.
+ * A new app-side field is therefore safe by default; the 2026-09-06 field
+ * finding was the opposite design costing features (focus minutes, bucket
+ * placement, and the completion transition id were all silently wiped by
+ * every scan, found one incident at a time — see
+ * docs/obsidian-buildout-spec.md, Phase 7's field-finding record).
+ *
+ * THE CONTRACT (taskLines.contract.test.js): the set of keys the parser
+ * emits over the marker corpus (taskLineCorpus.js) must EQUAL this list.
+ * The parser cannot gain a key without that test failing, and the fix is a
+ * one-line edit here, beside the code that caused it — together with a
+ * corpus line that exercises the new marker, which the same test demands.
+ * Consumers that add keys of their own on top of the parse (dayGLANCE's
+ * per-note merge adds lastModified and projectId) union them on their side
+ * and hold the same contract there.
+ */
+export const LINE_OWNED_TASK_FIELDS = Object.freeze([
+  'id', 'title', 'completed', 'completedAt',
+  'date', 'startTime', 'isAllDay', 'duration',
+  'priority', 'deadline', 'obsidianRecurrence',
+  'notes', 'subtasks', 'color', 'importSource',
+  'obsidianRawTitle', 'obsidianFileDate', 'obsidianNotePath',
+  'obsidianBlockId', 'obsidianLegacyId',
+]);
+
 export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(), { notePath = null, completedSince = null } = {}) {
   const scheduled = [];
   const inbox = [];

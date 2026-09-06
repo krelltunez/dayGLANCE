@@ -1,4 +1,5 @@
 import { isObsidianTombstoned, obsidianKeyDate } from './obsidianDeletions.js';
+import { LINE_OWNED_TASK_FIELDS } from '@glance-apps/obsidian-format';
 
 // Merge an Obsidian scan into one task list (scheduled or inbox) WITHOUT deleting
 // Obsidian tasks the scan didn't produce — unless a deletion tombstone says the
@@ -6,10 +7,9 @@ import { isObsidianTombstoned, obsidianKeyDate } from './obsidianDeletions.js';
 // mergeObsidianDailyNotes; same fix for the same measured loop.
 //
 // RULE:
-//   - a scanned task overrides its prior copy (fresh markdown), with app-only
-//     fields carried forward via `preserveAppFields` (preserveObsidianAppFields
-//     below is the app's carry: archived/completedAt/projectId/deadline/
-//     assignedUserSyncIds/transitionId/energy, and the priority shape);
+//   - a scanned task overrides its prior copy (fresh markdown), with the
+//     app's fields carried forward via `preserveAppFields` (the app's carry
+//     is preserveObsidianAppFields below: everything the LINE does not own);
 //   - a prior Obsidian task NOT in `scannedIdsAllLists` is RETAINED — it belongs to
 //     another device's vault. `scannedIdsAllLists` spans BOTH scheduled and inbox
 //     scans so a task that merely moved lists is treated as scanned (dropped here,
@@ -95,75 +95,83 @@ const reviveScannedAgainstTombstone = (t, tombstones, noteMtimes) => {
   return t; // tombstone as new as the note (or no mtime evidence) — stays gone
 };
 
-// APP-ONLY FIELD CARRY across a re-parse. The scan/observation merge
-// (obsidian.js mergeParsedObsidianTasks) rebuilds every task from its line,
-// so fields the markdown cannot reproduce must be carried from the existing
-// copy or every cold-open re-sync silently wipes them — which for
-// `archived`/`completedAt` on a completed task looked like a phantom change
-// and re-stamped lastModified every load (the DB-sync push churn). Only a
-// value that is actually present is carried, so no undefined keys are
-// injected. Both inbound sources use this: an observed note carries exactly
-// what a scanned one does.
+// THE APP-FIELD CARRY across a re-parse — BY EXCLUSION (2026-09-06).
 //
-// completedAt ALSO arrives from the vault (the parse absorbs a completion
-// marker on tagged lines), and the carry doubles as the merge rule the
-// completion-timestamp feature settled on — APP WINS WHEN IT HAS A VALUE;
-// THE VAULT MARKER FILLS THE BLANK: a title is user-authored content, so the
-// vault is ground truth for titles — but a completion timestamp is
-// dayGLANCE's own record of an action dayGLANCE performed, and the vault
-// marker is an echo of it. Letting a stale echo overwrite the source would
-// be backwards. The adoption case — vault has a marker, app has none — isn't
-// a conflict at all; it's importing data we lack, and the spread leaves the
-// parsed value in place exactly there. An explicit null (the app uncompleted
-// the task) is the app's statement and still wins.
+// The scan/observation merge (obsidian.js mergeParsedObsidianTasks) rebuilds
+// every task from its line, so whatever the markdown cannot reproduce must
+// be carried from the app's existing copy or a re-parse wipes it. This used
+// to be an allow-list of fields to carry; everything not on it was dropped
+// by default, and the list was found one incident at a time: archived and
+// completedAt (the cold-open churn), assignedUserSyncIds, then on the day
+// of the SSE re-arm transitionId and the priority shape (the phantom
+// re-stamp, below), then energy because it sat in the same place — and an
+// audit at that point found focusMinutes (focus sessions accruing on a
+// scheduled task, reset by every scan), bucketId (a task falling out of its
+// bucket back to the inbox) and hyperglanceSessionDate being wiped with
+// nobody having reported it. The allow-list was costing features.
 //
-// `scanned` (the task the scan produced) guards the deadline carry: since
-// Step 2, deadline is line-derived too — the scan merge carries the app
-// value forward itself and the per-field adoption may have deliberately
-// replaced it with the vault's edit, so this layer only fills a deadline the
-// scan produced NOTHING for.
+// So the rule is inverted: every field on the app's copy is carried UNLESS
+// the LINE owns it. The line-owned set is LINE_OWNED_TASK_FIELDS, exported
+// by the parser's module beside the code that emits it, plus the two the
+// per-note merge adds (lastModified, projectId); the key contract
+// (obsidian.lineOwnedFields.test.js; taskLines.contract.test.js in the
+// package) pins that set against the marker corpus, so a marker the parser
+// learns cannot ship without the list learning it. A new app-side field is
+// safe by default. A line-owned key absent from the scan is CLEARED, never
+// carried — an un-scheduled line drops the schedule keys, a stripped token
+// drops the block id — which is what keeps the inversion from re-creating
+// the war shape of an inbox record carrying a stale startTime.
 //
-// THE PHANTOM RE-STAMP (2026-09-06 field finding). Anything the app sets on
-// a task that is NOT on this list, and any key whose mere PRESENCE differs
-// between the app's copy and the re-parse, registers with stampTimestamps
-// as an edit and fabricates a fresh lastModified on a task nobody touched.
-// Under DB-tier last-write-wins that fabricated stamp outranks real edits
-// made elsewhere in the same window: a phone scanning a stale vault copy
-// re-stamped a task every time it pulled a newer desktop copy, and a sidebar
-// completion that landed inside that window was overwritten. Two keys were
-// proven on the real pipeline: `transitionId` (minted by every completion,
-// dropped by every re-parse) and `priority` (scheduling from the inbox
-// STRIPS the key; an untimed line re-parses inbox-shaped with priority 0).
-// The carry below closes both, and `energy` with them (same position:
-// app-set, not line-derived). The compare side is closed in
-// stampTimestamps.normalizeField, where absent and 0 priority read equal.
+// The explicit rules that remain are real semantics on line-owned keys,
+// each pinned by a removal or carry test, not a memory list:
+//
+//  • completedAt — APP WINS WHEN IT HAS A VALUE; THE VAULT MARKER FILLS THE
+//    BLANK (the completion-timestamp feature's merge rule): the marker is
+//    an echo of an action dayGLANCE performed, and a stale echo must not
+//    overwrite the source. An explicit null (the app uncompleted the task)
+//    is the app's statement and still wins; the adoption case (marker, no
+//    app value) isn't a conflict, the parsed value stays.
+//  • projectId — app-owned, carried across re-scans unless the SCAN adopted
+//    a vault edit of the line's [project:: …] field (companion §4.3, ruling
+//    G as amended): a resolved id wins, an explicit null (the field
+//    removed) unassigns.
+//  • deadline — same shape as projectId since Step 2: line-derived (📅),
+//    adopted on a vault edit with an explicit null on removal, so ABSENCE
+//    from the scan means "no opinion" and the app's value fills it.
+//  • priority — the SHAPE: a scheduled copy carries NO priority key
+//    (scheduling strips it) while the re-parse of an untimed line says 0.
+//    Absent and 0 are the same state ("none"), so the app's shape wins and
+//    the row hashes as it did; a vault marker edit is adopted onto a copy
+//    that HAS the key (inbox-shaped) and is untouched here. (The compare
+//    side is closed too: stampTimestamps.normalizeField reads absent and 0
+//    as one state.)
+//  • transitionId — rides with the completion STATE: carried while the
+//    merge leaves that state as the app had it (the OR keeps a completed
+//    copy completed), never onto a completion the vault just made (a fresh
+//    transition owns no stale id; the notify emitter mints one).
+//
+// THE PHANTOM RE-STAMP, for the record: any key whose value or mere
+// presence differs between the app's copy and the re-parse registers with
+// stampTimestamps as an edit and fabricates a fresh lastModified on a task
+// nobody touched; under DB-tier last-write-wins that stamp outranks real
+// edits made elsewhere in the same window. A phone scanning a stale vault
+// copy re-stamped a task every time it pulled a newer desktop copy, and a
+// sidebar completion that landed inside that window was overwritten.
+export const APP_LINE_OWNED_TASK_FIELDS = Object.freeze([...LINE_OWNED_TASK_FIELDS, 'lastModified', 'projectId']);
+const LINE_OWNED = new Set(APP_LINE_OWNED_TASK_FIELDS);
+
 export function preserveObsidianAppFields(old, scanned = {}) {
+  const carried = {};
+  for (const k of Object.keys(old)) {
+    if (!LINE_OWNED.has(k) && old[k] !== undefined) carried[k] = old[k];
+  }
+  if (carried.transitionId !== undefined && !!old.completed !== !!scanned.completed) delete carried.transitionId;
   return {
-    // The project is app-owned, carried across re-scans — unless the SCAN
-    // adopted a vault edit of the line's [project:: …] field (companion
-    // §4.3, ruling G as amended): a resolved id wins, an explicit null
-    // (the field removed) unassigns.
+    ...carried,
+    ...(old.completedAt !== undefined ? { completedAt: old.completedAt } : {}),
     ...(scanned.projectId === null ? { projectId: undefined }
       : old.projectId && scanned.projectId === undefined ? { projectId: old.projectId } : {}),
     ...(old.deadline && scanned.deadline === undefined ? { deadline: old.deadline } : {}),
-    ...(old.archived !== undefined ? { archived: old.archived } : {}),
-    ...(old.completedAt !== undefined ? { completedAt: old.completedAt } : {}),
-    // assignedUserSyncIds is an app-only synced field (user assignment) that
-    // the markdown re-parse can't reproduce; without this an assigned Obsidian
-    // task drops it on every re-scan → the same per-cycle false-diff/re-push.
-    ...(old.assignedUserSyncIds !== undefined ? { assignedUserSyncIds: old.assignedUserSyncIds } : {}),
-    // The completion's transition id rides with the completion STATE: carried
-    // while the merge leaves that state as the app had it (the OR keeps a
-    // completed copy completed), never onto a completion the vault just made
-    // (a fresh transition owns no stale id; the notify emitter mints one).
-    ...(old.transitionId !== undefined && !!old.completed === !!scanned.completed
-      ? { transitionId: old.transitionId } : {}),
-    ...(old.energy !== undefined ? { energy: old.energy } : {}),
-    // A scheduled copy carries NO priority key (scheduling strips it); the
-    // re-parse of an untimed line says 0. Absent and 0 are the same state
-    // ("none"), so the app's shape wins and the row hashes as it did — a
-    // real vault edit of the marker is adopted onto a copy that HAS the key
-    // (inbox-shaped) and is untouched here.
     ...(old.priority === undefined && scanned.priority === 0 ? { priority: undefined } : {}),
   };
 }
