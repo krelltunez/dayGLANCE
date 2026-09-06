@@ -7,6 +7,7 @@ import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowT
 import { readDailyNoteFresh, readDailyNoteNative, simpleHash as obsidianSimpleHash, buildNewObsidianTaskMeta, dailyNoteFilename } from './obsidian.js';
 import { appendTaskDirect, writeDailyNoteDirect } from './utils/obsidianDirectWrites.js';
 import { emitBridgeIntent } from './utils/obsidianBridgeStream.js';
+import { isStreamPosture } from './utils/obsidianVaultPosture.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
@@ -3299,7 +3300,7 @@ const DayPlanner = () => {
       // DROPPED emit surfaces — a systematic window (e.g. meta not yet
       // discovered) must not be a silent vault-write loss even though the
       // note re-emits on its next edit.
-      if (bridgeHeartbeatRef.current.pluginAuthoritative) {
+      if (isStreamPosture(bridgeHeartbeatRef.current)) {
         if (!queued) {
           setObsidianSyncError(`Daily note ${dateStr} was not written to your vault: the bridge queue is unavailable. It will be written the next time you edit it.`);
           setObsidianSyncStatus('error');
@@ -7060,7 +7061,7 @@ const DayPlanner = () => {
           // a scan. A DROPPED emit surfaces: unlike a task-state change,
           // nothing re-emits an append, so a silent drop here would leave
           // the task app-only with no signal at all.
-          if (bridgeHeartbeatRef.current.pluginAuthoritative) {
+          if (isStreamPosture(bridgeHeartbeatRef.current)) {
             if (!queued) {
               setObsidianSyncError(`Task "${task.title}" was not written to your vault: the bridge queue is unavailable.`);
               setObsidianSyncStatus('error');

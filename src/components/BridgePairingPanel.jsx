@@ -5,6 +5,7 @@ import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
 import { startBridgePairing, cancelBridgePairing } from '../utils/obsidianBridgePairing.js';
 import { getBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
 import { getVaultConfig } from '../sync/vaultConfig.js';
+import { deriveBridgeStatus, describeAgo } from '../utils/bridgeStatus.js';
 import { useTranslation } from 'react-i18next';
 
 // Bridge-plugin pairing (Obsidian build-out Phase 6, spec §3.2/§3.4): mints
@@ -37,6 +38,11 @@ const BridgePairingPanel = ({ vaultHandleRef, darkMode, textPrimary, textSeconda
   // flip legible: without it the first symptom of plugin mode is the vault
   // folder picker apparently no longer mattering. null = unknown.
   const [pairedDays, setPairedDays] = useState(null);
+  // The discovered meta:pairing row — "is the VAULT paired". With a stale
+  // heartbeat it decides between THE WAITING STATE (paired vault, Obsidian
+  // closed here: the 2026-09-06 posture ruling's normal resting state) and
+  // no plugin at all.
+  const [meta, setMeta] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,23 +50,24 @@ const BridgePairingPanel = ({ vaultHandleRef, darkMode, textPrimary, textSeconda
       const handle = vaultHandleRef?.current;
       if (!handle || handle === 'native') return;
       try {
-        const state = obsidianHeartbeatState(await readVaultHeartbeat(handle));
+        const raw = await readVaultHeartbeat(handle);
+        const state = obsidianHeartbeatState(raw);
         if (cancelled) return;
-        setHb(state);
+        setHb({ ...state, lastBeatMs: raw?.tsMs ?? null });
         // The plugin deletes the offer once it stores the credentials, so a
         // paired heartbeat means the displayed code has served its purpose.
-        if (state.pluginAuthoritative) {
-          setCode((prev) => (prev ? null : prev));
-          // Right after pairing the cache may still hold the pre-pairing
-          // negative — force one refresh past the TTL so the indicator
-          // (and the emit gate it shares a cache with) sees the pairing
-          // now, not a TTL later.
-          const meta = (await getBridgePairingMeta())
-            ?? (await getBridgePairingMeta({ force: true }));
-          if (cancelled) return;
-          const t = meta?.pairedAt ? Date.parse(meta.pairedAt) : NaN;
-          setPairedDays(Number.isFinite(t) ? Math.max(0, Math.floor((Date.now() - t) / 86400000)) : null);
-        }
+        if (state.pluginAuthoritative) setCode((prev) => (prev ? null : prev));
+        // Right after pairing the cache may still hold the pre-pairing
+        // negative — force one refresh past the TTL so the indicator
+        // (and the emit gate it shares a cache with) sees the pairing
+        // now, not a TTL later. Read in every state: the waiting line
+        // needs the vault's pairing while this device's beat is stale.
+        const m = (await getBridgePairingMeta())
+          ?? (await getBridgePairingMeta({ force: true }));
+        if (cancelled) return;
+        setMeta(m ?? null);
+        const t = m?.pairedAt ? Date.parse(m.pairedAt) : NaN;
+        setPairedDays(Number.isFinite(t) ? Math.max(0, Math.floor((Date.now() - t) / 86400000)) : null);
       } catch { /* a liveness probe must never break the settings UI */ }
     };
     probe();
@@ -98,6 +105,8 @@ const BridgePairingPanel = ({ vaultHandleRef, darkMode, textPrimary, textSeconda
     } catch { /* clipboard unavailable — the code is on screen to copy by hand */ }
   };
 
+  const status = deriveBridgeStatus(hb, meta);
+
   return (
     <div className={`border ${borderClass} rounded-lg p-3 space-y-2`}>
       <div className={`flex items-center gap-2 text-sm font-medium ${textPrimary}`}>
@@ -113,8 +122,17 @@ const BridgePairingPanel = ({ vaultHandleRef, darkMode, textPrimary, textSeconda
               : t('settings.obsidianBridgeActiveMode', { days: pairedDays }))
           : hb.obsidianRunning
             ? t('settings.obsidianBridgeRunning')
-            : t('settings.obsidianBridgeNotDetected')}
+            : status.state === 'waiting'
+              ? t('settings.obsidianBridgeWaiting')
+              : t('settings.obsidianBridgeNotDetected')}
       </p>
+      {status.state === 'waiting' && (
+        <p className={`text-xs ${textSecondary}`}>
+          {status.lastBeatMs === null
+            ? t('settings.obsidianBridgeWaitingNeverSeen')
+            : t('settings.obsidianBridgeWaitingLastSeen', { when: describeAgo(status.lastBeatMs) })}
+        </p>
+      )}
       {/* Stamping tri-state from the plugin's heartbeat (2026-08-31
           config-null incident): 'no-config' is the loud one — the plugin is
           holding daily-note reporting, fail closed, until its config row

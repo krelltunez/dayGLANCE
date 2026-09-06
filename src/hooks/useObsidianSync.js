@@ -23,6 +23,7 @@ import { mergeObsidianTasks, preserveObsidianAppFields, noteMtimesFromDailyNotes
 import { detectObsidianDeletions, addObsidianTombstones, commitObsidianTombstones } from '../utils/obsidianDeletions.js';
 import { reattachTasksMetadata } from '../utils/obsidianTasksMetadata.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
+import { vaultPosture, isStreamPosture } from '../utils/obsidianVaultPosture.js';
 import { planNoteLinkUpdates, normalizeNotePath, projectByNotePath, projectRefFor } from '../utils/obsidianProjectNotes.js';
 import {
   readRetiredTaskIds,
@@ -215,7 +216,7 @@ export default function useObsidianSync({
     // Arbitration (§3.2): plugin authoritative → the intent IS the write;
     // a failed enqueue surfaces through the same visible error state the
     // direct branches use (never a silent write loss).
-    if (bridgeHeartbeatRef.current.pluginAuthoritative) {
+    if (isStreamPosture(bridgeHeartbeatRef.current)) {
       if (!queued) {
         setObsidianSyncError(`Note "${notePath}" was not written: the bridge queue is unavailable.`);
         setObsidianSyncStatus('error');
@@ -327,10 +328,25 @@ export default function useObsidianSync({
   // main, Android ObsidianRepository) do their own freshness reads at
   // fire/arm time, where the answer is current rather than up to a scan old.
   const bridgeHeartbeatRef = useRef({ obsidianRunning: false, pluginAuthoritative: false });
+  // The ref carries the heartbeat's own state PLUS the cycle's posture
+  // decision (utils/obsidianVaultPosture.js): every arbitration site reads
+  // isStreamPosture(bridgeHeartbeatRef.current), never pluginAuthoritative
+  // directly — since the 2026-09-06 posture ruling a paired vault keeps this
+  // device on the stream side even while its own heartbeat is stale
+  // ('holding'), and pluginAuthoritative alone would send it back to a
+  // direct scan of a copy Obsidian is not refreshing.
   const refreshBridgeHeartbeat = async (handle) => {
     try {
       const hb = handle === 'native' ? readVaultHeartbeatNative() : await readVaultHeartbeat(handle);
-      bridgeHeartbeatRef.current = obsidianHeartbeatState(hb);
+      const state = obsidianHeartbeatState(hb);
+      // The pairing meta is the "is the vault paired" fact the posture
+      // needs. It is normally cached by the last cycle; on a first cycle
+      // (fresh install, cleared storage) discover it before deciding, so a
+      // paired vault never gets one direct scan by accident. Cached
+      // negatives inside the TTL return at once; failures read as unpaired.
+      let meta = cachedBridgePairingMeta();
+      if (meta == null) { try { meta = await getBridgePairingMeta(); } catch { meta = null; } }
+      bridgeHeartbeatRef.current = { ...state, vaultPosture: vaultPosture({ heartbeat: state, vaultPaired: !!meta }) };
     } catch { /* a liveness probe must never fail a sync */ }
   };
 
@@ -542,11 +558,18 @@ export default function useObsidianSync({
       // this device stops scanning and writing directly, and its inbound
       // source becomes the observation stream — one inbound source per
       // device, never both, so the stream and the scan can't churn against
-      // each other. Authority is re-evaluated every cycle from the
-      // heartbeat just refreshed above; a stale heartbeat (Obsidian closed,
-      // plugin disabled, unpaired) reverts to direct on the next cycle —
-      // §3.3's one revert path.
-      const authoritative = bridgeHeartbeatRef.current.pluginAuthoritative;
+      // each other. The posture is re-evaluated every cycle from the
+      // heartbeat just refreshed above. Since the 2026-09-06 posture ruling
+      // (utils/obsidianVaultPosture.js) a STALE heartbeat on a PAIRED vault
+      // no longer reverts to direct: the device HOLDS — stream in, intents
+      // out, no scan and no direct write — because a copy Obsidian is not
+      // running against is not current data. §3.3's revert path now exists
+      // only for an unpaired vault, which has no stream to fall back on.
+      // `authoritative` below therefore means "on the stream side", which
+      // is what every branch it gates has always actually needed.
+      const authoritative = isStreamPosture(bridgeHeartbeatRef.current);
+      const holding = bridgeHeartbeatRef.current.vaultPosture === 'holding';
+      if (holding) console.info('[Obsidian] vault posture: holding (paired vault, Obsidian not running here) — stream in, intents out, no scan.');
 
       // ── SIDEBAR ACTIONS (companion spec 4.2) ────────────────────────────
       // The plugin's agenda view completes a task by emitting an `act:` row;
@@ -1175,7 +1198,7 @@ export default function useObsidianSync({
   };
   const nudgeObsidianObservations = () => {
     if (isTrayMode || !obsidianConfig?.enabled) return;
-    if (!bridgeHeartbeatRef.current.pluginAuthoritative) return;
+    if (!isStreamPosture(bridgeHeartbeatRef.current)) return;
     const st = obsidianNudgeRef.current;
     if (st.timer) return; // a run is already scheduled — coalesce into it
     const wait = Math.max(0, st.lastRunAt + OBSIDIAN_NUDGE_MIN_GAP_MS - Date.now());
@@ -1312,7 +1335,7 @@ export default function useObsidianSync({
     // this person's notes. The viewer is this device's user on direct access
     // and the pairing meta's user when the plugin is authoritative.
     const writeViewer = vaultViewerFor({
-      authoritative: bridgeHeartbeatRef.current.pluginAuthoritative,
+      authoritative: isStreamPosture(bridgeHeartbeatRef.current),
       meta: cachedBridgePairingMeta(), multiUserEnabled, meUserSyncId,
     });
     // NON-DAILY TASKS (companion §6, ruling F) are plugin-only: their writes
@@ -1320,7 +1343,7 @@ export default function useObsidianSync({
     // authoritative. In direct mode they are left out of the pass — and out
     // of its snapshot — rather than handed to a date-addressed writer that
     // cannot locate them.
-    const noteTasksWritable = !!bridgeHeartbeatRef.current.pluginAuthoritative;
+    const noteTasksWritable = isStreamPosture(bridgeHeartbeatRef.current);
     const allObsidian = [...tasks, ...unscheduledTasks]
       .filter(t => t.importSource === 'obsidian' && t.obsidianRawTitle && visibleToViewer(t, writeViewer)
         && (noteTasksWritable || !t.obsidianNotePath));
@@ -1345,7 +1368,9 @@ export default function useObsidianSync({
     // until the next direct-mode write touches that note (the retry rides
     // vault touches). Benign leftover, invisible to Obsidian, cleaned on
     // the next direct cycle — accepted.
-    const authoritative = bridgeHeartbeatRef.current.pluginAuthoritative;
+    // Posture, not raw authority (the 2026-09-06 ruling): a paired vault
+    // with Obsidian closed here HOLDS, and its writes are intents.
+    const authoritative = isStreamPosture(bridgeHeartbeatRef.current);
 
     // Write-success commits from synchronous native writes, run after the
     // snapshot rebuild below. (Desktop commits run in each write's own .then,

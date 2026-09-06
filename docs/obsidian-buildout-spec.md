@@ -150,13 +150,23 @@ If the bridge plugin is present and paired to GLANCEvault on a device, the plugi
 
 **Dependency the per-vault ruling assumed without writing down (field incident, 2026-08-31):** `data.json` reaches a device only through Obsidian Sync's community-plugin-settings sync — a user-toggleable setting that can flip without notice (observed: it turned itself off on one device). When it does, that vault copy's plugin loses its credentials, beats `paired: false`, and the device falls back to direct mode — SAFE (an unpaired plugin is inert by this ruling's own qualifier, and direct mode is the designed fallback), but the fleet silently splits between modes, and before the per-device bridge status indicator the only way to notice was opening plugin settings on each device individually. So: the per-vault ruling propagates *conditionally*, the condition is a setting the user can flip, and the running system must keep the resulting per-device state legible — the three-state bridge status block (active-and-paired / plugin running but NOT paired here, with the plugin-settings-sync check named as the known cause / no plugin detected) exists for exactly the middle state. `components/BridgeStatusPanel.jsx` (native devices), `components/BridgePairingPanel.jsx` (desktop).
 
+**Posture ruling (2026-09-06): a paired device with a stale heartbeat neither scans nor writes the vault.** It keeps reading the stream, so tasks continue to sync; its writes queue as intents exactly as in plugin mode; and the settings status line says the vault side is waiting on Obsidian. The condition is "stale heartbeat", not "is a phone" — the same rule everywhere, near-permanent on mobile and rare on desktop. (`utils/obsidianVaultPosture.js`: `'plugin'` / `'holding'` / `'direct'`; every arbitration site reads the cycle's posture through `isStreamPosture`, never `pluginAuthoritative` directly. Pinned by harness scenario 12.)
+
+*The reasoning.* A device's vault copy is only fresh while Obsidian is running. Obsidian Sync does not run in the background on mobile, and not at all on a closed desktop. So direct scanning on a stale heartbeat was never reading current data — it was reading a snapshot from whenever Obsidian last had focus and treating it as authoritative. That looked like a capability and was actually a source of confidently wrong data. The evidence is specific: the Mac completed a task at 19:33:33, an Android with Obsidian backgrounded re-stamped the uncompleted copy at 19:36:55 from its stale line, and the fabricated timestamp won — a real edit lost to a stale file. The phantom re-stamp itself is fixed (Phase 7's 2026-09-06 record: the field carry by exclusion), but a stale copy still re-creates lines the fleet deleted and tombstones lines the fleet added — the 24-row resupply storm — and only the posture change stops that. *What is lost:* nothing a user notices. Obsidian edits still reach dayGLANCE through the stream while Obsidian is open anywhere; dayGLANCE edits still queue as intents and apply when Obsidian next opens, which is what mobile always did.
+
+*The status line* (both bridge panels, `utils/bridgeStatus.js` state `waiting`, neutral colour — nothing is broken): "Syncing through the Plugin Bridge. Vault changes will apply the next time Obsidian runs on this device. Tasks keep syncing in the meantime." with "Obsidian last ran here 3 hours ago." beneath it from the stale beat's own timestamp, or "Obsidian has not run with the plugin on this device yet." when there is no beat. A count of pending intents was considered and skipped as more than a small addition: the local outbox flushes to the stream at once, so the honest count is the live `int:` rows on the stream, which is a list request per render, and "not yet applied" is per-plugin-copy, not per-device.
+
+*Unpaired devices — a deliberate answer, not an omission.* The ruling says *paired* because a paired device has the stream to fall back on. An unpaired vault has the same stale-copy exposure and no alternative path: nothing reports notes and nothing applies intents. It keeps today's behavior — the frozen direct-access tier (§3.9; the companion spec's scope) scans and writes its own copy — because a device converging on the copy it has beats a device with Obsidian sync stopped entirely, and the remedy for an unpaired stale copy is pairing. A plugin that is *running* here but not paired here (the lost-credentials middle state above) also stays direct: its heartbeat is fresh, so its copy is fresh, and the panel already flags the split for remediation.
+
+*What this is not.* A posture change only: identity, the merge semantics, the ownership rulings of §3.10 and the stream are untouched. §3.3's revert path now exists only for an unpaired vault.
+
 ### 3.3 Pairing state is carried in the heartbeat payload
 
 The plugin writes `.dayglance/heartbeat` on an interval while Obsidian is open. Payload: `{paired, accountId, deviceId, ts}`.
 
 **Rationale.** Arbitration only matters on devices where dayGLANCE could write directly, and on precisely those devices dayGLANCE has vault access and can read the file. *(Corrected: this rationale originally continued "On iOS there is nothing to arbitrate and correspondingly no way to read it" — written before the native iOS ObsidianBridge existed. iOS has had bookmark-scoped vault access — heartbeat reads included — since that bridge shipped, so arbitration covers it like any other vault-access platform.)* The genuinely vault-less platforms are the sandboxed browsers (Firefox/Safari web), where no direct write can happen and there is nothing to arbitrate. The mechanism degrades exactly where it is irrelevant, and no separate signalling channel is needed.
 
-**Revert path.** A stale or missing heartbeat resumes direct writes, treated identically. Staleness threshold should be comfortably longer than an Obsidian restart, so minutes rather than seconds.
+**Revert path.** A stale or missing heartbeat resumes direct writes, treated identically. Staleness threshold should be comfortably longer than an Obsidian restart, so minutes rather than seconds. *(Amended by the 2026-09-06 posture ruling, §3.2: the revert applies only while the VAULT is unpaired. On a paired vault a stale or missing heartbeat HOLDS the device — stream in, intents out, no scan and no direct write — because the copy a closed Obsidian is not refreshing is not current data.)*
 
 **`deviceId` semantics (Phase 6 note).** The wire key `deviceId` predates the per-vault pairing ruling and is kept — the payload shape is final. Its semantics are *per vault-copy install id*: minted once per plugin install into `data.json`, which Obsidian settings-sync shares across the vault's copies exactly as it shares the pairing. It identifies which vault copy is beating (the heartbeat file itself never syncs, so liveness stays local), not a paired device.
 
@@ -642,12 +652,9 @@ Not a phase. Submit the plugin to the Obsidian community directory once Phases 6
 - **Phase 8 scope.** RESOLVED (2026-09-01) — scoped in
   `obsidian-companion-spec.md`: plugin-first, direct access frozen at
   feature-complete, read-write scan scope deferred to its own phase.
-- **Stale-copy posture on a paired phone (2026-09-06).** A paired phone
-  whose plugin heartbeat goes stale reverts to direct mode and scans its own
-  vault copy — which, with Obsidian backgrounded, is almost always stale too.
-  The phantom re-stamp is fixed (Phase 7's 2026-09-06 record), but a stale
-  copy still re-creates lines the fleet deleted and tombstones lines the
-  fleet added. Proposed: a paired phone on a stale heartbeat keeps reading
-  the stream and neither scans nor writes the vault until Obsidian runs,
-  with a status line saying so. Awaiting the owner's ruling; it alters what
-  wins on divergence, so it is not built without one.
+- **Stale-copy posture on a paired device (2026-09-06).** RESOLVED the same
+  day — the posture ruling recorded in §3.2: a paired device with a stale
+  heartbeat neither scans nor writes the vault, keeps reading the stream,
+  and shows the waiting status line; an unpaired vault keeps the frozen
+  direct tier, deliberately. `utils/obsidianVaultPosture.js`; harness
+  scenario 12.

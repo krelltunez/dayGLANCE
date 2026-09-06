@@ -5,6 +5,7 @@
 // 2026-09-04, scripted.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import * as obsidianMod from '../../src/obsidian.js';
 
 const effects: Array<{ fn: () => unknown; deps?: unknown[] }> = [];
 vi.mock('react', () => ({
@@ -392,6 +393,44 @@ describe('vault task scope, end to end', () => {
     await A.sync();
     expect(A.all().map((t) => t.id)).toEqual([id]);
     expect(JSON.parse(JSON.stringify(A.all()[0]))).toEqual(before);
+  });
+
+  it('12. THE POSTURE RULING (2026-09-06): a paired device with a STALE heartbeat neither scans nor writes; the stream still feeds it and its edits go out as intents', async () => {
+    // A device's vault copy is only fresh while Obsidian runs (Obsidian
+    // Sync does not run in the background on mobile), so a direct scan on a
+    // stale heartbeat reads a snapshot and treats it as authoritative — the
+    // Android that re-stamped a stale uncompleted line over the Mac's
+    // completion. The ruling: stale heartbeat + paired vault = HOLD.
+    await bootWithScopedNote();
+    const id = A.byPath(NOTE)[0].id;
+    const scans = vi.mocked(obsidianMod.syncObsidianVault).mock.calls.length;
+    const directWrites = vi.mocked(obsidianMod.writeTaskStateToFile).mock.calls.length;
+    // B's Obsidian is closed: its heartbeat file is an hour old (still
+    // claims `paired`, as a stale file does).
+    vi.mocked(obsidianMod.readVaultHeartbeat).mockImplementation(async () => ({ paired: true, tsMs: Date.now() - 3600_000, accountId: 'acc-1', deviceId: 'plugin-dev' }));
+    try {
+      const B = mountDevice('B');
+      await B.sync();
+      expect(B.api.bridgeHeartbeatRef.current.pluginAuthoritative).toBe(false);
+      expect(B.api.bridgeHeartbeatRef.current.vaultPosture).toBe('holding');
+      // The stream fed it: the scoped note's task is here.
+      expect(B.state.inbox.map((t) => t.id)).toEqual([id]);
+      // It did NOT scan its own copy.
+      expect(vi.mocked(obsidianMod.syncObsidianVault).mock.calls.length).toBe(scans);
+      // Its completion goes out as an intent, which the (running) plugin
+      // applies to the vault; no direct write.
+      B.patch(id, { completed: true, completedAt: new Date().toISOString() });
+      await B.writeback();
+      await s.plugin.transport.drain();
+      expect(s.text(NOTE)).toMatch(/- \[x\] Call the plumber \^dg-/);
+      expect(vi.mocked(obsidianMod.writeTaskStateToFile).mock.calls.length).toBe(directWrites);
+      // And a second stale cycle stays put: still holding, still no scan.
+      await B.sync();
+      expect(B.api.bridgeHeartbeatRef.current.vaultPosture).toBe('holding');
+      expect(vi.mocked(obsidianMod.syncObsidianVault).mock.calls.length).toBe(scans);
+    } finally {
+      vi.mocked(obsidianMod.readVaultHeartbeat).mockImplementation(async () => ({ paired: true, tsMs: Date.now(), accountId: 'acc-1', deviceId: 'plugin-dev' }));
+    }
   });
 
   it('9. a plugin reload republishes the pairing meta WITH the scope (harness finding)', async () => {
