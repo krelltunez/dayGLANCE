@@ -34,6 +34,7 @@ import {
   parseDateFromFilename,
   BRIDGE_VAULT_APP,
   BRIDGE_OBSERVATION_PREFIX,
+  BRIDGE_ACTION_PREFIX,
   completedSinceFor,
 } from '@glance-apps/obsidian-format';
 import {
@@ -123,13 +124,22 @@ export function commitBridgeObservationCursor(maxSeq) {
  * cursor? The vault's /events stream carries only {seq} — the account seq is
  * shared across apps, so a nudge cannot say whether a bridge row or a DB row
  * advanced it. This probe is the cheap discriminator: ONE first-page list of
- * the bridge namespace since the cursor, checking for `obs:`-prefixed rows —
- * no decryption, no pairing meta, no pagination. dayGLANCE's own bridge
- * writes are `int:`/`meta:` rows, so the prefix check structurally excludes
- * them: only plugin-authored observations (and a `hasMore` page boundary,
- * conservatively) answer true. The full sync cycle — merges, inference,
- * writeback, the status UI — runs only on a true answer, so a nudge for
- * foreign DB-tier activity costs one GET and wakes nothing.
+ * the bridge namespace since the cursor, checking for `obs:`- and `act:`-
+ * prefixed rows — no decryption, no pairing meta, no pagination. dayGLANCE's
+ * own bridge writes are `int:`/`meta:` rows, so the prefix check
+ * structurally excludes them: only plugin-authored observations and sidebar
+ * actions (and a `hasMore` page boundary, conservatively) answer true. The
+ * full sync cycle — merges, inference, actions, writeback, the status UI —
+ * runs only on a true answer, so a nudge for foreign DB-tier activity costs
+ * one GET and wakes nothing.
+ *
+ * Actions joined the wake set on 2026-09-06 (the SSE re-arm's first
+ * finding): a sidebar completion writes an `act:` row that the SAME cycle
+ * consumes, but the probe only knew observations, so a check-off in the
+ * sidebar still waited for the five-minute poll with live sync on. An
+ * action row is live only until the cycle applies and soft-deletes it, and
+ * the observation cursor passes it on the next fetch, so waking on it
+ * cannot loop.
  *
  * False on ANY doubt except hasMore: unpaired, disabled, braked
  * (bridgeRateLimited — the poll floor covers), or unreachable. Never
@@ -152,8 +162,11 @@ export async function pendingBridgeObservations() {
     const client = bridgeVaultClientFor(cfg);
     const page = await client.list(BRIDGE_VAULT_APP, { accountId: cfg.accountId, since });
     if (page.hasMore) return true; // rows beyond page 1 — wake conservatively
-    return (page.rows || []).some((row) =>
-      !row.deleted && String(row.entityId || '').startsWith(BRIDGE_OBSERVATION_PREFIX));
+    return (page.rows || []).some((row) => {
+      if (row.deleted) return false;
+      const id = String(row.entityId || '');
+      return id.startsWith(BRIDGE_OBSERVATION_PREFIX) || id.startsWith(BRIDGE_ACTION_PREFIX);
+    });
   } catch {
     return false; // rate-limited/unreachable — the poll floor covers
   }

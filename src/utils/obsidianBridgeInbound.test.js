@@ -112,6 +112,13 @@ describe('pendingBridgeObservations (the SSE-nudge probe)', () => {
     expect(await pendingBridgeObservations()).toBe(true);
   });
 
+  it('wakes on a live act: row too (2026-09-06: a sidebar completion is consumed by the same cycle, and used to wait for the poll under live sync); a consumed (soft-deleted) action never wakes', async () => {
+    globalThis.fetch = listFetch({ rows: [{ entityId: 'act:complete:obsidian-dg-abc', seq: 9 }], hasMore: false });
+    expect(await pendingBridgeObservations()).toBe(true);
+    globalThis.fetch = listFetch({ rows: [{ entityId: 'act:complete:obsidian-dg-abc', seq: 9, deleted: true }], hasMore: false });
+    expect(await pendingBridgeObservations()).toBe(false);
+  });
+
   it('lists from the persisted cursor, never advances it, and answers false on any doubt (disabled config, unreachable server)', async () => {
     localStorage.setItem(OBS_HWM_KEY, '41');
     const calls = [];
