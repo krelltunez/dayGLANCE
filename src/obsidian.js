@@ -1358,6 +1358,14 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
  * @param {Array}  existingInbox  Current DG inbox tasks
  * @returns {{ dailyNotes, scheduledTasks, inboxTasks }}
  */
+// The most a native daily-note scan may take before the cycle gives up on
+// it (see the async branch of syncObsidianVaultNative). A working bridge
+// answers in well under a second; this only bounds a bridge that never
+// answers. Thirty seconds covers a large vault on a cold iCloud folder, and
+// a false timeout costs one retried cycle, where a missing timeout cost the
+// whole session.
+const NATIVE_SCAN_TIMEOUT_MS = 30_000;
+
 // Set up the async callback dispatcher once
 if (typeof window !== 'undefined' && !window.__obsidianDispatch) {
   window.__obsidianDispatch = (id, result, error) => {
@@ -1409,11 +1417,24 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
   // background thread and callbacks back via JS) over the synchronous alternatives.
   let noteEntries; // [{ date, text, lastModified? }] — lastModified present from getAllDailyNotes
   if (bridge.getAllDailyNotesAsync) {
-    // Non-blocking path: runs SAF I/O on a background thread, callbacks via JS
+    // Non-blocking path: runs SAF I/O on a background thread, callbacks via JS.
+    // BOUNDED (the 2026-09-06 iOS hang): a bridge that never calls back —
+    // iOS's shim is a Proxy that answers ANY method name, so this branch was
+    // taken there before the method existed — used to hold the cycle's
+    // in-progress guard forever: a spinner that never finished and no
+    // further Obsidian sync until a force-quit. A scan that has not answered
+    // inside the timeout REJECTS instead, which the cycle surfaces and
+    // releases like any other scan error; the next cycle retries.
     if (!window.__obsidianCbs) window.__obsidianCbs = {};
     const json = await new Promise((resolve, reject) => {
       const id = Math.random().toString(36).slice(2, 18).replace(/[^a-z0-9]/g, 'x');
+      const timer = setTimeout(() => {
+        if (!window.__obsidianCbs?.[id]) return; // already answered
+        delete window.__obsidianCbs[id];
+        reject(new Error(`Daily-note scan timed out after ${Math.round(NATIVE_SCAN_TIMEOUT_MS / 1000)}s: the native vault bridge never answered`));
+      }, NATIVE_SCAN_TIMEOUT_MS);
       window.__obsidianCbs[id] = (result, error) => {
+        clearTimeout(timer);
         if (error) reject(new Error(error));
         else resolve(result);
       };
