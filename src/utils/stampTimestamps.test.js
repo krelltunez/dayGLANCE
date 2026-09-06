@@ -141,3 +141,32 @@ describe('stampTimestamps', () => {
     expect(merged[0].completed).toBe(true);
   });
 });
+
+// ── Regression: the phantom re-stamp (2026-09-06 field finding) ─────────────
+// Scheduling a task from the inbox strips its `priority` key; a re-parse of an
+// untimed Obsidian line carries `priority: 0`. Absent and 0 are the same state
+// ("none"). Read as a change, the presence flip re-stamped a scheduled task on
+// every phone scanning a stale vault copy, and the fabricated timestamp beat a
+// real completion made on the desktop under DB-tier last-write-wins.
+describe('stampTimestamps — priority presence is not an edit', () => {
+  it('does NOT re-stamp when the stored copy has no priority key and the merged copy says 0', () => {
+    const stored = [{ id: 'obsidian-dg-8w230vhc', title: 'Re-arm SSE nudges on Mac', startTime: '14:00', completed: false, lastModified: ISO(100) }];
+    const inMemory = [{ ...stored[0], priority: 0 }];
+    const keys = [];
+    const out = stampTimestamps(inMemory, stored, ISO(0), (info) => keys.push(info));
+    expect(out[0].lastModified).toBe(stored[0].lastModified);
+    expect(keys).toEqual([]);
+  });
+
+  it('does NOT re-stamp the reverse flip either (stored 0, merged copy without the key)', () => {
+    const stored = [{ id: 1, title: 'A', priority: 0, lastModified: ISO(100) }];
+    const inMemory = [{ id: 1, title: 'A', lastModified: ISO(100) }];
+    expect(stampTimestamps(inMemory, stored, ISO(0))[0].lastModified).toBe(stored[0].lastModified);
+  });
+
+  it('still stamps a real priority edit', () => {
+    const stored = [{ id: 1, title: 'A', lastModified: ISO(100) }];
+    const inMemory = [{ id: 1, title: 'A', priority: 2, lastModified: ISO(100) }];
+    expect(stampTimestamps(inMemory, stored, ISO(0))[0].lastModified).toBe(ISO(0));
+  });
+});

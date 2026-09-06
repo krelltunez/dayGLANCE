@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeObsidianTasks } from './mergeObsidianTasks.js';
+import { mergeObsidianTasks, preserveObsidianAppFields } from './mergeObsidianTasks.js';
 
 // The App uses this to carry app-only fields the markdown can't reproduce.
 const preserve = (old) => ({
@@ -100,5 +100,52 @@ describe('mergeObsidianTasks — legacy-id bridge', () => {
     const scanned = [obs('obsidian-dg-xxxxxxxx', { obsidianLegacyId: 'obsidian-2026-08-22-abc' })];
     const out = mergeObsidianTasks(prev, scanned, new Set(['obsidian-dg-xxxxxxxx', 'obsidian-2026-08-22-abc']), preserve);
     expect(out.map(t => t.id)).toEqual(['obsidian-dg-xxxxxxxx']);
+  });
+});
+
+// ── The app's own carry (preserveObsidianAppFields) ─────────────────────────
+// The 2026-09-06 field finding: anything the app sets that the re-parse
+// cannot reproduce is a phantom edit for stampTimestamps, and the fabricated
+// lastModified outranks real edits elsewhere. Two keys were proven on the
+// real pipeline: transitionId (every completion mints one) and the priority
+// key's presence (scheduling strips it; an untimed line re-parses with 0).
+describe('preserveObsidianAppFields', () => {
+  it('carries transitionId when the merge leaves the completion state as the app had it', () => {
+    const old = obs('a', { completed: true, completedAt: '2026-09-06', transitionId: 'tr-1' });
+    const scanned = obs('a', { completed: true }); // the OR kept it completed
+    expect(preserveObsidianAppFields(old, scanned).transitionId).toBe('tr-1');
+    const uncompletedBoth = preserveObsidianAppFields(obs('b', { completed: false, transitionId: 'tr-2' }), obs('b', { completed: false }));
+    expect(uncompletedBoth.transitionId).toBe('tr-2');
+  });
+
+  it('does NOT carry a stale transitionId onto a completion the vault just made', () => {
+    const old = obs('a', { completed: false, transitionId: 'tr-old' }); // the app's last transition was an un-complete
+    const scanned = obs('a', { completed: true, completedAt: '2026-09-06' }); // the line is checked now
+    expect('transitionId' in preserveObsidianAppFields(old, scanned)).toBe(false);
+  });
+
+  it('carries energy', () => {
+    expect(preserveObsidianAppFields(obs('a', { energy: 'deep' }), obs('a')).energy).toBe('deep');
+    expect('energy' in preserveObsidianAppFields(obs('a'), obs('a'))).toBe(false);
+  });
+
+  it('restores the scheduled copy\'s shape when an untimed re-parse says priority 0', () => {
+    const scheduledCopy = obs('a', { startTime: '14:00', date: '2026-09-06' }); // no priority key: scheduling stripped it
+    const reparsed = obs('a', { startTime: '14:00', date: '2026-09-06', priority: 0 });
+    const merged = { ...reparsed, ...preserveObsidianAppFields(scheduledCopy, reparsed) };
+    expect(JSON.parse(JSON.stringify(merged))).not.toHaveProperty('priority');
+  });
+
+  it('leaves priority alone on a copy that HAS the key (a vault marker edit is adopted, not undone)', () => {
+    const inboxCopy = obs('a', { priority: 0 });
+    expect(preserveObsidianAppFields(inboxCopy, obs('a', { priority: 2 }))).not.toHaveProperty('priority');
+    expect(preserveObsidianAppFields(obs('a', { priority: 2 }), obs('a', { priority: 0 }))).not.toHaveProperty('priority');
+  });
+
+  it('through the merge: a completed task with a transitionId hashes the same after a re-parse', () => {
+    const prev = [obs('a', { completed: true, completedAt: '2026-09-06', transitionId: 'tr-1', lastModified: '2026-09-06T19:33:33.547Z' })];
+    const scanned = [obs('a', { completed: true, lastModified: '2026-09-06T19:33:33.547Z' })];
+    const out = mergeObsidianTasks(prev, scanned, new Set(['a']), preserveObsidianAppFields);
+    expect(out[0]).toEqual(prev[0]);
   });
 });

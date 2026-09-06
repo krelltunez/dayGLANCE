@@ -1,4 +1,5 @@
 import { isObsidianTombstoned, obsidianKeyDate } from './obsidianDeletions.js';
+import { LINE_OWNED_TASK_FIELDS } from '@glance-apps/obsidian-format';
 
 // Merge an Obsidian scan into one task list (scheduled or inbox) WITHOUT deleting
 // Obsidian tasks the scan didn't produce — unless a deletion tombstone says the
@@ -6,9 +7,9 @@ import { isObsidianTombstoned, obsidianKeyDate } from './obsidianDeletions.js';
 // mergeObsidianDailyNotes; same fix for the same measured loop.
 //
 // RULE:
-//   - a scanned task overrides its prior copy (fresh markdown), with app-only
-//     fields (archived/completedAt/projectId/deadline/assignedUserSyncIds) carried
-//     forward via `preserveAppFields`;
+//   - a scanned task overrides its prior copy (fresh markdown), with the
+//     app's fields carried forward via `preserveAppFields` (the app's carry
+//     is preserveObsidianAppFields below: everything the LINE does not own);
 //   - a prior Obsidian task NOT in `scannedIdsAllLists` is RETAINED — it belongs to
 //     another device's vault. `scannedIdsAllLists` spans BOTH scheduled and inbox
 //     scans so a task that merely moved lists is treated as scanned (dropped here,
@@ -93,6 +94,87 @@ const reviveScannedAgainstTombstone = (t, tombstones, noteMtimes) => {
   if (mtime && ts(mtime) > ts(at)) return { ...t, lastModified: mtime };
   return t; // tombstone as new as the note (or no mtime evidence) — stays gone
 };
+
+// THE APP-FIELD CARRY across a re-parse — BY EXCLUSION (2026-09-06).
+//
+// The scan/observation merge (obsidian.js mergeParsedObsidianTasks) rebuilds
+// every task from its line, so whatever the markdown cannot reproduce must
+// be carried from the app's existing copy or a re-parse wipes it. This used
+// to be an allow-list of fields to carry; everything not on it was dropped
+// by default, and the list was found one incident at a time: archived and
+// completedAt (the cold-open churn), assignedUserSyncIds, then on the day
+// of the SSE re-arm transitionId and the priority shape (the phantom
+// re-stamp, below), then energy because it sat in the same place — and an
+// audit at that point found focusMinutes (focus sessions accruing on a
+// scheduled task, reset by every scan), bucketId (a task falling out of its
+// bucket back to the inbox) and hyperglanceSessionDate being wiped with
+// nobody having reported it. The allow-list was costing features.
+//
+// So the rule is inverted: every field on the app's copy is carried UNLESS
+// the LINE owns it. The line-owned set is LINE_OWNED_TASK_FIELDS, exported
+// by the parser's module beside the code that emits it, plus the two the
+// per-note merge adds (lastModified, projectId); the key contract
+// (obsidian.lineOwnedFields.test.js; taskLines.contract.test.js in the
+// package) pins that set against the marker corpus, so a marker the parser
+// learns cannot ship without the list learning it. A new app-side field is
+// safe by default. A line-owned key absent from the scan is CLEARED, never
+// carried — an un-scheduled line drops the schedule keys, a stripped token
+// drops the block id — which is what keeps the inversion from re-creating
+// the war shape of an inbox record carrying a stale startTime.
+//
+// The explicit rules that remain are real semantics on line-owned keys,
+// each pinned by a removal or carry test, not a memory list:
+//
+//  • completedAt — APP WINS WHEN IT HAS A VALUE; THE VAULT MARKER FILLS THE
+//    BLANK (the completion-timestamp feature's merge rule): the marker is
+//    an echo of an action dayGLANCE performed, and a stale echo must not
+//    overwrite the source. An explicit null (the app uncompleted the task)
+//    is the app's statement and still wins; the adoption case (marker, no
+//    app value) isn't a conflict, the parsed value stays.
+//  • projectId — app-owned, carried across re-scans unless the SCAN adopted
+//    a vault edit of the line's [project:: …] field (companion §4.3, ruling
+//    G as amended): a resolved id wins, an explicit null (the field
+//    removed) unassigns.
+//  • deadline — same shape as projectId since Step 2: line-derived (📅),
+//    adopted on a vault edit with an explicit null on removal, so ABSENCE
+//    from the scan means "no opinion" and the app's value fills it.
+//  • priority — the SHAPE: a scheduled copy carries NO priority key
+//    (scheduling strips it) while the re-parse of an untimed line says 0.
+//    Absent and 0 are the same state ("none"), so the app's shape wins and
+//    the row hashes as it did; a vault marker edit is adopted onto a copy
+//    that HAS the key (inbox-shaped) and is untouched here. (The compare
+//    side is closed too: stampTimestamps.normalizeField reads absent and 0
+//    as one state.)
+//  • transitionId — rides with the completion STATE: carried while the
+//    merge leaves that state as the app had it (the OR keeps a completed
+//    copy completed), never onto a completion the vault just made (a fresh
+//    transition owns no stale id; the notify emitter mints one).
+//
+// THE PHANTOM RE-STAMP, for the record: any key whose value or mere
+// presence differs between the app's copy and the re-parse registers with
+// stampTimestamps as an edit and fabricates a fresh lastModified on a task
+// nobody touched; under DB-tier last-write-wins that stamp outranks real
+// edits made elsewhere in the same window. A phone scanning a stale vault
+// copy re-stamped a task every time it pulled a newer desktop copy, and a
+// sidebar completion that landed inside that window was overwritten.
+export const APP_LINE_OWNED_TASK_FIELDS = Object.freeze([...LINE_OWNED_TASK_FIELDS, 'lastModified', 'projectId']);
+const LINE_OWNED = new Set(APP_LINE_OWNED_TASK_FIELDS);
+
+export function preserveObsidianAppFields(old, scanned = {}) {
+  const carried = {};
+  for (const k of Object.keys(old)) {
+    if (!LINE_OWNED.has(k) && old[k] !== undefined) carried[k] = old[k];
+  }
+  if (carried.transitionId !== undefined && !!old.completed !== !!scanned.completed) delete carried.transitionId;
+  return {
+    ...carried,
+    ...(old.completedAt !== undefined ? { completedAt: old.completedAt } : {}),
+    ...(scanned.projectId === null ? { projectId: undefined }
+      : old.projectId && scanned.projectId === undefined ? { projectId: old.projectId } : {}),
+    ...(old.deadline && scanned.deadline === undefined ? { deadline: old.deadline } : {}),
+    ...(old.priority === undefined && scanned.priority === 0 ? { priority: undefined } : {}),
+  };
+}
 
 export function mergeObsidianTasks(prevList, scannedList, scannedIdsAllLists, preserveAppFields, tombstones = {}, noteMtimes = {}) {
   const prev = prevList || [];

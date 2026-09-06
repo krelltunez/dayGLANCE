@@ -19,7 +19,7 @@ import { effectiveLaunchOnWrite } from '../utils/obsidianLaunchOnWrite.js';
 import { validateWikiNoteName } from '../utils/obsidianFilename.js';
 import { classifyVaultPaths } from '../utils/vaultPortability.js';
 import { mergeObsidianDailyNotes } from '../utils/mergeObsidianDailyNotes.js';
-import { mergeObsidianTasks, noteMtimesFromDailyNotes, noteMtimesFromScopedNotes } from '../utils/mergeObsidianTasks.js';
+import { mergeObsidianTasks, preserveObsidianAppFields, noteMtimesFromDailyNotes, noteMtimesFromScopedNotes } from '../utils/mergeObsidianTasks.js';
 import { detectObsidianDeletions, addObsidianTombstones, commitObsidianTombstones } from '../utils/obsidianDeletions.js';
 import { reattachTasksMetadata } from '../utils/obsidianTasksMetadata.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
@@ -532,47 +532,10 @@ export default function useObsidianSync({
       // fail the sync).
       await refreshTasksPluginDetection(obsidianVaultHandleRef.current);
       await refreshBridgeHeartbeat(obsidianVaultHandleRef.current);
-      // App-only fields that live in dayGLANCE but NOT in the Obsidian markdown,
-      // so a re-parse (parseTasksFromMarkdown) can't reproduce them. They must be
-      // carried over from the existing in-memory copy or every cold-open re-sync
-      // silently wipes them — which for `archived`/`completedAt` on a completed
-      // task looked like a phantom change and re-stamped lastModified every load
-      // (the DB-sync push churn). Only carry a value that is actually present so we
-      // never inject undefined keys. Shared by BOTH inbound sources below —
-      // an observed note carries exactly what a scanned one does.
-      //
-      // completedAt now ALSO arrives from the vault (the parse absorbs a
-      // completion marker on tagged lines), and the carry below doubles as the
-      // merge rule the completion-timestamp feature settled on — APP WINS WHEN
-      // IT HAS A VALUE; THE VAULT MARKER FILLS THE BLANK: a title is
-      // user-authored content, so the vault is ground truth for titles — but a
-      // completion timestamp is dayGLANCE's own record of an action dayGLANCE
-      // performed, and the vault marker is an echo of it. Letting a stale echo
-      // overwrite the source would be backwards. The adoption case — vault has
-      // a marker, app has none (old.completedAt undefined) — isn't a conflict
-      // at all; it's importing data we lack, and the spread leaves the parsed
-      // value in place exactly there. An explicit null (the app uncompleted
-      // the task) is the app's statement and still wins.
-      // `scanned` (the task the scan produced) guards the deadline carry:
-      // since Step 2, deadline is line-derived too — the scan merge carries
-      // the app value forward itself and the per-field adoption may have
-      // deliberately replaced it with the vault's edit, so this layer only
-      // fills a deadline the scan produced NOTHING for.
-      const preserveObsidianAppFields = (old, scanned = {}) => ({
-        // The project is app-owned, carried across re-scans — unless the SCAN
-        // adopted a vault edit of the line's [project:: …] field (companion
-        // §4.3, ruling G as amended): a resolved id wins, an explicit null
-        // (the field removed) unassigns.
-        ...(scanned.projectId === null ? { projectId: undefined }
-          : old.projectId && scanned.projectId === undefined ? { projectId: old.projectId } : {}),
-        ...(old.deadline && scanned.deadline === undefined ? { deadline: old.deadline } : {}),
-        ...(old.archived !== undefined ? { archived: old.archived } : {}),
-        ...(old.completedAt !== undefined ? { completedAt: old.completedAt } : {}),
-        // assignedUserSyncIds is an app-only synced field (user assignment) that
-        // the markdown re-parse can't reproduce; without this an assigned Obsidian
-        // task drops it on every re-scan → the same per-cycle false-diff/re-push.
-        ...(old.assignedUserSyncIds !== undefined ? { assignedUserSyncIds: old.assignedUserSyncIds } : {}),
-      });
+      // App-only field carry across a re-parse (the scan/observation merge
+      // rebuilds every task from its line): utils/mergeObsidianTasks.js
+      // preserveObsidianAppFields, exported so the carry contract is tested
+      // where the merge is. Shared by BOTH inbound sources below.
 
       // ── ARBITRATION (§3.2, Phase 6 PR 3) ────────────────────────────────
       // A fresh AND paired heartbeat means the plugin owns THIS vault copy:
