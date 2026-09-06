@@ -90,7 +90,7 @@ describe('syncObsidianVaultNative — the scan fails loudly on failed reads', ()
       installBridge({ getAllDailyNotesAsync: vi.fn(() => null) }); // answers "null" at once, never dispatches
       const p = syncObsidianVaultNative('', 0, [], []);
       const outcome = expect(p).rejects.toThrow(/timed out/);
-      await vi.advanceTimersByTimeAsync(120_000 + 10);
+      await vi.advanceTimersByTimeAsync(30_000 + 10);
       await outcome;
       expect(Object.keys(global.window.__obsidianCbs)).toHaveLength(0); // the stale callback slot is released
     } finally { vi.useRealTimers(); }

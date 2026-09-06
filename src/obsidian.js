@@ -1359,10 +1359,12 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
  * @returns {{ dailyNotes, scheduledTasks, inboxTasks }}
  */
 // The most a native daily-note scan may take before the cycle gives up on
-// it (see the async branch of syncObsidianVaultNative). Generous: a large
-// vault on a cold iCloud folder is slow, and a false timeout only costs one
-// retried cycle, while a missing timeout cost the whole session.
-const NATIVE_SCAN_TIMEOUT_MS = 120_000;
+// it (see the async branch of syncObsidianVaultNative). A working bridge
+// answers in well under a second; this only bounds a bridge that never
+// answers. Thirty seconds covers a large vault on a cold iCloud folder, and
+// a false timeout costs one retried cycle, where a missing timeout cost the
+// whole session.
+const NATIVE_SCAN_TIMEOUT_MS = 30_000;
 
 // Set up the async callback dispatcher once
 if (typeof window !== 'undefined' && !window.__obsidianDispatch) {
