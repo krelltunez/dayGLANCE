@@ -130,7 +130,7 @@ export async function createScenario(): Promise<Scenario> {
     data,
     setScope: async (scope) => {
       data.scope = normalizeScope(scope);
-      await publishPairingMeta(pairing, undefined, pairing.userSyncId ?? null, data.scope);
+      transport.recordOwnSeq(await publishPairingMeta(pairing, undefined, pairing.userSyncId ?? null, data.scope));
       transport.scopeChanged();
       transport.adoptTick();
     },

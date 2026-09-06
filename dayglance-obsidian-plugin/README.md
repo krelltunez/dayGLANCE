@@ -11,9 +11,13 @@ manually or via BRAT, not submitted to the community directory.
   dayGLANCE reads this to skip launching Obsidian when it's already running,
   and (once arbitration lands) to decide vault-write arbitration. The file
   lives in a dot-directory, so Obsidian's indexer, search, graph view, and
-  Obsidian Sync all ignore it. `deviceId` is a per-install id that rides
-  `data.json` (and therefore Obsidian's settings sync) — it identifies the
-  vault copy, not a device; see spec §3.3.
+  Obsidian Sync all ignore it. `deviceId` is a per-copy id kept in
+  Obsidian's device-local storage for the vault (`src/localState.ts`) —
+  along with the bridge cursor, the applied-intent set, the adopted scope
+  and the linked-note map. `data.json` (which Obsidian's settings sync
+  carries to every copy) holds only what is shared: the pairing, the
+  settings and the config-row cache. On an Obsidian older than 1.8.7 the
+  old data.json shape is kept unchanged.
 - **Pairing** (spec §3.12): when dayGLANCE drops a sealed pairing offer at
   `.dayglance/pairing`, the plugin shows a notice; the code is entered in
   the plugin's **settings tab** (Settings → dayGLANCE Bridge — status,
