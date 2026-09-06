@@ -126,7 +126,13 @@ const LINK_RESCAN_MS = 5 * 60_000;
 // Bound on the in-memory-only cursor advance (persist-on-intent-only rule in
 // drain): once the unpersisted gap exceeds this many seq, the cursor is
 // persisted anyway, capping how many non-intent rows a plugin reload can
-// re-list. Large enough that a normal editing day never trips it.
+// re-list. This is a REPLAY BOUND, nothing more: 500 server rows is a page
+// or two of cheap reads, and tripping it early is the benign direction.
+// (2026-09-05 investigation: it was suspected as the data.json churn and
+// was not — the churn's real address was the fleet-shared file itself,
+// closed by device-local state, localState.ts. The old comment sized this
+// as "a normal editing day", which the account-global seq rate makes
+// meaningless; it never was a time proxy.)
 const HWM_PERSIST_GAP = 500;
 // Adoption throttle (companion §6.2 item 5): notes newly in scope are
 // reported this many per 30s tick, so bringing a large folder into scope
