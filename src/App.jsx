@@ -5998,11 +5998,15 @@ const DayPlanner = () => {
     // the newer content redirected onto the successor first — so the edit
     // reaches the vault via the successor's normal writeback instead of
     // resurrecting the retired row.
+    // The rescue takes the same live-id set (both lists + bin): a prev-only copy
+    // of an id the result placed in the OTHER list is a cross-list move the
+    // reconcile already resolved, and rescuing it undid that move every cycle
+    // (utils/rescueUnsyncedTasks.js, the cross-list guard).
     if (normalizedTasks) setTasks(prev => applyTaskRetirements(
-      rescueUnsyncedTasks(preserveArchived(normalizedTasks, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones),
+      rescueUnsyncedTasks(preserveArchived(normalizedTasks, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones, retiredLiveIds),
       retiredRecord, retiredLiveIds));
     if (normalizedUnsched) setUnscheduledTasks(prev => applyTaskRetirements(
-      rescueUnsyncedTasks(preserveArchived(normalizedUnsched, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones),
+      rescueUnsyncedTasks(preserveArchived(normalizedUnsched, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones, retiredLiveIds),
       retiredRecord, retiredLiveIds));
     if (data.unscheduledOrderTimestamp) {
       setUnscheduledOrderTimestamp(data.unscheduledOrderTimestamp);

@@ -29,6 +29,21 @@
 // rescue leaves it deleted — no resurrection. Deleting it in the dayGLANCE UI
 // (which writes `deletedTaskIds`) is likewise honored by the shared guard below.
 //
+// THE CROSS-LIST GUARD (2026-09-05, the phone-soak duplicate): a cross-list move
+// leaves no tombstone — scheduling an inbox task moves its id from
+// unscheduledTasks to tasks, and the DB tier's reconcile keeps exactly one copy
+// per id. This rescue runs PER LIST and saw only its own list: a peer's move
+// arrived as "the id is gone from the inbox result", the rescue found the old
+// inbox copy in prev, rescuable and untombstoned, and put it back — undoing the
+// reconcile's choice every cycle. The next diff saw it as new, the push
+// soft-deleted its row, the reconcile dropped it again, the rescue re-added it:
+// a delete/resupply loop that the war guard eventually froze as a visible
+// duplicate (a task on the timeline AND in the inbox). The rescue therefore
+// takes the ids LIVE ANYWHERE in the incoming result (both lists and the
+// recycle bin — the same set the retirement pass uses) and never rescues one:
+// an id the merge placed somewhere is governed by the merge, and its absence
+// from THIS list is a move, not a loss.
+//
 // KNOWN BOUNDARY (not a flaw): a tombstone only lives 60 days (the fence/GC window,
 // src/sync/tombstoneRetention.js). A device offline longer than 60 days still holds
 // the task in `prev`, its tombstone has been GC'd, and the fence-suppressed merged
@@ -51,6 +66,9 @@ export const isDefaultRescuable = (t) =>
  * @param {(t:object)=>boolean} [isRescuable]  which prev-only tasks are eligible to rescue
  * @param {Record<string,string>} [obsidianTombstones]  merged deletedObsidianKeys {id → ISO};
  *   an Obsidian task tombstoned here (deletion at least as new as the task) is NOT rescued.
+ * @param {Set<string>} [liveIds]  ids live ANYWHERE in the incoming result (both task
+ *   lists and the recycle bin); a prev-only copy of one of these is a cross-list move
+ *   the merge already resolved, never a loss to rescue.
  * @returns {object[]} mergedList followed by the rescued (untombstoned) prev-only tasks
  */
 export function rescueUnsyncedTasks(
@@ -59,6 +77,7 @@ export function rescueUnsyncedTasks(
   deletedIds = {},
   isRescuable = isDefaultRescuable,
   obsidianTombstones = {},
+  liveIds = null,
 ) {
   const merged = Array.isArray(mergedList) ? mergedList : [];
   const mergedIds = new Set(merged.map((t) => String(t.id)));
@@ -68,6 +87,7 @@ export function rescueUnsyncedTasks(
     if (!t) return false;
     const id = String(t.id);
     if (mergedIds.has(id)) return false;          // already present in the merged set
+    if (liveIds && liveIds.has(id)) return false; // live in another list of the result: a move, not a loss
     if (!isRescuable(t)) return false;            // merge governs this task — an absence is a real delete
     if (tombstoned[id]) return false;             // deleted elsewhere (in-app / DB) — stay deleted
     // A vault-deleted Obsidian task stays deleted (LWW: deletion at least as new
