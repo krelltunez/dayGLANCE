@@ -5,6 +5,7 @@ import {
 } from '@glance-apps/obsidian-format';
 import { projectLogName } from '../utils/obsidianProjectNotes.js';
 import { emitBridgeIntent } from '../utils/obsidianBridgeStream.js';
+import { isStreamPosture } from '../utils/obsidianVaultPosture.js';
 import {
   readDailyNoteFresh, writeDailyNoteFile, readDailyNoteNative, writeDailyNoteNative,
 } from '../obsidian.js';
@@ -165,7 +166,9 @@ export default function useCompletionLog({
     // route needs none). Route availability is a HOLD below, never a
     // consume.
     const enabled = !!(obsidianConfig?.enabled && obsidianConfig?.completionLogEnabled);
-    const authoritative = !!bridgeHeartbeatRef?.current?.pluginAuthoritative;
+    // The cycle's posture (utils/obsidianVaultPosture.js): a paired vault
+    // with Obsidian closed here is on the stream side too.
+    const authoritative = isStreamPosture(bridgeHeartbeatRef?.current);
     const routeAvailable = authoritative || !!obsidianVaultHandleRef.current;
 
     const visible = typeof isVisibleForUser === 'function' ? (list) => (list || []).filter((t) => t && isVisibleForUser(t)) : (list) => list;
@@ -209,7 +212,7 @@ export default function useCompletionLog({
           // a semantic intent; applyBridgeIntent dedupes by exact line, so
           // a paired vault converges whichever side appends first.
           const queued = emitBridgeIntent('completion_log_append', write);
-          if (bridgeHeartbeatRef?.current?.pluginAuthoritative) {
+          if (isStreamPosture(bridgeHeartbeatRef?.current)) {
             // The intent IS the write. Nothing re-emits a log entry, so a
             // dropped emit must surface (the task_append precedent).
             if (!queued) {

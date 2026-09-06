@@ -9,7 +9,7 @@ describe('deriveBridgeStatus (the three-state bridge indicator)', () => {
       { obsidianRunning: true, pluginAuthoritative: true },
       { pairedAt: '2026-08-28T09:00:00Z' }, NOW,
     );
-    expect(out).toEqual({ state: 'active', vaultPaired: true, pairedDays: 3, stamping: null });
+    expect(out).toEqual({ state: 'active', vaultPaired: true, pairedDays: 3, stamping: null, lastBeatMs: null });
   });
 
   it('THE MIDDLE STATE (the field incident): plugin running but NOT paired here, vault meta present — the device lost its credentials', () => {
@@ -29,12 +29,12 @@ describe('deriveBridgeStatus (the three-state bridge indicator)', () => {
     const out = deriveBridgeStatus(
       { obsidianRunning: true, pluginAuthoritative: false }, null, NOW,
     );
-    expect(out).toEqual({ state: 'unpairedHere', vaultPaired: false, pairedDays: null, stamping: null });
+    expect(out).toEqual({ state: 'unpairedHere', vaultPaired: false, pairedDays: null, stamping: null, lastBeatMs: null });
   });
 
   it('no fresh heartbeat (Obsidian closed, plugin missing, stale beat) → notDetected; null/garbage inputs stay conservative', () => {
     expect(deriveBridgeStatus({ obsidianRunning: false, pluginAuthoritative: false }, null, NOW).state).toBe('notDetected');
-    expect(deriveBridgeStatus(null, null, NOW)).toEqual({ state: 'notDetected', vaultPaired: false, pairedDays: null, stamping: null });
+    expect(deriveBridgeStatus(null, null, NOW)).toEqual({ state: 'notDetected', vaultPaired: false, pairedDays: null, stamping: null, lastBeatMs: null });
     expect(deriveBridgeStatus(null, { pairedAt: 'not a date' }, NOW).pairedDays).toBe(null);
   });
 
@@ -61,5 +61,46 @@ describe('deriveBridgeStatus (the three-state bridge indicator)', () => {
       { obsidianRunning: true, pluginAuthoritative: true },
       { pairedAt: '2026-08-28T09:00:00Z' }, NOW,
     ).stamping).toBe(null);
+  });
+});
+
+// ── THE WAITING STATE (2026-09-06 posture ruling) ────────────────────────────
+import { describeAgo } from './bridgeStatus.js';
+
+describe('deriveBridgeStatus — the waiting state', () => {
+  const stale = { obsidianRunning: false, pluginAuthoritative: false, stamping: null };
+  const meta = { pairedAt: '2026-09-01T00:00:00Z' };
+  const now = Date.parse('2026-09-06T20:00:00Z');
+
+  it('paired vault + stale or missing heartbeat → waiting (the phone\'s normal resting state), never notDetected', () => {
+    expect(deriveBridgeStatus(stale, meta, now)).toEqual({ state: 'waiting', vaultPaired: true, pairedDays: 5, stamping: null, lastBeatMs: null });
+    expect(deriveBridgeStatus({ ...stale, lastBeatMs: now - 3 * 3600000 }, meta, now).lastBeatMs).toBe(now - 3 * 3600000);
+    expect(deriveBridgeStatus(null, meta, now).state).toBe('waiting');
+  });
+
+  it('unpaired vault + stale heartbeat stays notDetected (the direct tier; pairing is the remedy)', () => {
+    expect(deriveBridgeStatus(stale, null, now).state).toBe('notDetected');
+  });
+
+  it('a running heartbeat still outranks waiting (unpairedHere keeps its remediation framing)', () => {
+    expect(deriveBridgeStatus({ ...stale, obsidianRunning: true }, meta, now).state).toBe('unpairedHere');
+  });
+
+  it('a garbage lastBeatMs reads as unknown', () => {
+    expect(deriveBridgeStatus({ ...stale, lastBeatMs: NaN }, meta, now).lastBeatMs).toBeNull();
+    expect(deriveBridgeStatus({ ...stale, lastBeatMs: 'x' }, meta, now).lastBeatMs).toBeNull();
+  });
+});
+
+describe('describeAgo', () => {
+  const now = Date.parse('2026-09-06T20:00:00Z');
+  it('is coarse: minutes under two hours, hours under two days, then days', () => {
+    expect(describeAgo(now - 40 * 1000, now, 'en')).toMatch(/minute|now/);
+    expect(describeAgo(now - 25 * 60000, now, 'en')).toBe('25 minutes ago');
+    expect(describeAgo(now - 3 * 3600000, now, 'en')).toBe('3 hours ago');
+    expect(describeAgo(now - 5 * 86400000, now, 'en')).toBe('5 days ago');
+  });
+  it('never goes negative on a skewed-ahead beat', () => {
+    expect(describeAgo(now + 3600000, now, 'en')).toMatch(/now|this minute|0 minutes/);
   });
 });
