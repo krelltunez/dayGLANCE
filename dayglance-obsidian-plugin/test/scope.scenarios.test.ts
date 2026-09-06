@@ -373,6 +373,27 @@ describe('vault task scope, end to end', () => {
     expect(A.all()[0].completed).toBe(true);
   });
 
+  it('11b. the line reported back after that completion changes NOTHING on the task (2026-09-06 finding: the phantom re-stamp)', async () => {
+    // A completion mints a transitionId and the app's copy carries it; the
+    // re-parse of the line the plugin reports back cannot reproduce it. Read
+    // as an edit, that dropped key fabricated a fresh lastModified on every
+    // device that re-parsed the line, and under DB-tier last-write-wins the
+    // fabricated stamp outranked real edits made elsewhere in the same
+    // window. The observation must leave the task byte-for-byte as the app
+    // had it, so the stamper sees no change.
+    await bootWithScopedNote();
+    const id = A.byPath(NOTE)[0].id;
+    A.patch(id, { completed: true, completedAt: new Date().toISOString(), transitionId: 'tr-11b', energy: 'deep' } as Task);
+    await A.writeback();
+    await s.plugin.transport.drain();
+    expect(s.text(NOTE)).toMatch(/- \[x\] Call the plumber \^dg-/);
+    await s.settle();
+    const before = JSON.parse(JSON.stringify(A.all()[0]));
+    await A.sync();
+    expect(A.all().map((t) => t.id)).toEqual([id]);
+    expect(JSON.parse(JSON.stringify(A.all()[0]))).toEqual(before);
+  });
+
   it('9. a plugin reload republishes the pairing meta WITH the scope (harness finding)', async () => {
     await bootWithScopedNote();
     s.plugin.reload();
