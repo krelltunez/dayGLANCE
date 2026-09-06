@@ -7,6 +7,7 @@ import { registerDbEngine, markDirty, schedulePush } from './dirtyTracker.js';
 import { tombstoneCutoff } from './tombstoneRetention.js';
 import { keepImportedTask } from './payloadExclusions.js';
 import { shouldSuppressReconcileDelete, consumeWarTripped, __resetWarGuardForTests } from './reconcileWarGuard.js';
+import { __resetGlitchHealLatchForTests, LATCH_MIN_MS } from './glitchHealLatch.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STAGE 2 PART B — live wiring. These exercise the REAL @glance-apps/sync
@@ -1352,5 +1353,143 @@ describe('AUDIT lows — the commit-merge cross-list reconcile carries the war g
       // Drained: the next (successful) cycle finds nothing to misattribute.
       expect(consumeWarTripped()).toBe(false);
     } finally { vault.list = origList; warnSpy.mockRestore(); }
+  });
+});
+
+describe('AUDIT FIXES M5 / M6 / device cursor — withheld snapshots: no echo re-push, a capped withholding, and a cursor reported only after commit', () => {
+  beforeEach(() => {
+    global.localStorage = memLocalStorage();
+    setVaultConfig({ enabled: true, vaultUrl: 'https://vault.test', vaultToken: 'tok', accountId: 'acct1' });
+    setSyncPassphrase('correct horse battery staple');
+    __resetGlitchHealLatchForTests();
+  });
+  afterEach(() => { __resetGlitchHealLatchForTests(); });
+
+  const snapOf = (name) => JSON.parse(global.localStorage.getItem(`dev-${name}-db-sync-snapshot`) || 'null');
+  const rowsFor = (spy, entityId) => spy.mock.calls.flatMap((c) => c[1].rows).filter((r) => r.entityId === entityId);
+
+  // A withheld snapshot, manufactured the ABORT-ONLY way: a vault with no
+  // row-get, and a task that vanishes from live state with no tombstone —
+  // the heal cannot resolve it, so every cycle withholds the snapshot.
+  async function withheldDevice() {
+    const vault = createMemoryVault();
+    const A = makeDevice('A', vault, { ...EMPTY, tasks: [task(900, '2026-06-18T10:00:00.000Z'), task(901, '2026-06-18T10:00:00.000Z')] });
+    const B = makeDevice('B', vault, { ...EMPTY });
+    await runRounds(A, B);
+    A.data.tasks = A.data.tasks.filter((t) => t.id !== 900);
+    return { vault, A, B };
+  }
+
+  it('M5: an insert-only row (completedTaskUids) changed once under a withheld snapshot is pushed ONCE — its own echo keeps the ack instead of invalidating it', async () => {
+    const { vault, A } = await withheldDevice();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const uid = 'evt::2026-06-18';
+      A.data.completedTaskUids = [uid];
+      const batchSpy = vi.spyOn(vault, 'batch');
+      await A.engine.dbSyncCycle(); // pushes the singleton; snapshot withheld (900 unresolved)
+      expect(snapOf('A')['tasks:900']).toBeDefined(); // withheld: the pre-vanish snapshot stands
+      await A.engine.dbSyncCycle(); // the pull re-lists our own row (a push never advances the pull cursor)
+      await A.engine.dbSyncCycle();
+      await A.engine.dbSyncCycle();
+      expect(rowsFor(batchSpy, 'singleton:completedTaskUids')).toHaveLength(1);
+      expect(A.data.completedTaskUids).toEqual([uid]);
+    } finally { warnSpy.mockRestore(); }
+  });
+
+  it('M5 contrast: a peer\'s DIFFERENT content for the row still drops the ack, so real remote content is never mistaken for an echo', async () => {
+    const vault = createMemoryVault();
+    const A = makeDevice('A', vault, { ...EMPTY, completedTaskUids: ['a::2026-06-18'] });
+    const B = makeDevice('B', vault, { ...EMPTY });
+    await runRounds(A, B);
+    B.data.completedTaskUids = ['a::2026-06-18', 'b::2026-06-18'];
+    await B.engine.dbSyncCycle();
+    await A.engine.dbSyncCycle();
+    expect(new Set(A.data.completedTaskUids)).toEqual(new Set(['a::2026-06-18', 'b::2026-06-18']));
+  });
+
+  it('M6: an unhealable row withholds the snapshot for three attempts over ten minutes, then is RELEASED — the snapshot saves without it and nothing is deleted', async () => {
+    const { vault, A } = await withheldDevice();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const delSpy = vi.spyOn(vault, 'deleteRow');
+    try {
+      const t0 = FIXTURE_NOW.getTime();
+      await A.engine.dbSyncCycle();                       // attempt 1
+      expect(snapOf('A')['tasks:900']).toBeDefined();     // withheld
+      vi.setSystemTime(new Date(t0 + 5 * 60_000));
+      await A.engine.dbSyncCycle();                       // attempt 2, 5 min in
+      expect(snapOf('A')['tasks:900']).toBeDefined();     // still withheld
+      vi.setSystemTime(new Date(t0 + LATCH_MIN_MS + 1000));
+      await A.engine.dbSyncCycle();                       // attempt 3, past the floor → latched
+      expect(snapOf('A')['tasks:900']).toBeUndefined();   // released from the baseline
+      expect(snapOf('A')['tasks:901']).toBeDefined();     // the rest of the snapshot advanced
+      expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('glitch-heal latch'))).toBe(true);
+      // The vault row is untouched: no delete was pushed for it.
+      expect(delSpy.mock.calls.map((c) => c[1])).not.toContain('tasks:900');
+      // And the next cycle is clean — no glitch classification, no withholding.
+      const before = JSON.stringify(snapOf('A'));
+      await A.engine.dbSyncCycle();
+      expect(JSON.stringify(snapOf('A'))).toBe(before);
+    } finally { warnSpy.mockRestore(); }
+  });
+
+  it('M6 contrast: three quick attempts inside the wall-clock floor do NOT latch (cycles are not the unit)', async () => {
+    const { A } = await withheldDevice();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await A.engine.dbSyncCycle();
+      await A.engine.dbSyncCycle();
+      await A.engine.dbSyncCycle();
+      await A.engine.dbSyncCycle();
+      expect(snapOf('A')['tasks:900']).toBeDefined();
+      expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('glitch-heal latch'))).toBe(false);
+    } finally { warnSpy.mockRestore(); }
+  });
+
+  it('device cursor: a cycle whose COMMIT throws reports no cursor at all, so the server never sits ahead of what this device kept; the next good cycle reports', async () => {
+    const vault = createMemoryVault();
+    // The engine wraps the vault client at creation, so count device reports
+    // through the vault object itself rather than a spy installed later.
+    const deviceCalls = [];
+    const origDevice = vault.device.bind(vault);
+    vault.device = async (app, args) => { deviceCalls.push(args); return origDevice(app, args); };
+    let data = clone({ ...EMPTY, tasks: [task(1, '2026-06-18T10:00:00.000Z')] });
+    let nativeKey = null;
+    let throwOnCommit = false;
+    const engine = createDbEngine({
+      vaultClient: vault,
+      storageKeyPrefix: 'dev-C',
+      deviceId: 'device-C',
+      nativeGetSyncKey: () => nativeKey,
+      nativeStoreSyncKey: (v) => { nativeKey = v; },
+      getData: () => clone(data),
+      commitData: (d) => { if (throwOnCommit) throw new Error('commit exploded'); data = d; },
+    });
+    const B = makeDevice('B', vault, { ...EMPTY });
+    await engine.dbSyncCycle();
+    await B.engine.dbSyncCycle();
+    // B pushes a row so C's next pull advances the HWM and has something to commit.
+    B.data.tasks.push(task(2, '2026-06-18T11:00:00.000Z'));
+    await B.engine.dbSyncCycle();
+
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      deviceCalls.length = 0;
+      const hwmBefore = engine.getHighWaterMark();
+      throwOnCommit = true;
+      const res = await engine.dbSyncCycle();
+      expect(res.error).toBe('commit exploded');
+      expect(deviceCalls).toHaveLength(0);                 // nothing reported on the failed cycle
+      expect(engine.getHighWaterMark()).toBe(hwmBefore);   // rolled back
+      throwOnCommit = false;
+      vi.setSystemTime(new Date(Date.now() + 5 * 60_000)); // past the failed cycle's breaker cooldown
+      const good = await engine.dbSyncCycle();
+      expect(good.error).toBeUndefined();
+      expect(deviceCalls).toHaveLength(1);
+      expect(deviceCalls[0].lastSeenSeq).toBe(engine.getHighWaterMark());
+      expect(deviceCalls[0].lastSeenSeq).toBeGreaterThan(hwmBefore);
+      expect(data.tasks.map((t) => t.id).sort()).toEqual([1, 2]);
+    } finally { errSpy.mockRestore(); warnSpy.mockRestore(); }
   });
 });

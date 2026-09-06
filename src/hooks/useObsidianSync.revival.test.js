@@ -171,6 +171,18 @@ describe('revival stamping, end to end (§3.10 ruling 6)', () => {
     expect(dropTombstonedObsidianTasks([revived], { [L]: T1_ISO })).toEqual([revived]);
   });
 
+  it('AUDIT FIX M10: an observation WITHOUT an mtime is no revival evidence — the tombstoned row stays gone instead of reviving at observation time', async () => {
+    __setBlockIdWritesForTests(false);
+    heartbeatMock.mockResolvedValue(pairedHeartbeat());
+    const h = useMountedRevivalHook({});
+    seedTombstone(L, T1_ISO);
+    fetchMock.mockResolvedValue({
+      observations: [{ path: `${D}.md`, content: NOTE, observedAt: T2_ISO }], maxSeq: 3, // no mtime
+    });
+    await h.api.performObsidianSync();
+    expect(allTasks(h.state).find(t => String(t.id) === L)).toBeUndefined();
+  });
+
   it('verbatim retype revives on the next DIRECT SCAN too', async () => {
     __setBlockIdWritesForTests(false);
     heartbeatMock.mockResolvedValue(null); // stale heartbeat → direct mode

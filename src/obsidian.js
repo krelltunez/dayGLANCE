@@ -1400,6 +1400,7 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
   const ctx = buildExistingObsidianTaskContext(existingTasks, existingInbox);
 
   const dailyNotes = {};
+  const noteMtimes = {}; // date → REAL file mtime only (revival evidence; see below)
   const allScheduled = [];
   const lineSchedule = {}; // id → the line's own time when it differs from DG's (owned-schedule enforcement)
   const allInbox = [];
@@ -1479,6 +1480,12 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
     // Use the file's REAL mtime from the native scan; fall back to now for older
     // bridge builds that don't report it yet. See nativeNoteLastModified.
     dailyNotes[dateStr] = { text, lastModified: nativeNoteLastModified(entry, new Date().toISOString()), fromObsidian: true };
+    // REVIVAL EVIDENCE is real mtimes only (audit fix M10): the "now" fallback
+    // above is fine as a note-text LWW stamp, but as the vault's statement
+    // time it would out-timestamp every tombstone on every scan and revive
+    // every deleted row (§3.10 ruling 6 lifts a tombstoned row when its note
+    // was written AFTER the deletion — a fabricated mtime is always "after").
+    if (entry.lastModified) noteMtimes[dateStr] = entry.lastModified;
 
     // Same shared per-note pipeline as syncObsidianVault — including the
     // Step 2 per-field vault-edit adoption and its classification override.
@@ -1488,5 +1495,5 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
     );
   }
 
-  return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox, lineSchedule };
+  return { dailyNotes, noteMtimes, scheduledTasks: allScheduled, inboxTasks: allInbox, lineSchedule };
 }

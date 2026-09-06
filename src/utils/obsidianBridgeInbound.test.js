@@ -277,3 +277,22 @@ describe('ruling G as amended: the [project:: …] field on daily-note lines', (
     expect(out.inboxTasks[0].projectId).toBeUndefined(); // not adopted here; the hook's merge carries the app value
   });
 });
+
+describe('AUDIT FIX M10 (revival half) — observation mtimes: real ones are evidence, a missing one is not', () => {
+  it('noteMtimes carries only notes the plugin reported an mtime for (daily and scoped); the text stamp still falls back to the observation time', () => {
+    const out = applyBridgeObservations(
+      [
+        { path: 'Daily/2026-08-29.md', content: '## Tasks\n', mtime: 1756400000000, observedAt: '2026-08-29T12:00:00Z' },
+        { path: 'Daily/2026-08-30.md', content: '## Tasks\n', observedAt: '2026-08-30T12:00:00Z' },
+        { path: 'Projects/P.md', content: '- [ ] x\n', scoped: true, mtime: 1756500000000, observedAt: '2026-08-30T12:00:00Z' },
+        { path: 'Projects/Q.md', content: '- [ ] y\n', scoped: true, observedAt: '2026-08-30T12:00:00Z' },
+      ],
+      { existingTasks: [], existingInbox: [], dailyNotesPath: 'Daily', dailyNotePattern: 'yyyy-MM-dd', scope: { folders: ['Projects'] } },
+    );
+    expect(out.dailyNotes['2026-08-30'].lastModified).toBe('2026-08-30T12:00:00Z'); // the observation time, as before
+    expect(out.noteMtimes).toEqual({
+      '2026-08-29': new Date(1756400000000).toISOString(),
+      'Projects/P.md': new Date(1756500000000).toISOString(),
+    });
+  });
+});
