@@ -42,7 +42,7 @@ jobs:
         run: npm ci
 
       - name: Decode provisioning profile
-        if: matrix.os == 'macos-latest'
+        if: runner.os == 'macOS'
         run: |
           if [ -n "$MAC_PROVISIONING_PROFILE_BASE64" ]; then
             echo "$MAC_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/dayglance.provisionprofile"
@@ -52,7 +52,7 @@ jobs:
           MAC_PROVISIONING_PROFILE_BASE64: ${{ secrets.MAC_PROVISIONING_PROFILE_BASE64 }}
 
       - name: Build desktop app (macOS — signed + notarized)
-        if: matrix.os == 'macos-latest'
+        if: runner.os == 'macOS'
         run: npm run build:electron -- --publish never
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -63,7 +63,7 @@ jobs:
           MAC_PROVISIONING_PROFILE: ${{ env.MAC_PROVISIONING_PROFILE }}
 
       - name: Build desktop app (Windows / Linux)
-        if: matrix.os != 'macos-latest'
+        if: runner.os != 'macOS'
         run: npm run build:electron -- --publish never
 
       - name: Upload artifacts
