@@ -72,7 +72,16 @@
     "passphrasePlaceholder": "Votre phrase secrète de synchronisation",
     "passphrasePrompt": "La synchronisation cloud est chiffrée. Saisissez votre phrase secrète de synchronisation pour continuer.",
     "unlock": "Déverrouiller",
-    "unlockTitle": "Déverrouiller la synchronisation"
+    "unlockTitle": "Déverrouiller la synchronisation",
+    "obsidianToast": {
+      "syncing": "Synchronisation du coffre Obsidian…",
+      "syncingBridge": "Synchronisation via le Plugin Bridge…",
+      "synced": "Coffre Obsidian synchronisé",
+      "syncedBridge": "Synchronisé via le Plugin Bridge",
+      "failed": "Échec de la synchronisation Obsidian",
+      "tapToDismiss": "Touchez pour ignorer",
+      "dismissError": "Ignorer l’erreur de synchronisation"
+    }
   },
   "subscription": {
     "accessCodePlaceholder": "Code d'accès",
@@ -211,7 +220,8 @@
     "example": "Exemple",
     "apply": "Appliquer",
     "minutesShort": "{{count}} min",
-    "nextWeek": "Semaine prochaine"
+    "nextWeek": "Semaine prochaine",
+    "taskProgress": "{{done}}/{{total}} tâches"
   },
   "errorBoundary": {
     "title": "Une erreur est survenue",
@@ -742,10 +752,10 @@
     "unscheduledHint": "(ajouter à la carte du projet, sans date ni heure)"
   },
   "recurrence": {
-    "ordinal_ordinal_one": "{{count}}",
-    "ordinal_ordinal_two": "{{count}}",
-    "ordinal_ordinal_few": "{{count}}",
-    "ordinal_ordinal_other": "{{count}}",
+    "ordinal_ordinal_one": "{{count}}er",
+    "ordinal_ordinal_two": "{{count}}e",
+    "ordinal_ordinal_few": "{{count}}e",
+    "ordinal_ordinal_other": "{{count}}e",
     "custom": "Personnalisé",
     "everyDay": "Tous les jours",
     "everyWeek": "Chaque semaine",
@@ -759,14 +769,18 @@
     "everyWeekOn": "Chaque semaine le {{day}}",
     "everyTwoWeeksOn": "Toutes les 2 semaines le {{day}}",
     "monthlyOnDate": "Tous les mois le {{day}}",
-    "monthlyOnOrdinalWeekday": "Tous les mois le {{ordinal}}e {{day}}",
+    "monthlyOnOrdinalWeekday": "Tous les mois le {{ordinal}} {{day}}",
     "yearlyOn": "Tous les ans le {{date}}",
     "withEndDate": "{{label}} jusqu’au {{date}}",
     "withCount_one": "{{label}} ({{count}} fois)",
     "withCount_other": "{{label}} ({{count}} fois)",
     "onDate": "À une date",
     "after": "Après",
-    "times": "fois"
+    "times": "fois",
+    "monthDayOrdinal_ordinal_one": "{{count}}er",
+    "monthDayOrdinal_ordinal_two": "{{count}}",
+    "monthDayOrdinal_ordinal_few": "{{count}}",
+    "monthDayOrdinal_ordinal_other": "{{count}}"
   },
   "dateRange": {
     "sameMonth": "{{startDay}}–{{endDay}} {{month}} {{year}}",
@@ -781,7 +795,9 @@
     "afternoon": "Après-midi",
     "evening": "Soir",
     "night": "Nuit",
-    "timeWithLabel": "{{time}} ({{label}})"
+    "timeWithLabel": "{{time}} ({{label}})",
+    "detectedDetails": "Détails de tâche détectés",
+    "removeChip": "Retirer : {{label}}"
   },
   "menu": {
     "file": "Fichier",

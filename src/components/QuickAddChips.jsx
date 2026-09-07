@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Calendar, Clock, Hash, Repeat, Timer, X } from 'lucide-react';
 
 // Chip row for natural-language quick-add parses ("dentist tomorrow 3pm every
@@ -17,12 +18,13 @@ const ICONS = {
 };
 
 const QuickAddChips = ({ chips, onDismiss, darkMode }) => {
+  const { t } = useTranslation();
   if (!chips || chips.length === 0) return null;
   return (
-    <div className="mt-1.5 flex flex-wrap gap-1.5" aria-label="Detected task details">
+    <div className="mt-1.5 flex flex-wrap gap-1.5" aria-label={t('suggestions.detectedDetails')}>
       {chips.map((chip) => {
         const Icon = ICONS[chip.type] || Calendar;
-        const label = chip.inboxDate ? `Deadline: ${chip.display}` : chip.display;
+        const label = chip.inboxDate ? t('task.deadlineWithDate', { date: chip.display }) : chip.display;
         return (
           <button
             key={`${chip.sig}-${chip.start}`}
@@ -30,7 +32,7 @@ const QuickAddChips = ({ chips, onDismiss, darkMode }) => {
             onClick={() => onDismiss(chip)}
             // Keep focus in the title input while dismissing
             onMouseDown={(e) => e.preventDefault()}
-            title={`Remove: ${label}`}
+            title={t('suggestions.removeChip', { label })}
             className={`inline-flex items-center gap-1 rounded-full pl-2 pr-1.5 py-0.5 text-xs font-medium transition-colors ${
               darkMode
                 ? 'bg-blue-500/15 text-blue-300 hover:bg-blue-500/25'

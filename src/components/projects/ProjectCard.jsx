@@ -52,7 +52,6 @@ const IS_IOS = typeof navigator !== 'undefined' && (
 const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps, onMoveToClick }, ref) => {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage || i18n.language;
-  const taskUnitLabel = t('reminders.taskCount', { count: 2 }).replace(/^2\s*/, '');
   const {
     tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks, reorderUnscheduledTasks,
@@ -349,7 +348,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
               <CheckCircle2 size={10} /> {t('common.done')}
             </span>
             {totalCount > 0 && (
-              <span className={`text-xs ${textSecondary} opacity-60`}>{completedCount}/{totalCount} {taskUnitLabel}</span>
+              <span className={`text-xs ${textSecondary} opacity-60`}>{t('common.taskProgress', { done: completedCount, total: totalCount })}</span>
             )}
             {totalCount > 0 && (
               <button
@@ -523,7 +522,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
         {/* Task count — hidden by the standalone-card eyeball toggle */}
         {!detailsHidden && !countIsMisleading && (
           <span className={`text-xs ${textSecondary}`}>
-            {completedCount}/{totalCount} {taskUnitLabel}
+            {t('common.taskProgress', { done: completedCount, total: totalCount })}
           </span>
         )}
 

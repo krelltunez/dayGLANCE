@@ -72,7 +72,16 @@
     "passphrasePlaceholder": "输入同步口令",
     "passphrasePrompt": "云同步已加密。请输入同步口令以继续。",
     "unlock": "解锁",
-    "unlockTitle": "解锁同步"
+    "unlockTitle": "解锁同步",
+    "obsidianToast": {
+      "syncing": "正在同步 Obsidian 仓库…",
+      "syncingBridge": "正在通过 Plugin Bridge 同步…",
+      "synced": "Obsidian 仓库已同步",
+      "syncedBridge": "已通过 Plugin Bridge 同步",
+      "failed": "Obsidian 同步失败",
+      "tapToDismiss": "点按可关闭",
+      "dismissError": "关闭同步错误"
+    }
   },
   "subscription": {
     "accessCodePlaceholder": "访问码",
@@ -211,7 +220,8 @@
     "example": "示例",
     "apply": "应用",
     "minutesShort": "{{count}} 分钟",
-    "nextWeek": "下周"
+    "nextWeek": "下周",
+    "taskProgress": "{{done}}/{{total}} 个任务"
   },
   "errorBoundary": {
     "title": "出了点问题",
@@ -766,7 +776,11 @@
     "withCount_other": "{{label}}（共{{count}}次）",
     "onDate": "指定日期",
     "after": "重复",
-    "times": "次后"
+    "times": "次后",
+    "monthDayOrdinal_ordinal_one": "{{count}}",
+    "monthDayOrdinal_ordinal_two": "{{count}}",
+    "monthDayOrdinal_ordinal_few": "{{count}}",
+    "monthDayOrdinal_ordinal_other": "{{count}}"
   },
   "dateRange": {
     "sameMonth": "{{year}}年{{month}}{{startDay}}日至{{endDay}}日",
@@ -781,7 +795,9 @@
     "afternoon": "下午",
     "evening": "晚上",
     "night": "夜间",
-    "timeWithLabel": "{{time}}（{{label}}）"
+    "timeWithLabel": "{{time}}（{{label}}）",
+    "detectedDetails": "识别到的任务详情",
+    "removeChip": "移除：{{label}}"
   },
   "menu": {
     "file": "文件",

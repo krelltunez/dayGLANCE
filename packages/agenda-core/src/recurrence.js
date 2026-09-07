@@ -178,7 +178,12 @@ export const getRecurrencePresets = (dateStr, t, language = 'en') => {
   const localizedDate = typeof t === 'function'
     ? new Intl.DateTimeFormat(language || 'en', { month: 'long', day: 'numeric' }).format(taskDate)
     : `${monthName} ${monthDay}`;
-  const localizedMonthDay = translate('recurrence.ordinal', { count: monthDay, ordinal: true }, `${monthDay}${suffix}`);
+  // Two ordinal keys, not one. A month DAY and an ordinal POSITION are the
+  // same word in English ("the 5th", "the 2nd Monday") and diverge in French,
+  // where the day is cardinal after the first ("le 5", but "le 1er") while the
+  // position stays ordinal ("le 2e lundi"). Sharing one key made French wrong
+  // on one side whichever way it was written.
+  const localizedMonthDay = translate('recurrence.monthDayOrdinal', { count: monthDay, ordinal: true }, `${monthDay}${suffix}`);
   const localizedOrdinal = translate('recurrence.ordinal', { count: weekOfMonth, ordinal: true }, ordinals[weekOfMonth]);
 
   return [

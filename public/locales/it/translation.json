@@ -72,7 +72,16 @@
     "passphrasePlaceholder": "La tua passphrase di sincronizzazione",
     "passphrasePrompt": "La sincronizzazione cloud è cifrata. Inserisci la passphrase di sincronizzazione per continuare.",
     "unlock": "Sblocca",
-    "unlockTitle": "Sblocca la sincronizzazione"
+    "unlockTitle": "Sblocca la sincronizzazione",
+    "obsidianToast": {
+      "syncing": "Sincronizzazione del vault Obsidian…",
+      "syncingBridge": "Sincronizzazione tramite il Plugin Bridge…",
+      "synced": "Vault Obsidian sincronizzato",
+      "syncedBridge": "Sincronizzato tramite il Plugin Bridge",
+      "failed": "Sincronizzazione con Obsidian non riuscita",
+      "tapToDismiss": "Tocca per ignorare",
+      "dismissError": "Ignora l’errore di sincronizzazione"
+    }
   },
   "subscription": {
     "accessCodePlaceholder": "Codice di accesso",
@@ -211,7 +220,8 @@
     "example": "Esempio",
     "apply": "Applica",
     "minutesShort": "{{count}} min",
-    "nextWeek": "Settimana prossima"
+    "nextWeek": "Settimana prossima",
+    "taskProgress": "{{done}}/{{total}} attività"
   },
   "errorBoundary": {
     "title": "Qualcosa è andato storto",
@@ -766,7 +776,11 @@
     "withCount_other": "{{label}} ({{count}} volte)",
     "onDate": "In una data",
     "after": "Dopo",
-    "times": "volte"
+    "times": "volte",
+    "monthDayOrdinal_ordinal_one": "{{count}}",
+    "monthDayOrdinal_ordinal_two": "{{count}}",
+    "monthDayOrdinal_ordinal_few": "{{count}}",
+    "monthDayOrdinal_ordinal_other": "{{count}}"
   },
   "dateRange": {
     "sameMonth": "{{startDay}}–{{endDay}} {{month}} {{year}}",
@@ -781,7 +795,9 @@
     "afternoon": "Pomeriggio",
     "evening": "Sera",
     "night": "Notte",
-    "timeWithLabel": "{{time}} ({{label}})"
+    "timeWithLabel": "{{time}} ({{label}})",
+    "detectedDetails": "Dettagli attività rilevati",
+    "removeChip": "Rimuovi: {{label}}"
   },
   "menu": {
     "file": "File",

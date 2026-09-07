@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import i18next from 'i18next';
+import en from '../../public/locales/en/translation.json';
+import fr from '../../public/locales/fr/translation.json';
 import {
   getOccurrencesInRange,
   getNextOccurrence,
@@ -145,6 +148,45 @@ describe('getRecurrencePresets', () => {
     const presets = getRecurrencePresets(WED, t, 'zh-CN');
     expect(presets[3].label).toBe('每周星期三');
     expect(presets.at(-1).label).toBe('每年8月19日');
+  });
+
+  // A month day and an ordinal position are the same word in English and
+  // diverge in French, which is why they read two different keys. Driven
+  // through the real bundles so a regression in either shows up here.
+  describe('ordinals through the shipped bundles', () => {
+    const translator = (language, translation) => {
+      const instance = i18next.createInstance();
+      instance.init({
+        lng: language,
+        fallbackLng: false,
+        resources: { [language]: { translation } },
+        initImmediate: false,
+        interpolation: { escapeValue: false },
+      });
+      return instance.t.bind(instance);
+    };
+    const label = (dateStr, language, bundle, index) =>
+      getRecurrencePresets(dateStr, translator(language, bundle), language)[index].label;
+
+    // 2026-08-01 is a Saturday, the 1st of the month and in its first week.
+    const FIRST = '2026-08-01';
+    // 2026-08-05 is a Wednesday, the 5th and in its first week.
+    const FIFTH = '2026-08-05';
+
+    it('keeps English ordinal suffixes on both the day and the position', () => {
+      expect(label(FIRST, 'en', en, 5)).toBe('Monthly on the 1st');
+      expect(label(FIFTH, 'en', en, 5)).toBe('Monthly on the 5th');
+      expect(label(FIFTH, 'en', en, 6)).toBe('Monthly on the 1st Wednesday');
+    });
+
+    it('gives French an ordinal first and cardinal days after it', () => {
+      expect(label(FIRST, 'fr', fr, 5)).toBe('Tous les mois le 1er');
+      expect(label(FIFTH, 'fr', fr, 5)).toBe('Tous les mois le 5');
+    });
+
+    it('keeps the French ordinal position ordinal', () => {
+      expect(label(FIFTH, 'fr', fr, 6)).toBe('Tous les mois le 1er mercredi');
+    });
   });
 });
 
