@@ -4,16 +4,20 @@ import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, Chev
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { hasNativeCalendar, electronGetCalendars, electronGetEventsByDate, electronRequestCalendarAccess, nativeEventToTask } from './utils/nativeCalendar.js';
 import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeHttpRequest, nativeWriteDailyNote, nativeClearVault, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeGetWidgetPendingAction, triggerHaptic } from './native.js';
-import { writeDailyNoteFile, writeDailyNoteNative, readDailyNoteFresh, readDailyNoteNative, simpleHash as obsidianSimpleHash, buildNewObsidianTaskMeta, appendTaskToDailyNote, appendTaskToDailyNoteNative, dailyNoteFilename } from './obsidian.js';
+import { readDailyNoteFresh, readDailyNoteNative, simpleHash as obsidianSimpleHash, buildNewObsidianTaskMeta, dailyNoteFilename } from './obsidian.js';
+import { appendTaskDirect, writeDailyNoteDirect } from './utils/obsidianDirectWrites.js';
 import { emitBridgeIntent } from './utils/obsidianBridgeStream.js';
+import { isStreamPosture } from './utils/obsidianVaultPosture.js';
 import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, testConnection, DEFAULT_CONFIG, PROVIDER_MODELS, PROVIDER_LABELS } from './ai.js';
 import { taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { gatherTrmnlData, pushToTrmnl, TRMNL_MARKUP_FULL, TRMNL_MARKUP_HALF_HORIZONTAL, TRMNL_MARKUP_HALF_VERTICAL, TRMNL_MARKUP_QUADRANT } from './trmnl.js';
 import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
-import { tombstoneCutoff } from './sync/tombstoneRetention.js';
+import { tombstoneCutoff, pruneCompletedTaskUids } from './sync/tombstoneRetention.js';
 import { preserveArchived } from './utils/preserveArchived.js';
 import { rescueUnsyncedTasks } from './utils/rescueUnsyncedTasks.js';
+import { withProjectMetadata } from '@glance-apps/obsidian-format';
+import { projectRefFor } from './utils/obsidianProjectNotes.js';
 import { readRetiredTaskIds, applyTaskRetirements, RETIRED_TASK_IDS_STORAGE_KEY } from './utils/retiredTaskIds.js';
 import { dropTombstonedObsidianTasks, dropTombstonedObsidianNotes } from './utils/obsidianDeletions.js';
 import { containObsidianGhostRows, persistDerivedGhostRetirements } from './utils/obsidianGhostRows.js';
@@ -36,9 +40,12 @@ import useFolderBackup from './hooks/useFolderBackup.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, renderTitleWithoutTags, extractShareTitle } from './utils/textFormatting.jsx';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate, computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './utils/taskUtils.js';
 import { defaultUse24HourClock, defaultWeekStartDay, formatLocalizedDate, formatLocalizedDurationMinutes } from './utils/localeFormatting.js';
-import { ENGLISH_DAILY_NOTE_TEMPLATE, buildLocalizedDailyNoteTemplate, localizeDefaultDailyNoteTemplate } from './utils/dailyNoteTemplate.js';
+import { ENGLISH_DAILY_NOTE_TEMPLATE, buildLocalizedDailyNoteTemplate, buildLocalizedTaskHeading, localizeDefaultDailyNoteTemplate } from './utils/dailyNoteTemplate.js';
 import { notBucketed, demoteToBucket, normalizeBucketConfig } from './utils/bucketList.js';
 import { parseICS, parseDatetime, filterByDateWindow, expandMultiDayEvent } from './utils/icsParser.js';
+import { absorbCalendarDays, absorbCalendarWindow, readCalendarProjectionCache, writeCalendarProjectionCache } from './utils/calendarProjectionCache.js';
+import { CALENDAR_PROJECTION_WINDOW_DAYS } from './utils/obsidianCalendarProjection.js';
+import { shiftDateStr } from '@glance-apps/agenda-core';
 import { fetchIcsFeed, replaceFeedEvents, PRIMARY_FEED_ID, ICS_CALENDARS_KEY, loadIcsCalendars, isActiveIcsCalendar, hasActiveIcsCalendars, stripIcsCalendarCredentials, applyRemoteIcsCalendars, PRIMARY_CAL_META_KEY, defaultPrimaryCalendarMeta, injectPrimaryStub, splitPrimaryStub } from './utils/icsFeedSync.js';
 import { nextPerUserCalendarEntry } from './utils/perUserCalendarEntry.js';
 import { TASK_COLORS, TAILWIND_TO_HEX, taskColorToHex, getProjectColor } from './utils/colorUtils.js';
@@ -97,6 +104,7 @@ import useFocusMode from './hooks/useFocusMode.js';
 import useTrmnlSync from './hooks/useTrmnlSync.js';
 import useObsidian from './hooks/useObsidian.js';
 import useObsidianSync from './hooks/useObsidianSync.js';
+import useCompletionLog from './hooks/useCompletionLog.js';
 import useDailyBriefings from './hooks/useDailyBriefings.js';
 import useVoiceInput from './hooks/useVoiceInput.js';
 import useCloudSync from './hooks/useCloudSync.js';
@@ -746,6 +754,7 @@ const DayPlanner = () => {
     } catch { return {}; }
   });
   const localizedDailyNoteTemplate = buildLocalizedDailyNoteTemplate(t);
+  const localizedTaskHeading = buildLocalizedTaskHeading(t);
   const [dailyNoteTemplate, setDailyNoteTemplate] = useState(() => {
     const saved = localStorage.getItem('day-planner-daily-note-template');
     return saved !== null ? saved : localizedDailyNoteTemplate;
@@ -1507,7 +1516,7 @@ const DayPlanner = () => {
     handleNewTaskInputKeyDown,
     applySuggestionForNewTask,
     dismissNlChip,
-  } = useNewTaskInput({ allTags, showAddTask, isEditing: !!(mobileEditingTask || mobileEditingNativeEvent) });
+  } = useNewTaskInput({ allTags, showAddTask, t, language: i18n.resolvedLanguage || i18n.language, use24HourClock, isEditing: !!(mobileEditingTask || mobileEditingNativeEvent) });
 
   // Show all 24 hours (full day) - scrollable
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -2185,6 +2194,28 @@ const DayPlanner = () => {
     registerDbEngine(engine);
     setVaultLastSynced(engine.getLastSynced?.() || null);
     const runCycle = () => engine.dbSyncCycle().catch(() => { /* surfaced via onError */ });
+    // Console maintenance hooks (2026-09-05 stray-row finding). A vault row
+    // this device no longer holds and whose seq the pull cursor has passed
+    // is unreachable by every ordinary path; these are the two ways to reach
+    // it from the developer console, documented in the companion spec.
+    //   __dayglance.purgeVaultRow('tasks:<id>')  marks the entity dirty and
+    //     runs a cycle: absent locally, it is pushed as a soft-delete (fleet-
+    //     wide, LWW against any newer copy); present locally, it is merely
+    //     re-upserted.
+    //   __dayglance.resyncVault()  clears the sync cursors and reloads, so
+    //     the next cycle full-pulls and LWW-merges; every tombstoned row the
+    //     vault still holds is then dropped AND deleted at the apply gate.
+    window.__dayglance = {
+      purgeVaultRow: (entityId) => {
+        const id = String(entityId || '');
+        if (!/^[a-zA-Z]+:.+$/.test(id)) { console.warn('[dayglance] purgeVaultRow: expected "<kind>:<id>", e.g. tasks:obsidian-dg-xxxxxxxx'); return false; }
+        engine.markDirty(id);
+        console.info('[dayglance] purgeVaultRow: marked dirty, running a sync cycle:', id);
+        runCycle();
+        return true;
+      },
+      resyncVault: () => { resetVaultSyncCursor(); window.location.reload(); },
+    };
     runCycle(); // initial
     const onVisible = () => { if (document.visibilityState === 'visible') runCycle(); };
     document.addEventListener('visibilitychange', onVisible);
@@ -2193,6 +2224,7 @@ const DayPlanner = () => {
       document.removeEventListener('visibilitychange', onVisible);
       clearInterval(interval);
       registerDbEngine(null);
+      if (window.__dayglance) delete window.__dayglance;
       // Cancels any pending deferred cooldown-retry and makes stray timer
       // firings no-ops — a timer must never run a cycle against a dead engine.
       engine.dispose?.();
@@ -2782,7 +2814,9 @@ const DayPlanner = () => {
   // lives in useObsidianSync; state/refs stay owned by useObsidian above.
   const {
     performObsidianSync, nudgeObsidianObservations, loadWikiNote, saveWikiNote, openInObsidian, bridgeHeartbeatRef,
+    linkProjectNote, unlinkProjectNote, createProjectNote,
   } = useObsidianSync({
+    defaultTaskHeading: localizedTaskHeading,
     isTrayMode, dataLoaded,
     tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks,
@@ -2798,6 +2832,22 @@ const DayPlanner = () => {
     obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
     obsidianTasksRef, obsidianInboxRef,
     recycleBin, setRecycleBin,
+    recurringTasks, setRecurringTasks,
+    multiUserEnabled, meUserSyncId,
+    projects, goals, updateProject, updateGoal,
+  });
+  // Completion log (companion spec 4.1): every task completion appends one
+  // permanent line to the completion date's daily note. Mounted here, after
+  // useObsidianSync, because it writes through the same arbitration
+  // (bridgeHeartbeatRef) and error latch. The isRemoteApply guard (declared
+  // beside the notify emitters) keeps engine echoes from double-logging.
+  useCompletionLog({
+    tasks, unscheduledTasks, recurringTasks, projects,
+    obsidianConfig, dailyNoteTemplate,
+    obsidianVaultHandleRef, bridgeHeartbeatRef,
+    setObsidianSyncError, setObsidianSyncStatus,
+    isRemoteApply,
+    isVisibleForUser,
   });
   // Late-bind the SSE → Obsidian nudge (declared beside useVaultEventStream
   // above, which mounts before this hook can exist).
@@ -3265,28 +3315,24 @@ const DayPlanner = () => {
       // DROPPED emit surfaces — a systematic window (e.g. meta not yet
       // discovered) must not be a silent vault-write loss even though the
       // note re-emits on its next edit.
-      if (bridgeHeartbeatRef.current.pluginAuthoritative) {
+      if (isStreamPosture(bridgeHeartbeatRef.current)) {
         if (!queued) {
           setObsidianSyncError(`Daily note ${dateStr} was not written to your vault: the bridge queue is unavailable. It will be written the next time you edit it.`);
           setObsidianSyncStatus('error');
         }
         return;
       }
-      if (obsidianVaultHandleRef.current === 'native') {
-        // writeDailyNoteNative is synchronous (JavascriptInterface blocks the JS thread
-        // during the SAF write).  Defer it by one frame so the note modal closes
-        // immediately rather than waiting ~100–200 ms for the I/O to complete.
-        const _d = dateStr, _t = text || '';
-        setTimeout(() => writeDailyNoteNative(_d, _t), 0);
-      } else {
-        writeDailyNoteFile(
-          obsidianVaultHandleRef.current,
-          obsidianConfig.dailyNotesPath || '',
-          dateStr,
-          text || '',
-          obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd'
-        ).catch(err => console.error('Obsidian: failed to write daily note', err));
-      }
+      // Direct tier (audit fix M3; utils/obsidianDirectWrites.js): the native
+      // write stays deferred one macrotask so the modal closes first, and a
+      // failed write on either shell surfaces like the dropped emit above.
+      writeDailyNoteDirect({
+        handle: obsidianVaultHandleRef.current,
+        dailyNotesPath: obsidianConfig.dailyNotesPath || '',
+        dateStr,
+        text: text || '',
+        pattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
+        onFailure: (message) => { setObsidianSyncError(message); setObsidianSyncStatus('error'); },
+      });
     }
   };
 
@@ -3986,6 +4032,12 @@ const DayPlanner = () => {
         ...prev.filter(t => !t._native && !(t.imported && !t.isTaskCalendar && t.importSource !== 'file')),
         ...fetchedWithOverrides,
       ]);
+      // Obsidian sidebar (companion 4.2): the calendar projection is built
+      // from a per-day cache, not this five-day window — record exactly the
+      // days just fetched so days outside the view keep their events.
+      try {
+        writeCalendarProjectionCache(absorbCalendarDays(readCalendarProjectionCache(), dates, fetchedWithOverrides, { multiUserEnabled }));
+      } catch { /* the cache is best-effort */ }
     };
 
     if (isNativeApp()) {
@@ -4937,6 +4989,14 @@ const DayPlanner = () => {
       // No active feeds — drop any leftover feed events (a feed was disabled or
       // its URL cleared and nothing else remains to sync them away).
       setTasks(prevTasks => replaceFeedEvents(prevTasks, []));
+      if (!hasNativeCalendar()) {
+        try {
+          const today = dateToString(new Date());
+          writeCalendarProjectionCache(absorbCalendarWindow(readCalendarProjectionCache(), [], {
+            from: shiftDateStr(today, -CALENDAR_PROJECTION_WINDOW_DAYS), to: shiftDateStr(today, CALENDAR_PROJECTION_WINDOW_DAYS),
+          }));
+        } catch { /* best-effort */ }
+      }
       return { success: false, error: 'no-url' };
     }
 
@@ -4993,6 +5053,19 @@ const DayPlanner = () => {
     // ones, keeping the previous events of feeds that failed this round.
     // Preserves file-imported events; uses functional form to avoid stale closures
     setTasks(prevTasks => replaceFeedEvents(prevTasks, freshEvents, { keepFeedIds: failedFeedIds }));
+    // Obsidian sidebar (companion 4.2): feed events feed the projection cache
+    // over the whole projection window (a feed is fetched whole). Skipped on
+    // native-calendar devices, where the EventKit fetch is the sole source
+    // and the merge above drops feed events again on its next run.
+    if (!hasNativeCalendar()) {
+      try {
+        const today = dateToString(new Date());
+        writeCalendarProjectionCache(absorbCalendarWindow(readCalendarProjectionCache(), freshEvents, {
+          from: shiftDateStr(today, -CALENDAR_PROJECTION_WINDOW_DAYS), to: shiftDateStr(today, CALENDAR_PROJECTION_WINDOW_DAYS),
+          keepFeedIds: failedFeedIds, multiUserEnabled,
+        }));
+      } catch { /* best-effort */ }
+    }
     return { success: true, count: freshEvents.length, urlUpdated, failedFeeds };
   };
 
@@ -5449,12 +5522,10 @@ const DayPlanner = () => {
     // avoid a stale-read race when a state change hasn't flushed to localStorage yet.
     // Task arrays need timestamp-stamping (mirrors saveData); tombstone maps that
     // have no React state counterpart still fall back to localStorage.
-    const uidCutoff = syncRetentionDays > 0 ? new Date(Date.now() - syncRetentionDays * 86400000) : null;
-    const prunedUids = [...completedTaskUids].filter(uid => {
-      if (!uidCutoff) return true;
-      const m = uid.match(/::(\d{4}-\d{2}-\d{2})$/);
-      return !m || new Date(m[1]) >= uidCutoff;
-    });
+    // completedTaskUids prunes at the FIXED window every writer applies
+    // (sync/tombstoneRetention.js, audit fix M7) — not at syncRetentionDays,
+    // which is per device and ping-ponged with the vault tier's union.
+    const prunedUids = pruneCompletedTaskUids(completedTaskUids);
     // Imported-task sync rule — the actual predicate lives in
     // src/sync/payloadExclusions.js (single source of truth, shared with the
     // DB engine's snapshot-delete classifier; see that module for the rule
@@ -5661,13 +5732,16 @@ const DayPlanner = () => {
     // deletion: without this, a retired-id copy re-stamped newer than its
     // tombstone (offline edit crossing a stamp, peer re-stamp) landed here as
     // a resurrected duplicate and fed the scan-evict ↔ guard-heal war. The
-    // live-id set spans BOTH lists so a cross-list successor still counts as
-    // live; a row with no live successor is left alone (deletion tombstones
-    // still govern it).
+    // live-id set spans BOTH lists AND the recycle bin (audit M8: a binned
+    // successor is still the identity the content moved to, exactly as the
+    // snapshot-delete partition judges it), so a cross-list or binned
+    // successor still counts as live; a row with no live successor is left
+    // alone (deletion tombstones still govern it).
     const retiredRecord = data.retiredTaskIds || readRetiredTaskIds();
     const retiredLiveIds = new Set([
       ...(normalizedTasks || tasksLiveRef.current || []),
       ...(normalizedUnsched || unscheduledLiveRef.current || []),
+      ...(data.recycleBin || recycleBin || []),
     ].filter(Boolean).map(t => String(t.id)));
     if (normalizedTasks) normalizedTasks = applyTaskRetirements(normalizedTasks, retiredRecord, retiredLiveIds);
     if (normalizedUnsched) normalizedUnsched = applyTaskRetirements(normalizedUnsched, retiredRecord, retiredLiveIds);
@@ -5938,11 +6012,15 @@ const DayPlanner = () => {
     // the newer content redirected onto the successor first — so the edit
     // reaches the vault via the successor's normal writeback instead of
     // resurrecting the retired row.
+    // The rescue takes the same live-id set (both lists + bin): a prev-only copy
+    // of an id the result placed in the OTHER list is a cross-list move the
+    // reconcile already resolved, and rescuing it undid that move every cycle
+    // (utils/rescueUnsyncedTasks.js, the cross-list guard).
     if (normalizedTasks) setTasks(prev => applyTaskRetirements(
-      rescueUnsyncedTasks(preserveArchived(normalizedTasks, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones),
+      rescueUnsyncedTasks(preserveArchived(normalizedTasks, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones, retiredLiveIds),
       retiredRecord, retiredLiveIds));
     if (normalizedUnsched) setUnscheduledTasks(prev => applyTaskRetirements(
-      rescueUnsyncedTasks(preserveArchived(normalizedUnsched, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones),
+      rescueUnsyncedTasks(preserveArchived(normalizedUnsched, prev), prev, rescueDeletedIds, undefined, rescueObsidianTombstones, retiredLiveIds),
       retiredRecord, retiredLiveIds));
     if (data.unscheduledOrderTimestamp) {
       setUnscheduledOrderTimestamp(data.unscheduledOrderTimestamp);
@@ -6961,12 +7039,25 @@ const DayPlanner = () => {
       // block id on the write release, legacy content-derived id on the read
       // release. See obsidian.js buildNewObsidianTaskMeta and
       // utils/obsidianWritePolicy.js.
-      ? (rawTitle) => buildNewObsidianTaskMeta(rawTitle, new Date().toISOString().split('T')[0])
+      // A task created under a project carries `[project:: …]` on its line
+      // from the first write (companion §4.3, ruling G as amended); the
+      // identity derives from the line as written.
+      ? (rawTitle, projectId) => {
+          const project = projectId ? projects.find(pr => pr.id === projectId) : null;
+          // A task born under a LINKED project is placed in the project
+          // note by the writeback's placement step (companion §4.3, project
+          // routing); the tagged daily-note line would only be moved a
+          // moment later.
+          if (project?.obsidianNotePath && !project.obsidianNoteMissingAt) return null;
+          return buildNewObsidianTaskMeta(
+            withProjectMetadata(rawTitle, projectRefFor(project)),
+            new Date().toISOString().split('T')[0]);
+        }
       : null,
     onWriteObsidianTask: obsidianConfig?.enabled && obsidianVaultHandleRef.current
       ? (task) => {
           const todayStr = new Date().toISOString().split('T')[0];
-          const heading = obsidianConfig.taskHeading || '## Tasks';
+          const heading = obsidianConfig.taskHeading || localizedTaskHeading;
           // Bridge stream (Phase 6): the same append as a semantic intent.
           // applyBridgeIntent dedupes on the task's ^dg- block id, so a
           // paired vault copy converges whichever side appends first.
@@ -6985,26 +7076,26 @@ const DayPlanner = () => {
           // a scan. A DROPPED emit surfaces: unlike a task-state change,
           // nothing re-emits an append, so a silent drop here would leave
           // the task app-only with no signal at all.
-          if (bridgeHeartbeatRef.current.pluginAuthoritative) {
+          if (isStreamPosture(bridgeHeartbeatRef.current)) {
             if (!queued) {
               setObsidianSyncError(`Task "${task.title}" was not written to your vault: the bridge queue is unavailable.`);
               setObsidianSyncStatus('error');
             }
             return;
           }
-          if (obsidianVaultHandleRef.current === 'native') {
-            appendTaskToDailyNoteNative(todayStr, task, heading, dailyNoteTemplate);
-          } else {
-            appendTaskToDailyNote(
-              obsidianVaultHandleRef.current,
-              obsidianConfig.dailyNotesPath || '',
-              todayStr,
-              task,
-              heading,
-              dailyNoteTemplate,
-              obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
-            ).catch(err => console.error('[Obsidian] Failed to write task to daily note:', err));
-          }
+          // Direct tier: the failure surfaces exactly like the dropped emit
+          // above (audit fix M3; utils/obsidianDirectWrites.js) — a task the
+          // vault never received must not sit tagged and silent.
+          appendTaskDirect({
+            handle: obsidianVaultHandleRef.current,
+            dailyNotesPath: obsidianConfig.dailyNotesPath || '',
+            dateStr: todayStr,
+            task,
+            heading,
+            template: dailyNoteTemplate,
+            pattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
+            onFailure: (message) => { setObsidianSyncError(message); setObsidianSyncStatus('error'); },
+          });
         }
       : null,
   });
@@ -8650,6 +8741,7 @@ const DayPlanner = () => {
     vaultEnabled: isVaultEnabled(),
     syncAll,
     performObsidianSync, loadWikiNote, saveWikiNote, openInObsidian, nativeClearVault,
+    linkProjectNote, unlinkProjectNote, createProjectNote,
     performTrmnlSync,
     performLocalBackup, performRemoteBackup,
     buildAutoBackupPayload, loadAutoBackupHistory,

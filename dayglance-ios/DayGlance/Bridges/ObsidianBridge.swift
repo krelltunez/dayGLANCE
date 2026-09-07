@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import UniformTypeIdentifiers
+import WebKit
 
 /// iOS Obsidian vault bridge for window.DayGlanceObsidian.
 ///
@@ -16,6 +17,7 @@ import UniformTypeIdentifiers
 ///   writeDailyNote(date, content)            → "true" | "false"
 ///   listNotes(folder)                        → JSON array of paths
 ///   getAllDailyNotes(folder, cutoff)          → JSON array of {date, text}
+///   getAllDailyNotesAsync(folder, cutoff, id)  → void; the same JSON later via window.__obsidianDispatch(id, json, null)
 ///   appendToNote(path, content)              → "true" | "false"
 ///   getNote(path)                            → {text, lastModified} | ""
 ///   writeNote(path, content)                 → "true" | "false"
@@ -26,6 +28,9 @@ import UniformTypeIdentifiers
 final class ObsidianBridge: NSObject {
 
     static let shared = ObsidianBridge()
+
+    /// Set by WebView.swift so the asynchronous scan can call back into the page.
+    weak var webView: WKWebView?
 
     // UserDefaults keys
     private let bookmarkKey        = "dayglance.obsidian.vaultBookmark"
@@ -214,6 +219,39 @@ final class ObsidianBridge: NSObject {
             if !noteIndexBuilt { buildNoteIndex(vault: vault) }
             return "[\(items.joined(separator: ","))]"
         }
+    }
+
+    /// The asynchronous twin of getAllDailyNotes, Android's contract: returns
+    /// at once, runs the scan off the main thread, and delivers the SAME JSON
+    /// (array, or the {"error":…} envelope) through window.__obsidianDispatch.
+    ///
+    /// WHY THIS EXISTS (the 2026-09-06 iOS hang): the JS shim is a Proxy that
+    /// returns a function for ANY method name, so the web layer's feature
+    /// check `if (bridge.getAllDailyNotesAsync)` passed on iOS while the
+    /// scheme handler had no such case — the call answered "null" at once
+    /// and the callback never fired. The scan cycle awaited it forever with
+    /// its in-progress guard held: a spinner that never finished, and no
+    /// further Obsidian sync until the app was force-quit. Implementing the
+    /// method closes the hole; the web layer also times the wait out now.
+    func getAllDailyNotesAsync(folder: String, cutoff: String, id: String) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            let json = self.getAllDailyNotes(folder: folder, cutoff: cutoff)
+            DispatchQueue.main.async { [weak self] in
+                let js = "if(typeof window.__obsidianDispatch==='function'){window.__obsidianDispatch(\(self?.jsString(id) ?? "\"\""),\(self?.jsString(json) ?? "null"),null);}"
+                self?.webView?.evaluateJavaScript(js, completionHandler: nil)
+            }
+        }
+    }
+
+    /// A JavaScript string literal for `s`, JSON-encoded so any content (a
+    /// note's raw markdown included) survives the trip verbatim.
+    private func jsString(_ s: String) -> String {
+        if let data = try? JSONSerialization.data(withJSONObject: s, options: [.fragmentsAllowed]),
+           let literal = String(data: data, encoding: .utf8) {
+            return literal
+        }
+        return "\"\(esc(s))\""
     }
 
     // MARK: - appendToNote

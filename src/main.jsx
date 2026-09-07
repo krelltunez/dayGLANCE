@@ -2,7 +2,14 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
-import { ready as i18nReady } from './i18n.js'
+import i18n, { ready as i18nReady } from './i18n.js'
+import { buildApplicationMenuLabels } from './utils/applicationMenuLabels.js'
+
+function syncApplicationMenuLabels() {
+  const setLabels = window.electronAPI?.setApplicationMenuLabels
+  if (!setLabels) return
+  setLabels(buildApplicationMenuLabels(i18n.t.bind(i18n)))
+}
 
 // crypto.randomUUID() requires a secure context (HTTPS or localhost).
 // When accessed over HTTP on a LAN IP the API is absent and every call throws,
@@ -87,11 +94,17 @@ function mount() {
   )
 }
 
+function start() {
+  syncApplicationMenuLabels()
+  i18n.on('languageChanged', syncApplicationMenuLabels)
+  mount()
+}
+
 // The active language is its own chunk now, so wait for it before the first
 // paint — otherwise a non-English user watches the UI render in English and
 // then swap. A failed fetch still mounts: i18next falls back to bundled en,
 // and a missing translation is a better outcome than a blank screen.
-i18nReady.then(mount, (error) => {
+i18nReady.then(start, (error) => {
   console.error('Translations failed to load; continuing in English:', error)
-  mount()
+  start()
 })

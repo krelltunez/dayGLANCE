@@ -148,17 +148,47 @@ export function mergeRetiredTaskIds(local = {}, remote = {}) {
 /**
  * Prune entries whose retiredAt is strictly older than `cutoff` (a Date), or
  * unparseable. Pure — returns a new map (the same map when nothing changed).
+ * `tombstoneBundles` ({id → deletedAt ISO} maps, post-prune) extend the
+ * window for an entry whose successor they still name — see
+ * successorStillTombstoned below.
  */
-export function pruneRetiredTaskIds(record, cutoff) {
+export function pruneRetiredTaskIds(record, cutoff, tombstoneBundles = []) {
   if (!record || typeof record !== 'object' || !cutoff) return record || {};
   const cutoffMs = cutoff.getTime();
   let changed = false;
   const out = {};
   for (const [k, e] of Object.entries(record)) {
-    if (validEntry(e) && ts(e.retiredAt) >= cutoffMs) out[k] = e;
+    if (validEntry(e) && (ts(e.retiredAt) >= cutoffMs || successorStillTombstoned(e, tombstoneBundles, cutoffMs))) out[k] = e;
     else changed = true;
   }
   return changed ? out : record;
+}
+
+/**
+ * THE FUSE EXTENSION (audit fix M9). The re-mint refusal (isTombstonedRemint)
+ * needs BOTH legs on the record: the retirement naming the successor, and
+ * the successor's tombstone. Each prunes at the same 60-day window — but
+ * keyed on its own timestamp, and the tombstone is stamped when the
+ * successor was killed, which is after the retirement was recorded. So the
+ * retirement aged out FIRST, the refusal disarmed while the tombstone (and
+ * the untagged vault line) still stood, and the oscillation it refuses could
+ * resume, damped only by session latches. An aged retirement is therefore
+ * KEPT while a tombstone that itself survives the cutoff still names its
+ * direct successor: the two legs now prune together, at the tombstone's
+ * age. Bounded — the tombstone prunes at 60 days from the kill, and with the
+ * refusal armed nothing re-stamps it — after which a re-mint creates a
+ * successor no tombstone kills, which is convergence (the line gets its
+ * identity back), not the war. Both transports call this with the SAME
+ * post-prune bundles, so they stay in lockstep.
+ */
+function successorStillTombstoned(entry, bundles, cutoffMs) {
+  const successor = String(entry.successor);
+  for (const bundle of bundles || []) {
+    if (!bundle || typeof bundle !== 'object') continue;
+    const at = bundle[successor];
+    if (typeof at === 'string' && ts(at) >= cutoffMs) return true;
+  }
+  return false;
 }
 
 /**
@@ -287,13 +317,19 @@ export function applyTaskRetirements(list, record, liveIds) {
 
 /**
  * Convenience wrapper for a { tasks, unscheduledTasks } pair: builds the
- * cross-list live-id set and applies the record to both lists.
+ * cross-list live-id set and applies the record to both lists. `recycleBin`
+ * (and any other task-shaped list passed) contributes to the LIVE set only:
+ * a successor sitting in the bin is still the identity the content moved to,
+ * so the retired copy is superseded rather than kept (audit M8 — the same
+ * every-kind rule the snapshot-delete partition applies). The bin itself is
+ * returned untouched.
  */
-export function applyRetirementsToTaskLists({ tasks, unscheduledTasks }, record) {
+export function applyRetirementsToTaskLists({ tasks, unscheduledTasks, recycleBin }, record) {
   const t = Array.isArray(tasks) ? tasks : [];
   const u = Array.isArray(unscheduledTasks) ? unscheduledTasks : [];
+  const b = Array.isArray(recycleBin) ? recycleBin : [];
   if (!record || Object.keys(record).length === 0) return { tasks: t, unscheduledTasks: u };
-  const liveIds = new Set([...t, ...u].filter(Boolean).map((x) => String(x.id)));
+  const liveIds = new Set([...t, ...u, ...b].filter(Boolean).map((x) => String(x.id)));
   return {
     tasks: applyTaskRetirements(t, record, liveIds),
     unscheduledTasks: applyTaskRetirements(u, record, liveIds),

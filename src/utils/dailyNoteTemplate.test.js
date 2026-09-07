@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ENGLISH_DAILY_NOTE_TEMPLATE,
   buildLocalizedDailyNoteTemplate,
+  buildLocalizedTaskHeading,
   localizeDefaultDailyNoteTemplate,
   localizeEmptyDailyNote,
 } from './dailyNoteTemplate.js';
@@ -19,6 +20,7 @@ describe('daily note template localization', () => {
     expect(buildLocalizedDailyNoteTemplate(translate)).toBe(
       '## 快速笔记\n## 想法\n## 已完成\n## 任务\n',
     );
+    expect(buildLocalizedTaskHeading(translate)).toBe('## 任务');
   });
 
   it('migrates the original English default and the previous locale default', () => {

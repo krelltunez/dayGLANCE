@@ -29,7 +29,7 @@ describe('byte-exact split', () => {
   it('no metadata → whole input is text, metaText empty', () => {
     expect(F('Just a task')).toEqual({
       text: 'Just a task', metaText: '',
-      fields: { due: null, scheduled: null, priority: null, recurrence: false },
+      fields: { due: null, scheduled: null, priority: null, recurrence: false, project: null },
     });
   });
 });
@@ -72,7 +72,7 @@ describe('field mapping', () => {
   it('unknown dataview keys and 🛫/➕/❌ dates: display-stripped, mapped to nothing', () => {
     const r = F('T 🛫 2026-09-01 ➕ 2026-08-01 [x-custom:: v] [id:: abc]');
     expect(r.text).toBe('T');
-    expect(r.fields).toEqual({ due: null, scheduled: null, priority: null, recurrence: false });
+    expect(r.fields).toEqual({ due: null, scheduled: null, priority: null, recurrence: false, project: null });
     expect(r.metaText).toContain('[x-custom:: v]');
   });
 

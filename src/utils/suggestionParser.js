@@ -1,8 +1,6 @@
 import {
-  activeLocale,
   defaultUse24HourClock,
   formatLocalizedDate,
-  isSimplifiedChinese,
 } from './localeFormatting.js';
 
 // Suggestion parser — pure functions for parsing time/tag/date/priority/duration
@@ -137,11 +135,13 @@ export const getPartialDuration = (text, cursorPos) => {
 // ---------------------------------------------------------------------------
 
 const capitalizeRelativeLabel = (label, language) =>
-  isSimplifiedChinese(language)
-    ? label
-    : label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
+  label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
 
-export const getDateCandidates = (partial, language = activeLocale()) => {
+const translateOrDefault = (translate, key, values, fallback) => typeof translate === 'function'
+  ? translate(key, { ...values, defaultValue: fallback })
+  : fallback;
+
+export const getDateCandidates = (partial, translate, language = 'en') => {
   const today = new Date();
   today.setHours(12, 0, 0, 0);
   const currentYear = today.getFullYear();
@@ -149,8 +149,6 @@ export const getDateCandidates = (partial, language = activeLocale()) => {
   if (!lowerPartial) return [];
 
   const candidates = [];
-  const useChinese = isSimplifiedChinese(language);
-
   const relativeDate = new Intl.RelativeTimeFormat(language, { numeric: 'auto' });
   const naturalDates = [
     { keywords: ['today', 'tod'], getDate: () => today, offset: 0, keyword: 'today' },
@@ -204,10 +202,16 @@ export const getDateCandidates = (partial, language = activeLocale()) => {
         let daysToAdd = i - currentDay;
         if (daysToAdd <= 0) daysToAdd += 7;
         targetDate.setDate(targetDate.getDate() + daysToAdd);
-        const weekday = formatLocalizedDate(targetDate, { weekday: useChinese ? 'short' : 'long' }, language);
+        const weekday = formatLocalizedDate(targetDate, { weekday: 'long' }, language);
+        const fallbackWeekday = dayNames[i].charAt(0).toUpperCase() + dayNames[i].slice(1);
         candidates.push({
           date: targetDate,
-          display: useChinese ? `下${weekday}` : `Next ${weekday}`,
+          display: translateOrDefault(
+            translate,
+            'suggestions.nextWeekday',
+            { weekday },
+            `Next ${fallbackWeekday}`,
+          ),
           keyword: `next ${dayNames[i]}`,
         });
       }
@@ -288,7 +292,8 @@ const formatSuggestionTime = (time, language, use24HourClock) => {
 
 export const getTimeCandidates = (
   partial,
-  language = activeLocale(),
+  translate,
+  language = 'en',
   use24HourClock = defaultUse24HourClock(language),
 ) => {
   const lowerPartial = partial.toLowerCase().trim();
@@ -296,21 +301,26 @@ export const getTimeCandidates = (
 
   const candidates = [];
 
-  const useChinese = isSimplifiedChinese(language);
   const naturalTimes = [
-    { keywords: ['noon'], time: '12:00', label: useChinese ? '中午' : 'Noon', keyword: 'noon' },
-    { keywords: ['midnight'], time: '00:00', label: useChinese ? '午夜' : 'Midnight', keyword: 'midnight' },
-    { keywords: ['morning', 'morn'], time: '09:00', label: useChinese ? '早上' : 'Morning', keyword: 'morning' },
-    { keywords: ['afternoon'], time: '14:00', label: useChinese ? '下午' : 'Afternoon', keyword: 'afternoon' },
-    { keywords: ['evening', 'eve'], time: '18:00', label: useChinese ? '晚上' : 'Evening', keyword: 'evening' },
-    { keywords: ['night'], time: '21:00', label: useChinese ? '夜间' : 'Night', keyword: 'night' },
+    { keywords: ['noon'], time: '12:00', labelKey: 'noon', fallback: 'Noon', keyword: 'noon' },
+    { keywords: ['midnight'], time: '00:00', labelKey: 'midnight', fallback: 'Midnight', keyword: 'midnight' },
+    { keywords: ['morning', 'morn'], time: '09:00', labelKey: 'morning', fallback: 'Morning', keyword: 'morning' },
+    { keywords: ['afternoon'], time: '14:00', labelKey: 'afternoon', fallback: 'Afternoon', keyword: 'afternoon' },
+    { keywords: ['evening', 'eve'], time: '18:00', labelKey: 'evening', fallback: 'Evening', keyword: 'evening' },
+    { keywords: ['night'], time: '21:00', labelKey: 'night', fallback: 'Night', keyword: 'night' },
   ];
   for (const nt of naturalTimes) {
     if (nt.keywords.some(k => k.startsWith(lowerPartial) || lowerPartial === k)) {
       const time = formatSuggestionTime(nt.time, language, use24HourClock);
+      const label = translateOrDefault(translate, `suggestions.${nt.labelKey}`, {}, nt.fallback);
       candidates.push({
         time: nt.time,
-        display: useChinese ? `${time}（${nt.label}）` : `${time} (${nt.label})`,
+        display: translateOrDefault(
+          translate,
+          'suggestions.timeWithLabel',
+          { time, label },
+          `${time} (${label})`,
+        ),
         keyword: nt.keyword,
       });
     }

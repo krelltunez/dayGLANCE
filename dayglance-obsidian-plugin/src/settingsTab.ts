@@ -14,6 +14,9 @@ import {
   type PairingHost,
   type BridgePairing,
 } from './pairing';
+import type { AgendaKeyState, AgendaUser } from './agenda';
+import type { EditorHidingSettings } from './editorHidingRules';
+import { normalizeScope, SCOPE_WINDOW_MIN_DAYS, SCOPE_WINDOW_MAX_DAYS, SCOPE_WINDOW_DEFAULT_DAYS, type VaultScope, normalizeProjectNoteSettings, PROJECT_NOTE_LAYOUTS, type ProjectNoteSettings } from '@glance-apps/obsidian-format';
 
 // Stamped by esbuild at bundle time (see esbuild.config.mjs `define`).
 // Guarded so a build without the define (tests, tooling) still runs.
@@ -34,6 +37,31 @@ export interface BridgeSettingsHost extends PairingHost {
   unpair(): Promise<void>;
   /** Same action as the command-palette "Sync now": drain intents + refresh the heartbeat. */
   syncNow(): Promise<void>;
+  /**
+   * The sidebar's account-key half (agenda.ts). The passphrase is used once
+   * to derive the root key into device-local storage; it is never stored.
+   */
+  agendaKeyState(): AgendaKeyState;
+  verifyPassphrase(passphrase: string): Promise<{ ok: boolean; message: string }>;
+  forgetPassphrase(): Promise<void>;
+  openAgenda(): Promise<void>;
+  /** The viewer picker (companion 4.2, decision 9): who the agenda shows tasks for. */
+  listUsers(): AgendaUser[];
+  getViewer(): string | null;
+  /** True while the viewer is the pairing's default rather than an explicit choice. */
+  viewerIsDefault(): boolean;
+  setViewer(userSyncId: string | null): Promise<void>;
+  /** Vault task scope (companion §6): which non-daily notes are task sources. */
+  getScope(): VaultScope | null;
+  setScope(scope: VaultScope): Promise<void>;
+  /** Project and goal note workspaces (companion §4.3, rulings D and E). */
+  getProjectNotes(): ProjectNoteSettings;
+  setProjectNotes(s: ProjectNoteSettings): Promise<void>;
+  /** The last template problem (companion §4.4): a missing note, a refused interactive template, a failed render. Null when none. */
+  templateStatus?(): string | null;
+  /** Editor hiding (display only, editorHiding.ts). */
+  getEditorHiding(): EditorHidingSettings;
+  setEditorHiding(s: EditorHidingSettings): Promise<void>;
 }
 
 const pairedSince = (pairing: BridgePairing): string => {
@@ -57,9 +85,13 @@ export class BridgeSettingTab extends PluginSettingTab {
     const pairing = this.host.getPairing();
     if (pairing) {
       this.displayPaired(pairing);
+      this.displayAccount();
+      this.displayScope();
+      this.displayProjectNotes();
     } else {
       this.displayUnpaired();
     }
+    this.displayEditor();
     this.displayBuildInfo();
   }
 
@@ -112,6 +144,214 @@ export class BridgeSettingTab extends PluginSettingTab {
           await this.host.unpair();
           this.display();
         }));
+  }
+
+  // The sidebar view reads the account's task rows directly from
+  // GLANCEvault, which needs the account root key on this device. The
+  // passphrase field is transient: it derives the key (PBKDF2, the same
+  // derivation dayGLANCE runs) into the plugin's own IndexedDB store and is
+  // discarded. Nothing here is written to data.json, which Obsidian Sync
+  // would carry to every copy of the vault.
+  private displayAccount(): void {
+    this.containerEl.createEl('h3', { text: 'dayGLANCE account' });
+    const state = this.host.agendaKeyState();
+    if (state === 'ready') {
+      this.displayViewer();
+      new Setting(this.containerEl)
+        .setName('Sync passphrase verified on this device')
+        .setDesc('The dayGLANCE agenda view can read your tasks. The key is stored only on this device; the passphrase itself was not kept.')
+        .addButton((btn) => btn
+          .setButtonText('Open agenda')
+          .setCta()
+          .onClick(() => void this.host.openAgenda()))
+        .addButton((btn) => btn
+          .setButtonText('Forget')
+          .setWarning()
+          .onClick(async () => {
+            await this.host.forgetPassphrase();
+            this.display();
+          }));
+      return;
+    }
+    let passphrase = '';
+    let resultEl: HTMLElement | null = null;
+    const submit = async () => {
+      if (this.busy) return;
+      this.busy = true;
+      resultEl?.setText('Checking…');
+      try {
+        const result = await this.host.verifyPassphrase(passphrase);
+        if (result.ok) {
+          new Notice(`dayGLANCE bridge: ${result.message}`);
+          this.display();
+        } else {
+          resultEl?.setText(result.message);
+        }
+      } finally {
+        this.busy = false;
+      }
+    };
+    new Setting(this.containerEl)
+      .setName('Sync passphrase')
+      .setDesc('Your dayGLANCE database-sync passphrase. Needed once per device so the agenda view can decrypt your tasks. It is used to derive a key and then discarded.')
+      .addText((text) => {
+        text.setPlaceholder('passphrase').onChange((v) => { passphrase = v; });
+        text.inputEl.type = 'password';
+        text.inputEl.autocomplete = 'off';
+        text.inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') void submit(); });
+      })
+      .addButton((btn) => btn
+        .setButtonText('Verify')
+        .setCta()
+        .onClick(() => void submit()));
+    resultEl = this.containerEl.createEl('p', { text: '', cls: 'setting-item-description' });
+  }
+
+  // Who the agenda is for. Defaults to the user of the dayGLANCE device
+  // that paired this vault; the account's synced users fill the list.
+  private displayViewer(): void {
+    const users = this.host.listUsers();
+    const viewer = this.host.getViewer();
+    const known = users.some((u) => u.syncId === viewer);
+    new Setting(this.containerEl)
+      .setName('Show tasks for')
+      .setDesc(this.host.viewerIsDefault()
+        ? 'Set from the dayGLANCE device that paired this vault. Tasks, routines and calendars are filtered to this user; choose Everyone to see the whole account.'
+        : 'Tasks, routines and calendars are filtered to this user; choose Everyone to see the whole account.')
+      .addDropdown((dd) => {
+        dd.addOption('', 'Everyone');
+        for (const u of users) dd.addOption(u.syncId, u.name);
+        if (viewer && !known) dd.addOption(viewer, `Unknown user (${viewer.slice(0, 8)})`);
+        dd.setValue(viewer ?? '');
+        dd.onChange(async (v) => {
+          await this.host.setViewer(v || null);
+          this.display();
+        });
+      });
+  }
+
+  // Which notes beyond the daily notes are task sources. Folders and tags
+  // are two ways to organize a vault; both are offered, neither privileged.
+  private displayScope(): void {
+    this.containerEl.createEl('h3', { text: 'Vault task scope' });
+    const current = this.host.getScope() ?? { folders: [], tags: [], completionWindowDays: SCOPE_WINDOW_DEFAULT_DAYS };
+    let folders = current.folders.join('\n');
+    let tags = current.tags.join('\n');
+    let windowDays = String(current.completionWindowDays);
+    const save = async () => {
+      const next = normalizeScope({
+        folders: folders.split(/\r?\n/),
+        tags: tags.split(/\r?\n/),
+        completionWindowDays: Number(windowDays),
+      });
+      await this.host.setScope(next);
+    };
+    this.containerEl.createEl('p', {
+      cls: 'setting-item-description',
+      text: 'Daily notes are always task sources. Add folders and/or tags to include other notes: their open tasks (and tasks completed within the window) become dayGLANCE tasks, stamped with an identity like daily-note tasks. Notes are brought in a few at a time.',
+    });
+    new Setting(this.containerEl)
+      .setName('Folders')
+      .setDesc('One vault-relative folder per line, e.g. Projects. Every note under it is included.')
+      .addTextArea((ta) => {
+        ta.setPlaceholder('Projects\nAreas/Home').setValue(folders).onChange((v) => { folders = v; });
+        ta.inputEl.rows = 3;
+        ta.inputEl.addEventListener('blur', () => void save());
+      });
+    new Setting(this.containerEl)
+      .setName('Tags')
+      .setDesc('One tag per line, with or without #. A note carrying the tag (or a nested tag under it) is included.')
+      .addTextArea((ta) => {
+        ta.setPlaceholder('project\nclient/acme').setValue(tags).onChange((v) => { tags = v; });
+        ta.inputEl.rows = 3;
+        ta.inputEl.addEventListener('blur', () => void save());
+      });
+    new Setting(this.containerEl)
+      .setName('Completed-task window (days)')
+      .setDesc(`In included notes, completed tasks are tracked only when completed within this many days (${SCOPE_WINDOW_MIN_DAYS} to ${SCOPE_WINDOW_MAX_DAYS}). Open tasks are always tracked.`)
+      .addText((text) => {
+        text.setPlaceholder(String(SCOPE_WINDOW_DEFAULT_DAYS)).setValue(windowDays).onChange((v) => { windowDays = v; });
+        text.inputEl.type = 'number';
+        text.inputEl.min = String(SCOPE_WINDOW_MIN_DAYS);
+        text.inputEl.max = String(SCOPE_WINDOW_MAX_DAYS);
+        text.inputEl.addEventListener('blur', () => void save());
+      });
+  }
+
+  private displayProjectNotes(): void {
+    this.containerEl.createEl('h3', { text: 'Project and goal notes' });
+    const cur = this.host.getProjectNotes();
+    const draft: ProjectNoteSettings = { ...cur };
+    const save = async () => { await this.host.setProjectNotes(normalizeProjectNoteSettings(draft)); };
+    this.containerEl.createEl('p', {
+      cls: 'setting-item-description',
+      text: 'A dayGLANCE project or goal can create its own note here (from dayGLANCE, when the project is created). Linking an existing note never creates or moves anything; placement happens at creation only.',
+    });
+    const layoutLabels: Record<string, string> = {
+      note: 'One note per project or goal',
+      folder: 'A folder per project or goal, with an index note',
+      nested: 'Folders nested under the goal (Goals/<goal>/<project>/)',
+    };
+    new Setting(this.containerEl)
+      .setName('Layout')
+      .setDesc('Where a new note goes. Nested: a goal gets a folder under the goals folder, and a project with a goal gets its folder inside it.')
+      .addDropdown((d) => {
+        for (const l of PROJECT_NOTE_LAYOUTS) d.addOption(l, layoutLabels[l] ?? l);
+        d.setValue(cur.layout).onChange((v) => { draft.layout = v as ProjectNoteSettings['layout']; void save(); });
+      });
+    new Setting(this.containerEl)
+      .setName('Projects folder')
+      .setDesc('Vault-relative folder for new project notes (standalone projects under the nested layout too).')
+      .addText((t) => {
+        t.setPlaceholder('Projects').setValue(cur.projectsFolder).onChange((v) => { draft.projectsFolder = v; });
+        t.inputEl.addEventListener('blur', () => void save());
+      });
+    new Setting(this.containerEl)
+      .setName('Goals folder')
+      .setDesc('Vault-relative folder for new goal notes.')
+      .addText((t) => {
+        t.setPlaceholder('Goals').setValue(cur.goalsFolder).onChange((v) => { draft.goalsFolder = v; });
+        t.inputEl.addEventListener('blur', () => void save());
+      });
+    new Setting(this.containerEl)
+      .setName('Project template')
+      .setDesc('Optional: vault path of a template note. Rendered by Templater when it is installed and the template asks nothing interactively; otherwise {{title}}, {{date}} and {{goal}} are filled and the rest is left as is.')
+      .addText((t) => {
+        t.setPlaceholder('Templates/Project.md').setValue(cur.projectTemplate).onChange((v) => { draft.projectTemplate = v; });
+        t.inputEl.addEventListener('blur', () => void save());
+      });
+    new Setting(this.containerEl)
+      .setName('Goal template')
+      .setDesc('Optional: vault path of a template note for goals, rendered the same way.')
+      .addText((t) => {
+        t.setPlaceholder('Templates/Goal.md').setValue(cur.goalTemplate).onChange((v) => { draft.goalTemplate = v; });
+        t.inputEl.addEventListener('blur', () => void save());
+      });
+    new Setting(this.containerEl)
+      .setName('Daily note template')
+      .setDesc('Optional: vault path of a template note for daily notes dayGLANCE creates (a task added to today, a completion-log entry). Rendered the same way, here, when the note is created; {{date}} and {{title}} are the note\'s date. Without it, the daily note template text from dayGLANCE settings is used.')
+      .addText((t) => {
+        t.setPlaceholder('Templates/Daily.md').setValue(cur.dailyTemplate).onChange((v) => { draft.dailyTemplate = v; });
+        t.inputEl.addEventListener('blur', () => void save());
+      });
+    const issue = this.host.templateStatus?.() ?? null;
+    if (issue) {
+      this.containerEl.createEl('p', { cls: 'setting-item-description', text: `Template: ${issue}` });
+    }
+  }
+
+  private displayEditor(): void {
+    this.containerEl.createEl('h3', { text: 'Editor' });
+    const cur = this.host.getEditorHiding();
+    const save = (patch: Partial<EditorHidingSettings>) => void this.host.setEditorHiding({ ...this.host.getEditorHiding(), ...patch });
+    new Setting(this.containerEl)
+      .setName('Hide dayGLANCE block ids')
+      .setDesc('In Live Preview, hide the ^dg- identity token at the end of a task line, except on the line the cursor is on. Block ids you created yourself are not affected.')
+      .addToggle((t) => t.setValue(cur.hideBlockIds).onChange((v) => save({ hideBlockIds: v })));
+    new Setting(this.containerEl)
+      .setName('Hide completed tasks in project and goal notes')
+      .setDesc('In notes linked to a dayGLANCE project or goal, hide checked task lines in Live Preview and Reading view. The line stays in the note and shows again when the cursor is on it. Daily notes are not affected.')
+      .addToggle((t) => t.setValue(cur.hideCompletedInLinkedNotes).onChange((v) => save({ hideCompletedInLinkedNotes: v })));
   }
 
   private displayUnpaired(): void {

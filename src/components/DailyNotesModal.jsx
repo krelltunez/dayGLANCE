@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { renderNoteTemplateSubset } from '@glance-apps/obsidian-format';
 import { NotebookPen, X, Loader } from 'lucide-react';
 import { renderFormattedText } from '../utils/textFormatting.jsx';
 import { useTranslation } from 'react-i18next';
@@ -8,7 +9,10 @@ import { localizeEmptyDailyNote } from '../utils/dailyNoteTemplate.js';
 // Daily Notes Modal — popover for adding/editing notes on a specific date
 const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, template, loadFresh }) => {
   const { t } = useTranslation();
-  const defaultText = localizeEmptyDailyNote(note?.text || '', template);
+  // The template's `{{date}}` / `{{title}}` are filled for this date, the
+  // same subset every daily-note creation point renders (companion §4.4).
+  const seededTemplate = template ? renderNoteTemplateSubset(template, { title: dateStr, date: dateStr }) : template;
+  const defaultText = localizeEmptyDailyNote(note?.text || '', seededTemplate);
   const [localText, setLocalText] = useState(defaultText);
   const [isEditing, setIsEditing] = useState(!note?.text);
   const [loading, setLoading] = useState(!!loadFresh);
@@ -46,12 +50,12 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
         const fresh = await loadFresh(dateStr);
         if (cancelled) return;
         if (fresh && fresh.text) {
-          setLocalText(localizeEmptyDailyNote(fresh.text, template));
+          setLocalText(localizeEmptyDailyNote(fresh.text, seededTemplate));
           setIsEditing(false);
         } else {
           // No existing note — apply template if available
-          if (template) {
-            setLocalText(template);
+          if (seededTemplate) {
+            setLocalText(seededTemplate);
           }
           setIsEditing(true);
         }
@@ -72,8 +76,8 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   // For non-Obsidian: apply template on mount when note is empty
   useEffect(() => {
     if (loadFresh) return; // Obsidian path handles this above
-    if (!defaultText && template) {
-      setLocalText(template);
+    if (!defaultText && seededTemplate) {
+      setLocalText(seededTemplate);
     }
     // Mount-once: seed the template only on open, not on later prop changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps

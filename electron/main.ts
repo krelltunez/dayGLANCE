@@ -45,7 +45,7 @@ import { createWriteGate } from './mcpWriteGate.js';
 import { createIdempotencyStore } from './mcpIdempotency.js';
 import { trayReloadDebounceMs } from './trayReloadPolicy.js';
 import { decideRecovery } from './rendererRecovery.js';
-import { buildApplicationMenuTemplate, normalizeMenuLanguage, type MenuLanguage } from './applicationMenu.js';
+import { buildApplicationMenuTemplate, isApplicationMenuLabels, supportsCustomApplicationMenu, type ApplicationMenuLabels } from './applicationMenu.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -110,7 +110,7 @@ let trayReloadTimer: ReturnType<typeof setTimeout> | null = null;
 let lastMcpWriteAt: number | null = null;
 let registeredHotkey: string | null = null;
 let registeredMainWindowHotkey: string | null = null;
-let applicationMenuLanguage: MenuLanguage | null = null;
+let applicationMenuSignature: string | null = null;
 
 // Tray menu bar title: focus countdown takes priority over the reminder dot.
 let trayIndicatorOn = false;
@@ -129,12 +129,12 @@ function live(win: BrowserWindow | null): BrowserWindow | null {
   return win && !win.isDestroyed() ? win : null;
 }
 
-function updateApplicationMenu(language: string): void {
-  if (process.platform !== 'win32') return;
-  const normalized = normalizeMenuLanguage(language);
-  if (normalized === applicationMenuLanguage) return;
-  Menu.setApplicationMenu(Menu.buildFromTemplate(buildApplicationMenuTemplate(normalized)));
-  applicationMenuLanguage = normalized;
+function updateApplicationMenu(labels: ApplicationMenuLabels): void {
+  if (!supportsCustomApplicationMenu(process.platform)) return;
+  const signature = JSON.stringify(labels);
+  if (signature === applicationMenuSignature) return;
+  Menu.setApplicationMenu(Menu.buildFromTemplate(buildApplicationMenuTemplate(labels)));
+  applicationMenuSignature = signature;
 }
 
 // Only open http/https URLs in the system browser — prevents javascript:,
@@ -213,9 +213,9 @@ ipcMain.on('window:set-theme', (_event, darkMode: unknown) => {
   }
 });
 
-ipcMain.on('application-menu:set-language', (event, language: unknown) => {
-  if (event.sender !== live(mainWindow)?.webContents || typeof language !== 'string') return;
-  updateApplicationMenu(language);
+ipcMain.on('application-menu:set-labels', (event, labels: unknown) => {
+  if (event.sender !== live(mainWindow)?.webContents || !isApplicationMenuLabels(labels)) return;
+  updateApplicationMenu(labels);
 });
 
 function createWindow(): BrowserWindow {
@@ -1374,8 +1374,6 @@ app.whenReady().then(async () => {
   // effect; bail before creating any windows so it never steals the port/state.
   if (!gotSingleInstanceLock) return;
   logStartup('app ready');
-  updateApplicationMenu(app.getLocale());
-
   // Content Security Policy — applied to every response the renderer loads.
   // script-src 'self': only scripts from the app bundle (no inline scripts, no eval).
   //   Under app://, 'self' is the app://dayglance origin (was the null file:// origin).

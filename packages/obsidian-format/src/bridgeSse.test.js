@@ -127,13 +127,66 @@ describe('createSseNudgeGate — cursor, own-ack skip, debounce', () => {
     done();
   });
 
-  it('the ack ring is bounded and tolerates garbage', () => {
+  it('the ack memory is bounded IN TIME: hundreds of fresh acks all stay; an ack past the TTL is forgotten; garbage is ignored', () => {
+    let t = 1_000_000;
+    const g = make(vi.fn(), { ackTtlMs: 1000, now: () => t });
+    for (let i = 1; i <= 300; i++) g.recordOwnSeq(i);
+    g.recordOwnSeq(NaN); g.recordOwnSeq(-5); g.recordOwnSeq('7'); // all ignored
+    expect(g.handleEvent({ seq: 1 })).toBe(false);   // ours, fresh
+    expect(g.handleEvent({ seq: 300 })).toBe(false); // ours, fresh
+    t += 1001;
+    expect(g.handleEvent({ seq: 301 })).toBe(true);  // never ours → peer (and the window is pruned)
+    g.recordOwnSeq(302);
+    expect(g.handleEvent({ seq: 302 })).toBe(false); // fresh again
+    done();
+  });
+
+  it('the capacity backstop still bounds memory', () => {
     const g = make(vi.fn(), { ackCapacity: 2 });
     g.recordOwnSeq(1); g.recordOwnSeq(2); g.recordOwnSeq(3); // evicts 1
-    g.recordOwnSeq(NaN); g.recordOwnSeq(-5); g.recordOwnSeq('7'); // all ignored
-    expect(g.handleEvent({ seq: 1 })).toBe(true); // evicted → treated as peer
-    expect(g.handleEvent({ seq: 2 })).toBe(false); // still a recorded own ack
-    expect(g.handleEvent({ seq: 4 })).toBe(true); // never ours → peer
+    expect(g.handleEvent({ seq: 1 })).toBe(true);
+    expect(g.handleEvent({ seq: 2 })).toBe(false);
+    done();
+  });
+
+  it('a non-finite seq (Infinity) is ignored rather than wedging the cursor (audit low finding)', () => {
+    const onDrain = vi.fn();
+    const g = make(onDrain);
+    expect(g.handleEvent({ seq: Infinity })).toBe(false);
+    expect(g.handleEvent({ seq: 5 })).toBe(true);
+    vi.advanceTimersByTime(100);
+    expect(onDrain).toHaveBeenCalledTimes(1);
+    done();
+  });
+
+  it('THE APP TAG: a foreign namespace advances the cursor and drains nothing; our own namespace drains; an UNTAGGED frame drains as before the tag', () => {
+    const onDrain = vi.fn();
+    const g = make(onDrain, { app: 'dayglance-bridge' });
+    expect(g.handleEvent({ seq: 10, app: 'dayglance' })).toBe(false);
+    expect(g.handleEvent({ seq: 11, app: 'intents' })).toBe(false);
+    vi.advanceTimersByTime(100);
+    expect(onDrain).not.toHaveBeenCalled();
+    expect(g.getCursor()).toBe(11); // the cursor still moved: a later stale seq stays stale
+    expect(g.handleEvent({ seq: 12, app: 'dayglance-bridge' })).toBe(true);
+    vi.advanceTimersByTime(100);
+    expect(onDrain).toHaveBeenCalledTimes(1);
+    expect(g.handleEvent({ seq: 13 })).toBe(true); // missing tag: unknown, behave as today
+    vi.advanceTimersByTime(100);
+    expect(onDrain).toHaveBeenCalledTimes(2);
+    // A foreign nudge landing during a pending own-namespace debounce does not cancel it.
+    g.handleEvent({ seq: 14, app: 'dayglance-bridge' });
+    g.handleEvent({ seq: 15, app: 'dayglance' });
+    vi.advanceTimersByTime(100);
+    expect(onDrain).toHaveBeenCalledTimes(3);
+    done();
+  });
+
+  it('without an `app` option the gate ignores the tag entirely (a consumer that has not opted in drains on every nudge)', () => {
+    const onDrain = vi.fn();
+    const g = make(onDrain);
+    g.handleEvent({ seq: 20, app: 'dayglance' });
+    vi.advanceTimersByTime(100);
+    expect(onDrain).toHaveBeenCalledTimes(1);
     done();
   });
 

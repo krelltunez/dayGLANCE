@@ -6,6 +6,9 @@ import {
   pruneTombstoneMap,
   unionNewerIso,
   pruneAllTombstones,
+  pruneCompletedTaskUids,
+  completedUidCutoff,
+  COMPLETED_UID_RETENTION_DAYS,
 } from './tombstoneRetention.js';
 import { applyRemoteEntity, makeEntityId, SINGLETON_KIND, TOMBSTONE_BUNDLES } from './dbAdapter.js';
 
@@ -160,5 +163,58 @@ describe('vault cycle — grow-union pull + 60-day prune is a stable no-op', () 
     const mirror = { deletedTaskIds: { a: daysAgo(10), freshLocal: daysAgo(1) } };
     const rePush = applyRemoteEntity(mirror, singleton({ a: daysAgo(10) }));
     expect(rePush).toEqual([makeEntityId(SINGLETON_KIND, 'deletedTaskIds')]);
+  });
+});
+
+describe('AUDIT FIX M9 — pruneAllTombstones extends an aged retirement while its successor\'s tombstone survives', () => {
+  it('kept while the successor tombstone is inside the window; dropped once that tombstone prunes too', () => {
+    const data = {
+      retiredTaskIds: { L: { retiredAt: daysAgo(70), successor: 'S' } },
+      deletedObsidianKeys: { S: daysAgo(20) },
+      deletedTaskIds: {},
+    };
+    expect(pruneAllTombstones(data, tombstoneCutoff())).toBe(false);
+    expect(data.retiredTaskIds).toEqual({ L: { retiredAt: expect.any(String), successor: 'S' } });
+
+    const aged = {
+      retiredTaskIds: { L: { retiredAt: daysAgo(90), successor: 'S' } },
+      deletedObsidianKeys: { S: daysAgo(70) },
+      deletedTaskIds: {},
+    };
+    expect(pruneAllTombstones(aged, tombstoneCutoff())).toBe(true);
+    expect(aged.deletedObsidianKeys).toEqual({});
+    expect(aged.retiredTaskIds).toEqual({});
+  });
+});
+
+describe('AUDIT FIX M7 — completedTaskUids prunes at its own FIXED window, on every writer', () => {
+  it('pruneCompletedTaskUids: drops dated uids older than the cutoff, keeps undatable ones, dedupes, preserves order', () => {
+    const cutoff = new Date('2025-09-05T00:00:00.000Z');
+    const uids = ['a::2025-09-06', 'b::2025-09-04', 'c-no-date', 'a::2025-09-06', 'd::2025-09-05'];
+    expect(pruneCompletedTaskUids(uids, cutoff)).toEqual(['a::2025-09-06', 'c-no-date', 'd::2025-09-05']);
+    expect(pruneCompletedTaskUids(uids, null)).toEqual(['a::2025-09-06', 'b::2025-09-04', 'c-no-date', 'd::2025-09-05']);
+    expect(pruneCompletedTaskUids(null)).toEqual([]);
+  });
+
+  it('the default cutoff is the fixed window (365 days), day-floored and so stable across a day\'s cycles', () => {
+    expect(COMPLETED_UID_RETENTION_DAYS).toBe(365);
+    const a = completedUidCutoff(Date.parse('2026-09-05T01:00:00.000Z'));
+    const b = completedUidCutoff(Date.parse('2026-09-05T23:00:00.000Z'));
+    expect(a.getTime()).toBe(b.getTime());
+    expect(a.toISOString()).toBe('2025-09-05T00:00:00.000Z');
+  });
+
+  it('pruneAllTombstones prunes the uid set in the same pass and reports the change; a steady set is a no-op', () => {
+    const data = { completedTaskUids: ['old::2019-01-01', `keep::${daysAgo(30).slice(0, 10)}`], deletedTaskIds: {} };
+    expect(pruneAllTombstones(data)).toBe(true);
+    expect(data.completedTaskUids).toEqual([`keep::${daysAgo(30).slice(0, 10)}`]);
+    expect(pruneAllTombstones(data)).toBe(false);
+  });
+
+  it('the vault merge is union THEN fixed-window prune: a pulled superset carrying an ancient uid does not re-grow the set', () => {
+    const data = { completedTaskUids: [`mine::${daysAgo(1).slice(0, 10)}`] };
+    const entity = { _kind: SINGLETON_KIND, _key: 'completedTaskUids', value: ['old::2019-01-01', `theirs::${daysAgo(2).slice(0, 10)}`] };
+    applyRemoteEntity(data, entity);
+    expect(new Set(data.completedTaskUids)).toEqual(new Set([`mine::${daysAgo(1).slice(0, 10)}`, `theirs::${daysAgo(2).slice(0, 10)}`]));
   });
 });

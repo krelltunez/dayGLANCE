@@ -27,7 +27,7 @@
 // per-completion remodeling.
 
 import { mergeHabitLogs, mergeRoutineDefinitions, mergeRoutineCompletions, mergeCompletedDates } from '../mergeSync.js';
-import { TOMBSTONE_BUNDLE_KEYS, tombstoneCutoff } from './tombstoneRetention.js';
+import { TOMBSTONE_BUNDLE_KEYS, tombstoneCutoff, pruneCompletedTaskUids } from './tombstoneRetention.js';
 import { mergeRetiredTaskIds } from '../utils/retiredTaskIds.js';
 import { mergeDayWindowMaps } from './dayWindowSync.js';
 
@@ -463,7 +463,10 @@ function mergeBundle(data, key, value, extra) {
       return;
     }
     case 'completedTaskUids':
-      data.completedTaskUids = MERGE.unionArray(data.completedTaskUids || [], value || []);
+      // Union, then the FIXED-window prune every writer of this set applies
+      // (tombstoneRetention.js, M7) — a grow-only union here ping-ponged with
+      // the pruned set a file-tier or payload-build peer pushed.
+      data.completedTaskUids = pruneCompletedTaskUids(MERGE.unionArray(data.completedTaskUids || [], value || []));
       return;
     case 'routinesDate':
       data.routinesDate = (data.routinesDate && data.routinesDate > value) ? data.routinesDate : value;

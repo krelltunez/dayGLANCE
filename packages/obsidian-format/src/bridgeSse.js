@@ -139,6 +139,15 @@ export function createSseArming() {
  *    miniaturized). Without this, every own write costs one idle drain;
  *    with it, zero.
  *  • DEBOUNCE — a micro-burst of peer nudges collapses into one onDrain.
+ *  • THE APP TAG (2026-09-05) — activity frames carry `app`, the namespace
+ *    that advanced the seq. A tag that is not ours (`app` option) is a
+ *    foreign write: the cursor advances, nothing drains, and a pending
+ *    debounce for an earlier own-namespace nudge keeps its timer. THE
+ *    MISSING-TAG CONTRACT: a frame without `app` (an older server, or the
+ *    seq-only `ready` frame) is "unknown" and drains exactly as before the
+ *    tag existed. Before the tag, the drain was its own probe — one empty
+ *    app-scoped list per debounced foreign nudge; now a foreign nudge costs
+ *    nothing.
  *
  * LOOP SAFETY IS BY CONSTRUCTION, NOT ONLY BY THIS SKIP: even a nudge that
  * slips through to drain() cannot sustain a cycle, because the drain's idle
@@ -151,31 +160,48 @@ export function createSseArming() {
  */
 export function createSseNudgeGate({
   onDrain,
+  app = null,
   debounceMs = 400,
-  ackCapacity = 64,
+  // The own-ack memory is bounded IN TIME (2026-09-05, the cycles-versus-
+  // wall-clock sweep's leftover): an ack matters only while its echo can be
+  // in flight — seconds on a live stream, never past a reconnect (the server
+  // replays nothing). Seqs are unique, so a remembered ack can never match a
+  // peer's nudge; `ackCapacity` is a memory backstop, not the guard.
+  ackTtlMs = 10 * 60_000,
+  ackCapacity = 4096,
+  now = () => Date.now(),
   setTimeoutFn = setTimeout,
   clearTimeoutFn = clearTimeout,
 } = {}) {
   let lastSeq = -Infinity;
   let timer = null;
-  const ackRing = [];
+  const ackRing = []; // { seq, at }
   const ackSet = new Set();
+  const prune = (t) => {
+    while (ackRing.length && (t - ackRing[0].at > ackTtlMs || ackRing.length > ackCapacity)) ackSet.delete(ackRing.shift().seq);
+  };
 
   return {
     /** Record a write ack's seq as our own. Ignores non-numbers. */
     recordOwnSeq(seq) {
       if (typeof seq !== 'number' || !Number.isFinite(seq) || seq <= 0) return;
+      const t = now();
+      prune(t);
       if (ackSet.has(seq)) return;
-      ackRing.push(seq);
+      ackRing.push({ seq, at: t });
       ackSet.add(seq);
-      while (ackRing.length > ackCapacity) ackSet.delete(ackRing.shift());
+      prune(t);
     },
     /** Feed one nudge. Returns true when a drain was scheduled. */
     handleEvent(evt) {
-      if (!evt || typeof evt.seq !== 'number' || Number.isNaN(evt.seq)) return false;
+      // Finite, not merely non-NaN: `seq: Infinity` would wedge the cursor
+      // until reload (audit low finding).
+      if (!evt || typeof evt.seq !== 'number' || !Number.isFinite(evt.seq)) return false;
       if (evt.seq <= lastSeq) return false; // stale/coalesced
+      prune(now());
       lastSeq = evt.seq;
       if (ackSet.has(evt.seq)) return false; // our own write's echo
+      if (app && typeof evt.app === 'string' && evt.app !== app) return false; // a foreign namespace's write
       if (timer !== null) clearTimeoutFn(timer);
       timer = setTimeoutFn(() => { timer = null; onDrain?.(); }, debounceMs);
       return true;

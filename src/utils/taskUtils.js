@@ -1,7 +1,7 @@
 import {
   activeLocale,
+  defaultWeekStartDay,
   formatLocalizedDate,
-  isSimplifiedChinese,
   localizedWeekdays,
 } from './localeFormatting.js';
 
@@ -59,101 +59,89 @@ export const extractWikilinks = (title) => {
 export const stripWikilinks = (title) =>
   title.replace(/\[\[[^\]]+\]\]/g, '').replace(/\s+/g, ' ').trim();
 
+const translateOrDefault = (translate, key, values, fallback) => typeof translate === 'function'
+  ? translate(key, { ...values, defaultValue: fallback })
+  : fallback;
+
 // Human-readable label for a recurrence rule object.
-export const getRecurrenceLabel = (rec, language = activeLocale()) => {
-  const useChinese = isSimplifiedChinese(language);
-  if (!rec) return useChinese ? '不重复' : 'None';
+export const getRecurrenceLabel = (rec, translate, language = 'en') => {
+  if (!rec) return translateOrDefault(translate, 'task.noRepeat', {}, 'None');
 
-  if (useChinese) {
-    const shortDayNames = localizedWeekdays('short', language);
-    const fullDayNames = localizedWeekdays('long', language);
-    const selectedDays = () => {
-      const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
-        ? [...rec.daysOfWeek].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7))
-        : rec.startDate ? [new Date(`${rec.startDate}T12:00:00`).getDay()] : [];
-      return days.map(day => shortDayNames[day]).join('、');
-    };
-
-    let label = '自定义';
-    if (rec.type === 'daily') label = '每天';
-    else if (rec.type === 'weekly') {
-      const days = selectedDays();
-      label = days ? `每周：${days}` : '每周';
-    } else if (rec.type === 'biweekly') {
-      const days = selectedDays();
-      label = days ? `每两周：${days}` : '每两周';
-    }
-    else if (rec.type === 'monthly') {
-      if (rec.monthWeekday) {
-        label = `每月第${rec.monthWeekday.week}个${fullDayNames[rec.monthWeekday.day]}`;
-      } else {
-        const day = rec.monthDay || (rec.startDate ? new Date(`${rec.startDate}T12:00:00`).getDate() : null);
-        label = day ? `每月${day}日` : '每月';
-      }
-    } else if (rec.type === 'yearly') {
-      if (rec.startDate) {
-        const startDate = new Date(`${rec.startDate}T12:00:00`);
-        label = `每年${startDate.getMonth() + 1}月${startDate.getDate()}日`;
-      } else {
-        label = '每年';
-      }
-    }
-
-    if (rec.endDate) {
-      const endDate = new Date(`${rec.endDate}T12:00:00`);
-      label += `，直到${endDate.getMonth() + 1}月${endDate.getDate()}日`;
-    } else if (rec.maxOccurrences) {
-      label += `（共${rec.maxOccurrences}次）`;
-    }
-    return label;
-  }
-
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const shortDayNames = localizedWeekdays('short', language);
+  const fullDayNames = localizedWeekdays('long', language);
+  const englishShortDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const englishFullDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const englishMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const ordinals = ['', '1st', '2nd', '3rd', '4th', '5th'];
+  const firstDay = defaultWeekStartDay(language);
+  const selectedDayIndexes = rec.daysOfWeek?.length
+    ? [...rec.daysOfWeek].sort((a, b) => ((a - firstDay + 7) % 7) - ((b - firstDay + 7) % 7))
+    : rec.startDate ? [new Date(`${rec.startDate}T12:00:00`).getDay()] : [];
+  const localizedDays = new Intl.ListFormat(language, { style: 'short', type: 'conjunction' })
+    .format(selectedDayIndexes.map(day => shortDayNames[day]));
+  const fallbackDays = selectedDayIndexes.map(day => englishShortDays[day]).join(', ');
 
-  let label = 'Custom';
-  if (rec.type === 'daily') label = 'Every day';
-  else if (rec.type === 'weekly') {
-    const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
-      ? [...rec.daysOfWeek].sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
-      : rec.startDate ? dayNames[new Date(rec.startDate + 'T12:00:00').getDay()] : null;
-    label = days ? `Weekly on ${days}` : 'Every week';
-  }
-  else if (rec.type === 'biweekly') {
-    const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
-      ? [...rec.daysOfWeek].sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
-      : rec.startDate ? dayNames[new Date(rec.startDate + 'T12:00:00').getDay()] : null;
-    label = days ? `Every 2 weeks on ${days}` : 'Every 2 weeks';
-  }
-  else if (rec.type === 'monthly') {
+  let label = translateOrDefault(translate, 'recurrence.custom', {}, 'Custom');
+  if (rec.type === 'daily') {
+    label = translateOrDefault(translate, 'recurrence.everyDay', {}, 'Every day');
+  } else if (rec.type === 'weekly') {
+    label = localizedDays
+      ? translateOrDefault(translate, 'recurrence.weeklyOnDays', { days: localizedDays }, `Weekly on ${fallbackDays}`)
+      : translateOrDefault(translate, 'recurrence.everyWeek', {}, 'Every week');
+  } else if (rec.type === 'biweekly') {
+    label = localizedDays
+      ? translateOrDefault(translate, 'recurrence.everyTwoWeeksOnDays', { days: localizedDays }, `Every 2 weeks on ${fallbackDays}`)
+      : translateOrDefault(translate, 'recurrence.everyTwoWeeks', {}, 'Every 2 weeks');
+  } else if (rec.type === 'monthly') {
     if (rec.monthWeekday) {
-      label = `Monthly on the ${ordinals[rec.monthWeekday.week]} ${fullDayNames[rec.monthWeekday.day]}`;
+      const { week, day } = rec.monthWeekday;
+      label = translateOrDefault(
+        translate,
+        'recurrence.monthlyOnOrdinalWeekday',
+        { ordinal: translateOrDefault(translate, 'recurrence.ordinal', { count: week, ordinal: true }, ordinals[week]), day: fullDayNames[day] },
+        `Monthly on the ${ordinals[week]} ${englishFullDays[day]}`,
+      );
     } else {
-      const d = rec.monthDay || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : null);
-      if (d) {
-        const suffix = d === 1 || d === 21 || d === 31 ? 'st' : d === 2 || d === 22 ? 'nd' : d === 3 || d === 23 ? 'rd' : 'th';
-        label = `Monthly on the ${d}${suffix}`;
+      const day = rec.monthDay || (rec.startDate ? new Date(`${rec.startDate}T12:00:00`).getDate() : null);
+      if (day) {
+        const suffix = day === 1 || day === 21 || day === 31 ? 'st' : day === 2 || day === 22 ? 'nd' : day === 3 || day === 23 ? 'rd' : 'th';
+        const localizedDay = translateOrDefault(translate, 'recurrence.ordinal', { count: day, ordinal: true }, `${day}${suffix}`);
+        label = translateOrDefault(translate, 'recurrence.monthlyOnDate', { day: localizedDay }, `Monthly on the ${day}${suffix}`);
       } else {
-        label = 'Every month';
+        label = translateOrDefault(translate, 'recurrence.everyMonth', {}, 'Every month');
       }
     }
-  }
-  else if (rec.type === 'yearly') {
+  } else if (rec.type === 'yearly') {
     if (rec.startDate) {
-      const sd = new Date(rec.startDate + 'T12:00:00');
-      label = `Yearly on ${monthNames[sd.getMonth()]} ${sd.getDate()}`;
+      const startDate = new Date(`${rec.startDate}T12:00:00`);
+      const date = formatLocalizedDate(startDate, { month: 'long', day: 'numeric' }, language);
+      label = translateOrDefault(
+        translate,
+        'recurrence.yearlyOn',
+        { date },
+        `Yearly on ${englishMonths[startDate.getMonth()]} ${startDate.getDate()}`,
+      );
     } else {
-      label = 'Every year';
+      label = translateOrDefault(translate, 'recurrence.everyYear', {}, 'Every year');
     }
   }
 
   if (rec.endDate) {
-    const ed = new Date(rec.endDate + 'T12:00:00');
-    label += ` until ${monthNames[ed.getMonth()].slice(0, 3)} ${ed.getDate()}`;
+    const endDate = new Date(`${rec.endDate}T12:00:00`);
+    const date = formatLocalizedDate(endDate, { month: 'short', day: 'numeric' }, language);
+    label = translateOrDefault(
+      translate,
+      'recurrence.withEndDate',
+      { label, date },
+      `${label} until ${englishMonths[endDate.getMonth()].slice(0, 3)} ${endDate.getDate()}`,
+    );
   } else if (rec.maxOccurrences) {
-    label += ` (${rec.maxOccurrences} times)`;
+    label = translateOrDefault(
+      translate,
+      'recurrence.withCount',
+      { label, count: rec.maxOccurrences },
+      `${label} (${rec.maxOccurrences} times)`,
+    );
   }
   return label;
 };
@@ -163,27 +151,43 @@ export const formatDate = (date, language = activeLocale()) =>
   formatLocalizedDate(date, { weekday: 'long', month: 'short', day: 'numeric' }, language);
 
 // Format an array of Date objects as a human-readable range string.
-export const formatDateRange = (dates, language = activeLocale()) => {
+export const formatDateRange = (dates, translate, language = 'en') => {
   if (dates.length === 1) {
     return formatDate(dates[0], language);
   }
   const first = dates[0];
   const last = dates[dates.length - 1];
 
-  if (isSimplifiedChinese(language)) {
-    if (first.getFullYear() === last.getFullYear() && first.getMonth() === last.getMonth()) {
-      return `${first.getFullYear()}年${first.getMonth() + 1}月${first.getDate()}日至${last.getDate()}日`;
-    }
-    if (first.getFullYear() === last.getFullYear()) {
-      return `${first.getFullYear()}年${first.getMonth() + 1}月${first.getDate()}日至${last.getMonth() + 1}月${last.getDate()}日`;
-    }
-    return `${first.getFullYear()}年${first.getMonth() + 1}月${first.getDate()}日至${last.getFullYear()}年${last.getMonth() + 1}月${last.getDate()}日`;
-  }
-
   const formatter = new Intl.DateTimeFormat(language, { year: 'numeric', month: 'short', day: 'numeric' });
-  return typeof formatter.formatRange === 'function'
+  const fallback = typeof formatter.formatRange === 'function'
     ? formatter.formatRange(first, last)
     : `${formatter.format(first)} – ${formatter.format(last)}`;
+  const month = (date) => formatLocalizedDate(date, { month: 'short' }, language);
+  if (first.getFullYear() === last.getFullYear() && first.getMonth() === last.getMonth()) {
+    return translateOrDefault(translate, 'dateRange.sameMonth', {
+      year: first.getFullYear(),
+      month: month(first),
+      startDay: first.getDate(),
+      endDay: last.getDate(),
+    }, fallback);
+  }
+  if (first.getFullYear() === last.getFullYear()) {
+    return translateOrDefault(translate, 'dateRange.sameYear', {
+      year: first.getFullYear(),
+      startMonth: month(first),
+      startDay: first.getDate(),
+      endMonth: month(last),
+      endDay: last.getDate(),
+    }, fallback);
+  }
+  return translateOrDefault(translate, 'dateRange.differentYears', {
+    startYear: first.getFullYear(),
+    startMonth: month(first),
+    startDay: first.getDate(),
+    endYear: last.getFullYear(),
+    endMonth: month(last),
+    endDay: last.getDate(),
+  }, fallback);
 };
 
 // Format a Date object as "Mon, Jan 5" (abbreviated day name).

@@ -155,6 +155,35 @@ describe('restoreBinnedVaultTasks', () => {
     expect(Date.parse(second.scheduledTasks[0].lastModified)).toBeGreaterThan(Date.parse('2026-08-30T13:00:00.000Z'));
   });
 
+  it('THE LIVE-COPY GUARD (ruling 5 correction, the y0bm31lo war): a bin entry whose id is still live in app state is NOT restored — it is a binned duplicate, dropped and reported', () => {
+    // The war's trigger replayed: the user binned one of two copies; the
+    // other stayed live. The first shape restored the binned one by
+    // _deletedFrom with a fresher-than-everything stamp, manufacturing a
+    // second live copy that won every later cross-list reconciliation.
+    const bin = [binnedTask({ _deletedFrom: 'inbox' })];
+    const scanned = scannedTask();
+    const out = restoreBinnedVaultTasks({
+      recycleBin: bin, scheduledTasks: [scanned], inboxTasks: [],
+      liveIds: new Set([scanned.id]), nowMs: NOW,
+    });
+    expect(out.restored).toEqual([]);
+    expect(out.superseded).toEqual([{ id: scanned.id, title: bin[0].title }]);
+    expect(out.recycleBin).toEqual([]); // the stale bin row goes, never lingers to fight the live copy
+    expect(out.scheduledTasks).toEqual([scanned]); // the scan's copy passes through untouched
+    expect(out.inboxTasks).toEqual([]); // and NO second copy appears anywhere
+  });
+
+  it('the guard is narrow: a binned task whose ONLY copy is gone still restores while its line exists (ruling 5 intact)', () => {
+    const bin = [binnedTask()];
+    const out = restoreBinnedVaultTasks({
+      recycleBin: bin, scheduledTasks: [scannedTask()], inboxTasks: [],
+      liveIds: new Set(['some-other-live-id']), nowMs: NOW,
+    });
+    expect(out.restored).toHaveLength(1);
+    expect(out.superseded).toEqual([]);
+    expect(out.scheduledTasks[0].notes).toContain('Restored from the recycle bin');
+  });
+
   it('no binned matches → the exact same list references pass through (zero-cost on the common path)', () => {
     const scheduled = [scannedTask()];
     const inbox = [];

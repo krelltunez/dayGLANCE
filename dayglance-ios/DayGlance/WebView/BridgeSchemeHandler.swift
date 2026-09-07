@@ -342,6 +342,15 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
                   let folder = args[0] as? String,
                   let cutoff = args[1] as? String else { return "[]" }
             return ObsidianBridge.shared.getAllDailyNotes(folder: folder, cutoff: cutoff)
+        case "getAllDailyNotesAsync":
+            // Answers at once; the scan runs off the main thread and lands via
+            // window.__obsidianDispatch (see ObsidianBridge for the hang this closed).
+            guard args.count >= 3,
+                  let folder = args[0] as? String,
+                  let cutoff = args[1] as? String,
+                  let id     = args[2] as? String else { return "null" }
+            ObsidianBridge.shared.getAllDailyNotesAsync(folder: folder, cutoff: cutoff, id: id)
+            return "null"
         case "appendToNote":
             guard args.count >= 2,
                   let path    = args[0] as? String,

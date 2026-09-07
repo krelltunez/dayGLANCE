@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectObsidianDeletions, isObsidianTombstoned, addObsidianTombstones, obsidianKeyDate, dropTombstonedObsidianTasks, dropTombstonedObsidianNotes } from './obsidianDeletions.js';
+import { detectObsidianDeletions, isObsidianTombstoned, addObsidianTombstones, obsidianKeyDate, dropTombstonedObsidianTasks, dropTombstonedObsidianNotes, mergeObsidianTombstones, commitObsidianTombstones, OBSIDIAN_TOMBSTONES_STORAGE_KEY } from './obsidianDeletions.js';
 
 describe('detectObsidianDeletions (conservative)', () => {
   it('reports a key this device previously scanned and no longer sees', () => {
@@ -164,5 +164,42 @@ describe('dropTombstonedObsidianTasks / dropTombstonedObsidianNotes — the shar
       '2026-08-12': { text: 'untombstoned', lastModified: T_OLD },
     }, tombs);
     expect(Object.keys(out).sort()).toEqual(['2026-08-11', '2026-08-12']);
+  });
+});
+
+describe('AUDIT FIX M11 — mergeObsidianTombstones / commitObsidianTombstones re-read the bundle at every write', () => {
+  const memStorage = (initial = {}) => {
+    const m = new Map(Object.entries(initial));
+    return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), map: m };
+  };
+
+  it('mergeObsidianTombstones is a newest-per-key union, pure', () => {
+    const a = { x: '2026-09-01T00:00:00.000Z', y: '2026-09-03T00:00:00.000Z' };
+    const b = { x: '2026-09-02T00:00:00.000Z', y: '2026-09-02T00:00:00.000Z', z: '2026-09-04T00:00:00.000Z' };
+    expect(mergeObsidianTombstones(a, b)).toEqual({
+      x: '2026-09-02T00:00:00.000Z', y: '2026-09-03T00:00:00.000Z', z: '2026-09-04T00:00:00.000Z',
+    });
+    expect(a).toEqual({ x: '2026-09-01T00:00:00.000Z', y: '2026-09-03T00:00:00.000Z' });
+    expect(mergeObsidianTombstones(null, undefined)).toEqual({});
+  });
+
+  it('THE CLOBBER PIN: a tombstone that landed in storage after the cycle read its copy survives the cycle\'s write', () => {
+    const storage = memStorage({ [OBSIDIAN_TOMBSTONES_STORAGE_KEY]: JSON.stringify({ old: '2026-08-01T00:00:00.000Z' }) });
+    // The cycle read {old} at its start...
+    const cycleCopy = JSON.parse(storage.getItem(OBSIDIAN_TOMBSTONES_STORAGE_KEY));
+    // ...then the engine applied a peer's tombstone mid-await.
+    storage.setItem(OBSIDIAN_TOMBSTONES_STORAGE_KEY, JSON.stringify({ ...cycleCopy, peer: '2026-09-05T10:00:00.000Z' }));
+    // The cycle commits its own detection: fresh storage ∪ additions.
+    const written = commitObsidianTombstones({ mine: '2026-09-05T10:00:30.000Z' }, storage);
+    const stored = JSON.parse(storage.getItem(OBSIDIAN_TOMBSTONES_STORAGE_KEY));
+    expect(stored).toEqual({ old: '2026-08-01T00:00:00.000Z', peer: '2026-09-05T10:00:00.000Z', mine: '2026-09-05T10:00:30.000Z' });
+    expect(written).toEqual(stored);
+  });
+
+  it('unreadable storage still commits the additions; a same-key older addition never regresses the stored stamp', () => {
+    const storage = memStorage({ [OBSIDIAN_TOMBSTONES_STORAGE_KEY]: 'not json' });
+    expect(commitObsidianTombstones({ a: '2026-09-05T00:00:00.000Z' }, storage)).toEqual({ a: '2026-09-05T00:00:00.000Z' });
+    const out = commitObsidianTombstones({ a: '2026-09-01T00:00:00.000Z' }, storage);
+    expect(out.a).toBe('2026-09-05T00:00:00.000Z');
   });
 });

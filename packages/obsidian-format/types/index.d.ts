@@ -5,7 +5,10 @@
 
 // ── identity ────────────────────────────────────────────────────────────────
 export function simpleHash(str: string): string;
-export function deriveBlockId(dateStr: string, rawTitle: string): string;
+/** noteKey: the note's date for a daily note, noteKeyForPath(path) for any other note (companion §6, ruling A). */
+export function deriveBlockId(noteKey: string, rawTitle: string): string;
+export function noteKeyForPath(path: string): string;
+export function noteTaskId(noteKey: string, rawTitle: string): string;
 export function appIdForBlockId(blockId: string): string;
 export function legacyObsidianId(taskDate: string, rawTitle: string): string;
 export function splitBlockId(text: string): { text: string; blockId: string | null };
@@ -30,6 +33,8 @@ export function splitTasksMetadata(input: string): {
   text: string; metaText: string; fields: TasksMetadataFields;
 };
 export function reattachTasksMetadata(displayTitle: string, rawTitle: string): string;
+export function withProjectMetadata(rawTitle: string, ref: string | null): string;
+export function withScheduledMetadata(rawTitle: string, dateStr: string | null, format?: 'tasks' | 'dataview'): string;
 
 // ── task lines ──────────────────────────────────────────────────────────────
 export function taskLineSortKey(line: string, noteDate: string): string;
@@ -52,13 +57,27 @@ export function updateTaskLines(lines: string[], opts: {
 }): boolean;
 export function parseTasksFromMarkdown(
   content: string, dateStr: string, seenBlockIds?: Set<string>,
+  opts?: { notePath?: string | null; completedSince?: string | null },
 ): { scheduledTasks: Record<string, unknown>[]; inboxTasks: Record<string, unknown>[] };
+export function completionDateOfLine(body: string): string | null;
+export function completedLineInWindow(body: string, completedSince: string): boolean;
+/** noteKey: the note's date for a daily note, noteKeyForPath(path) otherwise; completedSince windows completed lines (non-daily). */
 export function stampUntaggedTaskLines(
-  content: string, dateStr: string,
+  content: string, noteKey: string, opts?: { completedSince?: string | null },
 ): { text: string; changed: boolean; stamped: Array<{ blockId: string; rawTitle: string }> };
 export function planStampInsertions(
-  content: string, dateStr: string,
+  content: string, noteKey: string, opts?: { completedSince?: string | null },
 ): Array<{ line: number; fromCh: number; toCh: number; insert: string; blockId: string; rawTitle: string }>;
+
+// ── vault task scope (companion §6, rulings D and E) ────────────────────────
+export interface VaultScope { folders: string[]; tags: string[]; completionWindowDays: number }
+export const SCOPE_WINDOW_MIN_DAYS: number;
+export const SCOPE_WINDOW_MAX_DAYS: number;
+export const SCOPE_WINDOW_DEFAULT_DAYS: number;
+export function normalizeScope(scope: Partial<VaultScope> | null | undefined): VaultScope;
+export function scopeIsActive(scope: Partial<VaultScope> | null | undefined): boolean;
+export function noteInScope(path: string, tags: string[] | null | undefined, scope: Partial<VaultScope> | null | undefined): boolean;
+export function completedSinceFor(scope: Partial<VaultScope> | null | undefined, today: string): string;
 export function partitionStampPlan<T extends { line: number }>(
   plan: T[], heldLines: Set<number> | null | undefined,
 ): { apply: T[]; deferred: T[] };
@@ -66,6 +85,15 @@ export const STAMP_SETTLE_FLOOR_MS: number;
 export function settleStampPlan<T extends { line: number }>(
   plan: T[], lines: string[], prior: Map<string, number> | null | undefined, nowMs: number,
 ): { apply: T[]; deferred: T[]; nextState: Map<string, number> };
+
+// ── completion log (companion spec 4.1) ─────────────────────────────────────
+export const DEFAULT_COMPLETION_LOG_HEADING: string;
+export function formatCompletionLogEntry(fields: {
+  title: string; completedAt?: string | null; fallbackDate: string;
+  projectName?: string | null; priority?: number | null;
+  deadline?: string | null; recurring?: boolean;
+}): string;
+export function completionLogDate(completedAt: string | null | undefined, localToday: string): string;
 
 // ── note naming ─────────────────────────────────────────────────────────────
 export function assertSafeDateStr(dateStr: string): void;
@@ -78,6 +106,7 @@ export function dailyNoteFilename(dateStr: string, pattern?: string): string;
 export function hasFrontmatter(text: string): boolean;
 export function dgFrontmatter(dateIso?: string): string;
 export function withCreationFrontmatter(content: string, dateIso?: string): string;
+export function dailyNoteCreationBody(template: string | null | undefined, date: string, path?: string | null): string;
 
 // ── filename portability ────────────────────────────────────────────────────
 export function validateVaultNameSegment(segment: string): string | null;
@@ -117,6 +146,8 @@ export interface BridgePairingCredentials {
   pairingSalt: string;
   generation: string;
   createdAt: string;
+  /** The pairing device's current multi-user identity; the plugin's default viewer. Absent/null when single-user. */
+  userSyncId?: string | null;
 }
 export function generatePairingCode(): string;
 export function normalizePairingCode(code: string | null | undefined): string;
@@ -133,6 +164,9 @@ export const BRIDGE_PAIRING_META_ID: string;
 export const BRIDGE_CONFIG_META_ID: string;
 export const BRIDGE_INTENT_PREFIX: string;
 export const BRIDGE_OBSERVATION_PREFIX: string;
+export const BRIDGE_ACTION_PREFIX: string;
+export const BRIDGE_PROJECTION_PREFIX: string;
+export function bridgeCalendarProjectionId(deviceId: string): string;
 export function bridgeConfigAllowsStamping(config: { blockIdWrites?: unknown } | null | undefined): boolean;
 
 // ── bridge SSE (Phase 7 — pure half of the plugin's live-sync transport) ────
@@ -158,13 +192,21 @@ export interface SseNudgeGate {
 }
 export function createSseNudgeGate(opts?: {
   onDrain?: () => void;
+  /** This consumer's namespace: a tagged nudge from another app drains nothing; an untagged one drains as before the tag. */
+  app?: string | null;
   debounceMs?: number;
+  /** Own-ack memory: acks older than this are forgotten (default 10 minutes). */
+  ackTtlMs?: number;
+  /** Memory backstop on the own-ack ring, not the guard (default 4096). */
   ackCapacity?: number;
+  now?: () => number;
   setTimeoutFn?: typeof setTimeout;
   clearTimeoutFn?: typeof clearTimeout;
 }): SseNudgeGate;
 export function mintIntentId(): string;
 export function observationEntityId(path: string): Promise<string>;
+export const PROJECT_NOTE_ID_KEY: string;
+export function linkObservationEntityId(targetId: string): string;
 export function sealBridgeEnvelope(subkey: CryptoKey, payload: unknown): Promise<string>;
 export function openBridgeEnvelope(subkey: CryptoKey, text: string): Promise<unknown | null>;
 export function encodePlainBridgeRow(payload: unknown): string;
@@ -174,3 +216,19 @@ export function applyBridgeIntent(
 ): { text: string | null; changed: boolean }
  | { error: 'unportable_name'; reason: string }
  | { unsupported: true };
+
+// ── project and goal note workspaces (companion §4.3, rulings D and E) ─────
+export type ProjectNoteLayout = 'note' | 'folder' | 'nested';
+export const PROJECT_NOTE_LAYOUTS: ProjectNoteLayout[];
+export interface ProjectNoteSettings { layout: ProjectNoteLayout; projectsFolder: string; goalsFolder: string; projectTemplate: string; goalTemplate: string; dailyTemplate: string }
+export function normalizeProjectNoteSettings(s: Partial<ProjectNoteSettings> | null | undefined): ProjectNoteSettings;
+export function noteNameFromTitle(title: string): string;
+export function projectNotePath(a: { kind: 'project' | 'goal'; title: string; layout?: string; projectsFolder?: string; goalsFolder?: string; goalFolder?: string | null }): string;
+export function uniqueNotePath(path: string, exists: (path: string) => boolean): string;
+export function templateNeedsUser(text: string): boolean;
+export function renderNoteTemplateSubset(text: string, vars?: { title?: string; date?: string; goal?: string }): string;
+export function projectCompletionsQuery(dailyFolder?: string): string;
+export function goalProjectsQuery(): string;
+export function goalProgressQuery(dailyFolder?: string): string;
+export function defaultProjectNote(a: { title: string; date: string; hasDataview?: boolean; dailyFolder?: string }): string;
+export function defaultGoalNote(a: { title: string; date: string; hasDataview?: boolean; dailyFolder?: string }): string;

@@ -17,9 +17,10 @@ import ProjectProgress from './ProjectProgress.jsx';
 import RecurringSeriesRow from './RecurringSeriesRow.jsx';
 import NotesSubtasksPanel from '../NotesSubtasksPanel.jsx';
 import { renderTitle, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySubtasks, getLinkUrl, isObsidianNoteOnlyTask, openNoteAction, isPhoneOnlyTask } from '../../utils/textFormatting.jsx';
-import { dateToString, extractWikilinks } from '../../utils/taskUtils.js';
+import { dateToString, extractWikilinks, completionTimestamp } from '../../utils/taskUtils.js';
 import { getNextOccurrence } from '../../utils/recurrenceEngine.js';
 import { getActiveHGInstance } from '../../hooks/useHyperGlance.js';
+import { noteLinkOf } from '../../utils/obsidianProjectNotes.js';
 import { formatLocalizedDate } from '../../utils/localeFormatting.js';
 
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
@@ -66,6 +67,20 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     mobileActiveTab,
   } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
+  // Project note (companion §4.3): a badge that opens the linked note, or a
+  // warning while the note is missing from the vault (ruling F).
+  const noteLink = noteLinkOf(project);
+  const noteBadge = noteLink && (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); if (!noteLink.missing) openInObsidian?.(noteLink.name); }}
+      className={`flex-shrink-0 p-1 rounded ${noteLink.missing ? 'text-amber-500' : `${textSecondary} opacity-60 hover:opacity-100`}`}
+      title={noteLink.missing ? `Obsidian note missing: ${noteLink.name}` : `Open "${noteLink.name}" in Obsidian`}
+      aria-label={noteLink.missing ? 'Obsidian note missing' : 'Open project note in Obsidian'}
+    >
+      {noteLink.missing ? <AlertTriangle size={12} /> : <FileText size={12} />}
+    </button>
+  );
   const { goals, deleteProject, updateProject, setPlannerProjectId, generateAISubtasks, aiSubtasksLoadingForTask, aiConfig, showGoalsDashboard, enterHyperGlanceMode, isVisibleForUser } = useFeaturesCtx();
 
   const isScheduled = (t) => !!tasks.find(s => s.id === t.id);
@@ -73,13 +88,15 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   const toggleTaskComplete = (taskId) => {
     const scheduled = tasks.find(t => t.id === taskId);
     if (scheduled) {
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t));
+      // completedAt matches toggleComplete's stamp (local-offset ISO) so the
+      // completion log carries a wall-clock time; the old shape stamped
+      // nothing here and a bare date below, which logged time-less entries.
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, completedAt: !t.completed ? completionTimestamp() : null } : t));
       return;
     }
     // Unscheduled: toggle + reorder within project
-    const todayStr = dateToString(new Date());
     setUnscheduledTasks(prev => {
-      const updated = prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, completedAt: !t.completed ? todayStr : null } : t);
+      const updated = prev.map(t => t.id === taskId ? { ...t, completed: !t.completed, completedAt: !t.completed ? completionTimestamp() : null } : t);
       const nowComplete = updated.find(t => t.id === taskId)?.completed;
       const others = updated.filter(t => !(t.projectId === project.id && t.id === taskId));
       const moved = updated.find(t => t.id === taskId);
@@ -311,6 +328,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
             <span className={`text-sm font-medium ${textPrimary} flex-1 min-w-0 truncate`}>
               {project.title}
             </span>
+            {noteBadge}
             {onMoveToClick && (
               <button onClick={() => onMoveToClick(project)} className={`${btnBase} ${editBtn}`} title={t('goals.dropToReassign')} aria-label={t('goals.dropToReassign')}>
                 <LogIn size={12} />
@@ -397,6 +415,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
           <span className={`text-sm font-semibold ${textPrimary} leading-tight flex-1 min-w-0`}>
             {project.title}
           </span>
+          {noteBadge}
           {project.hyperglance?.enabled && project.status !== 'completed' && !project.archived && (() => {
               const instance = getActiveHGInstance(project, currentTimeMinutes);
               if (!instance) return null;

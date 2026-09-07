@@ -54,6 +54,7 @@ vi.mock('../native.js', () => ({
 }));
 const emitBridgeIntent = vi.fn(() => true);
 vi.mock('../utils/obsidianBridgeStream.js', () => ({
+  cachedBridgePairingMeta: () => null,
   emitBridgeIntent: (...a) => emitBridgeIntent(...a),
   flushBridgeOutbox: vi.fn(async () => true),
   publishBridgeConfig: vi.fn(async () => {}),
@@ -69,7 +70,7 @@ vi.mock('../utils/obsidianBridgeInbound.js', async (importOriginal) => {
   return { ...actual, fetchBridgeObservations: (...a) => fetchMock(...a) };
 });
 
-const { default: useObsidianSync } = await import('./useObsidianSync.js');
+const { default: useObsidianSync, BRIDGE_INBOUND_UNAVAILABLE_ERROR } = await import('./useObsidianSync.js');
 const { legacyObsidianId, deriveBlockId, appIdForBlockId, applyBridgeIntent } =
   await import('@glance-apps/obsidian-format');
 const { applyBridgeObservations } = await import('../utils/obsidianBridgeInbound.js');
@@ -138,6 +139,7 @@ function useMountedSightHook({ tasks = [], inbox = [], prevSnap = null, freshSto
     inboxRef.current = state.inbox;
   };
   const prevRef = { current: prevSnap ?? {} };
+  const setters = { setObsidianSyncStatus: vi.fn(), setObsidianSyncError: vi.fn(), setObsidianLastSynced: vi.fn() };
   const api = useObsidianSync({
     isTrayMode: false, dataLoaded: true,
     tasks: state.tasks, setTasks,
@@ -147,7 +149,7 @@ function useMountedSightHook({ tasks = [], inbox = [], prevSnap = null, freshSto
     setObsidianConfig: vi.fn(), obsidianLaunchOnWrite: null,
     obsidianCompletionDates: false,
     obsidianSyncError: null,
-    setObsidianSyncStatus: vi.fn(), setObsidianSyncError: vi.fn(), setObsidianLastSynced: vi.fn(),
+    ...setters,
     setObsidianSyncNotice: vi.fn(),
     obsidianVaultHandleRef: { current: {} },
     obsidianSyncInProgressRef: syncRef,
@@ -156,7 +158,7 @@ function useMountedSightHook({ tasks = [], inbox = [], prevSnap = null, freshSto
     recycleBin: [], setRecycleBin: vi.fn(),
   });
   api.bridgeHeartbeatRef.current = { obsidianRunning: true, pluginAuthoritative: true };
-  return { state, prevRef, api, syncRef };
+  return { state, prevRef, api, syncRef, setters };
 }
 
 const runWritebackEffect = () => {
@@ -471,5 +473,79 @@ describe('note-scoped deletion inference (fix 1): observed notes are complete at
     } finally { nowSpy.mockRestore(); }
     expect(JSON.parse(store.get('day-planner-deleted-obsidian-keys'))[DG_ID]).toBe(MTIME_ISO);
     expect(h.state.tasks).toEqual([]);
+  });
+});
+
+describe('AUDIT FIX M11 — the tombstone bundle is re-read at every write', () => {
+  const observationOf = (content, mtime = MTIME) => ({ observations: [{ path: `${DATE}.md`, content, mtime }], maxSeq: 9 });
+  const REAL_NOW = Date.now();
+
+  it('THE CLOBBER PIN: a peer tombstone the engine applies while the cycle awaits its fetch survives the cycle\'s own tombstone commit', async () => {
+    __setBlockIdWritesForTests(false);
+    heartbeatMock.mockResolvedValue(pairedHeartbeat());
+    const tagged = restingLegacyTask({ id: DG_ID, obsidianBlockId: BLOCK });
+    const h = useMountedSightHook({ tasks: [tagged], prevSnap: { [DG_ID]: snapFor(tagged) } });
+    fetchMock.mockResolvedValue(observationOf('# Day\n\n## Tasks\n')); // line deleted in the vault → candidate
+    await h.api.performObsidianSync();
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(REAL_NOW + 91_000);
+    try {
+      heartbeatMock.mockResolvedValue(pairedHeartbeat());
+      fetchMock.mockImplementation(async () => {
+        // Mid-cycle, after the cycle read its copy of the bundle: the DB
+        // engine applies a peer's tombstone straight into storage.
+        const cur = JSON.parse(store.get('day-planner-deleted-obsidian-keys') || '{}');
+        store.set('day-planner-deleted-obsidian-keys', JSON.stringify({ ...cur, 'peer-deleted-id': '2026-09-05T10:00:00.000Z' }));
+        return { observations: [], maxSeq: 0 };
+      });
+      await h.api.performObsidianSync();
+    } finally { nowSpy.mockRestore(); }
+    const bundle = JSON.parse(store.get('day-planner-deleted-obsidian-keys'));
+    expect(bundle[DG_ID]).toBe(MTIME_ISO);               // the cycle's own commit landed...
+    expect(bundle['peer-deleted-id']).toBe('2026-09-05T10:00:00.000Z'); // ...without clobbering the peer's
+  });
+});
+
+describe('AUDIT low — a plugin-mode cycle with no inbound is not a successful sync', () => {
+  it('a dead stream leaves "last synced" untouched and shows the state; a readable stream finishes green as before', async () => {
+    heartbeatMock.mockResolvedValue(pairedHeartbeat());
+    const h = useMountedSightHook({ tasks: [] });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      fetchMock.mockResolvedValue(null); // unreachable / braked / unpaired: nothing read
+      await h.api.performObsidianSync();
+      expect(h.setters.setObsidianLastSynced).not.toHaveBeenCalled();
+      expect(store.get('day-planner-obsidian-last-synced')).toBeUndefined();
+      expect(h.setters.setObsidianSyncError).toHaveBeenCalledWith(BRIDGE_INBOUND_UNAVAILABLE_ERROR);
+      expect(h.setters.setObsidianSyncStatus).toHaveBeenCalledWith('error');
+      expect(h.setters.setObsidianSyncStatus).not.toHaveBeenCalledWith('success');
+      expect(BRIDGE_INBOUND_UNAVAILABLE_ERROR).not.toMatch(/—/);
+
+      // The next cycle that CAN read the stream clears it through the shared finish.
+      h.setters.setObsidianSyncError.mockClear(); h.setters.setObsidianSyncStatus.mockClear();
+      fetchMock.mockResolvedValue({ observations: [], maxSeq: 0 });
+      await h.api.performObsidianSync();
+      expect(h.setters.setObsidianLastSynced).toHaveBeenCalledTimes(1);
+      expect(h.setters.setObsidianSyncError).toHaveBeenCalledWith(null);
+      expect(h.setters.setObsidianSyncStatus).toHaveBeenCalledWith('success');
+    } finally { warnSpy.mockRestore(); }
+  });
+});
+
+describe('AUDIT low — the re-mint refusal logs once per (task, token), while the refusal itself keeps being evaluated', () => {
+  it('two passes over the same refused task: one REFUSING line, no intent either time', () => {
+    __setBlockIdWritesForTests(true);
+    const task = restingLegacyTask();
+    useMountedSightHook({ tasks: [task], prevSnap: { [LEGACY_ID]: snapFor(task) } });
+    store.set(RETIRED_TASK_IDS_STORAGE_KEY, JSON.stringify({ [LEGACY_ID]: { retiredAt: '2026-08-31T04:00:00.000Z', successor: DG_ID } }));
+    store.set('day-planner-deleted-obsidian-keys', JSON.stringify({ [DG_ID]: '2026-08-31T04:22:12.000Z' }));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      runWritebackEffect();
+      runWritebackEffect();
+      runWritebackEffect();
+      const refusals = errSpy.mock.calls.filter(c => String(c[0]).includes('REFUSING to re-mint'));
+      expect(refusals).toHaveLength(1);
+      expect(emitBridgeIntent).not.toHaveBeenCalled();
+    } finally { errSpy.mockRestore(); }
   });
 });

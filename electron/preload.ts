@@ -5,23 +5,10 @@ import { contextBridge, ipcRenderer } from 'electron';
 // object; both halves run in the same (tray) renderer.
 const actionSentListeners: Array<(ackId: string) => void> = [];
 
-function syncApplicationMenuLanguage(): void {
-  try {
-    const language = localStorage.getItem('i18nextLng');
-    if (language) ipcRenderer.send('application-menu:set-language', language);
-  } catch { /* localStorage may not be available until the document is ready */ }
-}
-
-if (document.readyState === 'loading') {
-  window.addEventListener('DOMContentLoaded', syncApplicationMenuLanguage, { once: true });
-} else {
-  syncApplicationMenuLanguage();
-}
-
 contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
   platform: process.platform,
-  setApplicationMenuLanguage: (language: string) => ipcRenderer.send('application-menu:set-language', language),
+  setApplicationMenuLabels: (labels: Record<string, string>) => ipcRenderer.send('application-menu:set-labels', labels),
   // True only in the Mac App Store (sandboxed) build. Electron sets process.mas
   // for the `mas` target. Used to suppress behavior App Store review disallows —
   // today that is the GitHub-releases update check (App.jsx) and its update

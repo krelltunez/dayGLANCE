@@ -56,7 +56,7 @@
 // and still propagate exactly as before.
 
 import { TOMBSTONE_BUNDLE_KEYS } from './tombstoneRetention.js';
-import { getEntityLastModified } from './dbAdapter.js';
+import { getEntityLastModified, TASK_KINDS } from './dbAdapter.js';
 import { resolveRetirement } from '../utils/retiredTaskIds.js';
 
 // Tolerance for the tombstone-vs-lastModified comparison. Delete-path audit
@@ -294,10 +294,17 @@ export function reassertPropagatedDeletes(propagated, mirror, getLiveEntity) {
   if (!Array.isArray(propagated) || propagated.length === 0) return { evict, accepted };
   const tombstoned = collectTombstones(m);
   const retiredRecord = m.retiredTaskIds && typeof m.retiredTaskIds === 'object' ? m.retiredTaskIds : {};
-  const liveTaskIds = new Set(
-    [...(Array.isArray(m.tasks) ? m.tasks : []), ...(Array.isArray(m.unscheduledTasks) ? m.unscheduledTasks : [])]
-      .filter(Boolean).map((t) => String(t.id)),
-  );
+  // The successor's liveness is judged across EVERY task-shaped kind, exactly
+  // as the partition judges it (liveBareIds spans the whole payload, recycle
+  // bin included). Audit M8 (closed 2026-09-03): this set was tasks +
+  // unscheduledTasks only, so a successor sitting in the recycle bin read as
+  // "vanished", the flip was accepted, and the retired copy resurrected — the
+  // upsert-flip alive for binned successors, at its worst at trigger speed.
+  const liveTaskIds = new Set();
+  for (const kind of TASK_KINDS) {
+    const list = Array.isArray(m[kind]) ? m[kind] : [];
+    for (const t of list) if (t) liveTaskIds.add(String(t.id));
+  }
   for (const { entityId, reason } of propagated) {
     let live = null;
     try { live = getLiveEntity(entityId); } catch { live = null; }

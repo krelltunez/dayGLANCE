@@ -33,6 +33,12 @@ export interface BridgePairing {
   pairingSalt: string;
   generation: string;
   pairedAt: string;
+  /**
+   * The multi-user identity of the dayGLANCE device that minted the offer —
+   * the agenda's default viewer (companion 4.2, decision 9). Null/absent
+   * when that account is single-user or the pairing predates the field.
+   */
+  userSyncId?: string | null;
 }
 
 // fetch shim over Obsidian's requestUrl — the sanctioned way to make
@@ -136,6 +142,7 @@ export async function submitPairingCode(host: PairingHost, code: string): Promis
       pairingSalt: creds.pairingSalt,
       generation: creds.generation,
       pairedAt: new Date().toISOString(),
+      userSyncId: typeof creds.userSyncId === 'string' && creds.userSyncId ? creds.userSyncId : null,
     });
     await deletePairingOffer(host.app);
     return {

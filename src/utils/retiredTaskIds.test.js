@@ -125,6 +125,16 @@ describe('applyTaskRetirements — the (d) supersede-regardless-of-timestamps ru
     expect(unscheduledTasks).toEqual([]);
   });
 
+  it('a successor in the RECYCLE BIN counts as live: the retired copy is superseded, the bin is untouched (audit M8)', () => {
+    const bin = [task('S', T2)];
+    const { tasks, unscheduledTasks } = applyRetirementsToTaskLists(
+      { tasks: [task('L', T3)], unscheduledTasks: [], recycleBin: bin }, REC,
+    );
+    expect(tasks).toEqual([]);
+    expect(unscheduledTasks).toEqual([]);
+    expect(bin.map((t) => t.id)).toEqual(['S']);
+  });
+
   it('returns the same array when the record touches nothing', () => {
     const list = [task('X', T1)];
     expect(applyTaskRetirements(list, REC, new Set(['X']))).toBe(list);
@@ -169,5 +179,35 @@ describe('isTombstonedRemint — the re-mint refusal (2026-08-31 db-tier retire/
   it('malformed record entries never refuse (validEntry gates resolution)', () => {
     expect(isTombstonedRemint({ [LEGACY]: { successor: DG } }, LEGACY, DG, [{ [DG]: T2 }], new Set())).toBe(false);
     expect(isTombstonedRemint({ [LEGACY]: { retiredAt: T1 } }, LEGACY, DG, [{ [DG]: T2 }], new Set())).toBe(false);
+  });
+});
+
+describe('AUDIT FIX M9 — the fuse extension: an aged retirement outlives the cutoff while its successor is still tombstoned', () => {
+  const T0 = '2026-06-01T00:00:00.000Z'; // retirement, aged out
+  const T1 = '2026-07-01T00:00:00.000Z'; // successor's tombstone, younger
+  const cutoff = new Date('2026-06-15T00:00:00.000Z');
+
+  it('kept: the retirement is past the cutoff but a surviving tombstone names its direct successor (both legs of the refusal stay on the record)', () => {
+    const rec = { L: entry(T0, 'S') };
+    const kept = pruneRetiredTaskIds(rec, cutoff, [{}, { S: T1 }]);
+    expect(kept).toBe(rec);
+    // ...and the refusal it keeps armed still fires.
+    expect(isTombstonedRemint(kept, 'L', 'S', [{ S: T1 }], new Set())).toBe(true);
+  });
+
+  it('pruned: the tombstone is itself past the cutoff — the two legs go together, at the tombstone\'s age', () => {
+    const rec = { L: entry(T0, 'S') };
+    expect(pruneRetiredTaskIds(rec, cutoff, [{ S: '2026-06-02T00:00:00.000Z' }])).toEqual({});
+  });
+
+  it('pruned: no bundle names the successor (a tombstone on some OTHER id extends nothing)', () => {
+    const rec = { L: entry(T0, 'S') };
+    expect(pruneRetiredTaskIds(rec, cutoff, [{ other: T1 }])).toEqual({});
+    expect(pruneRetiredTaskIds(rec, cutoff)).toEqual({});
+  });
+
+  it('unaffected: an entry inside the window is kept regardless of bundles; unparseable entries still drop', () => {
+    const rec = { fresh: entry(T1, 'S'), bad: entry('nope', 'S') };
+    expect(pruneRetiredTaskIds(rec, cutoff, [{ S: T1 }])).toEqual({ fresh: entry(T1, 'S') });
   });
 });

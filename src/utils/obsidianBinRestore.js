@@ -100,12 +100,39 @@ export function binRestoreNoticeText(restored) {
  * notes record appended, and lastModified stamped past the delete stamp.
  * List placement honors `_deletedFrom` exactly like undeleteTask.
  */
-export function restoreBinnedVaultTasks({ recycleBin, scheduledTasks, inboxTasks, nowMs = Date.now() }) {
+export function restoreBinnedVaultTasks({ recycleBin, scheduledTasks, inboxTasks, liveIds = null, nowMs = Date.now() }) {
   const bin = recycleBin || [];
   const scheduled = scheduledTasks || [];
   const inbox = inboxTasks || [];
-  const none = { recycleBin: bin, scheduledTasks: scheduled, inboxTasks: inbox, restored: [] };
+  const none = { recycleBin: bin, scheduledTasks: scheduled, inboxTasks: inbox, restored: [], superseded: [] };
   if (!bin.length) return none;
+
+  // THE LIVE-COPY GUARD (§3.10 ruling 5 correction, 2026-09-01). `liveIds`
+  // is the set of Obsidian task ids currently live in APP STATE, either
+  // list. A bin entry whose id is still live somewhere is a binned
+  // DUPLICATE — the line is already represented by the surviving record —
+  // so there is nothing to restore FROM the bin and everything to lose by
+  // trying: the first shape restored it anyway, by `_deletedFrom`, with a
+  // stamp deliberately fresher than everything, which manufactured a
+  // second live copy that won every later cross-list reconciliation
+  // against the copy the user kept. That was the y0bm31lo war's trigger.
+  // The stale bin row is dropped (reported as `superseded`, never silently):
+  // keeping it would hand the reconciler a bin-kind row to fight the live
+  // copy with. Ruling 5 itself is untouched — a task whose ONLY copy was
+  // binned still comes back while its line exists.
+  const superseded = [];
+  const restorable = liveIds
+    ? bin.filter((b) => {
+        if (b.importSource === 'obsidian' && liveIds.has(String(b.id))) {
+          superseded.push({ id: String(b.id), title: b.title });
+          return false;
+        }
+        return true;
+      })
+    : bin;
+  if (superseded.length && !restorable.length) {
+    return { ...none, recycleBin: restorable, superseded };
+  }
 
   // Scanned index by id AND legacy hint (the one-time block-id switch: a
   // bin copy may still hold the content-derived id of a line that now
@@ -119,7 +146,7 @@ export function restoreBinnedVaultTasks({ recycleBin, scheduledTasks, inboxTasks
   const replacements = new Map(); // scanned task → { task, target }
   const restored = [];
   const keptBin = [];
-  for (const b of bin) {
+  for (const b of restorable) {
     const scanned = b.importSource === 'obsidian' ? index.get(String(b.id)) : undefined;
     if (!scanned || replacements.has(scanned)) {
       // No vault line for this bin entry (stays binned — nothing to
@@ -149,7 +176,7 @@ export function restoreBinnedVaultTasks({ recycleBin, scheduledTasks, inboxTasks
     replacements.set(scanned, { task: t, target });
     restored.push({ id: String(t.id), title: t.title, dateStr });
   }
-  if (!restored.length) return none;
+  if (!restored.length) return { ...none, recycleBin: superseded.length ? keptBin : bin, superseded };
 
   const outScheduled = [];
   const outInbox = [];
@@ -163,5 +190,5 @@ export function restoreBinnedVaultTasks({ recycleBin, scheduledTasks, inboxTasks
     if (!r) outInbox.push(s);
     else (r.target === 'scheduled' ? outScheduled : outInbox).push(r.task);
   }
-  return { recycleBin: keptBin, scheduledTasks: outScheduled, inboxTasks: outInbox, restored };
+  return { recycleBin: keptBin, scheduledTasks: outScheduled, inboxTasks: outInbox, restored, superseded };
 }

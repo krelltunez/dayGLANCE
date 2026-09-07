@@ -1,0 +1,168 @@
+// Project and goal notes: the LINK (companion spec §4.3, rulings A and F).
+// Pure.
+//
+// A project (or goal) links to ONE vault note. The durable identity is the
+// `dayglance-id` frontmatter key in the note, holding the entity's UUID; the
+// synced locator is `obsidianNotePath` on the entity record. The plugin owns
+// the vault side (it writes the key, watches renames and deletes, re-finds a
+// note by its key) and reports link OBSERVATIONS; this module turns those
+// observations into record updates, and shapes the link for the UI.
+//
+// Record fields:
+//   obsidianNotePath       vault-relative path of the linked note, or null
+//   obsidianNoteMissingAt  ISO time the note was observed deleted (ruling F:
+//                          the project keeps its path so a relink can prefill,
+//                          but everything that reads the link treats it as
+//                          absent while this is set)
+
+import { noteKeyForPath } from '@glance-apps/obsidian-format';
+import { noteWikilink } from '@glance-apps/agenda-core';
+
+/** A user-typed note reference → a normalized vault path ending in .md, or ''. */
+export function normalizeNotePath(input) {
+  let s = String(input ?? '').trim();
+  if (!s) return '';
+  s = s.replace(/^\[\[|\]\]$/g, '').trim();
+  const hashIdx = s.indexOf('#');
+  if (hashIdx > 0) s = s.slice(0, hashIdx).trim();
+  if (!s) return '';
+  if (!/\.md$/i.test(s)) s = `${s}.md`;
+  return noteKeyForPath(s);
+}
+
+/** The note as Obsidian names it: the path without the .md extension. */
+export function noteDisplayName(path) {
+  return String(path ?? '').replace(/\.md$/i, '');
+}
+
+/**
+ * The entity's link for display, or null when unlinked.
+ * @returns {{ path: string, name: string, missing: boolean } | null}
+ */
+export function noteLinkOf(entity) {
+  const path = typeof entity?.obsidianNotePath === 'string' ? entity.obsidianNotePath : '';
+  if (!path) return null;
+  return { path, name: noteDisplayName(path), missing: !!entity.obsidianNoteMissingAt };
+}
+
+/**
+ * The project as the completion log names it (companion §4.3, ruling G):
+ * `[[Note|Title]]` when the project has a present linked note, so the note's
+ * backlinks pane becomes the record of everything completed toward it; the
+ * bare title otherwise (unlinked, or the note is missing).
+ */
+export function projectLogName(project) {
+  return projectRefFor(project);
+}
+
+/**
+ * How a project is written into a line's `[project:: …]` field and the
+ * completion log: a wikilink to its note when linked (and not missing),
+ * its title otherwise, null for no project.
+ */
+export function projectRefFor(project) {
+  if (!project) return null;
+  const link = noteLinkOf(project);
+  const title = project.title ?? null;
+  return link && !link.missing ? noteWikilink(link.path, title) : title;
+}
+
+/**
+ * The reverse: a `[project:: …]` value read off a line → the project id it
+ * names, or null. A wikilink resolves by note path (the linked records);
+ * a bare name by title, only when exactly one active project carries it.
+ */
+export function resolveProjectRef(ref, projects) {
+  const raw = String(ref ?? '').trim();
+  if (!raw || !Array.isArray(projects)) return null;
+  const m = /^\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]$/.exec(raw);
+  if (m) {
+    const path = normalizeNotePath(m[1]);
+    const byPath = projects.find((p) => p && p.obsidianNotePath === path);
+    if (byPath) return String(byPath.id);
+    // A link whose note is not linked to any project: fall back to the alias or basename as a title.
+    const alias = /\|([^\]]*)\]\]$/.exec(raw)?.[1]?.trim() || noteDisplayName(path).split('/').pop();
+    return byTitle(alias, projects);
+  }
+  return byTitle(raw, projects);
+}
+
+function byTitle(name, projects) {
+  const key = String(name ?? '').trim().toLowerCase();
+  if (!key) return null;
+  const hits = projects.filter((p) => p && String(p.title ?? '').trim().toLowerCase() === key && p.status !== 'archived');
+  return hits.length === 1 ? String(hits[0].id) : null;
+}
+
+/**
+ * path → project id for every project whose note is present (ruling H: a
+ * scoped task line inside a linked note imports with that project set).
+ */
+export function projectByNotePath(projects) {
+  const out = {};
+  for (const p of projects || []) {
+    const link = noteLinkOf(p);
+    if (link && !link.missing) out[link.path] = String(p.id);
+  }
+  return out;
+}
+
+/**
+ * Turn the plugin's link observations into record updates.
+ *
+ * Each observation names a target id and a path, and is one of:
+ *   • a link      → the note at `path` carries the id: set the locator, clear
+ *                   any missing mark (a trash restore or a relink lands here)
+ *   • deleted     → the linked note is gone (ruling F): keep the path, mark
+ *                   missing at the observation time; ignored when the record
+ *                   already points elsewhere (a newer link won)
+ *   • unlinked    → the key was removed from the note: clear both fields when
+ *                   the record still points at that path
+ *
+ * @param {Array<{targetId: string, path: string, deleted?: boolean, unlinked?: boolean, observedAt?: string}>} links
+ * @param {{ projects?: object[], goals?: object[] }} lists
+ * @returns {{ projects: Array<{id: string, updates: object}>, goals: Array<{id: string, updates: object}> }}
+ */
+export function planNoteLinkUpdates(links, { projects = [], goals = [] } = {}) {
+  const out = { projects: [], goals: [] };
+  if (!Array.isArray(links) || links.length === 0) return out;
+  const working = new Map(); // `${kind}:${id}` → current view of the entity
+  const find = (id) => {
+    const key = String(id);
+    for (const [kind, list] of [['projects', projects], ['goals', goals]]) {
+      const hit = (list || []).find((e) => e && String(e.id) === key);
+      if (hit) {
+        const k = `${kind}:${key}`;
+        if (!working.has(k)) working.set(k, { kind, id: key, entity: { ...hit }, updates: null });
+        return working.get(k);
+      }
+    }
+    return null;
+  };
+  const ordered = [...links].sort((a, b) => String(a.observedAt ?? '').localeCompare(String(b.observedAt ?? '')));
+  for (const link of ordered) {
+    if (!link || typeof link.targetId !== 'string' || typeof link.path !== 'string') continue;
+    const slot = find(link.targetId);
+    if (!slot) continue;
+    const cur = slot.entity;
+    let updates = null;
+    if (link.unlinked) {
+      if (cur.obsidianNotePath && cur.obsidianNotePath === link.path) {
+        updates = { obsidianNotePath: null, obsidianNoteMissingAt: null };
+      }
+    } else if (link.deleted) {
+      if (cur.obsidianNotePath === link.path && !cur.obsidianNoteMissingAt) {
+        updates = { obsidianNoteMissingAt: link.observedAt || new Date().toISOString() };
+      }
+    } else if (cur.obsidianNotePath !== link.path || cur.obsidianNoteMissingAt) {
+      updates = { obsidianNotePath: link.path, obsidianNoteMissingAt: null };
+    }
+    if (!updates) continue;
+    slot.entity = { ...cur, ...updates };
+    slot.updates = { ...(slot.updates || {}), ...updates };
+  }
+  for (const slot of working.values()) {
+    if (slot.updates) out[slot.kind].push({ id: slot.id, updates: slot.updates });
+  }
+  return out;
+}

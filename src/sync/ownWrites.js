@@ -19,26 +19,70 @@
 // process with different purposes: its writes are peer writes here, and we
 // WANT their nudges (that's how observations arrive).
 //
-// Bounded: only recent acks matter (an echo arrives within seconds), so a
-// small ring forgets old seqs long after their nudges could still be in
-// flight.
-
-const CAPACITY = 64;
-const ring = [];
+// Bounded IN TIME (the cycles-versus-wall-clock sweep's second leftover,
+// re-denominated 2026-09-05): an ack matters only while its echo can still
+// be in flight, which is a matter of seconds on a live stream and never
+// longer than a reconnect (the server replays nothing; a `ready` frame is
+// seq-only). A 64-entry ring stood in for that window and could evict live
+// acks under a bulk delete of more than 64 rows. Seqs are unique, so a
+// remembered ack can never match a peer's nudge — keeping one longer costs
+// only memory, which a large capacity backstop bounds without being the
+// guard.
+export const OWN_ACK_TTL_MS = 10 * 60_000;
+const MEMORY_CAP = 4096;
+const ring = []; // { seq, at }, insertion order
 const set = new Set();
+const prune = (nowMs) => {
+  while (ring.length && (nowMs - ring[0].at > OWN_ACK_TTL_MS || ring.length > MEMORY_CAP)) set.delete(ring.shift().seq);
+};
 
 /** Record a write ack's maxSeq as ours. Ignores non-numbers. */
-export function recordOwnWriteSeq(seq) {
+export function recordOwnWriteSeq(seq, nowMs = Date.now()) {
   if (typeof seq !== 'number' || !Number.isFinite(seq) || seq <= 0) return;
+  prune(nowMs);
   if (set.has(seq)) return;
-  ring.push(seq);
+  ring.push({ seq, at: nowMs });
   set.add(seq);
-  while (ring.length > CAPACITY) set.delete(ring.shift());
+  prune(nowMs);
 }
 
-/** True when `seq` is the ack of a write this device made. */
-export function isOwnWriteSeq(seq) {
+/** True when `seq` is the ack of a write this device made within the TTL. */
+export function isOwnWriteSeq(seq, nowMs = Date.now()) {
+  prune(nowMs);
   return set.has(seq);
+}
+
+/**
+ * Wrap a vault client so every content write's ack lands in the registry AT
+ * THE SOURCE (audit M13, 2026-09-03). The server emits one nudge per `batch`
+ * (carrying the BATCH's maxSeq) and one per `deleteRow` (carrying that
+ * delete's seq). pushDirtyRows folds all of them into the single maxSeq it
+ * returns, so recording only the folded value leaves every non-max ack
+ * looking foreign: a mixed upsert+delete push (deletes follow the batch, so
+ * the batch's maxSeq is below the fold) leaked its batch nudge as one
+ * spurious self-drain per push — dormant while SSE nudge consumption is
+ * gated off, live the moment it returns. Wrapping both writers records each
+ * ack exactly, which is the only thing the exact-identity ring can use.
+ * Other methods pass through untouched; an injected test client is never
+ * wrapped (the caller decides), so live-swapped spies keep working.
+ */
+export function withOwnAckRecording(inner, record = recordOwnWriteSeq) {
+  if (!inner || typeof inner !== 'object') return inner;
+  const recordAck = (r) => {
+    if (!r || typeof r !== 'object') return;
+    if (typeof r.seq === 'number') record(r.seq);
+    if (typeof r.maxSeq === 'number') record(r.maxSeq);
+  };
+  const wrapped = { ...inner };
+  for (const method of ['batch', 'deleteRow']) {
+    if (typeof inner[method] !== 'function') continue;
+    wrapped[method] = async (...args) => {
+      const r = await inner[method](...args);
+      recordAck(r);
+      return r;
+    };
+  }
+  return wrapped;
 }
 
 /** Test seam. */

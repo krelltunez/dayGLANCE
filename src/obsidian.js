@@ -35,6 +35,7 @@ import {
   splitCompletionMarker, completionMarkerSuffix,
   splitTasksMetadata, reattachTasksMetadata,
   parseObsidianHeartbeat,
+  dailyNoteCreationBody,
 } from '@glance-apps/obsidian-format';
 export {
   formatDatePattern, updateTaskLines, parseTasksFromMarkdown,
@@ -334,10 +335,10 @@ export async function appendTaskToDailyNote(vaultHandle, dailyNotesPath, dateStr
   // genuinely instantiates the note, so it gets the creation frontmatter —
   // unless the user's template opens with its own `---` block, which wins
   // (utils/obsidianFrontmatter.js; the ownership rule). An existing note is
-  // never decorated. (The native append has no template-instantiation path:
-  // its read contract cannot distinguish absent from empty, so it starts
-  // absent notes from the task line alone — pre-existing, unchanged.)
-  let content = existing ? existing.text : withCreationFrontmatter(template || '', dateStr);
+  // never decorated. The body is the app's text template with the §4.4
+  // subset filled (`{{date}}`, `{{title}}`) — dailyNoteCreationBody, the
+  // same function every creation point uses (companion §4.4 build record).
+  let content = existing ? existing.text : dailyNoteCreationBody(template, dateStr, dailyNoteFilename(dateStr, pattern));
 
   const taskLine = buildObsidianTaskLine(task, dateStr);
   const lines = content.split('\n');
@@ -886,8 +887,12 @@ function vaultMetadataEdits(task, existing) {
     due: base.due !== theirs.due,
     scheduled: base.scheduled !== theirs.scheduled,
     priority: base.priority !== theirs.priority,
+    // The project field (companion §4.3, ruling G as amended): the line's
+    // current value rides along so the adopter can resolve it.
+    project: base.project !== theirs.project,
+    projectRef: theirs.project,
   };
-  return (edits.due || edits.scheduled || edits.priority) ? edits : null;
+  return (edits.due || edits.scheduled || edits.priority || edits.project) ? edits : null;
 }
 
 /**
@@ -897,8 +902,17 @@ function vaultMetadataEdits(task, existing) {
  * remove uniform: the line's whole date semantics (inline-prefix precedence
  * included) reapply for `scheduled`, and a removed 📅 clears the deadline.
  */
-function adoptVaultMetadataEdits(task, edits, lineVals) {
+function adoptVaultMetadataEdits(task, edits, lineVals, resolveProject = null) {
   if (!edits) return;
+  // A vault edit of `[project:: …]` reassigns (or, removed, unassigns) the
+  // task on the plugin path, where the app supplies the resolver; a name
+  // that resolves to nothing leaves the assignment alone.
+  if (edits.project && typeof resolveProject === 'function') {
+    // An explicit null (never undefined) so the downstream merge's app-field
+    // carry can tell "the vault unassigned it" from "the parse has no opinion".
+    if (!edits.projectRef) task.projectId = null;
+    else { const id = resolveProject(edits.projectRef); if (id) task.projectId = id; }
+  }
   if (edits.due) task.deadline = lineVals.deadline ?? null;
   if (edits.priority) task.priority = lineVals.priority ?? 0;
   if (edits.scheduled) {
@@ -930,21 +944,46 @@ function adoptVaultMetadataEdits(task, edits, lineVals) {
 // existingTaskMap, default every duration to 30, then upload that stale
 // value with a fresh timestamp that beats Android's custom duration in the
 // next cloud merge.
+//
+// THE CROSS-LIST SURVIVOR RULE (§3.10 ruling 5 correction, 2026-09-01): an
+// id live in BOTH lists is a collision, and the scan must resolve it the
+// SAME way the DB tier's reconcileCrossList does — newest lastModified wins,
+// ties to the scheduled list (CROSS_LIST_PRIORITY order) — so both tiers
+// pick the same copy and converge in one cycle. The first shape built the
+// map in two passes and let the inbox pass silently overwrite the scheduled
+// entry, leaving the id in BOTH move-sets: routing then inverted against
+// the line (a scheduled-shaped line became an inbox record carrying a
+// startTime), and the outer merge dropped whichever copy the DB tier had
+// just chosen to keep. The y0bm31lo war: each tier undid the other's
+// resolution every cycle, indefinitely, on one machine. Membership in a
+// list is only evidence of a user's move when it is unambiguous.
 export function buildExistingObsidianTaskContext(existingTasks, existingInbox) {
   const existingTaskMap = {};
   const userScheduledIds = new Set();
   const userInboxIds = new Set();
+  const scheduledById = new Map();
+  const inboxById = new Map();
   for (const t of existingTasks) {
-    if (t.importSource === 'obsidian') {
-      existingTaskMap[t.id] = t;
-      userScheduledIds.add(t.id);
-    }
+    if (t.importSource === 'obsidian') scheduledById.set(String(t.id), t);
   }
   for (const t of existingInbox) {
-    if (t.importSource === 'obsidian') {
-      existingTaskMap[t.id] = t;
-      userInboxIds.add(t.id);
-    }
+    if (t.importSource === 'obsidian') inboxById.set(String(t.id), t);
+  }
+  const stamp = (t) => {
+    const n = t?.lastModified ? Date.parse(t.lastModified) : 0;
+    return Number.isNaN(n) ? 0 : n;
+  };
+  for (const [id, s] of scheduledById) {
+    const i = inboxById.get(id);
+    if (i && stamp(i) > stamp(s)) continue; // the inbox copy survives; handled below
+    existingTaskMap[s.id] = s;
+    userScheduledIds.add(s.id);
+  }
+  for (const [id, i] of inboxById) {
+    const s = scheduledById.get(id);
+    if (s && stamp(i) <= stamp(s)) continue; // the scheduled copy survived above
+    existingTaskMap[i.id] = i;
+    userInboxIds.add(i.id);
   }
   try {
     const lsTasks = JSON.parse(localStorage.getItem('day-planner-tasks') || '[]');
@@ -994,7 +1033,24 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       if (existing.startTime !== undefined) task.startTime = existing.startTime;
       if (existing.isAllDay !== undefined) task.isAllDay = existing.isAllDay;
       resolveTitleOwnership(task, existing, onTitleConflict);
-      adoptVaultMetadataEdits(task, edits, lineVals);
+      adoptVaultMetadataEdits(task, edits, lineVals, ctx.resolveProject);
+      // OWNED-SCHEDULE ENFORCEMENT (§3.10, 2026-09-02 correction): DG owns
+      // scheduling once a task is imported, and the copy above enforces
+      // that IN MEMORY — but until now nothing pushed DG's time back to a
+      // line that disagreed, because the writeback only fires on a DG-side
+      // transition and the post-scan snapshot was built from this merged
+      // (already DG-valued) task. A lost writeback (the y0bm31lo war ate
+      // one) left the line diverged forever, silently. Report the LINE's
+      // time when it carries one that differs from DG's; the snapshot
+      // builders record the line's value, and the ordinary writeback diff
+      // then writes DG's time — the existing path, no new write code.
+      // Narrow on purpose: only a line that CARRIES a different time. An
+      // untimed line of a DG-scheduled task is not "a different time" and
+      // is left alone (its own ruling, if ever). A vault ⏳ edit adopted
+      // above makes the two equal and reports nothing.
+      if (out.lineSchedule && lineVals.startTime && task.startTime && lineVals.startTime !== task.startTime) {
+        out.lineSchedule[task.id] = { startTime: lineVals.startTime };
+      }
       // Preserve lastModified so cloud merge keeps recognising the
       // version the user actually edited rather than treating re-imports
       // as brand-new tasks with a fresh timestamp.
@@ -1011,6 +1067,7 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       // Fresh import with no local match — use epoch so cloud merge
       // correctly prefers real user edits from other devices.
       task.lastModified = new Date(0).toISOString();
+      adoptLineProject(task, ctx.resolveProject);
     }
     allScheduled.push(task);
   }
@@ -1027,7 +1084,7 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       if (existing.color !== undefined) task.color = existing.color;
       if (existing.duration !== undefined) task.duration = existing.duration;
       resolveTitleOwnership(task, existing, onTitleConflict);
-      adoptVaultMetadataEdits(task, edits, lineVals);
+      adoptVaultMetadataEdits(task, edits, lineVals, ctx.resolveProject);
       if (existing.lastModified) task.lastModified = existing.lastModified;
 
       // User scheduled this from inbox — respect the cross-array move.
@@ -1040,9 +1097,20 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       }
     } else {
       task.lastModified = new Date(0).toISOString();
+      adoptLineProject(task, ctx.resolveProject);
     }
     allInbox.push(task);
   }
+}
+
+// A line first seen carrying `[project:: …]` imports under that project
+// (companion §4.3, ruling G as amended); plugin path only (the resolver).
+function adoptLineProject(task, resolveProject) {
+  if (typeof resolveProject !== 'function' || task.projectId) return;
+  const ref = splitTasksMetadata(String(task.obsidianRawTitle ?? '')).fields.project;
+  if (!ref) return;
+  const id = resolveProject(ref);
+  if (id) task.projectId = id;
 }
 
 export async function syncObsidianVault(
@@ -1061,6 +1129,7 @@ export async function syncObsidianVault(
 
   const dailyNotes = {};
   const allScheduled = [];
+  const lineSchedule = {}; // id → the line's own time when it differs from DG's (owned-schedule enforcement)
   const allInbox = [];
 
   const ctx = buildExistingObsidianTaskContext(existingTasks, existingInbox);
@@ -1101,11 +1170,11 @@ export async function syncObsidianVault(
     // mergeParsedObsidianTasks above for the ownership commentary).
     mergeParsedObsidianTasks(
       parseTasksFromMarkdown(text, dateStr, seenBlockIds),
-      ctx, onTitleConflict, { allScheduled, allInbox },
+      ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule },
     );
   }
 
-  return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox };
+  return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox, lineSchedule };
 }
 
 // ---------------------------------------------------------------------------
@@ -1143,10 +1212,18 @@ export function appendTaskToDailyNoteNative(dateStr, task, heading, template) {
     console.error('[Obsidian native] Daily note read failed; not appending (the note may have content we cannot see)');
     return false;
   }
-  // "" (absent or empty note) keeps its longstanding native behavior: the
-  // task line starts the note. (The template fallback used to trigger only on
-  // a null read — which the failure contract above now correctly aborts.)
-  let content = existing;
+  // "" is ABSENT-OR-EMPTY: the native read contract cannot tell the two
+  // apart. THE RULING (companion §4.4 build record, 2026-09-06): treat it
+  // as absent and create from the template, the way the FSA append does.
+  // The cost, accepted deliberately: a genuinely empty existing note gets
+  // the template prepended — a small, recoverable harm (the user deletes
+  // it). The alternative was every native direct-tier daily note staying
+  // bare forever, silently never carrying the structure the user
+  // configured, which is not recoverable because nobody knows it happened.
+  // (Before this the task line alone started the note here; the template
+  // used to trigger only on a null read, which the failure contract above
+  // now correctly aborts.)
+  let content = existing === '' ? dailyNoteCreationBody(template, dateStr, `${dateStr}.md`) : existing;
 
   const taskLine = buildObsidianTaskLine(task, dateStr);
   const lines = content.split('\n');
@@ -1290,6 +1367,14 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
  * @param {Array}  existingInbox  Current DG inbox tasks
  * @returns {{ dailyNotes, scheduledTasks, inboxTasks }}
  */
+// The most a native daily-note scan may take before the cycle gives up on
+// it (see the async branch of syncObsidianVaultNative). A working bridge
+// answers in well under a second; this only bounds a bridge that never
+// answers. Thirty seconds covers a large vault on a cold iCloud folder, and
+// a false timeout costs one retried cycle, where a missing timeout cost the
+// whole session.
+const NATIVE_SCAN_TIMEOUT_MS = 30_000;
+
 // Set up the async callback dispatcher once
 if (typeof window !== 'undefined' && !window.__obsidianDispatch) {
   window.__obsidianDispatch = (id, result, error) => {
@@ -1332,18 +1417,33 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
   const ctx = buildExistingObsidianTaskContext(existingTasks, existingInbox);
 
   const dailyNotes = {};
+  const noteMtimes = {}; // date → REAL file mtime only (revival evidence; see below)
   const allScheduled = [];
+  const lineSchedule = {}; // id → the line's own time when it differs from DG's (owned-schedule enforcement)
   const allInbox = [];
 
   // Prefer the batch getAllDailyNotesAsync method (non-blocking: SAF I/O runs on a
   // background thread and callbacks back via JS) over the synchronous alternatives.
   let noteEntries; // [{ date, text, lastModified? }] — lastModified present from getAllDailyNotes
   if (bridge.getAllDailyNotesAsync) {
-    // Non-blocking path: runs SAF I/O on a background thread, callbacks via JS
+    // Non-blocking path: runs SAF I/O on a background thread, callbacks via JS.
+    // BOUNDED (the 2026-09-06 iOS hang): a bridge that never calls back —
+    // iOS's shim is a Proxy that answers ANY method name, so this branch was
+    // taken there before the method existed — used to hold the cycle's
+    // in-progress guard forever: a spinner that never finished and no
+    // further Obsidian sync until a force-quit. A scan that has not answered
+    // inside the timeout REJECTS instead, which the cycle surfaces and
+    // releases like any other scan error; the next cycle retries.
     if (!window.__obsidianCbs) window.__obsidianCbs = {};
     const json = await new Promise((resolve, reject) => {
       const id = Math.random().toString(36).slice(2, 18).replace(/[^a-z0-9]/g, 'x');
+      const timer = setTimeout(() => {
+        if (!window.__obsidianCbs?.[id]) return; // already answered
+        delete window.__obsidianCbs[id];
+        reject(new Error(`Daily-note scan timed out after ${Math.round(NATIVE_SCAN_TIMEOUT_MS / 1000)}s: the native vault bridge never answered`));
+      }, NATIVE_SCAN_TIMEOUT_MS);
       window.__obsidianCbs[id] = (result, error) => {
+        clearTimeout(timer);
         if (error) reject(new Error(error));
         else resolve(result);
       };
@@ -1410,14 +1510,20 @@ export async function syncObsidianVaultNative(folder, retentionDays, existingTas
     // Use the file's REAL mtime from the native scan; fall back to now for older
     // bridge builds that don't report it yet. See nativeNoteLastModified.
     dailyNotes[dateStr] = { text, lastModified: nativeNoteLastModified(entry, new Date().toISOString()), fromObsidian: true };
+    // REVIVAL EVIDENCE is real mtimes only (audit fix M10): the "now" fallback
+    // above is fine as a note-text LWW stamp, but as the vault's statement
+    // time it would out-timestamp every tombstone on every scan and revive
+    // every deleted row (§3.10 ruling 6 lifts a tombstoned row when its note
+    // was written AFTER the deletion — a fabricated mtime is always "after").
+    if (entry.lastModified) noteMtimes[dateStr] = entry.lastModified;
 
     // Same shared per-note pipeline as syncObsidianVault — including the
     // Step 2 per-field vault-edit adoption and its classification override.
     mergeParsedObsidianTasks(
       parseTasksFromMarkdown(text, dateStr, seenBlockIds),
-      ctx, onTitleConflict, { allScheduled, allInbox },
+      ctx, onTitleConflict, { allScheduled, allInbox, lineSchedule },
     );
   }
 
-  return { dailyNotes, scheduledTasks: allScheduled, inboxTasks: allInbox };
+  return { dailyNotes, noteMtimes, scheduledTasks: allScheduled, inboxTasks: allInbox, lineSchedule };
 }

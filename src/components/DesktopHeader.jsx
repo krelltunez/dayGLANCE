@@ -144,10 +144,10 @@ const DesktopHeader = () => {
               className={`month-view-toggle ${textPrimary} font-semibold text-base px-2 py-1 rounded-lg ${hoverBg} transition-colors cursor-pointer text-center min-w-[13rem]`}
             >
               {effectiveViewMode === 'day'
-                ? formatDateRange([...new Map(dayViewColumns.map(c => [c.dateStr, c.date])).values()])
+                ? formatDateRange([...new Map(dayViewColumns.map(c => [c.dateStr, c.date])).values()], t, i18n.resolvedLanguage || i18n.language)
                 : effectiveViewMode === 'week' && weekViewDates.length > 0
-                ? formatDateRange(weekViewDates)
-                : formatDateRange(visibleDates)}
+                ? formatDateRange(weekViewDates, t, i18n.resolvedLanguage || i18n.language)
+                : formatDateRange(visibleDates, t, i18n.resolvedLanguage || i18n.language)}
             </button>
             <button onClick={() => changeDate(1)} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`} aria-label={t('common.next')}>
               <ChevronRight size={20} className={textSecondary} />

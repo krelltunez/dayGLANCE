@@ -39,7 +39,6 @@ export default function LanguagePicker({ className, id }) {
       onChange={(e) => {
         const language = e.target.value;
         i18n.changeLanguage(language);
-        window.electronAPI?.setApplicationMenuLanguage?.(language);
       }}
       className={className}
     >

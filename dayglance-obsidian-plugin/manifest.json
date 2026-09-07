@@ -3,7 +3,7 @@
   "name": "dayGLANCE Bridge",
   "version": "0.1.0",
   "minAppVersion": "1.5.0",
-  "description": "Bridge between an Obsidian vault and dayGLANCE. Phase 5: liveness heartbeat only — dayGLANCE uses it to skip launching Obsidian when it is already open.",
+  "description": "Bridge between an Obsidian vault and dayGLANCE: liveness heartbeat, pairing, the intent/observation stream, and an agenda sidebar read from GLANCEvault.",
   "author": "krelltunez",
   "isDesktopOnly": false
 }

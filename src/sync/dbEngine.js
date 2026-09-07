@@ -45,14 +45,15 @@ import {
 import { pruneAllTombstones, tombstoneCutoff } from './tombstoneRetention.js';
 import { partitionSnapshotDeletes, reassertPropagatedDeletes } from './snapshotDeleteGuard.js';
 import { isPayloadExcludedEntity, agedOutReleaseReason } from './payloadExclusions.js';
-import { shredHashes, hashMapsEqual, mergeMidCycleEdits } from './commitMerge.js';
+import { shredHashes, hashMapsEqual, hashEntity, mergeMidCycleEdits } from './commitMerge.js';
+import { noteGlitchUnresolved, clearGlitchUnresolved } from './glitchHealLatch.js';
 import { createSyncCycleBreaker, isRateLimitedError } from './syncBrakes.js';
 import { shouldSuppressReconcileDelete, consumeWarTripped } from './reconcileWarGuard.js';
 import {
   shouldSuppressRetirementHeal, consumeRetirementHealTripped,
   isDeletePropagationLatched, recordDeletePropagation, consumeDeletePropagationTripped,
 } from './retirementHealBreaker.js';
-import { recordOwnWriteSeq } from './ownWrites.js';
+import { recordOwnWriteSeq, withOwnAckRecording } from './ownWrites.js';
 import { isObsidianTombstoned } from '../utils/obsidianDeletions.js';
 import { ghostSuccessorId, persistDerivedGhostRetirements } from '../utils/obsidianGhostRows.js';
 
@@ -315,33 +316,26 @@ export function createDbEngine(callbacks = {}) {
   // at the start of each cycle and committed at the end.
   let mirror = {};
 
-  // OWN-ACK COVERAGE FOR ENGINE DELETES (2026-08-31 war commission): the
-  // server emits ONE nudge per batch — carrying the batch's maxSeq, which the
-  // pushRes.maxSeq record after the push covers — but one nudge PER
-  // deleteRow, each carrying that delete's own seq (glance-vault
-  // routes/sync.ts, verified). pushDirtyRows folds the per-delete seqs into
-  // its returned maxSeq, so a push with two or more deletes left every
-  // non-max delete's echo looking FOREIGN to the exact-identity ownWrites
-  // ring — one guaranteed self-nudge (drain, cycle) per multi-delete push.
-  // The ring is exact-identity by design (no `<=` heuristic — the freshness
+  // OWN-ACK COVERAGE FOR ENGINE WRITES (2026-08-31 war commission; audit M13
+  // closed 2026-09-03): the server emits ONE nudge per batch — carrying the
+  // BATCH's maxSeq — and one nudge PER deleteRow, each carrying that delete's
+  // own seq (glance-vault routes/sync.ts, verified). pushDirtyRows folds all
+  // of them into the single maxSeq it returns, so recording only the fold
+  // left every non-max ack looking FOREIGN to the exact-identity ownWrites
+  // ring: one self-nudge per multi-delete push (the original fix covered
+  // deletes), and — M13 — one per MIXED upsert+delete push, because deletes
+  // follow the batch and push the fold above the batch's own maxSeq. The
+  // ring is exact-identity by design (no `<=` heuristic — the freshness
   // trap), so the fix is to SEE every seq: build the client ourselves (the
-  // same construction the package would run) and record each delete ack at
-  // the source. An INJECTED client (tests) passes through untouched — tests
-  // live-swap methods on the object they hold, and a wrapping copy would
-  // sever that.
+  // same construction the package would run) and record every write ack at
+  // the source (withOwnAckRecording wraps batch AND deleteRow). An INJECTED
+  // client (tests) passes through untouched — tests live-swap methods on the
+  // object they hold, and a wrapping copy would sever that.
   let vaultClient = callbacks.vaultClient;
   if (!vaultClient && cfg.vaultUrl && cfg.vaultToken) {
     try {
-      const inner = createVaultClient({ vaultUrl: cfg.vaultUrl, vaultToken: cfg.vaultToken, fetchImpl: loggingFetch });
-      vaultClient = {
-        ...inner,
-        deleteRow: async (...args) => {
-          const r = await inner.deleteRow(...args);
-          const seq = Number(r?.seq);
-          if (Number.isFinite(seq) && seq > 0) recordOwnWriteSeq(seq);
-          return r;
-        },
-      };
+      vaultClient = withOwnAckRecording(
+        createVaultClient({ vaultUrl: cfg.vaultUrl, vaultToken: cfg.vaultToken, fetchImpl: loggingFetch }));
     } catch { vaultClient = undefined; /* let the package build its own */ }
   }
 
@@ -381,9 +375,21 @@ export function createDbEngine(callbacks = {}) {
       if (obsTombs && entity && typeof entity === 'object') {
         const k = entity._kind;
         const v = entity.value;
+        // DROP AND DELETE (the 2026-09-05 stray-row finding). Dropping alone
+        // left the VAULT row alive forever: this device never admits the
+        // row, so its snapshot never holds it, so the snapshot-diff never
+        // sees it vanish, so the guard never propagates a delete — and the
+        // cursor moves past the row, so it is never re-listed either. The
+        // row then outlives every device's tombstone, visible to anything
+        // that reads the vault directly (the plugin's sidebar mirror showed
+        // a task dayGLANCE had dropped days earlier). Same shape as the
+        // ghost-row containment below: absent from the mirror, a dirty id
+        // is pushed as a soft-delete this cycle, and the row dies at the
+        // source. LWW unchanged: a copy NEWER than its tombstone still
+        // applies (a genuine revive).
         if ((k === 'tasks' || k === 'unscheduledTasks') && v && v.importSource === 'obsidian'
-            && isObsidianTombstoned(obsTombs, String(v.id), v.lastModified)) return;
-        if (k === 'dailyNotes' && isObsidianTombstoned(obsTombs, String(entity._key), v && v.lastModified)) return;
+            && isObsidianTombstoned(obsTombs, String(v.id), v.lastModified)) { engine.markDirty(entityId); return; }
+        if (k === 'dailyNotes' && isObsidianTombstoned(obsTombs, String(entity._key), v && v.lastModified)) { engine.markDirty(entityId); return; }
       }
       // Ghost-row CONTAINMENT at the DB-tier pull — the third ingress (the
       // #1454 lesson: gate the mirror too, or the guard's blessed delete-marks
@@ -409,13 +415,25 @@ export function createDbEngine(callbacks = {}) {
           }
         }
       }
-      // The vault's content for this row changed under us — whatever we last
-      // acked there is stale, so the no-op re-push skip below must not apply.
-      ackedUpsertHashes.delete(entityId);
       ackedDeletes.delete(entityId);
       // Bundle merges may leave us richer than the clobbered vault row; re-push
       // the superset so it converges at the vault (see dbAdapter / stage-2 doc).
       for (const id of adapterApplyRemoteEntity(mirror, entity)) engine.markDirty(id);
+      // The ack survives only if the vault still holds exactly what we acked
+      // (audit fix M5). A push never advances the pull cursor, so this
+      // device's OWN pushed rows re-list on the next pull; invalidating the
+      // ack on every applied row therefore threw away the ack for our own
+      // echo — and with a withheld snapshot the stale baseline then re-marked
+      // the row dirty: one identical, seq-advancing re-push every other cycle
+      // per changed insert-only row (singletons, recurring templates, whose
+      // merge is a union of identical content). Compare the applied mirror
+      // row's hash — the same hash the snapshot uses — against the ack: equal
+      // means the echo, keep it; different means real remote content, drop it.
+      const acked = ackedUpsertHashes.get(entityId);
+      if (acked !== undefined) {
+        const now = adapterGetLocalEntity(mirror, entityId);
+        if (now == null || hashEntity(now) !== acked) ackedUpsertHashes.delete(entityId);
+      }
     },
     applyRemoteDelete: (entityId) => {
       // TEMP diagnostic (gated): a remote DELETE row for a row we still hold live
@@ -864,8 +882,15 @@ export function createDbEngine(callbacks = {}) {
       let healRateLimited = false;
       if (glitchSkipped.length) {
         const heal = await healGlitchSkips(glitchSkipped);
-        glitchUnresolved = heal.unresolved;
         healRateLimited = heal.rateLimited;
+        // GLITCH-HEAL LATCH (audit fix M6; sync/glitchHealLatch.js): an id
+        // unresolved on enough attempts over enough wall-clock time is
+        // released from the unresolved set, so a persistently unhealable row
+        // cannot withhold the snapshot forever. Resolved ids end their streak.
+        const unresolvedSet = new Set(heal.unresolved);
+        for (const eid of glitchSkipped) if (!unresolvedSet.has(eid)) clearGlitchUnresolved(eid);
+        const nowMs = Date.now();
+        glitchUnresolved = heal.unresolved.filter((eid) => !noteGlitchUnresolved(eid, nowMs));
       }
       // THE POLARITY REASSERT (2026-08-31 war — the engine upsert-flip; full
       // argument on reassertPropagatedDeletes): the push decides upsert-vs-
@@ -992,7 +1017,13 @@ export function createDbEngine(callbacks = {}) {
           }
         }
       }
-      await engine.updateDeviceCursor();
+      // (The device-cursor report moved BELOW the commit — audit low: it
+      // reads the live HWM, and a commit-phase throw rolls that HWM back in
+      // the catch, so a report made here left the server's lastSeenSeq ahead
+      // of what this device had committed; a tombstone GC'd in that gap was
+      // never re-pulled. Reporting after the commit keeps the invariant the
+      // rollback exists for: the server never believes we consumed more than
+      // we kept.)
 
       // ── MERGE-AWARE COMMIT ─────────────────────────────────────────────────
       // The mirror was cloned from app state at cycle START; any user write made
@@ -1042,7 +1073,18 @@ export function createDbEngine(callbacks = {}) {
         // An injected mid-cycle row can collide cross-list with a pulled copy of
         // the same id under another kind — dedupe deterministically; the loser
         // is marked dirty so its stale vault row is soft-deleted next push.
-        reconcileCrossList(mirror, (id) => engine.markDirty(id));
+        // Same war guard as the pull-side call (audit low): a delete/resupply
+        // war whose resupply arrives mid-cycle counts its hits here too —
+        // without the seam this site deleted the loser unconditionally every
+        // cycle while the guard on the other site never saw a strike.
+        reconcileCrossList(
+          mirror,
+          (id) => engine.markDirty(id),
+          debugPushEnabled()
+            ? (c) => console.warn(`[reconcile] commit-merge cross-list collision ${c.id} → keep ${c.winner}, delete [${c.losers.join(', ')}] |`, c.kinds)
+            : undefined,
+          shouldSuppressReconcileDelete,
+        );
         if (debugPushEnabled()) {
           console.log('[commit] mid-cycle merge — survivors:', survivors, 'honored deletes:', honoredDeletes);
         }
@@ -1076,6 +1118,9 @@ export function createDbEngine(callbacks = {}) {
           glitchUnresolved.slice(0, 25), glitchUnresolved.length > 25 ? `(+${glitchUnresolved.length - 25} more)` : ''
         );
       }
+      // Device cursor: reported only once the pulled state is committed and
+      // the HWM can no longer be rolled back (see the note above the commit).
+      await engine.updateDeviceCursor();
       // This cycle COMPLETED (pull ran; push ran or was window-suppressed),
       // so it served whatever any gated trigger was announcing — a
       // still-pending deferred retry would just run a pointless extra
@@ -1157,6 +1202,14 @@ export function createDbEngine(callbacks = {}) {
       // is all-or-nothing. Making the benefit safe here would need durable
       // per-page commits, which is an architecture change, not a bump.
       try { engine.setHighWaterMark(preCycleHwm); } catch { /* storage unavailable */ }
+      // Drain the per-cycle trip flags (audit low). A guard or latch that
+      // tripped inside THIS cycle is accounted for by the failure strike
+      // below; left set, the flag would surface in the NEXT cycle's success
+      // path and charge that cycle a war/heal/propagation strike it did not
+      // earn (strike misattribution), extending the cooldown for nothing.
+      consumeWarTripped();
+      consumeRetirementHealTripped();
+      consumeDeletePropagationTripped();
       // Failed cycle → impose/extend the cooldown so the next trigger (interval,
       // debounced push, SSE nudge) cannot immediately re-run us against a vault
       // that just rejected us.

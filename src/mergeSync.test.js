@@ -1963,31 +1963,43 @@ describe('mergeSyncData — tombstone pruning', () => {
     expect(data.deletedTaskIds['deleted-70d']).toBeUndefined();
   });
 
-  it('retentionDays=0 keeps events forever but STILL GCs tombstones at 60 days', () => {
+  // ── Audit fix M7 (2026-09-05): completedTaskUids prunes at its OWN fixed
+  // window on every writer (payload build, vault merge, cycle prune, this
+  // merge) — never at the per-device "Keep past events" setting, which
+  // ping-ponged with the vault tier's grow-only union. Recorded cost: under
+  // "All (no limit)" a completion older than the window is forgotten.
+  it('retentionDays=0 ("All") no longer keeps a completed-event uid forever: the fixed window prunes it; tombstones still GC at 60 days', () => {
     const local = {
       ...emptyData(),
       deletedTaskIds: { 'ancient': daysAgo(365), 'recent': daysAgo(10) },
-      completedTaskUids: ['evt::2020-01-01'], // 5+ years old imported event UID
+      completedTaskUids: ['evt::2020-01-01', 'evt::' + daysAgo(100).slice(0, 10), 'no-date-uid'],
     };
     const { data } = mergeSyncData(local, emptyData(), 0);
-    // Events: "Keep past events = All" → the ancient UID survives.
-    expect(data.completedTaskUids).toContain('evt::2020-01-01');
-    // Tombstones: fixed 60-day GC, independent of the event setting.
+    expect(data.completedTaskUids).not.toContain('evt::2020-01-01');
+    expect(data.completedTaskUids).toContain('evt::' + daysAgo(100).slice(0, 10)); // inside the fixed window
+    expect(data.completedTaskUids).toContain('no-date-uid');                       // undatable: kept (fail-safe)
     expect(data.deletedTaskIds['ancient']).toBeUndefined();
     expect(data.deletedTaskIds['recent']).toBeDefined();
   });
 
-  it('event retention (completedTaskUids) still honors the user setting, tombstones do not', () => {
-    // 40-day-old event UID + 40-day-old tombstone, event retention = 30 days.
+  it('a 40-day completed-event uid SURVIVES a 30-day "Keep past events" setting (fixed window, not the user setting); the 40-day tombstone too', () => {
     const local = {
       ...emptyData(),
       deletedTaskIds: { 'deleted-40d': daysAgo(40) },
       completedTaskUids: ['evt::' + daysAgo(40).slice(0, 10)],
     };
     const { data } = mergeSyncData(local, emptyData(), 30);
-    // Event dropped at 30 days (user setting); tombstone kept under the 60-day floor.
-    expect(data.completedTaskUids).toHaveLength(0);
+    expect(data.completedTaskUids).toEqual(['evt::' + daysAgo(40).slice(0, 10)]);
     expect(data.deletedTaskIds['deleted-40d']).toBeDefined();
+  });
+
+  it('the uid set is a union of both sides pruned at the fixed window, and only a real set change raises the change flags', () => {
+    const local = { ...emptyData(), completedTaskUids: ['a::' + daysAgo(1).slice(0, 10)] };
+    const remote = { ...emptyData(), completedTaskUids: ['b::' + daysAgo(2).slice(0, 10), 'old::2019-05-05'] };
+    const { data, localChanged, remoteChanged } = mergeSyncData(local, remote, 7);
+    expect(new Set(data.completedTaskUids)).toEqual(new Set(['a::' + daysAgo(1).slice(0, 10), 'b::' + daysAgo(2).slice(0, 10)]));
+    expect(localChanged).toBe(true);
+    expect(remoteChanged).toBe(true);
   });
 
   it('a no-change cycle leaves the tombstone bundles byte-identical (no false-diff → no push)', () => {
@@ -2245,5 +2257,26 @@ describe('mergeSyncData — additional ICS calendars (icsCalendars)', () => {
     const local = { ...empty(), multiUserEnabled: true, icsCalendars: CAL_A, icsCalendarsUpdatedAt: '2026-08-01T00:00:00.000Z' };
     const remote = { ...empty(), multiUserEnabled: true, icsCalendars: CAL_B, icsCalendarsUpdatedAt: '2026-08-02T00:00:00.000Z' };
     expect(mergeSyncData(local, remote).data.icsCalendars).toEqual(CAL_A);
+  });
+});
+
+describe('mergeSyncData — retirement record retention (audit fix M9, file tier in lockstep with the vault tier)', () => {
+  const DAY = 86400000;
+  const daysAgo = (n) => new Date(Date.now() - n * DAY).toISOString();
+  const base = () => ({
+    tasks: [], unscheduledTasks: [], recurringTasks: [], recycleBin: [], dailyNotes: {},
+    completedTaskUids: [], deletedTaskIds: {},
+  });
+
+  it('an aged retirement survives while a surviving tombstone names its successor, and drops once that tombstone ages out', () => {
+    const local = { ...base(), retiredTaskIds: { L: { retiredAt: daysAgo(70), successor: 'S' } }, deletedObsidianKeys: { S: daysAgo(20) } };
+    const remote = { ...base() };
+    const kept = mergeSyncData(local, remote);
+    expect(kept.data.retiredTaskIds).toEqual({ L: { retiredAt: expect.any(String), successor: 'S' } });
+
+    const local2 = { ...base(), retiredTaskIds: { L: { retiredAt: daysAgo(90), successor: 'S' } }, deletedObsidianKeys: { S: daysAgo(70) } };
+    const gone = mergeSyncData(local2, { ...base() });
+    expect(gone.data.retiredTaskIds).toEqual({});
+    expect(gone.data.deletedObsidianKeys).toEqual({});
   });
 });

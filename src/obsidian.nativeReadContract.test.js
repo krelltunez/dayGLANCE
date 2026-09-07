@@ -84,6 +84,18 @@ describe('syncObsidianVaultNative — the scan fails loudly on failed reads', ()
     await expect(syncObsidianVaultNative('', 0, [], [])).rejects.toThrow(/could not read/);
   });
 
+  it('async path: a bridge that NEVER answers (the 2026-09-06 iOS hang: a Proxy shim that claims every method) rejects after the timeout instead of holding the cycle forever', async () => {
+    vi.useFakeTimers();
+    try {
+      installBridge({ getAllDailyNotesAsync: vi.fn(() => null) }); // answers "null" at once, never dispatches
+      const p = syncObsidianVaultNative('', 0, [], []);
+      const outcome = expect(p).rejects.toThrow(/timed out/);
+      await vi.advanceTimersByTimeAsync(30_000 + 10);
+      await outcome;
+      expect(Object.keys(global.window.__obsidianCbs)).toHaveLength(0); // the stale callback slot is released
+    } finally { vi.useRealTimers(); }
+  });
+
   it('legacy fallback: a LISTED note whose read returns null REJECTS the scan instead of silently vanishing', async () => {
     installBridge({
       getAllDailyNotes: undefined,

@@ -8,6 +8,7 @@ import {
   tombstoneCutoff,
   pruneTombstoneMap,
   unionNewerIso as unionTombstones,
+  pruneCompletedTaskUids,
 } from './sync/tombstoneRetention.js';
 import { mergeRetiredTaskIds, pruneRetiredTaskIds, applyRetirementsToTaskLists } from './utils/retiredTaskIds.js';
 import { dropTombstonedObsidianTasks, dropTombstonedObsidianNotes } from './utils/obsidianDeletions.js';
@@ -266,10 +267,17 @@ const tombstoneMapsEqual = (a = {}, b = {}) => {
 export const mergeSyncData = (local, remote, retentionDays) => {
   const result = upstreamMergeSyncData(local, remote, retentionDays);
   // Tombstone GC is its OWN fixed 60-day policy (src/sync/tombstoneRetention.js),
-  // NOT the user's "Keep past events" window (retentionDays). retentionDays still
-  // prunes imported events (completedTaskUids) inside the upstream merge above;
-  // we override only the tombstone bundles below so both sync transports agree.
+  // NOT the user's "Keep past events" window (retentionDays). The upstream merge
+  // prunes completedTaskUids at retentionDays; that is overridden below too
+  // (audit fix M7): the set is re-unioned from BOTH raw sides and pruned at the
+  // fixed window every writer applies, so the file tier, the vault tier and the
+  // app's payload build agree on one set regardless of any device's setting.
   const tsCutoff = tombstoneCutoff();
+  const uidsMerged = pruneCompletedTaskUids([...(local?.completedTaskUids || []), ...(remote?.completedTaskUids || [])]);
+  const uidSetEq = (a = [], b = []) => a.length === b.length && new Set(a).size === new Set([...a, ...b]).size;
+  result.data.completedTaskUids = uidsMerged;
+  if (!uidSetEq(uidsMerged, local?.completedTaskUids || [])) result.localChanged = true;
+  if (!uidSetEq(uidsMerged, remote?.completedTaskUids || [])) result.remoteChanged = true;
   const habitLogsFix = mergeHabitLogs(
     local?.habitLogs || {},
     remote?.habitLogs || {},
@@ -501,8 +509,11 @@ export const mergeSyncData = (local, remote, retentionDays) => {
     const ka = Object.keys(a); const kb = Object.keys(b);
     return ka.length === kb.length && ka.every((k) => retiredEntryEq(a[k], b[k]));
   };
+  // The successor-tombstone bundles (already merged + pruned above) extend an
+  // aged entry's life while they still name its successor (audit fix M9).
   const retiredMerged = pruneRetiredTaskIds(
     mergeRetiredTaskIds(local?.retiredTaskIds || {}, remote?.retiredTaskIds || {}), tsCutoff,
+    [result.data.deletedTaskIds, result.data.deletedObsidianKeys],
   );
   result.data.retiredTaskIds = retiredMerged;
   if (!retiredMapsEqual(retiredMerged, local?.retiredTaskIds || {})) result.localChanged = true;
@@ -515,7 +526,8 @@ export const mergeSyncData = (local, remote, retentionDays) => {
   // must not resurrect a retired id. This also keeps retired rows out of the
   // uploaded sync file, so the v4.7.x fleet stops re-ingesting them.
   const retApplied = applyRetirementsToTaskLists(
-    { tasks: result.data.tasks, unscheduledTasks: result.data.unscheduledTasks }, retiredMerged,
+    { tasks: result.data.tasks, unscheduledTasks: result.data.unscheduledTasks, recycleBin: result.data.recycleBin },
+    retiredMerged,
   );
   if (retApplied.tasks !== result.data.tasks || retApplied.unscheduledTasks !== result.data.unscheduledTasks) {
     result.data.tasks = retApplied.tasks;

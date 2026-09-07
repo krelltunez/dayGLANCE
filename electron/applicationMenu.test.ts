@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { MenuItemConstructorOptions } from 'electron';
-import { buildApplicationMenuTemplate, normalizeMenuLanguage } from './applicationMenu.js';
+import {
+  APPLICATION_MENU_LABEL_KEYS,
+  buildApplicationMenuTemplate,
+  isApplicationMenuLabels,
+  supportsCustomApplicationMenu,
+  type ApplicationMenuLabels,
+} from './applicationMenu.js';
+
+const labels = Object.fromEntries(
+  APPLICATION_MENU_LABEL_KEYS.map((key) => [key, `translated:${key}`]),
+) as ApplicationMenuLabels;
 
 function submenu(template: MenuItemConstructorOptions[], index: number): MenuItemConstructorOptions[] {
   const items = template[index]?.submenu;
@@ -14,78 +24,73 @@ function labelledRoles(items: MenuItemConstructorOptions[]): Array<[string | und
     .map((item) => [item.label, item.role]);
 }
 
-describe('normalizeMenuLanguage', () => {
-  it.each(['zh', 'zh-CN', 'zh_CN', 'ZH-cn', 'zh-Hans-CN'])('normalizes %s to Simplified Chinese', (language) => {
-    expect(normalizeMenuLanguage(language)).toBe('zh-CN');
+describe('application menu labels', () => {
+  it('accepts a complete translated label set', () => {
+    expect(isApplicationMenuLabels(labels)).toBe(true);
   });
 
-  it.each(['en', 'de-DE', 'pt-BR', ''])('falls back to English for %s', (language) => {
-    expect(normalizeMenuLanguage(language)).toBe('en');
+  it('rejects missing or non-string labels from IPC', () => {
+    expect(isApplicationMenuLabels({ ...labels, quit: undefined })).toBe(false);
+    expect(isApplicationMenuLabels({ ...labels, quit: 42 })).toBe(false);
+    expect(isApplicationMenuLabels(null)).toBe(false);
+  });
+});
+
+describe('supportsCustomApplicationMenu', () => {
+  it.each(['win32', 'linux'])('enables the translated menu on %s', (platform) => {
+    expect(supportsCustomApplicationMenu(platform)).toBe(true);
+  });
+
+  it.each(['darwin', 'freebsd'])('keeps the native menu on %s', (platform) => {
+    expect(supportsCustomApplicationMenu(platform)).toBe(false);
   });
 });
 
 describe('buildApplicationMenuTemplate', () => {
-  it('builds the complete Simplified Chinese menu', () => {
-    const template = buildApplicationMenuTemplate('zh-CN');
+  it('maps translated labels to the complete menu roles', () => {
+    const template = buildApplicationMenuTemplate(labels);
 
-    expect(template.map((item) => item.label)).toEqual(['文件', '编辑', '查看', '窗口']);
-    expect(labelledRoles(submenu(template, 0))).toEqual([
-      ['关闭', 'close'],
+    expect(template.map((item) => item.label)).toEqual([
+      'translated:file',
+      'translated:edit',
+      'translated:view',
+      'translated:window',
     ]);
     expect(labelledRoles(submenu(template, 1))).toEqual([
-      ['撤销', 'undo'],
-      ['重做', 'redo'],
-      ['剪切', 'cut'],
-      ['复制', 'copy'],
-      ['粘贴', 'paste'],
-      ['删除', 'delete'],
-      ['全选', 'selectAll'],
+      ['translated:undo', 'undo'],
+      ['translated:redo', 'redo'],
+      ['translated:cut', 'cut'],
+      ['translated:copy', 'copy'],
+      ['translated:paste', 'paste'],
+      ['translated:delete', 'delete'],
+      ['translated:selectAll', 'selectAll'],
     ]);
     expect(labelledRoles(submenu(template, 2))).toEqual([
-      ['重新加载', 'reload'],
-      ['强制重新加载', 'forceReload'],
-      ['切换开发者工具', 'toggleDevTools'],
-      ['实际大小', 'resetZoom'],
-      ['放大', 'zoomIn'],
-      ['缩小', 'zoomOut'],
-      ['切换全屏', 'togglefullscreen'],
+      ['translated:reload', 'reload'],
+      ['translated:forceReload', 'forceReload'],
+      ['translated:toggleDevTools', 'toggleDevTools'],
+      ['translated:resetZoom', 'resetZoom'],
+      ['translated:zoomIn', 'zoomIn'],
+      ['translated:zoomOut', 'zoomOut'],
+      ['translated:toggleFullScreen', 'togglefullscreen'],
     ]);
     expect(labelledRoles(submenu(template, 3))).toEqual([
-      ['最小化', 'minimize'],
-      ['缩放', 'zoom'],
-      ['关闭', 'close'],
+      ['translated:minimize', 'minimize'],
+      ['translated:zoom', 'zoom'],
+      ['translated:close', 'close'],
     ]);
   });
 
-  it('builds English labels for any non-Chinese language', () => {
-    const template = buildApplicationMenuTemplate('fr-FR');
-
-    expect(template.map((item) => item.label)).toEqual(['File', 'Edit', 'View', 'Window']);
-    expect(labelledRoles(submenu(template, 0))).toEqual([
-      ['Close', 'close'],
-    ]);
-    expect(labelledRoles(submenu(template, 1))).toEqual([
-      ['Undo', 'undo'],
-      ['Redo', 'redo'],
-      ['Cut', 'cut'],
-      ['Copy', 'copy'],
-      ['Paste', 'paste'],
-      ['Delete', 'delete'],
-      ['Select All', 'selectAll'],
-    ]);
-    expect(labelledRoles(submenu(template, 2))).toEqual([
-      ['Reload', 'reload'],
-      ['Force Reload', 'forceReload'],
-      ['Toggle Developer Tools', 'toggleDevTools'],
-      ['Actual Size', 'resetZoom'],
-      ['Zoom In', 'zoomIn'],
-      ['Zoom Out', 'zoomOut'],
-      ['Toggle Full Screen', 'togglefullscreen'],
-    ]);
-    expect(labelledRoles(submenu(template, 3))).toEqual([
-      ['Minimize', 'minimize'],
-      ['Zoom', 'zoom'],
-      ['Close', 'close'],
-    ]);
+  it('uses Quit with Ctrl+Q while retaining Close in the Window menu', () => {
+    const template = buildApplicationMenuTemplate(labels);
+    expect(submenu(template, 0)[0]).toMatchObject({
+      label: 'translated:quit',
+      role: 'quit',
+      accelerator: 'CommandOrControl+Q',
+    });
+    expect(submenu(template, 3).at(-1)).toMatchObject({
+      label: 'translated:close',
+      role: 'close',
+    });
   });
 });

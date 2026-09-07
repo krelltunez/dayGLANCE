@@ -150,7 +150,7 @@ export default function useTaskActions({
       const rawObsidianTitle = hasObsidianTag ? stripTag(savedTitle, 'obsidian') : null;
       // Skip if stripping the tag leaves an empty title (e.g. task titled only "#obsidian")
       const obsidianMeta = (hasObsidianTag && rawObsidianTitle && !isRecurring && !isSwipeSchedule && getObsidianTaskMeta)
-        ? getObsidianTaskMeta(rawObsidianTitle)
+        ? getObsidianTaskMeta(rawObsidianTitle, newTask.projectId)
         : null;
 
       const taskId = obsidianMeta?.id ?? crypto.randomUUID();
@@ -269,7 +269,9 @@ export default function useTaskActions({
       // app task was just created with (Phase 2 round-trip identity).
       if (obsidianMeta && onWriteObsidianTask) {
         onWriteObsidianTask({
-          title: rawObsidianTitle,
+          // The raw title as the identity was derived from it: with the
+          // project field when the task was created under a project.
+          title: obsidianMeta.obsidianRawTitle ?? rawObsidianTitle,
           startTime: toInbox || newTask.isAllDay ? null : scheduledAdjustedStartTime,
           duration: toInbox ? null : (newTask.duration || null),
           isAllDay: !toInbox && (newTask.isAllDay || false),

@@ -9,7 +9,6 @@
 
 import { getOccurrencesInRange } from './utils/recurrenceEngine.js';
 import { notBucketed } from './utils/bucketList.js';
-import { formatLocalizedDate } from './utils/localeFormatting.js';
 
 // ---------------------------------------------------------------------------
 // Data helpers
@@ -191,8 +190,8 @@ export function gatherTrmnlData({
 
   // Friendly date
   const dateObj = new Date(today + 'T12:00:00');
-  const dayName = formatLocalizedDate(dateObj, { weekday: 'long' });
-  const dateLabel = formatLocalizedDate(dateObj, {
+  const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+  const dateLabel = dateObj.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
   });

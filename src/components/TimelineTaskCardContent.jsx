@@ -233,6 +233,7 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
                 {task.importSource === 'obsidian' && <BookOpen size={12} className="flex-shrink-0 opacity-75" title={t('task.fromObsidian', { defaultValue: 'From Obsidian' })} />}
                 {task.obsidianRecurrence && <Repeat size={12} className="flex-shrink-0 opacity-75" title={t('task.obsidianRecurrenceManaged', { defaultValue: "Recurring in Obsidian — this task's recurrence is managed by the Tasks plugin; completing it here won't create the next instance" })} />}
                 {task.source_app === SOURCE_APPS.LASTGLANCE && <LastGlanceBadge size={12} className="flex-shrink-0" title={t('task.addedByLastGlance')} />}
+              {task.obsidianNotePath && <FileText size={12} className="flex-shrink-0 opacity-75" title={t('task.obsidianNoteSource', { note: task.obsidianNotePath.replace(/\.md$/, ''), defaultValue: 'In {{note}} (Obsidian)' })} />}
                 {multiUserEnabled && <UserAssignmentBadge users={users} assignedUserSyncIds={task.assignedUserSyncIds} size={14} />}
                 <div className="flex-1 min-w-0">
                   {!isTablet && editingTaskId === task.id ? (

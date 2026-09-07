@@ -8,6 +8,11 @@ import {
 } from './localeFormatting.js';
 
 describe('Simplified Chinese locale formatting', () => {
+  it.each([['de', 1], ['fr', 1], ['es', 1], ['it', 1], ['pt-PT', 0], ['en-GB', 1]])('uses regional week and clock defaults for %s', (locale, firstDay) => {
+    expect(defaultUse24HourClock(locale)).toBe(true);
+    expect(defaultWeekStartDay(locale)).toBe(firstDay);
+  });
+
   it('uses the Chinese clock and week defaults for a fresh profile', () => {
     expect(defaultUse24HourClock('zh-CN')).toBe(true);
     expect(defaultWeekStartDay('zh-CN')).toBe(1);

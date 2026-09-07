@@ -24,9 +24,16 @@
 // ['archived']), which then dirties them for the DB-sync push. Canonicalising both
 // sides to `false` makes archived round-trip identically for the diff while a real
 // archive (`archived: true`) still reads as a genuine change.
+//
+// `priority` joins them for the same reason (2026-09-06 field finding, the
+// phantom re-stamp): scheduling a task from the inbox STRIPS the key, while
+// a re-parse of an untimed Obsidian line carries `priority: 0`. Absent and 0
+// are the SAME state ("none"); read as a change, that presence flip
+// re-stamped a scheduled task on every phone that scanned a stale vault copy,
+// and the fabricated stamp outranked a real completion made elsewhere.
 function normalizeField(task) {
   const { lastModified: _omit, ...rest } = task;
-  return { ...rest, notes: rest.notes ?? '', subtasks: rest.subtasks ?? [], archived: rest.archived ?? false };
+  return { ...rest, notes: rest.notes ?? '', subtasks: rest.subtasks ?? [], archived: rest.archived ?? false, priority: rest.priority ?? 0 };
 }
 
 // Order-INSENSITIVE stringify of the normalized task. A defaulted field (archived,

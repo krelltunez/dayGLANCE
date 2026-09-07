@@ -364,6 +364,20 @@ describe('reassertPropagatedDeletes — the polarity reassert (2026-08-31 war, e
     ).accepted).toHaveLength(1);
   });
 
+  it("'retired' judges the successor across EVERY task kind, like the partition: a BINNED successor still evicts (audit M8)", () => {
+    // The partition blessed this delete because the successor was live in
+    // the payload (recycle bin included); the reassert used to look only at
+    // tasks + unscheduledTasks, saw no successor, accepted the flip, and the
+    // retired copy resurrected beside its binned successor.
+    const record = { OLD: { retiredAt: iso(T), successor: 'obsidian-dg-abc' } };
+    for (const kind of ['recycleBin', 'recurringTasks', 'todayRoutines', 'unscheduledTasks']) {
+      const mirror = { retiredTaskIds: record, tasks: [], [kind]: [{ id: 'obsidian-dg-abc', lastModified: iso(T) }] };
+      const out = reassertPropagatedDeletes(
+        [{ entityId: 'tasks:OLD', reason: 'retired' }], mirror, liveOf({ 'tasks:OLD': wrapped('OLD', T + 5000) }));
+      expect(out.evict, kind).toEqual([{ entityId: 'tasks:OLD', reason: 'retired' }]);
+    }
+  });
+
   it('a row still ABSENT from the mirror needs nothing (polarity intact), cross-list reasons pass through, and empty input is a no-op', () => {
     const out = reassertPropagatedDeletes(
       [

@@ -60,6 +60,12 @@ describe('locale bundles', () => {
       expect(resolveLanguage('de-AT')).toBe('de');
     });
 
+    it('deliberately offers Simplified Chinese until a Traditional bundle ships', () => {
+      for (const tag of ['zh', 'zh-CN', 'zh-Hans', 'zh-TW', 'zh-Hant', 'zh-HK']) {
+        expect(resolveLanguage(tag)).toBe('zh-CN');
+      }
+    });
+
     it('falls back to en for a language that is not shipped', () => {
       expect(resolveLanguage('ja')).toBe('en');
       expect(resolveLanguage('zz-ZZ')).toBe('en');
@@ -148,6 +154,15 @@ describe('locale bundles', () => {
   // check rather than a ratchet: a key added to en without translations fails
   // here instead of silently rendering English.
   describe('coverage against en', () => {
+    it.each(TRANSLATED)('%s preserves every interpolation placeholder', (lng) => {
+      const get = (bundle, key) => key.split('.').reduce((value, part) => value?.[part], bundle);
+      const placeholders = (value) => [...(value || '').matchAll(/{{(.*?)}}/g)].map(match => match[1]).sort();
+      for (const key of keysOf('en')) {
+        expect(placeholders(get(bundles[lng], key)), `${lng}: ${key}`)
+          .toEqual(placeholders(get(bundles.en, key)));
+      }
+    });
+
     it.each(TRANSLATED)('%s covers every key in en', (lng) => {
       const missing = [...keysOf('en')].filter((k) => !keysOf(lng).has(k));
       expect(

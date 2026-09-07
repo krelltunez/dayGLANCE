@@ -30,6 +30,17 @@ This check is mandatory — even mid-task, even for "small fixes", even when you
 
 Do **not** post comments to GitHub issues directly using `mcp__github__add_issue_comment`. Instead, draft the proposed response and present it to the user so they can review and post it themselves.
 
+# Bridge scenario harness
+
+`dayglance-obsidian-plugin/test/` runs the real Obsidian plugin transport and
+the real `useObsidianSync` hook against a stub Obsidian vault and an in-memory
+GLANCEvault, under fake timers (`vitest.config.js` aliases `obsidian` to the
+stub and the plugin's copy of `@glance-apps/sync` to the root one). When a
+change touches what the plugin stamps, reports, or applies, or how the app
+consumes the observation stream, add or extend a scenario in
+`scope.scenarios.test.ts` rather than relying on a manual vault test. Obsidian
+Sync timing, real editor buffers, and Templater stay manual.
+
 # App.jsx — Ongoing Decomposition
 
 `App.jsx` started at ~30,000 lines and has been reduced to ~9,600 across four refactor passes. All previously listed extraction candidates are done:

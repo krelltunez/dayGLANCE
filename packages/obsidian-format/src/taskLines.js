@@ -8,7 +8,16 @@
 // resolving the conflict inside this function, instead of calling back, is
 // the moment format quietly becomes policy and the package boundary erodes.
 
-import { splitBlockId, blockIdSuffix, legacyObsidianId, appIdForBlockId, deriveBlockId, hasForeignBlockId } from './identity.js';
+import {
+  splitBlockId,
+  blockIdSuffix,
+  legacyObsidianId,
+  appIdForBlockId,
+  deriveBlockId,
+  hasForeignBlockId,
+  noteKeyForPath,
+  noteTaskId,
+} from './identity.js';
 import { splitCompletionMarker, completionMarkerSuffix } from './completionMarkers.js';
 import { splitTasksMetadata } from './tasksMetadata.js';
 
@@ -299,10 +308,62 @@ export function updateTaskLines(lines, { obsidianRawTitle, completed, startTime,
  *   tasks. The sync passes ONE set across every file in the scan so the rule
  *   holds vault-wide, not merely per file.
  */
-export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set()) {
+/** The completion date a line's marker carries (YYYY-MM-DD), or null. */
+export function completionDateOfLine(body) {
+  const { completedAt } = splitCompletionMarker(String(body ?? ''));
+  return typeof completedAt === 'string' && /^\d{4}-\d{2}-\d{2}/.test(completedAt) ? completedAt.slice(0, 10) : null;
+}
+
+/** True when a completed line's marker date is on or after `completedSince`. Undated → false. */
+export function completedLineInWindow(body, completedSince) {
+  const d = completionDateOfLine(body);
+  return d !== null && d >= completedSince;
+}
+
+/**
+ * THE LINE-OWNED TASK FIELDS — every key the parser below can put on a task.
+ *
+ * dayGLANCE's scan/observation merge rebuilds an Obsidian task from its line
+ * on every pass and carries the app's copy forward BY EXCLUSION: every field
+ * NOT in this list survives a re-parse untouched, and a field in it is
+ * whatever the line (and the app's per-field ownership rulings) say it is.
+ * A new app-side field is therefore safe by default; the 2026-09-06 field
+ * finding was the opposite design costing features (focus minutes, bucket
+ * placement, and the completion transition id were all silently wiped by
+ * every scan, found one incident at a time — see
+ * docs/obsidian-buildout-spec.md, Phase 7's field-finding record).
+ *
+ * THE CONTRACT (taskLines.contract.test.js): the set of keys the parser
+ * emits over the marker corpus (taskLineCorpus.js) must EQUAL this list.
+ * The parser cannot gain a key without that test failing, and the fix is a
+ * one-line edit here, beside the code that caused it — together with a
+ * corpus line that exercises the new marker, which the same test demands.
+ * Consumers that add keys of their own on top of the parse (dayGLANCE's
+ * per-note merge adds lastModified and projectId) union them on their side
+ * and hold the same contract there.
+ */
+export const LINE_OWNED_TASK_FIELDS = Object.freeze([
+  'id', 'title', 'completed', 'completedAt',
+  'date', 'startTime', 'isAllDay', 'duration',
+  'priority', 'deadline', 'obsidianRecurrence',
+  'notes', 'subtasks', 'color', 'importSource',
+  'obsidianRawTitle', 'obsidianFileDate', 'obsidianNotePath',
+  'obsidianBlockId', 'obsidianLegacyId',
+]);
+
+export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(), { notePath = null, completedSince = null } = {}) {
   const scheduled = [];
   const inbox = [];
   if (!content) return { scheduledTasks: scheduled, inboxTasks: inbox };
+  // NON-DAILY NOTES (companion spec §6): `notePath` names the note instead
+  // of a date. The note key (ruling A) is the path; a line's date comes only
+  // from its own text (an inline prefix, or ⏳ scheduled metadata) — never
+  // from the note — so a line with neither is an inbox item; and the task
+  // carries obsidianNotePath (the writeback's locator) in place of
+  // obsidianFileDate. Everything else — markers, metadata, block ids — is
+  // exactly the daily-note grammar.
+  const noteKey = notePath ? noteKeyForPath(notePath) : dateStr;
+  const noteFields = notePath ? { obsidianNotePath: noteKeyForPath(notePath) } : { obsidianFileDate: dateStr };
 
   const lines = content.split('\n');
 
@@ -312,6 +373,17 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
     if (!match) continue;
 
     const completed = match[1] !== ' ';
+    // Completion window (ruling E): in a non-daily note, an UNTRACKED
+    // completed line outside the window — or with no completion date — is
+    // not a task. A line already carrying a block id is tracked: dayGLANCE
+    // knows it, so its completion is adopted whatever the line's date says
+    // (harness finding, 2026-09-04: a tracked task checked off by hand in
+    // Obsidian, with no ✅ date, vanished from the parse and would have been
+    // inferred deleted). The window governs adoption, not tracking.
+    if (notePath && completedSince && completed) {
+      const { text: body, blockId } = splitBlockId(match[2].trim());
+      if (!blockId && !completedLineInWindow(body, completedSince)) continue;
+    }
     let rawTitle = match[2].trim();
 
     // Strip a trailing ^dg-<id> block reference BEFORE any other parsing, so
@@ -343,7 +415,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
       // an untagged task (blockId stays null).
     }
 
-    let taskDate = dateStr;
+    let taskDate = notePath ? null : dateStr;
     let startTime = null;
     let isAllDay = false;
     let parsedDuration = null;
@@ -398,7 +470,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
 
     // ID-first: a ^dg- tagged line gets its durable block-derived id; an
     // untagged line keeps the legacy content-derived id (date + title hash).
-    const legacyId = legacyObsidianId(taskDate, rawTitle);
+    const legacyId = notePath ? noteTaskId(noteKey, rawTitle) : legacyObsidianId(taskDate, rawTitle);
     const id = blockId ? appIdForBlockId(blockId) : legacyId;
     // obsidianLegacyId is a PER-SCAN bridge hint, not an identity: it is what
     // this line's id would have been without the tag, recomputed from current
@@ -422,7 +494,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
       ...(meta.fields.recurrence ? { obsidianRecurrence: true } : {}),
     };
 
-    if (startTime) {
+    if (startTime && taskDate) {
       // Timed task (with or without inline date)
       scheduled.push({
         id,
@@ -437,12 +509,12 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
         subtasks: [],
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,
-        obsidianFileDate: dateStr,
+        ...noteFields,
         ...blockFields,
         ...completedAtFields,
         ...metadataFields,
       });
-    } else if (isAllDay) {
+    } else if (isAllDay && taskDate) {
       // Date-only task → all-day scheduled task
       scheduled.push({
         id,
@@ -457,7 +529,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
         subtasks: [],
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,
-        obsidianFileDate: dateStr,
+        ...noteFields,
         ...blockFields,
         ...completedAtFields,
         ...metadataFields,
@@ -475,7 +547,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
         color: 'bg-purple-600',
         importSource: 'obsidian',
         obsidianRawTitle: rawTitle,
-        obsidianFileDate: dateStr,
+        ...noteFields,
         ...blockFields,
         ...completedAtFields,
         ...metadataFields,
@@ -533,10 +605,10 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
  * @param {string} dateStr  the note's own YYYY-MM-DD date
  * @returns {{ text: string, changed: boolean, stamped: Array<{blockId: string, rawTitle: string}> }}
  */
-export function stampUntaggedTaskLines(content, dateStr) {
+export function stampUntaggedTaskLines(content, noteKey, opts = {}) {
   if (!content) return { text: content ?? '', changed: false, stamped: [] };
   const lines = content.split('\n');
-  const plan = planStampInsertions(content, dateStr);
+  const plan = planStampInsertions(content, noteKey, opts);
   for (const p of plan) {
     lines[p.line] = lines[p.line].slice(0, p.fromCh) + p.insert;
   }
@@ -568,13 +640,18 @@ export function stampUntaggedTaskLines(content, dateStr) {
  * @param {string} dateStr  the note's own YYYY-MM-DD date
  * @returns {Array<{line: number, fromCh: number, toCh: number, insert: string, blockId: string, rawTitle: string}>}
  */
-export function planStampInsertions(content, dateStr) {
+export function planStampInsertions(content, noteKey, { completedSince = null } = {}) {
   if (!content) return [];
   const lines = content.split('\n');
   const plan = [];
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(/^\s*- \[([ xX])\]\s+(.+)$/);
     if (!m) continue;
+    // COMPLETION WINDOW (companion §6, ruling E — non-daily notes only, the
+    // caller passes `completedSince`): a completed line is stamped only when
+    // its completion date is inside the window; an undated completed line
+    // is older than any window. Open lines are never windowed.
+    if (completedSince && m[1] !== ' ' && !completedLineInWindow(m[2], completedSince)) continue;
     // ANY occurrence of '^dg-' anywhere on the line refuses the stamp — not
     // just a valid trailing token. This widens the old two checks (tagged
     // line, duplicate token) to cover the CORRUPTED case surfaced by the
@@ -600,7 +677,7 @@ export function planStampInsertions(content, dateStr) {
       const timePart = parseLeadingTime(rawTitle);
       if (timePart) rawTitle = timePart.rest;
     }
-    const blockId = deriveBlockId(dateStr, rawTitle);
+    const blockId = deriveBlockId(noteKey, rawTitle);
     const trimmed = lines[i].replace(/\s+$/, '');
     plan.push({
       line: i,

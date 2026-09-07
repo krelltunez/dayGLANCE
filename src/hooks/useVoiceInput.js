@@ -5,7 +5,7 @@ import {
   nativeStartRecording, nativeStopRecording, triggerHaptic,
   nativeSupportsSpeech, nativeStartSpeech, nativeStopSpeech, nativeCancelSpeech,
 } from '../native.js';
-import { dateToString } from '../utils/taskUtils.js';
+import { dateToString, completionTimestamp } from '../utils/taskUtils.js';
 import { notBucketed } from '../utils/bucketList.js';
 import { parseTranscriptTasks } from '../utils/voiceQuickAdd.js';
 
@@ -523,13 +523,16 @@ export default function useVoiceInput({
           }
           case 'complete': {
             const setter = isInbox ? setUnscheduledTasks : setTasks;
-            setter(prev => prev.map(t => t.id === id ? { ...t, completed: true, lastModified: new Date().toISOString(), transitionId: crypto.randomUUID() } : t));
+            // completedAt matches toggleComplete's stamp: local-offset ISO,
+            // so the completion log gets a wall-clock time and the Obsidian
+            // completion marker gets its date.
+            setter(prev => prev.map(t => t.id === id ? { ...t, completed: true, completedAt: completionTimestamp(), lastModified: new Date().toISOString(), transitionId: crypto.randomUUID() } : t));
             triggerHaptic('success');
             break;
           }
           case 'uncomplete': {
             const setter = isInbox ? setUnscheduledTasks : setTasks;
-            setter(prev => prev.map(t => t.id === id ? { ...t, completed: false, lastModified: new Date().toISOString(), transitionId: crypto.randomUUID() } : t));
+            setter(prev => prev.map(t => t.id === id ? { ...t, completed: false, completedAt: null, lastModified: new Date().toISOString(), transitionId: crypto.randomUUID() } : t));
             break;
           }
           case 'changePriority': {

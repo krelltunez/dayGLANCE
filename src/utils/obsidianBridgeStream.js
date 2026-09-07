@@ -33,6 +33,8 @@ import { hasDbRootKey } from '@glance-apps/sync';
 // rationale; vaultClient keeps the client constructible without the engine).
 import { getDbRootKey } from '@glance-apps/sync/src/dbCrypto.js';
 import { createVaultClient } from '@glance-apps/sync/src/vaultClient.js';
+import { defaultVaultFetch } from '../intents/dbIntentsTransport.js';
+import { adaptFetchForVaultClient } from '../intents/vaultIntentsSetup.js';
 import {
   deriveBridgeSubkey,
   sealBridgeEnvelope,
@@ -42,6 +44,7 @@ import {
   BRIDGE_PAIRING_META_ID,
   BRIDGE_CONFIG_META_ID,
   BRIDGE_INTENT_PREFIX,
+  bridgeCalendarProjectionId,
 } from '@glance-apps/obsidian-format';
 
 const OUTBOX_KEY = 'dayglance-bridge-outbox';
@@ -50,7 +53,26 @@ const META_CACHE_KEY = 'dayglance-bridge-pairing-meta';
 // kept only so publishBridgeConfig can clean it up (see the guard below).
 const LEGACY_CONFIG_HASH_KEY = 'dayglance-bridge-config-hash';
 const META_TTL_MS = 5 * 60 * 1000;
+// AUDIT FIX M2 — the cap is a REFUSAL threshold, not a drop policy. The
+// original shape shifted the OLDEST entries out when full, which silently
+// unbooked writes whose identity moves were already committed on enqueue
+// (the commit-on-enqueue rule) while telling the newest caller "queued".
+// A full outbox now refuses the NEWEST emit instead: the return value
+// already means "not durably queued", authoritative callers latch a visible
+// error on it, and mirror-intent callers' direct writes have already
+// landed. The unpaired-accretion concern the shift addressed is handled
+// upstream — enqueue is gated on the cached pairing meta, which the sync
+// cycle keeps fresh, so an unpaired vault stops enqueueing within a TTL.
 const OUTBOX_CAP = 500;
+// AUDIT FIX M2, flush half — the backlog drains in bounded chunks, each
+// removed from the persisted outbox as its ack lands. The original shape
+// sent the ENTIRE outbox as one batch: a backlog big enough for the server
+// to reject could never flush at all (fail once, retry the same oversized
+// request forever), and a mid-request failure lost the whole attempt. With
+// chunks, a partial failure keeps every acked chunk's progress and retries
+// only the unsent tail. The value bounds per-request payload (intents can
+// carry whole-note content); it is not otherwise load-bearing.
+const FLUSH_CHUNK = 50;
 
 // Subkey cache, keyed by generation so a re-pair (new salt) re-derives.
 let cachedSubkey = null;
@@ -73,6 +95,9 @@ let metaFetchInFlight = null;
 // row sealed under the old generation is unreadable garbage to the new
 // stream even when the VALUES never changed.
 let publishedConfigHash = null;
+// Same session-scoped guard shape for the calendar projection row (see
+// publishBridgeCalendarProjection): once per (generation, content).
+let publishedProjectionHash = null;
 
 // ── THE BRAKE (now inside the client) ────────────────────────────────────────
 // Born here as the bridge brake (#1481, decay semantics from the 2026-08-30
@@ -101,11 +126,34 @@ const writeJson = (key, value) => {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable */ }
 };
 
+// NATIVE-SAFE TRANSPORT (2026-09-05 finding). The vault client defaults to
+// global fetch, which is the WebView's CORS-bound fetch on Android
+// (origin appassets.androidplatform.net) and iOS (the dg:// scheme) — the
+// same reason the DB sync engine and the intents transport route through
+// the native HTTP bridge there, and through the main-process proxy on
+// Electron. Every bridge-stream module built its client on global fetch, so
+// on the phones the pairing-meta lookup, the intent flush, the observation
+// and action fetches and the config publish all died at the CORS wall: no
+// cached meta, every emit refused, "the bridge queue is unavailable" on
+// every write — and no observations consumed while paired. One client
+// factory for all of them, over the transport the other tiers already use.
+// Browser/PWA (and the harness) keep global fetch, unchanged.
+function bridgeFetchImpl() {
+  const w = typeof window !== 'undefined' ? window : null;
+  const nativeOrElectron = !!(w?.DayGlanceNative?.httpRequest || w?.electronAPI?.isElectron);
+  return nativeOrElectron ? adaptFetchForVaultClient(defaultVaultFetch()) : undefined;
+}
+
+/** The bridge stream's GLANCEvault client for a vault config: the ONE construction site. */
+export function bridgeVaultClientFor(cfg) {
+  return createVaultClient({ vaultUrl: cfg.vaultUrl, vaultToken: cfg.vaultToken, fetchImpl: bridgeFetchImpl() });
+}
+
 const vaultClientOrNull = () => {
   const cfg = getVaultConfig();
   if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId) return null;
   try {
-    return { client: createVaultClient({ vaultUrl: cfg.vaultUrl, vaultToken: cfg.vaultToken }), accountId: cfg.accountId };
+    return { client: bridgeVaultClientFor(cfg), accountId: cfg.accountId };
   } catch {
     return null;
   }
@@ -120,6 +168,15 @@ const vaultClientOrNull = () => {
  * before pairing completed would otherwise gate emits off for up to a TTL
  * while direct writes have already stopped.
  */
+/**
+ * The cached pairing meta, synchronously (no fetch): what the last
+ * getBridgePairingMeta refresh learned, or null. For callers that run in a
+ * render effect and need the vault's viewer (`userSyncId`) without awaiting.
+ */
+export function cachedBridgePairingMeta() {
+  return readJson(META_CACHE_KEY, null)?.meta ?? null;
+}
+
 export async function getBridgePairingMeta({ force = false } = {}) {
   const cached = readJson(META_CACHE_KEY, null);
   if (!force && cached && Date.now() - (cached.fetchedAt || 0) < META_TTL_MS) {
@@ -182,9 +239,10 @@ export function emitBridgeIntent(type, fields) {
     // intents mirrored have already landed, so nothing is lost.
     if (!readJson(META_CACHE_KEY, null)?.meta) return false;
     const outbox = readJson(OUTBOX_KEY, []);
+    // Full → refuse the NEWEST, visibly (see the M2 note at OUTBOX_CAP).
+    // Never shift out the oldest: those entries are booked.
+    if (outbox.length >= OUTBOX_CAP) return false;
     outbox.push({ v: 1, kind: 'intent', type, intentId: mintIntentId(), createdAt: new Date().toISOString(), ...fields });
-    // A vault that unpaired mid-stream must not accrete forever: drop oldest.
-    while (outbox.length > OUTBOX_CAP) outbox.shift();
     // Direct setItem, NOT writeJson: a swallowed storage failure would
     // report "queued" for an intent that was never persisted — exactly the
     // silent loss the return value exists to make visible (gate a).
@@ -216,24 +274,33 @@ async function doFlush() {
     const meta = await getBridgePairingMeta();
     const subkey = await getBridgeSubkey(meta);
     if (!subkey) return false;
-    const rows = [];
-    for (const intent of outbox) {
-      rows.push({
-        entityId: `${BRIDGE_INTENT_PREFIX}${intent.intentId}`,
-        envelope: await sealBridgeEnvelope(subkey, intent),
-        createdAt: Date.parse(intent.createdAt) || Date.now(),
-      });
+    // Chunked drain (M2): each chunk leaves the persisted outbox as soon as
+    // its ack lands, so a failure partway keeps every acked chunk's progress
+    // and retries only the unsent tail. The loop walks a snapshot — an emit
+    // that races in during a network call is not in it and simply stays
+    // queued for the next flush.
+    for (let start = 0; start < outbox.length; start += FLUSH_CHUNK) {
+      // A 429 partway through armed the brake on the real response; sending
+      // the next chunk into it would just deepen the escalation.
+      if (start > 0 && bridgeRateLimited()) return false;
+      const chunk = outbox.slice(start, start + FLUSH_CHUNK);
+      const rows = [];
+      for (const intent of chunk) {
+        rows.push({
+          entityId: `${BRIDGE_INTENT_PREFIX}${intent.intentId}`,
+          envelope: await sealBridgeEnvelope(subkey, intent),
+          createdAt: Date.parse(intent.createdAt) || Date.now(),
+        });
+      }
+      const ack = await ctx.client.batch(BRIDGE_VAULT_APP, { accountId: ctx.accountId, rows });
+      // Own-echo damping (#1455): bridge writes advance the same per-account
+      // seq the engine's do — record each ack so our echo drains nothing.
+      recordOwnWriteSeq(ack?.maxSeq);
+      const sent = new Set(chunk.map((i) => i.intentId));
+      const remaining = readJson(OUTBOX_KEY, []).filter((i) => !sent.has(i.intentId));
+      writeJson(OUTBOX_KEY, remaining);
     }
-    const ack = await ctx.client.batch(BRIDGE_VAULT_APP, { accountId: ctx.accountId, rows });
-    // Own-echo damping (#1455): bridge writes advance the same per-account
-    // seq the engine's do — record the ack so our echo drains nothing.
-    recordOwnWriteSeq(ack?.maxSeq);
-    // Only entries we actually sent leave the queue — an emit that raced in
-    // during the network call stays for the next flush.
-    const sent = new Set(outbox.map((i) => i.intentId));
-    const remaining = readJson(OUTBOX_KEY, []).filter((i) => !sent.has(i.intentId));
-    writeJson(OUTBOX_KEY, remaining);
-    return remaining.length === 0;
+    return readJson(OUTBOX_KEY, []).length === 0;
   } catch {
     // Rate-limited (the client armed on a real 429; a braked retry throws
     // before the wire) or unreachable — queued intents survive either way.
@@ -288,11 +355,46 @@ export async function publishBridgeConfig({ dailyNotesPath, dailyNotePattern, ta
   }
 }
 
+/**
+ * Publish this device's calendar projection (companion 4.2, calendar
+ * events): the read-only calendar events the sync payload excludes, as one
+ * upserted `proj:calendar:<deviceId>` row sealed under the bridge subkey,
+ * for the plugin's agenda to union with the mirror. Derived data authored
+ * by the app — NOT a data-plane write, so the single-writer boundary is
+ * untouched. Session-scoped once-per-(generation, content) guard like the
+ * config row: the caller's hash (calendarProjectionHash) excludes the
+ * publish stamp, so an unchanged calendar costs no request; the window
+ * slides daily, which republishes at least once a day. Fail-silent.
+ */
+export async function publishBridgeCalendarProjection(payload, contentHash) {
+  try {
+    if (bridgeRateLimited()) return;
+    if (!payload?.deviceId) return;
+    const meta = await getBridgePairingMeta();
+    if (!meta) return; // unpaired: nothing reads projections
+    const hash = `${meta.generation}|${contentHash}`;
+    if (publishedProjectionHash === hash) return;
+    const ctx = vaultClientOrNull();
+    if (!ctx) return;
+    const subkey = await getBridgeSubkey(meta);
+    if (!subkey) return;
+    const ack = await ctx.client.batch(BRIDGE_VAULT_APP, {
+      accountId: ctx.accountId,
+      rows: [{ entityId: bridgeCalendarProjectionId(payload.deviceId), envelope: await sealBridgeEnvelope(subkey, payload), createdAt: Date.now() }],
+    });
+    recordOwnWriteSeq(ack?.maxSeq);
+    publishedProjectionHash = hash;
+  } catch {
+    /* next cycle retries — the hash was not advanced */
+  }
+}
+
 /** Test seam: reset module caches (subkey, in-flight flags) + the client's
  *  module-scope diagnostics (brake/meter/write-history). */
 export function __resetBridgeStreamForTests() {
   cachedSubkey = null;
   cachedSubkeyGeneration = null;
+  publishedProjectionHash = null;
   flushInFlight = null;
   metaFetchInFlight = null;
   publishedConfigHash = null;

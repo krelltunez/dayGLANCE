@@ -511,7 +511,7 @@ const DesktopLayout = () => {
                 }}
                 className={`month-view-toggle ${textPrimary} font-semibold text-base px-2 py-1 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
               >
-                {formatDateRange(visibleDates)}
+                {formatDateRange(visibleDates, t, i18n.resolvedLanguage || i18n.language)}
               </button>
                 <button onClick={() => changeDate(1)} className={`p-2 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`} aria-label={t('common.next')}>
                 <ChevronRight size={20} className={textSecondary} />

@@ -11,6 +11,7 @@ import {
   sseNudgesEnabled,
   SSE_NUDGES_DEFAULT_ON,
   SSE_NUDGES_FLAG_KEY,
+  createKindFilter,
 } from './vaultEventStream.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -755,5 +756,75 @@ describe('sseNudgesEnabled — the nudge gate (2026-08-31 war posture)', () => {
     expect(sseNudgesEnabled()).toBe(SSE_NUDGES_DEFAULT_ON);
     globalThis.localStorage = { getItem: () => { throw new Error('blocked'); } };
     expect(sseNudgesEnabled()).toBe(SSE_NUDGES_DEFAULT_ON);
+  });
+});
+
+
+describe('the app tag on activity frames (2026-09-05): kindFilter routes per nudge, missing tag drains everything', () => {
+  const setup = () => {
+    vi.useFakeTimers();
+    const drains = [];
+    const c = createNudgeCoalescer({
+      kinds: ['sync', 'intents', 'obsidian'],
+      kindFilter: createKindFilter({ sync: 'dayglance', intents: 'intents', obsidian: 'dayglance-bridge' }),
+      onDrain: (k) => drains.push(k),
+      debounceMs: 100,
+    });
+    return { c, drains, done: () => vi.useRealTimers() };
+  };
+
+  it('an UNTAGGED frame (older server) wakes every kind, exactly as before the tag existed', () => {
+    const { c, drains, done } = setup();
+    expect(c.handleEvent({ seq: 1 })).toBe(true);
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual(['sync', 'intents', 'obsidian']);
+    done();
+  });
+
+  it('each tag wakes exactly the drain that reads its namespace; the cursor still advances', () => {
+    const { c, drains, done } = setup();
+    c.handleEvent({ seq: 5, app: 'dayglance' });
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual(['sync']);
+    c.handleEvent({ seq: 6, app: 'intents' });
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual(['sync', 'intents']);
+    c.handleEvent({ seq: 7, app: 'dayglance-bridge' });
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual(['sync', 'intents', 'obsidian']);
+    expect(c.getCursor()).toBe(7);
+    done();
+  });
+
+  it("a sibling app's tag wakes nothing: the cursor advances, no flush is scheduled, a pending flush is not cancelled", () => {
+    const { c, drains, done } = setup();
+    expect(c.handleEvent({ seq: 8, app: 'lifeglance' })).toBe(false);
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual([]);
+    expect(c.getCursor()).toBe(8);
+    c.handleEvent({ seq: 9, app: 'dayglance' });
+    c.handleEvent({ seq: 10, app: 'lifeglance' });
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual(['sync']);
+    done();
+  });
+
+  it('a burst mixing tags wakes the union, once, in fan-out order', () => {
+    const { c, drains, done } = setup();
+    c.handleEvent({ seq: 11, app: 'dayglance-bridge' });
+    c.handleEvent({ seq: 12, app: 'dayglance' });
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual(['sync', 'obsidian']);
+    done();
+  });
+
+  it('without a kindFilter every nudge wakes every kind (the pre-tag coalescer, unchanged)', () => {
+    vi.useFakeTimers();
+    const drains = [];
+    const c = createNudgeCoalescer({ kinds: ['sync', 'intents', 'obsidian'], onDrain: (k) => drains.push(k), debounceMs: 100 });
+    c.handleEvent({ seq: 9, app: 'something-else' });
+    vi.advanceTimersByTime(100);
+    expect(drains).toEqual(['sync', 'intents', 'obsidian']);
+    vi.useRealTimers();
   });
 });

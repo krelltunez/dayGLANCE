@@ -266,7 +266,7 @@ const MobileLayout = () => {
     archiveInboxTask,
     sendTaskToBucket,
   } = useDayPlannerCtx();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const {
     autoBackupInProgressRef, syncAllRef,
@@ -501,7 +501,7 @@ const MobileLayout = () => {
                       }}
                       className={`month-view-toggle ${textPrimary} font-bold text-lg px-2 py-1 rounded-lg hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/5 dark:active:bg-white/10 transition-colors`}
                     >
-                      {formatDateRange(visibleDates)}
+                      {formatDateRange(visibleDates, t, i18n.resolvedLanguage || i18n.language)}
                     </button>
                     {dateToString(selectedDate) !== dateToString(new Date()) && (
                       <button

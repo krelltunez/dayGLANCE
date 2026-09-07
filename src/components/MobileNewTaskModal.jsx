@@ -15,7 +15,7 @@ import { getProjectColor } from '../utils/colorUtils.js';
 import { formatLocalizedDate } from '../utils/localeFormatting.js';
 
 const MobileNewTaskModal = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const {
     showAddTask, setShowAddTask,
     isMobile,
@@ -461,7 +461,7 @@ const MobileNewTaskModal = () => {
                         disabled={newTask.keepUnscheduled}
                         className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.recurrence ? 'ring-2 ring-blue-500' : ''} ${newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                        {newTask.recurrence ? getRecurrenceLabel(newTask.recurrence) : t('task.noRepeat')}
+                        {newTask.recurrence ? getRecurrenceLabel(newTask.recurrence, t, i18n.resolvedLanguage || i18n.language) : t('task.noRepeat')}
                       </button>
                       {showRecurrencePicker && <RecurrencePicker placement="top" />}
                     </div>

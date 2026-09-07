@@ -3,7 +3,7 @@ import { Link2 } from 'lucide-react';
 import { readVaultHeartbeatNative } from '../obsidian.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
 import { getBridgePairingMeta } from '../utils/obsidianBridgeStream.js';
-import { deriveBridgeStatus } from '../utils/bridgeStatus.js';
+import { deriveBridgeStatus, describeAgo } from '../utils/bridgeStatus.js';
 import { useTranslation } from 'react-i18next';
 
 // Read-only bridge status for NATIVE devices (Android + iOS) — the §6 mode
@@ -28,9 +28,12 @@ const BridgeStatusPanel = ({ darkMode, textPrimary, textSecondary, borderClass }
     let cancelled = false;
     const probe = async () => {
       try {
-        const state = obsidianHeartbeatState(readVaultHeartbeatNative());
+        const raw = readVaultHeartbeatNative();
+        const state = obsidianHeartbeatState(raw);
         if (cancelled) return;
-        setHb(state);
+        // The raw beat's time rides along for the waiting line ("Obsidian
+        // last ran here 3 hours ago"): the state helper drops it.
+        setHb({ ...state, lastBeatMs: raw?.tsMs ?? null });
         // The meta row answers "is the VAULT paired" — which splits the
         // unpaired-here state into lost-credentials versus never-paired.
         // Right after a state change the cache may hold a stale negative;
@@ -90,6 +93,20 @@ const BridgeStatusPanel = ({ darkMode, textPrimary, textSecondary, borderClass }
           ) : (
             <p className={`text-xs ${textSecondary}`}>{t('settings.obsidianBridgeUnpairedVaultUnpaired')}</p>
           )}
+        </>
+      )}
+      {status.state === 'waiting' && (
+        <>
+          {/* THE WAITING STATE (2026-09-06 posture ruling): the normal resting
+              state of a phone — paired vault, Obsidian not running here. The
+              device is on the stream side and does not scan or write its
+              own copy. Neutral, not amber: nothing is broken. */}
+          <p className={`text-xs ${textSecondary}`}>{t('settings.obsidianBridgeWaiting')}</p>
+          <p className={`text-xs ${textSecondary}`}>
+            {status.lastBeatMs === null
+              ? t('settings.obsidianBridgeWaitingNeverSeen')
+              : t('settings.obsidianBridgeWaitingLastSeen', { when: describeAgo(status.lastBeatMs) })}
+          </p>
         </>
       )}
       {status.state === 'notDetected' && (

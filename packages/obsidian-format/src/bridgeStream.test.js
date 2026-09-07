@@ -9,6 +9,7 @@ import {
   observationEntityId,
   BRIDGE_INTENT_PREFIX,
   BRIDGE_OBSERVATION_PREFIX,
+  dailyNoteCreationBody,
 } from './bridgeStream.js';
 
 // The stream's load-bearing claims: envelopes round-trip and fail closed;
@@ -194,8 +195,134 @@ describe('applyBridgeIntent — notes', () => {
     expect(existing).toEqual({ text: 'x', changed: true });
   });
 
+  it('completion_log_append: inserts at SECTION END, dedupes by exact line, creates the note when absent', () => {
+    const entry = '- ✅ 14:32 Review Q2 contract draft [completion:: 2026-04-06T14:32:00] #legal';
+    const intent = { type: 'completion_log_append', path: '2026-04-06.md', date: '2026-04-06', heading: '## Completed', template: '# My day\n', entry };
+    // Creation: frontmatter + template + heading + entry.
+    const created = applyBridgeIntent(null, intent);
+    expect(created.changed).toBe(true);
+    expect(created.text.startsWith('---\n')).toBe(true);
+    expect(created.text).toContain('# My day');
+    expect(created.text).toContain(`## Completed\n${entry}`);
+    // Section-end insertion: a second entry lands BELOW the first (the log
+    // is chronological, newest last), and the next section is untouched.
+    const second = '- ✅ 15:01 Call accountant [completion:: 2026-04-06T15:01:00]';
+    const two = applyBridgeIntent(created.text, { ...intent, entry: second });
+    expect(two.text).toContain(`${entry}\n${second}`);
+    // Replay is a no-op — including against a hand-added trailing space.
+    expect(applyBridgeIntent(two.text, { ...intent, entry: second }).changed).toBe(false);
+    const padded = two.text.replace(second, `${second}  `);
+    expect(applyBridgeIntent(padded, { ...intent, entry: second }).changed).toBe(false);
+  });
+
+  it('completion_log_append: entries under the heading never disturb other sections; a missing heading is created at note end', () => {
+    const note = '# Day\n\n## Tasks\n- [ ] Open thing\n\n## Notes\nfree text\n';
+    const entry = '- ✅ 09:45 Update roadmap [completion:: 2026-04-06T09:45:00]';
+    const out = applyBridgeIntent(note, { type: 'completion_log_append', path: 'x.md', date: '2026-04-06', heading: '## Completed', template: '', entry });
+    expect(out.changed).toBe(true);
+    // Appended at the end with its heading; Tasks and Notes untouched.
+    expect(out.text).toContain('## Tasks\n- [ ] Open thing');
+    expect(out.text).toContain('## Notes\nfree text');
+    expect(out.text).toContain(`## Completed\n${entry}`);
+    // Now with the heading present mid-note: the entry stays INSIDE that
+    // section, before the next heading.
+    const mid = '# Day\n\n## Completed\n- ✅ 08:00 Early thing [completion:: 2026-04-06T08:00:00]\n\n## Notes\ntext\n';
+    const out2 = applyBridgeIntent(mid, { type: 'completion_log_append', path: 'x.md', date: '2026-04-06', heading: '## Completed', template: '', entry });
+    expect(out2.text).toContain(`Early thing [completion:: 2026-04-06T08:00:00]\n${entry}\n\n## Notes`);
+  });
+
+  it('completion_log_append: THE SCAN-COLLISION GUARD — a multi-line or headingless entry is refused, never written', () => {
+    // A multi-line entry could smuggle a task-shaped line past the
+    // formatter's non-task guarantee; the applier refuses it outright.
+    const smuggle = '- ✅ ok\n- [ ] smuggled task';
+    const base = '# Day\n';
+    expect(applyBridgeIntent(base, { type: 'completion_log_append', path: 'x.md', date: 'd', heading: '## Completed', template: '', entry: smuggle }))
+      .toEqual({ text: base, changed: false });
+    expect(applyBridgeIntent(base, { type: 'completion_log_append', path: 'x.md', date: 'd', heading: '', template: '', entry: '- ✅ ok' }))
+      .toEqual({ text: base, changed: false });
+    expect(applyBridgeIntent(base, { type: 'completion_log_append', path: 'x.md', date: 'd', heading: '## Completed', template: '', entry: '' }))
+      .toEqual({ text: base, changed: false });
+  });
+
   it('unknown intent types are unsupported, never a throw (forward compatibility)', () => {
     expect(applyBridgeIntent('x', { type: 'task_delete' })).toEqual({ unsupported: true });
     expect(applyBridgeIntent('x', null)).toEqual({ unsupported: true });
+  });
+});
+
+describe('applyBridgeIntent — note tasks (companion §4.3, project routing)', () => {
+  const note = '---\ndayglance-id: p1\n---\n# House\n\n## Tasks\n- [ ] Fix the gate ^dg-aaaaaaaa\n- [ ] Paint the fence ^dg-bbbbbbbb\n\n## Done\nquery here\n';
+  const append = {
+    type: 'task_append', path: 'Projects/House.md', date: null, noteTask: true,
+    task: { title: 'Call the plumber [scheduled:: 2026-09-10]', startTime: '10:00', duration: 30, isAllDay: false, blockId: 'cccccccc' },
+    heading: '## Tasks',
+  };
+
+  it('appends at the END of the Tasks section, before the next heading, without sorting', () => {
+    const out = applyBridgeIntent(note, append);
+    expect(out.changed).toBe(true);
+    expect(out.text).toBe('---\ndayglance-id: p1\n---\n# House\n\n## Tasks\n- [ ] Fix the gate ^dg-aaaaaaaa\n- [ ] Paint the fence ^dg-bbbbbbbb\n- [ ] 10:00-10:30 Call the plumber [scheduled:: 2026-09-10] ^dg-cccccccc\n\n## Done\nquery here\n');
+    expect(applyBridgeIntent(out.text, append).changed).toBe(false); // replay
+  });
+
+  it('never creates a missing note (a deleted project note stays deleted)', () => {
+    expect(applyBridgeIntent(null, append)).toEqual({ text: null, changed: false });
+  });
+
+  it('adds the heading at the end when the note has none', () => {
+    const out = applyBridgeIntent('# House\nsome text\n', append);
+    expect(out.text).toBe('# House\nsome text\n\n## Tasks\n- [ ] 10:00-10:30 Call the plumber [scheduled:: 2026-09-10] ^dg-cccccccc\n');
+  });
+
+  it('task_remove drops exactly the line carrying the block id; replay is a no-op; other lines untouched', () => {
+    const out = applyBridgeIntent(note, { type: 'task_remove', path: 'Projects/House.md', blockId: 'aaaaaaaa' });
+    expect(out.changed).toBe(true);
+    expect(out.text).toBe('---\ndayglance-id: p1\n---\n# House\n\n## Tasks\n- [ ] Paint the fence ^dg-bbbbbbbb\n\n## Done\nquery here\n');
+    expect(applyBridgeIntent(out.text, { type: 'task_remove', path: 'Projects/House.md', blockId: 'aaaaaaaa' }).changed).toBe(false);
+    expect(applyBridgeIntent(null, { type: 'task_remove', path: 'x.md', blockId: 'aaaaaaaa' })).toEqual({ text: null, changed: false });
+  });
+
+  it('task_remove without a block id matches a tokenless line by its exact raw title only', () => {
+    const plain = '## Tasks\n- [ ] Alpha\n- [x] Alpha ^dg-dddddddd\n- [ ] Beta\n';
+    const out = applyBridgeIntent(plain, { type: 'task_remove', path: 'n.md', blockId: null, obsidianRawTitle: 'Alpha' });
+    expect(out.text).toBe('## Tasks\n- [x] Alpha ^dg-dddddddd\n- [ ] Beta\n');
+  });
+});
+
+
+// ── Companion §4.4 build record (2026-09-06): the daily-note creation body ──
+// Every point that CREATES a daily note renders the app's text template
+// through the same subset — `{{date}}`, and `{{title}}` as the note's name
+// — so a template reads the same wherever the note is born.
+describe('dailyNoteCreationBody / creation through the two daily-note intents', () => {
+  it('fills {{date}} and {{title}} (the note name from the path, else the date) and adds the creation frontmatter', () => {
+    const body = dailyNoteCreationBody('# {{title}}\n\nToday is {{date}}.\n', '2026-09-10', 'Daily/2026-09-10.md');
+    expect(body.startsWith('---\n')).toBe(true);
+    expect(body).toContain('# 2026-09-10');
+    expect(body).toContain('Today is 2026-09-10.');
+    expect(dailyNoteCreationBody('{{title}}', '2026-09-10')).toContain('2026-09-10');
+    expect(dailyNoteCreationBody('', '2026-09-10').startsWith('---\n')).toBe(true);
+  });
+
+  it('task_append on an absent note renders the template subset', () => {
+    const out = applyBridgeIntent(null, {
+      type: 'task_append', path: 'Daily/2026-09-10.md', date: '2026-09-10',
+      task: { title: 'Water #obsidian', startTime: null, duration: null, isAllDay: true, date: '2026-09-10', blockId: 'abc12345' },
+      heading: '## Tasks', template: '# {{title}}\n\n## Tasks\n',
+    });
+    expect(out.changed).toBe(true);
+    expect(out.text).toContain('# 2026-09-10');
+    expect(out.text).not.toContain('{{title}}');
+    expect(out.text).toMatch(/## Tasks\n- \[ \] Water #obsidian \^dg-abc12345/);
+  });
+
+  it('completion_log_append on an absent note renders the same subset', () => {
+    const out = applyBridgeIntent(null, {
+      type: 'completion_log_append', path: 'Daily/2026-09-10.md', date: '2026-09-10',
+      heading: '## Done', entry: '- 10:00 Did the thing', template: '# {{date}}\n',
+    });
+    expect(out.changed).toBe(true);
+    expect(out.text).toContain('# 2026-09-10');
+    expect(out.text).toContain('## Done\n- 10:00 Did the thing');
   });
 });

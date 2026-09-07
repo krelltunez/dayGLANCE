@@ -112,6 +112,13 @@ describe('pendingBridgeObservations (the SSE-nudge probe)', () => {
     expect(await pendingBridgeObservations()).toBe(true);
   });
 
+  it('wakes on a live act: row too (2026-09-06: a sidebar completion is consumed by the same cycle, and used to wait for the poll under live sync); a consumed (soft-deleted) action never wakes', async () => {
+    globalThis.fetch = listFetch({ rows: [{ entityId: 'act:complete:obsidian-dg-abc', seq: 9 }], hasMore: false });
+    expect(await pendingBridgeObservations()).toBe(true);
+    globalThis.fetch = listFetch({ rows: [{ entityId: 'act:complete:obsidian-dg-abc', seq: 9, deleted: true }], hasMore: false });
+    expect(await pendingBridgeObservations()).toBe(false);
+  });
+
   it('lists from the persisted cursor, never advances it, and answers false on any doubt (disabled config, unreachable server)', async () => {
     localStorage.setItem(OBS_HWM_KEY, '41');
     const calls = [];
@@ -159,18 +166,19 @@ describe('applyBridgeObservations', () => {
     expect(out.scannedIds.has(String(task.id))).toBe(true);
   });
 
-  it('out-of-scope paths and deletions are returned unapplied — never tombstoned here', () => {
+  it('out-of-scope paths are returned unapplied; a DELETED daily note is returned as evidence (deletedDailyNotes); nothing is tombstoned here', () => {
     const out = applyBridgeObservations(
       [
         { path: 'Some Note.md', content: 'wiki body' },
-        { path: 'Daily/2026-08-28.md', content: null, deleted: true },
+        { path: 'Daily/2026-08-28.md', content: null, deleted: true, observedAt: '2026-08-29T12:00:00Z' },
         { path: 'Daily/notadate.md', content: 'x' },
       ],
       { existingTasks: [], existingInbox: [], dailyNotesPath: 'Daily' },
     );
     expect(Object.keys(out.dailyNotes)).toHaveLength(0);
+    expect(out.deletedDailyNotes).toEqual({ '2026-08-28': { lastModified: '2026-08-29T12:00:00Z' } });
     expect(out.scheduledTasks).toHaveLength(0);
-    expect(out.unapplied).toHaveLength(3);
+    expect(out.unapplied).toHaveLength(2);
     // The detector's baselines are not this module's to touch.
     expect(localStorage.getItem('day-planner-obsidian-last-scanned')).toBe(null);
     expect(localStorage.getItem('day-planner-deleted-obsidian-keys')).toBe(null);
@@ -183,5 +191,115 @@ describe('applyBridgeObservations', () => {
     );
     expect(out.scheduledTasks).toHaveLength(1);
     expect(out.scheduledTasks[0].lastModified).toBe(new Date(0).toISOString());
+  });
+});
+
+describe('applyBridgeObservations — vault task scope (companion §6)', () => {
+  const HOUSE = [
+    '# House',
+    '- [ ] Call the plumber ^dg-aaaaaaaa',
+    '- [ ] Order tiles ⏳ 2026-09-12 ^dg-bbbbbbbb',
+    '- [x] Pick paint ✅ 2026-08-30 ^dg-cccccccc',
+    '- [x] Ancient but tracked ✅ 2024-01-01 ^dg-dddddddd',
+    '- [x] Ancient and untracked ✅ 2024-01-01',
+  ].join('\n');
+
+  it('a scoped note parses under its path: dateless lines are inbox, ⏳ schedules, an UNTRACKED old completion drops (a tracked one is kept), no daily-note entry is made', () => {
+    const out = applyBridgeObservations(
+      [{ path: 'Projects/House.md', content: HOUSE, mtime: 1756400000000, observedAt: '2026-09-02T12:00:00Z', scoped: true }],
+      { existingTasks: [], existingInbox: [], dailyNotesPath: 'Daily', scope: { completionWindowDays: 30 }, today: '2026-09-02' },
+    );
+    expect(Object.keys(out.dailyNotes)).toEqual([]);
+    expect(out.scopedNotes['Projects/House.md']).toMatchObject({ lastModified: new Date(1756400000000).toISOString() });
+    expect(out.scheduledTasks.map((t) => t.id)).toEqual(['obsidian-dg-bbbbbbbb']);
+    expect(out.scheduledTasks[0]).toMatchObject({ date: '2026-09-12', obsidianNotePath: 'Projects/House.md' });
+    // The window governs ADOPTION: a block-tagged completion is tracked
+    // whatever its date (ruling E as amended by the harness finding).
+    expect(out.inboxTasks.map((t) => t.id).sort()).toEqual(['obsidian-dg-aaaaaaaa', 'obsidian-dg-cccccccc', 'obsidian-dg-dddddddd']);
+    expect(out.inboxTasks.every((t) => t.obsidianNotePath === 'Projects/House.md' && t.obsidianFileDate === undefined)).toBe(true);
+    expect(out.scannedIds.has('obsidian-dg-dddddddd')).toBe(true);
+    expect(out.inboxTasks.some((t) => t.title.startsWith('Ancient and untracked'))).toBe(false);
+    expect(out.unapplied).toEqual([]);
+  });
+
+  it('a withdrawn note and a deleted scoped note are reported for the caller, not parsed', () => {
+    const out = applyBridgeObservations(
+      [
+        { path: 'Projects/Old.md', withdrawn: true, observedAt: '2026-09-02T12:00:00Z' },
+        { path: 'Projects/Gone.md', deleted: true, content: null, scoped: true, observedAt: '2026-09-02T12:00:00Z' },
+      ],
+      { existingTasks: [], existingInbox: [], dailyNotesPath: 'Daily', today: '2026-09-02' },
+    );
+    expect(out.withdrawn).toEqual(['Projects/Old.md']);
+    expect(out.scopedNotes['Projects/Gone.md']).toMatchObject({ deleted: true, lastModified: '2026-09-02T12:00:00Z' });
+    expect(out.scheduledTasks).toEqual([]);
+    expect(out.inboxTasks).toEqual([]);
+  });
+});
+
+describe('ruling H: scoped lines in a linked project note adopt the project on first import', () => {
+  it('a fresh line gets the project; a known task keeps its own; an unlinked note assigns nothing', () => {
+    const content = '- [ ] Order tiles ^dg-aaaaaaaa\n- [ ] Paint hall ^dg-bbbbbbbb\n';
+    const known = { id: 'obsidian-dg-bbbbbbbb', title: 'Paint hall #obsidian', obsidianBlockId: 'bbbbbbbb', obsidianRawTitle: 'Paint hall', obsidianNotePath: 'Projects/House.md', projectId: 'other', lastModified: '2026-09-01T00:00:00.000Z', importSource: 'obsidian' };
+    const out = applyBridgeObservations(
+      [{ path: 'Projects/House.md', content, scoped: true, mtime: Date.parse('2026-09-03T10:00:00Z') }],
+      { existingTasks: [], existingInbox: [known], today: '2026-09-03', projectByNotePath: { 'Projects/House.md': 'p1' } },
+    );
+    const byId = Object.fromEntries(out.inboxTasks.map((t) => [t.id, t]));
+    expect(byId['obsidian-dg-aaaaaaaa'].projectId).toBe('p1');
+    // A known task is not stamped here (its app-side project is carried by
+    // the downstream merge, which keeps app-only fields from the existing row).
+    expect(byId['obsidian-dg-bbbbbbbb'].projectId).not.toBe('p1');
+    expect(byId['obsidian-dg-bbbbbbbb'].lastModified).toBe('2026-09-01T00:00:00.000Z');
+    const none = applyBridgeObservations(
+      [{ path: 'Projects/Other.md', content, scoped: true, mtime: Date.parse('2026-09-03T10:00:00Z') }],
+      { existingTasks: [], existingInbox: [], today: '2026-09-03', projectByNotePath: { 'Projects/House.md': 'p1' } },
+    );
+    expect(none.inboxTasks.every((t) => !t.projectId)).toBe(true);
+  });
+});
+
+describe('ruling G as amended: the [project:: …] field on daily-note lines', () => {
+  const projects = [{ id: 'p1', title: 'House', obsidianNotePath: 'Projects/House.md' }, { id: 'p2', title: 'Garden' }];
+  const daily = (line) => [{ path: 'Daily/2026-09-04.md', content: `## Tasks\n${line}\n`, mtime: Date.parse('2026-09-04T09:00:00Z') }];
+
+  it('a fresh line carrying the field imports under that project (link by path, bare by title); an unresolvable name imports unassigned', () => {
+    const cfg = { existingTasks: [], existingInbox: [], dailyNotesPath: 'Daily', projects };
+    expect(applyBridgeObservations(daily('- [ ] Call the plumber [project:: [[Projects/House|House]]] ^dg-aaaaaaaa'), cfg).inboxTasks[0].projectId).toBe('p1');
+    expect(applyBridgeObservations(daily('- [ ] Weed the beds [project:: Garden] ^dg-bbbbbbbb'), cfg).inboxTasks[0].projectId).toBe('p2');
+    expect(applyBridgeObservations(daily('- [ ] Loose [project:: Nope] ^dg-cccccccc'), cfg).inboxTasks[0].projectId).toBeUndefined();
+  });
+
+  it('a vault edit of the field reassigns a known task; removing it unassigns; an untouched field keeps the app assignment', () => {
+    const known = {
+      id: 'obsidian-dg-aaaaaaaa', title: 'Call the plumber #obsidian', importSource: 'obsidian', obsidianBlockId: 'aaaaaaaa',
+      obsidianRawTitle: 'Call the plumber [project:: [[Projects/House|House]]]', obsidianFileDate: '2026-09-04', projectId: 'p1', lastModified: '2026-09-04T08:00:00.000Z',
+    };
+    const cfg = { existingTasks: [], existingInbox: [known], dailyNotesPath: 'Daily', projects };
+    expect(applyBridgeObservations(daily('- [ ] Call the plumber [project:: Garden] ^dg-aaaaaaaa'), cfg).inboxTasks[0].projectId).toBe('p2');
+    expect(applyBridgeObservations(daily('- [ ] Call the plumber ^dg-aaaaaaaa'), cfg).inboxTasks[0].projectId).toBeNull(); // explicit: the vault unassigned it
+    // App-side reassignment with the line unchanged: the merge keeps the app's project (preserveAppFields carries it downstream).
+    const moved = { ...known, projectId: 'p2' };
+    const out = applyBridgeObservations(daily('- [ ] Call the plumber [project:: [[Projects/House|House]]] ^dg-aaaaaaaa'), { ...cfg, existingInbox: [moved] });
+    expect(out.inboxTasks[0].projectId).toBeUndefined(); // not adopted here; the hook's merge carries the app value
+  });
+});
+
+describe('AUDIT FIX M10 (revival half) — observation mtimes: real ones are evidence, a missing one is not', () => {
+  it('noteMtimes carries only notes the plugin reported an mtime for (daily and scoped); the text stamp still falls back to the observation time', () => {
+    const out = applyBridgeObservations(
+      [
+        { path: 'Daily/2026-08-29.md', content: '## Tasks\n', mtime: 1756400000000, observedAt: '2026-08-29T12:00:00Z' },
+        { path: 'Daily/2026-08-30.md', content: '## Tasks\n', observedAt: '2026-08-30T12:00:00Z' },
+        { path: 'Projects/P.md', content: '- [ ] x\n', scoped: true, mtime: 1756500000000, observedAt: '2026-08-30T12:00:00Z' },
+        { path: 'Projects/Q.md', content: '- [ ] y\n', scoped: true, observedAt: '2026-08-30T12:00:00Z' },
+      ],
+      { existingTasks: [], existingInbox: [], dailyNotesPath: 'Daily', dailyNotePattern: 'yyyy-MM-dd', scope: { folders: ['Projects'] } },
+    );
+    expect(out.dailyNotes['2026-08-30'].lastModified).toBe('2026-08-30T12:00:00Z'); // the observation time, as before
+    expect(out.noteMtimes).toEqual({
+      '2026-08-29': new Date(1756400000000).toISOString(),
+      'Projects/P.md': new Date(1756500000000).toISOString(),
+    });
   });
 });
