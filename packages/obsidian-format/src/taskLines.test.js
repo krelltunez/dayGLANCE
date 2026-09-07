@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseTasksFromMarkdown, legacyObsidianId } from './index.js';
+import { parseTasksFromMarkdown, legacyObsidianId, updateTaskLines } from './index.js';
 
 // Tasks-metadata PARSE-MAPPING pins, beside the grammar (moved from
 // dayGLANCE's obsidian.tasksMetadataRead.test.js in the format-package
@@ -54,5 +54,30 @@ describe('parse mapping', () => {
     expect(t.date).toBe('2026-09-05');                             // Step 2's mapping
     expect(t.obsidianRawTitle).toBe('Water plants ⏳ 2026-09-05'); // marker out, metadata frozen in
     expect(t.title).toBe('Water plants #obsidian');
+  });
+});
+
+// ── noteDate: a target date equal to the note's own date clears the prefix ──
+// (2026-09-06 field incident: "2026-09-06 …" prefixes written inside the
+// 2026-09-06 note when tasks moved back onto the note's day.)
+describe('updateTaskLines — noteDate and the inline date prefix', () => {
+  const base = { obsidianRawTitle: 'Water the plants', completed: false, startTime: null, duration: null, blockId: 'abc12345' };
+
+  it('writes the prefix when the target date differs from the note date', () => {
+    const lines = ['- [ ] Water the plants ^dg-abc12345'];
+    expect(updateTaskLines(lines, { ...base, targetDate: '2026-09-10', noteDate: '2026-09-06' })).toBe(true);
+    expect(lines[0]).toBe('- [ ] 2026-09-10 Water the plants ^dg-abc12345');
+  });
+
+  it('clears an existing prefix when the target date IS the note date', () => {
+    const lines = ['- [ ] 2026-09-10 Water the plants ^dg-abc12345'];
+    expect(updateTaskLines(lines, { ...base, targetDate: '2026-09-06', noteDate: '2026-09-06' })).toBe(true);
+    expect(lines[0]).toBe('- [ ] Water the plants ^dg-abc12345');
+  });
+
+  it('without noteDate the target date is written as given (older callers)', () => {
+    const lines = ['- [ ] Water the plants ^dg-abc12345'];
+    updateTaskLines(lines, { ...base, targetDate: '2026-09-06' });
+    expect(lines[0]).toBe('- [ ] 2026-09-06 Water the plants ^dg-abc12345');
   });
 });

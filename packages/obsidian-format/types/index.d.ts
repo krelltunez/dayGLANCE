@@ -50,6 +50,7 @@ export function updateTaskLines(lines: string[], opts: {
   newRawTitle?: string;
   duration: number | null;
   targetDate?: string;
+  noteDate?: string | null;
   blockId?: string | null;
   onTitleConflict?: ((info: { lineTitle: string }) => void) | null;
   completedAt?: string | null;

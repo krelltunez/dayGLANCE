@@ -269,6 +269,7 @@ export function applyBridgeIntent(currentText, intent) {
         newRawTitle: intent.type === 'task_retitle' ? intent.newRawTitle : undefined,
         duration: intent.duration ?? null,
         targetDate: intent.targetDate ?? undefined,
+        noteDate: intent.date ?? null,
         blockId: intent.blockId ?? null,
         onTitleConflict: null,
         completedAt: intent.completedAt ?? null,

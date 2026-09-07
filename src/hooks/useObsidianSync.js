@@ -1585,9 +1585,15 @@ export default function useObsidianSync({
       const titleChanged = p.title !== undefined && p.title !== task.title;
       const stateChanged = p.completed !== task.completed || p.startTime !== (task.startTime || null) || p.duration !== (task.duration || null);
 
-      // Detect rescheduling to a different day by comparing against the prev snapshot
-      // (not obsidianFileDate) so this is a one-shot trigger per reschedule.
-      const dateChanged = !!(task.date && p.date && task.date !== p.date);
+      // Detect rescheduling to a different day by comparing against the prev
+      // snapshot so this is a one-shot trigger per reschedule — and, when the
+      // snapshot has NO date (the task was in the inbox), against the note's
+      // own date: the 2026-09-06 field incident — six inbox tasks scheduled
+      // onto tomorrow got a time and no date prefix, so every parser read
+      // them as today, and the missing prefix fed the cross-device flip.
+      // A move back onto the note's day still fires (the snapshot date
+      // differs) and the writer clears the prefix (noteDate).
+      const dateChanged = !!(task.date && task.date !== (p.date ?? task.obsidianFileDate ?? null));
       // A non-daily task moved to the inbox (date cleared) or given a date
       // it did not have: its ⏳ metadata must follow (ruling B), a change
       // the daily-note flags above cannot express.
