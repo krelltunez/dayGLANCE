@@ -72,7 +72,16 @@
     "passphrasePlaceholder": "A sua frase-passe de sincronização",
     "passphrasePrompt": "A sincronização na nuvem está cifrada. Introduza a sua frase-passe de sincronização para continuar.",
     "unlock": "Desbloquear",
-    "unlockTitle": "Desbloquear sincronização"
+    "unlockTitle": "Desbloquear sincronização",
+    "obsidianToast": {
+      "syncing": "A sincronizar o cofre do Obsidian…",
+      "syncingBridge": "A sincronizar através do Plugin Bridge…",
+      "synced": "Cofre do Obsidian sincronizado",
+      "syncedBridge": "Sincronizado através do Plugin Bridge",
+      "failed": "Falha na sincronização com o Obsidian",
+      "tapToDismiss": "Toque para dispensar",
+      "dismissError": "Dispensar o erro de sincronização"
+    }
   },
   "subscription": {
     "accessCodePlaceholder": "Código de acesso",
@@ -211,7 +220,8 @@
     "example": "Exemplo",
     "apply": "Aplicar",
     "minutesShort": "{{count}} min",
-    "nextWeek": "Próxima semana"
+    "nextWeek": "Próxima semana",
+    "taskProgress": "{{done}}/{{total}} tarefas"
   },
   "errorBoundary": {
     "title": "Algo correu mal",
@@ -766,7 +776,11 @@
     "withCount_other": "{{label}} ({{count}} vezes)",
     "onDate": "Numa data",
     "after": "Após",
-    "times": "vezes"
+    "times": "vezes",
+    "monthDayOrdinal_ordinal_one": "{{count}}",
+    "monthDayOrdinal_ordinal_two": "{{count}}",
+    "monthDayOrdinal_ordinal_few": "{{count}}",
+    "monthDayOrdinal_ordinal_other": "{{count}}"
   },
   "dateRange": {
     "sameMonth": "{{startDay}}–{{endDay}} de {{month}} de {{year}}",
@@ -781,7 +795,9 @@
     "afternoon": "Tarde",
     "evening": "Fim da tarde",
     "night": "Noite",
-    "timeWithLabel": "{{time}} ({{label}})"
+    "timeWithLabel": "{{time}} ({{label}})",
+    "detectedDetails": "Detalhes da tarefa detetados",
+    "removeChip": "Remover: {{label}}"
   },
   "menu": {
     "file": "Ficheiro",

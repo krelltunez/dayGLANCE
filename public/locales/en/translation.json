@@ -72,7 +72,16 @@
     "passphrasePlaceholder": "Your sync passphrase",
     "passphrasePrompt": "Cloud sync is encrypted. Enter your sync passphrase to continue.",
     "unlock": "Unlock",
-    "unlockTitle": "Unlock sync"
+    "unlockTitle": "Unlock sync",
+    "obsidianToast": {
+      "syncing": "Syncing Obsidian vault…",
+      "syncingBridge": "Syncing through the Plugin Bridge…",
+      "synced": "Obsidian vault synced",
+      "syncedBridge": "Synced through the Plugin Bridge",
+      "failed": "Obsidian sync failed",
+      "tapToDismiss": "Tap to dismiss",
+      "dismissError": "Dismiss sync error"
+    }
   },
   "subscription": {
     "accessCodePlaceholder": "Access code",
@@ -211,7 +220,8 @@
     "example": "Example",
     "apply": "Apply",
     "minutesShort": "{{count}} min",
-    "nextWeek": "Next week"
+    "nextWeek": "Next week",
+    "taskProgress": "{{done}}/{{total}} tasks"
   },
   "errorBoundary": {
     "title": "Something went wrong",
@@ -766,7 +776,11 @@
     "withCount_other": "{{label}} ({{count}} times)",
     "onDate": "On date",
     "after": "After",
-    "times": "times"
+    "times": "times",
+    "monthDayOrdinal_ordinal_one": "{{count}}st",
+    "monthDayOrdinal_ordinal_two": "{{count}}nd",
+    "monthDayOrdinal_ordinal_few": "{{count}}rd",
+    "monthDayOrdinal_ordinal_other": "{{count}}th"
   },
   "dateRange": {
     "sameMonth": "{{month}} {{startDay}}–{{endDay}}, {{year}}",
@@ -781,7 +795,9 @@
     "afternoon": "Afternoon",
     "evening": "Evening",
     "night": "Night",
-    "timeWithLabel": "{{time}} ({{label}})"
+    "timeWithLabel": "{{time}} ({{label}})",
+    "detectedDetails": "Detected task details",
+    "removeChip": "Remove: {{label}}"
   },
   "menu": {
     "file": "File",

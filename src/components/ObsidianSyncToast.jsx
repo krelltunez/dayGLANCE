@@ -1,9 +1,11 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 const ObsidianSyncToast = () => {
+  const { t } = useTranslation();
   const { obsidianSyncStatus, obsidianSyncError, obsidianSyncNotice, setObsidianSyncStatus, setObsidianSyncError, bridgeHeartbeatRef } = useSyncCtx();
   // THE HOLDING POSTURE (2026-09-06 ruling, utils/obsidianVaultPosture.js): a
   // paired device with Obsidian closed never touches its vault — the cycle
@@ -42,15 +44,15 @@ const ObsidianSyncToast = () => {
     accentColor = 'bg-blue-500';
   } else if (isSyncing) {
     icon = <Loader size={16} className="text-blue-500 animate-spin flex-shrink-0" />;
-    message = holding ? 'Syncing through the Plugin Bridge…' : 'Syncing Obsidian vault…';
+    message = t(holding ? 'sync.obsidianToast.syncingBridge' : 'sync.obsidianToast.syncing');
     accentColor = 'bg-blue-500';
   } else if (isSuccess) {
     icon = <CheckCircle size={16} className="text-green-500 flex-shrink-0" />;
-    message = holding ? 'Synced through the Plugin Bridge' : 'Obsidian vault synced';
+    message = t(holding ? 'sync.obsidianToast.syncedBridge' : 'sync.obsidianToast.synced');
     accentColor = 'bg-green-500';
   } else {
     icon = <AlertCircle size={16} className="text-red-500 flex-shrink-0" />;
-    message = obsidianSyncError || 'Obsidian sync failed';
+    message = obsidianSyncError || t('sync.obsidianToast.failed');
     accentColor = 'bg-red-500';
   }
 
@@ -65,13 +67,13 @@ const ObsidianSyncToast = () => {
         tabIndex={isError ? 0 : undefined}
         onClick={dismiss}
         onKeyDown={(e) => { if (isError && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); dismiss(); } }}
-        aria-label={isError ? 'Dismiss sync error' : undefined}
+        aria-label={isError ? t('sync.obsidianToast.dismissError') : undefined}
       >
         <div className={`w-1.5 self-stretch rounded-full flex-shrink-0 ${accentColor}`} />
         {icon}
         <div className="min-w-0">
           <p className={`text-sm font-medium ${textPrimary}`}>{message}</p>
-          {isError && <p className={`text-xs ${textSecondary}`}>Tap to dismiss</p>}
+          {isError && <p className={`text-xs ${textSecondary}`}>{t('sync.obsidianToast.tapToDismiss')}</p>}
         </div>
       </div>
     </div>
