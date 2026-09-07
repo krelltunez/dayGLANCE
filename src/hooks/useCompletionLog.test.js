@@ -301,6 +301,82 @@ describe('native direct tier: "" reads as absent (companion §4.4 build record, 
   });
 });
 
+describe('an empty read is not believed when we hold content for that date (2026-09-07)', () => {
+  // Obsidian opening to today's note on launch creates it empty before
+  // Obsidian Sync has pulled the real one down, and Sync carries that empty
+  // file to every device. Seeding the template onto it and pushing the result
+  // republished the blank note through the vault. The file is already empty by
+  // then, so writing rescues nothing and only loses the app's good copy.
+  const baseProps = (tasks, over = {}) => ({
+    tasks, unscheduledTasks: [], recurringTasks: [], projects: [],
+    obsidianConfig: CFG, dailyNoteTemplate: '# T\n',
+    obsidianVaultHandleRef: { current: 'native' },
+    bridgeHeartbeatRef: { current: { pluginAuthoritative: false } },
+    setObsidianSyncError: vi.fn(), setObsidianSyncStatus: vi.fn(),
+    isRemoteApply: () => false,
+    ...over,
+  });
+  const DONE = [{ id: 'a', completed: true, title: 'A', completedAt: '2026-09-02T10:00:00-05:00' }];
+
+  it('refuses the write when the vault reads empty but the app holds content', async () => {
+    readDailyNoteNative.mockReturnValue({ text: '' });
+    writeDailyNoteNative.mockReturnValue(true);
+    const props = baseProps([{ id: 'a', completed: false, title: 'A' }], {
+      dailyNotes: { '2026-09-02': { text: '## Quick Notes\n\nreal content\n' } },
+    });
+    useRenderedHook(props);
+    useRenderedHook({ ...props, tasks: DONE });
+    await flush();
+    expect(writeDailyNoteNative).not.toHaveBeenCalled();
+  });
+
+  it('still creates from the template when we hold nothing for that date', async () => {
+    readDailyNoteNative.mockReturnValue({ text: '' });
+    writeDailyNoteNative.mockReturnValue(true);
+    const props = baseProps([{ id: 'a', completed: false, title: 'A' }], { dailyNotes: {} });
+    useRenderedHook(props);
+    useRenderedHook({ ...props, tasks: DONE });
+    await flush();
+    expect(writeDailyNoteNative).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a whitespace-only record as no content, so the template still lands', async () => {
+    readDailyNoteNative.mockReturnValue({ text: '' });
+    writeDailyNoteNative.mockReturnValue(true);
+    const props = baseProps([{ id: 'a', completed: false, title: 'A' }], {
+      dailyNotes: { '2026-09-02': { text: '   \n' } },
+    });
+    useRenderedHook(props);
+    useRenderedHook({ ...props, tasks: DONE });
+    await flush();
+    expect(writeDailyNoteNative).toHaveBeenCalledTimes(1);
+  });
+
+  it('a non-empty read is written normally even when we hold content', async () => {
+    readDailyNoteNative.mockReturnValue({ text: '# Day\n' });
+    writeDailyNoteNative.mockReturnValue(true);
+    const props = baseProps([{ id: 'a', completed: false, title: 'A' }], {
+      dailyNotes: { '2026-09-02': { text: '# Day\n' } },
+    });
+    useRenderedHook(props);
+    useRenderedHook({ ...props, tasks: DONE });
+    await flush();
+    expect(writeDailyNoteNative).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds the FSA path to the same rule', async () => {
+    readDailyNoteFresh.mockResolvedValue({ text: '' });
+    const props = baseProps([{ id: 'a', completed: false, title: 'A' }], {
+      obsidianVaultHandleRef: { current: { kind: 'directory' } },
+      dailyNotes: { '2026-09-02': { text: '## Quick Notes\n\nreal content\n' } },
+    });
+    useRenderedHook(props);
+    useRenderedHook({ ...props, tasks: DONE });
+    await flush();
+    expect(writeDailyNoteFile).not.toHaveBeenCalled();
+  });
+});
+
 describe('ruling G: a linked project is named as a wikilink in the log line', () => {
   it('buildCompletionLogWrite writes [[Note|Title]] for a linked project and the title for a missing note', async () => {
     const { buildCompletionLogWrite } = await import('./useCompletionLog.js');

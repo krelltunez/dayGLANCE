@@ -2843,7 +2843,7 @@ const DayPlanner = () => {
   // beside the notify emitters) keeps engine echoes from double-logging.
   useCompletionLog({
     tasks, unscheduledTasks, recurringTasks, projects,
-    obsidianConfig, dailyNoteTemplate,
+    obsidianConfig, dailyNoteTemplate, dailyNotes,
     obsidianVaultHandleRef, bridgeHeartbeatRef,
     setObsidianSyncError, setObsidianSyncStatus,
     isRemoteApply,

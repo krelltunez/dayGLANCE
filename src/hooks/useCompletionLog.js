@@ -138,9 +138,37 @@ export function buildCompletionLogWrite(candidate, { projects, obsidianConfig, d
   };
 }
 
+/**
+ * Whether an empty read means the note is ABSENT, and so may be created from
+ * the template.
+ *
+ * readDailyNoteNative collapses "file absent" and "file present but empty"
+ * into the same "" (obsidian.js), and this log has always read that as absent
+ * so a genuinely new note still gets the template. That holds only while
+ * empty means nobody has written the note yet.
+ *
+ * It stopped holding on 2026-09-07. Obsidian, opening to today's daily note
+ * on launch, created an empty note before Obsidian Sync had pulled the real
+ * one down; Sync then carried that empty file to the other devices. Reading
+ * it as absent seeded the template over a note that had content minutes
+ * earlier, and pushing the result to the vault republished the blank state
+ * everywhere. The file was already empty by then, so nothing was rescued by
+ * writing — only the app's own good copy was lost.
+ *
+ * So an empty read is absence only when we hold no content of our own for
+ * that date. When we do, the read is not trustworthy enough to write behind:
+ * refuse, exactly as a null (failed) read already does.
+ */
+export function emptyReadIsAbsent(knownText) {
+  return !(typeof knownText === 'string' && knownText.trim());
+}
+
 export default function useCompletionLog({
   tasks, unscheduledTasks, recurringTasks, projects,
   obsidianConfig, dailyNoteTemplate,
+  // The app's own copy of each date's note, keyed "YYYY-MM-DD" → { text }.
+  // Read only to decide whether an empty vault read is believable.
+  dailyNotes,
   obsidianVaultHandleRef, bridgeHeartbeatRef,
   setObsidianSyncError, setObsidianSyncStatus,
   isRemoteApply,
@@ -229,6 +257,10 @@ export default function useCompletionLog({
             // never applied templates — the append precedent).
             const note = readDailyNoteNative(write.date);
             if (note === null) { console.error('[Obsidian] Completion log: daily note read failed, entry skipped:', write.date); continue; }
+            if (note.text === '' && !emptyReadIsAbsent(dailyNotes?.[write.date]?.text)) {
+              console.error('[Obsidian] Completion log: daily note read empty but this date has known content — entry skipped rather than recreating it from the template:', write.date);
+              continue;
+            }
             // "" is absent-or-empty on native; it reads as ABSENT here so the
             // entry's note is created from the template — the accepted
             // tradeoff recorded at appendTaskToDailyNoteNative (a genuinely
@@ -241,6 +273,13 @@ export default function useCompletionLog({
           } else {
             try {
               const note = await readDailyNoteFresh(handle, obsidianConfig.dailyNotesPath || '', write.date, obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd');
+              // Not the template path native takes, but the same loss: the
+              // heading and entry land on an empty note and that becomes the
+              // record. Refuse on the same evidence.
+              if (note?.text === '' && !emptyReadIsAbsent(dailyNotes?.[write.date]?.text)) {
+                console.error('[Obsidian] Completion log: daily note read empty but this date has known content — entry skipped:', write.date);
+                continue;
+              }
               const applied = applyBridgeIntent(note?.text ?? null, { type: 'completion_log_append', ...write });
               if (applied.changed) {
                 await writeDailyNoteFile(handle, obsidianConfig.dailyNotesPath || '', write.date, applied.text, obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd');
