@@ -4,7 +4,12 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 const ObsidianSyncToast = () => {
-  const { obsidianSyncStatus, obsidianSyncError, obsidianSyncNotice, setObsidianSyncStatus, setObsidianSyncError } = useSyncCtx();
+  const { obsidianSyncStatus, obsidianSyncError, obsidianSyncNotice, setObsidianSyncStatus, setObsidianSyncError, bridgeHeartbeatRef } = useSyncCtx();
+  // THE HOLDING POSTURE (2026-09-06 ruling, utils/obsidianVaultPosture.js): a
+  // paired device with Obsidian closed never touches its vault — the cycle
+  // reads the stream and queues intents. The toast names that, so it never
+  // contradicts the settings line saying vault changes wait for Obsidian.
+  const holding = bridgeHeartbeatRef?.current?.vaultPosture === 'holding';
   const { cardBg, borderClass, textPrimary, textSecondary, isMobile } = useDayPlannerCtx();
 
   // Fire-and-forget NOTICE (e.g. a two-sided retitle resolution): neutral
@@ -37,11 +42,11 @@ const ObsidianSyncToast = () => {
     accentColor = 'bg-blue-500';
   } else if (isSyncing) {
     icon = <Loader size={16} className="text-blue-500 animate-spin flex-shrink-0" />;
-    message = 'Syncing Obsidian vault…';
+    message = holding ? 'Syncing through the Plugin Bridge…' : 'Syncing Obsidian vault…';
     accentColor = 'bg-blue-500';
   } else if (isSuccess) {
     icon = <CheckCircle size={16} className="text-green-500 flex-shrink-0" />;
-    message = 'Obsidian vault synced';
+    message = holding ? 'Synced through the Plugin Bridge' : 'Obsidian vault synced';
     accentColor = 'bg-green-500';
   } else {
     icon = <AlertCircle size={16} className="text-red-500 flex-shrink-0" />;

@@ -107,12 +107,22 @@ export { parseSseFrame, drainSseBuffer };
 // and every war cycle has to pass through dayGLANCE's drain, which now runs
 // at poll cadence).
 //
-// The escape hatch is a localStorage flag, not a build: set
-// `dayglance-sse-nudges` to 'on' (and reload) to re-arm live nudges for a
-// supervised test; 'off' pins the gate closed even after the default flips.
-// The flag is read once per stream open (app load / foreground), like the
-// vault-enabled gate beside it.
-export const SSE_NUDGES_DEFAULT_ON = false;
+// The escape hatch is a localStorage flag, not a build: 'on' re-arms a
+// device ahead of the default, 'off' pins the gate closed on one device
+// after it. The flag is read once per stream open (app load / foreground),
+// like the vault-enabled gate beside it.
+//
+// RE-ARMED FLEET-WIDE (2026-09-07). The sequence the assessment asked for
+// ran: a day's soak with the phones on the stream under the polling posture
+// (2026-09-05/06), then a supervised single-machine flip on the Mac
+// (2026-09-06, the flag set by hand) that surfaced one incident — the lost
+// sidebar completion — whose root cause was the phantom re-stamp on a
+// stale-copy direct scan (#1551, #1552), not SSE speed: the breakers held,
+// and nothing on the nudge path was implicated. The default flips here so a
+// phone gets live nudges by installing the build, with no console; 'off'
+// remains the per-device retreat, and flipping this constant back remains
+// the one-line fleet retreat the tripwire promised.
+export const SSE_NUDGES_DEFAULT_ON = true;
 export const SSE_NUDGES_FLAG_KEY = 'dayglance-sse-nudges';
 
 /** Should this app session open the SSE stream and act on nudges? */

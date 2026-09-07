@@ -728,7 +728,7 @@ describe('backoffDelayMs — equal jitter (mirrored by SseBackoff.kt; change bot
   });
 });
 
-describe('sseNudgesEnabled — the nudge gate (2026-08-31 war posture)', () => {
+describe('sseNudgesEnabled — the nudge gate (2026-08-31 war posture; re-armed fleet-wide 2026-09-07)', () => {
   afterEach(() => { delete globalThis.localStorage; });
   const storeWith = (v) => {
     globalThis.localStorage = {
@@ -736,13 +736,13 @@ describe('sseNudgesEnabled — the nudge gate (2026-08-31 war posture)', () => {
     };
   };
 
-  it('DEFAULTS OFF: the tripwire is exercised — no flag means no stream, polling only', () => {
-    expect(SSE_NUDGES_DEFAULT_ON).toBe(false);
+  it('DEFAULTS ON since the fleet re-arm: no flag means live nudges (the tripwire held through the soak and the supervised flip)', () => {
+    expect(SSE_NUDGES_DEFAULT_ON).toBe(true);
     storeWith(null);
-    expect(sseNudgesEnabled()).toBe(false);
+    expect(sseNudgesEnabled()).toBe(true);
   });
 
-  it("the escape hatch: 'on' re-arms for a supervised test; 'off' pins closed; anything else is the default", () => {
+  it("the escape hatch: 'off' pins one device closed; 'on' is explicit; anything else is the default", () => {
     storeWith('on');
     expect(sseNudgesEnabled()).toBe(true);
     storeWith('off');
