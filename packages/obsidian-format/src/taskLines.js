@@ -209,7 +209,7 @@ function stripLinePrefixes(text) {
  *
  * @returns {boolean} whether any line was updated
  */
-export function updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId = null, onTitleConflict = null, completedAt = null, completionFormat = null }) {
+export function updateTaskLines(lines, { obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId = null, onTitleConflict = null, completedAt = null, completionFormat = null, noteDate = null }) {
   const timeStr = buildTimePrefix(startTime, duration);
   const writtenTitle = newRawTitle !== undefined ? newRawTitle : obsidianRawTitle;
   // When targetDate is provided (task rescheduled to a different day), write
@@ -223,8 +223,14 @@ export function updateTaskLines(lines, { obsidianRawTitle, completed, startTime,
   // then the marker is re-emitted per (completed, completedAt, format). With
   // completionFormat null nothing is re-emitted, which is how the OFF
   // setting converges lines clean on their next touch.
+  // A targetDate equal to the note's own date (the task moved BACK onto the
+  // note's day) clears the prefix rather than writing a redundant one: the
+  // 2026-09-06 field incident left "2026-09-06 …" prefixes inside the
+  // 2026-09-06 note, which read as noise and can only ever drift.
   const rewrite = (i, indent, datePrefix, idSuffix, title = writtenTitle) => {
-    const effectiveDatePrefix = targetDate ? `${targetDate} ` : datePrefix;
+    const effectiveDatePrefix = targetDate
+      ? (noteDate && targetDate === noteDate ? '' : `${targetDate} `)
+      : datePrefix;
     // Markers live ONLY on tagged lines (the parse strips them only there).
     // When this rewrite leaves the line untagged — no id to stamp, or a
     // foreign block ref refused the stamp — the title stays byte-frozen and

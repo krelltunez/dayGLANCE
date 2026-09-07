@@ -710,6 +710,7 @@ export async function writeTaskStateToFile(vaultHandle, dailyNotesPath, dateStr,
     obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId, onTitleConflict,
     completedAt: completionMeta?.completedAt ?? null,
     completionFormat: completionMeta?.format ?? null,
+    noteDate: dateStr,
   });
 
   if (updated) {
@@ -792,6 +793,31 @@ export function buildNewObsidianTaskMeta(rawTitle, todayStr) {
 function resolveExistingObsidianTask(existingTaskMap, task) {
   return existingTaskMap[task.id]
     || (task.obsidianLegacyId ? existingTaskMap[task.obsidianLegacyId] : undefined);
+}
+
+/**
+ * THE LEGACY HINT IS A PER-SCAN BRIDGE, NOT A FIELD OF A MATCHED TASK
+ * (2026-09-06, the inbox-record ruling's first test run). The parse
+ * recomputes `obsidianLegacyId` from the line's current content AND date
+ * every scan — an inline date prefix changes it, a note moved to another
+ * path changes it — and for a task already matched BY ITS ID the hint has
+ * done nothing and is about to do nothing: it exists to find the copy a
+ * device still holds under the pre-tagging id, and that copy was found.
+ * Left on the task it flapped: the stored copy said one hint, the re-parse
+ * another, the compare read an edit, and the task re-stamped (the three
+ * App Store Connect rows ping-ponging after their note moved; the dated
+ * line meeting an inbox copy in the field record). So an id-matched task
+ * keeps the hint it has — present or absent — and the freshly computed one
+ * is used only for the one-time legacy → block-id match it was built for.
+ */
+function keepExistingHint(task, existing, existingTaskMap) {
+  if (!existing || existingTaskMap[task.id] !== existing) return;
+  // A copy that HAS a hint keeps it. A copy without one (delivered by the
+  // cloud under its block id, never scanned here) takes the parsed hint —
+  // the vault-wide deletion detector reads hints off the scan result to
+  // rescue a legacy key that was stamped since the baseline, and that
+  // rescue needs the hint on the first scan.
+  if (existing.obsidianLegacyId !== undefined) task.obsidianLegacyId = existing.obsidianLegacyId;
 }
 
 /**
@@ -1015,6 +1041,7 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
   const { allScheduled, allInbox } = out;
   for (const task of parsed.scheduledTasks) {
     const existing = resolveExistingObsidianTask(existingTaskMap, task);
+    keepExistingHint(task, existing, existingTaskMap);
     if (existing) {
       // Line-derived values, captured BEFORE the existing-fields copies
       // overwrite them — the adoption below restores exactly the fields
@@ -1059,7 +1086,26 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       // User moved this to inbox — respect the cross-array move (keyed by
       // the id the task holds IN STATE, which during the one-time block-id
       // switch is the legacy id, not the freshly parsed one).
+      //
+      // THE RECORD KEEPS THE INBOX COPY'S SHAPE (2026-09-06 ruling, option 3
+      // of the field record in §3.10): the line's schedule keys are NOT
+      // carried onto the inbox copy. This branch used to push the
+      // scheduled-shaped parse into the inbox — an inbox record carrying a
+      // date and a start time, the war shape named in
+      // buildExistingObsidianTaskContext — which differed from the stored
+      // copy, re-stamped with a fresh lastModified, pushed, and OUTRANKED a
+      // real schedule made on another device that the DB tier had not yet
+      // delivered here (six tasks flipped back to the inbox fleet-wide the
+      // night of the SSE re-arm). The decision to respect the move is
+      // unchanged and still protects a fresh unschedule from a stale read
+      // of the timed line; what changes is that the losing side no longer
+      // fabricates a timestamp: the copy stays byte-identical to the stored
+      // one, nothing re-stamps, and the DB tier delivers the real answer.
       if (userInboxIds.has(String(existing.id)) && !edits?.scheduled) {
+        delete task.date;
+        delete task.startTime;
+        delete task.isAllDay;
+        if (task.priority === undefined) task.priority = existing.priority ?? 0;
         allInbox.push(task);
         continue;
       }
@@ -1073,6 +1119,7 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
   }
   for (const task of parsed.inboxTasks) {
     const existing = resolveExistingObsidianTask(existingTaskMap, task);
+    keepExistingHint(task, existing, existingTaskMap);
     if (existing) {
       const lineVals = { deadline: task.deadline, priority: task.priority };
       const edits = vaultMetadataEdits(task, existing);
@@ -1327,6 +1374,7 @@ export function writeTaskStateNative(date, obsidianRawTitle, completed, startTim
       obsidianRawTitle, completed, startTime, newRawTitle, duration, targetDate, blockId, onTitleConflict,
       completedAt: completionMeta?.completedAt ?? null,
       completionFormat: completionMeta?.format ?? null,
+      noteDate: date,
     });
 
     if (updated) {

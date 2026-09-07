@@ -433,6 +433,50 @@ describe('vault task scope, end to end', () => {
     }
   });
 
+  it('13. an inbox task scheduled onto ANOTHER day gets the inline date prefix; moved back onto the note\'s day, the prefix clears (2026-09-06 field incident)', async () => {
+    await bootWithScopedNote();
+    const DAILY = 'Daily/2026-09-06.md';
+    await s.write(DAILY, '## Tasks\n- [ ] Water the plants\n');
+    await s.settle();
+    await A.sync();
+    const task = A.all().find((t) => /Water the plants/.test(t.title))!;
+    expect(A.state.inbox.map((t) => t.id)).toContain(task.id);
+    A.schedule(task.id, '2026-09-10');
+    await A.writeback();
+    await s.plugin.transport.drain();
+    expect(s.text(DAILY)).toMatch(/- \[ \] 2026-09-10 Water the plants \^dg-/);
+    A.schedule(task.id, '2026-09-06');
+    await A.writeback();
+    await s.plugin.transport.drain();
+    expect(s.text(DAILY)).toMatch(/- \[ \] Water the plants \^dg-/);
+    expect(s.text(DAILY)).not.toMatch(/2026-09-06 Water/);
+  });
+
+  it('14. THE INBOX RECORD (2026-09-06 ruling): a second device that observes the timed line before its DB pull keeps its inbox copy byte-identical — nothing to re-stamp, nothing to push', async () => {
+    await bootWithScopedNote();
+    const DAILY = 'Daily/2026-09-06.md';
+    await s.write(DAILY, '## Tasks\n- [ ] Water the plants\n');
+    await s.settle();
+    await A.sync();
+    const task = A.all().find((t) => /Water the plants/.test(t.title))!;
+    const B = mountDevice('B');
+    await B.sync();
+    expect(B.state.inbox.map((t) => t.id)).toContain(task.id);
+    const before = JSON.parse(JSON.stringify(B.state.inbox.find((t) => t.id === task.id)));
+    // A schedules it; the plugin rewrites the line; B observes the timed line
+    // with its copy still in the inbox (no DB tier in the harness: exactly
+    // the race).
+    A.schedule(task.id, '2026-09-10');
+    await A.writeback();
+    await s.plugin.transport.drain();
+    expect(s.text(DAILY)).toMatch(/2026-09-10 Water the plants/);
+    await s.settle();
+    await B.sync();
+    expect(B.state.tasks.map((t) => t.id)).not.toContain(task.id);
+    const after = JSON.parse(JSON.stringify(B.state.inbox.find((t) => t.id === task.id)));
+    expect(after).toEqual(before);
+  });
+
   it('9. a plugin reload republishes the pairing meta WITH the scope (harness finding)', async () => {
     await bootWithScopedNote();
     s.plugin.reload();
