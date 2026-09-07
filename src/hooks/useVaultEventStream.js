@@ -61,14 +61,14 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents, drain
     if (isTrayMode || !dataLoaded || !isVaultEnabled()) return undefined;
 
     // THE SSE NUDGE GATE (2026-08-31 — see sseNudgesEnabled for the full
-    // record): default OFF until this commission's breakers are proven
-    // against live traffic. No stream is opened at all — the polling
-    // backstop (which never stopped running) IS the cadence. One info line
-    // so the posture is visible in any console capture.
+    // record, and the 2026-09-07 fleet re-arm): default ON since the re-arm;
+    // a device pinned 'off' opens no stream at all — the polling backstop
+    // (which never stopped running) IS its cadence. One info line so the
+    // posture is visible in any console capture.
     if (!sseNudgesEnabled()) {
       console.info(
-        `[vault-sse] live nudges are gated OFF (2026-08-31 war posture) — polling cadence only. ` +
-        `To re-arm for a supervised test: localStorage.setItem('${SSE_NUDGES_FLAG_KEY}', 'on') and reload.`);
+        `[vault-sse] live nudges are OFF on this device (${SSE_NUDGES_FLAG_KEY} = 'off') — polling cadence only. ` +
+        `To re-arm: localStorage.removeItem('${SSE_NUDGES_FLAG_KEY}') and reload.`);
       return undefined;
     }
 

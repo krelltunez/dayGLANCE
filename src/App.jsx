@@ -2816,6 +2816,9 @@ const DayPlanner = () => {
     setObsidianSyncNotice,
     obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
     obsidianTasksRef, obsidianInboxRef,
+    // The cycle's vault posture (utils/obsidianVaultPosture.js) rides on the
+    // heartbeat ref; the sync toast reads it to name what a cycle is doing.
+    bridgeHeartbeatRef,
     recycleBin, setRecycleBin,
     recurringTasks, setRecurringTasks,
     multiUserEnabled, meUserSyncId,

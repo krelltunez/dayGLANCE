@@ -43,11 +43,15 @@ device-local plugin state (Phase 6's build record, the record above the
 Phase 7 section), M4, M12, unsupported-intent preservation, the SSE connect
 timeout and the pairing-meta ack.
 
-What is NOT done, in order: (1) a day's soak with the phones on the stream
-under the polling posture; (2) the SSE re-arm sequence — a supervised
-single-machine flip (`dayglance-sse-nudges` = `on`), then the fleet, then
-default-on — every plugin-to-app path, sidebar completions included, runs at
-the five-minute poll until it lands; (3) the direct-tier half of project
+What is NOT done, in order: (1) DONE 2026-09-05/06 — a day's soak with the
+phones on the stream under the polling posture; (2) DONE 2026-09-07 — the SSE
+re-arm sequence: the supervised single-machine flip on the Mac (2026-09-06)
+surfaced the lost sidebar completion, root-caused to the phantom re-stamp
+on a stale-copy direct scan (#1551) and answered by the posture ruling
+(#1552), not to nudge speed; the default then flipped to ON fleet-wide
+(`SSE_NUDGES_DEFAULT_ON`, `sync/vaultEventStream.js`), with
+`dayglance-sse-nudges` = `off` as the per-device retreat and the constant as
+the one-line fleet retreat; (3) the direct-tier half of project
 routing (companion 4.3, project routing: desktop has path-addressed reads
 and writes, each mobile bridge needs two native methods), wanted only where
 direct mode is relied on. Deferred by design, not planned: companion §5.
