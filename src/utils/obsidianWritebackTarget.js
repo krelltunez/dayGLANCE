@@ -19,7 +19,7 @@ import { dailyNoteFilename } from '@glance-apps/obsidian-format';
  * @returns {{ isNoteTask: boolean, path: string, date: string|null, noteKey: string, taskHeading: string|null } | null}
  *   null when the task names no note at all (nothing to write to).
  */
-export function writebackTargetFor(task, obsidianConfig) {
+export function writebackTargetFor(task, obsidianConfig, defaultTaskHeading = '## Tasks') {
   if (!task) return null;
   const notePath = typeof task.obsidianNotePath === 'string' && task.obsidianNotePath ? task.obsidianNotePath : null;
   if (notePath) {
@@ -42,6 +42,6 @@ export function writebackTargetFor(task, obsidianConfig) {
     path: folder + dailyNoteFilename(sourceDate, obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd'),
     date: sourceDate,
     noteKey: sourceDate,
-    taskHeading: obsidianConfig?.taskHeading || '## Tasks',
+    taskHeading: obsidianConfig?.taskHeading || defaultTaskHeading,
   };
 }

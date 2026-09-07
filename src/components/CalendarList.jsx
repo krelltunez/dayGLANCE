@@ -13,7 +13,7 @@ import { newFeedId, PRIMARY_FEED_ID, defaultPrimaryCalendarMeta } from '../utils
 // settings surfaces; pulls everything from context.
 const CalendarList = () => {
   const { t } = useTranslation();
-  const { colors, darkMode, textPrimary, textSecondary, borderClass } = useDayPlannerCtx();
+  const { colors, darkMode, textSecondary, borderClass } = useDayPlannerCtx();
   const {
     icsCalendars, setIcsCalendars,
     syncUrl, setSyncUrl,
@@ -145,8 +145,8 @@ const CalendarList = () => {
       </button>
       <p className={`text-xs ${textSecondary}`}>
         {showCalendarUrlHint
-          ? <>Paste any public ICS/iCal URL. <strong className={textPrimary}>Google Calendar:</strong> Settings → [your calendar] → "Secret address in iCal format". <strong className={textPrimary}>Outlook:</strong> Settings → View all → Calendar → Shared calendars → Publish → ICS link. <strong className={textPrimary}>Nextcloud (public):</strong> Calendar → Settings → Copy the public link. <strong className={textPrimary}>Nextcloud (private):</strong> use the internal CalDAV URL with ?export appended (e.g. …/remote.php/dav/calendars/user/personal/?export) and enter credentials. <button onClick={() => setShowCalendarUrlHint(false)} className="underline">Show less</button></>
-          : <>Where do I find these URLs? <button onClick={() => setShowCalendarUrlHint(true)} className="underline">Show more</button></>
+          ? <>{t('settings.calendarUrlHelp')} <button onClick={() => setShowCalendarUrlHint(false)} className="underline">{t('settings.showLess')}</button></>
+          : <>{t('settings.calendarUrlHelpPrompt')} <button onClick={() => setShowCalendarUrlHint(true)} className="underline">{t('settings.showMore')}</button></>
         }
       </p>
     </div>

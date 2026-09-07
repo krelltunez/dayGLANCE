@@ -107,7 +107,7 @@ class DayGlanceWidgetListFactory(
     // ── State ────────────────────────────────────────────────────────────────
 
     private val items = mutableListOf<AgendaItem>()
-    private var use24Hour = false
+    private var use24Hour = android.text.format.DateFormat.is24HourFormat(context)
 
     // ── RemoteViewsFactory lifecycle ─────────────────────────────────────────
 
@@ -139,7 +139,7 @@ class DayGlanceWidgetListFactory(
     // ── Snapshot parsing → AgendaItem list ──────────────────────────────────
 
     private fun buildItems(snapshot: JSONObject) {
-        use24Hour = snapshot.optBoolean("use24Hour", false)
+        use24Hour = widgetUses24HourClock(context, snapshot)
 
         // 1. Habits
         val habitsArray = snapshot.optJSONArray("habits")
@@ -808,9 +808,9 @@ class DayGlanceWidgetListFactory(
         val h = minutes / 60
         val m = minutes % 60
         return when {
-            h > 0 && m > 0 -> "${h}h ${m}m"
-            h > 0 -> "${h}h"
-            else -> "${m}m"
+            h > 0 && m > 0 -> context.getString(R.string.widget_duration_hours_minutes, h, m)
+            h > 0 -> context.getString(R.string.widget_duration_hours, h)
+            else -> context.getString(R.string.widget_duration_minutes, m)
         }
     }
 

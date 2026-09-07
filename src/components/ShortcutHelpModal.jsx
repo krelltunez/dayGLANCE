@@ -19,7 +19,7 @@ const ShortcutHelpModal = () => {
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className={`text-lg font-bold ${textPrimary}`}>{t('shortcuts.title')}</h2>
-          <button onClick={() => setShowShortcutHelp(false)} className={`${textSecondary} hover:${textPrimary}`}>
+          <button onClick={() => setShowShortcutHelp(false)} className={`${textSecondary} hover:${textPrimary}`} aria-label={t('common.close')}>
             <X size={20} />
           </button>
         </div>
@@ -34,12 +34,12 @@ const ShortcutHelpModal = () => {
                 ['1', t('shortcuts.view3Day')],
                 ['2', t('shortcuts.viewDay')],
                 ['3', t('shortcuts.viewWeek')],
-                ['4', t('shortcuts.viewSched', 'SCHED view')],
-                ['C', t('shortcuts.cycleViews', 'Cycle views')],
+                ['4', t('shortcuts.viewSched')],
+                ['C', t('shortcuts.cycleViews')],
               ] : schedOnlyCycler ? [
                 ['1', t('shortcuts.view3Day')],
-                ['4', t('shortcuts.viewSched', 'SCHED view')],
-                ['C', t('shortcuts.cycleViews', 'Cycle views')],
+                ['4', t('shortcuts.viewSched')],
+                ['C', t('shortcuts.cycleViews')],
               ] : []),
             ].map(([key, desc]) => (
               <div key={key} className={`flex items-center gap-3 py-1 ${textSecondary}`}>
@@ -57,7 +57,7 @@ const ShortcutHelpModal = () => {
                 ['G', t('shortcuts.goalsProjects')],
                 ['H', t('shortcuts.habitsShortcut')],
                 ['U', t('bucket.title')],
-                ['O', t('shortcuts.dayDial', 'Day Dial')],
+                ['O', t('shortcuts.dayDial', { defaultValue: 'Day Dial' })],
                 ['L', t('shortcuts.intentLog')],
                 ['D', t('shortcuts.toggleDarkMode')],
                 ['S', t('common.settings')],
@@ -101,7 +101,7 @@ const ShortcutHelpModal = () => {
               </div>
             ))}
             <h3 className={`text-xs font-semibold uppercase ${textSecondary} mt-3 mb-2`}>{t('shortcuts.sectionTaskEntry')}</h3>
-            <p className={`text-xs ${textSecondary} mb-2`}>Type in the task title field:</p>
+            <p className={`text-xs ${textSecondary} mb-2`}>{t('shortcuts.taskTitleFieldHint', { defaultValue: 'Type in the task title field:' })}</p>
             {[
               ['#', t('shortcuts.addTag')],
               ['@', t('shortcuts.setDate')],
@@ -117,7 +117,7 @@ const ShortcutHelpModal = () => {
               </div>
             ))}
             <h3 className={`text-xs font-semibold uppercase ${textSecondary} mt-3 mb-2`}>{t('shortcuts.sectionTaskEntrySuggestions')}</h3>
-            <p className={`text-xs ${textSecondary} mb-2`}>Interacting with suggestions:</p>
+            <p className={`text-xs ${textSecondary} mb-2`}>{t('shortcuts.suggestionsHint', { defaultValue: 'Interacting with suggestions:' })}</p>
             {[
               ['Tab / Space', t('shortcuts.suggestionAccept')],
               ['\u2191 / \u2193', t('shortcuts.suggestionNavigate')],
@@ -132,7 +132,7 @@ const ShortcutHelpModal = () => {
           </div>
         </div>
         <div className={`mt-4 pt-3 border-t ${borderClass} text-center`}>
-          <span className={`text-xs ${textSecondary}`}>Press <kbd className={`px-1 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`}>?</kbd> or <kbd className={`px-1 py-0.5 rounded text-xs font-mono ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-700'}`}>Esc</kbd> to close</span>
+          <span className={`text-xs ${textSecondary}`}>{t('shortcuts.pressToClose')}</span>
         </div>
       </div>
     </div>

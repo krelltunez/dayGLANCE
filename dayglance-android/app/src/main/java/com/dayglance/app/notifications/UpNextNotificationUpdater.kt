@@ -8,8 +8,12 @@ import android.content.Context
 import android.content.Intent
 import com.dayglance.app.bridge.NotificationBridge
 import com.dayglance.app.data.SharedDataStore
+import com.dayglance.app.widget.widgetUses24HourClock
 import org.json.JSONObject
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import java.util.Calendar
+import java.util.Locale
 
 /**
  * BroadcastReceiver that refreshes the "Up Next" persistent notification from native data.
@@ -79,7 +83,7 @@ class UpNextNotificationUpdater : BroadcastReceiver() {
             val startTime = nextUpNext.optString("startTime", "")
             val duration = nextUpNext.optInt("duration", 0)
             val bodyPrefix = nextUpNext.optString("bodyPrefix", "")
-            val use24Hour = snapshot.optBoolean("use24Hour", false)
+            val use24Hour = widgetUses24HourClock(context, snapshot)
 
             if (startTime.isEmpty()) {
                 bridge.cancelUpNextNotification()
@@ -148,13 +152,11 @@ class UpNextNotificationUpdater : BroadcastReceiver() {
             else -> {
                 val endH = (endMin / 60) % 24
                 val endM = endMin % 60
-                val endStr = if (use24Hour) {
-                    "%d:%02d".format(endH, endM)
-                } else {
-                    val h = if (endH > 12) endH - 12 else if (endH == 0) 12 else endH
-                    val amPm = if (endH >= 12) "PM" else "AM"
-                    "%d:%02d %s".format(h, endM, amPm)
-                }
+                val locales = context.resources.configuration.locales
+                val locale = if (locales.isEmpty) Locale.getDefault() else locales[0]
+                val pattern = if (use24Hour) "H:mm" else "h:mm a"
+                val endStr = LocalTime.of(endH, endM)
+                    .format(DateTimeFormatter.ofPattern(pattern, locale))
                 bodyPrefix + context.getString(R.string.notif_in_progress_ends, endStr)
             }
         }

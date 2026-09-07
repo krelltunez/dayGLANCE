@@ -102,19 +102,19 @@ const DesktopWelcomeModal = () => {
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Eye size={16} className="text-blue-500" />
                   </span>
-                  <span><strong className={textPrimary}>GLANCE</strong>: your smart agenda: overdue tasks, today&apos;s schedule, <span className="italic">GLANCE</span>ahead, optional habit rings and goal bars, and quick access to your daily note and progress stats</span>
+                  <span><strong className={textPrimary}>{t('onboarding.glanceSection')}</strong>: {t('onboarding.glanceSectionDesc')}</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Inbox size={16} className="text-blue-500" />
                   </span>
-                  <span><strong className={textPrimary}>Inbox</strong>: capture tasks to organize later, drag them to the timeline when ready to schedule</span>
+                  <span><strong className={textPrimary}>{t('onboarding.inboxSection')}</strong>: {t('onboarding.inboxSectionDesc')}</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Calendar size={16} className="text-blue-500" />
                   </span>
-                  <span><strong className={textPrimary}>Timeline</strong>: switch between multi-day, 24-hour, and week views (grid or list view on tablet); click on the timeline or press <Plus size={12} className="inline mx-0.5" /> to add tasks</span>
+                  <span><strong className={textPrimary}>{t('onboarding.timelineSection')}</strong>: {t('onboarding.timelineSectionDesc')} <Plus size={12} className="inline mx-0.5" /></span>
                 </div>
               </div>
             </div>
@@ -126,16 +126,16 @@ const DesktopWelcomeModal = () => {
               </div>
               <h2 className={`text-xl font-bold ${textPrimary} mb-4`}>{t('onboarding.interactingTitle')}</h2>
               <ul className={`text-sm ${textSecondary} space-y-2 text-left list-none`}>
-                <li>Click on the <strong className={textPrimary}>timeline</strong> to add a task at that time</li>
-                <li>Click on the <strong className={textPrimary}>date header</strong> to add an all-day task</li>
-                <li>Drag tasks from Inbox to timeline to <strong className={textPrimary}>schedule</strong> them</li>
-                <li>Drag the bottom edge of a task to <strong className={textPrimary}>resize</strong> its duration</li>
-                <li>Set tasks to <strong className={textPrimary}>repeat</strong> daily, weekly, monthly, or yearly</li>
-                <li>Double-click a task title to <strong className={textPrimary}>edit</strong> it or add <strong className={textPrimary}>tags</strong></li>
-                <li>Expand a task to add <strong className={textPrimary}>notes</strong> <FileText size={14} className="inline mx-0.5" /> and <strong className={textPrimary}>subtasks</strong></li>
-                <li>Click <NotebookPen size={14} className="inline mx-0.5" /> on a date header to write <strong className={textPrimary}>daily notes</strong></li>
-                <li>Designate productivity blocks with <strong className={textPrimary}>GTD Frames</strong> <LayoutGrid size={14} className="inline mx-0.5" /></li>
-                <li>Use <strong className={textPrimary}>Focus Mode</strong> <Target size={14} className="inline mx-0.5" /> for distraction-free deep work</li>
+                <li>{t('onboarding.interactingClickTimeline')}</li>
+                <li>{t('onboarding.interactingClickDateHeader')}</li>
+                <li>{t('onboarding.interactingDragFromInbox')}</li>
+                <li>{t('onboarding.interactingDragResize')}</li>
+                <li>{t('onboarding.interactingRepeat')}</li>
+                <li>{t('onboarding.interactingEdit')}</li>
+                <li>{t('onboarding.interactingNotes')} <FileText size={14} className="inline mx-0.5" /></li>
+                <li>{t('onboarding.interactingDailyNotes')} <NotebookPen size={14} className="inline mx-0.5" /></li>
+                <li>{t('onboarding.interactingFrames')} <LayoutGrid size={14} className="inline mx-0.5" /></li>
+                <li>{t('onboarding.interactingFocusMode')} <Target size={14} className="inline mx-0.5" /></li>
               </ul>
             </div>
           )}
@@ -150,25 +150,25 @@ const DesktopWelcomeModal = () => {
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
                     <Search size={16} className={textPrimary} />
                   </span>
-                  <span>Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded text-xs font-mono`}>Ctrl+K</kbd> to instantly search all your tasks, jump to any date, or find tasks by tag.</span>
+                  <span>{t('onboarding.spotlightDesc')}</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
                     <Filter size={16} className={textPrimary} />
                   </span>
-                  <span>Filter your day by <strong className={textPrimary}>#tags</strong> to focus on just what matters.</span>
+                  <span>{t('onboarding.spotlightFilter')}</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
                     <Gauge size={16} className={textPrimary} />
                   </span>
-                  <span>Check the <strong className={textPrimary}>Daily Summary</strong> for today&apos;s completion and time stats.</span>
+                  <span>{t('onboarding.spotlightSummary')}</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
                     <BarChart3 size={16} className={textPrimary} />
                   </span>
-                  <span>Click the <BarChart3 size={14} className="inline mx-0.5" /> button to review your week: see completion stats, reflect on wins, and plan ahead.</span>
+                  <span><BarChart3 size={14} className="inline mx-0.5" /> {t('onboarding.weeklyReviewDesc')}</span>
                 </div>
               </div>
             </div>
@@ -206,7 +206,7 @@ const DesktopWelcomeModal = () => {
                     <kbd className={`px-2 py-1 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono ${textPrimary}`}>Ctrl+Shift+Z</kbd>
                   </span>
                 </div>
-                <p className={`text-xs ${textSecondary} mt-3`}>Press <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded text-xs font-mono`}>?</kbd> at any time to see all available shortcuts.</p>
+                <p className={`text-xs ${textSecondary} mt-3`}>{t('onboarding.shortcutHint')}</p>
               </div>
             </div>
           )}
@@ -221,21 +221,21 @@ const DesktopWelcomeModal = () => {
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
                     <CalendarDays size={16} className={textPrimary} />
                   </span>
-                  <span><strong className={textPrimary}>Calendar sync</strong>: import CalDAV, iCal (.ics), and native device calendars</span>
+                  <span><strong className={textPrimary}>{t('onboarding.calendarSync')}</strong>: {t('onboarding.calendarSyncDesc')}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
                     <Cloud size={16} className={textPrimary} />
                   </span>
-                  <span><strong className={textPrimary}>Cloud Sync</strong>: sync your data across devices via GLANCEvault or WebDAV</span>
+                  <span><strong className={textPrimary}>{t('onboarding.cloudSync')}</strong>: {t('onboarding.cloudSyncDesc')}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`w-8 h-8 ${darkMode ? 'bg-gray-600' : 'bg-stone-200'} rounded-lg flex items-center justify-center flex-shrink-0`}>
                     {darkMode ? <Sun size={16} className={textPrimary} /> : <Moon size={16} className={textPrimary} />}
                   </span>
-                  <span><strong className={textPrimary}>Dark / Light mode</strong>, reminders, backup &amp; restore</span>
+                  <span><strong className={textPrimary}>{t('onboarding.darkLightMode')}</strong>, {t('onboarding.darkLightModeDesc')}</span>
                 </div>
-                <p className="text-xs opacity-75 mt-2">Your data is stored locally on your device. Use backup or cloud sync to transfer between devices.</p>
+                <p className="text-xs opacity-75 mt-2">{t('onboarding.dataStorageHint')}</p>
               </div>
             </div>
           )}
@@ -251,25 +251,25 @@ const DesktopWelcomeModal = () => {
                   <span className="w-8 h-8 bg-teal-100 dark:bg-teal-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <RefreshCw size={16} className="text-teal-500" />
                   </span>
-                  <span><strong className={textPrimary}>Routines</strong>: things you need to do regularly, like eat, sleep and exercise</span>
+                  <span><strong className={textPrimary}>{t('onboarding.routinesFeature')}</strong>: {t('onboarding.routinesFeatureDesc')}</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-rose-100 dark:bg-rose-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Target size={16} className="text-rose-500" />
                   </span>
-                  <span><strong className={textPrimary}>Habits</strong>: track regular habits with visual progress rings and saved history</span>
+                  <span><strong className={textPrimary}>{t('onboarding.habitsFeature')}</strong>: {t('onboarding.habitsFeatureDesc')}</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Flag size={16} className="text-blue-500" />
                   </span>
-                  <span><strong className={textPrimary}>Goals &amp; Projects</strong>: track your long-term goals and progress toward completion</span>
+                  <span><strong className={textPrimary}>{t('onboarding.goalsFeature')}</strong>: {t('onboarding.goalsFeatureDesc')}</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="w-8 h-8 bg-amber-100 dark:bg-amber-900 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Mic size={16} className="text-amber-500" />
                   </span>
-                  <span><strong className={textPrimary}>AI Features</strong>: voice input, morning briefings, and smart task parsing (BYO API key)</span>
+                  <span><strong className={textPrimary}>{t('onboarding.aiFeatures')}</strong>: {t('onboarding.aiFeaturesDesc')}</span>
                 </div>
               </div>
             </div>

@@ -2,13 +2,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import { renderNoteTemplateSubset } from '@glance-apps/obsidian-format';
 import { NotebookPen, X, Loader } from 'lucide-react';
 import { renderFormattedText } from '../utils/textFormatting.jsx';
+import { useTranslation } from 'react-i18next';
+import { formatLocalizedDate } from '../utils/localeFormatting.js';
+import { localizeEmptyDailyNote } from '../utils/dailyNoteTemplate.js';
 
 // Daily Notes Modal — popover for adding/editing notes on a specific date
 const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, template, loadFresh }) => {
+  const { t } = useTranslation();
   // The template's `{{date}}` / `{{title}}` are filled for this date, the
   // same subset every daily-note creation point renders (companion §4.4).
   const seededTemplate = template ? renderNoteTemplateSubset(template, { title: dateStr, date: dateStr }) : template;
-  const defaultText = note?.text || '';
+  const defaultText = localizeEmptyDailyNote(note?.text || '', seededTemplate);
   const [localText, setLocalText] = useState(defaultText);
   const [isEditing, setIsEditing] = useState(!note?.text);
   const [loading, setLoading] = useState(!!loadFresh);
@@ -46,7 +50,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
         const fresh = await loadFresh(dateStr);
         if (cancelled) return;
         if (fresh && fresh.text) {
-          setLocalText(fresh.text);
+          setLocalText(localizeEmptyDailyNote(fresh.text, seededTemplate));
           setIsEditing(false);
         } else {
           // No existing note — apply template if available
@@ -153,12 +157,10 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   const hoverBg = darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100';
 
   // Format date for display
-  const displayDate = (() => {
-    const d = new Date(dateStr + 'T12:00:00');
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
-  })();
+  const displayDate = formatLocalizedDate(
+    new Date(dateStr + 'T12:00:00'),
+    { weekday: 'long', month: 'short', day: 'numeric' },
+  );
 
   if (isMobile) {
     // Bottom sheet style for mobile
@@ -177,9 +179,9 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
           <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
             <div className="flex items-center gap-2">
               <NotebookPen size={18} className={textSecondary} />
-              <span className={`font-medium ${textPrimary}`}>Daily Note — {displayDate}</span>
+              <span className={`font-medium ${textPrimary}`}>{t('common.dailyNote')} — {displayDate}</span>
             </div>
-            <button onClick={handleSaveAndClose} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label="Close daily notes">
+            <button onClick={handleSaveAndClose} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label={`${t('common.close')} ${t('common.dailyNote')}`}>
               <X size={18} className={textSecondary} />
             </button>
           </div>
@@ -194,7 +196,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
                 onChange={(e) => setLocalText(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleBlur}
-                placeholder="Add daily notes... (**bold**, *italic*, __underline__, URLs) — Shift+Enter for preview"
+                placeholder={t('planner.notesPlaceholder')}
                 className={`w-full ${darkMode ? 'bg-gray-700 text-gray-100 border-gray-600 placeholder:text-gray-500' : 'bg-stone-50 text-stone-900 border-stone-300 placeholder:text-stone-400'} text-sm px-3 py-2.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 resize-y`}
                 rows={8}
                 autoFocus
@@ -223,9 +225,9 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <NotebookPen size={20} className={textSecondary} />
-            <h3 className={`text-lg font-semibold ${textPrimary}`}>Daily Note — {displayDate}</h3>
+            <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('common.dailyNote')} — {displayDate}</h3>
           </div>
-          <button onClick={handleSaveAndClose} className={`p-1 rounded ${hoverBg}`}>
+          <button onClick={handleSaveAndClose} className={`p-1 rounded ${hoverBg}`} aria-label={`${t('common.close')} ${t('common.dailyNote')}`}>
             <X size={20} className={textSecondary} />
           </button>
         </div>
@@ -240,7 +242,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
             onChange={(e) => setLocalText(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
-            placeholder="Add daily notes... (**bold**, *italic*, __underline__, URLs) — Shift+Enter for preview"
+            placeholder={t('planner.notesPlaceholder')}
             className={`w-full ${darkMode ? 'bg-gray-700 text-gray-100 border-gray-600 placeholder:text-gray-500' : 'bg-stone-50 text-stone-900 border-stone-300 placeholder:text-stone-400'} text-sm px-3 py-2.5 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 resize-y`}
             rows={10}
             autoFocus

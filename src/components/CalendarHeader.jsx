@@ -24,6 +24,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
+import { formatLocalizedDate } from '../utils/localeFormatting.js';
 
 const CalendarHeader = () => {
   const {
@@ -183,9 +184,9 @@ const CalendarHeader = () => {
             title={`Start agenda at ${dateStr}`}
           >
             <div className={`font-bold flex items-center justify-center gap-1.5 ${isDateToday || isSelected ? 'text-blue-600' : textPrimary}`}>
-              <span>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][date.getDay()]}</span>
+              <span>{formatLocalizedDate(date, { weekday: 'short' })}</span>
               <span className={`font-normal ${isDateToday || isSelected ? 'text-blue-500' : textSecondary}`}>
-                {date.getMonth() + 1}/{date.getDate()}
+                {formatLocalizedDate(date, { month: 'long', day: 'numeric' })}
               </span>
             </div>
           </button>
@@ -212,21 +213,21 @@ const CalendarHeader = () => {
             style={{ minHeight: 'var(--header-row-h)' }}
           >
             <div className={`font-bold flex items-center justify-center gap-1.5 ${isDateToday ? 'text-blue-600' : textPrimary}`}>
-              <span>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][date.getDay()]}</span>
+              <span>{formatLocalizedDate(date, { weekday: 'short' })}</span>
               <span className={`font-normal ${isDateToday ? 'text-blue-500' : textSecondary}`}>
-                {date.getMonth() + 1}/{date.getDate()}
+                {formatLocalizedDate(date, { month: 'long', day: 'numeric' })}
               </span>
               <button
                 onClick={(e) => { e.stopPropagation(); setDailyNotesModalDate(dateStr); }}
                 className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${dailyNotes[dateStr]?.text ? '' : 'opacity-40'}`}
-                title="Daily notes"
+                title={t('common.dailyNote')}
               >
                 <NotebookPen size={14} />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setFocusLogModalDate(dateStr); }}
                 className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${focusLog[dateStr]?.totalMinutes > 0 ? '' : 'opacity-40'}`}
-                title="Focus sessions"
+                title={t('focus.title')}
               >
                 <Target size={14} />
               </button>
@@ -272,21 +273,21 @@ const CalendarHeader = () => {
           }
         }}
         onDrop={(e) => handleDropOnDateHeader(e, date)}
-        title={draggedTask ? "Drop to make all-day task" : "Click to add all-day task"}
+        title={draggedTask ? t('task.dropToAllDay') : `${t('task.addTask')}: ${t('task.allDay')}`}
       >
         <div className={`font-bold flex items-center justify-center gap-1.5 ${isDateToday ? 'text-blue-600' : textPrimary}`}>
           {formatShortDate(date)}
           <button
             onClick={(e) => { e.stopPropagation(); setDailyNotesModalDate(dateStr); }}
             className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${dailyNotes[dateStr]?.text ? '' : 'opacity-50'}`}
-            title="Daily notes"
+            title={t('common.dailyNote')}
           >
             <NotebookPen size={14} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); setFocusLogModalDate(dateStr); }}
             className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${focusLog[dateStr]?.totalMinutes > 0 ? '' : 'opacity-50'}`}
-            title="Focus sessions"
+            title={t('app.focusLog')}
           >
             <Target size={14} />
           </button>
@@ -329,7 +330,7 @@ const CalendarHeader = () => {
           onDragEnter={(e) => { e.preventDefault(); setDragOverAllDay(group.dateStr); setDragPreviewTime(null); }}
           onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverAllDay(null); }}
           onDrop={(e) => handleDropOnDateHeader(e, group.date)}
-          title={draggedTask ? 'Drop to make all-day task' : ''}
+          title={draggedTask ? t('task.dropToAllDay') : ''}
         >
           {/* ViewCycler floats in the absolute-left of the first date group so
               column boundaries align: both header and DayView start at x=0. */}
@@ -351,14 +352,14 @@ const CalendarHeader = () => {
             <button
               onClick={(e) => { e.stopPropagation(); setDailyNotesModalDate(group.dateStr); }}
               className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${dailyNotes[group.dateStr]?.text ? '' : 'opacity-50'}`}
-              title="Daily notes"
+              title={t('common.dailyNote')}
             >
               <NotebookPen size={14} />
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); setFocusLogModalDate(group.dateStr); }}
               className={`p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${focusLog[group.dateStr]?.totalMinutes > 0 ? '' : 'opacity-50'}`}
-              title="Focus sessions"
+              title={t('app.focusLog')}
             >
               <Target size={14} />
             </button>
@@ -508,7 +509,7 @@ const CalendarHeader = () => {
             className={`${task.color} rounded-lg shadow-sm cursor-move relative border-2 border-dashed border-white/60`}
           >
             {task.isExample && (
-              <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">Example</span>
+              <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">{t('common.example')}</span>
             )}
             <div className="p-2 text-white">
               <div className="flex items-center justify-between gap-2">
@@ -530,7 +531,7 @@ const CalendarHeader = () => {
                   >
                     {isPhoneOnlyTask(task) ? <Phone size={14} /> : isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); postponeDeadlineTask(task.id); }} className="hover:bg-white/20 rounded p-1 transition-colors" title="Postpone to tomorrow">
+                  <button onClick={(e) => { e.stopPropagation(); postponeDeadlineTask(task.id); }} className="hover:bg-white/20 rounded p-1 transition-colors" title={t('sched.postponeTomorrow')}>
                     <SkipForward size={14} />
                   </button>
                   <div className="deadline-picker-container relative">
@@ -539,7 +540,7 @@ const CalendarHeader = () => {
                     </button>
                     {showDeadlinePicker === task.id && <DeadlinePickerPopover taskId={task.id} currentDeadline={task.deadline} onClose={() => setShowDeadlinePicker(null)} />}
                   </div>
-                  <button onClick={() => openMobileEditTask(task, true)} className="hover:bg-white/20 rounded p-1 transition-colors" title="Edit">
+                  <button onClick={() => openMobileEditTask(task, true)} className="hover:bg-white/20 rounded p-1 transition-colors" title={t('common.edit')}>
                     <Pencil size={14} />
                   </button>
                 </div>
@@ -569,7 +570,7 @@ const CalendarHeader = () => {
 {effectiveViewMode === 'multi' && !(isTablet && !isLandscape && (mobileViewMode === 'list' || mobileViewMode === 'sched')) && (visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay) || getDeadlineTasksForDate(dateToString(date)).length > 0) || (routinesEnabled && todayRoutines.some(r => r.isAllDay))) && (
   <div ref={(el) => { if (isTablet) mobileAllDaySectionRef.current = el; }} className={`flex border-b ${borderClass} ${cardBg}`}>
     <div className={`w-16 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
-      ALL DAY
+      {t('task.allDay')}
     </div>
     {visibleDates.map((date, idx) => {
       const dayTasks = getTasksForDate(date).filter(t => t.isAllDay && (!projectFilter || t.projectId === projectFilter)).sort((a, b) => {
@@ -642,11 +643,11 @@ const CalendarHeader = () => {
                       {isRecurringAllDay ? (
                         <><Trash2 size={14} className="mr-1" />{t('common.delete')}</>
                       ) : (
-                        <><Inbox size={14} className="mr-1" />Inbox</>
+                        <><Inbox size={14} className="mr-1" />{t('settings.inbox')}</>
                       )}
                     </div>
                     <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
-                      Edit<Settings size={14} className="ml-1" />
+                      {t('common.edit')}<Settings size={14} className="ml-1" />
                     </div>
                   </>
                 )}
@@ -686,10 +687,10 @@ const CalendarHeader = () => {
               {isTablet && (
                 <>
                   <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
-                    <Inbox size={14} className="mr-1" />Inbox
+                    <Inbox size={14} className="mr-1" />{t('settings.inbox')}
                   </div>
                   <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
-                    Edit<Settings size={14} className="ml-1" />
+                    {t('common.edit')}<Settings size={14} className="ml-1" />
                   </div>
                 </>
               )}
@@ -795,7 +796,7 @@ const CalendarHeader = () => {
                     <button
                       onClick={(e) => { e.stopPropagation(); postponeDeadlineTask(task.id); }}
                       className="hover:bg-white/20 rounded p-1 transition-colors"
-                      title="Postpone to tomorrow"
+                      title={t('sched.postponeTomorrow')}
                     >
                       <SkipForward size={14} />
                     </button>
@@ -822,7 +823,7 @@ const CalendarHeader = () => {
                       <button
                         onClick={() => openMobileEditTask(task, true)}
                         className="hover:bg-white/20 rounded p-1 transition-colors"
-                        title="Edit"
+                        title={t('common.edit')}
                       >
                         <Pencil size={14} />
                       </button>

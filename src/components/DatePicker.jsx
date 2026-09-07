@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { dateToString } from '../utils/taskUtils.js';
+import { useTranslation } from 'react-i18next';
+import { formatLocalizedDate, localizedWeekdays } from '../utils/localeFormatting.js';
 
 const DatePicker = ({ value, onChange, onClose }) => {
+  const { t } = useTranslation();
   const {
-    cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg,
+    cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg, weekStartDay = 0,
   } = useDayPlannerCtx();
 
   const [viewDate, setViewDate] = useState(() => {
@@ -22,7 +25,7 @@ const DatePicker = ({ value, onChange, onClose }) => {
       const firstDay = new Date(year, month, 1);
       const lastDay = new Date(year, month + 1, 0);
       const daysInMonth = lastDay.getDate();
-      const startingDayOfWeek = firstDay.getDay();
+      const startingDayOfWeek = (firstDay.getDay() - weekStartDay + 7) % 7;
       
       const days = [];
       // Add empty slots for days before the first of the month
@@ -40,8 +43,8 @@ const DatePicker = ({ value, onChange, onClose }) => {
       setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + delta, 1));
     };
 
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                       'July', 'August', 'September', 'October', 'November', 'December'];
+    const weekdayNames = localizedWeekdays('narrow');
+    const orderedWeekdays = Array.from({ length: 7 }, (_, index) => weekdayNames[(weekStartDay + index) % 7]);
     const days = getDaysInMonth();
     const today = dateToString(new Date());
 
@@ -60,7 +63,7 @@ const DatePicker = ({ value, onChange, onClose }) => {
               <ChevronLeft size={20} className={textSecondary} />
             </button>
             <h3 className={`text-lg font-semibold ${textPrimary}`}>
-              {monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}
+              {formatLocalizedDate(viewDate, { month: 'long', year: 'numeric' })}
             </h3>
             <button
               type="button"
@@ -72,8 +75,8 @@ const DatePicker = ({ value, onChange, onClose }) => {
           </div>
 
           <div className="grid grid-cols-7 gap-1 mb-2">
-            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-              <div key={day} className={`text-center text-sm font-semibold p-2 ${textSecondary}`}>
+            {orderedWeekdays.map((day, index) => (
+              <div key={`${index}-${day}`} className={`text-center text-sm font-semibold p-2 ${textSecondary}`}>
                 {day}
               </div>
             ))}
@@ -121,14 +124,14 @@ const DatePicker = ({ value, onChange, onClose }) => {
               }}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
-              Today
+              {t('common.today')}
             </button>
             <button
               type="button"
               onClick={onClose}
               className={`flex-1 px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textPrimary} ${hoverBg}`}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>

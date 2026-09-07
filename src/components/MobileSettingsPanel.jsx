@@ -18,6 +18,7 @@ import UnportableVaultNamesPanel from './UnportableVaultNamesPanel.jsx';
 import BridgeStatusPanel from './BridgeStatusPanel.jsx';
 import { validateDailyNotePattern, validateVaultFolderSetting } from '../utils/obsidianFilename.js';
 import { effectiveLaunchOnWrite } from '../utils/obsidianLaunchOnWrite.js';
+import { formatLocalizedDate, localizedWeekdays } from '../utils/localeFormatting.js';
 import CloudSyncSettingsForm from './CloudSyncSettingsForm.jsx';
 import ICloudDiagnostics from './ICloudDiagnostics.jsx';
 import ICloudSyncToggle from './ICloudSyncToggle.jsx';
@@ -45,6 +46,7 @@ import { ensureVaultIntentsKey, setupVaultIntentsEncryption } from '../intents/v
 import { flushOutboxNow } from '../intents/useOutboxFlush.js';
 import { loadIntentsRootKey, clearIntentsRootKey } from '../intents/intentsKeyStore.js';
 import { useTranslation } from 'react-i18next';
+import { buildLocalizedTaskHeading } from '../utils/dailyNoteTemplate.js';
 import LanguagePicker from './LanguagePicker.jsx';
 import { notBucketed } from '../utils/bucketList.js';
 import CalendarList from './CalendarList.jsx';
@@ -257,10 +259,10 @@ const MobileSettingsPanel = () => {
         <div className="flex-1 min-w-0">
           <div className={`text-xs font-semibold ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>{t('settings.timezoneMismatch')}</div>
           <div className={`text-xs mt-0.5 ${darkMode ? 'text-amber-400/80' : 'text-amber-700/80'}`}>
-            Device: <strong>{Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, ' ')}</strong>
+            {t('settings.timezoneDevice')}: <strong>{Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, ' ')}</strong>
           </div>
           <div className={`text-xs ${darkMode ? 'text-amber-400/80' : 'text-amber-700/80'}`}>
-            Home: <strong>{homeTimezone.replace(/_/g, ' ')}</strong>
+            {t('settings.timezoneHome')}: <strong>{homeTimezone.replace(/_/g, ' ')}</strong>
           </div>
           <button
             onClick={() => setMobileSettingsView('app')}
@@ -280,7 +282,7 @@ const MobileSettingsPanel = () => {
         className={`${cardBg} border ${borderClass} rounded-xl p-4 flex flex-col items-center gap-2`}
       >
         <Clock size={24} className={textSecondary} />
-        <span className={`text-xs font-medium ${textPrimary}`}>{use24HourClock ? '24h' : '12h'}</span>
+        <span className={`text-xs font-medium ${textPrimary}`}>{use24HourClock ? t('settings.clock24h') : t('settings.clock12h')}</span>
       </button>
       <button
         onClick={() => setWeekStartDay(weekStartDay === 0 ? 1 : 0)}
@@ -433,7 +435,7 @@ const MobileSettingsPanel = () => {
               <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${darkMode ? 'border-gray-800' : 'border-white'} bg-green-500`} />
             )}
           </div>
-          <span className={`font-medium ${textPrimary} flex-1 text-left`}>Local Integrations</span>
+          <span className={`font-medium ${textPrimary} flex-1 text-left`}>{t('settings.localIntegrations', { defaultValue: 'Local Integrations' })}</span>
           <ChevronRight size={18} className={textSecondary} />
         </button>
       )}
@@ -492,23 +494,20 @@ const MobileSettingsPanel = () => {
         confirmingPurchaseReset ? (
           <div className={`w-full ${cardBg} border border-red-500/40 rounded-xl p-3 space-y-2`}>
             <p className={`text-xs ${textSecondary} leading-relaxed`}>
-              This permanently revokes this account&apos;s lifetime purchase from
-              Google Play. It is not a refresh and cannot be undone. It has no
-              effect on subscriptions: cancel in Google Play and let the
-              subscription expire instead. For internal testing only.
+              {t('settings.resetTestPurchaseWarning', { defaultValue: "This permanently revokes this account's lifetime purchase from Google Play. It is not a refresh and cannot be undone. It has no effect on subscriptions: cancel in Google Play and let the subscription expire instead. For internal testing only." })}
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => setConfirmingPurchaseReset(false)}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium border ${borderClass} ${textPrimary}`}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={() => { setConfirmingPurchaseReset(false); consumeTestPurchase(); }}
                 className="flex-1 py-2 rounded-lg text-sm font-medium bg-red-600 text-white"
               >
-                Revoke purchase
+                {t('settings.revokePurchase', { defaultValue: 'Revoke purchase' })}
               </button>
             </div>
           </div>
@@ -518,7 +517,7 @@ const MobileSettingsPanel = () => {
             className={`w-full ${cardBg} border ${borderClass} rounded-xl p-3 flex items-center gap-3 opacity-50`}
           >
             <RefreshCw size={16} className={textSecondary} />
-            <span className={`text-sm ${textSecondary} flex-1 text-left`}>Reset test purchase</span>
+            <span className={`text-sm ${textSecondary} flex-1 text-left`}>{t('settings.resetTestPurchase', { defaultValue: 'Reset test purchase' })}</span>
           </button>
         )
       )}
@@ -526,7 +525,7 @@ const MobileSettingsPanel = () => {
         <p onClick={() => setDevTapCount(c => c + 1)} className={`text-xs ${textSecondary} text-center pt-1`}>
           {/* Only two plans exist on every platform: annual and lifetime
               (dayglance_pro_lifetime / com.dayglance.pro.lifetime). */}
-          {subProductId?.includes('lifetime') ? 'dayGLANCE Pro · Lifetime' : 'dayGLANCE Pro · Annual'}
+          dayGLANCE Pro · {subProductId?.includes('lifetime') ? t('subscription.lifetime') : t('subscription.annual')}
         </p>
       )}
     </div>
@@ -552,17 +551,21 @@ const MobileSettingsPanel = () => {
         </div>
         <p className={`text-xs ${textSecondary}`}>{t('settings.viewDefaultDesc')}</p>
         <div className="flex gap-2">
-          {['grid', 'list', 'sched'].map(mode => (
+          {[
+            { value: 'grid', label: t('settings.viewGrid') },
+            { value: 'list', label: t('settings.viewList') },
+            { value: 'sched', label: t('settings.viewSched') },
+          ].map(({ value, label }) => (
             <button
-              key={mode}
-              onClick={() => { setMobileDefaultView(mode); setMobileViewMode(mode); }}
+              key={value}
+              onClick={() => { setMobileDefaultView(value); setMobileViewMode(value); }}
               className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                mobileDefaultView === mode
+                mobileDefaultView === value
                   ? 'bg-blue-600 text-white border-blue-600'
                   : `${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-stone-300'} ${textPrimary}`
               }`}
             >
-              {mode.toUpperCase()}
+              {label}
             </button>
           ))}
         </div>
@@ -573,7 +576,7 @@ const MobileSettingsPanel = () => {
             <label className={`block text-xs font-medium ${textSecondary}`}>{t('settings.endOfDay')}</label>
             <p className={`text-xs ${textSecondary} opacity-70`}>{t('settings.endOfDayHint')}</p>
             <div className="flex flex-wrap gap-1.5">
-              {[{ label: 'Off', value: null }, ...Array.from({ length: 13 }, (_, i) => {
+              {[{ label: t('common.off'), value: null }, ...Array.from({ length: 13 }, (_, i) => {
                 const totalMin = 18 * 60 + i * 30;
                 const hh = String(Math.floor(totalMin / 60) % 24).padStart(2, '0');
                 const mm = String(totalMin % 60).padStart(2, '0');
@@ -643,7 +646,7 @@ const MobileSettingsPanel = () => {
             </div>
             <p className={`text-xs ${textSecondary}`}>{t('settings.glanceDefaultDesc')}</p>
             <div className="flex gap-2">
-              {[{ value: 0, label: 'HABITS' }, { value: 1, label: 'GOALS' }].map(({ value, label }) => (
+              {[{ value: 0, label: t('settings.glanceDefaultHabits') }, { value: 1, label: t('settings.glanceDefaultGoals') }].map(({ value, label }) => (
                 <button
                   key={value}
                   onClick={() => setGlancePage(value)}
@@ -675,7 +678,7 @@ const MobileSettingsPanel = () => {
         {!isNativeApp() && <CalendarList />}
         {isNativeApp() && (
           <p className={`text-xs ${textSecondary}`}>
-            Calendar events are read from your device accounts. Use the Device Calendars section below to choose which calendars to show.
+            {t('settings.deviceCalendarDescription')}
           </p>
         )}
         <div>
@@ -692,20 +695,20 @@ const MobileSettingsPanel = () => {
           <div className={`space-y-2 pl-3 border-l-2 ${darkMode ? 'border-gray-600' : 'border-stone-300'}`}>
             <p className={`text-xs font-medium ${textSecondary}`}>{t('settings.taskCalendarAuth')}</p>
             <div>
-              <label className={`block text-xs ${textSecondary} mb-1`}>Username</label>
+              <label className={`block text-xs ${textSecondary} mb-1`}>{t('common.username')}</label>
               <input
                 type="text"
-                placeholder="username"
+                placeholder={t('common.username')}
                 value={taskCalendarAuth.username}
                 onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, username: e.target.value }))}
                 className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
               />
             </div>
             <div>
-              <label className={`block text-xs ${textSecondary} mb-1`}>App Password</label>
+              <label className={`block text-xs ${textSecondary} mb-1`}>{t('settings.appPassword')}</label>
               <input
                 type="password"
-                placeholder="app-password"
+                placeholder={t('settings.appPassword')}
                 value={taskCalendarAuth.appPassword}
                 onChange={(e) => setTaskCalendarAuth(prev => ({ ...prev, appPassword: e.target.value }))}
                 className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
@@ -721,11 +724,11 @@ const MobileSettingsPanel = () => {
                 className={`w-full px-3 py-1.5 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-xs`}
               />
               <p className={`text-xs ${textSecondary} mt-0.5`}>
-                For syncing completions back: the CalDAV collection URL (without ?export). In Nextcloud, find the internal calendar ID via CalDAV settings — it may differ from the display name.
+                {t('settings.calDAVSyncHint')}
               </p>
             </div>
             <p className={`text-xs ${textSecondary}`}>
-              Username + password fetches protected task calendars. Adding a CalDAV Base URL also syncs completion status back to your server.
+              {t('settings.taskCalendarCredentialsHint')}
             </p>
           </div>
         )}
@@ -752,17 +755,17 @@ const MobileSettingsPanel = () => {
             onChange={(e) => setSyncRetentionDays(Number(e.target.value))}
             className={`px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
           >
-            <option value={7}>7 days</option>
-            <option value={14}>14 days</option>
-            <option value={30}>30 days</option>
-            <option value={60}>60 days</option>
-            <option value={90}>90 days</option>
-            <option value={180}>6 months</option>
-            <option value={365}>1 year</option>
-            <option value={0}>All (no limit)</option>
+            <option value={7}>{t('settings.keepPastEventsDays', { count: 7, defaultValue: '{{count}} days' })}</option>
+            <option value={14}>{t('settings.keepPastEventsDays', { count: 14, defaultValue: '{{count}} days' })}</option>
+            <option value={30}>{t('settings.keepPastEventsDays', { count: 30, defaultValue: '{{count}} days' })}</option>
+            <option value={60}>{t('settings.keepPastEventsDays', { count: 60, defaultValue: '{{count}} days' })}</option>
+            <option value={90}>{t('settings.keepPastEventsDays', { count: 90, defaultValue: '{{count}} days' })}</option>
+            <option value={180}>{t('settings.keepPastEventsMonths', { count: 6, defaultValue: '{{count}} months' })}</option>
+            <option value={365}>{t('settings.keepPastEventsYears', { count: 1, defaultValue: '{{count}} year' })}</option>
+            <option value={0}>{t('settings.keepPastEventsAll')}</option>
           </select>
           <p className={`text-xs ${textSecondary} mt-1`}>
-            Older imported events are dropped to save storage
+            {t('settings.keepPastEventsHint')}
           </p>
         </div>
         <button
@@ -779,13 +782,13 @@ const MobileSettingsPanel = () => {
         {isNativeApp() && (
           <div className="space-y-2 pt-1">
             <div className="flex items-center justify-between">
-              <p className={`text-sm font-medium ${textPrimary}`}>Device Calendars</p>
-              <button onClick={() => { const cals = nativeGetCalendars(); if (cals.length > 0) setAvailableCalendars(cals); }} className={`text-xs ${textSecondary} underline`}>Refresh</button>
+              <p className={`text-sm font-medium ${textPrimary}`}>{t('settings.deviceCalendars')}</p>
+              <button onClick={() => { const cals = nativeGetCalendars(); if (cals.length > 0) setAvailableCalendars(cals); }} className={`text-xs ${textSecondary} underline`}>{t('common.refresh')}</button>
             </div>
             {availableCalendars.length === 0 ? (
-              <p className={`text-xs ${textSecondary}`}>No calendars loaded — tap Refresh, or rebuild the app if this persists.</p>
+              <p className={`text-xs ${textSecondary}`}>{t('settings.noDeviceCalendars')}</p>
             ) : (<>
-              <p className={`text-xs ${textSecondary}`}>Uncheck to hide calendars. Leave all checked to show everything.</p>
+              <p className={`text-xs ${textSecondary}`}>{t('settings.deviceCalendarFilterHint')}</p>
               {availableCalendars.map(cal => {
                 const isChecked = calendarFilter.length === 0 || calendarFilter.includes(cal.id);
                 return (
@@ -949,19 +952,23 @@ const MobileSettingsPanel = () => {
               <span className={`text-sm ${textPrimary}`}>{t('settings.browserNotifications')}</span>
               <p className={`text-xs ${textSecondary}`}>
                 {typeof Notification !== 'undefined'
-                  ? Notification.permission === 'granted' ? 'Permission granted'
-                  : Notification.permission === 'denied' ? 'Permission denied'
-                  : 'Will request permission when enabled'
-                  : 'Not supported'}
+                  ? Notification.permission === 'granted' ? t('reminders.permissionGranted')
+                  : Notification.permission === 'denied' ? t('reminders.permissionDenied')
+                  : t('reminders.permissionRequest')
+                  : t('reminders.notSupported')}
               </p>
             </div>
           </label>
 
           {/* Presets */}
           <div>
-            <p className={`text-xs font-medium ${textSecondary} mb-2`}>Presets</p>
+            <p className={`text-xs font-medium ${textSecondary} mb-2`}>{t('settings.presets')}</p>
             <div className="flex gap-2">
-              {[['standard', 'Standard'], ['aggressive', 'Aggressive'], ['minimal', 'Minimal']].map(([key, label]) => (
+              {[
+                ['standard', t('reminders.presetStandard')],
+                ['aggressive', t('reminders.presetAggressive')],
+                ['minimal', t('reminders.presetMinimal')],
+              ].map(([key, label]) => (
                 <button
                   key={key}
                   onClick={() => applyReminderPreset(key)}
@@ -973,22 +980,28 @@ const MobileSettingsPanel = () => {
                 </button>
               ))}
               {reminderSettings.preset === 'custom' && (
-                <span className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white">Custom</span>
+                <span className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white">{t('reminders.presetCustom')}</span>
               )}
             </div>
           </div>
 
           {/* Per-category grids */}
           {[
-            ['calendarEvents', 'Calendar Events'],
-            ['calendarTasks', 'Calendar Tasks'],
-            ['scheduledTasks', 'Scheduled Tasks'],
-            ['recurringTasks', 'Recurring Tasks'],
+            ['calendarEvents', t('reminders.calendarEvents')],
+            ['calendarTasks', t('reminders.calendarTasks')],
+            ['scheduledTasks', t('reminders.scheduledTasks')],
+            ['recurringTasks', t('reminders.recurringTasks')],
           ].map(([catKey, catLabel]) => (
             <div key={catKey}>
               <p className={`text-xs font-medium ${textSecondary} mb-1.5`}>{catLabel}</p>
               <div className="flex gap-1.5 flex-wrap">
-                {[['before15', '-15m'], ['before10', '-10m'], ['before5', '-5m'], ['atStart', 'Start'], ['atEnd', 'End']].map(([field, label]) => (
+                {[
+                  ['before15', t('reminders.beforeMinutes', { count: 15 })],
+                  ['before10', t('reminders.beforeMinutes', { count: 10 })],
+                  ['before5', t('reminders.beforeMinutes', { count: 5 })],
+                  ['atStart', t('common.start')],
+                  ['atEnd', t('common.end')],
+                ].map(([field, label]) => (
                   <button
                     key={field}
                     onClick={() => updateCategoryReminder(catKey, field, !reminderSettings.categories[catKey]?.[field])}
@@ -1005,7 +1018,7 @@ const MobileSettingsPanel = () => {
 
           {/* All-day tasks */}
           <div>
-            <p className={`text-xs font-medium ${textSecondary} mb-1.5`}>All-Day Tasks</p>
+            <p className={`text-xs font-medium ${textSecondary} mb-1.5`}>{t('reminders.allDayTasks')}</p>
             <div className="flex items-center gap-3">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -1014,7 +1027,7 @@ const MobileSettingsPanel = () => {
                   onChange={(e) => updateCategoryReminder('allDayTasks', 'morningReminder', e.target.checked)}
                   className="rounded border-stone-300"
                 />
-                <span className={`text-xs ${textPrimary}`}>Morning reminder at</span>
+                <span className={`text-xs ${textPrimary}`}>{t('reminders.morningReminderAt')}</span>
               </label>
               <button
                 type="button"
@@ -1030,7 +1043,7 @@ const MobileSettingsPanel = () => {
           <div className={`border-t ${borderClass} pt-4`}>
             <div className="flex items-center gap-2 mb-3">
               <BarChart3 size={16} className="text-purple-500" />
-              <span className={`text-sm font-semibold ${textPrimary}`}>Weekly Review</span>
+              <span className={`text-sm font-semibold ${textPrimary}`}>{t('weeklyReview.title')}</span>
             </div>
             <label className="flex items-center gap-3 cursor-pointer mb-3">
               <div className="relative">
@@ -1044,9 +1057,9 @@ const MobileSettingsPanel = () => {
             {reminderSettings.weeklyReview?.enabled && (
               <div className="space-y-3 ml-1">
                 <div>
-                  <p className={`text-xs ${textSecondary} mb-1.5`}>Day</p>
+                  <p className={`text-xs ${textSecondary} mb-1.5`}>{t('task.date')}</p>
                   <div className="flex gap-1 flex-wrap">
-                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((label, i) => (
+                    {localizedWeekdays('short').map((label, i) => (
                       <button
                         key={label}
                         onClick={() => setReminderSettings(prev => ({ ...prev, weeklyReview: { ...prev.weeklyReview, day: i } }))}
@@ -1060,7 +1073,7 @@ const MobileSettingsPanel = () => {
                   </div>
                 </div>
                 <div>
-                  <p className={`text-xs ${textSecondary} mb-1.5`}>Time</p>
+                  <p className={`text-xs ${textSecondary} mb-1.5`}>{t('task.time')}</p>
                   <button
                     type="button"
                     onClick={() => setShowWeeklyReviewTimePicker(true)}
@@ -1080,7 +1093,7 @@ const MobileSettingsPanel = () => {
       <div className={`border-t ${borderClass} pt-4`}>
         <div className="flex items-center gap-2 mb-3">
           <Zap size={16} className="text-indigo-500" />
-          <span className={`text-sm font-semibold ${textPrimary}`}>hyperGLANCE Sessions</span>
+          <span className={`text-sm font-semibold ${textPrimary}`}>{t('reminders.hyperGlanceSessions')}</span>
         </div>
         <label className="flex items-center gap-3 cursor-pointer mb-3">
           <div className="relative">
@@ -1093,9 +1106,15 @@ const MobileSettingsPanel = () => {
         </label>
         {reminderSettings.hyperGlance?.enabled !== false && (
           <div>
-            <p className={`text-xs ${textSecondary} mb-1.5`}>Session reminder</p>
+            <p className={`text-xs ${textSecondary} mb-1.5`}>{t('reminders.sessionReminder')}</p>
             <div className="flex gap-1.5 flex-wrap">
-              {[[0, 'Off'], [5, '5m'], [10, '10m'], [15, '15m'], [30, '30m']].map(([mins, label]) => (
+              {[
+                [0, t('common.off')],
+                [5, t('common.minutesShort', { count: 5 })],
+                [10, t('common.minutesShort', { count: 10 })],
+                [15, t('common.minutesShort', { count: 15 })],
+                [30, t('common.minutesShort', { count: 30 })],
+              ].map(([mins, label]) => (
                 <button
                   key={mins}
                   onClick={() => setReminderSettings(prev => ({ ...prev, hyperGlance: { ...prev.hyperGlance, upNextMinutes: mins } }))}
@@ -1157,7 +1176,7 @@ const MobileSettingsPanel = () => {
           <Clock size={16} className={textSecondary} />
           {t('settings.autoBackup')}
           {(autoBackupConfig.local.enabled || autoBackupConfig.remote.enabled) && (
-            <span className="ml-auto text-xs px-1.5 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded">Active</span>
+            <span className="ml-auto text-xs px-1.5 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded">{t('common.active')}</span>
           )}
         </h4>
         <AutoBackupSettingsForm
@@ -1185,13 +1204,13 @@ const MobileSettingsPanel = () => {
         </button>
         {autoBackupHistory.local.length > 0 && (
           <div>
-            <h4 className={`text-xs font-semibold ${textSecondary} uppercase mb-2`}>Local ({autoBackupHistory.local.length})</h4>
+            <h4 className={`text-xs font-semibold ${textSecondary} uppercase mb-2`}>{t('backup.localBackups')} ({autoBackupHistory.local.length})</h4>
             <div className="space-y-1">
               {autoBackupHistory.local.map(b => (
                 <div key={b.id} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
                   <div className="min-w-0 flex-1">
                     <p className={`text-sm ${textPrimary} truncate`}>{new Date(b.timestamp).toLocaleString()}</p>
-                    <p className={`text-xs ${textSecondary}`}>{b.frequency}</p>
+                    <p className={`text-xs ${textSecondary}`}>{t(`backup.${b.frequency}`, { defaultValue: b.frequency })}</p>
                   </div>
                   <div className="flex items-center gap-1 ml-2 shrink-0">
                     <button onClick={() => setAutoBackupRestoreConfirm({ type: 'local', id: b.id, timestamp: b.timestamp })} className={`p-1.5 rounded ${hoverBg}`}><Undo2 size={14} className={textSecondary} /></button>
@@ -1204,7 +1223,7 @@ const MobileSettingsPanel = () => {
         )}
         {autoBackupConfig.remote.enabled && autoBackupHistory.remote.length > 0 && (
           <div>
-            <h4 className={`text-xs font-semibold ${textSecondary} uppercase mb-2`}>Remote ({autoBackupHistory.remote.length})</h4>
+            <h4 className={`text-xs font-semibold ${textSecondary} uppercase mb-2`}>{t('backup.remoteBackups')} ({autoBackupHistory.remote.length})</h4>
             <div className="space-y-1">
               {autoBackupHistory.remote.map(b => (
                 <div key={b.filename} className={`flex items-center justify-between py-2 px-3 rounded-lg ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
@@ -1272,7 +1291,7 @@ const MobileSettingsPanel = () => {
           <div className="space-y-4">
             {/* Provider */}
             <div>
-              <label className={`block text-sm ${textSecondary} mb-1`}>Provider</label>
+              <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.aiProvider')}</label>
               <select
                 value={aiConfig.provider}
                 onChange={(e) => {
@@ -1290,7 +1309,9 @@ const MobileSettingsPanel = () => {
                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
               >
                 {Object.entries(PROVIDER_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
+                  <option key={key} value={key}>
+                    {key === 'ollama' ? t('settings.aiProviderOllama') : key === 'custom' ? t('settings.aiProviderCustom') : label}
+                  </option>
                 ))}
               </select>
             </div>
@@ -1298,10 +1319,10 @@ const MobileSettingsPanel = () => {
             {/* API Key */}
             {aiConfig.provider !== 'ollama' && (
               <div>
-                <label className={`block text-sm ${textSecondary} mb-1`}>API Key</label>
+                <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.aiApiKey')}</label>
                 <input
                   type="password"
-                  placeholder={aiConfig.provider === 'openai' ? 'sk-...' : aiConfig.provider === 'anthropic' ? 'sk-ant-...' : 'API key'}
+                  placeholder={aiConfig.provider === 'openai' ? 'sk-...' : aiConfig.provider === 'anthropic' ? 'sk-ant-...' : t('settings.aiApiKey')}
                   value={aiConfig.apiKey}
                   onChange={(e) => {
                     setAiConfig(prev => ({ ...prev, apiKey: e.target.value }));
@@ -1318,7 +1339,7 @@ const MobileSettingsPanel = () => {
             {(aiConfig.provider === 'ollama' || aiConfig.provider === 'custom') && (
               <div>
                 <label className={`block text-sm ${textSecondary} mb-1`}>
-                  {aiConfig.provider === 'ollama' ? 'Ollama URL' : 'Base URL'}
+                  {aiConfig.provider === 'ollama' ? t('settings.aiOllamaUrl') : t('settings.aiBaseUrl')}
                 </label>
                 <input
                   type="url"
@@ -1329,7 +1350,7 @@ const MobileSettingsPanel = () => {
                 />
                 {aiConfig.provider === 'custom' && (
                   <p className={`text-xs ${textSecondary} mt-1`}>
-                    Common providers: Groq → <code className="font-mono">https://api.groq.com/openai/v1</code> · Together AI → <code className="font-mono">https://api.together.xyz/v1</code> · LM Studio → <code className="font-mono">http://localhost:1234/v1</code>
+                    {t('settings.aiCommonProviders')} Groq → <code className="font-mono">https://api.groq.com/openai/v1</code> · Together AI → <code className="font-mono">https://api.together.xyz/v1</code> · LM Studio → <code className="font-mono">http://localhost:1234/v1</code>
                   </p>
                 )}
               </div>
@@ -1337,7 +1358,7 @@ const MobileSettingsPanel = () => {
 
             {/* Model */}
             <div>
-              <label className={`block text-sm ${textSecondary} mb-1`}>Model</label>
+              <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.aiModel')}</label>
               {(PROVIDER_MODELS[aiConfig.provider] || []).length > 0 ? (
                 <select
                   value={aiConfig.model}
@@ -1345,13 +1366,13 @@ const MobileSettingsPanel = () => {
                   className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
                 >
                   {(PROVIDER_MODELS[aiConfig.provider] || []).map(m => (
-                    <option key={m.id} value={m.id}>{m.label}{m.recommended ? ' (Recommended)' : ''}</option>
+                    <option key={m.id} value={m.id}>{m.label}{m.recommended ? ` (${t('settings.aiRecommended')})` : ''}</option>
                   ))}
                 </select>
               ) : (
                 <input
                   type="text"
-                  placeholder="Model name"
+                  placeholder={t('settings.aiModelPlaceholder')}
                   value={aiConfig.model}
                   onChange={(e) => setAiConfig(prev => ({ ...prev, model: e.target.value }))}
                   className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
@@ -1380,7 +1401,7 @@ const MobileSettingsPanel = () => {
                   ) : (
                     <Wifi size={14} />
                   )}
-                  {aiConnectionStatus === 'testing' ? 'Testing...' : 'Test Connection'}
+                  {aiConnectionStatus === 'testing' ? t('settings.aiTesting') : t('settings.aiTestConnection')}
                 </button>
                 {aiConnectionStatus === 'success' && (
                   <span className="text-xs text-green-500">{t('settings.aiConnected')}</span>
@@ -1393,9 +1414,9 @@ const MobileSettingsPanel = () => {
                 <div className={`text-xs p-3 rounded-lg ${darkMode ? 'bg-red-900/30 border border-red-800/50' : 'bg-red-50 border border-red-200'}`}>
                   <p className="text-red-500 font-medium mb-1.5">{aiOllamaHelp}</p>
                   <ul className={`${textSecondary} space-y-1 ml-3 list-disc mb-2`}>
-                    <li>Ollama must be running on your computer</li>
-                    <li>CORS must be enabled for this site&apos;s origin</li>
-                    <li>Set the environment variable: <code className={`text-xs px-1 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>OLLAMA_ORIGINS={window.electronAPI?.isElectron ? '*' : window.location.origin}</code></li>
+                    <li>{t('settings.aiOllamaRunning')}</li>
+                    <li>{t('settings.aiOllamaCors')}</li>
+                    <li>{t('settings.aiOllamaSetEnv')} <code className={`text-xs px-1 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>OLLAMA_ORIGINS={window.electronAPI?.isElectron ? '*' : window.location.origin}</code></li>
                   </ul>
                   <a
                     href="https://github.com/ollama/ollama/blob/main/docs/faq.md#how-do-i-configure-ollama-server"
@@ -1403,7 +1424,7 @@ const MobileSettingsPanel = () => {
                     rel="noopener noreferrer"
                     className="text-purple-500 hover:text-purple-400 underline flex items-center gap-1 w-fit"
                   >
-                    Ollama setup guide <ExternalLink size={11} />
+                    {t('settings.aiOllamaSetupGuide')} <ExternalLink size={11} />
                   </a>
                 </div>
               )}
@@ -1446,7 +1467,7 @@ const MobileSettingsPanel = () => {
                   </div>
                   <span className={`text-sm ${textPrimary} flex items-center gap-1.5`}>
                     {f.icon} {f.label}
-                    {f.comingSoon && <span className={`text-xs ${textSecondary} italic`}>Coming soon</span>}
+                    {f.comingSoon && <span className={`text-xs ${textSecondary} italic`}>{t('common.comingSoon')}</span>}
                   </span>
                 </label>
               ))}
@@ -1538,7 +1559,7 @@ const MobileSettingsPanel = () => {
       <p className={`text-xs ${textSecondary}`}>{t('settings.obsidianDesc')}</p>
       {!isNativeApp() && !isFileSystemAccessSupported() && (
         <p className={`text-xs text-amber-500`}>
-          Obsidian integration requires a Chromium-based browser (Chrome, Edge, or Brave). Firefox and Safari do not support the File System Access API.
+          {t('settings.obsidianBrowserRequirement')}
         </p>
       )}
       {isNativeApp() ? (
@@ -1551,7 +1572,7 @@ const MobileSettingsPanel = () => {
             </div>
           ) : (
             <p className={`text-xs ${textSecondary}`}>
-              No vault configured. Open settings to select your Obsidian vault folder.
+              {t('settings.obsidianNoVaultConfigured', { defaultValue: 'No vault configured. Open settings to select your Obsidian vault folder.' })}
             </p>
           )}
           {/* Vault path + new notes folder — configured in native SettingsActivity */}
@@ -1597,7 +1618,7 @@ const MobileSettingsPanel = () => {
                   }}
                   className={`px-3 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
                 >
-                  Disconnect
+                  {t('common.disconnect')}
                 </button>
               </>
             )}
@@ -1608,12 +1629,12 @@ const MobileSettingsPanel = () => {
               <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianDailyNotesFolder')}</label>
               <input
                 type="text"
-                placeholder="(vault root)"
+                placeholder={t('settings.obsidianVaultRootPlaceholder')}
                 value={obsidianConfig.dailyNotesPath || ''}
                 onChange={(e) => setObsidianConfig(prev => ({ ...prev, dailyNotesPath: e.target.value }))}
                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
               />
-              <p className={`text-xs ${textSecondary} mt-1`}>Leave empty for vault root. Common: "Daily Notes" or "journals"</p>
+              <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianDailyNotesFolderHint')}</p>
             </div>
           )}
           {/* New notes folder */}
@@ -1630,7 +1651,7 @@ const MobileSettingsPanel = () => {
                             {validateVaultFolderSetting(obsidianConfig.newNotesFolder) && (
                 <p className="text-xs text-red-500 mt-1">{validateVaultFolderSetting(obsidianConfig.newNotesFolder)}</p>
               )}
-              <p className={`text-xs ${textSecondary} mt-1`}>Where new notes created in dayGLANCE are saved. Leave empty for vault root.</p>
+              <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianNewNotesFolderHint')}</p>
             </div>
           )}
           {/* Filename pattern */}
@@ -1647,7 +1668,7 @@ const MobileSettingsPanel = () => {
                             {validateDailyNotePattern(obsidianConfig.dailyNotePattern, formatDatePattern) && (
                 <p className="text-xs text-red-500 mt-1">{validateDailyNotePattern(obsidianConfig.dailyNotePattern, formatDatePattern)}</p>
               )}
-              <p className={`text-xs ${textSecondary} mt-1`}>Date pattern for daily note filenames (without .md). e.g. "yyyy-MM-dd", "dd-MM-yyyy", "MMMM dd, yyyy"</p>
+              <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianFilenamePatternHint')}</p>
             </div>
           )}
           {/* Task heading — same as web */}
@@ -1656,12 +1677,12 @@ const MobileSettingsPanel = () => {
               <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianTaskHeading')}</label>
               <input
                 type="text"
-                placeholder="## Tasks"
-                value={obsidianConfig.taskHeading ?? '## Tasks'}
+                placeholder={buildLocalizedTaskHeading(t)}
+                value={obsidianConfig.taskHeading ?? ''}
                 onChange={(e) => setObsidianConfig(prev => ({ ...prev, taskHeading: e.target.value }))}
                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
               />
-              <p className={`text-xs ${textSecondary} mt-1`}>Markdown heading under which new tasks are appended in daily notes.</p>
+              <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianTaskHeadingHint', { defaultValue: 'Markdown heading under which new tasks are appended in daily notes.' })}</p>
             </div>
           )}
           {/* Daily note template — same as web */}
@@ -1671,7 +1692,7 @@ const MobileSettingsPanel = () => {
               <textarea
                 value={dailyNoteTemplate}
                 onChange={(e) => setDailyNoteTemplate(e.target.value)}
-                placeholder="Template for new daily notes..."
+                placeholder={t('settings.obsidianDailyNoteTemplatePlaceholder')}
                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white placeholder:text-gray-500' : 'bg-white text-stone-900 placeholder:text-stone-400'} text-sm resize-y`}
                 rows={4}
               />
@@ -1761,19 +1782,19 @@ const MobileSettingsPanel = () => {
         <div className="space-y-3">
           <div className={`flex items-center gap-2 text-sm ${textPrimary}`}>
             <FolderOpen size={14} className={textSecondary} />
-            <span className="truncate">{obsidianConfig.vaultName || 'Vault connected'}</span>
+            <span className="truncate">{obsidianConfig.vaultName || t('settings.obsidianVaultConnected')}</span>
             <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
           </div>
           <div>
             <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianDailyNotesFolder')}</label>
             <input
               type="text"
-              placeholder="(vault root)"
+              placeholder={t('settings.obsidianVaultRootPlaceholder')}
               value={obsidianConfig.dailyNotesPath || ''}
               onChange={(e) => setObsidianConfig(prev => ({ ...prev, dailyNotesPath: e.target.value }))}
               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
             />
-            <p className={`text-xs ${textSecondary} mt-1`}>Leave empty for vault root. Common: "Daily Notes" or "journals"</p>
+            <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianDailyNotesFolderHint')}</p>
           </div>
           <div>
             <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianNewNotesFolder')}</label>
@@ -1787,7 +1808,7 @@ const MobileSettingsPanel = () => {
                           {validateVaultFolderSetting(obsidianConfig.newNotesFolder) && (
                 <p className="text-xs text-red-500 mt-1">{validateVaultFolderSetting(obsidianConfig.newNotesFolder)}</p>
               )}
-              <p className={`text-xs ${textSecondary} mt-1`}>Where new notes created in dayGLANCE are saved. Leave empty for vault root.</p>
+              <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianNewNotesFolderHint')}</p>
           </div>
           <div>
             <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianFilenamePattern')}</label>
@@ -1801,25 +1822,25 @@ const MobileSettingsPanel = () => {
                           {validateDailyNotePattern(obsidianConfig.dailyNotePattern, formatDatePattern) && (
                 <p className="text-xs text-red-500 mt-1">{validateDailyNotePattern(obsidianConfig.dailyNotePattern, formatDatePattern)}</p>
               )}
-              <p className={`text-xs ${textSecondary} mt-1`}>Date pattern for daily note filenames (without .md). e.g. "yyyy-MM-dd", "dd-MM-yyyy", "MMMM dd, yyyy"</p>
+              <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianFilenamePatternHint')}</p>
           </div>
           <div>
             <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianTaskHeading')}</label>
             <input
               type="text"
-              placeholder="## Tasks"
-              value={obsidianConfig.taskHeading ?? '## Tasks'}
+              placeholder={buildLocalizedTaskHeading(t)}
+              value={obsidianConfig.taskHeading ?? ''}
               onChange={(e) => setObsidianConfig(prev => ({ ...prev, taskHeading: e.target.value }))}
               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
             />
-            <p className={`text-xs ${textSecondary} mt-1`}>Markdown heading under which new tasks are appended in daily notes.</p>
+            <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.obsidianTaskHeadingHint', { defaultValue: 'Markdown heading under which new tasks are appended in daily notes.' })}</p>
           </div>
           <div>
             <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.obsidianDailyNoteTemplate')}</label>
             <textarea
               value={dailyNoteTemplate}
               onChange={(e) => setDailyNoteTemplate(e.target.value)}
-              placeholder="Template for new daily notes..."
+              placeholder={t('settings.obsidianDailyNoteTemplatePlaceholder')}
               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${darkMode ? 'bg-gray-700 text-white placeholder:text-gray-500' : 'bg-white text-stone-900 placeholder:text-stone-400'} text-sm resize-y`}
               rows={4}
             />
@@ -1893,7 +1914,7 @@ const MobileSettingsPanel = () => {
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm disabled:opacity-50"
             >
               <RefreshCw size={14} className={obsidianSyncStatus === 'syncing' ? 'animate-spin' : ''} />
-              {obsidianSyncStatus === 'syncing' ? 'Syncing…' : 'Sync Now'}
+              {obsidianSyncStatus === 'syncing' ? t('common.syncing') : t('common.syncNow')}
             </button>
             <button
               onClick={async () => {
@@ -1908,11 +1929,17 @@ const MobileSettingsPanel = () => {
               }}
               className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
             >
-              Disconnect
+              {t('common.disconnect')}
             </button>
           </div>
           {obsidianSyncStatus === 'success' && <p className="text-xs text-green-500">{t('settings.obsidianSyncComplete')}</p>}
-          {obsidianSyncStatus === 'error' && <p className="text-xs text-red-500">Sync failed{obsidianSyncError ? `: ${obsidianSyncError}` : ''}</p>}
+          {obsidianSyncStatus === 'error' && (
+            <p className="text-xs text-red-500">
+              {obsidianSyncError
+                ? t('settings.obsidianSyncFailedWithError', { error: obsidianSyncError, defaultValue: 'Sync failed: {{error}}' })
+                : t('settings.obsidianSyncFailed')}
+            </p>
+          )}
           {obsidianLastSynced && (
             <p className={`text-xs ${textSecondary}`}>{t('common.lastSynced')}: {new Date(obsidianLastSynced).toLocaleString()}</p>
           )}
@@ -1922,7 +1949,7 @@ const MobileSettingsPanel = () => {
         <button
           onClick={async () => {
             if (!isFileSystemAccessSupported()) {
-              alert('Your browser does not support the File System Access API. Please use a Chromium-based browser (e.g., Chrome, Edge, Brave) to connect an Obsidian vault.');
+              alert(t('settings.obsidianBrowserUnsupported'));
               return;
             }
             const handle = await requestVaultAccess();
@@ -1935,7 +1962,7 @@ const MobileSettingsPanel = () => {
           className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm"
         >
           <FolderOpen size={14} />
-          Select Vault Folder
+          {t('settings.obsidianSelectVault')}
         </button>
       )}
     </div>
@@ -1948,20 +1975,20 @@ const MobileSettingsPanel = () => {
     const sectionCls = `text-xs font-semibold uppercase tracking-wide ${textSecondary} px-1 mb-2`;
 
     const fgOptions = [
-      { label: '30 sec', value: 30000 },
-      { label: '1 min', value: 60000 },
-      { label: '2 min', value: 120000 },
-      { label: '5 min', value: 300000 },
-      { label: '10 min', value: 600000 },
-      { label: '30 min', value: 1800000 },
+      { label: t('focus.secondsShort', { count: 30 }), value: 30000 },
+      { label: t('common.minutesShort', { count: 1 }), value: 60000 },
+      { label: t('common.minutesShort', { count: 2 }), value: 120000 },
+      { label: t('common.minutesShort', { count: 5 }), value: 300000 },
+      { label: t('common.minutesShort', { count: 10 }), value: 600000 },
+      { label: t('common.minutesShort', { count: 30 }), value: 1800000 },
     ];
     const bgOptions = [
-      { label: '5 min', value: 300000 },
-      { label: '15 min', value: 900000 },
-      { label: '30 min', value: 1800000 },
-      { label: '1 hr', value: 3600000 },
-      { label: '6 hr', value: 21600000 },
-      { label: '24 hr', value: 86400000 },
+      { label: t('common.minutesShort', { count: 5 }), value: 300000 },
+      { label: t('common.minutesShort', { count: 15 }), value: 900000 },
+      { label: t('common.minutesShort', { count: 30 }), value: 1800000 },
+      { label: t('common.hoursShort', { count: 1, defaultValue: '{{count}} hr' }), value: 3600000 },
+      { label: t('common.hoursShort', { count: 6, defaultValue: '{{count}} hr' }), value: 21600000 },
+      { label: t('common.hoursShort', { count: 24, defaultValue: '{{count}} hr' }), value: 86400000 },
     ];
 
     return (
@@ -1978,7 +2005,7 @@ const MobileSettingsPanel = () => {
           {t('settings.glanceIntegrations')}
         </h4>
         <p className={`text-xs ${textSecondary} -mt-3`}>
-          Connect dayGLANCE to other Glance-compatible apps via a shared WebDAV event log.
+          {t('settings.glanceIntegrationsDesc')}
         </p>
 
         {/* Automation intents (Tasker) — Android only. Opt-in gate for the
@@ -2029,7 +2056,7 @@ const MobileSettingsPanel = () => {
               <label className={labelCls}>{t('common.username')}</label>
               <input
                 type="text"
-                placeholder="your-username"
+                placeholder={t('common.username')}
                 value={intentForm.username}
                 onChange={e => setIntentForm(p => ({ ...p, username: e.target.value }))}
                 className={inputCls}
@@ -2058,7 +2085,7 @@ const MobileSettingsPanel = () => {
                 autoCapitalize="none"
                 autoCorrect="off"
               />
-              <p className={`text-xs ${textSecondary} mt-1`}>Path on the WebDAV server where event files are stored.</p>
+              <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.glanceEventsPathHint')}</p>
             </div>
           </div>
         </div>
@@ -2078,7 +2105,7 @@ const MobileSettingsPanel = () => {
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
-              <p className={`text-xs ${textSecondary} mt-1`}>How often to check for new events while the app is in the foreground.</p>
+              <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.glanceForegroundPollHint', { defaultValue: 'How often to check for new events while the app is in the foreground.' })}</p>
             </div>
             <div>
               <label className={labelCls}>{t('settings.glanceBackgroundPoll')}</label>
@@ -2091,7 +2118,7 @@ const MobileSettingsPanel = () => {
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
-              <p className={`text-xs ${textSecondary} mt-1`}>How often to check while the browser tab is hidden.</p>
+              <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.glanceBackgroundPollHint', { defaultValue: 'How often to check while the browser tab is hidden.' })}</p>
             </div>
           </div>
         </div>
@@ -2109,7 +2136,7 @@ const MobileSettingsPanel = () => {
               onChange={e => setIntentForm(p => ({ ...p, gcRetentionDays: e.target.value }))}
               className={inputCls}
             />
-            <p className={`text-xs ${textSecondary} mt-1`}>Event files older than this are deleted automatically.</p>
+            <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.glanceRetentionHint')}</p>
           </div>
         </div>
 
@@ -2127,12 +2154,12 @@ const MobileSettingsPanel = () => {
             />
             <div>
               <label htmlFor="intent-encryption-toggle-mobile" className={`text-sm font-medium ${textPrimary} ${cloudSyncConfig?.encryptionEnabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
-                Encrypt intent events
+                {t('settings.glanceEncryptEvents')}
               </label>
               {cloudSyncConfig?.encryptionEnabled ? (
-                <p className={`text-xs ${textSecondary} mt-0.5`}>Uses your cloud sync passphrase. Set up once; remains active across sessions.</p>
+                <p className={`text-xs ${textSecondary} mt-0.5`}>{t('settings.glanceEncryptionEnabledHint')}</p>
               ) : (
-                <p className={`text-xs ${textSecondary} mt-0.5`}>Requires cloud sync encryption to be enabled first.</p>
+                <p className={`text-xs ${textSecondary} mt-0.5`}>{t('settings.glanceEncryptionRequiredHint')}</p>
               )}
             </div>
           </div>
@@ -2140,16 +2167,16 @@ const MobileSettingsPanel = () => {
             <div className={`mt-2 p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
               <div className="flex items-center gap-2 mb-2">
                 <Lock size={13} className="text-blue-500 flex-shrink-0" />
-                <span className={`text-sm font-medium ${textPrimary}`}>Enter your sync passphrase to complete setup</span>
+                <span className={`text-sm font-medium ${textPrimary}`}>{t('settings.intentsPassphraseSetupTitle')}</span>
               </div>
-              <p className={`text-xs ${textSecondary} mb-3`}>Required once to derive the intents encryption key. After this, no passphrase is needed across sessions.</p>
+              <p className={`text-xs ${textSecondary} mb-3`}>{t('settings.intentsPassphraseSetupHint')}</p>
               <input
                 type="password"
                 autoFocus
                 value={intentPassphraseInput}
                 onChange={e => setIntentPassphraseInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Escape') { setIntentSetupPhase(null); setIntentPassphraseInput(''); } }}
-                placeholder="Your sync passphrase"
+                placeholder={t('sync.passphrasePlaceholder')}
                 className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm mb-2`}
               />
               <div className="flex gap-2">
@@ -2175,13 +2202,13 @@ const MobileSettingsPanel = () => {
                   }}
                   className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
-                  Confirm
+                  {t('common.confirm')}
                 </button>
                 <button
                   onClick={() => { setIntentSetupPhase(null); setIntentPassphraseInput(''); }}
                   className={`px-3 py-1.5 ${darkMode ? 'bg-gray-600 hover:bg-gray-500' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -2189,13 +2216,13 @@ const MobileSettingsPanel = () => {
           {intentSetupPhase === 'running' && (
             <div className={`mt-2 flex items-center gap-2 p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
               <Loader size={14} className="animate-spin text-blue-500" />
-              <span className={`text-sm ${textSecondary}`}>Setting up intents encryption...</span>
+              <span className={`text-sm ${textSecondary}`}>{t('settings.intentsEncryptionSettingUp')}</span>
             </div>
           )}
           {intentSetupPhase?.error && (
             <div className={`mt-2 p-3 rounded-lg border border-red-300 ${darkMode ? 'bg-red-900/20' : 'bg-red-50'}`}>
-              <p className="text-sm text-red-500">Setup failed: {intentSetupPhase.error}</p>
-              <button onClick={() => setIntentSetupPhase(null)} className="mt-1 text-xs text-red-400 hover:text-red-300 underline">Dismiss</button>
+              <p className="text-sm text-red-500">{t('settings.intentsSetupFailed', { error: intentSetupPhase.error })}</p>
+              <button onClick={() => setIntentSetupPhase(null)} className="mt-1 text-xs text-red-400 hover:text-red-300 underline">{t('common.dismiss')}</button>
             </div>
           )}
         </div>
@@ -2240,7 +2267,7 @@ const MobileSettingsPanel = () => {
             className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-60 transition-colors flex items-center gap-1.5"
           >
             {intentSetupPhase === 'running' && <Loader size={13} className="animate-spin" />}
-            {intentSaved ? 'Saved' : 'Save'}
+            {intentSaved ? t('common.saved') : t('common.save')}
           </button>
           {intentForm.webdavUrl && (
             <button
@@ -2251,7 +2278,7 @@ const MobileSettingsPanel = () => {
               }}
               className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm transition-colors`}
             >
-              Disconnect
+              {t('common.disconnect')}
             </button>
           )}
         </div>
@@ -2276,12 +2303,12 @@ const MobileSettingsPanel = () => {
           <h5 className={sectionCls}>
             <span className="flex items-center gap-2">
               <Server size={14} className={textSecondary} />
-              GLANCEvault intents
-              <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-600'}`}>Beta</span>
+              {t('settings.glanceVaultIntents')}
+              <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-200 text-stone-600'}`}>{t('settings.beta')}</span>
             </span>
           </h5>
           <p className={`${textSecondary} text-xs mb-3`}>
-            Deliver intents over your GLANCEvault server. Uses the same vault connection as GLANCEvault sync — no separate URL or token needed.
+            {t('settings.glanceVaultIntentsDesc')}
           </p>
           {(() => {
             const dbConn = getDbIntentsConnection();
@@ -2291,12 +2318,12 @@ const MobileSettingsPanel = () => {
                   {dbConn ? (
                     <span className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-                      <span className={textSecondary}>Vault connection detected — ready to enable.</span>
+                      <span className={textSecondary}>{t('settings.glanceVaultConnectionReady')}</span>
                     </span>
                   ) : (
                     <span className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
-                      <span className={textSecondary}>No vault connection. Configure GLANCEvault in Cloud Sync settings first.</span>
+                      <span className={textSecondary}>{t('settings.glanceVaultConnectionMissing')}</span>
                     </span>
                   )}
                 </div>
@@ -2312,10 +2339,10 @@ const MobileSettingsPanel = () => {
                   />
                   <div>
                     <label htmlFor="db-intents-toggle-mobile" className={`text-sm font-medium ${textPrimary} ${dbConn ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
-                      Enable GLANCEvault intents
+                      {t('settings.glanceVaultIntentsEnable')}
                     </label>
                     <p className={`text-xs ${textSecondary} mt-0.5`}>
-                      Independent of WebDAV intents and of GLANCEvault sync. Saving reloads the app so the poller restarts.
+                      {t('settings.glanceVaultIntentsHint')}
                     </p>
                   </div>
                 </div>
@@ -2326,7 +2353,7 @@ const MobileSettingsPanel = () => {
                 {dbIntentsSetupPhase === 'passphrase-needed' && (
                   <div className={`p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
                     <p className={`text-sm ${textPrimary} mb-2`}>
-                      GLANCEvault intents are always encrypted. Enter your sync passphrase to set up the encryption key.
+                      {t('settings.glanceVaultPassphrasePrompt')}
                     </p>
                     <input
                       type="password"
@@ -2334,7 +2361,7 @@ const MobileSettingsPanel = () => {
                       value={dbIntentsPassphraseInput}
                       onChange={e => setDbIntentsPassphraseInput(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Escape') { setDbIntentsSetupPhase(null); setDbIntentsPassphraseInput(''); setDbIntentsEnabled(false); } }}
-                      placeholder="Your sync passphrase"
+                      placeholder={t('sync.passphrasePlaceholder')}
                       className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm mb-2`}
                     />
                     <div className="flex gap-2">
@@ -2357,34 +2384,34 @@ const MobileSettingsPanel = () => {
                         }}
                         className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
                       >
-                        Confirm
+                        {t('common.confirm')}
                       </button>
                       <button
                         onClick={() => { setDbIntentsSetupPhase(null); setDbIntentsPassphraseInput(''); setDbIntentsEnabled(false); }}
                         className={`px-3 py-1.5 ${darkMode ? 'bg-gray-600 hover:bg-gray-500' : 'bg-stone-200 hover:bg-stone-300'} ${textPrimary} rounded-lg text-sm`}
                       >
-                        Cancel
+                        {t('common.cancel')}
                       </button>
                     </div>
                     <p className="text-xs text-amber-500 mt-2">
-                      Encryption setup is required — GLANCEvault intents won't be enabled until the key is set up.
+                      {t('settings.glanceVaultEncryptionRequired')}
                     </p>
                   </div>
                 )}
                 {dbIntentsSetupPhase === 'running' && (
                   <div className={`flex items-center gap-2 p-3 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/50' : 'bg-stone-50'}`}>
                     <Loader size={14} className="animate-spin text-blue-500" />
-                    <span className={`text-sm ${textSecondary}`}>Setting up vault intents encryption…</span>
+                    <span className={`text-sm ${textSecondary}`}>{t('settings.glanceVaultEncryptionSettingUp')}</span>
                   </div>
                 )}
                 {dbIntentsSetupPhase?.error && (
                   <div className={`p-3 rounded-lg border border-red-300 ${darkMode ? 'bg-red-900/20' : 'bg-red-50'}`}>
-                    <p className="text-sm text-red-500">Setup failed: {dbIntentsSetupPhase.error}</p>
+                    <p className="text-sm text-red-500">{t('settings.intentsSetupFailed', { error: dbIntentsSetupPhase.error })}</p>
                     <button
                       onClick={() => { setDbIntentsSetupPhase(null); setDbIntentsEnabled(false); }}
                       className="mt-1 text-xs text-red-400 hover:text-red-300 underline"
                     >
-                      Dismiss
+                      {t('common.dismiss')}
                     </button>
                   </div>
                 )}
@@ -2427,7 +2454,7 @@ const MobileSettingsPanel = () => {
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-60 transition-colors"
                 >
-                  {dbIntentsSaved ? 'Saved' : 'Save'}
+                  {dbIntentsSaved ? t('common.saved') : t('common.save')}
                 </button>
               </div>
             );
@@ -2477,7 +2504,7 @@ const MobileSettingsPanel = () => {
               }}
               className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
             >
-              {icloudIntentsSaved ? 'Saved' : 'Save'}
+              {icloudIntentsSaved ? t('common.saved') : t('common.save')}
             </button>
           </div>
         )}
@@ -2503,13 +2530,13 @@ const MobileSettingsPanel = () => {
             onClick={() => setFramesModalTab('frames')}
             className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${framesModalTab === 'frames' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900 shadow-sm') : textSecondary}`}
           >
-            My Frames
+            {t('frames.tabMyFrames')}
           </button>
           <button
             onClick={() => setFramesModalTab('schedule')}
             className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${framesModalTab === 'schedule' ? (darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900 shadow-sm') : textSecondary}`}
           >
-            Smart Schedule
+            {t('frames.tabSmartSchedule')}
           </button>
         </div>
       )}
@@ -2540,16 +2567,16 @@ const MobileSettingsPanel = () => {
                 return visibleFrames.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 gap-3">
                     <LayoutGrid size={48} className={textSecondary} />
-                    <h3 className={`text-lg font-semibold ${textPrimary}`}>No Frames Yet</h3>
+                    <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('frames.noFramesTitle')}</h3>
                     <p className={`text-sm ${textSecondary} text-center max-w-xs`}>
-                      Frames are time blocks on your calendar where the AI scheduler can place tasks. Create your first frame to get started.
+                      {t('frames.noFramesDesc')}
                     </p>
                     <button
                       onClick={() => setEditingFrame('new')}
                       className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
                     >
                       <Plus size={16} />
-                      Create Frame
+                      {t('frames.createFrame')}
                     </button>
                   </div>
                 ) : (
@@ -2563,13 +2590,13 @@ const MobileSettingsPanel = () => {
                         <div className="flex items-center gap-2">
                           <div className={`w-3 h-3 rounded-full ${frame.color}`} />
                           <span className={`font-medium text-sm ${textPrimary}`}>{frame.label}</span>
-                          {frame.singleDate && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>one-time</span>}
-                          {!frame.enabled && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textSecondary}`}>Off</span>}
+                          {frame.singleDate && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>{t('frames.oneTime')}</span>}
+                          {!frame.enabled && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textSecondary}`}>{t('common.off')}</span>}
                         </div>
                         <div className={`text-xs ${textSecondary} mt-1`}>
                           {formatTime(frame.start)} – {formatTime(frame.end)} · {frame.singleDate
-                            ? new Date(frame.singleDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                            : frame.days.map(d => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d]).join(', ')}
+                            ? formatLocalizedDate(new Date(frame.singleDate + 'T12:00:00'), { month: 'short', day: 'numeric' })
+                            : frame.days.map(d => localizedWeekdays('short')[d]).join(', ')}
                         </div>
                       </div>
                     ))}
@@ -2578,7 +2605,7 @@ const MobileSettingsPanel = () => {
                       className={`w-full p-3 rounded-lg border border-dashed ${borderClass} text-sm ${textSecondary} flex items-center justify-center gap-2 ${hoverBg} transition-colors`}
                     >
                       <Plus size={16} />
-                      Add Frame
+                      {t('frames.addFrame')}
                     </button>
                   </div>
                 );
@@ -2650,7 +2677,7 @@ const MobileSettingsPanel = () => {
                     <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('common.name')}</label>
                     <input
                       type="text"
-                      placeholder="e.g., Drink water"
+                      placeholder={t('habit.habitNamePlaceholder')}
                       value={editingHabit.name || ''}
                       onChange={(e) => setEditingHabit(prev => ({ ...prev, name: e.target.value }))}
                       className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
@@ -2669,11 +2696,11 @@ const MobileSettingsPanel = () => {
                         className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors ${editingHabit.type === 'limit' ? 'bg-red-600 text-white' : (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-stone-100 text-stone-700')}`}
                       >{t('habit.limit')}</button>
                     </div>
-                    <p className={`text-xs ${textSecondary} mt-1`}>{editingHabit.type === 'doMore' ? 'Track progress toward a daily goal' : 'Track consumption against a daily ceiling'}</p>
+                    <p className={`text-xs ${textSecondary} mt-1`}>{editingHabit.type === 'doMore' ? t('habit.habitDoMoreHint') : t('habit.habitLimitHint')}</p>
                   </div>
                   <div className="flex gap-3">
                     <div className="flex-1">
-                      <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{editingHabit.type === 'doMore' ? 'Daily Goal' : 'Daily Limit'}</label>
+                      <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{editingHabit.type === 'doMore' ? t('habit.habitDailyGoal') : t('habit.habitDailyLimit')}</label>
                       <input
                         type="number"
                         min="1"
@@ -2686,7 +2713,7 @@ const MobileSettingsPanel = () => {
                       <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('common.unit')}</label>
                       <input
                         type="text"
-                        placeholder="e.g., glasses"
+                        placeholder={t('habit.habitUnitPlaceholder')}
                         value={editingHabit.unit || ''}
                         onChange={(e) => setEditingHabit(prev => ({ ...prev, unit: e.target.value }))}
                         className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
@@ -2695,7 +2722,7 @@ const MobileSettingsPanel = () => {
                   </div>
                   {/* Scheduled days -- hidden for auto-synced habits */}
                   {editingHabit.source !== 'healthConnect' && (() => {
-                    const DOW_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+                    const DOW_LABELS = localizedWeekdays('narrow');
                     const days = editingHabit.scheduledDays ?? [0, 1, 2, 3, 4, 5, 6];
                     return (
                       <div>
@@ -2789,7 +2816,7 @@ const MobileSettingsPanel = () => {
                   darkMode={darkMode}
                   borderClass={borderClass}
                   textSecondary={textSecondary}
-                  label="Habits for"
+                  label={t('habit.habitsFor', { defaultValue: 'Habits for' })}
                 />
               </div>
               {activeHabits.length === 0 ? (
@@ -2827,18 +2854,18 @@ const MobileSettingsPanel = () => {
                               const isThisDevice = lastAutoSync.deviceId === getDeviceId();
                               if (isThisDevice) {
                                 const paused = habit.unit === 'steps' ? healthPerms?.steps === false : healthPerms?.sleep === false;
-                                if (paused) return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-400/10 text-orange-500 flex-shrink-0"><WifiOff size={9} />Not syncing</span>;
-                                return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 flex-shrink-0"><RefreshCw size={9} />Auto-synced on this device</span>;
+                                if (paused) return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-400/10 text-orange-500 flex-shrink-0"><WifiOff size={9} />{t('habit.habitNotSyncing')}</span>;
+                                return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 flex-shrink-0"><RefreshCw size={9} />{t('habit.habitAutoSyncedThisDevice')}</span>;
                               }
-                              const platform = lastAutoSync.platform ?? 'another device';
-                              return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 flex-shrink-0"><RefreshCw size={9} />Auto-synced on {platform}</span>;
+                              const platform = lastAutoSync.platform ?? t('habit.anotherDevice', { defaultValue: 'another device' });
+                              return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 flex-shrink-0"><RefreshCw size={9} />{t('habit.habitAutoSyncedOtherDevice', { platform })}</span>;
                             })()}
                           </div>
-                          <div className={`text-xs ${textSecondary}`}>{habit.type === 'doMore' ? 'Goal' : 'Limit'}: {habit.target} {habit.unit}</div>
+                          <div className={`text-xs ${textSecondary}`}>{habit.type === 'doMore' ? t('habit.habitGoalPrefix') : t('habit.habitLimitPrefix')}: {habit.target} {habit.unit}</div>
                           {(() => {
                             const days = habit.scheduledDays ?? [0, 1, 2, 3, 4, 5, 6];
                             if (days.length === 7) return null;
-                            const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                            const names = localizedWeekdays('short');
                             return (
                               <div className={`text-xs ${textSecondary} opacity-70`}>
                                 {days.map(d => names[d]).join(', ')}
@@ -2874,8 +2901,8 @@ const MobileSettingsPanel = () => {
                 <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${darkMode ? 'border-green-800 bg-green-950/40' : 'border-green-200 bg-green-50'}`}>
                   <Footprints size={22} className="text-green-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-semibold ${darkMode ? 'text-green-300' : 'text-green-800'}`}>Track steps automatically</div>
-                    <div className={`text-xs ${darkMode ? 'text-green-500' : 'text-green-600'} mt-0.5`}>Pulls from {isIOS ? 'Apple Health' : 'Health Connect'} — no manual tapping</div>
+                    <div className={`text-sm font-semibold ${darkMode ? 'text-green-300' : 'text-green-800'}`}>{t('habit.trackStepsTitle')}</div>
+                    <div className={`text-xs ${darkMode ? 'text-green-500' : 'text-green-600'} mt-0.5`}>{t('habit.trackHealthHint', { provider: isIOS ? 'Apple Health' : 'Health Connect', defaultValue: 'Pulls from {{provider}} — no manual tapping' })}</div>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">
                     {!healthPerms?.steps && (
@@ -2883,7 +2910,7 @@ const MobileSettingsPanel = () => {
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 active:bg-green-700 transition-colors"
                       >
-                        Continue
+                        {t('common.continue')}
                       </button>
                     )}
                     <button
@@ -2891,7 +2918,7 @@ const MobileSettingsPanel = () => {
                       disabled={!healthPerms?.steps}
                       className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${healthPerms?.steps ? 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700' : 'bg-green-500/30 text-white/50 cursor-not-allowed'}`}
                     >
-                      Add
+                      {t('common.add')}
                     </button>
                   </div>
                 </div>
@@ -2900,8 +2927,8 @@ const MobileSettingsPanel = () => {
                 <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${darkMode ? 'border-indigo-800 bg-indigo-950/40' : 'border-indigo-200 bg-indigo-50'}`}>
                   <Moon size={22} className="text-indigo-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-semibold ${darkMode ? 'text-indigo-300' : 'text-indigo-800'}`}>Track sleep automatically</div>
-                    <div className={`text-xs ${darkMode ? 'text-indigo-500' : 'text-indigo-600'} mt-0.5`}>Pulls from {isIOS ? 'Apple Health' : 'Health Connect'} — no manual tapping</div>
+                    <div className={`text-sm font-semibold ${darkMode ? 'text-indigo-300' : 'text-indigo-800'}`}>{t('habit.trackSleepTitle')}</div>
+                    <div className={`text-xs ${darkMode ? 'text-indigo-500' : 'text-indigo-600'} mt-0.5`}>{t('habit.trackHealthHint', { provider: isIOS ? 'Apple Health' : 'Health Connect', defaultValue: 'Pulls from {{provider}} — no manual tapping' })}</div>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0">
                     {!healthPerms?.sleep && (
@@ -2909,7 +2936,7 @@ const MobileSettingsPanel = () => {
                         onClick={() => { try { window.DayGlanceNative.requestHealthPermission(); } catch (e) {} }}
                         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700 transition-colors"
                       >
-                        Continue
+                        {t('common.continue')}
                       </button>
                     )}
                     <button
@@ -2917,7 +2944,7 @@ const MobileSettingsPanel = () => {
                       disabled={!healthPerms?.sleep}
                       className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${healthPerms?.sleep ? 'bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700' : 'bg-indigo-500/30 text-white/50 cursor-not-allowed'}`}
                     >
-                      Add
+                      {t('common.add')}
                     </button>
                   </div>
                 </div>
@@ -2983,7 +3010,7 @@ const MobileSettingsPanel = () => {
         <button onClick={() => setMobileSettingsView('main')} className={`p-1 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'}`}>
           <ChevronLeft size={20} className={textSecondary} />
         </button>
-        <h2 className={`text-lg font-semibold ${textPrimary}`}>Multi-user</h2>
+        <h2 className={`text-lg font-semibold ${textPrimary}`}>{t('settings.multiUser')}</h2>
       </div>
       {/* Enable toggle */}
       <div className="flex items-center justify-between gap-3 py-1">
@@ -3012,7 +3039,7 @@ const MobileSettingsPanel = () => {
         </p>
       )}
       <div className="flex items-center justify-between gap-3">
-        <p className={`text-xs ${textSecondary}`}>Share dayGLANCE with your household. Tasks can be assigned to specific people; unassigned tasks are visible to everyone.</p>
+        <p className={`text-xs ${textSecondary}`}>{t('settings.multiUserModeHint')}</p>
         {multiUserRosterSyncable && (
           <button
             type="button"
@@ -3045,14 +3072,18 @@ const MobileSettingsPanel = () => {
             }`}
           >
             <RefreshCw size={13} className={muSyncStatus === 'syncing' ? 'animate-spin' : ''} />
-            {muSyncStatus === 'ok' ? 'Synced!' : muSyncStatus === 'error' ? 'Failed' : 'Sync now'}
+            {muSyncStatus === 'ok'
+              ? t('settings.multiUserSynced', { defaultValue: 'Synced!' })
+              : muSyncStatus === 'error'
+                ? t('settings.multiUserSyncFailed', { defaultValue: 'Failed' })
+                : t('common.syncNow')}
           </button>
         )}
       </div>
 
       {/* People */}
       <div>
-        <p className={`text-xs font-medium ${textSecondary} mb-2`}>People</p>
+        <p className={`text-xs font-medium ${textSecondary} mb-2`}>{t('settings.multiUserPeople')}</p>
         <div className="space-y-2">
           {users.filter(u => !u.deleted).map(u => (
             <div key={u.id} className={`${cardBg} border ${borderClass} rounded-xl p-3 flex items-center gap-3`}>
@@ -3096,7 +3127,7 @@ const MobileSettingsPanel = () => {
                     className={`px-2 py-1 rounded-lg text-xs border transition-colors ${meUserSyncId === (u.syncId ?? u.id)
                       ? 'border-green-500 bg-green-500/20 text-green-400'
                       : `${borderClass} ${darkMode ? 'bg-transparent text-gray-400' : 'bg-transparent text-stone-500'}`}`}
-                  >{meUserSyncId === (u.syncId ?? u.id) ? '✓ Me' : 'Me'}</button>
+                  >{meUserSyncId === (u.syncId ?? u.id) ? `✓ ${t('settings.multiUserMe')}` : t('settings.multiUserMe')}</button>
                   <button type="button" onClick={() => { setMuEditingUserId(u.id); setMuEditingUserName(u.name); }} className={`px-2 py-1 rounded-lg text-xs ${darkMode ? 'bg-gray-600 text-gray-200' : 'bg-stone-200 text-stone-700'}`}>{t('common.edit')}</button>
                   <button
                     type="button"
@@ -3120,7 +3151,7 @@ const MobileSettingsPanel = () => {
           <div className={`mt-2 ${cardBg} border ${borderClass} rounded-xl p-3 flex items-center gap-2`}>
             <input
               type="text"
-              placeholder="Name"
+              placeholder={t('common.name')}
               value={muNewUserName}
               onChange={e => setMuNewUserName(e.target.value)}
               className={`flex-1 px-2 py-1 border ${borderClass} rounded-lg text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
@@ -3187,7 +3218,7 @@ const MobileSettingsPanel = () => {
             }}
             className={`w-full px-3 py-2 border ${borderClass} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'} text-sm`}
           />
-          <p className={`text-xs ${textSecondary} mt-1`}>WebDAV path where the shared user list is stored. Must match across all GLANCE apps.</p>
+          <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.usersSyncPathHint')}</p>
         </div>
       )}
     </div>
@@ -3206,7 +3237,7 @@ const MobileSettingsPanel = () => {
       </button>
       <h4 className={`font-medium ${textPrimary} flex items-center gap-2`}>
         <Plug size={18} className={localIntegrationsOn ? 'text-amber-500' : textSecondary} />
-        Local Integrations
+        {t('settings.localIntegrations', { defaultValue: 'Local Integrations' })}
       </h4>
       <LocalIntegrationsSettings variant="page" />
     </div>

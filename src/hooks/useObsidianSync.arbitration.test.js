@@ -55,12 +55,14 @@ vi.mock('../native.js', () => ({
   nativeSetLaunchOnWrite: vi.fn(),
 }));
 const emitBridgeIntent = vi.fn(() => true);
+const publishBridgeConfig = vi.fn(async () => {});
 const getBridgePairingMeta = vi.fn(async () => null);
 vi.mock('../utils/obsidianBridgeStream.js', () => ({
   cachedBridgePairingMeta: () => null,
   emitBridgeIntent: (...a) => emitBridgeIntent(...a),
   flushBridgeOutbox: vi.fn(async () => true),
-  publishBridgeConfig: vi.fn(async () => {}),
+  publishBridgeConfig: (...a) => publishBridgeConfig(...a),
+  publishBridgeCalendarProjection: vi.fn(async () => {}),
   getBridgePairingMeta: (...a) => getBridgePairingMeta(...a),
 }));
 const fetchBridgeObservations = vi.fn(async () => ({ observations: [], maxSeq: 0 }));
@@ -91,7 +93,7 @@ const prevUncompleted = () => ({
 
 const setObsidianSyncError = vi.fn();
 
-function useMountedHook({ authoritative }) {
+function useMountedHook({ authoritative, defaultTaskHeading, taskHeading }) {
   effects.length = 0;
   vi.stubGlobal('setTimeout', (cb, ms) => { if (!ms || ms < 3000) cb(); return 1; });
   vi.stubGlobal('setInterval', () => 1);
@@ -107,11 +109,12 @@ function useMountedHook({ authoritative }) {
   const tasks = [completedTask()];
   const prevRef = { current: prevUncompleted() };
   const api = useObsidianSync({
+    defaultTaskHeading,
     isTrayMode: false, dataLoaded: true,
     tasks, setTasks: vi.fn(),
     unscheduledTasks: [], setUnscheduledTasks: vi.fn(),
     setDailyNotes: vi.fn(), setWikilinkCandidates: vi.fn(), setUnportableVaultFiles: vi.fn(),
-    obsidianConfig: { enabled: true, dailyNotesPath: '', dailyNotePattern: 'yyyy-MM-dd' },
+    obsidianConfig: { enabled: true, dailyNotesPath: '', dailyNotePattern: 'yyyy-MM-dd', taskHeading },
     setObsidianConfig: vi.fn(), obsidianLaunchOnWrite: null,
     obsidianCompletionDates: false,
     obsidianSyncError: null,
@@ -134,6 +137,7 @@ const runWritebackEffect = () => {
 };
 
 beforeEach(() => {
+  publishBridgeConfig.mockClear();
   writeTaskStateToFile.mockReset(); writeTaskStateToFile.mockResolvedValue(true);
   emitBridgeIntent.mockReset(); emitBridgeIntent.mockReturnValue(true);
   syncObsidianVault.mockClear(); fetchBridgeObservations.mockClear();
@@ -145,6 +149,16 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('writeback under plugin authority (gate a: emit-in-same-tick)', () => {
+  it.each([[undefined, '## 任务'], ['## My Tasks', '## My Tasks']])('shares the localized heading with Bridge config and writeback (custom: %s)', async (taskHeading, expected) => {
+    const { api } = useMountedHook({ authoritative: true, defaultTaskHeading: '## 任务', taskHeading });
+    await api.performObsidianSync();
+    expect(publishBridgeConfig).toHaveBeenCalledWith(expect.objectContaining({ taskHeading: expected }));
+    emitBridgeIntent.mockClear();
+    useMountedHook({ authoritative: true, defaultTaskHeading: '## 任务', taskHeading });
+    runWritebackEffect();
+    expect(emitBridgeIntent).toHaveBeenCalledWith('task_state', expect.objectContaining({ taskHeading: expected }));
+  });
+
   it('authoritative: the intent is emitted, NO direct write runs, and the snapshot advances', () => {
     const { prevRef } = useMountedHook({ authoritative: true });
     runWritebackEffect();

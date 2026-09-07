@@ -21,6 +21,7 @@ import { dateToString, extractWikilinks, completionTimestamp } from '../../utils
 import { getNextOccurrence } from '../../utils/recurrenceEngine.js';
 import { getActiveHGInstance } from '../../hooks/useHyperGlance.js';
 import { noteLinkOf } from '../../utils/obsidianProjectNotes.js';
+import { formatLocalizedDate } from '../../utils/localeFormatting.js';
 
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
 
@@ -49,7 +50,9 @@ const IS_IOS = typeof navigator !== 'undefined' && (
  *   onEditClick  — called to open the project edit form
  */
 const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps, onMoveToClick }, ref) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage || i18n.language;
+  const taskUnitLabel = t('reminders.taskCount', { count: 2 }).replace(/^2\s*/, '');
   const {
     tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks, reorderUnscheduledTasks,
@@ -318,7 +321,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
           {/* Row 1: title + edit/delete */}
           <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-1 dnd-no-select">
             {dragHandleProps && (
-              <div {...dragHandleProps} data-drag-handle className={`flex-shrink-0 p-1.5 -m-1 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title="Drag to reorder">
+              <div {...dragHandleProps} data-drag-handle className={`flex-shrink-0 p-1.5 -m-1 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title={t('sched.dragToReorder')}>
                 <GripVertical size={12} />
               </div>
             )}
@@ -327,14 +330,14 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
             </span>
             {noteBadge}
             {onMoveToClick && (
-              <button onClick={() => onMoveToClick(project)} className={`${btnBase} ${editBtn}`} title="Move to…" aria-label="Move to goal">
+              <button onClick={() => onMoveToClick(project)} className={`${btnBase} ${editBtn}`} title={t('goals.dropToReassign')} aria-label={t('goals.dropToReassign')}>
                 <LogIn size={12} />
               </button>
             )}
-            <button onClick={() => onEditClick?.()} className={`${btnBase} ${editBtn}`} aria-label="Edit project">
+            <button onClick={() => onEditClick?.()} className={`${btnBase} ${editBtn}`} aria-label={t('common.edit')}>
               <Edit2 size={12} />
             </button>
-            <button onClick={handleDelete} className={`${btnBase} ${delBtn}`} aria-label="Delete project">
+            <button onClick={handleDelete} className={`${btnBase} ${delBtn}`} aria-label={t('common.delete')}>
               <Trash2 size={12} />
             </button>
           </div>
@@ -343,16 +346,16 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
             <span className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full ${
               darkMode ? 'bg-green-900/50 text-green-400' : 'bg-green-50 text-green-600'
             }`}>
-              <CheckCircle2 size={10} /> Done
+              <CheckCircle2 size={10} /> {t('common.done')}
             </span>
             {totalCount > 0 && (
-              <span className={`text-xs ${textSecondary} opacity-60`}>{completedCount}/{totalCount} tasks</span>
+              <span className={`text-xs ${textSecondary} opacity-60`}>{completedCount}/{totalCount} {taskUnitLabel}</span>
             )}
             {totalCount > 0 && (
               <button
                 onClick={() => setCompactExpanded(v => !v)}
                 className={`ml-auto ${btnBase} ${editBtn}`}
-                aria-label={compactExpanded ? 'Collapse tasks' : 'Expand tasks'}
+                aria-label={compactExpanded ? t('sched.hide') : t('sched.show')}
               >
                 <ChevronDown size={13} className={`transition-transform ${compactExpanded ? 'rotate-180' : ''}`} />
               </button>
@@ -379,7 +382,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
         </div>
         {showConfirm && createPortal(
           <ConfirmDialog
-            title={`Delete "${project.title}"?`}
+            title={`${t('common.delete')} "${project.title}"?`}
             message="Tasks linked to this project will remain but won't be grouped."
             onConfirm={() => { setShowConfirm(false); deleteProject(project.id); }}
             onCancel={() => setShowConfirm(false)}
@@ -405,7 +408,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
         {/* Header: title + badges + edit + delete */}
         <div className="flex items-start gap-2 dnd-no-select">
           {dragHandleProps && (
-            <div {...dragHandleProps} data-drag-handle className={`flex-shrink-0 mt-0.5 p-1.5 -m-1 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title="Drag to reorder">
+            <div {...dragHandleProps} data-drag-handle className={`flex-shrink-0 mt-0.5 p-1.5 -m-1 cursor-grab active:cursor-grabbing ${textSecondary} opacity-30 hover:opacity-60 transition-opacity touch-none select-none`} title={t('sched.dragToReorder')}>
               <GripVertical size={14} />
             </div>
           )}
@@ -431,18 +434,18 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
               }
               let dateLabel;
               if (instance.isOverdue) {
-                dateLabel = 'overdue';
+                dateLabel = t('common.overdue');
               } else {
                 const todayStr = dateToString(new Date());
                 if (instance.date === todayStr) {
-                  dateLabel = 'Today';
+                  dateLabel = t('common.today');
                 } else {
                   const d = new Date(instance.date + 'T00:00:00');
                   const today = new Date(); today.setHours(0, 0, 0, 0);
                   const diffDays = Math.round((d - today) / 86400000);
-                  if (diffDays === 1) dateLabel = 'Tomorrow';
-                  else if (diffDays <= 6) dateLabel = d.toLocaleDateString(undefined, { weekday: 'short' });
-                  else dateLabel = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                  if (diffDays === 1) dateLabel = t('common.tomorrow');
+                  else if (diffDays <= 6) dateLabel = formatLocalizedDate(d, { weekday: 'short' }, locale);
+                  else dateLabel = formatLocalizedDate(d, { month: 'short', day: 'numeric' }, locale);
                 }
               }
               const color = hg.color || '#4f46e5';
@@ -462,8 +465,8 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
               <button
                 onClick={() => onMoveToClick(project)}
                 className={`p-1 rounded-lg transition-colors ${darkMode ? 'text-gray-600 hover:text-gray-300 hover:bg-gray-700' : 'text-stone-300 hover:text-stone-600 hover:bg-stone-100'}`}
-                title="Move to…"
-                aria-label="Move to goal"
+                title={t('goals.dropToReassign')}
+                aria-label={t('goals.dropToReassign')}
               >
                 <LogIn size={12} />
               </button>
@@ -473,7 +476,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                 darkMode ? 'bg-green-900/50 text-green-400' : 'bg-green-50 text-green-600'
               }`}>
                 <CheckCircle2 size={10} />
-                Done
+                {t('common.done')}
               </span>
             )}
             {stalled && project.status !== 'completed' && (
@@ -501,7 +504,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
               className={`p-1 rounded-lg transition-colors ${
                 darkMode ? 'text-gray-600 hover:text-gray-300 hover:bg-gray-700' : 'text-stone-300 hover:text-stone-600 hover:bg-stone-100'
               }`}
-              aria-label="Edit project"
+              aria-label={t('common.edit')}
             >
               <Edit2 size={12} />
             </button>
@@ -510,7 +513,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
               className={`p-1 rounded-lg transition-colors ${
                 darkMode ? 'text-gray-600 hover:text-red-400 hover:bg-red-900/20' : 'text-stone-300 hover:text-red-500 hover:bg-red-50'
               }`}
-              aria-label="Delete project"
+              aria-label={t('common.delete')}
             >
               <Trash2 size={12} />
             </button>
@@ -520,7 +523,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
         {/* Task count — hidden by the standalone-card eyeball toggle */}
         {!detailsHidden && !countIsMisleading && (
           <span className={`text-xs ${textSecondary}`}>
-            {completedCount}/{totalCount} task{totalCount !== 1 ? 's' : ''}
+            {completedCount}/{totalCount} {taskUnitLabel}
           </span>
         )}
 
@@ -530,10 +533,10 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
         {/* Unscheduled task list */}
         {displayableTasks.length > 0 && (
           <div className={`flex flex-col gap-0.5 pt-2 border-t ${borderClass}`}>
-            {visibleTasks.map((t) => {
-              const scheduled = isScheduled(t);
-              const incompleteUnscheduledIdx = !scheduled && !t.completed
-                ? projectUnscheduled.filter(u => !u.completed).findIndex(u => u.id === t.id)
+            {visibleTasks.map((task) => {
+              const scheduled = isScheduled(task);
+              const incompleteUnscheduledIdx = !scheduled && !task.completed
+                ? projectUnscheduled.filter(u => !u.completed).findIndex(u => u.id === task.id)
                 : -1;
               const draggable = incompleteUnscheduledIdx !== -1;
               // Whole-row HTML5 drag off-iOS (Android/desktop — grab anywhere on
@@ -541,7 +544,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
               const rowDraggable = draggable && !IS_IOS;
               return (
                 <div
-                  key={t.id}
+                  key={task.id}
                   data-drag-idx={draggable ? incompleteUnscheduledIdx : undefined}
                   draggable={rowDraggable}
                   onDragStart={rowDraggable ? e => handleDragStart(e, incompleteUnscheduledIdx) : undefined}
@@ -558,33 +561,33 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                   style={{ borderLeft: `2px solid ${projectHex}99` }}
                 >
                   <button
-                    onClick={() => toggleTaskComplete(t.id)}
+                    onClick={() => toggleTaskComplete(task.id)}
                     className="flex items-center justify-center flex-shrink-0 pl-1.5 pr-2 py-1.5"
-                    aria-label={t.completed ? 'Mark incomplete' : 'Mark complete'}
+                    aria-label={task.completed ? t('sched.markIncomplete') : t('sched.markComplete')}
                   >
-                    {t.completed
+                    {task.completed
                       ? <CheckSquare size={12} className="text-green-500" />
                       : <Square size={12} className={`${textSecondary} opacity-60`} />
                     }
                   </button>
                   <button
-                    onClick={() => openMobileEditTask?.(t, false)}
+                    onClick={() => openMobileEditTask?.(task, false)}
                     className="flex items-center gap-1 flex-1 min-w-0 py-1.5"
                   >
                     <span className={`text-xs flex-1 min-w-0 truncate text-left ${
-                      t.completed ? `line-through opacity-40 ${textSecondary}` : textSecondary
+                      task.completed ? `line-through opacity-40 ${textSecondary}` : textSecondary
                     }`}>
-                      {renderTitle(t.title)}
+                      {renderTitle(task.title)}
                     </span>
                   </button>
                   {/* Notes / link icon */}
                   <button
                     onMouseDown={() => {
-                      if (isLinkOnlyTask(t)) {
+                      if (isLinkOnlyTask(task)) {
                         longPressTriggeredRef.current = false;
                         longPressTimerRef.current = setTimeout(() => {
                           longPressTriggeredRef.current = true;
-                          setExpandedNotesTaskId(prev => prev === t.id ? null : t.id);
+                          setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                         }, 500);
                       }
                     }}
@@ -592,21 +595,21 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                     onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (isLinkOnlyTask(t)) {
+                      if (isLinkOnlyTask(task)) {
                         if (!longPressTriggeredRef.current) {
-                          openNoteAction(t);
+                          openNoteAction(task);
                         }
                         longPressTriggeredRef.current = false;
                       } else {
-                        setExpandedNotesTaskId(prev => prev === t.id ? null : t.id);
+                        setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                       }
                     }}
                     className={`notes-toggle-button flex-shrink-0 p-1 rounded transition-colors ${hoverBg} ${
-                      hasNotesOrSubtasks(t) || extractWikilinks(t.title).length > 0 ? `${textSecondary} opacity-70` : `${textSecondary} opacity-25`
+                      hasNotesOrSubtasks(task) || extractWikilinks(task.title).length > 0 ? `${textSecondary} opacity-70` : `${textSecondary} opacity-25`
                     }`}
-                    title={isLinkOnlyTask(t) ? `${getLinkUrl(t)} (hold to edit)` : 'Notes & subtasks'}
+                    title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (${t('common.edit')})` : t('sched.notesSubtasks')}
                   >
-                    {isPhoneOnlyTask(t) ? <Phone size={10} /> : isLinkOnlyTask(t) ? <ExternalLink size={10} /> : hasOnlySubtasks(t) ? <CheckSquare size={10} /> : isObsidianNoteOnlyTask(t) ? <BookOpen size={10} /> : <FileText size={10} />}
+                    {isPhoneOnlyTask(task) ? <Phone size={10} /> : isLinkOnlyTask(task) ? <ExternalLink size={10} /> : hasOnlySubtasks(task) ? <CheckSquare size={10} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={10} /> : <FileText size={10} />}
                   </button>
                   {/* Calendar badge for scheduled tasks — w-5 h-5 matches drag handle (p-1 + size-12) footprint exactly */}
                   {scheduled && (
@@ -629,7 +632,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                       onDragEnd={IS_IOS ? handleDragEnd : undefined}
                       onTouchStart={IS_IOS ? e => handleGripTouchStart(e, incompleteUnscheduledIdx) : undefined}
                       className={`flex-shrink-0 p-2 -my-1 cursor-grab active:cursor-grabbing touch-none select-none ${textSecondary} opacity-30`}
-                      aria-label="Drag to reorder"
+                      aria-label={t('sched.dragToReorder')}
                     >
                       <GripVertical size={12} />
                     </div>
@@ -649,8 +652,8 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                   className={`transition-transform duration-150 ${tasksExpanded ? 'rotate-180' : ''}`}
                 />
                 {tasksExpanded
-                  ? 'Show less'
-                  : `${allProjectDisplayTasks.length - VISIBLE_COUNT} more`
+                  ? t('sched.hide')
+                  : `${allProjectDisplayTasks.length - VISIBLE_COUNT} ${t('settings.more')}`
                 }
               </button>
             )}
@@ -679,7 +682,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                   setQuickAddTitle('');
                 }
               }}
-              placeholder="Task title…"
+              placeholder={t('task.titlePlaceholder')}
               className={`flex-1 min-w-0 text-xs px-2 py-1.5 rounded-lg border ${borderClass} focus:outline-none focus:ring-1 focus:ring-blue-500 ${
                 darkMode
                   ? 'bg-gray-700 text-gray-100 placeholder-gray-500'
@@ -753,7 +756,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
 
     {showConfirm && createPortal(
       <ConfirmDialog
-        title={`Delete "${project.title}"?`}
+        title={`${t('common.delete')} "${project.title}"?`}
         message="Tasks linked to this project will remain but won't be grouped."
         onConfirm={() => { setShowConfirm(false); deleteProject(project.id); }}
         onCancel={() => setShowConfirm(false)}

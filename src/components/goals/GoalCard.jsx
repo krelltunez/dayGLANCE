@@ -53,10 +53,10 @@ const GoalCard = forwardRef(
       today.setHours(0, 0, 0, 0);
       const target = new Date(goal.targetDate + 'T00:00:00');
       const diff = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
-      if (diff === 0) { daysLabel = 'Due today'; daysUrgent = true; }
-      else if (diff < 0) { daysLabel = `${Math.abs(diff)}d overdue`; daysUrgent = true; isOverdue = true; }
-      else if (diff <= 7) { daysLabel = `${diff}d left`; daysUrgent = true; }
-      else { daysLabel = `${diff}d left`; }
+      if (diff === 0) { daysLabel = t('goals.dueToday'); daysUrgent = true; }
+      else if (diff < 0) { daysLabel = t('goals.daysOverdue', { count: Math.abs(diff) }); daysUrgent = true; isOverdue = true; }
+      else if (diff <= 7) { daysLabel = t('goals.daysLeft', { count: diff }); daysUrgent = true; }
+      else { daysLabel = t('goals.daysLeft', { count: diff }); }
     }
 
     // Caution: goal is overdue or has at least one stalled child project
@@ -94,14 +94,14 @@ const GoalCard = forwardRef(
             </button>
           )}
           {(goal.source_app === 'app.lifeglance' || goal.synced_to_lifeglance) && (
-            <span title="Linked with lifeGLANCE" className="flex-shrink-0 text-white/70">
+            <span title={t('goals.linkedWithLifeGlance')} className="flex-shrink-0 text-white/70">
               <Link2 size={12} />
             </span>
           )}
           <button
             onClick={onEdit}
             className="flex-shrink-0 text-white/70 hover:text-white transition-colors p-0.5 rounded"
-            aria-label="Edit goal"
+            aria-label={t('goals.editGoal')}
           >
             <Edit2 size={13} />
           </button>
@@ -125,7 +125,7 @@ const GoalCard = forwardRef(
 
           {/* Target date + caution, or Completed label */}
           {isCompleted ? (
-            <p className="text-xs text-emerald-500">Completed</p>
+            <p className="text-xs text-emerald-500">{t('common.completed')}</p>
           ) : (daysLabel || showCaution || allProjectsDone) ? (
             <div className="flex items-center gap-1.5">
               {daysLabel && (
@@ -143,7 +143,7 @@ const GoalCard = forwardRef(
                 <button
                   onClick={() => updateGoal(goal.id, { status: 'completed' })}
                   className="ml-auto flex-shrink-0 text-emerald-500 hover:text-emerald-400 transition-colors"
-                  aria-label="Mark goal complete"
+                  aria-label={t('goals.markGoalComplete')}
                 >
                   <CircleCheckBig size={13} />
                 </button>
@@ -165,14 +165,14 @@ const GoalCard = forwardRef(
           {projects.length === 0 ? (
             <div className="flex flex-col items-center gap-1.5 py-2">
               <FolderOpen size={18} className={`${textSecondary} opacity-50`} />
-              <span className={`text-xs ${textSecondary} opacity-60`}>No projects yet</span>
+              <span className={`text-xs ${textSecondary} opacity-60`}>{t('goals.noProjectsYet')}</span>
               {onNewProject && (
                 <button
                   type="button"
                   onClick={onNewProject}
                   className="flex items-center gap-1 text-xs text-emerald-500 hover:text-emerald-600 transition-colors"
                 >
-                  <Layers size={11} /> Add project
+                  <Layers size={11} /> {t('common.addProject')}
                 </button>
               )}
             </div>
@@ -180,7 +180,7 @@ const GoalCard = forwardRef(
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className={`text-xs ${textSecondary}`}>
-                  {projects.length} project{projects.length !== 1 ? 's' : ''}
+                  {t('goals.projectCount', { count: projects.length })}
                 </span>
                 {onNewProject && (
                   <button
@@ -188,7 +188,7 @@ const GoalCard = forwardRef(
                     onClick={onNewProject}
                     className={`flex items-center gap-0.5 text-xs ${textSecondary} opacity-60 hover:opacity-100 transition-opacity`}
                   >
-                    <Plus size={10} /> Add
+                    <Plus size={10} /> {t('common.add')}
                   </button>
                 )}
               </div>

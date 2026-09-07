@@ -12,7 +12,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="dayGLANCE uses Health Connect to display your daily progress as habit rings on the main day view."
+            android:text="@string/health_intro"
             android:textSize="15sp"
             android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="28dp" />
@@ -21,7 +21,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Steps"
+            android:text="@string/health_steps"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="?android:attr/textColorPrimary"
@@ -30,7 +30,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Reads your daily step count to fill the steps habit ring, showing progress toward a daily step goal you set yourself."
+            android:text="@string/health_steps_desc"
             android:textSize="15sp"
             android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="24dp" />
@@ -39,7 +39,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Sleep"
+            android:text="@string/health_sleep"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="?android:attr/textColorPrimary"
@@ -48,7 +48,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Reads your most recent sleep session duration to fill the sleep habit ring, showing progress toward a daily sleep duration goal you set yourself."
+            android:text="@string/health_sleep_desc"
             android:textSize="15sp"
             android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="24dp" />
@@ -57,7 +57,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="How your data is handled"
+            android:text="@string/health_data_handling"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="?android:attr/textColorPrimary"
@@ -66,7 +66,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="• Health data is read on-device and rendered locally in the app."
+            android:text="@string/health_local_only"
             android:textSize="15sp"
             android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="4dp" />
@@ -74,7 +74,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="• It is never used for analytics, shared with third parties, or written back to Health Connect."
+            android:text="@string/health_no_analytics"
             android:textSize="15sp"
             android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="4dp" />
@@ -82,7 +82,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="• dayGLANCE has no developer-operated servers, no account system, and no telemetry."
+            android:text="@string/health_no_servers"
             android:textSize="15sp"
             android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="4dp" />
@@ -90,7 +90,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="• If you have enabled optional Cloud Sync, habit data is included in the sync payload using zero-knowledge AES-256-GCM encryption. The destination server (which you control) sees only encrypted ciphertext."
+            android:text="@string/health_cloud_sync"
             android:textSize="15sp"
             android:textColor="?android:attr/textColorPrimary"
             android:layout_marginBottom="28dp" />
@@ -99,7 +99,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Granting Health Connect permissions is entirely optional. dayGLANCE functions normally without them. You can revoke these permissions at any time through the Health Connect app or your device\'s system settings."
+            android:text="@string/health_optional"
             android:textSize="13sp"
             android:textColor="@color/colorMutedText"
             android:layout_marginBottom="28dp" />
@@ -108,7 +108,7 @@
             android:id="@+id/btn_privacy_policy"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Read the full privacy policy →"
+            android:text="@string/health_privacy_policy"
             android:layout_marginBottom="8dp" />
 
     </LinearLayout>

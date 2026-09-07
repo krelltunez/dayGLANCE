@@ -10,6 +10,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import useWeekViewHourHeight from '../hooks/useWeekViewHourHeight.js';
 import { getHGBarsForDate, isHGSessionReachable } from '../hooks/useHyperGlance.js';
 import { hexToRgba, frameColorBg, frameColorBorder } from '../utils/colorUtils.js';
+import { formatLocalizedDate } from '../utils/localeFormatting.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -152,7 +153,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, startHour, onTaskCl
 
   const isDraggingOverThisCol = draggedTask && dragPreviewDate && dateToString(dragPreviewDate) === dateStr;
 
-  const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+  const dayName = formatLocalizedDate(date, { weekday: 'short' });
 
   useEffect(() => {
     if (!overflowPopover) return;

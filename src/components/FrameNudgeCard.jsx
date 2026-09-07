@@ -1,7 +1,9 @@
 import React from 'react';
 import { RefreshCw, X, Zap, Loader } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const FrameNudgeCard = ({ suggestion, loading, error, activeFrame, darkMode, textPrimary, textSecondary, onRefresh, onDismiss, onStartTask }) => {
+  const { t } = useTranslation();
   const borderCol = darkMode ? 'border-teal-800/50' : 'border-teal-200';
   const bgCol = darkMode ? 'bg-teal-900/20' : 'bg-teal-50';
   const labelCol = darkMode ? 'text-teal-300' : 'text-teal-700';
@@ -12,13 +14,15 @@ const FrameNudgeCard = ({ suggestion, loading, error, activeFrame, darkMode, tex
         <div className="flex items-center gap-1.5 min-w-0">
           <Zap size={13} className={`${iconCol} flex-shrink-0`} />
           <span className={`text-xs font-semibold uppercase tracking-wider ${labelCol} truncate`}>{activeFrame.label}</span>
-          <span className={`text-xs ${textSecondary} flex-shrink-0`}>{activeFrame.minutesRemaining}m left</span>
+          <span className={`text-xs ${textSecondary} flex-shrink-0`}>
+            {t('dial.timeLeft', { left: t('voice.minutesShort', { count: activeFrame.minutesRemaining }) })}
+          </span>
         </div>
         <div className="flex items-center gap-0.5 flex-shrink-0">
-          <button onClick={onRefresh} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="New suggestion">
+          <button onClick={onRefresh} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title={t('common.refresh')} aria-label={t('common.refresh')}>
             <RefreshCw size={11} className={`${loading ? 'animate-spin' : ''} ${textSecondary}`} />
           </button>
-          <button onClick={onDismiss} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Dismiss">
+          <button onClick={onDismiss} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title={t('common.dismiss')} aria-label={t('common.dismiss')}>
             <X size={11} className={textSecondary} />
           </button>
         </div>
@@ -26,7 +30,7 @@ const FrameNudgeCard = ({ suggestion, loading, error, activeFrame, darkMode, tex
       {loading && (
         <div className="flex items-center gap-2">
           <Loader size={13} className={`animate-spin ${textSecondary}`} />
-          <span className={`text-xs ${textSecondary}`}>Finding best task…</span>
+          <span className={`text-xs ${textSecondary}`}>{t('frames.findingBestTask', { defaultValue: 'Finding best task…' })}</span>
         </div>
       )}
       {error && !loading && (

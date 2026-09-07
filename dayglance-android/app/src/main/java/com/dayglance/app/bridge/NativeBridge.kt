@@ -11,6 +11,7 @@ import android.os.VibratorManager
 import android.util.Base64
 import android.webkit.JavascriptInterface
 import androidx.core.content.FileProvider
+import com.dayglance.app.R
 import com.dayglance.app.data.HealthRepository
 import com.dayglance.app.data.SharedDataStore
 import com.dayglance.app.settings.SettingsActivity
@@ -408,7 +409,7 @@ class NativeBridge(
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            val chooser = Intent.createChooser(sendIntent, "Save backup").apply {
+            val chooser = Intent.createChooser(sendIntent, context.getString(R.string.share_backup)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(chooser)

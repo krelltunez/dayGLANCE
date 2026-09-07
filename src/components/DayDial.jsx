@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, CircleDashed, ExternalLink, Leaf, MoonStar, Undo2, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { stripWikilinks } from '../utils/taskUtils.js';
-import { formatMinutes } from '../utils/daySummary.js';
+import { formatLocalizedDurationMinutes } from '../utils/localeFormatting.js';
 import {
   DIAL_COLORS,
   DIAL_DAY_MINUTES,
@@ -324,6 +324,7 @@ function NowLine({ nowMin }) {
  */
 const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, onGoToday = null, chromeVisible = true }) => {
   const { t, i18n } = useTranslation();
+  const formatMinutes = (minutes) => formatLocalizedDurationMinutes(minutes, i18n.resolvedLanguage || i18n.language);
 
   const model = useMemo(
     () => computeDialModel(dayTasks, dayWindow),

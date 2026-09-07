@@ -3,8 +3,10 @@ import { Archive, ChevronDown, RotateCcw } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { notBucketed } from '../utils/bucketList.js';
+import { useTranslation } from 'react-i18next';
 
 const InboxArchivedBar = () => {
+  const { t } = useTranslation();
   const {
     darkMode, textSecondary, hoverBg, borderClass,
     unscheduledTasks,
@@ -25,7 +27,7 @@ const InboxArchivedBar = () => {
         className={`flex items-center gap-2 text-xs ${textSecondary} ${hoverBg} px-3 py-2 w-full transition-colors`}
       >
         <Archive size={13} className="flex-shrink-0" />
-        <span className="font-medium">Archived ({archivedTasks.length})</span>
+        <span className="font-medium">{t('inbox.archivedCount', { count: archivedTasks.length, defaultValue: 'Archived ({{count}})' })}</span>
         <ChevronDown
           size={13}
           className={`ml-auto flex-shrink-0 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
@@ -57,10 +59,10 @@ const InboxArchivedBar = () => {
                   className={`flex-shrink-0 flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded transition-colors ${
                     darkMode ? 'text-blue-400 hover:bg-blue-900/30' : 'text-blue-600 hover:bg-blue-50'
                   }`}
-                  title="Restore to inbox"
+                  title={t('inbox.restoreToInbox', { defaultValue: 'Restore to inbox' })}
                 >
                   <RotateCcw size={9} />
-                  <span>Restore</span>
+                  <span>{t('common.restore')}</span>
                 </button>
               </div>
             );

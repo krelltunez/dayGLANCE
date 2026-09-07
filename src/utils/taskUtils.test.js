@@ -1,5 +1,96 @@
 import { describe, it, expect } from 'vitest';
-import { computeTaskCalendarTombstones, computeRecurringSeriesTombstones } from './taskUtils.js';
+import i18next from 'i18next';
+import de from '../../public/locales/de/translation.json';
+import en from '../../public/locales/en/translation.json';
+import zhCN from '../../public/locales/zh-CN/translation.json';
+import {
+  computeTaskCalendarTombstones,
+  computeRecurringSeriesTombstones,
+  formatDateRange,
+  getRecurrenceLabel,
+} from './taskUtils.js';
+
+const translator = (language, translation) => {
+  const instance = i18next.createInstance();
+  instance.init({
+    lng: language,
+    fallbackLng: false,
+    resources: { [language]: { translation } },
+    initImmediate: false,
+    interpolation: { escapeValue: false },
+  });
+  return instance.t.bind(instance);
+};
+
+const enT = translator('en', en);
+const deT = translator('de', de);
+const zhT = translator('zh-CN', zhCN);
+
+describe('getRecurrenceLabel', () => {
+  it('keeps the established English labels', () => {
+    expect(getRecurrenceLabel({
+      type: 'weekly',
+      daysOfWeek: [1, 3],
+      startDate: '2026-08-31',
+      maxOccurrences: 6,
+    }, enT, 'en')).toBe('Weekly on Mon & Wed (6 times)');
+  });
+
+  it('formats weekly rules in Chinese Monday-first order', () => {
+    expect(getRecurrenceLabel({
+      type: 'weekly',
+      daysOfWeek: [0, 3, 1],
+      startDate: '2026-08-31',
+    }, zhT, 'zh-CN')).toBe('每周：周一、周三和周日');
+  });
+
+  it('formats Chinese monthly and yearly rules with their end conditions', () => {
+    expect(getRecurrenceLabel({
+      type: 'monthly',
+      monthWeekday: { week: 2, day: 1 },
+      startDate: '2026-08-31',
+      endDate: '2027-01-15',
+    }, zhT, 'zh-CN')).toBe('每月第2个星期一，直到1月15日');
+
+    expect(getRecurrenceLabel({
+      type: 'yearly',
+      startDate: '2026-08-31',
+      maxOccurrences: 3,
+    }, zhT, 'zh-CN')).toBe('每年8月31日（共3次）');
+  });
+
+  it('uses generic labels before a new rule has a saved start date', () => {
+    expect(getRecurrenceLabel({ type: 'weekly' }, zhT, 'zh-CN')).toBe('每周');
+    expect(getRecurrenceLabel({ type: 'monthly' }, zhT, 'zh-CN')).toBe('每月');
+    expect(getRecurrenceLabel({ type: 'yearly' }, zhT, 'zh-CN')).toBe('每年');
+    expect(getRecurrenceLabel({ type: 'yearly' }, enT, 'en')).toBe('Every year');
+  });
+
+  it('uses locale resources for languages other than English and Chinese', () => {
+    expect(getRecurrenceLabel({
+      type: 'weekly',
+      daysOfWeek: [1, 3],
+      startDate: '2026-08-31',
+    }, deT, 'de')).toBe('Jede Woche am Mo und Mi');
+  });
+});
+
+describe('formatDateRange', () => {
+  const date = (value) => new Date(`${value}T12:00:00`);
+
+  it('uses localized templates for Chinese ranges', () => {
+    expect(formatDateRange([date('2026-08-01'), date('2026-08-03')], zhT, 'zh-CN'))
+      .toBe('2026年8月1日至3日');
+    expect(formatDateRange([date('2026-08-31'), date('2026-09-02')], zhT, 'zh-CN'))
+      .toBe('2026年8月31日至9月2日');
+  });
+
+  it('uses another locale without adding language branches to the utility', () => {
+    const month = new Intl.DateTimeFormat('de', { month: 'short' }).format(date('2026-08-01'));
+    expect(formatDateRange([date('2026-08-01'), date('2026-08-03')], deT, 'de'))
+      .toBe(`1.–3. ${month} 2026`);
+  });
+});
 
 // A synced (non-file) CalDAV task-calendar item as produced by expandMultiDayEvent.
 const tcItem = (id, date, extra = {}) => ({

@@ -1,9 +1,11 @@
 import React from 'react';
 import ClockTimePicker from './ClockTimePicker.jsx';
+import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const HGAdjustModal = () => {
+  const { t } = useTranslation();
   const { darkMode, isTablet, use24HourClock, cardBg, borderClass, textPrimary, textSecondary, hoverBg } = useDayPlannerCtx();
   const { hgAdjustModal, setHgAdjustModal, hgAdjustTimeField, setHgAdjustTimeField, saveHGAdjust } = useFeaturesCtx();
 
@@ -24,11 +26,11 @@ const HGAdjustModal = () => {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70]" onClick={() => setHgAdjustModal(null)}>
       <div className={`${cardBg} rounded-lg shadow-xl p-5 border ${borderClass} w-72`} onClick={(e) => e.stopPropagation()}>
-        <h3 className={`font-semibold ${textPrimary} mb-1`}>Adjust Session Time</h3>
-        <p className={`text-xs ${textSecondary} mb-4`}>For {hgAdjustModal.date} only</p>
+        <h3 className={`font-semibold ${textPrimary} mb-1`}>{t('focus.adjustSessionTime', { defaultValue: 'Adjust Session Time' })}</h3>
+        <p className={`text-xs ${textSecondary} mb-4`}>{t('frames.forDateOnly', { date: hgAdjustModal.date, defaultValue: 'For {{date}} only' })}</p>
         <div className="flex gap-3">
           <div className="flex-1">
-            <label className={`text-xs font-medium ${textSecondary} block mb-1`}>Start time</label>
+            <label className={`text-xs font-medium ${textSecondary} block mb-1`}>{t('common.startTime')}</label>
             <button
               type="button"
               onClick={() => setHgAdjustTimeField('start')}
@@ -38,7 +40,7 @@ const HGAdjustModal = () => {
             </button>
           </div>
           <div className="flex-1">
-            <label className={`text-xs font-medium ${textSecondary} block mb-1`}>End time</label>
+            <label className={`text-xs font-medium ${textSecondary} block mb-1`}>{t('common.end')}</label>
             <button
               type="button"
               onClick={() => setHgAdjustTimeField('end')}
@@ -77,13 +79,13 @@ const HGAdjustModal = () => {
             onClick={() => setHgAdjustModal(null)}
             className={`flex-1 px-3 py-2 rounded-lg text-sm ${textSecondary} ${hoverBg} transition-colors`}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={saveHGAdjust}
             className="flex-1 px-3 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 transition-colors"
           >
-            Save
+            {t('common.save')}
           </button>
         </div>
       </div>

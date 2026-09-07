@@ -1,16 +1,17 @@
 import React from 'react';
 import { X, Plus, LayoutGrid } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { DAY_LABELS } from '../constants/frames.js';
 import FrameEditor from './FrameEditor.jsx';
 import SmartSchedulePanel from './SmartSchedulePanel.jsx';
 import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { notBucketed } from '../utils/bucketList.js';
+import { formatLocalizedDate, localizedWeekdays } from '../utils/localeFormatting.js';
 
 const FramesModal = () => {
   const { t } = useTranslation();
+  const dayLabels = localizedWeekdays('short');
   const {
     allTags, unscheduledTasks,
     getTodayStr, formatTime,
@@ -147,8 +148,8 @@ const FramesModal = () => {
                           </div>
                           <div className={`text-xs ${textSecondary} mt-1`}>
                             {formatTime(frame.start)} – {formatTime(frame.end)} · {frame.singleDate
-                              ? new Date(frame.singleDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                              : frame.days.map(d => DAY_LABELS[d]).join(', ')}
+                              ? formatLocalizedDate(new Date(frame.singleDate + 'T12:00:00'), { month: 'short', day: 'numeric' })
+                              : frame.days.map(d => dayLabels[d]).join(', ')}
                             {frame.energyLevel !== 'medium' && ` · ${frame.energyLevel} energy`}
                           </div>
                         </div>

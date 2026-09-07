@@ -2,7 +2,7 @@
 // tsc consumes these; the app uses the JS directly).
 export function getOccurrencesInRange(template: unknown, rangeStartStr: string, rangeEndStr: string, maxResults?: number): string[];
 export function getNextOccurrence(template: unknown): string | null;
-export function getRecurrencePresets(dateStr: string): unknown[];
+export function getRecurrencePresets(dateStr: string, t?: (key: string, options: Record<string, unknown> & { defaultValue: string }) => string, language?: string): unknown[];
 export function getSelectedWeekdays(recurrence: unknown, dateStr: string): number[];
 export function toggleRecurrenceDay(recurrence: unknown, dow: number, dateStr: string): unknown;
 export function setRecurrenceFrequency(recurrence: unknown, type: string, dateStr: string): unknown;

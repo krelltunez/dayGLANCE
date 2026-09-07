@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24HourClock }) => {
+  const { t, i18n } = useTranslation();
   const [selectedHour, setSelectedHour] = useState(parseInt(value.split(':')[0]));
   const [selectedMinute, setSelectedMinute] = useState(parseInt(value.split(':')[1]));
   const [isAM, setIsAM] = useState(parseInt(value.split(':')[0]) < 12);
@@ -43,6 +45,12 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
   const displayHour = use24HourClock
     ? selectedHour.toString().padStart(2, '0')
     : (selectedHour === 0 ? 12 : selectedHour > 12 ? selectedHour - 12 : selectedHour).toString();
+  const dayPeriod = new Intl.DateTimeFormat(i18n.resolvedLanguage || i18n.language, {
+    hour: 'numeric',
+    hour12: true,
+    timeZone: 'UTC',
+  }).formatToParts(new Date(Date.UTC(2024, 0, 1, isAM ? 9 : 15)))
+    .find(({ type }) => type === 'dayPeriod')?.value || (isAM ? 'AM' : 'PM');
 
   // position on ring: angle in degrees, (0,0) at top, clockwise
   const pos = (angleDeg, r) => ({
@@ -162,7 +170,7 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[90]" onClick={onClose}>
       <div className={`${cardBg} rounded-3xl shadow-2xl ${isTablet ? 'p-7' : 'p-5'}`} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className={`${isTablet ? 'text-base' : 'text-sm'} font-semibold tracking-wide uppercase ${textSecondary}`}>Select Time</h3>
+          <h3 className={`${isTablet ? 'text-base' : 'text-sm'} font-semibold tracking-wide uppercase ${textSecondary}`}>{t('shortcuts.setTime')}</h3>
           <button type="button"onClick={onClose} className={`${isTablet ? 'p-2' : 'p-1'} rounded-full ${hoverBg} transition-colors`}>
             <X size={isTablet ? 20 : 17} className={textSecondary} />
           </button>
@@ -182,7 +190,7 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
             {!use24HourClock && (
               <button type="button"onClick={toggleAMPM}
                 className={`${isTablet ? 'text-base px-3 py-2' : 'text-sm px-2.5 py-1.5'} font-semibold rounded-xl ml-1 transition-colors ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-white text-stone-600 hover:bg-stone-200 shadow-sm'}`}>
-                {isAM ? 'AM' : 'PM'}
+                {dayPeriod}
               </button>
             )}
           </div>
@@ -191,8 +199,8 @@ const ClockTimePicker = ({ value, onChange, onClose, darkMode, isTablet, use24Ho
         <div className="flex justify-center mb-5">{renderClock()}</div>
 
         <div className={`flex gap-2`}>
-          <button type="button"onClick={onClose} className={`flex-1 ${isTablet ? 'py-3 text-base' : 'py-2.5 text-sm'} rounded-2xl font-medium ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'} transition-colors`}>Cancel</button>
-          <button type="button"onClick={handleConfirm} className={`flex-1 ${isTablet ? 'py-3 text-base' : 'py-2.5 text-sm'} bg-blue-600 text-white rounded-2xl font-medium hover:bg-blue-700 transition-colors`}>OK</button>
+          <button type="button"onClick={onClose} className={`flex-1 ${isTablet ? 'py-3 text-base' : 'py-2.5 text-sm'} rounded-2xl font-medium ${darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'} transition-colors`}>{t('common.cancel')}</button>
+          <button type="button"onClick={handleConfirm} className={`flex-1 ${isTablet ? 'py-3 text-base' : 'py-2.5 text-sm'} bg-blue-600 text-white rounded-2xl font-medium hover:bg-blue-700 transition-colors`}>{t('common.ok')}</button>
         </div>
       </div>
     </div>

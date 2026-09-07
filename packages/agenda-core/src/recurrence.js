@@ -161,7 +161,7 @@ export const getNextOccurrence = (template) => {
  * Return the standard set of recurrence preset options for a given date string.
  * Used to populate the recurrence picker dropdown in the task editor.
  */
-export const getRecurrencePresets = (dateStr) => {
+export const getRecurrencePresets = (dateStr, t, language = 'en') => {
   const taskDate = new Date(dateStr + 'T12:00:00');
   const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][taskDate.getDay()];
   const monthDay = taskDate.getDate();
@@ -169,18 +169,29 @@ export const getRecurrencePresets = (dateStr) => {
   const suffix = monthDay === 1 || monthDay === 21 || monthDay === 31 ? 'st' : monthDay === 2 || monthDay === 22 ? 'nd' : monthDay === 3 || monthDay === 23 ? 'rd' : 'th';
   const weekOfMonth = Math.ceil(monthDay / 7);
   const ordinals = ['','1st','2nd','3rd','4th','5th'];
+  const translate = (key, values, fallback) => typeof t === 'function'
+    ? t(key, { ...values, defaultValue: fallback })
+    : fallback;
+  const localizedDay = typeof t === 'function'
+    ? new Intl.DateTimeFormat(language || 'en', { weekday: 'long' }).format(taskDate)
+    : dayName;
+  const localizedDate = typeof t === 'function'
+    ? new Intl.DateTimeFormat(language || 'en', { month: 'long', day: 'numeric' }).format(taskDate)
+    : `${monthName} ${monthDay}`;
+  const localizedMonthDay = translate('recurrence.ordinal', { count: monthDay, ordinal: true }, `${monthDay}${suffix}`);
+  const localizedOrdinal = translate('recurrence.ordinal', { count: weekOfMonth, ordinal: true }, ordinals[weekOfMonth]);
 
   return [
-    { label: 'None', value: null },
-    { label: 'Every day', value: { type: 'daily' } },
+    { label: translate('task.noRepeat', {}, 'None'), value: null },
+    { label: translate('recurrence.everyDay', {}, 'Every day'), value: { type: 'daily' } },
     taskDate.getDay() === 0 || taskDate.getDay() === 6
-      ? { label: 'Every weekend (Sat-Sun)', value: { type: 'weekly', daysOfWeek: [0,6] } }
-      : { label: 'Every weekday (Mon-Fri)', value: { type: 'weekly', daysOfWeek: [1,2,3,4,5] } },
-    { label: `Every week on ${dayName}`, value: { type: 'weekly', daysOfWeek: [taskDate.getDay()] } },
-    { label: `Every 2 weeks on ${dayName}`, value: { type: 'biweekly', daysOfWeek: [taskDate.getDay()] } },
-    { label: `Monthly on the ${monthDay}${suffix}`, value: { type: 'monthly', monthDay: monthDay, monthWeekday: null } },
-    { label: `Monthly on the ${ordinals[weekOfMonth]} ${dayName}`, value: { type: 'monthly', monthDay: null, monthWeekday: { week: weekOfMonth, day: taskDate.getDay() } } },
-    { label: `Yearly on ${monthName} ${monthDay}`, value: { type: 'yearly' } },
+      ? { label: translate('recurrence.everyWeekend', {}, 'Every weekend (Sat-Sun)'), value: { type: 'weekly', daysOfWeek: [0,6] } }
+      : { label: translate('recurrence.everyWeekday', {}, 'Every weekday (Mon-Fri)'), value: { type: 'weekly', daysOfWeek: [1,2,3,4,5] } },
+    { label: translate('recurrence.everyWeekOn', { day: localizedDay }, `Every week on ${dayName}`), value: { type: 'weekly', daysOfWeek: [taskDate.getDay()] } },
+    { label: translate('recurrence.everyTwoWeeksOn', { day: localizedDay }, `Every 2 weeks on ${dayName}`), value: { type: 'biweekly', daysOfWeek: [taskDate.getDay()] } },
+    { label: translate('recurrence.monthlyOnDate', { day: localizedMonthDay }, `Monthly on the ${monthDay}${suffix}`), value: { type: 'monthly', monthDay: monthDay, monthWeekday: null } },
+    { label: translate('recurrence.monthlyOnOrdinalWeekday', { ordinal: localizedOrdinal, day: localizedDay }, `Monthly on the ${ordinals[weekOfMonth]} ${dayName}`), value: { type: 'monthly', monthDay: null, monthWeekday: { week: weekOfMonth, day: taskDate.getDay() } } },
+    { label: translate('recurrence.yearlyOn', { date: localizedDate }, `Yearly on ${monthName} ${monthDay}`), value: { type: 'yearly' } },
   ];
 };
 

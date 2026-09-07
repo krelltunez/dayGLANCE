@@ -89,13 +89,13 @@ const MobileBottomSheets = () => {
               onClick={emptyRecycleBin}
               className="text-xs text-red-500 font-medium px-2 py-1 rounded-lg hover:bg-red-500/5 active:bg-red-500/10 dark:hover:bg-red-500/10 dark:active:bg-red-500/20 transition-colors"
             >
-              Empty All
+              {t('app.emptyAll')}
             </button>
           )}
           <button
             onClick={() => setShowMobileRecycleBin(false)}
             className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`}
-            aria-label="Close recycle bin"
+            aria-label={t('app.closeRecycleBin', { defaultValue: 'Close recycle bin' })}
           >
             <X size={16} className={textSecondary} />
           </button>
@@ -116,11 +116,11 @@ const MobileBottomSheets = () => {
                   <div className="font-medium text-sm truncate">{renderTitle(task.title)}</div>
                   <div className="text-xs opacity-75 mt-1">
                     {task._deletedFrom === 'inbox' ? (
-                      <>Inbox • {task.duration}min</>
+                      <>{t('app.recycleBinInbox')} • {t('common.minutesShort', { count: task.duration })}</>
                     ) : task.startTime ? (
-                      <>{formatTime(task.startTime)} • {task.duration}min</>
+                      <>{formatTime(task.startTime)} • {t('common.minutesShort', { count: task.duration })}</>
                     ) : (
-                      <>{task.duration}min</>
+                      <>{t('common.minutesShort', { count: task.duration })}</>
                     )}
                   </div>
                 </div>
@@ -128,7 +128,7 @@ const MobileBottomSheets = () => {
                   <button
                     onClick={() => { undeleteTask(task.id); if (recycleBin.filter(t => !t.isExample).length <= 1) setShowMobileRecycleBin(false); }}
                     className="bg-white/20 rounded-lg p-1.5 hover:bg-white/25 active:bg-white/30 transition-colors"
-                    title="Restore"
+                    title={t('common.restore')}
                   >
                     <Undo2 size={14} />
                   </button>
@@ -167,20 +167,20 @@ const MobileBottomSheets = () => {
               onClick={clearTagFilter}
               className="text-sm text-blue-500 hover:text-blue-600 active:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 dark:active:text-blue-200 font-medium transition-colors"
             >
-              Clear
+              {t('common.clear')}
             </button>
           ) : (
             <button
               onClick={selectAllTags}
               className="text-sm text-blue-500 hover:text-blue-600 active:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 dark:active:text-blue-200 font-medium transition-colors"
             >
-              Select All
+              {t('common.selectAll')}
             </button>
           )}
           <button
             onClick={() => setShowMobileTagFilter(false)}
             className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`}
-            aria-label="Close tag filter"
+            aria-label={t('app.closeTagFilter', { defaultValue: 'Close tag filter' })}
           >
             <X size={16} className={textSecondary} />
           </button>
@@ -254,7 +254,7 @@ const MobileBottomSheets = () => {
         <button
           onClick={() => setShowMobileDailySummary(false)}
           className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-stone-100 hover:bg-stone-200'} transition-colors`}
-          aria-label="Close daily summary"
+          aria-label={t('app.closeDailySummary', { defaultValue: 'Close daily summary' })}
         >
           <X size={16} className={textSecondary} />
         </button>
@@ -282,25 +282,25 @@ const MobileBottomSheets = () => {
                 </span>
               </div>
               <div>
-                <div className={`text-lg font-bold ${textPrimary}`}>{actualTodayCompletedTasks.length} of {actualTodayNonImportedTasks.length} done</div>
+                <div className={`text-lg font-bold ${textPrimary}`}>{t('app.summaryProgress', { done: actualTodayCompletedTasks.length, total: actualTodayNonImportedTasks.length })}</div>
                 {todayIncompleteTasks.length > 0 && (
                   <button
                     onClick={() => { setShowIncompleteTasks('today'); setShowMobileDailySummary(false); }}
                     className="text-sm text-blue-500 active:text-blue-600"
                   >
-                    {todayIncompleteTasks.length} incomplete
+                    {t('app.incompleteCount', { count: todayIncompleteTasks.length })}
                   </button>
                 )}
                 {inboxCompletedTodayCount > 0 && (
-                  <div className={`text-sm ${textSecondary}`}>+ {inboxCompletedTodayCount} inbox {inboxCompletedTodayCount === 1 ? 'task' : 'tasks'} done</div>
+                  <div className={`text-sm ${textSecondary}`}>+ {t('app.inboxTasksDone', { count: inboxCompletedTodayCount })}</div>
                 )}
                 {goalsProjectsEnabled && projectTasksCompletedTodayCount > 0 && (
-                  <div className={`text-sm ${textSecondary}`}>+ {projectTasksCompletedTodayCount} project {projectTasksCompletedTodayCount === 1 ? 'task' : 'tasks'} done</div>
+                  <div className={`text-sm ${textSecondary}`}>+ {t('app.projectTasksDone', { count: projectTasksCompletedTodayCount })}</div>
                 )}
                 {consecutiveDayStreak > 1 && (
                   <div className="flex items-center gap-1 text-sm text-orange-500 font-medium mt-0.5">
                     <Flame size={13} />
-                    {consecutiveDayStreak} day streak
+                    {t('app.dayStreak', { count: consecutiveDayStreak })}
                   </div>
                 )}
               </div>
@@ -331,17 +331,17 @@ const MobileBottomSheets = () => {
             {/* Stat rows */}
             <div className={`space-y-3 ${textSecondary}`}>
               <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> Time spent</div>
-                <span className={`font-medium ${textPrimary}`}>{Math.floor((actualTodayCompletedMinutes + inboxCompletedTodayMinutes) / 60)}h {(actualTodayCompletedMinutes + inboxCompletedTodayMinutes) % 60}m</span>
+                <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> {t('app.timeSpent')}</div>
+                <span className={`font-medium ${textPrimary}`}>{t('focus.hoursMinutesShort', { hours: Math.floor((actualTodayCompletedMinutes + inboxCompletedTodayMinutes) / 60), minutes: (actualTodayCompletedMinutes + inboxCompletedTodayMinutes) % 60 })}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2"><Clock size={14} className="text-blue-400" /> Time planned</div>
-                <span className={`font-medium ${textPrimary}`}>{Math.floor(actualTodayPlannedMinutes / 60)}h {actualTodayPlannedMinutes % 60}m</span>
+                <div className="flex items-center gap-2"><Clock size={14} className="text-blue-400" /> {t('app.timePlanned')}</div>
+                <span className={`font-medium ${textPrimary}`}>{t('focus.hoursMinutesShort', { hours: Math.floor(actualTodayPlannedMinutes / 60), minutes: actualTodayPlannedMinutes % 60 })}</span>
               </div>
               {actualTodayFocusMinutes > 0 && (
                 <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2"><Target size={14} className="text-purple-400" /> Focus time</div>
-                  <span className={`font-medium ${textPrimary}`}>{Math.floor(actualTodayFocusMinutes / 60)}h {Math.round(actualTodayFocusMinutes % 60)}m</span>
+                  <div className="flex items-center gap-2"><Target size={14} className="text-purple-400" /> {t('app.focusTime')}</div>
+                  <span className={`font-medium ${textPrimary}`}>{t('focus.hoursMinutesShort', { hours: Math.floor(actualTodayFocusMinutes / 60), minutes: Math.round(actualTodayFocusMinutes % 60) })}</span>
                 </div>
               )}
             </div>
@@ -380,10 +380,10 @@ const MobileBottomSheets = () => {
                             <span className={`text-sm flex-1 min-w-0 truncate ${textPrimary}`}>{habit.name}</span>
                             <div className="flex items-center gap-3 flex-shrink-0">
                               <span className={`text-sm font-semibold ${s.current > 0 ? 'text-orange-500' : textSecondary}`}>
-                                {s.current}d
+                                {t('app.daysShort', { count: s.current, defaultValue: '{{count}}d' })}
                               </span>
                               <span className={`text-xs ${textSecondary}`}>
-                                best {s.best}d
+                                {t('app.bestStreak', { days: s.best })}
                               </span>
                             </div>
                           </div>
@@ -392,7 +392,7 @@ const MobileBottomSheets = () => {
                       {overflow && (
                         <div className={`flex items-center gap-2 text-sm ${textSecondary}`}>
                           <MoreHorizontal size={16} className="flex-shrink-0" />
-                          <span>+{remaining} more habits</span>
+                          <span>+{t('app.moreHabits', { count: remaining })}</span>
                         </div>
                       )}
                     </>
@@ -419,22 +419,22 @@ const MobileBottomSheets = () => {
             <div className={`space-y-2 text-sm ${textSecondary} mt-3`}>
               {goalsProjectsEnabled && allTimeGoalsCreated > 0 && (
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2"><Flag size={14} className="text-amber-400" /> Goals</div>
-                  <span className={`font-medium ${textPrimary}`}>{allTimeGoalsCompleted}/{allTimeGoalsCreated} completed</span>
+                  <div className="flex items-center gap-2"><Flag size={14} className="text-amber-400" /> {t('app.goalsLabel')}</div>
+                  <span className={`font-medium ${textPrimary}`}>{t('app.completedRatio', { done: allTimeGoalsCompleted, total: allTimeGoalsCreated })}</span>
                 </div>
               )}
               {goalsProjectsEnabled && allTimeProjectsCreated > 0 && (
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2"><FolderOpen size={14} className="text-blue-400" /> Projects</div>
-                  <span className={`font-medium ${textPrimary}`}>{allTimeProjectsCompleted}/{allTimeProjectsCreated} completed</span>
+                  <div className="flex items-center gap-2"><FolderOpen size={14} className="text-blue-400" /> {t('app.projectsLabel')}</div>
+                  <span className={`font-medium ${textPrimary}`}>{t('app.completedRatio', { done: allTimeProjectsCompleted, total: allTimeProjectsCreated })}</span>
                 </div>
               )}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><CalendarDays size={14} className="text-blue-400" /> Tasks scheduled</div>
+                <div className="flex items-center gap-2"><CalendarDays size={14} className="text-blue-400" /> {t('app.tasksScheduled')}</div>
                 <span className={`font-medium ${textPrimary}`}>{allTimeScheduledCount}</span>
               </div>
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><CheckCircle size={14} className="text-green-400" /> Tasks completed</div>
+                <div className="flex items-center gap-2"><CheckCircle size={14} className="text-green-400" /> {t('app.tasksCompleted')}</div>
                 <span className={`font-medium ${textPrimary}`}>
                   {allTimeCompletedCount}
                   {allTimeIncompleteTasks.length > 0 && (
@@ -442,36 +442,36 @@ const MobileBottomSheets = () => {
                       onClick={() => { setShowIncompleteTasks('allTime'); setShowMobileDailySummary(false); }}
                       className="ml-1 text-blue-500 active:text-blue-400"
                     >
-                      ({allTimeIncompleteTasks.length} incomplete)
+                      ({t('app.incompleteCount', { count: allTimeIncompleteTasks.length })})
                     </button>
                   )}
                 </span>
               </div>
               {allTimeInboxCompletedCount > 0 && (
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2"><Inbox size={14} className="text-amber-400" /> Inbox done</div>
+                  <div className="flex items-center gap-2"><Inbox size={14} className="text-amber-400" /> {t('app.inboxDone')}</div>
                   <span className={`font-medium ${textPrimary}`}>{allTimeInboxCompletedCount}</span>
                 </div>
               )}
               {goalsProjectsEnabled && allTimeUnscheduledProjectDoneCount > 0 && (
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2"><FolderOpen size={14} className="text-green-400" /> Project queue done</div>
+                  <div className="flex items-center gap-2"><FolderOpen size={14} className="text-green-400" /> {t('app.projectQueueDone')}</div>
                   <span className={`font-medium ${textPrimary}`}>{allTimeUnscheduledProjectDoneCount}</span>
                 </div>
               )}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> Time spent</div>
-                <span className={`font-medium ${textPrimary}`}>{Math.floor((totalCompletedMinutes + allTimeInboxCompletedMinutes + allTimeUnscheduledProjectDoneMinutes) / 60)}h {(totalCompletedMinutes + allTimeInboxCompletedMinutes + allTimeUnscheduledProjectDoneMinutes) % 60}m</span>
+                <div className="flex items-center gap-2"><Clock size={14} className="text-orange-400" /> {t('app.timeSpent')}</div>
+                <span className={`font-medium ${textPrimary}`}>{t('focus.hoursMinutesShort', { hours: Math.floor((totalCompletedMinutes + allTimeInboxCompletedMinutes + allTimeUnscheduledProjectDoneMinutes) / 60), minutes: (totalCompletedMinutes + allTimeInboxCompletedMinutes + allTimeUnscheduledProjectDoneMinutes) % 60 })}</span>
               </div>
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><Clock size={14} className="text-blue-400" /> Time planned</div>
-                <span className={`font-medium ${textPrimary}`}>{Math.floor(totalScheduledMinutes / 60)}h {totalScheduledMinutes % 60}m</span>
+                <div className="flex items-center gap-2"><Clock size={14} className="text-blue-400" /> {t('app.timePlanned')}</div>
+                <span className={`font-medium ${textPrimary}`}>{t('focus.hoursMinutesShort', { hours: Math.floor(totalScheduledMinutes / 60), minutes: totalScheduledMinutes % 60 })}</span>
               </div>
               {allTimeFocusMinutes > 0 && (
                 <>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2"><Target size={14} className="text-purple-400" /> Focus time</div>
-                    <span className={`font-medium ${textPrimary}`}>{Math.floor(allTimeFocusMinutes / 60)}h {Math.round(allTimeFocusMinutes % 60)}m</span>
+                    <div className="flex items-center gap-2"><Target size={14} className="text-purple-400" /> {t('app.focusTime')}</div>
+                    <span className={`font-medium ${textPrimary}`}>{t('focus.hoursMinutesShort', { hours: Math.floor(allTimeFocusMinutes / 60), minutes: Math.round(allTimeFocusMinutes % 60) })}</span>
                   </div>
                 </>
               )}

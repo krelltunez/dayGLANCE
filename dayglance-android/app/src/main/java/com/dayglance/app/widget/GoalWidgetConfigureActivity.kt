@@ -88,7 +88,7 @@ class GoalWidgetConfigureActivity : AppCompatActivity() {
         for (i in 0 until allGoals.length()) {
             val goal = allGoals.optJSONObject(i) ?: continue
             val goalId    = goal.optString("id", "")
-            val title     = goal.optString("title", "Untitled")
+            val title     = goal.optString("title", getString(R.string.widget_untitled))
             val colorHex  = goal.optString("colorHex", "#3b82f6")
             val pct       = goal.optInt("progressPct", 0)
             val total     = goal.optInt("totalTasks", 0)
@@ -96,10 +96,10 @@ class GoalWidgetConfigureActivity : AppCompatActivity() {
             val projCount = goal.optJSONArray("projects")?.length() ?: 0
 
             val subtitle = buildString {
-                if (total > 0) append("$done/$total tasks")
+                if (total > 0) append(getString(R.string.config_task_progress, done, total))
                 if (projCount > 0) {
                     if (isNotEmpty()) append("  ·  ")
-                    append("$projCount project${if (projCount != 1) "s" else ""}")
+                    append(resources.getQuantityString(R.plurals.config_project_count, projCount, projCount))
                 }
                 if (isNotEmpty()) append("  ·  ")
                 append("$pct%")

@@ -1,3 +1,10 @@
+import {
+  activeLocale,
+  defaultWeekStartDay,
+  formatLocalizedDate,
+  localizedWeekdays,
+} from './localeFormatting.js';
+
 // Format a Date object as a YYYY-MM-DD string in local time.
 // Defined here (not inline in App.jsx) so that useState initialisers that
 // run before any in-component helpers can use it via import.
@@ -52,96 +59,161 @@ export const extractWikilinks = (title) => {
 export const stripWikilinks = (title) =>
   title.replace(/\[\[[^\]]+\]\]/g, '').replace(/\s+/g, ' ').trim();
 
-// Human-readable label for a recurrence rule object.
-export const getRecurrenceLabel = (rec) => {
-  if (!rec) return 'None';
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const ordinals = ['', '1st', '2nd', '3rd', '4th', '5th'];
+const translateOrDefault = (translate, key, values, fallback) => typeof translate === 'function'
+  ? translate(key, { ...values, defaultValue: fallback })
+  : fallback;
 
-  let label = 'Custom';
-  if (rec.type === 'daily') label = 'Every day';
-  else if (rec.type === 'weekly') {
-    const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
-      ? [...rec.daysOfWeek].sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
-      : dayNames[new Date(rec.startDate + 'T12:00:00').getDay()];
-    label = `Weekly on ${days}`;
-  }
-  else if (rec.type === 'biweekly') {
-    const days = rec.daysOfWeek && rec.daysOfWeek.length > 0
-      ? [...rec.daysOfWeek].sort((a, b) => a - b).map(d => dayNames[d]).join(', ')
-      : dayNames[new Date(rec.startDate + 'T12:00:00').getDay()];
-    label = `Every 2 weeks on ${days}`;
-  }
-  else if (rec.type === 'monthly') {
+// Human-readable label for a recurrence rule object.
+export const getRecurrenceLabel = (rec, translate, language = 'en') => {
+  if (!rec) return translateOrDefault(translate, 'task.noRepeat', {}, 'None');
+
+  const shortDayNames = localizedWeekdays('short', language);
+  const fullDayNames = localizedWeekdays('long', language);
+  const englishShortDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const englishFullDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const englishMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const ordinals = ['', '1st', '2nd', '3rd', '4th', '5th'];
+  const firstDay = defaultWeekStartDay(language);
+  const selectedDayIndexes = rec.daysOfWeek?.length
+    ? [...rec.daysOfWeek].sort((a, b) => ((a - firstDay + 7) % 7) - ((b - firstDay + 7) % 7))
+    : rec.startDate ? [new Date(`${rec.startDate}T12:00:00`).getDay()] : [];
+  const localizedDays = new Intl.ListFormat(language, { style: 'short', type: 'conjunction' })
+    .format(selectedDayIndexes.map(day => shortDayNames[day]));
+  const fallbackDays = selectedDayIndexes.map(day => englishShortDays[day]).join(', ');
+
+  let label = translateOrDefault(translate, 'recurrence.custom', {}, 'Custom');
+  if (rec.type === 'daily') {
+    label = translateOrDefault(translate, 'recurrence.everyDay', {}, 'Every day');
+  } else if (rec.type === 'weekly') {
+    label = localizedDays
+      ? translateOrDefault(translate, 'recurrence.weeklyOnDays', { days: localizedDays }, `Weekly on ${fallbackDays}`)
+      : translateOrDefault(translate, 'recurrence.everyWeek', {}, 'Every week');
+  } else if (rec.type === 'biweekly') {
+    label = localizedDays
+      ? translateOrDefault(translate, 'recurrence.everyTwoWeeksOnDays', { days: localizedDays }, `Every 2 weeks on ${fallbackDays}`)
+      : translateOrDefault(translate, 'recurrence.everyTwoWeeks', {}, 'Every 2 weeks');
+  } else if (rec.type === 'monthly') {
     if (rec.monthWeekday) {
-      label = `Monthly on the ${ordinals[rec.monthWeekday.week]} ${fullDayNames[rec.monthWeekday.day]}`;
+      const { week, day } = rec.monthWeekday;
+      label = translateOrDefault(
+        translate,
+        'recurrence.monthlyOnOrdinalWeekday',
+        { ordinal: translateOrDefault(translate, 'recurrence.ordinal', { count: week, ordinal: true }, ordinals[week]), day: fullDayNames[day] },
+        `Monthly on the ${ordinals[week]} ${englishFullDays[day]}`,
+      );
     } else {
-      const d = rec.monthDay || new Date(rec.startDate + 'T12:00:00').getDate();
-      const suffix = d === 1 || d === 21 || d === 31 ? 'st' : d === 2 || d === 22 ? 'nd' : d === 3 || d === 23 ? 'rd' : 'th';
-      label = `Monthly on the ${d}${suffix}`;
+      const day = rec.monthDay || (rec.startDate ? new Date(`${rec.startDate}T12:00:00`).getDate() : null);
+      if (day) {
+        const suffix = day === 1 || day === 21 || day === 31 ? 'st' : day === 2 || day === 22 ? 'nd' : day === 3 || day === 23 ? 'rd' : 'th';
+        const localizedDay = translateOrDefault(translate, 'recurrence.ordinal', { count: day, ordinal: true }, `${day}${suffix}`);
+        label = translateOrDefault(translate, 'recurrence.monthlyOnDate', { day: localizedDay }, `Monthly on the ${day}${suffix}`);
+      } else {
+        label = translateOrDefault(translate, 'recurrence.everyMonth', {}, 'Every month');
+      }
     }
-  }
-  else if (rec.type === 'yearly') {
-    const sd = new Date(rec.startDate + 'T12:00:00');
-    label = `Yearly on ${monthNames[sd.getMonth()]} ${sd.getDate()}`;
+  } else if (rec.type === 'yearly') {
+    if (rec.startDate) {
+      const startDate = new Date(`${rec.startDate}T12:00:00`);
+      const date = formatLocalizedDate(startDate, { month: 'long', day: 'numeric' }, language);
+      label = translateOrDefault(
+        translate,
+        'recurrence.yearlyOn',
+        { date },
+        `Yearly on ${englishMonths[startDate.getMonth()]} ${startDate.getDate()}`,
+      );
+    } else {
+      label = translateOrDefault(translate, 'recurrence.everyYear', {}, 'Every year');
+    }
   }
 
   if (rec.endDate) {
-    const ed = new Date(rec.endDate + 'T12:00:00');
-    label += ` until ${monthNames[ed.getMonth()].slice(0, 3)} ${ed.getDate()}`;
+    const endDate = new Date(`${rec.endDate}T12:00:00`);
+    const date = formatLocalizedDate(endDate, { month: 'short', day: 'numeric' }, language);
+    label = translateOrDefault(
+      translate,
+      'recurrence.withEndDate',
+      { label, date },
+      `${label} until ${englishMonths[endDate.getMonth()].slice(0, 3)} ${endDate.getDate()}`,
+    );
   } else if (rec.maxOccurrences) {
-    label += ` (${rec.maxOccurrences} times)`;
+    label = translateOrDefault(
+      translate,
+      'recurrence.withCount',
+      { label, count: rec.maxOccurrences },
+      `${label} (${rec.maxOccurrences} times)`,
+    );
   }
   return label;
 };
 
 // Format a Date object as "Monday, Jan 5".
-export const formatDate = (date) => {
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
-};
+export const formatDate = (date, language = activeLocale()) =>
+  formatLocalizedDate(date, { weekday: 'long', month: 'short', day: 'numeric' }, language);
 
 // Format an array of Date objects as a human-readable range string.
-export const formatDateRange = (dates) => {
+export const formatDateRange = (dates, translate, language = 'en') => {
   if (dates.length === 1) {
-    return formatDate(dates[0]);
+    return formatDate(dates[0], language);
   }
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const first = dates[0];
   const last = dates[dates.length - 1];
 
-  if (first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear()) {
-    return `${months[first.getMonth()]} ${first.getDate()} - ${last.getDate()}, ${first.getFullYear()}`;
-  } else if (first.getFullYear() === last.getFullYear()) {
-    return `${months[first.getMonth()]} ${first.getDate()} - ${months[last.getMonth()]} ${last.getDate()}, ${first.getFullYear()}`;
-  } else {
-    return `${months[first.getMonth()]} ${first.getDate()}, ${first.getFullYear()} - ${months[last.getMonth()]} ${last.getDate()}, ${last.getFullYear()}`;
+  const formatter = new Intl.DateTimeFormat(language, { year: 'numeric', month: 'short', day: 'numeric' });
+  const fallback = typeof formatter.formatRange === 'function'
+    ? formatter.formatRange(first, last)
+    : `${formatter.format(first)} – ${formatter.format(last)}`;
+  const month = (date) => formatLocalizedDate(date, { month: 'short' }, language);
+  if (first.getFullYear() === last.getFullYear() && first.getMonth() === last.getMonth()) {
+    return translateOrDefault(translate, 'dateRange.sameMonth', {
+      year: first.getFullYear(),
+      month: month(first),
+      startDay: first.getDate(),
+      endDay: last.getDate(),
+    }, fallback);
   }
+  if (first.getFullYear() === last.getFullYear()) {
+    return translateOrDefault(translate, 'dateRange.sameYear', {
+      year: first.getFullYear(),
+      startMonth: month(first),
+      startDay: first.getDate(),
+      endMonth: month(last),
+      endDay: last.getDate(),
+    }, fallback);
+  }
+  return translateOrDefault(translate, 'dateRange.differentYears', {
+    startYear: first.getFullYear(),
+    startMonth: month(first),
+    startDay: first.getDate(),
+    endYear: last.getFullYear(),
+    endMonth: month(last),
+    endDay: last.getDate(),
+  }, fallback);
 };
 
 // Format a Date object as "Mon, Jan 5" (abbreviated day name).
-export const formatShortDate = (date) => {
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
-};
+export const formatShortDate = (date, language = activeLocale()) =>
+  formatLocalizedDate(date, { weekday: 'short', month: 'short', day: 'numeric' }, language);
 
 // Format a deadline YYYY-MM-DD string as "Today", "Tomorrow", or "Jan 5".
-export const formatDeadlineDate = (deadline) => {
+export const formatDeadlineDate = (deadline, language = activeLocale()) => {
   if (!deadline) return null;
   const todayStr = dateToString(new Date());
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = dateToString(tomorrow);
 
-  if (deadline === todayStr) return 'Today';
-  if (deadline === tomorrowStr) return 'Tomorrow';
+  const relative = new Intl.RelativeTimeFormat(language, { numeric: 'auto' });
+  if (deadline === todayStr) {
+    const label = relative.format(0, 'day');
+    return label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
+  }
+  if (deadline === tomorrowStr) {
+    const label = relative.format(1, 'day');
+    return label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
+  }
 
   const date = new Date(deadline + 'T12:00:00');
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return formatLocalizedDate(date, { month: 'short', day: 'numeric' }, language);
 };
 
 // Determine which previously-imported CalDAV task-calendar items have disappeared

@@ -13,7 +13,7 @@ import { parseQuickAdd, spanSignature } from '../utils/quickAddParser.js';
 // field after the NL layer set it.
 const sameVal = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-export default function useNewTaskInput({ allTags, showAddTask, isEditing = false }) {
+export default function useNewTaskInput({ allTags, showAddTask, t, language, use24HourClock, isEditing = false }) {
   const [newTask, setNewTask] = useState({ title: '', startTime: '09:00', duration: 30 });
   // Natural-language layer bookkeeping:
   // - dismissedNlRef: span signatures the user rejected via chip tap — those
@@ -56,7 +56,7 @@ export default function useNewTaskInput({ allTags, showAddTask, isEditing = fals
     if (!isInbox) {
       const dateInfo = getPartialDate(text, cursorPos);
       if (dateInfo) {
-        const candidates = getDateCandidates(dateInfo.partial);
+        const candidates = getDateCandidates(dateInfo.partial, t, language);
         for (const parsed of candidates) {
           const dateStr = `${parsed.date.getFullYear()}-${(parsed.date.getMonth() + 1).toString().padStart(2, '0')}-${parsed.date.getDate().toString().padStart(2, '0')}`;
           allSuggestions.push({
@@ -75,7 +75,7 @@ export default function useNewTaskInput({ allTags, showAddTask, isEditing = fals
     if (!isInbox) {
       const timeInfo = getPartialTime(text, cursorPos);
       if (timeInfo) {
-        const candidates = getTimeCandidates(timeInfo.partial);
+        const candidates = getTimeCandidates(timeInfo.partial, t, language, use24HourClock);
         for (const parsed of candidates) {
           allSuggestions.push({
             type: 'time',
@@ -93,7 +93,7 @@ export default function useNewTaskInput({ allTags, showAddTask, isEditing = fals
     if (isInbox) {
       const deadlineInfo = getPartialDeadline(text, cursorPos);
       if (deadlineInfo) {
-        const candidates = getDateCandidates(deadlineInfo.partial);
+        const candidates = getDateCandidates(deadlineInfo.partial, t, language);
         for (const parsed of candidates) {
           const dateStr = `${parsed.date.getFullYear()}-${(parsed.date.getMonth() + 1).toString().padStart(2, '0')}-${parsed.date.getDate().toString().padStart(2, '0')}`;
           allSuggestions.push({

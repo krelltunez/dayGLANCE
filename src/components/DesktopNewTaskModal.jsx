@@ -13,9 +13,10 @@ import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { extractWikilinks } from '../utils/taskUtils.js';
 import { dateToString, extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
 import { getProjectColor } from '../utils/colorUtils.js';
+import { formatLocalizedDate } from '../utils/localeFormatting.js';
 
 const DesktopNewTaskModal = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const {
     showAddTask, setShowAddTask,
     isMobile, isTablet,
@@ -182,7 +183,7 @@ const DesktopNewTaskModal = () => {
                   ) : taskAISuggestion ? (
                     <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>
                       <Sparkles size={11} className="text-purple-400 flex-shrink-0" />
-                      <span className="font-medium">{taskAISuggestion.duration} min</span>
+                      <span className="font-medium">{t('common.minutesShort', { count: taskAISuggestion.duration, defaultValue: '{{count}} min' })}</span>
                       {taskAISuggestion.tags?.length > 0 && (
                         <>
                           <span className={textSecondary}>·</span>
@@ -202,7 +203,7 @@ const DesktopNewTaskModal = () => {
                         }}
                         className={`ml-auto px-2 py-0.5 rounded text-xs font-medium transition-colors ${darkMode ? 'bg-purple-900/60 hover:bg-purple-800/60 text-purple-200' : 'bg-purple-100 hover:bg-purple-200 text-purple-700'}`}
                       >
-                        Apply
+                        {t('common.apply', { defaultValue: 'Apply' })}
                       </button>
                       <button type="button" onClick={() => setTaskAISuggestion(null)} className={`p-0.5 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}>
                         <X size={11} className={textSecondary} />
@@ -216,7 +217,7 @@ const DesktopNewTaskModal = () => {
                         className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${darkMode ? 'bg-purple-500/20 hover:bg-purple-500/30 text-purple-400' : 'bg-purple-100 hover:bg-purple-200 text-purple-600'}`}
                       >
                         <Sparkles size={9} />
-                        AI
+                        {t('common.ai')}
                       </button>
                     </div>
                   )
@@ -263,7 +264,7 @@ const DesktopNewTaskModal = () => {
                             </optgroup>
                           ))}
                           {standalone.length > 0 && (
-                            <optgroup label="Standalone">
+                            <optgroup label={t('goals.standalone')}>
                               {standalone.map(p => (
                                 <option key={p.id} value={p.id}>{p.title}</option>
                               ))}
@@ -278,7 +279,7 @@ const DesktopNewTaskModal = () => {
               {multiUserEnabled && users.filter(u => !u.deleted).length > 0 && (
                 <div>
                   <label className={`block text-sm ${textSecondary} mb-1`}>
-                    Assigned to <span className={`text-xs ${textSecondary} opacity-70`}>(empty = everybody)</span>
+                    {t('task.assignTo')} <span className={`text-xs ${textSecondary} opacity-70`}>{t('task.assignmentEverybodyHint', { defaultValue: '(empty = everybody)' })}</span>
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {users.filter(u => !u.deleted).map(u => {
@@ -320,8 +321,11 @@ const DesktopNewTaskModal = () => {
                       recurring task. New recurring tasks always assign the series. */}
                   {mobileEditingTask && typeof mobileEditingTask.id === 'string' && mobileEditingTask.id.startsWith('recurring-') && (
                     <div className="mt-2 flex items-center gap-2">
-                      <span className={`text-xs ${textSecondary} opacity-70`}>Apply to</span>
-                      {[{ key: 'all', label: 'All instances' }, { key: 'this', label: 'This instance' }].map(opt => {
+                      <span className={`text-xs ${textSecondary} opacity-70`}>{t('task.applyAssignmentTo', { defaultValue: 'Apply to' })}</span>
+                      {[
+                        { key: 'all', label: t('sched.allInstances') },
+                        { key: 'this', label: t('sched.thisInstance', { defaultValue: 'This instance' }) },
+                      ].map(opt => {
                         const active = (mobileEditingTask._assignScope || 'all') === opt.key;
                         return (
                           <button
@@ -382,7 +386,7 @@ const DesktopNewTaskModal = () => {
                           className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
                         >
                           {durationOptions.map(minutes => (
-                            <option key={minutes} value={minutes}>{minutes} min</option>
+                            <option key={minutes} value={minutes}>{t('common.minutesShort', { count: minutes, defaultValue: '{{count}} min' })}</option>
                           ))}
                         </select>
                       </div>
@@ -395,7 +399,9 @@ const DesktopNewTaskModal = () => {
                         onClick={() => !newTask.projectId && setNewTask({ ...newTask, priority: ((newTask.priority || 0) + 1) % 4 })}
                         disabled={!!newTask.projectId}
                         className={`w-full h-10 px-3 border ${borderClass} rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-white'} flex items-center justify-center gap-1 ${newTask.projectId ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        title={newTask.projectId ? 'Not available for project tasks' : ['No priority', 'Low priority', 'Medium priority', 'High priority'][newTask.priority || 0]}
+                        title={newTask.projectId
+                          ? t('task.priorityUnavailableForProject', { defaultValue: 'Not available for project tasks' })
+                          : [t('task.noPriority'), t('task.lowPriority'), t('task.mediumPriority'), t('task.highPriority')][newTask.priority || 0]}
                       >
                         {[1, 2, 3].map((level) => (
                           <div
@@ -416,8 +422,8 @@ const DesktopNewTaskModal = () => {
                         >
                           <Calendar size={14} className={textSecondary} />
                           {newTask.deadline
-                            ? new Date(newTask.deadline + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                            : 'None'}
+                            ? formatLocalizedDate(new Date(newTask.deadline + 'T12:00:00'), { month: 'short', day: 'numeric' })
+                            : t('task.noDeadline')}
                         </button>
                         {showNewTaskDeadlinePicker && (
                           <div className={`absolute top-12 left-0 ${cardBg} rounded-lg shadow-xl border ${borderClass} p-2 min-w-[160px] z-20`}>
@@ -431,7 +437,7 @@ const DesktopNewTaskModal = () => {
                                 className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
                               >
                                 <Calendar size={14} />
-                                Today
+                                {t('common.today')}
                               </button>
                               <button
                                 type="button"
@@ -444,7 +450,7 @@ const DesktopNewTaskModal = () => {
                                 className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
                               >
                                 <Calendar size={14} />
-                                Tomorrow
+                                {t('common.tomorrow')}
                               </button>
                               <button
                                 type="button"
@@ -457,7 +463,7 @@ const DesktopNewTaskModal = () => {
                                 className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
                               >
                                 <Calendar size={14} />
-                                Next week
+                                {t('common.nextWeek', { defaultValue: 'Next week' })}
                               </button>
                               <div className={`border-t ${borderClass} my-1`}></div>
                               <button
@@ -469,7 +475,7 @@ const DesktopNewTaskModal = () => {
                                 className={`w-full text-left px-3 py-2 rounded text-sm ${textPrimary} ${hoverBg} flex items-center gap-2`}
                               >
                                 <Calendar size={14} />
-                                Pick date...
+                                {t('goals.selectDate')}
                               </button>
                               {newTask.deadline && (
                                 <>
@@ -483,7 +489,7 @@ const DesktopNewTaskModal = () => {
                                     className={`w-full text-left px-3 py-2 rounded text-sm text-red-500 ${hoverBg} flex items-center gap-2`}
                                   >
                                     <X size={14} />
-                                    Clear deadline
+                                    {t('task.clearDeadline', { defaultValue: 'Clear deadline' })}
                                   </button>
                                 </>
                               )}
@@ -537,7 +543,7 @@ const DesktopNewTaskModal = () => {
                             disabled={dateDisabled}
                             className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${dateDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
-                            {newTask.date ? new Date(newTask.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Select'}
+                            {newTask.date ? formatLocalizedDate(new Date(newTask.date + 'T12:00:00'), { month: 'short', day: 'numeric' }) : t('goals.selectDate')}
                           </button>
                         );
                       })()}
@@ -550,13 +556,13 @@ const DesktopNewTaskModal = () => {
                         disabled={newTask.keepUnscheduled}
                         className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.recurrence ? 'ring-2 ring-blue-500' : ''} ${newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                        {newTask.recurrence ? getRecurrenceLabel(newTask.recurrence) : 'None'}
+                        {newTask.recurrence ? getRecurrenceLabel(newTask.recurrence, t, i18n.resolvedLanguage || i18n.language) : t('task.noRepeat')}
                       </button>
                       {showRecurrencePicker && <RecurrencePicker placement="bottom" highlightSelected />}
                     </div>
                     {newTask.recurrence && (
                       <div className="col-span-full">
-                        <label className={`block text-xs font-medium ${textSecondary} mb-1`}>Ends</label>
+                        <label className={`block text-xs font-medium ${textSecondary} mb-1`}>{t('task.recurrenceEnds')}</label>
                         <div className="flex items-center gap-2 flex-wrap">
                           <button
                             type="button"
@@ -570,7 +576,7 @@ const DesktopNewTaskModal = () => {
                                 : `${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`
                             }`}
                           >
-                            Never
+                            {t('common.never')}
                           </button>
                           <button
                             type="button"
@@ -582,8 +588,8 @@ const DesktopNewTaskModal = () => {
                             }`}
                           >
                             {newTask.recurrence.endDate
-                              ? `Until ${new Date(newTask.recurrence.endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-                              : 'On date'}
+                              ? `${t('strip.until')} ${formatLocalizedDate(new Date(newTask.recurrence.endDate + 'T12:00:00'), { month: 'short', day: 'numeric' })}`
+                              : t('recurrence.onDate')}
                           </button>
                           <button
                             type="button"
@@ -599,7 +605,7 @@ const DesktopNewTaskModal = () => {
                                 : `${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`
                             }`}
                           >
-                            After
+                            {t('recurrence.after')}
                           </button>
                           {newTask.recurrence.maxOccurrences && (
                             <div className="flex items-center gap-1">
@@ -617,7 +623,7 @@ const DesktopNewTaskModal = () => {
                                 }}
                                 className={`w-16 px-2 py-1 text-sm border ${borderClass} rounded ${darkMode ? 'bg-gray-700 text-white dark-spinner' : 'bg-white'}`}
                               />
-                              <span className={`text-sm ${textSecondary}`}>times</span>
+                              <span className={`text-sm ${textSecondary}`}>{t('recurrence.times')}</span>
                             </div>
                           )}
                         </div>
@@ -632,7 +638,7 @@ const DesktopNewTaskModal = () => {
                         disabled={newTask.isAllDay || newTask.keepUnscheduled}
                         className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay || newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                        {newTask.isAllDay ? 'All Day' : formatTime(newTask.startTime)}
+                        {newTask.isAllDay ? t('task.allDay') : formatTime(newTask.startTime)}
                       </button>
                     </div>
                     <div>
@@ -645,7 +651,7 @@ const DesktopNewTaskModal = () => {
                       >
                         {durationOptions.map(minutes => (
                           <option key={minutes} value={minutes}>
-                            {minutes} min
+                            {t('common.minutesShort', { count: minutes, defaultValue: '{{count}} min' })}
                           </option>
                         ))}
                       </select>
@@ -656,7 +662,7 @@ const DesktopNewTaskModal = () => {
                         <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-stone-300'}`}>
                           {newTask.isAllDay && <Check size={14} className="text-white" strokeWidth={3} />}
                         </div>
-                        <span className={`ml-2 text-sm ${textPrimary}`}>Full day</span>
+                        <span className={`ml-2 text-sm ${textPrimary}`}>{t('task.allDay')}</span>
                       </div>
                     </div>
                     {/* Unscheduled — only shown when a project is selected */}
@@ -669,8 +675,8 @@ const DesktopNewTaskModal = () => {
                           <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors flex-shrink-0 ${newTask.keepUnscheduled ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-stone-300'}`}>
                             {newTask.keepUnscheduled && <Check size={14} className="text-white" strokeWidth={3} />}
                           </div>
-                          <span className={`text-sm ${textPrimary}`}>Unscheduled</span>
-                          <span className={`text-xs ${textSecondary}`}>(add to project card, no date/time)</span>
+                          <span className={`text-sm ${textPrimary}`}>{t('task.unscheduled')}</span>
+                          <span className={`text-xs ${textSecondary}`}>{t('task.unscheduledHint', { defaultValue: '(add to project card, no date/time)' })}</span>
                         </div>
                       </div>
                     )}

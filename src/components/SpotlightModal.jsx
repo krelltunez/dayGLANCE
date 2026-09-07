@@ -143,8 +143,8 @@ const SpotlightModal = () => {
           <div className={`flex items-center justify-between px-4 py-2 border-t ${borderClass} text-xs ${textSecondary}`}>
             {!isMobile ? (
               <div className="flex items-center gap-3">
-                <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}>↑↓</kbd> navigate</span>
-                <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}>↵</kbd> open</span>
+                <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}>↑↓</kbd> {t('spotlight.navigate')}</span>
+                <span><kbd className={`px-1 py-0.5 rounded font-mono ${darkMode ? 'bg-gray-700' : 'bg-stone-200'}`}>↵</kbd> {t('spotlight.open')}</span>
               </div>
             ) : <div />}
             <span>{spotlightResults.length} result{spotlightResults.length !== 1 ? 's' : ''}</span>

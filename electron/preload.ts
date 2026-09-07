@@ -8,6 +8,7 @@ const actionSentListeners: Array<(ackId: string) => void> = [];
 contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
   platform: process.platform,
+  setApplicationMenuLabels: (labels: Record<string, string>) => ipcRenderer.send('application-menu:set-labels', labels),
   // True only in the Mac App Store (sandboxed) build. Electron sets process.mas
   // for the `mas` target. Used to suppress behavior App Store review disallows —
   // today that is the GitHub-releases update check (App.jsx) and its update

@@ -18,6 +18,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getGlanceHGInstances, isHGSessionReachable } from '../hooks/useHyperGlance.js';
 import { useTranslation } from 'react-i18next';
 import { notBucketed } from '../utils/bucketList.js';
+import { formatLocalizedDate } from '../utils/localeFormatting.js';
 
 const GlanceSidebar = ({ variant = 'desktop' }) => {
   const {
@@ -110,7 +111,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     healthPerms,
     isVisibleForUser,
   } = useFeaturesCtx();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const isHealthSyncPaused = (habit) => {
     if (!habit.source) return false;
@@ -206,9 +207,9 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                 </div>
                 <div className="flex items-center gap-2">
                   {filterableTags.every(tag => selectedTags.includes(tag)) ? (
-                    <button onClick={clearTagFilter} className="text-xs text-blue-500 hover:text-blue-600 font-medium">Clear</button>
+                    <button onClick={clearTagFilter} className="text-xs text-blue-500 hover:text-blue-600 font-medium">{t('common.clear')}</button>
                   ) : (
-                    <button onClick={selectAllTags} className="text-xs text-blue-500 hover:text-blue-600 font-medium">Select All</button>
+                    <button onClick={selectAllTags} className="text-xs text-blue-500 hover:text-blue-600 font-medium">{t('common.selectAll')}</button>
                   )}
                 </div>
               </div>
@@ -256,7 +257,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       <button
         onClick={() => setShowVoiceInput(true)}
         className={`flex-shrink-0 self-stretch flex items-center px-2.5 rounded-lg transition-colors ${darkMode ? 'bg-white/10 text-purple-400' : 'bg-black/5 text-purple-600'} hover:opacity-80`}
-        title="Voice Task Input (V)"
+        title={`${t('shortcuts.voiceTaskInput')} (V)`}
       >
         <Mic size={16} />
       </button>
@@ -337,7 +338,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
               <button
                 onClick={() => isTray ? openMainAt({ action: 'habits' }) : setShowHabitModal(true)}
                 className={`absolute -bottom-0.5 -right-0.5 p-1 rounded ${hoverBg} ${darkMode ? 'text-gray-700' : 'text-stone-300'} transition-colors z-10`}
-                title="Manage habits"
+                title={t('habit.manageHabits')}
               >
                 <Settings size={11} />
               </button>
@@ -520,14 +521,14 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
           <button
             onClick={() => generateMorningSummary(true)}
             className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
-            title="Regenerate"
+            title={t('app.regenerate')}
           >
             <RefreshCw size={12} className={`${morningGlanceLoading ? 'animate-spin' : ''} ${textSecondary}`} />
           </button>
           <button
             onClick={dismissMorningGlance}
             className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
-            title="Dismiss for today"
+            title={t('app.dismissForToday')}
           >
             <X size={12} className={textSecondary} />
           </button>
@@ -567,7 +568,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       <button
         onClick={(e) => { e.stopPropagation(); dismissMorningGlance(); }}
         className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`}
-        title="Dismiss for today"
+        title={t('app.dismissForToday')}
       >
         <X size={12} className={textSecondary} />
       </button>
@@ -585,10 +586,10 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
           <span className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>{t('app.eveningReflection')}</span>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button onClick={() => generateEveningReflection(true)} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Regenerate">
+          <button onClick={() => generateEveningReflection(true)} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title={t('app.regenerate')}>
             <RefreshCw size={12} className={`${eveningGlanceLoading ? 'animate-spin' : ''} ${textSecondary}`} />
           </button>
-          <button onClick={dismissEveningGlance} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="Dismiss for today">
+          <button onClick={dismissEveningGlance} className={`p-1 rounded transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title={t('app.dismissForToday')}>
             <X size={12} className={textSecondary} />
           </button>
         </div>
@@ -608,7 +609,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
             className={`mt-2 flex items-center gap-1.5 text-xs font-medium transition-colors ${darkMode ? 'text-orange-400 hover:text-orange-300' : 'text-orange-600 hover:text-orange-700'}`}
           >
             <CalendarDays size={12} />
-            Reschedule {incompleteTodayTasks.length} incomplete task{incompleteTodayTasks.length !== 1 ? 's' : ''} →
+            {t('shortcuts.rescheduleTasks')} ({incompleteTodayTasks.length}) →
           </button>
         )}
       </div>
@@ -620,7 +621,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     >
       <Moon size={14} className="text-indigo-400 flex-shrink-0" />
       <span className={`text-sm ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>{t('app.clickForEveningReflection')}</span>
-      <button onClick={(e) => { e.stopPropagation(); dismissEveningGlance(); }} className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`} title="Dismiss for today">
+      <button onClick={(e) => { e.stopPropagation(); dismissEveningGlance(); }} className={`ml-auto p-0.5 rounded flex-shrink-0 transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'}`} title={t('app.dismissForToday')}>
         <X size={12} className={textSecondary} />
       </button>
     </div>
@@ -671,7 +672,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
         className={`w-full mb-3 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-colors ${darkMode ? 'bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30' : 'bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200'}`}
       >
         <Sparkles size={15} />
-        Reschedule Tasks
+        {t('shortcuts.rescheduleTasks')}
       </button>
     );
   })()}
@@ -741,7 +742,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                     {task._overdueType === 'scheduled' ? (
                       <><CalendarDays size={10} /> {formatDeadlineDate(task.date)}</>
                     ) : (
-                      <><AlertCircle size={10} /> Due: {formatDeadlineDate(task.deadline)}</>
+                      <><AlertCircle size={10} /> {t('task.deadline')}: {formatDeadlineDate(task.deadline)}</>
                     )}
                   </div>
                 </div>
@@ -750,14 +751,14 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                     <>
                       <span
                         className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} opacity-50 cursor-default`}
-                        title="Recurring task"
+                        title={t('sched.recurring')}
                       >
                         <RefreshCw size={14} />
                       </span>
                       <button
                         onClick={() => doToggleComplete(task.id, false)}
                         className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} ${isDesktop ? 'hover:scale-95' : 'active:scale-95'} transition-transform`}
-                        title="Mark complete"
+                        title={t('sched.markComplete')}
                       >
                         <CheckCircle size={14} />
                       </button>
@@ -773,16 +774,16 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                         setUnscheduledTasks(prev => [...prev, inboxTask]);
                         if (isTray) window.electronAPI?.backgroundAction({ action: 'move-to-inbox', taskId: task.id, inboxTask });
                         playUISound('slide');
-                        setUndoToast({ message: 'Moved to inbox', actionable: true });
+                        setUndoToast({ message: t('common.toInbox'), actionable: true });
                       } else {
                         clearDeadline(task.id);
                         if (isTray) window.electronAPI?.backgroundAction({ action: 'clear-deadline', taskId: task.id });
                         playUISound('slide');
-                        setUndoToast({ message: 'Deadline cleared', actionable: true });
+                        setUndoToast({ message: t('task.noDeadline'), actionable: true });
                       }
                     }}
                     className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} ${isDesktop ? 'hover:scale-95' : 'active:scale-95'} transition-transform`}
-                    title="Move to inbox"
+                    title={t('common.toInbox')}
                   >
                     <Inbox size={14} />
                   </button>
@@ -790,7 +791,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                   <button
                     onClick={() => doMoveToRecycleBin(task.id, task._overdueType === 'deadline')}
                     className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} ${isDesktop ? 'hover:scale-95' : 'active:scale-95'} transition-transform`}
-                    title="Move to Recycle Bin"
+                    title={t('task.moveToRecycleBin')}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -965,10 +966,11 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       const colorClass = task.color === 'task-calendar' ? '' : task.color;
       let timeLabel = '';
       let relativeLabel = '';
+      let relativeState = '';
       if (task._agendaType === 'allday') {
-        timeLabel = 'ALL DAY';
+        timeLabel = t('task.allDay');
       } else if (task._agendaType === 'deadline') {
-        timeLabel = 'DUE TODAY';
+        timeLabel = t('goals.dueToday');
       } else {
         const [h, m] = (task.startTime || '0:0').split(':').map(Number);
         const startMin = h * 60 + m;
@@ -978,13 +980,15 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
         timeLabel = `${formatTime(task.startTime)}\u00A0–\u00A0${formatTime(endH + ':' + endM)}`;
         const diff = startMin - nowMin;
         if (diff > 0) {
-          relativeLabel = diff >= 60 ? `in ${Math.floor(diff / 60)}h ${diff % 60 > 0 ? `${diff % 60}m` : ''}` : `in ${diff}m`;
+          relativeLabel = new Intl.RelativeTimeFormat(i18n.resolvedLanguage || i18n.language, { numeric: 'always', style: 'short' }).format(diff, 'minute');
         } else if (diff === 0) {
-          relativeLabel = 'now';
+          relativeLabel = t('common.now');
         } else if (nowMin < endMin && !task.completed) {
-          relativeLabel = 'In Progress';
+          relativeLabel = t('common.inProgress');
+          relativeState = 'inProgress';
         } else if (nowMin >= endMin && !task.completed) {
-          relativeLabel = 'Overdue';
+          relativeLabel = t('common.overdue');
+          relativeState = 'overdue';
         }
       }
       return (
@@ -1020,22 +1024,22 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
             if (el) { applyRing(); } else if (task.date) { goToDate(task.date); setTimeout(applyRing, 200); }
           }}
         >
-          <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass} ${relativeLabel === 'In Progress' ? 'animate-pulse' : ''}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : task.nativeCalendarColor ? { backgroundColor: task.nativeCalendarColor } : {}}></div>
+          <div className={`w-1.5 rounded-full flex-shrink-0 ${colorClass} ${relativeState === 'inProgress' ? 'animate-pulse' : ''}`} style={task.isTaskCalendar ? getTaskCalendarStyle(task, darkMode) : task.nativeCalendarColor ? { backgroundColor: task.nativeCalendarColor } : {}}></div>
           <div className="min-w-0 flex-1">
             <div className={`text-sm font-semibold ${textPrimary} ${task.completed ? 'line-through' : ''} flex items-center gap-1.5`}>
               {task.isRecurring && <RefreshCw size={13} className="flex-shrink-0 opacity-60" />}
-              {task.importSource === 'obsidian' && <BookOpen size={13} className="flex-shrink-0 opacity-60" title="From Obsidian" />}
-              {task.obsidianRecurrence && <Repeat size={13} className="flex-shrink-0 opacity-60" title="Recurring in Obsidian — this task's recurrence is managed by the Tasks plugin; completing it here won't create the next instance" />}
-              {task.obsidianNotePath && <FileText size={13} className="flex-shrink-0 opacity-60" title={`In ${task.obsidianNotePath.replace(/\.md$/, '')} (Obsidian)`} />}
+              {task.importSource === 'obsidian' && <BookOpen size={13} className="flex-shrink-0 opacity-60" title={t('app.fromObsidian')} />}
+              {task.obsidianRecurrence && <Repeat size={13} className="flex-shrink-0 opacity-60" title={t('app.obsidianRecurrenceHint')} />}
+              {task.obsidianNotePath && <FileText size={13} className="flex-shrink-0 opacity-60" title={t('task.obsidianNoteSource', { note: task.obsidianNotePath.replace(/\.md$/, ''), defaultValue: 'In {{note}} (Obsidian)' })} />}
               <span className="truncate">{renderTitle(task.title)}</span>
             </div>
             <div className={`text-sm ${textSecondary} flex items-center gap-1`}>
-              <span className="whitespace-nowrap">{timeLabel}{relativeLabel ? ',' : ''}</span>{relativeLabel ? <span className={relativeLabel === 'Overdue' ? 'text-orange-500 font-medium' : relativeLabel === 'In Progress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span> : ''}
-              {relativeLabel === 'In Progress' && focusModeAvailable && (
+              <span className="whitespace-nowrap">{timeLabel}{relativeLabel ? ',' : ''}</span>{relativeLabel ? <span className={relativeState === 'overdue' ? 'text-orange-500 font-medium' : relativeState === 'inProgress' ? 'text-blue-500 font-medium' : ''}>{relativeLabel}</span> : ''}
+              {relativeState === 'inProgress' && focusModeAvailable && (
                 <button
                   onClick={(e) => { e.stopPropagation(); isTray ? openMainAt({ action: 'focus-mode' }) : enterFocusMode(); }}
                   className="ml-1 p-1.5 rounded text-purple-500 ${isDesktop ? 'hover:text-purple-400 hover:bg-purple-500/20' : 'active:text-purple-400 active:bg-purple-500/20'} transition-colors"
-                  title="Enter Focus Mode"
+                  title={t('shortcuts.focusMode')}
                 >
                   <Target size={16} className="animate-pulse" />
                 </button>
@@ -1055,12 +1059,12 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
               );
             })()}
           </div>
-          {(relativeLabel === 'Overdue' || (task._agendaType === 'allday' && !task.imported)) && !task.completed && (
+          {(relativeState === 'overdue' || (task._agendaType === 'allday' && !task.imported)) && !task.completed && (
             <div className="flex items-center gap-1 flex-shrink-0 mr-5">
               {task.isRecurring ? (
                 <span
                   className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} opacity-50 cursor-default`}
-                  title="Recurring task"
+                  title={t('sched.recurring')}
                 >
                   <RefreshCw size={14} />
                 </span>
@@ -1075,10 +1079,10 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                     setUnscheduledTasks(prev => [...prev, inboxTask]);
                     if (isTray) window.electronAPI?.backgroundAction({ action: 'move-to-inbox', taskId: task.id, inboxTask });
                     playUISound('slide');
-                    setUndoToast({ message: 'Moved to inbox', actionable: true });
+                    setUndoToast({ message: t('common.toInbox'), actionable: true });
                   }}
                   className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} ${isDesktop ? 'hover:scale-95' : 'active:scale-95'} transition-transform`}
-                  title="Move to Inbox"
+                   title={t('common.toInbox')}
                 >
                   <Inbox size={14} />
                 </button>
@@ -1086,7 +1090,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
               <button
                 onClick={(e) => { e.stopPropagation(); doToggleComplete(task.id, false); }}
                 className={`p-1.5 rounded-lg ${darkMode ? 'bg-white/10 text-gray-400' : 'bg-stone-100 text-stone-500'} ${isDesktop ? 'hover:scale-95' : 'active:scale-95'} transition-transform`}
-                title="Mark complete"
+                title={t('sched.markComplete')}
               >
                 <CheckCircle size={14} />
               </button>
@@ -1261,7 +1265,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                 <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: barColor }}></div>
                 <span className={`text-sm font-medium min-w-0 truncate ${darkMode ? 'text-gray-200' : 'text-stone-800'}`}>{project.title}</span>
                 {canEnter && <span className="text-xs font-medium text-green-500 flex-shrink-0">{t('common.inProgress')}</span>}
-                {instance.isOverdue && !canEnter && <span className="text-xs font-semibold text-amber-500 flex-shrink-0">{instance.date === getTodayStr() ? 'Today' : new Date(instance.date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · Overdue</span>}
+                {instance.isOverdue && !canEnter && <span className="text-xs font-semibold text-amber-500 flex-shrink-0">{instance.date === getTodayStr() ? t('common.today') : formatLocalizedDate(new Date(instance.date + 'T00:00:00'), { month: 'short', day: 'numeric' })} · {t('common.overdue')}</span>}
                 {isFuture && timeLabel && <span className={`text-xs flex-shrink-0 ${darkMode ? 'text-gray-400' : 'text-stone-500'}`}>{timeLabel}</span>}
                 {!isFuture && <span className="ml-auto flex items-center gap-0.5 px-2 py-0.5 rounded-full text-white text-[9px] font-bold animate-pulse flex-shrink-0" style={{ backgroundColor: barColor }}><Zap size={9} />hyperGLANCE</span>}
               </button>

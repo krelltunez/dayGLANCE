@@ -114,7 +114,7 @@ const MobileTabBar = () => {
               </span>
             )}
           </div>
-          {showLabels && <span className="text-[10px] font-medium">Goals</span>}
+          {showLabels && <span className="text-[10px] font-medium">{t('goals.goals', { defaultValue: 'Goals' })}</span>}
         </button>
         )}
         <button

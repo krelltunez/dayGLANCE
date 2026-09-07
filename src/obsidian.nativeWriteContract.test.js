@@ -5,6 +5,9 @@ import {
   writeDailyNoteNative,
 } from './obsidian.js';
 import { nativeWriteNote, nativeAppendToNote, nativeWriteDailyNote } from './native.js';
+import i18next from 'i18next';
+import zhCN from '../public/locales/zh-CN/translation.json';
+import { buildLocalizedDailyNoteTemplate, buildLocalizedTaskHeading } from './utils/dailyNoteTemplate.js';
 
 // The native write-success contract: commit-gating callers must see `false`
 // whenever the bridge did not CONFIRM the write. Two platform shapes feed the
@@ -14,6 +17,19 @@ import { nativeWriteNote, nativeAppendToNote, nativeWriteDailyNote } from './nat
 // success. These tests pin the normalization at every native write site.
 
 const NOTE = '## Tasks\n- [ ] Buy milk\n';
+
+it('native append uses the same translated heading as a new daily-note template', async () => {
+  const i18n = i18next.createInstance();
+  await i18n.init({ lng: 'zh-CN', resources: { 'zh-CN': { translation: zhCN } } });
+  const t = i18n.t.bind(i18n);
+  const bridge = installBridge({ getDailyNote: vi.fn(() => '') });
+  expect(appendTaskToDailyNoteNative('2026-09-07', { title: '本地任务', isAllDay: true },
+    buildLocalizedTaskHeading(t), buildLocalizedDailyNoteTemplate(t))).toBe(true);
+  const written = bridge.writeDailyNote.mock.calls[0][1];
+  expect(written.match(/^## 任务$/gm)).toHaveLength(1);
+  expect(written).toContain('## 任务\n- [ ] 本地任务');
+  expect(written).not.toContain('## Tasks');
+});
 
 function installBridge(overrides = {}) {
   const bridge = {

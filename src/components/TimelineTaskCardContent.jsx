@@ -15,8 +15,10 @@ import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { useTranslation } from 'react-i18next';
 
 const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
+  const { t } = useTranslation();
   const {
     isTablet,
     darkMode,
@@ -79,10 +81,12 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
         }
       }}
       className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''} ${hasNotesOrSubtasks(task) || extractWikilinks(task.title).length > 0 ? '' : 'opacity-40'}`}
-      title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : "Notes & subtasks"}
+      title={isLinkOnlyTask(task)
+        ? `${getLinkUrl(task)} ${t('task.holdToEditHint', { defaultValue: '(hold to edit)' })}`
+        : t('sched.notesSubtasks')}
     >
       {isPhoneOnlyTask(task) ? <Phone size={14} /> : isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
-      {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? 'Open Link' : 'Notes'}</span>}
+      {inMenu && <span className="text-xs">{isLinkOnlyTask(task) ? t('task.openLink', { defaultValue: 'Open Link' }) : t('task.notes')}</span>}
     </button>
   );
 
@@ -95,30 +99,30 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
           <button
             onClick={() => postponeTask(task.id)}
             className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-            title="Postpone to tomorrow"
+            title={t('sched.postponeTomorrow')}
           >
             <SkipForward size={14} />
-            {inMenu && <span className="text-xs">Postpone</span>}
+            {inMenu && <span className="text-xs">{t('common.postpone')}</span>}
           </button>
           )}
           {!isTablet && (
           <button
             onClick={() => openMobileEditTask(task, false)}
             className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-            title="Edit"
+            title={t('common.edit')}
           >
             <Pencil size={14} />
-            {inMenu && <span className="text-xs">Edit</span>}
+            {inMenu && <span className="text-xs">{t('common.edit')}</span>}
           </button>
           )}
           {!isTablet && (
           <button
             onClick={() => moveToRecycleBin(task.id)}
             className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-            title="Delete"
+            title={t('common.delete')}
           >
             <Trash2 size={14} />
-            {inMenu && <span className="text-xs">Delete</span>}
+            {inMenu && <span className="text-xs">{t('common.delete')}</span>}
           </button>
           )}
         </>
@@ -130,29 +134,29 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
         <button
           onClick={() => postponeTask(task.id)}
           className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-          title="Postpone to tomorrow"
+          title={t('sched.postponeTomorrow')}
         >
           <SkipForward size={14} />
-          {inMenu && <span className="text-xs">Postpone</span>}
+          {inMenu && <span className="text-xs">{t('common.postpone')}</span>}
         </button>
         {!isTablet && (
         <button
           onClick={() => openMobileEditTask(task, false)}
           className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-          title="Edit"
+          title={t('common.edit')}
         >
           <Pencil size={14} />
-          {inMenu && <span className="text-xs">Edit</span>}
+          {inMenu && <span className="text-xs">{t('common.edit')}</span>}
         </button>
         )}
         {!isTablet && (
         <button
           onClick={() => moveToInbox(task.id)}
           className={`hover:bg-white/20 rounded p-1 transition-colors ${inMenu ? 'flex items-center gap-2 w-full' : ''}`}
-          title="Move to Inbox"
+          title={t('task.moveToInbox')}
         >
           <Inbox size={14} />
-          {inMenu && <span className="text-xs">To Inbox</span>}
+          {inMenu && <span className="text-xs">{t('common.toInbox')}</span>}
         </button>
         )}
       </>
@@ -180,14 +184,14 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
                       setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                     }}
                     className="notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors"
-                    title="View description"
+                    title={t('sched.viewNotesSubtasks')}
                   >
                     <FileText size={12} />
                   </button>
                 )}
                 <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1">
                   <Clock size={10} />
-                  {formatTime(task.startTime)} • {task.duration}m
+                  {formatTime(task.startTime)} • {t('common.minutesShort', { count: task.duration, defaultValue: '{{count}} min' })}
                 </div>
               </div>
             </div>
@@ -226,10 +230,10 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
                   </button>
                 )}
                 {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
-                {task.importSource === 'obsidian' && <BookOpen size={12} className="flex-shrink-0 opacity-75" title="From Obsidian" />}
-                {task.obsidianRecurrence && <Repeat size={12} className="flex-shrink-0 opacity-75" title="Recurring in Obsidian — this task's recurrence is managed by the Tasks plugin; completing it here won't create the next instance" />}
-              {task.obsidianNotePath && <FileText size={12} className="flex-shrink-0 opacity-75" title={`In ${task.obsidianNotePath.replace(/\.md$/, '')} (Obsidian)`} />}
-                {task.source_app === SOURCE_APPS.LASTGLANCE && <LastGlanceBadge size={12} className="flex-shrink-0" title="From lastGLANCE" />}
+                {task.importSource === 'obsidian' && <BookOpen size={12} className="flex-shrink-0 opacity-75" title={t('task.fromObsidian', { defaultValue: 'From Obsidian' })} />}
+                {task.obsidianRecurrence && <Repeat size={12} className="flex-shrink-0 opacity-75" title={t('task.obsidianRecurrenceManaged', { defaultValue: "Recurring in Obsidian — this task's recurrence is managed by the Tasks plugin; completing it here won't create the next instance" })} />}
+                {task.source_app === SOURCE_APPS.LASTGLANCE && <LastGlanceBadge size={12} className="flex-shrink-0" title={t('task.addedByLastGlance')} />}
+              {task.obsidianNotePath && <FileText size={12} className="flex-shrink-0 opacity-75" title={t('task.obsidianNoteSource', { note: task.obsidianNotePath.replace(/\.md$/, ''), defaultValue: 'In {{note}} (Obsidian)' })} />}
                 {multiUserEnabled && <UserAssignmentBadge users={users} assignedUserSyncIds={task.assignedUserSyncIds} size={14} />}
                 <div className="flex-1 min-w-0">
                   {!isTablet && editingTaskId === task.id ? (
@@ -290,7 +294,9 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
                           <button
                             onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); if (next) { setInboxPriorityFilter(0); setHideCompletedInbox(false); setHideProjectTasksInbox(false); setHideStandaloneTasksInbox(true); } else { setHideProjectTasksInbox(true); setHideStandaloneTasksInbox(false); } }}
                             className={`not-italic inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 hover:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
-                            title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                            title={projectFilter === task.projectId
+                              ? t('sched.clearProjectFilter', { defaultValue: 'Clear project filter' })
+                              : `${t('sched.filter')}: ${proj.title}`}
                           >
                             {proj.title}
                           </button>
@@ -316,9 +322,9 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
                   </button>
                 )}
                 {task.isRecurring && <RefreshCw size={12} className="flex-shrink-0 opacity-75 hover:opacity-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEditingRecurrenceTaskId(task.id); }} />}
-                {task.importSource === 'obsidian' && <BookOpen size={12} className="flex-shrink-0 opacity-75" title="From Obsidian" />}
-                {task.obsidianRecurrence && <Repeat size={12} className="flex-shrink-0 opacity-75" title="Recurring in Obsidian — this task's recurrence is managed by the Tasks plugin; completing it here won't create the next instance" />}
-                {task.source_app === SOURCE_APPS.LASTGLANCE && <LastGlanceBadge size={12} className="flex-shrink-0" title="From lastGLANCE" />}
+                {task.importSource === 'obsidian' && <BookOpen size={12} className="flex-shrink-0 opacity-75" title={t('task.fromObsidian', { defaultValue: 'From Obsidian' })} />}
+                {task.obsidianRecurrence && <Repeat size={12} className="flex-shrink-0 opacity-75" title={t('task.obsidianRecurrenceManaged', { defaultValue: "Recurring in Obsidian — this task's recurrence is managed by the Tasks plugin; completing it here won't create the next instance" })} />}
+                {task.source_app === SOURCE_APPS.LASTGLANCE && <LastGlanceBadge size={12} className="flex-shrink-0" title={t('task.addedByLastGlance')} />}
                 {multiUserEnabled && <UserAssignmentBadge users={users} assignedUserSyncIds={task.assignedUserSyncIds} size={14} />}
                 <div className="flex-1 min-w-0">
                   {!isTablet && editingTaskId === task.id ? (
@@ -361,7 +367,7 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
                             startEditingTask(task, false);
                           }
                         } : undefined}
-                        title={!isImported && !isTablet ? "Double-click to edit" : undefined}
+                        title={!isImported && !isTablet ? t('task.doubleClickToEdit', { defaultValue: 'Double-click to edit' }) : undefined}
                       >
                         {renderTitleWithoutTags(task.title)}
                       </div>
@@ -379,7 +385,9 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
                           <button
                             onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); if (next) { setInboxPriorityFilter(0); setHideCompletedInbox(false); setHideProjectTasksInbox(false); setHideStandaloneTasksInbox(true); } else { setHideProjectTasksInbox(true); setHideStandaloneTasksInbox(false); } }}
                             className={`not-italic inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 hover:bg-white/40 text-white font-medium transition-colors flex-shrink-0 ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
-                            title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                            title={projectFilter === task.projectId
+                              ? t('sched.clearProjectFilter', { defaultValue: 'Clear project filter' })
+                              : `${t('sched.filter')}: ${proj.title}`}
                           >
                             {proj.title}
                           </button>
@@ -398,7 +406,7 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
             {!isImported && height >= 55 && (
               <div className="text-xs opacity-90 whitespace-nowrap flex items-center gap-1 mt-0.5">
                 <Clock size={10} />
-                {formatTime(task.startTime)} • {task.duration}min
+                {formatTime(task.startTime)} • {t('common.minutesShort', { count: task.duration, defaultValue: '{{count}} min' })}
               </div>
             )}
           </>
@@ -449,10 +457,10 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
           >
             <div className={`${task.color} rounded-lg shadow-lg ${showAbove ? 'mb-1' : 'mt-1'}`}>
               <div className={`p-3 rounded-lg ${darkMode ? 'bg-black/30' : 'bg-white/30'} text-white`} onClick={(e) => e.stopPropagation()}>
-                <div className="text-xs font-semibold opacity-75 mb-1">Description</div>
+                <div className="text-xs font-semibold opacity-75 mb-1">{t('common.description')}</div>
                 <textarea
                   defaultValue={task.notes || ''}
-                  placeholder="Add description…"
+                  placeholder={t('task.descriptionPlaceholder', { defaultValue: 'Add description…' })}
                   rows={3}
                   className="w-full text-sm p-2 rounded bg-white/10 text-white placeholder:text-white/40 resize-y focus:outline-none focus:bg-white/20"
                   onBlur={async (e) => {

@@ -8,6 +8,10 @@ import {
   deriveBlockId,
 } from './obsidian.js';
 import { dgFrontmatter, hasFrontmatter, withCreationFrontmatter } from './utils/obsidianFrontmatter.js';
+import i18next from 'i18next';
+import zhCN from '../public/locales/zh-CN/translation.json';
+import { buildLocalizedDailyNoteTemplate, buildLocalizedTaskHeading } from './utils/dailyNoteTemplate.js';
+import { writebackTargetFor } from './utils/obsidianWritebackTarget.js';
 
 // Phase 4, step 1: frontmatter on dayGLANCE-CREATED notes. These tests pin
 // the two rules (emit on creation only; never emit a task-shaped line inside
@@ -47,6 +51,33 @@ function makeDir(node, name = '') {
 }
 
 const DATE = '2026-09-01';
+
+describe('localized daily-note task section', () => {
+  it.each([false, true])('appends under the template heading without an English duplicate (existing: %s)', async (existing) => {
+    const i18n = i18next.createInstance();
+    await i18n.init({ lng: 'zh-CN', resources: { 'zh-CN': { translation: zhCN } } });
+    const t = i18n.t.bind(i18n);
+    const template = buildLocalizedDailyNoteTemplate(t);
+    const heading = buildLocalizedTaskHeading(t);
+    const fs = existing ? { [`${DATE}.md`]: template } : {};
+    const task = { title: '检查中文任务', date: DATE, isAllDay: true };
+    await appendTaskToDailyNote(makeDir(fs), '', DATE, task, heading, template, 'yyyy-MM-dd');
+    expect(fs[`${DATE}.md`].match(/^## 任务$/gm)).toHaveLength(1);
+    expect(fs[`${DATE}.md`]).not.toContain('## Tasks');
+    expect(fs[`${DATE}.md`]).toContain('## 任务\n- [ ] 检查中文任务');
+    expect(writebackTargetFor(task, {}, heading).taskHeading).toBe(heading);
+  });
+
+  it('honors an explicit user heading instead of replacing it with the locale default', async () => {
+    const fs = { [`${DATE}.md`]: '## 我的工作\n' };
+    const task = { title: '检查自定义标题', date: DATE, isAllDay: true };
+    const heading = writebackTargetFor(task, { taskHeading: '## 我的工作' }, '## 任务').taskHeading;
+    await appendTaskToDailyNote(makeDir(fs), '', DATE, task, heading, '', 'yyyy-MM-dd');
+    expect(fs[`${DATE}.md`]).toContain('## 我的工作\n- [ ] 检查自定义标题');
+    expect(fs[`${DATE}.md`]).not.toContain('## 任务');
+    expect(fs[`${DATE}.md`]).not.toContain('## Tasks');
+  });
+});
 const FM = 'aaaa1111';
 const NOTE_WITH_FM = `---\ntitle: My day\ntags: [journal]\n---\n\n# Notes\nSome prose.\n\n## Tasks\n- [ ] Alpha ^dg-${FM}\n- [ ] Beta\n`;
 

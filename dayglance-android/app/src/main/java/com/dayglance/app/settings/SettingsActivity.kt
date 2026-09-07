@@ -45,7 +45,7 @@ class SettingsActivity : AppCompatActivity() {
         dataStore = SharedDataStore(this)
 
         supportActionBar?.apply {
-            title = "Settings"
+            title = getString(R.string.settings_title)
             setDisplayHomeAsUpEnabled(true)
         }
 
@@ -73,12 +73,12 @@ class SettingsActivity : AppCompatActivity() {
             dataStore.newNotesFolder = newNotesFolderField.text?.toString()?.trim()
                 .takeIf { !it.isNullOrBlank() }
                 ?: SharedDataStore.DEFAULT_NEW_NOTES_FOLDER
-            Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.settings_saved, Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun updateVaultPathDisplay() {
-        val path = dataStore.vaultPath ?: "Not configured"
+        val path = dataStore.vaultPath ?: getString(R.string.settings_not_configured)
         findViewById<TextView>(R.id.tv_vault_path)?.text = path
     }
 

@@ -28,7 +28,7 @@ import {
  * sheet) or below (desktop) the trigger.
  */
 const RecurrencePicker = ({ placement = 'bottom', highlightSelected = false }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const {
     newTask, setNewTask, selectedDate, weekStartDay = 0,
     setShowRecurrencePicker,
@@ -36,7 +36,8 @@ const RecurrencePicker = ({ placement = 'bottom', highlightSelected = false }) =
   } = useDayPlannerCtx();
 
   const dateStr = newTask.date || dateToString(selectedDate);
-  const presets = getRecurrencePresets(dateStr);
+  const locale = i18n.resolvedLanguage || i18n.language || 'en';
+  const presets = getRecurrencePresets(dateStr, t, locale);
   const recurrence = newTask.recurrence;
   const selectedDays = getSelectedWeekdays(recurrence, dateStr);
   const isWeekly = recurrence?.type === 'weekly' || recurrence?.type === 'biweekly';
@@ -44,9 +45,9 @@ const RecurrencePicker = ({ placement = 'bottom', highlightSelected = false }) =
   // Narrow weekday initials in the user's own language, so the row reads
   // M T W T F S S / L M M J V S D without shipping seven more strings.
   const dayInitial = (dow) =>
-    new Date(Date.UTC(2024, 0, 7 + dow)).toLocaleDateString(undefined, { weekday: 'narrow', timeZone: 'UTC' });
+    new Date(Date.UTC(2024, 0, 7 + dow)).toLocaleDateString(locale, { weekday: 'narrow', timeZone: 'UTC' });
   const dayFull = (dow) =>
-    new Date(Date.UTC(2024, 0, 7 + dow)).toLocaleDateString(undefined, { weekday: 'long', timeZone: 'UTC' });
+    new Date(Date.UTC(2024, 0, 7 + dow)).toLocaleDateString(locale, { weekday: 'long', timeZone: 'UTC' });
 
   // End conditions are set outside this popover and must survive a change of
   // pattern — picking a different preset should not silently clear "until Dec 1".

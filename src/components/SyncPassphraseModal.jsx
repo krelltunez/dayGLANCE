@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock } from 'lucide-react';
 import { setSyncPassphrase } from '../utils/crypto.js';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Shown on app load when cloud sync encryption is enabled but no cached key
@@ -11,6 +12,7 @@ import { setSyncPassphrase } from '../utils/crypto.js';
  * successful decryption (inside decryptData in crypto.js).
  */
 const SyncPassphraseModal = ({ darkMode, textPrimary, textSecondary, borderClass, onUnlocked }) => {
+  const { t } = useTranslation();
   const [passphrase, setPassphrase] = useState('');
   const [error, setError] = useState(null);
 
@@ -33,22 +35,22 @@ const SyncPassphraseModal = ({ darkMode, textPrimary, textSecondary, borderClass
           <div className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
             <Lock size={20} className="text-blue-500" />
           </div>
-          <h2 className={`text-lg font-semibold ${textPrimary}`}>Unlock sync</h2>
+          <h2 className={`text-lg font-semibold ${textPrimary}`}>{t('sync.unlockTitle', { defaultValue: 'Unlock sync' })}</h2>
         </div>
 
         <p className={`text-sm ${textSecondary} mb-4`}>
-          Cloud sync is encrypted. Enter your sync passphrase to continue.
+          {t('sync.passphrasePrompt', { defaultValue: 'Cloud sync is encrypted. Enter your sync passphrase to continue.' })}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className={`block text-sm ${textSecondary} mb-1`}>Sync passphrase</label>
+            <label className={`block text-sm ${textSecondary} mb-1`}>{t('sync.passphraseLabel', { defaultValue: 'Sync passphrase' })}</label>
             <input
               type="password"
               autoFocus
               value={passphrase}
               onChange={(e) => setPassphrase(e.target.value)}
-              placeholder="Your sync passphrase"
+              placeholder={t('sync.passphrasePlaceholder', { defaultValue: 'Your sync passphrase' })}
               className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
             />
           </div>
@@ -56,7 +58,7 @@ const SyncPassphraseModal = ({ darkMode, textPrimary, textSecondary, borderClass
           {error && <p className="text-sm text-red-500">{error}</p>}
 
           <p className={`text-xs ${textSecondary}`}>
-            This is the passphrase you set when you first enabled encryption. It is never stored — only you know it.
+            {t('sync.passphraseHint', { defaultValue: 'This is the passphrase you set when you first enabled encryption. It is never stored — only you know it.' })}
           </p>
 
           <div className="flex justify-end gap-2">
@@ -65,7 +67,7 @@ const SyncPassphraseModal = ({ darkMode, textPrimary, textSecondary, borderClass
               disabled={!passphrase.trim()}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
-              Unlock
+              {t('sync.unlock', { defaultValue: 'Unlock' })}
             </button>
           </div>
         </form>

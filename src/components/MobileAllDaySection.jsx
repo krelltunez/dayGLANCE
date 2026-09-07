@@ -10,8 +10,10 @@ import { dateToString, extractWikilinks, formatDeadlineDate } from '../utils/tas
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
+import { useTranslation } from 'react-i18next';
 
 const MobileAllDaySection = () => {
+  const { t } = useTranslation();
   const {
     visibleDates,
     mobileAllDaySectionRef,
@@ -43,8 +45,8 @@ const MobileAllDaySection = () => {
 {(visibleDates.some(date => getTasksForDate(date).some(t => t.isAllDay && !t.isExample) || getDeadlineTasksForDate(dateToString(date)).some(t => !t.isExample)) || (routinesEnabled && todayRoutines.some(r => r.isAllDay))) && (
   <div ref={mobileAllDaySectionRef} className={`border-b ${borderClass} ${cardBg} ${mobileDragPreviewTime === 'all-day' ? 'ring-2 ring-inset ring-blue-500' : ''}`}>
     <div className="flex">
-      <div className={`w-12 flex-shrink-0 px-2 py-2 text-[10px] font-semibold ${textSecondary} border-r ${borderClass} flex items-start justify-center`}>
-        ALL DAY
+      <div className={`w-12 flex-shrink-0 px-2 py-2 text-[10px] font-semibold ${textSecondary} border-r ${borderClass} flex items-start justify-center uppercase`}>
+        {t('task.allDay')}
       </div>
       <div className="flex-1 min-w-0 p-2 space-y-1.5">
         {visibleDates.map((date) => {
@@ -85,13 +87,13 @@ const MobileAllDaySection = () => {
                       <>
                         <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${typeof task.id === 'string' && task.id.startsWith('recurring-') ? (darkMode ? 'bg-red-900/80 text-red-300' : 'bg-red-100 text-red-600') : (darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600')} rounded-lg flex items-center pl-3 text-xs font-medium`}>
                           {typeof task.id === 'string' && task.id.startsWith('recurring-') ? (
-                            <><Trash2 size={14} className="mr-1" />Delete</>
+                            <><Trash2 size={14} className="mr-1" />{t('common.delete')}</>
                           ) : (
-                            <><Inbox size={14} className="mr-1" />Inbox</>
+                            <><Inbox size={14} className="mr-1" />{t('settings.inbox')}</>
                           )}
                         </div>
                         <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
-                          Edit<Settings size={14} className="ml-1" />
+                          {t('common.edit')}<Settings size={14} className="ml-1" />
                         </div>
                       </>
                     )}
@@ -197,7 +199,7 @@ const MobileAllDaySection = () => {
                             setExpandedNotesTaskId(prev => prev === task.id ? null : task.id);
                           }}
                           className="notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
-                          title="View description"
+                          title={t('task.viewDescription', { defaultValue: 'View description' })}
                         >
                           <FileText size={14} />
                         </button>
@@ -210,7 +212,9 @@ const MobileAllDaySection = () => {
                         <button
                           onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); }}
                           className={`mt-1 inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/25 active:bg-white/40 text-white font-medium transition-colors ${projectFilter === task.projectId ? 'ring-1 ring-white/60' : ''}`}
-                          title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                          title={projectFilter === task.projectId
+                            ? t('sched.clearProjectFilter')
+                            : t('sched.filterProject', { project: proj.title, defaultValue: 'Filter: {{project}}' })}
                         >
                           {proj.title}
                         </button>
@@ -226,10 +230,10 @@ const MobileAllDaySection = () => {
                 <div key={`deadline-${task.id}`} className="relative" style={{ marginLeft: '12px' }}>
                   {/* Swipe action strips — outside data-swipe-container so they stay put as content slides */}
                   <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
-                    <Inbox size={14} className="mr-1" />Inbox
+                    <Inbox size={14} className="mr-1" />{t('settings.inbox')}
                   </div>
                   <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
-                    Edit<Settings size={14} className="ml-1" />
+                    {t('common.edit')}<Settings size={14} className="ml-1" />
                   </div>
                   {/* Swipe container: drag tab + task card slide together on swipe */}
                   <div data-swipe-container className={`flex items-start ${task.completed ? 'opacity-50' : 'opacity-90'}`}>
@@ -320,7 +324,7 @@ const MobileAllDaySection = () => {
                     <button
                       onClick={(e) => { e.stopPropagation(); postponeDeadlineTask(task.id); }}
                       className="hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0"
-                      title="Postpone to tomorrow"
+                      title={t('sched.postponeTomorrow')}
                     >
                       <SkipForward size={14} />
                     </button>
@@ -331,7 +335,9 @@ const MobileAllDaySection = () => {
                           setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id);
                         }}
                         className={`hover:bg-white/20 rounded p-1 transition-colors flex-shrink-0 ${task.deadline ? 'bg-white/20' : 'opacity-40'}`}
-                        title={task.deadline ? `Deadline: ${formatDeadlineDate(task.deadline)}` : 'Set deadline'}
+                        title={task.deadline
+                          ? t('task.deadlineWithDate', { date: formatDeadlineDate(task.deadline), defaultValue: 'Deadline: {{date}}' })
+                          : t('task.setDeadline', { defaultValue: 'Set deadline' })}
                       >
                         <Calendar size={14} />
                       </button>

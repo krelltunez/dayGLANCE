@@ -18,7 +18,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 /**
@@ -115,7 +114,7 @@ class WidgetUpdateWorker(
         val snapshot = existing ?: JSONObject()
 
         snapshot.put("date", date.toString())
-        snapshot.put("dateLabel", date.format(DateTimeFormatter.ofPattern("EEE, MMM d")))
+        snapshot.put("dateLabel", formatWidgetDate(context, date))
         snapshot.put("steps", steps)
         snapshot.put("updatedAt", System.currentTimeMillis())
 

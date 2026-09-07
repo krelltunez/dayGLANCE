@@ -9,6 +9,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { getDeviceId } from '../native.js';
+import { activeLocale, localizedWeekdays } from '../utils/localeFormatting.js';
 
 const HabitModal = () => {
   const { t } = useTranslation();
@@ -23,6 +24,7 @@ const HabitModal = () => {
     multiUserEnabled, users, hrViewUserSyncId, setHrViewUserSyncId,
     meUserSyncId, managedBy, hasUnownedHabits, claimUnownedHabits,
   } = useFeaturesCtx();
+  const weekdayListFormatter = new Intl.ListFormat(activeLocale(), { style: 'short', type: 'unit' });
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowHabitModal(false); setEditingHabit(null); }}>
@@ -32,7 +34,12 @@ const HabitModal = () => {
           <h2 className={`text-lg font-bold ${textPrimary}`}>
             {editingHabit ? t('habit.editHabit') : t('habit.manageHabits')}
           </h2>
-          <button onClick={() => { setShowHabitModal(false); setEditingHabit(null); }} className={`p-1.5 rounded-lg ${hoverBg} transition-colors`}>
+          <button
+            onClick={() => { setShowHabitModal(false); setEditingHabit(null); }}
+            className={`p-1.5 rounded-lg ${hoverBg} transition-colors`}
+            title={t('common.close')}
+            aria-label={t('common.close')}
+          >
             <X size={20} className={textSecondary} />
           </button>
         </div>
@@ -113,18 +120,22 @@ const HabitModal = () => {
 
                   {/* Scheduled days -- hidden for auto-synced habits */}
                   {editingHabit.source !== 'healthConnect' && (() => {
-                    const DOW_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+                    const dayLabels = localizedWeekdays('narrow');
+                    const fullDayNames = localizedWeekdays('long');
                     const days = editingHabit.scheduledDays ?? [0, 1, 2, 3, 4, 5, 6];
                     return (
                       <div>
                         <label className={`block text-sm font-medium ${textSecondary} mb-1`}>{t('habit.habitActiveDays')}</label>
                         <div className="flex gap-1.5">
-                          {DOW_LABELS.map((label, idx) => {
+                          {dayLabels.map((label, idx) => {
                             const active = days.includes(idx);
                             return (
                               <button
                                 key={idx}
                                 type="button"
+                                title={fullDayNames[idx]}
+                                aria-label={fullDayNames[idx]}
+                                aria-pressed={active}
                                 onClick={() => {
                                   if (active && days.length === 1) return; // keep at least one
                                   setEditingHabit(prev => ({
@@ -159,6 +170,8 @@ const HabitModal = () => {
                           <button
                             key={name}
                             onClick={() => setEditingHabit(prev => ({ ...prev, icon: name }))}
+                            title={t('habit.selectIcon', { icon: name })}
+                            aria-label={t('habit.selectIcon', { icon: name })}
                             className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
                               editingHabit.icon === name
                                 ? 'bg-blue-600 text-white'
@@ -180,6 +193,8 @@ const HabitModal = () => {
                         <button
                           key={c.name}
                           onClick={() => setEditingHabit(prev => ({ ...prev, color: c.name }))}
+                          title={t('habit.selectColor', { color: c.name })}
+                          aria-label={t('habit.selectColor', { color: c.name })}
                           className={`w-9 h-9 rounded-full ${c.bg} transition-all ${
                             editingHabit.color === c.name ? 'ring-2 ring-offset-2 ring-blue-500' : 'opacity-70 hover:opacity-100'
                           }`}
@@ -227,19 +242,19 @@ const HabitModal = () => {
                 darkMode={darkMode}
                 borderClass={borderClass}
                 textSecondary={textSecondary}
-                label="Habits for"
+                label={t('habit.habitsFor')}
               />
               {multiUserEnabled && hasUnownedHabits && meUserSyncId && hrViewUserSyncId === meUserSyncId && (
                 <div className={`mb-3 px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-amber-500/10' : 'bg-amber-50'} flex items-center justify-between gap-3`}>
                   <p className={`text-xs ${textSecondary}`}>
-                    Some habits aren't assigned to anyone yet. Claim them as yours so they stay tied to you across devices.
+                    {t('habit.unassignedHint')}
                   </p>
                   <button
                     type="button"
                     onClick={() => claimUnownedHabits()}
                     className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500 text-white hover:bg-amber-600"
                   >
-                    Claim
+                    {t('habit.claim')}
                   </button>
                 </div>
               )}
@@ -254,6 +269,11 @@ const HabitModal = () => {
                   {activeHabits.map((habit, idx) => {
                     const IconComp = HABIT_ICONS[habit.icon] || Target;
                     const colorObj = HABIT_COLORS.find(c => c.name === habit.color) || HABIT_COLORS[0];
+                    const displayUnit = habit.unit === 'steps'
+                      ? t('habit.unitSteps')
+                      : habit.unit === 'min'
+                        ? t('habit.unitMinutes')
+                        : habit.unit;
                     return (
                       <div
                         key={habit.id}
@@ -280,42 +300,62 @@ const HabitModal = () => {
                               const isThisDevice = lastAutoSync.deviceId === getDeviceId();
                               if (isThisDevice) {
                                 const paused = habit.unit === 'steps' ? healthPerms?.steps === false : healthPerms?.sleep === false;
-                                if (paused) return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-400/10 text-orange-500 flex-shrink-0"><WifiOff size={9} />Not syncing</span>;
-                                return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 flex-shrink-0"><RefreshCw size={9} />Auto-synced on this device</span>;
+                                if (paused) return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-400/10 text-orange-500 flex-shrink-0"><WifiOff size={9} />{t('habit.habitNotSyncing')}</span>;
+                                return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 flex-shrink-0"><RefreshCw size={9} />{t('habit.habitAutoSyncedThisDevice')}</span>;
                               }
-                              const platform = lastAutoSync.platform ?? 'another device';
-                              return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 flex-shrink-0"><RefreshCw size={9} />Auto-synced on {platform}</span>;
+                              const platform = lastAutoSync.platform ?? t('habit.anotherDevice');
+                              return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 flex-shrink-0"><RefreshCw size={9} />{t('habit.habitAutoSyncedOtherDevice', { platform })}</span>;
                             })()}
                           </div>
                           <div className={`text-xs ${textSecondary}`}>
-                            {habit.type === 'doMore' ? t('habit.habitGoalPrefix') : t('habit.habitLimitPrefix')}: {habit.target} {habit.unit}
+                            {habit.type === 'doMore' ? t('habit.habitGoalPrefix') : t('habit.habitLimitPrefix')}: {habit.target} {displayUnit}
                           </div>
                           {(() => {
                             const days = habit.scheduledDays ?? [0, 1, 2, 3, 4, 5, 6];
                             if (days.length === 7) return null;
-                            const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                            const names = localizedWeekdays('short');
                             return (
                               <div className={`text-xs ${textSecondary} opacity-70`}>
-                                {days.map(d => names[d]).join(', ')}
+                                {weekdayListFormatter.format(days.map(d => names[d]))}
                               </div>
                             );
                           })()}
                         </div>
                         <div className="flex items-center gap-1">
                           {idx > 0 && (
-                            <button onClick={() => reorderHabits(idx, idx - 1)} className={`p-1 rounded ${hoverBg}`}>
+                            <button
+                              onClick={() => reorderHabits(idx, idx - 1)}
+                              className={`p-1 rounded ${hoverBg}`}
+                              title={t('goals.moveUp')}
+                              aria-label={t('goals.moveUp')}
+                            >
                               <ChevronUp size={14} className={textSecondary} />
                             </button>
                           )}
                           {idx < activeHabits.length - 1 && (
-                            <button onClick={() => reorderHabits(idx, idx + 1)} className={`p-1 rounded ${hoverBg}`}>
+                            <button
+                              onClick={() => reorderHabits(idx, idx + 1)}
+                              className={`p-1 rounded ${hoverBg}`}
+                              title={t('goals.moveDown')}
+                              aria-label={t('goals.moveDown')}
+                            >
                               <ChevronDown size={14} className={textSecondary} />
                             </button>
                           )}
-                          <button onClick={() => setEditingHabit({ ...habit })} className={`p-1 rounded ${hoverBg}`}>
+                          <button
+                            onClick={() => setEditingHabit({ ...habit })}
+                            className={`p-1 rounded ${hoverBg}`}
+                            title={t('common.edit')}
+                            aria-label={t('common.edit')}
+                          >
                             <Pencil size={14} className={textSecondary} />
                           </button>
-                          <button onClick={() => archiveHabit(habit.id)} className={`p-1 rounded ${hoverBg}`}>
+                          <button
+                            onClick={() => archiveHabit(habit.id)}
+                            className={`p-1 rounded ${hoverBg}`}
+                            title={t('habit.archiveHabit')}
+                            aria-label={t('habit.archiveHabit')}
+                          >
                             <Trash2 size={14} className="text-red-500" />
                           </button>
                         </div>

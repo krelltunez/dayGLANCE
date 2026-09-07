@@ -13,14 +13,14 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Obsidian Vault"
+            android:text="@string/settings_obsidian_vault"
             android:textAppearance="?attr/textAppearanceTitleMedium"
             android:layout_marginBottom="4dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Select the root folder of your Obsidian vault to enable daily note sync."
+            android:text="@string/settings_vault_desc"
             android:textAppearance="?attr/textAppearanceBodySmall"
             android:layout_marginBottom="8dp" />
 
@@ -28,7 +28,7 @@
             android:id="@+id/tv_vault_path"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Not configured"
+            android:text="@string/settings_not_configured"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:layout_marginBottom="12dp" />
 
@@ -36,28 +36,28 @@
             android:id="@+id/btn_select_vault"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Select Vault Folder"
+            android:text="@string/settings_select_vault"
             android:layout_marginBottom="32dp" />
 
         <!-- ── Daily note location ── -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Daily Note Location"
+            android:text="@string/settings_daily_note_location"
             android:textAppearance="?attr/textAppearanceTitleMedium"
             android:layout_marginBottom="4dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Folder inside your vault where daily notes are stored. Leave blank to use the vault root."
+            android:text="@string/settings_daily_note_location_desc"
             android:textAppearance="?attr/textAppearanceBodySmall"
             android:layout_marginBottom="8dp" />
 
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Daily note folder (e.g. Daily Notes)"
+            android:hint="@string/settings_daily_note_folder_hint"
             android:layout_marginBottom="16dp"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
 
@@ -72,14 +72,14 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Date pattern for the note filename (without .md). Uses Java DateTimeFormatter syntax."
+            android:text="@string/settings_filename_pattern_desc"
             android:textAppearance="?attr/textAppearanceBodySmall"
             android:layout_marginBottom="8dp" />
 
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Filename pattern (e.g. yyyy-MM-dd)"
+            android:hint="@string/settings_filename_pattern_hint"
             android:layout_marginBottom="16dp"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
 
@@ -95,21 +95,21 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="New Notes Folder"
+            android:text="@string/settings_new_notes_folder"
             android:textAppearance="?attr/textAppearanceTitleMedium"
             android:layout_marginBottom="4dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Folder where notes created in dayGLANCE are saved. Existing notes are always updated in-place regardless of this setting."
+            android:text="@string/settings_new_notes_folder_desc"
             android:textAppearance="?attr/textAppearanceBodySmall"
             android:layout_marginBottom="8dp" />
 
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="New notes folder (e.g. dayGLANCE)"
+            android:hint="@string/settings_new_notes_folder_hint"
             android:layout_marginBottom="16dp"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
 
@@ -125,7 +125,7 @@
             android:id="@+id/btn_save_daily_note_settings"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Save" />
+            android:text="@string/action_save" />
 
     </LinearLayout>
 </ScrollView>

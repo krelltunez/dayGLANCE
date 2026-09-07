@@ -6,6 +6,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useMcpStatus, McpBoltButton, McpStatusPanel } from './McpStatusControls.jsx';
 
 export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
+  const { t } = useTranslation();
   const { setUnscheduledTasks, borderClass } = useDayPlannerCtx();
   const { aiConfig, voiceCanRecord } = useFeaturesCtx();
   const [text, setText] = useState('');
@@ -64,7 +65,7 @@ export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
               ? 'bg-white/10 text-white placeholder-gray-500'
               : 'bg-black/5 text-stone-900 placeholder-stone-400'
           }`}
-          placeholder="Add to inbox…"
+          placeholder={t('task.addToInbox')}
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setText(''); }}
@@ -74,7 +75,8 @@ export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
           className={`flex-shrink-0 p-2 rounded-lg transition-opacity hover:opacity-70 ${
             darkMode ? 'bg-white/10 text-gray-400' : 'bg-black/5 text-stone-500'
           }`}
-          title="Search tasks"
+          title={t('shortcuts.searchTasks')}
+          aria-label={t('shortcuts.searchTasks')}
         >
           <Search size={16} />
         </button>
@@ -84,7 +86,8 @@ export default function TrayHeader({ darkMode, onSearchClick, onVoiceClick }) {
             className={`flex-shrink-0 p-2 rounded-lg transition-opacity hover:opacity-70 ${
               darkMode ? 'bg-white/10 text-purple-400' : 'bg-black/5 text-purple-600'
             }`}
-            title="Voice input"
+            title={t('voice.title')}
+            aria-label={t('voice.title')}
           >
             <Mic size={16} />
           </button>

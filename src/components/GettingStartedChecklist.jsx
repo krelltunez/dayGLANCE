@@ -20,7 +20,7 @@ const GettingStartedChecklist = ({ items, completedCount, darkMode, textPrimary,
         <button
           onClick={onDismiss}
           className={`${textSecondary} hover:${textPrimary} p-0.5`}
-          title="Dismiss"
+          title={t('common.dismiss')}
         >
           <X size={14} />
         </button>

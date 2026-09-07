@@ -130,6 +130,7 @@ export const isVaultAccessLossError = (message) =>
   /revoked|bookmark could not be opened/i.test(message || '');
 
 export default function useObsidianSync({
+  defaultTaskHeading = '## Tasks',
   isTrayMode, dataLoaded,
   tasks, setTasks,
   unscheduledTasks, setUnscheduledTasks,
@@ -672,7 +673,7 @@ export default function useObsidianSync({
       void publishBridgeConfig({
         dailyNotesPath: obsidianConfig?.dailyNotesPath || '',
         dailyNotePattern: obsidianConfig?.dailyNotePattern || 'yyyy-MM-dd',
-        taskHeading: obsidianConfig?.taskHeading || '## Tasks',
+        taskHeading: obsidianConfig?.taskHeading || defaultTaskHeading,
         // Carries the §3.9 block-id write release to the plugin, which gates
         // normalize-then-observe (§3.10 ruling 7) on it — see
         // publishBridgeConfig. Read fresh each cycle so a release flip
@@ -1533,7 +1534,7 @@ export default function useObsidianSync({
         // the wall-clock confirmation hold exists for.
         let ok = true;
         if (isVault) {
-          const from = writebackTargetFor(task, obsidianConfig);
+          const from = writebackTargetFor(task, obsidianConfig, defaultTaskHeading);
           if (from) ok = !!emitBridgeIntent('task_remove', { path: from.path, blockId: task.obsidianBlockId || null, obsidianRawTitle: task.obsidianRawTitle });
         }
         if (wantsMove && ok) {
@@ -1635,7 +1636,7 @@ export default function useObsidianSync({
       // (companion §6: the locator is the path, the note key the minting
       // namespace — utils/obsidianWritebackTarget.js). Set at parse time,
       // never changed here.
-      const target = writebackTargetFor(task, obsidianConfig);
+      const target = writebackTargetFor(task, obsidianConfig, defaultTaskHeading);
       if (!target) continue;
       const sourceDate = target.date;
 

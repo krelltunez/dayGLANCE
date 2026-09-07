@@ -13,6 +13,7 @@ import { renderTitle, getLinkUrl, hasNotesOrSubtasks, isLinkOnlyTask, hasOnlySub
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
+import { useTranslation } from 'react-i18next';
 
 const CHIP_ROW_H = 40; // approximate AllDayTaskCard height in px
 const ROW_GAP = 4;     // gap-1 = 4px
@@ -22,6 +23,7 @@ const MAX_H = CHIP_ROW_H * MAX_ROWS + ROW_GAP * (MAX_ROWS - 1);
 // ── GroupChips — horizontal flex-wrap with 2-row cap + "+N more" popover ─────
 
 const GroupChips = ({ tasks, deadlineTasks = [], date, dateStr, darkMode, borderClass, cardBg }) => {
+  const { t } = useTranslation();
   const {
     isTablet,
     handleDragStart, handleDragEnd,
@@ -113,11 +115,11 @@ const GroupChips = ({ tasks, deadlineTasks = [], date, dateStr, darkMode, border
     <>
       {isTablet && (
         <>
-          <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium`}>
-            <Inbox size={14} className="mr-1" />Inbox
+          <div data-swipe-strip="right" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-blue-900/80 text-blue-300' : 'bg-blue-100 text-blue-600'} rounded-lg flex items-center pl-3 text-xs font-medium capitalize`}>
+            <Inbox size={14} className="mr-1" />{t('task.inbox')}
           </div>
           <div data-swipe-strip="left" style={{ display: 'none', left: '8px' }} className={`absolute inset-0 ${darkMode ? 'bg-amber-900/80 text-amber-300' : 'bg-amber-100 text-amber-600'} rounded-lg flex items-center justify-end pr-3 text-xs font-medium`}>
-            Edit<Settings size={14} className="ml-1" />
+            {t('common.edit')}<Settings size={14} className="ml-1" />
           </div>
         </>
       )}
@@ -158,7 +160,7 @@ const GroupChips = ({ tasks, deadlineTasks = [], date, dateStr, darkMode, border
             style={{ touchAction: 'pan-y' }}
           >
             {task.isExample && (
-              <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">Example</span>
+              <span className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">{t('common.example', { defaultValue: 'Example' })}</span>
             )}
             <div className="p-2 text-white">
               <div className="flex items-center justify-between gap-2">
@@ -181,18 +183,20 @@ const GroupChips = ({ tasks, deadlineTasks = [], date, dateStr, darkMode, border
                     onMouseLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
                     onClick={(e) => { e.stopPropagation(); if (isLinkOnlyTask(task)) { if (!longPressTriggeredRef.current) openNoteAction(task); longPressTriggeredRef.current = false; } else { setExpandedNotesTaskId(prev => prev === task.id ? null : task.id); } }}
                     className={`notes-toggle-button hover:bg-white/20 rounded p-1 transition-colors ${hasNotesOrSubtasks(task) || extractWikilinks(task.title).length > 0 ? '' : 'opacity-40'}`}
-                    title={isLinkOnlyTask(task) ? `${getLinkUrl(task)} (hold to edit)` : 'Notes & subtasks'}
+                    title={isLinkOnlyTask(task)
+                      ? `${getLinkUrl(task)} ${t('task.holdToEditHint', { defaultValue: '(hold to edit)' })}`
+                      : t('sched.notesSubtasks')}
                   >
                     {isPhoneOnlyTask(task) ? <Phone size={14} /> : isLinkOnlyTask(task) ? <ExternalLink size={14} /> : hasOnlySubtasks(task) ? <CheckSquare size={14} /> : isObsidianNoteOnlyTask(task) ? <BookOpen size={14} /> : <FileText size={14} />}
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); postponeDeadlineTask(task.id); }} className="hover:bg-white/20 rounded p-1 transition-colors" title="Postpone to tomorrow">
+                  <button onClick={(e) => { e.stopPropagation(); postponeDeadlineTask(task.id); }} className="hover:bg-white/20 rounded p-1 transition-colors" title={t('sched.postponeTomorrow')}>
                     <SkipForward size={14} />
                   </button>
                   <div className="deadline-picker-container relative">
                     <button
                       onClick={(e) => { e.stopPropagation(); setShowDeadlinePicker(showDeadlinePicker === task.id ? null : task.id); }}
                       className="hover:bg-white/20 rounded p-1 transition-colors bg-white/20"
-                      title={`Deadline: ${formatDeadlineDate(task.deadline)}`}
+                      title={`${t('sched.deadline')}: ${formatDeadlineDate(task.deadline)}`}
                     >
                       <Calendar size={14} />
                     </button>
@@ -201,7 +205,7 @@ const GroupChips = ({ tasks, deadlineTasks = [], date, dateStr, darkMode, border
                     )}
                   </div>
                   {!isTablet && (
-                    <button onClick={() => openMobileEditTask(task, true)} className="hover:bg-white/20 rounded p-1 transition-colors" title="Edit">
+                    <button onClick={() => openMobileEditTask(task, true)} className="hover:bg-white/20 rounded p-1 transition-colors" title={t('common.edit')}>
                       <Pencil size={14} />
                     </button>
                   )}
@@ -284,7 +288,7 @@ const GroupChips = ({ tasks, deadlineTasks = [], date, dateStr, darkMode, border
               onClick={handleTogglePopover}
               className={`text-xs font-medium px-2 py-1 rounded-md ${darkMode ? 'bg-gray-600 text-gray-200 hover:bg-gray-500' : 'bg-stone-200 text-stone-600 hover:bg-stone-300'} transition-colors`}
             >
-              +{overflowItems.length} more
+              {t('sched.moreItems', { count: overflowItems.length, defaultValue: '+{{count}} more' })}
             </button>
           </div>
         )}
@@ -327,6 +331,7 @@ const allDayOrder = (t) => {
 };
 
 const DayViewAllDaySection = () => {
+  const { t } = useTranslation();
   const {
     darkMode,
     borderClass, textSecondary, cardBg,
@@ -374,8 +379,8 @@ const DayViewAllDaySection = () => {
           style={{ gridColumn: `span ${group.count}` }}
           className={`flex min-w-0 ${idx > 0 ? `border-l ${borderClass}` : ''}`}
         >
-          <div className={`w-16 flex-shrink-0 px-3 py-2 text-xs font-semibold ${textSecondary} border-r ${borderClass}`}>
-            {idx === 0 ? 'ALL DAY' : ''}
+          <div className={`w-16 flex-shrink-0 px-3 py-2 text-xs font-semibold uppercase ${textSecondary} border-r ${borderClass}`}>
+            {idx === 0 ? t('task.allDay') : ''}
           </div>
           <div
             className={`flex-1 min-w-0 p-2 ${dragOverAllDay === group.dateStr || (isTablet && mobileDragPreviewTime === 'all-day') ? (darkMode ? 'bg-green-700/50' : 'bg-green-100') : ''}`}

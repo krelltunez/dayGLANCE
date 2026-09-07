@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 
 export default function TrayReminders({ darkMode, reminders }) {
+  const { t } = useTranslation();
   const { borderClass, textPrimary, textSecondary } = useDayPlannerCtx();
 
   if (!reminders?.length) return null;
@@ -36,16 +37,16 @@ export default function TrayReminders({ darkMode, reminders }) {
             {r.type === 'end' && !r.isCalendarEvent && (
               <button
                 onClick={() => complete(r)}
-                title="Mark complete"
+                title={t('sched.markComplete')}
                 className="px-2 py-0.5 text-xs rounded bg-blue-600 text-white transition-opacity hover:opacity-80"
               >
-                Complete
+                {t('focus.complete')}
               </button>
             )}
             {r.type !== 'end' && r.type !== 'morning' && !r.isCalendarEvent && r.startTime && (
               <button
                 onClick={() => snooze(r)}
-                title="Snooze 15 min"
+                title={t('reminders.snoozeMinutes', { count: 15, defaultValue: 'Snooze {{count}} min' })}
                 className={`p-1 rounded transition-opacity hover:opacity-70 ${
                   darkMode ? 'text-gray-400' : 'text-stone-400'
                 }`}
@@ -55,7 +56,7 @@ export default function TrayReminders({ darkMode, reminders }) {
             )}
             <button
               onClick={() => dismiss(r.id)}
-              title="Dismiss"
+              title={t('common.dismiss')}
               className={`p-1 rounded transition-opacity hover:opacity-70 ${
                 darkMode ? 'text-gray-400' : 'text-stone-400'
               }`}

@@ -44,6 +44,9 @@
     </plurals>
     <string name="widget_committed">%1$s committed</string>
     <string name="widget_goal_stats">%1$d%% · %2$d/%3$d tasks</string>
+    <string name="widget_duration_hours">%1$dh</string>
+    <string name="widget_duration_hours_minutes">%1$dh %2$dm</string>
+    <string name="widget_duration_minutes">%1$dm</string>
     <string name="widget_due_overdue">%1$dd overdue</string>
     <string name="widget_due_today">Due today</string>
     <string name="widget_due_left">%1$dd left</string>
@@ -53,6 +56,10 @@
         <item quantity="one">+%d more project</item>
         <item quantity="other">+%d more projects</item>
     </plurals>
+    <plurals name="widget_more_tasks">
+        <item quantity="one">+%d more task</item>
+        <item quantity="other">+%d more tasks</item>
+    </plurals>
     <string name="widget_reconfigure">Long-press widget to reconfigure</string>
     <string name="widget_goal_gone">It may have been deleted or completed</string>
     <string name="widget_project_gone">Project may have been deleted or archived</string>
@@ -60,6 +67,12 @@
     <string name="config_select_project">Select a Project</string>
     <string name="config_choose_goal">Choose which goal to display on your widget.</string>
     <string name="config_choose_project">Choose which project to display on your widget.</string>
+    <string name="config_task_progress">%1$d/%2$d tasks</string>
+    <plurals name="config_project_count">
+        <item quantity="one">%d project</item>
+        <item quantity="other">%d projects</item>
+    </plurals>
+    <string name="config_standalone">Standalone</string>
     <string name="config_no_goals">No active goals found.
 
 Open dayGLANCE to sync your data, then try adding the widget again.</string>
@@ -80,6 +93,16 @@ Open dayGLANCE to sync your data, then try adding the widget again.</string>
     <string name="notif_starts_in_m">Starts in %1$dm</string>
     <string name="notif_starting_now">Starting now</string>
     <string name="notif_in_progress_ends">In progress · ends at %1$s</string>
+    <string name="focus_phase_short_break">Short Break</string>
+    <string name="focus_phase_long_break">Long Break</string>
+    <string name="focus_phase_work">Work</string>
+    <string name="focus_status_paused">Paused</string>
+    <string name="focus_status_in_progress">In Progress</string>
+    <string name="focus_status_format">%1$s · %2$s · %3$d/4</string>
+    <string name="focus_action_resume">Resume</string>
+    <string name="focus_action_pause">Pause</string>
+    <string name="focus_action_stop">Stop</string>
+    <string name="share_backup">Save backup</string>
     <!-- Notification channels (visible in system settings) -->
     <string name="channel_reminders">Reminders</string>
     <string name="channel_reminders_desc">Task and event reminders</string>
@@ -103,4 +126,39 @@ Open dayGLANCE to sync your data, then try adding the widget again.</string>
     <string name="channel_obsidian_sync_desc">Reminders to open Obsidian so vault changes sync to your other devices</string>
     <string name="notif_obsidian_sync_title">Changes written to your vault</string>
     <string name="notif_obsidian_sync_body">Tap to open Obsidian so they sync to your other devices</string>
+
+    <!-- Native settings, permission rationale, and system dialogs -->
+    <string name="action_save">Save</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_saved">Settings saved</string>
+    <string name="settings_obsidian_vault">Obsidian Vault</string>
+    <string name="settings_vault_desc">Select the root folder of your Obsidian vault to enable daily note sync.</string>
+    <string name="settings_not_configured">Not configured</string>
+    <string name="settings_select_vault">Select Vault Folder</string>
+    <string name="settings_daily_note_location">Daily Note Location</string>
+    <string name="settings_daily_note_location_desc">Folder inside your vault where daily notes are stored. Leave blank to use the vault root.</string>
+    <string name="settings_daily_note_folder_hint">Daily note folder (e.g. Daily Notes)</string>
+    <string name="settings_filename_pattern_desc">Date pattern for the note filename (without .md). Uses Java DateTimeFormatter syntax.</string>
+    <string name="settings_filename_pattern_hint">Filename pattern (e.g. yyyy-MM-dd)</string>
+    <string name="settings_new_notes_folder">New Notes Folder</string>
+    <string name="settings_new_notes_folder_desc">Folder where notes created in dayGLANCE are saved. Existing notes are always updated in-place regardless of this setting.</string>
+    <string name="settings_new_notes_folder_hint">New notes folder (e.g. dayGLANCE)</string>
+    <string name="health_permissions_title">Health Connect Permissions</string>
+    <string name="health_intro">dayGLANCE uses Health Connect to display your daily progress as habit rings on the main day view.</string>
+    <string name="health_steps">Steps</string>
+    <string name="health_steps_desc">Reads your daily step count to fill the steps habit ring, showing progress toward a daily step goal you set yourself.</string>
+    <string name="health_sleep">Sleep</string>
+    <string name="health_sleep_desc">Reads your most recent sleep session duration to fill the sleep habit ring, showing progress toward a daily sleep duration goal you set yourself.</string>
+    <string name="health_data_handling">How your data is handled</string>
+    <string name="health_local_only">• Health data is read on-device and rendered locally in the app.</string>
+    <string name="health_no_analytics">• It is never used for analytics, shared with third parties, or written back to Health Connect.</string>
+    <string name="health_no_servers">• dayGLANCE has no developer-operated servers, no account system, and no telemetry.</string>
+    <string name="health_cloud_sync">• If you have enabled optional Cloud Sync, habit data is included in the sync payload using zero-knowledge AES-256-GCM encryption. The destination server (which you control) sees only encrypted ciphertext.</string>
+    <string name="health_optional">Granting Health Connect permissions is entirely optional. dayGLANCE functions normally without them. You can revoke these permissions at any time through the Health Connect app or your device\'s system settings.</string>
+    <string name="health_privacy_policy">Read the full privacy policy →</string>
+    <string name="reminder_precise_title">Enable precise reminders</string>
+    <string name="reminder_precise_message">DayGlance needs permission to schedule exact alarms so your task reminders arrive on time, even when the app is closed.\n\nTap \"Grant access\", then enable \"DayGlance\" on the next screen.</string>
+    <string name="grant_access">Grant access</string>
+    <string name="not_now">Not now</string>
 </resources>
