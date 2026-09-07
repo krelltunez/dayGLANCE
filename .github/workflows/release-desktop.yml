@@ -9,9 +9,17 @@ on:
 jobs:
   build:
     strategy:
+      # One platform's failure must not cancel the others. A macOS signing
+      # break used to take the Windows and Linux builds down with it, leaving
+      # no artifacts at all to test with.
+      fail-fast: false
       matrix:
         include:
-          - os: macos-latest
+          # Pinned, not macos-latest: that label moved to a newer image on
+          # 2026-09-07 and electron-builder's `security set-key-partition-list`
+          # started failing on it ("SecKeychainUnlock: the user name or
+          # passphrase you entered is not correct") with no change on our side.
+          - os: macos-15
             artifact_glob: "dist-app/*.dmg dist-app/*-mac.zip"
           - os: windows-latest
             artifact_glob: "dist-app/*.exe"
