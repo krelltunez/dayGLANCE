@@ -18,7 +18,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getGlanceHGInstances, isHGSessionReachable } from '../hooks/useHyperGlance.js';
 import { useTranslation } from 'react-i18next';
 import { notBucketed } from '../utils/bucketList.js';
-import { formatLocalizedDate } from '../utils/localeFormatting.js';
+import { formatLocalizedDate, formatLocalizedDurationMinutes } from '../utils/localeFormatting.js';
 
 const GlanceSidebar = ({ variant = 'desktop' }) => {
   const {
@@ -328,7 +328,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
               <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>{t('settings.habitTracking')}</div>
               <div className="flex items-center gap-2">
                 <span className={`text-xs ${textSecondary} italic`}>{t('common.noneAdded')}</span>
-                <span className="text-xs text-teal-500 font-medium">+ Add</span>
+                <span className="text-xs text-teal-500 font-medium">+ {t('common.add')}</span>
               </div>
             </div>
           );
@@ -937,14 +937,12 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     }
 
     const renderNowMarker = (key) => {
-      const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
-      const gapM = agendaNowMarker.gapMinutes % 60;
-      const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+      const gapStr = formatLocalizedDurationMinutes(agendaNowMarker.gapMinutes, i18n.language);
       return (
         <div key={key} className="flex gap-2.5 py-2">
           <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+            <div className="text-sm font-medium text-red-500">{t('glance.freeTimeMessage', { time: formatTime(agendaNowMarker.nowTimeStr), duration: gapStr })}</div>
             {agendaNowMarker.gapMinutes < 30 ? (
               <div className="text-xs italic text-red-500 mt-0.5">{t('app.getReadyToBeProductive')}</div>
             ) : agendaNowMarker.inboxCount > 0 ? (
@@ -1052,7 +1050,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
                 <button
                   onClick={(e) => { e.stopPropagation(); const next = projectFilter === task.projectId ? null : task.projectId; setProjectFilter(next); setInboxProjectFilter(next ? [next] : []); if (next) { setInboxPriorityFilter(0); setHideCompletedInbox(false); setHideProjectTasksInbox(false); setHideStandaloneTasksInbox(true); } else { setHideProjectTasksInbox(true); setHideStandaloneTasksInbox(false); } }}
                   className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium transition-colors ${darkMode ? 'bg-blue-900/50 text-blue-300 hover:bg-blue-800/70' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} ${projectFilter === task.projectId ? 'ring-1 ring-blue-400' : ''}`}
-                  title={projectFilter === task.projectId ? 'Clear project filter' : `Filter: ${proj.title}`}
+                  title={projectFilter === task.projectId ? t('sched.clearProjectFilter') : t('sched.filterProject', { project: proj.title })}
                 >
                   {proj.title}
                 </button>
@@ -1107,14 +1105,12 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       )}
       {/* Now marker before first task (only when no frame sections handle positioning) */}
       {filteredAgenda.length > 0 && sections.length === 0 && !agendaNowMarker.insideTask && agendaNowMarker.insertAfterIndex < 0 && (() => {
-        const gapH = Math.floor(agendaNowMarker.gapMinutes / 60);
-        const gapM = agendaNowMarker.gapMinutes % 60;
-        const gapStr = gapH > 0 ? `${gapH}h${gapM > 0 ? ` ${gapM}m` : ''}` : `${gapM}m`;
+        const gapStr = formatLocalizedDurationMinutes(agendaNowMarker.gapMinutes, i18n.language);
         return (
           <div key={`${keyPrefix}-now-marker`} className="flex gap-2.5 py-2.5">
             <div className="w-1.5 rounded-full flex-shrink-0 bg-red-500" />
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium text-red-500">{formatTime(agendaNowMarker.nowTimeStr)}, {gapStr} of free time</div>
+              <div className="text-sm font-medium text-red-500">{t('glance.freeTimeMessage', { time: formatTime(agendaNowMarker.nowTimeStr), duration: gapStr })}</div>
               {agendaNowMarker.gapMinutes < 30 ? (
                 <div className="text-xs italic text-red-500 mt-0.5">{t('app.getReadyToBeProductive')}</div>
               ) : agendaNowMarker.inboxCount > 0 ? (
@@ -1219,12 +1215,12 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
         const hr = currentTime.getHours();
         const barColor = hr >= 22 ? 'bg-blue-500' : hr >= 19 ? 'bg-green-500' : 'bg-yellow-500';
         const textColor = hr >= 22 ? 'text-blue-500' : hr >= 19 ? 'text-green-500' : 'text-yellow-600';
-        const subtitle = hr >= 22 ? "Get some rest so you're ready for tomorrow!" : hr >= 19 ? 'Enjoy the evening!' : 'Time to relax or tackle more tasks?';
+        const subtitle = hr >= 22 ? t('glance.restForTomorrow') : hr >= 19 ? t('glance.enjoyEvening') : t('glance.relaxOrMoreTasks');
         return (
           <div key={`${keyPrefix}-now-marker-end`} className="flex gap-2.5 py-2.5">
             <div className={`w-1.5 rounded-full flex-shrink-0 ${barColor}`} />
             <div className="min-w-0 flex-1">
-              <div className={`text-sm font-medium ${textColor}`}>{formatTime(agendaNowMarker.nowTimeStr)}, all done!</div>
+              <div className={`text-sm font-medium ${textColor}`}>{t('glance.allDoneMessage', { time: formatTime(agendaNowMarker.nowTimeStr) })}</div>
               <div className={`text-xs italic ${textColor} mt-0.5`}>{subtitle}</div>
             </div>
           </div>
@@ -1282,9 +1278,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     const isEvening = currentTime.getHours() >= 19;
     if (!isDayDone && !isEvening) return null;
     const { dayLabel, taskCount, eventCount, deadlineCount, firstStartTime, committedMinutes, isEmpty } = glanceAhead;
-    const committedH = Math.floor(committedMinutes / 60);
-    const committedM = committedMinutes % 60;
-    const committedStr = committedH > 0 ? `${committedH}h${committedM > 0 ? ` ${committedM}m` : ''}` : committedM > 0 ? `${committedM}m` : null;
+    const committedStr = committedMinutes > 0 ? formatLocalizedDurationMinutes(committedMinutes, i18n.language) : null;
     // Device's next alarm clock (Android bridge; null everywhere else — iOS
     // has no API for Clock alarms, and desktop/tray have no bridge). Read per
     // render: this section re-renders every minute via currentTime, so the
@@ -1330,16 +1324,16 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
             )}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               {taskCount > 0 && (
-                <span className={`text-sm ${textPrimary} flex items-center gap-1`}><CheckSquare size={12} className={textSecondary} />{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
+                <span className={`text-sm ${textPrimary} flex items-center gap-1`}><CheckSquare size={12} className={textSecondary} />{t('glance.taskCount', { count: taskCount })}</span>
               )}
               {eventCount > 0 && (
-                <span className={`text-sm ${textPrimary} flex items-center gap-1`}><Calendar size={12} className={textSecondary} />{eventCount} event{eventCount !== 1 ? 's' : ''}</span>
+                <span className={`text-sm ${textPrimary} flex items-center gap-1`}><Calendar size={12} className={textSecondary} />{t('glance.eventCount', { count: eventCount })}</span>
               )}
               {deadlineCount > 0 && (
-                <span className={`text-sm font-medium ${darkMode ? 'text-orange-400' : 'text-orange-600'} flex items-center gap-1`}><AlertTriangle size={12} />{deadlineCount} deadline{deadlineCount !== 1 ? 's' : ''}</span>
+                <span className={`text-sm font-medium ${darkMode ? 'text-orange-400' : 'text-orange-600'} flex items-center gap-1`}><AlertTriangle size={12} />{t('glance.deadlineCount', { count: deadlineCount })}</span>
               )}
               {committedStr && (
-                <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>{committedStr} committed</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>{t('glance.committedDuration', { duration: committedStr })}</span>
               )}
             </div>
           </div>
@@ -1359,7 +1353,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
           <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>{t('settings.routines')}</div>
           <div className="flex items-center gap-2">
             <span className={`text-xs ${textSecondary} italic`}>{t('common.noneScheduled')}</span>
-            <span className="text-xs text-teal-500 font-medium hover:text-teal-400 transition-colors">+ Add</span>
+            <span className="text-xs text-teal-500 font-medium hover:text-teal-400 transition-colors">+ {t('common.add')}</span>
           </div>
         </div>
       );
@@ -1368,7 +1362,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
       <div className={`${isDesktop ? `rounded-lg border ${borderClass} p-3` : `mt-3 pt-3 border-t ${borderClass}`}`}>
         <div className="flex items-center justify-between mb-2">
           <div className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>{t('settings.routines')}</div>
-          <button onClick={() => isTray ? openMainAt({ action: 'routines' }) : openRoutinesDashboard()} className="text-xs text-teal-500 font-medium hover:text-teal-400 transition-colors">+ Add</button>
+          <button onClick={() => isTray ? openMainAt({ action: 'routines' }) : openRoutinesDashboard()} className="text-xs text-teal-500 font-medium hover:text-teal-400 transition-colors">+ {t('common.add')}</button>
         </div>
         <div className={`flex flex-wrap ${isDesktop ? "gap-1" : "gap-1.5"}`}>
           {[...visibleRoutines].sort((a, b) => {

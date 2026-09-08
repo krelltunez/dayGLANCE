@@ -1664,6 +1664,20 @@
     "showingPriorityClick": "Priorität {{priority}}+ wird angezeigt (zum Ändern klicken)",
     "zero": "Posteingang leer"
   },
+  "glance": {
+    "allDoneMessage": "{{time}}, alles erledigt!",
+    "freeTimeMessage": "{{time}}, {{duration}} freie Zeit",
+    "taskCount_one": "{{count}} Aufgabe",
+    "taskCount_other": "{{count}} Aufgaben",
+    "eventCount_one": "{{count}} Termin",
+    "eventCount_other": "{{count}} Termine",
+    "deadlineCount_one": "{{count}} Frist",
+    "deadlineCount_other": "{{count}} Fristen",
+    "committedDuration": "{{duration}} verplant",
+    "restForTomorrow": "Ruh dich aus, damit du morgen wieder fit bist!",
+    "enjoyEvening": "Genieß den Abend!",
+    "relaxOrMoreTasks": "Zeit zum Entspannen oder für weitere Aufgaben?"
+  },
   "mobileList": {
     "overlapDuration": "{{duration}} Überschneidung",
     "freeDuration": "{{duration}} frei",
@@ -1679,6 +1693,10 @@
     "openInbox": "Posteingang öffnen"
   },
   "sched": {
+    "viewMultiShort": "TAGE",
+    "viewDayShort": "TAG",
+    "viewWeekShort": "WOCHE",
+    "viewSchedShort": "PLAN",
     "filterProject": "Filter: {{project}}",
     "filter": "Filter",
     "filterTasks": "Aufgaben filtern",

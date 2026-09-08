@@ -1664,6 +1664,20 @@
     "showingPriorityClick": "Showing priority {{priority}}+ (click to change)",
     "zero": "Inbox zero"
   },
+  "glance": {
+    "allDoneMessage": "{{time}}, all done!",
+    "freeTimeMessage": "{{time}}, {{duration}} of free time",
+    "taskCount_one": "{{count}} task",
+    "taskCount_other": "{{count}} tasks",
+    "eventCount_one": "{{count}} event",
+    "eventCount_other": "{{count}} events",
+    "deadlineCount_one": "{{count}} deadline",
+    "deadlineCount_other": "{{count}} deadlines",
+    "committedDuration": "{{duration}} committed",
+    "restForTomorrow": "Get some rest so you're ready for tomorrow!",
+    "enjoyEvening": "Enjoy the evening!",
+    "relaxOrMoreTasks": "Time to relax or tackle more tasks?"
+  },
   "mobileList": {
     "overlapDuration": "{{duration}} overlap",
     "freeDuration": "{{duration}} free",
@@ -1679,6 +1693,10 @@
     "openInbox": "Open inbox"
   },
   "sched": {
+    "viewMultiShort": "MULTI",
+    "viewDayShort": "DAY",
+    "viewWeekShort": "WEEK",
+    "viewSchedShort": "SCHED",
     "filterProject": "Filter: {{project}}",
     "filter": "Filter",
     "filterTasks": "Filter tasks",
