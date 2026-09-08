@@ -25,7 +25,15 @@ export const formatLocalizedDurationMinutes = (minutes, language = activeLocale(
   const parts = [];
   if (hours) parts.push(formatUnit(hours, 'hour'));
   if (remainingMinutes || !hours) parts.push(formatUnit(remainingMinutes, 'minute'));
-  return new Intl.ListFormat(language, { style: 'narrow', type: 'unit' }).format(parts);
+  // Compact "1h 30m" shape in every locale. The narrow unit list gives each
+  // locale its own separator: a space in most, nothing in Chinese, but a
+  // comma in German and the word "e" in European Portuguese, which read as
+  // a list rather than one duration. Keep whitespace-only separators and
+  // reduce anything carrying punctuation or a word to a single space.
+  return new Intl.ListFormat(language, { style: 'narrow', type: 'unit' })
+    .formatToParts(parts)
+    .map((part) => (part.type === 'literal' && part.value.trim() ? ' ' : part.value))
+    .join('');
 };
 
 export const localizedWeekdays = (width = 'short', language = activeLocale()) => {

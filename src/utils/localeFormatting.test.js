@@ -35,4 +35,12 @@ describe('Simplified Chinese locale formatting', () => {
     expect(formatLocalizedDurationMinutes(135, 'zh-CN')).toBe('2小时15分钟');
     expect(formatLocalizedDurationMinutes(135, 'en')).toBe('2h 15m');
   });
+
+  it('joins hours and minutes with a space where the locale would list them with a comma or a word', () => {
+    expect(formatLocalizedDurationMinutes(90, 'de')).toBe('1h 30 Min.');      // not "1h, 30 Min."
+    expect(formatLocalizedDurationMinutes(90, 'pt-PT')).toBe('1 h 30 min');   // not "1 h e 30 min"
+    expect(formatLocalizedDurationMinutes(90, 'fr')).toBe('1h 30min');
+    expect(formatLocalizedDurationMinutes(90, 'zh-CN')).toBe('1小时30分钟');   // no separator at all stays that way
+    expect(formatLocalizedDurationMinutes(45, 'de')).toBe('45 Min.');
+  });
 });
