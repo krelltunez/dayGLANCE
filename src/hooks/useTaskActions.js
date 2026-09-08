@@ -1,4 +1,5 @@
 import { cleanTitle } from '../utils/suggestionParser.js';
+import { toInboxCopy } from '../utils/inboxMove.js';
 import { stripBucketId } from '../utils/bucketList.js';
 import { stripSpans } from '../utils/quickAddParser.js';
 import { dateToString, extractTags, formatDeadlineDate, completionTimestamp } from '../utils/taskUtils.js';
@@ -569,14 +570,10 @@ export default function useTaskActions({
     const task = tasks.find(t => t.id === id);
     if (!task || task.imported) return;
 
-    const unscheduledTask = {
-      ...task,
-      startTime: null,
-      date: null,
-      isAllDay: false,
-      priority: task.priority || 0,
-      lastModified: new Date().toISOString(),
-    };
+    // Shared with the harness's unschedule (utils/inboxMove.js): an
+    // Obsidian task records the time this move removes, so a stale read of
+    // its still-timed line is told apart from a time typed in the vault.
+    const unscheduledTask = toInboxCopy(task);
 
     setTasks(prev => prev.filter(t => t.id !== id));
     setUnscheduledTasks(prev => [...prev, unscheduledTask]);

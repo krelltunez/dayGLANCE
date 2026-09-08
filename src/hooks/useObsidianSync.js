@@ -136,6 +136,11 @@ export default function useObsidianSync({
   tasks, setTasks,
   unscheduledTasks, setUnscheduledTasks,
   setDailyNotes,
+  // The app's daily notes (date → { text, lastModified }): the observation
+  // applier reads the last observed text of a note outside the batch for the
+  // vault-wide duplicate-token dedupe. Optional; the applier falls back to
+  // the app's own store when absent.
+  dailyNotes = null,
   setWikilinkCandidates,
   setUnportableVaultFiles,
   obsidianConfig, setObsidianConfig,
@@ -731,6 +736,7 @@ export default function useObsidianSync({
                 // Project notes (companion §4.3, ruling H).
                 projectByNotePath: projectByNotePath(projectsRef.current),
                 projects: projectsRef.current,
+                knownDailyNotes: dailyNotes ?? null,
               })
             : null;
 

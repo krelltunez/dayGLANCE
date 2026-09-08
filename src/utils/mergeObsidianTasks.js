@@ -159,11 +159,17 @@ const reviveScannedAgainstTombstone = (t, tombstones, noteMtimes) => {
 // sidebar completion that landed inside that window was overwritten.
 export const APP_LINE_OWNED_TASK_FIELDS = Object.freeze([...LINE_OWNED_TASK_FIELDS, 'lastModified', 'projectId']);
 const LINE_OWNED = new Set(APP_LINE_OWNED_TASK_FIELDS);
+// App fields the per-note merge DECIDES from the line each time rather than
+// carries from the stored copy: the cleared-time marker (utils/inboxMove.js)
+// survives only while the merge keeps re-asserting it (a still-timed stale
+// line) and is dropped the moment the line is observed without a time or
+// the task is scheduled from the line (§8 ruling, 2026-09-08).
+const SCAN_DECIDED = new Set(['obsidianClearedTime']);
 
 export function preserveObsidianAppFields(old, scanned = {}) {
   const carried = {};
   for (const k of Object.keys(old)) {
-    if (!LINE_OWNED.has(k) && old[k] !== undefined) carried[k] = old[k];
+    if (!LINE_OWNED.has(k) && !SCAN_DECIDED.has(k) && old[k] !== undefined) carried[k] = old[k];
   }
   if (carried.transitionId !== undefined && !!old.completed !== !!scanned.completed) delete carried.transitionId;
   return {

@@ -207,6 +207,60 @@ describe('applyBridgeObservations', () => {
   });
 });
 
+describe('applyBridgeObservations — duplicate-token dedupe is vault-wide (audit low, 2026-08-31)', () => {
+  // The existing owner of ^dg-abc12345 is the 2026-08-29 daily note.
+  const OWNER_TEXT = '## Tasks\n- [ ] Vault task ^dg-abc12345\n';
+  const COPY_TEXT = '## Tasks\n- [ ] Vault task ^dg-abc12345\n';
+  const owner = () => [{
+    id: 'obsidian-dg-abc12345', importSource: 'obsidian', obsidianBlockId: 'abc12345',
+    obsidianRawTitle: 'Vault task', title: 'Vault task #obsidian', obsidianFileDate: '2026-08-29',
+    completed: false, lastModified: '2026-08-20T00:00:00Z',
+  }];
+  const opts = (extra = {}) => ({
+    existingTasks: [], existingInbox: owner(), dailyNotesPath: 'Daily', dailyNotePattern: 'yyyy-MM-dd',
+    knownDailyNotes: { '2026-08-29': { text: OWNER_TEXT } },
+    ...extra,
+  });
+  const obs = (date, content) => ({ path: `Daily/${date}.md`, content, mtime: 1756400000000, observedAt: '2026-08-30T12:00:00Z' });
+
+  it('a copy-pasted line observed in ANOTHER note, alone in its batch, falls through as untagged: the owner keeps the token', () => {
+    const out = applyBridgeObservations([obs('2026-08-30', COPY_TEXT)], opts());
+    const copies = [...out.scheduledTasks, ...out.inboxTasks];
+    expect(copies).toHaveLength(1);
+    expect(copies[0].obsidianBlockId).toBeUndefined();
+    expect(copies[0].id).not.toBe('obsidian-dg-abc12345');
+    expect(copies[0].obsidianFileDate).toBe('2026-08-30');
+  });
+
+  it('both notes in one batch, the copy FIRST in batch order: the owner still wins (no order dependence)', () => {
+    const out = applyBridgeObservations([obs('2026-08-30', COPY_TEXT), obs('2026-08-29', OWNER_TEXT)], opts());
+    const all = [...out.scheduledTasks, ...out.inboxTasks];
+    const tagged = all.filter((t) => t.obsidianBlockId === 'abc12345');
+    expect(tagged).toHaveLength(1);
+    expect(tagged[0].obsidianFileDate).toBe('2026-08-29');
+    expect(all.find((t) => t.obsidianFileDate === '2026-08-30').obsidianBlockId).toBeUndefined();
+  });
+
+  it('a line CUT from the owner and pasted elsewhere re-homes the identity: the stored owner text no longer carries the token', () => {
+    const out = applyBridgeObservations([obs('2026-08-30', COPY_TEXT)], opts({ knownDailyNotes: { '2026-08-29': { text: '## Tasks\n' } } }));
+    const all = [...out.scheduledTasks, ...out.inboxTasks];
+    expect(all).toHaveLength(1);
+    expect(all[0].obsidianBlockId).toBe('abc12345');
+    expect(all[0].id).toBe('obsidian-dg-abc12345');
+  });
+
+  it('a renamed daily note whose old date was already consumed (no stored text) re-homes the identity too', () => {
+    const out = applyBridgeObservations([obs('2026-08-30', COPY_TEXT)], opts({ knownDailyNotes: {} }));
+    expect([...out.scheduledTasks, ...out.inboxTasks][0].obsidianBlockId).toBe('abc12345');
+  });
+
+  it('a token owned by a SCOPED note outside the batch is not asserted from memory (no stored text to check)', () => {
+    const scopedOwner = [{ ...owner()[0], obsidianFileDate: undefined, obsidianNotePath: 'Projects/House.md' }];
+    const out = applyBridgeObservations([obs('2026-08-30', COPY_TEXT)], opts({ existingInbox: scopedOwner, knownDailyNotes: {} }));
+    expect([...out.scheduledTasks, ...out.inboxTasks][0].obsidianBlockId).toBe('abc12345');
+  });
+});
+
 describe('applyBridgeObservations — vault task scope (companion §6)', () => {
   const HOUSE = [
     '# House',

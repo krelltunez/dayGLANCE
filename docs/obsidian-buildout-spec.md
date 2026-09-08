@@ -243,7 +243,7 @@ If the bridge plugin is present and paired to GLANCEvault on a device, the plugi
 
 *The reasoning.* A device's vault copy is only fresh while Obsidian is running. Obsidian Sync does not run in the background on mobile, and not at all on a closed desktop. So direct scanning on a stale heartbeat was never reading current data — it was reading a snapshot from whenever Obsidian last had focus and treating it as authoritative. That looked like a capability and was actually a source of confidently wrong data. The evidence is specific: the Mac completed a task at 19:33:33, an Android with Obsidian backgrounded re-stamped the uncompleted copy at 19:36:55 from its stale line, and the fabricated timestamp won — a real edit lost to a stale file. The phantom re-stamp itself is fixed (Phase 7's 2026-09-06 record: the field carry by exclusion), but a stale copy still re-creates lines the fleet deleted and tombstones lines the fleet added — the 24-row resupply storm — and only the posture change stops that. *What is lost:* nothing a user notices. Obsidian edits still reach dayGLANCE through the stream while Obsidian is open anywhere; dayGLANCE edits still queue as intents and apply when Obsidian next opens, which is what mobile always did.
 
-*The status line* (both bridge panels, `utils/bridgeStatus.js` state `waiting`, neutral colour — nothing is broken): "Vault changes will apply the next time Obsidian runs here. Tasks keep syncing through the Plugin Bridge in the meantime." with "Obsidian last ran here 3 hours ago." beneath it from the stale beat's own timestamp, or "Obsidian has not run with the plugin on this device yet." when there is no beat. A count of pending intents was considered and skipped as more than a small addition: the local outbox flushes to the stream at once, so the honest count is the live `int:` rows on the stream, which is a list request per render, and "not yet applied" is per-plugin-copy, not per-device.
+*The status line* (both bridge panels, `utils/bridgeStatus.js` state `waiting`, neutral colour — nothing is broken): "Obsidian is not running on this device. Your tasks still sync between devices as usual. Edits that touch your notes are queued and written to the vault when Obsidian runs with the bridge plugin on any paired device." with "Obsidian last synced here 3 hours ago." beneath it from the stale beat's own timestamp, or "Obsidian has not synced with the plugin on this device yet." when there is no beat. *(Reworded 2026-09-08. The first wording said "through the Plugin Bridge", which is the Settings section's name and so read as "through the plugin on this device", the one thing not running; and "the next time Obsidian runs here" was wrong whenever another paired device's Obsidian was running, which applies the edits within seconds. The sync toast in this posture says "Syncing tasks…" and "Tasks synced" for the same reason: the cycle is not syncing this device's vault.)* A count of pending intents was considered and skipped as more than a small addition: the local outbox flushes to the stream at once, so the honest count is the live `int:` rows on the stream, which is a list request per render, and "not yet applied" is per-plugin-copy, not per-device.
 
 *Unpaired devices — a deliberate answer, not an omission.* The ruling says *paired* because a paired device has the stream to fall back on. An unpaired vault has the same stale-copy exposure and no alternative path: nothing reports notes and nothing applies intents. It keeps today's behavior — the frozen direct-access tier (§3.9; the companion spec's scope) scans and writes its own copy — because a device converging on the copy it has beats a device with Obsidian sync stopped entirely, and the remedy for an unpaired stale copy is pairing. A plugin that is *running* here but not paired here (the lost-credentials middle state above) also stays direct: its heartbeat is fresh, so its copy is fresh, and the panel already flags the split for remediation.
 
@@ -743,13 +743,22 @@ Not a phase. Submit the plugin to the Obsidian community directory once Phases 6
 - **Phase 8 scope.** RESOLVED (2026-09-01) — scoped in
   `obsidian-companion-spec.md`: plugin-first, direct access frozen at
   feature-complete, read-write scan scope deferred to its own phase.
-- **A time typed by hand in Obsidian onto an inbox task (2026-09-06).** Today
-  it is silently ignored until the app schedules the task: the time prefix
-  is not a field the vault-edit adoption (§3.10 ruling 2) covers, and the
-  user-move rule keeps the copy in the inbox. Should it schedule the task
-  (adopt a time the vault demonstrably added since the last observation),
-  or be visibly refused? Either is defensible; silence is not. Awaiting a
-  ruling.
+- **A time typed by hand in Obsidian onto an inbox task (2026-09-06).**
+  RESOLVED 2026-09-08: it schedules the task. The user-move rule kept every
+  timed line meeting an inbox copy in the inbox because one such line is a
+  stale read, the line still carrying the time dayGLANCE itself just
+  removed before its writeback landed. That one case is now told apart by
+  a record rather than by refusing them all: the move to the inbox writes
+  the removed time onto the copy (`obsidianClearedTime`, `utils/inboxMove.js`,
+  shared by every move-to-inbox path); a line still carrying exactly that
+  time stays in the inbox, byte-identical; a line carrying any other time
+  is the vault's own statement and schedules the task onto the line's date
+  and time, stamped as a real edit so the scheduled copy outranks the inbox
+  copy fleet-wide. The marker is spent when the line is next observed
+  without a time, and is not a compared field, so spending it re-stamps
+  nothing. A date-only line is still dayGLANCE's own reschedule channel
+  and still respects the move. Pinned in `obsidian.inboxRecord.test.js`
+  and harness scenario 17.
 - **Stale-copy posture on a paired device (2026-09-06).** RESOLVED the same
   day — the posture ruling recorded in §3.2: a paired device with a stale
   heartbeat neither scans nor writes the vault, keeps reading the stream,

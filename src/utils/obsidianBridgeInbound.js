@@ -36,6 +36,7 @@ import {
   BRIDGE_OBSERVATION_PREFIX,
   BRIDGE_ACTION_PREFIX,
   completedSinceFor,
+  noteKeyForPath,
 } from '@glance-apps/obsidian-format';
 import {
   buildExistingObsidianTaskContext,
@@ -190,6 +191,35 @@ export async function pendingBridgeObservations() {
  * on demand; deletions — see the module header) is left to the caller via
  * the `unapplied` list.
  */
+/** The note key an observation parses under: a daily note's date, a scoped
+ *  note's path key, or null when the observation carries no note. Mirrors
+ *  the derivation inside applyBridgeObservations exactly. */
+function observationNoteKey(obs, { folderPrefix, isDefaultPattern, dateParser }) {
+  if (!obs || obs.link) return null;
+  if (obs.scoped || obs.withdrawn) return noteKeyForPath(obs.path);
+  const path = String(obs.path || '');
+  if (folderPrefix ? !path.startsWith(folderPrefix) : path.includes('/')) return null;
+  const name = path.slice(folderPrefix.length);
+  if (isDefaultPattern) return /^\d{4}-\d{2}-\d{2}\.md$/.test(name) ? name.slice(0, -3) : null;
+  return name.endsWith('.md') ? (parseDateFromFilename(name, dateParser) || null) : null;
+}
+
+/** token → the note key of the task that currently owns it, from the app's
+ *  Obsidian tasks (a daily note's date or a scoped note's path key). */
+function ownedTokenNotes(existingTasks, existingInbox) {
+  const owner = new Map();
+  for (const t of [...(existingTasks || []), ...(existingInbox || [])]) {
+    if (!t || t.importSource !== 'obsidian' || !t.obsidianBlockId) continue;
+    const key = t.obsidianNotePath || t.obsidianFileDate;
+    if (key) owner.set(String(t.obsidianBlockId), String(key));
+  }
+  return owner;
+}
+
+function readKnownDailyNotes() {
+  try { return JSON.parse(localStorage.getItem('day-planner-daily-notes') || '{}'); } catch { return {}; }
+}
+
 export function applyBridgeObservations(observations, {
   existingTasks, existingInbox, dailyNotesPath = '', dailyNotePattern = 'yyyy-MM-dd', onTitleConflict = null,
   // VAULT TASK SCOPE (companion §6): the plugin flags a non-daily note in
@@ -206,6 +236,11 @@ export function applyBridgeObservations(observations, {
   // (companion §4.3, ruling G as amended): on first import and on a vault
   // edit of the field.
   projects = null,
+  // The app's stored daily notes (date → { text }), the last text observed
+  // for each. The duplicate-token dedupe below reads them to tell whether a
+  // note NOT in this batch still carries a token; defaults to the app's own
+  // store so every caller sees the same vault.
+  knownDailyNotes = null,
 }) {
   const dailyNotes = {};
   const scopedNotes = {}; // path → { lastModified, deleted? } for scoped (non-daily) notes in this batch
@@ -234,9 +269,43 @@ export function applyBridgeObservations(observations, {
   const isDefaultPattern = !dailyNotePattern || dailyNotePattern === 'yyyy-MM-dd';
   const dateParser = isDefaultPattern ? null : buildDateParser(dailyNotePattern);
   const folderPrefix = dailyNotesPath ? `${dailyNotesPath.replace(/\/+$/, '')}/` : '';
-  const seenBlockIds = new Set();
+  const noteKeyOf = (obs) => observationNoteKey(obs, { folderPrefix, isDefaultPattern, dateParser });
 
-  for (const obs of observations) {
+  // DUPLICATE-TOKEN DEDUPE, VAULT-WIDE (audit low, 2026-08-31). A `^dg-`
+  // token names ONE line; when a line is copy-pasted with its token, the
+  // parser lets the first occurrence keep it and the copy falls through as
+  // untagged. A scan reads every note in one pass, so "first" is stable.
+  // The stream reads notes one observation at a time, and `seenBlockIds`
+  // was fresh per batch: whichever note happened to be in the batch won,
+  // so the token's owner flip-flopped between observations and the two
+  // lines traded identity. Two rules restore the scan's answer:
+  //   1. The EXISTING owner keeps its token. Its note goes first within a
+  //      batch, and when its note is not in the batch at all, the token is
+  //      pre-seeded as taken — but only when the app's last observed text
+  //      of that note demonstrably still carries the token, so a line CUT
+  //      from one note and pasted into another, or a note renamed with the
+  //      old path's deletion arriving a batch earlier, still re-homes the
+  //      identity (the stored text no longer has it, or the note is gone).
+  //   2. Only daily notes back the pre-seed: their text is stored; a scoped
+  //      note's is not, so a token owned by a scoped note outside the batch
+  //      is not asserted from memory (the rename-split hazard outweighs it).
+  const ownerByToken = ownedTokenNotes(existingTasks, existingInbox);
+  const knownNotes = knownDailyNotes ?? readKnownDailyNotes();
+  const batchKeys = new Set(observations.map(noteKeyOf).filter(Boolean));
+  const seenBlockIds = new Set();
+  for (const [token, owner] of ownerByToken) {
+    if (batchKeys.has(owner)) continue;
+    const text = knownNotes?.[owner]?.text;
+    if (typeof text === 'string' && text.includes(`^dg-${token}`)) seenBlockIds.add(token);
+  }
+  const ownerNotes = new Set(ownerByToken.values());
+  const ordered = [...observations].sort((a, b) => {
+    const ao = ownerNotes.has(noteKeyOf(a)) ? 0 : 1;
+    const bo = ownerNotes.has(noteKeyOf(b)) ? 0 : 1;
+    return ao - bo; // stable: owners first, batch order otherwise
+  });
+
+  for (const obs of ordered) {
     if (obs.link) {
       if (typeof obs.targetId === 'string' && obs.targetId) {
         links.push({

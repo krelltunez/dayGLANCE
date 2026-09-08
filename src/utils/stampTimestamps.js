@@ -32,7 +32,10 @@
 // re-stamped a scheduled task on every phone that scanned a stale vault copy,
 // and the fabricated stamp outranked a real completion made elsewhere.
 function normalizeField(task) {
-  const { lastModified: _omit, ...rest } = task;
+  // obsidianClearedTime is bookkeeping for the inbox merge (utils/inboxMove.js):
+  // set by the move that already stamps, and cleared when the line is next
+  // observed untimed. Clearing it is not an edit anyone should out-rank.
+  const { lastModified: _omit, obsidianClearedTime: _marker, ...rest } = task;
   return { ...rest, notes: rest.notes ?? '', subtasks: rest.subtasks ?? [], archived: rest.archived ?? false, priority: rest.priority ?? 0 };
 }
 

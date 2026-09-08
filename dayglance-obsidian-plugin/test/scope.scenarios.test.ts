@@ -62,6 +62,7 @@ vi.mock('../../src/utils/obsidianBridgeMode.js', () => ({
 const { createScenario, VAULT_URL, ACCOUNT_ID, until, advanceFake } = await import('./harness');
 const { default: useObsidianSync } = await import('../../src/hooks/useObsidianSync.js');
 const { flushBridgeOutbox, emitBridgeIntent, __resetBridgeStreamForTests } = await import('../../src/utils/obsidianBridgeStream.js');
+const { toInboxCopy } = await import('../../src/utils/inboxMove.js');
 const { PROJECT_NOTE_ID_KEY, BRIDGE_PAIRING_META_ID, BRIDGE_VAULT_APP } = await import('@glance-apps/obsidian-format');
 void PROJECT_NOTE_ID_KEY;
 
@@ -89,7 +90,7 @@ function mountDevice(name: string) {
   };
 
   ls.setItem('dayglance-vault-config', JSON.stringify({ enabled: true, vaultUrl: VAULT_URL, vaultToken: `token-${name}`, accountId: ACCOUNT_ID }));
-  const state = { tasks: [] as Task[], inbox: [] as Task[], recycleBin: [] as Task[] };
+  const state = { tasks: [] as Task[], inbox: [] as Task[], recycleBin: [] as Task[], dailyNotes: {} as Record<string, { text?: string; lastModified?: string }> };
   const log: string[] = [];
   const tasksRef = { current: state.tasks };
   const inboxRef = { current: state.inbox };
@@ -99,6 +100,13 @@ function mountDevice(name: string) {
   const setTasks = (up: Task[] | ((p: Task[]) => Task[])) => { replace(state.tasks, typeof up === 'function' ? up([...state.tasks]) : up); };
   const setUnscheduledTasks = (up: Task[] | ((p: Task[]) => Task[])) => { replace(state.inbox, typeof up === 'function' ? up([...state.inbox]) : up); };
   const setRecycleBin = (up: Task[] | ((p: Task[]) => Task[])) => { state.recycleBin = typeof up === 'function' ? up(state.recycleBin) : up; };
+  // Daily notes are kept as a map mutated IN PLACE (like the task arrays) so
+  // the hook's captured reference always reads the current texts.
+  const setDailyNotes = (up: Record<string, unknown> | ((p: Record<string, unknown>) => Record<string, unknown>)) => {
+    const next = typeof up === 'function' ? up({ ...state.dailyNotes }) : up;
+    for (const k of Object.keys(state.dailyNotes)) delete state.dailyNotes[k];
+    Object.assign(state.dailyNotes, next || {});
+  };
   const syncRef = { current: false };
   const prevRef = { current: {} as Record<string, unknown> };
   effects.length = 0;
@@ -107,7 +115,7 @@ function mountDevice(name: string) {
     isTrayMode: false, dataLoaded: true,
     tasks: state.tasks, setTasks,
     unscheduledTasks: state.inbox, setUnscheduledTasks,
-    setDailyNotes: vi.fn(), setWikilinkCandidates: vi.fn(), setUnportableVaultFiles: vi.fn(),
+    dailyNotes: state.dailyNotes, setDailyNotes, setWikilinkCandidates: vi.fn(), setUnportableVaultFiles: vi.fn(),
     obsidianConfig: { enabled: true, dailyNotesPath: 'Daily', dailyNotePattern: 'yyyy-MM-dd', taskHeading: '## Tasks' },
     setObsidianConfig: vi.fn(), obsidianLaunchOnWrite: null,
     obsidianCompletionDates: false,
@@ -144,9 +152,8 @@ function mountDevice(name: string) {
     unschedule: (id: string) => {
       const t = state.tasks.find((x) => x.id === id);
       if (!t) throw new Error(`no task ${id}`);
-      const { date: _d, isAllDay: _a, startTime: _s, ...rest } = t;
       setTasks((p) => p.filter((x) => x.id !== id));
-      setUnscheduledTasks((p) => [...p, { ...rest, lastModified: new Date().toISOString() }]);
+      setUnscheduledTasks((p) => [...p, toInboxCopy(t)]);
     },
     patch: (id: string, fields: Task) => {
       const bump = (list: Task[]) => list.map((x) => (x.id === id ? { ...x, ...fields, lastModified: new Date().toISOString() } : x));
@@ -498,6 +505,76 @@ describe('vault task scope, end to end', () => {
     expect(mine[0].title).toContain(LINE);            // the import tag follows as usual
     expect(mine[0].title).not.toMatch(/\r/);          // no '\r' rode into the title
     expect(A.state.inbox).toHaveLength(1);
+  });
+
+  it('16. a stamped line copy-pasted into a second daily note keeps its identity on the original; the copy is a separate task, in either observation order (audit low, 2026-08-31)', async () => {
+    await bootWithScopedNote();
+    const D1 = 'Daily/2026-09-04.md';
+    const D2 = 'Daily/2026-09-05.md';
+    await s.write(D1, '## Tasks\n- [ ] Water the plants\n');
+    await s.settle();
+    await A.sync();
+    const original = A.all().find((t) => /Water the plants/.test(t.title))!;
+    expect(original.obsidianFileDate).toBe('2026-09-04');
+    const token = s.text(D1)!.match(/\^dg-([a-z0-9]{8})/)![1];
+    expect(original.id).toBe(`obsidian-dg-${token}`);
+    // Copy the stamped line, token and all, into the next day's note. D1 is
+    // untouched, so only D2 is observed: the batch never contains the owner.
+    await s.write(D2, `## Tasks\n- [ ] Water the plants ^dg-${token}\n`);
+    await s.settle();
+    await A.sync();
+    const keeper = A.all().find((t) => t.id === original.id)!;
+    expect(keeper.obsidianFileDate).toBe('2026-09-04');   // identity stayed home
+    const copies = A.all().filter((t) => /Water the plants/.test(t.title));
+    expect(copies).toHaveLength(2);                        // the copy is its own task
+    expect(copies.find((t) => t.id !== original.id)!.obsidianFileDate).toBe('2026-09-05');
+    // A later edit to D1 alone re-observes the owner: nothing changes hands.
+    await s.write(D1, `## Tasks\n- [ ] Water the plants ^dg-${token}\n- [ ] Buy soil\n`);
+    await s.settle();
+    await A.sync();
+    expect(A.all().find((t) => t.id === original.id)!.obsidianFileDate).toBe('2026-09-04');
+    expect(A.all().filter((t) => /Water the plants/.test(t.title))).toHaveLength(2);
+  });
+
+  it('17. THE §8 RULING (2026-09-08): a time typed onto an inbox task in Obsidian schedules it; the stale read of a time dayGLANCE just removed does not', async () => {
+    await bootWithScopedNote();
+    const DAILY = 'Daily/2026-09-06.md';
+    await s.write(DAILY, '## Tasks\n- [ ] Water the plants\n');
+    await s.settle();
+    await A.sync();
+    const task = A.all().find((t) => /Water the plants/.test(t.title))!;
+    expect(A.state.inbox.map((t) => t.id)).toContain(task.id);
+    const token = s.text(DAILY)!.match(/\^dg-([a-z0-9]{8})/)![1];
+    // (a) The user types a time onto the line in Obsidian.
+    await s.write(DAILY, `## Tasks\n- [ ] 09:00 Water the plants ^dg-${token}\n`);
+    await s.settle();
+    await A.sync();
+    expect(A.state.inbox.map((t) => t.id)).not.toContain(task.id);
+    expect(A.state.tasks.find((t) => t.id === task.id)).toMatchObject({ date: '2026-09-06', startTime: '09:00', isAllDay: false });
+    // (b) dayGLANCE moves it back to the inbox. Before that writeback lands
+    // the note is re-observed for an unrelated edit, still carrying 09:00:
+    // the observation is emitted first (settle), then the writeback is
+    // flushed but not yet applied (no plugin drain), then the app syncs.
+    A.unschedule(task.id);
+    expect(A.state.inbox.find((t) => t.id === task.id)!.obsidianClearedTime).toBe('09:00');
+    await s.write(DAILY, `## Tasks\n- [ ] 09:00 Water the plants ^dg-${token}\n- [ ] Buy soil\n`);
+    await s.settle();
+    await A.writeback();
+    await A.sync();
+    expect(A.state.inbox.map((t) => t.id)).toContain(task.id);   // the stale read did not reschedule it
+    expect(A.state.inbox.find((t) => t.id === task.id)!.obsidianClearedTime).toBe('09:00');
+    // (c) The writeback lands: the line loses its time, the marker is spent.
+    await s.plugin.transport.drain();
+    expect(s.text(DAILY)).toMatch(/- \[ \] Water the plants \^dg-/);
+    await s.settle();
+    await A.sync();
+    expect(A.state.inbox.map((t) => t.id)).toContain(task.id);
+    expect(A.state.inbox.find((t) => t.id === task.id)!.obsidianClearedTime).toBeUndefined();
+    // (d) A different time typed later schedules it again.
+    await s.write(DAILY, s.text(DAILY)!.replace('- [ ] Water the plants', '- [ ] 14:30 Water the plants'));
+    await s.settle();
+    await A.sync();
+    expect(A.state.tasks.find((t) => t.id === task.id)).toMatchObject({ startTime: '14:30', date: '2026-09-06' });
   });
 
   it('18. the dead-stream toast is damped: one unreadable inbound read warns only, the second in a row shows it, a good read clears the count (2026-09-08)', async () => {

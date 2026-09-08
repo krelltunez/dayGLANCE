@@ -250,7 +250,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
         void Promise.all([this.transport.drain(), this.writeHeartbeat()]).then(() => {
           new Notice(this.data.pairing
             ? 'dayGLANCE bridge: synced.'
-            : 'dayGLANCE bridge: heartbeat refreshed (not paired — nothing to sync).');
+            : 'dayGLANCE bridge: heartbeat refreshed (not paired, nothing to sync).');
         });
       },
     });
@@ -402,7 +402,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
     await this.saveData(this.data);
     this.transport.recordOwnSeq(await publishPairingMeta(null, previous).catch(() => null));
     await this.writeHeartbeat();
-    new Notice('dayGLANCE bridge: unpaired. Also revoke the device token on your GLANCEvault server — unpairing only forgets the local credentials.');
+    new Notice('dayGLANCE bridge: unpaired. Also revoke the device token on your GLANCEvault server. Unpairing only forgets the local credentials.');
   }
 
   // ── Bridge bookkeeping: per copy where the platform allows (localState.ts) ──
@@ -515,7 +515,7 @@ export default class DayGlanceBridgePlugin extends Plugin {
       }
       if (this.offerNoticed) return;
       this.offerNoticed = true;
-      new Notice('dayGLANCE bridge: pairing offer found — enter the code in Settings → dayGLANCE Bridge.');
+      new Notice('dayGLANCE bridge: pairing offer found. Enter the code in Settings → dayGLANCE Bridge.');
     } catch {
       /* a nudge must never surface errors */
     }
