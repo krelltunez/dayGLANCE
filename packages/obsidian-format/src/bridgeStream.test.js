@@ -294,6 +294,67 @@ describe('applyBridgeIntent — note tasks (companion §4.3, project routing)', 
 // Every point that CREATES a daily note renders the app's text template
 // through the same subset — `{{date}}`, and `{{title}}` as the note's name
 // — so a template reads the same wherever the note is born.
+describe('applyBridgeIntent — CRLF notes (format-package audit low, 2026-09-06, follow-up)', () => {
+  // The four line-editing branches used to split on a bare LF and join with
+  // LF: on a Windows-ended note every line kept a dangling '\r' for the
+  // comparisons, and the rewritten note came back with mixed endings.
+  const crlf = (lf) => lf.replace(/\n/g, '\r\n');
+  const bareLf = (text) => /[^\r]\n/.test(text) || text.startsWith('\n');
+  const NOTE = crlf('# Day\n\n## Tasks\n- [ ] 09:00 Write report ^dg-abc12345\n- [ ] Other\n');
+  const stateIntent = {
+    type: 'task_state', path: '2026-08-29.md', date: '2026-08-29',
+    obsidianRawTitle: 'Write report', completed: true, startTime: '09:00',
+    duration: null, taskHeading: '## Tasks', blockId: 'abc12345',
+    completedAt: null, completionFormat: null,
+  };
+  const appendIntent = {
+    type: 'task_append', path: '2026-08-29.md', date: '2026-08-29',
+    task: { title: 'New thing #obsidian', startTime: null, duration: null, isAllDay: true, date: '2026-08-29', blockId: 'def67890' },
+    heading: '## Tasks', template: '# My day\n',
+  };
+
+  it('task_state finds the line behind the CR, marks it, and re-joins with CRLF; replay is a no-op', () => {
+    const out = applyBridgeIntent(NOTE, stateIntent);
+    expect(out.changed).toBe(true);
+    expect(out.text).toContain('- [x] 09:00 Write report ^dg-abc12345\r\n');
+    expect(bareLf(out.text)).toBe(false);
+    expect(applyBridgeIntent(out.text, stateIntent).changed).toBe(false);
+  });
+
+  it('task_append inserts a CRLF line under the heading, sorts within the section, and dedupes on replay', () => {
+    const out = applyBridgeIntent(NOTE, appendIntent);
+    expect(out.changed).toBe(true);
+    expect(out.text).toContain('- [ ] New thing #obsidian ^dg-def67890\r\n');
+    expect(bareLf(out.text)).toBe(false);
+    expect(applyBridgeIntent(out.text, appendIntent).changed).toBe(false);
+  });
+
+  it('task_remove matches the block id behind the CR and leaves the rest CRLF', () => {
+    const out = applyBridgeIntent(NOTE, { type: 'task_remove', path: '2026-08-29.md', blockId: 'abc12345', obsidianRawTitle: 'Write report' });
+    expect(out.changed).toBe(true);
+    expect(out.text).not.toContain('Write report');
+    expect(out.text).toContain('- [ ] Other\r\n');
+    expect(bareLf(out.text)).toBe(false);
+    expect(applyBridgeIntent(out.text, { type: 'task_remove', path: '2026-08-29.md', blockId: 'abc12345' }).changed).toBe(false);
+  });
+
+  it('completion_log_append lands under its heading in CRLF and dedupes on replay', () => {
+    const intent = { type: 'completion_log_append', path: '2026-08-29.md', date: '2026-08-29', heading: '## Completed', entry: '- ✅ 12:30 Write report', template: '' };
+    const out = applyBridgeIntent(NOTE, intent);
+    expect(out.changed).toBe(true);
+    expect(out.text).toContain('## Completed\r\n- ✅ 12:30 Write report\r\n');
+    expect(bareLf(out.text)).toBe(false);
+    expect(applyBridgeIntent(out.text, intent).changed).toBe(false);
+  });
+
+  it('an LF note is untouched by the change: same output as before, LF throughout', () => {
+    const lf = '# Day\n\n## Tasks\n- [ ] 09:00 Write report ^dg-abc12345\n- [ ] Other\n';
+    const out = applyBridgeIntent(lf, appendIntent);
+    expect(out.text).not.toContain('\r');
+    expect(out.text).toContain('- [ ] New thing #obsidian ^dg-def67890\n');
+  });
+});
+
 describe('dailyNoteCreationBody / creation through the two daily-note intents', () => {
   it('fills {{date}} and {{title}} (the note name from the path, else the date) and adds the creation frontmatter', () => {
     const body = dailyNoteCreationBody('# {{title}}\n\nToday is {{date}}.\n', '2026-09-10', 'Daily/2026-09-10.md');

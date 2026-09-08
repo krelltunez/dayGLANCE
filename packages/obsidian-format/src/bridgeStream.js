@@ -69,7 +69,7 @@
 // is the crash story — an applier that dies between applying a batch and
 // persisting its applied-ID set simply re-applies as no-ops.
 
-import { updateTaskLines, sortTaskLinesInSection, buildObsidianTaskLine } from './taskLines.js';
+import { updateTaskLines, sortTaskLinesInSection, buildObsidianTaskLine, splitNoteLines } from './taskLines.js';
 import { splitBlockId } from './identity.js';
 import { withCreationFrontmatter } from './frontmatter.js';
 import { renderNoteTemplateSubset } from './projectNotes.js';
@@ -261,7 +261,10 @@ export function applyBridgeIntent(currentText, intent) {
       // stays with dayGLANCE's scan-time policy, which sees the resulting
       // line like any other vault edit.
       if (currentText === null) return { text: null, changed: false };
-      const lines = currentText.split('\n');
+      // Every branch splits and re-joins with the note's OWN line ending
+      // (splitNoteLines): a CRLF note stays CRLF, and no line compares
+      // against a dangling '\r' (format-package audit low, 2026-09-06).
+      const { lines, eol } = splitNoteLines(currentText);
       const updated = updateTaskLines(lines, {
         obsidianRawTitle: intent.obsidianRawTitle,
         completed: intent.completed,
@@ -279,7 +282,7 @@ export function applyBridgeIntent(currentText, intent) {
       const finalLines = intent.taskHeading
         ? sortTaskLinesInSection(lines, intent.taskHeading.trim(), intent.date)
         : lines;
-      const text = finalLines.join('\n');
+      const text = finalLines.join(eol);
       return { text, changed: text !== currentText };
     }
 
@@ -300,7 +303,7 @@ export function applyBridgeIntent(currentText, intent) {
       if (noteTask && currentText === null) return { text: null, changed: false };
       const taskLine = buildObsidianTaskLine(intent.task, intent.date);
       if (currentText !== null) {
-        const existingLines = currentText.split('\n');
+        const existingLines = splitNoteLines(currentText).lines;
         // Block ids are stored bare; the vault token is ^dg-<id> (identity.js).
         // THE REAL CONDITION is whether the line WE WOULD WRITE carries the
         // token (audit fix H3): buildObsidianTaskLine routes the token
@@ -325,7 +328,7 @@ export function applyBridgeIntent(currentText, intent) {
       const base = currentText !== null
         ? currentText
         : dailyNoteCreationBody(intent.template, intent.date, intent.path);
-      const lines = base.split('\n');
+      const { lines, eol } = splitNoteLines(base);
       const heading = intent.heading;
       if (heading && heading.trim()) {
         const headingStr = heading.trim();
@@ -351,7 +354,7 @@ export function applyBridgeIntent(currentText, intent) {
       const sorted = heading && heading.trim() && !noteTask
         ? sortTaskLinesInSection(lines, heading.trim(), intent.date)
         : lines;
-      return { text: sorted.join('\n'), changed: true };
+      return { text: sorted.join(eol), changed: true };
     }
 
     case 'task_remove': {
@@ -363,7 +366,7 @@ export function applyBridgeIntent(currentText, intent) {
       // the line goes; the section, its heading and its other lines are the
       // user's.
       if (currentText === null) return { text: null, changed: false };
-      const lines = currentText.split('\n');
+      const { lines, eol } = splitNoteLines(currentText);
       const wantId = intent.blockId ? String(intent.blockId) : null;
       const wantRaw = typeof intent.obsidianRawTitle === 'string' ? intent.obsidianRawTitle.trim() : null;
       const idx = lines.findIndex((line) => {
@@ -375,7 +378,7 @@ export function applyBridgeIntent(currentText, intent) {
       });
       if (idx === -1) return { text: currentText, changed: false };
       lines.splice(idx, 1);
-      return { text: lines.join('\n'), changed: true };
+      return { text: lines.join(eol), changed: true };
     }
 
     case 'completion_log_append': {
@@ -392,13 +395,13 @@ export function applyBridgeIntent(currentText, intent) {
       // formatter's guarantee; refuse rather than write it.
       if (!entry || entry.includes('\n')) return { text: currentText, changed: false };
       if (currentText !== null) {
-        const landed = currentText.split('\n').some((l) => l.trimEnd() === entry);
+        const landed = splitNoteLines(currentText).lines.some((l) => l.trimEnd() === entry);
         if (landed) return { text: currentText, changed: false };
       }
       const logBase = currentText !== null
         ? currentText
         : dailyNoteCreationBody(intent.template, intent.date, intent.path);
-      const logLines = logBase.split('\n');
+      const { lines: logLines, eol: logEol } = splitNoteLines(logBase);
       const logHeading = (intent.heading || '').trim();
       if (!logHeading) return { text: currentText, changed: false }; // the log always has a home
       const logHeadingIdx = logLines.findIndex((l) => l === logHeading);
@@ -419,7 +422,7 @@ export function applyBridgeIntent(currentText, intent) {
         }
         logLines.splice(insertAt, 0, entry);
       }
-      return { text: logLines.join('\n'), changed: true };
+      return { text: logLines.join(logEol), changed: true };
     }
 
     case 'daily_note_write': {

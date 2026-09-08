@@ -625,6 +625,38 @@ describe('vault task scope, end to end', () => {
     expect(A.state.dailyNotes['2026-09-08']!.lastModified).toBe(rec.lastModified);
   });
 
+  it('20. every intent the plugin applies to a CRLF note leaves it CRLF: state, append, completion log, remove (format-package audit low, follow-up)', async () => {
+    const lf = `# House\n\n- [ ] ${LINE}\n`;
+    await bootWithScopedNote(lf.replace(/\n/g, '\r\n'));
+    const noBareLf = (text: string) => !/[^\r]\n/.test(text) && !text.startsWith('\n');
+    const token = s.text(NOTE)!.match(/\^dg-([a-z0-9]{8})/)![1];
+    // (a) task_state through the real plugin applier.
+    await A.emit('task_state', { path: NOTE, blockId: token, obsidianRawTitle: LINE, completed: true });
+    await s.plugin.transport.drain();
+    expect(s.text(NOTE)).toMatch(/- \[x\] Call the plumber \^dg-[a-z0-9]{8}\r\n/);
+    expect(noBareLf(s.text(NOTE)!)).toBe(true);
+    // (b) task_append and (c) completion_log_append into a CRLF daily note.
+    const DAILY = 'Daily/2026-09-10.md';
+    await s.write(DAILY, '## Tasks\r\n- [ ] Existing\r\n\r\n## Completed\r\n');
+    await A.emit('task_append', {
+      path: DAILY, date: '2026-09-10', heading: '## Tasks', template: '',
+      task: { title: 'Water the plants #obsidian', startTime: null, duration: null, isAllDay: true, date: '2026-09-10', blockId: 'cr1f0001' },
+    });
+    await A.emit('completion_log_append', { path: DAILY, date: '2026-09-10', heading: '## Completed', entry: '- ✅ 09:00 Existing', template: '' });
+    await s.plugin.transport.drain();
+    const daily = s.text(DAILY)!;
+    expect(daily).toContain('- [ ] Water the plants #obsidian ^dg-cr1f0001\r\n');
+    expect(daily).toContain('## Completed\r\n- ✅ 09:00 Existing\r\n');
+    expect(noBareLf(daily)).toBe(true);
+    // (d) task_remove takes the line and nothing else.
+    await A.emit('task_remove', { path: DAILY, blockId: 'cr1f0001', obsidianRawTitle: 'Water the plants #obsidian' });
+    await s.plugin.transport.drain();
+    const after = s.text(DAILY)!;
+    expect(after).not.toContain('Water the plants');
+    expect(after).toContain('- [ ] Existing\r\n');
+    expect(noBareLf(after)).toBe(true);
+  });
+
   it('9. a plugin reload republishes the pairing meta WITH the scope (harness finding)', async () => {
     await bootWithScopedNote();
     s.plugin.reload();
