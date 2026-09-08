@@ -19,6 +19,7 @@ const IS_IOS = typeof navigator !== 'undefined' && (
 import SchedTaskCard from '../sched/SchedTaskCard.jsx';
 import HyperGlanceEditor from './HyperGlanceEditor.jsx';
 import RecurringSeriesRow from './RecurringSeriesRow.jsx';
+import { sortByProjectOrder, applyProjectReorder } from '../../utils/projectOrder.js';
 
 /**
  * PLANNER — a per-project planning dashboard, themed to the project's color.
@@ -113,7 +114,8 @@ const ProjectPlanner = ({ project, onClose }) => {
     }
     const completedScheduled = scheduled.filter(task => task.completed);
     if (showCompleted && completedScheduled.length) byDay.push({ dateStr: null, tasks: completedScheduled });
-    let inbox = mine(unscheduledTasks).sort((a, b) => (a.completed ? 1 : 0) - (b.completed ? 1 : 0));
+    // projectOrder first (utils/projectOrder.js), then completed last; both sorts are stable.
+    let inbox = sortByProjectOrder(mine(unscheduledTasks)).sort((a, b) => (a.completed ? 1 : 0) - (b.completed ? 1 : 0));
     if (!showCompleted) inbox = inbox.filter(task => !task.completed);
     return { scheduledDays: byDay, unscheduled: inbox };
   }, [tasks, unscheduledTasks, project.id, isVisibleForUser, showCompleted]);
@@ -144,15 +146,13 @@ const ProjectPlanner = ({ project, onClose }) => {
   const incompleteUnscheduled = unscheduled.filter(task => !task.completed);
 
   const applyReorder = (fromIdx, toIdx) => {
-    const fromId = incompleteUnscheduled[fromIdx]?.id;
-    const toId = incompleteUnscheduled[toIdx]?.id;
-    if (!fromId || !toId) return;
-    const next = [...unscheduledTasks];
-    const fromFull = next.findIndex(task => task.id === fromId);
-    const toFull = next.findIndex(task => task.id === toId);
-    const [moved] = next.splice(fromFull, 1);
-    next.splice(toFull, 0, moved);
-    reorderUnscheduledTasks(next);
+    const ordered = incompleteUnscheduled.map(task => task.id);
+    if (!ordered[fromIdx] || !ordered[toIdx]) return;
+    const [moved] = ordered.splice(fromIdx, 1);
+    ordered.splice(toIdx, 0, moved);
+    // A field on each task (utils/projectOrder.js): syncs on both tiers and
+    // survives the Obsidian cycle. Array positions move too, as before.
+    reorderUnscheduledTasks(applyProjectReorder(unscheduledTasks, ordered));
   };
 
   const handleDragStart = (e, idx) => {

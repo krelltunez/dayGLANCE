@@ -38,6 +38,13 @@ describe('mergeObsidianTasks', () => {
     expect(out[0].completedAt).toBe('2026-06-01');
   });
 
+  it('carries projectOrder across a re-parse (the project card order is a task field, 2026-09-08)', () => {
+    const prev = [obs('a', { projectId: 'p1', projectOrder: 20 })];
+    const out = mergeObsidianTasks(prev, [obs('a')], new Set(['a']), preserveObsidianAppFields);
+    expect(out[0].projectOrder).toBe(20);
+    expect(out[0].projectId).toBe('p1');
+  });
+
   it('passes non-Obsidian tasks through untouched and never retains them', () => {
     const prev = [plain('p1'), obs('a'), plain('p2')];
     const out = mergeObsidianTasks(prev, [], new Set(), preserve);
