@@ -515,6 +515,13 @@ describe('AUDIT low — a plugin-mode cycle with no inbound is not a successful 
       await h.api.performObsidianSync();
       expect(h.setters.setObsidianLastSynced).not.toHaveBeenCalled();
       expect(store.get('day-planner-obsidian-last-synced')).toBeUndefined();
+      // DAMPED (2026-09-08, utils/bridgeInboundPolicy.js): one failed read is a
+      // console warning, not a toast; the second in a row shows the state.
+      expect(h.setters.setObsidianSyncError).not.toHaveBeenCalled();
+      expect(h.setters.setObsidianSyncStatus).not.toHaveBeenCalledWith('error');
+      expect(h.setters.setObsidianSyncStatus).not.toHaveBeenCalledWith('success');
+      await h.api.performObsidianSync();
+      expect(h.setters.setObsidianLastSynced).not.toHaveBeenCalled();
       expect(h.setters.setObsidianSyncError).toHaveBeenCalledWith(BRIDGE_INBOUND_UNAVAILABLE_ERROR);
       expect(h.setters.setObsidianSyncStatus).toHaveBeenCalledWith('error');
       expect(h.setters.setObsidianSyncStatus).not.toHaveBeenCalledWith('success');

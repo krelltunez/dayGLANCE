@@ -24,6 +24,7 @@ import { detectObsidianDeletions, addObsidianTombstones, commitObsidianTombstone
 import { reattachTasksMetadata } from '../utils/obsidianTasksMetadata.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
 import { vaultPosture, isStreamPosture } from '../utils/obsidianVaultPosture.js';
+import { inboundFailureNotice } from '../utils/bridgeInboundPolicy.js';
 import { planNoteLinkUpdates, normalizeNotePath, projectByNotePath, projectRefFor } from '../utils/obsidianProjectNotes.js';
 import {
   readRetiredTaskIds,
@@ -329,6 +330,10 @@ export default function useObsidianSync({
   // main, Android ObsidianRepository) do their own freshness reads at
   // fire/arm time, where the answer is current rather than up to a scan old.
   const bridgeHeartbeatRef = useRef({ obsidianRunning: false, pluginAuthoritative: false });
+  // Consecutive plugin-mode cycles whose inbound fetch produced nothing
+  // (utils/bridgeInboundPolicy.js): the dead-stream toast shows on the
+  // second, a key-pending hold counts as nothing, a successful fetch resets.
+  const inboundFailuresRef = useRef(0);
   // The ref carries the heartbeat's own state PLUS the cycle's posture
   // decision (utils/obsidianVaultPosture.js): every arbitration site reads
   // isStreamPosture(bridgeHeartbeatRef.current), never pluginAuthoritative
@@ -711,6 +716,7 @@ export default function useObsidianSync({
         // crash mid-cycle replays the batch — application is idempotent.
         const fetched = await fetchBridgeObservations();
         if (fetched) {
+          inboundFailuresRef.current = 0;
           const applied = fetched.observations.length
             ? applyBridgeObservations(fetched.observations, {
                 existingTasks: currentTasks,
@@ -922,10 +928,18 @@ export default function useObsidianSync({
           // used to finish green. The next successful cycle clears it
           // through finishObsidianCycle like any other channel error.
           const reason = lastBridgeInboundFailure();
-          console.warn(`[Obsidian] plugin-mode cycle read no observations (${reason || 'unknown'}); last synced left unchanged.`);
-          if (!restoreErrorRef.current) {
-            setObsidianSyncError(reason === 'rate-limited' ? BRIDGE_INBOUND_RATE_LIMITED_ERROR : BRIDGE_INBOUND_UNAVAILABLE_ERROR);
-            setObsidianSyncStatus('error');
+          const verdict = inboundFailureNotice(reason, inboundFailuresRef.current);
+          inboundFailuresRef.current = verdict.count;
+          if (verdict.hold) {
+            // The root key is not loaded yet (first cycle after launch):
+            // not a failure, nothing shown, the next cycle reads normally.
+            console.info('[Obsidian] plugin-mode cycle held: the vault key is not loaded yet; last synced left unchanged.');
+          } else {
+            console.warn(`[Obsidian] plugin-mode cycle read no observations (${reason || 'unknown'}, ${verdict.count} in a row); last synced left unchanged.`);
+            if (verdict.notice && !restoreErrorRef.current) {
+              setObsidianSyncError(verdict.notice === 'rate-limited' ? BRIDGE_INBOUND_RATE_LIMITED_ERROR : BRIDGE_INBOUND_UNAVAILABLE_ERROR);
+              setObsidianSyncStatus('error');
+            }
           }
         }
         return;

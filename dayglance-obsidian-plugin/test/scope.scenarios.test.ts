@@ -34,6 +34,15 @@ vi.mock('../../src/obsidian.js', async (importOriginal) => {
     readVaultHeartbeatNative: vi.fn(() => null),
   };
 });
+// The inbound fetch is spied so a scenario can make THIS device's stream
+// unreadable for a chosen number of cycles (scenario 18) without touching
+// the fake vault, whose list endpoint also serves the actions fetch and the
+// plugin's own drain.
+vi.mock('../../src/utils/obsidianBridgeInbound.js', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  const real = actual.fetchBridgeObservations as (...a: unknown[]) => Promise<unknown>;
+  return { ...actual, fetchBridgeObservations: vi.fn((...a: unknown[]) => real(...a)) };
+});
 vi.mock('../../src/native.js', () => ({
   isNativeAndroid: () => false,
   isNativeApp: () => false,
@@ -489,6 +498,27 @@ describe('vault task scope, end to end', () => {
     expect(mine[0].title).toContain(LINE);            // the import tag follows as usual
     expect(mine[0].title).not.toMatch(/\r/);          // no '\r' rode into the title
     expect(A.state.inbox).toHaveLength(1);
+  });
+
+  it('18. the dead-stream toast is damped: one unreadable inbound read warns only, the second in a row shows it, a good read clears the count (2026-09-08)', async () => {
+    await bootWithScopedNote();
+    const inbound = await import('../../src/utils/obsidianBridgeInbound.js');
+    const fetchSpy = vi.mocked(inbound.fetchBridgeObservations);
+    const unavailable = () => A.log.filter((l) => l.startsWith('error:Vault changes are not arriving')).length;
+    const before = unavailable();
+    fetchSpy.mockResolvedValueOnce(null);      // one hiccup
+    await A.sync();
+    expect(unavailable()).toBe(before);       // warned in the console, no toast
+    await A.sync();                           // a good read in between: the count resets
+    fetchSpy.mockResolvedValueOnce(null).mockResolvedValueOnce(null); // two in a row
+    await A.sync();
+    expect(unavailable()).toBe(before);       // the first of the pair: still nothing
+    await A.sync();
+    expect(unavailable()).toBe(before + 1);   // the second: the dead-stream error
+    await A.sync();                           // the stream reads again: the count resets
+    fetchSpy.mockResolvedValueOnce(null);
+    await A.sync();
+    expect(unavailable()).toBe(before + 1);   // a single failure after a success is quiet again
   });
 
   it('9. a plugin reload republishes the pairing meta WITH the scope (harness finding)', async () => {

@@ -75,6 +75,19 @@ describe('fetchBridgeObservations', () => {
     expect(localStorage.getItem(OBS_HWM_KEY)).toBe('4');
   });
 
+  it('a configured vault whose root key is not loaded yet fails as key-pending, not unconfigured (the first-cycle hold)', async () => {
+    const { lastBridgeInboundFailure } = await import('./obsidianBridgeInbound.js');
+    await clearDbRootKey({ nativeGetSyncKey: nativeStub.get, nativeStoreSyncKey: nativeStub.store });
+    globalThis.fetch = async () => { throw new Error('must not be called'); };
+    expect(await fetchBridgeObservations()).toBe(null);
+    expect(lastBridgeInboundFailure()).toBe('key-pending');
+    // Incomplete config is still plain unconfigured, key or no key.
+    localStorage.setItem(VAULT_CONFIG_KEY, JSON.stringify({ enabled: true, vaultUrl: '', vaultToken: 'tok', accountId: 'acct-1' }));
+    expect(await fetchBridgeObservations()).toBe(null);
+    expect(lastBridgeInboundFailure()).toBe('unconfigured');
+    await setupDbRootKey('pw', new Uint8Array(16).fill(9), { nativeGetSyncKey: nativeStub.get, nativeStoreSyncKey: nativeStub.store });
+  });
+
   it('unpaired (no meta row) → null, and nothing touched', async () => {
     globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
     expect(await fetchBridgeObservations()).toBe(null);
