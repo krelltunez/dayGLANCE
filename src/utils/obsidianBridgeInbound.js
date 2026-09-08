@@ -76,7 +76,12 @@ export async function fetchBridgeObservations() {
     // read just skips the ceremony for a multi-request cycle.)
     if (bridgeRateLimited()) return fail('rate-limited');
     const cfg = getVaultConfig();
-    if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId || !hasDbRootKey()) return fail('unconfigured');
+    if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId) return fail('unconfigured');
+    // The root key loads asynchronously after launch; a configured vault
+    // whose key is not in memory yet is a HOLD, not a dead stream. The first
+    // cycle after every launch used to land here and raise the dead-stream
+    // error on every open (the phone showed it on each foreground).
+    if (!hasDbRootKey()) return fail('key-pending');
     const meta = await getBridgePairingMeta();
     if (!meta) return fail('unpaired');
     const salt = Uint8Array.from(atob(meta.pairingSalt), (c) => c.charCodeAt(0));
