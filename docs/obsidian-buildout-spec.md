@@ -128,6 +128,91 @@ The Phase 1 section below reflects the delivered design, not a proposal.
 - **Path length.** No total-path-length check. Decided to let it fail honestly, since the real limit depends on vault depth plus folder plus filename plus whether long-path support is enabled, so any validator constant is wrong in one direction. If the raw `ENAMETOOLONG` proves cryptic in practice, a targeted catch-and-rephrase is a small follow-up.
 - **Windows edge cases not tested.** Mapped drive letters, UNC paths, OneDrive Files-On-Demand vaults, non-ASCII vault paths, and 260-character paths. Path resolution logic was verified against `path.win32` semantics across 13 cases including UNC, but not exercised on hardware. Deferred deliberately: these are real failure modes, but they are better fixed in response to a bug report from someone who has that setup than by building a test environment speculatively.
 
+- **Vault tombstone into the device's own Obsidian tombstone map (parked
+  2026-09-08).** When the DB tier applies a remote tombstone for an Obsidian
+  task or daily note, the device could record the key in its own
+  `deletedObsidianKeys` so every gate on that device agrees with the fleet
+  even when the synced map lags. Parked because doing it right needs the
+  tombstone's own `deletedAt`, which the sync engine's delete callback does
+  not pass today; stamping with the apply time would gate out a note
+  deleted and then legitimately re-created on another machine before this
+  device synced, and the DB-tier apply gate would then propagate a delete
+  of the revive fleet-wide. That is a shared-package change plus an
+  adoption, for a case not yet observed in the field. Revisit with the
+  next `@glance-apps/sync` bump.
+
+### 2.6 Field incident record (2026-09-07): the 24-row tombstone replay
+
+Eight daily notes and their sixteen tasks, all deleted from the vault
+weeks earlier, replayed through the DB tier for most of a day: every
+desktop pulled them live, deleted them, and pulled them live again about
+every half hour, with the account seq climbing by roughly fifty per round.
+Recorded here because the diagnosis went through three wrong suspects
+before the right one, and each wrong turn is a lesson about the sync
+model.
+
+**What it was.** A MAS build from before 2026-08-26 on another family
+member's Mac, sharing the account. Every 15 seconds that build merges the
+iCloud sync file (`dayglance-sync.json`) into local state with no
+tombstone gate on that path; the gate was added to `mergeSync.js` on
+2026-08-26, two days after 4.7.0 was cut. The file still held the 24 rows,
+so each vault delete was undone by the next iCloud poll, and the next sync
+cycle uploaded the rows as new (`snapshot-diff new`, `written:21`). The
+desktops, which have the gate, deleted them again. The server assigned a
+fresh seq to every re-delete, which re-listed the tombstones above every
+cursor and kept the cycle turning. The 16-row live batch an iOS device
+pushed on first open the same morning was the same mechanism.
+
+**What it was not, and why each looked plausible.**
+
+- *The desktops.* All three showed `written:0 deleted:24`; the deletes
+  were the correct reaction of the DB-tier apply gate to live re-uploads,
+  not a bug. The `[vault] WRITE LOOP?` detector stayed quiet because each
+  desktop deleted a given row once per round and rounds were half an hour
+  apart, under its window.
+- *The server.* Read end to end: a state table, not a log; a tombstone
+  keeps its envelope and the list endpoint returns current row state. The
+  only way a tombstone becomes live is a client batch upsert.
+- *The plugin.* Its agenda reads the `dayglance` app and never writes it.
+- *The device that reported the live rows' seq first.* A push does not
+  move the pusher's cursor; a pull does. The first cursor to reach the
+  live rows' seq was the first deleter, not the writer. The device that
+  pushed was the one whose cursor did not move at all.
+
+**How it was found.** The server's `devices` table (per-device cursor and
+last-active time) narrowed the fleet to five active ids; `dayglance-device-id`
+in each desktop's localStorage matched three; the fourth was the writer's
+console once `dayglance-debug-push` was on there, which showed the
+`written:21` cycle and the iCloud recovery lines above it.
+
+**How it was ended without a release.** In the writer's own console:
+pause the iCloud merge (`dayglance-icloud-sync-enabled` = false), remove
+the rows from the three localStorage slices, read and rewrite the iCloud
+file through the app's own `electronAPI.readICloud` / `writeICloud`
+bridge without the rows, re-enable iCloud, reload. Both places the ungated
+merge reads were then clean, so it had nothing to restore. No storage was
+wiped.
+
+**What changes.** Nothing in the code. The durable fix for the stale
+build is the gate that already exists, reaching it with the next MAS
+release. Three proposals were withdrawn once the mechanism was known.
+Two assumed the desktops were re-deleting tombstones, which they were
+not: persisting the acked-delete memory, and refusing to re-push a delete
+for a row the last pull showed tombstoned. The third, making a repeat
+delete of an existing tombstone idempotent on the server, had already
+landed in glance-vault on 2026-08-30 (its PRs #33 and #34: same seq back,
+no nudge, and a newer `deletedAt` on a repeat deliberately ignored, since
+rewriting it with no seq would change an LWW outcome no device past the
+cursor could see). The deployment was already on it: when Windows deleted
+the 24 rows at seq 390505 to 390528, the other two desktops' repeat
+deletes of the same rows consumed no seqs at all. A patch written against
+a stale August checkout of that repo was withdrawn unapplied.
+
+**Standing lesson.** A row cannot loop by itself. When tombstoned rows
+come back live, some device holds them in state and its build lacks a
+gate on one of the three ingress paths (DB-tier apply, file-tier merge,
+scan merge). Find the writer by cursor behavior, then read that build.
+
 ---
 
 ## 3. Decisions of record
