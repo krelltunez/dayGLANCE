@@ -33,6 +33,7 @@ import { createDbSyncEngine, clearDbRootKey, initDbRootKey, decryptEntity, isSup
 // client alone, constructible without the engine, for the own-ack wrapper below.
 import { createVaultClient } from '@glance-apps/sync/src/vaultClient.js';
 import { getVaultConfig, isVaultEnabled } from './vaultConfig.js';
+import { markInitialPullComplete } from './initialPull.js';
 import { getDeviceId } from './deviceId.js';
 import {
   getLocalEntity as adapterGetLocalEntity,
@@ -1165,6 +1166,9 @@ export function createDbEngine(callbacks = {}) {
       } else {
         breaker.onSuccess();
       }
+      // The first committed pull of the session releases the intent drains
+      // (sync/initialPull.js): their guards can now see the fleet's state.
+      markInitialPullComplete();
       callbacks.onStatusChange?.('success');
       return {
         applied: pull?.applied ?? 0, skipped: pull?.skipped ?? 0, skippedEntityIds: pull?.skippedEntityIds ?? [],

@@ -38,6 +38,7 @@ import {
 } from '@glance-apps/intents';
 import { loadVaultIntentsRootKey } from './intentsKeyStore.js';
 import { handleIntent } from './handleIntent.js';
+import { intentDrainAllowed, INTENT_DRAIN_RETRY_MS } from './intentDrainGate.js';
 import { logActivity } from './intentLog.js';
 import { MULTI_USER_CONFIG_KEY } from './useIntentPoller.js';
 import {
@@ -422,6 +423,9 @@ async function routeIncoming(raw, context, opts = {}) {
 export async function pollDbIntents(context, opts = {}) {
   const connection = opts.connection ?? getDbIntentsConnection();
   if (!connection) return;
+  // Not before the first sync pull of the session (intents/intentDrainGate.js).
+  // Covers every entry: the poller, focus, and the SSE-triggered drain.
+  if (!(opts.skipDrainGate || intentDrainAllowed())) return;
 
   const client = intentsClientFor(connection, opts.vaultFetch);
   // Test seam: lets tests drive the three-way model deterministically. Defaults
@@ -585,6 +589,11 @@ export function useDbIntentPoller(context, opts = {}) {
 
     const runPoll = async () => {
       if (destroyed) return;
+      if (!intentDrainAllowed()) {
+        // Held for the first sync pull: look again soon, not a full interval.
+        timerId = setTimeout(runPoll, INTENT_DRAIN_RETRY_MS);
+        return;
+      }
       try {
         // Self-heal the vault intents key before draining so inbound rows can
         // decrypt instead of throwing KeyUnavailableError. Best-effort/no-throw.

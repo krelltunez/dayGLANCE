@@ -21,6 +21,7 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 // intents because processing an event would advance the cursor and consume
 // the event before the main window can act on it.
 import { isTrayMode } from '../utils/trayMode.js';
+import { intentDrainAllowed, INTENT_DRAIN_RETRY_MS } from './intentDrainGate.js';
 
 // Module-level lock: prevents React StrictMode's double-mount from running two
 // concurrent poll() calls, which would both see cursor=null and duplicate tasks.
@@ -609,6 +610,12 @@ export function useIntentPoller(context) {
 
     const runPoll = async () => {
       if (destroyed) return;
+      if (!intentDrainAllowed()) {
+        // Held for the first sync pull of the session (intentDrainGate.js):
+        // look again soon, not a full interval.
+        pollTimerId = setTimeout(runPoll, INTENT_DRAIN_RETRY_MS);
+        return;
+      }
       try {
         await poll(config, contextRef.current);           // WebDAV (no-ops if not configured)
         if (isIcloudIntentsEnabled()) {
