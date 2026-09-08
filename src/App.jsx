@@ -2820,7 +2820,7 @@ const DayPlanner = () => {
     isTrayMode, dataLoaded,
     tasks, setTasks,
     unscheduledTasks, setUnscheduledTasks,
-    setDailyNotes,
+    dailyNotes, setDailyNotes,
     setWikilinkCandidates,
     setUnportableVaultFiles,
     obsidianConfig, setObsidianConfig,
