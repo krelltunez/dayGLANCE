@@ -75,9 +75,9 @@
     "unlockTitle": "解锁同步",
     "obsidianToast": {
       "syncing": "正在同步 Obsidian 仓库…",
-      "syncingBridge": "正在通过 Plugin Bridge 同步…",
+      "syncingBridge": "正在同步任务…",
       "synced": "Obsidian 仓库已同步",
-      "syncedBridge": "已通过 Plugin Bridge 同步",
+      "syncedBridge": "任务已同步",
       "failed": "Obsidian 同步失败",
       "tapToDismiss": "点按可关闭",
       "dismissError": "关闭同步错误"
@@ -230,9 +230,9 @@
   },
   "settings": {
     "obsidianDailyNoteTemplateBridgeHint": "创建新的每日笔记时预先填入。{{dateToken}} 会替换为笔记日期。如果由 Bridge 插件创建笔记，则优先使用插件中配置的模板笔记。",
-    "obsidianBridgeWaiting": "下次在此设备运行 Obsidian 时，会将更改应用到笔记库。在此期间，任务仍会通过 Plugin Bridge 同步。",
-    "obsidianBridgeWaitingLastSeen": "Obsidian 上次在此设备运行于 {{when}}。",
-    "obsidianBridgeWaitingNeverSeen": "此设备尚未运行过启用该插件的 Obsidian。",
+    "obsidianBridgeWaiting": "此设备上未运行 Obsidian。任务仍会照常在各设备间同步。涉及笔记的更改会先排队，待任一已配对设备上运行带有 bridge 插件的 Obsidian 时写入笔记库。",
+    "obsidianBridgeWaitingLastSeen": "Obsidian 上次在此设备同步于 {{when}}。",
+    "obsidianBridgeWaitingNeverSeen": "此设备尚未与该插件同步过 Obsidian。",
     "glanceBackgroundPollHint": "浏览器标签页隐藏时的检查频率。",
     "glanceForegroundPollHint": "应用在前台时检查新事件的频率。",
     "keepPastEventsDays": "{{count}} 天",
