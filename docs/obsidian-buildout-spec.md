@@ -215,6 +215,57 @@ scan merge). Find the writer by cursor behavior, then read that build.
 
 ---
 
+### 2.7 Field incident record (2026-09-08): the daily-note ping-pong
+
+On the day the fleet was rebuilt, one desktop's console showed today's
+daily note swapping between two fixed versions, one vault write each,
+several times a minute: the raw template (unrendered Templater syntax,
+blank lines between headings, stamped 19:22:43.742Z) and the real note
+(rendered link, the day's completion entry, stamped with the file's mtime
+18:33:02.841Z). Neither version changed, only the record did.
+
+**Two writers on one device.** The real note came from the Obsidian cycle,
+which takes the plugin's observation as the note's text and stamps the
+record with the file's mtime. The template came from the iCloud file merge,
+which runs on a 15 s timer, logs nothing, and applies whichever copy has
+the newer stamp per date. The template copy's stamp was newer, so the merge
+re-applied it every 15 s; the next observation put the real note back with
+its older mtime; the merge re-applied the template. The server's sequence
+numbers were consecutive across a swap, ruling out any other device.
+
+**Where the template came from.** A tablet that had not synced since the
+day before, with no vault and no copy of the date yet, opened the daily
+note. The modal found nothing, seeded the template, and saved it on close
+as the date's record, stamped with the close time. It pushed once and went
+to sleep (its cursor never advanced past that push, the signature of a push
+without a following pull). That record reached the desktop through the
+vault database and the iCloud file.
+
+**Not an Obsidian Sync incident.** The 2026-09-07 empty-note incident was.
+This one is entirely inside the app: a modal that persisted a seed it never
+showed the user as theirs, and a merge that stamped the vault's text older
+than the record it replaced.
+
+**Fixes.** Two, as separate PRs.
+
+1. The modal seeds from the vault read, then the app's own copy of the
+   date, then the template (the 2026-09-07 completion-log rule applied to
+   the modal), and every save path writes back only a change to what was
+   loaded or last saved. An untouched seed is never persisted.
+2. Ruling, `utils/mergeObsidianDailyNotes.js`: an observed note whose text
+   replaces a record stamped at or after the file's mtime is stamped 1 ms
+   after that record. The vault's content must outrank the record it
+   replaces; a tie would leave the stale copy standing wherever it sits,
+   since the file-tier merge keeps local on a tie. The note's real mtime is
+   unaffected: it travels separately as evidence (noteMtimes) for the
+   tombstone and revival rules, which read the mtime, not the record.
+
+**Manual end to a running loop.** A small edit to the note on the desktop,
+saved from the app, stamps the real text newer than the stale copy and
+every tier converges on it.
+
+---
+
 ## 3. Decisions of record
 
 These were arrived at rather than being obvious, and are recorded so they are not relitigated by accident.

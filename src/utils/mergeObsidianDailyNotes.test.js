@@ -29,6 +29,32 @@ describe('mergeObsidianDailyNotes', () => {
     expect(out.lastModified).toBe('2026-07-07T00:00:00.000Z');
   });
 
+  it('THE 2026-09-08 PING-PONG: scanned text replacing a record stamped after the file mtime is stamped 1 ms after that record', () => {
+    // A device with no copy of the date saved the raw template at 19:22:43.742;
+    // the real note's mtime is 18:33:02.841. Stamping the vault's text with
+    // the mtime lost every LWW merge to the template copy, forever.
+    const prev = { '2026-09-08': note('<% template %>', '2026-09-08T19:22:43.742Z') };
+    const scanned = { '2026-09-08': note('real note', '2026-09-08T18:33:02.841Z') };
+    const out = mergeObsidianDailyNotes(prev, scanned)['2026-09-08'];
+    expect(out.text).toBe('real note');
+    expect(out.lastModified).toBe('2026-09-08T19:22:43.743Z');
+    // Idempotent: the next scan of the unchanged file carries that stamp forward.
+    const again = mergeObsidianDailyNotes({ '2026-09-08': out }, scanned)['2026-09-08'];
+    expect(again).toEqual(out);
+  });
+
+  it('a record stamped exactly at the file mtime is also outranked (a tie leaves the stale copy standing)', () => {
+    const prev = { '2026-09-08': note('stale', '2026-09-08T18:33:02.841Z') };
+    const scanned = { '2026-09-08': note('real note', '2026-09-08T18:33:02.841Z') };
+    expect(mergeObsidianDailyNotes(prev, scanned)['2026-09-08'].lastModified).toBe('2026-09-08T18:33:02.842Z');
+  });
+
+  it('a file newer than the record it replaces keeps its own mtime (the ordinary edit)', () => {
+    const prev = { '2026-09-08': note('old', '2026-09-08T10:00:00.000Z') };
+    const scanned = { '2026-09-08': note('edited in Obsidian', '2026-09-08T11:00:00.000Z') };
+    expect(mergeObsidianDailyNotes(prev, scanned)['2026-09-08'].lastModified).toBe('2026-09-08T11:00:00.000Z');
+  });
+
   it('adds a note new to prev with its scanned timestamp', () => {
     const out = mergeObsidianDailyNotes({}, { '2026-05-01': note('x', 'ts') });
     expect(out['2026-05-01']).toEqual(note('x', 'ts'));
