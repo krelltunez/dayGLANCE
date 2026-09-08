@@ -1,5 +1,5 @@
 import React, { forwardRef } from 'react';
-import { AlertTriangle, Calendar, CircleCheckBig, Edit2, FileText, FolderOpen, Layers, Link2, Plus } from 'lucide-react';
+import { AlertTriangle, BookOpen, Calendar, CircleCheckBig, Edit2, FileText, FolderOpen, Layers, Link2, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
@@ -90,7 +90,7 @@ const GoalCard = forwardRef(
               title={noteLink.missing ? `Obsidian note missing: ${noteLink.name}` : `Open "${noteLink.name}" in Obsidian`}
               aria-label={noteLink.missing ? 'Obsidian note missing' : 'Open goal note in Obsidian'}
             >
-              {noteLink.missing ? <AlertTriangle size={12} /> : <FileText size={12} />}
+              {noteLink.missing ? <AlertTriangle size={12} /> : <BookOpen size={12} />}
             </button>
           )}
           {(goal.source_app === 'app.lifeglance' || goal.synced_to_lifeglance) && (

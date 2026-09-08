@@ -78,7 +78,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
       title={noteLink.missing ? `Obsidian note missing: ${noteLink.name}` : `Open "${noteLink.name}" in Obsidian`}
       aria-label={noteLink.missing ? 'Obsidian note missing' : 'Open project note in Obsidian'}
     >
-      {noteLink.missing ? <AlertTriangle size={12} /> : <FileText size={12} />}
+      {noteLink.missing ? <AlertTriangle size={12} /> : <BookOpen size={12} />}
     </button>
   );
   const { goals, deleteProject, updateProject, setPlannerProjectId, generateAISubtasks, aiSubtasksLoadingForTask, aiConfig, showGoalsDashboard, enterHyperGlanceMode, isVisibleForUser } = useFeaturesCtx();
