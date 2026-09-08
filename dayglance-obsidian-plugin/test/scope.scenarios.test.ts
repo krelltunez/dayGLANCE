@@ -53,6 +53,7 @@ vi.mock('../../src/utils/obsidianBridgeMode.js', () => ({
 const { createScenario, VAULT_URL, ACCOUNT_ID, until, advanceFake } = await import('./harness');
 const { default: useObsidianSync } = await import('../../src/hooks/useObsidianSync.js');
 const { flushBridgeOutbox, emitBridgeIntent, __resetBridgeStreamForTests } = await import('../../src/utils/obsidianBridgeStream.js');
+const { toInboxCopy } = await import('../../src/utils/inboxMove.js');
 const { PROJECT_NOTE_ID_KEY, BRIDGE_PAIRING_META_ID, BRIDGE_VAULT_APP } = await import('@glance-apps/obsidian-format');
 void PROJECT_NOTE_ID_KEY;
 
@@ -135,9 +136,8 @@ function mountDevice(name: string) {
     unschedule: (id: string) => {
       const t = state.tasks.find((x) => x.id === id);
       if (!t) throw new Error(`no task ${id}`);
-      const { date: _d, isAllDay: _a, startTime: _s, ...rest } = t;
       setTasks((p) => p.filter((x) => x.id !== id));
-      setUnscheduledTasks((p) => [...p, { ...rest, lastModified: new Date().toISOString() }]);
+      setUnscheduledTasks((p) => [...p, toInboxCopy(t)]);
     },
     patch: (id: string, fields: Task) => {
       const bump = (list: Task[]) => list.map((x) => (x.id === id ? { ...x, ...fields, lastModified: new Date().toISOString() } : x));
@@ -489,6 +489,47 @@ describe('vault task scope, end to end', () => {
     expect(mine[0].title).toContain(LINE);            // the import tag follows as usual
     expect(mine[0].title).not.toMatch(/\r/);          // no '\r' rode into the title
     expect(A.state.inbox).toHaveLength(1);
+  });
+
+  it('17. THE §8 RULING (2026-09-08): a time typed onto an inbox task in Obsidian schedules it; the stale read of a time dayGLANCE just removed does not', async () => {
+    await bootWithScopedNote();
+    const DAILY = 'Daily/2026-09-06.md';
+    await s.write(DAILY, '## Tasks\n- [ ] Water the plants\n');
+    await s.settle();
+    await A.sync();
+    const task = A.all().find((t) => /Water the plants/.test(t.title))!;
+    expect(A.state.inbox.map((t) => t.id)).toContain(task.id);
+    const token = s.text(DAILY)!.match(/\^dg-([a-z0-9]{8})/)![1];
+    // (a) The user types a time onto the line in Obsidian.
+    await s.write(DAILY, `## Tasks\n- [ ] 09:00 Water the plants ^dg-${token}\n`);
+    await s.settle();
+    await A.sync();
+    expect(A.state.inbox.map((t) => t.id)).not.toContain(task.id);
+    expect(A.state.tasks.find((t) => t.id === task.id)).toMatchObject({ date: '2026-09-06', startTime: '09:00', isAllDay: false });
+    // (b) dayGLANCE moves it back to the inbox. Before that writeback lands
+    // the note is re-observed for an unrelated edit, still carrying 09:00:
+    // the observation is emitted first (settle), then the writeback is
+    // flushed but not yet applied (no plugin drain), then the app syncs.
+    A.unschedule(task.id);
+    expect(A.state.inbox.find((t) => t.id === task.id)!.obsidianClearedTime).toBe('09:00');
+    await s.write(DAILY, `## Tasks\n- [ ] 09:00 Water the plants ^dg-${token}\n- [ ] Buy soil\n`);
+    await s.settle();
+    await A.writeback();
+    await A.sync();
+    expect(A.state.inbox.map((t) => t.id)).toContain(task.id);   // the stale read did not reschedule it
+    expect(A.state.inbox.find((t) => t.id === task.id)!.obsidianClearedTime).toBe('09:00');
+    // (c) The writeback lands: the line loses its time, the marker is spent.
+    await s.plugin.transport.drain();
+    expect(s.text(DAILY)).toMatch(/- \[ \] Water the plants \^dg-/);
+    await s.settle();
+    await A.sync();
+    expect(A.state.inbox.map((t) => t.id)).toContain(task.id);
+    expect(A.state.inbox.find((t) => t.id === task.id)!.obsidianClearedTime).toBeUndefined();
+    // (d) A different time typed later schedules it again.
+    await s.write(DAILY, s.text(DAILY)!.replace('- [ ] Water the plants', '- [ ] 14:30 Water the plants'));
+    await s.settle();
+    await A.sync();
+    expect(A.state.tasks.find((t) => t.id === task.id)).toMatchObject({ startTime: '14:30', date: '2026-09-06' });
   });
 
   it('9. a plugin reload republishes the pairing meta WITH the scope (harness finding)', async () => {

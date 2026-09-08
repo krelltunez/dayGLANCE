@@ -1046,7 +1046,7 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       // Line-derived values, captured BEFORE the existing-fields copies
       // overwrite them — the adoption below restores exactly the fields
       // the vault demonstrably edited (vaultMetadataEdits).
-      const lineVals = { date: task.date, startTime: task.startTime, isAllDay: task.isAllDay, deadline: task.deadline, priority: task.priority };
+      const lineVals = { date: task.date, startTime: task.startTime, isAllDay: task.isAllDay, duration: task.duration, deadline: task.deadline, priority: task.priority };
       const edits = vaultMetadataEdits(task, existing);
       // Completed: OR logic — completed in DG OR in Obsidian → completed
       if (existing.completed) task.completed = true;
@@ -1102,10 +1102,33 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       // fabricates a timestamp: the copy stays byte-identical to the stored
       // one, nothing re-stamps, and the DB tier delivers the real answer.
       if (userInboxIds.has(String(existing.id)) && !edits?.scheduled) {
+        // §8 RULING (2026-09-08): a time typed onto the line in the vault
+        // schedules the task. The one timed line that must NOT is the stale
+        // read of the time dayGLANCE itself just removed, which the inbox
+        // copy remembers as obsidianClearedTime (utils/inboxMove.js). A
+        // line carrying any other time is the vault's own statement: the
+        // task takes the line's date, time and range and is stamped as a
+        // real edit, so the scheduled copy outranks the inbox copy fleet-
+        // wide. A date-only line (no time) is dayGLANCE's own reschedule
+        // channel and still respects the move, as before.
+        // A REAL time prefix only: an all-day (date-only) line parses with a
+        // midnight startTime and isAllDay set, and is dayGLANCE's own channel.
+        const lineTime = lineVals.startTime && lineVals.isAllDay !== true ? lineVals.startTime : null;
+        if (lineTime && lineTime !== (existing.obsidianClearedTime ?? null)) {
+          task.date = lineVals.date;
+          task.startTime = lineTime;
+          task.isAllDay = false;
+          if (lineVals.duration !== undefined && lineVals.duration !== null) task.duration = lineVals.duration;
+          delete task.obsidianClearedTime;
+          task.lastModified = new Date().toISOString();
+          allScheduled.push(task);
+          continue;
+        }
         delete task.date;
         delete task.startTime;
         delete task.isAllDay;
         if (task.priority === undefined) task.priority = existing.priority ?? 0;
+        if (existing.obsidianClearedTime !== undefined) task.obsidianClearedTime = existing.obsidianClearedTime;
         allInbox.push(task);
         continue;
       }
@@ -1133,6 +1156,10 @@ export function mergeParsedObsidianTasks(parsed, ctx, onTitleConflict, out) {
       resolveTitleOwnership(task, existing, onTitleConflict);
       adoptVaultMetadataEdits(task, edits, lineVals, ctx.resolveProject);
       if (existing.lastModified) task.lastModified = existing.lastModified;
+      // An untimed line: the writeback that removed the time has landed, so
+      // the cleared-time marker (utils/inboxMove.js) is spent. It is simply
+      // not carried onto this copy (preserveObsidianAppFields leaves it to
+      // the scan side), and dropping it is not a compared change.
 
       // User scheduled this from inbox — respect the cross-array move.
       if (userScheduledIds.has(String(existing.id)) && !edits?.scheduled) {

@@ -743,13 +743,22 @@ Not a phase. Submit the plugin to the Obsidian community directory once Phases 6
 - **Phase 8 scope.** RESOLVED (2026-09-01) — scoped in
   `obsidian-companion-spec.md`: plugin-first, direct access frozen at
   feature-complete, read-write scan scope deferred to its own phase.
-- **A time typed by hand in Obsidian onto an inbox task (2026-09-06).** Today
-  it is silently ignored until the app schedules the task: the time prefix
-  is not a field the vault-edit adoption (§3.10 ruling 2) covers, and the
-  user-move rule keeps the copy in the inbox. Should it schedule the task
-  (adopt a time the vault demonstrably added since the last observation),
-  or be visibly refused? Either is defensible; silence is not. Awaiting a
-  ruling.
+- **A time typed by hand in Obsidian onto an inbox task (2026-09-06).**
+  RESOLVED 2026-09-08: it schedules the task. The user-move rule kept every
+  timed line meeting an inbox copy in the inbox because one such line is a
+  stale read, the line still carrying the time dayGLANCE itself just
+  removed before its writeback landed. That one case is now told apart by
+  a record rather than by refusing them all: the move to the inbox writes
+  the removed time onto the copy (`obsidianClearedTime`, `utils/inboxMove.js`,
+  shared by every move-to-inbox path); a line still carrying exactly that
+  time stays in the inbox, byte-identical; a line carrying any other time
+  is the vault's own statement and schedules the task onto the line's date
+  and time, stamped as a real edit so the scheduled copy outranks the inbox
+  copy fleet-wide. The marker is spent when the line is next observed
+  without a time, and is not a compared field, so spending it re-stamps
+  nothing. A date-only line is still dayGLANCE's own reschedule channel
+  and still respects the move. Pinned in `obsidian.inboxRecord.test.js`
+  and harness scenario 17.
 - **Stale-copy posture on a paired device (2026-09-06).** RESOLVED the same
   day — the posture ruling recorded in §3.2: a paired device with a stale
   heartbeat neither scans nor writes the vault, keeps reading the stream,

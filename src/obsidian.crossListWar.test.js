@@ -98,7 +98,10 @@ describe('the cross-list survivor rule (ruling 5 correction) — the y0bm31lo wa
   });
 
   it('the rule is symmetric: when the INBOX copy is newer, the scan honors it, drops the scheduled copy, and the DB tier agrees', () => {
-    const newerInbox = { ...inboxCopy(), lastModified: '2026-09-01T19:00:00.000Z' };
+    // The move to the inbox records the time it removed (§8 ruling of
+    // 2026-09-08, utils/inboxMove.js): the line still carrying 10:15 is the
+    // stale read of that very move, not the vault scheduling the task.
+    const newerInbox = { ...inboxCopy(), lastModified: '2026-09-01T19:00:00.000Z', obsidianClearedTime: '10:15' };
     const { ctx, out, tasks, unscheduledTasks } = scanCycle([scheduledCopy()], [newerInbox]);
     expect(ctx.userInboxIds.has(ID)).toBe(true);
     expect(ctx.userScheduledIds.has(ID)).toBe(false);
@@ -106,6 +109,13 @@ describe('the cross-list survivor rule (ruling 5 correction) — the y0bm31lo wa
     expect(tasks.filter((t) => t.id === ID)).toHaveLength(0);
     expect(unscheduledTasks.filter((t) => t.id === ID)).toHaveLength(1);
     expect(dbCollisions(tasks, unscheduledTasks)).toEqual([]);
+  });
+
+  it('§8 boundary: the same newer inbox copy WITHOUT the cleared-time record meets the timed line as the vault\'s own statement and is scheduled from it', () => {
+    const newerInbox = { ...inboxCopy(), lastModified: '2026-09-01T19:00:00.000Z' };
+    const { out } = scanCycle([scheduledCopy()], [newerInbox]);
+    expect(out.allInbox.map((t) => t.id)).toEqual([]);
+    expect(out.allScheduled.find((t) => t.id === ID)).toMatchObject({ startTime: '10:15', date: '2026-09-01' });
   });
 
   it('ties go to the scheduled list, matching CROSS_LIST_PRIORITY, so equal stamps never split the tiers either', () => {
