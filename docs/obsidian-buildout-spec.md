@@ -141,6 +141,22 @@ The Phase 1 section below reflects the delivered design, not a proposal.
   adoption, for a case not yet observed in the field. Revisit with the
   next `@glance-apps/sync` bump.
 
+- **Project note line order following the app's project order (deferred
+  2026-09-08).** The order of a project's unscheduled tasks became a field
+  on each task (`projectOrder`, `utils/projectOrder.js`) after the owner
+  found reorders reverting: the order had been the inbox array's positions,
+  which the DB tier never carried and every Obsidian cycle rebuilt. Ruling:
+  the order is the app's; the linked note keeps its own line order and
+  neither reads nor writes the field. The owner would ideally have the
+  note's Tasks section follow the app's order. What that takes: a
+  `task_reorder` intent that permutes the task lines within one section by
+  block id, emitted by the writeback whenever the project's order changes,
+  applied by the plugin like any other intent; an amendment to the 4.3
+  ruling that a project note's sections are never sorted; and a decision on
+  the reverse direction (a line moved in Obsidian does not move the task in
+  the app under this design). Deferred as a separate commission; the app
+  side is complete without it.
+
 ### 2.6 Field incident record (2026-09-07): the 24-row tombstone replay
 
 Eight daily notes and their sixteen tasks, all deleted from the vault

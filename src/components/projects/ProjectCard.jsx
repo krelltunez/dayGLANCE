@@ -21,6 +21,7 @@ import { dateToString, extractWikilinks, completionTimestamp } from '../../utils
 import { getNextOccurrence } from '../../utils/recurrenceEngine.js';
 import { getActiveHGInstance } from '../../hooks/useHyperGlance.js';
 import { noteLinkOf } from '../../utils/obsidianProjectNotes.js';
+import { sortByProjectOrder, applyProjectReorder } from '../../utils/projectOrder.js';
 import { formatLocalizedDate } from '../../utils/localeFormatting.js';
 
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
@@ -140,8 +141,9 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   // Per-goal opt-out: a goal with hideStalled suppresses the badge on its projects.
   const stalled = !!project.goalId && !parentGoal?.hideStalled && !hasHGSession && isProjectStalled(project.id, allTasks, project, recurringTasks);
 
-  // All project tasks: unscheduled (in array order) then scheduled (by date), completed last
-  const projectUnscheduled = unscheduledTasks.filter(t => t.projectId === project.id && !t.archived && isVisibleForUser(t));
+  // All project tasks: unscheduled (by projectOrder, utils/projectOrder.js,
+  // then array order) then scheduled (by date), completed last
+  const projectUnscheduled = sortByProjectOrder(unscheduledTasks.filter(t => t.projectId === project.id && !t.archived && isVisibleForUser(t)));
   const projectScheduled = tasks.filter(t => t.projectId === project.id && !t.archived && isVisibleForUser(t))
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   // Recurring series belonging to the project — listed once per series via
@@ -198,15 +200,13 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
       setDragOverIdx(null);
       return;
     }
-    const incompleteUnscheduled = projectUnscheduled.filter(t => !t.completed);
-    const fromId = incompleteUnscheduled[dragIdx].id;
-    const toId = incompleteUnscheduled[idx].id;
-    const next = [...unscheduledTasks];
-    const fromFull = next.findIndex(t => t.id === fromId);
-    const toFull = next.findIndex(t => t.id === toId);
-    const [moved] = next.splice(fromFull, 1);
-    next.splice(toFull, 0, moved);
-    reorderUnscheduledTasks(next);
+    // The new order as a field on each task (utils/projectOrder.js): syncs
+    // on both tiers and survives the Obsidian cycle, which rebuilds the
+    // array. The array positions move too, as before.
+    const ordered = projectUnscheduled.filter(t => !t.completed).map(t => t.id);
+    const [moved] = ordered.splice(dragIdx, 1);
+    ordered.splice(idx, 0, moved);
+    reorderUnscheduledTasks(applyProjectReorder(unscheduledTasks, ordered));
     setDragIdx(null);
     setDragOverIdx(null);
   };
@@ -229,16 +229,11 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     const { fromIdx, overIdx } = touchDragRef.current;
     touchDragRef.current = { active: false, fromIdx: null, overIdx: null };
     if (fromIdx !== null && overIdx !== null && fromIdx !== overIdx) {
-      const incompleteUnscheduled = projectUnscheduled.filter(t => !t.completed);
-      const fromId = incompleteUnscheduled[fromIdx]?.id;
-      const toId = incompleteUnscheduled[overIdx]?.id;
-      if (fromId && toId) {
-        const next = [...unscheduledTasks];
-        const fromFull = next.findIndex(t => t.id === fromId);
-        const toFull = next.findIndex(t => t.id === toId);
-        const [moved] = next.splice(fromFull, 1);
-        next.splice(toFull, 0, moved);
-        reorderUnscheduledTasks(next);
+      const ordered = projectUnscheduled.filter(t => !t.completed).map(t => t.id);
+      if (ordered[fromIdx] && ordered[overIdx]) {
+        const [moved] = ordered.splice(fromIdx, 1);
+        ordered.splice(overIdx, 0, moved);
+        reorderUnscheduledTasks(applyProjectReorder(unscheduledTasks, ordered));
       }
     }
     setDragIdx(null);
