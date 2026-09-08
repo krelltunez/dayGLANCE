@@ -5,6 +5,7 @@ import { renderFormattedText } from '../utils/textFormatting.jsx';
 import { useTranslation } from 'react-i18next';
 import { formatLocalizedDate } from '../utils/localeFormatting.js';
 import { localizeEmptyDailyNote } from '../utils/dailyNoteTemplate.js';
+import { seedDailyNoteText, shouldPersistDailyNote } from '../utils/dailyNoteModalSeed.js';
 
 // Daily Notes Modal — popover for adding/editing notes on a specific date
 const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, template, loadFresh }) => {
@@ -14,6 +15,11 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   const seededTemplate = template ? renderNoteTemplateSubset(template, { title: dateStr, date: dateStr }) : template;
   const defaultText = localizeEmptyDailyNote(note?.text || '', seededTemplate);
   const [localText, setLocalText] = useState(defaultText);
+  // What the modal last loaded or saved, and whether the date had real
+  // content on open: a close writes back only a change to that baseline
+  // (utils/dailyNoteModalSeed.js). An untouched seed is never persisted.
+  const baselineRef = useRef(defaultText);
+  const hadContentRef = useRef(!!(note?.text && note.text.trim()));
   const [isEditing, setIsEditing] = useState(!note?.text);
   const [loading, setLoading] = useState(!!loadFresh);
 
@@ -49,16 +55,15 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
       try {
         const fresh = await loadFresh(dateStr);
         if (cancelled) return;
-        if (fresh && fresh.text) {
-          setLocalText(localizeEmptyDailyNote(fresh.text, seededTemplate));
-          setIsEditing(false);
-        } else {
-          // No existing note — apply template if available
-          if (seededTemplate) {
-            setLocalText(seededTemplate);
-          }
-          setIsEditing(true);
-        }
+        // Vault text first; an empty or absent read falls back to the app's
+        // own copy of the date; the template seeds only when neither holds
+        // content (utils/dailyNoteModalSeed.js).
+        const seed = seedDailyNoteText({ fresh: fresh?.text ?? null, known: note?.text ?? null, template: seededTemplate });
+        const text = seed.fromTemplate ? seed.text : localizeEmptyDailyNote(seed.text, seededTemplate);
+        baselineRef.current = text;
+        hadContentRef.current = seed.hadContent;
+        setLocalText(text);
+        setIsEditing(!seed.hadContent);
       } catch (err) {
         console.error('Failed to load fresh note from vault:', err);
       } finally {
@@ -77,6 +82,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   useEffect(() => {
     if (loadFresh) return; // Obsidian path handles this above
     if (!defaultText && seededTemplate) {
+      baselineRef.current = seededTemplate;
       setLocalText(seededTemplate);
     }
     // Mount-once: seed the template only on open, not on later prop changes.
@@ -90,6 +96,13 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   useEffect(() => { localTextRef.current = localText; }, [localText]);
   useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
   useEffect(() => { dateStrRef.current = dateStr; }, [dateStr]);
+  // Every save path funnels through here: nothing is written unless the
+  // text differs from the baseline, and a write moves the baseline.
+  const persist = (text) => {
+    if (!shouldPersistDailyNote(text, baselineRef.current, hadContentRef.current)) return;
+    baselineRef.current = text;
+    onSaveRef.current(dateStrRef.current, text);
+  };
 
   // Focus backdrop when in preview mode (for Escape key) — on mount and after Shift+Enter
   useEffect(() => {
@@ -102,7 +115,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   useEffect(() => {
     return () => {
       if (freshLoadedRef.current && !savedOnCloseRef.current) {
-        onSaveRef.current(dateStrRef.current, localTextRef.current);
+        persist(localTextRef.current);
       }
     };
   }, []);
@@ -110,7 +123,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault();
-      onSave(dateStr, localText);
+      persist(localText);
       if (localText.trim()) {
         setIsEditing(false);
       } else {
@@ -122,7 +135,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
       e.stopPropagation();
       if (!loading) {
         savedOnCloseRef.current = true;
-        onSave(dateStr, localText);
+        persist(localText);
       }
       onClose();
     }
@@ -131,7 +144,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   const handleBlur = () => {
     // Skip if we're already in the close flow — handleSaveAndClose handles the save.
     if (loading || savedOnCloseRef.current) return;
-    onSave(dateStr, localText);
+    persist(localText);
   };
 
   // Skip save if loadFresh hasn't resolved yet to prevent wiping vault content.
@@ -145,7 +158,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
       document.activeElement.blur();
     }
     if (!loading) {
-      onSave(dateStr, localText);
+      persist(localText);
     }
     onClose();
   };
