@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseICS, parseDatetime, filterByDateWindow, expandMultiDayEvent } from './icsParser.js';
+import { parseICS, parseDatetime, filterByDateWindow, expandMultiDayEvent, parseIcsDuration } from './icsParser.js';
 import { dateToString } from './taskUtils.js';
 
 const wrap = (body) => `BEGIN:VCALENDAR\r\nVERSION:2.0\r\n${body}\r\nEND:VCALENDAR`;
@@ -128,6 +128,66 @@ describe('parseICS', () => {
     expect(events.masterUids.has('plain')).toBe(true);
     // masterUids must not appear during iteration/serialization
     expect(Object.keys(events)).not.toContain('masterUids');
+  });
+});
+
+describe('recurring event duration (field report, 2026-09-08)', () => {
+  const durations = (ics) => parseICS(ics).map(e => expandMultiDayEvent(e)[0]).map(t => ({ date: t.date, startTime: t.startTime, duration: t.duration }));
+
+  it('every occurrence of a timed series keeps the series duration, not just the first', () => {
+    const out = durations(wrap(vevent([
+      'UID:weekly-30',
+      'SUMMARY:Check-in',
+      'DTSTART:20260706T093000',
+      'DTEND:20260706T100000',
+      'RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=3',
+    ])));
+    expect(out.map(o => o.duration)).toEqual([30, 30, 30]);
+    expect(out.map(o => o.startTime)).toEqual(['09:30', '09:30', '09:30']);
+  });
+
+  it('a series that crosses midnight ends on the next day for every occurrence', () => {
+    const events = parseICS(wrap(vevent([
+      'UID:overnight',
+      'SUMMARY:Night shift',
+      'DTSTART:20260706T220000',
+      'DTEND:20260707T010000',
+      'RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=2',
+    ])));
+    expect(events.map(e => e.dtend)).toEqual(['20260707T010000', '20260714T010000']);
+    expect(events.map(e => expandMultiDayEvent(e)[0].duration)).toEqual([180, 180]);
+  });
+
+  it('a UTC-stamped series keeps the Z on each occurrence end', () => {
+    const events = parseICS(wrap(vevent([
+      'UID:utc-weekly',
+      'SUMMARY:Sync',
+      'DTSTART:20260706T140000Z',
+      'DTEND:20260706T141500Z',
+      'RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=2',
+    ])));
+    expect(events[1].dtend).toBe('20260713T141500Z');
+    expect(events.map(e => expandMultiDayEvent(e)[0].duration)).toEqual([15, 15]);
+  });
+
+  it('DURATION stands in for a missing DTEND, on a single event and on every occurrence of a series', () => {
+    const single = durations(wrap(vevent(['UID:d1', 'SUMMARY:Quick', 'DTSTART:20260706T093000', 'DURATION:PT45M'])));
+    expect(single[0].duration).toBe(45);
+    const series = durations(wrap(vevent([
+      'UID:d2', 'SUMMARY:Series', 'DTSTART:20260706T093000', 'DURATION:PT1H30M', 'RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=3',
+    ])));
+    expect(series.map(o => o.duration)).toEqual([90, 90, 90]);
+  });
+
+  it('parseIcsDuration reads the RFC 5545 forms and rejects the rest', () => {
+    expect(parseIcsDuration('PT30M')).toBe(30);
+    expect(parseIcsDuration('PT1H30M')).toBe(90);
+    expect(parseIcsDuration('P1DT2H')).toBe(1560);
+    expect(parseIcsDuration('P2W')).toBe(20160);
+    expect(parseIcsDuration('PT90S')).toBe(2);
+    expect(parseIcsDuration('-PT15M')).toBeNull();
+    expect(parseIcsDuration('PT0M')).toBeNull();
+    expect(parseIcsDuration('soon')).toBeNull();
   });
 });
 

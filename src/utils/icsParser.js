@@ -221,6 +221,12 @@ export const parseICS = (icsContent) => {
         currentEvent.dtend = dateStr;
         const tzid = extractTzid(line);
         if (tzid) currentEvent.dtendTzid = tzid;
+      } else if (line.startsWith('DURATION:')) {
+        // RFC 5545 allows DURATION in place of DTEND; some CalDAV servers
+        // emit it for recurring events. Kept as minutes and used wherever
+        // DTEND is absent (2026-09-08).
+        const mins = parseIcsDuration(line.substring(9));
+        if (mins !== null) currentEvent.durationMinutes = mins;
       } else if (line.startsWith('DUE')) {
         // Handle VTODO due dates
         if (line.includes('VALUE=DATE') || line.split(':')[1]?.length === 8) {
@@ -320,10 +326,25 @@ export const parseICS = (icsContent) => {
 
     // Duration in days for all-day events
     let durDays = 1;
+    if (!event.dtend && event.isAllDay && event.durationMinutes) {
+      durDays = Math.max(1, Math.round(event.durationMinutes / 1440));
+    }
     if (event.dtend && event.isAllDay) {
       const s = new Date(sYear, sMonth, sDay);
       const e = new Date(parseInt(event.dtend.substring(0, 4)), parseInt(event.dtend.substring(4, 6)) - 1, parseInt(event.dtend.substring(6, 8)));
       durDays = Math.max(1, Math.round((e - s) / 86400000));
+    }
+
+    // Timed series: each occurrence keeps the master's wall-clock END TIME
+    // and shifts the end DATE by the master's own start-to-end day span (0
+    // for a same-day event, 1 for one that crosses midnight). Copying the
+    // master's DTEND verbatim put every later occurrence's end before its
+    // start, so the negative duration fell back to 60 minutes (field report,
+    // 2026-09-08: every recurring CalDAV event showed an hour).
+    let endDayDelta = 0;
+    if (event.dtend && !event.isAllDay && event.dtend.length >= 8) {
+      const e = new Date(parseInt(event.dtend.substring(0, 4)), parseInt(event.dtend.substring(4, 6)) - 1, parseInt(event.dtend.substring(6, 8)));
+      endDayDelta = Math.round((e - new Date(sYear, sMonth, sDay)) / 86400000);
     }
 
     const eventStart = new Date(sYear, sMonth, sDay);
@@ -345,6 +366,10 @@ export const parseICS = (icsContent) => {
         const endD = new Date(occDate);
         endD.setDate(endD.getDate() + durDays);
         newDtend = fmt(endD);
+      } else if (event.dtend) {
+        const endD = new Date(occDate);
+        endD.setDate(endD.getDate() + endDayDelta);
+        newDtend = event.dtend.length > 8 ? fmt(endD) + event.dtend.substring(8) : fmt(endD);
       }
       expandedEvents.push({ ...event, dtstart: newDtstart, dtend: newDtend, rrule: undefined, isRecurringSeries: true });
     };
@@ -492,6 +517,18 @@ export const parseICS = (icsContent) => {
   return expandedEvents;
 };
 
+/**
+ * An RFC 5545 DURATION ("P1DT2H30M", "PT45M", "P2W") in minutes, or null when
+ * unreadable or negative. Seconds round to the nearest minute.
+ */
+export const parseIcsDuration = (spec) => {
+  const m = /^\+?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(String(spec || '').trim());
+  if (!m) return null;
+  const [, w, d, h, min, s] = m.map((x) => (x === undefined ? 0 : parseInt(x, 10)));
+  const total = w * 7 * 1440 + d * 1440 + h * 60 + min + Math.round(s / 60);
+  return total > 0 ? total : null;
+};
+
 export const parseDatetime = (dtstr, tzid = null) => {
   if (dtstr.length === 8) {
     return new Date(
@@ -553,7 +590,9 @@ export const filterByDateWindow = (importedTasks, retentionDays) => {
 export const expandMultiDayEvent = (event, options = {}) => {
   const { asTaskCalendar = false, freshCompletedUids = new Set(), color: customColor, importSource = 'sync', feedId } = options;
   const startDate = parseDatetime(event.dtstart, event.dtstartTzid);
-  const endDate = event.dtend ? parseDatetime(event.dtend, event.dtendTzid || event.dtstartTzid) : new Date(startDate.getTime() + 60 * 60 * 1000);
+  const endDate = event.dtend
+    ? parseDatetime(event.dtend, event.dtendTzid || event.dtstartTzid)
+    : new Date(startDate.getTime() + (event.durationMinutes || 60) * 60 * 1000);
   const duration = Math.round((endDate - startDate) / (1000 * 60));
 
   const isAllDay = event.isAllDay ||
