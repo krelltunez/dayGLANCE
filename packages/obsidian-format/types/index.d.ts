@@ -69,6 +69,8 @@ export function stampUntaggedTaskLines(
 export function planStampInsertions(
   content: string, noteKey: string, opts?: { completedSince?: string | null },
 ): Array<{ line: number; fromCh: number; toCh: number; insert: string; blockId: string; rawTitle: string }>;
+/** Split note text into '\r'-free lines (CRLF and bare CR accepted) and report the note's own line ending for a rewrite. */
+export function splitNoteLines(content: string): { lines: string[]; eol: '\n' | '\r\n' };
 
 // ── vault task scope (companion §6, rulings D and E) ────────────────────────
 export interface VaultScope { folders: string[]; tags: string[]; completionWindowDays: number }

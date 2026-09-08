@@ -477,6 +477,20 @@ describe('vault task scope, end to end', () => {
     expect(after).toEqual(before);
   });
 
+  it('15. a CRLF note is stamped in place, stays CRLF throughout, and imports under the same id as its LF twin (audit low, 2026-09-06)', async () => {
+    const lf = `# House\n\n- [ ] ${LINE}\n`;
+    await bootWithScopedNote(lf.replace(/\n/g, '\r\n'));
+    const text = s.text(NOTE)!;
+    expect(text).toMatch(/Call the plumber \^dg-[a-z0-9]{8}\r\n/);
+    expect(text).not.toMatch(/[^\r]\n/);            // no line was rewritten LF inside the CRLF note
+    const mine = A.byPath(NOTE);
+    expect(mine).toHaveLength(1);
+    expect(mine[0].id).toMatch(/^obsidian-dg-/);
+    expect(mine[0].title).toContain(LINE);            // the import tag follows as usual
+    expect(mine[0].title).not.toMatch(/\r/);          // no '\r' rode into the title
+    expect(A.state.inbox).toHaveLength(1);
+  });
+
   it('9. a plugin reload republishes the pairing meta WITH the scope (harness finding)', async () => {
     await bootWithScopedNote();
     s.plugin.reload();

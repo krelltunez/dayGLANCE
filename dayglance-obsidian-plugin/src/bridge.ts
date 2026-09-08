@@ -37,6 +37,7 @@ import {
   planStampInsertions,
   partitionStampPlan,
   settleStampPlan,
+  splitNoteLines,
   bridgeConfigAllowsStamping,
   drainSseBuffer,
   createSseArming,
@@ -1920,7 +1921,7 @@ export class BridgeTransport {
             const editorView = views[0];
             const buffer = editorView.getViewData();
             const plan = planStampInsertions(buffer, noteDate, stampOpts);
-            const settled = settleStampPlan(plan, buffer.split('\n'), this.stampSettle.get(path), Date.now());
+            const settled = settleStampPlan(plan, splitNoteLines(buffer).lines, this.stampSettle.get(path), Date.now());
             if (settled.nextState.size > 0) this.stampSettle.set(path, settled.nextState);
             else this.stampSettle.delete(path);
             if (settled.apply.length > 0) {
@@ -1947,19 +1948,22 @@ export class BridgeTransport {
             // read and this one simply un-settles the moved lines for this
             // pass (they re-enter on the re-arm).
             const plan = planStampInsertions(content, noteDate, stampOpts);
-            const contentLines = content.split('\n');
+            // Lines are compared and edited '\r'-free and re-joined with the
+            // note's own ending (splitNoteLines): a CRLF note used to get the
+            // one stamped line rewritten LF (audit low, 2026-09-06).
+            const contentLines = splitNoteLines(content).lines;
             const settled = settleStampPlan(plan, contentLines, this.stampSettle.get(path), Date.now());
             if (settled.nextState.size > 0) this.stampSettle.set(path, settled.nextState);
             else this.stampSettle.delete(path);
             if (settled.apply.length > 0) {
               const settledKeys = new Set(settled.apply.map((p) => contentLines[p.line]));
               await this.host.app.vault.process(file, (data) => {
-                const lines = data.split('\n');
+                const { lines, eol } = splitNoteLines(data);
                 for (const p of planStampInsertions(data, noteDate, stampOpts)) {
                   if (!settledKeys.has(lines[p.line])) continue;
                   lines[p.line] = lines[p.line].slice(0, p.fromCh) + p.insert;
                 }
-                return lines.join('\n');
+                return lines.join(eol);
               });
             }
             // Observe the STAMPED state: re-arm the same per-path debounce

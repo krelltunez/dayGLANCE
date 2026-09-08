@@ -46,6 +46,8 @@ describe('the v4.7.0 parser premise (the pure half)', () => {
 describe('helpers', () => {
   it('hasFrontmatter / withCreationFrontmatter basics', () => {
     expect(hasFrontmatter('---\nx: 1\n---\n')).toBe(true);
+    expect(hasFrontmatter('---\r\nx: 1\r\n---\r\n')).toBe(true); // a CRLF fence is the user's frontmatter too (audit low, 2026-09-06)
+    expect(withCreationFrontmatter('---\r\nx: 1\r\n---\r\nbody')).toBe('---\r\nx: 1\r\n---\r\nbody');
     expect(hasFrontmatter('body')).toBe(false);
     expect(hasFrontmatter('')).toBe(false);
     expect(withCreationFrontmatter('body', '2026-09-01')).toBe('---\ncreated: 2026-09-01\nsource: dayGLANCE\n---\nbody');

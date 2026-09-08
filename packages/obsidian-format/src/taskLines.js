@@ -118,6 +118,9 @@ function parseLeadingTime(text) {
       if (upper === 'AM' && endH === 12) endH = 0;
     }
     if (startH < 0 || startH > 23 || endH < 0 || endH > 23) return null;
+    // Minutes are bounded like hours (audit low, 2026-09-06): the regex's
+    // \d{2} admits 60–99, which used to parse into a startTime no clock has.
+    if (startM > 59 || endM > 59) return null;
     const startTime = `${startH.toString().padStart(2, '0')}:${rangeMatch[2]}`;
     const rawDuration = (endH * 60 + endM) - (startH * 60 + startM);
     const duration = rawDuration > 0 ? rawDuration : rawDuration + 1440; // handle midnight wrap
@@ -138,6 +141,7 @@ function parseLeadingTime(text) {
     if (upper === 'AM' && hours === 12) hours = 0;
   }
   if (hours < 0 || hours > 23) return null;
+  if (parseInt(minutes, 10) > 59) return null;
   return {
     startTime: `${hours.toString().padStart(2, '0')}:${minutes}`,
     duration: null,
@@ -168,24 +172,46 @@ function buildTimePrefix(startTime, duration) {
  */
 function stripLinePrefixes(text) {
   const trimmed = text.trim();
-  // Regex that matches a single time or a duration range (HH:MM or HH:MM-HH:MM) with optional AM/PM
-  const timeRe = /^(\d{1,2}):(\d{2})\s*(?:[AaPp][Mm])?(?:-\d{1,2}:\d{2}\s*(?:[AaPp][Mm])?)?\s+(.+)$/;
+  // The time prefix is recognized by the SAME function the parser uses, so
+  // the stripper removes exactly what the parser consumed and nothing else.
+  // It used to carry its own regex that matched any two-digit hour and any
+  // two-digit minute, so a "25:00" or "09:60" prefix the parser had refused
+  // (and therefore kept as title text) was still stripped on write — the
+  // line's title changed under a completion toggle (audit low, 2026-09-06).
   // 1) Leading date: "YYYY-MM-DD ..."
   const dateMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})\s+(.+)$/);
   if (dateMatch) {
     const datePrefix = dateMatch[1] + ' ';
     const afterDate = dateMatch[2];
     // Date + time (or date + range)
-    const tm = afterDate.match(timeRe);
-    if (tm) return { bareTitle: tm[3], datePrefix };
+    const tm = parseLeadingTime(afterDate);
+    if (tm) return { bareTitle: tm.rest, datePrefix };
     // Date only
     return { bareTitle: afterDate, datePrefix };
   }
   // 2) Time only (or range only)
-  const tm = trimmed.match(timeRe);
-  if (tm) return { bareTitle: tm[3], datePrefix: '' };
+  const tm = parseLeadingTime(trimmed);
+  if (tm) return { bareTitle: tm.rest, datePrefix: '' };
   // 3) Plain title
   return { bareTitle: trimmed, datePrefix: '' };
+}
+
+/**
+ * Split note text into lines, accepting CRLF and bare CR as well as LF, and
+ * report the note's own line ending so a rewrite can keep it. Every reader
+ * in this module used to split on '\n' alone, which left a trailing '\r' on
+ * every line of a CRLF note (Windows editors, some sync clients): task lines
+ * still matched, but the '\r' rode into rawTitle, the identity hash, and
+ * the title match on write, and a stamp insertion replaced it with the
+ * token — one line rewritten LF inside a CRLF file (audit low, 2026-09-06).
+ *
+ * @param {string} content
+ * @returns {{ lines: string[], eol: '\n' | '\r\n' }}
+ */
+export function splitNoteLines(content) {
+  const text = typeof content === 'string' ? content : '';
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  return { lines: text.replace(/\r\n?/g, '\n').split('\n'), eol };
 }
 
 /**
@@ -371,7 +397,7 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
   const noteKey = notePath ? noteKeyForPath(notePath) : dateStr;
   const noteFields = notePath ? { obsidianNotePath: noteKeyForPath(notePath) } : { obsidianFileDate: dateStr };
 
-  const lines = content.split('\n');
+  const { lines } = splitNoteLines(content);
 
   for (const line of lines) {
     // Match: optional whitespace, -, space, [x or space], space, rest
@@ -613,13 +639,15 @@ export function parseTasksFromMarkdown(content, dateStr, seenBlockIds = new Set(
  */
 export function stampUntaggedTaskLines(content, noteKey, opts = {}) {
   if (!content) return { text: content ?? '', changed: false, stamped: [] };
-  const lines = content.split('\n');
+  const { lines, eol } = splitNoteLines(content);
   const plan = planStampInsertions(content, noteKey, opts);
   for (const p of plan) {
     lines[p.line] = lines[p.line].slice(0, p.fromCh) + p.insert;
   }
   return {
-    text: lines.join('\n'),
+    // Re-joined with the note's own line ending: an untouched CRLF note
+    // round-trips byte-identical, and a stamped one stays CRLF throughout.
+    text: lines.join(eol),
     changed: plan.length > 0,
     stamped: plan.map((p) => ({ blockId: p.blockId, rawTitle: p.rawTitle })),
   };
@@ -648,7 +676,10 @@ export function stampUntaggedTaskLines(content, noteKey, opts = {}) {
  */
 export function planStampInsertions(content, noteKey, { completedSince = null } = {}) {
   if (!content) return [];
-  const lines = content.split('\n');
+  // Line offsets (fromCh/toCh) are within the '\r'-free line, which is what
+  // the editor-transaction path sees too: CodeMirror's line text never
+  // includes the line terminator, CRLF or not.
+  const { lines } = splitNoteLines(content);
   const plan = [];
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(/^\s*- \[([ xX])\]\s+(.+)$/);
