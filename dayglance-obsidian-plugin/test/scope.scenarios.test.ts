@@ -598,6 +598,33 @@ describe('vault task scope, end to end', () => {
     expect(unavailable()).toBe(before + 1);   // a single failure after a success is quiet again
   });
 
+  it('19. THE 2026-09-08 PING-PONG: the observed note replacing a newer-stamped app record outranks it, so a stale copy cannot win the date back', async () => {
+    await bootWithScopedNote();
+    const DAILY = 'Daily/2026-09-08.md';
+    await s.write(DAILY, '## Tasks\n- [ ] Water the plants\n');
+    await s.settle();
+    await A.sync();
+    expect(A.state.dailyNotes['2026-09-08']!.text).toContain('Water the plants');
+    // A device with no vault saved the raw template as the date's record,
+    // stamped a minute into the future relative to the file (in the field:
+    // the tablet's close time versus the note's mtime), and it synced here.
+    const stale = new Date(Date.now() + 60_000).toISOString();
+    A.state.dailyNotes['2026-09-08'] = { text: '<% tp.date.now() %>\n\n## Tasks\n', lastModified: stale };
+    // The note is re-observed (an edit in Obsidian). Its mtime is older than
+    // the stale record, which used to become the record's stamp.
+    await s.write(DAILY, s.text(DAILY)!.replace('\n', '\n- [ ] Buy soil\n'));
+    await s.settle();
+    await A.sync();
+    const rec = A.state.dailyNotes['2026-09-08']!;
+    expect(rec.text).toContain('Buy soil');                       // the vault's text won
+    expect(rec.text).not.toContain('tp.date.now');
+    expect(Date.parse(rec.lastModified!)).toBe(Date.parse(stale) + 1);   // and outranks the stale copy, strictly
+    // Steady state: the unchanged file carries that stamp forward, no re-stamp.
+    await s.settle();
+    await A.sync();
+    expect(A.state.dailyNotes['2026-09-08']!.lastModified).toBe(rec.lastModified);
+  });
+
   it('9. a plugin reload republishes the pairing meta WITH the scope (harness finding)', async () => {
     await bootWithScopedNote();
     s.plugin.reload();
