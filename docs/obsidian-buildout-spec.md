@@ -193,15 +193,20 @@ bridge without the rows, re-enable iCloud, reload. Both places the ungated
 merge reads were then clean, so it had nothing to restore. No storage was
 wiped.
 
-**What changes.** The durable fix for the stale build is the gate that
-already exists, reaching it with the next MAS release. The server now
-treats a repeat delete of an existing tombstone as idempotent (same seq
-back, newest `deletedAt` kept, no nudge), so a fleet of deleters can no
-longer amplify one stale writer into a seq-climbing loop. Two earlier
-proposals were withdrawn once the mechanism was known: persisting the
-acked-delete memory and refusing to re-push a delete for a row the last
-pull showed tombstoned, both of which assumed the desktops were
-re-deleting tombstones, which they were not.
+**What changes.** Nothing in the code. The durable fix for the stale
+build is the gate that already exists, reaching it with the next MAS
+release. Three proposals were withdrawn once the mechanism was known.
+Two assumed the desktops were re-deleting tombstones, which they were
+not: persisting the acked-delete memory, and refusing to re-push a delete
+for a row the last pull showed tombstoned. The third, making a repeat
+delete of an existing tombstone idempotent on the server, had already
+landed in glance-vault on 2026-08-30 (its PRs #33 and #34: same seq back,
+no nudge, and a newer `deletedAt` on a repeat deliberately ignored, since
+rewriting it with no seq would change an LWW outcome no device past the
+cursor could see). The deployment was already on it: when Windows deleted
+the 24 rows at seq 390505 to 390528, the other two desktops' repeat
+deletes of the same rows consumed no seqs at all. A patch written against
+a stale August checkout of that repo was withdrawn unapplied.
 
 **Standing lesson.** A row cannot loop by itself. When tombstoned rows
 come back live, some device holds them in state and its build lacks a
