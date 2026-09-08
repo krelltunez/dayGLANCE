@@ -580,6 +580,7 @@ function makeCapture(initial = {}) {
     get _inbox() { return state.unscheduledTasks; },
     get _recurring() { return state.recurringTasks; },
     ...(initial.deletedTaskIds ? { deletedTaskIds: initial.deletedTaskIds } : {}),
+    ...(initial.recycleBin ? { recycleBin: initial.recycleBin } : {}),
   };
   return ctx;
 }
@@ -746,6 +747,25 @@ describe('handleIntent create execution', () => {
       title: 'Chore',
       source_app: 'app.lastglance',
       source_entity_id: 'chore_44',
+      due: '2026-06-01',
+    }, ctx);
+
+    expect(r.success).toBe(true);
+    expect(r.warning).toContain('ignored re-delivered create');
+    expect(ctx._tasks).toHaveLength(0);
+    expect(ctx._inbox).toHaveLength(0);
+  });
+
+  it('no-ops a re-delivered create whose task sits in the recycle bin (binned, not yet tombstoned)', async () => {
+    const key = await createKey('app.lastglance', 'chore_45', '2026-06-01');
+    const { deterministicTaskId } = await import('./handleIntent.js');
+    const binnedId = await deterministicTaskId(key);
+    const ctx = makeCapture({ recycleBin: [{ id: binnedId, title: 'Chore', deletedAt: '2026-06-02T00:00:00Z' }] });
+
+    const r = await handleIntent('create', {
+      title: 'Chore',
+      source_app: 'app.lastglance',
+      source_entity_id: 'chore_45',
       due: '2026-06-01',
     }, ctx);
 

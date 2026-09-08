@@ -1349,7 +1349,7 @@ const DayPlanner = () => {
 
   // WebDAV intent transport — both hooks no-op until configured via intent settings (PR #11).
   useIntentPoller({
-    tasks, unscheduledTasks, recurringTasks, projects,
+    tasks, unscheduledTasks, recurringTasks, recycleBin, projects,
     setTasks, setUnscheduledTasks, setRecurringTasks,
     goals, addGoal, updateGoal, deleteGoal,
     navigate: tab => {
@@ -1364,7 +1364,7 @@ const DayPlanner = () => {
   // WebDAV poller; no-ops unless DB intents is enabled (its own flag + an
   // inherited vault connection). Same context shape as useIntentPoller.
   const dbIntentContext = {
-    tasks, unscheduledTasks, recurringTasks, projects,
+    tasks, unscheduledTasks, recurringTasks, recycleBin, projects,
     setTasks, setUnscheduledTasks, setRecurringTasks,
     goals, addGoal, updateGoal, deleteGoal,
     navigate: tab => {

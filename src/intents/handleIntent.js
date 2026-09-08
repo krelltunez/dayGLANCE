@@ -253,6 +253,7 @@ async function handleCreate(payload, context) {
     tasks = [],
     unscheduledTasks = [],
     recurringTasks = [],
+    recycleBin = [],
     setTasks,
     setUnscheduledTasks,
     setRecurringTasks,
@@ -374,10 +375,14 @@ async function handleCreate(payload, context) {
       return ok({ task_id: completedExisting.id, warning: 'Task already completed; ignored re-delivered create' });
     }
   }
+  // A task in the recycle bin is neither live nor tombstoned (the tombstone
+  // is written when the bin is emptied), so it counts as existing here: a
+  // re-delivered create must not bring back what the user binned.
   const idExists =
     tasks.some(t => t.id === taskId) ||
     unscheduledTasks.some(t => t.id === taskId) ||
-    recurringTasks.some(t => t.id === taskId);
+    recurringTasks.some(t => t.id === taskId) ||
+    recycleBin.some(t => t && t.id === taskId);
   const isTombstoned = (() => {
     if (deletedTaskIds) return !!deletedTaskIds[taskId];
     try {

@@ -409,6 +409,8 @@ External app writes intent envelope → WebDAV /GLANCE/events/
   → processed envelope files are garbage-collected after 30 days
 ```
 
+With vault sync enabled, no drain runs before the first sync pull of the session has committed (`intents/intentDrainGate.js`, `sync/initialPull.js`): the create handler's guards read local state, and on a device that has been idle that state predates the fleet's completions and tombstones, so a re-delivered create would otherwise recreate a task the fleet had finished with. A pull that never completes releases the drains after three minutes.
+
 Supported intent actions are `create`, `complete`, `open`, and `query`. The tray popup (`?tray`) never polls: it holds a read-only state snapshot and must not consume events before the main window can act on them.
 
 The `intentsEncryptionSetup.js` / `intentsKeyStore.js` modules manage the optional end-to-end encryption key used to protect envelope contents in transit.
