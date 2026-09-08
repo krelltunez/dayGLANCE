@@ -90,6 +90,7 @@ const EXCLUDED_KEYS = new Set([
   'day-planner-obsidian-last-scanned',
   'day-planner-obsidian-last-synced',
   'day-planner-trmnl-last-synced',
+  'day-planner-trmnl-push-state',
   'day-planner-steps-cache',
 ]);
 

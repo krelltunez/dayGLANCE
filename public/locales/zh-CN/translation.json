@@ -648,6 +648,7 @@
     "trmnlDescriptionPrefix": "将每日计划推送到",
     "trmnlDescriptionSuffix": "电子墨水屏。通过 webhook 发送数据；请从 TRMNL Recipe Library 安装 DayGLANCE 配方以开始使用。",
     "trmnlWebhookHint": "可在 TRMNL 的 DayGLANCE 配方设置中找到",
+    "trmnlOneDeviceHint": "TRMNL 对整个插件每小时接受的更新次数有限，因此请只在一台通常保持运行的设备上启用此功能。",
     "usersSyncPathHint": "共享用户列表在 WebDAV 上的存储路径。所有 GLANCE 应用必须使用相同路径。",
     "weatherLocationPlaceholder": "例如 100000 或北京"
   },

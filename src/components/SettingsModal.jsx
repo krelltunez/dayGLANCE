@@ -1905,6 +1905,9 @@ const SettingsModal = () => {
                         <p className={`text-xs ${textSecondary} mt-1`}>
                           {t('settings.trmnlWebhookHint', { defaultValue: 'Found in your DayGLANCE recipe settings on TRMNL' })}
                         </p>
+                        <p className={`text-xs ${textSecondary} mt-1`}>
+                          {t('settings.trmnlOneDeviceHint', { defaultValue: 'TRMNL accepts a limited number of updates per hour for the whole plugin, so enable this on one device that is usually running.' })}
+                        </p>
                       </div>
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>{t('settings.trmnlApiKey')}</label>

@@ -648,6 +648,7 @@
     "trmnlDescriptionPrefix": "Envía tu agenda diaria a una pantalla",
     "trmnlDescriptionSuffix": "de tinta electrónica mediante webhook. Instala la receta DayGLANCE desde TRMNL Recipe Library para empezar.",
     "trmnlWebhookHint": "Se encuentra en los ajustes de tu receta DayGLANCE en TRMNL",
+    "trmnlOneDeviceHint": "TRMNL acepta un número limitado de actualizaciones por hora para todo el plugin, así que activa esto en un solo dispositivo que suela estar en marcha.",
     "usersSyncPathHint": "Ruta WebDAV donde se guarda la lista compartida de usuarios. Debe coincidir en todas las aplicaciones GLANCE.",
     "weatherLocationPlaceholder": "p. ej., 28001 o Madrid"
   },
