@@ -37,7 +37,9 @@
 
 /** True when the text already opens with a frontmatter fence. */
 export function hasFrontmatter(text) {
-  return typeof text === 'string' && text.startsWith('---\n');
+  // A CRLF note opens its fence with '---\r\n' (audit low, 2026-09-06): it
+  // is the user's frontmatter all the same, and theirs wins.
+  return typeof text === 'string' && /^---\r?\n/.test(text);
 }
 
 /**
