@@ -1664,6 +1664,20 @@
     "showingPriorityClick": "Se muestra la prioridad {{priority}}+ (haz clic para cambiar)",
     "zero": "Bandeja de entrada vacía"
   },
+  "glance": {
+    "allDoneMessage": "{{time}}, ¡todo listo!",
+    "freeTimeMessage": "{{time}}, {{duration}} de tiempo libre",
+    "taskCount_one": "{{count}} tarea",
+    "taskCount_other": "{{count}} tareas",
+    "eventCount_one": "{{count}} evento",
+    "eventCount_other": "{{count}} eventos",
+    "deadlineCount_one": "{{count}} fecha límite",
+    "deadlineCount_other": "{{count}} fechas límite",
+    "committedDuration": "Tiempo programado: {{duration}}",
+    "restForTomorrow": "¡Descansa para empezar mañana con energía!",
+    "enjoyEvening": "¡Disfruta de la tarde!",
+    "relaxOrMoreTasks": "¿Hora de descansar o de completar más tareas?"
+  },
   "mobileList": {
     "overlapDuration": "{{duration}} de solapamiento",
     "freeDuration": "{{duration}} libre",
@@ -1679,6 +1693,10 @@
     "openInbox": "Abrir bandeja de entrada"
   },
   "sched": {
+    "viewMultiShort": "DÍAS",
+    "viewDayShort": "DÍA",
+    "viewWeekShort": "SEM.",
+    "viewSchedShort": "PLAN",
     "filterProject": "Filtro: {{project}}",
     "filter": "Filtrar",
     "filterTasks": "Filtrar tareas",

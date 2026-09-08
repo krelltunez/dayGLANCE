@@ -1664,6 +1664,20 @@
     "showingPriorityClick": "A mostrar a prioridade {{priority}}+ (clique para alterar)",
     "zero": "Caixa de entrada vazia"
   },
+  "glance": {
+    "allDoneMessage": "{{time}}, tudo concluído!",
+    "freeTimeMessage": "{{time}}, {{duration}} de tempo livre",
+    "taskCount_one": "{{count}} tarefa",
+    "taskCount_other": "{{count}} tarefas",
+    "eventCount_one": "{{count}} evento",
+    "eventCount_other": "{{count}} eventos",
+    "deadlineCount_one": "{{count}} prazo",
+    "deadlineCount_other": "{{count}} prazos",
+    "committedDuration": "Tempo agendado: {{duration}}",
+    "restForTomorrow": "Descanse para começar bem o dia de amanhã!",
+    "enjoyEvening": "Aproveite a noite!",
+    "relaxOrMoreTasks": "Hora de relaxar ou de concluir mais tarefas?"
+  },
   "mobileList": {
     "overlapDuration": "{{duration}} de sobreposição",
     "freeDuration": "{{duration}} livre",
@@ -1679,6 +1693,10 @@
     "openInbox": "Abrir caixa de entrada"
   },
   "sched": {
+    "viewMultiShort": "DIAS",
+    "viewDayShort": "DIA",
+    "viewWeekShort": "SEM.",
+    "viewSchedShort": "AGEN.",
     "filterProject": "Filtro: {{project}}",
     "filter": "Filtrar",
     "filterTasks": "Filtrar tarefas",
