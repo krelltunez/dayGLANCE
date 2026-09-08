@@ -179,7 +179,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
           <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
             <div className="flex items-center gap-2">
               <NotebookPen size={18} className={textSecondary} />
-              <span className={`font-medium ${textPrimary}`}>{t('common.dailyNote')} — {displayDate}</span>
+              <span className={`font-medium ${textPrimary}`}>{t('common.dailyNote')} · {displayDate}</span>
             </div>
             <button onClick={handleSaveAndClose} className={`p-1 rounded-lg ${hoverBg} transition-colors`} aria-label={`${t('common.close')} ${t('common.dailyNote')}`}>
               <X size={18} className={textSecondary} />
@@ -225,7 +225,7 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <NotebookPen size={20} className={textSecondary} />
-            <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('common.dailyNote')} — {displayDate}</h3>
+            <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('common.dailyNote')} · {displayDate}</h3>
           </div>
           <button onClick={handleSaveAndClose} className={`p-1 rounded ${hoverBg}`} aria-label={`${t('common.close')} ${t('common.dailyNote')}`}>
             <X size={20} className={textSecondary} />

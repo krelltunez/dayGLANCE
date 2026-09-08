@@ -126,7 +126,7 @@ export class BridgeSettingTab extends PluginSettingTab {
     let disarmTimer: number | null = null;
     new Setting(this.containerEl)
       .setName('Unpair dayGLANCE')
-      .setDesc('Forget this vault’s pairing credentials and stop the bridge. dayGLANCE reverts to direct vault access on its next sync. Also revoke the device token on your GLANCEvault server — unpairing only forgets the local half.')
+      .setDesc('Forget this vault’s pairing credentials and stop the bridge. dayGLANCE reverts to direct vault access on its next sync. Also revoke the device token on your GLANCEvault server. Unpairing only forgets the local half.')
       .addButton((btn) => btn
         .setButtonText('Unpair')
         .setWarning()
@@ -361,7 +361,7 @@ export class BridgeSettingTab extends PluginSettingTab {
     // The offer check is async; Setting construction is not. Fill in.
     void readPairingOfferText(this.host.app).then((text) => {
       status.setDesc(text !== null
-        ? 'A pairing offer is waiting in this vault — enter the code dayGLANCE is showing.'
+        ? 'A pairing offer is waiting in this vault. Enter the code dayGLANCE is showing.'
         : 'To pair: in dayGLANCE, open Settings → Obsidian Integration → Bridge plugin, click Start pairing, then enter the code here.');
     });
 
