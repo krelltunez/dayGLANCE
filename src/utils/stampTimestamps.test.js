@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { stampTimestamps } from './stampTimestamps.js';
 import { mergeTaskArrays } from '../mergeSync.js';
 
@@ -165,8 +165,17 @@ describe('stampTimestamps — priority presence is not an edit', () => {
   });
 
   it('still stamps a real priority edit', () => {
-    const stored = [{ id: 1, title: 'A', lastModified: ISO(100) }];
-    const inMemory = [{ id: 1, title: 'A', priority: 2, lastModified: ISO(100) }];
-    expect(stampTimestamps(inMemory, stored, ISO(0))[0].lastModified).toBe(ISO(0));
+    // Frozen clock: the stamp is "now" as the function reads it, and the
+    // expected value was "now" as the test read it a moment earlier. On CI
+    // those straddled a millisecond boundary (2026-09-08, run 1201) and the
+    // two ISO strings differed by 1 ms.
+    vi.useFakeTimers({ now: new Date('2026-09-08T04:41:17.556Z') });
+    try {
+      const stored = [{ id: 1, title: 'A', lastModified: ISO(100) }];
+      const inMemory = [{ id: 1, title: 'A', priority: 2, lastModified: ISO(100) }];
+      expect(stampTimestamps(inMemory, stored, ISO(0))[0].lastModified).toBe('2026-09-08T04:41:17.556Z');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
