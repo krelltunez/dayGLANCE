@@ -8683,6 +8683,12 @@ const DayPlanner = () => {
     suppressClearPendingRef, cloudSyncInProgressRef, cloudSyncInitialDoneRef,
     cloudSyncDownloadRef,
     obsidianVaultHandleRef, obsidianSyncInProgressRef, obsidianPrevTaskStateRef,
+    // The heartbeat ref carries the cycle's vault posture; the sync toast
+    // reads it to name the holding posture. #1556 put it in the deps object
+    // passed INTO useObsidianSync (the hook that returns it) instead of here,
+    // the boot-crash fix removed it from there, and the toast's posture check
+    // was left reading undefined on every platform (2026-09-08 finding).
+    bridgeHeartbeatRef,
     obsidianTasksRef, obsidianInboxRef,
     trmnlSyncTimerRef, trmnlLastPushRef, trmnlBackoffUntilRef, trmnlBackoffCountRef,
     trmnlSyncInProgressRef, performTrmnlSyncRef,
