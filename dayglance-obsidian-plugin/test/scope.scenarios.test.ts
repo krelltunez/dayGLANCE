@@ -598,7 +598,7 @@ describe('vault task scope, end to end', () => {
     expect(unavailable()).toBe(before + 1);   // a single failure after a success is quiet again
   });
 
-  it('19. THE 2026-09-08 PING-PONG: the observed note replacing a newer-stamped app record outranks it, so a stale copy cannot win the date back', async () => {
+  it('19. THE 2026-09-08 PING-PONG: the observed note replacing a newer-stamped app record keeps that stamp, so the stale copy cannot win the date back here', async () => {
     await bootWithScopedNote();
     const DAILY = 'Daily/2026-09-08.md';
     await s.write(DAILY, '## Tasks\n- [ ] Water the plants\n');
@@ -618,7 +618,7 @@ describe('vault task scope, end to end', () => {
     const rec = A.state.dailyNotes['2026-09-08']!;
     expect(rec.text).toContain('Buy soil');                       // the vault's text won
     expect(rec.text).not.toContain('tp.date.now');
-    expect(Date.parse(rec.lastModified!)).toBe(Date.parse(stale) + 1);   // and outranks the stale copy, strictly
+    expect(rec.lastModified).toBe(stale);                          // and ties the stale copy: every tier keeps local on a tie
     // Steady state: the unchanged file carries that stamp forward, no re-stamp.
     await s.settle();
     await A.sync();

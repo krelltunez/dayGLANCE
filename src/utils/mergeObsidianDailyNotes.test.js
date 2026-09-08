@@ -29,24 +29,28 @@ describe('mergeObsidianDailyNotes', () => {
     expect(out.lastModified).toBe('2026-07-07T00:00:00.000Z');
   });
 
-  it('THE 2026-09-08 PING-PONG: scanned text replacing a record stamped after the file mtime is stamped 1 ms after that record', () => {
+  it('THE 2026-09-08 PING-PONG: scanned text replacing a record stamped after the file mtime keeps that stamp', () => {
     // A device with no copy of the date saved the raw template at 19:22:43.742;
     // the real note's mtime is 18:33:02.841. Stamping the vault's text with
-    // the mtime lost every LWW merge to the template copy, forever.
+    // the mtime lost every LWW merge to the template copy, forever. Every
+    // tier keeps local on a tie, so the equal stamp ends the loop here and
+    // never outranks a genuinely newer record elsewhere.
     const prev = { '2026-09-08': note('<% template %>', '2026-09-08T19:22:43.742Z') };
     const scanned = { '2026-09-08': note('real note', '2026-09-08T18:33:02.841Z') };
     const out = mergeObsidianDailyNotes(prev, scanned)['2026-09-08'];
     expect(out.text).toBe('real note');
-    expect(out.lastModified).toBe('2026-09-08T19:22:43.743Z');
+    expect(out.lastModified).toBe('2026-09-08T19:22:43.742Z');
     // Idempotent: the next scan of the unchanged file carries that stamp forward.
     const again = mergeObsidianDailyNotes({ '2026-09-08': out }, scanned)['2026-09-08'];
     expect(again).toEqual(out);
   });
 
-  it('a record stamped exactly at the file mtime is also outranked (a tie leaves the stale copy standing)', () => {
-    const prev = { '2026-09-08': note('stale', '2026-09-08T18:33:02.841Z') };
-    const scanned = { '2026-09-08': note('real note', '2026-09-08T18:33:02.841Z') };
-    expect(mergeObsidianDailyNotes(prev, scanned)['2026-09-08'].lastModified).toBe('2026-09-08T18:33:02.842Z');
+  it('never stamps the scanned text NEWER than the record it replaces (a late older observation must not win fleet-wide)', () => {
+    const prev = { '2026-09-06': note('three lines re-stamped', '2026-09-08T19:39:15.824Z') };
+    const late = { '2026-09-06': note('first of the three', '2026-09-08T19:39:12.241Z') };
+    const out = mergeObsidianDailyNotes(prev, late)['2026-09-06'];
+    expect(out.text).toBe('first of the three');                  // the observation still wins locally
+    expect(out.lastModified).toBe('2026-09-08T19:39:15.824Z');     // but ties, so every other tier keeps its own
   });
 
   it('a file newer than the record it replaces keeps its own mtime (the ordinary edit)', () => {

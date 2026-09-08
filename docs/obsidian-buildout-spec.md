@@ -253,12 +253,26 @@ than the record it replaced.
    the modal), and every save path writes back only a change to what was
    loaded or last saved. An untouched seed is never persisted.
 2. Ruling, `utils/mergeObsidianDailyNotes.js`: an observed note whose text
-   replaces a record stamped at or after the file's mtime is stamped 1 ms
-   after that record. The vault's content must outrank the record it
-   replaces; a tie would leave the stale copy standing wherever it sits,
-   since the file-tier merge keeps local on a tie. The note's real mtime is
-   unaffected: it travels separately as evidence (noteMtimes) for the
-   tombstone and revival rules, which read the mtime, not the record.
+   replaces a record stamped after the file's mtime keeps that record's
+   stamp, not the mtime. Every tier keeps local on a tie (the DB pull and
+   the file-tier merge both apply a remote copy only when strictly newer),
+   so the equal stamp ends the loop on the observing device: nothing
+   re-applies the stale copy over it. A device still holding the stale copy
+   keeps it until the note next changes in the vault; that divergence is
+   accepted. The alternative, stamping the observed text strictly newer, was
+   built first and withdrawn the same afternoon: the console showed an
+   observation delivered late (the 9/06 note's stamp went back to a value
+   it had held four minutes earlier, through the observation path, since the
+   DB pull cannot apply an older row), and a strictly newer stamp would have
+   pushed that late observation's text to every device as the newest word.
+   The note's real mtime is unaffected: it travels separately as evidence
+   (noteMtimes) for the tombstone and revival rules, which read the mtime,
+   not the record.
+
+**Open, not built.** The late observation itself. An observation whose
+mtime is older than the note's last observed mtime is stale evidence, and
+today the merge still applies its text locally. Skipping it is a what-wins
+change between two observations of the same note and waits for a ruling.
 
 **Manual end to a running loop.** A small edit to the note on the desktop,
 saved from the app, stamps the real text newer than the stale copy and
