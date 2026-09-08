@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { obsidianToastKey } from '../utils/obsidianToastCopy.js';
 
 const ObsidianSyncToast = () => {
   const { t } = useTranslation();
@@ -11,7 +12,7 @@ const ObsidianSyncToast = () => {
   // paired device with Obsidian closed never touches its vault — the cycle
   // reads the stream and queues intents. The toast names that, so it never
   // contradicts the settings line saying vault changes wait for Obsidian.
-  const holding = bridgeHeartbeatRef?.current?.vaultPosture === 'holding';
+  const vaultPosture = bridgeHeartbeatRef?.current?.vaultPosture;
   const { cardBg, borderClass, textPrimary, textSecondary, isMobile } = useDayPlannerCtx();
 
   // Fire-and-forget NOTICE (e.g. a two-sided retitle resolution): neutral
@@ -44,11 +45,11 @@ const ObsidianSyncToast = () => {
     accentColor = 'bg-blue-500';
   } else if (isSyncing) {
     icon = <Loader size={16} className="text-blue-500 animate-spin flex-shrink-0" />;
-    message = t(holding ? 'sync.obsidianToast.syncingBridge' : 'sync.obsidianToast.syncing');
+    message = t(obsidianToastKey('syncing', vaultPosture));
     accentColor = 'bg-blue-500';
   } else if (isSuccess) {
     icon = <CheckCircle size={16} className="text-green-500 flex-shrink-0" />;
-    message = t(holding ? 'sync.obsidianToast.syncedBridge' : 'sync.obsidianToast.synced');
+    message = t(obsidianToastKey('success', vaultPosture));
     accentColor = 'bg-green-500';
   } else {
     icon = <AlertCircle size={16} className="text-red-500 flex-shrink-0" />;
