@@ -648,6 +648,7 @@
     "trmnlDescriptionPrefix": "Push your daily schedule to a",
     "trmnlDescriptionSuffix": "e-ink display via webhook. Install the DayGLANCE recipe from the TRMNL Recipe Library to get started.",
     "trmnlWebhookHint": "Found in your DayGLANCE recipe settings on TRMNL",
+    "trmnlOneDeviceHint": "TRMNL accepts a limited number of updates per hour for the whole plugin, so enable this on one device that is usually running.",
     "usersSyncPathHint": "WebDAV path where the shared user list is stored. Must match across all GLANCE apps.",
     "weatherLocationPlaceholder": "e.g. 90210 or Seattle"
   },

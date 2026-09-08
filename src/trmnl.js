@@ -15,6 +15,8 @@ import { notBucketed } from './utils/bucketList.js';
 // ---------------------------------------------------------------------------
 
 /** Format minutes as "Xh Ym" or "Ym" */
+import { parseRetryAfter } from './utils/trmnlPushPolicy.js';
+
 const fmtDuration = (mins) => {
   if (!mins || mins <= 0) return '0m';
   const h = Math.floor(mins / 60);
@@ -243,7 +245,11 @@ export async function pushToTrmnl({ webhookUrl, apiKey }, mergeVars) {
       body: JSON.stringify({ merge_variables: mergeVars }),
     });
 
-    if (res.status === 429) return { success: false, error: 'Rate limited — try again later', rateLimited: true };
+    if (res.status === 429) {
+      // TRMNL may say how long to wait; the caller's backoff never waits less.
+      const retryAfterSeconds = parseRetryAfter(res.headers?.get?.('Retry-After'));
+      return { success: false, error: 'Rate limited — try again later', rateLimited: true, retryAfterSeconds };
+    }
     if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
     return { success: true };
   } catch (err) {
