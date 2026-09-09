@@ -1,60 +1,42 @@
 # dayGLANCE Obsidian Build-Out
 
 **Status:** Draft, revision 1
-**Date:** 2026-08-10
+**Date:** 2026-08-10 (status refreshed 2026-09-09)
 **Scope:** Extending dayGLANCE's Obsidian integration from direct filesystem access to a full bridge, including a first-party Obsidian community plugin.
 
-**Current position (2026-09-05): Phase 8 built; the phones on the stream; SSE re-arm next.**
-Phases 0–7 are built and deployed. Phase 8 (`obsidian-companion-spec.md`) is
-built end to end and in daily use: the completion log (4.1), the sidebar view
-(4.2), two-way vault task scope (§6), project and goal notes with workspace
-creation, the maintained map, default bodies and project routing (4.3,
-rulings A–H and the 2026-09-04/05 rounds), and Templater and Dataview
-delegation (4.4, 4.5). Multi-user scoping runs across the log, the sidebar
-and the writeback. The bridge scenario harness (`dayglance-obsidian-plugin/
-test/`) drives the real plugin transport and the real sync hook against a
-stub vault, and every change to what the plugin stamps, reports or applies
-adds a scenario there. The week's field findings each closed with a record:
-the stray vault row (§3.10, seventh record's addendum: the apply gate now
-deletes what it drops), deleted daily notes while paired (§3.10, the
-note-scoped deletion amendment), and the mobile transport gap (Phase 6 PR 1's
-note: the bridge modules now ride the native-safe fetch, so Android and iOS
-are on the bridge stream for the first time as of 2026-09-05). The audit's
-app-only remainder closed the same day: direct-tier append and daily-note
-write failures now surface like the plugin branch's dropped emits (M3,
-`utils/obsidianDirectWrites.js`); every write of `deletedObsidianKeys`
-re-reads the stored bundle first, so a peer's tombstone the engine applies
-mid-cycle is never clobbered (M11, `commitObsidianTombstones`); the re-mint
-refusal's fuse follows the successor's tombstone (M9, the seventh record's
-addendum); and four lows — a dead inbound stream no longer finishes green
-(Phase 6 PR 1's inbound note), the refusal logs once per task and token, the
-commit-merge's cross-list reconcile carries the war guard, and a thrown cycle
-drains the trip flags it set. The pairing-meta ack item from the same list
-is plugin-side (`publishPairingMeta` lives in the plugin) and moved to the
-plugin batch. A soak finding closed the same night: the apply's rescue pass
-undid a peer's inbox-to-timeline move every cycle (the seventh record's
-phone-soak addendum; `rescueUnsyncedTasks` now honors the result's live ids). The DB-engine batch followed, held unmerged for the soak:
-M5 (an echo keeps its ack), M6 (the glitch-heal latch, ten wall-clock
-minutes), M7 (`completedTaskUids` on the fixed-window lockstep every writer
-applies, 365 days — the one user-visible change in the batch, recorded with
-its cost in `sync/tombstoneRetention.js`), M10's revival half (real mtimes
-only), and the device cursor reported after the commit. The plugin batch followed, held unmerged for the soak:
-device-local plugin state (Phase 6's build record, the record above the
-Phase 7 section), M4, M12, unsupported-intent preservation, the SSE connect
-timeout and the pairing-meta ack.
+**Current position (2026-09-09): released. dayGLANCE 5.0.0 and the bridge plugin 0.9.0 are out; the post-release list is worked down to one item.**
+Phases 0 through 8 are built, deployed and released. The 5.0.0 release
+(GitHub v5.0.0, App Store, Mac App Store and Play in review) carries the
+whole Obsidian build-out: the plugin as transport with live sync over SSE,
+the agenda sidebar, project and goal notes with routing, vault task scope,
+daily note templates, completion timestamps, Tasks-plugin metadata, editor
+hiding, and multi-user scoping. The plugin ships unlisted as release
+assets (`manifest.json`, `main.js`, `dayglance-bridge-0.9.0.zip`; manual
+install into `.obsidian/plugins/dayglance-bridge/`). The bridge scenario
+harness (`dayglance-obsidian-plugin/test/`, 21 scenarios) remains the gate
+for every change to what the plugin stamps, reports or applies.
 
-What is NOT done, in order: (1) DONE 2026-09-05/06 — a day's soak with the
-phones on the stream under the polling posture; (2) DONE 2026-09-07 — the SSE
-re-arm sequence: the supervised single-machine flip on the Mac (2026-09-06)
-surfaced the lost sidebar completion, root-caused to the phantom re-stamp
-on a stale-copy direct scan (#1551) and answered by the posture ruling
-(#1552), not to nudge speed; the default then flipped to ON fleet-wide
-(`SSE_NUDGES_DEFAULT_ON`, `sync/vaultEventStream.js`), with
-`dayglance-sse-nudges` = `off` as the per-device retreat and the constant as
-the one-line fleet retreat; (3) the direct-tier half of project
-routing (companion 4.3, project routing: desktop has path-addressed reads
-and writes, each mobile bridge needs two native methods), wanted only where
-direct mode is relied on. Deferred by design, not planned: companion §5.
+The release week's field findings each closed with a record: the daily-note
+ping-pong (2.7: the modal guard, the equal-stamp rule, and now the
+late-observation gate under the 2026-09-09 ruling), the 24-row tombstone
+replay (2.6), intents replaying over completed tasks on an idle device (the
+drain now waits for the first pull to settle, `sync/initialPull.js`,
+`intents/intentDrainGate.js`), CRLF notes under the intent applier, the
+project task order as a field on the task (`utils/projectOrder.js`), and
+the iOS web-storage purge (2.5: the Keychain mirror is built).
+
+What is NOT done, in order: (1) the project note's Tasks section following
+the app's order (2.5: one-way design recommended, owner chose to wait);
+(2) the direct-tier half of project routing (companion 4.3: desktop has
+path-addressed reads and writes, each mobile bridge needs two native
+methods), wanted only where direct mode is relied on; (3) the directory
+submission milestone (7), which is also what enables BRAT: the plugin
+needs its own repository with `manifest.json` at the root. Watch items
+from the daily console reviews: the identity move's second write six
+seconds after the first (cosmetic), and the startup backwards-stamp race,
+which the late-observation gate should now cover (look for "late
+observation skipped" at startup). Deferred by design, not planned:
+companion 5.
 
 ---
 
@@ -122,6 +104,19 @@ Verified on Linux under xvfb (pick, write, quit, relaunch, restore, write, plus 
 
 The Phase 1 section below reflects the delivered design, not a proposal.
 
+**Release week and after (2026-09-07 to 2026-09-09), shipped in 5.0.0 or
+just behind it.** The daily-note ping-pong fixes (#1573 modal guard, #1574
+and #1575 the equal stamp; 2.7); the intents drain gate behind the first
+pull plus the recycle-bin guard in the intent applier (#1577); CRLF notes
+under every bridge intent (#1578, harness scenario 20); the project task
+order as a per-task field carried by both tiers and the Obsidian cycle
+(#1580); the open-book chip for project and goal notes (#1579); the version
+bump (#1586, plugin 0.1.0 to 0.9.0). After the release: the iOS Keychain
+mirror of the vault connection, the cloud sync preference and both cached
+key records (#1588; 2.5 records what is not mirrored), and the
+late-observation gate (#1589; 2.7 records the ruling and the options not
+taken, harness scenario 21).
+
 ### 2.5 Known deferred items
 
 - **Issue #1358.** Surface unportable existing vault filenames in Settings, read-only, phrased as a portability note rather than an error.
@@ -155,7 +150,22 @@ The Phase 1 section below reflects the delivered design, not a proposal.
   ruling that a project note's sections are never sorted; and a decision on
   the reverse direction (a line moved in Obsidian does not move the task in
   the app under this design). Deferred as a separate commission; the app
-  side is complete without it.
+  side is complete without it. **Recommendation recorded 2026-09-09, owner
+  chose to wait.** One way only, app to note: the intent carries the
+  ordered block ids as the app shows them (scheduled first in schedule
+  order, then unscheduled by the field; completed lines unnamed and left in
+  place); the plugin re-sequences only the named task blocks into the slots
+  those blocks already occupy, each task line moving with its indented
+  continuation lines, every other line keeping its position; the app emits
+  one intent per affected note, coalesced across a burst of drags; the 4.3
+  never-sorted ruling is amended to "never sorted on the plugin's own
+  initiative". The note-to-app direction is declined: it would make every
+  observation a possible reorder and need a what-wins rule between a line
+  move and a drag. Cost is a permutation function in the format package, one
+  intent kind through the stream with a harness scenario, and the emitter
+  in the writeback; the side effect is one note rewrite per app reorder,
+  which the order field and the late-observation gate absorb. Worth building
+  only if the note's Tasks section is read in Obsidian as a working list.
 
 - **iOS web storage is the only copy of the app's data and vault
   connection (recorded 2026-09-09).** After a routine iPhone reboot the app
@@ -841,11 +851,28 @@ day-agenda expansion), now sits beside `@glance-apps/obsidian-format` under
 the same boundary rule (§3.11) — the app's `src/utils/recurrenceEngine.js`
 re-exports it, and the plugin bundles it.
 
+**Released (2026-09-09).** Phase 8 shipped in dayGLANCE 5.0.0 with the
+bridge plugin at 0.9.0 (minAppVersion 1.5.0 unchanged; the shared packages
+stay at 0.1.0). The plugin is distributed as release assets on the GitHub
+release, manual install; see section 7 for why BRAT waits for the
+extraction. The status note at the top of this document carries what
+remains.
+
 ---
 
 ## 7. Directory submission milestone
 
 Not a phase. Submit the plugin to the Obsidian community directory once Phases 6 and 7 are stable and the codebase is not expected to change substantially.
+
+**Status (2026-09-09): not yet.** The plugin shipped unlisted with 5.0.0
+as release assets (`manifest.json`, `main.js`, and a zip of both), manual
+install. BRAT is not a usable path from the monorepo: it validates a
+repository by fetching `manifest.json` from the repository root, which this
+layout does not have. The extraction to the plugin's own repository at this
+milestone is therefore what enables BRAT as well as the directory listing,
+and the repo plan in section 4 (the shared packages under their final npm
+names, the plugin's `file:` links flipping to published versions) is
+unchanged.
 
 **Before submitting.**
 
