@@ -117,13 +117,84 @@ export function padDialSegment(startMin, endMin, gapMin = 3, padStart = true, pa
 }
 
 /**
+ * Split overlapping blocks onto concentric lanes so a double-booked hour
+ * stops overdrawing itself. Classic interval partitioning, but scoped to
+ * each CLUSTER of transitively-overlapping blocks rather than the whole
+ * day: one double-booking at breakfast must not thin the ring for a clean
+ * afternoon, and a day with no overlaps (the common one) keeps every wedge
+ * at the band's full depth exactly as before.
+ *
+ * Lane 0 is innermost. Greedy assignment by start time therefore puts the
+ * earliest, longest block deepest and pushes each newcomer outward, which
+ * is the reading we want: a block nested inside a container ends up on the
+ * outer luminous rim — the same "nested wins" rule the hub already follows
+ * (findDialFocusBlock).
+ *
+ * Blocks that merely touch (one ends where the next starts) do not overlap;
+ * padDialSegment's gap already separates those along the ring.
+ *
+ * @param blocks Ring blocks sorted by startMin (computeDialModel's order).
+ * @returns New block objects carrying {lane, laneCount}, in the same order.
+ */
+export function assignDialLanes(blocks) {
+  const out = [];
+  let cluster = [];
+  let clusterEnd = -Infinity;
+  let laneEnds = [];
+
+  // One cluster's lane count applies to every block in it, so a wedge keeps
+  // the same depth for as long as the pile-up lasts instead of stepping
+  // radially mid-cluster.
+  const flush = () => {
+    for (const b of cluster) out.push({ ...b, laneCount: laneEnds.length });
+    cluster = [];
+    laneEnds = [];
+  };
+
+  for (const b of blocks || []) {
+    if (b.startMin >= clusterEnd) {
+      flush();
+      clusterEnd = b.endMin;
+    } else {
+      clusterEnd = Math.max(clusterEnd, b.endMin);
+    }
+    let lane = laneEnds.findIndex((end) => end <= b.startMin);
+    if (lane === -1) lane = laneEnds.length;
+    laneEnds[lane] = b.endMin;
+    cluster.push({ ...b, lane });
+  }
+  flush();
+  return out;
+}
+
+// Radial breathing room between lanes, in viewBox units. Yields on crowded
+// clusters (same principle as padDialSegment's gap) so four-deep overlaps
+// still leave each lane thick enough to carry its luminous edge.
+export const DIAL_LANE_GAP = 6;
+
+/**
+ * The radial band one lane occupies inside the schedule ring. A single lane
+ * takes the whole band, so the unstacked day is byte-identical to what the
+ * dial drew before lanes existed.
+ */
+export function dialLaneBand(rInner, rOuter, lane = 0, laneCount = 1) {
+  if (!(laneCount > 1)) return { rInner, rOuter };
+  const span = rOuter - rInner;
+  const gap = Math.min(DIAL_LANE_GAP, span / (laneCount * 5));
+  const depth = (span - gap * (laneCount - 1)) / laneCount;
+  const base = rInner + lane * (depth + gap);
+  return { rInner: fmt(base), rOuter: fmt(base + depth) };
+}
+
+/**
  * Roll one day's tasks + declared day window into everything the dial draws.
  *
  * @param dayTasks  The date's tasks (the getTasksForDate shape). Same scope
  *                  rules as computeDaySummary: only timed blocks count.
  * @param dayWindow Resolved {start, stop} 'HH:MM' markers or null.
  * @returns {{
- *   blocks: Array<{id, title, startMin, endMin, kind: 'effort'|'restore', completed: boolean}>,
+ *   blocks: Array<{id, title, startMin, endMin, kind: 'effort'|'restore',
+ *                  completed: boolean, lane: number, laneCount: number}>,
  *   sleep: Array<{startMin, endMin}>,   // outside the day window; empty without full markers
  *   effortMinutes: number,
  *   restoreMinutes: number,
@@ -132,7 +203,7 @@ export function padDialSegment(startMin, endMin, gapMin = 3, padStart = true, pa
  * }}
  */
 export function computeDialModel(dayTasks, dayWindow = null) {
-  const blocks = (dayTasks || [])
+  const blocks = assignDialLanes((dayTasks || [])
     .filter((t) => t && !t.isAllDay && t.startTime && (t.duration || 0) > 0)
     .map((t) => {
       const startMin = timeToMin(t.startTime);
@@ -152,7 +223,7 @@ export function computeDialModel(dayTasks, dayWindow = null) {
       };
     })
     .filter((b) => b.endMin > b.startMin)
-    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin));
 
   const startM = dayWindow?.start ? timeToMin(dayWindow.start) : null;
   const stopM = dayWindow?.stop ? timeToMin(dayWindow.stop) : null;
