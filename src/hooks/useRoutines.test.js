@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resetRoutineCompletionsForToday, sanitizeMergedRoutineCompletions, startOfTodayIso } from './useRoutines.js';
+import { resetRoutineCompletionsForToday, rolloverRemovedTodayRoutineIds, sanitizeMergedRoutineCompletions, startOfTodayIso } from './useRoutines.js';
 
 const TODAY = '2026-07-03';
 const MIDNIGHT = '2026-07-03T00:00:00.000Z'; // local-midnight stand-in for the tests
@@ -116,5 +116,25 @@ describe('sanitizeMergedRoutineCompletions (#1196 symptom 2 — sync-apply)', ()
     );
     expect(completions).toEqual({ done: TODAY });
     expect(timestamps).toEqual({ done: TODAY_MORNING_TS, stale: MIDNIGHT, marker: TODAY_MORNING_TS });
+  });
+});
+
+describe('rolloverRemovedTodayRoutineIds', () => {
+  it('keeps every existing receipt and stamps a midnight receipt per cleared chip', () => {
+    const existing = { 'mid-day': YESTERDAY_TS, old: '2026-05-01T00:00:00.000Z' };
+    const rolled = rolloverRemovedTodayRoutineIds(existing, [{ id: 'a' }, { id: 42 }], MIDNIGHT);
+    expect(rolled).toEqual({ ...existing, a: MIDNIGHT, '42': MIDNIGHT });
+    // Pure: the input map is untouched.
+    expect(existing).toEqual({ 'mid-day': YESTERDAY_TS, old: '2026-05-01T00:00:00.000Z' });
+  });
+
+  it('a cleared chip that already had a mid-day receipt is re-stamped at midnight (the rollover is the later event)', () => {
+    const rolled = rolloverRemovedTodayRoutineIds({ a: YESTERDAY_TS }, [{ id: 'a' }], MIDNIGHT);
+    expect(rolled).toEqual({ a: MIDNIGHT });
+  });
+
+  it('with nothing stored and nothing cleared the result is an empty map, never a wipe of a peer-held receipt', () => {
+    expect(rolloverRemovedTodayRoutineIds(undefined, undefined, MIDNIGHT)).toEqual({});
+    expect(rolloverRemovedTodayRoutineIds({ keep: YESTERDAY_TS }, [], MIDNIGHT)).toEqual({ keep: YESTERDAY_TS });
   });
 });
