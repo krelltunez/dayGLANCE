@@ -354,7 +354,7 @@ The sync engine resolves conflicts at the task level using timestamps, not last-
 
 **Setup:** Settings → Cloud Sync → choose Nextcloud or Generic WebDAV → enter URL and credentials. Syncs automatically every 15 minutes or on demand.
 
-**End-to-end encryption** is available as an opt-in. When enabled, all sync data is encrypted with AES-256-GCM before leaving your device, and your passphrase never leaves your device and the server never sees plaintext. On Android, the derived key is stored in the hardware-backed Android Keystore. Enable in **Settings → Cloud Sync → Enable end-to-end encryption**.
+**End-to-end encryption** is available as an opt-in. When enabled, all sync data is encrypted with AES-256-GCM before leaving your device, and your passphrase never leaves your device and the server never sees plaintext. On Android, the derived key is stored in the hardware-backed Android Keystore; on iOS it is kept in the device Keychain, along with the GLANCEvault connection, so it survives a WebKit storage purge. Enable in **Settings → Cloud Sync → Enable end-to-end encryption**.
 
 ### CalDAV / iCal Calendar Import
 

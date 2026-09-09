@@ -1,18 +1,20 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { nativeKeyConfig } from './dbEngine.js';
 
-// Regression for the iOS-only "passphrase prompt on every launch" bug.
+// Regression for the iOS-only "passphrase prompt on every launch" bug, plus
+// the iOS secure-store route.
 //
 // The GLANCEvault DB root key must persist across launches so a vault-enabled
 // device unlocks silently. It lives in the Android OS keystore on the Android
-// shell and in IndexedDB everywhere else (web AND iOS). The bug: iOS exposes
-// window.DayGlanceNative as a Proxy whose every property reads truthy, so the
-// old `!!bridge.httpRequest` native-app check matched on iOS and routed the key
-// through the proxy's non-functional keystore methods — it was never persisted,
-// so the passphrase modal reappeared on every launch. Only Android (real
-// getSyncKey, no DayGlanceIOS marker) may use the native keystore.
+// shell, in the iOS shell's Keychain (secureGet/secureSet, the mirror that
+// survives a WebKit storage purge), and in IndexedDB on web and Electron. The
+// old bug: iOS exposes window.DayGlanceNative as a Proxy whose every property
+// reads truthy, so the old `!!bridge.httpRequest` native-app check matched on
+// iOS and routed the key through the proxy's non-functional Android keystore
+// methods — it was never persisted, so the passphrase modal reappeared on every
+// launch. iOS is now routed by its explicit marker to its own real methods.
 
-describe('nativeKeyConfig — native keystore only on Android, IndexedDB on iOS/web', () => {
+describe('nativeKeyConfig — Android keystore, iOS secure store, IndexedDB on web', () => {
   const origWindow = Object.prototype.hasOwnProperty.call(global, 'window') ? global.window : undefined;
   const hadWindow = Object.prototype.hasOwnProperty.call(global, 'window');
   afterEach(() => {
@@ -28,15 +30,19 @@ describe('nativeKeyConfig — native keystore only on Android, IndexedDB on iOS/
     expect(cfg.nativeStoreSyncKey).toBeNull();
   });
 
-  it('iOS (all-truthy Proxy bridge + DayGlanceIOS marker): uses IndexedDB, NOT the proxy keystore', () => {
-    // iOS proxies every property lookup to a truthy function — exactly the trap
-    // the old `!!bridge.httpRequest` check fell into.
-    const proxy = new Proxy({}, { get: () => () => 'truthy' });
+  it('iOS (DayGlanceIOS marker): uses the secure store under its own slot, never the Android keystore names', () => {
+    const calls = [];
+    // The proxy still answers every name; the config must call secureGet /
+    // secureSet by name and nothing else.
+    const proxy = new Proxy({}, {
+      get: (_, name) => (...args) => { calls.push([name, ...args]); return name === 'secureGet' ? 'k' : 'true'; },
+    });
     global.window = { DayGlanceNative: proxy, DayGlanceIOS: {} };
     const cfg = nativeKeyConfig();
     expect(cfg.cryptoDBName).toBe('dayglance-db-crypto');
-    expect(cfg.nativeGetSyncKey).toBeNull();
-    expect(cfg.nativeStoreSyncKey).toBeNull();
+    expect(cfg.nativeGetSyncKey()).toBe('k');
+    expect(cfg.nativeStoreSyncKey('val')).toBe(true);
+    expect(calls).toEqual([['secureGet', 'db-root-key'], ['secureSet', 'db-root-key', 'val']]);
   });
 
   it('Android (real getSyncKey, no DayGlanceIOS): uses the native keystore', () => {

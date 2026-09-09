@@ -288,6 +288,16 @@ final class BridgeSchemeHandler: NSObject, WKURLSchemeHandler {
             VaultSseBridge.shared.stop()
             return "null"
 
+        // Secure store: the Keychain mirror of the web layer's connection state
+        // and cached key records (SecureStoreBridge). "" means no value.
+        case "secureGet":
+            guard let slot = args.first as? String, !slot.isEmpty else { return "" }
+            return SecureStoreBridge.shared.get(slot: slot)
+        case "secureSet":
+            guard let slot = args.first as? String, !slot.isEmpty else { return "false" }
+            let value = args.count >= 2 ? args[1] as? String : nil
+            return SecureStoreBridge.shared.set(slot: slot, value: value)
+
         default:
             return "null"
         }

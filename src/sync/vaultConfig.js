@@ -7,20 +7,48 @@
 // rejects this device's credential, honoured by every primitive. Imported as
 // the exported helper — never a string literal — so the key can't drift.
 import { credentialHaltKey } from '@glance-apps/sync/src/dbEngine.js';
+import { SECURE_SLOT, secureGet, secureSet, secureStoreAvailable } from '../utils/nativeSecureStore.js';
 
 const VAULT_CONFIG_KEY = 'dayglance-vault-config';
 // Must match the wrapper's DEFAULT_STORAGE_KEY_PREFIX (src/sync/dbEngine.js).
 const VAULT_STORAGE_KEY_PREFIX = 'dayglance-vault';
 
-/** @returns {{enabled:boolean, vaultUrl:string, vaultToken:string, accountId:string}|null} */
-export function getVaultConfig() {
+// iOS mirror (utils/nativeSecureStore.js): the shell's Keychain holds a copy
+// of this config, written on every save and read back once per session when
+// web storage has none. WebKit purged the phone's storage after a reboot
+// (2026-09-09) and the connection was gone with it; the mirror is what brings
+// it back without a hand-entered setup. One read per session: a device that
+// never configured a vault must not pay a bridge call on every isVaultEnabled().
+let secureRestoreTried = false;
+
+function restoreVaultConfigFromSecureStore() {
+  if (secureRestoreTried || !secureStoreAvailable()) return null;
+  secureRestoreTried = true;
+  const mirrored = secureGet(SECURE_SLOT.vaultConfig);
+  if (!mirrored) return null;
   try {
-    const saved = localStorage.getItem(VAULT_CONFIG_KEY);
-    return saved ? JSON.parse(saved) : null;
+    const cfg = JSON.parse(mirrored);
+    if (!cfg || typeof cfg !== 'object') return null;
+    localStorage.setItem(VAULT_CONFIG_KEY, JSON.stringify(cfg));
+    console.info('[vault] connection restored from the device secure store');
+    return cfg;
   } catch {
     return null;
   }
 }
+
+/** @returns {{enabled:boolean, vaultUrl:string, vaultToken:string, accountId:string}|null} */
+export function getVaultConfig() {
+  try {
+    const saved = localStorage.getItem(VAULT_CONFIG_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {
+    return null;
+  }
+  return restoreVaultConfigFromSecureStore();
+}
+
+export function _resetVaultConfigSecureRestoreForTests() { secureRestoreTried = false; }
 
 export function setVaultConfig(cfg) {
   // HALT EXIT (2.0.0 adoption, ruling 4 — the minimal version): the package
@@ -42,6 +70,9 @@ export function setVaultConfig(cfg) {
   } catch { /* storage unavailable — the halt read would fail the same way */ }
   if (cfg) localStorage.setItem(VAULT_CONFIG_KEY, JSON.stringify(cfg));
   else localStorage.removeItem(VAULT_CONFIG_KEY);
+  // Mirror to the iOS secure store (no-op elsewhere); a clear clears the mirror.
+  secureSet(SECURE_SLOT.vaultConfig, cfg ? JSON.stringify(cfg) : null);
+  secureRestoreTried = true; // web storage is now authoritative for this session
 }
 
 // True only when the vault is fully configured AND toggled on. Everything in the

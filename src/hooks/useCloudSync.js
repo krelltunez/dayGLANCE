@@ -4,10 +4,25 @@ import { isVaultEnabled } from '../sync/vaultConfig.js';
 import { restoreDbRootKey } from '../sync/dbEngine.js';
 import { isDbIntentsEnabled } from '../intents/dbIntentsConfig.js';
 import { loadVaultIntentsRootKey } from '../intents/intentsKeyStore.js';
+import { SECURE_SLOT, secureGet, secureSet, secureStoreAvailable } from '../utils/nativeSecureStore.js';
 
 const useCloudSync = () => {
   const [cloudSyncConfig, setCloudSyncConfig] = useState(() => {
-    const saved = localStorage.getItem('day-planner-cloud-sync-config');
+    let saved = localStorage.getItem('day-planner-cloud-sync-config');
+    if (!saved && secureStoreAvailable()) {
+      // iOS: WebKit may purge web storage (a reboot did, 2026-09-09). The
+      // shell's Keychain mirror (utils/nativeSecureStore.js) restores the
+      // preference; the persist effect below keeps the mirror current.
+      const mirrored = secureGet(SECURE_SLOT.cloudSyncConfig);
+      if (mirrored) {
+        try {
+          JSON.parse(mirrored);
+          localStorage.setItem('day-planner-cloud-sync-config', mirrored);
+          saved = mirrored;
+          console.info('[cloud-sync] preference restored from the device secure store');
+        } catch { /* unreadable mirror: start unconfigured */ }
+      }
+    }
     if (!saved) return null;
     const config = JSON.parse(saved);
     // Generic WebDAV users pre-1.0.3: webdavUrl contained the full folder path
@@ -66,6 +81,8 @@ const useCloudSync = () => {
     } else {
       localStorage.removeItem('day-planner-cloud-sync-config');
     }
+    // iOS secure-store mirror (no-op elsewhere); a clear clears the mirror.
+    secureSet(SECURE_SLOT.cloudSyncConfig, cloudSyncConfig ? JSON.stringify(cloudSyncConfig) : null);
   }, [cloudSyncConfig]);
 
   // On mount: attempt to restore the cached encryption key(s) from device storage
