@@ -240,6 +240,8 @@ An ambient, fullscreen view of the day as a 24-hour instrument dial — midnight
 
 ![The Day Dial](screenshots/day-dial.png)
 
+Overlapping blocks — a session nested inside an all-day conference, or a genuine double-booking — split onto concentric lanes instead of painting over each other, with the more specific block taking the outer edge. Lanes are scoped to each pile-up, so a clean afternoon keeps its wedges at the ring's full depth.
+
 If a weather location is set, hairlines mark sunrise (amber, with a sun glyph) and sunset (moonlight blue, with a moon glyph) — computed locally from your coordinates, so they work for any date and offline. On days the forecast covers, hour temperatures appear at the 3-hour marks and rain or snow spells are traced as a thin arc along the ring's inner edge. The Layers button in the corner toggles the solar marks, the weather ring, and imported calendar events; choices persist per device.
 
 For a wall display or kiosk, append `?dial` to the URL to boot straight into it — for example `http://localhost:6767/?dial` on a self-hosted Docker instance, or a pinned PWA on a wall tablet. The dial is built to run unattended: it follows the date across midnight, the cursor and corner buttons fade after a few seconds of stillness, and a browsed date snaps back to today after five idle minutes.

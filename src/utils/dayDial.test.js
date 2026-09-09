@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   DIAL_DAY_MINUTES,
+  DIAL_LANE_GAP,
+  assignDialLanes,
+  dialLaneBand,
   dialAngle,
   dialPoint,
   dialArcPath,
@@ -111,6 +114,77 @@ describe('padDialSegment', () => {
   });
 });
 
+describe('assignDialLanes', () => {
+  const blk = (startMin, endMin, id = `${startMin}`) => ({ id, startMin, endMin });
+
+  it('keeps a day with no overlaps on one full-depth lane', () => {
+    // Back-to-back blocks touch but never overlap — that separation is
+    // padDialSegment's job along the ring, not a lane's.
+    const laid = assignDialLanes([blk(540, 600), blk(600, 660), blk(700, 760)]);
+    expect(laid.map((b) => [b.lane, b.laneCount])).toEqual([[0, 1], [0, 1], [0, 1]]);
+  });
+
+  it('pushes a nested block onto the outer lane', () => {
+    // An all-day conference with a keynote inside it: the specific block
+    // takes the luminous rim, the container recedes inward.
+    const laid = assignDialLanes([blk(540, 1020, 'conf'), blk(570, 630, 'keynote')]);
+    expect(laid).toMatchObject([
+      { id: 'conf', lane: 0, laneCount: 2 },
+      { id: 'keynote', lane: 1, laneCount: 2 },
+    ]);
+  });
+
+  it('reuses a lane that has freed up inside the same cluster', () => {
+    const laid = assignDialLanes([blk(600, 660, 'a'), blk(630, 720, 'b'), blk(675, 720, 'c')]);
+    expect(laid.map((b) => b.lane)).toEqual([0, 1, 0]);
+    expect(laid.map((b) => b.laneCount)).toEqual([2, 2, 2]);
+  });
+
+  it('scopes the lane count to each overlap cluster', () => {
+    const laid = assignDialLanes([
+      blk(480, 540, 'morning'),
+      blk(600, 700, 'x'), blk(620, 720, 'y'), blk(640, 700, 'z'),
+      blk(800, 860, 'evening'),
+    ]);
+    // One three-deep pile-up must not thin the wedges around it.
+    expect(laid.map((b) => [b.id, b.lane, b.laneCount])).toEqual([
+      ['morning', 0, 1],
+      ['x', 0, 3], ['y', 1, 3], ['z', 2, 3],
+      ['evening', 0, 1],
+    ]);
+  });
+
+  it('handles empty and missing input', () => {
+    expect(assignDialLanes([])).toEqual([]);
+    expect(assignDialLanes(null)).toEqual([]);
+  });
+});
+
+describe('dialLaneBand', () => {
+  it('gives a single lane the whole band', () => {
+    expect(dialLaneBand(300, 385, 0, 1)).toEqual({ rInner: 300, rOuter: 385 });
+    expect(dialLaneBand(300, 385)).toEqual({ rInner: 300, rOuter: 385 });
+  });
+
+  it('splits the band inside-out, lane 0 innermost', () => {
+    const inner = dialLaneBand(300, 385, 0, 2);
+    const outer = dialLaneBand(300, 385, 1, 2);
+    expect(inner.rInner).toBe(300);
+    expect(outer.rOuter).toBe(385);
+    expect(outer.rInner - inner.rOuter).toBeCloseTo(DIAL_LANE_GAP);
+    expect(inner.rOuter - inner.rInner).toBeCloseTo(outer.rOuter - outer.rInner);
+  });
+
+  it('yields the gap so a crowded cluster keeps usable depth', () => {
+    const lanes = [0, 1, 2, 3, 4, 5].map((i) => dialLaneBand(300, 385, i, 6));
+    expect(lanes[0].rInner).toBe(300);
+    expect(lanes[5].rOuter).toBeCloseTo(385);
+    expect(lanes[1].rInner - lanes[0].rOuter).toBeLessThan(DIAL_LANE_GAP);
+    // Still thicker than the widest luminous edge (4) plus its halo.
+    lanes.forEach((l) => expect(l.rOuter - l.rInner).toBeGreaterThan(10));
+  });
+});
+
 describe('computeDialModel', () => {
   it('maps timed tasks to categorized ring blocks, sorted by start', () => {
     const model = computeDialModel([
@@ -168,6 +242,17 @@ describe('computeDialModel', () => {
     );
     // 08:00–12:00 window, 2h blocked → 2h unblocked.
     expect(model.unblockedMinutes).toBe(120);
+  });
+
+  it('lanes overlapping blocks and leaves a clean day at full depth', () => {
+    const model = computeDialModel([
+      task({ id: 1, title: 'Offsite', startTime: '09:00', duration: 480 }),
+      task({ id: 2, title: 'Keynote', startTime: '09:30', duration: 60 }),
+      task({ id: 3, title: 'Dinner', startTime: '18:00', duration: 60 }),
+    ]);
+    expect(model.blocks.map((b) => [b.id, b.lane, b.laneCount])).toEqual([
+      [1, 0, 2], [2, 1, 2], [3, 0, 1],
+    ]);
   });
 
   it('handles an empty day', () => {

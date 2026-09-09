@@ -9,6 +9,7 @@ import {
   computeDialModel,
   dialArcPath,
   dialIntensity,
+  dialLaneBand,
   dialPoint,
   dialSectorPath,
   dialTicks,
@@ -96,11 +97,14 @@ function TickField() {
   );
 }
 
-function Segment({ startMin, endMin, color, mute = 1, padStart = true, padEnd = true, onEnter, onLeave, onTap }) {
+function Segment({
+  startMin, endMin, color, mute = 1, padStart = true, padEnd = true,
+  rInner = R_INNER, rOuter = R_EDGE, onEnter, onLeave, onTap,
+}) {
   const [s, e] = padDialSegment(startMin, endMin, 3, padStart, padEnd);
   if (e <= s) return null;
   const { fillOpacity, edgeOpacity, edgeWidth } = dialIntensity(endMin - startMin);
-  const edge = dialArcPath(CX, CY, R_EDGE, s, e);
+  const edge = dialArcPath(CX, CY, rOuter, s, e);
   return (
     <g
       onMouseEnter={onEnter}
@@ -109,7 +113,7 @@ function Segment({ startMin, endMin, color, mute = 1, padStart = true, padEnd = 
       style={onTap ? { cursor: 'pointer' } : undefined}
     >
       <path
-        d={dialSectorPath(CX, CY, R_INNER, R_EDGE, s, e)}
+        d={dialSectorPath(CX, CY, rInner, rOuter, s, e)}
         fill={color}
         fillOpacity={fillOpacity * mute}
       />
@@ -331,6 +335,14 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
     [dayTasks, dayWindow],
   );
 
+  // Paint inner lanes first: the glow filter spreads past a lane's own band,
+  // so the outermost (most specific — see assignDialLanes) wedge has to lay
+  // its crisp edge down last.
+  const laneOrdered = useMemo(
+    () => [...model.blocks].sort((a, b) => a.lane - b.lane),
+    [model.blocks],
+  );
+
   const focus = nowMin !== null ? findDialFocusBlock(model.blocks, nowMin) : null;
 
   // Block inspection: hover or tap a wedge and the hub becomes its readout,
@@ -522,18 +534,25 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
           {/* Schedule blocks — each in its task's own hue, spoken in the
               dial's voice (muteDialColor pins every color into one
               pastel-emissive family). Completed and fully-past blocks stay
-              (the hour is spent) but recede to the dim tier. */}
-          {model.blocks.map((b) => (
-            <Segment
-              key={b.id}
-              startMin={b.startMin} endMin={b.endMin}
-              color={muteDialColor(b.colorHex)}
-              mute={b.completed || isPast(b.endMin) ? PAST_MUTE : 1}
-              onEnter={() => inspectEnter(b)}
-              onLeave={inspectLeave}
-              onTap={() => inspectTap(b)}
-            />
-          ))}
+              (the hour is spent) but recede to the dim tier. Overlapping
+              blocks ride concentric lanes (assignDialLanes) instead of
+              painting over each other; an unstacked day still fills the
+              whole band. */}
+          {laneOrdered.map((b) => {
+            const band = dialLaneBand(R_INNER, R_EDGE, b.lane, b.laneCount);
+            return (
+              <Segment
+                key={b.id}
+                startMin={b.startMin} endMin={b.endMin}
+                rInner={band.rInner} rOuter={band.rOuter}
+                color={muteDialColor(b.colorHex)}
+                mute={b.completed || isPast(b.endMin) ? PAST_MUTE : 1}
+                onEnter={() => inspectEnter(b)}
+                onLeave={inspectLeave}
+                onTap={() => inspectTap(b)}
+              />
+            );
+          })}
 
           {nowMin !== null && <NowLine nowMin={nowMin} />}
         </svg>
