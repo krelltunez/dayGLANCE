@@ -1334,6 +1334,7 @@
     "sleep": "睡眠",
     "unblocked": "可用时间",
     "aria": "日程表盘：{{date}}",
+    "blockList": "日程时段",
     "backToToday": "返回今天 (T)",
     "today": "今天",
     "prevDay": "前一天 (←)",

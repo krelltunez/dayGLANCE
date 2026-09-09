@@ -345,6 +345,44 @@ export function findDialFocusBlock(blocks, nowMin) {
   return next ? { block: next, current: false } : null;
 }
 
+/**
+ * Where a keyboard selection starts when focus first reaches the ring: the
+ * block the hub is already narrating, so tabbing in lands on "now" rather
+ * than on an arbitrary end of the day. Once today is spent (nothing running,
+ * nothing ahead) the last block is the useful entry — that is the hour just
+ * finished. Another date has no "now", so it starts at the top of the day.
+ *
+ * @returns The block to select, or null on a day with no timed blocks.
+ */
+export function initialDialSelection(blocks, nowMin = null) {
+  const list = blocks || [];
+  if (!list.length) return null;
+  if (nowMin === null) return list[0];
+  const focus = findDialFocusBlock(list, nowMin);
+  return focus ? focus.block : list[list.length - 1];
+}
+
+/**
+ * Move a keyboard selection through the day in time order. Clamps at both
+ * ends rather than wrapping — Home/End are the deliberate way to reach the
+ * extremes, and a selection that silently jumps from 23:00 back to 06:00
+ * loses the "walking forward through the day" reading. A selection that has
+ * gone stale (its block edited away) re-enters from the end the caller was
+ * heading toward.
+ *
+ * @param blocks    Ring blocks in computeDialModel order (by start time).
+ * @param currentId id of the selected block, or null for none.
+ * @param delta     Steps to move; negative walks back toward midnight.
+ * @returns The newly selected block, or null on a day with no blocks.
+ */
+export function stepDialSelection(blocks, currentId, delta) {
+  const list = blocks || [];
+  if (!list.length) return null;
+  const i = list.findIndex((b) => b.id === currentId);
+  if (i === -1) return delta < 0 ? list[list.length - 1] : list[0];
+  return list[Math.max(0, Math.min(list.length - 1, i + delta))];
+}
+
 // A sunrise/sunset mark rides its hairline out to the hour-label radius, so
 // a sun time within about half an hour of a label parks the glyph on the
 // text ("6☼AM" for an August sunrise at 6:09). The label yields for those
