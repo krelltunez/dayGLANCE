@@ -313,10 +313,25 @@ than the record it replaced.
    (noteMtimes) for the tombstone and revival rules, which read the mtime,
    not the record.
 
-**Open, not built.** The late observation itself. An observation whose
-mtime is older than the note's last observed mtime is stale evidence, and
-today the merge still applies its text locally. Skipping it is a what-wins
-change between two observations of the same note and waits for a ruling.
+**The late observation itself: ruled and built (owner, 2026-09-09,
+Option B, "newest mtime wins for text").** An observation of a daily note
+whose real mtime is strictly older than the mtime of the last observation
+this device applied for that date is stale evidence and is dropped, text
+and revival evidence both (`utils/lateObservationGate.js`, harness scenario
+21). Equal or newer applies as before; an observation with no real mtime
+carries no evidence either way and always applies. One rule for both
+delivery paths, the bridge stream and this device's own scan (a lagging
+local copy is stale too). The memory is device-local
+(`dayglance-obsidian-last-applied-mtime`, dates older than 400 days
+pruned), never synced: a storage purge resets it and the next observation
+applies. This extends §3.10 ruling 6 (the note's mtime is the vault's
+statement time) from existence to text. Options considered: leave it
+(stale text shown on one device until the next change, a push every peer
+ignores); skip only an exact re-arrival of a copy this device already
+displaced (never drops new content, but a lagging peer's edit on top of a
+stale copy still gets through). Accepted edge: a note put back to an older
+version by a tool that preserves the old mtime is not seen until its next
+edit; Obsidian's own writes and restores set a fresh mtime.
 
 **Manual end to a running loop.** A small edit to the note on the desktop,
 saved from the app, stamps the real text newer than the stale copy and

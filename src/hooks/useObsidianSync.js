@@ -20,6 +20,7 @@ import { validateWikiNoteName } from '../utils/obsidianFilename.js';
 import { classifyVaultPaths } from '../utils/vaultPortability.js';
 import { mergeObsidianDailyNotes } from '../utils/mergeObsidianDailyNotes.js';
 import { mergeObsidianTasks, preserveObsidianAppFields, noteMtimesFromDailyNotes, noteMtimesFromScopedNotes } from '../utils/mergeObsidianTasks.js';
+import { applyLateObservationGate } from '../utils/lateObservationGate.js';
 import { detectObsidianDeletions, addObsidianTombstones, commitObsidianTombstones } from '../utils/obsidianDeletions.js';
 import { reattachTasksMetadata } from '../utils/obsidianTasksMetadata.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
@@ -871,14 +872,20 @@ export default function useObsidianSync({
               tombstones = commitObsidianTombstones(deletedNotes);
               console.info('[Obsidian] daily note(s) deleted in the vault; their copies drop now, their tasks after the confirmation hold:', deletedDates.map(([d]) => d).join(', '));
             }
-            setDailyNotes(prev => mergeObsidianDailyNotes(prev, applied.dailyNotes, tombstones));
             // The observed notes' mtimes are the revival evidence (§3.10
             // ruling 6): a scanned line whose tombstone predates its note's
             // mtime is re-admitted with lastModified lifted to that mtime.
             // Real mtimes only (audit fix M10): a note the plugin reported
             // without an mtime is no revival evidence at all.
-            const observedNoteMtimes = applied.noteMtimes
+            const observedNoteMtimesAll = applied.noteMtimes
               ?? { ...noteMtimesFromDailyNotes(applied.dailyNotes), ...noteMtimesFromScopedNotes(applied.scopedNotes) };
+            // LATE-OBSERVATION GATE (spec 2.7 ruling, 2026-09-09): a daily
+            // note observed with an mtime older than the last one this device
+            // applied is stale evidence; its text and its mtime are dropped.
+            // Same rule on the direct-scan path below.
+            const streamGate = applyLateObservationGate(applied.dailyNotes, observedNoteMtimesAll);
+            setDailyNotes(prev => mergeObsidianDailyNotes(prev, streamGate.dailyNotes, tombstones));
+            const observedNoteMtimes = streamGate.noteMtimes;
             // FIRST-IMPORT ASSIGNMENT (utils/obsidianUserScope.js): a task new
             // to the app is the vault's viewer's — here the pairing meta's
             // user, since every device on the account applies this stream.
@@ -1071,7 +1078,19 @@ export default function useObsidianSync({
       // new dailyNotes:…). Merge keeps other devices' dates, carries the prior
       // lastModified forward for unchanged text, and honors deletion tombstones so
       // a genuine vault deletion still propagates. See mergeObsidianDailyNotes.
-      setDailyNotes(prev => mergeObsidianDailyNotes(prev, result.dailyNotes, tombstones));
+      // The scanned notes' mtimes carry the revival evidence (§3.10 ruling 6),
+      // so a verbatim re-creation revives on a direct scan exactly as it does
+      // on an observation.
+      // Real mtimes only (audit fix M10): the native scan's "now" fallback for
+      // an old bridge build is a note-text stamp, not the vault's statement
+      // time, so it is excluded from the evidence (result.noteMtimes).
+      const scannedNoteMtimesAll = result.noteMtimes ?? noteMtimesFromDailyNotes(result.dailyNotes);
+      // LATE-OBSERVATION GATE (spec 2.7 ruling, 2026-09-09): this device's
+      // own copy can lag an observation it already applied (Obsidian Sync
+      // behind); an older mtime is stale evidence here too, one rule for
+      // both paths.
+      const scanGate = applyLateObservationGate(result.dailyNotes, scannedNoteMtimesAll);
+      setDailyNotes(prev => mergeObsidianDailyNotes(prev, scanGate.dailyNotes, tombstones));
 
       // BIN-VERSUS-VAULT (§3.10 ruling 5): a scanned line whose task sits in
       // the recycle bin restores it — the vault controls task existence, and
@@ -1103,13 +1122,8 @@ export default function useObsidianSync({
       // Update tasks/inbox — same merge-not-replace + honor-tombstones rule; RETAIN
       // prior Obsidian tasks this scan didn't produce (another device's vault),
       // drop only those with a deletion tombstone. See mergeObsidianTasks.
-      // The scanned notes' mtimes carry the revival evidence (§3.10 ruling 6),
-      // so a verbatim re-creation revives on a direct scan exactly as it does
-      // on an observation.
-      // Real mtimes only (audit fix M10): the native scan's "now" fallback for
-      // an old bridge build is a note-text stamp, not the vault's statement
-      // time, so it is excluded from the evidence (result.noteMtimes).
-      const scannedNoteMtimes = result.noteMtimes ?? noteMtimesFromDailyNotes(result.dailyNotes);
+      // Revival evidence without the dates the late-observation gate dropped.
+      const scannedNoteMtimes = scanGate.noteMtimes;
       // FIRST-IMPORT ASSIGNMENT (utils/obsidianUserScope.js): on direct
       // access the vault is on this device, so the viewer is this device's
       // user. Known tasks keep the app's own assignment.

@@ -657,6 +657,45 @@ describe('vault task scope, end to end', () => {
     expect(noBareLf(after)).toBe(true);
   });
 
+  it('21. LATE OBSERVATION (spec 2.7 ruling): a report whose mtime is older than the last applied one is dropped; equal and newer apply', async () => {
+    await bootWithScopedNote();
+    const DAILY = 'Daily/2026-09-11.md';
+    // A daily note with no task lines: the plugin has nothing to stamp, so the
+    // file's mtime is exactly what the test sets.
+    await s.write(DAILY, '## Notes\nMorning: coffee\n');
+    await s.settle();
+    await A.sync();
+    expect(A.state.dailyNotes['2026-09-11']!.text).toContain('Morning: coffee');
+    const applied = JSON.parse((globalThis as any).localStorage.getItem('dayglance-obsidian-last-applied-mtime'))['2026-09-11'];
+    expect(typeof applied).toBe('string');
+    // A newer edit lands and is applied; the memory advances.
+    await s.advance(5_000);
+    await s.write(DAILY, '## Notes\nMorning: coffee\nNoon: walk\n');
+    await s.settle();
+    await A.sync();
+    expect(A.state.dailyNotes['2026-09-11']!.text).toContain('Noon: walk');
+    const newerApplied = JSON.parse((globalThis as any).localStorage.getItem('dayglance-obsidian-last-applied-mtime'))['2026-09-11'];
+    expect(Date.parse(newerApplied)).toBeGreaterThan(Date.parse(applied));
+    // A lagging copy reports: older text under an mtime BEFORE the last
+    // applied one (a second desktop's Obsidian Sync copy, or a stream row
+    // delivered late). The text must not come back, and the memory holds.
+    await s.write(DAILY, '## Notes\nMorning: coffee\n');
+    s.file(DAILY).stat.mtime = Date.parse(applied) - 60_000;
+    const info = vi.spyOn(console, 'info');
+    await s.settle();
+    await A.sync();
+    expect(A.state.dailyNotes['2026-09-11']!.text).toContain('Noon: walk');
+    expect(info.mock.calls.some((c) => String(c[0]).includes('late observation skipped'))).toBe(true);
+    info.mockRestore();
+    expect(JSON.parse((globalThis as any).localStorage.getItem('dayglance-obsidian-last-applied-mtime'))['2026-09-11']).toBe(newerApplied);
+    // A genuinely newer edit still applies after the late one.
+    await s.advance(5_000);
+    await s.write(DAILY, '## Notes\nMorning: coffee\nNoon: walk\nEvening: read\n');
+    await s.settle();
+    await A.sync();
+    expect(A.state.dailyNotes['2026-09-11']!.text).toContain('Evening: read');
+  });
+
   it('9. a plugin reload republishes the pairing meta WITH the scope (harness finding)', async () => {
     await bootWithScopedNote();
     s.plugin.reload();
