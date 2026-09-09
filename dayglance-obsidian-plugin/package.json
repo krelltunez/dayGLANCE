@@ -1,6 +1,6 @@
 {
   "name": "dayglance-bridge",
-  "version": "0.1.0",
+  "version": "0.9.0",
   "description": "dayGLANCE bridge plugin for Obsidian (Phase 5: heartbeat)",
   "private": true,
   "main": "main.js",
