@@ -1,6 +1,7 @@
 import { dateToString } from '../utils/taskUtils.js';
 import { hasNativeCalendar } from '../utils/nativeCalendar.js';
 import { stampTimestamps } from '../utils/stampTimestamps.js';
+import { rolloverRemovedTodayRoutineIds, startOfTodayIso } from './useRoutines.js';
 
 // Read-only CalDAV/ICS-subscription events (importSource 'sync', non-task,
 // non-file) are ephemeral remote data, re-fetched live each session. On devices
@@ -140,11 +141,25 @@ export default function useDataPersistence({
         const removedData = localStorage.getItem('day-planner-removed-today-routine-ids');
         if (removedData) setRemovedTodayRoutineIds(JSON.parse(removedData));
       } else {
-        // Auto-clear if different day
+        // A new day since the last save: clear the chips, but KEEP the removal
+        // receipts and stamp one at local midnight for each cleared chip,
+        // exactly as the open-across-midnight rollover does (useRoutines.js).
+        // Wiping the map here pushed an empty bundle that the vault's grow-only
+        // merge undid on the next pull: one pointless write per launch, and
+        // two code paths disagreeing about the same day boundary.
+        let storedRemoved = {};
+        let storedChips = [];
+        try {
+          storedRemoved = JSON.parse(localStorage.getItem('day-planner-removed-today-routine-ids') || '{}') || {};
+        } catch (_) { storedRemoved = {}; }
+        try {
+          storedChips = JSON.parse(todayRoutinesData || '[]') || [];
+        } catch (_) { storedChips = []; }
+        const rolled = rolloverRemovedTodayRoutineIds(storedRemoved, storedChips, startOfTodayIso());
         setTodayRoutines([]);
         setRoutinesDate(todayStr);
-        setRemovedTodayRoutineIds({});
-        if (!isTrayMode) localStorage.removeItem('day-planner-removed-today-routine-ids');
+        setRemovedTodayRoutineIds(rolled);
+        if (!isTrayMode) localStorage.setItem('day-planner-removed-today-routine-ids', JSON.stringify(rolled));
       }
 
       // Load habit tracking data

@@ -99,7 +99,36 @@ describe('loadData normalization write-back', () => {
       .toMatchObject({ id: 'u1', notes: '', subtasks: [] });
     expect(JSON.parse(written['day-planner-habits'])[0])
       .toMatchObject({ id: 'h1', scheduledDays: [0, 1, 2, 3, 4, 5, 6] });
-    expect(removeItem).toHaveBeenCalledWith('day-planner-removed-today-routine-ids');
+    // The removal receipts are rolled, not wiped: with nothing stored, the
+    // rolled map is empty and is persisted as such (never removeItem).
+    expect(removeItem).not.toHaveBeenCalled();
+    expect(written['day-planner-removed-today-routine-ids']).toBe('{}');
+  });
+
+  it('on a new day keeps the removal receipts and stamps one at midnight per cleared chip', async () => {
+    const useDataPersistence = await loadHookAs('main');
+    const { props, setters } = makeProps();
+    const store = {
+      ...STORE,
+      'day-planner-routines-date': '2000-01-01',
+      'day-planner-today-routines': JSON.stringify([{ id: 'chip-a' }, { id: 7 }]),
+      'day-planner-removed-today-routine-ids': JSON.stringify({ 'mid-day': '2000-01-01T15:00:00.000Z' }),
+    };
+    globalThis.localStorage.getItem = vi.fn((k) => store[k] ?? null);
+
+    useDataPersistence(props).loadData();
+
+    const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+    const expected = {
+      'mid-day': '2000-01-01T15:00:00.000Z',
+      'chip-a': midnight.toISOString(),
+      '7': midnight.toISOString(),
+    };
+    expect(setters.setTodayRoutines).toHaveBeenCalledWith([]);
+    expect(setters.setRemovedTodayRoutineIds).toHaveBeenCalledWith(expected);
+    const written = Object.fromEntries(setItem.mock.calls);
+    expect(JSON.parse(written['day-planner-removed-today-routine-ids'])).toEqual(expected);
+    expect(removeItem).not.toHaveBeenCalled();
   });
 
   it('writes nothing to localStorage in tray mode', async () => {

@@ -42,6 +42,22 @@ export const resetRoutineCompletionsForToday = (
   return { completions, timestamps };
 };
 
+// Roll the routine-removal receipts (removedTodayRoutineIds, {id -> ISO}) into a
+// new day: every chip the rollover clears gets a receipt stamped at local
+// midnight, MERGED into the existing map. Mid-day receipts must survive for
+// peers that were offline (the vault merges this bundle grow-only and the
+// 60-day retention prunes it), and a bare wipe only pushed an empty bundle the
+// next pull undid, one pointless write per new day. Shared by the
+// open-across-midnight effect below and the launch-on-a-new-day path in
+// useDataPersistence so the two paths agree.
+export const rolloverRemovedTodayRoutineIds = (existing = {}, clearedRoutines = [], midnightIso) => {
+  const next = { ...(existing || {}) };
+  for (const r of clearedRoutines || []) {
+    if (r && r.id !== undefined && r.id !== null) next[String(r.id)] = midnightIso;
+  }
+  return next;
+};
+
 // Sanitize a MERGED (sync-apply) routine-completion payload for today (#1196
 // symptom 2). A merged payload can carry a PRIOR-day completion — e.g. this
 // device was offline overnight, so it never stamped a midnight tombstone for a
@@ -152,8 +168,7 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, h
       // clears the tombstone on local re-add), so fresh placements still win.
       const midnightIso = startOfTodayIso();
       if (todayRoutines.length > 0) {
-        const withCleared = { ...removedTodayRoutineIds };
-        for (const r of todayRoutines) withCleared[String(r.id)] = midnightIso;
+        const withCleared = rolloverRemovedTodayRoutineIds(removedTodayRoutineIds, todayRoutines, midnightIso);
         setRemovedTodayRoutineIds(withCleared);
         localStorage.setItem('day-planner-removed-today-routine-ids', JSON.stringify(withCleared));
       }
