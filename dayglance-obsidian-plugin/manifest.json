@@ -1,7 +1,7 @@
 {
   "id": "dayglance-bridge",
   "name": "dayGLANCE Bridge",
-  "version": "0.1.0",
+  "version": "0.9.0",
   "minAppVersion": "1.5.0",
   "description": "Bridge between an Obsidian vault and dayGLANCE: liveness heartbeat, pairing, the intent/observation stream, and an agenda sidebar read from GLANCEvault.",
   "author": "krelltunez",

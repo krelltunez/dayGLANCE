@@ -25,7 +25,7 @@ android {
         // fallback for plain gradle/IDE builds and no longer needs a commit
         // per Play upload.
         versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 185
-        versionName = "4.7.0"
+        versionName = "5.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
