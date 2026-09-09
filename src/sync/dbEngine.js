@@ -35,6 +35,7 @@ import { createVaultClient } from '@glance-apps/sync/src/vaultClient.js';
 import { getVaultConfig, isVaultEnabled } from './vaultConfig.js';
 import { markInitialPullComplete } from './initialPull.js';
 import { getDeviceId } from './deviceId.js';
+import { SECURE_SLOT, secureGet, secureSet, secureStoreAvailable, readIndexedDbRecord } from '../utils/nativeSecureStore.js';
 import {
   getLocalEntity as adapterGetLocalEntity,
   applyRemoteEntity as adapterApplyRemoteEntity,
@@ -111,19 +112,27 @@ export function resetVaultSyncCursor(storageKeyPrefix = DEFAULT_STORAGE_KEY_PREF
 const VAULT_KEY_SLOT = 'db';
 
 // Where the per-account DB root key is stored: the Android OS keystore on the
-// Android shell (mirrors the file tier in crypto.js), IndexedDB everywhere else
-// (web AND iOS). Centralized so the engine and resetDbRootKey agree.
+// Android shell (mirrors the file tier in crypto.js), the iOS shell's Keychain
+// (utils/nativeSecureStore.js, through the same native hooks and record shape),
+// IndexedDB on web and Electron. Centralized so the engine and resetDbRootKey
+// agree.
 //
 // iOS gotcha (the every-launch passphrase re-prompt): iOS exposes
 // window.DayGlanceNative as a Proxy whose every property reads truthy, so the
 // old `!!bridge?.httpRequest` native-app check returned true on iOS and routed
 // it through the bridge's (non-functional, proxy-faked) keystore methods. The
 // DB root key was therefore never actually persisted, so restoreDbRootKey()
-// returned false on every launch and the passphrase modal reappeared. Only
-// Android — which sets no DayGlanceIOS marker and exposes a REAL getSyncKey —
-// should use the native keystore; iOS uses IndexedDB (which persists across
-// launches), exactly as src/utils/crypto.js does for the file tier.
+// returned false on every launch and the passphrase modal reappeared. iOS is
+// therefore detected by its explicit marker and routed to its REAL secure-store
+// methods; only Android (no marker, a real getSyncKey) uses the Keystore path.
 export function nativeKeyConfig() {
+  if (secureStoreAvailable()) {
+    return {
+      cryptoDBName: CRYPTO_DB_NAME,
+      nativeGetSyncKey: () => secureGet(SECURE_SLOT.dbRootKey),
+      nativeStoreSyncKey: (val) => secureSet(SECURE_SLOT.dbRootKey, val),
+    };
+  }
   const bridge = typeof window !== 'undefined' ? window.DayGlanceNative : null;
   const isAndroid = !!bridge && !window.DayGlanceIOS && !!bridge.getSyncKey;
   if (!isAndroid) {
@@ -160,7 +169,28 @@ export async function resetDbRootKey() {
 // Returns false (not throwing) when no key is cached, so the caller can show the
 // passphrase prompt.
 export async function restoreDbRootKey() {
-  try { return await initDbRootKey(nativeKeyConfig()); } catch { return false; }
+  try {
+    const cfg = nativeKeyConfig();
+    if (await initDbRootKey(cfg)) return true;
+    // Existing iOS installs cached the root key in IndexedDB before the Keychain
+    // mirror existed. Move it once so the upgrade never re-prompts.
+    if (secureStoreAvailable() && await migrateLegacyIosDbRootKey()) {
+      console.info('[vault] DB root key moved from IndexedDB to the device secure store');
+      return await initDbRootKey(cfg);
+    }
+    return false;
+  } catch { return false; }
+}
+
+// The package's IndexedDB record is {id, rootBytes: number[], salt: number[]}
+// in `${CRYPTO_DB_NAME}-db` / 'db-root-keys'; its native record is the same
+// pair as base64 JSON.
+async function migrateLegacyIosDbRootKey() {
+  const record = await readIndexedDbRecord(`${CRYPTO_DB_NAME}-db`, 'db-root-keys', 'db-root-key');
+  if (!record || !record.rootBytes) return false;
+  const rootBytes = Array.from(new Uint8Array(record.rootBytes));
+  const salt = Array.from(record.salt || []);
+  return secureSet(SECURE_SLOT.dbRootKey, btoa(JSON.stringify({ rootBytes, salt })));
 }
 
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));

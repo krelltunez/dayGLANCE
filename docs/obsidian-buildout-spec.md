@@ -170,14 +170,20 @@ The Phase 1 section below reflects the delivered design, not a proposal.
   storage as evictable and a reboot is one of the moments it may reclaim it.
   No data was lost: the DB engine pulls before it pushes, so an empty device
   reconnecting to the vault repopulates from the fleet and pushes nothing
-  (a new device id appears in the devices table). Deferred follow-up, after
-  5.0.0: mirror the vault connection into a native store the shell owns
-  (Keychain for the device token, account id and passphrase, `UserDefaults`
-  for the URL and flags) and hand it back to the web layer at launch when
-  localStorage has none; consider the same for the iCloud-sync preference so
-  a purged device reconnects without a hand-entered setup. The account root
-  key and passphrase must still never be written anywhere the plugin can
-  read. Android's WebView store did not exhibit this and is not in scope.
+  (a new device id appears in the devices table). **Built after 5.0.0**
+  (`SecureStoreBridge.swift`, `src/utils/nativeSecureStore.js`): the shell's
+  Keychain holds a device-local mirror of the vault connection, the cloud
+  sync preference, the file-tier key record and the DB root key record,
+  written on every change and read back at launch when web storage has none;
+  existing installs move their IndexedDB key records across once. What is
+  NOT mirrored, by choice: the sync passphrase itself, and the vault intents
+  root key (a non-extractable HKDF key the intents package derives; it
+  cannot be exported). So a purged phone with vault intents enabled restores
+  its connection and its sync keys and then prompts once for the passphrase,
+  which re-derives the intents key; a phone without intents restores
+  silently. Storing the passphrase in the Keychain would remove that one
+  prompt and is a one-slot change if the owner rules for it. Android's
+  WebView store did not exhibit this and is not in scope.
 
 ### 2.6 Field incident record (2026-09-07): the 24-row tombstone replay
 
