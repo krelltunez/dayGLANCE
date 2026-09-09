@@ -233,6 +233,13 @@ const DayDialModal = () => {
   // One activity clock for both idle behaviors. chromeVisible drives the
   // cursor and corner buttons; lastActiveRef drives the return-to-today
   // check, which rides the minute tick rather than owning a timer.
+  //
+  // focusin counts as activity: the corner buttons and the hub's day
+  // chevrons stay in the tab order while faded, so a Tab that lands on one
+  // — or the action sheet handing focus back to the ring — has to bring the
+  // chrome back rather than leave a focused control invisible. It cannot
+  // wake the display out of ambient (that needs a key, tap, or wheel on the
+  // shield), so a programmatic focus never ends a screensaver.
   const [chromeVisible, setChromeVisible] = useState(true);
   const lastActiveRef = useRef(Date.now());
   useEffect(() => {
@@ -244,7 +251,7 @@ const DayDialModal = () => {
       hideTimer = setTimeout(() => setChromeVisible(false), CHROME_HIDE_MS);
     };
     wake();
-    const events = ['pointermove', 'pointerdown', 'keydown', 'wheel'];
+    const events = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'focusin'];
     events.forEach((ev) => document.addEventListener(ev, wake));
     return () => {
       clearTimeout(hideTimer);

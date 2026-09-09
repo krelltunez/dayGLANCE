@@ -15,9 +15,11 @@ import {
   dialTicks,
   dialLabelYieldsToSun,
   findDialFocusBlock,
+  initialDialSelection,
   muteDialColor,
   padDialSegment,
   precipRuns,
+  stepDialSelection,
 } from '../utils/dayDial.js';
 
 // The Day Dial: one day as a 24-hour instrument face. Midnight at top,
@@ -99,12 +101,19 @@ function TickField() {
 
 function Segment({
   startMin, endMin, color, mute = 1, padStart = true, padEnd = true,
-  rInner = R_INNER, rOuter = R_EDGE, onEnter, onLeave, onTap,
+  rInner = R_INNER, rOuter = R_EDGE, selected = false, onEnter, onLeave, onTap,
 }) {
   const [s, e] = padDialSegment(startMin, endMin, 3, padStart, padEnd);
   if (e <= s) return null;
   const { fillOpacity, edgeOpacity, edgeWidth } = dialIntensity(endMin - startMin);
   const edge = dialArcPath(CX, CY, rOuter, s, e);
+  // Selection — hover, tap, or the keyboard's roving selection — lights the
+  // wedge: full luminous edge plus a hairline tracing the whole sector, so
+  // a short block still reads as chosen. It overrides the dim tier too; a
+  // selected past block has to answer, and this doubles as the keyboard
+  // focus indicator (the listbox itself draws nothing).
+  const lit = selected ? 1 : mute;
+  const edgeAlpha = selected ? 1 : edgeOpacity;
   return (
     <g
       onMouseEnter={onEnter}
@@ -115,21 +124,27 @@ function Segment({
       <path
         d={dialSectorPath(CX, CY, rInner, rOuter, s, e)}
         fill={color}
-        fillOpacity={fillOpacity * mute}
+        fillOpacity={fillOpacity * lit}
       />
       {/* Soft halo under the crisp edge — one glowing rim reads better at
           distance than any texture. */}
       <path
         d={edge}
         fill="none" stroke={color} strokeLinecap="round"
-        strokeWidth={edgeWidth * 2.4} strokeOpacity={0.35 * edgeOpacity * mute}
+        strokeWidth={edgeWidth * 2.4} strokeOpacity={0.35 * edgeAlpha * lit}
         filter="url(#dial-glow)"
       />
       <path
         d={edge}
         fill="none" stroke={color} strokeLinecap="round"
-        strokeWidth={edgeWidth} strokeOpacity={edgeOpacity * mute}
+        strokeWidth={edgeWidth} strokeOpacity={edgeAlpha * lit}
       />
+      {selected && (
+        <path
+          d={dialSectorPath(CX, CY, rInner, rOuter, s, e)}
+          fill="none" stroke="#ffffff" strokeOpacity={0.45} strokeWidth={1.5}
+        />
+      )}
     </g>
   );
 }
@@ -368,7 +383,12 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
   // self-dismisses after a quiet while for the same reason.
   const [sheetBlock, setSheetBlock] = useState(null);
   const sheetTimerRef = useRef(null);
-  const openSheet = (b) => {
+  // Whether this sheet was opened from the keyboard — decides whether it
+  // takes focus on open and hands it back on close. A pointer user who
+  // never left the glass should not suddenly acquire a focused element.
+  const sheetFromKeyRef = useRef(false);
+  const openSheet = (b, fromKey = false) => {
+    sheetFromKeyRef.current = fromKey;
     setSheetBlock(b);
     clearTimeout(sheetTimerRef.current);
     sheetTimerRef.current = setTimeout(() => setSheetBlock(null), 20_000);
@@ -382,7 +402,106 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
     setInspected(b);
     scheduleInspectClear(4000);
   };
-  useEffect(() => { setInspected(null); setSheetBlock(null); }, [date]);
+
+  // Keyboard access to the ring. The wedges live inside an SVG that AT sees
+  // as a single image (role="img" prunes its descendants), and they were
+  // pointer-only — so completing a block from the keyboard was impossible.
+  // Rather than make each wedge a tab stop, the ring is ONE listbox with a
+  // roving selection: the same `inspected` state hover already drives, so
+  // the hub narrates it and the wedge lights up for free. Selection made
+  // this way is persistent — no dwell timer, unlike hover and tap.
+  const listRef = useRef(null);
+  const selectBlock = (b) => { if (b) inspectEnter(b); };
+  const clearSelection = () => { clearTimeout(inspectTimerRef.current); setInspected(null); };
+
+  // Live model + clock for effects that must not re-run on every minute
+  // tick (the ref is written during render, as App.jsx does for the dial's
+  // own open state).
+  const liveRef = useRef(null);
+  liveRef.current = { blocks: model.blocks, nowMin };
+
+  // Paging to another date drops the selection with it — but if the ring
+  // still holds focus, re-arm on the new day: a focused ring must never be
+  // left without its visible indicator.
+  useEffect(() => {
+    setSheetBlock(null);
+    const focused = typeof document !== 'undefined' && listRef.current === document.activeElement;
+    setInspected(focused ? initialDialSelection(liveRef.current.blocks, liveRef.current.nowMin) : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date]);
+
+  const onListKeyDown = (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const { blocks } = model;
+    const step = (delta) => selectBlock(stepDialSelection(blocks, inspected?.id ?? null, delta));
+    switch (e.key) {
+      // Up/down, not left/right: those page the day at the overlay level,
+      // and the schedule answers as the vertical list a listbox always is.
+      case 'ArrowDown': step(1); break;
+      case 'ArrowUp': step(-1); break;
+      case 'Home': step(-blocks.length); break;
+      case 'End': step(blocks.length); break;
+      case 'Enter':
+      case ' ':
+        if (!inspected) return;
+        openSheet(inspected, true);
+        break;
+      case 'Escape':
+        // Only our rung of the Escape ladder: with nothing selected the
+        // press belongs to the overlay (leave fullscreen, then close).
+        if (!inspected) return;
+        clearSelection();
+        break;
+      default: return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  // Tabbing in lands on the block the hub is already narrating, so there is
+  // always a visible indicator while the ring holds focus.
+  const onListFocus = (e) => {
+    if (e.target !== e.currentTarget) return;
+    if (!inspected) selectBlock(initialDialSelection(model.blocks, nowMin));
+  };
+  const onListBlur = (e) => {
+    // Focus moving into the action sheet is not leaving the ring — that
+    // selection is exactly what the sheet is about.
+    if (sheetBlock) return;
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    clearSelection();
+  };
+
+  // Keyboard flow through the sheet: focus its first action, trap Tab while
+  // it is up (capture phase, so focus can never wander to the chrome
+  // behind it), and hand focus back to the ring when it goes away —
+  // including when it self-dismisses on its own timer.
+  const sheetRef = useRef(null);
+  useEffect(() => {
+    if (!sheetBlock) return undefined;
+    // The listbox node is stable across renders; capture it so the cleanup
+    // does not read a ref that may have been detached by then.
+    const list = listRef.current;
+    const buttons = () => Array.from(sheetRef.current?.querySelectorAll('button') || []);
+    if (sheetFromKeyRef.current) buttons()[0]?.focus();
+    const onKeyDown = (e) => {
+      if (e.key !== 'Tab') return;
+      const items = buttons();
+      if (!items.length) return;
+      e.preventDefault();
+      const i = items.indexOf(document.activeElement);
+      const next = e.shiftKey
+        ? (i <= 0 ? items.length - 1 : i - 1)
+        : (i === -1 || i === items.length - 1 ? 0 : i + 1);
+      items[next]?.focus();
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true);
+      if (sheetFromKeyRef.current && list?.isConnected) list.focus();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheetBlock]);
 
   // Esc closes the sheet before anything above it (capture phase, so the
   // overlay's own Escape-closes-the-dial handler never sees this press).
@@ -427,6 +546,21 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
 
   const minToHHMM = (m) =>
     `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+  // What a screen reader says for one block: the same facts the hub shows,
+  // as one sentence. Tags stay in (unlike the hub, which sets them aside
+  // typographically — there is no typography in an option label), and the
+  // commas give the reader its pauses.
+  const blockA11yLabel = (b) => [
+    stripWikilinks(b.title),
+    `${formatTime(minToHHMM(b.startMin))} – ${formatTime(minToHHMM(b.endMin))}`,
+    formatMinutes(b.endMin - b.startMin),
+    b.completed ? t('dial.completed', 'completed') : relLabel(b),
+  ].filter(Boolean).join(', ');
+
+  // Option ids must survive any task id (recurring instances carry
+  // separators); only whitespace is unusable in an HTML id.
+  const optionId = (id) => `dial-opt-${String(id).replace(/\s+/g, '_')}`;
 
   const weekday = date.toLocaleDateString(i18n.language, { weekday: 'long' });
   const dateLabel = date.toLocaleDateString(i18n.language, { month: 'long', day: 'numeric' });
@@ -547,6 +681,7 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
                 rInner={band.rInner} rOuter={band.rOuter}
                 color={muteDialColor(b.colorHex)}
                 mute={b.completed || isPast(b.endMin) ? PAST_MUTE : 1}
+                selected={inspected?.id === b.id}
                 onEnter={() => inspectEnter(b)}
                 onLeave={inspectLeave}
                 onTap={() => inspectTap(b)}
@@ -665,6 +800,36 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
           )}
         </div>
 
+        {/* The ring's accessibility tree and its single tab stop. The SVG
+            above is one image to AT, so the blocks get real semantics here:
+            a listbox of visually-hidden options, one per block in time
+            order, with aria-activedescendant naming the selected one. It
+            draws no pixels and swallows no pointer events — the lit wedge
+            and the hub readout are the visible half of this state. */}
+        <div
+          ref={listRef}
+          role="listbox"
+          tabIndex={model.blocks.length ? 0 : -1}
+          aria-label={t('dial.blockList', 'Schedule blocks')}
+          aria-activedescendant={inspected ? optionId(inspected.id) : undefined}
+          onKeyDown={onListKeyDown}
+          onFocus={onListFocus}
+          onBlur={onListBlur}
+          className="absolute inset-0 pointer-events-none outline-none"
+        >
+          {model.blocks.map((b) => (
+            <div
+              key={b.id}
+              id={optionId(b.id)}
+              role="option"
+              aria-selected={inspected?.id === b.id}
+              className="sr-only"
+            >
+              {blockA11yLabel(b)}
+            </div>
+          ))}
+        </div>
+
         {/* Action sheet — the dial's own register, never planner chrome.
             Backdrop click/tap dismisses; actions dismiss after acting. */}
         {sheetBlock && (() => {
@@ -676,7 +841,9 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
               onTouchEnd={(e) => e.stopPropagation()}
             >
               <div
+                ref={sheetRef}
                 role="dialog"
+                aria-modal="true"
                 aria-label={stripWikilinks(live.title)}
                 className="w-[min(82%,340px)] rounded-2xl border border-white/10 bg-[#12151c] px-5 py-4 shadow-2xl"
                 onClick={(e) => e.stopPropagation()}

@@ -1334,6 +1334,7 @@
     "sleep": "Sueño",
     "unblocked": "Tiempo libre",
     "aria": "Esfera del día: {{date}}",
+    "blockList": "Bloques de la agenda",
     "backToToday": "Volver a hoy (T)",
     "today": "Hoy",
     "prevDay": "Día anterior (←)",

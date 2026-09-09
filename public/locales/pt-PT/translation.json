@@ -1334,6 +1334,7 @@
     "sleep": "Sono",
     "unblocked": "Tempo livre",
     "aria": "Mostrador do dia: {{date}}",
+    "blockList": "Blocos da agenda",
     "backToToday": "Voltar a hoje (T)",
     "today": "Hoje",
     "prevDay": "Dia anterior (←)",

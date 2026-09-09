@@ -15,8 +15,10 @@ import {
   computeDialModel,
   dialLabelYieldsToSun,
   findDialFocusBlock,
+  initialDialSelection,
   muteDialColor,
   precipRuns,
+  stepDialSelection,
 } from './dayDial.js';
 
 const task = (over = {}) => ({
@@ -340,6 +342,60 @@ describe('findDialFocusBlock', () => {
   it('returns null when the rest of the day is clear', () => {
     expect(findDialFocusBlock(blocks, 1000)).toBeNull();
     expect(findDialFocusBlock([], 600)).toBeNull();
+  });
+});
+
+describe('initialDialSelection / stepDialSelection', () => {
+  const blocks = [
+    { id: 'a', startMin: 540, endMin: 600 },
+    { id: 'b', startMin: 660, endMin: 720 },
+    { id: 'c', startMin: 900, endMin: 960 },
+  ];
+
+  it('starts a selection on the block the hub is narrating', () => {
+    // Mid-block, and between blocks (the next one up).
+    expect(initialDialSelection(blocks, 570).id).toBe('a');
+    expect(initialDialSelection(blocks, 630).id).toBe('b');
+  });
+
+  it('starts at the last block once the day is spent', () => {
+    expect(initialDialSelection(blocks, 1200).id).toBe('c');
+  });
+
+  it('starts at the top of the day on a date with no now line', () => {
+    expect(initialDialSelection(blocks, null).id).toBe('a');
+  });
+
+  it('has nothing to select on an empty day', () => {
+    expect(initialDialSelection([], 570)).toBeNull();
+    expect(initialDialSelection(null, null)).toBeNull();
+  });
+
+  it('walks the day in time order', () => {
+    expect(stepDialSelection(blocks, 'a', 1).id).toBe('b');
+    expect(stepDialSelection(blocks, 'c', -1).id).toBe('b');
+  });
+
+  it('clamps at both ends instead of wrapping', () => {
+    expect(stepDialSelection(blocks, 'c', 1).id).toBe('c');
+    expect(stepDialSelection(blocks, 'a', -1).id).toBe('a');
+  });
+
+  it('re-enters from the end the caller was heading toward', () => {
+    // Selection went stale — the block was edited away under it.
+    expect(stepDialSelection(blocks, 'gone', 1).id).toBe('a');
+    expect(stepDialSelection(blocks, 'gone', -1).id).toBe('c');
+    expect(stepDialSelection(blocks, null, 1).id).toBe('a');
+  });
+
+  it('reaches the extremes in one step (Home / End)', () => {
+    expect(stepDialSelection(blocks, 'b', -blocks.length).id).toBe('a');
+    expect(stepDialSelection(blocks, 'b', blocks.length).id).toBe('c');
+  });
+
+  it('has nothing to step through on an empty day', () => {
+    expect(stepDialSelection([], null, 1)).toBeNull();
+    expect(stepDialSelection(null, 'a', -1)).toBeNull();
   });
 });
 

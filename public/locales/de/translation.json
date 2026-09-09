@@ -1334,6 +1334,7 @@
     "sleep": "Schlaf",
     "unblocked": "Ungeplant",
     "aria": "Tagesanzeige: {{date}}",
+    "blockList": "Terminblöcke",
     "backToToday": "Zurück zu heute (T)",
     "today": "Heute",
     "prevDay": "Vorheriger Tag (←)",

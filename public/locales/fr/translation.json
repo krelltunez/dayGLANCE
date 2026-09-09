@@ -1334,6 +1334,7 @@
     "sleep": "Sommeil",
     "unblocked": "Temps libre",
     "aria": "Cadran du jour : {{date}}",
+    "blockList": "Blocs de la journée",
     "backToToday": "Revenir à aujourd'hui (T)",
     "today": "Aujourd'hui",
     "prevDay": "Jour précédent (←)",
