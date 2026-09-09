@@ -22,6 +22,7 @@ import { getNextOccurrence } from '../../utils/recurrenceEngine.js';
 import { getActiveHGInstance } from '../../hooks/useHyperGlance.js';
 import { noteLinkOf } from '../../utils/obsidianProjectNotes.js';
 import { sortByProjectOrder, applyProjectReorder } from '../../utils/projectOrder.js';
+import { beginLongPressReorder, isLongPressRowDevice } from '../../utils/longPressReorder.js';
 import { formatLocalizedDate } from '../../utils/localeFormatting.js';
 
 const toHex = (bgClass) => TAILWIND_TO_HEX[bgClass] || '#3b82f6';
@@ -39,6 +40,12 @@ const IS_IOS = typeof navigator !== 'undefined' && (
   (/Mac/.test(navigator.platform || '') && (navigator.maxTouchPoints || 0) > 1) ||
   (typeof window !== 'undefined' && !!window.DayGlanceIOS)
 );
+
+// Android and other non-iOS touch devices: the row itself carries a
+// long-press touch reorder (utils/longPressReorder.js) and is not an HTML5
+// draggable, so hold-anywhere-on-the-row no longer depends on the WebView
+// starting a drag from a long press.
+const IS_LONG_PRESS_ROW = isLongPressRowDevice();
 
 /**
  * ProjectCard — a single project node in the Goals dashboard.
@@ -272,6 +279,24 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     document.addEventListener('touchend', onEnd);
     document.addEventListener('touchcancel', onEnd);
     document.addEventListener('dragstart', preventDrag);
+  };
+
+  // Whole-row long-press reorder on non-iOS touch devices. Same refs and
+  // finish as the grip path; the helper owns the hold, the document
+  // listeners and the scroll-versus-hold decision.
+  const handleRowTouchStart = (e, idx) => {
+    beginLongPressReorder(e, {
+      idx,
+      onActivate: (fromIdx) => {
+        touchDragRef.current = { active: true, fromIdx, overIdx: null };
+        setDragIdx(fromIdx);
+      },
+      onOver: (overIdx) => {
+        touchDragRef.current.overIdx = overIdx;
+        setDragOverIdx(overIdx);
+      },
+      onEnd: ({ activated }) => { if (activated) finishGripTouch(); },
+    });
   };
 
   // ── Quick-add ──────────────────────────────────────────────────────────────
@@ -535,7 +560,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
               const draggable = incompleteUnscheduledIdx !== -1;
               // Whole-row HTML5 drag off-iOS (Android/desktop — grab anywhere on
               // the row); grip-only touch drag on iOS (see IS_IOS note above).
-              const rowDraggable = draggable && !IS_IOS;
+              const rowDraggable = draggable && !IS_IOS && !IS_LONG_PRESS_ROW;
               return (
                 <div
                   key={task.id}
@@ -545,6 +570,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                   onDragEnd={rowDraggable ? handleDragEnd : undefined}
                   onDragOver={draggable ? e => handleDragOver(e, incompleteUnscheduledIdx) : undefined}
                   onDrop={draggable ? e => handleDrop(e, incompleteUnscheduledIdx) : undefined}
+                  onTouchStart={draggable && IS_LONG_PRESS_ROW ? e => handleRowTouchStart(e, incompleteUnscheduledIdx) : undefined}
                   className={`flex items-center rounded-lg select-none dnd-no-select transition-colors ${hoverBg} ${
                     draggable && dragIdx === incompleteUnscheduledIdx ? 'opacity-40' : ''
                   } ${

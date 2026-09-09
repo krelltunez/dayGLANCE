@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { BUCKET_LIST_IDS, promoteToInbox } from '../utils/bucketList.js';
+import { beginLongPressReorder, isLongPressRowDevice } from '../utils/longPressReorder.js';
 import { renderFormattedText, renderTitleWithoutTags, hasNotesOrSubtasks, hasOnlySubtasks } from '../utils/textFormatting.jsx';
 
 // Same iOS detection as ProjectPlanner/ProjectCard: grip-only touch drag on
@@ -13,6 +14,12 @@ const IS_IOS = typeof navigator !== 'undefined' && (
   (/Mac/.test(navigator.platform || '') && (navigator.maxTouchPoints || 0) > 1) ||
   (typeof window !== 'undefined' && !!window.DayGlanceIOS)
 );
+
+// Android and other non-iOS touch devices: the row itself carries a
+// long-press touch reorder (utils/longPressReorder.js) and is not an HTML5
+// draggable, so hold-anywhere-on-the-row no longer depends on the WebView
+// starting a drag from a long press.
+const IS_LONG_PRESS_ROW = isLongPressRowDevice();
 
 /**
  * Bucket List — the someday/maybe space. A PLANNER without a project: same
@@ -221,6 +228,29 @@ const BucketListModal = () => {
     document.addEventListener('dragstart', preventDrag);
   };
 
+  // Whole-row long-press reorder on non-iOS touch devices, scoped to one
+  // list (utils/longPressReorder.js owns the hold and the listeners).
+  const handleRowTouchStart = (e, listId, idx) => {
+    beginLongPressReorder(e, {
+      idx,
+      hitSelector: `[data-bucket-drag="${listId}"]`,
+      onActivate: (fromIdx) => {
+        touchDragRef.current = { active: true, listId, fromIdx, overIdx: null };
+        setDrag({ listId, idx: fromIdx, overIdx: null });
+      },
+      onOver: (overIdx) => {
+        touchDragRef.current.overIdx = overIdx;
+        setDrag(prev => ({ ...prev, overIdx }));
+      },
+      onEnd: ({ activated, fromIdx, overIdx }) => {
+        if (!activated) return;
+        touchDragRef.current = { active: false, listId: null, fromIdx: null, overIdx: null };
+        if (fromIdx !== null && overIdx !== null && fromIdx !== overIdx) applyReorder(listId, fromIdx, overIdx);
+        setDrag({ listId: null, idx: null, overIdx: null });
+      },
+    });
+  };
+
   // ── Render helpers ────────────────────────────────────────────────────────
 
   const renderRow = (task, listId, idx, draggable) => {
@@ -230,11 +260,12 @@ const BucketListModal = () => {
         key={task.id}
         data-bucket-drag={draggable ? listId : undefined}
         data-drag-idx={draggable ? idx : undefined}
-        draggable={draggable && !IS_IOS}
-        onDragStart={draggable && !IS_IOS ? (e) => { setDrag({ listId, idx, overIdx: null }); e.dataTransfer.effectAllowed = 'move'; } : undefined}
+        draggable={draggable && !IS_IOS && !IS_LONG_PRESS_ROW}
+        onDragStart={draggable && !IS_IOS && !IS_LONG_PRESS_ROW ? (e) => { setDrag({ listId, idx, overIdx: null }); e.dataTransfer.effectAllowed = 'move'; } : undefined}
         onDragOver={draggable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (drag.listId === listId && idx !== drag.overIdx) setDrag(prev => ({ ...prev, overIdx: idx })); } : undefined}
         onDrop={draggable ? (e) => handleDrop(e, listId, idx) : undefined}
         onDragEnd={draggable ? () => setDrag({ listId: null, idx: null, overIdx: null }) : undefined}
+        onTouchStart={draggable && IS_LONG_PRESS_ROW ? (e) => handleRowTouchStart(e, listId, idx) : undefined}
         className={`group flex items-center gap-2 px-2 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/40' : 'bg-stone-50'} ${isDragOver ? 'ring-2 ring-sky-400' : ''}`}
       >
         {draggable && (
