@@ -157,6 +157,28 @@ The Phase 1 section below reflects the delivered design, not a proposal.
   the app under this design). Deferred as a separate commission; the app
   side is complete without it.
 
+- **iOS web storage is the only copy of the app's data and vault
+  connection (recorded 2026-09-09).** After a routine iPhone reboot the app
+  opened to onboarding with no settings and an empty GLANCEvault
+  configuration. The iOS shell (`dayglance-ios/DayGlance/WebView/WebView.swift`)
+  builds its `WKWebViewConfiguration` with the default website data store,
+  and every app record plus the `dayglance-vault-config` entry lives in that
+  store's localStorage; nothing native mirrors it. The Obsidian vault
+  bookmark, folder and pattern do live in `UserDefaults`
+  (`ObsidianBridge.swift`), so a purge of the web store alone leaves the
+  vault pairing intact while the app itself starts empty. iOS treats WebKit
+  storage as evictable and a reboot is one of the moments it may reclaim it.
+  No data was lost: the DB engine pulls before it pushes, so an empty device
+  reconnecting to the vault repopulates from the fleet and pushes nothing
+  (a new device id appears in the devices table). Deferred follow-up, after
+  5.0.0: mirror the vault connection into a native store the shell owns
+  (Keychain for the device token, account id and passphrase, `UserDefaults`
+  for the URL and flags) and hand it back to the web layer at launch when
+  localStorage has none; consider the same for the iCloud-sync preference so
+  a purged device reconnects without a hand-entered setup. The account root
+  key and passphrase must still never be written anywhere the plugin can
+  read. Android's WebView store did not exhibit this and is not in scope.
+
 ### 2.6 Field incident record (2026-09-07): the 24-row tombstone replay
 
 Eight daily notes and their sixteen tasks, all deleted from the vault
