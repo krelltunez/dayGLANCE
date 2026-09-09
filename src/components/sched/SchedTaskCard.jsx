@@ -120,6 +120,7 @@ const SchedTaskCard = ({ task, isInbox = false, showProject = false, onEdit = nu
       onDragEnd={dnd?.rowDraggable ? dnd.onDragEnd : undefined}
       onDragOver={dnd ? e => dnd.onDragOver(e, dnd.idx) : undefined}
       onDrop={dnd ? e => dnd.onDrop(e, dnd.idx) : undefined}
+      onTouchStart={dnd?.onRowTouchStart ? e => dnd.onRowTouchStart(e, dnd.idx) : undefined}
       className={`flex items-center gap-2 rounded-xl border ${borderClass} ${cardBg} px-3 py-2 ${
         isEvent ? '' : 'cursor-pointer active:opacity-70'
       } ${task.completed || isFinishedEvent ? 'opacity-55' : ''} ${dnd ? 'select-none dnd-no-select' : ''} ${

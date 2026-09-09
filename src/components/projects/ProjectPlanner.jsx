@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { dateToString } from '../../utils/taskUtils.js';
 import { getNextOccurrence } from '../../utils/recurrenceEngine.js';
 import { getProjectColor, taskColorToHex, hexToRgba } from '../../utils/colorUtils.js';
+import { beginLongPressReorder, isLongPressRowDevice } from '../../utils/longPressReorder.js';
 import { plannerColumns } from '../../utils/plannerColumns.js';
 import { renderFormattedText } from '../../utils/textFormatting.jsx';
 
@@ -16,6 +17,12 @@ const IS_IOS = typeof navigator !== 'undefined' && (
   (/Mac/.test(navigator.platform || '') && (navigator.maxTouchPoints || 0) > 1) ||
   (typeof window !== 'undefined' && !!window.DayGlanceIOS)
 );
+
+// Android and other non-iOS touch devices: the row itself carries a
+// long-press touch reorder (utils/longPressReorder.js) and is not an HTML5
+// draggable, so hold-anywhere-on-the-row no longer depends on the WebView
+// starting a drag from a long press.
+const IS_LONG_PRESS_ROW = isLongPressRowDevice();
 import SchedTaskCard from '../sched/SchedTaskCard.jsx';
 import HyperGlanceEditor from './HyperGlanceEditor.jsx';
 import RecurringSeriesRow from './RecurringSeriesRow.jsx';
@@ -218,6 +225,29 @@ const ProjectPlanner = ({ project, onClose }) => {
     document.addEventListener('touchend', onEnd);
     document.addEventListener('touchcancel', onEnd);
     document.addEventListener('dragstart', preventDrag);
+  };
+
+  // Whole-row long-press reorder on non-iOS touch devices (the card's
+  // pattern; utils/longPressReorder.js owns the hold and the listeners).
+  const handleRowTouchStart = (e, idx) => {
+    beginLongPressReorder(e, {
+      idx,
+      onActivate: (fromIdx) => {
+        touchDragRef.current = { active: true, fromIdx, overIdx: null };
+        setDragIdx(fromIdx);
+      },
+      onOver: (overIdx) => {
+        touchDragRef.current.overIdx = overIdx;
+        setDragOverIdx(overIdx);
+      },
+      onEnd: ({ activated, fromIdx, overIdx }) => {
+        if (!activated) return;
+        touchDragRef.current = { active: false, fromIdx: null, overIdx: null };
+        if (fromIdx !== null && overIdx !== null && fromIdx !== overIdx) applyReorder(fromIdx, overIdx);
+        setDragIdx(null);
+        setDragOverIdx(null);
+      },
+    });
   };
 
   // Quick-add an unscheduled project task — same inheritance as the card
@@ -425,7 +455,7 @@ const ProjectPlanner = ({ project, onClose }) => {
                       onSchedule={task.completed ? null : (t) => scheduleTaskAtNextSlot(t.id, true)}
                       dnd={draggable ? {
                         idx,
-                        rowDraggable: !IS_IOS,
+                        rowDraggable: !IS_IOS && !IS_LONG_PRESS_ROW,
                         onDragStart: handleDragStart,
                         onDragEnd: handleDragEnd,
                         onDragOver: handleDragOver,
@@ -433,6 +463,7 @@ const ProjectPlanner = ({ project, onClose }) => {
                         isSource: dragIdx === idx,
                         isTarget: dragOverIdx === idx && dragIdx !== idx,
                         onGripTouchStart: IS_IOS ? handleGripTouchStart : null,
+                        onRowTouchStart: IS_LONG_PRESS_ROW ? handleRowTouchStart : null,
                       } : null}
                     />
                   );
