@@ -334,6 +334,37 @@ const DayDialModal = () => {
     else enterFullscreen().catch(() => {});
   };
 
+  // Focus containment. The dial is a fullscreen overlay laid over the whole
+  // planner, which stays mounted underneath — so without a trap, Tab walks
+  // hundreds of controls the user cannot see, and focus that has wandered
+  // out there has no way back to the dial. Tab cycles the dial's own
+  // controls instead, and a Tab arriving from outside pulls focus in, so
+  // the overlay is always one press away however it was opened.
+  //
+  // Stands down for the block action sheet (aria-modal), which runs a
+  // tighter trap of its own, and while ambient is up, where the first key
+  // press exits rather than moves.
+  useEffect(() => {
+    if (ambient) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key !== 'Tab') return;
+      const root = containerRef.current;
+      if (!root || root.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      const items = Array.from(
+        root.querySelectorAll('button, [tabindex]:not([tabindex="-1"])'),
+      ).filter((el) => !el.disabled);
+      if (!items.length) return;
+      e.preventDefault();
+      const i = items.indexOf(document.activeElement);
+      const next = e.shiftKey
+        ? (i <= 0 ? items.length - 1 : i - 1)
+        : (i === -1 || i === items.length - 1 ? 0 : i + 1);
+      items[next]?.focus();
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [ambient]);
+
   // Own key handling: the global shortcut map is suspended while a modal is
   // open, and the dial should still page across days from the couch.
   useEffect(() => {

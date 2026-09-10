@@ -388,7 +388,7 @@ describe('initialDialSelection / stepDialSelection', () => {
     expect(stepDialSelection(blocks, null, 1).id).toBe('a');
   });
 
-  it('reaches the extremes in one step (Home / End)', () => {
+  it('clamps a step larger than the day to the ends', () => {
     expect(stepDialSelection(blocks, 'b', -blocks.length).id).toBe('a');
     expect(stepDialSelection(blocks, 'b', blocks.length).id).toBe('c');
   });
