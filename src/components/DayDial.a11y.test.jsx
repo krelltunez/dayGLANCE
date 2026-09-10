@@ -151,7 +151,20 @@ describe('DayDial keyboard/AT contract', () => {
     const html = render(i18n, { dayTasks: [task()] });
     expect(html).not.toContain('All Day');
     expect(allDayChips(html)).toEqual([]);
-    // No grid wrapper: the legend still sits in the flow, centered as before.
+    // No grid wrapper at all: the legend sits in the flow, centered as before.
+    expect(html).not.toContain('minmax(0,1fr)');
+  });
+
+  it('splits the band on the dial\'s axis when all-day items are present', async () => {
+    const i18n = await i18nFor('en');
+    const html = render(i18n, {
+      dayTasks: [task(), task({ id: 'a1', title: 'Labour Day', isAllDay: true })],
+    });
+    // Two EQUAL tracks: that is what puts the seam between the pills on the
+    // dial's vertical axis, each growing outward from under the 12. The
+    // three-track fallback (centred legend) is for widths where the legend
+    // cannot fit in half the band — never the default.
+    expect(html).toContain('minmax(0,1fr) minmax(0,1fr)');
     expect(html).not.toContain('minmax(0,1fr) auto minmax(0,1fr)');
   });
 

@@ -53,6 +53,8 @@ const TICKS = dialTicks();
 // localized width.
 const ALLDAY_CHIP_PX = 110;
 const ALLDAY_PILL_CHROME_PX = 80;
+// The breathing space between the two pills, straddling the dial's axis.
+const ALLDAY_SEAM_GAP_PX = 12;
 
 const TICK_STYLE = {
   hour:    { r1: 400, r2: 436, width: 2.5, opacity: 0.45 },
@@ -635,38 +637,76 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
   // feedback loop: near the threshold the mode flips every frame — a
   // sustained visible flicker across a ~45px window-width band.
   const wrapRef = useRef(null);
-  const [compact, setCompact] = useState(false);
+  const [wrapBox, setWrapBox] = useState(null);
   useEffect(() => {
     const el = wrapRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return undefined;
     const ro = new ResizeObserver(([entry]) => {
-      setCompact(entry.contentRect.width < entry.contentRect.height);
+      const { width, height } = entry.contentRect;
+      setWrapBox((prev) => (prev && prev.width === width && prev.height === height
+        ? prev
+        : { width, height }));
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  const compact = !!wrapBox && wrapBox.width < wrapBox.height;
 
-  // How many all-day chips fit. Measured rather than breakpointed, because
-  // the free width depends on the legend's own localized width — and safe to
-  // measure: the pill's track is minmax(0,1fr) with min-w-0, so its width
-  // comes from the container and the legend alone, never from the chips
-  // inside it. (A bare 1fr is minmax(auto,1fr): an over-wide pill would
-  // grow the track, shove the legend off the dial's axis, AND feed back
-  // into this measurement — the loop this file already warns about for
-  // compact mode.)
+  // The all-day pill is sized against the LEGEND, never against its own
+  // content: it takes the legend's width as a ceiling, so the two read as a
+  // matched pair — flanking the centre line in landscape, stacked in
+  // compact — instead of one panel ballooning past the other. Room is the
+  // narrower of that ceiling and the track the pill actually has.
+  //
+  // Both measured widths are independent of what the pill decides to show
+  // (the legend is sized by its own totals; the track is minmax(0,1fr) of
+  // the band), so this cannot feed back into itself — the loop this file
+  // already warns about for compact mode.
   const hasAllDay = model.allDay.length > 0;
   const allDayCellRef = useRef(null);
-  const [allDayFit, setAllDayFit] = useState(null);
+  const legendRef = useRef(null);
+  const [bandMetrics, setBandMetrics] = useState(null);
   useEffect(() => {
-    const el = allDayCellRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(([entry]) => {
-      const room = entry.contentRect.width - ALLDAY_PILL_CHROME_PX;
-      setAllDayFit(Math.max(1, Math.floor(room / ALLDAY_CHIP_PX)));
-    });
-    ro.observe(el);
+    if (!hasAllDay || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = () => {
+      // The legend never shrinks (flex-shrink-0), so this is its NATURAL
+      // width — the figure the seam test below needs, and one that cannot
+      // change with what the pill decides to show.
+      const legendW = legendRef.current?.getBoundingClientRect().width || 0;
+      const trackW = allDayCellRef.current?.getBoundingClientRect().width || 0;
+      if (!legendW && !trackW) return;
+      setBandMetrics((prev) => (prev && prev.legendW === legendW && prev.trackW === trackW
+        ? prev
+        : { legendW, trackW }));
+    };
+    const ro = new ResizeObserver(measure);
+    if (legendRef.current) ro.observe(legendRef.current);
+    if (allDayCellRef.current) ro.observe(allDayCellRef.current);
+    measure();
     return () => ro.disconnect();
   }, [hasAllDay, compact]);
+
+  // Can both pills live on their own side of the centre line? Only if the
+  // legend fits in half the band at its natural width. Squeezing it instead
+  // spills its four totals into the lopsided 3+1 the compact grid exists to
+  // avoid, and costs 44px of dial diameter to do it — so below that width
+  // the band falls back to a centred legend with the pill beside it.
+  // Asymmetry only where symmetry cannot be had for free.
+  const allDayRoom = bandMetrics
+    ? Math.min(bandMetrics.legendW || Infinity, bandMetrics.trackW || Infinity)
+    : null;
+  const seamFits = !bandMetrics || !wrapBox
+    ? true
+    : bandMetrics.legendW <= (wrapBox.width - ALLDAY_SEAM_GAP_PX) / 2;
+
+  // Chips per row from that room; compact spends a second row rather than a
+  // "+N", because portrait is exactly where vertical space is cheap and
+  // horizontal space is not. Per-row flooring, never total area: chips are
+  // laid out by flex-wrap, so overpromising spills onto a third row.
+  const allDayRows = compact ? 2 : 1;
+  const allDayFit = allDayRoom === null
+    ? null
+    : Math.max(1, Math.floor((allDayRoom - ALLDAY_PILL_CHROME_PX) / ALLDAY_CHIP_PX)) * allDayRows;
 
   // Legend glyphs: Zap and Leaf are the summary strip's own effort/restore
   // icons (one vocabulary across surfaces); MoonStar is nocturnal but
@@ -688,7 +728,8 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
   // loudest thing on the wall.
   const legendPill = (
     <div
-      className={`rounded-2xl bg-white/[0.04] px-8 py-3 ${
+      ref={legendRef}
+      className={`rounded-2xl bg-white/[0.04] px-8 py-3 flex-shrink-0 ${
         compact
           // Width-constrained: a deliberate 2×2 grid instead of flex-wrap's
           // lopsided 3+1 spill.
@@ -719,11 +760,14 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
   const allDayHidden = model.allDay.length - allDayShown.length;
   const allDayActionable = !!(onToggleComplete || onOpenInPlanner);
   const allDayPill = (
-    <div className="rounded-2xl bg-white/[0.04] px-6 py-3 flex items-center gap-2.5 min-w-0">
+    <div
+      className="rounded-2xl bg-white/[0.04] px-6 py-3 flex items-center gap-2.5 min-w-0"
+      style={allDayRoom ? { maxWidth: allDayRoom } : undefined}
+    >
       <CalendarDays size={15} strokeWidth={1.75} className="text-white/45 flex-shrink-0" aria-hidden="true" />
       <div className="leading-tight min-w-0">
         <div className="text-white/45 text-xs">{t('task.allDay', 'All Day')}</div>
-        <div className="flex items-center gap-x-3 min-w-0">
+        <div className={`flex items-center gap-x-3 min-w-0 ${compact ? 'flex-wrap gap-y-1' : ''}`}>
           {allDayShown.map((item) => {
             const body = (
               <>
@@ -731,6 +775,10 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
                   className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                   style={{ backgroundColor: muteDialColor(item.colorHex) }}
                 />
+                {/* Arbitrary value on purpose: Tailwind 3.3 has no numeric
+                    max-w-* scale, so max-w-32 would silently generate
+                    nothing and let a long title stretch the chip past
+                    everything this pill is measured against. */}
                 <span className="truncate max-w-[8rem]">{renderHubTitle(item.title)}</span>
               </>
             );
@@ -1053,17 +1101,32 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
         })()}
       </div>
 
-      {/* Bottom band. The legend keeps the dial's vertical axis it has always
-          sat on; all-day items take the dead space BESIDE it rather than a
-          row of their own. In landscape the dial is height-constrained, so a
-          second row costs real diameter (measured: 45px at 1600×900) while
-          ~570px per side of the legend's own row sits empty. Compact has the
-          opposite budget — no side room, vertical to spare — so there the
-          two stack. A day with no all-day items renders exactly as before. */}
+      {/* Bottom band. All-day items never go on the ring, and in landscape
+          they must not take a row of their own either: the dial is
+          height-constrained there, so a second row costs real diameter
+          (measured: 45px at 1600×900) while ~570px per side of the legend's
+          own row sits empty.
+          So the band is two equal tracks meeting on the dial's vertical
+          axis — the line under the 12 — with each pill growing outward from
+          that seam. Equal tracks (not auto) are what put the seam on the
+          axis; capping the pill at the legend's width (above) is what keeps
+          the two sides reading as a matched pair rather than one panel
+          sprawling. Compact has the opposite budget — no side room, vertical
+          to spare — so there they stack, the pill capped to the legend's
+          width and spending a second row of chips.
+          A day with no all-day items renders exactly as before. */}
       {!hasAllDay ? legendPill : compact ? (
-        <div className="w-full flex flex-col items-center gap-2">
-          <div ref={allDayCellRef} className="w-full min-w-0 flex justify-center">{allDayPill}</div>
+        <div ref={allDayCellRef} className="w-full flex flex-col items-center gap-2">
+          {allDayPill}
           {legendPill}
+        </div>
+      ) : seamFits ? (
+        <div
+          className="w-full grid items-center gap-x-3"
+          style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)' }}
+        >
+          <div ref={allDayCellRef} className="min-w-0 flex justify-end">{allDayPill}</div>
+          <div className="min-w-0 flex justify-start">{legendPill}</div>
         </div>
       ) : (
         <div
