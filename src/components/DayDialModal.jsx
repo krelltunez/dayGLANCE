@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarClock, CalendarDays, Eclipse, Inbox, Layers, Maximize, Minimize, Monitor, Sparkles, Sunrise, Target, Thermometer, X } from 'lucide-react';
+import { CalendarClock, CalendarDays, Eclipse, Inbox, Layers, Maximize, Minimize, Monitor, Sparkles, Sunrise, Target, Thermometer, X, Timer } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { getStoredWeatherCoords, getSunTimes } from '../utils/solar.js';
+import { computeFocusSpans } from '../utils/dayDial.js';
 import { acquireWakeLock, releaseWakeLock } from '../utils/wakeLock.js';
 import { isNativeApp, nativeSetImmersiveMode } from '../native.js';
 import { AMBIENT_DELAY_OPTIONS, loadAmbientPrefs, saveAmbientPrefs } from '../utils/dialPrefs.js';
@@ -33,7 +34,7 @@ const IDLE_RETURN_MS = 5 * 60_000;
 // summary strip's collapse state): a wall panel and a phone reasonably want
 // different layers, so this deliberately does not ride the sync payload.
 const DIAL_LAYERS_KEY = 'day-planner-dial-layers';
-const DEFAULT_LAYERS = { solar: true, weather: true, calendars: true, routines: true };
+const DEFAULT_LAYERS = { solar: true, weather: true, calendars: true, routines: true, focus: true };
 const loadLayers = () => {
   try {
     return { ...DEFAULT_LAYERS, ...JSON.parse(localStorage.getItem(DIAL_LAYERS_KEY) || '{}') };
@@ -95,6 +96,7 @@ const DayDialModal = () => {
   const {
     getDayWindow, routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion,
     habitsEnabled, activeHabits, getTodayHabitCount, setHabitCount, incrementHabit,
+    focusLog, focusModeAvailable, enterFocusMode,
   } = useFeaturesCtx();
 
   // Always one day per keypress — changeDate() pages by visible columns,
@@ -498,6 +500,24 @@ const DayDialModal = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getTasksForDate, selectedDate, layers.calendars]);
 
+  // Focus sessions for the day being drawn. The log is keyed by date, so
+  // paging back shows the hours actually spent in focus on that day — but
+  // only from the version that started recording spans, since the entries
+  // before it kept totals without times.
+  const focusSpans = useMemo(
+    () => (layers.focus ? computeFocusSpans(focusLog, dateStr) : []),
+    [layers.focus, focusLog, dateStr],
+  );
+
+  // Starting a session leaves the dial: focus mode is its own fullscreen
+  // view, with its own wake lock and (on Android) its own notification.
+  // enterFocusMode derives the block from NOW, which is why the dial only
+  // offers the action on the block that is actually running.
+  const handleStartFocus = () => {
+    setShowDayDial(false);
+    enterFocusMode();
+  };
+
   // Complications. Each carries its own items, so the sheet that opens has
   // nothing left to fetch. The counts deliberately reuse the app's own
   // numbers rather than recomputing: the inbox count is the sidebar badge's
@@ -646,6 +666,8 @@ const DayDialModal = () => {
         // midnight), so any other date gets none rather than a stale set.
         routines={layers.routines && routinesEnabled && isToday ? todayRoutines : null}
         routineCompletions={routineCompletions}
+        focusSpans={focusSpans}
+        onStartFocus={isToday && focusModeAvailable ? handleStartFocus : null}
         complications={isToday ? complications : null}
         onOpenTask={handleOpenTask}
         onSetHabitCount={(habit, next) => setHabitCount(habit.id, next)}
@@ -702,6 +724,12 @@ const DayDialModal = () => {
                 onChange={(v) => setLayer('routines', v)}
               />
             )}
+            <ToggleRow
+              icon={Timer}
+              label={t('dial.focus', 'Focus')}
+              on={layers.focus}
+              onChange={(v) => setLayer('focus', v)}
+            />
             {/* Complications: four slots, filled in the order they are
                 switched on. Only offered where the face has room for them —
                 see COMPLICATION_MIN_DIAL_PX. */}

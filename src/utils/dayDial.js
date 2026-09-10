@@ -493,6 +493,78 @@ export function stepDialSelection(blocks, currentId, delta) {
   return list[Math.max(0, Math.min(list.length - 1, i + delta))];
 }
 
+
+// ── Focus sessions ──────────────────────────────────────────────────────────
+//
+// Where the day's focus sessions actually landed. Focus mode can only run
+// inside a block that is already on the ring (it requires an in-progress
+// timed task with 45+ minutes left), so this layer answers one question the
+// wedges cannot: which of those blocks did the work actually happen in.
+//
+// The log stores one span per session. Adjacent spans are merged here rather
+// than at write time: back-to-back sessions inside one block are one stretch
+// of focus to look at, while the day's session COUNT is already kept
+// separately, so nothing is lost by drawing them as one.
+
+/** Spans closer than this are drawn as one — a gap too small to read. */
+export const FOCUS_MERGE_GAP_MIN = 2;
+
+/**
+ * The day's focus spans, clipped to the day and merged where they touch.
+ *
+ * @param focusLog The persisted log, keyed by date string.
+ * @param dateStr  The day being drawn.
+ * @returns Array of {startMin, endMin}, in time order, within [0, 1440].
+ */
+export function computeFocusSpans(focusLog, dateStr) {
+  const raw = focusLog?.[dateStr]?.spans;
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+
+  const clipped = raw
+    .map((s) => ({
+      startMin: Math.max(0, Math.min(DIAL_DAY_MINUTES, Number(s?.start))),
+      // A session that ran past midnight is clipped at the day's end; the
+      // remainder belongs to a day this entry does not describe.
+      endMin: Math.max(0, Math.min(DIAL_DAY_MINUTES, Number(s?.end))),
+    }))
+    .filter((s) => Number.isFinite(s.startMin) && Number.isFinite(s.endMin)
+      && s.endMin > s.startMin)
+    .sort((a, b) => a.startMin - b.startMin);
+
+  const merged = [];
+  for (const span of clipped) {
+    const last = merged[merged.length - 1];
+    if (last && span.startMin - last.endMin <= FOCUS_MERGE_GAP_MIN) {
+      last.endMin = Math.max(last.endMin, span.endMin);
+    } else {
+      merged.push({ ...span });
+    }
+  }
+  return merged;
+}
+
+/**
+ * Whether a block can start a focus session right now.
+ *
+ * Focus mode derives its block from the current time, not from whatever was
+ * tapped, so offering the action anywhere else would silently focus a
+ * different block than the one asked for. Routines are not the schedule and
+ * cannot host a session.
+ *
+ * @param block  A dial block, or a routine bar.
+ * @param nowMin Minutes past midnight, or null on a day with no now line.
+ */
+export function canStartFocusFromBlock(block, nowMin) {
+  if (!block || nowMin == null || block.isRoutine) return false;
+  if (block.startMin === undefined || block.endMin === undefined) return false;
+  return block.startMin <= nowMin && nowMin < block.endMin;
+}
+
+/** Total minutes of focus the day's spans cover, once merged. */
+export function focusSpanMinutes(spans) {
+  return (spans || []).reduce((sum, s) => sum + (s.endMin - s.startMin), 0);
+}
+
 // A sunrise/sunset mark rides its hairline out to the hour-label radius, so
 // a sun time within about half an hour of a label parks the glyph on the
 // text ("6☼AM" for an August sunrise at 6:09). The label yields for those

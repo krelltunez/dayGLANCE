@@ -1342,6 +1342,8 @@
     "habitAdd": "Ajouter un",
     "habitRemove": "Retirer un",
     "habitTarget": "sur {{target}}",
+    "focus": "Concentration",
+    "startFocus": "Démarrer une session de concentration",
     "habitLabel": "{{name}} : {{count}} sur {{target}}",
     "aria": "Cadran du jour : {{date}}",
     "blockList": "Blocs de la journée",

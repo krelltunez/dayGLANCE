@@ -1342,6 +1342,8 @@
     "habitAdd": "Añadir uno",
     "habitRemove": "Quitar uno",
     "habitTarget": "de {{target}}",
+    "focus": "Enfoque",
+    "startFocus": "Iniciar sesión de enfoque",
     "habitLabel": "{{name}}: {{count}} de {{target}}",
     "aria": "Esfera del día: {{date}}",
     "blockList": "Bloques de la agenda",

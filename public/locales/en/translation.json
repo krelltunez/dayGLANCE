@@ -1342,6 +1342,8 @@
     "habitAdd": "Add one",
     "habitRemove": "Remove one",
     "habitTarget": "of {{target}}",
+    "focus": "Focus",
+    "startFocus": "Start focus session",
     "habitLabel": "{{name}}: {{count}} of {{target}}",
     "aria": "Day dial: {{date}}",
     "blockList": "Schedule blocks",

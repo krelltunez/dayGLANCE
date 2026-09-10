@@ -1342,6 +1342,8 @@
     "habitAdd": "Eins hinzufügen",
     "habitRemove": "Eins entfernen",
     "habitTarget": "von {{target}}",
+    "focus": "Fokus",
+    "startFocus": "Fokus-Sitzung starten",
     "habitLabel": "{{name}}: {{count}} von {{target}}",
     "aria": "Tagesanzeige: {{date}}",
     "blockList": "Terminblöcke",
