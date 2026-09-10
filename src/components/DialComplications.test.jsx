@@ -30,6 +30,11 @@ const items = [
   { key: 'habit:h1', kind: 'habit', habit, count: 5 },
 ];
 
+const doneItem = (over = {}) => ({
+  key: 'done', kind: 'done', doneMinutes: 120, totalMinutes: 180,
+  fraction: 120 / 180, remaining: [{ id: 'r1', title: 'Team sync', startTime: '14:00' }], ...over,
+});
+
 const render = (i18n, props = {}) => renderToStaticMarkup(
   <I18nextProvider i18n={i18n}>
     <DialComplications
@@ -41,6 +46,39 @@ const render = (i18n, props = {}) => renderToStaticMarkup(
     />
   </I18nextProvider>,
 );
+
+describe('DialComplications — the done subdial', () => {
+  it('shows the percentage, and rings it rather than arcing the face', async () => {
+    const i18n = await i18nFor('en');
+    const html = render(i18n, { items: [doneItem()] });
+    // A subdial, not an arc on the ring: angle means time of day everywhere
+    // else on this face, so a sweep encoding a fraction would read as hours.
+    expect(html).toContain('>67<');
+    expect(html).toContain('aria-label="Done: 67%, 120 of 180 minutes"');
+    // The ring is a dash-offset circle inside the slot, not a sector path.
+    expect(html).toContain('stroke-dashoffset');
+    expect(html).not.toContain('#22c55e');   // not met yet
+  });
+
+  it('turns green only once everything scheduled is done', async () => {
+    const i18n = await i18nFor('en');
+    const met = render(i18n, {
+      items: [doneItem({ doneMinutes: 180, fraction: 1, remaining: [] })],
+    });
+    expect(met).toContain('#22c55e');
+    expect(met).toContain('>100<');
+  });
+
+  it('never reads an empty day as finished', async () => {
+    const i18n = await i18nFor('en');
+    // 0 of 0 minutes is 0%, not 100% — nothing was completed.
+    const html = render(i18n, {
+      items: [doneItem({ doneMinutes: 0, totalMinutes: 0, fraction: 0, remaining: [] })],
+    });
+    expect(html).toContain('>0<');
+    expect(html).not.toContain('#22c55e');
+  });
+});
 
 describe('DialComplications', () => {
   it('puts each complication in its own corner slot', async () => {

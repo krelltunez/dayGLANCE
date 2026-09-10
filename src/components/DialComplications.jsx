@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CalendarClock, ExternalLink, Inbox, Minus, Plus } from 'lucide-react';
+import { CalendarClock, Check, ExternalLink, Inbox, Minus, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { stripWikilinks } from '../utils/taskUtils.js';
 import { HabitRing } from './HabitRing.jsx';
@@ -69,6 +69,18 @@ const HOLD_MS = 500;
 
 const COUNT_KINDS = { inbox: Inbox, deadlines: CalendarClock };
 
+/** What the open sheet calls itself, for its accessible name. */
+const sheetTitle = (item, t) => {
+  if (item.kind === 'habit') return item.habit.name;
+  if (item.kind === 'done') return t('dial.done', 'Done');
+  return item.kind === 'inbox' ? t('dial.inbox', 'Inbox') : t('dial.deadlines', 'Deadlines');
+};
+
+// The completion ring turns green at target, the same signal HabitRing
+// gives when a habit's goal is met — one vocabulary for "you're there".
+const DONE_COLOR = '#ffffff';
+const DONE_MET_COLOR = '#22c55e';
+
 /**
  * A habit's own ring, wired the way GLANCE wires it: a tap adds one, a hold
  * (or a right-click / context-menu key) opens the sheet. The dimming is the
@@ -123,6 +135,68 @@ function HabitSlot({ item, size, onOpen, onIncrement, t }) {
 }
 
 /**
+ * How much of the day's planned work is done, as a ring around the same
+ * recessed disc the counts use.
+ *
+ * A subdial rather than an arc on the ring: angle means time of day
+ * everywhere else on this face, so a sweep encoding a fraction would read
+ * as a span of hours. Out here nothing is claiming to be a clock.
+ */
+function DoneSlot({ item, size, onOpen, t }) {
+  const pct = Math.round(item.fraction * 100);
+  const met = item.totalMinutes > 0 && item.doneMinutes >= item.totalMinutes;
+  // Stroke and radius in the disc's own units, so the ring scales with the
+  // tier instead of thickening on the small one.
+  const stroke = Math.max(2.5, size.dot * 0.055);
+  const r = (size.dot - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+  return (
+    <button
+      onClick={onOpen}
+      aria-label={t('dial.doneLabel', 'Done: {{percent}}%, {{done}} of {{total}} minutes', {
+        percent: pct, done: item.doneMinutes, total: item.totalMinutes,
+      })}
+      className="flex flex-col items-center gap-0.5 transition-transform active:scale-95"
+    >
+      <span
+        className="relative flex items-center justify-center rounded-full"
+        style={{
+          width: size.dot,
+          height: size.dot,
+          background: 'radial-gradient(circle at 50% 28%, rgba(255,255,255,0.06), rgba(255,255,255,0.015) 72%)',
+          boxShadow: 'inset 0 1px 1px rgba(0,0,0,0.35)',
+        }}
+      >
+        <svg
+          width={size.dot} height={size.dot} viewBox={`0 0 ${size.dot} ${size.dot}`}
+          className="absolute inset-0 -rotate-90" aria-hidden="true"
+        >
+          <circle
+            cx={size.dot / 2} cy={size.dot / 2} r={r}
+            fill="none" stroke="#ffffff" strokeOpacity={0.1} strokeWidth={stroke}
+          />
+          <circle
+            cx={size.dot / 2} cy={size.dot / 2} r={r}
+            fill="none" stroke={met ? DONE_MET_COLOR : DONE_COLOR}
+            strokeOpacity={met ? 0.75 : 0.55}
+            strokeWidth={stroke} strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={circumference * (1 - Math.min(1, item.fraction))}
+            className="transition-all duration-500"
+          />
+        </svg>
+        <span className={`text-white/85 ${size.count} font-medium leading-none tabular-nums`}>
+          {pct}
+        </span>
+      </span>
+      <span className={`text-white/35 ${size.label} uppercase tracking-[0.14em] leading-none`}>
+        {t('dial.done', 'Done')}
+      </span>
+    </button>
+  );
+}
+
+/**
  * A count readout, dressed as a chronograph subdial: a recessed disc with a
  * hairline rim, the icon and figure inside it, the name printed underneath —
  * which is also where HabitRing prints its own "5/8", so the two kinds of
@@ -159,7 +233,7 @@ function CountSlot({ item, size, onOpen, t }) {
   );
 }
 
-const DialComplications = ({ items, dialPx, onOpenTask, onSetHabitCount, onIncrementHabit }) => {
+const DialComplications = ({ items, dialPx, onOpenTask, onSetHabitCount, onIncrementHabit, onToggleComplete }) => {
   const { t } = useTranslation();
   const [openKey, setOpenKey] = useState(null);
   const sheetRef = useRef(null);
@@ -203,7 +277,9 @@ const DialComplications = ({ items, dialPx, onOpenTask, onSetHabitCount, onIncre
               transform: 'translate(-50%, -50%)',
             }}
           >
-            {item.kind === 'habit' ? (
+            {item.kind === 'done' ? (
+              <DoneSlot item={item} size={size} t={t} onOpen={() => setOpenKey(item.key)} />
+            ) : item.kind === 'habit' ? (
               <HabitSlot
                 item={item}
                 size={size}
@@ -227,13 +303,50 @@ const DialComplications = ({ items, dialPx, onOpenTask, onSetHabitCount, onIncre
             ref={sheetRef}
             role="dialog"
             aria-modal="true"
-            aria-label={open.kind === 'habit'
-              ? open.habit.name
-              : (open.kind === 'inbox' ? t('dial.inbox', 'Inbox') : t('dial.deadlines', 'Deadlines'))}
+            aria-label={sheetTitle(open, t)}
             className="w-[min(86%,360px)] rounded-2xl border border-white/10 bg-[#12151c] px-5 py-4 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {open.kind === 'habit' ? (
+            {open.kind === 'done' ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-white/90 text-base font-medium">{t('dial.done', 'Done')}</span>
+                  <span className="text-white/35 text-sm tabular-nums ml-auto">
+                    {Math.round(open.fraction * 100)}%
+                  </span>
+                </div>
+                {open.remaining.length === 0 ? (
+                  <div className="mt-3 text-white/35 text-sm">
+                    {open.totalMinutes > 0
+                      ? t('dial.allDone', 'Everything scheduled is done')
+                      : t('dial.nothingHere', 'Nothing here')}
+                  </div>
+                ) : (
+                  /* What's left, and the readout's own action: ticking one
+                     off here moves the ring you just tapped. */
+                  <div className="mt-3 space-y-1 max-h-[46vh] overflow-y-auto">
+                    {open.remaining.slice(0, 12).map((task) => (
+                      <button
+                        key={task.id}
+                        onClick={() => onToggleComplete?.(task)}
+                        className="w-full flex items-center gap-2.5 rounded-lg bg-white/5 hover:bg-white/10 active:bg-white/15 px-3 py-2 text-left transition-colors"
+                      >
+                        <Check size={14} className="text-white/30 flex-shrink-0" aria-hidden="true" />
+                        <span className="flex-1 min-w-0 truncate text-white/85 text-sm">
+                          {stripWikilinks(task.title)}
+                        </span>
+                        <span className="text-white/30 text-xs tabular-nums flex-shrink-0">{task.startTime}</span>
+                      </button>
+                    ))}
+                    {open.remaining.length > 12 && (
+                      <div className="pt-1 text-center text-white/35 text-xs">
+                        {t('dial.allDayMore', '{{count}} more', { count: open.remaining.length - 12 })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : open.kind === 'habit' ? (
               <>
                 <div className="text-white/90 text-base font-medium text-center">{open.habit.name}</div>
                 {/* The whole point of a habit on the face: put one more in

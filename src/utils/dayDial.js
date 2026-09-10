@@ -665,6 +665,59 @@ export function dialPeakUv(hourly) {
   return max;
 }
 
+
+// ── Day completion ──────────────────────────────────────────────────────────
+//
+// How much of the day's planned work is actually done, weighted by minutes
+// rather than by block count: this face is about time, so a two-hour block
+// counts for more than a fifteen-minute errand.
+//
+// Deliberately NOT drawn as an arc on the ring. Angle means time of day
+// everywhere else on this dial — wedges, sleep, daylight, routines, the
+// focus rail, the ticks — so a sweep that encoded a fraction would read as
+// a span of hours (40% from midnight reads as "until 09:36"). It rides a
+// corner subdial instead, where no angle is claiming to be a clock.
+//
+// Read-only imported calendar events are left out of both halves: someone
+// else's meeting is not yours to complete, so counting it would peg the
+// figure below 100% on any day with one in it. All-day items are left out
+// too — they have no minutes to weigh.
+
+/**
+ * The day's completion, by scheduled minutes.
+ *
+ * @param dayTasks The day's tasks, already filtered by the layer toggles.
+ * @returns {{doneMinutes: number, totalMinutes: number, fraction: number,
+ *           remaining: Array}} `fraction` is 0 when there is nothing to do,
+ *          so an empty day reads as an empty ring rather than a full one.
+ *          `remaining` is the incomplete blocks, in time order.
+ */
+export function computeDayCompletion(dayTasks) {
+  let doneMinutes = 0;
+  let totalMinutes = 0;
+  const remaining = [];
+
+  for (const t of dayTasks || []) {
+    if (!t || t.isAllDay || !t.startTime) continue;
+    // Same fixture rule computeDialModel uses: a read-only imported event
+    // has no completion to toggle.
+    if (t.imported && !t.isTaskCalendar) continue;
+    const minutes = Math.max(0, Number(t.duration) || 0);
+    if (!minutes) continue;
+    totalMinutes += minutes;
+    if (t.completed) doneMinutes += minutes;
+    else remaining.push(t);
+  }
+
+  remaining.sort((a, b) => timeToMin(a.startTime) - timeToMin(b.startTime));
+  return {
+    doneMinutes,
+    totalMinutes,
+    fraction: totalMinutes > 0 ? doneMinutes / totalMinutes : 0,
+    remaining,
+  };
+}
+
 // A sunrise/sunset mark rides its hairline out to the hour-label radius, so
 // a sun time within about half an hour of a label parks the glyph on the
 // text ("6☼AM" for an August sunrise at 6:09). The label yields for those
