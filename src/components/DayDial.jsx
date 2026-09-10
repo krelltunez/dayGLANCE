@@ -430,38 +430,87 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
 
-  const onListKeyDown = (e) => {
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
-    const { blocks } = model;
-    const step = (delta) => selectBlock(stepDialSelection(blocks, inspected?.id ?? null, delta));
-    switch (e.key) {
+  // The moves themselves, shared by the listbox's own handler and the
+  // document-level one below. Reads live state from refs so the mount-once
+  // listener never works from a stale day. Returns whether the key was ours.
+  const inspectedRef = useRef(null);
+  inspectedRef.current = inspected;
+  const navigateByKey = (key) => {
+    const { blocks, nowMin: liveNow } = liveRef.current;
+    if (!blocks.length) return false;
+    const current = inspectedRef.current;
+    // Arriving from nothing lands on the block the hub is already
+    // narrating, never on the top of the day.
+    const move = (delta) => selectBlock(current
+      ? stepDialSelection(blocks, current.id, delta)
+      : initialDialSelection(blocks, liveNow));
+    switch (key) {
       // Up/down, not left/right: those page the day at the overlay level,
       // and the schedule answers as the vertical list a listbox always is.
-      case 'ArrowDown': step(1); break;
-      case 'ArrowUp': step(-1); break;
-      case 'Home': step(-blocks.length); break;
-      case 'End': step(blocks.length); break;
-      case 'Enter':
-      case ' ':
-        if (!inspected) return;
-        openSheet(inspected, true);
-        break;
-      case 'Escape':
-        // Only our rung of the Escape ladder: with nothing selected the
-        // press belongs to the overlay (leave fullscreen, then close).
-        if (!inspected) return;
-        clearSelection();
-        break;
-      default: return;
+      case 'ArrowDown': move(1); return true;
+      case 'ArrowUp': move(-1); return true;
+      case 'Home': selectBlock(blocks[0]); return true;
+      case 'End': selectBlock(blocks[blocks.length - 1]); return true;
+      default: return false;
+    }
+  };
+
+  const onListKeyDown = (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (!navigateByKey(e.key)) {
+      switch (e.key) {
+        case 'Enter':
+        case ' ':
+          if (!inspected) return;
+          openSheet(inspected, true);
+          break;
+        case 'Escape':
+          // Only our rung of the Escape ladder: with nothing selected the
+          // press belongs to the overlay (leave fullscreen, then close).
+          if (!inspected) return;
+          clearSelection();
+          break;
+        default: return;
+      }
     }
     e.preventDefault();
     e.stopPropagation();
   };
 
+  // Entering keyboard mode must not cost a single Tab. The dial is a
+  // fullscreen, single-purpose overlay, so up/down anywhere in it means
+  // "walk my blocks": the ring takes focus and the selection starts. Without
+  // this the ring is the LAST focusable in the overlay — reaching it meant
+  // tabbing through every corner button first, and finding it again after
+  // leaving was worse. A sheet or the layers panel owns the keyboard while
+  // it is up. (When the ring already holds focus its own handler runs first
+  // and stops propagation, so this never double-steps.)
+  const keyEntryRef = useRef(false);
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      if (!navigateByKey(e.key)) return;
+      e.preventDefault();
+      const list = listRef.current;
+      if (list && list !== document.activeElement) {
+        // The selection is already set; suppress the focus handler's own
+        // entry pick so Home/End are not overridden by it.
+        keyEntryRef.current = true;
+        list.focus();
+        keyEntryRef.current = false;
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Tabbing in lands on the block the hub is already narrating, so there is
   // always a visible indicator while the ring holds focus.
   const onListFocus = (e) => {
     if (e.target !== e.currentTarget) return;
+    if (keyEntryRef.current) return;
     if (!inspected) selectBlock(initialDialSelection(model.blocks, nowMin));
   };
   const onListBlur = (e) => {
