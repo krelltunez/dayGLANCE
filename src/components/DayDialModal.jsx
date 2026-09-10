@@ -92,11 +92,20 @@ const DayDialModal = () => {
   const handleToggleComplete = (block) => toggleComplete(block.id);
   const handleOpenInPlanner = (block) => {
     setShowDayDial(false);
-    const task = getTasksForDate(selectedDate).find((t) => t.id === block.id);
+    // A block carried over from last night is filed under that day, so the
+    // planner has to land there — following it to the date it belongs to,
+    // and to the hour it actually starts.
+    const home = new Date(selectedDate);
+    if (block.startedPrevDay) {
+      home.setDate(home.getDate() - 1);
+      setSelectedDate(home);
+    }
+    const task = getTasksForDate(home).find((t) => t.id === block.id);
     if (isMobile && task && block.completable) {
       openMobileEditTask(task, false);
     } else {
-      const hhmm = `${String(Math.floor(block.startMin / 60)).padStart(2, '0')}:00`;
+      const startMin = block.startedPrevDay ? block.startMinTrue : block.startMin;
+      const hhmm = `${String(Math.floor(startMin / 60)).padStart(2, '0')}:00`;
       scrollToHour(hhmm);
     }
   };
@@ -441,11 +450,21 @@ const DayDialModal = () => {
   // Calendars off hides calendar-imported events (Obsidian-imported tasks
   // are the user's own work and stay); totals and the ring follow together
   // since the same filtered list feeds computeDialModel.
-  const dayTasks = useMemo(() => {
-    const all = getTasksForDate(selectedDate);
-    return layers.calendars
-      ? all
-      : all.filter((t) => !(t.imported && t.importSource !== 'obsidian'));
+  const applyLayers = (all) => (layers.calendars
+    ? all
+    : all.filter((t) => !(t.imported && t.importSource !== 'obsidian')));
+
+  const dayTasks = useMemo(() => applyLayers(getTasksForDate(selectedDate)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [getTasksForDate, selectedDate, layers.calendars]);
+
+  // Yesterday's list, for the one thing the dial takes from it: a block that
+  // ran past midnight still occupies this morning. Filtered through the same
+  // layer toggles, so hiding calendar events hides their overrun too.
+  const prevDayTasks = useMemo(() => {
+    const prev = new Date(selectedDate);
+    prev.setDate(prev.getDate() - 1);
+    return applyLayers(getTasksForDate(prev));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getTasksForDate, selectedDate, layers.calendars]);
 
@@ -549,6 +568,7 @@ const DayDialModal = () => {
       </div>
       <DayDial
         dayTasks={dayTasks}
+        prevDayTasks={prevDayTasks}
         dayWindow={getDayWindow(dateStr)}
         date={selectedDate}
         nowMin={nowMin}

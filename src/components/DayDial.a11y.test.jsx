@@ -112,6 +112,29 @@ describe('DayDial keyboard/AT contract', () => {
     ]);
   });
 
+  it('speaks a block\'s true hours when it crosses midnight', async () => {
+    const i18n = await i18nFor('en');
+    const html = render(i18n, {
+      // 23:00 + 2h: the ring clips it at midnight, the label must not.
+      dayTasks: [task({ id: 1, title: 'Late session', startTime: '23:00', duration: 120 })],
+      // Last night's 22:00 + 4h still owns this morning's first two hours.
+      prevDayTasks: [task({ id: 'y1', title: 'Night shift', startTime: '22:00', duration: 240 })],
+    });
+    expect(options(html).map((o) => o.label)).toEqual([
+      'Night shift, 22:00 – 02:00, started the day before, 4h, ended 7h 30m ago',
+      'Late session, 23:00 – 01:00, ends the next day, 2h, in 13h 30m',
+    ]);
+  });
+
+  it('marks a block that ends exactly at midnight as landing the next day', async () => {
+    const i18n = await i18nFor('en');
+    const html = render(i18n, {
+      dayTasks: [task({ id: 1, title: 'Wind down', startTime: '23:00', duration: 60 })],
+    });
+    // 24:00 is not a time to print; it is the next day's 00:00.
+    expect(options(html)[0].label).toBe('Wind down, 23:00 – 00:00, ends the next day, 1h, in 13h 30m');
+  });
+
   it('keeps all-day items off the ring and out of its options', async () => {
     const i18n = await i18nFor('en');
     const html = render(i18n, {
