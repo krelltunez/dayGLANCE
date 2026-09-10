@@ -1342,6 +1342,7 @@
     "habitAdd": "Add one",
     "habitRemove": "Remove one",
     "habitTarget": "of {{target}}",
+    "habitLabel": "{{name}}: {{count}} of {{target}}",
     "aria": "Day dial: {{date}}",
     "blockList": "Schedule blocks",
     "allDayMore": "{{count}} more",

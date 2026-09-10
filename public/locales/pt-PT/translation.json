@@ -1342,6 +1342,7 @@
     "habitAdd": "Adicionar um",
     "habitRemove": "Remover um",
     "habitTarget": "de {{target}}",
+    "habitLabel": "{{name}}: {{count}} de {{target}}",
     "aria": "Mostrador do dia: {{date}}",
     "blockList": "Blocos da agenda",
     "allDayMore": "mais {{count}}",

@@ -1342,6 +1342,7 @@
     "habitAdd": "Eins hinzufügen",
     "habitRemove": "Eins entfernen",
     "habitTarget": "von {{target}}",
+    "habitLabel": "{{name}}: {{count}} von {{target}}",
     "aria": "Tagesanzeige: {{date}}",
     "blockList": "Terminblöcke",
     "allDayMore": "{{count}} weitere",

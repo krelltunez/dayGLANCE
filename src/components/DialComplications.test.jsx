@@ -4,7 +4,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { loaders } from '../locales.js';
-import DialComplications, { COMPLICATION_MIN_DIAL_PX, COMPLICATION_SLOTS } from './DialComplications.jsx';
+import DialComplications, {
+  COMPLICATION_MIN_DIAL_PX, COMPLICATION_SIZES, COMPLICATION_SLOTS, complicationSize,
+} from './DialComplications.jsx';
 
 // The complication slots' contract. The component takes the dial's measured
 // size as a prop, so this can pin the size gate down without a DOM — the
@@ -46,9 +48,10 @@ describe('DialComplications', () => {
     expect(html).toContain('aria-label="Inbox: 7"');
     expect(html).toContain('aria-label="Deadlines: 2"');
     // The habit is the app's own HabitRing, so it carries that component's
-    // count label rather than a name.
+    // count label rather than a name — but it says who it is to AT.
     expect(html).toContain('5/8');
     expect(html).not.toContain('>Water<');
+    expect(html).toContain('aria-label="Water: 5 of 8"');
 
     // Slots are placed off the dial's radius, not the container's box.
     const r = 800 / 2;
@@ -72,6 +75,46 @@ describe('DialComplications', () => {
     // And before the parent has measured anything.
     expect(render(i18n, { dialPx: null })).toBe('');
     expect(render(i18n, { items: [] })).toBe('');
+  });
+
+  it('grows the readouts with the face, in three steps', async () => {
+    const i18n = await i18nFor('en');
+    const [sm, md, lg] = COMPLICATION_SIZES;
+    // The tier is chosen from the dial's measured diameter, not a viewport
+    // breakpoint: the same window gives the dial very different sizes
+    // depending on what else is on screen.
+    expect(complicationSize(sm.minDialPx - 1)).toBe(null);
+    expect(complicationSize(sm.minDialPx)).toBe(sm);
+    expect(complicationSize(md.minDialPx - 1)).toBe(sm);
+    expect(complicationSize(md.minDialPx)).toBe(md);
+    expect(complicationSize(lg.minDialPx)).toBe(lg);
+    expect(complicationSize(lg.minDialPx + 400)).toBe(lg);
+    expect(complicationSize(null)).toBe(null);
+
+    // And the tier actually reaches the markup, for both kinds of slot.
+    for (const size of COMPLICATION_SIZES) {
+      const html = render(i18n, { dialPx: size.minDialPx });
+      expect(html).toContain(`width:${size.dot}px`);          // the count subdial
+      expect(html).toContain(`width="${size.dot}"`);          // the habit ring
+      expect(html).toContain(size.count);
+    }
+  });
+
+  it('dresses a count as a recessed subdial', async () => {
+    const html = render(await i18nFor('en'));
+    // A hairline rim and an inset shadow — the chronograph reading, and what
+    // separates a count from the flat text it used to be.
+    expect(html).toContain('rounded-full border border-white/10');
+    expect(html).toContain('inset 0 1px 1px');
+  });
+
+  it('holds the habit ring back from the now-line\'s brightness', async () => {
+    const html = render(await i18nFor('en'));
+    // The ring paints a saturated brand colour that belongs in a sidebar,
+    // not on a face whose brightest element must be the orange now-line.
+    expect(html).toContain('opacity-65');
+    expect(html).toContain('saturate-[.45]');
+    expect(html).toContain('hover:saturate-100');
   });
 
   it('localizes its labels', async () => {

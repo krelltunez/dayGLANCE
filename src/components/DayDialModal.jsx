@@ -94,7 +94,7 @@ const DayDialModal = () => {
   } = useDayPlannerCtx();
   const {
     getDayWindow, routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion,
-    habitsEnabled, activeHabits, getTodayHabitCount, setHabitCount,
+    habitsEnabled, activeHabits, getTodayHabitCount, setHabitCount, incrementHabit,
   } = useFeaturesCtx();
 
   // Always one day per keypress — changeDate() pages by visible columns,
@@ -649,6 +649,7 @@ const DayDialModal = () => {
         complications={isToday ? complications : null}
         onOpenTask={handleOpenTask}
         onSetHabitCount={(habit, next) => setHabitCount(habit.id, next)}
+        onIncrementHabit={(habit) => incrementHabit(habit.id)}
         dayWindow={getDayWindow(dateStr)}
         date={selectedDate}
         nowMin={nowMin}

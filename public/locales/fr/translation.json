@@ -1342,6 +1342,7 @@
     "habitAdd": "Ajouter un",
     "habitRemove": "Retirer un",
     "habitTarget": "sur {{target}}",
+    "habitLabel": "{{name}} : {{count}} sur {{target}}",
     "aria": "Cadran du jour : {{date}}",
     "blockList": "Blocs de la journée",
     "allDayMore": "{{count}} de plus",
