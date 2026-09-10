@@ -1333,6 +1333,8 @@
     "restore": "Recuperação",
     "sleep": "Sono",
     "unblocked": "Tempo livre",
+    "routines": "Rotinas",
+    "routine": "rotina",
     "aria": "Mostrador do dia: {{date}}",
     "blockList": "Blocos da agenda",
     "allDayMore": "mais {{count}}",

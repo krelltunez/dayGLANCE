@@ -1333,6 +1333,8 @@
     "restore": "Erholung",
     "sleep": "Schlaf",
     "unblocked": "Ungeplant",
+    "routines": "Routinen",
+    "routine": "Routine",
     "aria": "Tagesanzeige: {{date}}",
     "blockList": "Terminblöcke",
     "allDayMore": "{{count}} weitere",

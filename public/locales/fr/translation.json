@@ -1333,6 +1333,8 @@
     "restore": "Récupération",
     "sleep": "Sommeil",
     "unblocked": "Temps libre",
+    "routines": "Routines",
+    "routine": "routine",
     "aria": "Cadran du jour : {{date}}",
     "blockList": "Blocs de la journée",
     "allDayMore": "{{count}} de plus",

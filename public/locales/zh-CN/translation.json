@@ -1333,6 +1333,8 @@
     "restore": "恢复",
     "sleep": "睡眠",
     "unblocked": "可用时间",
+    "routines": "日常",
+    "routine": "日常",
     "aria": "日程表盘：{{date}}",
     "blockList": "日程时段",
     "allDayMore": "另外 {{count}} 项",

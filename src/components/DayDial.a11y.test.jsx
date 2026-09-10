@@ -191,6 +191,32 @@ describe('DayDial keyboard/AT contract', () => {
     expect(html).not.toContain('minmax(0,1fr) auto minmax(0,1fr)');
   });
 
+  it('lets the arrow keys walk routines alongside blocks', async () => {
+    const i18n = await i18nFor('en');
+    const html = render(i18n, {
+      dayTasks: [task({ id: 1, title: 'Deep work', startTime: '09:00', duration: 60 })],
+      routines: [
+        { id: 'r1', name: 'Stretch', startTime: '06:45', duration: 15, isAllDay: false },
+        { id: 'r2', name: 'Focus block', startTime: '14:30', duration: 120, isAllDay: false },
+        // No hour, so no place on a clock — the planner keeps this one.
+        { id: 'r3', name: 'No time set', startTime: null, duration: 15, isAllDay: true },
+      ],
+      routineCompletions: { r1: '2026-09-09' },
+    });
+    expect(options(html).map((o) => o.label)).toEqual([
+      'Stretch, routine, 06:45 – 07:00, 15m, completed',
+      'Deep work, 09:00 – 10:00, 1h, 30m left',
+      'Focus block, routine, 14:30 – 16:30, 2h, in 5h',
+    ]);
+  });
+
+  it('draws no routine track on a day without routines', async () => {
+    const i18n = await i18nFor('en');
+    const html = render(i18n, { dayTasks: [task()], routines: null });
+    expect(html).not.toContain('Routines');
+    expect(options(html)).toHaveLength(1);
+  });
+
   it('localizes the listbox name and the option labels', async () => {
     const i18n = await i18nFor('de');
     const html = render(i18n, { dayTasks: [task({ completed: true })] });

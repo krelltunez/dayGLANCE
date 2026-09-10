@@ -1333,6 +1333,8 @@
     "restore": "Restore",
     "sleep": "Sleep",
     "unblocked": "Unblocked",
+    "routines": "Routines",
+    "routine": "routine",
     "aria": "Day dial: {{date}}",
     "blockList": "Schedule blocks",
     "allDayMore": "{{count}} more",

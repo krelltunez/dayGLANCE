@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Eclipse, Layers, Maximize, Minimize, Monitor, Sunrise, Thermometer, X } from 'lucide-react';
+import { CalendarDays, Eclipse, Layers, Maximize, Minimize, Monitor, Sparkles, Sunrise, Thermometer, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -32,7 +32,7 @@ const IDLE_RETURN_MS = 5 * 60_000;
 // summary strip's collapse state): a wall panel and a phone reasonably want
 // different layers, so this deliberately does not ride the sync payload.
 const DIAL_LAYERS_KEY = 'day-planner-dial-layers';
-const DEFAULT_LAYERS = { solar: true, weather: true, calendars: true };
+const DEFAULT_LAYERS = { solar: true, weather: true, calendars: true, routines: true };
 const loadLayers = () => {
   try {
     return { ...DEFAULT_LAYERS, ...JSON.parse(localStorage.getItem(DIAL_LAYERS_KEY) || '{}') };
@@ -73,7 +73,9 @@ const DayDialModal = () => {
     weather,
     toggleComplete, openMobileEditTask, scrollToHour, isMobile,
   } = useDayPlannerCtx();
-  const { getDayWindow } = useFeaturesCtx();
+  const {
+    getDayWindow, routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion,
+  } = useFeaturesCtx();
 
   // Always one day per keypress — changeDate() pages by visible columns,
   // which is right for the grid but jarring on a single-day dial.
@@ -89,9 +91,17 @@ const DayDialModal = () => {
   // hand off: the mobile edit sheet on touch layouts, a scroll to the
   // block's hour on desktop. toggleComplete understands recurring-instance
   // ids natively.
-  const handleToggleComplete = (block) => toggleComplete(block.id);
+  const handleToggleComplete = (block) => (block.isRoutine
+    ? toggleRoutineCompletion(block.id)
+    : toggleComplete(block.id));
   const handleOpenInPlanner = (block) => {
     setShowDayDial(false);
+    // A routine lives on today's timeline only, and has no task to edit —
+    // the planner just needs to be looking at its hour.
+    if (block.isRoutine) {
+      scrollToHour(`${String(Math.floor(block.startMin / 60)).padStart(2, '0')}:00`);
+      return;
+    }
     // A block carried over from last night is filed under that day, so the
     // planner has to land there — following it to the date it belongs to,
     // and to the hour it actually starts.
@@ -569,6 +579,10 @@ const DayDialModal = () => {
       <DayDial
         dayTasks={dayTasks}
         prevDayTasks={prevDayTasks}
+        // Routines are a today-only construct (useRoutines rolls them at
+        // midnight), so any other date gets none rather than a stale set.
+        routines={layers.routines && routinesEnabled && isToday ? todayRoutines : null}
+        routineCompletions={routineCompletions}
         dayWindow={getDayWindow(dateStr)}
         date={selectedDate}
         nowMin={nowMin}
@@ -613,6 +627,14 @@ const DayDialModal = () => {
               on={layers.calendars}
               onChange={(v) => setLayer('calendars', v)}
             />
+            {routinesEnabled && (
+              <ToggleRow
+                icon={Sparkles}
+                label={t('dial.routines', 'Routines')}
+                on={layers.routines}
+                onChange={(v) => setLayer('routines', v)}
+              />
+            )}
             <div className="my-1.5 border-t border-white/10" />
             <ToggleRow
               icon={Eclipse}
