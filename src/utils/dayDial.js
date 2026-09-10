@@ -412,6 +412,50 @@ export function findDialFocusBlock(blocks, nowMin) {
 }
 
 /**
+ * Routines placed on today's clock, as bars for the dial's outer track.
+ *
+ * Routines are a TODAY-ONLY construct in this app — useRoutines clears and
+ * rolls todayRoutines at midnight, and every planner surface gates on the
+ * date being today — so the caller passes null on any other date and the
+ * track simply is not drawn. A routine with no time set never reaches the
+ * dial either: it has no hour, and the ring is a clock.
+ *
+ * The bar's length is the routine's real scheduled duration (the default is
+ * 15 minutes but it is editable in 15-minute steps, so a routine can run
+ * hours). Overlapping routines take lanes exactly as schedule blocks do —
+ * assignDialLanes only cares about startMin/endMin.
+ *
+ * @param routines    todayRoutines (id, name, startTime, duration, isAllDay).
+ * @param completions routineCompletions: {id -> dateStr} for anything done.
+ * @returns Array<{id, title, startMin, endMin, completed, isRoutine: true,
+ *                 endsNextDay, endMinTrue, lane, laneCount}> in time order.
+ */
+export function computeDialRoutines(routines, completions = {}) {
+  return assignDialLanes((routines || [])
+    .filter((r) => r && !r.isAllDay && r.startTime && (r.duration || 0) > 0)
+    .map((r) => {
+      const startMin = timeToMin(r.startTime);
+      const rawEnd = startMin + (r.duration || 0);
+      return {
+        id: r.id,
+        // `title`, not `name`: every readout on the dial — hub, sheet,
+        // screen-reader label — speaks one field.
+        title: r.name || '',
+        startMin,
+        // Same rule as a schedule block: the ring is one revolution, so the
+        // geometry clips at midnight while the readouts keep the true end.
+        endMin: Math.min(DIAL_DAY_MINUTES, rawEnd),
+        endsNextDay: rawEnd > DIAL_DAY_MINUTES,
+        endMinTrue: rawEnd > DIAL_DAY_MINUTES ? rawEnd - DIAL_DAY_MINUTES : null,
+        completed: !!completions?.[r.id],
+        isRoutine: true,
+      };
+    })
+    .filter((b) => b.endMin > b.startMin)
+    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin));
+}
+
+/**
  * Where a keyboard selection starts when focus first reaches the ring: the
  * block the hub is already narrating, so tabbing in lands on "now" rather
  * than on an arbitrary end of the day. Once today is spent (nothing running,

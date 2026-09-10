@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Check, ChevronLeft, ChevronRight, CircleDashed, ExternalLink, Leaf, MoonStar, Undo2, Zap } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, ChevronRight, CircleDashed, ExternalLink, Leaf, MoonStar, Sparkles, Undo2, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { stripWikilinks } from '../utils/taskUtils.js';
 import { formatLocalizedDurationMinutes } from '../utils/localeFormatting.js';
@@ -7,6 +7,7 @@ import {
   DIAL_COLORS,
   DIAL_DAY_MINUTES,
   computeDialModel,
+  computeDialRoutines,
   dialArcPath,
   dialIntensity,
   dialLaneBand,
@@ -64,6 +65,25 @@ const TICK_STYLE = {
   quarter: { r1: 404, r2: 428, width: 1.6, opacity: 0.22 },
   minor:   { r1: 407, r2: 421, width: 1.0, opacity: 0.10 },
 };
+
+// Routine track: solid teal bars on their own radius inside the tick field,
+// each as long along the ring as the routine is scheduled for (the default
+// is 15 minutes, but it is editable in 15-minute steps, so a routine can run
+// hours). Teal because that is what a routine already looks like everywhere
+// else in the app — the planner draws one as a teal crosshair with a name
+// pill, and this is that idiom in polar form.
+//
+// Kept deliberately quiet: the schedule ring is what the dial is FOR, so the
+// bars sit well below it in weight (0.5 against the wedges' 0.45–1.0 edge)
+// and only step forward when pointed at. The band is inside the tick field,
+// where a mark reads as part of the instrument's own scale rather than as
+// something laid over the schedule.
+const ROUTINE_COLOR = '#5eead4';   // teal-300, the app's routine colour
+const R_ROUTINE_BAND = [404, 432]; // inside the tick field (400–436)
+const ROUTINE_WEIGHT = 14;
+const ROUTINE_OPACITY = 0.5;
+const ROUTINE_DONE_OPACITY = 0.18;
+const ROUTINE_LIT_OPACITY = 0.95;
 
 // The now line's trailing falloff: a radar-sweep afterglow — a faint wash
 // across the whole ring band fading out over the previous hour. An area,
@@ -270,6 +290,48 @@ function WeatherRing({ hourly }) {
   );
 }
 
+/**
+ * The routine bars. Overlapping routines take lanes in the band exactly as
+ * overlapping blocks do on the ring — dialLaneBand splits the track, and a
+ * bar is stroked along its lane's centre line so its weight IS the lane's
+ * depth (capped, so a single lane never fattens past ROUTINE_WEIGHT).
+ */
+function RoutineBars({ bars, selectedId, onEnter, onLeave, onTap }) {
+  return (
+    <g>
+      {bars.map((r) => {
+        const band = dialLaneBand(R_ROUTINE_BAND[0], R_ROUTINE_BAND[1], r.lane, r.laneCount);
+        const mid = (band.rInner + band.rOuter) / 2;
+        const weight = Math.min(ROUTINE_WEIGHT, band.rOuter - band.rInner);
+        const d = dialArcPath(CX, CY, mid, r.startMin, r.endMin);
+        const lit = selectedId === r.id
+          ? ROUTINE_LIT_OPACITY
+          : (r.completed ? ROUTINE_DONE_OPACITY : ROUTINE_OPACITY);
+        return (
+          <g
+            key={r.id}
+            onMouseEnter={() => onEnter(r)}
+            onMouseLeave={onLeave}
+            onClick={() => onTap(r)}
+            style={{ cursor: 'pointer' }}
+          >
+            {/* A hit area wider than the bar: a 15-minute routine is a short
+                capsule, and it still has to be easy to point at. */}
+            <path
+              d={d} fill="none" stroke="transparent"
+              strokeWidth={weight + 16} strokeLinecap="round"
+            />
+            <path
+              d={d} fill="none" stroke={ROUTINE_COLOR} strokeOpacity={lit}
+              strokeWidth={weight} strokeLinecap="round"
+            />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 // Hub titles: #tags step back — italic, smaller, muted — so the title
 // itself carries the highlight.
 const splitHubTitle = (title) => {
@@ -357,13 +419,29 @@ function NowLine({ nowMin }) {
  *                        be null in polar seasons), or null to omit the
  *                        solar layer entirely (no location known).
  */
-const DayDial = ({ dayTasks, prevDayTasks = null, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, onGoToday = null, chromeVisible = true }) => {
+const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineCompletions = null, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, onGoToday = null, chromeVisible = true }) => {
   const { t, i18n } = useTranslation();
   const formatMinutes = (minutes) => formatLocalizedDurationMinutes(minutes, i18n.resolvedLanguage || i18n.language);
 
   const model = useMemo(
     () => computeDialModel(dayTasks, dayWindow, prevDayTasks),
     [dayTasks, dayWindow, prevDayTasks],
+  );
+
+  // Today's routines as bars for the outer track. Null on any other date —
+  // routines only exist for today (useRoutines rolls them at midnight), and
+  // the dial never fakes a layer it cannot honestly draw.
+  const routineBars = useMemo(
+    () => computeDialRoutines(routines, routineCompletions),
+    [routines, routineCompletions],
+  );
+
+  // Everything the arrow keys can walk, in one time-ordered list: the ring's
+  // blocks and the routine bars together, so a routine is not a thing only a
+  // mouse can reach.
+  const selectable = useMemo(
+    () => [...model.blocks, ...routineBars].sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin),
+    [model.blocks, routineBars],
   );
 
   // Paint inner lanes first: the glow filter spreads past a lane's own band,
@@ -434,7 +512,7 @@ const DayDial = ({ dayTasks, prevDayTasks = null, dayWindow, date, nowMin = null
   // tick (the ref is written during render, as App.jsx does for the dial's
   // own open state).
   const liveRef = useRef(null);
-  liveRef.current = { blocks: model.blocks, nowMin };
+  liveRef.current = { blocks: selectable, nowMin };
 
   // Paging to another date drops the selection with it — but if the ring
   // still holds focus, re-arm on the new day: a focused ring must never be
@@ -527,7 +605,7 @@ const DayDial = ({ dayTasks, prevDayTasks = null, dayWindow, date, nowMin = null
   const onListFocus = (e) => {
     if (e.target !== e.currentTarget) return;
     if (keyEntryRef.current) return;
-    if (!inspected) selectBlock(initialDialSelection(model.blocks, nowMin));
+    if (!inspected) selectBlock(initialDialSelection(selectable, nowMin));
   };
   const onListBlur = (e) => {
     // Focus moving into the action sheet is not leaving the ring — that
@@ -676,6 +754,7 @@ const DayDial = ({ dayTasks, prevDayTasks = null, dayWindow, date, nowMin = null
     const c = blockClock(b);
     return [
       stripWikilinks(b.title),
+      b.isRoutine ? t('dial.routine', 'routine') : null,
       `${c.startText} – ${c.endText}`,
       // Words, not the visual ±1: a screen reader should not have to
       // interpret a superscript.
@@ -788,6 +867,15 @@ const DayDial = ({ dayTasks, prevDayTasks = null, dayWindow, date, nowMin = null
     ? null
     : Math.max(1, Math.floor((allDayRoom - ALLDAY_PILL_CHROME_PX) / ALLDAY_CHIP_PX)) * allDayRows;
 
+  // The chip follows the pointer or the keyboard first, and otherwise names
+  // the routine running right now — the ambient case, where there is no
+  // pointer to follow.
+  const chipRoutine = (inspected?.isRoutine && inspected)
+    || (nowMin !== null
+      ? routineBars.find((r) => r.startMin <= nowMin && nowMin < r.endMin && !r.completed)
+      : null)
+    || null;
+
   // Legend glyphs: Zap and Leaf are the summary strip's own effort/restore
   // icons (one vocabulary across surfaces); MoonStar is nocturnal but
   // distinct from the plain crescent marking sunset on the ring; the dashed
@@ -801,6 +889,18 @@ const DayDial = ({ dayTasks, prevDayTasks = null, dayWindow, date, nowMin = null
       : []),
     ...(model.unblockedMinutes !== null
       ? [{ key: 'unblocked', label: t('dial.unblocked', 'Unblocked'), color: DIAL_COLORS.unblocked, minutes: model.unblockedMinutes, Icon: CircleDashed }]
+      : []),
+    // Routines are habits, not scheduled work: they are counted, never
+    // summed into the minute totals above (those stay a partition of
+    // scheduled task time).
+    ...(routineBars.length
+      ? [{
+        key: 'routines',
+        label: t('dial.routines', 'Routines'),
+        color: ROUTINE_COLOR,
+        value: `${routineBars.filter((r) => r.completed).length}/${routineBars.length}`,
+        Icon: Sparkles,
+      }]
       : []),
   ];
 
@@ -831,7 +931,9 @@ const DayDial = ({ dayTasks, prevDayTasks = null, dayWindow, date, nowMin = null
             <item.Icon size={15} strokeWidth={1.75} style={{ color: item.color }} aria-hidden="true" />
             <div className="leading-tight">
               <div className="text-white/45 text-xs">{item.label}</div>
-              <div className="text-white/90 text-sm font-medium tabular-nums">{formatMinutes(item.minutes)}</div>
+              <div className="text-white/90 text-sm font-medium tabular-nums">
+              {item.value ?? formatMinutes(item.minutes)}
+            </div>
             </div>
           </div>
         ))}
@@ -994,6 +1096,49 @@ const DayDial = ({ dayTasks, prevDayTasks = null, dayWindow, date, nowMin = null
             );
           })}
 
+          {routineBars.length > 0 && (
+            <RoutineBars
+              bars={routineBars}
+              selectedId={inspected?.id}
+              onEnter={inspectEnter}
+              onLeave={inspectLeave}
+              onTap={inspectTap}
+            />
+          )}
+
+          {/* The name chip. A routine bar is unlabelled at rest — five names
+              around the ring would be a wall of text — so it speaks when
+              pointed at, when the keyboard selects it, or, with no input at
+              all, while it is the one running: that is what gives a wall
+              panel something to read. */}
+          {chipRoutine && (() => {
+            const band = dialLaneBand(R_ROUTINE_BAND[0], R_ROUTINE_BAND[1], chipRoutine.lane, chipRoutine.laneCount);
+            const mid = (chipRoutine.startMin + chipRoutine.endMin) / 2;
+            // Pushed out along the bar's OWN angle, so the chip always
+            // reads as belonging to it.
+            const p = dialPoint(CX, CY, band.rOuter + 22, mid);
+            const right = p.x >= CX;
+            const label = renderHubTitle(chipRoutine.title);
+            const w = label.length * 8.2 + 26;
+            const x = right ? p.x : p.x - w;
+            return (
+              <g pointerEvents="none">
+                <rect
+                  x={x} y={p.y - 15} width={w} height={30} rx={15}
+                  fill="#0d1f1d" stroke={ROUTINE_COLOR} strokeOpacity={0.45}
+                />
+                <text
+                  x={right ? x + 13 : x + w - 13} y={p.y}
+                  textAnchor={right ? 'start' : 'end'} dominantBaseline="central"
+                  fill={ROUTINE_COLOR} fillOpacity={0.9}
+                  style={{ fontSize: 15, fontWeight: 500 }}
+                >
+                  {label}
+                </text>
+              </g>
+            );
+          })()}
+
           {nowMin !== null && <NowLine nowMin={nowMin} />}
         </svg>
 
@@ -1066,7 +1211,7 @@ const DayDial = ({ dayTasks, prevDayTasks = null, dayWindow, date, nowMin = null
               <div className="flex items-center gap-2 max-w-full">
                 <span
                   className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: muteDialColor(inspected.colorHex) }}
+                  style={{ backgroundColor: inspected.isRoutine ? ROUTINE_COLOR : muteDialColor(inspected.colorHex) }}
                 />
                 <span className="text-white/85 text-[clamp(13px,2.4vmin,22px)] font-medium truncate">
                   {renderHubTitle(inspected.title)}
@@ -1117,7 +1262,7 @@ const DayDial = ({ dayTasks, prevDayTasks = null, dayWindow, date, nowMin = null
         <div
           ref={listRef}
           role="listbox"
-          tabIndex={model.blocks.length ? 0 : -1}
+          tabIndex={selectable.length ? 0 : -1}
           aria-label={t('dial.blockList', 'Schedule blocks')}
           aria-activedescendant={inspected ? optionId(inspected.id) : undefined}
           onKeyDown={onListKeyDown}
@@ -1125,7 +1270,7 @@ const DayDial = ({ dayTasks, prevDayTasks = null, dayWindow, date, nowMin = null
           onBlur={onListBlur}
           className="absolute inset-0 pointer-events-none outline-none"
         >
-          {model.blocks.map((b) => (
+          {selectable.map((b) => (
             <div
               key={b.id}
               id={optionId(b.id)}
@@ -1142,6 +1287,7 @@ const DayDial = ({ dayTasks, prevDayTasks = null, dayWindow, date, nowMin = null
             Backdrop click/tap dismisses; actions dismiss after acting. */}
         {sheetBlock && (() => {
           const live = model.blocks.find((x) => x.id === sheetBlock.id)
+            || routineBars.find((x) => x.id === sheetBlock.id)
             || model.allDay.find((x) => x.id === sheetBlock.id)
             || sheetBlock;
           return (
@@ -1161,7 +1307,7 @@ const DayDial = ({ dayTasks, prevDayTasks = null, dayWindow, date, nowMin = null
                 <div className="flex items-center gap-2 min-w-0">
                   <span
                     className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: muteDialColor(live.colorHex) }}
+                    style={{ backgroundColor: live.isRoutine ? ROUTINE_COLOR : muteDialColor(live.colorHex) }}
                   />
                   <span className="text-white/90 text-base font-medium truncate">
                     {renderHubTitle(live.title)}
@@ -1176,7 +1322,7 @@ const DayDial = ({ dayTasks, prevDayTasks = null, dayWindow, date, nowMin = null
                       </>}
                 </div>
                 <div className="mt-3.5 space-y-1.5">
-                  {live.completable && onToggleComplete && (
+                  {(live.completable || live.isRoutine) && onToggleComplete && (
                     <button
                       onClick={() => { onToggleComplete(live); closeSheet(); }}
                       className="w-full flex items-center gap-2.5 rounded-lg bg-white/5 hover:bg-white/10 active:bg-white/15 px-3.5 py-2.5 text-white/85 text-sm transition-colors"

@@ -13,6 +13,7 @@ import {
   padDialSegment,
   classifyPrecip,
   computeDialModel,
+  computeDialRoutines,
   dialLabelYieldsToSun,
   findDialFocusBlock,
   initialDialSelection,
@@ -341,6 +342,58 @@ describe('computeDialModel', () => {
     const model = computeDialModel([]);
     expect(model.blocks).toEqual([]);
     expect(model.unblockedMinutes).toBeNull();
+  });
+});
+
+describe('computeDialRoutines', () => {
+  const routine = (over = {}) => ({
+    id: 'r1', name: 'Stretch', startTime: '06:45', duration: 15, isAllDay: false, ...over,
+  });
+
+  it('places timed routines in time order with their real duration', () => {
+    const bars = computeDialRoutines([
+      routine({ id: 'r2', name: 'Focus block', startTime: '14:30', duration: 120 }),
+      routine(),
+    ]);
+    expect(bars.map((b) => [b.id, b.startMin, b.endMin])).toEqual([
+      ['r1', 405, 420],     // the 15m default
+      ['r2', 870, 990],     // and a two-hour one — the bar is as long as the routine
+    ]);
+    expect(bars[0].isRoutine).toBe(true);
+    // The routine's `name` lands on `title`, the one field every readout reads.
+    expect(bars.map((b) => b.title)).toEqual(['Stretch', 'Focus block']);
+  });
+
+  it('leaves out a routine with no time set', () => {
+    // The pill form (isAllDay, no startTime) has no hour, and the ring is a
+    // clock — it stays in the planner's own all-day strip.
+    expect(computeDialRoutines([routine({ isAllDay: true, startTime: null })])).toEqual([]);
+    expect(computeDialRoutines([routine({ startTime: null })])).toEqual([]);
+    expect(computeDialRoutines(null)).toEqual([]);
+  });
+
+  it('marks the ones completed today', () => {
+    const bars = computeDialRoutines(
+      [routine({ id: 'r1' }), routine({ id: 'r2', startTime: '08:00' })],
+      { r1: '2026-09-10' },
+    );
+    expect(bars.map((b) => b.completed)).toEqual([true, false]);
+  });
+
+  it('lanes overlapping routines, as the ring does for blocks', () => {
+    const bars = computeDialRoutines([
+      routine({ id: 'r1', startTime: '07:00', duration: 60 }),
+      routine({ id: 'r2', startTime: '07:30', duration: 60 }),
+      routine({ id: 'r3', startTime: '12:00', duration: 15 }),
+    ]);
+    expect(bars.map((b) => [b.id, b.lane, b.laneCount])).toEqual([
+      ['r1', 0, 2], ['r2', 1, 2], ['r3', 0, 1],
+    ]);
+  });
+
+  it('clips a routine running past midnight but keeps its true end', () => {
+    const bars = computeDialRoutines([routine({ startTime: '23:30', duration: 60 })]);
+    expect(bars[0]).toMatchObject({ endMin: DIAL_DAY_MINUTES, endsNextDay: true, endMinTrue: 30 });
   });
 });
 
