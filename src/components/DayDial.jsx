@@ -695,7 +695,7 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
   const allDayRoom = bandMetrics
     ? Math.min(bandMetrics.legendW || Infinity, bandMetrics.trackW || Infinity)
     : null;
-  const seamFits = !bandMetrics || !wrapBox
+  const seamFits = compact || !bandMetrics || !wrapBox
     ? true
     : bandMetrics.legendW <= (wrapBox.width - ALLDAY_SEAM_GAP_PX) / 2;
 
@@ -761,8 +761,9 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
   const allDayActionable = !!(onToggleComplete || onOpenInPlanner);
   const allDayPill = (
     <div
-      className="rounded-2xl bg-white/[0.04] px-6 py-3 flex items-center gap-2.5 min-w-0"
-      style={allDayRoom ? { maxWidth: allDayRoom } : undefined}
+      className={`rounded-2xl bg-white/[0.04] px-6 py-3 flex items-center gap-2.5 min-w-0 ${
+        compact ? 'w-full' : ''}`}
+      style={!compact && allDayRoom ? { maxWidth: allDayRoom } : undefined}
     >
       <CalendarDays size={15} strokeWidth={1.75} className="text-white/45 flex-shrink-0" aria-hidden="true" />
       <div className="leading-tight min-w-0">
@@ -1116,7 +1117,12 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
           width and spending a second row of chips.
           A day with no all-day items renders exactly as before. */}
       {!hasAllDay ? legendPill : compact ? (
-        <div ref={allDayCellRef} className="w-full flex flex-col items-center gap-2">
+        // Stacked, and both pills take the whole band: in compact the dial
+        // itself spans the full width (its viewBox is square and width is
+        // the constrained axis), so a full-width block below it is exactly
+        // as wide as the instrument above — and the two pills stay equal by
+        // construction rather than by capping one to the other.
+        <div ref={allDayCellRef} className="w-full flex flex-col items-stretch gap-2">
           {allDayPill}
           {legendPill}
         </div>
