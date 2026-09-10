@@ -211,9 +211,51 @@ describe('computeDialModel', () => {
     expect(model.blocks[1].completable).toBe(true);
   });
 
-  it('clips a block running past midnight to the dial\'s day', () => {
+  it('clips a block running past midnight but keeps its true end', () => {
     const model = computeDialModel([task({ startTime: '23:00', duration: 120 })]);
-    expect(model.blocks[0].endMin).toBe(DIAL_DAY_MINUTES);
+    // Geometry stops at the boundary; every readout still says 01:00.
+    expect(model.blocks[0]).toMatchObject({
+      startMin: 1380, endMin: DIAL_DAY_MINUTES, endsNextDay: true, endMinTrue: 60,
+    });
+  });
+
+  it('carries last night\'s overrun into this morning', () => {
+    const model = computeDialModel(
+      [task({ id: 1, startTime: '09:00', duration: 60 })],
+      null,
+      [
+        task({ id: 'y1', title: 'Late session', startTime: '23:00', duration: 150 }),
+        task({ id: 'y2', title: 'Dinner', startTime: '19:00', duration: 60 }),
+      ],
+    );
+    // Only the part after midnight, drawn from midnight; the block that
+    // ended yesterday is not this day's business.
+    expect(model.blocks.map((b) => b.id)).toEqual(['y1', 1]);
+    expect(model.blocks[0]).toMatchObject({
+      startMin: 0, endMin: 90, startedPrevDay: true, startMinTrue: 1380,
+    });
+  });
+
+  it('leaves the totals to the day the task is filed under', () => {
+    const carried = [task({ id: 'y1', startTime: '23:00', duration: 150 })];
+    const withCarry = computeDialModel([task({ startTime: '09:00', duration: 60 })], null, carried);
+    const without = computeDialModel([task({ startTime: '09:00', duration: 60 })], null, null);
+    expect(withCarry.effortMinutes).toBe(without.effortMinutes);
+    expect(withCarry.restoreMinutes).toBe(without.restoreMinutes);
+    expect(withCarry.blocks).toHaveLength(2);
+    expect(without.blocks).toHaveLength(1);
+  });
+
+  it('lanes a carried block against the morning it lands in', () => {
+    const model = computeDialModel(
+      [task({ id: 1, startTime: '00:30', duration: 60 })],
+      null,
+      [task({ id: 'y1', startTime: '23:00', duration: 150 })],
+    );
+    // 00:00–01:30 and 00:30–01:30 overlap, so they take separate lanes.
+    expect(model.blocks.map((b) => [b.id, b.lane, b.laneCount])).toEqual([
+      ['y1', 0, 2], [1, 1, 2],
+    ]);
   });
 
   it('derives sleep segments and total from a full day window', () => {

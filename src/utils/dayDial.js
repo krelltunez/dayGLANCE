@@ -192,9 +192,14 @@ export function dialLaneBand(rInner, rOuter, lane = 0, laneCount = 1) {
  * @param dayTasks  The date's tasks (the getTasksForDate shape). Same scope
  *                  rules as computeDaySummary: only timed blocks count.
  * @param dayWindow Resolved {start, stop} 'HH:MM' markers or null.
+ * @param prevDayTasks The PREVIOUS date's tasks, or null. Only their
+ *                  overnight overrun is used — the part that lands after
+ *                  this day's midnight.
  * @returns {{
  *   blocks: Array<{id, title, startMin, endMin, kind: 'effort'|'restore',
- *                  completed: boolean, lane: number, laneCount: number}>,
+ *                  completed: boolean, lane: number, laneCount: number,
+ *                  endsNextDay?: boolean, endMinTrue?: number,
+ *                  startedPrevDay?: boolean, startMinTrue?: number}>,
  *   allDay: Array<{id, title, completed, completable, colorHex}>,
  *                                       // no hour, so never on the ring
  *   sleep: Array<{startMin, endMin}>,   // outside the day window; empty without full markers
@@ -204,26 +209,62 @@ export function dialLaneBand(rInner, rOuter, lane = 0, laneCount = 1) {
  *   unblockedMinutes: number|null,      // computeDaySummary semantics
  * }}
  */
-export function computeDialModel(dayTasks, dayWindow = null) {
-  const blocks = assignDialLanes((dayTasks || [])
-    .filter((t) => t && !t.isAllDay && t.startTime && (t.duration || 0) > 0)
+export function computeDialModel(dayTasks, dayWindow = null, prevDayTasks = null) {
+  // Shared shape for anything that becomes a wedge.
+  const toBlock = (t) => ({
+    id: t.id,
+    title: t.title || '',
+    kind: deriveBlockEnergy(t),
+    completed: !!t.completed,
+    // Fixture rule (same as computeDaySummary): a read-only imported
+    // calendar event has no completion to toggle.
+    completable: !(t.imported && !t.isTaskCalendar),
+    colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
+  });
+  const timedOnly = (t) => t && !t.isAllDay && t.startTime && (t.duration || 0) > 0;
+
+  const owned = (dayTasks || [])
+    .filter(timedOnly)
     .map((t) => {
       const startMin = timeToMin(t.startTime);
+      const rawEnd = startMin + (t.duration || 0);
       return {
-        id: t.id,
-        title: t.title || '',
+        ...toBlock(t),
         startMin,
-        // A block running past midnight is clipped to the dial's day — the
-        // ring is one revolution and wrap-around would read as morning.
-        endMin: Math.min(DIAL_DAY_MINUTES, startMin + (t.duration || 0)),
-        kind: deriveBlockEnergy(t),
-        completed: !!t.completed,
-        // Fixture rule (same as computeDaySummary): a read-only imported
-        // calendar event has no completion to toggle.
-        completable: !(t.imported && !t.isTaskCalendar),
-        colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
+        // The ring is one revolution, so a block running past midnight is
+        // CLIPPED for geometry — wrapping it around would read as morning.
+        // The true end is kept for every readout, though: the hub, the
+        // sheet, the screen-reader label and the "time left" phrase all
+        // speak the hour the block actually ends, not the boundary.
+        endMin: Math.min(DIAL_DAY_MINUTES, rawEnd),
+        endsNextDay: rawEnd > DIAL_DAY_MINUTES,
+        endMinTrue: rawEnd > DIAL_DAY_MINUTES ? rawEnd - DIAL_DAY_MINUTES : null,
+      };
+    });
+
+  // The same overrun seen from the other side: last night's block still
+  // occupies this morning, so it is drawn from midnight for as long as it
+  // runs. Only the geometry crosses over — the totals below never see these
+  // (they come from computeDaySummary over dayTasks alone), because the
+  // minutes belong to the day the task is filed under. In practice that
+  // divergence is invisible: unblocked time is measured inside the declared
+  // day window, and an overnight spill lands before it.
+  const carried = (prevDayTasks || [])
+    .filter(timedOnly)
+    .map((t) => {
+      const startMin = timeToMin(t.startTime);
+      const rawEnd = startMin + (t.duration || 0);
+      return {
+        ...toBlock(t),
+        startMin: 0,
+        endMin: Math.min(DIAL_DAY_MINUTES, rawEnd - DIAL_DAY_MINUTES),
+        startedPrevDay: true,
+        startMinTrue: startMin,
       };
     })
+    .filter((b) => b.endMin > 0);
+
+  const blocks = assignDialLanes([...carried, ...owned]
     .filter((b) => b.endMin > b.startMin)
     .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin));
 

@@ -114,7 +114,7 @@ function TickField() {
 }
 
 function Segment({
-  startMin, endMin, color, mute = 1, padStart = true, padEnd = true,
+  startMin, endMin, color, fillMute = 1, edgeMute = 1, padStart = true, padEnd = true,
   rInner = R_INNER, rOuter = R_EDGE, selected = false, onEnter, onLeave, onTap,
 }) {
   const [s, e] = padDialSegment(startMin, endMin, 3, padStart, padEnd);
@@ -126,8 +126,8 @@ function Segment({
   // a short block still reads as chosen. It overrides the dim tier too; a
   // selected past block has to answer, and this doubles as the keyboard
   // focus indicator (the listbox itself draws nothing).
-  const lit = selected ? 1 : mute;
-  const edgeAlpha = selected ? 1 : edgeOpacity;
+  const lit = selected ? 1 : fillMute;
+  const edgeAlpha = selected ? 1 : edgeOpacity * edgeMute;
   return (
     <g
       onMouseEnter={onEnter}
@@ -145,13 +145,13 @@ function Segment({
       <path
         d={edge}
         fill="none" stroke={color} strokeLinecap="round"
-        strokeWidth={edgeWidth * 2.4} strokeOpacity={0.35 * edgeAlpha * lit}
+        strokeWidth={edgeWidth * 2.4} strokeOpacity={0.35 * edgeAlpha}
         filter="url(#dial-glow)"
       />
       <path
         d={edge}
         fill="none" stroke={color} strokeLinecap="round"
-        strokeWidth={edgeWidth} strokeOpacity={edgeAlpha * lit}
+        strokeWidth={edgeWidth} strokeOpacity={edgeAlpha}
       />
       {selected && (
         <path
@@ -346,6 +346,8 @@ function NowLine({ nowMin }) {
 /**
  * @param dayTasks        The date's tasks (getTasksForDate shape).
  * @param dayWindow       Resolved {start, stop} markers for the date, or null.
+ * @param prevDayTasks    The previous date's tasks, for blocks that ran past
+ *                        midnight into this one. Null omits the carry-over.
  * @param date            Date object the dial describes (hub typography).
  * @param nowMin          Minutes-since-midnight for the now line, or null to
  *                        hide it (viewing a day other than today).
@@ -355,13 +357,13 @@ function NowLine({ nowMin }) {
  *                        be null in polar seasons), or null to omit the
  *                        solar layer entirely (no location known).
  */
-const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, onGoToday = null, chromeVisible = true }) => {
+const DayDial = ({ dayTasks, prevDayTasks = null, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, onGoToday = null, chromeVisible = true }) => {
   const { t, i18n } = useTranslation();
   const formatMinutes = (minutes) => formatLocalizedDurationMinutes(minutes, i18n.resolvedLanguage || i18n.language);
 
   const model = useMemo(
-    () => computeDialModel(dayTasks, dayWindow),
-    [dayTasks, dayWindow],
+    () => computeDialModel(dayTasks, dayWindow, prevDayTasks),
+    [dayTasks, dayWindow, prevDayTasks],
   );
 
   // Paint inner lanes first: the glow filter spreads past a lane's own band,
@@ -581,17 +583,26 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheetBlock]);
 
+  // A block's real hours on today's clock, which for a block crossing
+  // midnight run outside 0–1440: a carried block started before 0, and one
+  // ending tomorrow ends past 1440. Every phrase below measures from these,
+  // never from the clipped geometry, so "1h left" at 23:30 of a 23:00–01:00
+  // block says 1h 30m rather than half an hour.
+  const startsAt = (b) => (b.startedPrevDay ? b.startMinTrue - DIAL_DAY_MINUTES : b.startMin);
+  const endsAt = (b) => (b.endsNextDay ? DIAL_DAY_MINUTES + b.endMinTrue : b.endMin);
+  const blockMinutes = (b) => endsAt(b) - startsAt(b);
+
   // Relative clock phrase for a block, from the same minute tick as the now
   // line: "45m left" while running, "in 2h 10m" ahead, "ended 1h ago" behind.
   const relLabel = (b) => {
     if (nowMin === null) return null;
-    if (b.startMin <= nowMin && nowMin < b.endMin) {
-      return t('dial.timeLeft', '{{left}} left', { left: formatMinutes(b.endMin - nowMin) });
+    if (startsAt(b) <= nowMin && nowMin < endsAt(b)) {
+      return t('dial.timeLeft', '{{left}} left', { left: formatMinutes(endsAt(b) - nowMin) });
     }
-    if (b.startMin > nowMin) {
-      return t('dial.startsIn', 'in {{in}}', { in: formatMinutes(b.startMin - nowMin) });
+    if (startsAt(b) > nowMin) {
+      return t('dial.startsIn', 'in {{in}}', { in: formatMinutes(startsAt(b) - nowMin) });
     }
-    return t('dial.endedAgo', 'ended {{ago}} ago', { ago: formatMinutes(nowMin - b.endMin) });
+    return t('dial.endedAgo', 'ended {{ago}} ago', { ago: formatMinutes(nowMin - endsAt(b)) });
   };
 
   // Time flows brightest ahead: a segment wholly behind the now line drops
@@ -603,6 +614,29 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
   // in the evening most of the ring is past, and a harsher tier would
   // blank it entirely.
   const PAST_MUTE = 0.6;
+  // Three states behind the ring, told apart by weight alone (never
+  // pattern): a block you FINISHED settles into a quiet filled mass, its
+  // rim nearly gone — done is not news. One that is merely over, with
+  // nothing to tick (a meeting that happened), recedes evenly as before.
+  // And one you could have completed and did not keeps its rim at full
+  // strength over a hollowed fill, so what is still owed stays legible in
+  // the spent part of the ring. That last tier is today's business only:
+  // on another date nothing is live to owe, and the whole ring takes one
+  // tier as it always has.
+  const DONE_EDGE_MUTE = 0.25;
+  const UNDONE_FILL_MUTE = 0.35;
+  const blockTone = (b) => {
+    if (b.completed) return { fill: PAST_MUTE, edge: DONE_EDGE_MUTE };
+    const past = nowMin !== null ? endsAt(b) <= nowMin : dayIsPast;
+    if (!past) return { fill: 1, edge: 1 };
+    // Yesterday's overrun is history the moment it ends: it explains this
+    // morning, but it is never something THIS day still owes — it will make
+    // its own case on the dial of the day it belongs to.
+    if (nowMin !== null && b.completable && !b.startedPrevDay) {
+      return { fill: UNDONE_FILL_MUTE, edge: 1 };
+    }
+    return { fill: PAST_MUTE, edge: PAST_MUTE };
+  };
   // Sleep is context, never schedule: even the coming night sits a step
   // below the day's events.
   const SLEEP_MUTE = 0.6;
@@ -610,16 +644,47 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
   const minToHHMM = (m) =>
     `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
+  // Clock text for a block in its TRUE hours, with the calendar's own ±1
+  // marker on whichever side lands on another date. A block ending exactly
+  // at 24:00 is marked too: it ends at the next day's 00:00, and "24:00" is
+  // not a time any of the app's formatters should be asked to print.
+  const blockClock = (b) => ({
+    startText: formatTime(minToHHMM(b.startedPrevDay ? b.startMinTrue : b.startMin)),
+    endText: formatTime(minToHHMM((b.endsNextDay ? b.endMinTrue : b.endMin) % DIAL_DAY_MINUTES)),
+    startsBefore: !!b.startedPrevDay,
+    endsAfter: !!b.endsNextDay || b.endMin === DIAL_DAY_MINUTES,
+  });
+  // A plain function, not a nested component: it is only ever called, and a
+  // component defined mid-render would remount its subtree every time.
+  const renderBlockRange = (b) => {
+    const c = blockClock(b);
+    const mark = (text) => <sup className="text-white/30 ml-0.5">{text}</sup>;
+    return (
+      <>
+        {c.startText}{c.startsBefore && mark('−1')}
+        {' – '}
+        {c.endText}{c.endsAfter && mark('+1')}
+      </>
+    );
+  };
+
   // What a screen reader says for one block: the same facts the hub shows,
   // as one sentence. Tags stay in (unlike the hub, which sets them aside
   // typographically — there is no typography in an option label), and the
   // commas give the reader its pauses.
-  const blockA11yLabel = (b) => [
-    stripWikilinks(b.title),
-    `${formatTime(minToHHMM(b.startMin))} – ${formatTime(minToHHMM(b.endMin))}`,
-    formatMinutes(b.endMin - b.startMin),
-    b.completed ? t('dial.completed', 'completed') : relLabel(b),
-  ].filter(Boolean).join(', ');
+  const blockA11yLabel = (b) => {
+    const c = blockClock(b);
+    return [
+      stripWikilinks(b.title),
+      `${c.startText} – ${c.endText}`,
+      // Words, not the visual ±1: a screen reader should not have to
+      // interpret a superscript.
+      c.startsBefore ? t('dial.startedPrevDay', 'started the day before') : null,
+      c.endsAfter ? t('dial.endsNextDay', 'ends the next day') : null,
+      formatMinutes(blockMinutes(b)),
+      b.completed ? t('dial.completed', 'completed') : relLabel(b),
+    ].filter(Boolean).join(', ');
+  };
 
   // Option ids must survive any task id (recurring instances carry
   // separators); only whitespace is unusable in an HTML id.
@@ -884,7 +949,8 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
               key={`sleep-${seg.startMin}`}
               startMin={seg.startMin} endMin={seg.endMin}
               color={DIAL_COLORS.sleep}
-              mute={SLEEP_MUTE * (isPast(seg.endMin) ? PAST_MUTE : 1)}
+              fillMute={SLEEP_MUTE * (isPast(seg.endMin) ? PAST_MUTE : 1)}
+              edgeMute={SLEEP_MUTE * (isPast(seg.endMin) ? PAST_MUTE : 1)}
               padStart={seg.startMin !== 0}
               padEnd={seg.endMin !== DIAL_DAY_MINUTES}
             />
@@ -906,13 +972,20 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
               whole band. */}
           {laneOrdered.map((b) => {
             const band = dialLaneBand(R_INNER, R_EDGE, b.lane, b.laneCount);
+            const tone = blockTone(b);
             return (
               <Segment
                 key={b.id}
                 startMin={b.startMin} endMin={b.endMin}
                 rInner={band.rInner} rOuter={band.rOuter}
                 color={muteDialColor(b.colorHex)}
-                mute={b.completed || isPast(b.endMin) ? PAST_MUTE : 1}
+                fillMute={tone.fill}
+                edgeMute={tone.edge}
+                // Flush against the midnight it crosses, exactly as the
+                // declared night meets itself there: the inter-block gap
+                // would read as "ends here" on a block that does not.
+                padStart={!b.startedPrevDay}
+                padEnd={!b.endsNextDay}
                 selected={inspected?.id === b.id}
                 onEnter={() => inspectEnter(b)}
                 onLeave={inspectLeave}
@@ -1001,8 +1074,8 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
               </div>
               {renderHubTags(inspected.title)}
               <div className="text-white/40 text-[clamp(11px,1.8vmin,16px)] mt-0.5 tabular-nums">
-                {formatTime(minToHHMM(inspected.startMin))} – {formatTime(minToHHMM(inspected.endMin))}
-                {' · '}{formatMinutes(inspected.endMin - inspected.startMin)}
+                {renderBlockRange(inspected)}
+                {' · '}{formatMinutes(blockMinutes(inspected))}
               </div>
               {(inspected.completed || nowMin !== null) && (
                 <div className="text-white/40 text-[clamp(11px,1.8vmin,16px)] mt-0.5">
@@ -1018,8 +1091,11 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
               {renderHubTags(focus.block.title)}
               <div className="text-white/40 text-[clamp(11px,1.8vmin,16px)] mt-0.5">
                 {focus.current
-                  ? t('dial.until', 'until {{time}}', { time: formatTime(minToHHMM(focus.block.endMin)) })
-                  : t('dial.next', 'next at {{time}}', { time: formatTime(minToHHMM(focus.block.startMin)) })}
+                  ? t('dial.until', 'until {{time}}', {
+                    time: blockClock(focus.block).endText
+                      + (blockClock(focus.block).endsAfter ? ' +1' : ''),
+                  })
+                  : t('dial.next', 'next at {{time}}', { time: blockClock(focus.block).startText })}
                 {' · '}{relLabel(focus.block)}
               </div>
             </>
@@ -1095,8 +1171,8 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
                   {live.startMin === undefined
                     ? t('task.allDay', 'All Day')
                     : <>
-                        {formatTime(minToHHMM(live.startMin))} – {formatTime(minToHHMM(live.endMin))}
-                        {' · '}{formatMinutes(live.endMin - live.startMin)}
+                        {renderBlockRange(live)}
+                        {' · '}{formatMinutes(blockMinutes(live))}
                       </>}
                 </div>
                 <div className="mt-3.5 space-y-1.5">
