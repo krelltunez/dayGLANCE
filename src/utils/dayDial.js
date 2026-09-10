@@ -195,6 +195,8 @@ export function dialLaneBand(rInner, rOuter, lane = 0, laneCount = 1) {
  * @returns {{
  *   blocks: Array<{id, title, startMin, endMin, kind: 'effort'|'restore',
  *                  completed: boolean, lane: number, laneCount: number}>,
+ *   allDay: Array<{id, title, completed, completable, colorHex}>,
+ *                                       // no hour, so never on the ring
  *   sleep: Array<{startMin, endMin}>,   // outside the day window; empty without full markers
  *   effortMinutes: number,
  *   restoreMinutes: number,
@@ -225,6 +227,28 @@ export function computeDialModel(dayTasks, dayWindow = null) {
     .filter((b) => b.endMin > b.startMin)
     .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin));
 
+  // All-day items: the day's context rather than its schedule — a holiday, a
+  // birthday, an OOO, or anything the user un-timed (inboxMove and the
+  // drag-to-all-day handlers set isAllDay with startTime cleared). Keyed on
+  // the FLAG, never on a missing startTime: an Obsidian date-only line
+  // arrives as isAllDay with startTime '00:00' (packages/obsidian-format
+  // taskLines.js), and drawing that at midnight would invent an hour it
+  // does not have. They carry no honest minutes, so every total below is
+  // deliberately left untouched by them.
+  //
+  // Incomplete first, then completed, stable within each group: on a wall
+  // panel the still-standing context is what earns the space.
+  const allDay = (dayTasks || [])
+    .filter((t) => t && t.isAllDay)
+    .map((t) => ({
+      id: t.id,
+      title: t.title || '',
+      completed: !!t.completed,
+      completable: !(t.imported && !t.isTaskCalendar),
+      colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
+    }))
+    .sort((a, b) => Number(a.completed) - Number(b.completed));
+
   const startM = dayWindow?.start ? timeToMin(dayWindow.start) : null;
   const stopM = dayWindow?.stop ? timeToMin(dayWindow.stop) : null;
   const hasWindow = startM !== null && stopM !== null && stopM > startM;
@@ -239,6 +263,7 @@ export function computeDialModel(dayTasks, dayWindow = null) {
 
   return {
     blocks,
+    allDay,
     sleep,
     effortMinutes: summary.effortMinutes,
     restoreMinutes: summary.restoreMinutes,

@@ -257,6 +257,44 @@ describe('computeDialModel', () => {
     ]);
   });
 
+  it('collects all-day items without touching a single minute total', () => {
+    const model = computeDialModel(
+      [
+        task({ id: 1, startTime: '09:00', duration: 60 }),
+        task({ id: 2, title: 'Labour Day', isAllDay: true, startTime: '00:00', duration: 30, imported: true }),
+        task({ id: 3, title: 'Water the plants', isAllDay: true, startTime: null, color: 'green' }),
+      ],
+      { start: '08:00', stop: '12:00' },
+    );
+    // The ring is unchanged: an all-day item has no hour to occupy, and an
+    // Obsidian date-only line arrives at '00:00' — it must not become a
+    // midnight wedge.
+    expect(model.blocks.map((b) => b.id)).toEqual([1]);
+    expect(model.allDay.map((a) => a.title)).toEqual(['Labour Day', 'Water the plants']);
+    // A read-only imported all-day event has no completion to toggle.
+    expect(model.allDay[0].completable).toBe(false);
+    expect(model.allDay[1].completable).toBe(true);
+    // Totals stay a partition of SCHEDULED minutes.
+    expect(model.effortMinutes).toBe(60);
+    expect(model.restoreMinutes).toBe(0);
+    expect(model.unblockedMinutes).toBe(180);
+    expect(model.sleepMinutes).toBe(480 + 720);
+  });
+
+  it('puts still-standing all-day items ahead of completed ones', () => {
+    const model = computeDialModel([
+      task({ id: 1, title: 'Done thing', isAllDay: true, completed: true }),
+      task({ id: 2, title: 'Open thing', isAllDay: true }),
+      task({ id: 3, title: 'Also open', isAllDay: true }),
+    ]);
+    expect(model.allDay.map((a) => a.title)).toEqual(['Open thing', 'Also open', 'Done thing']);
+  });
+
+  it('has no all-day items on a day without any', () => {
+    expect(computeDialModel([task()]).allDay).toEqual([]);
+    expect(computeDialModel([]).allDay).toEqual([]);
+  });
+
   it('handles an empty day', () => {
     const model = computeDialModel([]);
     expect(model.blocks).toEqual([]);

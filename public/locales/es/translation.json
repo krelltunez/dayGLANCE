@@ -1335,6 +1335,7 @@
     "unblocked": "Tiempo libre",
     "aria": "Esfera del día: {{date}}",
     "blockList": "Bloques de la agenda",
+    "allDayMore": "{{count}} más",
     "backToToday": "Volver a hoy (T)",
     "today": "Hoy",
     "prevDay": "Día anterior (←)",

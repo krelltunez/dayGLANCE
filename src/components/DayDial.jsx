@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, CircleDashed, ExternalLink, Leaf, MoonStar, Undo2, Zap } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, ChevronRight, CircleDashed, ExternalLink, Leaf, MoonStar, Undo2, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { stripWikilinks } from '../utils/taskUtils.js';
 import { formatLocalizedDurationMinutes } from '../utils/localeFormatting.js';
@@ -45,6 +45,20 @@ const TICKS = dialTicks();
 
 // Tick geometry by kind: one color, three opacities — the cheapest thing
 // that makes a dial read as engineered rather than illustrated.
+// All-day chip budget, in px: what one chip costs (its dot, gap, and a
+// title truncated to max-w-[8rem]) and what the pill spends on its own icon
+// and padding. Used to decide how many chips fit before the rest collapse
+// into a "+N" — measured against the pill's track, never guessed from a
+// viewport breakpoint, because the free width depends on the legend's own
+// localized width.
+const ALLDAY_CHIP_PX = 110;
+const ALLDAY_PILL_CHROME_PX = 80;
+// The breathing space between the two pills, straddling the dial's axis.
+const ALLDAY_SEAM_GAP_PX = 12;
+// The legend shell's own horizontal padding (px-8), added back to its
+// measured content to get the width the whole pill wants.
+const LEGEND_PILL_PADDING_PX = 64;
+
 const TICK_STYLE = {
   hour:    { r1: 400, r2: 436, width: 2.5, opacity: 0.45 },
   quarter: { r1: 404, r2: 428, width: 1.6, opacity: 0.22 },
@@ -626,16 +640,88 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
   // feedback loop: near the threshold the mode flips every frame — a
   // sustained visible flicker across a ~45px window-width band.
   const wrapRef = useRef(null);
-  const [compact, setCompact] = useState(false);
+  const [wrapBox, setWrapBox] = useState(null);
   useEffect(() => {
     const el = wrapRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return undefined;
     const ro = new ResizeObserver(([entry]) => {
-      setCompact(entry.contentRect.width < entry.contentRect.height);
+      const { width, height } = entry.contentRect;
+      setWrapBox((prev) => (prev && prev.width === width && prev.height === height
+        ? prev
+        : { width, height }));
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  const compact = !!wrapBox && wrapBox.width < wrapBox.height;
+
+  // The all-day pill is sized against the LEGEND, never against its own
+  // content: it takes the legend's width as a ceiling, so the two read as a
+  // matched pair — flanking the centre line in landscape, stacked in
+  // compact — instead of one panel ballooning past the other. Room is the
+  // narrower of that ceiling and the track the pill actually has.
+  //
+  // Both measured widths are independent of what the pill decides to show
+  // (the legend is sized by its own totals; the track is minmax(0,1fr) of
+  // the band), so this cannot feed back into itself — the loop this file
+  // already warns about for compact mode.
+  const hasAllDay = model.allDay.length > 0;
+  const allDayCellRef = useRef(null);
+  const legendRef = useRef(null);
+  const [bandMetrics, setBandMetrics] = useState(null);
+  useEffect(() => {
+    if (!hasAllDay || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = () => {
+      // legendRef sits on the legend's inner w-max box, so this is its
+      // NATURAL width whatever the shell around it is doing — the figure
+      // the seam test needs, and one that cannot change with what the pill
+      // decides to show.
+      const contentW = legendRef.current?.getBoundingClientRect().width || 0;
+      const legendW = contentW ? contentW + LEGEND_PILL_PADDING_PX : 0;
+      const trackW = allDayCellRef.current?.getBoundingClientRect().width || 0;
+      if (!legendW && !trackW) return;
+      setBandMetrics((prev) => (prev && prev.legendW === legendW && prev.trackW === trackW
+        ? prev
+        : { legendW, trackW }));
+    };
+    const ro = new ResizeObserver(measure);
+    if (legendRef.current) ro.observe(legendRef.current);
+    if (allDayCellRef.current) ro.observe(allDayCellRef.current);
+    measure();
+    return () => ro.disconnect();
+  }, [hasAllDay, compact]);
+
+  // One question decides the band in every orientation: can both pills live
+  // on their own side of the centre line, i.e. does the legend fit in half
+  // the band at its natural width? Squeezing it instead spills its totals
+  // into the lopsided 3+1 the compact grid exists to avoid.
+  //
+  // This is deliberately NOT a portrait/landscape test. A portrait tablet
+  // has ample room for two pills; only a phone genuinely has to stack, and
+  // stacking a band that could sit side by side wastes the width and reads
+  // as two stranded bars.
+  const seamFits = !bandMetrics || !wrapBox
+    ? true
+    : bandMetrics.legendW <= (wrapBox.width - ALLDAY_SEAM_GAP_PX) / 2;
+
+  // Room for chips. Where the pills stretch (compact) that is simply the
+  // track they were given; where they sit at their natural width beside
+  // each other (landscape), the legend's width is also the pill's ceiling,
+  // so neither side outgrows the other across the seam.
+  const allDayRoom = !bandMetrics
+    ? null
+    : compact
+      ? bandMetrics.trackW || null
+      : Math.min(bandMetrics.legendW || Infinity, bandMetrics.trackW || Infinity);
+
+  // Chips per row from that room; compact spends a second row rather than a
+  // "+N", because portrait is exactly where vertical space is cheap and
+  // horizontal space is not. Per-row flooring, never total area: chips are
+  // laid out by flex-wrap, so overpromising spills onto a third row.
+  const allDayRows = compact ? 2 : 1;
+  const allDayFit = allDayRoom === null
+    ? null
+    : Math.max(1, Math.floor((allDayRoom - ALLDAY_PILL_CHROME_PX) / ALLDAY_CHIP_PX)) * allDayRows;
 
   // Legend glyphs: Zap and Leaf are the summary strip's own effort/restore
   // icons (one vocabulary across surfaces); MoonStar is nocturnal but
@@ -652,6 +738,103 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
       ? [{ key: 'unblocked', label: t('dial.unblocked', 'Unblocked'), color: DIAL_COLORS.unblocked, minutes: model.unblockedMinutes, Icon: CircleDashed }]
       : []),
   ];
+
+  // Legend — short enumerable facts, quiet enough to leave the now line the
+  // loudest thing on the wall.
+  const legendPill = (
+    <div
+      className={`rounded-2xl bg-white/[0.04] px-8 py-3 ${compact ? 'w-full' : 'flex-shrink-0'}`}
+    >
+      {/* The shell above stretches to its share of the band; this inner box
+          keeps its natural width (w-max), which is what the seam test below
+          measures. Measuring the shell instead would lock the layout: a
+          stretched shell is always wider than half the band, so once the
+          band stacked it could never discover that it now fits side by
+          side. */}
+      <div
+        ref={legendRef}
+        className={`w-max mx-auto ${
+          compact
+            // Width-constrained: a deliberate 2×2 grid instead of flex-wrap's
+            // lopsided 3+1 spill.
+            ? 'grid grid-cols-2 justify-items-start gap-x-10 gap-y-2.5'
+            : 'flex flex-wrap items-center justify-center gap-x-8 gap-y-2'
+        }`}
+      >
+        {legend.map((item) => (
+          <div key={item.key} className="flex items-center gap-2.5">
+            <item.Icon size={15} strokeWidth={1.75} style={{ color: item.color }} aria-hidden="true" />
+            <div className="leading-tight">
+              <div className="text-white/45 text-xs">{item.label}</div>
+              <div className="text-white/90 text-sm font-medium tabular-nums">{formatMinutes(item.minutes)}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // All-day items — the day's context, not its schedule. Deliberately built
+  // in the legend's own grammar (icon, label, then the facts) so it reads as
+  // a sibling of the totals rather than a new kind of thing, and never on
+  // the ring: nothing timeless goes on a time axis. Each title is its own
+  // button into the same action sheet the wedges use, so an all-day chore
+  // can be completed from the couch; overflow collapses to a quiet "+N"
+  // rather than clipping silently.
+  const allDayShown = allDayFit === null ? model.allDay : model.allDay.slice(0, allDayFit);
+  const allDayHidden = model.allDay.length - allDayShown.length;
+  const allDayActionable = !!(onToggleComplete || onOpenInPlanner);
+  const allDayPill = (
+    <div
+      className={`rounded-2xl bg-white/[0.04] px-6 py-3 flex items-center gap-2.5 min-w-0 ${
+        compact ? 'w-full' : ''}`}
+      style={!compact && allDayRoom ? { maxWidth: allDayRoom } : undefined}
+    >
+      <CalendarDays size={15} strokeWidth={1.75} className="text-white/45 flex-shrink-0" aria-hidden="true" />
+      <div className="leading-tight min-w-0">
+        <div className="text-white/45 text-xs">{t('task.allDay', 'All Day')}</div>
+        <div className={`flex items-center gap-x-3 min-w-0 ${compact ? 'flex-wrap gap-y-1' : ''}`}>
+          {allDayShown.map((item) => {
+            const body = (
+              <>
+                <span
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: muteDialColor(item.colorHex) }}
+                />
+                {/* Arbitrary value on purpose: Tailwind 3.3 has no numeric
+                    max-w-* scale, so max-w-32 would silently generate
+                    nothing and let a long title stretch the chip past
+                    everything this pill is measured against. */}
+                <span className="truncate max-w-[8rem]">{renderHubTitle(item.title)}</span>
+              </>
+            );
+            const tone = item.completed ? 'text-white/40' : 'text-white/90';
+            return allDayActionable ? (
+              <button
+                key={item.id}
+                onClick={() => openSheet(item)}
+                className={`flex items-center gap-1.5 text-sm font-medium min-w-0 ${tone} hover:text-white transition-colors`}
+              >
+                {body}
+              </button>
+            ) : (
+              <span key={item.id} className={`flex items-center gap-1.5 text-sm font-medium min-w-0 ${tone}`}>
+                {body}
+              </span>
+            );
+          })}
+          {allDayHidden > 0 && (
+            <span
+              className="text-white/45 text-sm flex-shrink-0"
+              title={t('dial.allDayMore', '{{count}} more', { count: allDayHidden })}
+            >
+              +{allDayHidden}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div ref={wrapRef} className="w-full h-full flex flex-col items-center justify-center gap-2 select-none">
@@ -882,7 +1065,9 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
         {/* Action sheet — the dial's own register, never planner chrome.
             Backdrop click/tap dismisses; actions dismiss after acting. */}
         {sheetBlock && (() => {
-          const live = model.blocks.find((x) => x.id === sheetBlock.id) || sheetBlock;
+          const live = model.blocks.find((x) => x.id === sheetBlock.id)
+            || model.allDay.find((x) => x.id === sheetBlock.id)
+            || sheetBlock;
           return (
             <div
               className="absolute inset-0 z-20 flex items-center justify-center"
@@ -907,8 +1092,12 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
                   </span>
                 </div>
                 <div className="text-white/40 text-xs mt-1 tabular-nums">
-                  {formatTime(minToHHMM(live.startMin))} – {formatTime(minToHHMM(live.endMin))}
-                  {' · '}{formatMinutes(live.endMin - live.startMin)}
+                  {live.startMin === undefined
+                    ? t('task.allDay', 'All Day')
+                    : <>
+                        {formatTime(minToHHMM(live.startMin))} – {formatTime(minToHHMM(live.endMin))}
+                        {' · '}{formatMinutes(live.endMin - live.startMin)}
+                      </>}
                 </div>
                 <div className="mt-3.5 space-y-1.5">
                   {live.completable && onToggleComplete && (
@@ -938,27 +1127,58 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
         })()}
       </div>
 
-      {/* Legend — short enumerable facts, quiet enough to leave the now line
-          the loudest thing on the wall. */}
-      <div
-        className={`rounded-2xl bg-white/[0.04] px-8 py-3 ${
-          compact
-            // Width-constrained: a deliberate 2×2 grid instead of flex-wrap's
-            // lopsided 3+1 spill.
-            ? 'grid grid-cols-2 justify-items-start gap-x-10 gap-y-2.5'
-            : 'flex flex-wrap items-center justify-center gap-x-8 gap-y-2'
-        }`}
-      >
-        {legend.map((item) => (
-          <div key={item.key} className="flex items-center gap-2.5">
-            <item.Icon size={15} strokeWidth={1.75} style={{ color: item.color }} aria-hidden="true" />
-            <div className="leading-tight">
-              <div className="text-white/45 text-xs">{item.label}</div>
-              <div className="text-white/90 text-sm font-medium tabular-nums">{formatMinutes(item.minutes)}</div>
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Bottom band. All-day items never go on the ring, and in landscape
+          they must not take a row of their own either: the dial is
+          height-constrained there, so a second row costs real diameter
+          (measured: 45px at 1600×900) while ~570px per side of the legend's
+          own row sits empty.
+          So the band is two equal tracks meeting on the dial's vertical
+          axis — the line under the 12 — with each pill growing outward from
+          that seam. Equal tracks (not auto) are what put the seam on the
+          axis; capping the pill at the legend's width (above) is what keeps
+          the two sides reading as a matched pair rather than one panel
+          sprawling. Compact has the opposite budget — no side room, vertical
+          to spare — so there they stack, the pill capped to the legend's
+          width and spending a second row of chips.
+          A day with no all-day items renders exactly as before. */}
+      {!hasAllDay ? legendPill : seamFits ? (
+        // Two equal tracks, so the seam between the pills lands on the
+        // dial's vertical axis — the line under the 12 — and each grows
+        // outward from it. Where the pills stretch (compact) they fill
+        // their halves and the pair spans the band; in landscape they keep
+        // their natural widths against the seam, because the band there is
+        // far wider than the dial and full halves would dwarf it.
+        <div
+          // items-stretch, not items-center: side by side the two pills are
+          // one band, so the shorter one (fewer chip rows than the legend
+          // has grid rows) matches the taller instead of floating in it.
+          className="w-full grid items-stretch gap-x-3"
+          style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)' }}
+        >
+          <div ref={allDayCellRef} className="min-w-0 flex justify-end">{allDayPill}</div>
+          <div className="min-w-0 flex justify-start">{legendPill}</div>
+        </div>
+      ) : compact ? (
+        // Only a genuinely narrow band stacks — a phone. Both pills take
+        // the whole width, which in compact is also the dial's own width
+        // (square viewBox, width the constrained axis), so the block below
+        // lines up with the instrument above it.
+        <div ref={allDayCellRef} className="w-full flex flex-col items-stretch gap-2">
+          {allDayPill}
+          {legendPill}
+        </div>
+      ) : (
+        // Landscape too narrow for the seam: keep the legend centred at its
+        // natural width with the pill beside it, rather than squeeze it
+        // into a spill that costs 44px of dial diameter.
+        <div
+          className="w-full grid items-stretch"
+          style={{ gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)' }}
+        >
+          <div ref={allDayCellRef} className="min-w-0 flex justify-end pr-3">{allDayPill}</div>
+          {legendPill}
+        </div>
+      )}
     </div>
   );
 };

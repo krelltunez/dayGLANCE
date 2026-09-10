@@ -1335,6 +1335,7 @@
     "unblocked": "Ungeplant",
     "aria": "Tagesanzeige: {{date}}",
     "blockList": "Terminblöcke",
+    "allDayMore": "{{count}} weitere",
     "backToToday": "Zurück zu heute (T)",
     "today": "Heute",
     "prevDay": "Vorheriger Tag (←)",

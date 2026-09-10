@@ -52,6 +52,11 @@ const options = (html) => Array.from(
   html.matchAll(/<div id="([^"]*)" role="option" aria-selected="([^"]*)" class="sr-only">([^<]*)</g),
 ).map(([, id, selected, label]) => ({ id, selected, label }));
 
+// The all-day pill's chip titles, in render order.
+const allDayChips = (html) => Array.from(
+  html.matchAll(/<span class="truncate max-w-\[8rem\]">([^<]*)</g),
+).map(([, title]) => title);
+
 describe('DayDial keyboard/AT contract', () => {
   it('exposes one labelled option per block, in time order', async () => {
     const i18n = await i18nFor('en');
@@ -105,6 +110,62 @@ describe('DayDial keyboard/AT contract', () => {
       'dial-opt-recur-7::2026-09-09',
       'dial-opt-has_space',
     ]);
+  });
+
+  it('keeps all-day items off the ring and out of its options', async () => {
+    const i18n = await i18nFor('en');
+    const html = render(i18n, {
+      dayTasks: [
+        task({ id: 1 }),
+        // An Obsidian date-only line arrives at 00:00; it must not become a
+        // midnight wedge, nor a block the arrow keys walk onto.
+        task({ id: 'a1', title: 'Labour Day', isAllDay: true, startTime: '00:00' }),
+        task({ id: 'a2', title: 'Water the plants #home', isAllDay: true, startTime: null }),
+      ],
+    });
+    expect(options(html).map((o) => o.id)).toEqual(['dial-opt-1']);
+    // They live in their own pill instead, in the legend's grammar, with
+    // #tags set aside exactly as the hub does it.
+    expect(html).toContain('All Day');
+    expect(allDayChips(html)).toEqual(['Labour Day', 'Water the plants']);
+  });
+
+  it('makes each all-day item its own button into the action sheet', async () => {
+    const i18n = await i18nFor('en');
+    const actionable = render(i18n, {
+      dayTasks: [task({ id: 'a1', title: 'Labour Day', isAllDay: true })],
+      onToggleComplete: () => {},
+    });
+    expect(actionable).toMatch(/<button[^>]*>(?:(?!<\/button>).)*Labour Day/s);
+
+    // With no handlers wired (a read-only host), the titles are plain text.
+    const inert = render(i18n, {
+      dayTasks: [task({ id: 'a1', title: 'Labour Day', isAllDay: true })],
+    });
+    expect(allDayChips(inert)).toEqual(['Labour Day']);
+    expect(inert).not.toMatch(/<button[^>]*>(?:(?!<\/button>).)*Labour Day/s);
+  });
+
+  it('leaves the bottom band alone on a day with no all-day items', async () => {
+    const i18n = await i18nFor('en');
+    const html = render(i18n, { dayTasks: [task()] });
+    expect(html).not.toContain('All Day');
+    expect(allDayChips(html)).toEqual([]);
+    // No grid wrapper at all: the legend sits in the flow, centered as before.
+    expect(html).not.toContain('minmax(0,1fr)');
+  });
+
+  it('splits the band on the dial\'s axis when all-day items are present', async () => {
+    const i18n = await i18nFor('en');
+    const html = render(i18n, {
+      dayTasks: [task(), task({ id: 'a1', title: 'Labour Day', isAllDay: true })],
+    });
+    // Two EQUAL tracks: that is what puts the seam between the pills on the
+    // dial's vertical axis, each growing outward from under the 12. The
+    // three-track fallback (centred legend) is for widths where the legend
+    // cannot fit in half the band — never the default.
+    expect(html).toContain('minmax(0,1fr) minmax(0,1fr)');
+    expect(html).not.toContain('minmax(0,1fr) auto minmax(0,1fr)');
   });
 
   it('localizes the listbox name and the option labels', async () => {
