@@ -1149,7 +1149,10 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
         // their natural widths against the seam, because the band there is
         // far wider than the dial and full halves would dwarf it.
         <div
-          className="w-full grid items-center gap-x-3"
+          // items-stretch, not items-center: side by side the two pills are
+          // one band, so the shorter one (fewer chip rows than the legend
+          // has grid rows) matches the taller instead of floating in it.
+          className="w-full grid items-stretch gap-x-3"
           style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)' }}
         >
           <div ref={allDayCellRef} className="min-w-0 flex justify-end">{allDayPill}</div>
@@ -1169,7 +1172,7 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
         // natural width with the pill beside it, rather than squeeze it
         // into a spill that costs 44px of dial diameter.
         <div
-          className="w-full grid items-center"
+          className="w-full grid items-stretch"
           style={{ gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)' }}
         >
           <div ref={allDayCellRef} className="min-w-0 flex justify-end pr-3">{allDayPill}</div>
