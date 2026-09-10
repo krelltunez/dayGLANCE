@@ -1335,6 +1335,7 @@
     "unblocked": "Unblocked",
     "aria": "Day dial: {{date}}",
     "blockList": "Schedule blocks",
+    "allDayMore": "{{count}} more",
     "backToToday": "Back to today (T)",
     "today": "Today",
     "prevDay": "Previous day (←)",

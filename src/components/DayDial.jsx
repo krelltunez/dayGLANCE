@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, CircleDashed, ExternalLink, Leaf, MoonStar, Undo2, Zap } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, ChevronRight, CircleDashed, ExternalLink, Leaf, MoonStar, Undo2, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { stripWikilinks } from '../utils/taskUtils.js';
 import { formatLocalizedDurationMinutes } from '../utils/localeFormatting.js';
@@ -45,6 +45,15 @@ const TICKS = dialTicks();
 
 // Tick geometry by kind: one color, three opacities — the cheapest thing
 // that makes a dial read as engineered rather than illustrated.
+// All-day chip budget, in px: what one chip costs (its dot, gap, and a
+// title truncated to max-w-[8rem]) and what the pill spends on its own icon
+// and padding. Used to decide how many chips fit before the rest collapse
+// into a "+N" — measured against the pill's track, never guessed from a
+// viewport breakpoint, because the free width depends on the legend's own
+// localized width.
+const ALLDAY_CHIP_PX = 110;
+const ALLDAY_PILL_CHROME_PX = 80;
+
 const TICK_STYLE = {
   hour:    { r1: 400, r2: 436, width: 2.5, opacity: 0.45 },
   quarter: { r1: 404, r2: 428, width: 1.6, opacity: 0.22 },
@@ -637,6 +646,28 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
     return () => ro.disconnect();
   }, []);
 
+  // How many all-day chips fit. Measured rather than breakpointed, because
+  // the free width depends on the legend's own localized width — and safe to
+  // measure: the pill's track is minmax(0,1fr) with min-w-0, so its width
+  // comes from the container and the legend alone, never from the chips
+  // inside it. (A bare 1fr is minmax(auto,1fr): an over-wide pill would
+  // grow the track, shove the legend off the dial's axis, AND feed back
+  // into this measurement — the loop this file already warns about for
+  // compact mode.)
+  const hasAllDay = model.allDay.length > 0;
+  const allDayCellRef = useRef(null);
+  const [allDayFit, setAllDayFit] = useState(null);
+  useEffect(() => {
+    const el = allDayCellRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(([entry]) => {
+      const room = entry.contentRect.width - ALLDAY_PILL_CHROME_PX;
+      setAllDayFit(Math.max(1, Math.floor(room / ALLDAY_CHIP_PX)));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [hasAllDay, compact]);
+
   // Legend glyphs: Zap and Leaf are the summary strip's own effort/restore
   // icons (one vocabulary across surfaces); MoonStar is nocturnal but
   // distinct from the plain crescent marking sunset on the ring; the dashed
@@ -652,6 +683,84 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
       ? [{ key: 'unblocked', label: t('dial.unblocked', 'Unblocked'), color: DIAL_COLORS.unblocked, minutes: model.unblockedMinutes, Icon: CircleDashed }]
       : []),
   ];
+
+  // Legend — short enumerable facts, quiet enough to leave the now line the
+  // loudest thing on the wall.
+  const legendPill = (
+    <div
+      className={`rounded-2xl bg-white/[0.04] px-8 py-3 ${
+        compact
+          // Width-constrained: a deliberate 2×2 grid instead of flex-wrap's
+          // lopsided 3+1 spill.
+          ? 'grid grid-cols-2 justify-items-start gap-x-10 gap-y-2.5'
+          : 'flex flex-wrap items-center justify-center gap-x-8 gap-y-2'
+      }`}
+    >
+      {legend.map((item) => (
+        <div key={item.key} className="flex items-center gap-2.5">
+          <item.Icon size={15} strokeWidth={1.75} style={{ color: item.color }} aria-hidden="true" />
+          <div className="leading-tight">
+            <div className="text-white/45 text-xs">{item.label}</div>
+            <div className="text-white/90 text-sm font-medium tabular-nums">{formatMinutes(item.minutes)}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  // All-day items — the day's context, not its schedule. Deliberately built
+  // in the legend's own grammar (icon, label, then the facts) so it reads as
+  // a sibling of the totals rather than a new kind of thing, and never on
+  // the ring: nothing timeless goes on a time axis. Each title is its own
+  // button into the same action sheet the wedges use, so an all-day chore
+  // can be completed from the couch; overflow collapses to a quiet "+N"
+  // rather than clipping silently.
+  const allDayShown = allDayFit === null ? model.allDay : model.allDay.slice(0, allDayFit);
+  const allDayHidden = model.allDay.length - allDayShown.length;
+  const allDayActionable = !!(onToggleComplete || onOpenInPlanner);
+  const allDayPill = (
+    <div className="rounded-2xl bg-white/[0.04] px-6 py-3 flex items-center gap-2.5 min-w-0">
+      <CalendarDays size={15} strokeWidth={1.75} className="text-white/45 flex-shrink-0" aria-hidden="true" />
+      <div className="leading-tight min-w-0">
+        <div className="text-white/45 text-xs">{t('task.allDay', 'All Day')}</div>
+        <div className="flex items-center gap-x-3 min-w-0">
+          {allDayShown.map((item) => {
+            const body = (
+              <>
+                <span
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: muteDialColor(item.colorHex) }}
+                />
+                <span className="truncate max-w-[8rem]">{renderHubTitle(item.title)}</span>
+              </>
+            );
+            const tone = item.completed ? 'text-white/40' : 'text-white/90';
+            return allDayActionable ? (
+              <button
+                key={item.id}
+                onClick={() => openSheet(item)}
+                className={`flex items-center gap-1.5 text-sm font-medium min-w-0 ${tone} hover:text-white transition-colors`}
+              >
+                {body}
+              </button>
+            ) : (
+              <span key={item.id} className={`flex items-center gap-1.5 text-sm font-medium min-w-0 ${tone}`}>
+                {body}
+              </span>
+            );
+          })}
+          {allDayHidden > 0 && (
+            <span
+              className="text-white/45 text-sm flex-shrink-0"
+              title={t('dial.allDayMore', '{{count}} more', { count: allDayHidden })}
+            >
+              +{allDayHidden}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div ref={wrapRef} className="w-full h-full flex flex-col items-center justify-center gap-2 select-none">
@@ -882,7 +991,9 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
         {/* Action sheet — the dial's own register, never planner chrome.
             Backdrop click/tap dismisses; actions dismiss after acting. */}
         {sheetBlock && (() => {
-          const live = model.blocks.find((x) => x.id === sheetBlock.id) || sheetBlock;
+          const live = model.blocks.find((x) => x.id === sheetBlock.id)
+            || model.allDay.find((x) => x.id === sheetBlock.id)
+            || sheetBlock;
           return (
             <div
               className="absolute inset-0 z-20 flex items-center justify-center"
@@ -907,8 +1018,12 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
                   </span>
                 </div>
                 <div className="text-white/40 text-xs mt-1 tabular-nums">
-                  {formatTime(minToHHMM(live.startMin))} – {formatTime(minToHHMM(live.endMin))}
-                  {' · '}{formatMinutes(live.endMin - live.startMin)}
+                  {live.startMin === undefined
+                    ? t('task.allDay', 'All Day')
+                    : <>
+                        {formatTime(minToHHMM(live.startMin))} – {formatTime(minToHHMM(live.endMin))}
+                        {' · '}{formatMinutes(live.endMin - live.startMin)}
+                      </>}
                 </div>
                 <div className="mt-3.5 space-y-1.5">
                   {live.completable && onToggleComplete && (
@@ -938,27 +1053,27 @@ const DayDial = ({ dayTasks, dayWindow, date, nowMin = null, dayIsPast = false, 
         })()}
       </div>
 
-      {/* Legend — short enumerable facts, quiet enough to leave the now line
-          the loudest thing on the wall. */}
-      <div
-        className={`rounded-2xl bg-white/[0.04] px-8 py-3 ${
-          compact
-            // Width-constrained: a deliberate 2×2 grid instead of flex-wrap's
-            // lopsided 3+1 spill.
-            ? 'grid grid-cols-2 justify-items-start gap-x-10 gap-y-2.5'
-            : 'flex flex-wrap items-center justify-center gap-x-8 gap-y-2'
-        }`}
-      >
-        {legend.map((item) => (
-          <div key={item.key} className="flex items-center gap-2.5">
-            <item.Icon size={15} strokeWidth={1.75} style={{ color: item.color }} aria-hidden="true" />
-            <div className="leading-tight">
-              <div className="text-white/45 text-xs">{item.label}</div>
-              <div className="text-white/90 text-sm font-medium tabular-nums">{formatMinutes(item.minutes)}</div>
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Bottom band. The legend keeps the dial's vertical axis it has always
+          sat on; all-day items take the dead space BESIDE it rather than a
+          row of their own. In landscape the dial is height-constrained, so a
+          second row costs real diameter (measured: 45px at 1600×900) while
+          ~570px per side of the legend's own row sits empty. Compact has the
+          opposite budget — no side room, vertical to spare — so there the
+          two stack. A day with no all-day items renders exactly as before. */}
+      {!hasAllDay ? legendPill : compact ? (
+        <div className="w-full flex flex-col items-center gap-2">
+          <div ref={allDayCellRef} className="w-full min-w-0 flex justify-center">{allDayPill}</div>
+          {legendPill}
+        </div>
+      ) : (
+        <div
+          className="w-full grid items-center"
+          style={{ gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)' }}
+        >
+          <div ref={allDayCellRef} className="min-w-0 flex justify-end pr-3">{allDayPill}</div>
+          {legendPill}
+        </div>
+      )}
     </div>
   );
 };

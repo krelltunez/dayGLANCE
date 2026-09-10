@@ -1335,6 +1335,7 @@
     "unblocked": "Tempo libero",
     "aria": "Quadrante del giorno: {{date}}",
     "blockList": "Blocchi della giornata",
+    "allDayMore": "altri {{count}}",
     "backToToday": "Torna a oggi (T)",
     "today": "Oggi",
     "prevDay": "Giorno precedente (←)",
