@@ -2,7 +2,7 @@ import React from 'react';
 import { Check, RefreshCw, Target, WifiOff, X } from 'lucide-react';
 import { HABIT_ICONS, HABIT_COLORS } from '../constants/habits.js';
 
-const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMouseDown, onMouseUp, onMouseLeave, onTouchStart, onTouchEnd, darkMode, autoSynced = false, syncPaused = false }) => {
+const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMouseDown, onMouseUp, onMouseLeave, onTouchStart, onTouchEnd, darkMode, autoSynced = false, syncPaused = false, ariaLabel, countClassName = 'text-[10px]' }) => {
   const { type, target, color, icon } = habit;
   const colorObj = HABIT_COLORS.find(c => c.name === color) || HABIT_COLORS[0];
   const IconComponent = HABIT_ICONS[icon] || Target;
@@ -33,6 +33,7 @@ const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMous
   return (
     <button
       data-ctx-menu
+      aria-label={ariaLabel}
       onClick={autoSynced ? undefined : onClick}
       onContextMenu={autoSynced ? undefined : onContextMenu}
       onMouseDown={autoSynced ? undefined : onMouseDown}
@@ -91,7 +92,7 @@ const HabitRing = ({ size = 40, habit, count = 0, onClick, onContextMenu, onMous
       </div>
       {/* Count label */}
       {size >= 30 && (
-        <span className={`text-[10px] font-semibold leading-none ${darkMode ? 'text-gray-400' : 'text-stone-500'}`}>
+        <span className={`${countClassName} font-semibold leading-none ${darkMode ? 'text-gray-400' : 'text-stone-500'}`}>
           {count}/{target}
         </span>
       )}

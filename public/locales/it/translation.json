@@ -1342,6 +1342,7 @@
     "habitAdd": "Aggiungi uno",
     "habitRemove": "Rimuovi uno",
     "habitTarget": "di {{target}}",
+    "habitLabel": "{{name}}: {{count}} di {{target}}",
     "aria": "Quadrante del giorno: {{date}}",
     "blockList": "Blocchi della giornata",
     "allDayMore": "altri {{count}}",

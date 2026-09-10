@@ -37,44 +37,129 @@ export const COMPLICATION_SLOTS = [
   { key: 'br', x: SLOT_R * SLOT_DIAGONAL, y: SLOT_R * SLOT_DIAGONAL },
 ];
 
-// Below this the face has no room for readouts that must stay legible and
-// tappable — a phone dial is ~385px across, and four corner slots on it
-// would sit on top of the hub's own text.
-export const COMPLICATION_MIN_DIAL_PX = 520;
+// Three sizes, chosen from the dial's measured diameter rather than from a
+// viewport breakpoint — the dial is sized by the space the modal gives it,
+// so the same window can produce very different faces (sidebar open, tray
+// popup, rotated wall panel). A readout that reads well on a 13" laptop is
+// a speck on a 27" display; each tier keeps the slot at roughly the same
+// share of the face.
+export const COMPLICATION_SIZES = [
+  { key: 'sm', minDialPx: 520, dot: 46, icon: 15, count: 'text-lg', label: 'text-[10px]' },
+  { key: 'md', minDialPx: 700, dot: 58, icon: 18, count: 'text-2xl', label: 'text-[11px]' },
+  { key: 'lg', minDialPx: 860, dot: 74, icon: 22, count: 'text-3xl', label: 'text-xs' },
+];
+
+// Below the smallest tier the face has no room for readouts that must stay
+// legible and tappable — a phone dial is ~385px across, and four corner
+// slots on it would sit on top of the hub's own text.
+export const COMPLICATION_MIN_DIAL_PX = COMPLICATION_SIZES[0].minDialPx;
+
+/** The largest tier the measured face can carry, or null if it can carry none. */
+export const complicationSize = (dialPx) => {
+  if (!dialPx) return null;
+  let found = null;
+  for (const size of COMPLICATION_SIZES) if (dialPx >= size.minDialPx) found = size;
+  return found;
+};
+
+// How long a press has to be held before it means "open the sheet" rather
+// than "add one" — the same 500ms GLANCE's habit rings use, so the gesture
+// is one habit, not two.
+const HOLD_MS = 500;
 
 const COUNT_KINDS = { inbox: Inbox, deadlines: CalendarClock };
 
-/** One slot: a count readout, or a habit's own ring. */
-function Slot({ item, onOpen, t }) {
-  if (item.kind === 'habit') {
-    return (
+/**
+ * A habit's own ring, wired the way GLANCE wires it: a tap adds one, a hold
+ * (or a right-click / context-menu key) opens the sheet. The dimming is the
+ * point of the wrapper — HabitRing paints a saturated brand colour that is
+ * right in a sidebar but wrong on the face, where the orange now-line has to
+ * stay the brightest thing on screen. Hovering restores it.
+ */
+function HabitSlot({ item, size, onOpen, onIncrement, t }) {
+  const timer = useRef(null);
+  const held = useRef(false);
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  // A health-synced habit's count is not ours to add to (GLANCE disables the
+  // tap for exactly this reason), so there a tap opens the sheet instead.
+  const canIncrement = !item.habit.source;
+
+  const startHold = () => {
+    held.current = false;
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => { held.current = true; onOpen(); }, HOLD_MS);
+  };
+  const cancelHold = () => clearTimeout(timer.current);
+
+  return (
+    <div className="opacity-65 saturate-[.45] transition-[opacity,filter] duration-200 hover:opacity-100 hover:saturate-100">
       <HabitRing
-        size={46}
+        size={size.dot}
         habit={item.habit}
         count={item.count}
         darkMode
-        onClick={() => onOpen(item)}
+        // Match the count subdials' caption, so "5/8" and "INBOX" sit at the
+        // same weight on the same baseline instead of one tier apart.
+        countClassName={size.label}
+        ariaLabel={t('dial.habitLabel', '{{name}}: {{count}} of {{target}}', {
+          name: item.habit.name, count: item.count, target: item.habit.target,
+        })}
+        onClick={() => {
+          // The hold already did something; don't also count the click it
+          // leaves behind.
+          if (held.current) { held.current = false; return; }
+          if (canIncrement) onIncrement(); else onOpen();
+        }}
+        onContextMenu={(e) => { e.preventDefault(); cancelHold(); onOpen(); }}
+        onMouseDown={startHold}
+        onMouseUp={cancelHold}
+        onMouseLeave={cancelHold}
+        onTouchStart={startHold}
+        onTouchEnd={cancelHold}
       />
-    );
-  }
+    </div>
+  );
+}
+
+/**
+ * A count readout, dressed as a chronograph subdial: a recessed disc with a
+ * hairline rim, the icon and figure inside it, the name printed underneath —
+ * which is also where HabitRing prints its own "5/8", so the two kinds of
+ * complication sit on the same baseline.
+ */
+function CountSlot({ item, size, onOpen, t }) {
   const Icon = COUNT_KINDS[item.kind] || Inbox;
   const label = item.kind === 'inbox'
     ? t('dial.inbox', 'Inbox')
     : t('dial.deadlines', 'Deadlines');
   return (
     <button
-      onClick={() => onOpen(item)}
+      onClick={onOpen}
       aria-label={`${label}: ${item.count}`}
-      className="flex flex-col items-center gap-1 rounded-xl px-3 py-2 hover:bg-white/5 transition-colors"
+      className="flex flex-col items-center gap-0.5 transition-transform active:scale-95"
     >
-      <Icon size={17} strokeWidth={1.75} className="text-white/45" aria-hidden="true" />
-      <span className="text-white/85 text-lg font-medium leading-none tabular-nums">{item.count}</span>
-      <span className="text-white/35 text-[10px] uppercase tracking-[0.14em] leading-none">{label}</span>
+      <span
+        className="flex flex-col items-center justify-center rounded-full border border-white/10 hover:border-white/20 transition-colors"
+        style={{
+          width: size.dot,
+          height: size.dot,
+          // Lit from above, like the face's other recessed elements.
+          background: 'radial-gradient(circle at 50% 28%, rgba(255,255,255,0.06), rgba(255,255,255,0.015) 72%)',
+          boxShadow: 'inset 0 1px 1px rgba(0,0,0,0.35)',
+        }}
+      >
+        <Icon size={size.icon} strokeWidth={1.75} className="text-white/45" aria-hidden="true" />
+        <span className={`text-white/85 ${size.count} font-medium leading-none tabular-nums mt-0.5`}>
+          {item.count}
+        </span>
+      </span>
+      <span className={`text-white/35 ${size.label} uppercase tracking-[0.14em] leading-none`}>{label}</span>
     </button>
   );
 }
 
-const DialComplications = ({ items, dialPx, onOpenTask, onSetHabitCount }) => {
+const DialComplications = ({ items, dialPx, onOpenTask, onSetHabitCount, onIncrementHabit }) => {
   const { t } = useTranslation();
   const [openKey, setOpenKey] = useState(null);
   const sheetRef = useRef(null);
@@ -99,7 +184,8 @@ const DialComplications = ({ items, dialPx, onOpenTask, onSetHabitCount }) => {
     return () => document.removeEventListener('keydown', onKeyDown, true);
   }, [open]);
 
-  if (!items.length || !dialPx || dialPx < COMPLICATION_MIN_DIAL_PX) return null;
+  const size = complicationSize(dialPx);
+  if (!items.length || !size) return null;
   const r = dialPx / 2;
 
   return (
@@ -117,7 +203,17 @@ const DialComplications = ({ items, dialPx, onOpenTask, onSetHabitCount }) => {
               transform: 'translate(-50%, -50%)',
             }}
           >
-            <Slot item={item} onOpen={() => setOpenKey(item.key)} t={t} />
+            {item.kind === 'habit' ? (
+              <HabitSlot
+                item={item}
+                size={size}
+                t={t}
+                onOpen={() => setOpenKey(item.key)}
+                onIncrement={() => onIncrementHabit?.(item.habit)}
+              />
+            ) : (
+              <CountSlot item={item} size={size} t={t} onOpen={() => setOpenKey(item.key)} />
+            )}
           </div>
         );
       })}
