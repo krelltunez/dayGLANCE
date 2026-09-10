@@ -81,6 +81,18 @@ const TICK_STYLE = {
 // something laid over the schedule.
 const ROUTINE_COLOR = '#5eead4';   // teal-300, the app's routine colour
 const R_ROUTINE_BAND = [404, 432]; // inside the tick field (400–436)
+
+// Daylight rides just inside the schedule ring, among the weather it belongs
+// with: the temps are at 250 and the precipitation arc at 292, so this sits
+// with them rather than out in the tick field, where the ticks stripe
+// straight through a band and it reads as a highlighter mark on a scale.
+// The outer edge tucks two units UNDER the wedges (drawn beneath them), which
+// is what makes the band feel attached to the ring instead of floating below.
+const R_DAYLIGHT_BAND = [282, 302];
+const DAYLIGHT_COLOR = '#fcd34d';
+// Feathered rather than cut: three concentric sub-bands, the outer two at a
+// third strength, so the band has no hard radial edge to read as an object.
+const DAYLIGHT_FEATHER = [[0, 0.25, 0.35], [0.25, 0.75, 1], [0.75, 1, 0.35]];
 const ROUTINE_WEIGHT = 14;
 const ROUTINE_OPACITY = 0.5;
 const ROUTINE_DONE_OPACITY = 0.18;
@@ -292,6 +304,31 @@ function WeatherRing({ hourly }) {
 }
 
 /**
+ * The lit part of the day. Each step is a 4-minute arc (1° of dial) carrying
+ * its own opacity, so the band brightens toward solar noon and fades back to
+ * the floor at the horizons — where it meets the sunrise and sunset
+ * hairlines, which come from the same solar solution.
+ */
+function DaylightBand({ steps }) {
+  const [r0, r1] = R_DAYLIGHT_BAND;
+  return (
+    <g fill={DAYLIGHT_COLOR}>
+      {steps.map((step) => DAYLIGHT_FEATHER.map(([a, b, weight]) => (
+        <path
+          key={`${step.startMin}-${a}`}
+          // Steps overlap by a hair; butted arcs leave hairline seams.
+          d={dialSectorPath(CX, CY, r0 + (r1 - r0) * a, r0 + (r1 - r0) * b,
+            step.startMin, step.endMin + 0.6)}
+          // Rounded: the raw product is float noise (0.2 x 0.35 prints as
+          // 0.06999999999999999) and there are hundreds of these paths.
+          fillOpacity={Math.round(step.opacity * weight * 1e4) / 1e4}
+        />
+      )))}
+    </g>
+  );
+}
+
+/**
  * The routine bars. Overlapping routines take lanes in the band exactly as
  * overlapping blocks do on the ring — dialLaneBand splits the track, and a
  * bar is stroked along its lane's centre line so its weight IS the lane's
@@ -420,7 +457,7 @@ function NowLine({ nowMin }) {
  *                        be null in polar seasons), or null to omit the
  *                        solar layer entirely (no location known).
  */
-const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineCompletions = null, complications = null, onOpenTask = null, onSetHabitCount = null, onIncrementHabit = null, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, onGoToday = null, chromeVisible = true }) => {
+const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineCompletions = null, daylight = null, complications = null, onOpenTask = null, onSetHabitCount = null, onIncrementHabit = null, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, onGoToday = null, chromeVisible = true }) => {
   const { t, i18n } = useTranslation();
   const formatMinutes = (minutes) => formatLocalizedDurationMinutes(minutes, i18n.resolvedLanguage || i18n.language);
 
@@ -1062,6 +1099,10 @@ const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineComple
               </text>
             );
           })}
+
+          {/* Daylight — beneath every other datum on the face, so the night,
+              the wedges and the weather all read over the top of it. */}
+          {daylight?.length > 0 && <DaylightBand steps={daylight} />}
 
           {/* Sleep — the declared night, quiet lavender. Its two halves stay
               flush at midnight so the night reads as one mass. */}
