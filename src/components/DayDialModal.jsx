@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Eclipse, Layers, Maximize, Minimize, Monitor, Sparkles, Sunrise, Thermometer, X } from 'lucide-react';
+import { CalendarClock, CalendarDays, Eclipse, Inbox, Layers, Maximize, Minimize, Monitor, Sparkles, Sunrise, Target, Thermometer, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -8,6 +8,7 @@ import { getStoredWeatherCoords, getSunTimes } from '../utils/solar.js';
 import { acquireWakeLock, releaseWakeLock } from '../utils/wakeLock.js';
 import { isNativeApp, nativeSetImmersiveMode } from '../native.js';
 import { AMBIENT_DELAY_OPTIONS, loadAmbientPrefs, saveAmbientPrefs } from '../utils/dialPrefs.js';
+import { HABIT_ICONS } from '../constants/habits.js';
 import DayDial from './DayDial.jsx';
 import Wordmark from './Wordmark.jsx';
 
@@ -41,6 +42,21 @@ const loadLayers = () => {
   }
 };
 
+// Complications — which readouts ride the face, in the order they were
+// switched on (that order IS the slot order: top-left, top-right,
+// bottom-left, bottom-right). Device-local like the layer toggles: a wall
+// panel and a phone reasonably want different ones.
+const DIAL_COMPLICATIONS_KEY = 'day-planner-dial-complications';
+const MAX_COMPLICATIONS = 4;
+const loadComplications = () => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DIAL_COMPLICATIONS_KEY) || '[]');
+    return Array.isArray(raw) ? raw.filter((k) => typeof k === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
 // Burn-in guard: while ambient, the whole face drifts through this pixel
 // orbit — one step a minute, eased over seconds, imperceptible in the room
 // but enough that no tick, label, or hub glyph parks on one OLED pixel.
@@ -50,12 +66,14 @@ const AMBIENT_ORBIT = [
 ];
 const AMBIENT_ORBIT_STEP_MS = 60_000;
 
-const ToggleRow = ({ icon: Icon, label, on, onChange }) => (
+const ToggleRow = ({ icon: Icon, label, on, onChange, disabled = false }) => (
   <button
-    onClick={() => onChange(!on)}
+    onClick={() => !disabled && onChange(!on)}
     role="switch"
     aria-checked={on}
-    className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 transition-colors"
+    aria-disabled={disabled || undefined}
+    className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${
+      disabled ? 'opacity-40 cursor-default' : 'hover:bg-white/5'}`}
   >
     <Icon size={16} className="text-white/50 flex-shrink-0" />
     <span className="flex-1 text-left text-white/85 text-sm">{label}</span>
@@ -72,9 +90,11 @@ const DayDialModal = () => {
     getTasksForDate, currentTime, formatTime, use24HourClock,
     weather,
     toggleComplete, openMobileEditTask, scrollToHour, isMobile,
+    filteredUnscheduledTasks, getDeadlineTasksForDate,
   } = useDayPlannerCtx();
   const {
     getDayWindow, routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion,
+    habitsEnabled, activeHabits, getTodayHabitCount, setHabitCount,
   } = useFeaturesCtx();
 
   // Always one day per keypress — changeDate() pages by visible columns,
@@ -478,6 +498,49 @@ const DayDialModal = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getTasksForDate, selectedDate, layers.calendars]);
 
+  // Complications. Each carries its own items, so the sheet that opens has
+  // nothing left to fetch. The counts deliberately reuse the app's own
+  // numbers rather than recomputing: the inbox count is the sidebar badge's
+  // exact expression (filteredUnscheduledTasks already applies all six inbox
+  // filters, sorted), and the deadline list is the same accessor the
+  // planner's all-day area uses.
+  const [complicationKeys, setComplicationKeys] = useState(loadComplications);
+  const toggleComplication = (key) => setComplicationKeys((prev) => {
+    const next = prev.includes(key)
+      ? prev.filter((k) => k !== key)
+      : [...prev, key].slice(0, MAX_COMPLICATIONS);
+    try { localStorage.setItem(DIAL_COMPLICATIONS_KEY, JSON.stringify(next)); } catch { /* view pref only */ }
+    return next;
+  });
+
+  const complicationsFull = complicationKeys.length >= MAX_COMPLICATIONS;
+
+  const complications = useMemo(() => complicationKeys.map((key) => {
+    if (key === 'inbox') {
+      const items = (filteredUnscheduledTasks || []).filter((t) => !t.isExample);
+      return { key, kind: 'inbox', count: items.length, items };
+    }
+    if (key === 'deadlines') {
+      const items = getDeadlineTasksForDate(dateStr) || [];
+      return { key, kind: 'deadlines', count: items.length, items };
+    }
+    const habit = (activeHabits || []).find((h) => `habit:${h.id}` === key);
+    return habit
+      ? { key, kind: 'habit', habit, count: getTodayHabitCount(habit.id) }
+      : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }).filter(Boolean), [complicationKeys, filteredUnscheduledTasks, getDeadlineTasksForDate,
+    dateStr, activeHabits, getTodayHabitCount]);
+
+  // A complication row hands the task to the app's own editor — the same one
+  // the planner opens — so a deadline or an inbox item can be given a date
+  // without leaving for the planner first and without this surface inventing
+  // a scheduling path of its own.
+  const handleOpenTask = (task) => {
+    setShowDayDial(false);
+    openMobileEditTask(task, true);
+  };
+
   // Touch paging — the couch has arrow keys, a phone or wall tablet doesn't.
   // A decisively horizontal swipe pages one day; anything vertical-ish is
   // ignored rather than misread.
@@ -583,6 +646,9 @@ const DayDialModal = () => {
         // midnight), so any other date gets none rather than a stale set.
         routines={layers.routines && routinesEnabled && isToday ? todayRoutines : null}
         routineCompletions={routineCompletions}
+        complications={isToday ? complications : null}
+        onOpenTask={handleOpenTask}
+        onSetHabitCount={(habit, next) => setHabitCount(habit.id, next)}
         dayWindow={getDayWindow(dateStr)}
         date={selectedDate}
         nowMin={nowMin}
@@ -635,6 +701,41 @@ const DayDialModal = () => {
                 onChange={(v) => setLayer('routines', v)}
               />
             )}
+            {/* Complications: four slots, filled in the order they are
+                switched on. Only offered where the face has room for them —
+                see COMPLICATION_MIN_DIAL_PX. */}
+            <div className="my-1.5 border-t border-white/10" />
+            <div className="px-3 pb-1 text-white/35 text-[11px] uppercase tracking-[0.14em]">
+              {t('dial.complications', 'Complications')}
+            </div>
+            <ToggleRow
+              icon={Inbox}
+              label={t('dial.inbox', 'Inbox')}
+              on={complicationKeys.includes('inbox')}
+              disabled={complicationsFull && !complicationKeys.includes('inbox')}
+              onChange={() => toggleComplication('inbox')}
+            />
+            <ToggleRow
+              icon={CalendarClock}
+              label={t('dial.deadlines', 'Deadlines')}
+              on={complicationKeys.includes('deadlines')}
+              disabled={complicationsFull && !complicationKeys.includes('deadlines')}
+              onChange={() => toggleComplication('deadlines')}
+            />
+            {habitsEnabled && (activeHabits || []).map((habit) => {
+              const key = `habit:${habit.id}`;
+              return (
+                <ToggleRow
+                  key={key}
+                  icon={HABIT_ICONS[habit.icon] || Target}
+                  label={habit.name}
+                  on={complicationKeys.includes(key)}
+                  disabled={complicationsFull && !complicationKeys.includes(key)}
+                  onChange={() => toggleComplication(key)}
+                />
+              );
+            })}
+
             <div className="my-1.5 border-t border-white/10" />
             <ToggleRow
               icon={Eclipse}

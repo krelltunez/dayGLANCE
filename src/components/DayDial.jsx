@@ -3,6 +3,7 @@ import { CalendarDays, Check, ChevronLeft, ChevronRight, CircleDashed, ExternalL
 import { useTranslation } from 'react-i18next';
 import { stripWikilinks } from '../utils/taskUtils.js';
 import { formatLocalizedDurationMinutes } from '../utils/localeFormatting.js';
+import DialComplications from './DialComplications.jsx';
 import {
   DIAL_COLORS,
   DIAL_DAY_MINUTES,
@@ -419,7 +420,7 @@ function NowLine({ nowMin }) {
  *                        be null in polar seasons), or null to omit the
  *                        solar layer entirely (no location known).
  */
-const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineCompletions = null, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, onGoToday = null, chromeVisible = true }) => {
+const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineCompletions = null, complications = null, onOpenTask = null, onSetHabitCount = null, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, onGoToday = null, chromeVisible = true }) => {
   const { t, i18n } = useTranslation();
   const formatMinutes = (minutes) => formatLocalizedDurationMinutes(minutes, i18n.resolvedLanguage || i18n.language);
 
@@ -783,6 +784,24 @@ const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineComple
   // 2x2 grid), so measuring anything the legend's size feeds into creates a
   // feedback loop: near the threshold the mode flips every frame — a
   // sustained visible flicker across a ~45px window-width band.
+  // The dial's drawn size, for anything positioned against the face itself
+  // (the complication slots). The area's box is imposed by the parent flex,
+  // so nothing inside it can feed back into this measurement.
+  const areaRef = useRef(null);
+  const [areaBox, setAreaBox] = useState(null);
+  useEffect(() => {
+    const el = areaRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setAreaBox((prev) => (prev && prev.width === width && prev.height === height
+        ? prev
+        : { width, height }));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const wrapRef = useRef(null);
   const [wrapBox, setWrapBox] = useState(null);
   useEffect(() => {
@@ -1005,7 +1024,7 @@ const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineComple
 
   return (
     <div ref={wrapRef} className="w-full h-full flex flex-col items-center justify-center gap-2 select-none">
-      <div className="relative w-full flex-1 min-h-0 flex items-center justify-center">
+      <div ref={areaRef} className="relative w-full flex-1 min-h-0 flex items-center justify-center">
         {/* The horizontal viewBox margin exists only for the 3/9-o'clock
             labels, which extend past the dial's square; compact mode drops
             those labels, so it reclaims the margin too. */}
@@ -1252,6 +1271,20 @@ const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineComple
             </div>
           )}
         </div>
+
+        {/* Watch-face complications, positioned off the dial's measured size
+            (the viewBox is 1000 units tall, so its drawn height IS the
+            dial's diameter in px). */}
+        {complications?.length > 0 && (
+          <DialComplications
+            items={complications}
+            dialPx={areaBox
+              ? Math.min(areaBox.height, areaBox.width / (compact ? 1 : 1.12))
+              : null}
+            onOpenTask={onOpenTask}
+            onSetHabitCount={onSetHabitCount}
+          />
+        )}
 
         {/* The ring's accessibility tree and its single tab stop. The SVG
             above is one image to AT, so the blocks get real semantics here:
