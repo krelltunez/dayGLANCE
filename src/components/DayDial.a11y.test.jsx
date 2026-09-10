@@ -217,6 +217,28 @@ describe('DayDial keyboard/AT contract', () => {
     expect(options(html)).toHaveLength(1);
   });
 
+  it('draws the daylight band under the schedule, and only when lit', async () => {
+    const i18n = await i18nFor('en');
+    const steps = [
+      { startMin: 400, endMin: 404, opacity: 0.05 },
+      { startMin: 404, endMin: 408, opacity: 0.2 },
+    ];
+    const html = render(i18n, { dayTasks: [task()], daylight: steps });
+    // Each step is feathered into three concentric sub-bands, so its radial
+    // edges fade instead of cutting: two paths per step at a third strength
+    // and one at full.
+    expect(html).toContain('fill="#fcd34d"');
+    expect((html.match(/fill-opacity="0\.2"/g) || [])).toHaveLength(1);
+    expect((html.match(/fill-opacity="0\.07"/g) || [])).toHaveLength(2); // 0.2 x 0.35, twice
+    expect((html.match(/fill-opacity="0\.0175"/g) || [])).toHaveLength(2); // 0.05 x 0.35
+    // Beneath the wedges: the band's group opens before the first block.
+    expect(html.indexOf('#fcd34d')).toBeLessThan(html.indexOf('Deep work'));
+
+    // A polar night, or no location at all, draws nothing.
+    expect(render(i18n, { dayTasks: [task()], daylight: [] })).not.toContain('#fcd34d');
+    expect(render(i18n, { dayTasks: [task()] })).not.toContain('#fcd34d');
+  });
+
   it('localizes the listbox name and the option labels', async () => {
     const i18n = await i18nFor('de');
     const html = render(i18n, { dayTasks: [task({ completed: true })] });
