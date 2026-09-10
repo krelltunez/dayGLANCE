@@ -1342,6 +1342,8 @@
     "habitAdd": "加一",
     "habitRemove": "减一",
     "habitTarget": "目标 {{target}}",
+    "focus": "专注",
+    "startFocus": "开始专注时段",
     "habitLabel": "{{name}}：{{count}}/{{target}}",
     "aria": "日程表盘：{{date}}",
     "blockList": "日程时段",

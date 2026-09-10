@@ -239,6 +239,35 @@ describe('DayDial keyboard/AT contract', () => {
     expect(render(i18n, { dayTasks: [task()] })).not.toContain('#fcd34d');
   });
 
+  it('rails the day\'s focus sessions inside the blocks they happened in', async () => {
+    const i18n = await i18nFor('en');
+    const html = render(i18n, {
+      dayTasks: [task()],
+      focusSpans: [{ startMin: 540, endMin: 591 }, { startMin: 840, endMin: 870 }],
+    });
+    expect((html.match(/fill-opacity="0\.42"/g) || [])).toHaveLength(1); // one group
+    expect((html.match(/A 315 315/g) || [])).toHaveLength(2);  // one arc per span
+    // The rail sits INSIDE the schedule band (300-385) rather than beside
+    // it, and clear of the wedge's own inner edge stroke at 300.
+    expect(html).toContain('A 307 307');
+    // And the total gets a home in the legend, kept out of the minute totals
+    // above it (focus happens INSIDE those same blocks).
+    expect(html).toContain('Focus');
+    expect(html).toContain('1h 21m');
+
+    expect(render(i18n, { dayTasks: [task()], focusSpans: [] })).not.toContain('fill-opacity="0.42"');
+    expect(render(i18n, { dayTasks: [task()] })).not.toContain('>Focus<');
+  });
+
+  it('keeps the now line from swallowing taps on the blocks beneath it', async () => {
+    const i18n = await i18nFor('en');
+    const html = render(i18n, { dayTasks: [task()] });
+    // The needle and its afterglow are painted OVER the wedges. Without this
+    // the glow eats every tap for the hour behind now — which is exactly the
+    // part of the running block someone reaches for.
+    expect(html).toMatch(/<g pointer-events="none">(?:(?!<\/g>).)*#fe8b00/s);
+  });
+
   it('localizes the listbox name and the option labels', async () => {
     const i18n = await i18nFor('de');
     const html = render(i18n, { dayTasks: [task({ completed: true })] });

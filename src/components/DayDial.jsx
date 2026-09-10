@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Check, ChevronLeft, ChevronRight, CircleDashed, ExternalLink, Leaf, MoonStar, Sparkles, Undo2, Zap } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, ChevronRight, CircleDashed, ExternalLink, Leaf, MoonStar, Sparkles, Timer, Undo2, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { stripWikilinks } from '../utils/taskUtils.js';
 import { formatLocalizedDurationMinutes } from '../utils/localeFormatting.js';
@@ -16,7 +16,9 @@ import {
   dialSectorPath,
   dialTicks,
   dialLabelYieldsToSun,
+  canStartFocusFromBlock,
   findDialFocusBlock,
+  focusSpanMinutes,
   initialDialSelection,
   muteDialColor,
   padDialSegment,
@@ -93,6 +95,19 @@ const DAYLIGHT_COLOR = '#fcd34d';
 // Feathered rather than cut: three concentric sub-bands, the outer two at a
 // third strength, so the band has no hard radial edge to read as an object.
 const DAYLIGHT_FEATHER = [[0, 0.25, 0.35], [0.25, 0.75, 1], [0.75, 1, 0.35]];
+
+// Focus sessions ride a rail INSIDE the schedule band, not beside it: focus
+// mode can only run inside a block that is already on the ring, so the mark
+// belongs to that block rather than to a track of its own. 307 clears the
+// wedge's own inner edge stroke — a rail sitting exactly on it reads as the
+// edge rather than as a separate fact, which is what ruled out the effort
+// blue in the mock (it is that stroke's colour).
+const R_FOCUS_RAIL = [307, 315];
+// Neutral rather than a sixth hue: orange is now, teal routines, violet
+// sleep, amber daylight, and the wedges carry the task palette.
+const FOCUS_COLOR = '#ffffff';
+const FOCUS_OPACITY = 0.42;
+
 const ROUTINE_WEIGHT = 14;
 const ROUTINE_OPACITY = 0.5;
 const ROUTINE_DONE_OPACITY = 0.18;
@@ -329,6 +344,29 @@ function DaylightBand({ steps }) {
 }
 
 /**
+ * Where the day's focus sessions actually landed, as a rail inside the
+ * schedule band. Drawn over the wedges: the point is which part of a block
+ * the work happened in, so it has to read against that block's fill.
+ *
+ * Overlapping blocks take lanes, but the rail does not — a session is a
+ * stretch of the day's clock, not a claim about which of two stacked blocks
+ * it belonged to, so one rail at one radius is the honest depth.
+ */
+function FocusRail({ spans }) {
+  const [r0, r1] = R_FOCUS_RAIL;
+  return (
+    <g fill={FOCUS_COLOR} fillOpacity={FOCUS_OPACITY}>
+      {spans.map((span) => (
+        <path
+          key={span.startMin}
+          d={dialSectorPath(CX, CY, r0, r1, span.startMin, span.endMin)}
+        />
+      ))}
+    </g>
+  );
+}
+
+/**
  * The routine bars. Overlapping routines take lanes in the band exactly as
  * overlapping blocks do on the ring — dialLaneBand splits the track, and a
  * bar is stroked along its lane's centre line so its weight IS the lane's
@@ -393,7 +431,11 @@ function NowLine({ nowMin }) {
   const deg = (nowMin / 1440) * 360;
   const dot = dialPoint(CX, CY, R_EDGE, nowMin);
   return (
-    <g>
+    // Decorative throughout, and it sits ON TOP of the wedges: without this
+    // the afterglow sectors swallow taps for the whole hour behind the
+    // needle, which is precisely the part of the running block someone
+    // reaches for to start a focus session.
+    <g pointerEvents="none">
       {/* Radar-sweep afterglow: every sector ends at the needle, each one
           starting closer to it, so their tiny opacities stack into a smooth
           ramp — brightest just behind the needle, gone an hour back. */}
@@ -457,7 +499,7 @@ function NowLine({ nowMin }) {
  *                        be null in polar seasons), or null to omit the
  *                        solar layer entirely (no location known).
  */
-const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineCompletions = null, daylight = null, complications = null, onOpenTask = null, onSetHabitCount = null, onIncrementHabit = null, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, onGoToday = null, chromeVisible = true }) => {
+const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineCompletions = null, daylight = null, focusSpans = null, onStartFocus = null, complications = null, onOpenTask = null, onSetHabitCount = null, onIncrementHabit = null, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, onGoToday = null, chromeVisible = true }) => {
   const { t, i18n } = useTranslation();
   const formatMinutes = (minutes) => formatLocalizedDurationMinutes(minutes, i18n.resolvedLanguage || i18n.language);
 
@@ -949,6 +991,17 @@ const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineComple
     // Routines are habits, not scheduled work: they are counted, never
     // summed into the minute totals above (those stay a partition of
     // scheduled task time).
+    // Focus is time spent INSIDE the blocks above, so summing it into the
+    // totals would double-count the same minutes; it gets its own figure.
+    ...(focusSpans?.length
+      ? [{
+        key: 'focus',
+        label: t('dial.focus', 'Focus'),
+        color: FOCUS_COLOR,
+        minutes: focusSpanMinutes(focusSpans),
+        Icon: Timer,
+      }]
+      : []),
     ...(routineBars.length
       ? [{
         key: 'routines',
@@ -1155,6 +1208,10 @@ const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineComple
               />
             );
           })}
+
+          {/* Focus sessions — over the wedges, since the rail is about which
+              part of a block the work landed in. */}
+          {focusSpans?.length > 0 && <FocusRail spans={focusSpans} />}
 
           {routineBars.length > 0 && (
             <RoutineBars
@@ -1406,6 +1463,15 @@ const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineComple
                       {live.completed
                         ? t('dial.markNotComplete', 'Mark not complete')
                         : t('dial.markComplete', 'Mark complete')}
+                    </button>
+                  )}
+                  {onStartFocus && canStartFocusFromBlock(live, nowMin) && (
+                    <button
+                      onClick={() => { closeSheet(); onStartFocus(); }}
+                      className="w-full flex items-center gap-2.5 rounded-lg bg-white/5 hover:bg-white/10 active:bg-white/15 px-3.5 py-2.5 text-white/85 text-sm transition-colors"
+                    >
+                      <Timer size={16} className="text-white/50" />
+                      {t('dial.startFocus', 'Start focus session')}
                     </button>
                   )}
                   {onOpenInPlanner && (

@@ -4138,6 +4138,11 @@ const DayPlanner = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showSpotlight, calendarFilter, nativeCalendarKey]);
 
+  // How many session spans one day keeps for the Day Dial's focus rail.
+  // A day cannot hold many real sessions; this only bounds the pathological
+  // open-and-close case.
+  const FOCUS_SPANS_PER_DAY = 60;
+
   const enterFocusMode = () => {
     setShowFocusMode(true);
     setFocusShowSettings(true);
@@ -4214,6 +4219,12 @@ const DayPlanner = () => {
       const sessionMinutes = Math.round((new Date() - focusSessionStart) / 60000);
       if (sessionMinutes > 0) {
         const sessionDateStr = dateToString(new Date(focusSessionStart));
+        // WHEN the session ran, not just how long — the Day Dial places it
+        // against the block it happened in. Minutes-of-day from the start,
+        // with the end left unwrapped past 1440 when a session crosses
+        // midnight (the log is keyed by the date the session STARTED).
+        const startMin = focusSessionStart.getHours() * 60 + focusSessionStart.getMinutes();
+        const span = { start: startMin, end: startMin + sessionMinutes };
         setFocusLog(prev => {
           const existing = prev[sessionDateStr] || { totalMinutes: 0, sessions: 0, cyclesCompleted: 0, tasksCompleted: 0 };
           const updated = {
@@ -4222,6 +4233,10 @@ const DayPlanner = () => {
             sessions: existing.sessions + 1,
             cyclesCompleted: existing.cyclesCompleted + focusCycleCount,
             tasksCompleted: existing.tasksCompleted + focusCompletedTasks.size,
+            // Bounded so that repeatedly opening and closing focus mode can't
+            // grow one day's entry without limit; the newest are kept, and
+            // totalMinutes above stays complete either way.
+            spans: [...(existing.spans || []), span].slice(-FOCUS_SPANS_PER_DAY),
           };
           return { ...prev, [sessionDateStr]: updated };
         });

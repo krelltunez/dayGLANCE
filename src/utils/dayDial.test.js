@@ -25,6 +25,9 @@ import {
   dialPeakUv,
   DAYLIGHT_FLOOR,
   DAYLIGHT_PEAK,
+  computeFocusSpans,
+  focusSpanMinutes,
+  canStartFocusFromBlock,
 } from './dayDial.js';
 
 const task = (over = {}) => ({
@@ -667,5 +670,96 @@ describe('dialPeakUv', () => {
   it('keeps a real zero apart from missing data', () => {
     // Overcast midwinter genuinely reads 0; that is data, not absence.
     expect(dialPeakUv({ 12: { uv: 0 } })).toBe(0);
+  });
+});
+
+describe('computeFocusSpans', () => {
+  const log = (spans, extra = {}) => ({ '2026-09-10': { totalMinutes: 60, sessions: spans.length, spans, ...extra } });
+
+  it('places each session on the day\'s clock', () => {
+    expect(computeFocusSpans(log([{ start: 540, end: 565 }]), '2026-09-10'))
+      .toEqual([{ startMin: 540, endMin: 565 }]);
+  });
+
+  it('draws back-to-back sessions as one stretch', () => {
+    // Two pomodoros either side of a break inside one block are one piece of
+    // focus to look at; the day's session COUNT is kept separately, so
+    // nothing is lost by merging them here.
+    expect(computeFocusSpans(log([
+      { start: 540, end: 565 }, { start: 566, end: 591 },
+    ]), '2026-09-10')).toEqual([{ startMin: 540, endMin: 591 }]);
+  });
+
+  it('keeps sessions in different blocks apart', () => {
+    expect(computeFocusSpans(log([
+      { start: 540, end: 565 }, { start: 840, end: 870 },
+    ]), '2026-09-10')).toEqual([
+      { startMin: 540, endMin: 565 },
+      { startMin: 840, endMin: 870 },
+    ]);
+  });
+
+  it('orders and coalesces whatever order the log holds', () => {
+    expect(computeFocusSpans(log([
+      { start: 840, end: 870 }, { start: 540, end: 600 }, { start: 580, end: 650 },
+    ]), '2026-09-10')).toEqual([
+      { startMin: 540, endMin: 650 },
+      { startMin: 840, endMin: 870 },
+    ]);
+  });
+
+  it('clips a session that ran past midnight at the day it belongs to', () => {
+    // The log is keyed by the date the session STARTED; the remainder is
+    // tomorrow's, and this entry does not describe tomorrow.
+    expect(computeFocusSpans(log([{ start: 1425, end: 1470 }]), '2026-09-10'))
+      .toEqual([{ startMin: 1425, endMin: 1440 }]);
+  });
+
+  it('is empty for a day with no record, and for the old shape', () => {
+    expect(computeFocusSpans(log([{ start: 540, end: 565 }]), '2026-09-09')).toEqual([]);
+    expect(computeFocusSpans(null, '2026-09-10')).toEqual([]);
+    // Days logged before spans existed keep their totals but have no times
+    // to place — the ring is honestly bare for them rather than guessing.
+    expect(computeFocusSpans({ '2026-09-10': { totalMinutes: 90, sessions: 2 } }, '2026-09-10')).toEqual([]);
+  });
+
+  it('drops entries that carry no real interval', () => {
+    expect(computeFocusSpans(log([
+      { start: 540, end: 540 }, { start: 600, end: 590 }, { start: 'x', end: 700 }, null,
+    ]), '2026-09-10')).toEqual([]);
+  });
+});
+
+describe('focusSpanMinutes', () => {
+  it('totals the merged spans', () => {
+    expect(focusSpanMinutes([{ startMin: 540, endMin: 591 }, { startMin: 840, endMin: 870 }])).toBe(81);
+  });
+
+  it('is zero with nothing to total', () => {
+    expect(focusSpanMinutes([])).toBe(0);
+    expect(focusSpanMinutes(null)).toBe(0);
+  });
+});
+
+
+describe('canStartFocusFromBlock', () => {
+  const block = (over = {}) => ({ startMin: 540, endMin: 660, ...over });
+
+  it('allows it only on the block that is running now', () => {
+    // Focus mode derives its block from the CURRENT time, not from whatever
+    // was tapped, so offering the action elsewhere would silently focus a
+    // different block than the one asked for.
+    expect(canStartFocusFromBlock(block(), 600)).toBe(true);
+    expect(canStartFocusFromBlock(block(), 540)).toBe(true);   // the first minute counts
+    expect(canStartFocusFromBlock(block(), 660)).toBe(false);  // the last does not
+    expect(canStartFocusFromBlock(block(), 400)).toBe(false);
+    expect(canStartFocusFromBlock(block(), 800)).toBe(false);
+  });
+
+  it('refuses where there is no running block to focus', () => {
+    expect(canStartFocusFromBlock(block(), null)).toBe(false);  // no now line
+    expect(canStartFocusFromBlock(block({ isRoutine: true }), 600)).toBe(false);
+    expect(canStartFocusFromBlock({ }, 600)).toBe(false);       // an all-day item
+    expect(canStartFocusFromBlock(null, 600)).toBe(false);
   });
 });
