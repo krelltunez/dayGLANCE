@@ -5,7 +5,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { getStoredWeatherCoords, getSunTimes } from '../utils/solar.js';
-import { computeFocusSpans } from '../utils/dayDial.js';
+import { computeDaylightBand, computeFocusSpans, dialPeakUv } from '../utils/dayDial.js';
 import { acquireWakeLock, releaseWakeLock } from '../utils/wakeLock.js';
 import { isNativeApp, nativeSetImmersiveMode } from '../native.js';
 import { AMBIENT_DELAY_OPTIONS, loadAmbientPrefs, saveAmbientPrefs } from '../utils/dialPrefs.js';
@@ -473,11 +473,23 @@ const DayDialModal = () => {
   // Solar layer: sunrise/sunset computed locally from the weather feature's
   // persisted geocode (utils/solar.js) — any date, works offline. No
   // location ever configured → null → the layer doesn't render.
-  const sun = useMemo(() => {
+  const solar = useMemo(() => {
     if (!layers.solar) return null;
     const coords = getStoredWeatherCoords();
-    return coords ? getSunTimes(selectedDate, coords.lat, coords.lon) : null;
+    return coords ? { coords, sun: getSunTimes(selectedDate, coords.lat, coords.lon) } : null;
   }, [selectedDate, layers.solar]);
+  const sun = solar?.sun ?? null;
+
+  // The daylight band. Its extent and shape are the local solar solution, so
+  // it draws on any date and offline; the forecast's UV only scales it, on
+  // the few days the forecast reaches. Deliberately NOT gated on the weather
+  // layer: that toggle governs what the weather ring shows, while this is the
+  // sun, and it belongs with the marks the solar layer already draws.
+  const daylight = useMemo(() => (solar
+    ? computeDaylightBand(selectedDate, solar.coords, solar.sun,
+      dialPeakUv(weather?.hourlyByDate?.[dateStr]))
+    : []),
+  [solar, selectedDate, weather, dateStr]);
 
   // Calendars off hides calendar-imported events (Obsidian-imported tasks
   // are the user's own work and stay); totals and the ring follow together
@@ -679,6 +691,7 @@ const DayDialModal = () => {
         formatTime={formatTime}
         use24HourClock={use24HourClock}
         sun={sun}
+        daylight={daylight}
         hourlyWeather={layers.weather ? (weather?.hourlyByDate?.[dateStr] ?? null) : null}
         onToggleComplete={handleToggleComplete}
         onOpenInPlanner={handleOpenInPlanner}

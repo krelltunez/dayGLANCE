@@ -1,6 +1,7 @@
 import { computeDaySummary } from './daySummary.js';
 import { deriveBlockEnergy } from './energyAxis.js';
 import { taskColorToHex } from './colorUtils.js';
+import { getPeakSunElevation, getSunElevation, POLAR_DAY } from './solar.js';
 
 // Model + geometry for the Day Dial — the ambient 24-hour instrument view.
 // Pure functions only: DayDial.jsx stays presentational and every angle,
@@ -563,6 +564,105 @@ export function canStartFocusFromBlock(block, nowMin) {
 /** Total minutes of focus the day's spans cover, once merged. */
 export function focusSpanMinutes(spans) {
   return (spans || []).reduce((sum, s) => sum + (s.endMin - s.startMin), 0);
+}
+
+// ── Daylight band ───────────────────────────────────────────────────────────
+//
+// The lit part of the day, drawn as a soft arc hugging the schedule ring's
+// inner edge — in among the weather, where it belongs, rather than out in
+// the tick field where the ticks stripe through it.
+//
+// Its EXTENT comes from getSunTimes, the same function that places the
+// sunrise/sunset hairlines, so the band always begins and ends exactly at
+// the marks. Its INTENSITY comes from the sun's elevation through the day,
+// computed locally: that means the band works on any date the dial can page
+// to and keeps working offline, which a fetched forecast could not (six days
+// of coverage against a dial with no end stops).
+//
+// Two things intensity deliberately does NOT do. It does not renormalise per
+// day — the reference is the site's own best noon of the year, so a December
+// arc really is shorter AND dimmer than a June one instead of every day
+// peaking alike. And it never falls to nothing: the floor keeps a midwinter
+// day present, which is when the shape of the day is most worth seeing.
+
+/** Opacity at the horizons — the band's quietest, never invisible. */
+export const DAYLIGHT_FLOOR = 0.05;
+/** Opacity at an overhead summer noon under a clear sky. */
+export const DAYLIGHT_PEAK = 0.2;
+/** Angular resolution of the gradient: 4 minutes = 1° of dial. */
+export const DAYLIGHT_STEP_MIN = 4;
+
+// UV index taken as "full strength" — the bottom of the WHO's "very high"
+// band. Pinning it at the 11+ extreme instead would reserve a full-strength
+// band for the desert and leave an ordinary clear summer day visibly dim.
+const UV_REFERENCE = 8;
+// However flat the light, a lit day still reads as lit.
+const UV_MIN_SCALE = 0.4;
+
+/**
+ * The daylight band as a list of arc steps, each with its own opacity.
+ *
+ * @param date    The local day being drawn.
+ * @param coords  {lat, lon}, or null when no location is configured.
+ * @param sun     getSunTimes' result for that date and place.
+ * @param uvMax   The day's peak UV index, or null when the forecast doesn't
+ *                reach this date. Present, it scales the whole band: this is
+ *                the one term that knows about the sky rather than the
+ *                geometry, so haze, cloud and thin mountain air all land
+ *                here. Absent, the band is pure geometry.
+ * @returns Array of {startMin, endMin, opacity}, empty when nothing is lit.
+ */
+export function computeDaylightBand(date, coords, sun, uvMax = null) {
+  if (!coords || !sun) return [];
+
+  // Polar night draws nothing; polar day is lit end to end. Otherwise the
+  // band runs sunrise → sunset, wrapping midnight if it has to.
+  let startMin;
+  let endMin;
+  if (sun.polar === POLAR_DAY) {
+    startMin = 0;
+    endMin = DIAL_DAY_MINUTES;
+  } else if (sun.polar || sun.sunriseMin == null || sun.sunsetMin == null) {
+    return [];
+  } else {
+    startMin = sun.sunriseMin;
+    endMin = sun.sunsetMin > sun.sunriseMin ? sun.sunsetMin : sun.sunsetMin + DIAL_DAY_MINUTES;
+  }
+
+  const peakSin = Math.sin((getPeakSunElevation(coords.lat) * Math.PI) / 180);
+  const uvScale = uvMax == null
+    ? 1
+    : Math.min(1, Math.max(UV_MIN_SCALE, uvMax / UV_REFERENCE));
+
+  const steps = [];
+  for (let m = startMin; m < endMin; m += DAYLIGHT_STEP_MIN) {
+    const stop = Math.min(m + DAYLIGHT_STEP_MIN, endMin);
+    const elev = getSunElevation(date, coords.lat, coords.lon, (m + stop) / 2);
+    // Below the horizon only at the very edges, where the local elevation
+    // curve and the rise/set solution disagree by a minute or two; the floor
+    // is the honest answer there either way.
+    const lit = Math.max(0, Math.sin((elev * Math.PI) / 180)) / (peakSin || 1);
+    // Minutes stay unwrapped (a band crossing midnight runs past 1440);
+    // the geometry converts minutes to an angle, which wraps on its own.
+    steps.push({
+      startMin: m,
+      endMin: stop,
+      opacity: DAYLIGHT_FLOOR
+        + (DAYLIGHT_PEAK - DAYLIGHT_FLOOR) * Math.min(1, lit) * uvScale,
+    });
+  }
+  return steps;
+}
+
+/** The day's peak UV from the dial's hourly weather, or null without one. */
+export function dialPeakUv(hourly) {
+  if (!hourly) return null;
+  let max = null;
+  for (let h = 0; h < 24; h++) {
+    const uv = hourly[h]?.uv;
+    if (Number.isFinite(uv)) max = max == null ? uv : Math.max(max, uv);
+  }
+  return max;
 }
 
 // A sunrise/sunset mark rides its hairline out to the hour-label radius, so

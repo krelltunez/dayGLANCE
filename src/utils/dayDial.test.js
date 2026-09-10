@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { getSunTimes } from './solar.js';
 import {
   DIAL_DAY_MINUTES,
   DIAL_LANE_GAP,
@@ -20,6 +21,10 @@ import {
   muteDialColor,
   precipRuns,
   stepDialSelection,
+  computeDaylightBand,
+  dialPeakUv,
+  DAYLIGHT_FLOOR,
+  DAYLIGHT_PEAK,
   computeFocusSpans,
   focusSpanMinutes,
   canStartFocusFromBlock,
@@ -566,6 +571,107 @@ describe('dialLabelYieldsToSun', () => {
   });
 });
 
+
+describe('computeDaylightBand', () => {
+  // Denver, ~5,280 ft: the site the band was designed against. Coordinates
+  // only reach the astronomy — altitude is not part of a sun-angle
+  // calculation, and reaches the band through the UV term instead.
+  const DENVER = { lat: 39.7392, lon: -104.9903 };
+  const TROMSO = { lat: 69.65, lon: 18.95 };
+
+  const band = (date, coords, uv = null) =>
+    computeDaylightBand(date, coords, getSunTimes(date, coords.lat, coords.lon), uv);
+  const span = (steps) => (steps.length ? steps[steps.length - 1].endMin - steps[0].startMin : 0);
+  const peak = (steps) => Math.max(...steps.map((x) => x.opacity));
+
+  it('runs from sunrise to sunset, the same solution the hairlines use', () => {
+    const date = new Date(2026, 8, 10);
+    const sun = getSunTimes(date, DENVER.lat, DENVER.lon);
+    const steps = computeDaylightBand(date, DENVER, sun);
+    expect(steps[0].startMin).toBe(sun.sunriseMin);
+    // Minutes are left unwrapped, so a band that crosses midnight runs past
+    // 1440 rather than restarting — which is exactly this case, since a UTC
+    // device with US coordinates sets after midnight local. The geometry
+    // turns minutes into an angle, and an angle wraps by itself.
+    expect(sun.sunsetMin).toBeLessThan(sun.sunriseMin);
+    expect(steps[steps.length - 1].endMin).toBe(sun.sunsetMin + DIAL_DAY_MINUTES);
+    expect(steps[steps.length - 1].endMin % DIAL_DAY_MINUTES).toBe(sun.sunsetMin);
+  });
+
+  it('makes a winter day both shorter and dimmer than a summer one', () => {
+    // The whole point of normalising against the site's best noon rather
+    // than each day's own: renormalising per day makes every December look
+    // exactly like every June.
+    const june = band(new Date(2026, 5, 21), DENVER);
+    const dec = band(new Date(2026, 11, 21), DENVER);
+    expect(span(dec)).toBeLessThan(span(june) - 4 * 60);
+    expect(peak(dec)).toBeLessThan(peak(june) * 0.7);
+  });
+
+  it('never fades below the floor, so midwinter still reads', () => {
+    const dec = band(new Date(2026, 11, 21), DENVER);
+    expect(dec.length).toBeGreaterThan(0);
+    for (const step of dec) expect(step.opacity).toBeGreaterThanOrEqual(DAYLIGHT_FLOOR);
+    // And the floor is where it starts: the first step is at the horizon.
+    expect(dec[0].opacity).toBeCloseTo(DAYLIGHT_FLOOR, 2);
+  });
+
+  it('tops out at the peak on the best day of the year', () => {
+    const june = band(new Date(2026, 5, 21), DENVER);
+    expect(peak(june)).toBeLessThanOrEqual(DAYLIGHT_PEAK + 1e-9);
+    expect(peak(june)).toBeGreaterThan(DAYLIGHT_PEAK * 0.95);
+    for (const step of june) expect(step.opacity).toBeLessThanOrEqual(DAYLIGHT_PEAK + 1e-9);
+  });
+
+  it('brightens toward solar noon and back down again', () => {
+    const steps = band(new Date(2026, 8, 10), DENVER);
+    const mid = Math.floor(steps.length / 2);
+    expect(steps[mid].opacity).toBeGreaterThan(steps[0].opacity);
+    expect(steps[mid].opacity).toBeGreaterThan(steps[steps.length - 1].opacity);
+  });
+
+  it('lights the whole ring through polar day and none of it through polar night', () => {
+    const midnightSun = band(new Date(2026, 5, 21), TROMSO);
+    expect(span(midnightSun)).toBe(1440);
+    for (const step of midnightSun) expect(step.opacity).toBeGreaterThan(DAYLIGHT_FLOOR);
+    // Polar night is the opposite day, not the same missing data.
+    expect(band(new Date(2026, 11, 21), TROMSO)).toEqual([]);
+  });
+
+  it('scales the whole band by UV when the forecast reaches the date', () => {
+    const date = new Date(2026, 5, 21);
+    const clear = band(date, DENVER, 10);
+    const overcast = band(date, DENVER, 1);
+    const noData = band(date, DENVER);
+    // No UV is not "UV zero" — the band is pure geometry there.
+    expect(peak(noData)).toBeCloseTo(peak(clear), 6);
+    expect(peak(overcast)).toBeLessThan(peak(clear));
+    // ...but a flat grey day is still a lit day.
+    expect(peak(overcast)).toBeGreaterThan(DAYLIGHT_FLOOR);
+    expect(span(overcast)).toBe(span(clear));
+  });
+
+  it('draws nothing without a location', () => {
+    expect(computeDaylightBand(new Date(2026, 5, 21), null, { sunriseMin: 300, sunsetMin: 1200 })).toEqual([]);
+    expect(computeDaylightBand(new Date(2026, 5, 21), DENVER, null)).toEqual([]);
+  });
+});
+
+describe('dialPeakUv', () => {
+  it('takes the day\'s highest reading', () => {
+    expect(dialPeakUv({ 9: { uv: 3 }, 12: { uv: 8.4 }, 15: { uv: 5 } })).toBe(8.4);
+  });
+
+  it('is null when the forecast carries no UV at all', () => {
+    expect(dialPeakUv(null)).toBeNull();
+    expect(dialPeakUv({ 12: { temp: 20, code: 1 } })).toBeNull();
+  });
+
+  it('keeps a real zero apart from missing data', () => {
+    // Overcast midwinter genuinely reads 0; that is data, not absence.
+    expect(dialPeakUv({ 12: { uv: 0 } })).toBe(0);
+  });
+});
 
 describe('computeFocusSpans', () => {
   const log = (spans, extra = {}) => ({ '2026-09-10': { totalMinutes: 60, sessions: spans.length, spans, ...extra } });

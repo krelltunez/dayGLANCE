@@ -118,14 +118,20 @@ const useWeather = () => {
 
       tz = tz || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-      const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&hourly=temperature_2m,weather_code&temperature_unit=${tempUnit}&timezone=${encodeURIComponent(tz)}&forecast_days=6`);
+      const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&hourly=temperature_2m,weather_code,uv_index&temperature_unit=${tempUnit}&timezone=${encodeURIComponent(tz)}&forecast_days=6`);
       const data = await response.json();
 
       if (data.current && data.daily) {
         // Hour-grained temps/codes by local date, for the Day Dial's weather
-        // ring: { 'YYYY-MM-DD': { 0: {temp, code}, ..., 23: {...} } }. Only
-        // dates the forecast covers exist as keys — the dial treats a missing
-        // date as "no data" and drops the layer for it.
+        // ring: { 'YYYY-MM-DD': { 0: {temp, code, uv}, ..., 23: {...} } }.
+        // Only dates the forecast covers exist as keys — the dial treats a
+        // missing date as "no data" and drops the layer for it.
+        //
+        // uv_index is the cloud-adjusted figure, not the clear-sky one, so an
+        // overcast day genuinely reads lower; the dial's daylight band uses
+        // it to scale intensity, and it is the only term there that knows
+        // about the sky (haze, cloud, thin air at altitude) rather than about
+        // where the sun is.
         const hourlyByDate = {};
         if (data.hourly?.time) {
           data.hourly.time.forEach((iso, i) => {
@@ -133,6 +139,7 @@ const useWeather = () => {
             (hourlyByDate[dateStr] ??= {})[parseInt(hh, 10)] = {
               temp: Math.round(data.hourly.temperature_2m[i]),
               code: data.hourly.weather_code[i],
+              uv: data.hourly.uv_index?.[i],
             };
           });
         }
