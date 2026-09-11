@@ -1383,7 +1383,12 @@
     "alignedOf": "{{aligned}} of {{total}} min",
     "projectClear": "Every task on this project is done",
     "alignedLabel": "Aligned: {{percent}}%, {{aligned}} of {{total}} minutes on a project",
-    "projectLabel": "{{name}}: {{percent}}%, {{done}} of {{total}} tasks"
+    "projectLabel": "{{name}}: {{percent}}%, {{done}} of {{total}} tasks",
+    "slotEmpty": "Empty",
+    "slotTopLeft": "Top left",
+    "slotTopRight": "Top right",
+    "slotBottomLeft": "Bottom left",
+    "slotBottomRight": "Bottom right"
   },
   "intentLog": {
     "clearLog": "Clear log",

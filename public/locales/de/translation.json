@@ -1383,7 +1383,12 @@
     "alignedOf": "{{aligned}} von {{total}} Min.",
     "projectClear": "Alle Aufgaben dieses Projekts sind erledigt",
     "alignedLabel": "Ausgerichtet: {{percent}} %, {{aligned}} von {{total}} Minuten auf einem Projekt",
-    "projectLabel": "{{name}}: {{percent}} %, {{done}} von {{total}} Aufgaben"
+    "projectLabel": "{{name}}: {{percent}} %, {{done}} von {{total}} Aufgaben",
+    "slotEmpty": "Leer",
+    "slotTopLeft": "Oben links",
+    "slotTopRight": "Oben rechts",
+    "slotBottomLeft": "Unten links",
+    "slotBottomRight": "Unten rechts"
   },
   "intentLog": {
     "clearLog": "Protokoll löschen",

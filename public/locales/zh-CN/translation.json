@@ -1383,7 +1383,12 @@
     "alignedOf": "{{total}} 分钟中的 {{aligned}} 分钟",
     "projectClear": "该项目的所有任务均已完成",
     "alignedLabel": "对齐：{{percent}}%，{{total}} 分钟中有 {{aligned}} 分钟用于项目",
-    "projectLabel": "{{name}}：{{percent}}%，{{total}} 个任务中已完成 {{done}} 个"
+    "projectLabel": "{{name}}：{{percent}}%，{{total}} 个任务中已完成 {{done}} 个",
+    "slotEmpty": "空",
+    "slotTopLeft": "左上",
+    "slotTopRight": "右上",
+    "slotBottomLeft": "左下",
+    "slotBottomRight": "右下"
   },
   "intentLog": {
     "clearLog": "清空日志",

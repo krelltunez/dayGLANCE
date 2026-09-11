@@ -1,15 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, CalendarClock, CalendarDays, ChevronDown, Eclipse, FolderKanban, Inbox, Layers, Maximize, Minimize, Monitor, Sparkles, Sunrise, Target, Thermometer, X, Timer, CircleCheck } from 'lucide-react';
+import { CalendarDays, Eclipse, Layers, Maximize, Minimize, Monitor, Sparkles, Sunrise, Thermometer, X, Timer } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { getStoredWeatherCoords, getSunTimes } from '../utils/solar.js';
-import { computeDayAlignment, computeDayCompletion, computeDaylightBand, computeFocusSpans, computeMoonBand, computeProjectProgress, dialPeakUv, orderComplicationKeys } from '../utils/dayDial.js';
+import { computeDayAlignment, computeDayCompletion, computeDaylightBand, computeFocusSpans, computeMoonBand, computeProjectProgress, dialPeakUv, assignComplicationSlot, normaliseComplicationSlots } from '../utils/dayDial.js';
 import { acquireWakeLock, releaseWakeLock } from '../utils/wakeLock.js';
 import { isNativeApp, nativeSetImmersiveMode } from '../native.js';
 import { AMBIENT_DELAY_OPTIONS, loadAmbientPrefs, saveAmbientPrefs } from '../utils/dialPrefs.js';
-import { HABIT_ICONS } from '../constants/habits.js';
 import DayDial from './DayDial.jsx';
 import Wordmark from './Wordmark.jsx';
 
@@ -48,13 +47,14 @@ const loadLayers = () => {
 // bottom-left, bottom-right). Device-local like the layer toggles: a wall
 // panel and a phone reasonably want different ones.
 const DIAL_COMPLICATIONS_KEY = 'day-planner-dial-complications';
-const MAX_COMPLICATIONS = 4;
+// Names for the four corners, in DialComplications' slot order.
+const COMPLICATION_CORNERS = ['slotTopLeft', 'slotTopRight', 'slotBottomLeft', 'slotBottomRight'];
+const CORNER_FALLBACKS = ['Top left', 'Top right', 'Bottom left', 'Bottom right'];
 const loadComplications = () => {
   try {
-    const raw = JSON.parse(localStorage.getItem(DIAL_COMPLICATIONS_KEY) || '[]');
-    return Array.isArray(raw) ? raw.filter((k) => typeof k === 'string') : [];
+    return normaliseComplicationSlots(JSON.parse(localStorage.getItem(DIAL_COMPLICATIONS_KEY) || '[]'));
   } catch {
-    return [];
+    return normaliseComplicationSlots(null);
   }
 };
 
@@ -82,53 +82,6 @@ const ToggleRow = ({ icon: Icon, label, on, onChange, disabled = false }) => (
       <span className={`absolute top-0.5 left-0 w-4 h-4 rounded-full bg-white transition-transform ${on ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
     </span>
   </button>
-);
-
-// A whole family of complications behind one row. Habits and projects are
-// both open-ended lists — a dozen habits and a growing project backlog would
-// each put a dozen rows in a menu that also has to hold layers, ambient and
-// the fixed readouts — so they collapse to a single row that says how many
-// are on and opens to the full list.
-//
-// The list is checkboxes rather than a select: the face has four slots and
-// more than one habit can reasonably ride it, so collapsing them to one
-// choice would take away something the flat list already allowed.
-const PickerGroup = ({ icon: Icon, label, emptyLabel, items, selectedCount, open, onToggleOpen }) => (
-  <>
-    <button
-      onClick={onToggleOpen}
-      aria-expanded={open}
-      className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-white/5"
-    >
-      <Icon size={16} className="text-white/50 flex-shrink-0" />
-      <span className="flex-1 text-left text-white/85 text-sm">{label}</span>
-      {selectedCount > 0 && (
-        <span className="flex-shrink-0 rounded-full bg-[#fe8b00]/70 px-1.5 text-[11px] leading-[18px] text-white tabular-nums">
-          {selectedCount}
-        </span>
-      )}
-      <ChevronDown
-        size={15}
-        className={`text-white/35 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
-      />
-    </button>
-    {open && (
-      <div className="ml-3 border-l border-white/10 pl-1 max-h-56 overflow-y-auto">
-        {items.length === 0
-          ? <div className="px-3 py-2 text-white/30 text-xs">{emptyLabel}</div>
-          : items.map((item) => (
-            <ToggleRow
-              key={item.key}
-              icon={item.icon}
-              label={item.label}
-              on={item.on}
-              disabled={item.disabled}
-              onChange={item.onChange}
-            />
-          ))}
-      </div>
-    )}
-  </>
 );
 
 const DayDialModal = () => {
@@ -596,30 +549,18 @@ const DayDialModal = () => {
   // exact expression (filteredUnscheduledTasks already applies all six inbox
   // filters, sorted), and the deadline list is the same accessor the
   // planner's all-day area uses.
-  const [complicationKeys, setComplicationKeys] = useState(loadComplications);
-  // Which family is expanded, if any — one at a time, so the menu cannot grow
-  // taller than the panel it lives in.
-  const [openGroup, setOpenGroup] = useState(null);
-  const toggleComplication = (key) => setComplicationKeys((prev) => {
-    const next = prev.includes(key)
-      ? prev.filter((k) => k !== key)
-      : [...prev, key].slice(0, MAX_COMPLICATIONS);
+  // One entry per corner, in DialComplications' slot order. The corner IS the
+  // setting: which readout rides where is the user's arrangement, not
+  // something to derive from the order they happened to switch things on.
+  const [complicationSlots, setComplicationSlots] = useState(loadComplications);
+  const setSlot = (index, key) => setComplicationSlots((prev) => {
+    const next = assignComplicationSlot(prev, index, key);
     try { localStorage.setItem(DIAL_COMPLICATIONS_KEY, JSON.stringify(next)); } catch { /* view pref only */ }
     return next;
   });
 
-  const complicationsFull = complicationKeys.length >= MAX_COMPLICATIONS;
-
-  // Canonical order, not the order they were switched on — see
-  // orderComplicationKeys. Slots are then assigned from THIS list and held:
-  // a readout that means nothing on the date being viewed leaves its corner
-  // empty rather than letting the ones after it shuffle along. Paging a day
-  // must not move the readouts that are still there.
-  const orderedKeys = useMemo(
-    () => orderComplicationKeys(complicationKeys, activeHabits, projects),
-    [complicationKeys, activeHabits, projects]);
-
-  const complications = useMemo(() => orderedKeys.map((key) => {
+  const complications = useMemo(() => complicationSlots.map((key) => {
+    if (!key) return null;
     if (key === 'inbox') {
       const items = (filteredUnscheduledTasks || []).filter((t) => !t.isExample);
       return { key, kind: 'inbox', count: items.length, items };
@@ -669,7 +610,7 @@ const DayDialModal = () => {
     .map((c) => (c && (isToday
       || c.kind === 'done' || c.kind === 'deadlines' || c.kind === 'project' || c.kind === 'aligned')
       ? c : null)),
-  [orderedKeys, filteredUnscheduledTasks, getDeadlineTasksForDate,
+  [complicationSlots, filteredUnscheduledTasks, getDeadlineTasksForDate,
     dateStr, activeHabits, getTodayHabitCount, dayTasks, isToday,
     goalsProjectsEnabled, projects, tasks, unscheduledTasks]);
 
@@ -826,7 +767,7 @@ const DayDialModal = () => {
           <div
             role="dialog"
             aria-label={t('dial.layers', 'Layers')}
-            className="absolute top-[calc(4rem+env(safe-area-inset-top,0px))] right-4 w-60 rounded-2xl border border-white/10 bg-[#12151c] p-1.5 shadow-2xl"
+            className="absolute top-[calc(4rem+env(safe-area-inset-top,0px))] right-4 w-64 rounded-2xl border border-white/10 bg-[#12151c] p-1.5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <ToggleRow
@@ -868,83 +809,57 @@ const DayDialModal = () => {
             <div className="px-3 pb-1 text-white/35 text-[11px] uppercase tracking-[0.14em]">
               {t('dial.complications', 'Complications')}
             </div>
-            <ToggleRow
-              icon={Inbox}
-              label={t('dial.inbox', 'Inbox')}
-              on={complicationKeys.includes('inbox')}
-              disabled={complicationsFull && !complicationKeys.includes('inbox')}
-              onChange={() => toggleComplication('inbox')}
-            />
-            <ToggleRow
-              icon={CircleCheck}
-              label={t('dial.done', 'Done')}
-              on={complicationKeys.includes('done')}
-              disabled={complicationsFull && !complicationKeys.includes('done')}
-              onChange={() => toggleComplication('done')}
-            />
-            <ToggleRow
-              icon={CalendarClock}
-              label={t('dial.deadlines', 'Deadlines')}
-              on={complicationKeys.includes('deadlines')}
-              disabled={complicationsFull && !complicationKeys.includes('deadlines')}
-              onChange={() => toggleComplication('deadlines')}
-            />
-            {goalsProjectsEnabled && (
-              <ToggleRow
-                icon={Target}
-                label={t('dial.aligned', 'Aligned')}
-                on={complicationKeys.includes('aligned')}
-                disabled={complicationsFull && !complicationKeys.includes('aligned')}
-                onChange={() => toggleComplication('aligned')}
-              />
-            )}
-            {habitsEnabled && (
-              <PickerGroup
-                icon={Activity}
-                label={t('dial.habits', 'Habits')}
-                emptyLabel={t('dial.nothingHere', 'Nothing here')}
-                open={openGroup === 'habit'}
-                onToggleOpen={() => setOpenGroup((g) => (g === 'habit' ? null : 'habit'))}
-                selectedCount={complicationKeys.filter((k) => k.startsWith('habit:')).length}
-                items={(activeHabits || []).map((habit) => {
-                  const key = `habit:${habit.id}`;
-                  return {
-                    key,
-                    icon: HABIT_ICONS[habit.icon] || Target,
-                    label: habit.name,
-                    on: complicationKeys.includes(key),
-                    disabled: complicationsFull && !complicationKeys.includes(key),
-                    onChange: () => toggleComplication(key),
-                  };
-                })}
-              />
-            )}
-            {goalsProjectsEnabled && (
-              <PickerGroup
-                icon={FolderKanban}
-                label={t('dial.projects', 'Projects')}
-                emptyLabel={t('dial.nothingHere', 'Nothing here')}
-                open={openGroup === 'project'}
-                onToggleOpen={() => setOpenGroup((g) => (g === 'project' ? null : 'project'))}
-                selectedCount={complicationKeys.filter((k) => k.startsWith('project:')).length}
-                items={(projects || [])
-                  // A finished or shelved project is not something to watch
-                  // ride the face; the ones already pinned stay listed so
-                  // they can be taken off again.
-                  .filter((p) => p.status === 'active' || complicationKeys.includes(`project:${p.id}`))
-                  .map((project) => {
-                    const key = `project:${project.id}`;
-                    return {
-                      key,
-                      icon: FolderKanban,
-                      label: project.title,
-                      on: complicationKeys.includes(key),
-                      disabled: complicationsFull && !complicationKeys.includes(key),
-                      onChange: () => toggleComplication(key),
-                    };
-                  })}
-              />
-            )}
+            {/* One dropdown per corner, because the corner IS the setting. A
+                list of switches cannot say WHERE, so the arrangement would
+                have to be derived from something — and every rule for that
+                is the app choosing rather than the user. Four selects also
+                come out shorter than the switch list they replace: the long
+                habit and project lists live inside them rather than in the
+                menu, and no cap has to be explained because there are only
+                four corners. */}
+            {complicationSlots.map((key, index) => (
+              <label key={COMPLICATION_CORNERS[index]} className="flex items-center gap-3 px-3 py-1.5">
+                {/* Sentence case, like every other row in this panel — the
+                    uppercase tracked style belongs to the section header, and
+                    at that tracking "Bottom right" wraps to two lines and
+                    makes the four rows different heights. */}
+                <span className="w-20 flex-shrink-0 text-white/40 text-xs">
+                  {t(`dial.${COMPLICATION_CORNERS[index]}`, CORNER_FALLBACKS[index])}
+                </span>
+                <select
+                  value={key || ''}
+                  onChange={(e) => setSlot(index, e.target.value || null)}
+                  className="flex-1 min-w-0 rounded-lg border border-white/10 bg-[#1a1e27] px-2 py-1.5 text-sm text-white/85 focus:outline-none focus:ring-1 focus:ring-[#fe8b00]/60"
+                >
+                  <option value="">{t('dial.slotEmpty', 'Empty')}</option>
+                  <option value="inbox">{t('dial.inbox', 'Inbox')}</option>
+                  <option value="done">{t('dial.done', 'Done')}</option>
+                  <option value="deadlines">{t('dial.deadlines', 'Deadlines')}</option>
+                  {goalsProjectsEnabled && (
+                    <option value="aligned">{t('dial.aligned', 'Aligned')}</option>
+                  )}
+                  {habitsEnabled && (activeHabits || []).length > 0 && (
+                    <optgroup label={t('dial.habits', 'Habits')}>
+                      {(activeHabits || []).map((habit) => (
+                        <option key={habit.id} value={`habit:${habit.id}`}>{habit.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {goalsProjectsEnabled && (projects || []).length > 0 && (
+                    <optgroup label={t('dial.projects', 'Projects')}>
+                      {(projects || [])
+                        // A finished or shelved project is not something to
+                        // watch ride the face; one already on stays listed so
+                        // it can be taken off again.
+                        .filter((p) => p.status === 'active' || key === `project:${p.id}`)
+                        .map((project) => (
+                          <option key={project.id} value={`project:${project.id}`}>{project.title}</option>
+                        ))}
+                    </optgroup>
+                  )}
+                </select>
+              </label>
+            ))}
 
             <div className="my-1.5 border-t border-white/10" />
             <ToggleRow
