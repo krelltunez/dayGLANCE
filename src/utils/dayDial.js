@@ -669,17 +669,26 @@ export function dialPeakUv(hourly) {
  *          so an empty day reads as an empty ring rather than a full one.
  *          `remaining` is the incomplete blocks, in time order.
  */
+/**
+ * The minutes a scheduled task contributes to the day's readouts, or 0 when
+ * it contributes none. Shared so every complication measured in minutes
+ * counts the same day: same fixture rule computeDialModel uses, where a
+ * read-only imported event has no completion to toggle and so no stake in
+ * how the day went.
+ */
+export function dialTaskMinutes(task) {
+  if (!task || task.isAllDay || !task.startTime) return 0;
+  if (task.imported && !task.isTaskCalendar) return 0;
+  return Math.max(0, Number(task.duration) || 0);
+}
+
 export function computeDayCompletion(dayTasks) {
   let doneMinutes = 0;
   let totalMinutes = 0;
   const remaining = [];
 
   for (const t of dayTasks || []) {
-    if (!t || t.isAllDay || !t.startTime) continue;
-    // Same fixture rule computeDialModel uses: a read-only imported event
-    // has no completion to toggle.
-    if (t.imported && !t.isTaskCalendar) continue;
-    const minutes = Math.max(0, Number(t.duration) || 0);
+    const minutes = dialTaskMinutes(t);
     if (!minutes) continue;
     totalMinutes += minutes;
     if (t.completed) doneMinutes += minutes;
@@ -920,4 +929,98 @@ export function moonPhasePath(r, fraction, waxing, mirror = false) {
   const x = waxing === !mirror ? 1 : -1;
   return `M 0 ${-r} A ${r} ${r} 0 0 ${x > 0 ? 1 : 0} 0 ${r}`
     + ` A ${rx} ${r} 0 0 ${x > 0 ? sweep : 1 - sweep} 0 ${-r} Z`;
+}
+
+/**
+ * How much of today's scheduled time sits on work that is filed under a
+ * project — the Aligned readout.
+ *
+ * The sibling of computeDayCompletion, on the same denominator and a
+ * different axis: Done asks how much of today you finished, Aligned asks how
+ * much of it pointed at something you said mattered. Together they are the
+ * two questions a planned day can be wrong about.
+ *
+ * "Aligned" means filed under a project that still exists, not under a
+ * project that carries a goal. Projects are the unit tasks attach to and
+ * goals sit above them, so a project without a goal is still deliberate
+ * structure rather than a stray hour; and a task pointing at a deleted
+ * project is counted unaligned rather than silently credited.
+ *
+ * @param dayTasks The day's scheduled tasks.
+ * @param projects Every project, for resolving names and for the existence
+ *                 check. Missing or empty means nothing can be aligned.
+ * @returns {{alignedMinutes, totalMinutes, fraction,
+ *            byProject: Array<{id, title, minutes}>,
+ *            unaligned: Array<object>}} `byProject` is heaviest first;
+ *          `unaligned` is the day's own order, so it reads as a to-file list.
+ */
+export function computeDayAlignment(dayTasks, projects) {
+  const known = new Map((projects || []).map((p) => [p.id, p]));
+  const minutesById = new Map();
+  const unaligned = [];
+  let alignedMinutes = 0;
+  let totalMinutes = 0;
+
+  for (const t of dayTasks || []) {
+    const minutes = dialTaskMinutes(t);
+    if (!minutes) continue;
+    totalMinutes += minutes;
+    const project = t.projectId ? known.get(t.projectId) : null;
+    if (project) {
+      alignedMinutes += minutes;
+      minutesById.set(project.id, (minutesById.get(project.id) || 0) + minutes);
+    } else {
+      unaligned.push(t);
+    }
+  }
+
+  unaligned.sort((a, b) => timeToMin(a.startTime) - timeToMin(b.startTime));
+  const byProject = [...minutesById.entries()]
+    .map(([id, minutes]) => ({ id, title: known.get(id)?.title || '', minutes }))
+    .sort((a, b) => b.minutes - a.minutes);
+
+  return {
+    alignedMinutes,
+    totalMinutes,
+    fraction: totalMinutes > 0 ? alignedMinutes / totalMinutes : 0,
+    byProject,
+    unaligned,
+  };
+}
+
+/**
+ * One project's completion, counted in tasks rather than minutes.
+ *
+ * Minutes are the dial's unit everywhere else, and deliberately not here: a
+ * project's tasks span weeks and most of them are unscheduled, so they carry
+ * no duration to weigh. Tasks are the only thing every one of them has.
+ *
+ * @param project  The project to measure, or null.
+ * @param allTasks Every task, scheduled and unscheduled. Filtered here rather
+ *                 than by the caller so the count cannot silently narrow to
+ *                 one day's worth.
+ * @returns {{done, total, fraction, remaining: Array<object>}} `remaining` is
+ *          the open tasks, soonest-dated first and undated last.
+ */
+export function computeProjectProgress(project, allTasks) {
+  const mine = (allTasks || []).filter((t) => t && t.projectId === project?.id);
+  const remaining = mine.filter((t) => !t.completed);
+  // Dated work first, in date order; undated work keeps its own order after
+  // it. A project's backlog is mostly undated, so sorting it by a field it
+  // does not have would shuffle it arbitrarily on every render.
+  remaining.sort((a, b) => {
+    const ad = a.deadline || a.date || '';
+    const bd = b.deadline || b.date || '';
+    if (!ad && !bd) return 0;
+    if (!ad) return 1;
+    if (!bd) return -1;
+    return ad < bd ? -1 : ad > bd ? 1 : 0;
+  });
+  const done = mine.length - remaining.length;
+  return {
+    done,
+    total: mine.length,
+    fraction: mine.length > 0 ? done / mine.length : 0,
+    remaining,
+  };
 }

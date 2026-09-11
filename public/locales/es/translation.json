@@ -1376,7 +1376,14 @@
     "layers": "Capas",
     "layerSolar": "Sol y luna",
     "layerWeather": "Tiempo",
-    "layerCalendars": "Eventos del calendario"
+    "layerCalendars": "Eventos del calendario",
+    "aligned": "Alineado",
+    "habits": "Hábitos",
+    "projects": "Proyectos",
+    "alignedOf": "{{aligned}} de {{total}} min",
+    "projectClear": "Todas las tareas de este proyecto están hechas",
+    "alignedLabel": "Alineado: {{percent}} %, {{aligned}} de {{total}} minutos en un proyecto",
+    "projectLabel": "{{name}}: {{percent}} %, {{done}} de {{total}} tareas"
   },
   "intentLog": {
     "clearLog": "Borrar registro",

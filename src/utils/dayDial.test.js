@@ -19,7 +19,10 @@ import {
   findDialFocusBlock,
   initialDialSelection,
   muteDialColor,
+  computeDayAlignment,
   computeMoonBand,
+  computeProjectProgress,
+  dialTaskMinutes,
   moonPhasePath,
   moonStretches,
   precipArcSegments,
@@ -431,6 +434,114 @@ describe('muteDialColor', () => {
     expect(muteDialColor('not-a-color')).toBe('#93c5fd');
     expect(muteDialColor(null)).toBe('#93c5fd');
     expect(muteDialColor('#abc')).toBe('#93c5fd'); // shorthand unsupported
+  });
+});
+
+describe('computeDayAlignment', () => {
+  const PROJECTS = [{ id: 'p1', title: 'Billing' }, { id: 'p2', title: 'Docs' }];
+  const task = (over) => ({ startTime: '09:00', duration: 60, ...over });
+
+  it('weighs by minutes, on the same denominator as Done', () => {
+    const day = [
+      task({ startTime: '09:00', duration: 60, projectId: 'p1' }),
+      task({ startTime: '10:00', duration: 30, projectId: 'p2' }),
+      task({ startTime: '11:00', duration: 90 }),
+    ];
+    const a = computeDayAlignment(day, PROJECTS);
+    expect(a.alignedMinutes).toBe(90);
+    expect(a.totalMinutes).toBe(180);
+    expect(a.fraction).toBeCloseTo(0.5, 5);
+    // The two readouts must agree about what a day is made of.
+    expect(a.totalMinutes).toBe(computeDayCompletion(day).totalMinutes);
+  });
+
+  it('counts a task pointing at a deleted project as unaligned', () => {
+    // Silently crediting it would make the readout say the day was filed when
+    // the project it was filed under is gone.
+    const a = computeDayAlignment([task({ projectId: 'vanished' })], PROJECTS);
+    expect(a.alignedMinutes).toBe(0);
+    expect(a.unaligned).toHaveLength(1);
+  });
+
+  it('leaves a read-only imported event out of both halves', () => {
+    const a = computeDayAlignment([
+      task({ duration: 60, projectId: 'p1' }),
+      task({ startTime: '10:00', duration: 60, imported: true }),
+    ], PROJECTS);
+    expect(a.totalMinutes).toBe(60);
+    expect(a.unaligned).toHaveLength(0);
+  });
+
+  it('breaks the aligned time down heaviest first', () => {
+    const a = computeDayAlignment([
+      task({ startTime: '09:00', duration: 30, projectId: 'p2' }),
+      task({ startTime: '10:00', duration: 60, projectId: 'p1' }),
+      task({ startTime: '11:00', duration: 15, projectId: 'p2' }),
+    ], PROJECTS);
+    expect(a.byProject).toEqual([
+      { id: 'p1', title: 'Billing', minutes: 60 },
+      { id: 'p2', title: 'Docs', minutes: 45 },
+    ]);
+  });
+
+  it('puts the unfiled blocks in the day\'s own order', () => {
+    const a = computeDayAlignment([
+      task({ startTime: '15:00', duration: 30, title: 'late' }),
+      task({ startTime: '08:00', duration: 30, title: 'early' }),
+    ], PROJECTS);
+    expect(a.unaligned.map((x) => x.title)).toEqual(['early', 'late']);
+  });
+
+  it('is zero, not one, on an empty day and with no projects at all', () => {
+    expect(computeDayAlignment([], PROJECTS).fraction).toBe(0);
+    expect(computeDayAlignment([task({ projectId: 'p1' })], null).fraction).toBe(0);
+  });
+});
+
+describe('computeProjectProgress', () => {
+  const ALL = [
+    { id: 'a', projectId: 'p1', completed: true },
+    { id: 'b', projectId: 'p1', completed: false, date: '2026-07-09' },
+    { id: 'c', projectId: 'p1', completed: false },
+    { id: 'd', projectId: 'p1', completed: false, deadline: '2026-07-02' },
+    { id: 'e', projectId: 'p2', completed: false },
+  ];
+
+  it('counts tasks, not minutes, and only its own', () => {
+    // Minutes are the dial's unit everywhere else; a backlog is mostly
+    // unscheduled and has none to weigh.
+    const p = computeProjectProgress({ id: 'p1' }, ALL);
+    expect(p.total).toBe(4);
+    expect(p.done).toBe(1);
+    expect(p.fraction).toBeCloseTo(0.25, 5);
+  });
+
+  it('sorts dated work first and leaves undated work at the end', () => {
+    expect(computeProjectProgress({ id: 'p1' }, ALL).remaining.map((x) => x.id))
+      .toEqual(['d', 'b', 'c']);
+  });
+
+  it('is empty rather than complete for a project with no tasks', () => {
+    const p = computeProjectProgress({ id: 'empty' }, ALL);
+    expect(p.total).toBe(0);
+    expect(p.fraction).toBe(0);
+  });
+
+  it('survives a missing project', () => {
+    expect(computeProjectProgress(null, ALL).total).toBe(0);
+  });
+});
+
+describe('dialTaskMinutes', () => {
+  it('is the one rule every minute-weighted readout counts by', () => {
+    expect(dialTaskMinutes({ startTime: '09:00', duration: 45 })).toBe(45);
+    expect(dialTaskMinutes({ startTime: '09:00', duration: 45, isAllDay: true })).toBe(0);
+    expect(dialTaskMinutes({ duration: 45 })).toBe(0);
+    expect(dialTaskMinutes({ startTime: '09:00', duration: 45, imported: true })).toBe(0);
+    // An imported TASK calendar is the user's own work and does count.
+    expect(dialTaskMinutes({ startTime: '09:00', duration: 45, imported: true, isTaskCalendar: true }))
+      .toBe(45);
+    expect(dialTaskMinutes(null)).toBe(0);
   });
 });
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CalendarClock, Check, CheckCircle2, Circle, ExternalLink, Inbox, Minus, Plus } from 'lucide-react';
+import { CalendarClock, Check, CheckCircle2, Circle, ExternalLink, Inbox, Minus, Plus, Target } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { stripWikilinks } from '../utils/taskUtils.js';
 import { HabitRing } from './HabitRing.jsx';
@@ -69,9 +69,47 @@ const HOLD_MS = 500;
 
 const COUNT_KINDS = { inbox: Inbox, deadlines: CalendarClock };
 
+/** The readouts drawn as a proportion ring rather than a number or a habit. */
+const RING_KINDS = new Set(['done', 'aligned', 'project']);
+
+/** Ring props per kind: what it is a proportion OF, and what it calls itself. */
+const ringProps = (item, t) => {
+  const pct = Math.round(item.fraction * 100);
+  if (item.kind === 'aligned') {
+    return {
+      fraction: item.fraction, value: pct,
+      // Only a day with time in it can be fully aligned; an empty day is 0%,
+      // not a quiet win.
+      met: item.totalMinutes > 0 && item.alignedMinutes >= item.totalMinutes,
+      label: t('dial.aligned', 'Aligned'),
+      ariaLabel: t('dial.alignedLabel',
+        'Aligned: {{percent}}%, {{aligned}} of {{total}} minutes on a project',
+        { percent: pct, aligned: item.alignedMinutes, total: item.totalMinutes }),
+    };
+  }
+  if (item.kind === 'project') {
+    return {
+      fraction: item.fraction, value: pct,
+      met: item.total > 0 && item.done >= item.total,
+      label: item.project.title,
+      ariaLabel: t('dial.projectLabel', '{{name}}: {{percent}}%, {{done}} of {{total}} tasks',
+        { name: item.project.title, percent: pct, done: item.done, total: item.total }),
+    };
+  }
+  return {
+    fraction: item.fraction, value: pct,
+    met: item.totalMinutes > 0 && item.doneMinutes >= item.totalMinutes,
+    label: t('dial.done', 'Done'),
+    ariaLabel: t('dial.doneLabel', 'Done: {{percent}}%, {{done}} of {{total}} minutes',
+      { percent: pct, done: item.doneMinutes, total: item.totalMinutes }),
+  };
+};
+
 /** What the open sheet calls itself, for its accessible name. */
 const sheetTitle = (item, t) => {
   if (item.kind === 'habit') return item.habit.name;
+  if (item.kind === 'project') return item.project.title;
+  if (item.kind === 'aligned') return t('dial.aligned', 'Aligned');
   if (item.kind === 'done') return t('dial.done', 'Done');
   return item.kind === 'inbox' ? t('dial.inbox', 'Inbox') : t('dial.deadlines', 'Deadlines');
 };
@@ -142,22 +180,20 @@ function HabitSlot({ item, size, onOpen, onIncrement, t }) {
  * everywhere else on this face, so a sweep encoding a fraction would read
  * as a span of hours. Out here nothing is claiming to be a clock.
  */
-function DoneSlot({ item, size, onOpen, t }) {
-  const pct = Math.round(item.fraction * 100);
-  const met = item.totalMinutes > 0 && item.doneMinutes >= item.totalMinutes;
-  // HabitRing's exact proportions (radius 0.38 of the box, stroke 3), so the
-  // two kinds of ring on the face are the same object at the same weight.
-  // Flush with the disc's edge instead — which is where this started — the
-  // ring crowds the caption underneath it.
+// Every readout measured as a proportion draws the same object: Done,
+// Aligned and a project's progress are three questions with one shape, and a
+// second ring implementation would drift from this one. HabitRing's exact
+// proportions (radius 0.38 of the box, stroke 3), so the rings on the face
+// are all the same weight. Flush with the disc's edge instead — which is
+// where this started — the ring crowds the caption underneath it.
+function RingSlot({ size, onOpen, fraction, value, met, label, ariaLabel }) {
   const stroke = 3;
   const r = size.dot * 0.38;
   const circumference = 2 * Math.PI * r;
   return (
     <button
       onClick={onOpen}
-      aria-label={t('dial.doneLabel', 'Done: {{percent}}%, {{done}} of {{total}} minutes', {
-        percent: pct, done: item.doneMinutes, total: item.totalMinutes,
-      })}
+      aria-label={ariaLabel}
       className="flex flex-col items-center gap-0.5 transition-transform active:scale-95"
     >
       <span
@@ -183,7 +219,7 @@ function DoneSlot({ item, size, onOpen, t }) {
             strokeOpacity={met ? 0.75 : 0.55}
             strokeWidth={stroke} strokeLinecap="round"
             strokeDasharray={circumference}
-            strokeDashoffset={circumference * (1 - Math.min(1, item.fraction))}
+            strokeDashoffset={circumference * (1 - Math.min(1, fraction))}
             className="transition-all duration-500"
           />
         </svg>
@@ -198,12 +234,18 @@ function DoneSlot({ item, size, onOpen, t }) {
           />
         ) : (
           <span className={`text-white/85 ${size.count} font-medium leading-none tabular-nums`}>
-            {pct}
+            {value}
           </span>
         )}
       </span>
-      <span className={`text-white/35 ${size.label} uppercase tracking-[0.14em] leading-none`}>
-        {t('dial.done', 'Done')}
+      {/* Two lines, because a project's title is the caption here and real
+          ones run long — "Billing Integration" truncates to "BILLING INTEGR…"
+          on one. Slightly tighter tracking buys most of a word back, and the
+          slots sit in dead corner so the second line costs nothing. */}
+      <span
+        className={`text-white/35 ${size.label} uppercase tracking-[0.1em] leading-tight max-w-[8.5rem] text-center line-clamp-2`}
+      >
+        {label}
       </span>
     </button>
   );
@@ -290,8 +332,8 @@ const DialComplications = ({ items, dialPx, onOpenTask, onSetHabitCount, onIncre
               transform: 'translate(-50%, -50%)',
             }}
           >
-            {item.kind === 'done' ? (
-              <DoneSlot item={item} size={size} t={t} onOpen={() => setOpenKey(item.key)} />
+            {RING_KINDS.has(item.kind) ? (
+              <RingSlot size={size} onOpen={() => setOpenKey(item.key)} {...ringProps(item, t)} />
             ) : item.kind === 'habit' ? (
               <HabitSlot
                 item={item}
@@ -320,7 +362,115 @@ const DialComplications = ({ items, dialPx, onOpenTask, onSetHabitCount, onIncre
             className="w-[min(86%,360px)] rounded-2xl border border-white/10 bg-[#12151c] px-5 py-4 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {open.kind === 'done' ? (
+            {open.kind === 'aligned' ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <Target size={15} strokeWidth={1.75} className="text-white/45" aria-hidden="true" />
+                  <span className="text-white/90 text-base font-medium">{t('dial.aligned', 'Aligned')}</span>
+                  <span className="text-white/35 text-sm tabular-nums ml-auto">
+                    {t('dial.alignedOf', '{{aligned}} of {{total}} min', {
+                      aligned: open.alignedMinutes, total: open.totalMinutes,
+                    })}
+                  </span>
+                </div>
+                {open.totalMinutes === 0 ? (
+                  <div className="mt-3 text-white/35 text-sm">{t('dial.nothingHere', 'Nothing here')}</div>
+                ) : (
+                  <div className="mt-3 space-y-1 max-h-[46vh] overflow-y-auto">
+                    {/* Where the aligned time went, heaviest first. Read-only:
+                        a project is not something you tick off from here. */}
+                    {open.byProject.map((row) => (
+                      <div
+                        key={row.id}
+                        className="w-full flex items-center gap-2.5 rounded-lg bg-white/5 px-3 py-2"
+                      >
+                        <Target size={14} className="text-white/30 flex-shrink-0" aria-hidden="true" />
+                        <span className="flex-1 min-w-0 truncate text-white/85 text-sm">{row.title}</span>
+                        <span className="text-white/30 text-xs tabular-nums flex-shrink-0">{row.minutes}m</span>
+                      </div>
+                    ))}
+                    {/* The readout's own action: the unfiled blocks, each one
+                        a tap from the editor that can give it a project. This
+                        is the thing you would do about a low number. */}
+                    {open.unaligned.slice(0, 12).map((task) => (
+                      <button
+                        key={task.id}
+                        onClick={() => { setOpenKey(null); onOpenTask(task); }}
+                        className="w-full flex items-center gap-2.5 rounded-lg bg-white/[0.02] hover:bg-white/10 active:bg-white/15 px-3 py-2 text-left transition-colors"
+                      >
+                        <Circle size={14} className="text-white/20 flex-shrink-0" aria-hidden="true" />
+                        <span className="flex-1 min-w-0 truncate text-white/55 text-sm">
+                          {stripWikilinks(task.title)}
+                        </span>
+                        <ExternalLink size={14} className="text-white/25 flex-shrink-0" aria-hidden="true" />
+                      </button>
+                    ))}
+                    {open.unaligned.length > 12 && (
+                      <div className="pt-1 text-center text-white/35 text-xs">
+                        {t('dial.allDayMore', '{{count}} more', { count: open.unaligned.length - 12 })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : open.kind === 'project' ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <Target size={15} strokeWidth={1.75} className="text-white/45" aria-hidden="true" />
+                  <span className="flex-1 min-w-0 truncate text-white/90 text-base font-medium">
+                    {open.project.title}
+                  </span>
+                  <span className="text-white/35 text-sm tabular-nums flex-shrink-0">
+                    {open.done}/{open.total}
+                  </span>
+                </div>
+                {open.remaining.length === 0 ? (
+                  <div className="mt-3 text-white/35 text-sm">
+                    {open.total > 0
+                      ? t('dial.projectClear', 'Every task on this project is done')
+                      : t('dial.nothingHere', 'Nothing here')}
+                  </div>
+                ) : (
+                  /* What is left on the project, wherever it is scheduled —
+                     most of a backlog is unscheduled, so this is the only
+                     place on the face it shows up at all. */
+                  <div className="mt-3 space-y-1 max-h-[46vh] overflow-y-auto">
+                    {open.remaining.slice(0, 12).map((task) => (
+                      <div
+                        key={task.id}
+                        className="w-full flex items-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                      >
+                        <button
+                          onClick={() => onToggleTaskComplete?.(task)}
+                          aria-label={t('dial.markComplete', 'Mark complete')}
+                          aria-pressed={false}
+                          className="flex-shrink-0 pl-3 pr-2 py-2 active:scale-90 transition-transform"
+                        >
+                          <Circle size={16} className="text-white/30" />
+                        </button>
+                        <button
+                          onClick={() => { setOpenKey(null); onOpenTask(task); }}
+                          className="flex-1 min-w-0 flex items-center gap-2.5 pr-3 py-2 text-left active:bg-white/10 rounded-r-lg transition-colors"
+                        >
+                          <span className="flex-1 min-w-0 truncate text-white/85 text-sm">
+                            {stripWikilinks(task.title)}
+                          </span>
+                          <span className="text-white/30 text-xs tabular-nums flex-shrink-0">
+                            {task.deadline || task.date || ''}
+                          </span>
+                          <ExternalLink size={14} className="text-white/30 flex-shrink-0" aria-hidden="true" />
+                        </button>
+                      </div>
+                    ))}
+                    {open.remaining.length > 12 && (
+                      <div className="pt-1 text-center text-white/35 text-xs">
+                        {t('dial.allDayMore', '{{count}} more', { count: open.remaining.length - 12 })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : open.kind === 'done' ? (
               <>
                 <div className="flex items-center gap-2">
                   <span className="text-white/90 text-base font-medium">{t('dial.done', 'Done')}</span>

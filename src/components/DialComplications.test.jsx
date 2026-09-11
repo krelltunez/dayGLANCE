@@ -100,6 +100,67 @@ describe('DialComplications — the done subdial', () => {
   });
 });
 
+describe('DialComplications — Aligned and project rings', () => {
+  const alignedItem = (over = {}) => ({
+    key: 'aligned', kind: 'aligned', alignedMinutes: 90, totalMinutes: 210,
+    fraction: 90 / 210,
+    byProject: [{ id: 'p1', title: 'Billing Integration', minutes: 60 },
+      { id: 'p2', title: 'API Documentation', minutes: 30 }],
+    unaligned: [{ id: 'u1', title: 'Catch-up call' }],
+    ...over,
+  });
+  const projectItem = (over = {}) => ({
+    key: 'project:p1', kind: 'project', project: { id: 'p1', title: 'Billing Integration' },
+    done: 3, total: 9, fraction: 3 / 9,
+    remaining: [{ id: 'r1', title: 'Handle webhook retries', deadline: '2026-07-09' }],
+    ...over,
+  });
+
+  it('draws Aligned as the same ring as Done, on the same denominator', async () => {
+    const i18n = await i18nFor('en');
+    const html = render(i18n, { items: [alignedItem()] });
+    expect(html).toContain('>43<');
+    expect(html).toContain('aria-label="Aligned: 43%, 90 of 210 minutes on a project"');
+    expect(html).toContain('stroke-dashoffset');
+    for (const size of COMPLICATION_SIZES) {
+      const at = render(i18n, { items: [alignedItem()], dialPx: size.minDialPx });
+      expect(at).toContain(`r="${size.dot * 0.38}"`);
+    }
+  });
+
+  it('never reads an empty day as fully aligned', async () => {
+    // 0 of 0 minutes is 0%: nothing was pointed anywhere.
+    const html = await i18nFor('en').then((i18n) => render(i18n, {
+      items: [alignedItem({ alignedMinutes: 0, totalMinutes: 0, fraction: 0, byProject: [], unaligned: [] })],
+    }));
+    expect(html).toContain('>0<');
+    expect(html).not.toContain('#22c55e');
+  });
+
+  it('carries the project name as its own caption', async () => {
+    const html = render(await i18nFor('en'), { items: [projectItem()] });
+    expect(html).toContain('>33<');
+    expect(html).toContain('Billing Integration');
+    expect(html).toContain('aria-label="Billing Integration: 33%, 3 of 9 tasks"');
+  });
+
+  it('turns green when the project is finished, like Done', async () => {
+    const html = render(await i18nFor('en'), {
+      items: [projectItem({ done: 9, fraction: 1, remaining: [] })],
+    });
+    expect(html).toContain('#22c55e');
+    expect(html).not.toContain('>100<');
+  });
+
+  it('keeps a project with no tasks at zero rather than complete', async () => {
+    const html = render(await i18nFor('en'), {
+      items: [projectItem({ done: 0, total: 0, fraction: 0, remaining: [] })],
+    });
+    expect(html).toContain('>0<');
+    expect(html).not.toContain('#22c55e');
+  });
+});
+
 describe('DialComplications', () => {
   it('puts each complication in its own corner slot', async () => {
     const html = render(await i18nFor('en'));

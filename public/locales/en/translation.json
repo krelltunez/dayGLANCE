@@ -1376,7 +1376,14 @@
     "layers": "Layers",
     "layerSolar": "Sun & moon",
     "layerWeather": "Weather",
-    "layerCalendars": "Calendar events"
+    "layerCalendars": "Calendar events",
+    "aligned": "Aligned",
+    "habits": "Habits",
+    "projects": "Projects",
+    "alignedOf": "{{aligned}} of {{total}} min",
+    "projectClear": "Every task on this project is done",
+    "alignedLabel": "Aligned: {{percent}}%, {{aligned}} of {{total}} minutes on a project",
+    "projectLabel": "{{name}}: {{percent}}%, {{done}} of {{total}} tasks"
   },
   "intentLog": {
     "clearLog": "Clear log",
