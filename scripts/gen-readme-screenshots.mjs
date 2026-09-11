@@ -210,16 +210,34 @@ try {
     // Denver, and the instant that reads 11:20 there — the solar layer draws
     // sunrise and sunset from the coordinates, so the clock has to agree with
     // them or the sun comes up at noon.
-    tz: 'America/Denver', time: new Date('2026-07-02T17:20:00Z'),
+    //
+    // This step overrides FIXED, and the DATE it picks is chosen for the
+    // moon: 7 July 2026 is a last quarter over Denver, the one phase that
+    // reads unmistakably AS a phase at glyph size — a straight terminator
+    // rather than a disc. It cannot also sit mid-night, and that is geometry
+    // rather than a compromise: a quarter moon transits near sunrise or
+    // sunset by definition, and only a full moon transits at midnight, where
+    // it would draw a plain circle. Everything else in the capture is
+    // date-relative and follows.
+    tz: 'America/Denver', time: new Date('2026-07-07T17:20:00Z'),
     // The forecast, served from a fixture rather than fetched: see
     // openMeteoFixture. The geocode is stubbed too, so the app resolves the
     // ZIP through its own code path and caches the coordinates itself.
     routes: [
       ['**/api.zippopotam.us/**', { places: [{ latitude: String(DENVER.lat), longitude: String(DENVER.lon) }] }],
-      ['**/api.open-meteo.com/**', () => openMeteoFixture(new Date('2026-07-02T12:00:00'))],
+      ['**/api.open-meteo.com/**', () => openMeteoFixture(new Date('2026-07-07T12:00:00'))],
     ],
     extra: `
-      localStorage.setItem('day-planner-dial-complications', '["inbox","deadlines","done","habit:1710000000001"]');
+      // One of each kind the face can draw, in the corners they ride: a
+      // count, the two ring readouts, and the app's own HabitRing. Done is
+      // left off only because it and Aligned draw the identical object, and
+      // the capture has four corners to spend.
+      //   top-left  Inbox      top-right     Aligned
+      //   bottom-l  a project  bottom-right  a habit
+      // The project id is minted by the seed, so it is patched in below
+      // rather than written here.
+      localStorage.setItem('day-planner-dial-complications', '["inbox","aligned",null,"habit:1710000000001"]');
+      localStorage.setItem('day-planner-goals-projects-enabled', 'true');
       // Extra fixtures for THIS capture only, so the shared seed (and the
       // other fifteen screenshots) stay as they are. The date is read off the
       // frozen clock rather than hard-coded, so it follows FIXED.
@@ -247,6 +265,22 @@ try {
         );
         localStorage.setItem('day-planner-today-routines', JSON.stringify(routines));
 
+        // The project readout: the first active project, with one of its
+        // tasks completed so the ring is neither empty nor full. Its id comes
+        // from the seed, so the slot is patched here rather than hard-coded.
+        const projects = JSON.parse(localStorage.getItem('day-planner-projects') || '[]');
+        const shown = projects.find((p) => p.status === 'active');
+        if (shown) {
+          const slots = JSON.parse(localStorage.getItem('day-planner-dial-complications') || '[]');
+          slots[2] = 'project:' + shown.id;
+          localStorage.setItem('day-planner-dial-complications', JSON.stringify(slots));
+          for (const key of ['day-planner-tasks', 'day-planner-unscheduled']) {
+            const list = JSON.parse(localStorage.getItem(key) || '[]');
+            const first = list.find((t) => t.projectId === shown.id && !t.completed);
+            if (first) { first.completed = true; localStorage.setItem(key, JSON.stringify(list)); break; }
+          }
+        }
+
         // Something actually due today, so the Deadlines readout is not a zero.
         const unscheduled = JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]');
         unscheduled.push(
@@ -268,7 +302,7 @@ try {
       localStorage.setItem('day-planner-weather-coords', '{"lat":39.7392,"lon":-104.9903}');
       // A declared day window is what gives the ring its night.
       localStorage.setItem('day-planner-day-windows', '{"defaults":{"start":"07:00","stop":"22:30","lastModified":"1970-01-01T00:00:00.000Z"}}');
-      localStorage.setItem('day-planner-focus-log', '{"2026-07-02":{"totalMinutes":115,"sessions":3,"cyclesCompleted":3,"tasksCompleted":2,"spans":[{"start":540,"end":595},{"start":596,"end":625},{"start":870,"end":900}]}}');
+      localStorage.setItem('day-planner-focus-log', '{"2026-07-07":{"totalMinutes":115,"sessions":3,"cyclesCompleted":3,"tasksCompleted":2,"spans":[{"start":540,"end":595},{"start":596,"end":625},{"start":870,"end":900}]}}');
     `,
   });
   await p.locator('body').click({ position: { x: 5, y: 5 } });

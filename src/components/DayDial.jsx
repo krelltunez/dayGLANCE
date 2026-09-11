@@ -278,8 +278,8 @@ function SunMark({ min, kind }) {
 //
 // The glyph is the moon's actual phase at the minute it rides highest, not a
 // generic crescent: it is the one place on the face where the shape carries
-// the datum rather than labelling it. It sits mid-stretch — see
-// moonGlyphMinute for why not at the moon's highest.
+// the datum rather than labelling it. It rides the moon's apex — see
+// moonGlyphMinute for what happens when sunrise cuts the climb short.
 function MoonBand({ band, southern }) {
   const [r0, r1] = R_DAYLIGHT_BAND;
   const g = band.glyphMin == null ? null : dialPoint(CX, CY, MOON_GLYPH_R, band.glyphMin);
