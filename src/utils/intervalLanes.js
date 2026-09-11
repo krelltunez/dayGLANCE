@@ -6,8 +6,11 @@
 // would pack differently from view to view.
 //
 // Intervals are half-open [startMin, endMin): back-to-back blocks touch but
-// do not overlap, so they share a lane. Callers exclude empty intervals
-// (endMin <= startMin) — a moment is a marker, not a block.
+// do not overlap, so they share a lane. An interval with no positive span
+// (endMin <= startMin, or either bound missing or NaN) is a moment, not a
+// block: it takes lane 0 at full width and never joins or extends a cluster.
+// That is also what a NaN end must not be allowed to do — a cluster end of
+// NaN never closes and would swallow every later block in the day.
 //
 // Algorithm: a single sweep over start-sorted input. Blocks whose spans chain
 // together form one overlap cluster (the transitive closure a BFS would find,
@@ -30,12 +33,18 @@ export function assignLanes(intervals) {
   let laneEnds = [];
 
   const flush = () => {
-    for (const b of cluster) out.push({ ...b, laneCount: laneEnds.length });
+    for (const { solo, ...b } of cluster) out.push(solo ? b : { ...b, laneCount: laneEnds.length });
     cluster = [];
     laneEnds = [];
   };
 
   for (const b of intervals || []) {
+    if (!(b.endMin > b.startMin)) {
+      // No span (also catches NaN and missing bounds): outside packing
+      // entirely, but emitted in place so the output order still matches.
+      cluster.push({ ...b, lane: 0, laneCount: 1, solo: true });
+      continue;
+    }
     if (b.startMin >= clusterEnd) {
       flush();
       clusterEnd = b.endMin;

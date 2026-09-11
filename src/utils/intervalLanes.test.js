@@ -44,6 +44,47 @@ describe('assignLanes', () => {
     expect(input[0]).toEqual({ id: 'a', startMin: 540, endMin: 600 });
   });
 
+  describe('intervals with no positive span stay out of packing', () => {
+    // Several later blocks that genuinely overlap: they must still cluster
+    // and pack exactly as they would without the spanless entry present.
+    const later = [iv(600, 700, 'x'), iv(620, 720, 'y'), iv(640, 700, 'z'), iv(800, 860, 'evening')];
+    const expectLaterNormal = (laid) => {
+      expect(laid.filter((b) => later.some((l) => l.id === b.id)).map((b) => [b.id, b.lane, b.laneCount]))
+        .toEqual([['x', 0, 3], ['y', 1, 3], ['z', 2, 3], ['evening', 0, 1]]);
+    };
+
+    it.each([
+      ['duration 0', { id: 'm', startMin: 600, endMin: 600 }],
+      ['duration missing', { id: 'm', startMin: 600 }],
+      ['duration NaN', { id: 'm', startMin: 600, endMin: NaN }],
+      ['negative span', { id: 'm', startMin: 600, endMin: 590 }],
+      ['start missing', { id: 'm', endMin: 630 }],
+    ])('%s: lane 0, full width, in place, later blocks unaffected', (_label, moment) => {
+      const laid = assignLanes([iv(540, 580, 'before'), moment, ...later]);
+      expect(laid.map((b) => b.id)).toEqual(['before', 'm', 'x', 'y', 'z', 'evening']);
+      expect(laid[1]).toEqual({ ...moment, lane: 0, laneCount: 1 });
+      expect(laid[0]).toMatchObject({ lane: 0, laneCount: 1 });
+      expectLaterNormal(laid);
+      expect(laid.some((b) => 'solo' in b)).toBe(false);
+    });
+
+    it('a moment at the exact start of a block does not open a second lane', () => {
+      const laid = assignLanes([iv(540, 600, 'a'), { id: 'm', startMin: 540, endMin: 540 }]);
+      expect(laid.map((b) => [b.id, b.lane, b.laneCount])).toEqual([['a', 0, 1], ['m', 0, 1]]);
+    });
+
+    it('a moment inside a cluster neither joins nor splits it', () => {
+      const laid = assignLanes([iv(540, 600, 'a'), { id: 'm', startMin: 550, endMin: 550 }, iv(570, 630, 'b')]);
+      expect(laid.map((b) => [b.id, b.lane, b.laneCount])).toEqual([['a', 0, 2], ['m', 0, 1], ['b', 1, 2]]);
+    });
+
+    it('a NaN end never becomes the cluster end', () => {
+      const laid = assignLanes([{ id: 'm', startMin: 540, endMin: NaN }, iv(560, 600, 'a'), iv(700, 760, 'b')]);
+      expect(laid.map((b) => [b.id, b.lane, b.laneCount])).toEqual([['m', 0, 1], ['a', 0, 1], ['b', 0, 1]]);
+      expect(maxLaneCount(laid)).toBe(1);
+    });
+  });
+
   it('handles empty and missing input', () => {
     expect(assignLanes([])).toEqual([]);
     expect(assignLanes(null)).toEqual([]);

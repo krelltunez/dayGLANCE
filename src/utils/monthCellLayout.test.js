@@ -180,6 +180,19 @@ describe('layoutDayCell — all-day and points', () => {
     ]);
   });
 
+  it('treats any non-positive, missing, or non-numeric duration as a point, outside lane packing', () => {
+    const out = layoutDayCell([
+      task('a', '09:00', 60), task('b', '09:30', 60),
+      task('zero', '09:15', 0), task('missing', '09:15', undefined),
+      task('nan', '09:15', NaN), task('neg', '09:15', -30), task('str', '09:15', 'soon'),
+    ], DATE, W, H);
+    expect(out.points.map((p) => p.id).sort()).toEqual(['missing', 'nan', 'neg', 'str', 'zero']);
+    expect(out.points.every((p) => p.y === 22.5)).toBe(true);
+    expect(out.bands.map((b) => b.id)).toEqual(['a', 'b']);
+    expect(out.laneCount).toBe(2);
+    expect(out.overflow).toEqual({ lanesNeeded: 2, hidden: [], crowded: false });
+  });
+
   it('clamps a point outside the window and says which way', () => {
     const out = layoutDayCell([task('p1', '05:00', 0), task('p2', '23:00', 0)], DATE, W, H);
     expect(byId(out.points, 'p1')).toMatchObject({ y: 0, clamped: 'before' });
