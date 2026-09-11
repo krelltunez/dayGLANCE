@@ -115,8 +115,6 @@ const MobileLayout = () => {
     showUntagged, setShowUntagged,
     showMobileTagFilter, setShowMobileTagFilter,
     allTags,
-    showAddTask, setShowAddTask,
-    newTask, setNewTask,
     showNewTaskDeadlinePicker, setShowNewTaskDeadlinePicker,
     taskContextMenu, setTaskContextMenu,
     timelineContextMenu, setTimelineContextMenu,
@@ -231,7 +229,7 @@ const MobileLayout = () => {
     handleNewTaskInputChange, handleNewTaskInputKeyDown, applySuggestionForNewTask,
     buildSuggestions,
     manuallyScheduleTask, scheduleTaskAtNextSlot,
-    openNewTaskAtTime, openNewTaskForm, openNewInboxTask,
+    openNewTaskAtTime, openNewTaskForm, openNewAllDayTask, openNewInboxTask,
     recordDeletedTaskTombstone, parseRecurringId,
     expandMultiDayEvent,
     getHourHeight, minutesToPosition, positionToMinutes, durationToHeight,
@@ -240,7 +238,7 @@ const MobileLayout = () => {
     getConflictingTasks, calculateConflictPosition, wouldExceedMaxColumns,
     filterByTags,
     getTasksForDate, getDateIndicators, hasTasksOnDate,
-    getDayName, getMonthDays, getNextQuarterHour,
+    getDayName, getMonthDays,
     weekStartDay,
     getTodayStr, getOverdueTasks,
     getTaskCalendarStyle,
@@ -755,16 +753,7 @@ const MobileLayout = () => {
                         <div
                           key={dateStr}
                           className={`flex-1 py-2 px-3 text-center ${idx > 0 ? `border-l ${borderClass}` : ''} ${mobileDragPreviewTime === 'all-day' ? (darkMode ? 'bg-blue-900/40' : 'bg-blue-100') : isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : (darkMode ? 'bg-gray-700/50' : 'bg-stone-50')}`}
-                          onClick={() => {
-                            setNewTask({
-                              title: '',
-                              startTime: getNextQuarterHour(),
-                              duration: 30,
-                              date: dateStr,
-                              isAllDay: true
-                            });
-                            setShowAddTask(true);
-                          }}
+                          onClick={() => openNewAllDayTask(dateStr)}
                            title={`${t('task.addTask')}: ${t('task.allDay')}`}
                         >
                           <div className={`font-bold text-sm flex items-center justify-center gap-1.5 ${isDateToday ? 'text-blue-600' : textPrimary}`}>
