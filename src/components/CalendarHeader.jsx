@@ -54,8 +54,6 @@ const CalendarHeader = () => {
     mobileDragTaskIdState,
     mobileDragPreviewDate,
     hoverTaskId, setHoverTaskId,
-    showAddTask, setShowAddTask,
-    newTask, setNewTask,
     dailyNotes,
     dailyNotesModalDate, setDailyNotesModalDate,
     taskWidths,
@@ -84,7 +82,7 @@ const CalendarHeader = () => {
     playUISound,
     pushUndo,
     setDragPreviewTime,
-    getNextQuarterHour,
+    openNewAllDayTask,
     addTasksFromSelection,
   } = useDayPlannerCtx();
   const { t } = useTranslation();
@@ -162,7 +160,9 @@ const CalendarHeader = () => {
   style={effectiveViewMode === 'day' ? { display: 'grid', gridTemplateColumns: `repeat(${dayViewColumns.length}, 1fr)` } : undefined}
 >
   {effectiveViewMode === 'sched' ? (
-    /* SCHED view: gutter cell + 7 clickable dates that set the agenda's starting day */
+    /* SCHED view: gutter cell + 7 clickable dates. Tapping one anchors the
+       agenda on that day AND opens the new-task form for it, all-day
+       pre-selected — the same date-header gesture as every other view. */
     <>
       <div
         className={`flex-shrink-0 border-r ${borderClass} flex items-center justify-center`}
@@ -177,11 +177,11 @@ const CalendarHeader = () => {
         return (
           <button
             key={dateStr}
-            onClick={() => goToDate(date)}
+            onClick={() => { goToDate(date); openNewAllDayTask(dateStr); }}
             className={`flex-1 flex items-center justify-center py-1.5 px-1 text-center transition-colors ${idx > 0 ? `border-l ${borderClass}` : ''}
               ${isSelected ? (darkMode ? 'bg-blue-900/40' : 'bg-blue-100') : isDateToday ? (darkMode ? 'bg-blue-900/20' : 'bg-blue-50') : ''}`}
             style={{ minHeight: 'var(--header-row-h)' }}
-            title={`Start agenda at ${dateStr}`}
+            title={`${t('task.addTask')}: ${t('task.allDay')}`}
           >
             <div className={`font-bold flex items-center justify-center gap-1.5 ${isDateToday || isSelected ? 'text-blue-600' : textPrimary}`}>
               <span>{formatLocalizedDate(date, { weekday: 'short' })}</span>
@@ -208,9 +208,11 @@ const CalendarHeader = () => {
         return (
           <div
             key={dateStr}
-            className={`flex-1 flex items-center justify-center py-1.5 px-1 text-center transition-colors ${idx > 0 ? `border-l ${borderClass}` : ''}
-              ${isDateToday ? (darkMode ? 'bg-blue-900/30' : 'bg-blue-50') : ''}`}
+            className={`flex-1 flex items-center justify-center py-1.5 px-1 text-center cursor-pointer transition-colors ${idx > 0 ? `border-l ${borderClass}` : ''}
+              ${isDateToday ? (darkMode ? 'bg-blue-900/30 hover:bg-blue-900/50' : 'bg-blue-50 hover:bg-blue-100') : (darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100')}`}
             style={{ minHeight: 'var(--header-row-h)' }}
+            onClick={() => openNewAllDayTask(dateStr)}
+            title={`${t('task.addTask')}: ${t('task.allDay')}`}
           >
             <div className={`font-bold flex items-center justify-center gap-1.5 ${isDateToday ? 'text-blue-600' : textPrimary}`}>
               <span>{formatLocalizedDate(date, { weekday: 'short' })}</span>
@@ -251,16 +253,7 @@ const CalendarHeader = () => {
         key={dateStr}
         className={`flex-1 py-2 px-3 text-center cursor-pointer hover:bg-opacity-80 transition-colors ${idx > 0 ? `border-l ${borderClass}` : ''} ${isDateToday ? (darkMode ? 'bg-blue-900/30 hover:bg-blue-900/50' : 'bg-blue-50 hover:bg-blue-100') : `${cardBg} ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'}`} ${isDragOverThis ? (darkMode ? 'bg-green-700 ring-2 ring-inset ring-green-400' : 'bg-green-200 ring-2 ring-inset ring-green-500') : ''}`}
         style={{ minHeight: 'var(--header-row-h)' }}
-        onClick={() => {
-          setNewTask({
-            title: '',
-            startTime: getNextQuarterHour(),
-            duration: 30,
-            date: dateStr,
-            isAllDay: true
-          });
-          setShowAddTask(true);
-        }}
+        onClick={() => openNewAllDayTask(dateStr)}
         onDragOver={(e) => { e.preventDefault(); if (autoScrollInterval.current) { clearInterval(autoScrollInterval.current); autoScrollInterval.current = null; } }}
         onDragEnter={(e) => {
           e.preventDefault();
@@ -330,12 +323,16 @@ const CalendarHeader = () => {
           onDragEnter={(e) => { e.preventDefault(); setDragOverAllDay(group.dateStr); setDragPreviewTime(null); }}
           onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverAllDay(null); }}
           onDrop={(e) => handleDropOnDateHeader(e, group.date)}
-          title={draggedTask ? t('task.dropToAllDay') : ''}
+          onClick={() => openNewAllDayTask(group.dateStr)}
+          title={draggedTask ? t('task.dropToAllDay') : `${t('task.addTask')}: ${t('task.allDay')}`}
         >
           {/* ViewCycler floats in the absolute-left of the first date group so
               column boundaries align: both header and DayView start at x=0. */}
           {idx === 0 && (isTablet || canShowViewCycler) && (
-            <div className={`absolute left-0 top-0 w-16 h-full border-r ${borderClass} ${cardBg}`}>
+            <div
+              className={`absolute left-0 top-0 w-16 h-full border-r ${borderClass} ${cardBg} cursor-default`}
+              onClick={(e) => e.stopPropagation()}
+            >
               {isTablet && !isLandscape ? <MobileViewToggle /> : <ViewCycler />}
             </div>
           )}

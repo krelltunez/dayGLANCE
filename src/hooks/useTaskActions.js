@@ -312,6 +312,21 @@ export default function useTaskActions({
     setShowAddTask(true);
   };
 
+  // Date-header tap in every timeline view (MULTI/DAY/WEEK/SCHED and the
+  // mobile header): a new scheduled task on that day, "All Day" pre-selected.
+  const openNewAllDayTask = (dateStr) => {
+    setNewTask({
+      title: '',
+      startTime: getNextQuarterHour(),
+      duration: 30,
+      date: dateStr,
+      isAllDay: true,
+      recurrence: null
+    });
+    setShowRecurrencePicker(false);
+    setShowAddTask(true);
+  };
+
   const openNewInboxTask = () => {
     setNewTask({
       title: '',
@@ -885,6 +900,7 @@ export default function useTaskActions({
     // Create
     addTask,
     openNewTaskForm,
+    openNewAllDayTask,
     openNewInboxTask,
     // Update
     changeTaskColor,

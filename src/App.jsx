@@ -7008,6 +7008,7 @@ const DayPlanner = () => {
     clearDeadline,
     addTask,
     openNewTaskForm,
+    openNewAllDayTask,
     openNewInboxTask,
     changeTaskColor,
     setTaskEnergy,
@@ -8606,7 +8607,7 @@ const DayPlanner = () => {
     dismissNlChip,
     buildSuggestions,
     manuallyScheduleTask, scheduleTaskAtNextSlot, scheduleDeadlineTaskAt, scheduleRoutineAt,
-    openNewTaskAtTime, openNewTaskForm, openNewInboxTask,
+    openNewTaskAtTime, openNewTaskForm, openNewAllDayTask, openNewInboxTask,
     recordDeletedTaskTombstone, parseRecurringId,
     expandMultiDayEvent,
 
