@@ -105,6 +105,7 @@ import useFocusMode from './hooks/useFocusMode.js';
 import useTrmnlSync from './hooks/useTrmnlSync.js';
 import useObsidian from './hooks/useObsidian.js';
 import useObsidianSync from './hooks/useObsidianSync.js';
+import useTodoistSync from './hooks/useTodoistSync.js';
 import useCompletionLog from './hooks/useCompletionLog.js';
 import useDailyBriefings from './hooks/useDailyBriefings.js';
 import useVoiceInput from './hooks/useVoiceInput.js';
@@ -2806,6 +2807,11 @@ const DayPlanner = () => {
       );
     });
   }, [dataLoaded, inboxAutoArchiveDays]);
+
+  const todoist = useTodoistSync({
+    tasks, setTasks, unscheduledTasks, setUnscheduledTasks,
+    recycleBin, setRecycleBin, dataLoaded, isTrayMode, multiUserEnabled,
+  });
 
   // Obsidian vault sync — full lifecycle (initial restore+sync, visibility
   // re-sync, 5-minute poll, task writeback, iOS vault-settings persistence)
@@ -8649,6 +8655,7 @@ const DayPlanner = () => {
   };
 
   const syncCtx = {
+    todoist,
     // ── Calendar sync ─────────────────────────────────────────────────────────
     syncUrl, setSyncUrl,
     icsCalendars, setIcsCalendars,
