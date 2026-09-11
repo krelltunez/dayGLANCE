@@ -66,7 +66,14 @@ describe('DialComplications — the done subdial', () => {
       items: [doneItem({ doneMinutes: 180, fraction: 1, remaining: [] })],
     });
     expect(met).toContain('#22c55e');
-    expect(met).toContain('>100<');
+    // "100" is the one three-digit value and it measures 50px inside a 53px
+    // ring — jammed against the stroke. At target the ring is already full
+    // and green, so a check says it without the cramping, and the figure
+    // stays in the accessible name for anyone reading it out.
+    expect(met).not.toContain('>100<');
+    expect(met).toContain('aria-label="Done: 100%, 180 of 180 minutes"');
+    // Every other value still prints as a number.
+    expect(render(i18n, { items: [doneItem()] })).toContain('>67<');
   });
 
   it('rings it at the habit rings\' own proportions', async () => {

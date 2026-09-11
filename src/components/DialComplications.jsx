@@ -187,9 +187,20 @@ function DoneSlot({ item, size, onOpen, t }) {
             className="transition-all duration-500"
           />
         </svg>
-        <span className={`text-white/85 ${size.count} font-medium leading-none tabular-nums`}>
-          {pct}
-        </span>
+        {/* "100" is the one three-digit value, and it measures 50px inside a
+            53px ring — jammed against the stroke. It is also the only value
+            worth a mark rather than a number, and HabitRing already says
+            "goal met" with a check, so the face keeps one vocabulary. */}
+        {met ? (
+          <Check
+            size={Math.round(size.dot * 0.34)} strokeWidth={2.5}
+            style={{ color: DONE_MET_COLOR }} aria-hidden="true"
+          />
+        ) : (
+          <span className={`text-white/85 ${size.count} font-medium leading-none tabular-nums`}>
+            {pct}
+          </span>
+        )}
       </span>
       <span className={`text-white/35 ${size.label} uppercase tracking-[0.14em] leading-none`}>
         {t('dial.done', 'Done')}
