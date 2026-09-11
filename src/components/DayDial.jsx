@@ -23,6 +23,7 @@ import {
   initialDialSelection,
   muteDialColor,
   padDialSegment,
+  precipArcSegments,
   precipRuns,
   stepDialSelection,
 } from '../utils/dayDial.js';
@@ -256,15 +257,22 @@ function SunMark({ min, kind }) {
 
 // Weather ring: hour temperatures as quiet monochrome numerals at the
 // 3-hour stations on an inner radius, and precipitation spells as a thin
-// arc hugging the band's inner edge — solid for rain, dashed for snow —
-// with one line glyph per spell at its center. Deliberately no per-hour
-// condition icons and no temperature color ramp: numbers stay data, the
-// palette stays the schedule's, and precipitation is the one condition
-// that earns ink. Temps sit at r=250, inside the needle's root (265), so
-// the moving element never crosses them.
+// arc — solid for rain, dashed for snow — broken at its midpoint for one
+// line glyph per spell. Deliberately no per-hour condition icons and no
+// temperature color ramp: numbers stay data, the palette stays the
+// schedule's, and precipitation is the one condition that earns ink. Temps
+// sit at r=250, inside the needle's root (265), so the moving element never
+// crosses them.
+//
+// The precipitation track sits at 274, centered in the only clear annulus
+// the face has left for it. Its floor is the temperature numerals: a
+// three-digit reading at a diagonal station throws its corner out to 267,
+// which is the number to beat, not the 250 they are centered on. Its
+// ceiling is the daylight band's inner edge at 282. Fifteen units, and the
+// glyph needs thirteen of them — hence one shared radius for track and
+// glyph, and a glyph scaled to leave a little over two units at each edge.
 const TEMP_R = 250;
-const PRECIP_ARC_R = 292;
-const PRECIP_GLYPH_R = 268;
+const PRECIP_R = 274;
 
 // Lucide 'droplet'; snow is three crossed one-weight lines (a 6-spoke
 // star) — lucide's snowflake is too dense at this size.
@@ -274,7 +282,7 @@ const SNOW_PATHS = 'M12 3v18 M4.2 7.5l15.6 9 M19.8 7.5l-15.6 9';
 
 function WeatherRing({ hourly }) {
   const runs = precipRuns(hourly);
-  const glyphScale = 0.55;
+  const glyphScale = 0.45;
   return (
     <g>
       {HOUR_LABELS.map(({ min }) => {
@@ -295,17 +303,20 @@ function WeatherRing({ hourly }) {
       })}
       {runs.map((run) => {
         const mid = (run.startMin + run.endMin) / 2;
-        const g = dialPoint(CX, CY, PRECIP_GLYPH_R, mid);
+        const g = dialPoint(CX, CY, PRECIP_R, mid);
         return (
           <g
             key={`${run.kind}-${run.startMin}`}
             stroke="#ffffff" strokeOpacity={0.3} fill="none" strokeLinecap="round"
           >
-            <path
-              d={dialArcPath(CX, CY, PRECIP_ARC_R, run.startMin + 4, run.endMin - 4)}
-              strokeWidth={2.5}
-              strokeDasharray={run.kind === 'snow' ? '2 7' : undefined}
-            />
+            {precipArcSegments(run).map(([from, to]) => (
+              <path
+                key={from}
+                d={dialArcPath(CX, CY, PRECIP_R, from, to)}
+                strokeWidth={2.5}
+                strokeDasharray={run.kind === 'snow' ? '2 7' : undefined}
+              />
+            ))}
             <g
               strokeWidth={2.6} strokeLinejoin="round"
               transform={`translate(${(g.x - 12 * glyphScale).toFixed(2)} ${(g.y - 12 * glyphScale).toFixed(2)}) scale(${glyphScale})`}
