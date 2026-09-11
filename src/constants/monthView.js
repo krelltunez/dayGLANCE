@@ -1,0 +1,50 @@
+// Month view day-cell geometry — plain data, deliberately free of component
+// code. The layout engine (utils/monthCellLayout.js) reads these, and the
+// native Android home-screen widget will draw the same cells from the same
+// numbers, so a change here is a change on every surface at once.
+//
+// A day cell is a miniature vertical timeline: vertical position encodes
+// time of day within a FIXED hour window, identical for every cell in the
+// grid. The window is never fitted to one day's contents — if it were, two
+// cells side by side would read the same pixel as different hours and the
+// grid would stop being comparable across days.
+
+export const MONTH_CELL_LAYOUT = Object.freeze({
+  /** The hours a cell maps to its full height. Items outside clamp to the edges. */
+  window: Object.freeze({ startHour: 7, endHour: 21 }),
+
+  /**
+   * A band never draws thinner than this, so a 15-minute item stays a visible
+   * mark. At a typical phone cell (~90px for a 14-hour window, ~6px per hour)
+   * a quarter hour is 1.6px; 4px reads as a line without stealing the room
+   * an hour-long band needs to read as a band.
+   */
+  minBandHeight: 4,
+
+  /**
+   * Lanes stop splitting the cell at three. A phone month grid gives each of
+   * the seven columns roughly 48px of usable width; three lanes with 1px gaps
+   * are still ~15px each and read as distinct bands, whereas four drop to
+   * ~11px and start reading as a stripe pattern. Three also matches the day
+   * grid's own drop rule (useTaskDerived's wouldExceedMaxColumns), so the
+   * month never shows more overlap than the day view lets a user create.
+   * Anything past the cap is reported as overflow instead of drawn thinner.
+   */
+  maxLanes: 3,
+
+  /** Horizontal gap between side-by-side lanes, in px. */
+  laneGap: 1,
+
+  /**
+   * Vertical gap kept between consecutive bands that share horizontal space,
+   * in px. Back-to-back items (and items pushed together by the minimum
+   * height) stay two marks instead of merging into one longer band.
+   */
+  bandGap: 1,
+});
+
+export const MONTH_CELL_HOUR_WINDOW = MONTH_CELL_LAYOUT.window;
+export const MONTH_CELL_MIN_BAND_HEIGHT = MONTH_CELL_LAYOUT.minBandHeight;
+export const MONTH_CELL_MAX_LANES = MONTH_CELL_LAYOUT.maxLanes;
+export const MONTH_CELL_LANE_GAP = MONTH_CELL_LAYOUT.laneGap;
+export const MONTH_CELL_BAND_GAP = MONTH_CELL_LAYOUT.bandGap;

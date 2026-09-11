@@ -2,6 +2,7 @@ import { computeDaySummary } from './daySummary.js';
 import { deriveBlockEnergy } from './energyAxis.js';
 import { taskColorToHex } from './colorUtils.js';
 import { getPeakSunElevation, getSunElevation, POLAR_DAY } from './solar.js';
+import { assignLanes } from './intervalLanes.js';
 
 // Model + geometry for the Day Dial — the ambient 24-hour instrument view.
 // Pure functions only: DayDial.jsx stays presentational and every angle,
@@ -138,34 +139,9 @@ export function padDialSegment(startMin, endMin, gapMin = 3, padStart = true, pa
  * @returns New block objects carrying {lane, laneCount}, in the same order.
  */
 export function assignDialLanes(blocks) {
-  const out = [];
-  let cluster = [];
-  let clusterEnd = -Infinity;
-  let laneEnds = [];
-
-  // One cluster's lane count applies to every block in it, so a wedge keeps
-  // the same depth for as long as the pile-up lasts instead of stepping
-  // radially mid-cluster.
-  const flush = () => {
-    for (const b of cluster) out.push({ ...b, laneCount: laneEnds.length });
-    cluster = [];
-    laneEnds = [];
-  };
-
-  for (const b of blocks || []) {
-    if (b.startMin >= clusterEnd) {
-      flush();
-      clusterEnd = b.endMin;
-    } else {
-      clusterEnd = Math.max(clusterEnd, b.endMin);
-    }
-    let lane = laneEnds.findIndex((end) => end <= b.startMin);
-    if (lane === -1) lane = laneEnds.length;
-    laneEnds[lane] = b.endMin;
-    cluster.push({ ...b, lane });
-  }
-  flush();
-  return out;
+  // The packing itself is shared with the time grids and the month view
+  // (intervalLanes.js); the dial only names its own semantics for it.
+  return assignLanes(blocks);
 }
 
 // Radial breathing room between lanes, in viewBox units. Yields on crowded
