@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CalendarClock, Check, ExternalLink, Inbox, Minus, Plus } from 'lucide-react';
+import { CalendarClock, Check, CheckCircle2, Circle, ExternalLink, Inbox, Minus, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { stripWikilinks } from '../utils/taskUtils.js';
 import { HabitRing } from './HabitRing.jsx';
@@ -246,7 +246,7 @@ function CountSlot({ item, size, onOpen, t }) {
   );
 }
 
-const DialComplications = ({ items, dialPx, onOpenTask, onSetHabitCount, onIncrementHabit, onToggleComplete }) => {
+const DialComplications = ({ items, dialPx, onOpenTask, onSetHabitCount, onIncrementHabit, onToggleComplete, onToggleTaskComplete }) => {
   const { t } = useTranslation();
   const [openKey, setOpenKey] = useState(null);
   const sheetRef = useRef(null);
@@ -402,17 +402,41 @@ const DialComplications = ({ items, dialPx, onOpenTask, onSetHabitCount, onIncre
                   <div className="mt-3 text-white/35 text-sm">{t('dial.nothingHere', 'Nothing here')}</div>
                 ) : (
                   <div className="mt-3 space-y-1 max-h-[46vh] overflow-y-auto">
+                    {/* Two actions, both visible: the circle ticks it off
+                        without leaving the dial, the rest of the row still
+                        opens the editor — which is the only way to give a
+                        deadline a time, so it could not just be replaced. A
+                        button cannot nest inside a button, hence the row is
+                        a div holding two. */}
                     {open.items.slice(0, 12).map((task) => (
-                      <button
+                      <div
                         key={task.id}
-                        onClick={() => { setOpenKey(null); onOpenTask(task); }}
-                        className="w-full flex items-center gap-2.5 rounded-lg bg-white/5 hover:bg-white/10 active:bg-white/15 px-3 py-2 text-left transition-colors"
+                        className="w-full flex items-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
                       >
-                        <span className="flex-1 min-w-0 truncate text-white/85 text-sm">
-                          {stripWikilinks(task.title)}
-                        </span>
-                        <ExternalLink size={14} className="text-white/30 flex-shrink-0" aria-hidden="true" />
-                      </button>
+                        <button
+                          onClick={() => onToggleTaskComplete?.(task)}
+                          aria-label={task.completed
+                            ? t('dial.markNotComplete', 'Mark not complete')
+                            : t('dial.markComplete', 'Mark complete')}
+                          aria-pressed={!!task.completed}
+                          className="flex-shrink-0 pl-3 pr-2 py-2 active:scale-90 transition-transform"
+                        >
+                          {task.completed
+                            ? <CheckCircle2 size={16} className="text-green-500/80" />
+                            : <Circle size={16} className="text-white/30" />}
+                        </button>
+                        <button
+                          onClick={() => { setOpenKey(null); onOpenTask(task); }}
+                          className="flex-1 min-w-0 flex items-center gap-2.5 pr-3 py-2 text-left active:bg-white/10 rounded-r-lg transition-colors"
+                        >
+                          <span className={`flex-1 min-w-0 truncate text-sm ${
+                            task.completed ? 'text-white/35 line-through' : 'text-white/85'}`}
+                          >
+                            {stripWikilinks(task.title)}
+                          </span>
+                          <ExternalLink size={14} className="text-white/30 flex-shrink-0" aria-hidden="true" />
+                        </button>
+                      </div>
                     ))}
                     {open.items.length > 12 && (
                       <div className="pt-1 text-center text-white/35 text-xs">
