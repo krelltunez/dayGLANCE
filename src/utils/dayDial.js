@@ -1,6 +1,7 @@
 import { computeDaySummary } from './daySummary.js';
 import { deriveBlockEnergy } from './energyAxis.js';
 import { taskColorToHex } from './colorUtils.js';
+import { getMoonAltitude, getMoonIllumination } from './lunar.js';
 import { getPeakSunElevation, getSunElevation, POLAR_DAY } from './solar.js';
 import { assignLanes } from './intervalLanes.js';
 
@@ -775,4 +776,148 @@ export function precipArcSegments(run, {
   const mid = (run.startMin + run.endMin) / 2;
   const segments = [[from, mid - gap / 2], [mid + gap / 2, to]];
   return segments.every(([s, e]) => e - s >= minStub) ? segments : [];
+}
+
+// The moon shares the daylight band's track, and takes over when the sun
+// leaves it. That is not just tidiness: the band means "light this body is
+// giving you", and a moon in a blue sky is giving you none. It is up during
+// the day about as often as at night, so without the clip the two bands would
+// overlap on the same annulus for half of every month, and the track would
+// stop meaning one thing.
+
+/** Brightest the moon band ever gets — a full moon, high, on a clear night. */
+export const MOONLIGHT_PEAK = 0.20;
+/** Its quietest, at the horizon. Both are scaled by the lit fraction. */
+export const MOONLIGHT_FLOOR = 0.012;
+/**
+ * Full moonlight is around a 400,000th of sunlight, so a band that scaled
+ * with the real ratio would be invisible. These numbers are not that ratio —
+ * they are the readable floor of the same track — but they keep the ORDER
+ * right: the brightest moon this dial can draw lands at the dimmest daylight
+ * it can draw (DAYLIGHT_FLOOR), and both stay well under the now-line.
+ */
+export const MOON_ALTITUDE_REFERENCE = 45;
+
+/**
+ * The moon band as a list of arc steps, each with its own opacity: the
+ * portion of the night the moon is actually above the horizon, scaled by how
+ * high it is and how much of its disc is lit.
+ *
+ * Sampling minute by minute rather than deriving spans from moonrise and
+ * moonset, because the interesting cases are the awkward ones — the moon that
+ * sets at 04:00 and rises again at 22:00 puts two separate spans in one local
+ * day, and at high latitudes it may do neither.
+ *
+ * @param date   The local day being drawn.
+ * @param coords {lat, lon}, or null when no location is configured.
+ * @param sun    getSunTimes' result for that date and place, used to clip the
+ *               band to the hours the sun is down.
+ * @returns {{steps: Array<{startMin, endMin, opacity}>, glyphMin: number|null,
+ *            fraction: number, waxing: boolean}} `glyphMin` is the middle of
+ *          the longest unbroken stretch — where the phase glyph goes — or
+ *          null when no stretch is long enough to hold one.
+ */
+export function computeMoonBand(date, coords, sun) {
+  const none = { steps: [], peakMin: null, fraction: 0, waxing: true };
+  if (!coords || !sun) return none;
+
+  const { fraction, waxing } = getMoonIllumination(
+    new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12));
+
+  const sunUp = sunUpPredicate(sun);
+  const steps = [];
+
+  for (let m = 0; m < DIAL_DAY_MINUTES; m += DAYLIGHT_STEP_MIN) {
+    const mid = m + DAYLIGHT_STEP_MIN / 2;
+    if (sunUp(mid)) continue;
+    const alt = getMoonAltitude(
+      new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, mid), coords.lat, coords.lon);
+    if (alt <= 0) continue;
+
+    const lit = Math.min(1, Math.sin((alt * Math.PI) / 180)
+      / Math.sin((MOON_ALTITUDE_REFERENCE * Math.PI) / 180));
+    steps.push({
+      startMin: m,
+      endMin: m + DAYLIGHT_STEP_MIN,
+      // Scaled by the lit fraction throughout, floor included: a new moon
+      // overhead is still a dark sky, and drawing it as a band would say
+      // otherwise.
+      opacity: Math.round(
+        (MOONLIGHT_FLOOR + (MOONLIGHT_PEAK - MOONLIGHT_FLOOR) * lit) * fraction * 1e4) / 1e4,
+    });
+  }
+  return { steps, glyphMin: moonGlyphMinute(steps), fraction, waxing };
+}
+
+/** A stretch shorter than this is left to speak for itself, unglyphed. */
+export const MOON_GLYPH_MIN_RUN = 60;
+
+/**
+ * The band's steps grouped into unbroken stretches. One local day routinely
+ * holds two — the moon sets before dawn and is back before the next midnight
+ * — which is the case that rules out deriving the band from a single
+ * moonrise/moonset pair.
+ *
+ * @param steps Consecutive {startMin, endMin} steps in day order.
+ * @returns Array of {startMin, endMin}, one per unbroken stretch.
+ */
+export function moonStretches(steps) {
+  const runs = [];
+  for (const step of steps) {
+    const last = runs[runs.length - 1];
+    if (last && last.endMin === step.startMin) last.endMin = step.endMin;
+    else runs.push({ startMin: step.startMin, endMin: step.endMin });
+  }
+  return runs;
+}
+
+/**
+ * Where the phase glyph goes: the middle of the longest unbroken stretch the
+ * band draws.
+ *
+ * Not the moon's highest minute, which is the more interesting datum but the
+ * wrong one to mark here. Clipping to the sun-down hours routinely cuts a
+ * stretch off while the moon is still climbing, so "highest" lands flush on
+ * the band's edge — against the sunrise hairline, and describing a peak the
+ * band does not actually contain.
+ */
+function moonGlyphMinute(steps) {
+  const best = moonStretches(steps).reduce(
+    (a, b) => (a && a.endMin - a.startMin >= b.endMin - b.startMin ? a : b), null);
+  return best && best.endMin - best.startMin >= MOON_GLYPH_MIN_RUN
+    ? (best.startMin + best.endMin) / 2
+    : null;
+}
+
+/** Is the sun above the horizon at this minute? Reads getSunTimes' result. */
+function sunUpPredicate(sun) {
+  if (sun.polar === POLAR_DAY) return () => true;
+  if (sun.polar || sun.sunriseMin == null || sun.sunsetMin == null) return () => false;
+  const { sunriseMin, sunsetMin } = sun;
+  return sunsetMin > sunriseMin
+    ? (m) => m >= sunriseMin && m < sunsetMin
+    // Sunset before sunrise on the clock: the lit span wraps midnight.
+    : (m) => m >= sunriseMin || m < sunsetMin;
+}
+
+/**
+ * The lit portion of a moon disc of radius `r`, as an SVG path centred on the
+ * origin: the limb on one side, the terminator — a semi-ellipse whose width
+ * collapses to nothing at the quarters — on the other.
+ *
+ * @param r        Disc radius in user units.
+ * @param fraction Lit portion of the disc, 0 (new) to 1 (full).
+ * @param waxing   Lit on the right (northern hemisphere) when true.
+ * @param mirror   Flip the lit side, for southern-hemisphere observers.
+ * @returns An SVG path `d`, empty-area at new moon and a full circle at full.
+ */
+export function moonPhasePath(r, fraction, waxing, mirror = false) {
+  const k = Math.max(0, Math.min(1, fraction));
+  const rx = Math.round(r * Math.abs(1 - 2 * k) * 1e3) / 1e3;
+  // Past half, the terminator bulges away from the lit limb rather than
+  // toward it, which is a change of arc direction, not of radius.
+  const sweep = k < 0.5 ? 0 : 1;
+  const x = waxing === !mirror ? 1 : -1;
+  return `M 0 ${-r} A ${r} ${r} 0 0 ${x > 0 ? 1 : 0} 0 ${r}`
+    + ` A ${rx} ${r} 0 0 ${x > 0 ? sweep : 1 - sweep} 0 ${-r} Z`;
 }

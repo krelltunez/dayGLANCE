@@ -1374,7 +1374,7 @@
     "exitFullscreen": "Exit full screen (F)",
     "layersKey": "Layers (L)",
     "layers": "Layers",
-    "layerSolar": "Sunrise & sunset",
+    "layerSolar": "Sun & moon",
     "layerWeather": "Weather",
     "layerCalendars": "Calendar events"
   },

@@ -5,7 +5,7 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { getStoredWeatherCoords, getSunTimes } from '../utils/solar.js';
-import { computeDayCompletion, computeDaylightBand, computeFocusSpans, dialPeakUv } from '../utils/dayDial.js';
+import { computeDayCompletion, computeDaylightBand, computeFocusSpans, computeMoonBand, dialPeakUv } from '../utils/dayDial.js';
 import { acquireWakeLock, releaseWakeLock } from '../utils/wakeLock.js';
 import { isNativeApp, nativeSetImmersiveMode } from '../native.js';
 import { AMBIENT_DELAY_OPTIONS, loadAmbientPrefs, saveAmbientPrefs } from '../utils/dialPrefs.js';
@@ -491,6 +491,17 @@ const DayDialModal = () => {
     : []),
   [solar, selectedDate, weather, dateStr]);
 
+  // The moon shares the solar layer's toggle and the daylight band's track:
+  // it is the same fact about the sky, told for the other half of the day.
+  // `southern` flips the lit limb — below the equator a waxing moon is lit on
+  // the left, and a dial that drew it on the right would be drawing the
+  // northern sky to someone looking at the southern one.
+  const moon = useMemo(() => (solar
+    ? { ...computeMoonBand(selectedDate, solar.coords, solar.sun),
+        southern: solar.coords.lat < 0 }
+    : null),
+  [solar, selectedDate]);
+
   // Calendars off hides calendar-imported events (Obsidian-imported tasks
   // are the user's own work and stay); totals and the ring follow together
   // since the same filtered list feeds computeDialModel.
@@ -712,6 +723,7 @@ const DayDialModal = () => {
         use24HourClock={use24HourClock}
         sun={sun}
         daylight={daylight}
+        moon={moon}
         hourlyWeather={layers.weather ? (weather?.hourlyByDate?.[dateStr] ?? null) : null}
         onToggleComplete={handleToggleComplete}
         onOpenInPlanner={handleOpenInPlanner}
@@ -733,7 +745,7 @@ const DayDialModal = () => {
           >
             <ToggleRow
               icon={Sunrise}
-              label={t('dial.layerSolar', 'Sunrise & sunset')}
+              label={t('dial.layerSolar', 'Sun & moon')}
               on={layers.solar}
               onChange={(v) => setLayer('solar', v)}
             />
