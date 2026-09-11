@@ -69,6 +69,19 @@ describe('DialComplications — the done subdial', () => {
     expect(met).toContain('>100<');
   });
 
+  it('rings it at the habit rings\' own proportions', async () => {
+    const i18n = await i18nFor('en');
+    // HabitRing draws radius 0.38 of its box at stroke 3 (HabitRing.jsx), and
+    // the two sit on the same face — matching keeps them one object rather
+    // than two. Flush with the disc's edge instead, which is where this
+    // started, the ring crowds the caption underneath it.
+    for (const size of COMPLICATION_SIZES) {
+      const html = render(i18n, { items: [doneItem()], dialPx: size.minDialPx });
+      expect(html).toContain(`r="${size.dot * 0.38}"`);
+      expect(html).toContain('stroke-width="3"');
+    }
+  });
+
   it('never reads an empty day as finished', async () => {
     const i18n = await i18nFor('en');
     // 0 of 0 minutes is 0%, not 100% — nothing was completed.

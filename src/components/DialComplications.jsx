@@ -145,10 +145,12 @@ function HabitSlot({ item, size, onOpen, onIncrement, t }) {
 function DoneSlot({ item, size, onOpen, t }) {
   const pct = Math.round(item.fraction * 100);
   const met = item.totalMinutes > 0 && item.doneMinutes >= item.totalMinutes;
-  // Stroke and radius in the disc's own units, so the ring scales with the
-  // tier instead of thickening on the small one.
-  const stroke = Math.max(2.5, size.dot * 0.055);
-  const r = (size.dot - stroke) / 2;
+  // HabitRing's exact proportions (radius 0.38 of the box, stroke 3), so the
+  // two kinds of ring on the face are the same object at the same weight.
+  // Flush with the disc's edge instead — which is where this started — the
+  // ring crowds the caption underneath it.
+  const stroke = 3;
+  const r = size.dot * 0.38;
   const circumference = 2 * Math.PI * r;
   return (
     <button
