@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarClock, CalendarDays, Eclipse, Inbox, Layers, Maximize, Minimize, Monitor, Sparkles, Sunrise, Target, Thermometer, X, Timer } from 'lucide-react';
+import { CalendarClock, CalendarDays, Eclipse, Inbox, Layers, Maximize, Minimize, Monitor, Sparkles, Sunrise, Target, Thermometer, X, Timer, CircleCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { getStoredWeatherCoords, getSunTimes } from '../utils/solar.js';
-import { computeDaylightBand, computeFocusSpans, dialPeakUv } from '../utils/dayDial.js';
+import { computeDayCompletion, computeDaylightBand, computeFocusSpans, dialPeakUv } from '../utils/dayDial.js';
 import { acquireWakeLock, releaseWakeLock } from '../utils/wakeLock.js';
 import { isNativeApp, nativeSetImmersiveMode } from '../native.js';
 import { AMBIENT_DELAY_OPTIONS, loadAmbientPrefs, saveAmbientPrefs } from '../utils/dialPrefs.js';
@@ -556,13 +556,25 @@ const DayDialModal = () => {
       const items = getDeadlineTasksForDate(dateStr) || [];
       return { key, kind: 'deadlines', count: items.length, items };
     }
+    if (key === 'done') {
+      // Weighted by minutes, not by block count: this face is about time,
+      // so a two-hour block counts for more than a fifteen-minute errand.
+      return { key, kind: 'done', ...computeDayCompletion(dayTasks) };
+    }
     const habit = (activeHabits || []).find((h) => `habit:${h.id}` === key);
     return habit
       ? { key, kind: 'habit', habit, count: getTodayHabitCount(habit.id) }
       : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }).filter(Boolean), [complicationKeys, filteredUnscheduledTasks, getDeadlineTasksForDate,
-    dateStr, activeHabits, getTodayHabitCount]);
+  })
+    // Some readouts only mean anything about today: the inbox is one global
+    // list with no notion of a date, and a habit count is today's tally. The
+    // rest are per-date and stay useful when the dial is paged back — the
+    // deadline list is already fetched for the date on screen, and a day's
+    // completion is a fact about that day.
+    .filter((c) => c && (isToday || c.kind === 'done' || c.kind === 'deadlines')),
+  [complicationKeys, filteredUnscheduledTasks, getDeadlineTasksForDate,
+    dateStr, activeHabits, getTodayHabitCount, dayTasks, isToday]);
 
   // A complication row hands the task to the app's own editor — the same one
   // the planner opens — so a deadline or an inbox item can be given a date
@@ -680,7 +692,7 @@ const DayDialModal = () => {
         routineCompletions={routineCompletions}
         focusSpans={focusSpans}
         onStartFocus={isToday && focusModeAvailable ? handleStartFocus : null}
-        complications={isToday ? complications : null}
+        complications={complications}
         onOpenTask={handleOpenTask}
         onSetHabitCount={(habit, next) => setHabitCount(habit.id, next)}
         onIncrementHabit={(habit) => incrementHabit(habit.id)}
@@ -756,6 +768,13 @@ const DayDialModal = () => {
               on={complicationKeys.includes('inbox')}
               disabled={complicationsFull && !complicationKeys.includes('inbox')}
               onChange={() => toggleComplication('inbox')}
+            />
+            <ToggleRow
+              icon={CircleCheck}
+              label={t('dial.done', 'Done')}
+              on={complicationKeys.includes('done')}
+              disabled={complicationsFull && !complicationKeys.includes('done')}
+              onChange={() => toggleComplication('done')}
             />
             <ToggleRow
               icon={CalendarClock}

@@ -28,6 +28,7 @@ import {
   computeFocusSpans,
   focusSpanMinutes,
   canStartFocusFromBlock,
+  computeDayCompletion,
 } from './dayDial.js';
 
 const task = (over = {}) => ({
@@ -761,5 +762,78 @@ describe('canStartFocusFromBlock', () => {
     expect(canStartFocusFromBlock(block({ isRoutine: true }), 600)).toBe(false);
     expect(canStartFocusFromBlock({ }, 600)).toBe(false);       // an all-day item
     expect(canStartFocusFromBlock(null, 600)).toBe(false);
+  });
+});
+
+
+describe('computeDayCompletion', () => {
+  const T = (over = {}) => ({ id: 1, title: 'x', startTime: '09:00', duration: 60, ...over });
+  const ids = (c) => c.remaining.map((t) => t.id);
+
+  it('weighs completion by minutes, not by block count', () => {
+    // The whole reason this face measures in minutes: a two-hour block is
+    // more of the day than a fifteen-minute errand.
+    const c = computeDayCompletion([
+      T({ id: 1, duration: 120, completed: true }),
+      T({ id: 2, startTime: '14:00', duration: 15 }),
+    ]);
+    expect(c.doneMinutes).toBe(120);
+    expect(c.totalMinutes).toBe(135);
+    expect(c.fraction).toBeCloseTo(120 / 135, 5);
+    // By block count this would read 1 of 2; by minutes it is nearly done.
+    expect(c.fraction).toBeGreaterThan(0.85);
+  });
+
+  it('reads an empty day as empty, never as finished', () => {
+    // 0/0 is not 100%: a day with nothing scheduled has completed nothing.
+    const c = computeDayCompletion([]);
+    expect(c).toEqual({ doneMinutes: 0, totalMinutes: 0, fraction: 0, remaining: [] });
+    expect(computeDayCompletion(null).fraction).toBe(0);
+  });
+
+  it('reaches exactly 1 when everything scheduled is done', () => {
+    const c = computeDayCompletion([
+      T({ id: 1, completed: true }), T({ id: 2, startTime: '11:00', completed: true }),
+    ]);
+    expect(c.fraction).toBe(1);
+    expect(c.remaining).toEqual([]);
+  });
+
+  it('leaves out what is not yours to complete', () => {
+    // A read-only imported meeting would otherwise peg the figure below
+    // 100% on any day containing one.
+    const c = computeDayCompletion([
+      T({ id: 1, completed: true }),
+      T({ id: 2, startTime: '11:00', imported: true }),
+    ]);
+    expect(c.fraction).toBe(1);
+    expect(ids(c)).toEqual([]);
+    // ...but an imported TASK calendar is the user's own work.
+    const own = computeDayCompletion([
+      T({ id: 1, completed: true }),
+      T({ id: 2, startTime: '11:00', imported: true, isTaskCalendar: true }),
+    ]);
+    expect(own.fraction).toBe(0.5);
+    expect(ids(own)).toEqual([2]);
+  });
+
+  it('leaves out what has no minutes to weigh', () => {
+    const c = computeDayCompletion([
+      T({ id: 1, completed: true }),
+      T({ id: 2, isAllDay: true, duration: 600 }),   // no hour on the clock
+      T({ id: 3, startTime: null, duration: 30 }),   // unscheduled
+      T({ id: 4, startTime: '13:00', duration: 0 }), // zero-length
+    ]);
+    expect(c.totalMinutes).toBe(60);
+    expect(c.fraction).toBe(1);
+  });
+
+  it('lists what is left, in time order', () => {
+    expect(ids(computeDayCompletion([
+      T({ id: 'c', startTime: '16:00' }),
+      T({ id: 'a', startTime: '08:00' }),
+      T({ id: 'done', startTime: '09:00', completed: true }),
+      T({ id: 'b', startTime: '12:30' }),
+    ]))).toEqual(['a', 'b', 'c']);
   });
 });

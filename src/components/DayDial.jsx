@@ -1382,6 +1382,7 @@ const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineComple
             onOpenTask={onOpenTask}
             onSetHabitCount={onSetHabitCount}
             onIncrementHabit={onIncrementHabit}
+            onToggleComplete={onToggleComplete}
           />
         )}
 
