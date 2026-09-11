@@ -34,30 +34,6 @@ function getTaskSlice(task, col, hourHeight, timeToMinutes) {
   };
 }
 
-function columnConflictPos(task, colTasks, timeToMinutes) {
-  const tStart = timeToMinutes(task.startTime || '0:00');
-  const tEnd = tStart + (task.duration || 0);
-
-  const peers = colTasks.filter(other => {
-    if (other.id === task.id) return false;
-    const oStart = timeToMinutes(other.startTime || '0:00');
-    const oEnd = oStart + (other.duration || 0);
-    return tStart < oEnd && tEnd > oStart;
-  });
-
-  if (peers.length === 0) return { left: '0%', width: '100%' };
-
-  const group = [task, ...peers].sort((a, b) => {
-    const diff = timeToMinutes(a.startTime || '0:00') - timeToMinutes(b.startTime || '0:00');
-    return diff !== 0 ? diff : String(a.id).localeCompare(String(b.id));
-  });
-
-  const idx = group.findIndex(t => t.id === task.id);
-  const total = group.length;
-  const pct = 100 / total;
-  return { left: `${idx * pct}%`, width: `${pct}%` };
-}
-
 // ── DayViewColumn ─────────────────────────────────────────────────────────────
 
 const DayViewColumn = ({ col, colIdx, hourHeight }) => {
@@ -69,6 +45,8 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     taskContextMenu, setTaskContextMenu,
     getTasksForDate,
     getTaskCalendarStyle,
+    taskWidths, setTaskRef,
+    calculateConflictPosition,
     timeToMinutes,
     formatTime,
     handleRoutineResizeStart, handleTouchRoutineResizeStart,
@@ -366,7 +344,10 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
             if (!slice) return null;
 
             const { top, height, clippedTop, clippedBottom } = slice;
-            const { left, width } = columnConflictPos(task, colTasks, timeToMinutes);
+            // Same lane packing as MULTI (TimeGrid): transitive overlap
+            // clusters with first-fit columns and MULTI's 2px card margins,
+            // instead of the per-task neighbour count DAY used to compute.
+            const conflictPos = calculateConflictPosition(task, colTasks);
 
             const isImported = task.imported;
             const isCalendarEvent = isImported && !task.isTaskCalendar;
@@ -388,9 +369,17 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
             // on its last visible slice, at the real bottom of the task.
             const canResize = (!isImported || !!task.nativeEventId) && !isTablet && !clippedBottom;
 
+            // Same card rule as MULTI (TimeGrid): measure the rendered card
+            // and switch to the compact layout under 300px; stay hidden
+            // until the first measurement so the wide layout never flashes.
+            const taskWidth = taskWidths[task.id];
+            const isMeasured = taskWidth !== undefined;
+            const isNarrowWidth = taskWidth < 300;
+
             return (
               <div
                 key={`${task.id}-${col.startHour}`}
+                ref={setTaskRef(task.id)}
                 data-task-id={task.id}
                 data-ctx-menu
                 draggable={taskDraggable}
@@ -409,8 +398,9 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                   height: `${height}px`,
                   ...(hasBars && taskOverlapsHG(task)
                     ? { left: '50%', right: 0, width: undefined }
-                    : { left, width }),
+                    : { left: conflictPos.left, right: conflictPos.right, width: conflictPos.width }),
                   ...(isCalendarEvent || task.isTaskCalendar ? taskCalStyle : {}),
+                  visibility: isMeasured ? 'visible' : 'hidden',
                 }}
                 onClick={(e) => e.stopPropagation()}
                 onContextMenu={(e) => {
@@ -433,7 +423,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                 <TimelineTaskCardContent
                   task={task}
                   height={height}
-                  isNarrowWidth={false}
+                  isNarrowWidth={isNarrowWidth}
                   flipNotesPanel={(8 * hourHeight) - (top + height) < 200}
                 />
                 {clippedBottom && (
