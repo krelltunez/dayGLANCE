@@ -14,29 +14,6 @@ import { formatLocalizedDate } from '../utils/localeFormatting.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function weekColConflictPos(task, colTasks, timeToMinutes) {
-  const tStart = timeToMinutes(task.startTime || '0:00');
-  const tEnd = tStart + (task.duration || 0);
-
-  const peers = colTasks.filter(other => {
-    if (other.id === task.id) return false;
-    const oStart = timeToMinutes(other.startTime || '0:00');
-    const oEnd = oStart + (other.duration || 0);
-    return tStart < oEnd && tEnd > oStart;
-  });
-
-  if (peers.length === 0) return { left: '1px', right: '1px', width: undefined };
-
-  const group = [task, ...peers].sort((a, b) => {
-    const diff = timeToMinutes(a.startTime || '0:00') - timeToMinutes(b.startTime || '0:00');
-    return diff !== 0 ? diff : String(a.id).localeCompare(String(b.id));
-  });
-  const idx = group.findIndex(t => t.id === task.id);
-  const total = group.length;
-  const pct = 100 / total;
-  return { left: `calc(${idx * pct}% + 1px)`, width: `calc(${pct}% - 2px)`, right: undefined };
-}
-
 // ── Task popover ──────────────────────────────────────────────────────────────
 
 const WeekViewTaskPopover = ({ task, anchor, onClose }) => {
@@ -109,6 +86,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, startHour, onTaskCl
   const {
     darkMode, borderClass, cardBg,
     getTasksForDate, getTaskCalendarStyle,
+    calculateConflictPosition,
     timeToMinutes,
     setTaskContextMenu, setTimelineContextMenu,
     isTablet,
@@ -313,7 +291,9 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, startHour, onTaskCl
           const rawH = duration * hourHeight / 60;
           const chipH = Math.max(22, rawH);
           const chipTop = (taskStart - startMinute) * hourHeight / 60;
-          const { left, right, width } = weekColConflictPos(task, colTasks, timeToMinutes);
+          // Same lane packing as MULTI and DAY: transitive overlap clusters
+          // with first-fit columns, from the shared interval packer.
+          const conflictPos = calculateConflictPosition(task, colTasks);
 
           const isImported = task.imported;
           const isCalendarEvent = isImported && !task.isTaskCalendar;
@@ -342,7 +322,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, startHour, onTaskCl
                 height: `${chipH}px`,
                 ...(hasBars && taskOverlapsHG(task)
                   ? { left: '25%', right: '1px', width: undefined }
-                  : { left, right: width ? undefined : right, width }),
+                  : { left: conflictPos.left, right: conflictPos.right, width: conflictPos.width }),
                 ...(isCalendarEvent || task.isTaskCalendar ? taskCalStyle : {}),
               }}
               onClick={(e) => {
