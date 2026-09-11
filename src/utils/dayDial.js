@@ -718,6 +718,44 @@ export function computeDayCompletion(dayTasks) {
   };
 }
 
+
+// ── Hub date fit ────────────────────────────────────────────────────────────
+//
+// The date is the hub's headline and sits across the middle of the face,
+// where the weather ring puts a temperature at r=250 on the horizontal. That
+// leaves half the face, less a temperature glyph at each end, for the line to
+// live in — about 0.44 of the dial's width once a gutter is kept so the two
+// never kiss.
+//
+// A long month in a narrow face busts it: measured on a 360px Android the
+// drawn dial is 338px and "September 10" renders 179px (0.53 of it), landing
+// 5px INSIDE the 8° on either side. The same string clears by 12px on a 390px
+// iPhone, which is why this is a measurement and not a breakpoint — the dial
+// is sized by the space the modal gives it, not by the viewport.
+//
+// The answer is to abbreviate the month rather than shrink the type: the font
+// is already clamped to its 28px floor on a phone, and a headline that shrank
+// further would lose the job it is there to do.
+
+/** Share of the dial's width the date line may occupy before it crowds. */
+export const DIAL_DATE_MAX_FRAC = 0.44;
+
+/**
+ * Whether the full date fits the hub at this size.
+ *
+ * @param textPx Rendered width of the LONG form, measured. Measuring the
+ *               long form specifically is what keeps this stable: deciding
+ *               from the rendered line would let an abbreviation that fits
+ *               flip the answer back and forth.
+ * @param dialPx The dial's drawn diameter.
+ * @returns true when unmeasured, so the first paint shows the full date and
+ *          only gives it up once something is known to be wrong.
+ */
+export function dialDateFits(textPx, dialPx) {
+  if (!textPx || !dialPx) return true;
+  return textPx <= dialPx * DIAL_DATE_MAX_FRAC;
+}
+
 // A sunrise/sunset mark rides its hairline out to the hour-label radius, so
 // a sun time within about half an hour of a label parks the glyph on the
 // text ("6☼AM" for an August sunrise at 6:09). The label yields for those
