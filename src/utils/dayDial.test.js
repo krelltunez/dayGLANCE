@@ -19,6 +19,7 @@ import {
   findDialFocusBlock,
   initialDialSelection,
   muteDialColor,
+  precipArcSegments,
   precipRuns,
   stepDialSelection,
   computeDaylightBand,
@@ -427,6 +428,33 @@ describe('muteDialColor', () => {
     expect(muteDialColor('not-a-color')).toBe('#93c5fd');
     expect(muteDialColor(null)).toBe('#93c5fd');
     expect(muteDialColor('#abc')).toBe('#93c5fd'); // shorthand unsupported
+  });
+});
+
+describe('precipArcSegments', () => {
+  it('brackets the glyph with a stub on each side', () => {
+    // 15:00-18:00 of rain: inset 4 at both ends, 14 minutes opened at 16:30.
+    expect(precipArcSegments({ startMin: 900, endMin: 1080 })).toEqual([
+      [904, 983], [997, 1076],
+    ]);
+  });
+
+  it('leaves the shortest run precipRuns can produce a visible stub', () => {
+    // One wet hour is the floor: the runs are hour-grained.
+    const [left, right] = precipArcSegments({ startMin: 900, endMin: 960 });
+    expect(left[1] - left[0]).toBeGreaterThanOrEqual(6);
+    expect(right[1] - right[0]).toBeGreaterThanOrEqual(6);
+  });
+
+  it('drops the arc when a stub would be too short to read', () => {
+    // Not reachable from precipRuns today, but the glyph has to be able to
+    // stand alone rather than sprout two specks either side of it.
+    expect(precipArcSegments({ startMin: 900, endMin: 930 })).toEqual([]);
+  });
+
+  it('keeps the gap centered on the run, so the glyph marks its middle', () => {
+    const [left, right] = precipArcSegments({ startMin: 600, endMin: 780 });
+    expect(690 - left[1]).toBe(right[0] - 690);
   });
 });
 

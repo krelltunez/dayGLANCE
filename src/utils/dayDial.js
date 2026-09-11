@@ -747,3 +747,32 @@ export function dialLabelYieldsToSun(labelMin, sun) {
     return Math.min(d, DIAL_DAY_MINUTES - d) < SUN_LABEL_CLEARANCE_MIN;
   });
 }
+
+// A precipitation run's arc is broken around the glyph that marks it, and the
+// two share one radius. Stacking them at separate radii is not an option: the
+// only clear annulus between the temperature numerals and the daylight band's
+// inner edge is about 15 units, and the glyph alone needs 13 of it.
+export const PRECIP_INSET_MIN = 4;
+export const PRECIP_GAP_MIN = 14;
+export const PRECIP_MIN_STUB_MIN = 6;
+
+/**
+ * The drawable segments of a precipitation run's arc: the run, inset at both
+ * ends, with a gap opened at its midpoint for the glyph — the way a
+ * chronograph scale breaks around its markers rather than running under them.
+ *
+ * Returns [[startMin, endMin], ...] — two stubs normally, or none when the run
+ * is too short to leave a visible stub on either side, in which case the glyph
+ * carries the mark by itself.
+ */
+export function precipArcSegments(run, {
+  inset = PRECIP_INSET_MIN,
+  gap = PRECIP_GAP_MIN,
+  minStub = PRECIP_MIN_STUB_MIN,
+} = {}) {
+  const from = run.startMin + inset;
+  const to = run.endMin - inset;
+  const mid = (run.startMin + run.endMin) / 2;
+  const segments = [[from, mid - gap / 2], [mid + gap / 2, to]];
+  return segments.every(([s, e]) => e - s >= minStub) ? segments : [];
+}
