@@ -69,6 +69,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
     taskContextMenu, setTaskContextMenu,
     getTasksForDate,
     getTaskCalendarStyle,
+    taskWidths, setTaskRef,
     timeToMinutes,
     formatTime,
     handleRoutineResizeStart, handleTouchRoutineResizeStart,
@@ -388,9 +389,17 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
             // on its last visible slice, at the real bottom of the task.
             const canResize = (!isImported || !!task.nativeEventId) && !isTablet && !clippedBottom;
 
+            // Same card rule as MULTI (TimeGrid): measure the rendered card
+            // and switch to the compact layout under 300px; stay hidden
+            // until the first measurement so the wide layout never flashes.
+            const taskWidth = taskWidths[task.id];
+            const isMeasured = taskWidth !== undefined;
+            const isNarrowWidth = taskWidth < 300;
+
             return (
               <div
                 key={`${task.id}-${col.startHour}`}
+                ref={setTaskRef(task.id)}
                 data-task-id={task.id}
                 data-ctx-menu
                 draggable={taskDraggable}
@@ -411,6 +420,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                     ? { left: '50%', right: 0, width: undefined }
                     : { left, width }),
                   ...(isCalendarEvent || task.isTaskCalendar ? taskCalStyle : {}),
+                  visibility: isMeasured ? 'visible' : 'hidden',
                 }}
                 onClick={(e) => e.stopPropagation()}
                 onContextMenu={(e) => {
@@ -433,7 +443,7 @@ const DayViewColumn = ({ col, colIdx, hourHeight }) => {
                 <TimelineTaskCardContent
                   task={task}
                   height={height}
-                  isNarrowWidth={false}
+                  isNarrowWidth={isNarrowWidth}
                   flipNotesPanel={(8 * hourHeight) - (top + height) < 200}
                 />
                 {clippedBottom && (
