@@ -14,7 +14,7 @@
 //   npm run dev
 //   node scripts/gen-readme-screenshots.mjs
 //
-// Output: screenshots/*.png (the 15 reproducible README images)
+// Output: screenshots/*.png (the 16 reproducible README images)
 
 import { chromium } from 'playwright';
 import fs from 'fs';
@@ -58,13 +58,18 @@ const CLEAR_TODAY = `
 
 const browser = await chromium.launch(launchOpts);
 
-async function page({ w, h, dsf, mobile, dark, extra = '' }) {
+async function page({ w, h, dsf, mobile, dark, extra = '', tz, time }) {
   const ctx = await browser.newContext({
     viewport: { width: w, height: h }, deviceScaleFactor: dsf,
     isMobile: mobile, hasTouch: mobile,
+    // Default: the browser's own zone, which is UTC on CI. A capture that
+    // shows SOLAR data has to pin a zone, or the sun marks land at the wrong
+    // hours for the coordinates.
+    ...(tz ? { timezoneId: tz } : {}),
   });
-  await ctx.clock.install({ time: FIXED });
-  await ctx.clock.pauseAt(FIXED);
+  const at = time || FIXED;
+  await ctx.clock.install({ time: at });
+  await ctx.clock.pauseAt(at);
   const p = await ctx.newPage();
   await p.goto(URL, { waitUntil: 'domcontentloaded' });
   await p.evaluate(SEED);
@@ -109,6 +114,46 @@ for (const view of ['multi', 'day', 'week']) {
     await ctx.close();
   } catch (e) { fail(name, e); }
 }
+
+// ---------- Day Dial (O) ----------
+// Not in the seed, because these are per-device view preferences rather than
+// data: which readouts ride the face, and the coordinates the solar layer
+// reads back. The focus log is seeded here too so the session rail has
+// something to draw — it is written by exiting focus mode, which no headless
+// capture can do.
+try {
+  const name = 'day-dial';
+  const { ctx, p } = await page({
+    w: 1280, h: 960, dsf: 2, mobile: false, dark: true,
+    // Denver, and the instant that reads 11:20 there — the solar layer draws
+    // sunrise and sunset from the coordinates, so the clock has to agree with
+    // them or the sun comes up at noon.
+    tz: 'America/Denver', time: new Date('2026-07-02T17:20:00Z'),
+    extra: `
+      localStorage.setItem('day-planner-dial-complications', '["inbox","done","habit:1710000000001","habit:1710000000002"]');
+      // Weather has to be configured, not just have coordinates cached:
+      // useWeather clears day-planner-weather-coords when no location is set
+      // ("location cleared -> the dial's sun marks go too"), which takes the
+      // solar hairlines and the daylight band with it.
+      localStorage.setItem('day-planner-weather-enabled', 'true');
+      localStorage.setItem('day-planner-weather-zip', '80202');
+      localStorage.setItem('day-planner-weather-temp-unit', 'fahrenheit');
+      // Seeded as well as configured: the geocode is a network call, and the
+      // solar layer only needs coordinates, which it uses locally. With a
+      // reachable network the fetch overwrites these with the real ones and
+      // the hourly temperatures appear too.
+      localStorage.setItem('day-planner-weather-coords', '{"lat":39.7392,"lon":-104.9903}');
+      // A declared day window is what gives the ring its night.
+      localStorage.setItem('day-planner-day-windows', '{"defaults":{"start":"07:00","stop":"22:30","lastModified":"1970-01-01T00:00:00.000Z"}}');
+      localStorage.setItem('day-planner-focus-log', '{"2026-07-02":{"totalMinutes":115,"sessions":3,"cyclesCompleted":3,"tasksCompleted":2,"spans":[{"start":540,"end":595},{"start":596,"end":625},{"start":870,"end":900}]}}');
+    `,
+  });
+  await p.locator('body').click({ position: { x: 5, y: 5 } });
+  await p.keyboard.press('o');
+  await settle(ctx, p, 1800);
+  await save(p, name); ok(name);
+  await ctx.close();
+} catch (e) { fail('day-dial', e); }
 
 // ---------- Desktop modal: goals (G) ----------
 for (const [name, key] of [['goals-projects', 'g']]) {
