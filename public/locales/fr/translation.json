@@ -1383,7 +1383,12 @@
     "alignedOf": "{{aligned}} sur {{total}} min",
     "projectClear": "Toutes les tâches de ce projet sont terminées",
     "alignedLabel": "Aligné : {{percent}} %, {{aligned}} sur {{total}} minutes sur un projet",
-    "projectLabel": "{{name}} : {{percent}} %, {{done}} sur {{total}} tâches"
+    "projectLabel": "{{name}} : {{percent}} %, {{done}} sur {{total}} tâches",
+    "slotEmpty": "Vide",
+    "slotTopLeft": "En haut à gauche",
+    "slotTopRight": "En haut à droite",
+    "slotBottomLeft": "En bas à gauche",
+    "slotBottomRight": "En bas à droite"
   },
   "intentLog": {
     "clearLog": "Effacer le journal",

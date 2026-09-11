@@ -1383,7 +1383,12 @@
     "alignedOf": "{{aligned}} de {{total}} min",
     "projectClear": "Todas las tareas de este proyecto están hechas",
     "alignedLabel": "Alineado: {{percent}} %, {{aligned}} de {{total}} minutos en un proyecto",
-    "projectLabel": "{{name}}: {{percent}} %, {{done}} de {{total}} tareas"
+    "projectLabel": "{{name}}: {{percent}} %, {{done}} de {{total}} tareas",
+    "slotEmpty": "Vacío",
+    "slotTopLeft": "Arriba izquierda",
+    "slotTopRight": "Arriba derecha",
+    "slotBottomLeft": "Abajo izquierda",
+    "slotBottomRight": "Abajo derecha"
   },
   "intentLog": {
     "clearLog": "Borrar registro",

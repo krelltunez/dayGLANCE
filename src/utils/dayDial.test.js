@@ -24,7 +24,9 @@ import {
   computeProjectProgress,
   dialTaskMinutes,
   moonPhasePath,
-  orderComplicationKeys,
+  assignComplicationSlot,
+  normaliseComplicationSlots,
+  COMPLICATION_SLOT_COUNT,
   moonStretches,
   precipArcSegments,
   precipRuns,
@@ -438,42 +440,67 @@ describe('muteDialColor', () => {
   });
 });
 
-describe('orderComplicationKeys', () => {
-  const HABITS = [{ id: 'h1' }, { id: 'h2' }];
-  const PROJECTS = [{ id: 'p1' }, { id: 'p2' }];
-
-  it('ignores the order they were switched on', () => {
-    // The arrangement has to be a function of WHAT is on, not of the order it
-    // went on: nothing on screen shows selection order, so two devices with
-    // the same four readouts would otherwise put them in different corners.
-    const a = orderComplicationKeys(['habit:h1', 'done', 'inbox'], HABITS, PROJECTS);
-    const b = orderComplicationKeys(['inbox', 'habit:h1', 'done'], HABITS, PROJECTS);
-    expect(a).toEqual(b);
-    expect(a).toEqual(['inbox', 'done', 'habit:h1']);
+describe('normaliseComplicationSlots', () => {
+  it('reads a saved list positionally, so existing faces do not move', () => {
+    // The old setting was a list of switched-on keys, and it was already read
+    // straight into the corners in order. Treating it as slots is therefore
+    // not a migration — it is the same arrangement, named.
+    expect(normaliseComplicationSlots(['inbox', 'done', 'deadlines']))
+      .toEqual(['inbox', 'done', 'deadlines', null]);
   });
 
-  it('reads in the order the picker lists them', () => {
-    expect(orderComplicationKeys(
-      ['project:p1', 'habit:h2', 'aligned', 'deadlines'], HABITS, PROJECTS,
-    )).toEqual(['deadlines', 'aligned', 'habit:h2', 'project:p1']);
+  it('always returns one entry per corner', () => {
+    for (const input of [null, undefined, [], 'nonsense', ['a', 'b', 'c', 'd', 'e', 'f']]) {
+      expect(normaliseComplicationSlots(input)).toHaveLength(COMPLICATION_SLOT_COUNT);
+    }
   });
 
-  it('follows each family\'s own order', () => {
-    expect(orderComplicationKeys(['habit:h2', 'habit:h1'], HABITS, PROJECTS))
-      .toEqual(['habit:h1', 'habit:h2']);
-    expect(orderComplicationKeys(['project:p2', 'project:p1'], HABITS, PROJECTS))
-      .toEqual(['project:p1', 'project:p2']);
+  it('empties a corner holding anything that is not a key', () => {
+    expect(normaliseComplicationSlots(['inbox', 7, '', { k: 1 }]))
+      .toEqual(['inbox', null, null, null]);
+  });
+});
+
+describe('assignComplicationSlot', () => {
+  const SLOTS = ['inbox', 'done', 'deadlines', null];
+
+  it('fills an empty corner', () => {
+    expect(assignComplicationSlot(SLOTS, 3, 'aligned'))
+      .toEqual(['inbox', 'done', 'deadlines', 'aligned']);
   });
 
-  it('drops a key whose habit or project no longer exists', () => {
-    expect(orderComplicationKeys(['done', 'habit:gone', 'project:gone'], HABITS, PROJECTS))
-      .toEqual(['done']);
+  it('empties a corner', () => {
+    expect(assignComplicationSlot(SLOTS, 1, null))
+      .toEqual(['inbox', null, 'deadlines', null]);
   });
 
-  it('survives empty and missing inputs', () => {
-    expect(orderComplicationKeys([], HABITS, PROJECTS)).toEqual([]);
-    expect(orderComplicationKeys(null, null, null)).toEqual([]);
-    expect(orderComplicationKeys(['done'], null, null)).toEqual(['done']);
+  it('swaps rather than clobbering, when the readout is already elsewhere', () => {
+    // The common edit is "no, that one belongs over there". Clearing instead
+    // would drop whatever was in the corner being moved into.
+    expect(assignComplicationSlot(SLOTS, 0, 'deadlines'))
+      .toEqual(['deadlines', 'done', 'inbox', null]);
+  });
+
+  it('moves into an empty corner without leaving a copy behind', () => {
+    expect(assignComplicationSlot(SLOTS, 3, 'inbox'))
+      .toEqual([null, 'done', 'deadlines', 'inbox']);
+  });
+
+  it('never lets one readout hold two corners', () => {
+    let slots = normaliseComplicationSlots([]);
+    slots = assignComplicationSlot(slots, 0, 'done');
+    slots = assignComplicationSlot(slots, 2, 'done');
+    slots = assignComplicationSlot(slots, 3, 'done');
+    expect(slots.filter((k) => k === 'done')).toHaveLength(1);
+  });
+
+  it('treats re-picking a corner\'s own value as a no-op', () => {
+    expect(assignComplicationSlot(SLOTS, 2, 'deadlines')).toEqual(SLOTS);
+  });
+
+  it('ignores a corner that does not exist', () => {
+    expect(assignComplicationSlot(SLOTS, 9, 'aligned')).toEqual(SLOTS);
+    expect(assignComplicationSlot(SLOTS, -1, 'aligned')).toEqual(SLOTS);
   });
 });
 
