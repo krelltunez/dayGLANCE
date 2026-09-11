@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarClock, CalendarDays, ChevronDown, Eclipse, FolderKanban, Inbox, Layers, Maximize, Minimize, Monitor, Sparkles, Sunrise, Target, Thermometer, X, Timer, CircleCheck } from 'lucide-react';
+import { Activity, CalendarClock, CalendarDays, ChevronDown, Eclipse, FolderKanban, Inbox, Layers, Maximize, Minimize, Monitor, Sparkles, Sunrise, Target, Thermometer, X, Timer, CircleCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { getStoredWeatherCoords, getSunTimes } from '../utils/solar.js';
-import { computeDayAlignment, computeDayCompletion, computeDaylightBand, computeFocusSpans, computeMoonBand, computeProjectProgress, dialPeakUv } from '../utils/dayDial.js';
+import { computeDayAlignment, computeDayCompletion, computeDaylightBand, computeFocusSpans, computeMoonBand, computeProjectProgress, dialPeakUv, orderComplicationKeys } from '../utils/dayDial.js';
 import { acquireWakeLock, releaseWakeLock } from '../utils/wakeLock.js';
 import { isNativeApp, nativeSetImmersiveMode } from '../native.js';
 import { AMBIENT_DELAY_OPTIONS, loadAmbientPrefs, saveAmbientPrefs } from '../utils/dialPrefs.js';
@@ -610,7 +610,16 @@ const DayDialModal = () => {
 
   const complicationsFull = complicationKeys.length >= MAX_COMPLICATIONS;
 
-  const complications = useMemo(() => complicationKeys.map((key) => {
+  // Canonical order, not the order they were switched on — see
+  // orderComplicationKeys. Slots are then assigned from THIS list and held:
+  // a readout that means nothing on the date being viewed leaves its corner
+  // empty rather than letting the ones after it shuffle along. Paging a day
+  // must not move the readouts that are still there.
+  const orderedKeys = useMemo(
+    () => orderComplicationKeys(complicationKeys, activeHabits, projects),
+    [complicationKeys, activeHabits, projects]);
+
+  const complications = useMemo(() => orderedKeys.map((key) => {
     if (key === 'inbox') {
       const items = (filteredUnscheduledTasks || []).filter((t) => !t.isExample);
       return { key, kind: 'inbox', count: items.length, items };
@@ -654,9 +663,13 @@ const DayDialModal = () => {
     // completion is a fact about that day.
     // A project's progress is a standing fact rather than a fact about a
     // date, so it survives paging like the two below it.
-    .filter((c) => c && (isToday
-      || c.kind === 'done' || c.kind === 'deadlines' || c.kind === 'project' || c.kind === 'aligned')),
-  [complicationKeys, filteredUnscheduledTasks, getDeadlineTasksForDate,
+    //
+    // Blanked rather than removed: dropping one from the list would pull
+    // every readout after it into the previous corner.
+    .map((c) => (c && (isToday
+      || c.kind === 'done' || c.kind === 'deadlines' || c.kind === 'project' || c.kind === 'aligned')
+      ? c : null)),
+  [orderedKeys, filteredUnscheduledTasks, getDeadlineTasksForDate,
     dateStr, activeHabits, getTodayHabitCount, dayTasks, isToday,
     goalsProjectsEnabled, projects, tasks, unscheduledTasks]);
 
@@ -887,7 +900,7 @@ const DayDialModal = () => {
             )}
             {habitsEnabled && (
               <PickerGroup
-                icon={Target}
+                icon={Activity}
                 label={t('dial.habits', 'Habits')}
                 emptyLabel={t('dial.nothingHere', 'Nothing here')}
                 open={openGroup === 'habit'}

@@ -161,6 +161,44 @@ describe('DialComplications — Aligned and project rings', () => {
   });
 });
 
+describe('DialComplications — slots are held, not packed', () => {
+  const r = 800 / 2;
+  // Both coordinates, because slots 0 and 2 share a `left` and 1 and 3 share
+  // theirs — matching on one alone cannot tell a corner from the one below it.
+  const styleOf = (slot) => `left:calc(50% + ${slot.x * r}px);top:calc(50% + ${slot.y * r}px)`;
+  const slotOf = (html, label) => {
+    const at = html.indexOf(label);
+    if (at === -1) return -1;
+    // The slot whose position is the last one emitted before the label.
+    const before = COMPLICATION_SLOTS
+      .map((slot, i) => ({ i, at: html.indexOf(styleOf(slot)) }))
+      .filter((x) => x.at !== -1 && x.at < at);
+    return before.length ? before.sort((a, b) => b.at - a.at)[0].i : -1;
+  };
+
+  it('leaves a corner empty rather than moving the readouts after it', async () => {
+    const i18n = await i18nFor('en');
+    // What paging a day does: the inbox has no notion of a date and a habit
+    // count is today's tally, so both blank out. Done and Deadlines must not
+    // move house because of it.
+    expect(slotOf(render(i18n, { items }), 'aria-label="Deadlines: 2"')).toBe(1);
+    const paged = render(i18n, { items: [null, items[1], null] });
+    expect(slotOf(paged, 'aria-label="Deadlines: 2"')).toBe(1);
+    expect(paged).not.toContain('aria-label="Inbox: 7"');
+  });
+
+  it('keeps the last slot in place when an earlier one blanks', async () => {
+    const i18n = await i18nFor('en');
+    expect(slotOf(render(i18n, { items }), 'aria-label="Water: 5 of 8"')).toBe(2);
+    expect(slotOf(render(i18n, { items: [null, null, items[2]] }), 'aria-label="Water: 5 of 8"'))
+      .toBe(2);
+  });
+
+  it('draws nothing at all when every slot is blank', async () => {
+    expect(render(await i18nFor('en'), { items: [null, null, null, null] })).toBe('');
+  });
+});
+
 describe('DialComplications', () => {
   it('puts each complication in its own corner slot', async () => {
     const html = render(await i18nFor('en'));

@@ -24,6 +24,7 @@ import {
   computeProjectProgress,
   dialTaskMinutes,
   moonPhasePath,
+  orderComplicationKeys,
   moonStretches,
   precipArcSegments,
   precipRuns,
@@ -434,6 +435,45 @@ describe('muteDialColor', () => {
     expect(muteDialColor('not-a-color')).toBe('#93c5fd');
     expect(muteDialColor(null)).toBe('#93c5fd');
     expect(muteDialColor('#abc')).toBe('#93c5fd'); // shorthand unsupported
+  });
+});
+
+describe('orderComplicationKeys', () => {
+  const HABITS = [{ id: 'h1' }, { id: 'h2' }];
+  const PROJECTS = [{ id: 'p1' }, { id: 'p2' }];
+
+  it('ignores the order they were switched on', () => {
+    // The arrangement has to be a function of WHAT is on, not of the order it
+    // went on: nothing on screen shows selection order, so two devices with
+    // the same four readouts would otherwise put them in different corners.
+    const a = orderComplicationKeys(['habit:h1', 'done', 'inbox'], HABITS, PROJECTS);
+    const b = orderComplicationKeys(['inbox', 'habit:h1', 'done'], HABITS, PROJECTS);
+    expect(a).toEqual(b);
+    expect(a).toEqual(['inbox', 'done', 'habit:h1']);
+  });
+
+  it('reads in the order the picker lists them', () => {
+    expect(orderComplicationKeys(
+      ['project:p1', 'habit:h2', 'aligned', 'deadlines'], HABITS, PROJECTS,
+    )).toEqual(['deadlines', 'aligned', 'habit:h2', 'project:p1']);
+  });
+
+  it('follows each family\'s own order', () => {
+    expect(orderComplicationKeys(['habit:h2', 'habit:h1'], HABITS, PROJECTS))
+      .toEqual(['habit:h1', 'habit:h2']);
+    expect(orderComplicationKeys(['project:p2', 'project:p1'], HABITS, PROJECTS))
+      .toEqual(['project:p1', 'project:p2']);
+  });
+
+  it('drops a key whose habit or project no longer exists', () => {
+    expect(orderComplicationKeys(['done', 'habit:gone', 'project:gone'], HABITS, PROJECTS))
+      .toEqual(['done']);
+  });
+
+  it('survives empty and missing inputs', () => {
+    expect(orderComplicationKeys([], HABITS, PROJECTS)).toEqual([]);
+    expect(orderComplicationKeys(null, null, null)).toEqual([]);
+    expect(orderComplicationKeys(['done'], null, null)).toEqual(['done']);
   });
 });
 

@@ -292,7 +292,7 @@ const DialComplications = ({ items, dialPx, onOpenTask, onSetHabitCount, onIncre
   const { t } = useTranslation();
   const [openKey, setOpenKey] = useState(null);
   const sheetRef = useRef(null);
-  const open = items.find((i) => i.key === openKey) || null;
+  const open = items.find((i) => i?.key === openKey) || null;
 
   // Esc closes this sheet before anything above it — the same capture-phase
   // rung the block sheet and the layers panel already use.
@@ -314,14 +314,17 @@ const DialComplications = ({ items, dialPx, onOpenTask, onSetHabitCount, onIncre
   }, [open]);
 
   const size = complicationSize(dialPx);
-  if (!items.length || !size) return null;
+  // `items` is slot-indexed and may hold nulls: a readout that means nothing
+  // on the date being viewed keeps its corner rather than letting the rest
+  // shuffle along. So "nothing to draw" is about content, not length.
+  if (!items.some(Boolean) || !size) return null;
   const r = dialPx / 2;
 
   return (
     <>
       {items.map((item, i) => {
         const slot = COMPLICATION_SLOTS[i];
-        if (!slot) return null;
+        if (!item || !slot) return null;
         return (
           <div
             key={item.key}

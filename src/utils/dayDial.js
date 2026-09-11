@@ -1024,3 +1024,34 @@ export function computeProjectProgress(project, allTasks) {
     remaining,
   };
 }
+
+/**
+ * The fixed readouts, in the order the layers menu lists them. Habits and
+ * projects follow, in their own source order.
+ */
+const FIXED_COMPLICATION_ORDER = ['inbox', 'done', 'deadlines', 'aligned'];
+
+/**
+ * The selected complications in canonical order — the same order the picker
+ * lists them, so the face reads like the menu that configured it.
+ *
+ * Selection order is what this replaces, and it was never a choice: keys
+ * landed in the order they were switched on, which nothing on screen shows,
+ * so the same four readouts could sit in four different corners on two
+ * devices. A canonical order makes an arrangement a function of WHAT is on
+ * rather than of the order it went on, which is the property muscle memory
+ * needs.
+ *
+ * @param selected Keys currently switched on, in any order.
+ * @param habits   Active habits, for their order (and to drop deleted ones).
+ * @param projects Projects, likewise.
+ * @returns The subset of `selected` that still resolves, canonically ordered.
+ */
+export function orderComplicationKeys(selected, habits, projects) {
+  const on = new Set(selected || []);
+  return [
+    ...FIXED_COMPLICATION_ORDER,
+    ...(habits || []).map((h) => `habit:${h.id}`),
+    ...(projects || []).map((p) => `project:${p.id}`),
+  ].filter((key) => on.has(key));
+}
