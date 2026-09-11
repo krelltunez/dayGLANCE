@@ -20,6 +20,11 @@
 // so pass it unless your dev server is on that port. CHROMIUM_PATH overrides
 // the browser; without it Playwright's own Chromium is used.
 //
+// No network is needed. The Day Dial capture is the only view that shows
+// live-fetched data, and its forecast is served from a fixture over intercepted
+// requests, so the image is identical on every machine and today's real sky
+// can't change it.
+//
 // Every image is rewritten on each run. To refresh just one, run it and then
 // restore the rest:
 //   git status --porcelain screenshots/ | awk '{print $2}' \
@@ -67,9 +72,66 @@ const CLEAR_TODAY = `
   } catch (e) {}
 `;
 
+// A canned Open-Meteo forecast, served to the Day Dial capture by request
+// interception (see `routes` below). The weather layer is the one part of the
+// face that comes off the network, so without this the capture either shows no
+// temperatures or shows whatever the sky over Denver happened to be doing on
+// the day someone ran the script. Fixed data makes the image reproducible, and
+// lets it be generated from a sandbox with no route to api.open-meteo.com.
+//
+// The profile is an ordinary Front Range summer day: clear and cool at dawn,
+// clouding up through the morning, an afternoon thunderstorm around 15:00 that
+// the precipitation arc marks and that knocks the UV index (and so the
+// daylight band) down with it.
+const DENVER = { lat: 39.7392, lon: -104.9903 };
+const DIAL_HOURLY = [
+  // [temp °F, WMO code, UV index] for hours 00..23, local time.
+  [64, 0, 0], [63, 0, 0], [62, 0, 0], [61, 0, 0], [60, 0, 0], [60, 0, 0],
+  [63, 0, 0.3], [68, 0, 1.1], [73, 1, 2.6], [78, 1, 4.6], [82, 2, 6.7], [85, 2, 8.4],
+  [88, 2, 9.5], [90, 3, 9.7], [91, 3, 8.8], [89, 95, 5.1], [86, 95, 3.4], [83, 80, 2.3],
+  [80, 2, 1.2], [77, 1, 0.4], [74, 1, 0], [71, 0, 0], [69, 0, 0], [66, 0, 0],
+];
+
+// Day 0 is the dial's day and the only one it draws; days 1-5 exist because
+// useWeather builds a five-day forecast strip from them.
+const DIAL_DAILY = [
+  [91, 60, 95], [88, 59, 2], [93, 62, 1], [95, 64, 0], [90, 63, 3], [86, 61, 80],
+];
+
+function openMeteoFixture(startDate) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const dayStr = (i) => {
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  };
+  const time = [], temperature_2m = [], weather_code = [], uv_index = [];
+  for (let i = 0; i < DIAL_DAILY.length; i++) {
+    for (let h = 0; h < 24; h++) {
+      // Later days ride the same hourly shape, nudged toward their own high:
+      // nothing reads them but the strip's min/max, so the shape is enough.
+      const drift = (DIAL_DAILY[i][0] - DIAL_DAILY[0][0]);
+      time.push(dayStr(i) + 'T' + pad(h) + ':00');
+      temperature_2m.push(DIAL_HOURLY[h][0] + drift);
+      weather_code.push(i === 0 ? DIAL_HOURLY[h][1] : DIAL_DAILY[i][2]);
+      uv_index.push(DIAL_HOURLY[h][2]);
+    }
+  }
+  return {
+    current: { temperature_2m: DIAL_HOURLY[11][0], weather_code: DIAL_HOURLY[11][1] },
+    daily: {
+      time: DIAL_DAILY.map((_, i) => dayStr(i)),
+      temperature_2m_max: DIAL_DAILY.map((d) => d[0]),
+      temperature_2m_min: DIAL_DAILY.map((d) => d[1]),
+      weather_code: DIAL_DAILY.map((d) => d[2]),
+    },
+    hourly: { time, temperature_2m, weather_code, uv_index },
+  };
+}
+
 const browser = await chromium.launch(launchOpts);
 
-async function page({ w, h, dsf, mobile, dark, extra = '', tz, time }) {
+async function page({ w, h, dsf, mobile, dark, extra = '', tz, time, routes }) {
   const ctx = await browser.newContext({
     viewport: { width: w, height: h }, deviceScaleFactor: dsf,
     isMobile: mobile, hasTouch: mobile,
@@ -78,6 +140,15 @@ async function page({ w, h, dsf, mobile, dark, extra = '', tz, time }) {
     // hours for the coordinates.
     ...(tz ? { timezoneId: tz } : {}),
   });
+  // Canned JSON for outbound APIs, installed before the first navigation.
+  // Anything the app fetches over the network is non-reproducible otherwise,
+  // and unreachable from a sandbox with no egress.
+  for (const [glob, body] of routes || []) {
+    await ctx.route(glob, (route) => route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(typeof body === 'function' ? body() : body),
+    }));
+  }
   const at = time || FIXED;
   await ctx.clock.install({ time: at });
   await ctx.clock.pauseAt(at);
@@ -140,6 +211,13 @@ try {
     // sunrise and sunset from the coordinates, so the clock has to agree with
     // them or the sun comes up at noon.
     tz: 'America/Denver', time: new Date('2026-07-02T17:20:00Z'),
+    // The forecast, served from a fixture rather than fetched: see
+    // openMeteoFixture. The geocode is stubbed too, so the app resolves the
+    // ZIP through its own code path and caches the coordinates itself.
+    routes: [
+      ['**/api.zippopotam.us/**', { places: [{ latitude: String(DENVER.lat), longitude: String(DENVER.lon) }] }],
+      ['**/api.open-meteo.com/**', () => openMeteoFixture(new Date('2026-07-02T12:00:00'))],
+    ],
     extra: `
       localStorage.setItem('day-planner-dial-complications', '["inbox","deadlines","done","habit:1710000000001"]');
       // Extra fixtures for THIS capture only, so the shared seed (and the
@@ -184,10 +262,9 @@ try {
       localStorage.setItem('day-planner-weather-enabled', 'true');
       localStorage.setItem('day-planner-weather-zip', '80202');
       localStorage.setItem('day-planner-weather-temp-unit', 'fahrenheit');
-      // Seeded as well as configured: the geocode is a network call, and the
-      // solar layer only needs coordinates, which it uses locally. With a
-      // reachable network the fetch overwrites these with the real ones and
-      // the hourly temperatures appear too.
+      // Seeded as well as configured, so the solar layer has coordinates
+      // before the first render rather than one fetch later. The stubbed
+      // geocode writes the same pair back over them.
       localStorage.setItem('day-planner-weather-coords', '{"lat":39.7392,"lon":-104.9903}');
       // A declared day window is what gives the ring its night.
       localStorage.setItem('day-planner-day-windows', '{"defaults":{"start":"07:00","stop":"22:30","lastModified":"1970-01-01T00:00:00.000Z"}}');
