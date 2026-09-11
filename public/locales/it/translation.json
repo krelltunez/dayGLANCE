@@ -1376,7 +1376,14 @@
     "layers": "Livelli",
     "layerSolar": "Sole e luna",
     "layerWeather": "Meteo",
-    "layerCalendars": "Eventi del calendario"
+    "layerCalendars": "Eventi del calendario",
+    "aligned": "Allineato",
+    "habits": "Abitudini",
+    "projects": "Progetti",
+    "alignedOf": "{{aligned}} di {{total}} min",
+    "projectClear": "Tutte le attività di questo progetto sono completate",
+    "alignedLabel": "Allineato: {{percent}}%, {{aligned}} di {{total}} minuti su un progetto",
+    "projectLabel": "{{name}}: {{percent}}%, {{done}} di {{total}} attività"
   },
   "intentLog": {
     "clearLog": "Cancella registro",

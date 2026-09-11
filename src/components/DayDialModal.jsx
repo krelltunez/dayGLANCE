@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarClock, CalendarDays, Eclipse, Inbox, Layers, Maximize, Minimize, Monitor, Sparkles, Sunrise, Target, Thermometer, X, Timer, CircleCheck } from 'lucide-react';
+import { Activity, CalendarClock, CalendarDays, ChevronDown, Eclipse, FolderKanban, Inbox, Layers, Maximize, Minimize, Monitor, Sparkles, Sunrise, Target, Thermometer, X, Timer, CircleCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { getStoredWeatherCoords, getSunTimes } from '../utils/solar.js';
-import { computeDayCompletion, computeDaylightBand, computeFocusSpans, computeMoonBand, dialPeakUv } from '../utils/dayDial.js';
+import { computeDayAlignment, computeDayCompletion, computeDaylightBand, computeFocusSpans, computeMoonBand, computeProjectProgress, dialPeakUv, orderComplicationKeys } from '../utils/dayDial.js';
 import { acquireWakeLock, releaseWakeLock } from '../utils/wakeLock.js';
 import { isNativeApp, nativeSetImmersiveMode } from '../native.js';
 import { AMBIENT_DELAY_OPTIONS, loadAmbientPrefs, saveAmbientPrefs } from '../utils/dialPrefs.js';
@@ -84,6 +84,53 @@ const ToggleRow = ({ icon: Icon, label, on, onChange, disabled = false }) => (
   </button>
 );
 
+// A whole family of complications behind one row. Habits and projects are
+// both open-ended lists — a dozen habits and a growing project backlog would
+// each put a dozen rows in a menu that also has to hold layers, ambient and
+// the fixed readouts — so they collapse to a single row that says how many
+// are on and opens to the full list.
+//
+// The list is checkboxes rather than a select: the face has four slots and
+// more than one habit can reasonably ride it, so collapsing them to one
+// choice would take away something the flat list already allowed.
+const PickerGroup = ({ icon: Icon, label, emptyLabel, items, selectedCount, open, onToggleOpen }) => (
+  <>
+    <button
+      onClick={onToggleOpen}
+      aria-expanded={open}
+      className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-white/5"
+    >
+      <Icon size={16} className="text-white/50 flex-shrink-0" />
+      <span className="flex-1 text-left text-white/85 text-sm">{label}</span>
+      {selectedCount > 0 && (
+        <span className="flex-shrink-0 rounded-full bg-[#fe8b00]/70 px-1.5 text-[11px] leading-[18px] text-white tabular-nums">
+          {selectedCount}
+        </span>
+      )}
+      <ChevronDown
+        size={15}
+        className={`text-white/35 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+      />
+    </button>
+    {open && (
+      <div className="ml-3 border-l border-white/10 pl-1 max-h-56 overflow-y-auto">
+        {items.length === 0
+          ? <div className="px-3 py-2 text-white/30 text-xs">{emptyLabel}</div>
+          : items.map((item) => (
+            <ToggleRow
+              key={item.key}
+              icon={item.icon}
+              label={item.label}
+              on={item.on}
+              disabled={item.disabled}
+              onChange={item.onChange}
+            />
+          ))}
+      </div>
+    )}
+  </>
+);
+
 const DayDialModal = () => {
   const { t } = useTranslation();
   const {
@@ -92,10 +139,12 @@ const DayDialModal = () => {
     weather,
     toggleComplete, openMobileEditTask, scrollToHour, isMobile,
     filteredUnscheduledTasks, getDeadlineTasksForDate,
+    tasks, unscheduledTasks,
   } = useDayPlannerCtx();
   const {
     getDayWindow, routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion,
     habitsEnabled, activeHabits, getTodayHabitCount, setHabitCount, incrementHabit,
+    goalsProjectsEnabled, projects,
     focusLog, focusModeAvailable, enterFocusMode,
   } = useFeaturesCtx();
 
@@ -548,6 +597,9 @@ const DayDialModal = () => {
   // filters, sorted), and the deadline list is the same accessor the
   // planner's all-day area uses.
   const [complicationKeys, setComplicationKeys] = useState(loadComplications);
+  // Which family is expanded, if any — one at a time, so the menu cannot grow
+  // taller than the panel it lives in.
+  const [openGroup, setOpenGroup] = useState(null);
   const toggleComplication = (key) => setComplicationKeys((prev) => {
     const next = prev.includes(key)
       ? prev.filter((k) => k !== key)
@@ -558,7 +610,16 @@ const DayDialModal = () => {
 
   const complicationsFull = complicationKeys.length >= MAX_COMPLICATIONS;
 
-  const complications = useMemo(() => complicationKeys.map((key) => {
+  // Canonical order, not the order they were switched on — see
+  // orderComplicationKeys. Slots are then assigned from THIS list and held:
+  // a readout that means nothing on the date being viewed leaves its corner
+  // empty rather than letting the ones after it shuffle along. Paging a day
+  // must not move the readouts that are still there.
+  const orderedKeys = useMemo(
+    () => orderComplicationKeys(complicationKeys, activeHabits, projects),
+    [complicationKeys, activeHabits, projects]);
+
+  const complications = useMemo(() => orderedKeys.map((key) => {
     if (key === 'inbox') {
       const items = (filteredUnscheduledTasks || []).filter((t) => !t.isExample);
       return { key, kind: 'inbox', count: items.length, items };
@@ -572,6 +633,23 @@ const DayDialModal = () => {
       // so a two-hour block counts for more than a fifteen-minute errand.
       return { key, kind: 'done', ...computeDayCompletion(dayTasks) };
     }
+    if (key === 'aligned') {
+      return goalsProjectsEnabled
+        ? { key, kind: 'aligned', ...computeDayAlignment(dayTasks, projects) }
+        : null;
+    }
+    if (key.startsWith('project:')) {
+      const project = goalsProjectsEnabled
+        ? (projects || []).find((p) => `project:${p.id}` === key)
+        : null;
+      // Every task, not the day's: a project's backlog is mostly unscheduled,
+      // and a progress ring counted off one day would read as near-zero
+      // forever.
+      return project
+        ? { key, kind: 'project', project,
+            ...computeProjectProgress(project, [...(tasks || []), ...(unscheduledTasks || [])]) }
+        : null;
+    }
     const habit = (activeHabits || []).find((h) => `habit:${h.id}` === key);
     return habit
       ? { key, kind: 'habit', habit, count: getTodayHabitCount(habit.id) }
@@ -583,9 +661,17 @@ const DayDialModal = () => {
     // rest are per-date and stay useful when the dial is paged back — the
     // deadline list is already fetched for the date on screen, and a day's
     // completion is a fact about that day.
-    .filter((c) => c && (isToday || c.kind === 'done' || c.kind === 'deadlines')),
-  [complicationKeys, filteredUnscheduledTasks, getDeadlineTasksForDate,
-    dateStr, activeHabits, getTodayHabitCount, dayTasks, isToday]);
+    // A project's progress is a standing fact rather than a fact about a
+    // date, so it survives paging like the two below it.
+    //
+    // Blanked rather than removed: dropping one from the list would pull
+    // every readout after it into the previous corner.
+    .map((c) => (c && (isToday
+      || c.kind === 'done' || c.kind === 'deadlines' || c.kind === 'project' || c.kind === 'aligned')
+      ? c : null)),
+  [orderedKeys, filteredUnscheduledTasks, getDeadlineTasksForDate,
+    dateStr, activeHabits, getTodayHabitCount, dayTasks, isToday,
+    goalsProjectsEnabled, projects, tasks, unscheduledTasks]);
 
   // Inbox and deadline rows are UNSCHEDULED tasks — both lists come off
   // unscheduledTasks — so completing one needs toggleComplete's fromInbox
@@ -803,19 +889,62 @@ const DayDialModal = () => {
               disabled={complicationsFull && !complicationKeys.includes('deadlines')}
               onChange={() => toggleComplication('deadlines')}
             />
-            {habitsEnabled && (activeHabits || []).map((habit) => {
-              const key = `habit:${habit.id}`;
-              return (
-                <ToggleRow
-                  key={key}
-                  icon={HABIT_ICONS[habit.icon] || Target}
-                  label={habit.name}
-                  on={complicationKeys.includes(key)}
-                  disabled={complicationsFull && !complicationKeys.includes(key)}
-                  onChange={() => toggleComplication(key)}
-                />
-              );
-            })}
+            {goalsProjectsEnabled && (
+              <ToggleRow
+                icon={Target}
+                label={t('dial.aligned', 'Aligned')}
+                on={complicationKeys.includes('aligned')}
+                disabled={complicationsFull && !complicationKeys.includes('aligned')}
+                onChange={() => toggleComplication('aligned')}
+              />
+            )}
+            {habitsEnabled && (
+              <PickerGroup
+                icon={Activity}
+                label={t('dial.habits', 'Habits')}
+                emptyLabel={t('dial.nothingHere', 'Nothing here')}
+                open={openGroup === 'habit'}
+                onToggleOpen={() => setOpenGroup((g) => (g === 'habit' ? null : 'habit'))}
+                selectedCount={complicationKeys.filter((k) => k.startsWith('habit:')).length}
+                items={(activeHabits || []).map((habit) => {
+                  const key = `habit:${habit.id}`;
+                  return {
+                    key,
+                    icon: HABIT_ICONS[habit.icon] || Target,
+                    label: habit.name,
+                    on: complicationKeys.includes(key),
+                    disabled: complicationsFull && !complicationKeys.includes(key),
+                    onChange: () => toggleComplication(key),
+                  };
+                })}
+              />
+            )}
+            {goalsProjectsEnabled && (
+              <PickerGroup
+                icon={FolderKanban}
+                label={t('dial.projects', 'Projects')}
+                emptyLabel={t('dial.nothingHere', 'Nothing here')}
+                open={openGroup === 'project'}
+                onToggleOpen={() => setOpenGroup((g) => (g === 'project' ? null : 'project'))}
+                selectedCount={complicationKeys.filter((k) => k.startsWith('project:')).length}
+                items={(projects || [])
+                  // A finished or shelved project is not something to watch
+                  // ride the face; the ones already pinned stay listed so
+                  // they can be taken off again.
+                  .filter((p) => p.status === 'active' || complicationKeys.includes(`project:${p.id}`))
+                  .map((project) => {
+                    const key = `project:${project.id}`;
+                    return {
+                      key,
+                      icon: FolderKanban,
+                      label: project.title,
+                      on: complicationKeys.includes(key),
+                      disabled: complicationsFull && !complicationKeys.includes(key),
+                      onChange: () => toggleComplication(key),
+                    };
+                  })}
+              />
+            )}
 
             <div className="my-1.5 border-t border-white/10" />
             <ToggleRow

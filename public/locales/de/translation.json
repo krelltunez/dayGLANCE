@@ -1376,7 +1376,14 @@
     "layers": "Ebenen",
     "layerSolar": "Sonne & Mond",
     "layerWeather": "Wetter",
-    "layerCalendars": "Kalenderereignisse"
+    "layerCalendars": "Kalenderereignisse",
+    "aligned": "Ausgerichtet",
+    "habits": "Gewohnheiten",
+    "projects": "Projekte",
+    "alignedOf": "{{aligned}} von {{total}} Min.",
+    "projectClear": "Alle Aufgaben dieses Projekts sind erledigt",
+    "alignedLabel": "Ausgerichtet: {{percent}} %, {{aligned}} von {{total}} Minuten auf einem Projekt",
+    "projectLabel": "{{name}}: {{percent}} %, {{done}} von {{total}} Aufgaben"
   },
   "intentLog": {
     "clearLog": "Protokoll löschen",

@@ -1376,7 +1376,14 @@
     "layers": "Calques",
     "layerSolar": "Soleil et lune",
     "layerWeather": "Météo",
-    "layerCalendars": "Événements du calendrier"
+    "layerCalendars": "Événements du calendrier",
+    "aligned": "Aligné",
+    "habits": "Habitudes",
+    "projects": "Projets",
+    "alignedOf": "{{aligned}} sur {{total}} min",
+    "projectClear": "Toutes les tâches de ce projet sont terminées",
+    "alignedLabel": "Aligné : {{percent}} %, {{aligned}} sur {{total}} minutes sur un projet",
+    "projectLabel": "{{name}} : {{percent}} %, {{done}} sur {{total}} tâches"
   },
   "intentLog": {
     "clearLog": "Effacer le journal",

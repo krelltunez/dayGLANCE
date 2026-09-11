@@ -1376,7 +1376,14 @@
     "layers": "图层",
     "layerSolar": "日月",
     "layerWeather": "天气",
-    "layerCalendars": "日历事件"
+    "layerCalendars": "日历事件",
+    "aligned": "对齐",
+    "habits": "习惯",
+    "projects": "项目",
+    "alignedOf": "{{total}} 分钟中的 {{aligned}} 分钟",
+    "projectClear": "该项目的所有任务均已完成",
+    "alignedLabel": "对齐：{{percent}}%，{{total}} 分钟中有 {{aligned}} 分钟用于项目",
+    "projectLabel": "{{name}}：{{percent}}%，{{total}} 个任务中已完成 {{done}} 个"
   },
   "intentLog": {
     "clearLog": "清空日志",
