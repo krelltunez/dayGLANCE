@@ -576,6 +576,13 @@ const DayDialModal = () => {
   [complicationKeys, filteredUnscheduledTasks, getDeadlineTasksForDate,
     dateStr, activeHabits, getTodayHabitCount, dayTasks, isToday]);
 
+  // Inbox and deadline rows are UNSCHEDULED tasks — both lists come off
+  // unscheduledTasks — so completing one needs toggleComplete's fromInbox
+  // flag. Without it the call looks the task up in `tasks`, finds nothing,
+  // and silently does nothing at all; handleToggleComplete above is for the
+  // ring's own blocks, which do live there.
+  const handleToggleUnscheduled = (task) => toggleComplete(task.id, true);
+
   // A complication row hands the task to the app's own editor — the same one
   // the planner opens — so a deadline or an inbox item can be given a date
   // without leaving for the planner first and without this surface inventing
@@ -694,6 +701,7 @@ const DayDialModal = () => {
         onStartFocus={isToday && focusModeAvailable ? handleStartFocus : null}
         complications={complications}
         onOpenTask={handleOpenTask}
+        onToggleTaskComplete={handleToggleUnscheduled}
         onSetHabitCount={(habit, next) => setHabitCount(habit.id, next)}
         onIncrementHabit={(habit) => incrementHabit(habit.id)}
         dayWindow={getDayWindow(dateStr)}
