@@ -11,8 +11,19 @@
 //   - obsidian.png       : needs a live Obsidian vault so the inline note renders
 //
 // Usage:
-//   npm run dev
-//   node scripts/gen-readme-screenshots.mjs
+//   npm i playwright --no-save        # not a declared dependency
+//   npx playwright install chromium   # once, unless CHROMIUM_PATH is set
+//   npm run dev                       # vite's default port is 5173
+//   DAYGLANCE_URL=http://localhost:5173/ node scripts/gen-readme-screenshots.mjs
+//
+// DAYGLANCE_URL defaults to :5174, which is NOT where `npm run dev` serves,
+// so pass it unless your dev server is on that port. CHROMIUM_PATH overrides
+// the browser; without it Playwright's own Chromium is used.
+//
+// Every image is rewritten on each run. To refresh just one, run it and then
+// restore the rest:
+//   git status --porcelain screenshots/ | awk '{print $2}' \
+//     | grep -v 'day-dial.png$' | xargs -r git checkout --
 //
 // Output: screenshots/*.png (the 16 reproducible README images)
 
@@ -130,7 +141,42 @@ try {
     // them or the sun comes up at noon.
     tz: 'America/Denver', time: new Date('2026-07-02T17:20:00Z'),
     extra: `
-      localStorage.setItem('day-planner-dial-complications', '["inbox","done","habit:1710000000001","habit:1710000000002"]');
+      localStorage.setItem('day-planner-dial-complications', '["inbox","deadlines","done","habit:1710000000001"]');
+      // Extra fixtures for THIS capture only, so the shared seed (and the
+      // other fifteen screenshots) stay as they are. The date is read off the
+      // frozen clock rather than hard-coded, so it follows FIXED.
+      (() => {
+        const d = new Date();
+        const day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        const base = { date: day, completed: false, priority: 0, notes: '', subtasks: [], lastModified: d.toISOString() };
+        const tasks = JSON.parse(localStorage.getItem('day-planner-tasks') || '[]');
+        // Two pile-ups, so the ring shows its lane split: one nested inside
+        // the 14:00 block, one partly over the 16:00 one. Kept away from the
+        // 11:20 needle so the hub still narrates the block that is running.
+        tasks.push(
+          { ...base, id: 'dial-overlap-1', title: 'Design review #work', startTime: '14:30', duration: 45, color: 'bg-purple-500' },
+          { ...base, id: 'dial-overlap-2', title: 'Vendor call #work', startTime: '16:15', duration: 35, color: 'bg-amber-500' },
+        );
+        localStorage.setItem('day-planner-tasks', JSON.stringify(tasks));
+
+        // Routines at 25, 45 and 90 minutes, alongside the seed's two at 15,
+        // so the track shows bars of visibly different lengths.
+        const routines = JSON.parse(localStorage.getItem('day-planner-today-routines') || '[]');
+        routines.push(
+          { id: 'dial-routine-1', name: 'Morning pages', bucket: 'everyday', startTime: '07:00', duration: 25, isAllDay: false, completed: true, lastModified: d.toISOString() },
+          { id: 'dial-routine-2', name: 'Inbox sweep', bucket: 'everyday', startTime: '13:00', duration: 45, isAllDay: false, completed: false, lastModified: d.toISOString() },
+          { id: 'dial-routine-3', name: 'Evening shutdown', bucket: 'everyday', startTime: '20:30', duration: 90, isAllDay: false, completed: false, lastModified: d.toISOString() },
+        );
+        localStorage.setItem('day-planner-today-routines', JSON.stringify(routines));
+
+        // Something actually due today, so the Deadlines readout is not a zero.
+        const unscheduled = JSON.parse(localStorage.getItem('day-planner-unscheduled') || '[]');
+        unscheduled.push(
+          { ...base, id: 'dial-deadline-1', date: null, startTime: '00:00', duration: 30, title: 'Send the quarterly invoice #admin', deadline: day, priority: 2, color: 'bg-red-500' },
+          { ...base, id: 'dial-deadline-2', date: null, startTime: '00:00', duration: 30, title: 'Renew the domain #admin', deadline: day, priority: 1, color: 'bg-blue-500' },
+        );
+        localStorage.setItem('day-planner-unscheduled', JSON.stringify(unscheduled));
+      })();
       // Weather has to be configured, not just have coordinates cached:
       // useWeather clears day-planner-weather-coords when no location is set
       // ("location cleared -> the dial's sun marks go too"), which takes the
