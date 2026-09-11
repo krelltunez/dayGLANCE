@@ -19,6 +19,9 @@ import {
   findDialFocusBlock,
   initialDialSelection,
   muteDialColor,
+  computeMoonBand,
+  moonPhasePath,
+  moonStretches,
   precipArcSegments,
   precipRuns,
   stepDialSelection,
@@ -431,6 +434,133 @@ describe('muteDialColor', () => {
   });
 });
 
+describe('computeMoonBand', () => {
+  const DEN = { lat: 39.7392, lon: -104.9903 };
+  const sunFor = (date) => getSunTimes(date, DEN.lat, DEN.lon);
+  const band = (date) => computeMoonBand(date, DEN, sunFor(date));
+
+  it('draws nothing without a location', () => {
+    const date = new Date(2026, 6, 2, 12);
+    expect(computeMoonBand(date, null, sunFor(date)).steps).toEqual([]);
+    expect(computeMoonBand(date, DEN, null).steps).toEqual([]);
+  });
+
+  it('never draws while the sun is up', () => {
+    // The whole reason the band is clipped: the moon is above the horizon in
+    // daylight about as often as at night, and the track can only mean one
+    // thing at a time.
+    for (let d = 1; d <= 28; d++) {
+      const date = new Date(2026, 6, d, 12);
+      const sun = sunFor(date);
+      if (sun.polar || sun.sunriseMin == null || sun.sunsetMin == null) continue;
+      const lit = sun.sunsetMin > sun.sunriseMin
+        ? (m) => m >= sun.sunriseMin && m < sun.sunsetMin
+        : (m) => m >= sun.sunriseMin || m < sun.sunsetMin;
+      for (const step of computeMoonBand(date, DEN, sun).steps) {
+        expect(lit((step.startMin + step.endMin) / 2)).toBe(false);
+      }
+    }
+  });
+
+  it('keeps a night that is cut by a midnight as two stretches', () => {
+    // The case that rules out deriving the band from a single rise/set pair:
+    // the moon is up at midnight, sets before dawn, and is back before the
+    // next one. Asserted on the grouping itself rather than by hunting a real
+    // date for it — whether any given date splits depends on where the
+    // device's midnight falls, so the astronomy is covered in lunar.test.js
+    // and this covers the thing that could actually break.
+    const steps = [
+      { startMin: 0, endMin: 4 }, { startMin: 4, endMin: 8 },
+      { startMin: 1400, endMin: 1404 }, { startMin: 1404, endMin: 1440 },
+    ];
+    expect(moonStretches(steps)).toEqual([
+      { startMin: 0, endMin: 8 },
+      { startMin: 1400, endMin: 1440 },
+    ]);
+  });
+
+  it('groups an unbroken night into one stretch, and nothing into none', () => {
+    expect(moonStretches([
+      { startMin: 120, endMin: 124 }, { startMin: 124, endMin: 128 },
+    ])).toEqual([{ startMin: 120, endMin: 128 }]);
+    expect(moonStretches([])).toEqual([]);
+  });
+
+  it('fades to nothing at new moon even though the moon is up', () => {
+    // 2026-07-14 is a new moon: the disc is up for a stretch after sunset and
+    // gives no light at all, so the band has to say so.
+    const newMoon = band(new Date(2026, 6, 14, 12));
+    expect(newMoon.fraction).toBeLessThan(0.02);
+    for (const step of newMoon.steps) expect(step.opacity).toBeLessThan(0.002);
+  });
+
+  it('keeps even the brightest night under the daylight band', () => {
+    // The ordering that has to hold. Not the physical ratio — see
+    // MOONLIGHT_PEAK for why the band is scaled to be read rather than to be
+    // proportional — but a night must never outshine a day on the same track.
+    const brightest = Math.max(
+      ...band(new Date(2026, 6, 1, 12)).steps.map((s) => s.opacity), 0);
+    expect(brightest).toBeGreaterThan(DAYLIGHT_FLOOR);
+    expect(brightest).toBeLessThan(DAYLIGHT_PEAK);
+  });
+
+  it('puts the glyph inside the longest stretch, never on its edge', () => {
+    for (const d of [1, 2, 6, 10, 20]) {
+      const { steps, glyphMin } = band(new Date(2026, 6, d, 12));
+      if (glyphMin == null) continue;
+      const covering = steps.find((s) => glyphMin >= s.startMin && glyphMin <= s.endMin);
+      expect(covering).toBeTruthy();
+      // Comfortably off both ends of the drawn span.
+      expect(glyphMin).toBeGreaterThan(Math.min(...steps.map((s) => s.startMin)) + 20);
+      expect(glyphMin).toBeLessThan(Math.max(...steps.map((s) => s.endMin)) - 20);
+    }
+  });
+
+  it('leaves a sliver of a stretch unglyphed', () => {
+    // 2026-07-14 again: about half an hour of moon after sunset, narrower
+    // than the glyph that would mark it.
+    expect(band(new Date(2026, 6, 14, 12)).glyphMin).toBeNull();
+  });
+});
+
+describe('moonPhasePath', () => {
+  // The terminator is an ellipse whose x-radius collapses at the quarters and
+  // reopens the other way: that number is the whole shape.
+  const terminatorRx = (d) => parseFloat(d.split('A')[2].trim().split(/\s+/)[0]);
+  const sweep = (d) => d.split('A')[2].trim().split(/\s+/)[4];
+
+  it('is a closed disc at full moon and an empty one at new', () => {
+    expect(terminatorRx(moonPhasePath(10, 1, true))).toBe(10);
+    expect(terminatorRx(moonPhasePath(10, 0, true))).toBe(10);
+    // Same radius, opposite arc direction: one traces the disc, one erases it.
+    expect(sweep(moonPhasePath(10, 1, true))).not.toBe(sweep(moonPhasePath(10, 0, true)));
+  });
+
+  it('collapses the terminator to a straight edge at the quarters', () => {
+    expect(terminatorRx(moonPhasePath(10, 0.5, true))).toBe(0);
+    expect(terminatorRx(moonPhasePath(10, 0.5, false))).toBe(0);
+  });
+
+  it('narrows the terminator toward the quarters from both sides', () => {
+    expect(terminatorRx(moonPhasePath(10, 0.25, true))).toBe(5);
+    expect(terminatorRx(moonPhasePath(10, 0.75, true))).toBe(5);
+  });
+
+  it('lights the opposite limb waxing and waning', () => {
+    const waxing = moonPhasePath(10, 0.25, true);
+    const waning = moonPhasePath(10, 0.25, false);
+    expect(waxing).not.toBe(waning);
+    // Mirroring for the southern hemisphere swaps them back.
+    expect(moonPhasePath(10, 0.25, true, true)).toBe(waning);
+    expect(moonPhasePath(10, 0.25, false, true)).toBe(waxing);
+  });
+
+  it('clamps a fraction that strays outside the disc', () => {
+    expect(terminatorRx(moonPhasePath(10, 1.4, true))).toBe(10);
+    expect(terminatorRx(moonPhasePath(10, -0.2, true))).toBe(10);
+  });
+});
+
 describe('precipArcSegments', () => {
   it('brackets the glyph with a stub on each side', () => {
     // 15:00-18:00 of rain: inset 4 at both ends, 14 minutes opened at 16:30.
@@ -621,12 +751,26 @@ describe('computeDaylightBand', () => {
     const steps = computeDaylightBand(date, DENVER, sun);
     expect(steps[0].startMin).toBe(sun.sunriseMin);
     // Minutes are left unwrapped, so a band that crosses midnight runs past
-    // 1440 rather than restarting — which is exactly this case, since a UTC
-    // device with US coordinates sets after midnight local. The geometry
-    // turns minutes into an angle, and an angle wraps by itself.
-    expect(sun.sunsetMin).toBeLessThan(sun.sunriseMin);
-    expect(steps[steps.length - 1].endMin).toBe(sun.sunsetMin + DIAL_DAY_MINUTES);
-    expect(steps[steps.length - 1].endMin % DIAL_DAY_MINUTES).toBe(sun.sunsetMin);
+    // 1440 rather than restarting; the geometry turns minutes into an angle,
+    // and an angle wraps by itself. WHETHER this date wraps is a fact about
+    // the device, not about the band — a UTC machine reading Denver
+    // coordinates sets after local midnight, a machine in Denver does not —
+    // so assert the rule and let the branch follow the host clock.
+    const end = steps[steps.length - 1].endMin;
+    expect(end % DIAL_DAY_MINUTES).toBe(sun.sunsetMin);
+    expect(end).toBe(sun.sunsetMin > sun.sunriseMin
+      ? sun.sunsetMin
+      : sun.sunsetMin + DIAL_DAY_MINUTES);
+  });
+
+  it('unwraps a band that crosses midnight', () => {
+    // The wrapping branch, pinned to a hand-built solution so it is exercised
+    // in every timezone rather than only on the machines that happen to
+    // produce it.
+    const steps = computeDaylightBand(new Date(2026, 8, 10), DENVER,
+      { sunriseMin: 1300, sunsetMin: 120, polar: null });
+    expect(steps[0].startMin).toBe(1300);
+    expect(steps[steps.length - 1].endMin).toBe(120 + DIAL_DAY_MINUTES);
   });
 
   it('makes a winter day both shorter and dimmer than a summer one', () => {

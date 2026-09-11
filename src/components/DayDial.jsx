@@ -21,6 +21,7 @@ import {
   findDialFocusBlock,
   focusSpanMinutes,
   initialDialSelection,
+  moonPhasePath,
   muteDialColor,
   padDialSegment,
   precipArcSegments,
@@ -104,6 +105,12 @@ const DAYLIGHT_FEATHER = [[0, 0.25, 0.35], [0.25, 0.75, 1], [0.75, 1, 0.35]];
 // wedge's own inner edge stroke — a rail sitting exactly on it reads as the
 // edge rather than as a separate fact, which is what ruled out the effort
 // blue in the mock (it is that stroke's colour).
+// The moon rides the daylight band's own track, taking it over when the sun
+// leaves. One sky annulus, whichever body is up — and computeMoonBand clips
+// the moon to the hours the sun is down, so the two never share it at once.
+const MOON_GLYPH_R = 292;    // the track's mid-line: the glyph sits IN the band
+const MOON_GLYPH_RADIUS = 9; // disc radius, a shade under the band's half-width
+
 const R_FOCUS_RAIL = [307, 315];
 // Neutral rather than a sixth hue: orange is now, teal routines, violet
 // sleep, amber daylight, and the wedges carry the task palette.
@@ -214,43 +221,92 @@ function Segment({
 }
 
 // Sunrise/sunset hairline: a single radial stroke spanning the ring band,
-// with a one-weight line glyph at the outer tip naming the event — sun for
-// rise, moon for set (lucide geometry, so it matches the app's icon
-// language; line icons at one weight, never emoji). Dawn is warm amber,
-// dusk a cool moonlight blue — the temperature split mirrors the events
-// themselves, and both stay at hairline opacity so neither competes with
-// the schedule. The overshoot past the bezel lets each mark read as an
-// astronomical datum rather than another schedule edge.
-const SUN_COLOR = '#fbbf24';  // amber-400 — sunrise
-const MOON_COLOR = '#7dd3fc'; // sky-300 — sunset; cooler and greener than the
+// with a one-weight line glyph at the outer tip naming the event (lucide
+// geometry, so it matches the app's icon language; line icons at one weight,
+// never emoji). Both glyphs are a sun over a horizon, distinguished by the
+// direction it is travelling — a moon for sunset read as a second moon on a
+// face that now draws the real one, and the moon is not what sets at dusk.
+// Both stay at hairline opacity so neither competes with the schedule, and
+// the overshoot past the bezel lets each mark read as an astronomical datum
+// rather than another schedule edge.
+const SUN_COLOR = '#fbbf24';  // amber-400 — sunrise AND sunset: both marks
+                              // are solar, so both speak in the sun's colour.
+                              // The crescent that used to stand for sunset now
+                              // means the actual moon, one glyph one meaning.
+const MOON_COLOR = '#cbd5e1'; // slate-300 — moonlight is silver, not blue, and
+                              // a neutral keeps it clear of sky-300 elsewhere,
+                              // the violet sleep band and the white focus rail
                               // effort blue (#93c5fd) so the two never read
                               // as the same layer
 const SUN_GLYPH_R = 456;     // glyph center: past the bezel, inside the hour labels
 const GLYPH_SCALE = 0.9;     // lucide 24-unit grid → ~22 viewBox units
 
-// Lucide 'sun': core circle + 8 rays, one path.
-const SUN_RAYS =
-  'M12 2v2 M12 20v2 M4.93 4.93l1.41 1.41 M17.66 17.66l1.41 1.41 ' +
-  'M2 12h2 M20 12h2 M6.34 17.66l-1.41 1.41 M19.07 4.93l-1.41 1.41';
-// Lucide 'moon': the crescent.
-const MOON_PATH = 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z';
+// Lucide 'sunrise' and 'sunset': the same half-disc on the same horizon, the
+// arrow through the stem being the whole difference. Shared geometry first,
+// then the one path that differs.
+const HORIZON_SUN =
+  'M4.93 10.93l1.41 1.41 M2 18h2 M20 18h2 M19.07 10.93l-1.41 1.41 ' +
+  'M22 22H2 M16 18a4 4 0 0 0-8 0';
+const SUNRISE_STEM = 'M12 2v8 M16 6l-4-4-4 4';
+const SUNSET_STEM = 'M12 10V2 M8 6l4 4 4-4';
 
 function SunMark({ min, kind }) {
   const p1 = dialPoint(CX, CY, R_INNER - 12, min);
   const p2 = dialPoint(CX, CY, R_BEZEL + 8, min);
   const g = dialPoint(CX, CY, SUN_GLYPH_R, min);
   return (
-    <g stroke={kind === 'rise' ? SUN_COLOR : MOON_COLOR} strokeOpacity={0.55} fill="none" strokeLinecap="round">
+    <g stroke={SUN_COLOR} strokeOpacity={0.55} fill="none" strokeLinecap="round">
       <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} strokeWidth={1.5} />
       <g
         strokeWidth={2}
         strokeLinejoin="round"
         transform={`translate(${(g.x - 12 * GLYPH_SCALE).toFixed(2)} ${(g.y - 12 * GLYPH_SCALE).toFixed(2)}) scale(${GLYPH_SCALE})`}
       >
-        {kind === 'rise'
-          ? <><circle cx="12" cy="12" r="4" /><path d={SUN_RAYS} /></>
-          : <path d={MOON_PATH} />}
+        <path d={HORIZON_SUN} />
+        <path d={kind === 'rise' ? SUNRISE_STEM : SUNSET_STEM} />
       </g>
+    </g>
+  );
+}
+
+// Moon band: the same feathered track as the daylight band, carrying the
+// hours the moon is up and the sun is not, at an opacity set by how high it
+// rides and how much of its disc is lit. A full moon overhead lands about
+// where the dimmest daylight does, which is the honest ordering even though
+// it is nowhere near the true ratio — real moonlight is a 400,000th of
+// sunlight, and a band drawn to scale would be a band drawn to nothing.
+//
+// The glyph is the moon's actual phase at the minute it rides highest, not a
+// generic crescent: it is the one place on the face where the shape carries
+// the datum rather than labelling it. It sits mid-stretch — see
+// moonGlyphMinute for why not at the moon's highest.
+function MoonBand({ band, southern }) {
+  const [r0, r1] = R_DAYLIGHT_BAND;
+  const g = band.glyphMin == null ? null : dialPoint(CX, CY, MOON_GLYPH_R, band.glyphMin);
+  return (
+    <g fill={MOON_COLOR}>
+      {band.steps.map((step) => DAYLIGHT_FEATHER.map(([a, b, weight]) => (
+        <path
+          key={`${step.startMin}-${a}`}
+          d={dialSectorPath(CX, CY, r0 + (r1 - r0) * a, r0 + (r1 - r0) * b,
+            step.startMin, step.endMin + 0.6)}
+          fillOpacity={Math.round(step.opacity * weight * 1e4) / 1e4}
+        />
+      )))}
+      {g && (
+        <g transform={`translate(${g.x.toFixed(2)} ${g.y.toFixed(2)})`}>
+          {/* The unlit disc as a hairline, so a new moon still reads as a
+              moon that is up rather than as nothing at all. */}
+          <circle
+            r={MOON_GLYPH_RADIUS} fill="none"
+            stroke={MOON_COLOR} strokeOpacity={0.3} strokeWidth={1}
+          />
+          <path
+            d={moonPhasePath(MOON_GLYPH_RADIUS, band.fraction, band.waxing, southern)}
+            fillOpacity={0.85}
+          />
+        </g>
+      )}
     </g>
   );
 }
@@ -511,7 +567,7 @@ function NowLine({ nowMin }) {
  *                        be null in polar seasons), or null to omit the
  *                        solar layer entirely (no location known).
  */
-const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineCompletions = null, daylight = null, focusSpans = null, onStartFocus = null, complications = null, onOpenTask = null, onToggleTaskComplete = null, onSetHabitCount = null, onIncrementHabit = null, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, onGoToday = null, chromeVisible = true }) => {
+const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineCompletions = null, daylight = null, moon = null, focusSpans = null, onStartFocus = null, complications = null, onOpenTask = null, onToggleTaskComplete = null, onSetHabitCount = null, onIncrementHabit = null, dayWindow, date, nowMin = null, dayIsPast = false, formatTime, use24HourClock = false, sun = null, hourlyWeather = null, onToggleComplete = null, onOpenInPlanner = null, onStepDay = null, onGoToday = null, chromeVisible = true }) => {
   const { t, i18n } = useTranslation();
   const formatMinutes = (minutes) => formatLocalizedDurationMinutes(minutes, i18n.resolvedLanguage || i18n.language);
 
@@ -1198,6 +1254,7 @@ const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineComple
           {/* Daylight — beneath every other datum on the face, so the night,
               the wedges and the weather all read over the top of it. */}
           {daylight?.length > 0 && <DaylightBand steps={daylight} />}
+          {moon?.steps?.length > 0 && <MoonBand band={moon} southern={moon.southern} />}
 
           {/* Sleep — the declared night, quiet lavender. Its two halves stay
               flush at midnight so the night reads as one mass. */}
