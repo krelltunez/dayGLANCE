@@ -131,8 +131,7 @@ Object.assign(en, {
   "unknownWarning": "Some linked tasks are absent from the source snapshot. Their completion/deletion cannot be determined reliably, so their local copies were retained.",
   "writeOptions": "Optional completion writeback (advanced)",
   "securityTitle": "Credentials, privacy and limitations",
-  "safety": "Changing filters or deleting a Todoist task never deletes or restores its local copy. Disconnect removes credentials and clears the cache when there are no pending completion receipts. If receipts remain, reconnect to resolve them before disconnecting again. Imported tasks are kept. Automatic sync runs only while the app is open.",
-  "storageCache": "Todoist sync cache"
+  "safety": "Changing filters or deleting a Todoist task never deletes or restores its local copy. Disconnect removes credentials and clears the cache when there are no pending completion receipts. If receipts remain, reconnect to resolve them before disconnecting again. Imported tasks are kept. Automatic sync runs only while the app is open."
 });
 Object.assign(zh, {
   "intro": "连接后选择同步方式，再点“立即同步”。自动同步可单独开启；不会上传 dayGLANCE 原有任务。",
@@ -185,8 +184,7 @@ Object.assign(zh, {
   "unknownWarning": "部分关联任务未出现在来源快照，不能可靠判断其是否完成或删除，因此保留本地副本。",
   "writeOptions": "可选完成状态回写（高级）",
   "securityTitle": "凭据、隐私与功能边界",
-  "safety": "筛选变化或 Todoist 任务删除不会自动删除、恢复本地副本。断开连接会移除凭据；没有待确认完成操作时，同时清除同步缓存。仍有待确认操作时，请重新连接处理后再次断开以清除缓存。已导入的任务保留。自动同步仅在应用打开时运行。",
-  "storageCache": "Todoist 同步缓存"
+  "safety": "筛选变化或 Todoist 任务删除不会自动删除、恢复本地副本。断开连接会移除凭据；没有待确认完成操作时，同时清除同步缓存。仍有待确认操作时，请重新连接处理后再次断开以清除缓存。已导入的任务保留。自动同步仅在应用打开时运行。"
 });
 Object.assign(en.errors, { notReady: 'Task storage is still loading. Try again when the app is ready.' });
 Object.assign(zh.errors, { notReady: '任务数据尚在加载，请在应用就绪后重试。' });

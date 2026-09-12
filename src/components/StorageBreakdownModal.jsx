@@ -15,7 +15,7 @@ const StorageBreakdownModal = () => {
   const { totalBytes, entries } = getStorageUsage();
   const warn = totalBytes > 4 * 1024 * 1024;
   const labels = {
-    'dg-todoist-state-v1': t('todoist:storageCache', { defaultValue: 'Todoist sync cache' }),
+    'dg-todoist-state-v1': t('storage.todoistCache'),
     'day-planner-tasks': t('reminders.scheduledTasks'),
     'day-planner-tasks:user': t('reminders.scheduledTasks'),
     'day-planner-tasks:imported': t('storage.importedCalendarEvents', { defaultValue: 'Imported calendar events' }),
