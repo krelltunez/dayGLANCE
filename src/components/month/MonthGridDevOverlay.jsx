@@ -8,12 +8,13 @@
 // │ Delete this file and the gate in src/App.jsx once the grid is routed     │
 // │ through the view cycler.                                                 │
 // └──────────────────────────────────────────────────────────────────────────┘
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { routinesForDate } from '@glance-apps/agenda-core';
 import MonthGrid from './MonthGrid.jsx';
+import MonthDaySheet from './MonthDaySheet.jsx';
 import { tagKind } from '../../utils/monthCellLayout.js';
-import { monthOf } from '../../utils/monthGrid.js';
+import { monthGridDates, monthOf } from '../../utils/monthGrid.js';
 import { generateDemoMonth } from '../../utils/monthDemoData.js';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
@@ -57,7 +58,7 @@ function useDemoItemsForDate(year, month) {
 }
 
 export default function MonthGridDevOverlay() {
-  const { bgClass, textPrimary, textSecondary, weekStartDay, selectedDate } = useDayPlannerCtx();
+  const { bgClass, textPrimary, textSecondary, weekStartDay, selectedDate, setMonthViewRange } = useDayPlannerCtx();
   // On macOS Electron (titleBarStyle hiddenInset) the top 28px is still the
   // window's title bar: transparent, but clicks there never reach the page.
   // DesktopLayout pads its chrome by the same amount (titlebarH).
@@ -77,13 +78,21 @@ export default function MonthGridDevOverlay() {
   const demoItemsForDate = useDemoItemsForDate(shown.year, shown.month);
   const itemsForDate = demo ? demoItemsForDate : realItemsForDate;
   const [hidden, setHidden] = useState(false);
+  const [sheetDate, setSheetDate] = useState(null);
+  // Recurring occurrences are expanded for the grid's whole range while it shows.
+  useEffect(() => {
+    if (hidden || !setMonthViewRange) return undefined;
+    const { cells } = monthGridDates(shown.year, shown.month, weekStartDay);
+    setMonthViewRange({ from: cells[0].dateStr, to: cells[cells.length - 1].dateStr });
+    return () => setMonthViewRange(null);
+  }, [hidden, shown.year, shown.month, weekStartDay, setMonthViewRange]);
   if (hidden) return null;
   return (
-    <div className={`fixed inset-0 z-[80] flex flex-col ${bgClass} ${textPrimary}`}
+    <div className={`fixed inset-0 z-[45] flex flex-col ${bgClass} ${textPrimary}`}
       style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + ${titlebarH}px)`, paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className={`flex items-center gap-3 px-3 py-1 text-[11px] ${textSecondary} shrink-0`}>
         <span className="font-semibold">Month grid (TEMPORARY dev overlay, real data)</span>
-        <span className="hidden sm:inline">tap a cell: logs the date until the day sheet exists</span>
+        <span className="hidden sm:inline">tap a cell to open its day sheet</span>
         <span data-month-grid-source={demo ? 'demo' : 'real'} className={demo ? 'font-semibold text-amber-700 dark:text-amber-300' : ''}>
           {demo ? 'showing: generated demo month' : 'showing: your data'}
         </span>
@@ -102,9 +111,10 @@ export default function MonthGridDevOverlay() {
           itemsForDate={itemsForDate}
           weekStartDay={weekStartDay}
           onNavigate={(year, month) => setShown({ year, month })}
-          onSelectDate={(dateStr) => console.log('[month-grid] select', dateStr)}
+          onSelectDate={setSheetDate}
         />
       </div>
+      {sheetDate && <MonthDaySheet date={sheetDate} onClose={() => setSheetDate(null)} />}
     </div>
   );
 }

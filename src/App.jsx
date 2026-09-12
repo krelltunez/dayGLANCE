@@ -549,6 +549,10 @@ const DayPlanner = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [deadlinePickerTaskId, setDeadlinePickerTaskId] = useState(null); // Task ID for deadline date picker
   const [showMonthView, setShowMonthView] = useState(false);
+  // The month view's displayed grid range ({ from, to }, YYYY-MM-DD) while it
+  // is showing, so recurring occurrences are expanded for every cell it
+  // draws and for the day sheet opened from one; null when it is not showing.
+  const [monthViewRange, setMonthViewRange] = useState(null);
   // Ambient Day Dial overlay ('O'). `?dial` boots straight into it — the
   // kiosk/wall-panel entry, same idiom as the tray popup's `?tray` (a plain
   // URL beats per-platform launch flags: it works for a Docker kiosk browser,
@@ -6372,6 +6376,7 @@ const DayPlanner = () => {
     // forward off a weekend-only recurring task's day.
     const allDateStrs = [...visibleDates.map(d => dateToString(d)),
       ...weekViewDates.map(d => dateToString(d)),
+      ...(monthViewRange ? [monthViewRange.from, monthViewRange.to] : []),
       dateToString(selectedDate), dateToString(schedWindowEnd), today].sort();
     const rangeStart = allDateStrs[0];
     const rangeEnd = allDateStrs[allDateStrs.length - 1];
@@ -6412,7 +6417,7 @@ const DayPlanner = () => {
       }
     }
     return instances;
-  }, [recurringTasks, visibleDates, weekViewDates, selectedDate, schedDaysShown]);
+  }, [monthViewRange, recurringTasks, visibleDates, weekViewDates, selectedDate, schedDaysShown]);
   expandedRecurringTasksRef.current = expandedRecurringTasks;
 
   // Build today's non-overdue HG sessions for the reminder engine.
@@ -8436,6 +8441,7 @@ const DayPlanner = () => {
     mobileWelcomeStep, setMobileWelcomeStep,
     desktopWelcomeStep, setDesktopWelcomeStep,
     showMonthView, setShowMonthView,
+    monthViewRange, setMonthViewRange,
     showDayDial, setShowDayDial,
     viewedMonth, setViewedMonth,
     mobileReviewPage, setMobileReviewPage,
