@@ -103,7 +103,8 @@ describe('Todoist namespace and settings', () => {
     expect(await render(mockSync(), 'en', false)).toContain('aria-expanded="true"');
     const source = readFileSync('src/components/TodoistSettings.jsx', 'utf8');
     expect(source).toContain("toggleSettingsSection('todoist')");
-    expect(source).not.toContain('[&+hr]:hidden');
+    // The reviewer requested structural dividers, not a sibling-hiding CSS workaround.
+    expect(source.includes('[&+hr]:hidden')).toBe(false);
     expect(source).not.toContain('setExpanded');
   });
   it('shows the dedicated mobile page without a collapsible section header', async () => {
