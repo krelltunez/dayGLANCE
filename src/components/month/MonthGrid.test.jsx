@@ -83,7 +83,7 @@ describe('MonthGrid', () => {
   it('sizes cells from the area and gives wide cells a gutter, narrow cells none', async () => {
     const i18n = await i18nFor('en');
     const wide = render(i18n);
-    expect(wide).toContain('grid-template-columns:repeat(7, 160px)');
+    expect(wide).toContain('grid-template-columns:repeat(7, 140px)');
     expect(count(wide, /data-month-cell-gutter/g)).toBe(35);
     const phone = render(i18n, { width: 371, height: 480 });
     expect(phone).toContain('grid-template-columns:repeat(7, 53px)');
@@ -92,8 +92,10 @@ describe('MonthGrid', () => {
   });
 
   it('caps cell width on a very wide area instead of stretching', async () => {
-    const html = render(await i18nFor('en'), { width: 2560, height: 700 });
-    expect(html).toContain('grid-template-columns:repeat(7, 175px)');
+    const tall = render(await i18nFor('en'), { width: 2560, height: 1250 });
+    expect(tall).toContain('grid-template-columns:repeat(7, 200px)');
+    const short = render(await i18nFor('en'), { width: 2560, height: 700 });
+    expect(short).toContain('grid-template-columns:repeat(7, 140px)');
   });
 
   it('gives every cell a localized accessible label and localizes the header', async () => {

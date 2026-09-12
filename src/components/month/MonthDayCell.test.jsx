@@ -39,24 +39,48 @@ describe('MonthDayCell', () => {
     expect(count(html, /data-band=/g)).toBe(3);
   });
 
-  it('separates events from tasks by more than colour: events carry a left-edge cap, both solid', () => {
-    const html = render({ items: [event('e', '09:00', 60), task('t', '10:00', 60)] });
+  it('separates events from tasks by more than colour: events carry a left-edge cap, tasks their own colour', () => {
+    const html = render({ items: [event('e', '09:00', 60), task('t', '10:00', 60, { color: 'bg-purple-500' })] });
     const eventMarkup = html.slice(html.indexOf('data-band="e"'), html.indexOf('data-band="t"'));
     expect(eventMarkup).toContain('data-event-edge');
     expect(eventMarkup).toContain('fill-gray-400');
-    expect(eventMarkup).not.toContain('stroke');
     const taskMarkup = html.slice(html.indexOf('data-band="t"'));
     expect(taskMarkup).not.toContain('data-event-edge');
-    expect(taskMarkup).toContain('fill-blue-500');
+    expect(taskMarkup).toContain('fill="#a855f7"');
+    expect(taskMarkup).toContain('[fill-opacity:0.42]');
     expect(html).not.toContain('<pattern');
-    expect(html).not.toMatch(/fill="url\(#/);
+  });
+
+  it('draws each task in its own colour, a gray task still told from an event by the cap', () => {
+    const html = render({ items: [
+      task('blue', '08:00', 30), task('red', '09:00', 30, { color: 'bg-red-500' }),
+      task('native', '10:00', 30, { nativeCalendarColor: '#123456' }), task('gray', '11:00', 30, { color: 'bg-gray-500' }),
+      event('ev', '12:00', 30),
+    ] });
+    const bandOf = (id) => { const i = html.indexOf(`data-band="${id}"`); return html.slice(i, html.indexOf('data-band=', i + 1) > 0 ? html.indexOf('data-band=', i + 1) : undefined); };
+    expect(bandOf('blue')).toContain('fill="#3b82f6"');
+    expect(bandOf('red')).toContain('fill="#ef4444"');
+    expect(bandOf('native')).toContain('fill="#123456"');
+    expect(bandOf('gray')).not.toContain('data-event-edge');
+    expect(bandOf('ev')).toContain('data-event-edge');
+  });
+
+  it('rounds every band, point and mark, and insets bands uniformly from the cell edges', () => {
+    const html = render({ items: [task('a', '09:00', 60), task('p', '11:00', 0), task('ad', null, null, { isAllDay: true })] });
+    expect(html).toMatch(/data-band="a"[^>]*rx="[0-9.]+"/);
+    expect(html).toMatch(/data-point="p"[^>]*rx="[0-9.]+"/);
+    expect(html).toMatch(/data-allday-marker="ad"[^>]*rx="[0-9.]+"/);
+    // The lane group is translated by the inset; a lone band starts at x=0 inside it
+    // and spans the timeline width, which is the cell minus gutter minus two insets.
+    expect(html).toMatch(/data-month-cell-lanes="true" transform="translate\(7, \d+\)"/);
+    expect(html).toMatch(/data-band="a"[^>]*x="0"[^>]*width="130"/);
   });
 
   it('renders a point item as a hollow diamond, not a band', () => {
     const html = render({ items: [task('p', '11:00', 0)] });
     expect(html).toContain('data-point="p" data-kind="task"');
     expect(html).not.toContain('data-band=');
-    expect(html).toMatch(/data-point="p"[^>]*d="M[\d.]+,[\d.]+ L/);
+    expect(html).toMatch(/data-point="p"[^>]*transform="rotate\(45 /);
     expect(html).toMatch(/data-point="p"[^>]*fill-white dark:fill-gray-900/);
   });
 
@@ -99,8 +123,18 @@ describe('MonthDayCell', () => {
   it('shows the overflow count when the layout hides bands past the lane cap', () => {
     const html = render({ items: [task('a', '09:00', 60), task('b', '09:10', 50), task('c', '09:20', 40), task('d', '09:30', 30)] });
     expect(html).toContain('data-month-cell-overflow="+1"');
-    expect(visibleText(html)).toBe('16+1');
+    expect(visibleText(html).split('').sort().join('')).toBe('+116');
     expect(count(html, /data-band=/g)).toBe(3);
+  });
+
+  it('scales the gutter and its marks with the cell', () => {
+    const items = [task('ad', null, null, { isAllDay: true })];
+    const small = render({ items, width: 96, height: 120, gutterWidth: undefined });
+    const big = render({ items, width: 200, height: 200, gutterWidth: undefined });
+    const markW = (html) => Number(html.match(/data-allday-marker="ad"[^>]*width="([\d.]+)"/)[1]);
+    expect(markW(big)).toBeGreaterThan(markW(small));
+    const gutterX = (html) => Number(html.match(/data-month-cell-gutter="true"><line x1="([\d.]+)"/)[1]);
+    expect(96 - gutterX(small)).toBeLessThan(200 - gutterX(big));
   });
 
   it('counts all-day marks that do not fit into the overflow', () => {
@@ -116,9 +150,12 @@ describe('MonthDayCell', () => {
     expect(visibleText(html)).toBe('16');
   });
 
-  it('marks today and dims days outside the month', () => {
-    expect(render({ items: [], isToday: true })).toContain('data-today="true"');
-    expect(render({ items: [], isToday: true })).toContain('bg-blue-600 text-white');
+  it('marks today with a soft rounded square and dims days outside the month', () => {
+    const today = render({ items: [], isToday: true });
+    expect(today).toContain('data-today="true"');
+    expect(today).toMatch(/data-month-cell-date[^>]*rounded-md[^>]*bg-blue-100 text-blue-800/);
+    expect(today).not.toContain('rounded-full');
+    expect(today).not.toContain('bg-blue-600');
     expect(render({ items: [] })).not.toContain('data-today');
     expect(render({ items: [], inMonth: false })).toContain('opacity-40');
     expect(render({ items: [], inMonth: false })).toContain('data-in-month="false"');

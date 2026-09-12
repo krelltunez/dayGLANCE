@@ -3,8 +3,10 @@
 // │ Not linked from the app or the view cycler. Reach it with `?month-grid`  │
 // │ on the web or the Electron dev server, or on a device by setting         │
 // │ localStorage 'day-planner-dev-month-grid' to '1' (chrome://inspect on a │
-// │ debug Android build) and reloading. Delete this file and the gate in     │
-// │ src/App.jsx once the grid is routed through the view cycler.             │
+// │ debug Android build) and reloading. `?month-grid=demo` opens with the    │
+// │ generated demo month instead of real data; the header button toggles.   │
+// │ Delete this file and the gate in src/App.jsx once the grid is routed     │
+// │ through the view cycler.                                                 │
 // └──────────────────────────────────────────────────────────────────────────┘
 import React, { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
@@ -12,6 +14,7 @@ import { routinesForDate } from '@glance-apps/agenda-core';
 import MonthGrid from './MonthGrid.jsx';
 import { tagKind } from '../../utils/monthCellLayout.js';
 import { monthOf } from '../../utils/monthGrid.js';
+import { generateDemoMonth } from '../../utils/monthDemoData.js';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 
@@ -38,10 +41,26 @@ export function useMonthItemsForDate() {
   }, [getTasksForDate, getDeadlineTasksForDate, routinesEnabled, todayRoutines, routinesDate, routineCompletions]);
 }
 
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+/** Demo month as an itemsForDate, shaped like the real adapter's output. */
+function useDemoItemsForDate(year, month) {
+  return useMemo(() => {
+    const { tasks, unscheduled } = generateDemoMonth(year, month, { today: todayStr() });
+    return (dateStr) => [
+      ...tasks.filter((t) => t.date === dateStr),
+      ...unscheduled.filter((u) => u.deadline === dateStr).map((u) => ({ id: `deadline-${u.id}`, kind: 'deadline', isAllDay: true, completed: false, date: dateStr })),
+    ];
+  }, [year, month]);
+}
+
 export default function MonthGridDevOverlay() {
   const { darkMode, weekStartDay, selectedDate } = useDayPlannerCtx();
-  const itemsForDate = useMonthItemsForDate();
+  const realItemsForDate = useMonthItemsForDate();
   const [shown, setShown] = useState(() => monthOf(selectedDate instanceof Date ? selectedDate : new Date()));
+  const [demo, setDemo] = useState(() => { try { return new URLSearchParams(window.location.search).get('month-grid') === 'demo'; } catch { return false; } });
+  const demoItemsForDate = useDemoItemsForDate(shown.year, shown.month);
+  const itemsForDate = demo ? demoItemsForDate : realItemsForDate;
   const [hidden, setHidden] = useState(false);
   if (hidden) return null;
   return (
@@ -50,7 +69,11 @@ export default function MonthGridDevOverlay() {
       <div className="flex items-center gap-3 px-3 py-1 text-[11px] text-stone-500 dark:text-gray-400 shrink-0">
         <span className="font-semibold">Month grid (TEMPORARY dev overlay, real data)</span>
         <span className="hidden sm:inline">tap a cell: logs the date until the day sheet exists</span>
-        <button type="button" onClick={() => setHidden(true)} aria-label="Close" className="ml-auto p-1 rounded border border-current">
+        <button type="button" onClick={() => setDemo((v) => !v)} data-month-grid-demo={demo ? 'on' : 'off'}
+          className={`ml-auto px-2 py-0.5 rounded border border-current ${demo ? 'bg-amber-200 text-amber-900 dark:bg-amber-500/30 dark:text-amber-100' : ''}`}>
+          {demo ? 'demo month' : 'real data'}
+        </button>
+        <button type="button" onClick={() => setHidden(true)} aria-label="Close" className="p-1 rounded border border-current">
           <X size={14} />
         </button>
       </div>

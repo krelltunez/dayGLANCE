@@ -43,37 +43,36 @@ export const MONTH_CELL_LAYOUT = Object.freeze({
   bandGap: 1,
 
   /**
-   * The strip above the timeline that holds the date number (and, in a cell
-   * with no gutter, the all-day markers). The timeline gets the rest of the
-   * cell's height, so the hour window maps onto cellHeight - headerHeight.
+   * Cell proportions. Everything the renderer draws scales with the cell it
+   * is in (a 53px phone cell and a 200px desktop cell must both read), so
+   * each rule is a share of the cell's width or height, clamped to a
+   * pixel range. utils/monthCellMetrics.js resolves them for a given size.
+   *
+   *   maxAspect      cells never grow wider than they are tall: the timeline
+   *                  encoding assumes a portrait cell, so on a wide display
+   *                  the grid stops stretching and centres instead
+   *   maxWidth       and never past this, since a 200px cell already gives
+   *                  three lanes ~55px each and extra width adds nothing
+   *   minHeight      rows never shrink below this; a six-row month on a
+   *                  short viewport scrolls instead
+   *   gutterMinWidth the cell width at which the all-day gutter appears
+   *                  (below it the marks sit beside the date number)
    */
-  headerHeight: 18,
-
-  /** Point-marker half-diagonal, in px: the diamond spans twice this. */
-  pointSize: 3,
-
-  /** All-day marker edge and the gap between stacked markers, in px. */
-  gutterMarkerSize: 6,
-  gutterMarkerGap: 2,
-
-  /**
-   * Grid rules. A cell gets the all-day gutter once it is at least
-   * gutterMinCellWidth wide: with the 14px gutter that leaves 82px of usable
-   * width, so three lanes are still ~26px each. A 390px phone gives 53px
-   * cells (no gutter); a 768px tablet gives ~106px (gutter).
-   */
-  gutterWidth: 14,
-  gutterMinCellWidth: 96,
-
-  /**
-   * The timeline encoding assumes cells taller than they are wide, so on a
-   * wide display cells stop stretching at maxCellAspect × their height and
-   * the grid centres, leaving the spare width free (the day sheet can dock
-   * there on desktop). Rows never shrink below minCellHeight; a six-row
-   * month on a short viewport scrolls instead.
-   */
-  maxCellAspect: 1.25,
-  minCellHeight: 64,
+  cell: Object.freeze({
+    maxAspect: 1.0,
+    maxWidth: 200,
+    minHeight: 64,
+    gutterMinWidth: 96,
+    header:       Object.freeze({ of: 'height', ratio: 0.14, min: 18, max: 26 }),
+    inset:        Object.freeze({ of: 'width', ratio: 0.045, min: 3, max: 8 }),
+    padY:         Object.freeze({ of: 'height', ratio: 0.02, min: 2, max: 5 }),
+    gutter:       Object.freeze({ of: 'width', ratio: 0.13, min: 12, max: 26 }),
+    marker:       Object.freeze({ of: 'gutter', ratio: 0.55, min: 6, max: 13 }),
+    headerMarker: Object.freeze({ of: 'header', ratio: 0.4, min: 6, max: 10 }),
+    point:        Object.freeze({ of: 'width', ratio: 0.03, min: 3, max: 5 }),
+    radius:       Object.freeze({ of: 'width', ratio: 0.015, min: 2, max: 3.5 }),
+    cap:          Object.freeze({ of: 'width', ratio: 0.018, min: 2, max: 3.5 }),
+  }),
 });
 
 export const MONTH_CELL_HOUR_WINDOW = MONTH_CELL_LAYOUT.window;
@@ -81,4 +80,3 @@ export const MONTH_CELL_MIN_BAND_HEIGHT = MONTH_CELL_LAYOUT.minBandHeight;
 export const MONTH_CELL_MAX_LANES = MONTH_CELL_LAYOUT.maxLanes;
 export const MONTH_CELL_LANE_GAP = MONTH_CELL_LAYOUT.laneGap;
 export const MONTH_CELL_BAND_GAP = MONTH_CELL_LAYOUT.bandGap;
-export const MONTH_CELL_HEADER_HEIGHT = MONTH_CELL_LAYOUT.headerHeight;
