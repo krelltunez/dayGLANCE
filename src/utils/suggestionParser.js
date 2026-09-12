@@ -2,6 +2,7 @@ import {
   defaultUse24HourClock,
   formatLocalizedDate,
 } from './localeFormatting.js';
+import { TAG_BODY_CHAR, TAG_NAME } from './taskUtils.js';
 
 // Suggestion parser — pure functions for parsing time/tag/date/priority/duration
 // shorthand syntax from task input text.  No React state dependencies.
@@ -16,12 +17,16 @@ export const getPartialTag = (text, cursorPos) => {
     const char = text[startIndex];
     if (char === '#') {
       const partial = text.slice(startIndex + 1, cursorPos);
-      if (partial === '' || /^[a-zA-Z]\w*$/.test(partial)) {
+      if (partial === '' || TAG_NAME.test(partial)) {
         return { tag: partial.toLowerCase(), startIndex };
       }
       return null;
     }
-    if (!/\w/.test(char)) return null;
+    // Both tests come from taskUtils' tag alphabet. They used to be ASCII-only
+    // (`\w`, `[a-zA-Z]`), which stopped this scan at the first non-Latin
+    // character — and at the `/` of a nested tag — before it ever reached the
+    // `#`, so those tags could never be completed.
+    if (!TAG_BODY_CHAR.test(char)) return null;
     startIndex--;
   }
   return null;

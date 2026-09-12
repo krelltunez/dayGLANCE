@@ -40,12 +40,31 @@ export const completionTimestamp = (d = new Date()) => {
     `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
 };
 
+// The tag alphabet, defined once. Obsidian's full set — a letter, then letters,
+// digits, underscore, hyphen, and `/` for nested tags — so `#work/deep` filters
+// as `work/deep` rather than truncating to `work`.
+//
+// `\p{L}` with the `u` flag means any script, not just ASCII: `#工作` and
+// `#café` are tags as much as `#work` is.
+//
+// EXPORTED because suggestionParser.js builds the `#` autocomplete from the
+// same source. extractTags decides what IS a tag; getPartialTag decides what
+// can be COMPLETED. When those two disagreed, non-Latin tags stored and
+// filtered correctly but their autocomplete never appeared, so an existing tag
+// could only be retyped from memory.
+const TAG_START = '\\p{L}';
+const TAG_BODY = '[\\p{L}\\p{N}_/-]';
+
+/** One character that may follow the first in a tag name. */
+export const TAG_BODY_CHAR = new RegExp(`^${TAG_BODY}$`, 'u');
+/** A whole tag name, without the leading `#`. */
+export const TAG_NAME = new RegExp(`^${TAG_START}${TAG_BODY}*$`, 'u');
+// Safe to hoist despite the `g` flag: String#match resets lastIndex itself.
+const TAG_IN_TEXT = new RegExp(`#(${TAG_START}${TAG_BODY}*)`, 'gu');
+
 // Extract #hashtags from a task title (tags must start with a letter).
-// Accepts Obsidian's full tag alphabet — letters, digits, underscore, hyphen,
-// and `/` for nested tags — so `#work/deep` filters as `work/deep` rather
-// than truncating to `work` (the old regex stopped at `/` and `-`).
 export const extractTags = (title) => {
-  const matches = title.match(/#(\p{L}[\p{L}\p{N}_/-]*)/gu);
+  const matches = title.match(TAG_IN_TEXT);
   return matches ? matches.map(tag => tag.slice(1).toLowerCase()) : [];
 };
 
