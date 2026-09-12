@@ -39,14 +39,17 @@ describe('MonthDayCell', () => {
     expect(count(html, /data-band=/g)).toBe(3);
   });
 
-  it('separates events from tasks by more than colour: events are hatched and outlined', () => {
+  it('separates events from tasks by more than colour: events carry a left-edge cap, both solid', () => {
     const html = render({ items: [event('e', '09:00', 60), task('t', '10:00', 60)] });
     const eventMarkup = html.slice(html.indexOf('data-band="e"'), html.indexOf('data-band="t"'));
-    expect(eventMarkup).toMatch(/fill="url\(#mdc-hatch-/);
-    expect(eventMarkup).toContain('stroke-gray-500');
+    expect(eventMarkup).toContain('data-event-edge');
+    expect(eventMarkup).toContain('fill-gray-400');
+    expect(eventMarkup).not.toContain('stroke');
     const taskMarkup = html.slice(html.indexOf('data-band="t"'));
-    expect(taskMarkup).not.toMatch(/fill="url\(#/);
-    expect(html).toContain('<pattern id="mdc-hatch-');
+    expect(taskMarkup).not.toContain('data-event-edge');
+    expect(taskMarkup).toContain('fill-blue-500');
+    expect(html).not.toContain('<pattern');
+    expect(html).not.toMatch(/fill="url\(#/);
   });
 
   it('renders a point item as a hollow diamond, not a band', () => {
@@ -67,6 +70,11 @@ describe('MonthDayCell', () => {
     ] });
     const gutterStart = html.indexOf('data-month-cell-gutter');
     expect(gutterStart).toBeGreaterThan(-1);
+    // The track is a hairline only: no full-height fill behind the marks.
+    const gutterMarkup = html.slice(gutterStart, html.indexOf('data-band='));
+    expect(gutterMarkup).toContain('<line');
+    expect(gutterMarkup).not.toMatch(/<rect[^>]*fill-stone-100/);
+    expect(html.slice(html.indexOf('data-allday-marker="e-ad"'), html.indexOf('data-allday-marker="t-ad"'))).toContain('data-event-edge');
     const order = [...html.matchAll(/data-allday-marker="([^"]+)" data-kind="([^"]+)"/g)].map((m) => m[2]);
     expect(order).toEqual(['deadline', 'event', 'task', 'routine']);
     expect(html.indexOf('data-allday-marker="dl"')).toBeGreaterThan(gutterStart);

@@ -1,4 +1,4 @@
-import React, { useId } from 'react';
+import React from 'react';
 import { layoutDayCell } from '../../utils/monthCellLayout.js';
 import { MONTH_CELL_LAYOUT } from '../../constants/monthView.js';
 
@@ -11,12 +11,16 @@ import { MONTH_CELL_LAYOUT } from '../../constants/monthView.js';
 //
 // Encoding, chosen so nothing rests on colour alone:
 //   task     solid band, app blue
-//   event    outlined band with a diagonal hatch, app gray
+//   event    solid band, app gray, with a darker cap on its left edge (the
+//            app's own left-edge convention, as on frames and hyperGLANCE
+//            bars); a cap survives the 4px minimum band height where an
+//            outline would eat the fill and a hatch reads as a dashed bar
 //   routine  solid band drawn faint, app teal
 //   point    hollow diamond at the minute, stroked in the kind's colour
 //   all-day  small marks with NO vertical meaning: stacked top-down in the
 //            gutter in a fixed order (deadline, event, task, routine), or
-//            in a row beside the date number when there is no gutter
+//            in a row beside the date number when there is no gutter; the
+//            gutter itself is only a hairline, so an empty track stays quiet
 //   deadline a flag mark, app rose, all-day only
 // Colours are the app's Tailwind tokens with dark: variants, so the cell
 // follows the root `dark` class like everything else.
@@ -33,22 +37,24 @@ const STROKE = {
 };
 const FILL = {
   task: 'fill-blue-500 dark:fill-blue-400',
-  event: 'fill-gray-200 dark:fill-gray-700',
+  event: 'fill-gray-400 dark:fill-gray-500',
   routine: 'fill-teal-600 dark:fill-teal-500',
   deadline: 'fill-rose-500 dark:fill-rose-400',
 };
+const EVENT_EDGE = 'fill-gray-600 dark:fill-gray-300';
+const EVENT_EDGE_W = 2;
 const dim = (completed) => (completed ? 'opacity-50' : '');
 
-/** One timed band. Events get the outline + hatch, routines the faint fill. */
-function Band({ band, hatchId }) {
+/** One timed band. Events get the left-edge cap, routines the faint fill. */
+function Band({ band }) {
   const { kind, x, y, width, height, completed } = band;
   const common = { 'data-band': band.id, 'data-kind': kind };
   if (kind === 'event') {
+    const cap = Math.min(EVENT_EDGE_W, width);
     return (
       <g {...common} className={dim(completed)}>
-        <rect x={x + 0.5} y={y + 0.5} width={Math.max(0, width - 1)} height={Math.max(0, height - 1)} rx={1}
-          strokeWidth={1} className={`${FILL.event} ${STROKE.event}`} />
-        <rect x={x + 1} y={y + 1} width={Math.max(0, width - 2)} height={Math.max(0, height - 2)} fill={`url(#${hatchId})`} />
+        <rect x={x} y={y} width={width} height={height} rx={1} className={FILL.event} />
+        <rect data-event-edge="" x={x} y={y} width={cap} height={height} className={EVENT_EDGE} />
       </g>
     );
   }
@@ -71,7 +77,7 @@ function Point({ point, x }) {
 }
 
 /** An all-day mark. Position is the caller's; it carries no time. */
-function AllDayMark({ item, x, y, hatchId }) {
+function AllDayMark({ item, x, y }) {
   const m = MONTH_CELL_LAYOUT.gutterMarkerSize;
   const common = { 'data-allday-marker': item.id, 'data-kind': item.kind, className: dim(item.completed) };
   if (item.kind === 'deadline') {
@@ -86,8 +92,8 @@ function AllDayMark({ item, x, y, hatchId }) {
   if (item.kind === 'event') {
     return (
       <g {...common}>
-        <rect x={x + 0.5} y={y + 0.5} width={m - 1} height={m - 1} strokeWidth={1} className={`${FILL.event} ${STROKE.event}`} />
-        <rect x={x + 1} y={y + 1} width={m - 2} height={m - 2} fill={`url(#${hatchId})`} />
+        <rect x={x} y={y} width={m} height={m} rx={1} className={FILL.event} />
+        <rect data-event-edge="" x={x} y={y} width={EVENT_EDGE_W} height={m} className={EVENT_EDGE} />
       </g>
     );
   }
@@ -112,7 +118,6 @@ function AllDayMark({ item, x, y, hatchId }) {
 export default function MonthDayCell({
   date, items, width, height, gutterWidth = 0, isToday = false, inMonth = true, label, onSelect,
 }) {
-  const hatchId = `mdc-hatch-${useId().replace(/:/g, '')}`;
   const { headerHeight, gutterMarkerSize: m, gutterMarkerGap: g } = MONTH_CELL_LAYOUT;
   const timelineHeight = Math.max(0, height - headerHeight);
   const layout = layoutDayCell(items, date, width, timelineHeight, { gutterWidth });
@@ -156,7 +161,7 @@ export default function MonthDayCell({
         </span>
         {!hasGutter && shownAllDay.length > 0 && (
           <svg data-month-cell-allday-row width={shownAllDay.length * (m + g) - g} height={m} aria-hidden="true" className="shrink-0">
-            {shownAllDay.map((item, i) => <AllDayMark key={item.id} item={item} x={i * (m + g)} y={0} hatchId={hatchId} />)}
+            {shownAllDay.map((item, i) => <AllDayMark key={item.id} item={item} x={i * (m + g)} y={0} />)}
           </svg>
         )}
       </div>
@@ -170,24 +175,17 @@ export default function MonthDayCell({
         className="absolute left-0 block"
         style={{ top: headerHeight }}
       >
-        <defs>
-          <pattern id={hatchId} patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)"
-            className="text-gray-500 dark:text-gray-400">
-            <line x1="0" y1="0" x2="0" y2="4" stroke="currentColor" strokeWidth="1" />
-          </pattern>
-        </defs>
-
         {hasGutter && (
           <g data-month-cell-gutter>
-            <rect x={usableWidth} y={0} width={layout.gutterWidth} height={timelineHeight} className="fill-stone-100 dark:fill-white/5" />
+            {/* A hairline only: the track is a quiet edge, never a block of fill. */}
             <line x1={usableWidth + 0.5} y1={0} x2={usableWidth + 0.5} y2={timelineHeight} strokeWidth={1} className="stroke-stone-300 dark:stroke-white/15" />
             {shownAllDay.map((item, i) => (
-              <AllDayMark key={item.id} item={item} x={usableWidth + (layout.gutterWidth - m) / 2} y={2 + i * (m + g)} hatchId={hatchId} />
+              <AllDayMark key={item.id} item={item} x={usableWidth + (layout.gutterWidth - m) / 2} y={2 + i * (m + g)} />
             ))}
           </g>
         )}
 
-        {bands.map((band) => <Band key={band.id} band={band} hatchId={hatchId} />)}
+        {bands.map((band) => <Band key={band.id} band={band} />)}
         {points.map((point) => <Point key={point.id} point={point} x={usableWidth - MONTH_CELL_LAYOUT.pointSize - 2} />)}
 
         {showOverflow && (
