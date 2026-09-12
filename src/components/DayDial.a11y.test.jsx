@@ -268,6 +268,19 @@ describe('DayDial keyboard/AT contract', () => {
     expect(html).toMatch(/<g pointer-events="none">(?:(?!<\/g>).)*#fe8b00/s);
   });
 
+  it('measures the date off a hidden twin, and speaks the full month', async () => {
+    const i18n = await i18nFor('en');
+    const html = render(i18n);
+    // Unmeasured (no layout in static markup), so the full date shows —
+    // abbreviating a date that would have fitted is the worse failure.
+    expect(html).toContain('September 9');
+    // The twin the decision is measured from always carries the LONG form,
+    // so an abbreviation that fits can never flip the answer back.
+    expect(html).toMatch(/<span[^>]*aria-hidden="true"[^>]*class="absolute invisible[^"]*"[^>]*>September 9</);
+    // AT gets the month in full whichever form is drawn.
+    expect(html).toContain('aria-label="Day dial: Wednesday September 9"');
+  });
+
   it('localizes the listbox name and the option labels', async () => {
     const i18n = await i18nFor('de');
     const html = render(i18n, { dayTasks: [task({ completed: true })] });

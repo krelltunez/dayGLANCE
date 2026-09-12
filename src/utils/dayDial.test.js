@@ -29,6 +29,8 @@ import {
   focusSpanMinutes,
   canStartFocusFromBlock,
   computeDayCompletion,
+  dialDateFits,
+  DIAL_DATE_MAX_FRAC,
 } from './dayDial.js';
 
 const task = (over = {}) => ({
@@ -835,5 +837,36 @@ describe('computeDayCompletion', () => {
       T({ id: 'done', startTime: '09:00', completed: true }),
       T({ id: 'b', startTime: '12:30' }),
     ]))).toEqual(['a', 'b', 'c']);
+  });
+});
+
+
+describe('dialDateFits', () => {
+  // Measured on the real face with Lora loaded and two-digit (Fahrenheit)
+  // temperatures, which is the tight case: a three-character glyph at r=250
+  // eats into the half-face the date has to live in.
+  const DIAL = 778;
+
+  it('gives the line the span left between the two temperatures', () => {
+    // Temps sit at r=250 — half the face — less a glyph at each end.
+    expect(DIAL_DATE_MAX_FRAC).toBeLessThan(0.5);
+    expect(dialDateFits(DIAL * 0.43, DIAL)).toBe(true);
+    expect(dialDateFits(DIAL * 0.45, DIAL)).toBe(false);
+    expect(dialDateFits(DIAL * DIAL_DATE_MAX_FRAC, DIAL)).toBe(true);
+  });
+
+  it('scales with the face, not with the viewport', () => {
+    // The same string fits a big dial and not a small one; nothing here
+    // knows or cares how wide the window is.
+    expect(dialDateFits(348, 947)).toBe(true);
+    expect(dialDateFits(348, 338)).toBe(false);
+  });
+
+  it('keeps the full date until something is actually known', () => {
+    // Before the probe has been measured, showing the long form and
+    // correcting is better than abbreviating a date that would have fit.
+    expect(dialDateFits(null, DIAL)).toBe(true);
+    expect(dialDateFits(0, DIAL)).toBe(true);
+    expect(dialDateFits(348, null)).toBe(true);
   });
 });

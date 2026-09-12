@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Check, ChevronLeft, ChevronRight, CircleDashed, ExternalLink, Leaf, MoonStar, Sparkles, Timer, Undo2, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { stripWikilinks } from '../utils/taskUtils.js';
@@ -15,6 +15,7 @@ import {
   dialPoint,
   dialSectorPath,
   dialTicks,
+  dialDateFits,
   dialLabelYieldsToSun,
   canStartFocusFromBlock,
   findDialFocusBlock,
@@ -851,6 +852,10 @@ const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineComple
 
   const weekday = date.toLocaleDateString(i18n.language, { weekday: 'long' });
   const dateLabel = date.toLocaleDateString(i18n.language, { month: 'long', day: 'numeric' });
+  // The same date with the month abbreviated, for when the long form would
+  // reach the weather temps. Locale-formatted, so every language abbreviates
+  // the way it abbreviates rather than being truncated.
+  const dateLabelShort = date.toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' });
 
   // Compact when the component is width-constrained (portrait-ish): there,
   // the side labels and their viewBox margin cost actual dial diameter, so
@@ -881,6 +886,26 @@ const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineComple
     return () => ro.disconnect();
   }, []);
 
+  // Width of the date's LONG form, measured off a hidden twin that always
+  // renders it. Measuring the visible line instead would let an abbreviation
+  // that fits flip the decision straight back — this probe's width depends
+  // only on the font and the viewport, never on what we chose to show.
+  const dateProbeRef = useRef(null);
+  const [dateLongPx, setDateLongPx] = useState(null);
+  useLayoutEffect(() => {
+    const el = dateProbeRef.current;
+    if (!el) return undefined;
+    const read = () => setDateLongPx((prev) => {
+      const w = el.getBoundingClientRect().width;
+      return prev !== null && Math.abs(prev - w) < 0.5 ? prev : w;
+    });
+    read(); // before paint, so the full date never flashes then shrinks
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [dateLabel]);
+
   const wrapRef = useRef(null);
   const [wrapBox, setWrapBox] = useState(null);
   useEffect(() => {
@@ -896,6 +921,12 @@ const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineComple
     return () => ro.disconnect();
   }, []);
   const compact = !!wrapBox && wrapBox.width < wrapBox.height;
+
+  // The dial's drawn diameter, shared by everything sized against the face.
+  const dialPx = areaBox
+    ? Math.min(areaBox.height, areaBox.width / (compact ? 1 : 1.12))
+    : null;
+
 
   // The all-day pill is sized against the LEGEND, never against its own
   // content: it takes the legend's width as a ceiling, so the two read as a
@@ -1320,7 +1351,17 @@ const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineComple
             </div>
           </div>
           <div className="font-brand text-white text-[clamp(28px,7vmin,64px)] leading-tight mt-1">
-            {dateLabel}
+            {dialDateFits(dateLongPx, dialPx) ? dateLabel : dateLabelShort}
+            {/* The hidden twin the decision is measured from. Out of the
+                a11y tree and out of the layout, but laid out enough to have
+                a width. */}
+            <span
+              ref={dateProbeRef}
+              aria-hidden="true"
+              className="absolute invisible whitespace-nowrap pointer-events-none"
+            >
+              {dateLabel}
+            </span>
           </div>
           <div className="w-24 border-t border-white/15 my-[1.5vmin]" />
           {inspected ? (
@@ -1376,9 +1417,7 @@ const DayDial = ({ dayTasks, prevDayTasks = null, routines = null, routineComple
         {complications?.length > 0 && (
           <DialComplications
             items={complications}
-            dialPx={areaBox
-              ? Math.min(areaBox.height, areaBox.width / (compact ? 1 : 1.12))
-              : null}
+            dialPx={dialPx}
             onOpenTask={onOpenTask}
             onSetHabitCount={onSetHabitCount}
             onIncrementHabit={onIncrementHabit}
