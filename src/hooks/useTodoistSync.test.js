@@ -62,7 +62,7 @@ function harness(patch = {}) {
   const setTasks = next => { state.tasks = typeof next === 'function' ? next(state.tasks) : next; };
   const setUnscheduledTasks = next => { state.inbox = typeof next === 'function' ? next(state.inbox) : next; };
   const setRecycleBin = vi.fn();
-  const render = () => {
+  const useTestSync = () => {
     stateCursor = 0;
     refCursor = 0;
     return useTodoistSync({
@@ -70,7 +70,7 @@ function harness(patch = {}) {
       recycleBin: state.bin, setRecycleBin, dataLoaded: true, isTrayMode: false, multiUserEnabled: false,
     });
   };
-  return { state, render, setRecycleBin };
+  return { state, render: useTestSync, setRecycleBin };
 }
 
 beforeEach(() => {
