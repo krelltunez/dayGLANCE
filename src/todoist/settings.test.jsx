@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createInstance } from 'i18next';
 import { I18nextProvider, initReactI18next } from 'react-i18next';
@@ -7,15 +7,19 @@ import { readFileSync } from 'node:fs';
 import { DayPlannerContext } from '../context/DayPlannerContext.jsx';
 import { SyncContext } from '../context/SyncContext.jsx';
 import { normalizeSettings } from './core.js';
-// Avoid booting the application's browser language detector in node tests.
-vi.mock('../i18n.js', () => ({ default: { addResourceBundle() {} } }));
-import { en, zh } from './strings.js';
+// The Todoist strings live in the normal lazy locale bundles, so these tests
+// read the shipped JSON rather than a feature-local module.
+import enBundle from '../../public/locales/en/translation.json';
+import zhBundle from '../../public/locales/zh-CN/translation.json';
+const en = enBundle.todoist;
+const zh = zhBundle.todoist;
 import TodoistSettings from '../components/TodoistSettings.jsx';
 
 async function translator(lng = 'en') {
   const i18n = createInstance();
-  await i18n.use(initReactI18next).init({ lng, fallbackLng: 'en', defaultNS: 'todoist',
-    resources: { en: { todoist: en }, 'zh-CN': { todoist: zh } }, react: { useSuspense: false } });
+  await i18n.use(initReactI18next).init({ lng, fallbackLng: 'en', defaultNS: 'translation',
+    resources: { en: { translation: enBundle }, 'zh-CN': { translation: zhBundle } },
+    react: { useSuspense: false } });
   return i18n;
 }
 const flatten = (obj, prefix = '') => Object.entries(obj).flatMap(([key, value]) => {
@@ -43,14 +47,17 @@ describe('Todoist namespace and settings', () => {
       expect(placeholders(chinese.get(key))).toEqual(placeholders(text));
     }
   });
-  it('covers every literal call in this explicitly named namespace', () => {
+  it('covers every literal todoist call in the settings components', () => {
     const keys = new Set(flatten(en).map(([key]) => key));
     for (const path of ['src/components/TodoistSettings.jsx', 'src/components/MobileSettingsPanel.jsx']) {
-      for (const match of readFileSync(path, 'utf8').matchAll(/todoistText\(\s*['"]([^'"]+)['"]/g)) expect(keys.has(match[1]), match[1]).toBe(true);
+      for (const match of readFileSync(path, 'utf8').matchAll(/\bt\(\s*['"]todoist\.([^'"]+)['"]/g)) expect(keys.has(match[1]), match[1]).toBe(true);
     }
   });
-  it('uses English fallback for the beta namespace in other app languages', async () => {
-    expect((await translator('de')).t('title')).toBe(en.title);
+  it('falls back to English for languages without the Todoist block', async () => {
+    const i18n = await translator('en');
+    i18n.addResourceBundle('xx', 'translation', {}, true, true);
+    await i18n.changeLanguage('xx');
+    expect(i18n.t('todoist.title')).toBe(en.title);
   });
   it('renders a masked token input and safe defaults before connecting', async () => {
     const html = await render(mockSync());

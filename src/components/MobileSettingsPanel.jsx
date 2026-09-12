@@ -53,7 +53,7 @@ import { notBucketed } from '../utils/bucketList.js';
 import CalendarList from './CalendarList.jsx';
 
 const MobileSettingsPanel = () => {
-  const { t: todoistText } = useTranslation('todoist');
+  
   const {
     isPro, isAndroidApp, isIOSApp, isElectronApp, subProductId,
     consumeTestPurchase, canConsumeTestPurchase,
@@ -377,7 +377,7 @@ const MobileSettingsPanel = () => {
         className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
       >
         <CheckSquare size={20} className={textSecondary} />
-        <span className={`font-medium ${textPrimary} flex-1 text-left`}>{todoistText('title')}</span>
+        <span className={`font-medium ${textPrimary} flex-1 text-left`}>{t('todoist.title')}</span>
         <ChevronRight size={18} className={textSecondary} />
       </button>
       <button
