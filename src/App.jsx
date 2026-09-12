@@ -10058,7 +10058,7 @@ const DayPlanner = () => {
                       className={`flex items-center gap-1.5 text-xs ${warn ? 'text-orange-500' : textSecondary} hover:opacity-75 transition-opacity w-full`}
                     >
                       {warn && <AlertTriangle size={11} />}
-                      Storage: {formatBytes(su.totalBytes)} / ~5 MB
+                      Local storage: {formatBytes(su.totalBytes)} / ~5 MB
                     </button>
                   );
                 })()}

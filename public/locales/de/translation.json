@@ -1177,12 +1177,13 @@
     "matchIn": "in {{field}}"
   },
   "storage": {
-    "todoistCache": "Todoist-Synchronisierungscache",
+    "database": "Synchronisierungs-Caches: {{used}}, getrennt gespeichert und oben nicht mitgezählt.",
     "deletionTombstones": "Löschmarkierungen",
     "habitLogs": "Gewohnheitsprotokolle",
     "importedCalendarEvents": "Importierte Kalenderereignisse",
     "title": "Speicherbelegung",
-    "total": "Gesamt: {{used}} / ca. 5 MB ({{percent}} %)"
+    "todoistReceipts": "Ausstehende Todoist-Vorgänge",
+    "total": "Lokaler Speicher: {{used}} / ca. 5 MB ({{percent}} %)"
   },
   "weeklyReview": {
     "durationMinutes": "{{minutes}} Min.",

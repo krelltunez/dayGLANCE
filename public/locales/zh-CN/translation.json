@@ -1177,12 +1177,13 @@
     "matchIn": "在{{field}}中"
   },
   "storage": {
-    "todoistCache": "Todoist 同步缓存",
+    "database": "同步缓存：{{used}}，单独存储，不计入上方限额。",
     "deletionTombstones": "删除标记",
     "habitLogs": "习惯日志",
     "importedCalendarEvents": "导入的日历事件",
     "title": "存储空间明细",
-    "total": "总计：{{used}} / 约 5 MB（{{percent}}%）"
+    "todoistReceipts": "Todoist 待处理操作",
+    "total": "本地存储：{{used}} / 约 5 MB（{{percent}}%）"
   },
   "weeklyReview": {
     "durationMinutes": "{{minutes}} 分钟",

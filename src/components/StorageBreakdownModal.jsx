@@ -1,21 +1,35 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
-import { getStorageUsage, formatBytes } from '../utils/storage.js';
+import { getStorageUsage, getIndexedDbUsage, formatBytes } from '../utils/storage.js';
 
 const StorageBreakdownModal = () => {
   const { t } = useTranslation();
   const { cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg } = useDayPlannerCtx();
   const { showStorageBreakdown, setShowStorageBreakdown } = useSyncCtx();
+  // null means the browser will not separate IndexedDB from the service worker
+  // precache in its estimate, NOT that IndexedDB is empty. The line is omitted
+  // rather than showing a total that is mostly application bundle.
+  const [databaseBytes, setDatabaseBytes] = useState(null);
+
+  useEffect(() => {
+    if (!showStorageBreakdown) return undefined;
+    let live = true;
+    getIndexedDbUsage().then((bytes) => { if (live) setDatabaseBytes(bytes); });
+    return () => { live = false; };
+  }, [showStorageBreakdown]);
 
   if (!showStorageBreakdown) return null;
 
   const { totalBytes, entries } = getStorageUsage();
   const warn = totalBytes > 4 * 1024 * 1024;
   const labels = {
-    'dg-todoist-state-v1': t('storage.todoistCache'),
+    // The Todoist CACHE moved to IndexedDB; this key now holds only the pending
+    // completion receipts, which are deliberately left in localStorage so a
+    // command UUID is durable before its request goes out.
+    'dg-todoist-state-v1': t('storage.todoistReceipts'),
     'day-planner-tasks': t('reminders.scheduledTasks'),
     'day-planner-tasks:user': t('reminders.scheduledTasks'),
     'day-planner-tasks:imported': t('storage.importedCalendarEvents', { defaultValue: 'Imported calendar events' }),
@@ -45,13 +59,19 @@ const StorageBreakdownModal = () => {
                 {t('storage.total', {
                   used: formatBytes(totalBytes),
                   percent: (totalBytes / (5 * 1024 * 1024) * 100).toFixed(0),
-                  defaultValue: 'Total: {{used}} / ~5 MB ({{percent}}%)',
                 })}
               </div>
-              {/* Progress bar */}
+              {/* Progress bar. ~5 MiB is hardcoded because no API reports the real
+                  localStorage cap; it is the lowest common denominator across the
+                  targets, the tightest being the iOS and Android webviews. */}
               <div className={`w-full h-2 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} mb-4`}>
                 <div className={`h-full rounded-full transition-all ${warn ? 'bg-orange-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(100, totalBytes / (5 * 1024 * 1024) * 100)}%` }} />
               </div>
+              {databaseBytes != null && (
+                <div className={`text-xs mb-4 ${textSecondary}`}>
+                  {t('storage.database', { used: formatBytes(databaseBytes) })}
+                </div>
+              )}
               <div className="space-y-1.5">
                 {entries.filter(k => k.bytes > 100).map(({ key, bytes, count }) => (
                   <div key={key} className="flex items-center justify-between text-xs">
