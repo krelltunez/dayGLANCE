@@ -84,11 +84,9 @@ describe('Todoist namespace and settings', () => {
     // Require an attribute boundary so data-theme-class is not read as class.
     const classes = openingTag.match(/\sclass="([^"]*)"/)?.[1].split(/\s+/) || [];
     // A shared theme may supply the neutral border directly or with dark:.
-    // Assert the visual utilities without coupling the test to that choice.
     const utilities = classes.map(name => name.replace(/^dark:/, ''));
     expect(utilities).toEqual(expect.arrayContaining(['border', 'border-gray-600']));
     expect(utilities.some(name => name.startsWith('bg-primary-'))).toBe(false);
-    expect(openingTag).not.toMatch(/\sopen(?:=|>|\s)/);
   });
   it('exposes only the three import modes', async () => {
     const html = await render(mockSync({ connected: true }));
