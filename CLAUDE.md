@@ -41,6 +41,34 @@ consumes the observation stream, add or extend a scenario in
 `scope.scenarios.test.ts` rather than relying on a manual vault test. Obsidian
 Sync timing, real editor buffers, and Templater stay manual.
 
+# Todoist integration
+
+`src/todoist/` is a read-source integration: Todoist supplies tasks, dayGLANCE
+owns the time blocks. `core.js` is pure and holds every data-safety rule;
+`client.js` owns the transport and the `dg-todoist-*` storage keys;
+`useTodoistSync.js` wires them to React state. `docs/todoist-integration.md`
+describes the user-facing behaviour.
+
+Rules that are load-bearing rather than stylistic, each covered by tests:
+
+- **A missing source record means no information, never deletion.** Todoist
+  snapshots list active resources, so absence is not evidence a task was
+  completed or deleted. See the guards in `reconcileTask` and `pruneCache`.
+- **Empty filters import nothing.** `matches` fails closed rather than treating
+  "no criteria" as "everything".
+- **The hook receives `recycleBin` but not `setRecycleBin`.** The integration is
+  structurally unable to remove a user's tasks. Keep it that way.
+- **Writeback is guarded and one-way.** Only ordinary non-recurring leaf tasks
+  are closed, with durable command UUIDs written before the request so a retry
+  cannot double-close. Nothing else is ever sent to Todoist.
+- **The cache is pruned before every persist.** It shares a ~5 MiB localStorage
+  budget with everything else, so inactive records that nothing references are
+  dropped (`pruneCache`).
+
+Strings live in the normal locale bundles under the `todoist` prefix, not in a
+feature-local namespace. Add new keys to `public/locales/*/translation.json`;
+`locales.test.js` enforces coverage across every language.
+
 # App.jsx — Ongoing Decomposition
 
 `App.jsx` started at ~30,000 lines and has been reduced to ~9,600 across four refactor passes. All previously listed extraction candidates are done:
