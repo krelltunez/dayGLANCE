@@ -1177,7 +1177,7 @@
     "matchIn": "em {{field}}"
   },
   "storage": {
-    "database": "Caches de sincronização: {{used}}, guardados à parte e não contados acima.",
+    "database": "Bancos de dados: {{used}}, guardados à parte e com um limite bem maior.",
     "deletionTombstones": "Marcas de exclusão",
     "habitLogs": "Registros de hábitos",
     "importedCalendarEvents": "Eventos de calendário importados",
