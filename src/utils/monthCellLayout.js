@@ -22,7 +22,10 @@ import { isCalendarEvent } from '@glance-apps/agenda-core';
 import { MONTH_CELL_LAYOUT } from '../constants/monthView.js';
 import { assignLanes, maxLaneCount } from './intervalLanes.js';
 
-export const DAY_CELL_KINDS = Object.freeze(['event', 'task', 'routine']);
+// 'deadline' is a caller-built all-day item (a task's deadline falling on
+// this date, tagged by the grid); it never has a time, so it can only ever
+// reach the allDay collection, where the renderer draws it as its own mark.
+export const DAY_CELL_KINDS = Object.freeze(['event', 'task', 'routine', 'deadline']);
 
 /** Stamp a kind onto items that cannot be told apart by shape (routines). */
 export const tagKind = (items, kind) => (items || []).map((item) => ({ ...item, kind }));

@@ -41,6 +41,20 @@ export const MONTH_CELL_LAYOUT = Object.freeze({
    * height) stay two marks instead of merging into one longer band.
    */
   bandGap: 1,
+
+  /**
+   * The strip above the timeline that holds the date number (and, in a cell
+   * with no gutter, the all-day markers). The timeline gets the rest of the
+   * cell's height, so the hour window maps onto cellHeight - headerHeight.
+   */
+  headerHeight: 18,
+
+  /** Point-marker half-diagonal, in px: the diamond spans twice this. */
+  pointSize: 3,
+
+  /** All-day marker edge and the gap between stacked markers, in px. */
+  gutterMarkerSize: 6,
+  gutterMarkerGap: 2,
 });
 
 export const MONTH_CELL_HOUR_WINDOW = MONTH_CELL_LAYOUT.window;
@@ -48,3 +62,4 @@ export const MONTH_CELL_MIN_BAND_HEIGHT = MONTH_CELL_LAYOUT.minBandHeight;
 export const MONTH_CELL_MAX_LANES = MONTH_CELL_LAYOUT.maxLanes;
 export const MONTH_CELL_LANE_GAP = MONTH_CELL_LAYOUT.laneGap;
 export const MONTH_CELL_BAND_GAP = MONTH_CELL_LAYOUT.bandGap;
+export const MONTH_CELL_HEADER_HEIGHT = MONTH_CELL_LAYOUT.headerHeight;
