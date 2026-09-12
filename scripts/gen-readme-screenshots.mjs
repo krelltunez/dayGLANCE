@@ -228,15 +228,17 @@ try {
       ['**/api.open-meteo.com/**', () => openMeteoFixture(new Date('2026-07-07T12:00:00'))],
     ],
     extra: `
-      // One of each kind the face can draw, in the corners they ride: a
-      // count, the two ring readouts, and the app's own HabitRing. Done is
-      // left off only because it and Aligned draw the identical object, and
-      // the capture has four corners to spend.
-      //   top-left  Inbox      top-right     Aligned
-      //   bottom-l  a project  bottom-right  a habit
-      // The project id is minted by the seed, so it is patched in below
-      // rather than written here.
-      localStorage.setItem('day-planner-dial-complications', '["inbox","aligned",null,"habit:1710000000001"]');
+      // The two lists you work FROM along the top, the two proportions you
+      // are judged BY along the bottom — which is the reading order the face
+      // deserves, and incidentally puts the two count readouts side by side
+      // and the two rings side by side.
+      //   top-left  Inbox     top-right     Deadlines
+      //   bottom-l  Aligned   bottom-right  a project
+      // Done is left off because it and Aligned draw the identical object,
+      // and a habit because there are only four corners. The project id is
+      // minted by the seed, so it is patched in below rather than written
+      // here.
+      localStorage.setItem('day-planner-dial-complications', '["inbox","deadlines","aligned",null]');
       localStorage.setItem('day-planner-goals-projects-enabled', 'true');
       // Extra fixtures for THIS capture only, so the shared seed (and the
       // other fifteen screenshots) stay as they are. The date is read off the
@@ -272,7 +274,7 @@ try {
         const shown = projects.find((p) => p.status === 'active');
         if (shown) {
           const slots = JSON.parse(localStorage.getItem('day-planner-dial-complications') || '[]');
-          slots[2] = 'project:' + shown.id;
+          slots[3] = 'project:' + shown.id;
           localStorage.setItem('day-planner-dial-complications', JSON.stringify(slots));
           for (const key of ['day-planner-tasks', 'day-planner-unscheduled']) {
             const list = JSON.parse(localStorage.getItem(key) || '[]');
