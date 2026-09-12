@@ -85,12 +85,12 @@ export default function MonthGrid({
     <div data-month-grid={`${year}-${String(month).padStart(2, '0')}`} className="flex flex-col h-full min-h-0">
       <div className="flex items-center justify-between px-2 py-1 shrink-0 mx-auto w-full" style={ready ? { maxWidth: cell.width * 7 } : undefined}>
         <button type="button" onClick={onNavigate ? () => onNavigate(prev.year, prev.month) : undefined}
-          aria-label={t('month.previousMonth')} className="p-1 rounded text-stone-600 dark:text-gray-300">
+          aria-label={t('month.previousMonth')} className="p-1 rounded text-stone-600 dark:text-gray-400">
           <ChevronLeft size={18} />
         </button>
-        <h2 data-month-grid-title className="text-sm font-semibold text-stone-800 dark:text-gray-100">{title}</h2>
+        <h2 data-month-grid-title className="text-sm font-semibold text-stone-900 dark:text-gray-100">{title}</h2>
         <button type="button" onClick={onNavigate ? () => onNavigate(next.year, next.month) : undefined}
-          aria-label={t('month.nextMonth')} className="p-1 rounded text-stone-600 dark:text-gray-300">
+          aria-label={t('month.nextMonth')} className="p-1 rounded text-stone-600 dark:text-gray-400">
           <ChevronRight size={18} />
         </button>
       </div>
@@ -107,14 +107,14 @@ export default function MonthGrid({
         {ready && (
           <div
             data-month-grid-cells
-            className="grid mx-auto border-t border-l border-stone-200 dark:border-white/10"
+            className="grid mx-auto border-t border-l border-stone-300 dark:border-gray-700"
             style={{ gridTemplateColumns: `repeat(7, ${cell.width}px)`, width: cell.width * 7 }}
           >
             {grid.cells.map(({ dateStr, inMonth }) => {
               const items = itemsForDate ? itemsForDate(dateStr) : [];
               const isToday = dateStr === todayStr;
               return (
-                <div key={dateStr} className="border-r border-b border-stone-200 dark:border-white/10">
+                <div key={dateStr} className="border-r border-b border-stone-300 dark:border-gray-700 bg-white dark:bg-gray-800">
                   <MonthDayCell
                     date={dateStr}
                     items={items}

@@ -36,13 +36,10 @@ const ALL_DAY_ORDER = ['deadline', 'event', 'task', 'routine'];
 const orderAllDay = (list) => [...list].sort((a, b) =>
   ALL_DAY_ORDER.indexOf(a.kind) - ALL_DAY_ORDER.indexOf(b.kind) || Number(a.completed) - Number(b.completed));
 
-const TINT = '[fill-opacity:0.42] dark:[fill-opacity:0.55]';
-const TINT_FAINT = '[fill-opacity:0.22] dark:[fill-opacity:0.3]';
-const EVENT_FILL = `fill-gray-400 dark:fill-gray-500 ${TINT}`;
-const EVENT_EDGE = 'fill-gray-600 dark:fill-gray-300';
-const EVENT_STROKE = 'stroke-gray-500 dark:stroke-gray-400';
-const ROUTINE_FILL = `fill-teal-500 ${TINT_FAINT}`;
-const ROUTINE_STROKE = 'stroke-teal-600 dark:stroke-teal-400';
+const EVENT_EDGE = 'fill-white/55';
+const EVENT_DEFAULT_HEX = '#4b5563'; // gray-600, what an ICS import is given
+const ROUTINE_STROKE = 'stroke-teal-600 dark:stroke-teal-500';
+const ROUTINE_FILL = 'fill-teal-600 dark:fill-teal-500';
 const DEADLINE_FILL = 'fill-rose-500 dark:fill-rose-400';
 const DEADLINE_STROKE = 'stroke-rose-500 dark:stroke-rose-400';
 const dim = (completed) => (completed ? 'opacity-50' : '');
@@ -55,8 +52,11 @@ const leftCapPath = (x, y, w, h, radius) => {
 
 /** The item's own colour, as the other views draw it. */
 const itemHex = (item) => taskColorToHex(item?.color, item?.nativeCalendarColor);
+/** An event's colour: its device or feed colour, else the ICS import gray. */
+const eventHex = (item) => (item?.nativeCalendarColor || item?.color ? itemHex(item) : EVENT_DEFAULT_HEX);
+const toMin = (hhmm) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '')); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
 
-/** One timed band. Tasks in their own tint, events gray with the cap, routines faint teal. */
+/** One timed band, full strength in the item's own colour; events add the cap. */
 function Band({ band, item, m }) {
   const { kind, x, y, width, height, completed } = band;
   const r = Math.min(m.radius, height / 2, width / 2);
@@ -64,28 +64,32 @@ function Band({ band, item, m }) {
   if (kind === 'event') {
     return (
       <g {...common} className={dim(completed)}>
-        <rect x={x} y={y} width={width} height={height} rx={r} className={EVENT_FILL} />
+        <rect x={x} y={y} width={width} height={height} rx={r} fill={eventHex(item)} />
         <path data-event-edge="" d={leftCapPath(x, y, Math.min(m.capWidth, width), height, r)} className={EVENT_EDGE} />
       </g>
     );
   }
-  if (kind === 'routine') {
-    return <rect {...common} x={x} y={y} width={width} height={height} rx={r} className={`${ROUTINE_FILL} ${dim(completed)}`} />;
-  }
-  return <rect {...common} x={x} y={y} width={width} height={height} rx={r} fill={itemHex(item)} className={`${TINT} ${dim(completed)}`} />;
+  return <rect {...common} x={x} y={y} width={width} height={height} rx={r} fill={itemHex(item)} className={dim(completed)} />;
+}
+
+/** A routine: a thin teal rule at its start time, behind the lanes. */
+function RoutineRule({ item, y, width }) {
+  return (
+    <line data-routine={item.id} x1={0} x2={width} y1={y} y2={y} strokeWidth={1.5} strokeLinecap="round"
+      className={`${ROUTINE_STROKE} ${dim(item.completed)}`} />
+  );
 }
 
 /** A moment with no length: a hollow rounded diamond, so it never reads as a short band. */
 function Point({ point, item, x, m }) {
   const side = m.pointSize * 1.6;
   const { y, kind, completed } = point;
-  const strokeClass = kind === 'event' ? EVENT_STROKE : kind === 'routine' ? ROUTINE_STROKE : '';
+  const stroke = kind === 'event' ? eventHex(item) : itemHex(item);
   return (
     <rect data-point={point.id} data-kind={kind}
       x={x - side / 2} y={y - side / 2} width={side} height={side} rx={side * 0.3}
-      transform={`rotate(45 ${x} ${y})`} strokeWidth={1.25}
-      stroke={strokeClass ? undefined : itemHex(item)}
-      className={`fill-white dark:fill-gray-900 ${strokeClass} ${dim(completed)}`} />
+      transform={`rotate(45 ${x} ${y})`} strokeWidth={1.25} stroke={stroke}
+      className={`fill-white dark:fill-gray-800 ${dim(completed)}`} />
   );
 }
 
@@ -107,15 +111,15 @@ function AllDayMark({ entry, item, x, y, size, m }) {
   if (entry.kind === 'event') {
     return (
       <g {...common}>
-        <rect x={x} y={y} width={s} height={s} rx={r} className={EVENT_FILL} />
+        <rect x={x} y={y} width={s} height={s} rx={r} fill={eventHex(item)} />
         <path data-event-edge="" d={leftCapPath(x, y, Math.min(m.capWidth, s), s, r)} className={EVENT_EDGE} />
       </g>
     );
   }
   if (entry.kind === 'routine') {
-    return <rect {...common} x={x} y={y} width={s} height={s} rx={r} className={`fill-teal-500 [fill-opacity:0.5] ${dim(entry.completed)}`} />;
+    return <rect {...common} x={x} y={y} width={s} height={s} rx={r} className={`${ROUTINE_FILL} ${dim(entry.completed)}`} />;
   }
-  return <rect {...common} x={x} y={y} width={s} height={s} rx={r} fill={itemHex(item)} className={`[fill-opacity:0.85] ${dim(entry.completed)}`} />;
+  return <rect {...common} x={x} y={y} width={s} height={s} rx={r} fill={itemHex(item)} className={dim(entry.completed)} />;
 }
 
 /**
@@ -137,8 +141,12 @@ export default function MonthDayCell({
   date, items, width, height, gutterWidth, isToday = false, inMonth = true, label, onSelect,
 }) {
   const m = monthCellMetrics(width, height, { gutter: gutterWidth === undefined ? 'auto' : gutterWidth });
-  const layout = layoutDayCell(items, date, m.timelineWidth, m.timelineHeight);
-  const { bands, points, overflow } = layout;
+  const timedRoutines = (items || []).filter((item) => item?.kind === 'routine' && !item.isAllDay && toMin(item.startTime) !== null);
+  const laneItems = (items || []).filter((item) => !timedRoutines.includes(item));
+  const layout = layoutDayCell(laneItems, date, m.timelineWidth, m.timelineHeight);
+  const { bands, points, overflow, window: win } = layout;
+  const span = Math.max(1, win.endMinutes - win.startMinutes);
+  const ruleY = (min) => Math.min(1, Math.max(0, (min - win.startMinutes) / span)) * m.timelineHeight;
   const byId = new Map((items || []).map((item) => [String(item?.id), item]));
   const allDay = orderAllDay(layout.allDay);
   const dayNumber = Number(String(date).slice(8, 10)) || '';
@@ -167,7 +175,7 @@ export default function MonthDayCell({
       onClick={onSelect ? () => onSelect(date) : undefined}
       className={`relative block p-0 m-0 border-0 bg-transparent text-left select-none appearance-none cursor-pointer overflow-hidden
         focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500
-        ${isToday ? 'bg-blue-50/70 dark:bg-blue-900/15' : ''} ${inMonth ? '' : 'opacity-40'}`}
+        ${isToday ? 'bg-blue-50/40 dark:bg-blue-900/10' : ''} ${inMonth ? '' : 'opacity-40'}`}
       style={{ width, height }}
     >
       <svg
@@ -182,7 +190,7 @@ export default function MonthDayCell({
           <g data-month-cell-gutter>
             {/* A hairline only: the track is a quiet edge, never a block of fill. */}
             <line x1={gutterX + 0.5} y1={m.timelineTop} x2={gutterX + 0.5} y2={m.timelineTop + m.timelineHeight}
-              strokeWidth={1} strokeLinecap="round" className="stroke-stone-300 dark:stroke-white/15" />
+              strokeWidth={1} strokeLinecap="round" className="stroke-stone-300 dark:stroke-gray-700" />
             {shownAllDay.map((item, i) => (
               <AllDayMark key={item.id} entry={item} item={byId.get(item.id)} x={gutterX + (m.gutterWidth - ms) / 2} y={m.timelineTop + i * (ms + mg)} size={ms} m={m} />
             ))}
@@ -190,6 +198,7 @@ export default function MonthDayCell({
         )}
 
         <g data-month-cell-lanes transform={`translate(${m.timelineLeft}, ${m.timelineTop})`}>
+          {timedRoutines.map((item) => <RoutineRule key={item.id} item={item} y={ruleY(toMin(item.startTime))} width={m.timelineWidth} />)}
           {bands.map((band) => <Band key={band.id} band={band} item={byId.get(band.id)} m={m} />)}
           {points.map((point) => <Point key={point.id} point={point} item={byId.get(point.id)} x={m.timelineWidth - m.pointSize - 1} m={m} />)}
           {showOverflow && (
@@ -205,7 +214,7 @@ export default function MonthDayCell({
         <span
           data-month-cell-date
           className={`inline-flex items-center justify-center font-semibold leading-none tabular-nums shrink-0 rounded-md
-            ${isToday ? 'bg-blue-100 text-blue-800 dark:bg-blue-400/25 dark:text-blue-100' : 'text-stone-700 dark:text-gray-200'}`}
+            ${isToday ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-stone-900 dark:text-gray-100'}`}
           style={{ width: m.dateSize, height: m.dateSize, fontSize: m.dateFont }}
         >
           {dayNumber}

@@ -46,16 +46,18 @@ const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${Stri
 /** Demo month as an itemsForDate, shaped like the real adapter's output. */
 function useDemoItemsForDate(year, month) {
   return useMemo(() => {
-    const { tasks, unscheduled } = generateDemoMonth(year, month, { today: todayStr() });
+    const today = todayStr();
+    const { tasks, unscheduled, routines } = generateDemoMonth(year, month, { today });
     return (dateStr) => [
       ...tasks.filter((t) => t.date === dateStr),
+      ...(dateStr === today ? tagKind(routines.map((r) => ({ ...r, id: `routine-${r.id}`, isAllDay: false, completed: false })), 'routine') : []),
       ...unscheduled.filter((u) => u.deadline === dateStr).map((u) => ({ id: `deadline-${u.id}`, kind: 'deadline', isAllDay: true, completed: false, date: dateStr })),
     ];
   }, [year, month]);
 }
 
 export default function MonthGridDevOverlay() {
-  const { darkMode, weekStartDay, selectedDate } = useDayPlannerCtx();
+  const { bgClass, textPrimary, textSecondary, weekStartDay, selectedDate } = useDayPlannerCtx();
   // On macOS Electron (titleBarStyle hiddenInset) the top 28px is still the
   // window's title bar: transparent, but clicks there never reach the page.
   // DesktopLayout pads its chrome by the same amount (titlebarH).
@@ -77,9 +79,9 @@ export default function MonthGridDevOverlay() {
   const [hidden, setHidden] = useState(false);
   if (hidden) return null;
   return (
-    <div className={`fixed inset-0 z-[80] flex flex-col ${darkMode ? 'bg-gray-950 text-gray-100' : 'bg-stone-50 text-stone-900'}`}
+    <div className={`fixed inset-0 z-[80] flex flex-col ${bgClass} ${textPrimary}`}
       style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + ${titlebarH}px)`, paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <div className="flex items-center gap-3 px-3 py-1 text-[11px] text-stone-500 dark:text-gray-400 shrink-0">
+      <div className={`flex items-center gap-3 px-3 py-1 text-[11px] ${textSecondary} shrink-0`}>
         <span className="font-semibold">Month grid (TEMPORARY dev overlay, real data)</span>
         <span className="hidden sm:inline">tap a cell: logs the date until the day sheet exists</span>
         <span data-month-grid-source={demo ? 'demo' : 'real'} className={demo ? 'font-semibold text-amber-700 dark:text-amber-300' : ''}>
