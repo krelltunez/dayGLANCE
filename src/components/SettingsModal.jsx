@@ -1964,8 +1964,8 @@ const SettingsModal = () => {
                       </>)}
                     </div>
 
-                    <TodoistSettings />
                     <hr className={borderClass} />
+                    <TodoistSettings />
 
                     {/* Local Integrations (Stream Deck + MCP) — Electron only,
                         renders nothing on web/mobile builds. */}

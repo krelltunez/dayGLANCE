@@ -840,7 +840,7 @@ const DayPlanner = () => {
 
   // Settings & Reminders modals
   const [showSettings, setShowSettings] = useState(false);
-  const [collapsedSettings, setCollapsedSettings] = useState({ cloudSync: true, calSync: true, ai: true, obsidian: true, trmnl: true, multiUser: true, intent: true, automationIntents: true, localIntegrations: true });
+  const [collapsedSettings, setCollapsedSettings] = useState({ cloudSync: true, calSync: true, ai: true, obsidian: true, todoist: true, trmnl: true, multiUser: true, intent: true, automationIntents: true, localIntegrations: true });
   const [updateInfo, setUpdateInfo] = useState(null);
   const [updateDismissedVersion, setUpdateDismissedVersion] = useState(() => localStorage.getItem('dayglance-update-dismissed') || null);
   const toggleSettingsSection = (key) => setCollapsedSettings(prev => ({ ...prev, [key]: !prev[key] }));
@@ -2810,7 +2810,7 @@ const DayPlanner = () => {
 
   const todoist = useTodoistSync({
     tasks, setTasks, unscheduledTasks, setUnscheduledTasks,
-    recycleBin, setRecycleBin, dataLoaded, isTrayMode, multiUserEnabled,
+    recycleBin, dataLoaded, isTrayMode, multiUserEnabled,
   });
 
   // Obsidian vault sync — full lifecycle (initial restore+sync, visibility

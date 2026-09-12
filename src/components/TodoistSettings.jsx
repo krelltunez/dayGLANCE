@@ -6,20 +6,20 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { active } from '../todoist/core.js';
 import '../todoist/strings.js';
 
-export default function TodoistSettings() {
+export default function TodoistSettings({ variant }) {
   const { t: todoistText, i18n } = useTranslation('todoist');
-  const { darkMode, borderClass, textPrimary, textSecondary } = useDayPlannerCtx();
+  const { darkMode, borderClass, textPrimary, textSecondary, collapsedSettings, toggleSettingsSection } = useDayPlannerCtx();
   const { todoist: sync } = useSyncCtx();
   const [input, setInput] = useState('');
-  const [expanded, setExpanded] = useState(true);
+  const isPage = variant === 'page';
+  const expanded = isPage || collapsedSettings?.todoist === false;
   const id = useId();
   if (!sync) return null;
   const { settings, updateSettings, catalog, selected, status, connected, report } = sync;
   const mode = settings.mode || 'filtered';
-  const scope = mode === 'mirror' ? settings.mirrorScope : mode;
+  const scope = mode;
   const busy = status === 'syncing';
   const disabled = busy || sync.multiUserEnabled;
-  const mirrorReady = mode !== 'mirror' || settings.mirrorAcknowledged;
   const fieldClass = `w-full rounded-lg border p-2 text-sm ${borderClass} ${darkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'}`;
   const buttonClass = `rounded-lg border px-3 py-2 text-sm ${borderClass} disabled:opacity-40`;
   const toggle = (field, value) => updateSettings({ [field]: settings[field].includes(value)
@@ -52,14 +52,15 @@ export default function TodoistSettings() {
   </details>;
   const scanned = catalog ? Object.values(catalog.items || {}).filter(active).length : 0;
   const emptyReason = scanned === 0 ? 'noActive' : scope === 'today' || (scope === 'filtered' && settings.todayOnly) ? 'noToday' : 'noMatch';
-  return <section aria-labelledby={`${id}-title`} className={`space-y-3 ${textPrimary} [&+hr]:hidden`}>
-    <button type="button" onClick={() => setExpanded(value => !value)} aria-expanded={expanded}
+  return <section aria-labelledby={`${id}-title`} className={`space-y-3 ${textPrimary}`}>
+    {isPage && <h3 id={`${id}-title`} className="font-medium">{todoistText('title')}</h3>}
+    {!isPage && <button type="button" onClick={() => toggleSettingsSection('todoist')} aria-expanded={expanded}
       aria-controls={`${id}-body`} className="font-medium flex items-center gap-2 w-full text-left">
       <CheckSquare size={16} className={textSecondary} />
       <span id={`${id}-title`}>{todoistText('title')}</span>
       {connected && <span className="w-2 h-2 rounded-full bg-green-500" aria-label={todoistText('connected')} />}
       <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${expanded ? 'rotate-180' : ''}`} />
-    </button>
+    </button>}
     <div id={`${id}-body`} hidden={!expanded} className="space-y-4">
       <p className={`text-xs leading-relaxed ${textSecondary}`}>{todoistText('intro')}</p>
       {sync.multiUserEnabled && <p role="alert" className="text-sm text-amber-600 dark:text-amber-400">{todoistText('errors.multiUser')}</p>}
@@ -87,15 +88,9 @@ export default function TodoistSettings() {
         <select aria-label={todoistText('mode')} className={fieldClass} value={mode} onChange={event => updateSettings({
           mode: event.target.value, destination: event.target.value === 'today' ? 'today' : 'due',
         })}>
-          {['today', 'all', 'filtered', 'mirror'].map(value => <option key={value} value={value}>{todoistText(`modes.${value}`)}</option>)}
+          {['today', 'all', 'filtered'].map(value => <option key={value} value={value}>{todoistText(`modes.${value}`)}</option>)}
         </select>
         <p className={`text-xs leading-relaxed ${textSecondary}`}>{todoistText(`modeHelp.${mode}`)}</p>
-        {mode === 'mirror' && <label className="block text-sm space-y-1">
-          <span>{todoistText('mirrorScope')}</span>
-          <select aria-label={todoistText('mirrorScope')} className={fieldClass} value={scope} onChange={event => updateSettings({ mirrorScope: event.target.value })}>
-            {['all', 'today', 'filtered'].map(value => <option value={value} key={value}>{todoistText(`modes.${value}`)}</option>)}
-          </select>
-        </label>}
         {scope === 'filtered' && <details className={`rounded-lg border ${borderClass} p-3`}>
           <summary className="cursor-pointer text-sm font-medium">{todoistText('advanced')}</summary>
           <div className="space-y-3 mt-3">
@@ -120,39 +115,31 @@ export default function TodoistSettings() {
         {(scope === 'today' || (scope === 'filtered' && settings.todayOnly)) && <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={!!settings.includeOverdue} onChange={event => updateSettings({ includeOverdue: event.target.checked })} />{todoistText('overdue')}
         </label>}
-        {mode !== 'mirror' && <label className="block text-sm space-y-1">
+        <label className="block text-sm space-y-1">
           <span>{todoistText('destination')}</span>
           <select aria-label={todoistText('destination')} className={fieldClass} value={settings.destination || 'inbox'} onChange={event => updateSettings({ destination: event.target.value })}>
             {['due', 'today', 'inbox'].map(value => <option value={value} key={value}>{todoistText(`destinations.${value}`)}</option>)}
           </select>
-        </label>}
-        {mode === 'mirror' && <div className="space-y-2 text-sm">
-          <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">{todoistText('mirrorWarning')}</p>
-          <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={!!settings.mirrorDates}
-            onChange={event => updateSettings({ mirrorDates: event.target.checked })} />{todoistText('mirrorDates')}</label>
-          <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={!!settings.mirrorAcknowledged}
-            onChange={event => updateSettings({ mirrorAcknowledged: event.target.checked })} />{todoistText('mirrorConsent')}</label>
-        </div>}
+        </label>
       </fieldset>
       {catalog && <div className={`rounded-lg border ${borderClass} p-3 space-y-2`} aria-live="polite">
         <p className="text-sm font-medium">{todoistText('preview', { count: selected.length })}</p>
         <p className={`text-xs ${textSecondary}`}>{todoistText('scanned', { count: scanned })}</p>
         <p className={`text-xs ${textSecondary}`}>{todoistText('timezone', { zone: catalog.user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone })}</p>
-        <p className={`text-xs ${textSecondary}`}>{todoistText('placement', { target: todoistText(`destinations.${mode === 'mirror' ? 'due' : settings.destination || 'inbox'}`) })}</p>
+        <p className={`text-xs ${textSecondary}`}>{todoistText('placement', { target: todoistText(`destinations.${settings.destination || 'inbox'}`) })}</p>
         {selected.slice(0, 6).map(item => <p className={`text-xs break-words ${textSecondary}`} key={item.id}>
           P{5 - item.priority} · {item.content}{item.due?.date ? ` · ${todoistText('due', { date: item.due.date })}` : ''}
         </p>)}
         {!selected.length && <p className="text-xs text-amber-700 dark:text-amber-400">{todoistText(`reasons.${emptyReason}`)}</p>}
-        {mode === 'mirror' && <p className="text-xs text-amber-700 dark:text-amber-400">{todoistText('removalPreview', { count: sync.plannedRemovals || 0 })}</p>}
       </div>}
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={disabled || !connected || !mirrorReady} className={`${buttonClass} flex items-center gap-2 font-medium`} onClick={sync.syncNow}>
+        <button type="button" disabled={disabled || !connected} className={`${buttonClass} flex items-center gap-2 font-medium`} onClick={sync.syncNow}>
           <RefreshCw size={14} className={busy ? 'animate-spin' : ''} />{todoistText('sync')}
         </button>
         <button type="button" disabled={disabled || !connected} className={buttonClass} onClick={sync.preview}>{todoistText('refresh')}</button>
       </div>
       <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={settings.enabled} disabled={disabled || !connected || !mirrorReady}
+        <input type="checkbox" checked={settings.enabled} disabled={disabled || !connected}
           onChange={event => updateSettings({ enabled: event.target.checked })} />{todoistText('enabled')}
       </label>
       <label className="block text-sm space-y-1">
@@ -171,7 +158,7 @@ export default function TodoistSettings() {
       {report && <div className={`rounded-lg border ${borderClass} p-3 space-y-2`} aria-live="polite">
         <h5 className="text-sm font-medium">{todoistText('result')}</h5>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {['scanned', 'matched', 'added', 'updated', 'removed', 'restored', 'unchanged', 'suppressed', 'unknown'].map(field => <p className="text-xs" key={field}>
+          {['scanned', 'matched', 'added', 'updated', 'unchanged', 'suppressed', 'unknown'].map(field => <p className="text-xs" key={field}>
             {todoistText(`counts.${field}`)}: <strong>{report[field] || 0}</strong>
           </p>)}
         </div>
@@ -179,7 +166,7 @@ export default function TodoistSettings() {
         <p className={`text-xs ${textSecondary}`}>{todoistText(`reasons.${report.reason}`)}</p>
         {!!report.unknown && <p className="text-xs text-amber-700 dark:text-amber-400">{todoistText('unknownWarning')}</p>}
       </div>}
-      {mode !== 'mirror' && <details className={`text-xs ${textSecondary}`}>
+      <details className={`text-xs ${textSecondary}`}>
         <summary className="cursor-pointer">{todoistText('writeOptions')}</summary>
         <div className="space-y-2 mt-3">
           <label className="flex items-start gap-2 text-sm">
@@ -189,13 +176,13 @@ export default function TodoistSettings() {
           <p className="leading-relaxed text-amber-700 dark:text-amber-400">{todoistText('writeWarning')}</p>
           {!!sync.blockedWrites.length && <p>{todoistText('blocked', { count: sync.blockedWrites.length })} {sync.blockedWrites.slice(0, 10).map(task => task.title).join(' · ')}</p>}
         </div>
-      </details>}
+      </details>
       {!!sync.conflicts.length && <div className={`border rounded-lg ${borderClass} p-3 space-y-3`}>
         <p className="text-xs">{todoistText('conflicts')}</p>
         {sync.conflicts.map(task => <div key={task.id} className="space-y-1">
           <p className="text-sm break-words">{task.title}</p>
           {Object.entries(task.todoist.conflicts).map(([field, value]) => <p key={field} className={`text-xs break-words ${textSecondary}`}>
-            {field}: {String(task[field] ?? '—')} → {String(value ?? '—')}
+            {field}: {String(task[field] ?? '-')} → {String(value ?? '-')}
           </p>)}
           <div className="flex flex-wrap gap-2">
             <button type="button" className={buttonClass} disabled={busy} onClick={() => sync.resolveConflict(task.id, true)}>{todoistText('remote')}</button>

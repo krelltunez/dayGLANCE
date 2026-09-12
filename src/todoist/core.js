@@ -1,7 +1,7 @@
 // Read-source sync with optional guarded completion writeback. Never emits remote deletes.
 export const DEFAULT_SETTINGS = Object.freeze({
-  enabled: false, mode: 'today', mirrorScope: 'all', destination: 'today',
-  includeOverdue: false, todayOnly: false, mirrorDates: true, mirrorAcknowledged: false,
+  enabled: false, mode: 'today', destination: 'today',
+  includeOverdue: false, todayOnly: false,
   priorities: [1, 2], projects: [], labels: [],
   match: 'all', labelMatch: 'any', subprojects: true,
   completionWriteback: false, intervalMinutes: 5,
@@ -13,24 +13,30 @@ export const taskId = (accountId, id) => `todoist:${key(accountId)}:${key(id)}`;
 export function normalizeSettings(raw = {}) {
   const list = value => [...new Set(Array.isArray(value) ? value.map(String) : [])];
   const legacy = !raw.mode && ['priorities', 'projects', 'labels'].some(field => Object.hasOwn(raw, field));
-  const mode = ['today', 'all', 'filtered', 'mirror'].includes(raw.mode) ? raw.mode : legacy ? 'filtered' : 'today';
+  // Old experimental mirror settings are migrated to a read-source mode,
+  // with automation and writeback off until the user opts in again.
+  const wasMirror = raw.mode === 'mirror';
+  const supportedModes = ['today', 'all', 'filtered'];
+  const requestedMode = wasMirror ? raw.mirrorScope : raw.mode;
+  const mode = supportedModes.includes(requestedMode)
+    ? requestedMode
+    : legacy || wasMirror ? 'filtered' : 'today';
   return {
-    enabled: raw.enabled === true,
-    mode, mirrorScope: ['today', 'all', 'filtered'].includes(raw.mirrorScope) ? raw.mirrorScope : 'all',
+    enabled: !wasMirror && raw.enabled === true,
+    mode,
     destination: ['inbox', 'due', 'today'].includes(raw.destination) ? raw.destination : legacy ? 'inbox' : mode === 'today' ? 'today' : 'due',
     includeOverdue: raw.includeOverdue === true, todayOnly: raw.todayOnly === true,
-    mirrorDates: raw.mirrorDates !== false, mirrorAcknowledged: raw.mirrorAcknowledged === true,
     priorities: [...new Set((Array.isArray(raw.priorities) ? raw.priorities : DEFAULT_SETTINGS.priorities).filter(p => [1, 2, 3, 4].includes(p)))],
     projects: list(raw.projects), labels: list(raw.labels),
     match: raw.match === 'any' ? 'any' : 'all',
     labelMatch: raw.labelMatch === 'all' ? 'all' : 'any',
     subprojects: raw.subprojects !== false,
-    completionWriteback: mode !== 'mirror' && raw.completionWriteback === true,
+    completionWriteback: !wasMirror && raw.completionWriteback === true,
     intervalMinutes: [0, 1, 5, 15].includes(raw.intervalMinutes) ? raw.intervalMinutes : 5,
   };
 }
 export function matches(item, settings, projects = {}, now = new Date(), timezone) {
-  const scope = settings.mode === 'mirror' ? settings.mirrorScope : settings.mode;
+  const scope = settings.mode;
   if (scope === 'today' || (scope === 'filtered' && settings.todayOnly)) {
     const due = dueParts(item.due, timezone);
     const today = dateParts(now, timezone).date;
@@ -74,6 +80,24 @@ export function mergeResponse(previous = {}, response) {
   if (previous.user?.id && key(previous.user.id) !== key(next.user.id)) throw new Error('accountChanged');
   return next;
 }
+// Keep active resources needed for filtering and parent-task safety. An
+// inactive item is retained only while a local copy or pending command still
+// references it. Never mutate the source cache or discard its sync cursor.
+export function pruneCache(cache, retainIds = new Set()) {
+  const items = Object.create(null);
+  for (const [id, item] of Object.entries(cache.items || {})) {
+    if (active(item) || retainIds.has(id)) items[id] = item;
+  }
+  const next = { ...cache, items };
+  for (const resource of ['projects', 'labels']) {
+    next[resource] = Object.create(null);
+    for (const [id, item] of Object.entries(cache[resource] || {})) {
+      if (!flag(item.is_deleted)) next[resource][id] = item;
+    }
+  }
+  return next;
+}
+
 export function remoteFields(item) {
   return {
     title: String(item.content ?? ''), notes: String(item.description ?? ''),
@@ -114,7 +138,7 @@ export function reconcileTask(task, cache, settings, now) {
     const conflicts = { ...task.todoist.conflicts };
     for (const field of Object.keys(remote)) {
       const local = task[field] ?? (field === 'deadline' ? null : remote[field]);
-      if (settings.mode === 'mirror' || local === remote[field]) { result[field] = remote[field]; delete conflicts[field]; }
+      if (local === remote[field]) { result[field] = remote[field]; delete conflicts[field]; }
       else if (local === base[field]) { result[field] = remote[field]; delete conflicts[field]; }
       else if (remote[field] !== base[field] || Object.hasOwn(conflicts, field)) conflicts[field] = remote[field];
     }
@@ -127,8 +151,7 @@ export function reconcileTask(task, cache, settings, now) {
     const unchangedSchedule = scheduleBase
       ? Object.keys(schedule).every(field => (task[field] ?? false) === (scheduleBase[field] ?? false))
       : !task.date;
-    const followDates = settings.mode === 'mirror' ? settings.mirrorDates : unchangedSchedule;
-    if (followDates && metadata.inScope) Object.assign(result, schedule);
+    if (unchangedSchedule && metadata.inScope) Object.assign(result, schedule);
     result.todoist = { ...metadata, base: remote, scheduleBase: schedule, conflicts };
   }
   return JSON.stringify(result) === JSON.stringify(task) ? task : { ...result, lastModified: now };
@@ -142,7 +165,7 @@ export function additions(allTasks, cache, settings, blockedIds = new Set(), now
     .map(item => importTask(item, cache, settings, now));
 }
 export function writebackReason(task, cache, settings, now = new Date()) {
-  if (settings.mode === 'mirror' || !settings.completionWriteback || !linked(task, cache.user.id) || !task.completed
+  if (!settings.completionWriteback || !linked(task, cache.user.id) || !task.completed
     || task.todoist.base?.completed !== false) return 'none';
   const item = cache.items[task.todoist.id];
   if (!item || !active(item) || !matches(item, settings, cache.projects, now, cache.user.timezone)) return 'outOfScope';
@@ -199,72 +222,79 @@ export function dueParts(due, timezone) {
 }
 export function scheduleFields(item, settings, now, timezone) {
   const due = dueParts(item.due, timezone);
-  const destination = settings.mode === 'mirror' && settings.mirrorDates ? 'due' : settings.destination;
+  const destination = settings.destination;
   const date = destination === 'inbox' ? null : destination === 'today' ? dateParts(now, timezone).date : due.date;
   const minutes = item.duration?.unit === 'minute' ? Number(item.duration.amount)
     : item.duration?.unit === 'day' ? Number(item.duration.amount) * 1440 : 30;
   return { date, startTime: date && due.time ? due.time : date ? '00:00' : '09:00',
     isAllDay: !!date && !due.time, duration: Number.isFinite(minutes) && minutes > 0 ? Math.min(minutes, 10080) : 30 };
 }
-export function mirrorRemoval(task, cache, settings, now) {
-  if (settings.mode !== 'mirror' || !settings.mirrorAcknowledged || !linked(task, cache.user.id)) return null;
-  const item = cache.items[task.todoist.id];
-  if (!item) return null; // Full snapshots contain ACTIVE resources, not reliable deletion evidence.
-  if (flag(item.is_deleted)) return 'deleted';
-  if (!active(item)) return null; // Retain explicit completion history rather than erase it.
-  if (settings.mirrorScope === 'filtered' && !settings.priorities.length && !settings.projects.length && !settings.labels.length) return null;
-  return matches(item, settings, cache.projects, now, cache.user.timezone) ? null : 'scope';
-}
+// Reconciliation never deletes or restores local tasks. The recycle bin is
+// consulted only to avoid importing a copy the user has already removed.
 export function reconcileLists({ tasks, unscheduledTasks, recycleBin = [], cache, settings, blockedIds = new Set(), now }) {
-  if (settings.mode === 'mirror' && !settings.mirrorAcknowledged) throw new Error('mirrorConsent');
   const remote = Object.values(cache.items);
   const selected = remote.filter(item => active(item) && matches(item, settings, cache.projects, now, cache.user.timezone));
-  const report = { scanned: remote.filter(active).length, matched: selected.length, added: 0, updated: 0,
-    unchanged: 0, removed: 0, restored: 0, suppressed: 0, unknown: 0, calendar: 0, inbox: 0, at: now };
-  const result = { tasks: [], unscheduledTasks: [], recycleBin: [...recycleBin], report };
+  const report = {
+    scanned: remote.filter(active).length,
+    matched: selected.length,
+    added: 0,
+    updated: 0,
+    unchanged: 0,
+    suppressed: 0,
+    unknown: 0,
+    calendar: 0,
+    inbox: 0,
+    at: now,
+  };
+  const result = { tasks: [], unscheduledTasks: [], recycleBin, report };
   const all = [...tasks, ...unscheduledTasks];
   const existing = new Set(all.map(task => key(task.id)));
   const sourceIds = new Set(all.filter(task => linked(task, cache.user.id)).map(task => key(task.todoist.id)));
+  const archivedSources = new Set(recycleBin.filter(task => linked(task, cache.user.id)).map(task => key(task.todoist.id)));
   const blocked = new Set([...blockedIds, ...recycleBin.map(task => key(task.id))]);
+
   const put = task => {
     (task.date ? result.tasks : result.unscheduledTasks).push(task);
-    if (linked(task, cache.user.id) && !task.completed) report[task.date ? 'calendar' : 'inbox']++;
+    if (linked(task, cache.user.id) && !task.completed) {
+      report[task.date ? 'calendar' : 'inbox']++;
+    }
   };
-  // Preserve native tasks in their existing bucket; move ONLY linked Todoist tasks.
+
+  // Preserve native tasks in their existing bucket. Only linked Todoist
+  // tasks may move between the calendar and inbox as their dates change.
   for (const [bucket, list] of [['tasks', tasks], ['unscheduledTasks', unscheduledTasks]]) {
     for (const task of list) {
-      if (!linked(task, cache.user.id)) { result[bucket].push(task); continue; }
-      const reason = mirrorRemoval(task, cache, settings, now);
-      if (reason) {
-        const archived = { ...task, deletedAt: now, lastModified: now, _deletedFrom: bucket === 'tasks' ? 'calendar' : 'inbox',
-          todoist: { ...task.todoist, mirrorRemoved: reason } };
-        result.recycleBin = [...result.recycleBin.filter(row => key(row.id) !== key(task.id)), archived];
-        report.removed++;
-      } else {
-        const updated = reconcileTask(task, cache, settings, now);
-        if (!cache.items[task.todoist.id]) report.unknown++;
-        else report[updated === task ? 'unchanged' : 'updated']++;
-        put(updated);
+      if (!linked(task, cache.user.id)) {
+        result[bucket].push(task);
+        continue;
       }
+      const updated = reconcileTask(task, cache, settings, now);
+      if (!cache.items[task.todoist.id]) report.unknown++;
+      else report[updated === task ? 'unchanged' : 'updated']++;
+      put(updated);
     }
   }
+
   for (const item of selected) {
     const id = taskId(cache.user.id, item.id);
     if (existing.has(id) || sourceIds.has(key(item.id))) continue;
-    const archived = recycleBin.find(task => linked(task, cache.user.id) && key(task.todoist.id) === key(item.id));
-    // Restore only automatically scoped-out copies; manual deletions remain suppressed.
-    if (settings.mode === 'mirror' && archived?.todoist.mirrorRemoved && !blockedIds.has(key(archived.id))) {
-      const restored = { ...reconcileTask(archived, cache, settings, now) };
-      delete restored.deletedAt; delete restored._deletedFrom;
-      restored.todoist = { ...restored.todoist, mirrorRemoved: null };
-      restored.lastModified = now;
-      result.recycleBin = result.recycleBin.filter(task => key(task.id) !== key(archived.id));
-      put(restored); report.restored++;
-    } else if (blocked.has(id) || archived) report.suppressed++;
-    else { put(importTask(item, cache, settings, now)); report.added++; }
+    if (blocked.has(id) || archivedSources.has(key(item.id))) {
+      report.suppressed++;
+      continue;
+    }
+    put(importTask(item, cache, settings, now));
+    report.added++;
   }
-  report.reason = report.scanned === 0 ? 'noActive' : report.matched === 0
-    ? ((settings.mode === 'today' || (settings.mode === 'mirror' && settings.mirrorScope === 'today') || ((settings.mode === 'filtered' || (settings.mode === 'mirror' && settings.mirrorScope === 'filtered')) && settings.todayOnly)) ? 'noToday' : 'noMatch')
-    : report.added + report.updated + report.removed + report.restored === 0 ? (report.suppressed ? 'suppressed' : 'unchanged') : 'done';
+
+  if (report.scanned === 0) {
+    report.reason = 'noActive';
+  } else if (report.matched === 0) {
+    const requiresToday = settings.mode === 'today' || (settings.mode === 'filtered' && settings.todayOnly);
+    report.reason = requiresToday ? 'noToday' : 'noMatch';
+  } else if (report.added + report.updated === 0) {
+    report.reason = report.suppressed ? 'suppressed' : 'unchanged';
+  } else {
+    report.reason = 'done';
+  }
   return result;
 }

@@ -56,3 +56,19 @@ export async function connectAccount(token, loadStored, options = {}) {
   if (String(cache.user.id) !== String(fresh.user.id)) throw new Error('accountChanged');
   return { cache, stored };
 }
+
+// Returns the number of unconfirmed receipts. A pending queue is deliberately
+// not erased: after reconnecting, retries must reuse the original UUIDs.
+export function clearIdleCache(storage, accountId) {
+  const key = stateKey(accountId);
+  const stored = readJSON(storage, key, {});
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)
+    || (stored.queue != null && !Array.isArray(stored.queue))) {
+    throw new Error('storageCorrupt');
+  }
+  const pending = stored.queue?.length || 0;
+  if (pending === 0) {
+    try { storage.removeItem(key); } catch { throw new Error('storageFull'); }
+  }
+  return pending;
+}

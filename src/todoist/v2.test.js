@@ -2,7 +2,7 @@ import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { connectAccount } from './client.js';
 import { normalizeSettings, matches, mergeResponse, importTask, reconcileTask, reconcileLists,
-  dueParts, dateParts, mirrorRemoval, prepareOutbox } from './core.js';
+  dueParts, dateParts, prepareOutbox } from './core.js';
 const now = '2026-09-10T06:00:00.000Z';
 const config = patch => normalizeSettings(patch);
 const item = patch => ({ id: 'task1', project_id: 'work', content: 'Task', description: '', labels: ['focus'],
@@ -12,7 +12,6 @@ const cache = (items = [item()]) => mergeResponse({}, { full_sync: true, sync_to
   items, projects: [{ id: 'work', name: 'Work' }], labels: [] });
 const plan = (c = cache(), settings = config(), patch = {}) => reconcileLists({ tasks: [], unscheduledTasks: [],
   recycleBin: [], cache: c, settings, now, ...patch });
-const mirror = patch => config({ mode: 'mirror', mirrorAcknowledged: true, ...patch });
 
 describe('V2 defaults and date scopes', () => {
   it('uses today without writes or automatic sync for a fresh install', () => {
@@ -100,60 +99,64 @@ describe('V2 diagnostics and nondestructive pull', () => {
     assert.equal(c.items.task1.content, 'Task'); assert.equal(c.items.task1.is_deleted, true);
   });
 });
-describe('V2 one-way mirror safety', () => {
-  it('requires explicit consent and disables completion writeback', () => {
-    assert.throws(() => plan(cache(), config({ mode: 'mirror' })), /mirrorConsent/);
-    assert.equal(mirror({ completionWriteback: true }).completionWriteback, false);
+describe('Non-destructive selective import', () => {
+  it('migrates experimental mirror settings without enabling automation or writes', () => {
+    for (const mirrorScope of ['today', 'all', 'filtered']) {
+      const s = config({ mode: 'mirror', mirrorScope, enabled: true, completionWriteback: true, labels: ['focus'] });
+      assert.equal(s.mode, mirrorScope);
+      assert.equal(s.enabled, false);
+      assert.equal(s.completionWriteback, false);
+      assert.deepEqual(s.labels, ['focus']);
+      assert(!Object.keys(s).some(key => key.startsWith('mirror')));
+    }
+    assert.equal(config({ mode: 'mirror' }).mode, 'filtered');
   });
-  it('copies remote content/dates over local edits only in mirror mode', () => {
-    const t = { ...plan().tasks[0], title: 'Local edit', date: '2026-09-20' };
-    const p = plan(cache(), mirror(), { tasks: [t] });
-    assert.equal(p.tasks[0].title, 'Task'); assert.equal(p.tasks[0].date, '2026-09-10');
+  it('keeps explicitly deleted linked tasks and never changes the recycle bin', () => {
+    const t = plan().tasks[0];
+    const bin = [{ id: 'previously-removed' }];
+    const p = plan(cache([item({ is_deleted: true })]), config(), { tasks: [t], recycleBin: bin });
+    assert.equal(p.tasks.length, 1);
+    assert.equal(p.tasks[0].completed, false);
+    assert.equal(p.tasks[0].todoist.remoteDeleted, true);
+    assert.equal(p.recycleBin, bin);
   });
-  it('preserves time blocks when mirror date synchronization is off', () => {
-    const t = { ...plan().tasks[0], date: '2026-09-20', startTime: '13:00' };
-    const p = plan(cache(), mirror({ mirrorDates: false }), { tasks: [t] });
-    assert.equal(p.tasks[0].date, t.date); assert.equal(p.tasks[0].startTime, t.startTime);
+  it('keeps linked tasks that move out of the filter', () => {
+    const s = config({ mode: 'filtered', priorities: [4], projects: ['work'] });
+    const t = plan().tasks[0];
+    const p = plan(cache([item({ project_id: 'other' })]), s, { tasks: [t] });
+    assert.equal(p.tasks.length, 1);
+    assert.equal(p.tasks[0].todoist.inScope, false);
+    assert.deepEqual(p.recycleBin, []);
   });
-  it('archives explicitly deleted linked tasks and preserves native and other-account tasks', () => {
-    const t = plan().tasks[0]; const native = { id: 'native' };
-    const other = { ...t, id: 'other', todoist: { ...t.todoist, accountId: 'other' } };
-    const p = plan(cache([item({ is_deleted: true })]), mirror(), { tasks: [t, native, other] });
-    assert.deepEqual(p.tasks, [native, other]); assert.equal(p.report.removed, 1);
-    assert.equal(p.recycleBin[0]._deletedFrom, 'calendar');
+  it('never restores deleted copies, including former experimental mirror archives', () => {
+    const t = plan().tasks[0];
+    for (const mirrorRemoved of [undefined, 'scope', 'deleted']) {
+      const archived = { ...t, deletedAt: now, todoist: { ...t.todoist, mirrorRemoved } };
+      const bin = [archived];
+      const p = plan(cache(), config(), { recycleBin: bin });
+      assert.equal(p.tasks.length, 0);
+      assert.equal(p.report.suppressed, 1);
+      assert.equal(p.recycleBin, bin);
+    }
   });
-  it('archives records explicitly moved out of the filter, then restores them once without mutating the archive', () => {
-    const s = mirror({ mirrorScope: 'filtered', priorities: [4], projects: ['work'] });
-    const t = plan().tasks[0]; const removed = plan(cache([item({ project_id: 'other' })]), s, { tasks: [t] });
-    const archivedJSON = JSON.stringify(removed.recycleBin);
-    const restored = plan(cache(), s, { tasks: removed.tasks, recycleBin: removed.recycleBin });
-    assert.equal(restored.report.restored, 1); assert.equal(restored.tasks.length, 1); assert.equal(restored.recycleBin.length, 0);
-    assert.equal(JSON.stringify(removed.recycleBin), archivedJSON); assert.equal('deletedAt' in restored.tasks[0], false);
+  it('retains missing source records and reports uncertainty', () => {
+    const t = plan().tasks[0];
+    const p = plan(cache([]), config(), { tasks: [t] });
+    assert.equal(p.tasks[0], t);
+    assert.equal(p.report.unknown, 1);
+    assert.equal(p.recycleBin.length, 0);
   });
-  it('never restores user-deleted records or permanently deleted tombstones', () => {
-    const t = plan().tasks[0]; const archived = { ...t, deletedAt: now };
-    assert.equal(plan(cache(), mirror(), { recycleBin: [archived] }).report.suppressed, 1);
-    const auto = { ...archived, todoist: { ...t.todoist, mirrorRemoved: 'scope' } };
-    assert.equal(plan(cache(), mirror(), { recycleBin: [auto], blockedIds: new Set([t.id]) }).report.restored, 0);
+  it('preserves completion history instead of deleting completed tasks', () => {
+    const t = plan().tasks[0];
+    const p = plan(cache([item({ checked: true })]), config(), { tasks: [t] });
+    assert.equal(p.tasks[0].completed, true);
+    assert.equal(p.recycleBin.length, 0);
   });
-  it('retains unknown/missing snapshot records and reports the uncertainty', () => {
-    const t = plan().tasks[0]; const p = plan(cache([]), mirror(), { tasks: [t] });
-    assert.equal(p.tasks[0], t); assert.equal(p.report.unknown, 1); assert.equal(p.report.removed, 0);
-  });
-  it('does not mass-remove existing copies when every advanced filter is cleared', () => {
-    const t = plan().tasks[0]; const s = mirror({ mirrorScope: 'filtered', priorities: [] });
-    assert.equal(mirrorRemoval(t, cache(), s, now), null);
-  });
-  it('preserves completion history rather than treating a completed task as deleted', () => {
-    const t = plan().tasks[0]; const p = plan(cache([item({ checked: true })]), mirror(), { tasks: [t] });
-    assert.equal(p.tasks[0].completed, true); assert.equal(p.recycleBin.length, 0);
-  });
-  it('does not generate commands in mirror mode even with a locally completed task', () => {
+  it('does not emit write commands unless completion writeback is enabled', () => {
     const t = { ...plan().tasks[0], completed: true };
-    assert.deepEqual(prepareOutbox([], [t], cache(), mirror(), () => 'uuid', now).send, []);
+    assert.deepEqual(prepareOutbox([], [t], cache(), config(), () => 'uuid', now).send, []);
   });
 });
-
 
 describe('V2 connection freshness', () => {
   it('follows even a first full response with an incremental read-only request', async () => {

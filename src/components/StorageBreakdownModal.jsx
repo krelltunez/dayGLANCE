@@ -15,6 +15,7 @@ const StorageBreakdownModal = () => {
   const { totalBytes, entries } = getStorageUsage();
   const warn = totalBytes > 4 * 1024 * 1024;
   const labels = {
+    'dg-todoist-state-v1': t('todoist:storageCache', { defaultValue: 'Todoist sync cache' }),
     'day-planner-tasks': t('reminders.scheduledTasks'),
     'day-planner-tasks:user': t('reminders.scheduledTasks'),
     'day-planner-tasks:imported': t('storage.importedCalendarEvents', { defaultValue: 'Imported calendar events' }),
@@ -54,7 +55,7 @@ const StorageBreakdownModal = () => {
               <div className="space-y-1.5">
                 {entries.filter(k => k.bytes > 100).map(({ key, bytes, count }) => (
                   <div key={key} className="flex items-center justify-between text-xs">
-                    <span className={`${textSecondary} truncate flex-1 mr-2`}>{labels[key] || key}{count != null ? ` (${count.toLocaleString()})` : ''}</span>
+                    <span className={`${textSecondary} truncate flex-1 mr-2`}>{labels[key] || (key.startsWith('dg-todoist-state-v1:') ? labels['dg-todoist-state-v1'] : key)}{count != null ? ` (${count.toLocaleString()})` : ''}</span>
                     <span className={`font-mono ${textPrimary} flex-shrink-0`}>{formatBytes(bytes)}</span>
                   </div>
                 ))}

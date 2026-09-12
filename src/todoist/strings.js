@@ -91,15 +91,12 @@ Object.assign(en, {
     "today": "Today’s tasks (recommended)",
     "all": "All active tasks",
     "filtered": "Choose by project, label or priority",
-    "mirror": "One-way mirror from Todoist (experimental)"
   },
   "modeHelp": {
     "today": "Uses the Todoist task date, not its deadline. Ignores project, label and priority filters.",
     "all": "Imports all active Todoist tasks, regardless of filters. Tasks without dates can enter the inbox.",
     "filtered": "Only selected criteria apply. Open Advanced filters to choose the scope.",
-    "mirror": "Todoist owns the linked task content and completion state. This is not full two-way sync."
   },
-  "mirrorScope": "Mirror scope",
   "advanced": "Advanced filters",
   "todayOnly": "Also require today’s task date",
   "overdue": "Include overdue tasks",
@@ -109,12 +106,8 @@ Object.assign(en, {
     "today": "Today (undated tasks shown as all-day)",
     "inbox": "Inbox / unscheduled"
   },
-  "placement": "Destination: {{target}}. Existing manually arranged time blocks are kept outside mirror mode.",
+  "placement": "Destination: {{target}}. Existing manually arranged time blocks are preserved.",
   "timezone": "Today follows timezone: {{zone}} (calendar midnight).",
-  "mirrorWarning": "Todoist content replaces local edits on linked tasks. Explicit remote deletions and tasks leaving the chosen scope move local copies to the recycle bin. Native tasks are untouched. Nothing is deleted or edited in Todoist. Missing source records are kept and flagged, never guessed as deleted.",
-  "mirrorDates": "Also replace linked dayGLANCE dates and times with Todoist dates",
-  "mirrorConsent": "I understand that local linked-task edits can be replaced and out-of-scope copies moved to the recycle bin.",
-  "removalPreview": "Current preview: {{count}} local copies would move to the recycle bin.",
   "scanned": "Read {{count}} active tasks from Todoist.",
   "result": "Last import result",
   "counts": {
@@ -122,8 +115,6 @@ Object.assign(en, {
     "matched": "Matched",
     "added": "Imported",
     "updated": "Updated",
-    "removed": "To recycle bin",
-    "restored": "Restored",
     "unchanged": "Unchanged",
     "suppressed": "Locally removed",
     "unknown": "Source missing"
@@ -140,7 +131,8 @@ Object.assign(en, {
   "unknownWarning": "Some linked tasks are absent from the source snapshot. Their completion/deletion cannot be determined reliably, so their local copies were retained.",
   "writeOptions": "Optional completion writeback (advanced)",
   "securityTitle": "Credentials, privacy and limitations",
-  "safety": "Pull modes keep existing copies when filters change. Mirror mode can move copies to the recycle bin, but never deletes anything in Todoist. Disconnect keeps tasks and pending receipts. Automatic sync runs only while the app is open."
+  "safety": "Changing filters or deleting a Todoist task never deletes or restores its local copy. Disconnect removes credentials and clears the cache when there are no pending completion receipts. If receipts remain, reconnect to resolve them before disconnecting again. Imported tasks are kept. Automatic sync runs only while the app is open.",
+  "storageCache": "Todoist sync cache"
 });
 Object.assign(zh, {
   "intro": "连接后选择同步方式，再点“立即同步”。自动同步可单独开启；不会上传 dayGLANCE 原有任务。",
@@ -153,15 +145,12 @@ Object.assign(zh, {
     "today": "今天的任务（推荐）",
     "all": "全部未完成任务",
     "filtered": "按项目、标签、优先级筛选",
-    "mirror": "以 Todoist 为准的单向镜像（实验性）"
   },
   "modeHelp": {
     "today": "按 Todoist 的任务日期筛选，不按截止日期；不受项目、标签、优先级条件限制。",
     "all": "拉取全部未完成任务，忽略高级筛选；无日期任务可放入收件箱。",
     "filtered": "只同步满足所选条件的任务，展开“高级筛选”设置范围。",
-    "mirror": "关联任务的内容和完成状态以 Todoist 为准；不是完整双向同步。"
   },
-  "mirrorScope": "镜像范围",
   "advanced": "高级筛选",
   "todayOnly": "同时要求任务日期为今天",
   "overdue": "包含逾期任务",
@@ -171,12 +160,8 @@ Object.assign(zh, {
     "today": "今天（无时间的任务显示为全天）",
     "inbox": "收件箱／未安排"
   },
-  "placement": "导入位置：{{target}}。非镜像模式保留已经手动安排的时间块。",
+  "placement": "导入位置：{{target}}。保留已经手动安排的时间块。",
   "timezone": "“今天”采用时区：{{zone}}（以零点分日）。",
-  "mirrorWarning": "Todoist 的内容会覆盖关联任务的本地修改。远端明确删除或移出所选范围时，本地副本移入回收站；不影响原生任务，不修改或删除 Todoist 数据。来源缺失只提示，不猜测为已删除。",
-  "mirrorDates": "关联任务的日期和时间也以 Todoist 为准",
-  "mirrorConsent": "我理解：关联任务的本地修改可能被覆盖，不再符合范围的副本将移入回收站。",
-  "removalPreview": "当前预览：将有 {{count}} 个本地副本移入回收站。",
   "scanned": "已读取 Todoist 未完成任务 {{count}} 个。",
   "result": "上次导入结果",
   "counts": {
@@ -184,8 +169,6 @@ Object.assign(zh, {
     "matched": "符合条件",
     "added": "新导入",
     "updated": "已更新",
-    "removed": "移入回收站",
-    "restored": "已恢复",
     "unchanged": "无变化",
     "suppressed": "本地已移除",
     "unknown": "来源缺失"
@@ -202,9 +185,10 @@ Object.assign(zh, {
   "unknownWarning": "部分关联任务未出现在来源快照，不能可靠判断其是否完成或删除，因此保留本地副本。",
   "writeOptions": "可选完成状态回写（高级）",
   "securityTitle": "凭据、隐私与功能边界",
-  "safety": "普通拉取模式在筛选变化后保留已有副本；镜像可将副本移入回收站，但绝不删除 Todoist 任务。断开后保留任务和待确认记录。自动同步仅在应用打开时运行。"
+  "safety": "筛选变化或 Todoist 任务删除不会自动删除、恢复本地副本。断开连接会移除凭据；没有待确认完成操作时，同时清除同步缓存。仍有待确认操作时，请重新连接处理后再次断开以清除缓存。已导入的任务保留。自动同步仅在应用打开时运行。",
+  "storageCache": "Todoist 同步缓存"
 });
-Object.assign(en.errors, { notReady: 'Task storage is still loading. Try again when the app is ready.', mirrorConsent: 'Read and accept the one-way mirror notice before syncing.' });
-Object.assign(zh.errors, { notReady: '任务数据尚在加载，请在应用就绪后重试。', mirrorConsent: '请先阅读并确认单向镜像提示，再进行同步。' });
+Object.assign(en.errors, { notReady: 'Task storage is still loading. Try again when the app is ready.' });
+Object.assign(zh.errors, { notReady: '任务数据尚在加载，请在应用就绪后重试。' });
 i18n.addResourceBundle('en', 'todoist', en, true, true);
 i18n.addResourceBundle('zh-CN', 'todoist', zh, true, true);

@@ -3240,7 +3240,7 @@ const MobileSettingsPanel = () => {
         <ChevronLeft size={18} />
         <span className="text-sm font-medium">{t('common.settings')}</span>
       </button>
-      <TodoistSettings />
+      <TodoistSettings variant="page" />
     </div>
   )}
 

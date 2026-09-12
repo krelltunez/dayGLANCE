@@ -25,10 +25,10 @@ const flatten = (obj, prefix = '') => Object.entries(obj).flatMap(([key, value])
 const mockSync = patch => ({ settings: normalizeSettings(), connected: false, selected: [],
   catalog: null, status: 'idle', error: '', pending: 0, conflicts: [], blockedWrites: [],
   updateSettings() {}, connect() {}, disconnect() {}, syncNow() {}, preview() {}, ...patch });
-async function render(sync, lng = 'en') {
+async function render(sync, lng = 'en', collapsed = false, variant) {
   return renderToStaticMarkup(<I18nextProvider i18n={await translator(lng)}>
-    <DayPlannerContext.Provider value={{ darkMode: true, borderClass: 'border-gray-600', textPrimary: '', textSecondary: '' }}>
-      <SyncContext.Provider value={{ todoist: sync }}><TodoistSettings /></SyncContext.Provider>
+    <DayPlannerContext.Provider value={{ darkMode: true, borderClass: 'border-gray-600', textPrimary: '', textSecondary: '', collapsedSettings: { todoist: collapsed }, toggleSettingsSection() {} }}>
+      <SyncContext.Provider value={{ todoist: sync }}><TodoistSettings variant={variant} /></SyncContext.Provider>
     </DayPlannerContext.Provider>
   </I18nextProvider>);
 }
@@ -75,11 +75,30 @@ describe('Todoist namespace and settings', () => {
     expect(filtered).toContain(en.advanced);
     expect(filtered).toContain(en.ruleHelp);
   });
-  it('requires explicit mirror consent before allowing a sync', async () => {
-    const html = await render(mockSync({ connected: true, settings: normalizeSettings({ mode: 'mirror' }) }));
-    const manual = html.match(/<button[^>]*>[\s\S]*?<\/button>/g).find(button => button.includes(en.sync));
-    expect(manual).toMatch(/\sdisabled(?:=|>|\s)/);
-    expect(html).toContain(en.mirrorWarning);
+  it('exposes only the three import modes', async () => {
+    const html = await render(mockSync({ connected: true }));
+    expect(html).not.toContain('value="mirror"');
+    expect(Object.keys(en.modes)).toEqual(['today', 'all', 'filtered']);
+    expect(Object.keys(en.modeHelp)).toEqual(['today', 'all', 'filtered']);
+    expect(en.errors).not.toHaveProperty('mirrorConsent');
+  });
+  it('uses app-owned collapse state and defaults an unset section to collapsed', async () => {
+    const collapsed = await render(mockSync(), 'en', true);
+    const unset = await render(mockSync(), 'en', null);
+    expect(collapsed).toContain('aria-expanded="false"');
+    expect(unset).toContain('aria-expanded="false"');
+    expect(await render(mockSync(), 'en', false)).toContain('aria-expanded="true"');
+    const source = readFileSync('src/components/TodoistSettings.jsx', 'utf8');
+    expect(source).toContain("toggleSettingsSection('todoist')");
+    expect(source).not.toContain('[&+hr]:hidden');
+    expect(source).not.toContain('setExpanded');
+  });
+  it('shows the dedicated mobile page without a collapsible section header', async () => {
+    const html = await render(mockSync(), 'en', true, 'page');
+    expect(html).not.toContain('aria-expanded');
+    expect(html).not.toContain('hidden=""');
+    expect(html).toContain('type="password"');
+    expect(html).toContain(en.title);
   });
   it('is wired to both settings entries and an always-mounted hook', () => {
     expect(readFileSync('src/App.jsx', 'utf8')).toContain('const todoist = useTodoistSync(');
