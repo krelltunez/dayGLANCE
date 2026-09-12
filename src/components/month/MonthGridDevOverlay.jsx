@@ -56,6 +56,11 @@ function useDemoItemsForDate(year, month) {
 
 export default function MonthGridDevOverlay() {
   const { darkMode, weekStartDay, selectedDate } = useDayPlannerCtx();
+  // On macOS Electron (titleBarStyle hiddenInset) the top 28px is still the
+  // window's title bar: transparent, but clicks there never reach the page.
+  // DesktopLayout pads its chrome by the same amount (titlebarH).
+  const isElectronMac = typeof window !== 'undefined' && window.electronAPI?.isElectron && window.electronAPI?.platform === 'darwin';
+  const titlebarH = isElectronMac ? 28 : 0;
   const realItemsForDate = useMonthItemsForDate();
   const [shown, setShown] = useState(() => monthOf(selectedDate instanceof Date ? selectedDate : new Date()));
   // Demo month on: `?month-grid=demo` in the URL, or the device-build flag
@@ -73,7 +78,7 @@ export default function MonthGridDevOverlay() {
   if (hidden) return null;
   return (
     <div className={`fixed inset-0 z-[80] flex flex-col ${darkMode ? 'bg-gray-950 text-gray-100' : 'bg-stone-50 text-stone-900'}`}
-      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + ${titlebarH}px)`, paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className="flex items-center gap-3 px-3 py-1 text-[11px] text-stone-500 dark:text-gray-400 shrink-0">
         <span className="font-semibold">Month grid (TEMPORARY dev overlay, real data)</span>
         <span className="hidden sm:inline">tap a cell: logs the date until the day sheet exists</span>
