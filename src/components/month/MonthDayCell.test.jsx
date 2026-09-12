@@ -45,7 +45,7 @@ describe('MonthDayCell', () => {
     const html = render({ items: [event('e', '09:00', 60), task('t', '10:00', 60, { color: 'bg-purple-500' })] });
     const eventMarkup = html.slice(html.indexOf('data-band="e"'), html.indexOf('data-band="t"'));
     expect(eventMarkup).toContain('data-event-edge');
-    expect(eventMarkup).toContain('fill="#4b5563"'); // an import's gray-600, as DAY draws it
+    expect(eventMarkup).toContain('fill-gray-400 dark:fill-gray-500'); // a plain import: theme gray, lighter in light mode
     const taskMarkup = html.slice(html.indexOf('data-band="t"'));
     expect(taskMarkup).not.toContain('data-event-edge');
     expect(taskMarkup).toContain('fill="#a855f7"');
@@ -66,10 +66,13 @@ describe('MonthDayCell', () => {
     expect(bandOf('native')).toContain('fill="#123456"');
     expect(bandOf('gray')).not.toContain('data-event-edge');
     expect(bandOf('ev')).toContain('data-event-edge');
-    // An event keeps its own colour when a feed or device calendar gave it one.
-    const coloured = render({ items: [event('feed', '09:00', 30, { color: 'bg-pink-500' }), event('dev', '10:00', 30, { nativeCalendarColor: '#abcdef' })] });
+    // An event keeps its own colour when a feed or device calendar gave it one;
+    // the ICS default (bg-gray-600) is the one colour that maps to the theme gray.
+    const coloured = render({ items: [event('feed', '09:00', 30, { color: 'bg-pink-500' }), event('dev', '10:00', 30, { nativeCalendarColor: '#abcdef' }), event('ics', '11:00', 30, { color: 'bg-gray-600' })] });
     expect(coloured).toContain('fill="#ec4899"');
     expect(coloured).toContain('fill="#abcdef"');
+    expect(coloured).not.toContain('fill="#4b5563"');
+    expect(count(coloured, /fill-gray-400 dark:fill-gray-500/g)).toBe(1);
   });
 
   it('rounds every band, point and mark, and insets bands uniformly from the cell edges', () => {

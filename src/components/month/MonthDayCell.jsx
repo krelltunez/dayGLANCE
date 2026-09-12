@@ -12,13 +12,18 @@ import { taskColorToHex } from '../../utils/colorUtils.js';
 // so a phone cell and a desktop cell are the same drawing at two scales.
 //
 // Encoding, chosen so nothing rests on colour alone:
-//   task     rounded band in a pale tint of the task's OWN colour, as in
-//            every other view
-//   event    rounded band in a pale gray tint with a darker cap on its left
-//            edge (the app's left-edge convention, as on frames and
-//            hyperGLANCE bars); the cap is what says "event", so a gray
+//   task     rounded band in the task's own colour at full strength, as the
+//            task card is drawn in every other view (nothing in the app tints)
+//   event    rounded band in the event's own colour when a feed or device
+//            calendar gave it one; a plain ICS import has none and takes a
+//            theme gray (400 in light, 500 in dark: DAY's gray-600 card reads
+//            as a black bar once it is a textless band on a white cell). A
+//            cap on the left edge (the app's left-edge convention, as on
+//            frames and hyperGLANCE bars) is what says "event", so a gray
 //            task still reads apart from an event
-//   routine  the same band, teal, fainter still
+//   routine  a thin teal rule at its start time, behind the lanes: the
+//            background thread DAY draws as a cross-line and pill, minus the
+//            pill. It takes no lane and never competes with content
 //   point    hollow rounded diamond at the minute, stroked in the item's
 //            colour, so it never reads as a short band
 //   all-day  small rounded marks with NO vertical meaning: stacked top-down
@@ -28,16 +33,17 @@ import { taskColorToHex } from '../../utils/colorUtils.js';
 //   deadline a flag mark, app rose, all-day only
 // Bands always span the full lane width with one uniform inset from the
 // cell edges and from the gutter: horizontal position carries no meaning
-// and widths stay comparable across days. Theme handling is the app's root
-// `dark` class via Tailwind variants; tints use the item colour at a
-// theme-specific opacity.
+// and widths stay comparable across days. Surfaces and chrome use the app's
+// own tokens (cards bg-white / gray-800, borders stone-300 / gray-700) via
+// Tailwind dark: variants, so the cell sits on the same slate as DAY.
 
 const ALL_DAY_ORDER = ['deadline', 'event', 'task', 'routine'];
 const orderAllDay = (list) => [...list].sort((a, b) =>
   ALL_DAY_ORDER.indexOf(a.kind) - ALL_DAY_ORDER.indexOf(b.kind) || Number(a.completed) - Number(b.completed));
 
-const EVENT_EDGE = 'fill-white/55';
-const EVENT_DEFAULT_HEX = '#4b5563'; // gray-600, what an ICS import is given
+const EVENT_EDGE = 'fill-black/25 dark:fill-white/50';
+const EVENT_DEFAULT_FILL = 'fill-gray-400 dark:fill-gray-500';
+const EVENT_DEFAULT_STROKE = 'stroke-gray-400 dark:stroke-gray-500';
 const ROUTINE_STROKE = 'stroke-teal-600 dark:stroke-teal-500';
 const ROUTINE_FILL = 'fill-teal-600 dark:fill-teal-500';
 const DEADLINE_FILL = 'fill-rose-500 dark:fill-rose-400';
@@ -52,8 +58,9 @@ const leftCapPath = (x, y, w, h, radius) => {
 
 /** The item's own colour, as the other views draw it. */
 const itemHex = (item) => taskColorToHex(item?.color, item?.nativeCalendarColor);
-/** An event's colour: its device or feed colour, else the ICS import gray. */
-const eventHex = (item) => (item?.nativeCalendarColor || item?.color ? itemHex(item) : EVENT_DEFAULT_HEX);
+/** An event's own colour when a device or feed gave it one; null means the theme gray. */
+const eventHex = (item) => (item?.nativeCalendarColor || (item?.color && item.color !== 'bg-gray-600') ? itemHex(item) : null);
+const eventFillProps = (item) => { const hex = eventHex(item); return hex ? { fill: hex } : { className: EVENT_DEFAULT_FILL }; };
 const toMin = (hhmm) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '')); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
 
 /** One timed band, full strength in the item's own colour; events add the cap. */
@@ -64,7 +71,7 @@ function Band({ band, item, m }) {
   if (kind === 'event') {
     return (
       <g {...common} className={dim(completed)}>
-        <rect x={x} y={y} width={width} height={height} rx={r} fill={eventHex(item)} />
+        <rect x={x} y={y} width={width} height={height} rx={r} {...eventFillProps(item)} />
         <path data-event-edge="" d={leftCapPath(x, y, Math.min(m.capWidth, width), height, r)} className={EVENT_EDGE} />
       </g>
     );
@@ -84,12 +91,12 @@ function RoutineRule({ item, y, width }) {
 function Point({ point, item, x, m }) {
   const side = m.pointSize * 1.6;
   const { y, kind, completed } = point;
-  const stroke = kind === 'event' ? eventHex(item) : itemHex(item);
+  const hex = kind === 'event' ? eventHex(item) : itemHex(item);
   return (
     <rect data-point={point.id} data-kind={kind}
       x={x - side / 2} y={y - side / 2} width={side} height={side} rx={side * 0.3}
-      transform={`rotate(45 ${x} ${y})`} strokeWidth={1.25} stroke={stroke}
-      className={`fill-white dark:fill-gray-800 ${dim(completed)}`} />
+      transform={`rotate(45 ${x} ${y})`} strokeWidth={1.25} stroke={hex || undefined}
+      className={`fill-white dark:fill-gray-800 ${hex ? '' : EVENT_DEFAULT_STROKE} ${dim(completed)}`} />
   );
 }
 
@@ -111,7 +118,7 @@ function AllDayMark({ entry, item, x, y, size, m }) {
   if (entry.kind === 'event') {
     return (
       <g {...common}>
-        <rect x={x} y={y} width={s} height={s} rx={r} fill={eventHex(item)} />
+        <rect x={x} y={y} width={s} height={s} rx={r} {...eventFillProps(item)} />
         <path data-event-edge="" d={leftCapPath(x, y, Math.min(m.capWidth, s), s, r)} className={EVENT_EDGE} />
       </g>
     );
