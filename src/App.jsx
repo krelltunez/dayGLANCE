@@ -105,6 +105,7 @@ import useFocusMode from './hooks/useFocusMode.js';
 import useTrmnlSync from './hooks/useTrmnlSync.js';
 import useObsidian from './hooks/useObsidian.js';
 import useObsidianSync from './hooks/useObsidianSync.js';
+import useTodoistSync from './hooks/useTodoistSync.js';
 import useCompletionLog from './hooks/useCompletionLog.js';
 import useDailyBriefings from './hooks/useDailyBriefings.js';
 import useVoiceInput from './hooks/useVoiceInput.js';
@@ -856,7 +857,7 @@ const DayPlanner = () => {
 
   // Settings & Reminders modals
   const [showSettings, setShowSettings] = useState(false);
-  const [collapsedSettings, setCollapsedSettings] = useState({ cloudSync: true, calSync: true, ai: true, obsidian: true, trmnl: true, multiUser: true, intent: true, automationIntents: true, localIntegrations: true });
+  const [collapsedSettings, setCollapsedSettings] = useState({ cloudSync: true, calSync: true, ai: true, obsidian: true, todoist: true, trmnl: true, multiUser: true, intent: true, automationIntents: true, localIntegrations: true });
   const [updateInfo, setUpdateInfo] = useState(null);
   const [updateDismissedVersion, setUpdateDismissedVersion] = useState(() => localStorage.getItem('dayglance-update-dismissed') || null);
   const toggleSettingsSection = (key) => setCollapsedSettings(prev => ({ ...prev, [key]: !prev[key] }));
@@ -2823,6 +2824,11 @@ const DayPlanner = () => {
       );
     });
   }, [dataLoaded, inboxAutoArchiveDays]);
+
+  const todoist = useTodoistSync({
+    tasks, setTasks, unscheduledTasks, setUnscheduledTasks,
+    recycleBin, dataLoaded, isTrayMode, multiUserEnabled,
+  });
 
   // Obsidian vault sync — full lifecycle (initial restore+sync, visibility
   // re-sync, 5-minute poll, task writeback, iOS vault-settings persistence)
@@ -8667,6 +8673,7 @@ const DayPlanner = () => {
   };
 
   const syncCtx = {
+    todoist,
     // ── Calendar sync ─────────────────────────────────────────────────────────
     syncUrl, setSyncUrl,
     icsCalendars, setIcsCalendars,

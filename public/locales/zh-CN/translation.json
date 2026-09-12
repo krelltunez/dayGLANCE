@@ -1177,6 +1177,7 @@
     "matchIn": "在{{field}}中"
   },
   "storage": {
+    "todoistCache": "Todoist 同步缓存",
     "deletionTombstones": "删除标记",
     "habitLogs": "习惯日志",
     "importedCalendarEvents": "导入的日历事件",

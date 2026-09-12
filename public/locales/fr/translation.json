@@ -1177,6 +1177,7 @@
     "matchIn": "dans {{field}}"
   },
   "storage": {
+    "todoistCache": "Cache de synchronisation Todoist",
     "deletionTombstones": "Marqueurs de suppression",
     "habitLogs": "Journaux des habitudes",
     "importedCalendarEvents": "Événements de calendrier importés",

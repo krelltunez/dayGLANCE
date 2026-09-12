@@ -30,6 +30,7 @@ import MobileRoutinesTab from './MobileRoutinesTab.jsx';
 import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import LocalIntegrationsSettings from './LocalIntegrationsSettings.jsx';
+import TodoistSettings from './TodoistSettings.jsx';
 import { useMcpStatus } from './McpStatusControls.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { isVaultEnabled } from '../sync/vaultConfig.js';
@@ -52,6 +53,7 @@ import { notBucketed } from '../utils/bucketList.js';
 import CalendarList from './CalendarList.jsx';
 
 const MobileSettingsPanel = () => {
+  const { t: todoistText } = useTranslation('todoist');
   const {
     isPro, isAndroidApp, isIOSApp, isElectronApp, subProductId,
     consumeTestPurchase, canConsumeTestPurchase,
@@ -370,6 +372,14 @@ const MobileSettingsPanel = () => {
           <span className={`font-medium ${textPrimary}`}>{t('settings.syncCalendars')}</span>
         </button>
       )}
+      <button
+        onClick={() => setMobileSettingsView('todoist')}
+        className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
+      >
+        <CheckSquare size={20} className={textSecondary} />
+        <span className={`font-medium ${textPrimary} flex-1 text-left`}>{todoistText('title')}</span>
+        <ChevronRight size={18} className={textSecondary} />
+      </button>
       <button
         onClick={() => setMobileSettingsView('cloudsync')}
         className={`w-full ${cardBg} border ${borderClass} rounded-xl p-4 flex items-center gap-3`}
@@ -3221,6 +3231,16 @@ const MobileSettingsPanel = () => {
           <p className={`text-xs ${textSecondary} mt-1`}>{t('settings.usersSyncPathHint')}</p>
         </div>
       )}
+    </div>
+  )}
+
+  {mobileSettingsView === 'todoist' && (
+    <div className="px-4 py-4 space-y-4">
+      <button onClick={() => setMobileSettingsView('main')} className={`flex items-center gap-2 ${textSecondary}`}>
+        <ChevronLeft size={18} />
+        <span className="text-sm font-medium">{t('common.settings')}</span>
+      </button>
+      <TodoistSettings variant="page" />
     </div>
   )}
 
