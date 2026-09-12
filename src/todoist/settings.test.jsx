@@ -42,7 +42,7 @@ describe('Todoist namespace and settings', () => {
     }
   });
   it('covers every literal call in this explicitly named namespace', () => {
-    const keys = new Set(flatten(en).map(([key, value]) => [key, value]).map(([key]) => key));
+    const keys = new Set(flatten(en).map(([key]) => key));
     for (const path of ['src/components/TodoistSettings.jsx', 'src/components/MobileSettingsPanel.jsx']) {
       for (const match of readFileSync(path, 'utf8').matchAll(/todoistText\(\s*['"]([^'"]+)['"]/g)) expect(keys.has(match[1]), match[1]).toBe(true);
     }
