@@ -58,15 +58,25 @@ import {
 import { recordOwnWriteSeq, withOwnAckRecording } from './ownWrites.js';
 import { isObsidianTombstoned } from '../utils/obsidianDeletions.js';
 import { ghostSuccessorId, persistDerivedGhostRetirements } from '../utils/obsidianGhostRows.js';
+import { createIdbKeyValue } from '../utils/idbKeyValue.js';
 
 const APP_ID = 'dayglance';
 const CRYPTO_DB_NAME = 'dayglance-db-crypto';
+// The diff baseline lives here rather than in localStorage. It is the single
+// largest consumer of a ~5 MiB budget shared with every other dayGLANCE key,
+// and it is pure derived state, so it is the cheapest thing to move out.
+const SNAPSHOT_DB_NAME = 'dayglance-db-sync';
+// Set synchronously by resetVaultSyncCursor; see the note there.
+const SNAPSHOT_VOID_SUFFIX = '-db-sync-snapshot-void';
 
 // The storage prefix App.jsx's engine uses (tests override it per device).
 const DEFAULT_STORAGE_KEY_PREFIX = 'dayglance-vault';
 
 // Every persisted cursor/baseline the DB tier keeps between cycles:
-//   -db-sync-snapshot   the wrapper's post-cycle diff baseline (this file)
+//   -db-sync-snapshot   the wrapper's post-cycle diff baseline (this file).
+//                       Now stored in IndexedDB; the localStorage key is still
+//                       cleared here so pre-migration installs leave nothing
+//                       behind.
 //   -db-sync-hwm        the engine's PULL cursor (@glance-apps/sync dbEngine.js)
 //   -db-sync-push-ack   the engine's push idempotency marker
 //   -db-sync-dirty      the engine's persisted dirty set
@@ -101,6 +111,20 @@ export function resetVaultSyncCursor(storageKeyPrefix = DEFAULT_STORAGE_KEY_PREF
   for (const suffix of SYNC_CURSOR_KEY_SUFFIXES) {
     try { localStorage.removeItem(`${storageKeyPrefix}${suffix}`); } catch { /* ignore */ }
   }
+  // The snapshot itself now lives in IndexedDB, whose delete is ASYNC — and
+  // every caller of this function reloads the page immediately afterwards.
+  // Awaiting that delete would mean racing the unload, and a delete that lost
+  // the race would leave the stale baseline in place: exactly the
+  // push-restored-over-newer hazard described above, reintroduced by the very
+  // change meant to be invisible.
+  //
+  // So invalidation is recorded SYNCHRONOUSLY, as a localStorage tombstone that
+  // is durable the moment it is written. loadSnapshot treats the tombstone as an
+  // empty baseline whatever IndexedDB still holds, and the next saved snapshot
+  // clears it. The delete below is best-effort cleanup, never the mechanism —
+  // which is why this function stays synchronous and no caller changes.
+  try { localStorage.setItem(`${storageKeyPrefix}${SNAPSHOT_VOID_SUFFIX}`, '1'); } catch { /* ignore */ }
+  try { createIdbKeyValue(SNAPSHOT_DB_NAME).del(`${storageKeyPrefix}-db-sync-snapshot`); } catch { /* ignore */ }
 }
 
 // Native keystore slot for the DB root key. On native shells the bridge exposes a
@@ -336,11 +360,41 @@ export function createDbEngine(callbacks = {}) {
     return res;
   };
 
-  const loadSnapshot = () => {
-    try { return JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || '{}'); } catch { return {}; }
+  // Injectable so tests do not need an IndexedDB implementation, matching the
+  // store-injection pattern the intents outbox already uses.
+  const snapshotStore = callbacks.snapshotStore || createIdbKeyValue(SNAPSHOT_DB_NAME);
+  const SNAPSHOT_VOID_KEY = `${storageKeyPrefix}${SNAPSHOT_VOID_SUFFIX}`;
+
+  const loadSnapshot = async () => {
+    // A reset wrote the tombstone but may not have finished — or even started —
+    // its async delete before the reload. The tombstone wins: an empty baseline
+    // is the first-sync path, which pulls BEFORE it pushes and LWW-merges, so it
+    // can never blind-push restored-but-older rows over newer vault rows.
+    try { if (localStorage.getItem(SNAPSHOT_VOID_KEY)) return {}; } catch { /* ignore */ }
+    const stored = await snapshotStore.get(SNAPSHOT_KEY);
+    if (stored && typeof stored === 'object') return stored;
+    // One-time migration from the pre-IndexedDB location. Carrying the old
+    // baseline across means nobody pays a full re-seed for the upgrade; the
+    // store removes the localStorage copy once the new one is written.
+    try {
+      const legacy = localStorage.getItem(SNAPSHOT_KEY);
+      if (legacy) {
+        const parsed = JSON.parse(legacy);
+        if (parsed && typeof parsed === 'object') {
+          await snapshotStore.set(SNAPSHOT_KEY, parsed);
+          // Clear the old copy here rather than relying on the store to do it:
+          // the migration is this function's job, and the store is injectable.
+          try { localStorage.removeItem(SNAPSHOT_KEY); } catch { /* ignore */ }
+          return parsed;
+        }
+      }
+    } catch { /* ignore */ }
+    return {};
   };
-  const saveSnapshot = (map) => {
-    try { localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(map)); } catch { /* ignore */ }
+  const saveSnapshot = async (map) => {
+    await snapshotStore.set(SNAPSHOT_KEY, map);
+    // A fresh baseline satisfies any pending invalidation.
+    try { localStorage.removeItem(SNAPSHOT_VOID_KEY); } catch { /* ignore */ }
   };
 
   // Per-cycle data mirror the adapter callbacks operate on. Seeded from getData
@@ -720,7 +774,7 @@ export function createDbEngine(callbacks = {}) {
         for (const id of Object.keys(baseHashes)) engine.markDirty(id);
         if (pushDbg) console.log('[push] initial full-seed cycle (HWM=0) — every row dirty');
       } else {
-        const prev = loadSnapshot();
+        const prev = await loadSnapshot();
         const cur = baseHashes;
         for (const [id, h] of Object.entries(cur)) {
           if (prev[id] === h) continue;
@@ -1141,7 +1195,7 @@ export function createDbEngine(callbacks = {}) {
       // skipped/glitch set, so no guard loop) and a repeated soft-delete is
       // idempotent at the vault.
       if (glitchUnresolved.length === 0) {
-        saveSnapshot(vaultSnapshot);
+        await saveSnapshot(vaultSnapshot);
       } else {
         console.warn(
           `[push] GUARD: ${glitchUnresolved.length} glitch-suspect row(s) could not be re-fetched from the vault — ` +

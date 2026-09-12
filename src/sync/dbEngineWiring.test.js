@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, beforeAll, afterEach, afterAll, vi } from 'vitest';
 import { setSyncPassphrase, createDbSyncEngine } from '@glance-apps/sync';
 import { createDbEngine, resetVaultSyncCursor } from './dbEngine.js';
+import { createMemoryKeyValue } from '../utils/idbKeyValue.js';
 import { getVaultConfig, setVaultConfig, isVaultEnabled } from './vaultConfig.js';
 import { getDeviceId } from './deviceId.js';
 import { registerDbEngine, markDirty, schedulePush } from './dirtyTracker.js';
@@ -1491,5 +1492,120 @@ describe('AUDIT FIXES M5 / M6 / device cursor — withheld snapshots: no echo re
       expect(deviceCalls[0].lastSeenSeq).toBeGreaterThan(hwmBefore);
       expect(data.tasks.map((t) => t.id).sort()).toEqual([1, 2]);
     } finally { errSpy.mockRestore(); warnSpy.mockRestore(); }
+  });
+});
+
+// ─── Snapshot relocation (issue #1627) ──────────────────────────────────────
+//
+// The diff baseline moved from localStorage to IndexedDB. Its DELETE is async,
+// and every caller of resetVaultSyncCursor reloads the page immediately after
+// calling it, so awaiting the delete would race the unload. A delete that lost
+// that race would leave the stale baseline in place, and the next cycle would
+// diff restored (older) rows as changed and push them OVER newer vault rows —
+// silent remote data loss, reintroduced by the relocation itself.
+//
+// Invalidation is therefore recorded synchronously as a localStorage tombstone
+// that loadSnapshot honours whatever IndexedDB still holds. These pin that
+// contract and the one-time migration.
+describe('Part S — the sync snapshot lives outside localStorage', () => {
+  beforeEach(() => {
+    global.localStorage = memLocalStorage();
+    setVaultConfig({ enabled: true, vaultUrl: 'https://vault.test', vaultToken: 'tok', accountId: 'acct1' });
+    setSyncPassphrase('correct horse battery staple');
+  });
+
+  // The baseline is only consulted once the pull cursor has advanced: the
+  // full-seed gate short-circuits it while HWM is 0, and the cursor only moves
+  // when a pull LISTS something. Hence the two-device pattern — B's rows are
+  // what take A's cursor off zero.
+  const makePair = (storeA, prefix) => {
+    const vault = createMemoryVault();
+    const mk = (name, initial, extra = {}) => {
+      let key = null;
+      let data = { ...EMPTY, tasks: [initial] };
+      const engine = createDbEngine({
+        vaultClient: vault,
+        storageKeyPrefix: `${prefix}-${name}`,
+        deviceId: `device-${prefix}-${name}`,
+        nativeGetSyncKey: () => key,
+        nativeStoreSyncKey: (v) => { key = v; },
+        getData: () => clone(data),
+        commitData: (d) => { data = d; },
+        ...extra,
+      });
+      return { engine, get data() { return data; } };
+    };
+    return {
+      vault,
+      A: mk('A', task(1, '2026-06-18T10:00:00.000Z'), { snapshotStore: storeA }),
+      B: mk('B', task(2, '2026-06-18T10:05:00.000Z')),
+    };
+  };
+
+  const settle = async (pair, rounds = 4) => {
+    for (let i = 0; i < rounds; i++) {
+      await pair.A.engine.dbSyncCycle();
+      await pair.B.engine.dbSyncCycle();
+    }
+  };
+
+  it('resetVaultSyncCursor records the invalidation synchronously', () => {
+    // Synchronously, because the caller reloads on the very next line. Anything
+    // async here is a race the reload can win.
+    localStorage.setItem('dev-reset-db-sync-snapshot', '{"tasks:1":"stale"}');
+    resetVaultSyncCursor('dev-reset');
+    expect(localStorage.getItem('dev-reset-db-sync-snapshot-void')).toBe('1');
+    // The pre-migration copy is still cleared, so old installs leave nothing.
+    expect(localStorage.getItem('dev-reset-db-sync-snapshot')).toBeNull();
+  });
+
+  it('a surviving stored snapshot is never even read while the tombstone stands', async () => {
+    const store = createMemoryKeyValue();
+    const pair = makePair(store, 'dev-void');
+    await settle(pair);
+
+    const getSpy = vi.spyOn(store, 'get');
+    await pair.A.engine.dbSyncCycle();
+    expect(getSpy).toHaveBeenCalled();       // normally the baseline IS consulted
+
+    // The baseline is still in the store, exactly as it would be if the async
+    // delete never landed before the reload.
+    expect(await store.get('dev-void-A-db-sync-snapshot')).toBeDefined();
+    localStorage.setItem('dev-void-A-db-sync-snapshot-void', '1');
+    getSpy.mockClear();
+
+    await pair.A.engine.dbSyncCycle();
+    // Short-circuited on the tombstone: whatever survived in the store cannot
+    // reach the diff, so a delete that lost the race to the reload is harmless.
+    expect(getSpy).not.toHaveBeenCalled();
+  });
+
+  it('saving a fresh baseline clears the tombstone', async () => {
+    const store = createMemoryKeyValue();
+    const pair = makePair(store, 'dev-clear');
+    localStorage.setItem('dev-clear-A-db-sync-snapshot-void', '1');
+    await settle(pair);
+    expect(localStorage.getItem('dev-clear-A-db-sync-snapshot-void')).toBeNull();
+  });
+
+  it('adopts a baseline left in localStorage by an older version', async () => {
+    const store = createMemoryKeyValue();
+    const pair = makePair(store, 'dev-migrate');
+    await settle(pair);
+
+    // Stage the upgrade shape: a baseline in the old localStorage location and
+    // nothing yet in the new store, with the pull cursor already warm.
+    const KEY = 'dev-migrate-A-db-sync-snapshot';
+    const baseline = await store.get(KEY);
+    expect(baseline).toBeDefined();
+    await store.del(KEY);
+    localStorage.setItem(KEY, JSON.stringify(baseline));
+
+    await pair.A.engine.dbSyncCycle();
+
+    // The old copy was read, carried across, and cleaned up — so the upgrade
+    // costs nobody a full re-seed.
+    expect(await store.get(KEY)).toBeDefined();
+    expect(localStorage.getItem(KEY)).toBeNull();
   });
 });
