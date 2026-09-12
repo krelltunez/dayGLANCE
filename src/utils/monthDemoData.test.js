@@ -42,7 +42,11 @@ describe('generateDemoMonth', () => {
       const timed = list.filter((t) => !t.isAllDay).map((t) => { const [h, m] = t.startTime.split(':').map(Number); const s = h * 60 + m; return [s, s + t.duration]; });
       return timed.some((a, i) => timed.some((b, j) => i !== j && a[0] < b[1] && b[0] < a[1]));
     });
-    expect(overlaps.length).toBeGreaterThanOrEqual(4);
+    expect(overlaps.length).toBeGreaterThanOrEqual(3);
+    // Tasks carry colour, so they must not be drowned out by events.
+    const events = sept.tasks.filter((t) => t.imported && !t.isAllDay).length;
+    const tasks = sept.tasks.filter((t) => !t.imported && !t.isAllDay).length;
+    expect(tasks).toBeGreaterThanOrEqual(events * 0.9);
     expect(sept.tasks.filter((t) => t.isAllDay).length).toBeGreaterThanOrEqual(1);
     expect(sept.unscheduled.length).toBeGreaterThanOrEqual(5);
     expect(new Set(sept.tasks.filter((t) => t.color).map((t) => t.color)).size).toBeGreaterThanOrEqual(4);

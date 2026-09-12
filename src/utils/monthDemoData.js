@@ -4,10 +4,13 @@
 // items so it flows through the same adapters as real data. Dev use only:
 // nothing here is ever written to storage.
 //
-// Shape of the month: several events most weekdays with a mix of durations
-// and some genuine overlaps; a few tasks a day in varied colours; the odd
-// all-day item; a handful of deadlines; occasional weekend items; and a
-// couple of quiet stretches so sparse and busy days sit side by side.
+// Shape of the month: one to three events most weekdays with a mix of
+// durations and the occasional genuine overlap; one to three tasks a day in
+// varied colours, slightly more tasks than events overall so colour carries
+// identity; the odd all-day item; a handful of deadlines; occasional weekend
+// items; and a couple of quiet stretches so sparse and busy days sit side by
+// side. Overlaps chain onto an event at most once, so a three-deep pile-up
+// is rare and the lane cap is only hit on a genuinely stacked day.
 
 import { TASK_COLORS } from './colorUtils.js';
 import { daysInMonth } from './monthGrid.js';
@@ -61,17 +64,21 @@ export function generateDemoMonth(year, month, { today, seed } = {}) {
     if (quiet.has(d) && !weekend) continue;
     if (weekend && !chance(rnd, 0.3)) continue;
 
-    const eventCount = weekend ? 1 : 1 + Math.floor(rnd() * 4);          // 1..4 on weekdays
-    const taskCount = weekend ? Math.floor(rnd() * 2) : Math.floor(rnd() * 3); // 0..2
+    const eventCount = weekend ? 1 : 1 + Math.floor(rnd() * 3);          // 1..3 on weekdays
+    const taskCount = weekend ? Math.floor(rnd() * 2) : 1 + Math.floor(rnd() * 3); // 1..3
     const used = [];
     const slot = () => {
       const start = weekend ? 600 + 15 * Math.floor(rnd() * 24) : 480 + 15 * Math.floor(rnd() * 38); // 08:00..17:15
       return start;
     };
+    let chained = false;
     for (let i = 0; i < eventCount; i++) {
       const duration = pick(rnd, [30, 30, 45, 60, 60, 90, 120]);
-      // About a third of the time, overlap the previous event on purpose.
-      const start = used.length && chance(rnd, 0.35) ? used[used.length - 1] + 15 : slot();
+      // Now and then overlap the previous event on purpose, once per day at
+      // most, so overlaps are real but a three-deep pile-up stays rare.
+      const overlap = used.length > 0 && !chained && chance(rnd, 0.25);
+      if (overlap) chained = true;
+      const start = overlap ? used[used.length - 1] + 15 : slot();
       used.push(start);
       tasks.push({
         id: id('ev'), title: pick(rnd, EVENTS), date: ds, startTime: hhmm(start), duration,
