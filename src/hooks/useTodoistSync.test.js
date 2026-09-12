@@ -29,7 +29,10 @@ vi.mock('../todoist/client.js', async importOriginal => ({
   requestSync: (...args) => request(...args),
 }));
 const { default: useTodoistSync } = await import('./useTodoistSync.js');
-const { ACCOUNT_KEY, TOKEN_KEY, CONFIG_KEY, stateKey } = await import('../todoist/client.js');
+const { ACCOUNT_KEY, TOKEN_KEY, CONFIG_KEY, stateKey, cacheKey } = await import('../todoist/client.js');
+// The cache half lives in IndexedDB. jsdom has none, so the store falls back to
+// localStorage under its own key — which is what these assertions read.
+const storedCache = id => JSON.parse(localStorage.getItem(cacheKey(id)));
 const { normalizeSettings, mergeResponse, importTask } = await import('../todoist/core.js');
 
 const remote = patch => ({ id: 'task', content: 'Task', priority: 4, checked: false, is_deleted: false, ...patch });
@@ -93,8 +96,7 @@ describe('Todoist review wiring', () => {
     const h = harness({ inbox: [task] });
     request.mockResolvedValue(response([remote({ checked: true }), remote({ id: 'unlinked', checked: true })]));
     expect(await h.render().syncNow()).toBe(true);
-    const stored = JSON.parse(localStorage.getItem(stateKey('account')));
-    expect(Object.keys(stored.cache.items)).toEqual(['task']);
+    expect(Object.keys(storedCache('account').items)).toEqual(['task']);
     expect(h.state.inbox[0].completed).toBe(true);
     expect(h.setRecycleBin).not.toHaveBeenCalled();
   });
@@ -104,9 +106,8 @@ describe('Todoist review wiring', () => {
     request.mockResolvedValue(response([remote({ id: 'queued', checked: true })]));
     const h = harness();
     expect(await h.render().preview()).toBe(true);
-    const stored = JSON.parse(localStorage.getItem(stateKey('account')));
-    expect(stored.cache.items.queued.checked).toBe(true);
-    expect(stored.queue).toEqual(queue);
+    expect(storedCache('account').items.queued.checked).toBe(true);
+    expect(JSON.parse(localStorage.getItem(stateKey('account'))).queue).toEqual(queue);
   });
   it('disconnect removes credentials and an idle cache, but keeps imported tasks', async () => {
     localStorage.setItem(stateKey('account'), JSON.stringify({ cache: {}, queue: [] }));
@@ -136,7 +137,9 @@ describe('Todoist review wiring', () => {
     const h = harness();
     const api = h.render();
     const syncing = api.syncNow();
-    await Promise.resolve();
+    // Reading the persisted state is async now, so the request is a few
+    // microtasks further in than it used to be.
+    for (let i = 0; i < 8; i++) await Promise.resolve();
     expect(request).toHaveBeenCalledOnce();
     const disconnecting = api.disconnect();
     release(response([remote()]));

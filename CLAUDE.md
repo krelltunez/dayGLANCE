@@ -61,9 +61,15 @@ Rules that are load-bearing rather than stylistic, each covered by tests:
 - **Writeback is guarded and one-way.** Only ordinary non-recurring leaf tasks
   are closed, with durable command UUIDs written before the request so a retry
   cannot double-close. Nothing else is ever sent to Todoist.
-- **The cache is pruned before every persist.** It shares a ~5 MiB localStorage
-  budget with everything else, so inactive records that nothing references are
-  dropped (`pruneCache`).
+- **The cache is pruned before every persist.** Inactive records that nothing
+  references are dropped (`pruneCache`), so accumulated history stays bounded.
+- **Account state is split across two homes, on purpose.** The cache is bulk
+  derived data and lives in IndexedDB; the completion receipts, `lastSync` and
+  `report` stay in localStorage. That is not an oversight to tidy up: a command
+  UUID is written BEFORE its request goes out so a retry after a crash reuses it
+  and cannot close a task twice, and only a synchronous write is durable the
+  moment it returns. Use `readAccountState` / `writeAccountState`; do not reach
+  for `stateKey` directly.
 
 Strings live in the normal locale bundles under the `todoist` prefix, not in a
 feature-local namespace. Add new keys to `public/locales/*/translation.json`;

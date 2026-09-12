@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_SETTINGS, normalizeSettings, mergeResponse, matches, active, linked,
   reconcileLists, pruneCache, prepareOutbox, acknowledge, writebackReason } from '../todoist/core.js';
-import { requestSync, connectAccount, CONFIG_KEY, TOKEN_KEY, ACCOUNT_KEY, stateKey, readJSON, writeJSON, clearIdleCache } from '../todoist/client.js';
+import { requestSync, connectAccount, CONFIG_KEY, TOKEN_KEY, ACCOUNT_KEY, readJSON, writeJSON,
+  readAccountState, writeAccountState, clearIdleCache } from '../todoist/client.js';
 import { applyPlannedList } from '../utils/todoistReconciliation.js';
 import { isResetInProgress } from '../utils/resetAppData.js';
 
@@ -64,12 +65,12 @@ export default function useTodoistSync({ tasks, setTasks, unscheduledTasks, setU
     setStatus('syncing');
 
     try {
-      const clear = () => id ? clearIdleCache(localStorage, id) : 0;
+      const clear = async () => (id ? clearIdleCache(localStorage, id) : 0);
       // Wait for any in-flight writer, including another tab, before deciding
       // whether the account has receipts that must survive disconnect.
-      const remaining = navigator.locks?.request
-        ? await navigator.locks.request('dayglance-todoist-sync', clear)
-        : clear();
+      const remaining = await (navigator.locks?.request
+        ? navigator.locks.request('dayglance-todoist-sync', clear)
+        : clear());
       setPending(remaining);
       setStatus('idle');
     } catch (err) {
@@ -97,11 +98,11 @@ export default function useTodoistSync({ tasks, setTasks, unscheduledTasks, setU
     setStatus('syncing'); setError('');
     const execute = async () => {
       let id = initial.account;
-      let stored = id ? readJSON(localStorage, stateKey(id), {}) : {};
+      let stored = id ? await readAccountState(id) : {};
       let cache;
       if (mode === 'connect') {
         const connected = await connectAccount(secret,
-          accountId => readJSON(localStorage, stateKey(accountId), {}), { signal: controller.current.signal });
+          accountId => readAccountState(accountId), { signal: controller.current.signal });
         cache = connected.cache; stored = connected.stored;
       } else {
         cache = mergeResponse(stored.cache, await requestSync(secret, stored.cache?.cursor || '*', [],
@@ -123,7 +124,10 @@ export default function useTodoistSync({ tasks, setTasks, unscheduledTasks, setU
       if (stored.queue != null && !Array.isArray(stored.queue)) throw new Error('storageCorrupt');
       let queue = stored.queue || [];
       let currentReport = stored.report || null;
-      const persist = (lastSync = stored.lastSync) => {
+      // Async because the cache half now lands in IndexedDB. The receipts half is
+      // still written synchronously inside writeAccountState, so a durable UUID is
+      // on disk before its request goes out even if this promise never settles.
+      const persist = async (lastSync = stored.lastSync) => {
         check();
         const current = latest.current;
         const retainIds = new Set(
@@ -135,10 +139,10 @@ export default function useTodoistSync({ tasks, setTasks, unscheduledTasks, setU
           if (operation.accountId === id) retainIds.add(String(operation.args.id));
         }
         cache = pruneCache(cache, retainIds);
-        writeJSON(localStorage, stateKey(id), { cache, queue, lastSync, report: currentReport });
+        await writeAccountState(id, { cache, queue, lastSync, report: currentReport });
         setCatalog(cache); setPending(queue.length);
       };
-      persist();
+      await persist();
       if (mode === 'sync') {
         const current = latest.current;
         const all = [...current.tasks, ...current.unscheduledTasks];
@@ -148,7 +152,7 @@ export default function useTodoistSync({ tasks, setTasks, unscheduledTasks, setU
           if (!navigator.locks?.request) throw new Error('writeLockUnavailable');
           const prepared = prepareOutbox(queue, all, cache, current.settings, () => crypto.randomUUID());
           queue = prepared.queue;
-          persist(); // Durable UUIDs BEFORE the request: retry never generates a new close.
+          await persist(); // Durable UUIDs BEFORE the request: retry never generates a new close.
           if (prepared.send.length) {
             check();
             const written = await requestSync(secret, cache.cursor, prepared.send, { signal: controller.current.signal });
@@ -160,9 +164,9 @@ export default function useTodoistSync({ tasks, setTasks, unscheduledTasks, setU
             for (const op of prepared.send) {
               if (ack.succeeded.has(op.uuid)) cache.items[op.args.id] = { ...cache.items[op.args.id], checked: true };
             }
-            persist();
+            await persist();
             cache = mergeResponse(cache, written);
-            persist();
+            await persist();
             if (ack.failed.length) throw new Error('commandFailed');
           }
         }
@@ -180,7 +184,7 @@ export default function useTodoistSync({ tasks, setTasks, unscheduledTasks, setU
         currentState.setUnscheduledTasks(prev => valid() ? applyPlannedList(prev, currentState.unscheduledTasks, plan.unscheduledTasks) : prev);
         currentReport = plan.report;
         setReport(currentReport);
-        persist(now);
+        await persist(now);
         setLastSynced(now);
       } else { setLastSynced(stored.lastSync || null); setReport(currentReport); }
       setCatalog(cache); setPending(queue.length); setStatus('success');
