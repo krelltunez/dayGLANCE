@@ -69,10 +69,10 @@ describe('MonthGrid', () => {
     const html = render(await i18nFor('en'));
     const cellOf = (d) => { const i = html.indexOf(`data-month-cell="${d}"`); return html.slice(i, html.indexOf('data-month-cell=', i + 1) > 0 ? html.indexOf('data-month-cell=', i + 1) : undefined); };
     const busyCell = cellOf('2026-09-16');
-    expect(count(busyCell, /data-band=/g)).toBe(15);
+    expect(count(busyCell, /data-band=/g)).toBe(9);
+    expect(count(busyCell, /data-routine=/g)).toBe(6);
     expect(count(busyCell, /data-point=/g)).toBe(1);
     expect(count(busyCell, /data-allday-marker=/g)).toBe(2);
-    expect(busyCell).toContain('data-kind="routine"');
     expect(busyCell).toContain('data-kind="event"');
     expect(cellOf('2026-09-03')).toContain('data-allday-marker="deadline-9" data-kind="deadline"');
     expect(count(cellOf('2026-09-25'), /data-band=/g)).toBe(1);

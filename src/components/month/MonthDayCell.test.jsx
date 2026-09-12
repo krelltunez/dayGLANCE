@@ -35,19 +35,22 @@ describe('MonthDayCell', () => {
     ] });
     expect(html).toContain('data-band="e" data-kind="event"');
     expect(html).toContain('data-band="t" data-kind="task"');
-    expect(html).toContain('data-band="r" data-kind="routine"');
-    expect(count(html, /data-band=/g)).toBe(3);
+    // A routine is a rule at its start time, not a band, and takes no lane.
+    expect(html).toContain('data-routine="r"');
+    expect(html).not.toContain('data-band="r"');
+    expect(count(html, /data-band=/g)).toBe(2);
   });
 
   it('separates events from tasks by more than colour: events carry a left-edge cap, tasks their own colour', () => {
     const html = render({ items: [event('e', '09:00', 60), task('t', '10:00', 60, { color: 'bg-purple-500' })] });
     const eventMarkup = html.slice(html.indexOf('data-band="e"'), html.indexOf('data-band="t"'));
     expect(eventMarkup).toContain('data-event-edge');
-    expect(eventMarkup).toContain('fill-gray-400');
+    expect(eventMarkup).toContain('fill-gray-400 dark:fill-gray-500'); // a plain import: theme gray, lighter in light mode
     const taskMarkup = html.slice(html.indexOf('data-band="t"'));
     expect(taskMarkup).not.toContain('data-event-edge');
     expect(taskMarkup).toContain('fill="#a855f7"');
-    expect(taskMarkup).toContain('[fill-opacity:0.42]');
+    // Full strength, as everywhere else in the app: nothing tints.
+    expect(html).not.toContain('fill-opacity');
     expect(html).not.toContain('<pattern');
   });
 
@@ -63,6 +66,13 @@ describe('MonthDayCell', () => {
     expect(bandOf('native')).toContain('fill="#123456"');
     expect(bandOf('gray')).not.toContain('data-event-edge');
     expect(bandOf('ev')).toContain('data-event-edge');
+    // An event keeps its own colour when a feed or device calendar gave it one;
+    // the ICS default (bg-gray-600) is the one colour that maps to the theme gray.
+    const coloured = render({ items: [event('feed', '09:00', 30, { color: 'bg-pink-500' }), event('dev', '10:00', 30, { nativeCalendarColor: '#abcdef' }), event('ics', '11:00', 30, { color: 'bg-gray-600' })] });
+    expect(coloured).toContain('fill="#ec4899"');
+    expect(coloured).toContain('fill="#abcdef"');
+    expect(coloured).not.toContain('fill="#4b5563"');
+    expect(count(coloured, /fill-gray-400 dark:fill-gray-500/g)).toBe(1);
   });
 
   it('rounds every band, point and mark, and insets bands uniformly from the cell edges', () => {
@@ -81,7 +91,7 @@ describe('MonthDayCell', () => {
     expect(html).toContain('data-point="p" data-kind="task"');
     expect(html).not.toContain('data-band=');
     expect(html).toMatch(/data-point="p"[^>]*transform="rotate\(45 /);
-    expect(html).toMatch(/data-point="p"[^>]*fill-white dark:fill-gray-900/);
+    expect(html).toMatch(/data-point="p"[^>]*fill-white dark:fill-gray-800/);
   });
 
   it('renders all-day items, deadlines included, as markers in the gutter in a fixed order', () => {
@@ -150,10 +160,22 @@ describe('MonthDayCell', () => {
     expect(visibleText(html)).toBe('16');
   });
 
+  it('draws a timed routine as a thin teal rule at its start, behind the lanes', () => {
+    const html = render({ items: [
+      ...tagKind([{ id: 'lunch', name: 'Lunch', startTime: '12:00', duration: 60, isAllDay: false, completed: false }], 'routine'),
+      task('a', '12:00', 60),
+    ] });
+    // 12:00 in a 07:00–21:00 window is 5/14 of the timeline.
+    expect(html).toMatch(/data-routine="lunch" x1="0" x2="130" y1="([\d.]+)" y2="\1"[^>]*stroke-teal-600/);
+    expect(html.indexOf('data-routine="lunch"')).toBeLessThan(html.indexOf('data-band="a"'));
+    // The task still spans the full lane: the routine took no lane.
+    expect(html).toMatch(/data-band="a"[^>]*width="130"/);
+  });
+
   it('marks today with a soft rounded square and dims days outside the month', () => {
     const today = render({ items: [], isToday: true });
     expect(today).toContain('data-today="true"');
-    expect(today).toMatch(/data-month-cell-date[^>]*rounded-md[^>]*bg-blue-100 text-blue-800/);
+    expect(today).toMatch(/data-month-cell-date[^>]*rounded-md[^>]*bg-blue-100 text-blue-700/);
     expect(today).not.toContain('rounded-full');
     expect(today).not.toContain('bg-blue-600');
     expect(render({ items: [] })).not.toContain('data-today');

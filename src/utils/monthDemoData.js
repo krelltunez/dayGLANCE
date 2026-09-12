@@ -38,7 +38,9 @@ const dateStr = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).pad
  * @param {number} month  1..12
  * @param {{ today?: string, seed?: number }} [opts]  today: YYYY-MM-DD, so
  *   earlier days get some completed work; seed: override the month seed
- * @returns {{ tasks: object[], unscheduled: object[] }}  the app's own shapes
+ * @returns {{ tasks: object[], unscheduled: object[], routines: object[] }}  the
+ *   app's own shapes; routines are the day-scoped chips for `today` only, as
+ *   in the app, where a routine exists on no other day
  */
 export function generateDemoMonth(year, month, { today, seed } = {}) {
   const rnd = mulberry32(seed ?? year * 100 + month);
@@ -105,5 +107,16 @@ export function generateDemoMonth(year, month, { today, seed } = {}) {
     unscheduled.push({ id: id('dl'), title: pick(rnd, DEADLINES), deadline: dateStr(year, month, d), color: pick(rnd, TASK_COLORS).class, completed: false, createdAt: stamp });
   }
 
-  return { tasks, unscheduled };
+  // Routines: today's chips, the only day they exist on in the app.
+  const routines = today && today.startsWith(dateStr(year, month, 1).slice(0, 8))
+    ? [
+      { id: 'demo-ro-run', name: 'Morning run', startTime: '06:30', duration: 30 },
+      { id: 'demo-ro-breakfast', name: 'Breakfast', startTime: '07:30', duration: 30 },
+      { id: 'demo-ro-lunch', name: 'Lunch', startTime: '12:00', duration: 45 },
+      { id: 'demo-ro-walk', name: 'Walk', startTime: '15:30', duration: 15 },
+      { id: 'demo-ro-gym', name: 'Gym', startTime: '18:30', duration: 60 },
+    ]
+    : [];
+
+  return { tasks, unscheduled, routines };
 }
