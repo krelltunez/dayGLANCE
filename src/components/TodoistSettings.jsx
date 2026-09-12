@@ -6,13 +6,16 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { active } from '../todoist/core.js';
 import '../todoist/strings.js';
 
-export default function TodoistSettings({ variant }) {
+export default function TodoistSettings({ variant = 'section' }) {
   const { t: todoistText, i18n } = useTranslation('todoist');
   const { darkMode, borderClass, textPrimary, textSecondary, collapsedSettings, toggleSettingsSection } = useDayPlannerCtx();
   const { todoist: sync } = useSyncCtx();
   const [input, setInput] = useState('');
+  // Desktop owns its collapse state in the shared settings model. The mobile
+  // route is a full page and must not inherit the desktop section's visibility.
   const isPage = variant === 'page';
-  const expanded = isPage || collapsedSettings?.todoist === false;
+  const collapsed = collapsedSettings?.todoist !== false;
+  const showBody = isPage || !collapsed;
   const id = useId();
   if (!sync) return null;
   const { settings, updateSettings, catalog, selected, status, connected, report } = sync;
@@ -53,15 +56,15 @@ export default function TodoistSettings({ variant }) {
   const scanned = catalog ? Object.values(catalog.items || {}).filter(active).length : 0;
   const emptyReason = scanned === 0 ? 'noActive' : scope === 'today' || (scope === 'filtered' && settings.todayOnly) ? 'noToday' : 'noMatch';
   return <section aria-labelledby={`${id}-title`} className={`space-y-3 ${textPrimary}`}>
-    {isPage && <h3 id={`${id}-title`} className="font-medium">{todoistText('title')}</h3>}
-    {!isPage && <button type="button" onClick={() => toggleSettingsSection('todoist')} aria-expanded={expanded}
-      aria-controls={`${id}-body`} className="font-medium flex items-center gap-2 w-full text-left">
-      <CheckSquare size={16} className={textSecondary} />
-      <span id={`${id}-title`}>{todoistText('title')}</span>
-      {connected && <span className="w-2 h-2 rounded-full bg-green-500" aria-label={todoistText('connected')} />}
-      <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${expanded ? 'rotate-180' : ''}`} />
-    </button>}
-    <div id={`${id}-body`} hidden={!expanded} className="space-y-4">
+    {isPage ? <h3 id={`${id}-title`} className="font-medium">{todoistText('title')}</h3> :
+      <button type="button" onClick={() => toggleSettingsSection('todoist')} aria-expanded={!collapsed}
+        aria-controls={`${id}-body`} className="font-medium flex items-center gap-2 w-full text-left">
+        <CheckSquare size={16} className={textSecondary} />
+        <span id={`${id}-title`}>{todoistText('title')}</span>
+        {connected && <span className="w-2 h-2 rounded-full bg-green-500" aria-label={todoistText('connected')} />}
+        <ChevronDown size={16} className={`ml-auto flex-shrink-0 ${textSecondary} transition-transform ${collapsed ? '' : 'rotate-180'}`} />
+      </button>}
+    {showBody && <div id={`${id}-body`} className="space-y-4">
       <p className={`text-xs leading-relaxed ${textSecondary}`}>{todoistText('intro')}</p>
       {sync.multiUserEnabled && <p role="alert" className="text-sm text-amber-600 dark:text-amber-400">{todoistText('errors.multiUser')}</p>}
       {!connected ? <form className="space-y-2" onSubmit={async event => {
@@ -197,6 +200,6 @@ export default function TodoistSettings({ variant }) {
         <p className="mt-2 leading-relaxed">{todoistText('recurring')}</p>
         <p className="mt-2 leading-relaxed">{todoistText('safety')}</p>
       </details>
-    </div>
+    </div>}
   </section>;
 }
