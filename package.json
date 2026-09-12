@@ -81,6 +81,7 @@
     "electronmon": "^2.0.3",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "fake-indexeddb": "^6.2.5",
     "globals": "^17.7.0",
     "jimp": "^1.6.1",
     "postcss": "^8.4.27",

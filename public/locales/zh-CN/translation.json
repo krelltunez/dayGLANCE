@@ -1177,7 +1177,7 @@
     "matchIn": "在{{field}}中"
   },
   "storage": {
-    "database": "同步缓存：{{used}}，单独存储，不计入上方限额。",
+    "database": "数据库：{{used}}，单独存储，限额大得多。",
     "deletionTombstones": "删除标记",
     "habitLogs": "习惯日志",
     "importedCalendarEvents": "导入的日历事件",

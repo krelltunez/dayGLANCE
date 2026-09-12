@@ -41,7 +41,15 @@ export const formatBytes = (bytes) => {
 };
 
 /**
- * Bytes IndexedDB is using, or null where the browser will not break it out.
+ * Bytes IndexedDB is using ACROSS THE WHOLE ORIGIN, or null where the browser
+ * will not break it out.
+ *
+ * This is every database dayGLANCE has, not any one of them: auto-backups, the
+ * DB root key store, the intents outbox, the sync snapshot and the Todoist
+ * cache. On a real install auto-backups dominates it. There is no API for
+ * per-database sizes — `indexedDB.databases()` lists names only — so callers
+ * must describe this as total database usage and never attribute it to one
+ * feature.
  *
  * `navigator.storage.estimate()` reports usage across ALL storage buckets, and
  * for dayGLANCE that total is dominated by the service worker precache: roughly
