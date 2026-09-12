@@ -84,11 +84,33 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// ── TEMPORARY: month view step 2 dev harness ────────────────────────────────
+// Renders components/month/MonthCellDevHarness.jsx INSTEAD of the app when
+// asked for explicitly: `?month-cells` in the URL, or localStorage
+// 'day-planner-dev-month-cells' = '1' (the only route on a device build, where
+// the URL is fixed). Lazy, so the main bundle carries only this gate. Delete
+// this block and the harness file once the month grid (step 3) renders real
+// cells.
+const monthCellsDevRequested = (() => {
+  try {
+    return new URLSearchParams(window.location.search).has('month-cells')
+      || window.localStorage.getItem('day-planner-dev-month-cells') === '1'
+  } catch {
+    return false
+  }
+})()
+const MonthCellDevHarness = monthCellsDevRequested
+  ? React.lazy(() => import('./components/month/MonthCellDevHarness.jsx'))
+  : null
+// ── end TEMPORARY ────────────────────────────────────────────────────────────
+
 function mount() {
   ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
       <ErrorBoundary>
-        <App />
+        {MonthCellDevHarness
+          ? <React.Suspense fallback={null}><MonthCellDevHarness /></React.Suspense>
+          : <App />}
       </ErrorBoundary>
     </React.StrictMode>,
   )

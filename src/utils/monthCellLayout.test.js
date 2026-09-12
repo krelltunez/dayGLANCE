@@ -296,6 +296,15 @@ describe('layoutDayCell — item kinds and dates', () => {
     expect(dayCellItemKind({ id: 'x', kind: 'nonsense' })).toBe('task');
   });
 
+  it('keeps a deadline-tagged all-day item as its own kind', () => {
+    const out = layoutDayCell([
+      { id: 'dl-1', kind: 'deadline', isAllDay: true, completed: false, date: DATE },
+      task('a', '09:00', 60),
+    ], DATE, W, H);
+    expect(out.allDay).toEqual([{ id: 'dl-1', kind: 'deadline', completed: false }]);
+    expect(out.bands.map((b) => b.id)).toEqual(['a']);
+  });
+
   it('tags routines as bands like any other, marked by kind', () => {
     const routines = tagKind([{ id: 'r', name: 'Lunch', startTime: '12:00', duration: 60, isAllDay: false, completed: false }], 'routine');
     const out = layoutDayCell([task('a', '12:30', 30), ...routines], DATE, W, H);
