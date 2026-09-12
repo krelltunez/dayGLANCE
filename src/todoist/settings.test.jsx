@@ -42,7 +42,7 @@ describe('Todoist namespace and settings', () => {
     }
   });
   it('covers every literal call in this explicitly named namespace', () => {
-    const keys = new Set(flatten(en).map(([key]) => key));
+    const keys = new Set(flatten(en).map(([key, value]) => [key, value]).map(([key]) => key));
     for (const path of ['src/components/TodoistSettings.jsx', 'src/components/MobileSettingsPanel.jsx']) {
       for (const match of readFileSync(path, 'utf8').matchAll(/todoistText\(\s*['"]([^'"]+)['"]/g)) expect(keys.has(match[1]), match[1]).toBe(true);
     }
@@ -83,8 +83,11 @@ describe('Todoist namespace and settings', () => {
     expect(advanced).toBeDefined();
     const openingTag = advanced.match(/^<details\b[^>]*>/)[0];
     const classes = openingTag.match(/\bclass="([^"]*)"/)?.[1].split(/\s+/) || [];
-    expect(classes).toEqual(expect.arrayContaining(['border', 'border-gray-600']));
-    expect(classes.some(name => name.startsWith('bg-primary-'))).toBe(false);
+    // A shared theme may supply the neutral border directly or with dark:.
+    // Assert the visual utilities without coupling the test to that choice.
+    const utilities = classes.map(name => name.replace(/^dark:/, ''));
+    expect(utilities).toEqual(expect.arrayContaining(['border', 'border-gray-600']));
+    expect(utilities.some(name => name.startsWith('bg-primary-'))).toBe(false);
     expect(openingTag).not.toMatch(/\sopen(?:=|>|\s)/);
   });
   it('exposes only the three import modes', async () => {
