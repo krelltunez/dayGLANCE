@@ -1177,12 +1177,13 @@
     "matchIn": "dans {{field}}"
   },
   "storage": {
-    "todoistCache": "Cache de synchronisation Todoist",
+    "database": "Caches de synchronisation : {{used}}, stockés séparément et non comptés ci-dessus.",
     "deletionTombstones": "Marqueurs de suppression",
     "habitLogs": "Journaux des habitudes",
     "importedCalendarEvents": "Événements de calendrier importés",
     "title": "Répartition du stockage",
-    "total": "Total : {{used}} / env. 5 Mo ({{percent}} %)"
+    "todoistReceipts": "Opérations Todoist en attente",
+    "total": "Stockage local : {{used}} / ~5 Mo ({{percent}} %)"
   },
   "weeklyReview": {
     "durationMinutes": "{{minutes}} min",

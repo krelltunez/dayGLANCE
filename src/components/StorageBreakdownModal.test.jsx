@@ -37,11 +37,17 @@ describe('Todoist storage breakdown label', () => {
         </DayPlannerContext.Provider>
       </I18nextProvider>,
     );
-    expect(bundle.storage.todoistCache).toBeTypeOf('string');
-    expect(html.split(bundle.storage.todoistCache)).toHaveLength(3);
+    // The key now holds pending completion receipts, not the cache: the cache
+    // itself moved to IndexedDB.
+    expect(bundle.storage.todoistReceipts).toBeTypeOf('string');
+    expect(html.split(bundle.storage.todoistReceipts)).toHaveLength(3);
     expect(html).toContain(bundle.storage.title);
     expect(html).not.toContain('dg-todoist-state-v1');
     expect(html).not.toContain('todoist:storageCache');
     expect(html).toContain('unrelated-cache');
+    // The IndexedDB line stays absent until a real figure arrives, so a browser
+    // that will not break the estimate out shows nothing rather than a number
+    // that is mostly service worker precache.
+    expect(html).not.toContain(bundle.storage.database.split('{{')[0].trim());
   });
 });

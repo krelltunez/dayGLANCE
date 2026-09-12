@@ -1177,12 +1177,13 @@
     "matchIn": "in {{field}}"
   },
   "storage": {
-    "todoistCache": "Todoist sync cache",
+    "database": "Sync caches: {{used}}, stored separately and not counted above.",
     "deletionTombstones": "Deletion tombstones",
     "habitLogs": "Habit logs",
     "importedCalendarEvents": "Imported calendar events",
     "title": "Storage Breakdown",
-    "total": "Total: {{used}} / ~5 MB ({{percent}}%)"
+    "todoistReceipts": "Todoist pending operations",
+    "total": "Local storage: {{used}} / ~5 MB ({{percent}}%)"
   },
   "weeklyReview": {
     "durationMinutes": "{{minutes}}m",
