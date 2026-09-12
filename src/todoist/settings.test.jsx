@@ -75,6 +75,18 @@ describe('Todoist namespace and settings', () => {
     expect(filtered).toContain(en.advanced);
     expect(filtered).toContain(en.ruleHelp);
   });
+  it('uses the shared neutral border for advanced filters', async () => {
+    const html = await render(mockSync({ settings: normalizeSettings({ mode: 'filtered' }) }));
+    // Locate the rendered control by its label, not generated IDs or attribute order.
+    const sections = html.match(/<details\b[^>]*>\s*<summary\b[^>]*>[\s\S]*?<\/summary>/g) || [];
+    const advanced = sections.find(section => section.includes(en.advanced));
+    expect(advanced).toBeDefined();
+    const openingTag = advanced.match(/^<details\b[^>]*>/)[0];
+    const classes = openingTag.match(/\bclass="([^"]*)"/)?.[1].split(/\s+/) || [];
+    expect(classes).toEqual(expect.arrayContaining(['border', 'border-gray-600']));
+    expect(classes.some(name => name.startsWith('bg-primary-'))).toBe(false);
+    expect(openingTag).not.toMatch(/\sopen(?:=|>|\s)/);
+  });
   it('exposes only the three import modes', async () => {
     const html = await render(mockSync({ connected: true }));
     expect(html).not.toContain('value="mirror"');
