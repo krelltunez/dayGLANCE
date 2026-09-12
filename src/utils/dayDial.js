@@ -827,7 +827,7 @@ export const MOON_ALTITUDE_REFERENCE = 45;
  *          null when no stretch is long enough to hold one.
  */
 export function computeMoonBand(date, coords, sun) {
-  const none = { steps: [], peakMin: null, fraction: 0, waxing: true };
+  const none = { steps: [], glyphMin: null, fraction: 0, waxing: true };
   if (!coords || !sun) return none;
 
   const { fraction, waxing } = getMoonIllumination(
@@ -848,6 +848,10 @@ export function computeMoonBand(date, coords, sun) {
     steps.push({
       startMin: m,
       endMin: m + DAYLIGHT_STEP_MIN,
+      // Kept, not just consumed: the glyph goes where the moon rides highest,
+      // and that is a question about the steps rather than about the geometry
+      // that drew them.
+      alt,
       // Scaled by the lit fraction throughout, floor included: a new moon
       // overhead is still a dark sky, and drawing it as a band would say
       // otherwise.
@@ -860,42 +864,66 @@ export function computeMoonBand(date, coords, sun) {
 
 /** A stretch shorter than this is left to speak for itself, unglyphed. */
 export const MOON_GLYPH_MIN_RUN = 60;
+/**
+ * How far the glyph is kept off a stretch's ends. The disc is radius 9 at
+ * r=292, which is about seven minutes of arc at its widest, plus room to read
+ * as sitting IN the band rather than falling off it.
+ */
+export const MOON_GLYPH_EDGE_PAD_MIN = 12;
 
 /**
- * The band's steps grouped into unbroken stretches. One local day routinely
- * holds two — the moon sets before dawn and is back before the next midnight
- * — which is the case that rules out deriving the band from a single
- * moonrise/moonset pair.
+ * The band's steps grouped into unbroken stretches, each carrying the minute
+ * the moon rides highest within it.
  *
- * @param steps Consecutive {startMin, endMin} steps in day order.
- * @returns Array of {startMin, endMin}, one per unbroken stretch.
+ * One local day routinely holds two stretches — the moon sets before dawn and
+ * is back before the next midnight — which is the case that rules out
+ * deriving the band from a single moonrise/moonset pair.
+ *
+ * @param steps Consecutive {startMin, endMin, alt} steps in day order.
+ * @returns Array of {startMin, endMin, peakMin, peakAlt}, one per stretch.
  */
 export function moonStretches(steps) {
   const runs = [];
   for (const step of steps) {
     const last = runs[runs.length - 1];
-    if (last && last.endMin === step.startMin) last.endMin = step.endMin;
-    else runs.push({ startMin: step.startMin, endMin: step.endMin });
+    const mid = (step.startMin + step.endMin) / 2;
+    const alt = Number.isFinite(step.alt) ? step.alt : -Infinity;
+    if (last && last.endMin === step.startMin) {
+      last.endMin = step.endMin;
+      if (alt > last.peakAlt) { last.peakAlt = alt; last.peakMin = mid; }
+    } else {
+      runs.push({ startMin: step.startMin, endMin: step.endMin, peakMin: mid, peakAlt: alt });
+    }
   }
   return runs;
 }
 
 /**
- * Where the phase glyph goes: the middle of the longest unbroken stretch the
- * band draws.
+ * Where the phase glyph goes: the moon's apex — the minute it rides highest —
+ * in whichever drawn stretch it climbs highest in.
  *
- * Not the moon's highest minute, which is the more interesting datum but the
- * wrong one to mark here. Clipping to the sun-down hours routinely cuts a
- * stretch off while the moon is still climbing, so "highest" lands flush on
- * the band's edge — against the sunrise hairline, and describing a peak the
- * band does not actually contain.
+ * The midpoint of the longest stretch was the first rule here, and reading
+ * the face showed why it was wrong: the middle of a span is not a fact about
+ * the moon, so the glyph wandered left or right of where the moon actually
+ * was and jumped between the two as the stretches changed shape night to
+ * night. The apex is a real moment and sits where the eye expects it.
+ *
+ * The reason the midpoint was chosen in the first place still stands, so it
+ * is handled rather than avoided: clipping to the sun-down hours routinely
+ * cuts a stretch off while the moon is still climbing, which puts the highest
+ * DRAWN minute flush against the sunrise hairline. Held off the ends by
+ * MOON_GLYPH_EDGE_PAD_MIN, the glyph stays inside the band it belongs to and
+ * still reads as "highest just as the sun came up", which is what happened.
  */
 function moonGlyphMinute(steps) {
-  const best = moonStretches(steps).reduce(
-    (a, b) => (a && a.endMin - a.startMin >= b.endMin - b.startMin ? a : b), null);
-  return best && best.endMin - best.startMin >= MOON_GLYPH_MIN_RUN
-    ? (best.startMin + best.endMin) / 2
-    : null;
+  const best = moonStretches(steps)
+    .filter((run) => run.endMin - run.startMin >= MOON_GLYPH_MIN_RUN)
+    .reduce((a, b) => (a && a.peakAlt >= b.peakAlt ? a : b), null);
+  if (!best) return null;
+  return Math.min(
+    Math.max(best.peakMin, best.startMin + MOON_GLYPH_EDGE_PAD_MIN),
+    best.endMin - MOON_GLYPH_EDGE_PAD_MIN,
+  );
 }
 
 /** Is the sun above the horizon at this minute? Reads getSunTimes' result. */

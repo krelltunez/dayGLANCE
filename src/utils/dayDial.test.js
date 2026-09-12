@@ -28,6 +28,7 @@ import {
   normaliseComplicationSlots,
   COMPLICATION_SLOT_COUNT,
   moonStretches,
+  MOON_GLYPH_EDGE_PAD_MIN,
   precipArcSegments,
   precipRuns,
   stepDialSelection,
@@ -619,8 +620,12 @@ describe('computeMoonBand', () => {
 
   it('draws nothing without a location', () => {
     const date = new Date(2026, 6, 2, 12);
-    expect(computeMoonBand(date, null, sunFor(date)).steps).toEqual([]);
-    expect(computeMoonBand(date, DEN, null).steps).toEqual([]);
+    for (const band of [computeMoonBand(date, null, sunFor(date)), computeMoonBand(date, DEN, null)]) {
+      expect(band.steps).toEqual([]);
+      // The same shape a drawn band has, so a caller reading glyphMin does
+      // not get undefined on the one path that returns early.
+      expect(band.glyphMin).toBeNull();
+    }
   });
 
   it('never draws while the sun is up', () => {
@@ -647,20 +652,33 @@ describe('computeMoonBand', () => {
     // date for it — whether any given date splits depends on where the
     // device's midnight falls, so the astronomy is covered in lunar.test.js
     // and this covers the thing that could actually break.
-    const steps = [
-      { startMin: 0, endMin: 4 }, { startMin: 4, endMin: 8 },
-      { startMin: 1400, endMin: 1404 }, { startMin: 1404, endMin: 1440 },
-    ];
-    expect(moonStretches(steps)).toEqual([
+    const runs = moonStretches([
+      { startMin: 0, endMin: 4, alt: 20 }, { startMin: 4, endMin: 8, alt: 18 },
+      { startMin: 1400, endMin: 1404, alt: 5 }, { startMin: 1404, endMin: 1440, alt: 9 },
+    ]);
+    expect(runs.map(({ startMin, endMin }) => ({ startMin, endMin }))).toEqual([
       { startMin: 0, endMin: 8 },
       { startMin: 1400, endMin: 1440 },
     ]);
   });
 
+  it('carries each stretch its own highest minute', () => {
+    // The glyph rides the apex, so a stretch has to know where its apex is.
+    const [run] = moonStretches([
+      { startMin: 0, endMin: 4, alt: 10 },
+      { startMin: 4, endMin: 8, alt: 31 },
+      { startMin: 8, endMin: 12, alt: 22 },
+    ]);
+    expect(run.peakMin).toBe(6);   // the middle of the 31° step
+    expect(run.peakAlt).toBe(31);
+  });
+
   it('groups an unbroken night into one stretch, and nothing into none', () => {
-    expect(moonStretches([
-      { startMin: 120, endMin: 124 }, { startMin: 124, endMin: 128 },
-    ])).toEqual([{ startMin: 120, endMin: 128 }]);
+    const runs = moonStretches([
+      { startMin: 120, endMin: 124, alt: 4 }, { startMin: 124, endMin: 128, alt: 6 },
+    ]);
+    expect(runs.map(({ startMin, endMin }) => ({ startMin, endMin })))
+      .toEqual([{ startMin: 120, endMin: 128 }]);
     expect(moonStretches([])).toEqual([]);
   });
 
@@ -682,16 +700,50 @@ describe('computeMoonBand', () => {
     expect(brightest).toBeLessThan(DAYLIGHT_PEAK);
   });
 
-  it('puts the glyph inside the longest stretch, never on its edge', () => {
-    for (const d of [1, 2, 6, 10, 20]) {
+  it('puts the glyph at the moon\'s apex', () => {
+    // The midpoint of a span is not a fact about the moon; the apex is. Where
+    // the drawn band actually contains the transit, the glyph should land on
+    // it rather than near it.
+    const date = new Date(2026, 6, 2, 12);
+    const { steps, glyphMin } = band(date);
+    const peak = steps.reduce((a, b) => (a && a.alt >= b.alt ? a : b), null);
+    if (!peak || glyphMin == null) return;
+    const peakMin = (peak.startMin + peak.endMin) / 2;
+    const run = moonStretches(steps).find((r) => peakMin >= r.startMin && peakMin <= r.endMin);
+    // Only when the apex is far enough inside its stretch to be drawn there;
+    // a clipped stretch is the next test.
+    if (peakMin - run.startMin >= MOON_GLYPH_EDGE_PAD_MIN
+      && run.endMin - peakMin >= MOON_GLYPH_EDGE_PAD_MIN) {
+      expect(glyphMin).toBe(peakMin);
+    }
+  });
+
+  it('holds the glyph off the ends when sunrise cuts the climb short', () => {
+    // Clipping to the sun-down hours routinely ends a stretch while the moon
+    // is still rising, which would otherwise put the glyph flush against the
+    // sunrise hairline.
+    for (const d of [1, 2, 6, 10, 16, 20, 25]) {
       const { steps, glyphMin } = band(new Date(2026, 6, d, 12));
       if (glyphMin == null) continue;
-      const covering = steps.find((s) => glyphMin >= s.startMin && glyphMin <= s.endMin);
-      expect(covering).toBeTruthy();
-      // Comfortably off both ends of the drawn span.
-      expect(glyphMin).toBeGreaterThan(Math.min(...steps.map((s) => s.startMin)) + 20);
-      expect(glyphMin).toBeLessThan(Math.max(...steps.map((s) => s.endMin)) - 20);
+      const run = moonStretches(steps).find((r) => glyphMin >= r.startMin && glyphMin <= r.endMin);
+      expect(run).toBeTruthy();
+      expect(glyphMin - run.startMin).toBeGreaterThanOrEqual(MOON_GLYPH_EDGE_PAD_MIN);
+      expect(run.endMin - glyphMin).toBeGreaterThanOrEqual(MOON_GLYPH_EDGE_PAD_MIN);
     }
+  });
+
+  it('prefers the stretch the moon climbs highest in, not the longest', () => {
+    // A night split either side of midnight can put a long, low stretch
+    // against a shorter one holding the transit. The glyph follows the moon.
+    const steps = [
+      ...Array.from({ length: 30 }, (_, i) => ({ startMin: i * 4, endMin: i * 4 + 4, alt: 8 })),
+      ...Array.from({ length: 20 }, (_, i) => ({ startMin: 1200 + i * 4, endMin: 1204 + i * 4, alt: 40 })),
+    ];
+    const runs = moonStretches(steps);
+    expect(runs[0].endMin - runs[0].startMin).toBeGreaterThan(runs[1].endMin - runs[1].startMin);
+    // The rule itself, read off the stretches the same way the band does.
+    const best = runs.reduce((a, b) => (a.peakAlt >= b.peakAlt ? a : b));
+    expect(best.startMin).toBe(1200);
   });
 
   it('leaves a sliver of a stretch unglyphed', () => {
