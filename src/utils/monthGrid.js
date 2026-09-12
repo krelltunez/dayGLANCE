@@ -55,11 +55,13 @@ export function monthGridDates(year, month, weekStartDay = 0) {
 
 /**
  * Cell size for a measured grid area: seven columns across the width, the
- * month's rows down the height, with the wide-display cap and the minimum
- * row height from the constants applied.
+ * month's rows down the height. Cells never grow wider than they are tall
+ * nor past the absolute cap (the timeline encoding assumes a portrait cell,
+ * so on a wide display the grid stops stretching and centres), and rows
+ * never shrink below the minimum height (the area scrolls instead).
  */
-export function monthCellSize(areaWidth, areaHeight, rows, { maxCellAspect, minCellHeight, gutterWidth, gutterMinCellWidth }) {
-  const height = Math.max(minCellHeight, Math.floor(areaHeight / Math.max(1, rows)));
-  const width = Math.max(1, Math.min(Math.floor(areaWidth / 7), Math.floor(height * maxCellAspect)));
-  return { width, height, gutterWidth: width >= gutterMinCellWidth ? gutterWidth : 0, scrolls: height * rows > areaHeight };
+export function monthCellSize(areaWidth, areaHeight, rows, { cell }) {
+  const height = Math.max(cell.minHeight, Math.floor(areaHeight / Math.max(1, rows)));
+  const width = Math.max(1, Math.min(Math.floor(areaWidth / 7), Math.floor(height * cell.maxAspect), cell.maxWidth));
+  return { width, height, scrolls: height * rows > areaHeight };
 }

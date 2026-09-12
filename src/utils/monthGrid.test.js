@@ -115,18 +115,19 @@ describe('monthGridDates', () => {
 
 describe('monthCellSize', () => {
   const C = MONTH_CELL_LAYOUT;
-  it('divides the area into seven columns and the month rows, with a gutter once wide enough', () => {
-    expect(monthCellSize(1120, 700, 5, C)).toEqual({ width: 160, height: 140, gutterWidth: C.gutterWidth, scrolls: false });
-    expect(monthCellSize(371, 480, 5, C)).toEqual({ width: 53, height: 96, gutterWidth: 0, scrolls: false });
+  it('divides the area into seven columns and the month rows, never wider than tall', () => {
+    expect(monthCellSize(1120, 700, 5, C)).toEqual({ width: 140, height: 140, scrolls: false });
+    expect(monthCellSize(371, 480, 5, C)).toEqual({ width: 53, height: 96, scrolls: false });
   });
   it('caps cell width on a wide display instead of stretching', () => {
-    const s = monthCellSize(2560, 700, 5, C);
-    expect(s.height).toBe(140);
-    expect(s.width).toBe(Math.floor(140 * C.maxCellAspect));
+    // 2560px wide, 250px rows: the old 1.25 aspect allowed 312px; now the
+    // absolute cap wins and the grid centres at 7 × 200.
+    expect(monthCellSize(2560, 1250, 5, C)).toEqual({ width: C.cell.maxWidth, height: 250, scrolls: false });
+    expect(monthCellSize(2560, 700, 5, C).width).toBe(140);
   });
   it('keeps six-row months usable by holding a minimum height and scrolling', () => {
     const s = monthCellSize(1120, 300, 6, C);
-    expect(s.height).toBe(C.minCellHeight);
+    expect(s.height).toBe(C.cell.minHeight);
     expect(s.scrolls).toBe(true);
     expect(monthCellSize(1120, 900, 6, C).scrolls).toBe(false);
   });

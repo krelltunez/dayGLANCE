@@ -120,7 +120,6 @@ export default function MonthGrid({
                     items={items}
                     width={cell.width}
                     height={cell.height}
-                    gutterWidth={cell.gutterWidth}
                     isToday={isToday}
                     inMonth={inMonth}
                     label={monthCellLabel(dateStr, items, isToday, t, language)}
