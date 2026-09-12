@@ -196,7 +196,7 @@ import DesktopWelcomeModal from './components/DesktopWelcomeModal.jsx';
 const MONTH_GRID_DEV = (() => {
   try {
     return new URLSearchParams(window.location.search).has('month-grid')
-      || window.localStorage.getItem('day-planner-dev-month-grid') === '1';
+      || ['1', 'demo'].includes(window.localStorage.getItem('day-planner-dev-month-grid'));
   } catch {
     return false;
   }

@@ -3,8 +3,8 @@
 // │ Not linked from the app or the view cycler. Reach it with `?month-grid`  │
 // │ on the web or the Electron dev server, or on a device by setting         │
 // │ localStorage 'day-planner-dev-month-grid' to '1' (chrome://inspect on a │
-// │ debug Android build) and reloading. `?month-grid=demo` opens with the    │
-// │ generated demo month instead of real data; the header button toggles.   │
+// │ debug Android build) and reloading. `?month-grid=demo`, or the flag set  │
+// │ to 'demo', opens with the generated month; the header button toggles.   │
 // │ Delete this file and the gate in src/App.jsx once the grid is routed     │
 // │ through the view cycler.                                                 │
 // └──────────────────────────────────────────────────────────────────────────┘
@@ -56,22 +56,38 @@ function useDemoItemsForDate(year, month) {
 
 export default function MonthGridDevOverlay() {
   const { darkMode, weekStartDay, selectedDate } = useDayPlannerCtx();
+  // On macOS Electron (titleBarStyle hiddenInset) the top 28px is still the
+  // window's title bar: transparent, but clicks there never reach the page.
+  // DesktopLayout pads its chrome by the same amount (titlebarH).
+  const isElectronMac = typeof window !== 'undefined' && window.electronAPI?.isElectron && window.electronAPI?.platform === 'darwin';
+  const titlebarH = isElectronMac ? 28 : 0;
   const realItemsForDate = useMonthItemsForDate();
   const [shown, setShown] = useState(() => monthOf(selectedDate instanceof Date ? selectedDate : new Date()));
-  const [demo, setDemo] = useState(() => { try { return new URLSearchParams(window.location.search).get('month-grid') === 'demo'; } catch { return false; } });
+  // Demo month on: `?month-grid=demo` in the URL, or the device-build flag
+  // 'day-planner-dev-month-grid' set to 'demo' instead of '1' (the header
+  // button toggles it either way).
+  const [demo, setDemo] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('month-grid') === 'demo'
+        || window.localStorage.getItem('day-planner-dev-month-grid') === 'demo';
+    } catch { return false; }
+  });
   const demoItemsForDate = useDemoItemsForDate(shown.year, shown.month);
   const itemsForDate = demo ? demoItemsForDate : realItemsForDate;
   const [hidden, setHidden] = useState(false);
   if (hidden) return null;
   return (
     <div className={`fixed inset-0 z-[80] flex flex-col ${darkMode ? 'bg-gray-950 text-gray-100' : 'bg-stone-50 text-stone-900'}`}
-      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + ${titlebarH}px)`, paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className="flex items-center gap-3 px-3 py-1 text-[11px] text-stone-500 dark:text-gray-400 shrink-0">
         <span className="font-semibold">Month grid (TEMPORARY dev overlay, real data)</span>
         <span className="hidden sm:inline">tap a cell: logs the date until the day sheet exists</span>
+        <span data-month-grid-source={demo ? 'demo' : 'real'} className={demo ? 'font-semibold text-amber-700 dark:text-amber-300' : ''}>
+          {demo ? 'showing: generated demo month' : 'showing: your data'}
+        </span>
         <button type="button" onClick={() => setDemo((v) => !v)} data-month-grid-demo={demo ? 'on' : 'off'}
-          className={`ml-auto px-2 py-0.5 rounded border border-current ${demo ? 'bg-amber-200 text-amber-900 dark:bg-amber-500/30 dark:text-amber-100' : ''}`}>
-          {demo ? 'demo month' : 'real data'}
+          className="ml-auto px-2 py-0.5 rounded border border-current bg-amber-200 text-amber-900 dark:bg-amber-500/30 dark:text-amber-100">
+          {demo ? 'Show my data' : 'Show demo month'}
         </button>
         <button type="button" onClick={() => setHidden(true)} aria-label="Close" className="p-1 rounded border border-current">
           <X size={14} />
