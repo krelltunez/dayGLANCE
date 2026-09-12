@@ -185,6 +185,23 @@ import FrameScheduleModal from './components/FrameScheduleModal.jsx';
 import FramesModal from './components/FramesModal.jsx';
 import MobileWelcomeModal from './components/MobileWelcomeModal.jsx';
 import DesktopWelcomeModal from './components/DesktopWelcomeModal.jsx';
+// ── TEMPORARY: month view step 3 dev overlay ────────────────────────────────
+// Renders components/month/MonthGridDevOverlay.jsx over the app on real data
+// when asked for explicitly: `?month-grid` in the URL, or localStorage
+// 'day-planner-dev-month-grid' = '1' (the only route on a device build,
+// where the URL is fixed). Lazy, so the bundle carries only this gate. Delete
+// this block, the render below, and the overlay file once the month grid is
+// routed through the view cycler.
+const MONTH_GRID_DEV = (() => {
+  try {
+    return new URLSearchParams(window.location.search).has('month-grid')
+      || window.localStorage.getItem('day-planner-dev-month-grid') === '1';
+  } catch {
+    return false;
+  }
+})();
+const MonthGridDevOverlay = MONTH_GRID_DEV ? React.lazy(() => import('./components/month/MonthGridDevOverlay.jsx')) : null;
+// ── end TEMPORARY ────────────────────────────────────────────────────────────
 import SpotlightModal from './components/SpotlightModal.jsx';
 import BucketListModal from './components/BucketListModal.jsx';
 import HabitModal from './components/HabitModal.jsx';
@@ -10474,6 +10491,11 @@ const DayPlanner = () => {
       {/* Welcome Modal for New Users */}
       {showWelcome && isMobile && <MobileWelcomeModal />}
       {showWelcome && !isMobile && <DesktopWelcomeModal />}
+
+      {/* TEMPORARY: month view step 3 dev overlay (see MONTH_GRID_DEV above). */}
+      {MonthGridDevOverlay && (
+        <React.Suspense fallback={null}><MonthGridDevOverlay /></React.Suspense>
+      )}
 
       {/* Voice Input Modal (Phase 1) */}
       <VoiceInputModal />

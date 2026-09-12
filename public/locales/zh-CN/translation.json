@@ -1325,6 +1325,20 @@
     "emptySelectedWithChips": "点击日期分组中的流程，将其添加到今日流程",
     "emptySelectedNoChips": "使用 + 按钮向日期分组添加流程，然后点击流程将其选入今天"
   },
+  "month": {
+    "previousMonth": "上个月",
+    "nextMonth": "下个月",
+    "today": "今天",
+    "nothingScheduled": "没有安排",
+    "events_one": "{{count}} 个日程",
+    "events_other": "{{count}} 个日程",
+    "tasks_one": "{{count}} 个任务",
+    "tasks_other": "{{count}} 个任务",
+    "routines_one": "{{count}} 个例行事项",
+    "routines_other": "{{count}} 个例行事项",
+    "deadlines_one": "{{count}} 个截止日期",
+    "deadlines_other": "{{count}} 个截止日期"
+  },
   "dial": {
     "timeLeft": "剩余 {{left}}",
     "startsIn": "{{in}} 后开始",

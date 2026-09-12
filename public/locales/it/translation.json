@@ -1325,6 +1325,20 @@
     "emptySelectedWithChips": "Fai clic sulle routine nelle sezioni dei giorni per aggiungerle alla routine di oggi",
     "emptySelectedNoChips": "Aggiungi routine alle sezioni dei giorni con il pulsante +, quindi fai clic per selezionarle per oggi"
   },
+  "month": {
+    "previousMonth": "Mese precedente",
+    "nextMonth": "Mese successivo",
+    "today": "Oggi",
+    "nothingScheduled": "Niente in programma",
+    "events_one": "{{count}} evento",
+    "events_other": "{{count}} eventi",
+    "tasks_one": "{{count}} attività",
+    "tasks_other": "{{count}} attività",
+    "routines_one": "{{count}} routine",
+    "routines_other": "{{count}} routine",
+    "deadlines_one": "{{count}} scadenza",
+    "deadlines_other": "{{count}} scadenze"
+  },
   "dial": {
     "timeLeft": "Restano {{left}}",
     "startsIn": "tra {{in}}",
