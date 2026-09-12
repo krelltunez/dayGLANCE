@@ -1325,6 +1325,20 @@
     "emptySelectedWithChips": "Klicke in den Tagesbereichen auf Routinen, um sie zur heutigen Routine hinzuzufügen",
     "emptySelectedNoChips": "Füge den Tagesbereichen mit der Schaltfläche + Routinen hinzu und klicke sie dann an, um sie für heute auszuwählen"
   },
+  "month": {
+    "previousMonth": "Vorheriger Monat",
+    "nextMonth": "Nächster Monat",
+    "today": "Heute",
+    "nothingScheduled": "Nichts geplant",
+    "events_one": "{{count}} Termin",
+    "events_other": "{{count}} Termine",
+    "tasks_one": "{{count}} Aufgabe",
+    "tasks_other": "{{count}} Aufgaben",
+    "routines_one": "{{count}} Routine",
+    "routines_other": "{{count}} Routinen",
+    "deadlines_one": "{{count}} Frist",
+    "deadlines_other": "{{count}} Fristen"
+  },
   "dial": {
     "timeLeft": "{{left}} übrig",
     "startsIn": "in {{in}}",

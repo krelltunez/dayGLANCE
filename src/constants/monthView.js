@@ -55,6 +55,25 @@ export const MONTH_CELL_LAYOUT = Object.freeze({
   /** All-day marker edge and the gap between stacked markers, in px. */
   gutterMarkerSize: 6,
   gutterMarkerGap: 2,
+
+  /**
+   * Grid rules. A cell gets the all-day gutter once it is at least
+   * gutterMinCellWidth wide: with the 14px gutter that leaves 82px of usable
+   * width, so three lanes are still ~26px each. A 390px phone gives 53px
+   * cells (no gutter); a 768px tablet gives ~106px (gutter).
+   */
+  gutterWidth: 14,
+  gutterMinCellWidth: 96,
+
+  /**
+   * The timeline encoding assumes cells taller than they are wide, so on a
+   * wide display cells stop stretching at maxCellAspect × their height and
+   * the grid centres, leaving the spare width free (the day sheet can dock
+   * there on desktop). Rows never shrink below minCellHeight; a six-row
+   * month on a short viewport scrolls instead.
+   */
+  maxCellAspect: 1.25,
+  minCellHeight: 64,
 });
 
 export const MONTH_CELL_HOUR_WINDOW = MONTH_CELL_LAYOUT.window;

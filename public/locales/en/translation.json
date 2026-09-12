@@ -1325,6 +1325,20 @@
     "emptySelectedWithChips": "Click routines in the day sections to add them to today's routine",
     "emptySelectedNoChips": "Add routines to the day sections with the + button, then click them to select them for today"
   },
+  "month": {
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "today": "Today",
+    "nothingScheduled": "Nothing scheduled",
+    "events_one": "{{count}} event",
+    "events_other": "{{count}} events",
+    "tasks_one": "{{count}} task",
+    "tasks_other": "{{count}} tasks",
+    "routines_one": "{{count}} routine",
+    "routines_other": "{{count}} routines",
+    "deadlines_one": "{{count}} deadline",
+    "deadlines_other": "{{count}} deadlines"
+  },
   "dial": {
     "timeLeft": "{{left}} left",
     "startsIn": "in {{in}}",
