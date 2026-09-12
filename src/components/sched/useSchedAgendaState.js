@@ -14,8 +14,18 @@ const PRESETS_KEY = 'day-planner-sched-filter-presets';
  * SchedDashboard): the rolling day window anchored on selectedDate,
  * filter state, filter options derived from the visible window, the
  * empty-days preference, and the add-task-on-day helper.
+ *
+ * @param {{ dateRange?: { from: string, to: string } }} [options]
+ *   dateRange (YYYY-MM-DD, inclusive) scopes the agenda to exactly those
+ *   days instead of the rolling window: the month view's day sheet. A
+ *   scoped agenda always shows its days (even empty ones), has no overdue
+ *   section and no "show more days". Callers that pass nothing get the
+ *   rolling window exactly as before.
  */
-export default function useSchedAgendaState() {
+export default function useSchedAgendaState({ dateRange } = {}) {
+  const scoped = !!(dateRange && dateRange.from && dateRange.to);
+  const scopeFrom = scoped ? dateRange.from : null;
+  const scopeTo = scoped ? dateRange.to : null;
   const {
     selectedDate, tasks, unscheduledTasks, expandedRecurringTasks,
     getTasksForDate, getDeadlineTasksForDate,
@@ -103,12 +113,26 @@ export default function useSchedAgendaState() {
 
   const showMoreDays = () => setDaysShown(n => n + LOAD_MORE_DAYS);
 
-  // Unfiltered agenda window (day → tasks), all-day first then by start time.
-  const rawDays = useMemo(() => {
+  // The dates the agenda covers: the scoped range, or the rolling window.
+  const windowDates = useMemo(() => {
     const out = [];
+    if (scoped) {
+      const end = new Date(`${scopeTo}T12:00:00`);
+      for (const d = new Date(`${scopeFrom}T12:00:00`); d <= end && out.length < 366; d.setDate(d.getDate() + 1)) out.push(new Date(d));
+      return out;
+    }
     for (let i = 0; i < daysShown; i++) {
       const date = new Date(selectedDate);
       date.setDate(date.getDate() + i);
+      out.push(date);
+    }
+    return out;
+  }, [scoped, scopeFrom, scopeTo, selectedDate, daysShown]);
+
+  // Unfiltered agenda window (day → tasks), all-day first then by start time.
+  const rawDays = useMemo(() => {
+    const out = [];
+    for (const date of windowDates) {
       // Second arg opts out of the app-wide tag filter — SCHED has its own
       // filter panel, and the invisible global filter made freshly-tagged
       // tasks vanish from the agenda.
@@ -125,7 +149,7 @@ export default function useSchedAgendaState() {
     // getTasksForDate reads tasks + expandedRecurringTasks internally;
     // getDeadlineTasksForDate reads unscheduledTasks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, daysShown, tasks, unscheduledTasks, expandedRecurringTasks]);
+  }, [windowDates, tasks, unscheduledTasks, expandedRecurringTasks]);
 
   // Filter options offered in the UI come from the visible window.
   const { availableColors, availableTags } = useMemo(() => {
@@ -157,7 +181,7 @@ export default function useSchedAgendaState() {
   const todayHasRoutines = routinesEnabled && todayRoutines.length > 0;
   const agendaTodayStr = dateToString(new Date());
   const visibleDays = days.filter(d =>
-    showEmptyDays || d.tasks.length > 0 || d.deadlineTasks.length > 0 ||
+    scoped || showEmptyDays || d.tasks.length > 0 || d.deadlineTasks.length > 0 ||
     (d.dateStr === agendaTodayStr && todayHasRoutines));
 
   // Incomplete tasks scheduled before today AND before the visible window, so
@@ -165,6 +189,7 @@ export default function useSchedAgendaState() {
   // events just passed (nothing actionable), and recurring occurrences are
   // generated per-day rather than lingering in the tasks list.
   const overdueTasks = useMemo(() => {
+    if (scoped) return [];
     const todayStr = dateToString(new Date());
     const windowStartStr = dateToString(selectedDate);
     return tasks
@@ -174,7 +199,7 @@ export default function useSchedAgendaState() {
         isVisibleForUser(task))
       .filter(task => taskMatchesSchedFilters(task, filters))
       .sort((a, b) => a.date.localeCompare(b.date) || (a.startTime || '').localeCompare(b.startTime || ''));
-  }, [tasks, selectedDate, filters, isVisibleForUser]);
+  }, [scoped, tasks, selectedDate, filters, isVisibleForUser]);
 
   // Moves an overdue/agenda task to today's next open quarter-hour slot.
   const rescheduleToToday = (task) => scheduleTaskAtNextSlot(task.id, false);
@@ -185,6 +210,7 @@ export default function useSchedAgendaState() {
   };
 
   return {
+    scoped,
     days, visibleDays, filtersActive,
     overdueTasks, rescheduleToToday,
     filters, setFilters,

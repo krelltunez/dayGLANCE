@@ -12,8 +12,14 @@ import { SchedDeadlineCard, SchedRoutinePills } from './SchedDayExtras.jsx';
  * SCHED — scrollable day-grouped agenda of scheduled tasks, starting at the
  * currently selected day. Third mobile/tablet view alongside GRID and LIST;
  * the desktop dashboard (SchedDashboard) shares the same agenda state.
+ *
+ * With `dateRange` ({ from, to }, YYYY-MM-DD) the agenda is scoped to those
+ * days: the month view's day sheet, which renders this same view for one
+ * date so the cards, toggles and edit affordances are the ones people know.
+ * `embedded` says the view is inside a sheet rather than the calendar area:
+ * it leaves the calendar's scroll alone and drops the window controls.
  */
-const SchedView = () => {
+const SchedView = ({ dateRange, embedded = false } = {}) => {
   const { borderClass, textSecondary, hoverBg, calendarRef } = useDayPlannerCtx();
   const { t } = useTranslation();
   const [showFilters, setShowFilters] = useState(false);
@@ -21,7 +27,7 @@ const SchedView = () => {
   // The shared scroll container keeps GRID/LIST's scroll offset (e.g. the
   // timeline's scroll-to-now); SCHED starts at the top of the agenda.
   useEffect(() => {
-    calendarRef?.current?.scrollTo?.({ top: 0 });
+    if (!embedded) calendarRef?.current?.scrollTo?.({ top: 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -37,7 +43,8 @@ const SchedView = () => {
     hidePastEvents, toggleHidePastEvents,
     showMoreDays,
     addTaskOnDay,
-  } = useSchedAgendaState();
+    scoped,
+  } = useSchedAgendaState({ dateRange });
 
   const todayStr = dateToString(new Date());
   const tomorrowStr = dateToString(new Date(Date.now() + 86400000));
@@ -50,7 +57,7 @@ const SchedView = () => {
   };
 
   return (
-    <div className="flex flex-col gap-3 px-3 pb-24 pt-2">
+    <div data-sched-view={scoped ? 'scoped' : 'rolling'} className={`flex flex-col gap-3 px-3 ${embedded ? 'pb-6' : 'pb-24'} pt-2`}>
       {/* Controls */}
       <div className="flex items-center gap-2">
         <button
@@ -64,14 +71,16 @@ const SchedView = () => {
           <ListFilter size={13} />
           {t('sched.filter', 'Filter')}{filtersActive ? ` · ${filters.colors.length + filters.tags.length + filters.projectIds.length}` : ''}
         </button>
-        <button
-          onClick={toggleEmptyDays}
-          className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${borderClass} ${textSecondary} ${hoverBg} transition-colors`}
-          title={showEmptyDays ? t('sched.hideEmptyDays', 'Hide empty days') : t('sched.showEmptyDays', 'Show empty days')}
-        >
-          {showEmptyDays ? <Eye size={13} /> : <EyeOff size={13} />}
-          {t('sched.emptyDays', 'Empty days')}
-        </button>
+        {!scoped && (
+          <button
+            onClick={toggleEmptyDays}
+            className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${borderClass} ${textSecondary} ${hoverBg} transition-colors`}
+            title={showEmptyDays ? t('sched.hideEmptyDays', 'Hide empty days') : t('sched.showEmptyDays', 'Show empty days')}
+          >
+            {showEmptyDays ? <Eye size={13} /> : <EyeOff size={13} />}
+            {t('sched.emptyDays', 'Empty days')}
+          </button>
+        )}
       </div>
 
       {/* Overdue — incomplete tasks from before the visible window */}
@@ -116,14 +125,16 @@ const SchedView = () => {
         </p>
       )}
 
-      {/* Extend window */}
-      <button
-        onClick={showMoreDays}
-        className={`flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium ${textSecondary} ${hoverBg} rounded-xl border ${borderClass} transition-colors`}
-      >
-        <ChevronDown size={13} />
-        {t('sched.showMoreDays', 'Show {{days}} more days', { days: LOAD_MORE_DAYS })}
-      </button>
+      {/* Extend window (the rolling agenda only; a scoped range is what it is) */}
+      {!scoped && (
+        <button
+          onClick={showMoreDays}
+          className={`flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium ${textSecondary} ${hoverBg} rounded-xl border ${borderClass} transition-colors`}
+        >
+          <ChevronDown size={13} />
+          {t('sched.showMoreDays', 'Show {{days}} more days', { days: LOAD_MORE_DAYS })}
+        </button>
+      )}
 
       {showFilters && (
         <SchedFilterPopup
