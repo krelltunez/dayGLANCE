@@ -195,3 +195,226 @@ Tests:
 
 One field step after merge: task `2hnlwrtd`'s stranded notes migrate on the
 first pass, which is also the live check that the fix took.
+
+## Follow-up (2026-09-17): the points to settle before building
+
+### F1. The substring idempotency guard
+
+**Likelihood.** Real but narrow. The writers, in order of exposure:
+
+- MCP bodies are usually a sentence or more; a one-word body ("Done") or a
+  bare URL is plausible from an agent summarising status, and a URL in
+  particular repeats across notes.
+- The conflict record and the bin-restore notice are dated single lines.
+  Two restores on the same day produce the same line, and deduping that
+  is correct, not a loss.
+- Imports write a URL (share sheet) or a description (Todoist) onto a task
+  at creation, before any link exists, so they take the create path.
+- A stale row from another device carries the pre-migration body, the very
+  text the note already holds. Deduping it is the intended outcome.
+
+So the guard is right for the retry, the second device and the system
+records, and wrong only for a short deliberate body that happens to equal
+text already in the note.
+
+**Options.**
+
+- *Accept.* Cheapest; the loss is silent and the field is cleared, which is
+  the one combination the report is about.
+- *Block boundary.* Split both texts into paragraphs (runs of non-blank
+  lines) and skip only when the body's paragraphs appear as a consecutive
+  run in the note. "Done" no longer matches "Done and dusted", and a URL
+  inside a sentence no longer matches a bare URL. An exact duplicate block
+  still dedupes, which is what a retry needs.
+- *Minimum length.* Arbitrary threshold, and the short bodies are exactly
+  the ones at risk; below the threshold the retry case is unprotected.
+- *Hidden intent-id marker.* Exact, but it leaves `%%dg:…%%` or an HTML
+  comment on every appended block in source view, and a user who deletes
+  the marker while editing re-arms the duplicate. Too much noise for the
+  size of the risk.
+
+**Recommendation: block boundary, plus a console line.** When the guard
+skips a non-empty body, log it (`Obsidian: notes for <id> already present in
+<target>, not appended`) so nothing vanishes without a trace. The change is
+inside `applyBridgeIntent`'s `create_or_append` branch, about 15 lines
+(`packages/obsidian-format/src/bridgeStream.js`). Callers affected: exactly
+one, the notes migration in `useObsidianSync.js`; the only tests touching
+the mode are the applier's append tests and project-notes scenario 12, both
+of which pass unchanged under block matching (their bodies are whole
+blocks). The console line is on the plugin side, where the apply runs.
+
+### F2. Heading rule details
+
+**What the guard compares.** Body alone, scoped to the task's section. Both
+failure modes named are real for the unscoped forms:
+
+- Body alone across the whole note: task B's text already under task A's
+  heading blocks B's append, and B's field is cleared. Wrong.
+- Heading plus body: a second append from A with new text does not match,
+  so a second `## A` section is created. Wrong the other way.
+
+**Preferred behaviour, assessed.** Find the task's heading; if present,
+dedupe against and append into that section only (up to the next heading of
+equal or higher level, or end of file); if absent, append the heading and
+the body at the end. Inside `Vault.process` this is a pure function on the
+note's text: split into lines, locate the heading line by exact match on
+the cleaned title, scan forward to the section end, block-match the body
+against those lines, splice. About 40 lines in the format package next to
+`sortTaskLinesInSection`, which already walks sections by heading level and
+is the pattern to copy. No new plugin state, no second read.
+
+**Heading text.** The cleaned title: wikilinks stripped, hashtags stripped,
+whitespace collapsed. There is no single existing helper: `stripWikilinks`
+(`utils/taskUtils.js`) does the first half, `renderTitleWithoutTags`
+returns React nodes, and `taskNoteNameFor` does both strips but then applies
+the filename rules (`:` becomes `-`). The clean half of `taskNoteNameFor`
+should be split out as `plainTaskTitle(title)` and shared; five lines.
+
+**Renamed tasks.** Confirmed: the discriminator compares the link's basename
+to the name derived from the current title, so a task renamed after
+migration reads its own note as shared and gets a heading. Nothing on the
+record names the migrated note: the block id is the line's token, and the
+wikilink in the title is the only pointer. The cheap rename-proof fix is a
+record field written at migration commit, `obsidianNoteTarget`, holding the
+target the migration created. The discriminator then reads: link target
+equals the stored target, or (for tasks migrated before the field) the
+derived-name rule. It syncs with the row like every task field and costs
+one line at the commit. Recommended.
+
+### F3. The clear-then-lost window
+
+**Where the text is, case by case.** The field clears on enqueue; the body
+then lives in the intent. The intent's life:
+
+- *Outbox, not yet flushed.* `localStorage` (`dayglance-bridge-outbox`),
+  durable across restarts; removed only after the server acknowledges the
+  batch. Recoverable by reading the key.
+- *On the stream, not yet applied.* The row persists until the lease holder
+  applies it; a dirty buffer defers it (the row stays listable under the
+  retry floor), an unheld lease waits for the next holder. Delay, not loss.
+  Recoverable by reading the row (sealed; the app can decode it).
+- *Refused enqueue.* `emitBridgeIntent` returns false for an unpaired vault
+  or a full outbox (`OUTBOX_CAP`), and the migration then does not clear
+  the field. Not a loss.
+- *Refused apply.* The one deterministic loss: a hand-typed link whose name
+  fails the portability gate, with the file absent. The applier answers
+  `unportable_name`, consumes the row, and the body is gone from both
+  places. Fix: validate the target with `validateWikiNoteName` before
+  emitting and leave the notes local when it fails (visible under F4).
+- *Outbox purged.* Web storage cleared, or the iOS purge of 2026-09-09.
+  Gone from both places. The MCP undo journal covers MCP-originated bodies
+  only; conflict records, bin notices, UI and sync writes have nothing.
+
+**Clear on confirmation instead of enqueue.** Not safely, for two reasons.
+The app has no apply acknowledgement: the server acknowledges the batch
+landing, and the only sign of an apply is the note's next observation,
+which arrives only for notes in the plugin's scope. The migration's side
+notes sit in the project folder, which need not be scoped, so an
+observation may never come and the field would never clear. And while the
+field holds text and the link exists, every pass would re-plan the same
+migration; suppressing that needs a pending marker, which is the same
+bookkeeping as the alternative below, with a worse failure mode.
+
+**Smallest safeguard, recommended.** Keep commit-on-enqueue (the path's
+rule; the outbox is durable and the stream keeps the row) and add three
+things: the pre-emit validation above; a device-local sent-notes journal,
+`day-planner-obsidian-notes-sent` `{id → {target, body, at}}`, written in
+the same commit and pruned at 30 days, so the last body of every migrated
+task is recoverable from storage whatever happens to the outbox; and a
+console line naming the journal when an enqueue is refused after a partial
+pass. About 25 lines, no new sync field, covers every writer.
+
+### F4. Panel visibility, both tiers
+
+**Panel.** Agreed, and it is a shared-UI bug: the ternary in
+`NotesSubtasksPanel.jsx` (`wikilinks.length > 0 && onLoadWikiNote ? … : …`)
+predates the migration and assumed a linked task had no local notes. Change:
+render the linked-note editors as now, and beneath them, whenever
+`task.notes` is non-empty, the existing local notes block with a small
+label. The block already exists in the else branch; it moves into a shared
+fragment rendered under either condition. The direct tier gets the same
+fix, since the panel is the same component and the stranding there has no
+conversion to clear it. About 20 lines. One locale string, the label:
+`task.localNotes` ("Notes in dayGLANCE"), in all eight bundles;
+`locales.test.js` enforces coverage.
+
+**Card icon.** `isObsidianNoteOnlyTask` should return false when local
+notes are non-empty. The rule of #1658 is that the icon says where the
+notes live; with text in both places the honest answer is the document,
+lit, and the panel then shows both. One line plus a test case in
+`textFormatting.notesIcon.test.js`. After the fix lands the state is
+transient on the plugin tier and steady on the direct tier, and the icon is
+right in both.
+
+### F5. Shared-note decision, side by side
+
+**A. Heading append into shared notes** (F2 refinements applied).
+
+- *System records into a hand-written doc.* A conflict record or bin
+  notice lands as a dated line under `## <task title>` in, say,
+  `GLANCE-repo-setup`. Attributed and dated, but it is dayGLANCE
+  bookkeeping inside a document the user wrote for another purpose.
+- *What the user sees.* The note gains a section per task that ever had
+  notes; the card shows the open book; the panel shows the linked note
+  with the section in it. Nothing stays local.
+- *Size.* The section-scoped append and heading (F2, about 45 lines), the
+  cleaned-title helper, the discriminator with the stored target.
+- *Tests.* Scenarios for the heading, the second append into an existing
+  section, the renamed task, the system record under a heading.
+
+**B. Bare append for the conversion's own note; shared and hand-linked
+notes keep local notes, visible through F4.**
+
+- *System records.* Stay in the field, visible in the panel under the
+  local label, exactly where they land today on unlinked tasks. Nothing
+  dayGLANCE-shaped enters a hand-written doc.
+- *What the user sees.* A task-specific note behaves as the migration
+  intended. A hand-linked task shows the linked note and, when it has
+  local notes, the local block beneath it; the card shows the document
+  icon while local notes exist, per F4.
+- *Size.* The discriminator with the stored target, the bare append (the
+  existing mode with F1's block guard), no heading code, no section walk.
+  Roughly half of A.
+- *Tests.* The repro, the missing file, the short body, the renamed task
+  (which under B must keep the bare path via the stored target, or fall to
+  local when the field is absent), the panel and icon.
+
+**Recommendation.** B. The stranding is fixed by F4 in both tiers whatever
+is chosen; A buys the invariant "a linked task has no local notes" at the
+price of writing into documents the user did not create for the task, and
+the system records are the case that makes that price visible. B keeps the
+migration to the notes it created, which is the rule the owner set on
+2026-09-14 (notes go beside the project's index note), and leaves
+hand-linked notes as the user's. The one cost of B is that a hand-linked
+task can hold notes in two places indefinitely; F4 makes that plain rather
+than hidden. Owner's choice.
+
+### F6. Test additions
+
+Added to the list in section 6:
+
+- Applier: a short body that already appears inside a longer line is still
+  appended; an exact duplicate block is not, and the skip is logged (F1).
+- Applier and scenario, if A: a second append from the same task lands in
+  its existing section, before the next heading, and dedupes within the
+  section only (F2).
+- Planner unit test and scenario: a task renamed after migration keeps the
+  bare path through the stored target; without the field it falls to the
+  derived-name rule (F2).
+- Panel render test: a linked task with local notes shows both blocks, in
+  the direct-tier shape (no `onLoadWikiNote`) and the plugin shape (F4).
+  Icon test: local notes on a linked task show the document, lit.
+- Recovery: the sent-notes journal holds the body after a migration commit;
+  an unportable hand-typed target leaves the notes local and emits nothing
+  (F3).
+
+### F7. Revised estimate
+
+Under B: planner about 50 lines (linked-task branch, stored target,
+validation), hook about 35 (notes-only branch, journal, commit), applier
+about 20 (block guard, console line), panel about 20 plus one string in
+eight bundles, icon one line, `plainTaskTitle` five. Tests: three unit
+files touched, one new panel render test, four or five harness scenarios.
+Under A add about 45 lines for the section-scoped append and two scenarios.
+No plugin source change either way; the applier change ships with the
+format package the plugin bundles, so the desktops rebuild once.
