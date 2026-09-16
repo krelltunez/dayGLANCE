@@ -418,3 +418,168 @@ files touched, one new panel render test, four or five harness scenarios.
 Under A add about 45 lines for the section-scoped append and two scenarios.
 No plugin source change either way; the applier change ships with the
 format package the plugin bundles, so the desktops rebuild once.
+
+## Create-with-notes loses the wikilink (2026-09-17, investigation only)
+
+Symptom: a task created in a linked project with notes in the same call
+ends up with its note file in the vault, its local field cleared, and no
+wikilink in its title. The affected task's id was not supplied with the
+report; the fingerprint to collect is in C1.
+
+### C1. Root cause
+
+**The mechanism, reproduced in the harness.** The migration's retitle rides
+`task_retitle`, and the applier's line rewrite (`updateTaskLines`,
+`packages/obsidian-format/src/taskLines.js`) carries the write-time title
+guard: when the line's current body differs from the app's
+`obsidianRawTitle` (the base the intent carries) and from the new title,
+the rewrite keeps the line's own title and applies only the state. That
+guard exists so a dayGLANCE write never reverts an Obsidian edit. Under it
+the migration comes apart in a fixed order:
+
+1. The note write lands (its own intent, unguarded) and the app has already
+   committed the title with the link and `notes: ''` on enqueue.
+2. The retitle is refused silently: the line keeps its body, without the
+   link. The app still shows the link.
+3. The note's next observation carries the line without the link;
+   `resolveTitleOwnership` sees the line moved off the app's base with no
+   pending dayGLANCE rename, and the vault wins one-sidedly. The link is
+   gone from the title, the notes are gone from the field, the file exists.
+
+A scratch harness run (not committed) confirms it: placement, then an
+Obsidian-side edit of the fresh line before the app observed it, then the
+migration pass. Result: title `Epsilon task edited #obsidian`, notes empty,
+no link, note file present.
+
+**What is not the cause.** Each candidate from the ask was run in the same
+scratch harness, and every one converged with the link in place:
+
+- No vault line or block id on the first pass: placement commits the token
+  and the home before the migration can plan, so the migration always runs
+  one pass later with both present (inbox task, scheduled task, explicit
+  `isAllDay: false`, with and without a drain between the passes).
+- The retitle emitted but lost: intent rows persist until applied.
+- An observation landing between the append and the retitle: the app's
+  title reverts for one round and the retitle restores it on the next.
+- Entity-grain LWW against the create row: the create precedes the commits
+  on the same device. A second device is discussed under C2.
+
+**Why create-with-notes and not update_task.** The retitle's base is the
+app's `obsidianRawTitle`. After `update_task` on an existing task that base
+came from an observation of the line itself, so it matched. After
+`create_task` with notes the migration runs on the pass right after
+placement, before any observation, so the base is placement's own guess of
+the line. In the harness that guess is byte-identical to the appended line
+and the retitle applies; in the field something changed the line between
+the append and the retitle. Candidates, in order of likelihood:
+
+- The line was edited in Obsidian (or by a Sync merge) in that window.
+- The plugin copy that applied the append is not the copy whose
+  observation the app applied last, and the two copies' lines differed
+  (a Sync-lagged follower report). Project notes have no late-observation
+  gate: `applyLateObservationGate` judges daily notes only, and scoped
+  notes pass through, so a stale follower report is applied as truth.
+  This variant does not refuse the retitle; it reverts the app title until
+  the note is next observed.
+
+**Fingerprint.** With the task's id: read its vault line. Line without the
+link means the guard refused the retitle (the first mechanism). Line with
+the link and a title without it means the stale-report variant, which any
+edit of the note will heal on its own. Also read the record's
+`obsidianRawTitle` (via the MCP read model): equal to the line's body in
+either case, since the vault won.
+
+### C2. Atomicity
+
+Not atomic. Three pieces move on the migration pass:
+
+1. `wiki_note_write` (its own intent row, applied without a title guard).
+2. `task_retitle` (its own row, applied under the guard above).
+3. The app commit on enqueue: `title` with the link, `notes: ''`,
+   `obsidianRawTitle` set to the new raw title, in one action.
+
+Ways they come apart, beyond the guard:
+
+- The note-write enqueue refused (outbox cap, unpaired): the code stops
+  before the retitle and before the commit, so nothing moves. Safe.
+- The retitle enqueue refused after the note write queued: the hook reports
+  a write failure and skips the commit; the notes stay local; the next pass
+  re-plans, appends idempotently and retitles. Converges.
+- A second device in plugin posture pulls the created row before the
+  commits: it runs the same placement (same token, same retirement) and the
+  same migration, so its intents are duplicates and its commit carries the
+  same title. Converges, unless its migration pass also hits the guard.
+- The dirty-buffer deferral holds the whole group; all three land later.
+
+### C3. Exposure today
+
+The orphaned task has no link and an empty field, so nothing runs. If it
+receives notes again, from any writer, the migration re-plans: the derived
+target is the same name (the `taken` set knows only links, not files), the
+applier's `create_or_append` finds the existing file and appends to it, and
+the retitle now carries an observation-backed base, so the link lands. The
+collision suffix applies only if some task already links that name. So
+adding any note text to the task repairs it, unless the line diverges again
+in the same window. The stranded note's text is not lost: it is in the
+file.
+
+### C4. Repair
+
+Manual repair is enough for the one task: add `[[Projects/dayGLANCE/<derived
+name>]]` to its title in either place, or add a note and let the migration
+reconnect it (C3). A one-time sweep is not warranted. The app cannot list
+vault files in plugin posture without a handle, and a sweep that binds a
+task to a note by derived name alone would also bind hand-made notes that
+happen to share the name. With PR 2's `obsidianNoteTarget` on the record,
+future orphans are self-describing: the field is written by the commit that
+did happen in this bug, so the record names its note even after the title
+lost the link, and the discriminator can treat "target set, title without
+the link" as a link to re-assert (C5) rather than a note to guess at.
+
+### C5. Fix proposal, and PR 2
+
+Two parts, both inside PR 2's planner and hook:
+
+1. **An observation-backed base for the retitle.** The migration waits
+   until the placed line has been observed once, so `obsidianRawTitle` is
+   the line's own body, not placement's guess. The marker to use is
+   whatever the observation import stamps on a note task (the field
+   console shows `obsidianLegacyId` arriving with the first observation of
+   `pxmxp4dx`; confirm at build time, else add a `obsidianPlacedAt` set by
+   the placement commit and cleared by the observation refresh). Cost: one
+   condition in the planner. Create-with-notes then migrates one
+   observation later, seconds in practice.
+2. **Re-assert from the stored target.** When `obsidianNoteTarget` is set,
+   the title lacks its link, and the base is observation-backed, emit the
+   retitle again, once per observation. This heals the guard case and the
+   stale-report case alike, and makes the field the recovery anchor the
+   ask hoped for. It does not inherit the bug: the commit that writes it
+   runs regardless of what the applier later does with the retitle.
+
+The guard itself stays as it is; it is what keeps a dayGLANCE write from
+reverting an Obsidian edit, and the fix is to give it a true base rather
+than to weaken it.
+
+### C6. Tests
+
+- Harness: create-with-notes in one call, inbox and scheduled shapes,
+  migrating after the first observation with the link on the line and the
+  notes in the file (pins today's passing variants as regressions).
+- Harness: the line edited in Obsidian between placement and migration.
+  Today: link lost. After the fix: the migration waits, the retitle carries
+  the edited base, the link lands, the notes append once.
+- Harness: an observation landing between the append and the retitle
+  (today's variant f, converges; pin it).
+- Harness: a task with `obsidianNoteTarget` and no link in its title gets
+  the link re-asserted once, and a second pass writes nothing.
+- Unit: the planner declines to migrate a placed task with no observation
+  evidence; the re-assert plan.
+
+### Corrections to earlier sections
+
+- F3's journal: it is device-local storage like the outbox, so it does not
+  survive a storage purge. It covers consumed rows, server-side loss and
+  debugging.
+- Accepted edge, to document with PR 2: a retry that arrives after the user
+  edited the appended block in Obsidian re-appends it, since the block
+  guard no longer matches.
