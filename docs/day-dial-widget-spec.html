@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Day Dial — systemLarge spec</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f4f4f6; --fg:#17171a; --muted:#6a6a75; --line:#d8d8de;
+    --chip:#fff; --chip-on:#17171a; --chip-on-fg:#fff;
+    --wall-a:#2a2a3a; --wall-b:#14141c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#101013; --fg:#ededf0; --muted:#8e8e99; --line:#2a2a31;
+      --chip:#1c1c22; --chip-on:#ededf0; --chip-on-fg:#101013;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:#101013; --fg:#ededf0; --muted:#8e8e99; --line:#2a2a31;
+    --chip:#1c1c22; --chip-on:#ededf0; --chip-on-fg:#101013;
+  }
+  *{box-sizing:border-box} html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;padding:20px 16px 48px;
+    display:flex;flex-direction:column;align-items:center;gap:18px;
+  }
+  header{text-align:center;max-width:440px}
+  h1{font-size:17px;margin:0 0 6px;letter-spacing:-.01em}
+  header p{font-size:13px;color:var(--muted);margin:0;line-height:1.5}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+  .group{display:flex;background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
+  .group button{
+    font:inherit;font-size:12px;font-weight:500;padding:6px 12px;border:0;border-radius:999px;
+    background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .group button[aria-pressed="true"]{background:var(--chip-on);color:var(--chip-on-fg)}
+  .stage{
+    background:radial-gradient(120% 90% at 20% 0%,var(--wall-a) 0%,var(--wall-b) 62%),var(--wall-b);
+    border-radius:34px;padding:26px 18px;box-shadow:0 10px 40px rgba(0,0,0,.28);
+    max-width:100%;overflow-x:auto;
+  }
+  .widget{
+    width:364px;height:382px;border-radius:22px;background:#0b0b0e;
+    overflow:hidden;position:relative;box-shadow:0 2px 14px rgba(0,0,0,.5);
+  }
+  .widget svg{display:block;width:364px;height:382px}
+  .caption{font-size:11px;color:var(--muted);text-align:center;margin-top:10px;letter-spacing:.02em}
+  .spec{
+    max-width:440px;font-size:12.5px;line-height:1.65;color:var(--muted);
+    border-top:1px solid var(--line);padding-top:16px;
+  }
+  .spec strong{color:var(--fg);font-weight:600}
+  .spec ul{padding-left:18px;margin:6px 0 14px}
+  .spec li{margin-bottom:5px}
+  .spec code{font-size:11.5px;background:var(--chip);padding:1px 4px;border-radius:4px;border:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Day Dial — <code>systemLarge</code> spec</h1>
+  <p>364&times;382pt, 24-hour, midnight top, clockwise. This is the intended build target.</p>
+</header>
+
+<div class="controls">
+  <div class="group" id="g-day">
+    <button data-d="dense" aria-pressed="true">Dense</button>
+    <button data-d="sparse" aria-pressed="false">Sparse</button>
+  </div>
+</div>
+
+<div>
+  <div class="stage">
+    <div class="widget"><svg id="dial" viewBox="0 0 364 382" xmlns="http://www.w3.org/2000/svg"></svg></div>
+  </div>
+  <div class="caption" id="caption"></div>
+</div>
+
+<div class="spec">
+  <strong>Geometry (centre 182, 189)</strong>
+  <ul>
+    <li>Sky ring <code>r=119</code>, width 6, constant. Hour-aligned segments.</li>
+    <li>Block band <code>r=140</code>, width 22. Past blocks at 42% opacity.</li>
+    <li>Tick ring <code>155&ndash;166</code>; minor ticks from 161.</li>
+    <li>Labels: <code>00</code>/<code>12</code> at <code>r=172</code>; <code>03 09 15 21</code> at <code>r=181</code> to clear the ticks. No 06/18 &mdash; that space carries the sun glyphs.</li>
+    <li>Glyphs (sunrise, sunset, moon) upright at <code>r=104</code>.</li>
+    <li>Needle spans <code>r=126&ndash;159</code>; inner end clears the sky ring by 4pt.</li>
+    <li>Hub rule at <code>y=189</code>, collinear with the 06/18 tick row.</li>
+    <li>Block boundaries: <code>1.6pt</code> cut in the background colour, only where
+        blocks touch. Spans stay exact &mdash; no trimming.</li>
+    <li>Date set in <strong>Lora 500</strong>.</li>
+  </ul>
+  <strong>Not in scope</strong>
+  <ul>
+    <li>12-hour rolling variant &mdash; dropped.</li>
+    <li>Complications &mdash; need &ge;520px, won't fit.</li>
+    <li>Temperature numerals &mdash; dropped; the ring is sun/moon strength, not temperature.</li>
+  </ul>
+</div>
+
+<script>
+(function () {
+  var SVG = "http://www.w3.org/2000/svg";
+
+  // ---- fixtures -----------------------------------------------------------
+  var NOW = 11 * 60 + 20;
+  var CUR_END = 12 * 60 + 30;
+  var SUNRISE = 5 * 60 + 37, SUNSET = 20 * 60 + 31;
+  var MOON_PHASE = 0.5, MOONRISE = 21 * 60 + 30, MOONSET = 6 * 60 + 30;
+
+  var CAT = {
+    sleep:   { fill: "#6f6f9e", alpha: 0.34 },
+    routine: { fill: "#4ec9b0", alpha: 0.85 },
+    restore: { fill: "#4ec9b0", alpha: 0.70 },
+    focus:   { fill: "#5b7fa8", alpha: 0.80 },
+    work:    { fill: "#5f6b8f", alpha: 0.72 },
+    admin:   { fill: "#a08a5b", alpha: 0.70 },
+    personal:{ fill: "#8a6ba8", alpha: 0.70 }
+  };
+
+  var DAYS = {
+    dense: [
+      { s:0,e:385,c:"sleep" }, { s:385,e:420,c:"routine" }, { s:435,e:480,c:"admin" },
+      { s:480,e:540,c:"work" }, { s:540,e:600,c:"work" },
+      { s:600,e:750,c:"focus",label:"Write API documentation",tag:"work" },
+      { s:750,e:810,c:"restore" }, { s:810,e:870,c:"work" }, { s:870,e:915,c:"admin" },
+      { s:915,e:1035,c:"focus" }, { s:1035,e:1080,c:"restore" }, { s:1080,e:1140,c:"personal" },
+      { s:1140,e:1185,c:"admin" }, { s:1185,e:1290,c:"personal" }, { s:1290,e:1330,c:"routine" },
+      { s:1350,e:1440,c:"sleep" }
+    ],
+    sparse: [
+      { s:0,e:420,c:"sleep" }, { s:420,e:455,c:"routine" },
+      { s:600,e:750,c:"focus",label:"Write API documentation",tag:"work" },
+      { s:1020,e:1140,c:"restore" }, { s:1380,e:1440,c:"sleep" }
+    ]
+  };
+
+  // ---- geometry -----------------------------------------------------------
+  var CX = 182, CY = 189;
+  var R_LABEL_CARD = 172, R_LABEL_DIAG = 181;
+  var R_TICK_IN = 155, R_TICK_OUT = 166, R_TICK_MINOR = 161;
+  var R_BLOCK = 140, W_BLOCK = 22;
+  var R_SKY = 119, W_SKY = 6;
+  var R_GLYPH = 104;
+  var NEEDLE_IN = 126, NEEDLE_OUT = 159;
+  var SEP_LINE_W = 1.6;                      // boundary cut, background colour
+  var HUB_RULE_Y = CY;                       // collinear with the 06/18 ticks
+
+  var SANS = "-apple-system, system-ui, sans-serif";
+  var SERIF = 'Lora, Georgia, "Times New Roman", serif';
+
+  var state = { day: "dense" };
+
+  function polar(r, deg) {
+    var a = (deg - 90) * Math.PI / 180;
+    return { x: CX + r * Math.cos(a), y: CY + r * Math.sin(a) };
+  }
+  function toAngle(t) { return (t / 1440) * 360; }
+  function arc(r, a0, a1) {
+    if (a1 - a0 >= 359.99) a1 = a0 + 359.99;
+    var p0 = polar(r, a0), p1 = polar(r, a1);
+    return "M " + p0.x.toFixed(2) + " " + p0.y.toFixed(2) +
+           " A " + r + " " + r + " 0 " + ((a1 - a0) > 180 ? 1 : 0) + " 1 " +
+           p1.x.toFixed(2) + " " + p1.y.toFixed(2);
+  }
+  function el(n, a, t) {
+    var e = document.createElementNS(SVG, n);
+    for (var k in a) e.setAttribute(k, a[k]);
+    if (t != null) e.textContent = t;
+    return e;
+  }
+  function fmt(min) {
+    var m = ((min % 1440) + 1440) % 1440;
+    return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+  }
+  function dur(m) {
+    var h = Math.floor(m / 60), mm = m % 60;
+    return h && mm ? h + "h " + mm + "m" : h ? h + "h" : mm + "m";
+  }
+
+  // ---- sun / moon strength ------------------------------------------------
+  function sunStrength(t) {
+    if (t <= SUNRISE || t >= SUNSET) return 0;
+    return Math.sin(Math.PI * (t - SUNRISE) / (SUNSET - SUNRISE));
+  }
+  function moonStrength(t) {
+    var span = (MOONSET - MOONRISE + 1440) % 1440;
+    var d = (t - MOONRISE + 1440) % 1440;
+    return d >= span ? 0 : MOON_PHASE * Math.sin(Math.PI * (d / span));
+  }
+
+  // ---- upright glyphs -----------------------------------------------------
+  // Drawn in a local box centred on (0,0), then translated. Never rotated.
+  function sunGlyph(rising, color) {
+    var g = el("g", {});
+    var stroke = { stroke: color, "stroke-opacity": "0.92", "stroke-width": "1.3",
+                   "stroke-linecap": "round", fill: "none" };
+    // rays
+    [[-4.10,2.13,-5.65,1.04],[0,0,0,-1.9],[4.10,2.13,5.65,1.04]].forEach(function (r) {
+      g.appendChild(el("line", Object.assign({ x1:r[0], y1:r[1], x2:r[2], y2:r[3] }, stroke)));
+    });
+    // half disc sitting on the horizon
+    g.appendChild(el("path", { d: "M -3.4 5 A 3.4 3.4 0 0 1 3.4 5 Z",
+                               fill: color, "fill-opacity": "0.92" }));
+    // horizon
+    g.appendChild(el("line", Object.assign({ x1:-7, y1:5, x2:7, y2:5 }, stroke,
+                    { "stroke-opacity": "0.62" })));
+    // direction chevron: above for sunrise, below the horizon for sunset
+    g.appendChild(el("path", Object.assign({
+      d: rising ? "M -2.4 -3.2 L 0 -5.6 L 2.4 -3.2" : "M -2.4 7.0 L 0 9.4 L 2.4 7.0"
+    }, stroke)));
+    return g;
+  }
+  function moonGlyph(color) {
+    var g = el("g", {});
+    g.appendChild(el("circle", { cx:0, cy:0, r:3.6, fill:"none",
+      stroke: color, "stroke-opacity":"0.55", "stroke-width":"1.1" }));
+    g.appendChild(el("path", { d: "M 0 -3.6 A 3.6 3.6 0 0 1 0 3.6 Z",
+      fill: color, "fill-opacity":"0.85" }));
+    return g;
+  }
+  function placeGlyph(svg, node, t) {
+    var p = polar(R_GLYPH, toAngle(t));
+    node.setAttribute("transform", "translate(" + p.x.toFixed(2) + "," + p.y.toFixed(2) + ")");
+    svg.appendChild(node);
+  }
+
+  // ---- render -------------------------------------------------------------
+  function render() {
+    var svg = document.getElementById("dial");
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    var blocks = DAYS[state.day];
+
+    // sky ring — constant width, hour-aligned segments
+    for (var h = 0; h < 24; h++) {
+        var mid = h * 60 + 30;
+        var sv = sunStrength(mid), mv = moonStrength(mid), sun = sv >= mv;
+        svg.appendChild(el("path", {
+          d: arc(R_SKY, toAngle(h * 60), toAngle(h * 60 + 60)),
+          fill: "none", stroke: sun ? "#d9b33c" : "#c3c3e8",
+          "stroke-opacity": (sun ? 0.10 + sv * 0.66 : 0.09 + mv * 0.52).toFixed(3),
+          "stroke-width": W_SKY, "stroke-linecap": "butt"
+        }));
+      }
+    placeGlyph(svg, sunGlyph(true,  "#f5c542"), SUNRISE);
+    placeGlyph(svg, sunGlyph(false, "#f59942"), SUNSET);
+    placeGlyph(svg, moonGlyph("#d8d8f0"),
+               (MOONRISE + ((MOONSET - MOONRISE + 1440) % 1440) / 2) % 1440);
+
+    // block track
+    svg.appendChild(el("circle", { cx:CX, cy:CY, r:R_BLOCK, fill:"none",
+      stroke:"#ffffff", "stroke-opacity":"0.045", "stroke-width":W_BLOCK }));
+
+    // ticks
+    for (var i = 0; i < 24; i++) {
+      var a = i * 15;
+      var p1 = polar(R_TICK_IN, a), p2 = polar(R_TICK_OUT, a);
+      svg.appendChild(el("line", { x1:p1.x, y1:p1.y, x2:p2.x, y2:p2.y,
+        stroke:"#ffffff", "stroke-opacity":"0.30", "stroke-width":"1.5", "stroke-linecap":"round" }));
+      for (var q = 1; q < 4; q++) {
+        var q1 = polar(R_TICK_MINOR, a + 3.75 * q), q2 = polar(R_TICK_OUT, a + 3.75 * q);
+        svg.appendChild(el("line", { x1:q1.x, y1:q1.y, x2:q2.x, y2:q2.y,
+          stroke:"#ffffff", "stroke-opacity":"0.13", "stroke-width":"1" }));
+      }
+    }
+
+    // blocks
+    blocks.forEach(function (b) {
+      var cat = CAT[b.c], past = b.e <= NOW;
+      svg.appendChild(el("path", {
+        d: arc(R_BLOCK, toAngle(b.s), toAngle(b.e)), fill: "none", stroke: cat.fill,
+        "stroke-opacity": (past ? cat.alpha * 0.42 : cat.alpha).toFixed(3),
+        "stroke-width": W_BLOCK
+      }));
+    });
+
+    // Blocks keep their exact spans; boundaries are cut, not trimmed.
+    blocks.forEach(function (b, i) {
+      var nxt = blocks[i + 1];
+      if (!nxt || nxt.s !== b.e) return;            // only where blocks actually touch
+      var a = toAngle(b.e);
+      var p1 = polar(R_BLOCK - W_BLOCK / 2, a), p2 = polar(R_BLOCK + W_BLOCK / 2, a);
+      svg.appendChild(el("line", { x1:p1.x, y1:p1.y, x2:p2.x, y2:p2.y,
+        stroke: "#0b0b0e", "stroke-width": SEP_LINE_W }));
+    });
+
+    // hour labels — 06/18 omitted, diagonals pushed out to clear the ticks
+    [{t:0,txt:"00",r:R_LABEL_CARD},{t:180,txt:"03",r:R_LABEL_DIAG},
+     {t:540,txt:"09",r:R_LABEL_DIAG},{t:720,txt:"12",r:R_LABEL_CARD},
+     {t:900,txt:"15",r:R_LABEL_DIAG},{t:1260,txt:"21",r:R_LABEL_DIAG}
+    ].forEach(function (L) {
+      var p = polar(L.r, toAngle(L.t));
+      svg.appendChild(el("text", { x:p.x, y:p.y, fill:"#ffffff", "fill-opacity":"0.44",
+        "font-size":"10.5", "font-weight":"500", "letter-spacing":"1.4",
+        "text-anchor":"middle", "dominant-baseline":"central", "font-family":SANS }, L.txt));
+    });
+
+    // needle
+    var na = toAngle(NOW);
+    var n1 = polar(NEEDLE_IN, na), n2 = polar(NEEDLE_OUT, na);
+    svg.appendChild(el("line", { x1:n1.x, y1:n1.y, x2:n2.x, y2:n2.y,
+      stroke:"#f5a623", "stroke-width":"2.6", "stroke-linecap":"round" }));
+    svg.appendChild(el("circle", { cx:n2.x, cy:n2.y, r:3.4, fill:"#f5a623" }));
+
+    // hub
+    var cur = blocks.filter(function (b) { return b.label && b.s <= NOW && b.e > NOW; })[0];
+    var left = CUR_END - NOW;
+    var after = blocks.filter(function (b) { return b.s >= CUR_END; })
+                      .sort(function (a, b) { return a.s - b.s; })[0];
+    var gap = after ? after.s - CUR_END : 0;
+
+    svg.appendChild(el("text", { x:CX, y:138, fill:"#ffffff", "fill-opacity":"0.46",
+      "font-size":"9.5", "font-weight":"600", "letter-spacing":"3.2",
+      "text-anchor":"middle", "font-family":SANS }, "TUESDAY"));
+    svg.appendChild(el("text", { x:CX, y:172, fill:"#ffffff", "fill-opacity":"0.96",
+      "font-size":"28", "font-weight":"500", "text-anchor":"middle",
+      "font-family":SERIF }, "July 7"));
+    svg.appendChild(el("line", { x1:CX-34, y1:HUB_RULE_Y, x2:CX+34, y2:HUB_RULE_Y,
+      stroke:"#ffffff", "stroke-opacity":"0.16", "stroke-width":"1" }));
+
+    if (cur) {
+      svg.appendChild(el("text", { x:CX, y:211, fill:"#ffffff", "fill-opacity":"0.95",
+        "font-size":"15", "font-weight":"600", "text-anchor":"middle", "font-family":SANS }, cur.label));
+      svg.appendChild(el("text", { x:CX, y:229, fill:"#ffffff", "fill-opacity":"0.44",
+        "font-size":"11", "font-style":"italic", "text-anchor":"middle", "font-family":SANS }, "#" + cur.tag));
+      svg.appendChild(el("text", { x:CX, y:249, fill:"#ffffff", "fill-opacity":"0.58",
+        "font-size":"11.5", "text-anchor":"middle", "font-family":SANS },
+        "until " + fmt(CUR_END) + " \u00b7 " + dur(left) + " left"));
+      if (gap >= 30) {
+        svg.appendChild(el("text", { x:CX, y:266, fill:"#4ec9b0", "fill-opacity":"0.72",
+          "font-size":"11", "text-anchor":"middle", "font-family":SANS },
+          "then " + dur(gap) + " open"));
+      }
+    }
+
+    document.getElementById("caption").textContent =
+"dark separator \u00b7 " + state.day + " day";
+  }
+
+  function wire(id, key, attr) {
+    var g = document.getElementById(id);
+    g.addEventListener("click", function (ev) {
+      var b = ev.target.closest("button");
+      if (!b) return;
+      Array.prototype.forEach.call(g.querySelectorAll("button"), function (x) {
+        x.setAttribute("aria-pressed", String(x === b));
+      });
+      state[key] = b.getAttribute(attr);
+      render();
+    });
+  }
+    wire("g-day", "day", "data-d");
+  render();
+})();
+</script>
+</body>
+</html>
