@@ -18,6 +18,7 @@ import TimeGrid from './TimeGrid.jsx';
 import SummaryStrip from './SummaryStrip.jsx';
 import TitlebarSummaryStrip from './TitlebarSummaryStrip.jsx';
 import DayView from './DayView.jsx';
+import { JoboDayRoute, JoboWeekRoute } from './jobo/JoboRoutes.jsx';
 import WeekView from './WeekView.jsx';
 import SchedDashboard from './sched/SchedDashboard.jsx';
 import SchedView from './sched/SchedView.jsx';
@@ -835,8 +836,8 @@ const DesktopLayout = () => {
                   ))
                 : <>
                     {effectiveViewMode === 'multi' && <TimeGrid />}
-                    {effectiveViewMode === 'day' && <DayView />}
-                    {effectiveViewMode === 'week' && <WeekView />}
+                    {effectiveViewMode === 'day' && <JoboDayRoute fallback={<DayView />} />}
+                    {effectiveViewMode === 'week' && <JoboWeekRoute fallback={<WeekView />} />}
                     {effectiveViewMode === 'sched' && <SchedDashboard />}
                     {effectiveViewMode === 'month' && <MonthView />}
                     {/* Summary strip — sticky over the timeline's own scroll

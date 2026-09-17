@@ -33,6 +33,7 @@ import MobileTabBar from './MobileTabBar.jsx';
 import MobileSettingsPanel from './MobileSettingsPanel.jsx';
 import GoalDashboard from './goals/GoalDashboard.jsx';
 import MobileTimeGrid from './MobileTimeGrid.jsx';
+import { JoboMobileRoute, useJoboAvailable } from './jobo/JoboRoutes.jsx';
 import SummaryStrip from './SummaryStrip.jsx';
 import MobileAllDaySection from './MobileAllDaySection.jsx';
 import MobileBottomSheets from './MobileBottomSheets.jsx';
@@ -55,6 +56,8 @@ import useGlanceFabs from '../hooks/useGlanceFabs.js';
 import { glanceFabStagger, glanceFabVisibilityClass } from '../utils/glanceFabs.js';
 
 const MobileLayout = () => {
+  const joboAvailable = useJoboAvailable();
+  const [joboGrid, setJoboGrid] = useState(true);
   const [tzBannerDismissed, setTzBannerDismissed] = useState(false);
   const { collapsed: glanceFabsCollapsed, toggle: toggleGlanceFabs } = useGlanceFabs();
   const {
@@ -268,6 +271,7 @@ const MobileLayout = () => {
     sendTaskToBucket,
   } = useDayPlannerCtx();
   const { t, i18n } = useTranslation();
+  const showMobileJobo = joboAvailable && isPhone && joboGrid && mobileViewMode === 'grid';
 
   const {
     autoBackupInProgressRef, syncAllRef,
@@ -763,13 +767,18 @@ const MobileLayout = () => {
                         />
                       );
                     })}
+                    {joboAvailable && isPhone && mobileViewMode === 'grid' && <button type="button"
+                      data-jobo-mobile-toggle aria-pressed={showMobileJobo}
+                      aria-label={t('joboMobile.toggle')}
+                      className={`px-2 min-w-[64px] text-[10px] font-semibold ${showMobileJobo ? 'text-orange-500' : textSecondary} ${hoverBg}`}
+                      onClick={() => setJoboGrid(value => !value)}>Plan / Do</button>}
                     {mobileViewMode === 'month' && <MonthStats compact />}
                   </div>
 
-                  {mobileViewMode === 'grid' && <MobileAllDaySection />}
+                  {mobileViewMode === 'grid' && !showMobileJobo && <MobileAllDaySection />}
                   </div>{/* end sticky header group */}
 
-                  {mobileViewMode === 'grid' && <MobileTimeGrid />}
+                  {mobileViewMode === 'grid' && (showMobileJobo ? <JoboMobileRoute fallback={<MobileTimeGrid />} /> : <MobileTimeGrid />)}
                   {mobileViewMode === 'list' && <MobileListView />}
                   {mobileViewMode === 'sched' && <SchedView />}
                   {mobileViewMode === 'month' && <MonthView />}
@@ -779,7 +788,7 @@ const MobileLayout = () => {
                       sticky overlay there reads as an extension of the list's
                       spine, so it sits below the day as its own element.
                       DesktopLayout renders the tablet's pair the same way. */}
-                  {mobileViewMode === 'grid' && <SummaryStrip compact fabClearance />}
+                  {mobileViewMode === 'grid' && !showMobileJobo && <SummaryStrip compact fabClearance />}
                   {mobileViewMode === 'list' && <SummaryStrip compact fabClearance staticPlacement />}
                 </div>
 
@@ -1136,8 +1145,8 @@ const MobileLayout = () => {
             {mobileActiveTab === 'settings' && <MobileSettingsPanel />}
           </div>
 
-          {/* FAB - Floating Action Button (timeline only) */}
-          {mobileActiveTab === 'timeline' && (
+          {/* FAB - Floating Action Button (timeline only; Jobo has inline add controls) */}
+          {mobileActiveTab === 'timeline' && !showMobileJobo && (
             <>
               <button
                 onClick={() => openNewTaskForm()}

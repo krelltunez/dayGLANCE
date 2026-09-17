@@ -1,0 +1,647 @@
+/* Only DAY/WEEK additions; native background and task colour classes are untouched. */
+.jobo-day-root {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  color: inherit
+}
+.jobo-column-head,.jobo-day-grid {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 46px minmax(0,1fr) minmax(210px,.85fr)
+}
+.jobo-column-head {
+  min-height: 34px;
+  flex: none;
+  align-items: center;
+  font-size: 12px;
+  position: relative;
+  z-index: 12
+}
+.jobo-column-head>div {
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 0
+}
+.jobo-column-head>div:nth-child(2) {
+  padding: 0
+}
+.jobo-column-head button {
+  font-size: 10px;
+  border-radius: 4px;
+  padding: 2px 4px;
+  white-space: nowrap
+}
+.jobo-day-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin
+}
+.jobo-day-grid {
+  position: relative
+}
+.jobo-time-lane {
+  position: relative;
+  min-width: 0;
+  align-self: start
+}
+.jobo-hour {
+  position: relative;
+  box-sizing: border-box
+}
+.jobo-half {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  opacity: .4;
+  pointer-events: none
+}
+.jobo-time-ruler {
+  position: relative;
+  align-self: start
+}
+.jobo-time-ruler>div {
+  font-size: 10px;
+  padding: 2px 1px;
+  text-align: center;
+  box-sizing: border-box;
+  font-variant-numeric: tabular-nums
+}
+.jobo-native-card {
+  box-sizing: border-box;
+  z-index: 4;
+  min-height: 40px;
+  overflow: visible;
+  outline: 0
+}
+.jobo-native-card:hover {
+  z-index: 15
+}
+.jobo-native-content {
+  overflow: hidden;
+  border-radius: inherit;
+  box-sizing: border-box;
+  padding: 3px 6px 4px;
+  gap: 1px;
+  justify-content: flex-start
+}
+.jobo-title-row {
+  min-height: 18px;
+  max-height: 19px;
+  flex: none
+}
+.jobo-title-row .text-sm {
+  font-size: 13px
+}
+.jobo-native-actions button {
+  padding: 2px
+}
+.jobo-native-actions svg {
+  width: 12px;
+  height: 12px
+}
+.jobo-check {
+  width: 14px;
+  height: 14px;
+  border-width: 1.5px
+}
+.jobo-title-input {
+  background: #ffffff20;
+  border: 1px solid #ffffff70;
+  width: 100%;
+  min-width: 0;
+  color: white;
+  border-radius: 3px
+}
+.jobo-meta-row {
+  min-height: 16px;
+  max-height: 18px;
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap!important;
+  scrollbar-width: none;
+  font-size: 10px;
+  line-height: 14px;
+  gap: 4px
+}
+.jobo-meta-row::-webkit-scrollbar {
+  display: none
+}
+.jobo-meta-row>* {
+  flex-shrink: 0
+}
+.jobo-time {
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  font-size: 10px
+}
+.jobo-duration {
+  font-size: 10px;
+  opacity: .85
+}
+.jobo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid color-mix(in srgb,var(--badge-color) 65%,white);
+  background: color-mix(in srgb,var(--badge-color) 60%,#fff 40%);
+  color: #18212e;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 13px;
+  padding: 0 3px;
+  font-weight: 500;
+  white-space: nowrap;
+  height: 15px;
+  box-sizing: border-box
+}
+.jobo-progress {
+  cursor: pointer
+}
+.jobo-hash {
+  font-size: 10px;
+  opacity: .92;
+  font-style: italic
+}
+.jobo-resize-top,.jobo-resize-bottom {
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  height: 4px;
+  z-index: 20;
+  cursor: ns-resize;
+  touch-action: none
+}
+.jobo-resize-top {
+  top: -2px
+}
+.jobo-resize-bottom {
+  bottom: -2px;
+  display: flex;
+  justify-content: center
+}
+.jobo-resize-bottom span {
+  height: 2px;
+  width: 25px;
+  border-radius: 2px;
+  background: #ffffffb0;
+  opacity: 0
+}
+.jobo-native-card:hover .jobo-resize-bottom span {
+  opacity: 1
+}
+.jobo-frame {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  z-index: 1
+}
+.jobo-frame small {
+  font-size: 9px;
+  opacity: .6
+}
+.jobo-now-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1.5px solid #ef4444;
+  pointer-events: none;
+  z-index: 80;
+  align-self: start
+}
+.jobo-now-line::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ef4444
+}
+.jobo-drop-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 2px solid #3b82f6;
+  pointer-events: none;
+  z-index: 22
+}
+.jobo-drop-line span {
+  position: absolute;
+  right: 0;
+  top: -16px;
+  background: #2563eb;
+  color: white;
+  font-size: 10px;
+  padding: 1px 4px
+}
+.jobo-notes-column {
+  min-width: 0;
+  padding: 6px 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-self: start
+}
+.jobo-empty-notes {
+  padding: 5px 0 7px
+}
+.jobo-note-tile {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  min-height: 80px;
+  overflow: hidden
+}
+.jobo-note-title {
+  flex: none;
+  min-height: 24px;
+  border-bottom: 1px solid #ffffff22
+}
+.jobo-note-text {
+  white-space: pre-wrap;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  font-size: 11px;
+  line-height: 1.65;
+  padding-top: 5px;
+  padding-bottom: 10px;
+  word-break: break-word;
+  scrollbar-width: thin
+}
+.jobo-note-editor {
+  background: transparent;
+  color: inherit;
+  width: 100%;
+  padding: 6px;
+  font-size: 11px;
+  line-height: 1.65;
+  resize: none;
+  outline: 0;
+  flex: 1;
+  min-height: 0
+}
+.jobo-note-resizer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 7px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: ns-resize;
+  touch-action: none;
+  background: #00000008
+}
+.jobo-note-resizer span {
+  height: 2px;
+  width: 30px;
+  background: currentColor;
+  opacity: .3;
+  border-radius: 2px
+}
+.jobo-flash {
+  outline: 2px solid #f59e0b;
+  outline-offset: 2px
+}
+.jobo-connections {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 18
+}
+.jobo-tools {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1px
+}
+.jobo-tools-menu {
+  position: absolute;
+  right: 0;
+  top: 25px;
+  min-width: 155px;
+  box-shadow: 0 4px 16px #0003;
+  border-radius: 7px;
+  padding: 5px;
+  z-index: 100
+}
+.jobo-tools-menu button {
+  display: block;
+  width: 100%;
+  padding: 7px;
+  text-align: left;
+  font-size: 12px
+}
+.jobo-tools-menu button:hover {
+  background: #8882
+}
+.jobo-modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: #0005;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  backdrop-filter: blur(2px)
+}
+.jobo-dialog {
+  width: 460px;
+  max-width: 100%;
+  max-height: 90vh;
+  overflow: auto;
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 14px 50px #0004;
+  font-size: 12px
+}
+.jobo-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 10px
+}
+.jobo-dialog input,.jobo-dialog select,.jobo-dialog textarea {
+  background: #8881;
+  border: 1px solid #8884;
+  border-radius: 6px;
+  padding: 6px 8px;
+  width: 100%;
+  color: inherit;
+  font-size: 12px
+}
+.jobo-dialog option {
+  color: #111827;
+  background: white
+}
+.jobo-edit-times {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr;
+  gap: 8px
+}
+.jobo-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px
+}
+.jobo-dialog-actions button {
+  padding: 6px 12px;
+  border: 1px solid #8885;
+  border-radius: 6px
+}
+.jobo-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  outline-offset: 2px
+}
+.jobo-dialog button:disabled {
+  opacity: .45
+}
+.jobo-carry-button {
+  background: #0d9488;
+  white-space: nowrap;
+  flex-shrink: 0
+}
+.jobo-carry-button:hover {
+  background: #0f766e
+}
+.jobo-carry-button:focus-visible {
+  outline: 2px solid #0d9488;
+  outline-offset: 2px
+}
+.jobo-carry-list {
+  max-height: 50vh;
+  overflow: auto;
+  margin-top: 12px
+}
+.jobo-carry-list label {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px
+}
+.jobo-carry-list input {
+  width: auto
+}
+.jobo-carry-list span:nth-child(2) {
+  flex: 1
+}
+.jobo-toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 700;
+  padding: 10px 18px;
+  background: #26313f;
+  color: white;
+  border-radius: 9px;
+  box-shadow: 0 6px 22px #0004;
+  max-width: 80vw;
+  font-size: 12px
+}
+.jobo-week-host {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative
+}
+.jobo-week-zoom {
+  height: 25px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  padding: 0 8px;
+  border-bottom: 1px solid #8882;
+  font-size: 10px
+}
+.jobo-week-zoom span {
+  margin-right: auto;
+  font-size: 9px;
+  opacity: .75
+}
+.jobo-week-zoom button {
+  padding: 1px 4px;
+  border-radius: 3px
+}
+.jobo-week-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin
+}
+.jobo-week-do>div {
+  color: inherit!important;
+  padding-right: 9px!important
+}
+.jobo-week-do::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  top: 5px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--jobo-progress)
+}
+@media(max-width:1000px) {
+  .jobo-column-head,.jobo-day-grid {
+    grid-template-columns: minmax(170px,1fr) 40px minmax(170px,1fr) minmax(175px,.8fr)
+  }
+  .jobo-native-actions button {
+    padding: 1px
+  }
+  .jobo-title-row .text-sm {
+    font-size: 11px
+  }
+}
+/* Preview 0.2.1: intrinsic badges, one-click note editing and label-free linked Do. */
+.jobo-badge {
+  width: max-content;
+  min-width: 0;
+  max-width: none;
+  flex: 0 0 auto;
+  justify-content: flex-start
+}
+.jobo-badge svg {
+  flex-shrink: 0
+}
+.jobo-progress {
+  appearance: none;
+  white-space: nowrap;
+  padding: 0 3px
+}
+.jobo-progress:focus-visible,.jobo-tag-add:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px
+}
+.jobo-progress-menu {
+  position: fixed;
+  z-index: 650;
+  border-radius: 7px;
+  padding: 4px;
+  box-shadow: 0 5px 24px #0004;
+  min-width: 140px;
+  font-size: 12px
+}
+.jobo-progress-menu>button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  text-align: left
+}
+.jobo-progress-menu>button:hover,.jobo-progress-menu>button:focus {
+  background: #8882;
+  outline: 0
+}
+.jobo-progress-menu>button>svg {
+  margin-left: auto
+}
+.jobo-progress-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0
+}
+.jobo-custom-tag,.jobo-tag-add,.jobo-tag-input {
+  --badge-color: #88909a;
+  background: #d9dde3;
+  color: #303741;
+  border-color: #bec5ce;
+  font-style: normal;
+  opacity: 1
+}
+.jobo-tag-add {
+  cursor: pointer;
+  min-width: 16px;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 12px;
+  padding: 0 3px
+}
+.jobo-tag-input {
+  min-width: 6ch;
+  max-width: 20ch;
+  outline: 1px solid #ffffff80;
+  font: inherit;
+  font-size: 10px;
+  padding: 0 3px;
+  box-shadow: none
+}
+.jobo-send-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0
+}
+.jobo-native-actions .jobo-note-arrow {
+  width: 8px;
+  height: 10px;
+  margin-left: -1px
+}
+.jobo-note-editor {
+  cursor: text;
+  border: 0;
+  box-shadow: none;
+  outline: none;
+  white-space: pre-wrap;
+  padding: 5px 8px 12px;
+  overflow: auto;
+  scrollbar-width: thin
+}
+.jobo-note-editor:focus {
+  background: #ffffff0b;
+  box-shadow: inset 0 0 0 1px #8882
+}
+.jobo-note-editor::placeholder {
+  color: inherit;
+  opacity: .48
+}
+.jobo-note-delete {
+  flex: none
+}
+.jobo-add-daily {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px;
+  border: 1px dashed #8884;
+  border-radius: 5px;
+  font-size: 11px
+}
+/* Native plan notes remain above adjacent cards and are not constrained by the compact two-row body. */
+.jobo-native-card:has(.jobo-native-note-popup) {
+  z-index: 50
+}
+.jobo-native-note-popup {
+  cursor: auto
+}

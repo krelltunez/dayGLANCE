@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { dateToString } from '../utils/taskUtils.js';
+import { timelineScrollTarget } from '../utils/timelineScrollTarget.js';
 
 export default function useTimelineScroll({
   calendarRef, timeGridRef,
@@ -16,17 +17,17 @@ export default function useTimelineScroll({
   const scrollToCurrentHour = useCallback((smooth = false) => {
     if (viewMode !== 'multi') return;
     const currentHour = new Date().getHours();
-    const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
+    const { viewport, hourHeight } = timelineScrollTarget(calendarRef.current, timeGridRef.current);
     const scrollPosition = Math.max(0, currentHour * hourHeight);
-    if (calendarRef.current) {
+    if (viewport) {
       if (smooth) {
         // Suppress scroll-away detection during the smooth scroll animation
         suppressScrollAwayRef.current = true;
-        calendarRef.current.scrollTo({ top: scrollPosition, behavior: 'smooth' });
+        viewport.scrollTo({ top: scrollPosition, behavior: 'smooth' });
         // Re-enable after animation completes (smooth scroll typically takes ~300-500ms)
         setTimeout(() => { suppressScrollAwayRef.current = false; }, 600);
       } else {
-        calendarRef.current.scrollTop = scrollPosition;
+        viewport.scrollTop = scrollPosition;
       }
     }
   }, [viewMode, calendarRef, timeGridRef]);
@@ -34,13 +35,13 @@ export default function useTimelineScroll({
   // Scroll timeline to a specific time string (e.g. "08:00")
   const scrollToHour = useCallback((timeStr, smooth = false) => {
     const [h, m] = timeStr.split(':').map(Number);
-    const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
+    const { viewport, hourHeight } = timelineScrollTarget(calendarRef.current, timeGridRef.current);
     const scrollPosition = Math.max(0, (h + m / 60) * hourHeight);
-    if (calendarRef.current) {
+    if (viewport) {
       if (smooth) {
-        calendarRef.current.scrollTo({ top: scrollPosition, behavior: 'smooth' });
+        viewport.scrollTo({ top: scrollPosition, behavior: 'smooth' });
       } else {
-        calendarRef.current.scrollTop = scrollPosition;
+        viewport.scrollTop = scrollPosition;
       }
     }
   }, [calendarRef, timeGridRef]);
@@ -58,10 +59,16 @@ export default function useTimelineScroll({
     if ((isMobile && mobileViewMode !== 'grid') || tabletListView) return;
     const isToday = dateToString(selectedDate) === dateToString(new Date());
     if (isToday && calendarRef.current && (!isMobile || mobileActiveTab === 'timeline')) {
-      const timerId = setTimeout(() => scrollToCurrentHour(false), 100);
+      const timerId = setTimeout(() => {
+        const target = timelineScrollTarget(calendarRef.current, timeGridRef.current);
+        // Compact views choose their own first visible item. Do not scroll the
+        // enclosing page down to the notes when their lazy route has mounted.
+        if (target.ownsInitialScroll) calendarRef.current.scrollTop = 0;
+        else scrollToCurrentHour(false);
+      }, 100);
       return () => clearTimeout(timerId);
     }
-  }, [selectedDate, isMobile, mobileActiveTab, mobileViewMode, tabletListView, scrollToCurrentHour, viewMode, calendarRef]);
+  }, [selectedDate, isMobile, mobileActiveTab, mobileViewMode, tabletListView, scrollToCurrentHour, viewMode, calendarRef, timeGridRef]);
 
   // Detect when user scrolls away from current time (all form factors)
   useEffect(() => {
@@ -79,18 +86,18 @@ export default function useTimelineScroll({
         ticking = false;
         if (suppressScrollAwayRef.current) return;
         const now = new Date();
-        const hourHeight = timeGridRef.current?.children?.[1]?.offsetHeight || 161;
+        const { viewport, hourHeight } = timelineScrollTarget(el, timeGridRef.current);
         const nowPos = (now.getHours() + now.getMinutes() / 60) * hourHeight;
-        const viewTop = el.scrollTop;
-        const viewBottom = viewTop + el.clientHeight;
+        const viewTop = viewport.scrollTop;
+        const viewBottom = viewTop + viewport.clientHeight;
         // Consider "scrolled away" when the current time line is fully outside the visible area
         setTimelineScrolledAway(nowPos < viewTop || nowPos > viewBottom);
       });
     };
-    el.addEventListener('scroll', onScroll, { passive: true });
+    el.addEventListener('scroll', onScroll, { passive: true, capture: true });
     // Delay initial check so the scroll-to-current-hour effect (100ms timeout) runs first
     const initialCheckTimer = setTimeout(onScroll, 200);
-    return () => { el.removeEventListener('scroll', onScroll); clearTimeout(initialCheckTimer); };
+    return () => { el.removeEventListener('scroll', onScroll, true); clearTimeout(initialCheckTimer); };
   }, [isMobile, isTablet, selectedDate, mobileActiveTab, calendarRef, timeGridRef]);
 
   // Auto-refocus timeline every 30 minutes on tablet and desktop

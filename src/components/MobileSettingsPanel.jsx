@@ -31,6 +31,7 @@ import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import LocalIntegrationsSettings from './LocalIntegrationsSettings.jsx';
 import TodoistSettings from './TodoistSettings.jsx';
+import { JoboSettings } from './jobo/JoboRoutes.jsx';
 import { useMcpStatus } from './McpStatusControls.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { isVaultEnabled } from '../sync/vaultConfig.js';
@@ -556,6 +557,8 @@ const MobileSettingsPanel = () => {
         <ChevronLeft size={18} />
         <span className="text-sm font-medium">{t('common.settings')}</span>
       </button>
+
+      <JoboSettings />
 
       {/* View default */}
       <div className="space-y-2">

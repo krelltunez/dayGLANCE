@@ -1,3 +1,4 @@
+import { JoboSettings } from './jobo/JoboRoutes.jsx';
 import React, { useState } from 'react';
 import { Activity, Archive, BarChart3, Bell, BookOpen, BrainCircuit, CalendarDays, CheckCircle, CheckSquare, ChevronDown, Clock, Cloud, ExternalLink, Flag, FolderOpen, Globe, Key, LayoutGrid, Loader, Lock, MapPin, Mic, Moon, Newspaper, RefreshCw, Server, Settings, Sparkles, Sun, Target, Thermometer, Upload, Users, Wifi, WifiOff, X, Zap } from 'lucide-react';
 import { getTzLabel, getTzOptions } from '../utils/timezones.js';
@@ -335,6 +336,7 @@ const SettingsModal = () => {
                         </div>
                         <ViewToggles scope="desktop" views={canShowViewCycler ? DESKTOP_VIEW_MODES : NARROW_DESKTOP_VIEW_MODES} label={desktopViewLabel} />
                         {canShowViewCycler && (<>
+                        <JoboSettings />
                         <div>
                           <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.dayViewMode')}</label>
                           <div className="flex gap-2">

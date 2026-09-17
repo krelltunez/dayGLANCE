@@ -89,3 +89,18 @@ feature-local namespace. Add new keys to `public/locales/*/translation.json`;
 
 App.jsx is still the largest file. When adding a new feature or fixing a bug there, consider extracting the surrounding logic into a hook (`src/hooks/`) or pure utility module (`src/utils/`, with tests) at the same time — the deps-object hook pattern (`useTaskActions`, `useObsidianSync`, etc.) is well established. Extract opportunistically, when it keeps the diff focused; don't extract for its own sake.
 
+
+# Jobo prototype
+
+`docs/jobo-design.md` records the experimental Plan/Do/Notes interaction and its
+pre-release limitations. `src/utils/jobo.js` holds pure ledger rules; `src/jobo/`
+holds the injectable local store and opt-in preference; `src/components/jobo/`
+contains native-view adapters. The flag defaults off and must remain gated in
+multi-user and tray contexts. A Jobo checkbox records an execution attempt, not
+native/Todoist task completion. Progress describes the latest appended attempt,
+not aggregate task progress. Interrupted is independent of delayed/overrun.
+
+The current ledger is original user data stored locally, not a disposable cache.
+Do not prune its history or claim native cloud backup covers it. IndexedDB,
+concurrency, reset/restore and cross-device lifecycle must be designed together
+before release. Keep explicit backup support while those contracts are unresolved.

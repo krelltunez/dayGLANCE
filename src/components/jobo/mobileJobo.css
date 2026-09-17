@@ -1,0 +1,52 @@
+/* Phone-only Jobo surface: native theme classes supply all backgrounds/colours. */
+.jobo-mobile { font-size: 13px; padding-bottom: 8px; }
+.jobo-mobile button { -webkit-tap-highlight-color: transparent; }
+.jobo-mobile button:focus-visible, .jobo-mobile-sheet :focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+.jobo-mobile-tasks, .jobo-mobile-notes { padding: 6px 12px; }
+.jobo-mobile-section-title { display: flex; align-items: center; justify-content: space-between; min-height: 32px; }
+.jobo-mobile-list-toggle { display: flex; align-items: center; gap: 7px; min-height: 36px; }
+.jobo-mobile-icon { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; flex-shrink: 0; }
+.jobo-mobile-task-row { min-height: 44px; display: flex; align-items: center; gap: 3px; }
+.jobo-mobile-record-task { min-width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; }
+.jobo-mobile-check { height: 20px; width: 20px; border-width: 1.5px; border-style: solid; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.jobo-mobile-task-name { flex: 1; min-width: 0; min-height: 44px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jobo-mobile-color { width: 8px; height: 8px; border-radius: 50%; margin: 0 12px; flex-shrink: 0; }
+.jobo-mobile-quick-add { display: flex; align-items: center; gap: 8px; min-height: 38px; border-radius: 6px; width: 100%; padding: 0 12px; text-align: left; }
+.jobo-mobile-head, .jobo-mobile-grid { display: grid; grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr); }
+.jobo-mobile-head > div { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding-left: 12px; }
+.jobo-mobile-head > div:last-child { padding-left: 8px; }
+.jobo-mobile-timeline { height: clamp(252px, 42dvh, 420px); overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; touch-action: pan-y; }
+.jobo-mobile-grid { position: relative; margin-top: 12px; margin-bottom: 14px; }
+.jobo-mobile-lane { position: relative; min-width: 0; }
+.jobo-mobile-slot { height: 42px; width: 100%; display: block; }
+.jobo-mobile-slot:active { background: rgb(59 130 246 / .08); }
+.jobo-mobile-axis { position: relative; margin: 0 3px; }
+.jobo-mobile-axis::before { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; border-left: 1px solid currentColor; opacity: .14; }
+.jobo-mobile-hour { position: absolute; left: 0; right: 0; height: 24px; transform: translateY(-50%); display: flex; justify-content: center; align-items: center; }
+.jobo-mobile-hour span { display: flex; align-items: center; justify-content: center; font-size: 10px; font-variant-numeric: tabular-nums; width: 23px; height: 23px; border-radius: 50%; z-index: 1; }
+/* Both text rows must fit inside even a 36px short-duration block. */
+.jobo-mobile-card { position: absolute; z-index: 2; padding: 4px 7px; text-align: left; display: flex; flex-direction: column; align-items: flex-start; gap: 0; overflow: hidden; min-width: 0; }
+.jobo-mobile-card-title { display: block; flex-shrink: 0; font-size: 12px; font-weight: 600; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.jobo-mobile-card-time { flex-shrink: 0; font-size: 10px; line-height: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; opacity: .85; }
+.jobo-mobile-now { position: absolute; left: 0; right: 0; border-top: 1px solid #ef4444; z-index: 3; pointer-events: none; opacity: .65; }
+.jobo-mobile-note-preview { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; width: 100%; min-height: 64px; line-height: 22px; padding: 6px 8px; border-radius: 6px; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; }
+.jobo-mobile-tools { display: flex; padding: 4px; gap: 4px; }
+.jobo-mobile-tools button { min-height: 44px; flex: 1; font-size: 12px; }
+.jobo-mobile-error { display: flex; gap: 8px; align-items: flex-start; padding: 10px; color: #dc2626; font-size: 12px; overflow-wrap: anywhere; }
+.jobo-mobile-error button { margin-left: auto; min-width: 32px; min-height: 32px; }
+.jobo-mobile-mask { position: fixed; inset: 0; z-index: 300; background: rgb(0 0 0 / .5); display: flex; align-items: flex-end; justify-content: center; padding: 8px 0 0; overscroll-behavior: contain; }
+.jobo-mobile-sheet { width: 100%; max-width: 520px; border-radius: 16px 16px 0 0; padding: 6px 16px calc(16px + env(safe-area-inset-bottom, 0px)); max-height: calc(100dvh - 16px); overflow-y: auto; overscroll-behavior: contain; }
+.jobo-mobile-sheet-title { display: flex; align-items: center; justify-content: space-between; min-height: 48px; font-size: 16px; }
+.jobo-mobile-sheet label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; font-size: 12px; min-width: 0; }
+.jobo-mobile-sheet input, .jobo-mobile-sheet textarea, .jobo-mobile-sheet select { min-width: 0; width: 100%; min-height: 44px; border-radius: 8px; padding: 8px 10px; font-size: 16px; }
+.jobo-mobile-times { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.jobo-mobile-details summary { font-size: 12px; padding: 12px 0; cursor: pointer; }
+.jobo-mobile-colors { display: flex; gap: 10px; padding: 8px 4px; flex-wrap: wrap; }
+.jobo-mobile-color-choice { width: 32px; height: 32px; border-radius: 50%; }
+.jobo-mobile-source-note { min-height: 44px; font-size: 13px; padding: 4px 8px; border-radius: 6px; }
+.jobo-mobile-sheet-actions { display: flex; gap: 8px; align-items: center; padding-top: 10px; }
+.jobo-mobile-sheet-actions > button:not(.jobo-mobile-icon) { flex: 1; min-height: 44px; border-radius: 8px; font-size: 14px; font-weight: 600; }
+@media (max-height: 800px) {
+  /* Leave room for capture and notes on short phones, not two giant calendars. */
+  .jobo-mobile-timeline { height: clamp(220px, calc(100dvh - 494px), 336px); }
+}
