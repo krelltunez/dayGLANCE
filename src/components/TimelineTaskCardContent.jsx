@@ -17,10 +17,10 @@ import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { useTranslation } from 'react-i18next';
 
-const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
+const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel, compactRenderer: CompactRenderer }) => {
   const { t } = useTranslation();
   const {
-    isTablet,
+    isTablet, joboTaskRenderer,
     darkMode,
     cardBg, borderClass, textPrimary, hoverBg,
     editingTaskId, editingTaskText,
@@ -51,6 +51,7 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
     multiUserEnabled, users,
   } = useFeaturesCtx();
 
+  const Renderer = CompactRenderer || (task._joboRole && !task.imported ? joboTaskRenderer : null);
   const isImported = task.imported;
   const isCalendarEvent = isImported && !task.isTaskCalendar;
   const isMicroHeight = height <= 40;
@@ -165,7 +166,7 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
 
   return (
     <>
-      <div className="px-2 py-1 flex-1 min-w-0 h-full flex flex-col">
+      {Renderer ? <Renderer task={task} ActionButtons={ActionButtons} NotesButton={NotesButton} /> : <div className="px-2 py-1 flex-1 min-w-0 h-full flex flex-col">
         {isImported && !isCalendarEvent ? null : isCalendarEvent ? (
           /* IMPORTED EVENT LAYOUT: Always show time on right with truncated title */
           <div className="flex flex-col h-full justify-start gap-0.5">
@@ -411,7 +412,7 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
             )}
           </>
         )}
-      </div>
+      </div>}
       {/* Notes panel - floating below task (or above if task ends after 22:00) */}
       {expandedNotesTaskId === task.id && !isImported && (() => {
         const startMin = timeToMinutes(task.startTime || '0:00');
@@ -419,7 +420,7 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
         const showAbove = flipNotesPanel !== undefined ? flipNotesPanel : endMin >= 22 * 60;
         return (
           <div
-            className="notes-panel-container absolute left-0 right-0 z-40"
+            className={`notes-panel-container ${Renderer ? 'jobo-native-note-popup' : ''} absolute left-0 right-0 z-40`}
             style={showAbove ? { bottom: `${height}px` } : { top: `${height}px` }}
           >
             <div className={`${task.color} rounded-lg shadow-lg ${showAbove ? 'mb-1' : 'mt-1'}`}>
@@ -452,7 +453,7 @@ const TimelineTaskCardContent = ({ task, height, isNarrowWidth, flipNotesPanel }
         const showAbove = flipNotesPanel !== undefined ? flipNotesPanel : endMin >= 22 * 60;
         return (
           <div
-            className="notes-panel-container absolute left-0 right-0 z-40"
+            className={`notes-panel-container ${Renderer ? 'jobo-native-note-popup' : ''} absolute left-0 right-0 z-40`}
             style={showAbove ? { bottom: `${height}px` } : { top: `${height}px` }}
           >
             <div className={`${task.color} rounded-lg shadow-lg ${showAbove ? 'mb-1' : 'mt-1'}`}>

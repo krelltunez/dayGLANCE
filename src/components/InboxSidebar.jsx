@@ -1,3 +1,4 @@
+import { JoboCarryRoute } from './jobo/JoboRoutes.jsx';
 import React, { useState, useRef } from 'react';
 import {
   AlertCircle, Archive, BookOpen, BrainCircuit,
@@ -106,6 +107,7 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
           <Plus size={14} strokeWidth={3} />
           <span className="text-xs font-medium">{t('common.newTask')}</span>
         </button>
+        <JoboCarryRoute />
         {aiConfig?.enabled && aiConfig.features?.smartScheduling && myFrames.filter(f => f.enabled).length > 0 && unscheduledTasks.filter(t => notBucketed(t) && !t.completed && !t.isExample).length > 0 && (
           <button
             onClick={() => { setShowFramesModal(true); setFramesModalTab('schedule'); setEditingFrame(null); }}

@@ -501,7 +501,7 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, startHour, onTaskCl
 
 // ── WeekView ──────────────────────────────────────────────────────────────────
 
-const WeekView = () => {
+const WeekView = ({ hourScale = 1 }) => {
   const {
     calendarRef, stickyHeaderRef,
     weekViewDates,
@@ -517,7 +517,7 @@ const WeekView = () => {
   const startHour = showAllHours ? 0 : weekTimelineStartHour;
   const visibleHours = 24 - startHour;
 
-  const hourHeight = useWeekViewHourHeight(calendarRef, stickyHeaderRef, visibleHours);
+  const hourHeight = useWeekViewHourHeight(calendarRef, stickyHeaderRef, visibleHours) * hourScale;
   const [popoverTask, setPopoverTask] = useState(null);
   const [popoverAnchor, setPopoverAnchor] = useState(null);
 
