@@ -252,6 +252,7 @@ Two requirements on the tool surface:
 - **Errors are tool errors, not protocol errors.** Return `isError: true` with a content block the model can read and recover from. Distinguish at minimum: renderer unavailable, consent revoked, read-only mode, not found, validation failure, rate limited.
 - **`_native` events are rejected by every write tool with a typed error.** `move_block`, `resize_block`, and `set_task_completion` refuse device calendar events regardless of the consent tier. Why: dayGLANCE holds EventKit **read** access only, and the existing `day-planner-native-time-overrides` mechanism shifts local display without touching the actual event — so a "successful" write would create a silent discrepancy between what dayGLANCE shows and what the user's calendar says, which is worse than the refusal.
 - **Idempotency (corrected in r5).** Agents retry. Every write accepts an optional `idempotency_key`. The r4 text said to map it onto "the existing `transitionId` pattern" — the Phase 3 trace showed that overstates what exists: `transitionId` is read in exactly one place (`useNotifyEmitter.js`, as the outbound intent's `event_id`) and provides **delivery dedup at the outbox**, not mutation-level replay protection; no local mutation dedups on it. The only mutation-level precedent is `handleIntent.js:347-389` (deterministic task id from the key + existence/tombstone check), and it is create-shaped. So the design is: the key still travels into the emit path as `transitionId` (reusing the delivery dedup that does exist), `create_task` derives a deterministic task id from the key per the `handleIntent` precedent (reuse), and replayed **move/resize/completion** calls are absorbed by a bounded main-process replay store returning the first attempt's result — which is **new machinery, acknowledged as such**, because nothing reusable exists for mutating operations.
+- **Routine blocks are rejected by every write tool with a typed error** (`routine_readonly`). Routines are reported by the read surface so a model can see the time is occupied, and a model that can see a block will try to act on it. The refusal names the reason rather than falling through to `not_found`, which would tell the model the block does not exist and invite it to recreate the routine as a task. Both the `routine-<id>` block id and the bare routine id are detected.
 - **No partial success.** A tool call either applies fully or not at all.
 
 ### 5.3 Date and timezone semantics
@@ -275,6 +276,14 @@ dayGLANCE is a day planner, so date handling is the correctness core and the lik
 Resource subscriptions are technically straightforward given the existing store change events, but add a stateful session dimension to the HTTP transport. Deferred.
 
 ---
+
+### 5.5 Known limitation: routine occupancy is read-only, and writes do not consult it
+
+`schedule_task`, `move_block`, and `resize_block` do **not** check whether the time they are writing to is covered by a routine. A model that reads first and then writes will now schedule around routines correctly, because `get_day` reports them. A model that writes blind can still land a task on top of one.
+
+This is a scoped decision, not an oversight. Closing the read gap and closing the write gap are different changes: the read gap is a reporting bug (the server said "free" about time that was occupied, which is false), while consulting routine occupancy on write is a behaviour change to the write surface, with its own questions the read change does not raise: whether a collision is a hard rejection or an adjustment, whether it matches the in-app conflict resolver at `App.jsx` (which already treats routines as obstacles, and would be the thing to reuse), and whether it applies when the user has explicitly asked for that time. Those deserve deciding on their own rather than riding along.
+
+The asymmetry is deliberate and bounded: reading is where the falsehood was, and a read-then-write agent is the normal case. If blind writes onto routines turn out to happen in practice, the fix is to extend the write validators against the same `buildRoutineBlocks` output the read path already produces.
 
 ## 6. Consent and privacy model
 
@@ -302,8 +311,10 @@ Reads are split into **three tiers rather than two** (this closes open question 
 | Tier | Default | Meaning |
 |---|---|---|
 | Off | **Default** | Listener not bound. No port open. |
-| Read: dayGLANCE data only | Opt-in | Tasks, blocks, goals, habits, routines. `_native` device calendar events are excluded from every tool and resource. Writes return a consent error. |
+| Read: dayGLANCE data only | Opt-in | Scheduled blocks, the unscheduled inbox, goals and projects, and today's routine blocks (read-only, `type: "routine"`). `_native` device calendar events are excluded from every tool and resource. Writes return a consent error. |
 | Read: include device calendar | **Separate opt-in with its own consent copy** (§6.4) | Adds `_native` events to the read surface, flagged per §5.1. Always read-only — writes to them are rejected with a typed error regardless of the write tier (§5.2). |
+
+**Habits are not exposed, and this row once said they were.** As written in r1 this line read "Tasks, blocks, goals, habits, routines", which was wrong on both of the last two: neither crossed the renderer bridge. Routines were added to the read surface later (§5.1); habits remain out of scope deliberately, being a daily count with no time span, so they cannot affect scheduling. The in-app consent copy never inherited the error and has always described the real surface.
 
 Writes remain a second, independent opt-in on top of either read tier:
 

@@ -62,6 +62,16 @@ const NATIVE_NOTE =
   ' Items with type "device_calendar_event" are read-only device calendar events: ' +
   'dayGLANCE cannot modify, move, resize, or complete them.';
 
+// Same reasoning as NATIVE_NOTE: state the limit in the description so the
+// model knows it before it spends a call finding out. A routine is occupied
+// time, which is the part that matters when looking for a free slot.
+const ROUTINE_NOTE =
+  ' Items with type "routine" are dayGLANCE routine blocks. They OCCUPY the time they cover, ' +
+  'exactly like a task, so treat them as busy when looking for a free slot. They are read-only ' +
+  '(read_only: true): they cannot be moved, resized, completed, or edited over MCP, because ' +
+  'routines are managed in the dayGLANCE routines dashboard. Routines exist only for the current ' +
+  'day, so past and future dates never carry them.';
+
 export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
   const getDay = async (date: string): Promise<ToolResult> => {
     const r = await deps.bridge.request('get_day', {
@@ -79,7 +89,7 @@ export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
       description:
         "Today's schedule from dayGLANCE. Resolves the current LOCAL calendar date on the " +
         'user\'s machine. Use this instead of guessing the date. Response echoes the resolved ' +
-        'date and IANA timezone; times are local wall-clock HH:MM.' + NATIVE_NOTE,
+        'date and IANA timezone; times are local wall-clock HH:MM.' + NATIVE_NOTE + ROUTINE_NOTE,
     },
     async () => getDay(localDateOf(deps.now(), deps.timeZone())),
   );
@@ -90,7 +100,7 @@ export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
       description:
         'The dayGLANCE schedule for one LOCAL calendar date (YYYY-MM-DD, no time component, ' +
         'no UTC, no offsets). Response echoes the resolved date and IANA timezone; times are ' +
-        'local wall-clock HH:MM. For the current date, prefer dayglance_get_today.' + NATIVE_NOTE,
+        'local wall-clock HH:MM. For the current date, prefer dayglance_get_today.' + NATIVE_NOTE + ROUTINE_NOTE,
       inputSchema: z.object({
         date: z.string().describe('Local calendar date, strict YYYY-MM-DD. Not a timestamp.'),
       }),

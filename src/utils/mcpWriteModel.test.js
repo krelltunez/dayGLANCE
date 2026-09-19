@@ -308,3 +308,81 @@ describe('schedule_task — dropped_fields reporting', () => {
     expect(scheduleDroppedFields(undefined)).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Routines are read-only over MCP BY DESIGN (spec §5.2, §7.4).
+//
+// The read surface reports routine blocks so a model can see the time is
+// occupied. A model that can see a block will try to act on it, so every
+// write tool has to say WHY it will not, rather than falling through to
+// not_found, which would tell the model the block does not exist and invite
+// it to recreate the routine as a task.
+// ---------------------------------------------------------------------------
+describe('routine ids are rejected by every write tool', () => {
+  const ROUTINE = { id: 'r1', name: 'Morning pages', startTime: '07:00', duration: 15 };
+  const state = () => ({
+    tasks: [B()], unscheduledTasks: [{ id: 'u1', title: 'Inbox item' }],
+    users: [], routines: [ROUTINE],
+  });
+
+  const calls = [
+    ['schedule_task', { taskId: 'routine-r1', date: '2026-08-10', startTime: '10:00' }],
+    ['move_block', { blockId: 'routine-r1', date: '2026-08-10', startTime: '10:00' }],
+    ['resize_block', { blockId: 'routine-r1', durationMinutes: 30 }],
+    ['set_completion', { taskId: 'routine-r1', completed: true }],
+    ['update_task', { taskId: 'routine-r1', set: { title: 'Renamed' }, clear: [] }],
+    ['create_task', { taskId: 'routine-r1', title: 'Impostor' }],
+  ];
+
+  for (const [method, params] of calls) {
+    it(`${method} returns routine_readonly, not not_found`, () => {
+      const setters = makeSetters();
+      const r = handleMcpWrite(state(), setters, { method, params });
+      expect(r.ok).toBe(false);
+      expect(r.error.code).toBe('routine_readonly');
+      // The message has to carry the reason, not just the refusal.
+      expect(r.error.message).toMatch(/routine/i);
+      expect(r.error.message).toMatch(/read-only/i);
+      // Nothing was written.
+      for (const fn of Object.values(setters)) expect(fn).not.toHaveBeenCalled();
+    });
+  }
+
+  it('rejects a bare routine id, not only the prefixed block id', () => {
+    // A caller working from an export or a log may have stripped the prefix.
+    const r = handleMcpWrite(state(), makeSetters(), {
+      method: 'set_completion', params: { taskId: 'r1', completed: true },
+    });
+    expect(r.error.code).toBe('routine_readonly');
+  });
+
+  it('still rejects the prefixed id when no routine state is threaded', () => {
+    // §3.7: the write path is not guaranteed routine slices, so the prefix
+    // check must stand alone.
+    const r = handleMcpWrite({ tasks: [], unscheduledTasks: [], users: [] }, makeSetters(), {
+      method: 'move_block', params: { blockId: 'routine-r1', date: '2026-08-10', startTime: '10:00' },
+    });
+    expect(r.error.code).toBe('routine_readonly');
+  });
+
+  it('does not misfire on ordinary tasks or on device calendar events', () => {
+    const okMove = handleMcpWrite(state(), makeSetters(), {
+      method: 'move_block', params: { blockId: 'b1', date: '2026-08-11', startTime: '11:00' },
+    });
+    expect(okMove.ok).toBe(true);
+
+    const native = handleMcpWrite(
+      { tasks: [B({ id: 'n1', _native: true })], unscheduledTasks: [], users: [], routines: [ROUTINE] },
+      makeSetters(),
+      { method: 'move_block', params: { blockId: 'n1', date: '2026-08-11', startTime: '11:00' } },
+    );
+    expect(native.error.code).toBe('device_calendar_readonly');
+  });
+
+  it('keeps not_found for an id that is genuinely unknown', () => {
+    const r = handleMcpWrite(state(), makeSetters(), {
+      method: 'move_block', params: { blockId: 'nope', date: '2026-08-11', startTime: '11:00' },
+    });
+    expect(r.error.code).toBe('not_found');
+  });
+});

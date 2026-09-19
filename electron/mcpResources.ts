@@ -54,7 +54,8 @@ export function registerResources(server: McpServer, deps: ReadToolDeps): void {
       description:
         "Today's dayGLANCE blocks and completion state. The date is resolved on the user's machine " +
         '(local calendar date, §5.3) and echoed with the IANA timezone. Items with type ' +
-        '"device_calendar_event" are read-only device calendar events.',
+        '"device_calendar_event" are read-only device calendar events. Items with type "routine" ' +
+        'are routine blocks: they occupy the time they cover and are read-only over MCP.',
       mimeType: MIME,
     },
     async (uri) => {
@@ -74,7 +75,10 @@ export function registerResources(server: McpServer, deps: ReadToolDeps): void {
       description:
         'The current calendar week of dayGLANCE blocks: the week containing today, starting on the ' +
         "user's configured week-start day (echoed as week_start_day, 0=Sunday). Dates and times are " +
-        'local (§5.3); the resolved date and IANA timezone are echoed.',
+        'local (§5.3); the resolved date and IANA timezone are echoed. Items with type ' +
+        '"device_calendar_event" and type "routine" are both read-only. Routine blocks occupy the ' +
+        'time they cover but exist only for the current day, so exactly one day of this week can ' +
+        'carry them and the other six showing none is expected, not missing data.',
       mimeType: MIME,
     },
     async (uri) => {

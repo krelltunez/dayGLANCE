@@ -22,18 +22,57 @@
 // rejects _native explicitly — and none of this module touches localStorage,
 // so no day-planner-native-time-overrides entry can ever be written from it.
 
+import { parseRoutineBlockId, routineBlockId } from './mcpRoutines.js';
 import { completionTimestamp } from './taskUtils.js';
 
 export const WRITE_ERROR_CODES = Object.freeze({
   NOT_FOUND: 'not_found',
   VALIDATION: 'validation',
   NATIVE_READONLY: 'device_calendar_readonly',
+  ROUTINE_READONLY: 'routine_readonly',
 });
 
 const err = (code, message) => ({ ok: false, error: { code, message } });
 
 const NATIVE_MSG = (id) =>
   `${id} is a device calendar event. dayGLANCE has read-only access to the device calendar and cannot modify, move, resize, or complete its events.`;
+
+/**
+ * Routines are read-only over MCP BY DESIGN, not by omission (spec §5.2).
+ *
+ * The read surface reports them so a model can see the time is occupied, and
+ * a model that can see a block will reasonably try to move or complete it.
+ * Letting that fall through to `not_found` would be a lie in the direction
+ * that causes damage: the model would conclude the block does not exist and
+ * either retry or recreate it as a task. Naming the real reason lets it tell
+ * the user why instead.
+ */
+const ROUTINE_MSG = (id, operation) =>
+  `${id} is a dayGLANCE routine block. Routines are read-only over MCP: ${operation} is not supported because routines are ` +
+  'edited through the routines dashboard in dayGLANCE, whose write shape is not a task mutation. The block is occupied ' +
+  'time; schedule around it.';
+
+/**
+ * Reject a routine id, or return null when `id` is not one. Two detectors,
+ * because they fail in different directions:
+ *
+ *   the `routine-` prefix   catches every id the read surface hands out, with
+ *                           no routine state needed (§3.7: the write path is
+ *                           not given routine slices)
+ *   the raw-id membership   catches a caller that stripped the prefix, or one
+ *                           working from an id it saw in an export or a log
+ *
+ * `state.routines` is the owner-scoped list the renderer already passes for
+ * reads; when it is absent (any caller that does not thread it) the prefix
+ * check still stands on its own.
+ */
+function routineGuard(state, id, operation) {
+  const prefixed = parseRoutineBlockId(id);
+  if (prefixed) return err(WRITE_ERROR_CODES.ROUTINE_READONLY, ROUTINE_MSG(id, operation));
+  const raw = (state?.routines ?? []).some((r) => String(r.id) === String(id));
+  if (raw) return err(WRITE_ERROR_CODES.ROUTINE_READONLY, ROUTINE_MSG(routineBlockId(id), operation));
+  return null;
+}
 
 /** The recurring-instance id shape, mirroring App.jsx parseRecurringId. */
 export function parseRecurringInstanceId(id) {
@@ -78,6 +117,13 @@ export function applyCreateTask(state, {
   const tasks = state.tasks ?? [];
   const trimmed = typeof title === 'string' ? title.trim() : '';
   if (!trimmed) return err(WRITE_ERROR_CODES.VALIDATION, 'title must be a non-empty string');
+
+  // A routine id as the idempotency key is not merely pointless: the create
+  // would succeed and mint a TASK carrying a routine block id, which then
+  // collides with the routine's own id on the read surface and makes the two
+  // indistinguishable to the caller that has to tell them apart.
+  const routineRejection = routineGuard(state, taskId, 'creating a task under that id');
+  if (routineRejection) return routineRejection;
 
   let assignedUserSyncIds;
   if (assigneeSyncId !== undefined) {
@@ -144,6 +190,9 @@ export function applyCreateTask(state, {
 export function applyScheduleTask(state, { taskId, date, startTime, durationMinutes, transitionId, nowIso }) {
   const unscheduled = state.unscheduledTasks ?? [];
   const tasks = state.tasks ?? [];
+
+  const routineRejection = routineGuard(state, taskId, 'scheduling');
+  if (routineRejection) return routineRejection;
 
   const task = unscheduled.find((t) => t.id === taskId);
   if (!task) {
@@ -224,6 +273,9 @@ export function applyUpdateTask(state, { taskId, set = {}, clear = [], transitio
     );
   }
 
+  const routineRejection = routineGuard(state, taskId, 'editing');
+  if (routineRejection) return routineRejection;
+
   const inInbox = unscheduled.find((t) => t.id === taskId);
   const scheduled = tasks.find((t) => t.id === taskId);
   const task = inInbox ?? scheduled;
@@ -298,7 +350,9 @@ export function applyUpdateTask(state, { taskId, set = {}, clear = [], transitio
 }
 
 /** Shared lookup + guards for the block-mutating tools. */
-function findWritableBlock(tasks, blockId, { operation }) {
+function findWritableBlock(state, tasks, blockId, { operation }) {
+  const routineRejection = routineGuard(state, blockId, operation === 'move_block' ? 'moving' : 'resizing');
+  if (routineRejection) return routineRejection;
   if (parseRecurringInstanceId(blockId)) {
     return err(
       WRITE_ERROR_CODES.VALIDATION,
@@ -319,7 +373,7 @@ function findWritableBlock(tasks, blockId, { operation }) {
  */
 export function applyMoveBlock(state, { blockId, date, startTime, transitionId }) {
   const tasks = state.tasks ?? [];
-  const found = findWritableBlock(tasks, blockId, { operation: 'move_block' });
+  const found = findWritableBlock(state, tasks, blockId, { operation: 'move_block' });
   if (!found.ok) return found;
 
   if (found.task.transitionId && transitionId && found.task.transitionId === transitionId) {
@@ -337,7 +391,7 @@ export function applyMoveBlock(state, { blockId, date, startTime, transitionId }
  */
 export function applyResizeBlock(state, { blockId, durationMinutes, transitionId }) {
   const tasks = state.tasks ?? [];
-  const found = findWritableBlock(tasks, blockId, { operation: 'resize_block' });
+  const found = findWritableBlock(state, tasks, blockId, { operation: 'resize_block' });
   if (!found.ok) return found;
 
   if (found.task.transitionId && transitionId && found.task.transitionId === transitionId) {
@@ -540,6 +594,9 @@ export function applySetCompletion(state, { taskId, completed, transitionId, now
       task: { id: taskId, completed },
     };
   }
+
+  const routineRejection = routineGuard(state, taskId, 'completing');
+  if (routineRejection) return routineRejection;
 
   const inInbox = unscheduled.find((t) => t.id === taskId);
   const scheduled = tasks.find((t) => t.id === taskId);

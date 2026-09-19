@@ -18,6 +18,7 @@ import { getOccurrencesInRange } from './recurrenceEngine.js';
 import { calculateGoalProgress } from './goalProgress.js';
 import { calculateProjectProgress } from './projectProgress.js';
 import { notBucketed } from './bucketList.js';
+import { buildRoutineBlocks } from './mcpRoutines.js';
 
 /**
  * The §5.1 distinct type flag. 'device_calendar_event' marks data that came
@@ -96,11 +97,20 @@ export function buildDayBlocks(state, params) {
   const concrete = includeNative ? onDate : onDate.filter((t) => !t._native);
   const recurring = expandRecurringForDate(recurringTasks, date).filter(isVisibleForUser);
 
+  // Routines are already block-shaped and already owner-scoped (the renderer
+  // passes the filtered list, since isVisibleForUser cannot judge them), so
+  // they join AFTER the map rather than going through toBlock, which reads
+  // .title and .date and would silently type them as plain tasks.
+  //
+  // Not gated on include_native: a routine is dayGLANCE data the user created,
+  // not device calendar data, so it rides the base read consent tier (§6.3).
+  const routines = buildRoutineBlocks(state, date);
+
   const toMinutes = (hhmm) => {
     const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm ?? '');
     return m ? Number(m[1]) * 60 + Number(m[2]) : Number.MAX_SAFE_INTEGER;
   };
-  const blocks = [...concrete, ...recurring].map(toBlock).sort((a, b) => {
+  const blocks = [...concrete, ...recurring].map(toBlock).concat(routines).sort((a, b) => {
     if (a.all_day !== b.all_day) return a.all_day ? -1 : 1;
     return toMinutes(a.start_time) - toMinutes(b.start_time);
   });

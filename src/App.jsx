@@ -7298,6 +7298,21 @@ const DayPlanner = () => {
     tasks,
     recurringTasks,
     unscheduledTasks,
+    // ROUTINES (read-only). `todayRoutines` here is the OWNER-SCOPED memo
+    // (filtered by ownedBy above), never `allTodayRoutines`. This is not a
+    // tidiness point: routines carry ownerSyncId, and isVisibleForUser (the
+    // filter every other slice below relies on) tests assignedUserSyncIds,
+    // which a routine does not have, so it returns true for every member's
+    // routines. Scoping has to happen HERE, before the bridge, or another
+    // member's routines leak onto this user's MCP read surface.
+    routines: todayRoutines,
+    routinesDate,
+    routineCompletions,
+    routinesEnabled,
+    // Today per the ticking clock, so the read model can require that
+    // routinesDate really is today before reporting routines (see the date
+    // guard in mcpRoutines.js).
+    todayDate: dateToString(currentTime),
     // Bulk undo moves undone creates to the recycle bin (the UI's own delete
     // shape), so the undo path needs the current bin to append to.
     recycleBin,

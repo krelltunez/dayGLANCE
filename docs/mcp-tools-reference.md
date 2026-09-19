@@ -24,6 +24,12 @@ directly (`claude mcp add --transport http`).
   repeating the write or journaling anything.
 - **`device_calendar_event` items are read-only** everywhere: dayGLANCE holds EventKit read
   access only. Every write tool rejects them with `device_calendar_readonly`.
+- **`routine` items are read-only** everywhere, and they **occupy the time they cover**. Treat a
+  routine block as busy when looking for a free slot. Every write tool rejects them with
+  `routine_readonly`: routines are managed in the dayGLANCE routines dashboard, whose write shape
+  is not a task mutation. Routines exist only for the current day, so past and future dates never
+  carry them. Note that the write tools do not themselves check routine occupancy, so read the day
+  first if you are choosing a time (see Known limitations).
 - **Consent gating**: the read surface exists only while the MCP server is enabled; device
   calendar events appear in reads only under the calendar tier; write tools return
   `read_only_mode` unless writes are enabled — all in Settings → Local Integrations.
@@ -38,6 +44,7 @@ directly (`claude mcp add --transport http`).
 | `validation` | Malformed argument, or a by-design rejection (message says which). |
 | `not_found` | No task/block/user with that id. |
 | `device_calendar_readonly` | Target is a device calendar event (EventKit read-only). |
+| `routine_readonly` | Target is a routine block. Routines are read-only over MCP by design. |
 | `read_only_mode` | Writes are not enabled in Settings → Local Integrations. |
 | `rate_limited` | Write gate: 30 writes/minute sliding window reached. |
 | `writes_disabled` | Repeated rate-limit violations auto-disabled writes; re-enable requires user action. |
@@ -45,6 +52,23 @@ directly (`claude mcp add --transport http`).
 | `internal` | Unexpected failure; message carries what is known. |
 
 ---
+
+## Block types
+
+Every block returned by `dayglance_get_today`, `dayglance_get_day`, and the schedule resources
+carries a `type`. All of them occupy the time they cover.
+
+| `type` | What it is | Writable |
+|---|---|---|
+| `task` | An ordinary dayGLANCE task placed on the calendar. | yes |
+| `recurring_task` | One instance of a recurring series, with a synthetic `recurring-<id>-<date>` id. | move/resize/complete rejected; edit the series in the app |
+| `device_calendar_event` | An event from the device calendar (EventKit). Carries `read_only: true`. Only under the calendar consent tier. | no |
+| `routine` | A routine block placed on today's timeline, id `routine-<id>`. Carries `read_only: true`. | no |
+
+Branch on `read_only` rather than on `type`: more than one type carries it, and more may later.
+
+An unplaced routine (chosen for today but never given a time) reports `all_day: true` with
+`start_time` and `duration_minutes` both `null`: it is on the day but occupies no part of it.
 
 ## Read tools
 
@@ -56,7 +80,8 @@ No parameters. Returns `{ ok: true, server: "dayGLANCE MCP" }`.
 Today's schedule; resolves the current **local** calendar date on the user's machine — use
 this instead of guessing the date.
 No parameters. Returns blocks with local times, completion state, the resolved date, and the
-IANA timezone. Includes `device_calendar_event` items only under the calendar consent tier.
+IANA timezone. Includes `routine` blocks (today only) and, under the calendar consent tier,
+`device_calendar_event` items.
 
 ### `dayglance_get_day`
 One local calendar date's schedule. For the current date prefer `dayglance_get_today`.
@@ -207,12 +232,23 @@ write MCP does not perform.
 
 | URI | Content |
 |---|---|
-| `dayglance://schedule/today` | Today's blocks and completion state, local date + timezone echoed. |
-| `dayglance://schedule/week/current` | The week containing today, starting on the configured week-start day (`week_start_day`, 0 = Sunday). |
+| `dayglance://schedule/today` | Today's blocks and completion state, local date + timezone echoed. Includes `routine` blocks. |
+| `dayglance://schedule/week/current` | The week containing today, starting on the configured week-start day (`week_start_day`, 0 = Sunday). Only the day that is today can carry `routine` blocks; the other six showing none is expected. |
 | `dayglance://goals/tree` | Goal/project hierarchy with duration-weighted progress — same data as `dayglance_get_goal_progress`. |
 
 All three read over the same renderer path as the tools and respect the same consent tiers;
 failures throw with the same code + message text a tool error would carry.
+
+---
+
+## Known limitations
+
+**Write tools do not consult routine occupancy.** `dayglance_schedule_task`,
+`dayglance_move_block`, and `dayglance_resize_block` will place a task on top of a routine
+block without complaining. The read surface reports routines so you can schedule around them,
+but the write validators do not check them for you. **Read the day before choosing a time.**
+This is a scoped decision (spec §5.5), not a bug to report: making writes routine-aware is a
+behaviour change to the write surface with its own open questions.
 
 ---
 
