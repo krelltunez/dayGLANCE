@@ -7077,7 +7077,7 @@ const DayPlanner = () => {
   const {
     voiceStartRecording, voiceStopRecording,
     voiceParseWithAI, voiceApplyAllChanges,
-    voiceHasTranscription,
+    voiceHasTranscription, voiceSpeechBlocked, voiceRetrySpeech,
     buildTaskContextForAI, resolveTaskMatch,
   } = useVoiceInput({
     aiConfig, allTags, colors,
@@ -9013,6 +9013,7 @@ const DayPlanner = () => {
     dismissMorningGlance, dismissEveningGlance,
     voiceParseWithAI, voiceStartRecording, voiceStopRecording,
     voiceApplyAllChanges, voiceHasTranscription,
+    voiceSpeechBlocked, voiceRetrySpeech,
     buildTaskContextForAI, resolveTaskMatch,
 
     // ── Functions – reminders ─────────────────────────────────────────────────

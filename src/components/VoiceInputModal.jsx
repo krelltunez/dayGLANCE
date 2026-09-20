@@ -25,6 +25,7 @@ const VoiceInputModal = () => {
     voiceEditingParsed, setVoiceEditingParsed,
     voiceManualMode, setVoiceManualMode,
     voiceMicError, voiceCanRecord, voiceHasTranscription,
+    voiceSpeechBlocked, voiceRetrySpeech,
     voiceStartRecording, voiceStopRecording,
     voiceParseWithAI, voiceApplyAllChanges,
     aiConfig,
@@ -117,7 +118,22 @@ const VoiceInputModal = () => {
                   ) : (
                     <div className="space-y-3">
                       {/* Text input — shown when voice not available or user chose to type */}
-                      {!voiceHasTranscription ? (
+                      {/* A mic failure drops straight into typing, so the reason has
+                          to be carried across with it — otherwise the user lands in a
+                          textarea with no idea why the microphone gave up. */}
+                      {voiceMicError === 'error' && voiceParseError ? (
+                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-red-900/30 border border-red-800/50' : 'bg-red-50 border border-red-200'} text-xs`}>
+                          <p className="text-red-400">{voiceParseError}</p>
+                        </div>
+                      ) : voiceSpeechBlocked && !voiceHasTranscription ? (
+                        /* A past failure, remembered: name it, rather than falling
+                           back to the generic "not available on this device". */
+                        <p className={`text-xs ${textSecondary}`}>
+                          {t('voice.speechServiceUnreachableTyping', {
+                            defaultValue: "This browser can't reach its speech recognition service, so voice input isn't available here. Type your tasks below — dates, times, and repeats are still understood.",
+                          })}
+                        </p>
+                      ) : !voiceHasTranscription ? (
                         <p className={`text-xs ${textSecondary}`}>
                           {aiConfig.enabled && !supportsTranscription(aiConfig)
                             ? t('voice.transcriptionUnavailableWithProvider', {
@@ -138,14 +154,24 @@ const VoiceInputModal = () => {
                         rows={3}
                         autoFocus
                       />
-                      {voiceHasTranscription && (
+                      {voiceHasTranscription ? (
                         <button
                           onClick={() => { setVoiceManualMode(false); setVoiceTranscript(''); }}
                           className={`text-xs ${textSecondary} hover:underline`}
                         >
                           {t('voice.useVoiceInstead', { defaultValue: 'Use voice instead' })}
                         </button>
-                      )}
+                      ) : voiceSpeechBlocked ? (
+                        // The block is a verdict from one failure, so it has to
+                        // be reversible: a service that comes back, or a wrong
+                        // reading, must not cost the microphone permanently.
+                        <button
+                          onClick={voiceRetrySpeech}
+                          className={`text-xs ${textSecondary} hover:underline`}
+                        >
+                          {t('voice.tryVoiceAgain', { defaultValue: 'Try voice again' })}
+                        </button>
+                      ) : null}
                     </div>
                   )}
 

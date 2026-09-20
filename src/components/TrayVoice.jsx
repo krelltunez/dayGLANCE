@@ -10,7 +10,7 @@ export default function TrayVoice({ darkMode, onClose, autoStart = false }) {
   const { textPrimary, textSecondary, borderClass, cardBg } = useDayPlannerCtx();
   const {
     aiConfig,
-    voiceCanRecord, voiceMicError,
+    voiceCanRecord,
     voiceIsRecording, voiceIsTranscribing, voiceIsParsing,
     voiceTranscript, setVoiceTranscript,
     voiceParsedTasks, setVoiceParsedTasks,
@@ -168,12 +168,10 @@ export default function TrayVoice({ darkMode, onClose, autoStart = false }) {
         />
       )}
 
-      {/* Error */}
+      {/* Error. voiceMicError is a status flag ('error' | null), not a message —
+          the text to show always lives in voiceParseError. */}
       {voiceParseError && (
         <p className="text-xs text-red-400 mt-1">{voiceParseError}</p>
-      )}
-      {voiceMicError && (
-        <p className="text-xs text-red-400 mt-1">{voiceMicError}</p>
       )}
 
       {/* Parse / reset */}

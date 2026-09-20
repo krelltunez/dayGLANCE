@@ -1,4 +1,5 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
+import i18n from 'i18next';
 import { aiTranscribe, aiJSON, supportsTranscription } from '../ai.js';
 import { voiceParseSystemPrompt, voiceParseUserPrompt } from '../ai-prompts.js';
 import {
@@ -8,6 +9,9 @@ import {
 import { dateToString, completionTimestamp, stripWikilinks } from '../utils/taskUtils.js';
 import { notBucketed } from '../utils/bucketList.js';
 import { parseTranscriptTasks } from '../utils/voiceQuickAdd.js';
+import {
+  hasWebSpeechAPI, isSpeechBlocked, rememberBlocked, clearBlocked, shouldRememberBlock,
+} from '../utils/webSpeech.js';
 
 /**
  * Voice input pipeline — extracted from App.jsx (see "App.jsx — Ongoing
@@ -59,8 +63,25 @@ export default function useVoiceInput({
   const aiKeyed = !!(aiConfig.apiKey || aiConfig.provider === 'ollama');
   const canWhisper = aiConfig.enabled && supportsTranscription(aiConfig) && aiKeyed;
   const canAIParse = aiConfig.enabled && aiKeyed;
-  const webSpeechAvailable = typeof window !== 'undefined' &&
-    !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  // The Web Speech API streams audio to the browser vendor's recognition
+  // service, so the interface existing does not mean speech input works here —
+  // see src/utils/webSpeech.js. A device that has already proved the service
+  // unreachable is not offered the microphone again.
+  const [speechBlocked, setSpeechBlocked] = useState(() => isSpeechBlocked());
+  const webSpeechAvailable = hasWebSpeechAPI() && !speechBlocked;
+
+  // Let the user overrule that verdict — an unlucky reading must not cost them
+  // a microphone that works.
+  const voiceRetrySpeech = useCallback(() => {
+    clearBlocked();
+    setSpeechBlocked(false);
+    setVoiceManualMode(false);
+    setVoiceMicError(null);
+    setVoiceParseError('');
+    setVoiceTranscript('');
+    // Omitted names are stable state setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Shared parse: transcript → parsed tasks/edits ──────────────────────────
   // AI parse when available (multi-task + edit commands), deterministic
@@ -190,10 +211,20 @@ export default function useVoiceInput({
             setVoiceMicError('error');
           } else if (e.error === 'network') {
             // The browser streams speech to its vendor's recognition service;
-            // 'network' means that service is unreachable. Some browsers fail
-            // instantly on certain platforms (e.g. Edge outside Windows).
-            setVoiceParseError("This browser couldn't reach its speech recognition service, so voice input isn't available here. You can type instead, or try a different browser.");
+            // 'network' means that service is unreachable. In the runtimes
+            // where that happens it happens every time (see webSpeech.js), so
+            // drop the user straight into typing rather than leaving them with
+            // a microphone that will fail again, and remember the verdict so
+            // the next open does not offer it at all.
+            setVoiceParseError(i18n.t('voice.speechServiceUnreachable', {
+              defaultValue: "This browser couldn't reach its speech recognition service, so voice input isn't available here. Type your tasks below instead, or try a different browser.",
+            }));
             setVoiceMicError('error');
+            setVoiceManualMode(true);
+            if (shouldRememberBlock()) {
+              rememberBlocked();
+              setSpeechBlocked(true);
+            }
           } else if (e.error !== 'aborted' && e.error !== 'no-speech') {
             setVoiceParseError(`Speech recognition error: ${e.error}`);
             setVoiceMicError('error');
@@ -635,6 +666,7 @@ export default function useVoiceInput({
     voiceStartRecording, voiceStopRecording,
     voiceParseWithAI, voiceApplyAllChanges,
     voiceHasTranscription,
+    voiceSpeechBlocked: speechBlocked, voiceRetrySpeech,
     buildTaskContextForAI, resolveTaskMatch,
   };
 }
