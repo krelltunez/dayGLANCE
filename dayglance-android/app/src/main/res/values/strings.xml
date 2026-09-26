@@ -192,4 +192,6 @@ Open dayGLANCE to sync your data, then try adding the widget again.</string>
     </plurals>
     <string name="widget_previous_day">Previous day</string>
     <string name="widget_next_day">Next day</string>
+    <!-- THROWAWAY (Day Dial spike): not translated, not for release. -->
+    <string name="dial_spike_label" translatable="false">Dial spike (test)</string>
 </resources>

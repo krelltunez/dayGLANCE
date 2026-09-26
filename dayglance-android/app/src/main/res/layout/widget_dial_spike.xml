@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  THROWAWAY (Day Dial spike). The face (a PNG served by URI, or a bitmap in
+  the update), the needle layered over it with the same fitCenter scaling on
+  the same 364:382 aspect so the two stay aligned at any size, and a
+  diagnostics strip with a live countdown.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/dial_spike_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0b0b0e">
+
+    <ImageView
+        android:id="@+id/iv_dial_spike_face"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitCenter"
+        android:importantForAccessibility="no" />
+
+    <ImageView
+        android:id="@+id/iv_dial_spike_needle"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitCenter"
+        android:src="@drawable/dial_spike_needle"
+        android:importantForAccessibility="no" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <Chronometer
+            android:id="@+id/ch_dial_spike_countdown"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#e6ffffff"
+            android:textSize="20sp" />
+
+        <TextView
+            android:id="@+id/tv_dial_spike_diag"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="center"
+            android:maxWidth="170dp"
+            android:textColor="#99ffffff"
+            android:textSize="10sp" />
+    </LinearLayout>
+</FrameLayout>

@@ -244,6 +244,27 @@
             </intent-filter>
         </activity>
 
+        <!-- THROWAWAY (Day Dial spike, not for release): a test widget for the
+             needle, the full-size face and the alarm cost. Remove with
+             widget/dialspike/ before shipping. -->
+        <receiver
+            android:name=".widget.dialspike.DialSpikeWidget"
+            android:exported="true"
+            android:label="@string/dial_spike_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_dial_spike_info" />
+        </receiver>
+        <!-- THROWAWAY (Day Dial spike): serves the spike's face PNGs to the
+             launcher. Read-only, face-<n>.png from one private directory. -->
+        <provider
+            android:name=".widget.dialspike.DialSpikeFaceProvider"
+            android:authorities="${applicationId}.dialspike"
+            android:exported="true" />
+
         <!-- Home screen widget: Month grid (six weeks, per-cell bitmaps) -->
         <receiver
             android:name=".widget.MonthGridWidget"

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  THROWAWAY (Day Dial spike). The needle at midnight on the widget spec's
+  364×382 canvas (DialSpec: centre 182,189; the needle runs radius 126–159 at
+  2.6pt with a 3.4pt dot on its outer end). dial_spike_needle.xml rotates it.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="364dp"
+    android:height="382dp"
+    android:viewportWidth="364"
+    android:viewportHeight="382">
+    <path
+        android:pathData="M182,63 L182,30"
+        android:strokeColor="#f5a623"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M178.6,30 a3.4,3.4 0 1,0 6.8,0 a3.4,3.4 0 1,0 -6.8,0 Z"
+        android:fillColor="#f5a623" />
+</vector>

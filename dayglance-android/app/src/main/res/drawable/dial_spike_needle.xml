@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  THROWAWAY (Day Dial spike). The needle as a level-driven rotation: level 0
+  is midnight, 10000 a full turn, about the dial's centre (182/364 = 50 %,
+  189/382 = 49.4764 %). The widget moves it with ImageView.setImageLevel, a
+  RemotableViewMethod, in a partial update: one int, the face untouched.
+-->
+<rotate xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/dial_spike_needle_up"
+    android:fromDegrees="0"
+    android:toDegrees="360"
+    android:pivotX="50%"
+    android:pivotY="49.4764%" />
