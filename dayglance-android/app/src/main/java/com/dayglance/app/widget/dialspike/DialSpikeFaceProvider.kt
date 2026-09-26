@@ -2,6 +2,7 @@ package com.dayglance.app.widget.dialspike
 
 import android.content.ContentProvider
 import android.content.ContentValues
+import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import android.os.ParcelFileDescriptor
@@ -36,7 +37,7 @@ class DialSpikeFaceProvider : ContentProvider() {
 
     companion object {
         private val NAME = Regex("face-\\d+\\.png")
-        fun dir(context: android.content.Context): File = File(context.filesDir, "dialspike").apply { mkdirs() }
-        fun authority(context: android.content.Context) = "${context.packageName}.dialspike"
+        fun dir(context: Context): File = File(context.filesDir, "dialspike").apply { mkdirs() }
+        fun authority(context: Context) = "${context.packageName}.dialspike"
     }
 }
