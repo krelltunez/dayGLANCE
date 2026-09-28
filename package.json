@@ -58,7 +58,8 @@
     "fast-uri@3": "^3.1.5",
     "js-yaml@4": "^4.3.2",
     "nanoid@3": "^3.3.17",
-    "undici@7": "^7.29.0",
+    "undici@6": "^6.28.1",
+    "undici@7": "^7.29.1",
     "workbox-build": {
       "glob": "^13.0.6",
       "source-map": "^0.8.0",
