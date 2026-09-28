@@ -2080,7 +2080,6 @@
       "completeInterval": "Introduza um intervalo completo de início e fim.",
       "completedAt": "Marcado como concluído às {{time}}",
       "completionUnavailable": "Concluído está disponível para registos manuais sem tarefa associada ou registos de conclusão cuja tarefa continua concluída.",
-      "completedByCompletion": "Concluído está disponível para registos manuais sem tarefa associada ou registos de conclusão cuja tarefa continua concluída.",
       "completedStays": "Continua concluído. Ajuste as horas e guarde.",
       "completionAxis": "Conclusão",
       "do": "Execução",
