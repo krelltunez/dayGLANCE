@@ -267,7 +267,7 @@ export default function DoEditor({ record, taskCompleted = false, initial, linkC
                 saving new times keeps it Completed. */}
             {completionUnavailable
               ? <p className={`mt-1 text-xs ${textSecondary}`} role="status">{t('jobo.view.completionUnavailable')}</p>
-              : record && <p className={`mt-1 text-xs ${textSecondary}`}>{t(record.progress === DO_PROGRESS.COMPLETED ? 'jobo.view.completedStays' : 'jobo.view.completedByCompletion')}</p>}
+              : record && <p className={`mt-1 text-xs ${textSecondary}`}>{t(record.progress === DO_PROGRESS.COMPLETED ? 'jobo.view.completedStays' : 'jobo.view.completionUnavailable')}</p>}
           </div>
         </fieldset>
         {waiting && <p className={`mt-3 text-xs ${textSecondary}`} role="status">{t('jobo.view.pendingSave')}</p>}
