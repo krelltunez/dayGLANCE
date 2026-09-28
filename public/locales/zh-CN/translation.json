@@ -2080,7 +2080,6 @@
       "completeInterval": "请填写完整的开始和结束时间。",
       "completedAt": "完成标记时间：{{time}}",
       "completionUnavailable": "未关联任务的手动执行可以标为已完成；任务完成产生的执行记录仅在对应任务仍已完成时可以恢复为已完成。",
-      "completedByCompletion": "未关联任务的手动执行可以标为已完成；任务完成产生的执行记录仅在对应任务仍已完成时可以恢复为已完成。",
       "completedStays": "保持已完成。调整时间后保存。",
       "completionAxis": "完成度",
       "do": "执行",
