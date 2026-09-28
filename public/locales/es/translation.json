@@ -2080,7 +2080,6 @@
       "completeInterval": "Introduce un intervalo completo de inicio y fin.",
       "completedAt": "Marcado como completado a las {{time}}",
       "completionUnavailable": "Completado está disponible para registros manuales sin tarea o registros de finalización cuya tarea sigue completada.",
-      "completedByCompletion": "Completado está disponible para registros manuales sin tarea o registros de finalización cuya tarea sigue completada.",
       "completedStays": "Sigue completado. Ajusta las horas y guarda.",
       "completionAxis": "Completado",
       "do": "Ejecución",
