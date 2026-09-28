@@ -182,6 +182,52 @@ describe('a completion with a planned duration is drawn as a dashed estimate', (
   });
 });
 
+describe('a Partial attempt finished by a later completion', () => {
+  const plan = { date: '2026-09-24', startTime: '09:00', duration: 30 };
+  const partial = (over = {}) => timed({ progress: 'partial', planSnapshot: plan, startTime: '09:00', endTime: '09:15', ...over });
+  const done = (over = {}) => point({ planSnapshot: plan, ...over });   // completed 09:30
+
+  // MUTATION: drop the earlier-attempt trim and the estimate runs from the
+  // planned start, beside the partial, as a second copy of the same work.
+  it('starts the estimate where the recorded work that day ended', async () => {
+    const { estimateCompletion } = await import('./jobo/DoColumn.jsx');
+    const item = (attempts) => ({ id: 'x', point: true, startMinute: 570, endMinute: 570, time: '09:30', date: '2026-09-24', record: done(), attempts });
+    expect(estimateCompletion(item([partial()]))).toMatchObject({ estimate: true, startMinute: 555, endMinute: 570 });
+    // Work that ended before the planned start, on another day, or after the completion changes nothing.
+    expect(estimateCompletion(item([partial({ startTime: '08:00', endTime: '08:30' })]))).toMatchObject({ startMinute: 540 });
+    expect(estimateCompletion(item([partial({ date: '2026-09-23', endDate: '2026-09-23' })]))).toMatchObject({ startMinute: 540 });
+    expect(estimateCompletion(item([partial({ endTime: '09:45' })]))).toMatchObject({ startMinute: 540 });
+    // Recorded right up to the completion: the completion is only the check, a marker.
+    expect(estimateCompletion(item([partial({ endTime: '09:30' })]))).toMatchObject({ point: true, startMinute: 570, endMinute: 570 });
+    expect(estimateCompletion(item([partial({ endTime: '09:30' })])).estimate).toBeUndefined();
+  });
+
+  // MUTATION: compare against the completion's time the wrong way round, or
+  // skip the progress check, and the wrong cards gain the note.
+  it('notes a Partial whose task a later attempt completed, and nothing else', async () => {
+    const { finishedLater } = await import('./jobo/DoColumn.jsx');
+    const at = (record, attempts) => finishedLater({ record, attempts });
+    expect(at(partial(), [partial(), done()])).toBe(true);
+    expect(at(partial({ startTime: '10:00', endTime: '10:30' }), [done()])).toBe(false);   // completed before it
+    expect(at(partial(), [partial()])).toBe(false);                                       // never completed
+    expect(at(done(), [done()])).toBe(false);                                             // itself the completion
+    expect(at(partial({ progress: 'completed' }), [done()])).toBe(false);                 // already Completed itself
+    expect(at(partial(), [done({ deleted: true, progress: 'partial' })])).toBe(false);
+  });
+
+  // A card too short for a status line (under 40px) shows neither its
+  // progress nor the note, so this partial runs 45 minutes.
+  it('draws both on the Do side: the partial with its note, the finish after it', () => {
+    const recordJobo = vi.fn();
+    const html = render({ joboRecords: [partial({ startTime: '08:30' }), done()], recordJobo });
+    expect(html).toContain('data-jobo-finished-later');
+    expect(html).toContain('jobo.view.finishedLater');
+    expect(html).toContain('~09:15–09:30');
+    expect(render({ joboRecords: [partial()] })).not.toContain('data-jobo-finished-later');
+    expect(recordJobo).not.toHaveBeenCalled();
+  });
+});
+
 describe('an unfinished Do can be continued', () => {
   const plan = { date: '2026-09-24', startTime: '09:00', duration: 30 };
 
@@ -294,6 +340,31 @@ describe('the notes sidebar', () => {
     wideScreen(true);
     try {
       expect(render()).toMatch(/data-jobo-notes-sidebar[^>]*class="w-\[calc\(\(100%-4rem\)\/3\)\] min-w-80 /);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  // The button stays at the top right: the end of the Do header while the
+  // sidebar is closed, the end of the sidebar's header row once it opens.
+  it('keeps its labelled blue button at the top right, open or closed', () => {
+    const button = /<button[^>]*data-jobo-notes-sidebar-toggle[^>]*class="h-7 px-2\.5[^"]*bg-blue-600[^"]*"[^>]*>.*?task\.notes<\/span><\/button>/s;
+    wideScreen(true);
+    try {
+      const open = render();
+      expect(open).toMatch(button);
+      expect(open).toMatch(/data-jobo-sidebar-header[^>]*>\s*<button[^>]*data-jobo-notes-sidebar-toggle/);
+      expect(open.match(/data-jobo-notes-sidebar-toggle/g)).toHaveLength(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    vi.stubGlobal('window', { matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }) });
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {} });
+    try {
+      const closed = render();
+      expect(closed).not.toContain('data-jobo-notes-sidebar"');
+      expect(closed).toMatch(button);
+      expect(closed).toMatch(/jobo\.view\.addDo<\/span><\/button><button[^>]*data-jobo-notes-sidebar-toggle/);
     } finally {
       vi.unstubAllGlobals();
     }

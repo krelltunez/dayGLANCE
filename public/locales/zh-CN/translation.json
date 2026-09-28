@@ -2094,6 +2094,8 @@
       "inferredHint": "这条实验记录按计划时长推算了实际区间。保留显示历史，但不计入实测用时和精确对比。",
       "inferredPlanDuration": "开始时间根据计划时长推算。",
       "estimatedShort": "估计",
+      "finishedLater": "稍后完成",
+      "finishedLaterHint": "之后的一次执行完成了此任务。",
       "invalidRecords": "此视图已忽略 {{count}} 条无效台账记录。",
       "latestShort": "最近一次",
       "loadError": "无法加载 JOBO。",

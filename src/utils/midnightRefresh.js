@@ -24,3 +24,35 @@ export const msUntilMidnightRefresh = (now = new Date()) => {
   target.setHours(0, 0, MIDNIGHT_REFRESH_OFFSET_SECONDS, 0);
   return target.getTime() - now.getTime();
 };
+
+// ── The view survives the nightly reload ─────────────────────────────────
+// The reload resets the day, not the user's place: whichever view was on
+// screen (desktop and phone alike) is handed across it in sessionStorage,
+// which outlives a reload of the same tab, and the next start opens it
+// instead of the default view. The note is read once and cleared, and one
+// older than a couple of minutes is ignored, so an ordinary reload later on
+// still opens the default. Storage can be unavailable; the reload then
+// simply lands on the default view, as it always did.
+export const MIDNIGHT_VIEW_KEY = 'dg-midnight-view';
+const MIDNIGHT_VIEW_MAX_AGE_MS = 2 * 60 * 1000;
+
+/** Just before the nightly reload: remember the views on screen. */
+export const rememberViewsForMidnight = ({ desktop, mobile }, now = Date.now()) => {
+  try { sessionStorage.setItem(MIDNIGHT_VIEW_KEY, JSON.stringify({ desktop, mobile, at: now })); } catch { /* default view instead */ }
+};
+
+/** On start: the views handed across the nightly reload, or null. */
+export const readMidnightViews = (now = Date.now()) => {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(MIDNIGHT_VIEW_KEY) || 'null');
+    if (!saved || typeof saved.at !== 'number' || now - saved.at > MIDNIGHT_VIEW_MAX_AGE_MS || now < saved.at) return null;
+    return { desktop: saved.desktop ?? null, mobile: saved.mobile ?? null };
+  } catch {
+    return null;
+  }
+};
+
+/** Once the start has read it: the handoff is spent. */
+export const clearMidnightViews = () => {
+  try { sessionStorage.removeItem(MIDNIGHT_VIEW_KEY); } catch { /* nothing to clear */ }
+};

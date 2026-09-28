@@ -2181,6 +2181,8 @@
       "inferredHint": "Ten eksperymentalny przedział wyliczono z czasu planu. Pozostaje w historii, lecz nie liczy się jako pomiar ani dokładne porównanie.",
       "inferredPlanDuration": "Godzina rozpoczęcia wywnioskowana z czasu trwania Planu.",
       "estimatedShort": "Szacowane",
+      "finishedLater": "Ukończone później",
+      "finishedLaterHint": "Późniejsza próba ukończyła to zadanie.",
       "invalidRecords": "W tym widoku pomijanych jest {{count}} nieprawidłowych wpisów rejestru.",
       "latestShort": "Ostatnio",
       "loadError": "Nie udało się wczytać JOBO.",

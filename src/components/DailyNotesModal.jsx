@@ -232,7 +232,9 @@ const DailyNotesModal = ({ dateStr, note, onSave, onClose, darkMode, isMobile, t
   return (
     <div ref={backdropRef} className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] outline-none" onClick={handleSaveAndClose} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); handleSaveAndClose(); } }} tabIndex={-1}>
       <div
-        className={`${cardBg} rounded-lg shadow-xl p-6 border ${borderClass} w-full max-w-lg mx-4`}
+        // Twice as wide on wide screens (the app's 1600px breakpoint), the
+        // same everywhere narrower, a tablet in portrait included.
+        className={`${cardBg} rounded-lg shadow-xl p-6 border ${borderClass} w-full max-w-lg min-[1600px]:max-w-5xl mx-4`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">

@@ -320,7 +320,7 @@ const SettingsModal = () => {
                         </h4>
                         <div>
                           <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.defaultViewOnLoad')}</label>
-                          <div className="flex gap-2">
+                          <div className="flex flex-wrap gap-2">
                             {enabledViews(canShowViewCycler ? DESKTOP_VIEW_MODES : NARROW_DESKTOP_VIEW_MODES, hiddenViews?.desktop).map(v => (
                               <button
                                 key={v}
@@ -470,7 +470,7 @@ const SettingsModal = () => {
                           </h4>
                           <div>
                             <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.portraitViewDefault', 'Portrait view')}</label>
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                               {enabledViews(MOBILE_VIEW_MODES, hiddenViews?.mobile).map(mode => (
                                 <button
                                   key={mode}
@@ -488,7 +488,7 @@ const SettingsModal = () => {
                           </div>
                           <div>
                             <label className={`block text-xs ${textSecondary} mb-1.5`}>{t('settings.landscapeViewDefault', 'Landscape view')}</label>
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                               {enabledViews(NARROW_DESKTOP_VIEW_MODES, hiddenViews?.desktop).map(v => (
                                 <button
                                   key={v}

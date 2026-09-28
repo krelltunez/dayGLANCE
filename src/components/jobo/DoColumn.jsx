@@ -4,6 +4,7 @@ import { renderTitleWithoutTags, hasNotesOrSubtasks, hasOnlySubtasks, isObsidian
 import DoNotesPanel from './DoNotesPanel.jsx';
 import { extractWikilinks, stripWikilinks } from '../../utils/taskUtils.js';
 import { timingRows } from './ExecutionAxes.jsx';
+import { completionMoment } from '../../jobo/completionMarker.js';
 
 // The Do side of JOBO, drawn with the same grid as the Plan side (DAY's own
 // column): alternating hour rows, the dashed half-hour line, the now line,
@@ -18,6 +19,7 @@ export const SNAP_MINUTES = 15;
 export const snapMinute = (minute) =>
   Math.max(0, Math.min(1440, Math.round(minute / SNAP_MINUTES) * SNAP_MINUTES));
 const MIN_CARD_PX = 27; // the task cards' minimum height (DayView getTaskSlice)
+const minuteOf = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 const clock = (minute) => `${String(Math.floor((minute % 1440) / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
 // How far past its planned start a completion can land and still read as
 // "started as planned": up to three times the planned length. Beyond that the
@@ -35,7 +37,9 @@ const PLAN_START_REACH = 3;
  * so a task finished late reads as running long, and one finished early as
  * running short. That holds when the completion falls on the plan's day, after
  * its start, and within reach of it; otherwise the planned length, ending at
- * the completion.
+ * the completion. Work already recorded for the task that day moves the start
+ * to where it ended: after a partial 09:00 to 09:30, a completion at 10:00 is
+ * the 09:30 to 10:00 that finished it, not a second copy of the same hour.
  */
 export function estimateCompletion(item) {
   if (!item?.point || item.estimate) return item;
@@ -48,7 +52,12 @@ export function estimateCompletion(item) {
     : null;
   const startedAsPlanned = planStart != null && plan.date === item.date
     && planStart < end && end - planStart <= duration * PLAN_START_REACH;
-  const start = startedAsPlanned ? planStart : Math.max(0, end - duration);
+  const guess = startedAsPlanned ? planStart : Math.max(0, end - duration);
+  const earlierEnds = (item.attempts || [])
+    .filter((other) => other.id !== item.record.id && other.timing === 'timed' && other.endDate === item.date)
+    .map((other) => minuteOf(other.endTime))
+    .filter((minute) => minute > guess && minute <= end);
+  const start = Math.max(guess, ...earlierEnds);
   if (end - start < 1) return item;
   return { ...item, markerMinute: end, startMinute: start, endMinute: end, estimate: true };
 }
@@ -66,6 +75,28 @@ export function windowRange(dayWindow) {
   const startHour = start == null ? 0 : Math.floor(start / 60);
   const endHour = stop == null ? 24 : Math.min(24, Math.ceil(stop / 60));
   return endHour > startHour ? { startHour, endHour } : { startHour: 0, endHour: 24 };
+}
+
+// When an attempt's work ended, as "YYYY-MM-DD HH:MM" so two compare as
+// strings: a timed interval's end, or the moment a completion was made.
+function attemptEnd(record) {
+  if (record?.timing === 'timed') return record.endDate && record.endTime ? `${record.endDate} ${record.endTime.slice(0, 5)}` : null;
+  const civil = completionMoment(record?.createdAt);
+  return civil ? `${civil.date} ${civil.time}` : null;
+}
+
+/**
+ * An unfinished attempt whose task a later attempt completed. The record
+ * stays Partial, which is true of that session; the card adds that the work
+ * did get finished. Derived from the group, nothing stored.
+ */
+export function finishedLater(item) {
+  const record = item?.record;
+  if (!record || record.progress === 'completed') return false;
+  const own = attemptEnd(record);
+  if (!own) return false;
+  return (item.attempts || []).some((other) => other.id !== record.id
+    && other.progress === 'completed' && (attemptEnd(other) ?? '') >= own);
 }
 
 const progressText = (progress, t) => t(progress === 'completed' ? 'common.completed' : `jobo.view.progress.${progress}`);
@@ -107,6 +138,7 @@ function DoCard({ item, hourHeight, offsetMin = 0, limitMin = 1440, ctx, t, writ
       : `${ctx.formatTime(record.startTime)}–${record.endDate !== record.date ? `${record.endDate} ` : ''}${ctx.formatTime(record.endTime)}`;
   const { inline, rows: signals } = !item.point ? cardSignals(item.comparison, t) : { inline: null, rows: [] };
   const status = pending ? t('jobo.view.pendingSave') : item.estimate ? t('jobo.view.estimatedShort') : progressText(record.progress, t);
+  const finished = !pending && finishedLater(item);
   const continuable = writable && !pending && !item.estimate && canContinue(record);
   // An interval that ends on another day is clipped here; resizing it from
   // this column would move an end the column cannot show.
@@ -210,6 +242,7 @@ function DoCard({ item, hourHeight, offsetMin = 0, limitMin = 1440, ctx, t, writ
             <Clock size={10} className="flex-shrink-0" />
             <span className="truncate" title={inline?.title}>
               {timeLabel} · {status}
+              {finished && <span data-jobo-finished-later title={t('jobo.view.finishedLaterHint')}> · {t('jobo.view.finishedLater')}</span>}
               {inline && <span data-jobo-axis={inline.key}> · {inline.text}</span>}
             </span>
           </div>

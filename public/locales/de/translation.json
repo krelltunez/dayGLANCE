@@ -2094,6 +2094,8 @@
       "inferredHint": "Dieses experimentelle Intervall wurde aus der Plandauer geschätzt. Es bleibt als Verlauf sichtbar, zählt aber nicht als Messung oder genauer Vergleich.",
       "inferredPlanDuration": "Startzeit aus der Plandauer abgeleitet.",
       "estimatedShort": "Geschätzt",
+      "finishedLater": "Später abgeschlossen",
+      "finishedLaterHint": "Ein späterer Versuch hat diese Aufgabe abgeschlossen.",
       "invalidRecords": "{{count}} ungültige Ledger-Einträge werden in dieser Ansicht ignoriert.",
       "latestShort": "Zuletzt",
       "loadError": "JOBO konnte nicht geladen werden.",

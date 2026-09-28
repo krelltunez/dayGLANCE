@@ -566,7 +566,7 @@ const MobileSettingsPanel = () => {
           {t('settings.viewDefault')}
         </div>
         <p className={`text-xs ${textSecondary}`}>{t('settings.viewDefaultDesc')}</p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {enabledViews(MOBILE_VIEW_MODES, hiddenViews?.mobile).map((value) => ({ value, label: mobileViewLabel(value) })).map(({ value, label }) => (
             <button
               key={value}

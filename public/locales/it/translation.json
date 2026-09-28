@@ -2096,6 +2096,8 @@
       "inferredHint": "Questo intervallo sperimentale è dedotto dalla durata del piano. Resta nella cronologia ma non conta come misura o confronto esatto.",
       "inferredPlanDuration": "Ora di inizio ricavata dalla durata del Piano.",
       "estimatedShort": "Stimato",
+      "finishedLater": "Completato dopo",
+      "finishedLaterHint": "Un tentativo successivo ha completato questo compito.",
       "invalidRecords": "In questa vista vengono ignorati {{count}} record del registro non validi.",
       "latestShort": "Ultimo",
       "loadError": "Impossibile caricare JOBO.",

@@ -2094,6 +2094,8 @@
       "inferredHint": "Este intervalo experimental se infirió de la duración del plan. Se conserva como historial, pero no cuenta como medición ni comparación exacta.",
       "inferredPlanDuration": "Hora de inicio inferida a partir de la duración del Plan.",
       "estimatedShort": "Estimado",
+      "finishedLater": "Terminada después",
+      "finishedLaterHint": "Un intento posterior completó esta tarea.",
       "invalidRecords": "Se ignoran {{count}} registros no válidos del ledger en esta vista.",
       "latestShort": "Último",
       "loadError": "No se pudo cargar JOBO.",

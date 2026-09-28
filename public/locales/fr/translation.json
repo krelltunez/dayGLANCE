@@ -2094,6 +2094,8 @@
       "inferredHint": "Cet intervalle expérimental est déduit de la durée prévue. Il reste dans l’historique, mais ne compte pas comme mesure ni comparaison exacte.",
       "inferredPlanDuration": "Heure de début déduite de la durée du Plan.",
       "estimatedShort": "Estimé",
+      "finishedLater": "Terminée plus tard",
+      "finishedLaterHint": "Une tentative ultérieure a terminé cette tâche.",
       "invalidRecords": "{{count}} enregistrement(s) de registre invalide(s) sont ignorés dans cette vue.",
       "latestShort": "Dernier",
       "loadError": "Impossible de charger JOBO.",
