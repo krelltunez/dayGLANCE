@@ -53,6 +53,11 @@ describe('Do editor Completed eligibility', () => {
     expect(html).toContain('role="status">jobo.view.completionUnavailable');
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*disabled=""/);
   });
+  it('uses the single completion eligibility message for an eligible existing reassessment', () => {
+    const html = render({ record: record() });
+    expect(html).toContain('jobo.view.completionUnavailable');
+    expect(html).not.toContain('jobo.view.completedByCompletion');
+  });
   it('does not mistake keeping an existing Completed value for a new reassessment', () => {
     const html = render({ record: record({ source: 'completion', taskId: 'missing', progress: 'completed' }) });
     expect(hasCompleted(html)).toBe(true);
