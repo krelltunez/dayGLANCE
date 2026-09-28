@@ -2080,7 +2080,6 @@
       "completeInterval": "Enter a complete start and end interval.",
       "completedAt": "Marked complete at {{time}}",
       "completionUnavailable": "Completed is available for unlinked manual work, or completion records whose task is still completed.",
-      "completedByCompletion": "Completed is available for unlinked manual work, or completion records whose task is still completed.",
       "completedStays": "Stays Completed. Adjust the times and save.",
       "completionAxis": "Completion",
       "do": "Do",
