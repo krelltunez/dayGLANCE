@@ -456,7 +456,7 @@ export default function JoboView() {
       {editor && (
         <DoEditor
           {...editor}
-          taskCompleted={!!doItems.find(item => item.record?.id === editor.record?.id)?.sourceTask?.completed}
+          taskCompleted={model.resolveRecordTask(editor.record)?.completed === true}
           linkCandidates={editor.record ? undefined : linkCandidates}
           records={joboRecords || []}
           writable={joboWritable}

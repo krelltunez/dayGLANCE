@@ -256,6 +256,16 @@ export function buildJoboRecords(edges, records, { observedAt, reopenReceipts = 
   return out;
 }
 
+// A recurring key names an occurrence before its completion stamp; an
+// ordinary key goes straight to the stamp. Use that source identity, never
+// record.date or the corrected interval, to retire only this occurrence's
+// receipts. Other dates of the same template may still be awaiting undo.
+function completionOccurrence({ id, taskId }) {
+  const prefix = `do:${taskId}:`;
+  const rest = typeof id === 'string' && id.startsWith(prefix) ? id.slice(prefix.length) : '';
+  return /^\d{4}-\d{2}-\d{2}(?=:|$)/.exec(rest)?.[0] ?? null;
+}
+
 /**
  * Transient evidence owned by the detector, not ledger fields or a retry queue.
  * Remember only an uncheck this detector handed to the writer. Any completion
@@ -267,9 +277,10 @@ export function advanceJoboReopenReceipts(previous, edges, mutations) {
   const next = new Map(previous);
   for (const c of edges?.completions || []) {
     next.delete(c.id);
-    // A newer attempt ends proof for the earlier attempt of this task too.
+    // A newer attempt retires proof only for the same task/occurrence.
     for (const [id, receipt] of next) {
-      if (receipt.taskId === c.taskId) next.delete(id);
+      if (receipt.taskId === c.taskId
+        && completionOccurrence(receipt) === completionOccurrence(c)) next.delete(id);
     }
   }
   for (const u of edges?.uncompletions || []) {

@@ -89,3 +89,24 @@ describe('same-key re-completion requires the witnessed uncheck winner', () => {
     expect(advanceJoboReopenReceipts(new Map([[original.id, original]]), { completions: [{ id: `do:t1:${later}`, taskId: 't1' }] }, changed).size).toBe(0);
   });
 });
+
+
+describe('receipt retirement follows source occurrence identity', () => {
+  it('a new key retires only its own occurrence, even after actual dates were corrected', () => {
+    const stampA = '2026-09-24T09:30:00+08:00';
+    const stampB = '2026-09-25T09:30:00+08:00';
+    const a = row({ id: `do:r1:2026-09-24:${stampA}`, taskId: 'r1', createdAt: stampA, planSnapshot: null });
+    const b = row({ id: `do:r1:2026-09-25:${stampB}`, taskId: 'r1', createdAt: stampB, planSnapshot: null });
+    const receipts = new Map([[a.id, a], [b.id, b]]);
+    const newB = { id: 'do:r1:2026-09-25:2026-09-25T10:00:00+08:00', taskId: 'r1' };
+    const after = advanceJoboReopenReceipts(receipts, { completions: [newB] }, []);
+    expect([...after.keys()]).toEqual([a.id]);
+    expect(receipts.size).toBe(2);
+  });
+
+  it('still protects a deliberate Mostly then Partial reassessment after uncheck', () => {
+    const receipt = row();
+    const current = row({ progress: 'partial', updatedAt: later });
+    expect(buildJoboRecords(edge(current), [current], { observedAt: later, reopenReceipts: new Map([[receipt.id, receipt]]) })).toEqual([]);
+  });
+});

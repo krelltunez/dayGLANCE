@@ -255,6 +255,29 @@ describe('#1844 through the real detector and ledger', () => {
       expect(ledger.get().records).toEqual([partial]);
     } finally { ledger.dispose(); }
   });
+  // MUTATION: clearing by template taskId alone loses the other date's
+  // proof and the final native undo leaves its Do Partial.
+  it.each([false, true])('keeps two reopened occurrences independent (reverse=%s)', async reverse => {
+    const { ledger, render } = await setup();
+    const dates = reverse ? ['2026-09-19', '2026-09-18'] : ['2026-09-18', '2026-09-19'];
+    const template = { id: 'r1', title: 'Routine', startTime: '09:00', duration: 30 };
+    const stamps = Object.fromEntries(dates.map(date => [date, `${date}T09:30:00+08:00`]));
+    const show = (completedDates) => render([], { recurringTasks: [{ ...template, completedDates, completedDatesTimestamps: stamps }] });
+    try {
+      show([]); show(dates); await flush();
+      const originals = ledger.workingSet();
+      show([dates[1]]); await flush();
+      show([]); await flush();
+      expect(ledger.workingSet().map(record => record.progress)).toEqual(['partial', 'partial']);
+      show([dates[1]]); await flush();
+      show(dates); await flush();
+      expect(ledger.get().records).toHaveLength(2);
+      for (const original of originals) {
+        expect(ledger.get().records.find(record => record.id === original.id))
+          .toEqual({ ...original, progress: 'completed', updatedAt: expect.any(String) });
+      }
+    } finally { ledger.dispose(); }
+  });
   it('also restores a recurring occurrence when undo puts its original stamp back', async () => {
     const { ledger, render } = await setup();
     const template = { id: 'r1', title: 'Routine', startTime: '09:00', duration: 30, completedDates: [] };

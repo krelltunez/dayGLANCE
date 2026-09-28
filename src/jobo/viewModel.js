@@ -562,6 +562,9 @@ export function buildJoboDayModel({
   const planned = [...capturedPlans, ...currentPlans];
 
   return {
+    // ExecutionDetails can edit any attempt in a group, not only today's
+    // visible slices. Reuse this resolver for its current task/occurrence.
+    resolveRecordTask,
     plans: assignOverlapColumns(planned, scale === undefined ? undefined : { scale }),
     timedRecords,
     untimedRecords,
