@@ -13,7 +13,8 @@ Do attempt**. Timed / Untimed execution is explicit in the record shape.
 | `createDoRecord(input)` | Validate and defensively copy one canonical Do record. |
 | `validateDoRecord(record)` | Validate without repair, migration, or clock lookup. |
 | `updateDoRecord(record, patch, updatedAt)` | Correct timing fields only; captured history is preserved. |
-| `reassessDoProgress(record, progress, updatedAt)` | Reassess an existing attempt to `started`, `partial`, or `mostly`. |
+| `canCompleteDo(record, context)` | Check completion eligibility from source/link and caller-supplied current task state; not a substitute for record validation. |
+| `reassessDoProgress(record, progress, updatedAt, context)` | Reassess an existing attempt; restoring `completed` requires the eligibility described below. |
 | `tombstoneDoRecord(record, updatedAt)` | Soft-delete one record with a newer version. |
 | `completeDoAttempt(records, input)` | Ensure one completion record exists; a new completion is always `completed`. |
 | `migrateLegacyDoRecord(record)` | Normalize a prototype-import row to the canonical progress/timing shape. |
@@ -43,9 +44,11 @@ them from the live task.
 - `mostly`
 - `completed`
 
-Completing creates a `completed` attempt. Reassessment can move an existing
-attempt to any of the other three values while preserving its interval and
-snapshot. A later completion is a new attempt under a new completion key.
+Completing creates a `completed` attempt. Reassessment preserves its interval
+and snapshot and accepts the other three values. Explicit completion restoration
+has the source/link guards below. A new completion key creates another attempt;
+a witnessed re-completion sharing the old key can restore that same attempt.
+Merely rediscovering an existing completion remains ensure-present.
 
 `notStarted` is not progress. It is derived when the current displayed Plan
 has fully elapsed and there is no live Do attempt.
