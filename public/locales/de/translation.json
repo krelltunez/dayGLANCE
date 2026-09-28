@@ -2080,7 +2080,6 @@
       "completeInterval": "Bitte vollständige Start- und Endzeit eingeben.",
       "completedAt": "Als erledigt markiert um {{time}}",
       "completionUnavailable": "Abgeschlossen ist für manuelle Einträge ohne Aufgabe oder Abschluss-Einträge verfügbar, deren Aufgabe noch abgeschlossen ist.",
-      "completedByCompletion": "Abgeschlossen ist für manuelle Einträge ohne Aufgabe oder Abschluss-Einträge verfügbar, deren Aufgabe noch abgeschlossen ist.",
       "completedStays": "Bleibt erledigt. Passe die Zeiten an und speichere.",
       "completionAxis": "Erledigung",
       "do": "Ausführung",
