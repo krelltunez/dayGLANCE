@@ -2082,7 +2082,6 @@
       "completeInterval": "Inserisci un intervallo completo di inizio e fine.",
       "completedAt": "Contrassegnato come completato alle {{time}}",
       "completionUnavailable": "Completato è disponibile per attività manuali senza un compito collegato o registrazioni di completamento il cui compito è ancora completato.",
-      "completedByCompletion": "Completato è disponibile per attività manuali senza un compito collegato o registrazioni di completamento il cui compito è ancora completato.",
       "completedStays": "Resta completato. Modifica gli orari e salva.",
       "completionAxis": "Completamento",
       "do": "Esecuzione",
