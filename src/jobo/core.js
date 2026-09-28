@@ -192,16 +192,29 @@ export function completeDoAttempt(records, input) {
   return [...records, attempt];
 }
 
-/**
- * Reassess one existing Do attempt without changing its interval or captured
- * history. Completed is created by completeDoAttempt; reassessment uses the
- * other three progress values.
+/** Eligibility only; the transition below still validates the complete row.
+ * Task completion is supplied by the caller from current task/occurrence state,
+ * never stored on Do. A linked manual/focus row is not completion evidence.
  */
-export function reassessDoProgress(record, progress, updatedAt) {
+export function canCompleteDo(record, { taskCompleted = false } = {}) {
+  return !!record && !record.deleted && (
+    (record.source === 'manual' && record.taskId === null)
+    || (record.source === 'completion' && record.taskId != null && taskCompleted === true)
+  );
+}
+
+/**
+ * Explicitly reassess one attempt, preserving its interval and captured history.
+ * Completed is allowed for unlinked manual work, or completion-sourced work
+ * whose task is still completed. Merely observing a completion is still the
+ * separate, ensure-present completeDoAttempt operation.
+ */
+export function reassessDoProgress(record, progress, updatedAt, context = {}) {
   assertRecord(record);
   if (record.deleted) throw new TypeError('Cannot reassess a deleted Do record');
-  if (![DO_PROGRESS.STARTED, DO_PROGRESS.PARTIAL, DO_PROGRESS.MOSTLY].includes(progress)) {
-    throw new TypeError('Progress reassessment must be started, partial, or mostly');
+  if (!progressValues.includes(progress)
+    || (progress === DO_PROGRESS.COMPLETED && !canCompleteDo(record, context))) {
+    throw new TypeError('Completed requires an unlinked manual Do or a still-completed source task');
   }
   if (record.progress === progress) return record;
   assertLater(record, updatedAt);

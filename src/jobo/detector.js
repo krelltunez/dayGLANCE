@@ -32,7 +32,7 @@
 //   stamp has no source event to anchor to, and fabricating one from this
 //   device's clock would defeat convergence, so it is skipped.
 
-import { completeDoAttempt, reassessDoProgress, DO_PROGRESS, DO_TIMING } from './core.js';
+import { completeDoAttempt, reassessDoProgress, pickJoboRecord, DO_PROGRESS, DO_TIMING } from './core.js';
 
 const isStamp = (value) => typeof value === 'string' && Number.isFinite(Date.parse(value));
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -213,11 +213,25 @@ function uncheckVersion(record, uncheckedAt, observedAt) {
  * the rest. `updatedAt` of a new record is the completion stamp, the source
  * event, never `observedAt`.
  */
-export function buildJoboRecords(edges, records, { observedAt, warn = console.warn } = {}) {
+export function buildJoboRecords(edges, records, { observedAt, reopenReceipts = new Map(), warn = console.warn } = {}) {
   const current = Array.isArray(records) ? records : [];
   const out = [];
   for (const c of edges?.completions || []) {
     try {
+      const existing = current.find(record => record?.id === c.id);
+      const reopened = reopenReceipts.get(c.id);
+      // A witnessed uncheck, still the exact winner, proves re-completion.
+      // Without that receipt this could just be a late observer of an old
+      // completion: ensure-present must preserve a user's reassessment.
+      if (existing && reopened && !existing.deleted
+        && existing.source === 'completion' && existing.taskId === c.taskId
+        && existing.progress === DO_PROGRESS.PARTIAL
+        && pickJoboRecord(existing, reopened) === existing
+        && pickJoboRecord(reopened, existing) === reopened) {
+        out.push(reassessDoProgress(existing, DO_PROGRESS.COMPLETED,
+          uncheckVersion(existing, c.completedAt, observedAt), { taskCompleted: true }));
+        continue;
+      }
       const next = completeDoAttempt(current, {
         id: c.id, taskId: c.taskId, timing: DO_TIMING.UNTIMED,
         date: c.date, startTime: null, endDate: null, endTime: null,
@@ -240,4 +254,28 @@ export function buildJoboRecords(edges, records, { observedAt, warn = console.wa
     }
   }
   return out;
+}
+
+/**
+ * Transient evidence owned by the detector, not ledger fields or a retry queue.
+ * Remember only an uncheck this detector handed to the writer. Any completion
+ * consumes its receipt; a later edit or a different merge winner invalidates
+ * it when buildJoboRecords compares both operands. The hook installs the result
+ * only after the ledger accepts the write (committed or held for retry).
+ */
+export function advanceJoboReopenReceipts(previous, edges, mutations) {
+  const next = new Map(previous);
+  for (const c of edges?.completions || []) {
+    next.delete(c.id);
+    // A newer attempt ends proof for the earlier attempt of this task too.
+    for (const [id, receipt] of next) {
+      if (receipt.taskId === c.taskId) next.delete(id);
+    }
+  }
+  for (const u of edges?.uncompletions || []) {
+    next.delete(u.id);
+    const changed = mutations.find(record => record.id === u.id);
+    if (changed && !changed.deleted && changed.progress === DO_PROGRESS.PARTIAL) next.set(u.id, changed);
+  }
+  return next;
 }

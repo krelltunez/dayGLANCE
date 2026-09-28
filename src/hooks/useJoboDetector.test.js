@@ -186,3 +186,113 @@ describe('useJoboDetector', () => {
     warn.mockRestore();
   });
 });
+
+describe('#1844 through the real detector and ledger', () => {
+  async function setup(failing = false) {
+    let disk = [];
+    const retries = [];
+    const store = {
+      async writable() { return true; },
+      async read() { return { ok: true, value: disk }; },
+      async update(fn) { if (failing) return { ok: false, error: 'storageWrite' }; disk = fn(disk); return { ok: true, value: disk }; },
+    };
+    const ledger = createLedger({ store, retry: { schedule: fn => { retries.push(fn); return retries.length; }, cancel: () => {} } });
+    await ledger.load();
+    const useWiredHook = (tasks, over = {}) => useRenderedHook(props(tasks, {
+      recordJobo: ledger.commit, readJoboWorkingSet: ledger.workingSet,
+      joboLoaded: true, joboWritable: true, ...over,
+    }));
+    const recover = async () => { failing = false; await retries.at(-1)?.(); };
+    return { ledger, render: useWiredHook, recover };
+  }
+  it.each([false, true])('complete / uncheck / same-stamp complete keeps one Completed row (held=%s)', async held => {
+    const { ledger, render, recover } = await setup(held);
+    try {
+      render([task()]); render([done(task())]); await flush();
+      const original = ledger.workingSet()[0];
+      render([task()]); await flush();
+      expect(ledger.workingSet()[0].progress).toBe('partial');
+      render([done(task())]); await flush();
+      const result = ledger.workingSet();
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ ...original, progress: 'completed', updatedAt: expect.any(String) });
+      expect(Date.parse(result[0].updatedAt)).toBeGreaterThan(Date.parse(original.updatedAt));
+      if (held) { expect(ledger.get().records).toEqual([]); await recover(); }
+      expect(ledger.get().records).toHaveLength(1);
+      expect(ledger.get().records[0].progress).toBe('completed');
+    } finally { ledger.dispose(); }
+  });
+  it('keeps a user reassessment made after the uncheck, even when the task re-completes', async () => {
+    const { ledger, render } = await setup();
+    try {
+      render([task()]); render([done(task())]); await flush();
+      render([task()]); await flush();
+      const partial = ledger.workingSet()[0];
+      const changed = { ...partial, progress: 'mostly', updatedAt: new Date(Date.parse(partial.updatedAt) + 1).toISOString() };
+      await ledger.commit([changed]);
+      render([done(task())]); await flush();
+      expect(ledger.get().records).toEqual([changed]);
+    } finally { ledger.dispose(); }
+  });
+  it('a fresh observer seeing the old completion does not restore a Partial row', async () => {
+    const { ledger, render } = await setup();
+    try {
+      render([task()]); render([done(task())]); await flush();
+      render([task()]); await flush();
+      const partial = ledger.workingSet()[0];
+      refSlots = [];
+      render([task()]); render([done(task())]); await flush();
+      expect(ledger.get().records).toEqual([partial]);
+    } finally { ledger.dispose(); }
+  });
+  it('clears proof when JOBO is disabled rather than replaying a completion on enable', async () => {
+    const { ledger, render } = await setup();
+    try {
+      render([task()]); render([done(task())]); await flush();
+      render([task()]); await flush();
+      const partial = ledger.workingSet()[0];
+      render([done(task())], { enabled: false }); render([done(task())]); await flush();
+      expect(ledger.get().records).toEqual([partial]);
+    } finally { ledger.dispose(); }
+  });
+  it('also restores a recurring occurrence when undo puts its original stamp back', async () => {
+    const { ledger, render } = await setup();
+    const template = { id: 'r1', title: 'Routine', startTime: '09:00', duration: 30, completedDates: [] };
+    const completed = { ...template, completedDates: ['2026-09-19'], completedDatesTimestamps: { '2026-09-19': DONE_AT } };
+    try {
+      render([], { recurringTasks: [template] });
+      render([], { recurringTasks: [completed] }); await flush();
+      const original = ledger.workingSet()[0];
+      render([], { recurringTasks: [template] }); await flush();
+      render([], { recurringTasks: [completed] }); await flush();
+      expect(ledger.get().records).toHaveLength(1);
+      expect(ledger.get().records[0]).toMatchObject({ id: original.id, progress: 'completed', planSnapshot: original.planSnapshot });
+    } finally { ledger.dispose(); }
+  });
+});
+
+
+describe('uncheck receipts are bounded by the enabled lifecycle', () => {
+  it('does not re-arm a receipt if disabled while the uncheck write is in flight', async () => {
+    let rows = [];
+    let release;
+    let hold = false;
+    const write = async records => {
+      rows = records;
+      if (hold) return new Promise(resolve => { release = resolve; });
+      return { ok: true };
+    };
+    const useStep = (tasks, enabled = true) => useRenderedHook(props(tasks, {
+      enabled, recordJobo: write, readJoboWorkingSet: () => rows,
+    }));
+    useStep([task()]); useStep([done(task())]); await flush();
+    hold = true;
+    useStep([task()]); await flush();
+    expect(rows[0].progress).toBe('partial');
+    useStep([task()], false);
+    release({ ok: true }); await flush();
+    hold = false;
+    useStep([task()]); useStep([done(task())]); await flush();
+    expect(rows[0].progress).toBe('partial');
+  });
+});

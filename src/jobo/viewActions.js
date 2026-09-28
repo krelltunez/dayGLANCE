@@ -1,5 +1,5 @@
 // Form adapters above the settled core; no clock or persistence is read here.
-import { DO_PROGRESS, DO_TIMING, createDoRecord, reassessDoProgress, tombstoneDoRecord, updateDoRecord } from './core.js';
+import { DO_PROGRESS, DO_TIMING, createDoRecord, canCompleteDo, reassessDoProgress, tombstoneDoRecord, updateDoRecord } from './core.js';
 import { resolveEditableDoRecord } from './viewModel.js';
 const DAY_MINUTES = 1440;
 const MIN_INTERVAL_MINUTES = 5;
@@ -122,12 +122,15 @@ export function createManualDo({
   if (task !== null && (typeof task !== 'object' || Array.isArray(task))) {
     throw new TypeError('task must be an object or null');
   }
-  if (!EDITABLE_PROGRESS.includes(progress)) {
-    throw new TypeError('Manual Do progress must be started, partial, or mostly');
+  const taskId = task === null ? null : (task.recurringTemplateId ?? task.id ?? null);
+  if (!EDITABLE_PROGRESS.includes(progress)
+    && !(progress === DO_PROGRESS.COMPLETED && canCompleteDo({ source: 'manual', taskId }))) {
+    const error = new TypeError('A linked manual Do cannot complete its task');
+    error.code = 'completionUnavailable';
+    throw error;
   }
   const stamp = stampFromEpoch(now);
   const interval = doIntervalAt(date, startMinute, duration);
-  const taskId = task === null ? null : (task.recurringTemplateId ?? task.id ?? null);
   return createDoRecord({
     id,
     taskId,
@@ -143,7 +146,7 @@ export function createManualDo({
 }
 
 
-export function prepareDoEdit({ records, record, patch = {}, progress, now } = {}) {
+export function prepareDoEdit({ records, record, patch = {}, progress, now, taskCompleted = false } = {}) {
   const current = resolveEditableDoRecord(records, record);
   if (!current) return null;
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
@@ -155,8 +158,11 @@ export function prepareDoEdit({ records, record, patch = {}, progress, now } = {
   if (progress !== undefined && !Object.values(DO_PROGRESS).includes(progress)) {
     throw new TypeError('Invalid Do progress');
   }
-  if (progress === DO_PROGRESS.COMPLETED && current.progress !== DO_PROGRESS.COMPLETED) {
-    throw new TypeError('Manual editing cannot restore completed progress');
+  if (progress === DO_PROGRESS.COMPLETED && current.progress !== DO_PROGRESS.COMPLETED
+    && !canCompleteDo(current, { taskCompleted })) {
+    const error = new TypeError('The task must still be completed to restore this Do');
+    error.code = 'completionUnavailable';
+    throw error;
   }
   const intervalChanged = Object.keys(patch).some((key) => patch[key] !== current[key]);
   const progressChanged = progress !== undefined && progress !== current.progress;
@@ -167,7 +173,7 @@ export function prepareDoEdit({ records, record, patch = {}, progress, now } = {
   if (intervalChanged) next = updateDoRecord(next, patch, new Date(version).toISOString());
   if (progressChanged) {
     version = Math.max(version, Date.parse(next.updatedAt) + 1);
-    next = reassessDoProgress(next, progress, new Date(version).toISOString());
+    next = reassessDoProgress(next, progress, new Date(version).toISOString(), { taskCompleted });
   }
   return next;
 }

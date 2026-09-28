@@ -6,7 +6,7 @@ import ClockTimePicker from '../ClockTimePicker.jsx';
 import DatePicker from '../DatePicker.jsx';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { formatLocalizedDate } from '../../utils/localeFormatting.js';
-import { DO_PROGRESS, DO_TIMING } from '../../jobo/core.js';
+import { canCompleteDo, DO_PROGRESS, DO_TIMING } from '../../jobo/core.js';
 import { doIntervalAt, prepareDoDelete, commitDoEdit } from '../../jobo/viewActions.js';
 import { createManualDo, prepareDoEdit } from '../../jobo/viewActions.js';
 import { receiptState } from '../../hooks/useJoboViewWriter.js';
@@ -31,7 +31,7 @@ export const endDateFor = (date, startTime, endTime) => {
 // and keyboard hint, and the app's own DatePicker and ClockTimePicker opened
 // from buttons exactly as the new-task modal opens them, so adding a Do reads
 // like adding a task.
-export default function DoEditor({ record, initial, linkCandidates = [], records, writable, recordJobo, onClose, pendingIds = [], t, cardBg, textPrimary, textSecondary = '', borderClass, darkMode = false }) {
+export default function DoEditor({ record, taskCompleted = false, initial, linkCandidates = [], records, writable, recordJobo, onClose, pendingIds = [], t, cardBg, textPrimary, textSecondary = '', borderClass, darkMode = false }) {
   const [id] = useState(() => record?.id || `manual:${crypto.randomUUID()}`);
   const marker = completionMarker(record);
   const [draft, setDraft] = useState(() => ({
@@ -128,7 +128,7 @@ export default function DoEditor({ record, initial, linkCandidates = [], records
         : {};
       let next;
       if (remove) next = prepareDoDelete({ records: latestRecords.current, record, now });
-      else if (record) next = prepareDoEdit({ records: latestRecords.current, record, patch, progress: draft.progress, now });
+      else if (record) next = prepareDoEdit({ records: latestRecords.current, record, patch, progress: draft.progress, now, taskCompleted });
       else {
         const duration = (Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${draft.date}T00:00:00Z`)) / 60000
           + minute(draft.endTime) - minute(draft.startTime);
@@ -141,7 +141,7 @@ export default function DoEditor({ record, initial, linkCandidates = [], records
       if (result.held && !result.ok) setAccepted(true);
       else onClose();
     } catch (err) {
-      setError(t(err.code === 'readOnly' ? 'jobo.view.readOnly' : err.code === 'notLoaded' ? 'jobo.view.loadError' : err instanceof TypeError || err instanceof RangeError ? 'jobo.view.completeInterval' : 'jobo.view.updateFailed'));
+      setError(t(err.code === 'completionUnavailable' ? 'jobo.view.completionUnavailable' : err.code === 'readOnly' ? 'jobo.view.readOnly' : err.code === 'notLoaded' ? 'jobo.view.loadError' : err instanceof TypeError || err instanceof RangeError ? 'jobo.view.completeInterval' : 'jobo.view.updateFailed'));
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -157,7 +157,11 @@ export default function DoEditor({ record, initial, linkCandidates = [], records
       event.preventDefault(); target?.focus();
     }
   };
-  const progressOptions = PROGRESS.filter(value => value !== DO_PROGRESS.COMPLETED || record?.progress === DO_PROGRESS.COMPLETED);
+  const completionAllowed = canCompleteDo(record || {
+    source: 'manual', taskId: link?.task?.recurringTemplateId ?? link?.task?.id ?? null,
+  }, { taskCompleted });
+  const progressOptions = PROGRESS.filter(value => value !== DO_PROGRESS.COMPLETED
+    || record?.progress === DO_PROGRESS.COMPLETED || completionAllowed || draft.progress === DO_PROGRESS.COMPLETED);
 
   const input = `w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`;
   const label = `block text-sm ${textSecondary} mb-1`;

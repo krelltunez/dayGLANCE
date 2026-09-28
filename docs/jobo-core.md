@@ -120,3 +120,24 @@ plan changed. Provisional-plan history remains task-owned through
 Slice 2 does not wire storage, sync, React, task completion detection, native
 checkbox behavior, backup/restore, Carry Forward, or mobile UI. The comparison
 surface is frozen here for later slices to consume.
+
+## Explicit completion reassessment (#1726, #1844)
+
+`reassessDoProgress(record, progress, updatedAt, { taskCompleted })` also accepts
+`completed` for an unlinked manual Do, or a completion-sourced Do whose linked
+task/occurrence is currently completed. The caller supplies that current fact;
+core does not look up tasks. Linked manual/focus rows gain no completion power.
+All changes retain the same ID, captured history and interval and require a newer
+version. Ordinary editing still cannot revive a tombstone.
+
+`completeDoAttempt` remains ensure-present, including user reassessments and
+tombstones. For #1844 the detector keeps a transient receipt of an uncheck it
+handed to the ledger. Only a same-key completion while that exact reassessed
+copy is still the winner restores Completed. A delayed observation without the
+receipt, a later edit, a different equal-version winner, and a tombstone remain
+untouched. Receipts are neither persisted nor a second writer/retry queue; a
+fresh session fails closed when it cannot prove the earlier uncheck.
+
+The editor reuses the day model's current task/occurrence resolution and existing
+controls. This change adds no task action, undo/redo, schema, sync rule, timeline
+behaviour, or comparison dimension.

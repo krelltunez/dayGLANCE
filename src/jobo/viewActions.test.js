@@ -19,8 +19,10 @@ describe('minimal Do form adapters', () => {
     expect(attempts.every(row => row.progress === 'started' && row.taskId === null && row.source === 'manual')).toBe(true);
     expect(pickJoboRecord(...attempts).id).toBe(id);
   });
-  it('never creates a completed manual attempt', () => {
-    expect(() => createManualDo({ id: 'm', title: 'Manual', date: '2026-09-24', startMinute: 600, progress: 'completed', now })).toThrow();
+  it('allows completed manual work only when it has no task link', () => {
+    const input = { id: 'm', title: 'Manual', date: '2026-09-24', startMinute: 600, progress: 'completed', now };
+    expect(createManualDo(input)).toMatchObject({ taskId: null, source: 'manual', progress: 'completed' });
+    expect(() => createManualDo({ ...input, task: { id: 't1', completed: true } })).toThrow();
   });
   it('corrects untimed evidence under the same id without changing capture or source', () => {
     const opened = base();
