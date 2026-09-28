@@ -2080,7 +2080,6 @@
       "completeInterval": "Informe um intervalo completo de início e fim.",
       "completedAt": "Marcado como concluído às {{time}}",
       "completionUnavailable": "Concluído está disponível para registros manuais sem tarefa vinculada ou registros de conclusão cuja tarefa continua concluída.",
-      "completedByCompletion": "Concluído está disponível para registros manuais sem tarefa vinculada ou registros de conclusão cuja tarefa continua concluída.",
       "completedStays": "Continua concluído. Ajuste os horários e salve.",
       "completionAxis": "Conclusão",
       "do": "Execução",
