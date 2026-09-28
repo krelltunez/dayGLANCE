@@ -2080,7 +2080,6 @@
       "completeInterval": "Saisissez un intervalle complet de début et de fin.",
       "completedAt": "Marqué comme terminé à {{time}}",
       "completionUnavailable": "Terminé est disponible pour un travail manuel sans tâche liée, ou un enregistrement de fin dont la tâche reste terminée.",
-      "completedByCompletion": "Terminé est disponible pour un travail manuel sans tâche liée, ou un enregistrement de fin dont la tâche reste terminée.",
       "completedStays": "Reste terminé. Ajustez les heures et enregistrez.",
       "completionAxis": "Achèvement",
       "do": "Exécution",
