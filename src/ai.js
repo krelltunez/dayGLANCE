@@ -123,6 +123,22 @@ async function withRetry(fn, maxRetries = 3) {
   throw lastError;
 }
 
+// Client-side throttle for outbound AI calls: caps how many requests any
+// feature (voice input, morning summary, smart scheduling, ...) can fire in
+// a rolling window, so a runaway caller can't flood the configured provider.
+const RATE_LIMIT_WINDOW_MS = 60000;
+const RATE_LIMIT_MAX_CALLS = 20;
+let recentCallTimestamps = [];
+
+function enforceRateLimit() {
+  const now = Date.now();
+  recentCallTimestamps = recentCallTimestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+  if (recentCallTimestamps.length >= RATE_LIMIT_MAX_CALLS) {
+    throw new Error('Too many AI requests. Please wait a moment before trying again.');
+  }
+  recentCallTimestamps.push(now);
+}
+
 // Make a completion request to the configured provider (with automatic retry).
 // Every prompt passes through here, so this is where the answer's language is
 // set: the system prompt gains a last paragraph naming the app's current
@@ -131,6 +147,7 @@ export async function aiComplete(systemPrompt, userMessage, config) {
   if (!config?.enabled || !config.apiKey && config.provider !== 'ollama') {
     throw new Error('AI is not configured');
   }
+  enforceRateLimit();
 
   const localized = withLanguage(systemPrompt, currentAiLanguage());
   return withRetry(() => _aiComplete(localized, userMessage, config));
