@@ -16,6 +16,7 @@ import { plannerColumns } from '../../utils/plannerColumns.js';
 import { renderFormattedText } from '../../utils/textFormatting.jsx';
 import { isSelectionKey, moveSelection } from '../../utils/plannerSelection.js';
 import TaskNotesPane from '../TaskNotesPane.jsx';
+import useBackClose from '../../hooks/useBackClose.js';
 
 // Same iOS detection as ProjectCard: grip-only touch drag on iOS, where
 // whole-row HTML5 drag hijacks the gesture (see ProjectCard's IS_IOS note).
@@ -213,6 +214,10 @@ const ProjectPlanner = ({ project, onClose, initialHyperglanceOpen = false }) =>
   const hyperPage = !wide && hyperOpen;
   const panelOpen = sidebar || hyperPanel;
   const hyperOn = !!project.hyperglance?.enabled;
+  // Back (the phone's gesture or button) closes hyperGLANCE first, then the
+  // planner, saving the notes as the X does (hooks/useBackClose.js).
+  useBackClose({ key: 'dgPlannerSheet', onClose: closePlanner });
+  useBackClose({ open: hyperOpen, key: 'dgPlannerHyperglance', onClose: () => setHyperOpen(false) });
   const [selectedId, setSelectedId] = useState(null);
   // E puts the cursor in the selected task's note in the sidebar.
   const [noteFocusRequest, setNoteFocusRequest] = useState(0);

@@ -7,6 +7,7 @@ import { BUCKET_LIST_IDS, promoteToInbox } from '../utils/bucketList.js';
 import { beginLongPressReorder, isLongPressRowDevice } from '../utils/longPressReorder.js';
 import { stripWikilinks } from '../utils/taskUtils.js';
 import { renderFormattedText, renderTitleWithoutTags, hasNotesOrSubtasks, hasOnlySubtasks } from '../utils/textFormatting.jsx';
+import useBackClose from '../hooks/useBackClose.js';
 
 // Same iOS detection as ProjectPlanner/ProjectCard: grip-only touch drag on
 // iOS, where whole-row HTML5 drag hijacks the gesture.
@@ -58,6 +59,8 @@ const BucketListModal = () => {
     }
   };
   const closeModal = () => { saveNotes(); setShowBucketList(false); };
+  // Back (the phone's gesture or button) closes it like the X (hooks/useBackClose.js).
+  useBackClose({ key: 'dgBucketList', onClose: closeModal });
 
   // Save notes on unmount too (ProjectPlanner's pattern) — Escape-close and
   // the editor opening over us bypass closeModal/blur.

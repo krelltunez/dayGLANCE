@@ -12,6 +12,7 @@ import RecurrencePicker from './RecurrencePicker.jsx';
 import TaskModalNotes from './TaskModalNotes.jsx';
 import { dateToString, extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
 import { formatLocalizedDate } from '../utils/localeFormatting.js';
+import useBackClose, { ABOVE_EDITORS } from '../hooks/useBackClose.js';
 
 const MobileNewTaskModal = () => {
   const { t, i18n } = useTranslation();
@@ -55,10 +56,17 @@ const MobileNewTaskModal = () => {
   // for their notes & subtasks.
   const isBucketItem = !!mobileEditingTask?.bucketId;
 
+  // Back (the phone's gesture or button) closes the editor as tapping outside
+  // it does, unsaved; a date or time picker open on top keeps it open
+  // (hooks/useBackClose.js).
+  const closeEditor = () => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); setMobileEditingTask(null); setMobileEditIsInbox(false); };
+  useBackClose({ open: showAddTask && isMobile, key: 'dgTaskEditor', onClose: closeEditor, coveredBy: ABOVE_EDITORS });
+  useBackClose({ open: !!mobileEditingNativeEvent, key: 'dgNativeEventEditor', onClose: () => setMobileEditingNativeEvent(null) });
+
   return (
     <>
       {showAddTask && isMobile && (
-        <div className="fixed inset-0 z-[80] flex flex-col justify-end" onClick={() => { setShowAddTask(false); setShowNewTaskDeadlinePicker(false); setMobileEditingTask(null); setMobileEditIsInbox(false); }}>
+        <div className="fixed inset-0 z-[80] flex flex-col justify-end" onClick={closeEditor}>
           <div className="bg-black/30 absolute inset-0" />
           <div
             className={`relative ${cardBg} rounded-t-2xl shadow-xl max-h-[85vh] overflow-y-auto`}

@@ -83,7 +83,10 @@ export function createSheetController({ key, onClose, onPage, win }) {
     close(reason);
   };
 
-  const onPopState = () => close('back');
+  // Only when OUR entry was popped: an overlay opened over the sheet (the
+  // task editor, hooks/useBackClose.js) pushes an entry that copies ours,
+  // and popping that one leaves ours on top.
+  const onPopState = () => { if (!ownsHistoryEntry()) close('back'); };
   const page = (delta) => { if (!closed && onPage) onPage(delta); };
   const onKeyDown = (event) => {
     if (event.defaultPrevented) return;

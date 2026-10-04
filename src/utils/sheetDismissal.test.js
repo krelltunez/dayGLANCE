@@ -37,7 +37,17 @@ describe('sheet dismissal controller', () => {
     expect(win.history.pushState).toHaveBeenCalledTimes(1);
     expect(win.history.state).toEqual({ monthDaySheet: true });
     expect(onClose).not.toHaveBeenCalled();
-    win.fire('popstate', { state: null });
+    win.history.back();
+    expect(onClose).toHaveBeenCalledWith('back');
+  });
+
+  it('stays open when an overlay opened over it (the task editor) is popped', () => {
+    const { win, onClose } = setup();
+    // the editor's entry copies the sheet's (hooks/useBackClose.js)
+    win.history.pushState({ ...win.history.state, dgTaskEditor: true }, '');
+    win.history.back();
+    expect(onClose).not.toHaveBeenCalled();
+    win.history.back();
     expect(onClose).toHaveBeenCalledWith('back');
   });
 
