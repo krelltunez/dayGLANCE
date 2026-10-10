@@ -1189,7 +1189,21 @@
     "stop": "Zatrzymaj",
     "skipPhase": "Pomiń fazę",
     "startHyperGlance": "Uruchom hyperGLANCE",
-    "tasksRemaining": "Zadania (pozostało: {{count}})"
+    "tasksRemaining": "Zadania (pozostało: {{count}})",
+    "doReview": {
+      "title": "Zapisz pracę w skupieniu",
+      "chooseTask": "Nad którym zadaniem pracowano?",
+      "minutes": "{{minutes}} min do zapisania",
+      "differenceMore": "Około {{seconds}} sekund więcej niż czasu pracy w skupieniu.",
+      "differenceLess": "Około {{seconds}} sekund mniej niż czasu pracy w skupieniu.",
+      "clockChanged": "Zegar lub strefa czasowa uległy zmianie. Części pracy nie można zapisać.",
+      "unavailable": "Nie można zapisywać w JOBO. Spróbuj ponownie, gdy będzie gotowe.",
+      "held": "Jeszcze nie zapisano. Trwa ponawianie próby. Zapisz przed ukończeniem zadania.",
+      "failed": "Nie udało się zapisać. Spróbuj ponownie.",
+      "completed": "Zadanie ukończone",
+      "inProgress": "Nadal w toku",
+      "continueWithoutSaving": "Kontynuuj bez czekania"
+    }
   },
   "voice": {
     "title": "Wprowadzanie głosowe",

@@ -1162,7 +1162,21 @@
     "stop": "停止",
     "skipPhase": "跳过当前阶段",
     "startHyperGlance": "开始 hyperGLANCE",
-    "tasksRemaining": "任务（剩余 {{count}} 个）"
+    "tasksRemaining": "任务（剩余 {{count}} 个）",
+    "doReview": {
+      "title": "记录专注工作",
+      "chooseTask": "你完成了哪项任务的工作？",
+      "minutes": "将记录 {{minutes}} 分钟",
+      "differenceMore": "比实际专注时长约多 {{seconds}} 秒。",
+      "differenceLess": "比实际专注时长约少 {{seconds}} 秒。",
+      "clockChanged": "时钟或时区变化，部分时段无法记录。",
+      "unavailable": "JOBO 尚不可写，恢复后请重试。",
+      "held": "尚未保存，正在重试。保存成功后才能完成任务。",
+      "failed": "未能保存，请重试。",
+      "completed": "任务已完成",
+      "inProgress": "仍在进行",
+      "continueWithoutSaving": "不再等待，继续"
+    }
   },
   "voice": {
     "title": "语音输入",

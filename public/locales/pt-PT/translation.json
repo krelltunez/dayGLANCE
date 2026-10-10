@@ -1162,7 +1162,21 @@
     "stop": "Parar",
     "skipPhase": "Saltar fase",
     "startHyperGlance": "Iniciar hyperGLANCE",
-    "tasksRemaining": "Tarefas (restantes: {{count}})"
+    "tasksRemaining": "Tarefas (restantes: {{count}})",
+    "doReview": {
+      "title": "Registar trabalho focado",
+      "chooseTask": "Em que tarefa trabalhaste?",
+      "minutes": "{{minutes}} min para registar",
+      "differenceMore": "Cerca de {{seconds}} segundos a mais do que o trabalho focado.",
+      "differenceLess": "Cerca de {{seconds}} segundos a menos do que o trabalho focado.",
+      "clockChanged": "O relógio ou o fuso horário mudou. Parte do trabalho não pode ser registada.",
+      "unavailable": "Não é possível escrever no JOBO. Tenta quando estiver disponível.",
+      "held": "Ainda não foi guardado. Nova tentativa em curso. Guarda antes de concluir a tarefa.",
+      "failed": "Não foi possível guardar. Tenta novamente.",
+      "completed": "Tarefa concluída",
+      "inProgress": "Ainda em curso",
+      "continueWithoutSaving": "Continuar sem esperar"
+    }
   },
   "voice": {
     "title": "Entrada de voz",

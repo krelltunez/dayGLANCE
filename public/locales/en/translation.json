@@ -1162,7 +1162,21 @@
     "stop": "Stop",
     "skipPhase": "Skip phase",
     "startHyperGlance": "Start hyperGLANCE",
-    "tasksRemaining": "Tasks ({{count}} remaining)"
+    "tasksRemaining": "Tasks ({{count}} remaining)",
+    "doReview": {
+      "title": "Record focused work",
+      "chooseTask": "Which task did you work on?",
+      "minutes": "{{minutes}} min to record",
+      "differenceMore": "About {{seconds}} seconds more than focused work.",
+      "differenceLess": "About {{seconds}} seconds less than focused work.",
+      "clockChanged": "The clock or time zone changed. Some work cannot be recorded.",
+      "unavailable": "JOBO is not writable. Try again when it is ready.",
+      "held": "Not saved yet. Retrying. Save before completing the task.",
+      "failed": "Could not save. Try again.",
+      "completed": "Task completed",
+      "inProgress": "Still in progress",
+      "continueWithoutSaving": "Continue without waiting"
+    }
   },
   "voice": {
     "title": "Voice Input",

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { isNativeAndroid, nativeIsDndPermissionGranted, nativeRequestDndPermission } from '../native.js';
 import { stripWikilinks, extractWikilinks } from '../utils/taskUtils.js';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
+import FocusDoReview from './FocusDoReview.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -15,6 +16,7 @@ const FocusModeModal = () => {
   const {
     exitFocusMode, startFocusTimer, dismissFocusStats, skipFocusPhase,
     focusShowSettings, focusShowStats,
+    focusDoReview, saveFocusDo, dismissFocusDo,
     focusWorkMinutes, setFocusWorkMinutes,
     focusBreakMinutes, setFocusBreakMinutes,
     focusLongBreakMinutes, setFocusLongBreakMinutes,
@@ -34,14 +36,19 @@ const FocusModeModal = () => {
       {/* Exit button */}
       <button
         onClick={() => exitFocusMode(true)}
-        className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10"
+        disabled={!!focusDoReview}
+        className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10 disabled:opacity-30"
         aria-label={t('common.close')}
       >
         <X size={28} />
       </button>
 
+      {focusDoReview && (
+        <FocusDoReview key={focusDoReview.capture.id} review={focusDoReview} onSave={saveFocusDo} onDismiss={dismissFocusDo} />
+      )}
+
       {/* Settings view */}
-      {focusShowSettings && !focusShowStats && (
+      {focusShowSettings && !focusShowStats && !focusDoReview && (
         <div className="w-full max-w-md px-6 py-8 my-auto flex flex-col items-center gap-6">
           <Target size={48} className="text-blue-400" />
           <h1 className="text-2xl font-bold text-white">{t('focus.title')}</h1>
@@ -99,7 +106,7 @@ const FocusModeModal = () => {
       )}
 
       {/* Main focus view */}
-      {!focusShowSettings && !focusShowStats && (
+      {!focusShowSettings && !focusShowStats && !focusDoReview && (
         <div className="w-full max-w-lg px-6 py-8 my-auto flex flex-col items-center gap-6">
           {/* Phase indicator */}
           <div className="flex items-center gap-3">

@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { isNativeAndroid, nativeShowFocusTimerNotification, nativeDismissFocusTimerNotification, nativeGetFocusPendingAction } from '../native.js';
 
-const useFocusMode = () => {
+const useFocusMode = ({ onTimerTransition } = {}) => {
   const [showFocusMode, setShowFocusMode] = useState(false);
-  const [focusPhase, setFocusPhase] = useState('work'); // 'work' | 'shortBreak' | 'longBreak'
+  const [focusPhase, applyFocusPhase] = useState('work'); // 'work' | 'shortBreak' | 'longBreak'
   const [focusTimerSeconds, setFocusTimerSeconds] = useState(0);
   const [focusCycleCount, setFocusCycleCount] = useState(0);
   const [focusSessionStart, setFocusSessionStart] = useState(null);
@@ -13,7 +13,7 @@ const useFocusMode = () => {
   const [focusCompletedTasks, setFocusCompletedTasks] = useState(new Set());
   const [focusShowStats, setFocusShowStats] = useState(false);
   const [focusShowSettings, setFocusShowSettings] = useState(true);
-  const [focusTimerRunning, setFocusTimerRunning] = useState(false);
+  const [focusTimerRunning, applyFocusTimerRunning] = useState(false);
   const [focusTaskMinutes, setFocusTaskMinutes] = useState({});
   const [focusBlockTasks, setFocusBlockTasks] = useState([]);
   const [focusLog, setFocusLog] = useState(() => {
@@ -26,6 +26,24 @@ const useFocusMode = () => {
   const handleFocusTimerEndRef = useRef(null);
   const exitFocusModeRef = useRef(null);
   const focusModeAvailableRef = useRef(false);
+
+  // Observe commands synchronously, including native notification and tray paths.
+  // An effect cannot see pause + resume batched into the same render.
+  const timerState = useRef({ phase: 'work', running: false });
+  const transition = useRef(onTimerTransition);
+  transition.current = onTimerTransition;
+  const updateTimer = useCallback((field, value) => {
+    const before = timerState.current;
+    const next = typeof value === 'function' ? value(before[field]) : value;
+    if (next === before[field]) return;
+    const after = { ...before, [field]: next };
+    if (transition.current?.({ before, after, at: Date.now() }) === false) return;
+    timerState.current = after;
+    if (field === 'phase') applyFocusPhase(next);
+    else applyFocusTimerRunning(next);
+  }, []);
+  const setFocusPhase = useCallback(value => updateTimer('phase', value), [updateTimer]);
+  const setFocusTimerRunning = useCallback(value => updateTimer('running', value), [updateTimer]);
 
   // Persist focusLog to localStorage
   useEffect(() => {
@@ -54,7 +72,7 @@ const useFocusMode = () => {
       setFocusTimerRunning(false);
       handleFocusTimerEndRef.current?.();
     }
-  }, [focusTimerSeconds, showFocusMode, focusTimerRunning, focusShowSettings]);
+  }, [focusTimerSeconds, showFocusMode, focusTimerRunning, focusShowSettings, setFocusTimerRunning]);
 
   // Keep a ref to the current remaining seconds so the notification effect can read
   // it without depending on it — we only want to fire on meaningful transitions,
