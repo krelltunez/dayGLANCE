@@ -445,7 +445,7 @@ describe('probeDirectAccess', () => {
     expect(await probeDirectAccess({ directAccess: null })).toBeNull();
     expect(await probeDirectAccess({ directAccess: fakeDirectAccess({ supported: false }) })).toBeNull();
     const off = fakeDirectAccess({ status: 'disconnected', name: null });
-    expect(await probeDirectAccess({ directAccess: off })).toEqual({ status: 'disconnected', name: null, enabled: true, encrypt: false, keyReady: null, pickError: null, native: null, roster: null, events: null, snapshot: null, merge: null });
+    expect(await probeDirectAccess({ directAccess: off })).toEqual({ status: 'disconnected', name: null, enabled: true, encrypt: false, keyReady: null, pickError: null, native: null, roster: null, events: null, conflicts: null, lastSweep: null, snapshot: null, merge: null });
     expect(off.read).not.toHaveBeenCalled();
   });
 
@@ -718,5 +718,34 @@ describe('dryRunMerge', () => {
     expect(both).toContain('flagged a write and an apply');
     expect(formatDiagnosticsReport(base)).toContain('dayGLANCE sync diagnostics');
     expect(formatDiagnosticsReport(base)).not.toContain('merge dry-run');
+  });
+});
+
+describe('probeDirectAccess: conflict copies (Phase 8)', () => {
+  it('lists the copies the folder holds beside each file, reports the last sweep, and prints both', async () => {
+    const data = { tasks: [], unscheduledTasks: [] };
+    const t = fakeDirectAccess({ read: async () => JSON.stringify({ version: 2, lastModified: 'x', data }) });
+    t.lastSyncedKey = 'fake-da';
+    t.files = {
+      supported: () => true,
+      list: async (dir) => (dir === '' ? ['dayglance-sync.json', 'dayglance-sync (conflicted copy 2026-10-10 111717).json', 'GLANCE'] : dir === 'GLANCE/events' ? ['glance-events.json', 'glance-events (1).json'] : []),
+    };
+    const storage = { getItem: (k) => (k === 'fake-da:conflicts' ? JSON.stringify({ at: '2026-10-10T20:00:00.000Z', copies: [{ outcome: 'merged' }, { outcome: 'removed' }, { outcome: 'needs-key' }] }) : null) };
+    const r = await probeDirectAccess({ directAccess: t, buildSyncPayload: () => ({ data }), merge: (l, rr) => ({ data: rr, localChanged: false, remoteChanged: false }), localStorage: storage });
+    expect(r.conflicts).toEqual([
+      { rel: 'dayglance-sync (conflicted copy 2026-10-10 111717).json', name: 'dayglance-sync (conflicted copy 2026-10-10 111717).json', kind: 'snapshot' },
+      { rel: 'GLANCE/events/glance-events (1).json', name: 'glance-events (1).json', kind: 'events' },
+    ]);
+    expect(r.lastSweep.at).toBe('2026-10-10T20:00:00.000Z');
+    const text = formatDiagnosticsReport({
+      platform: 'macos', icloud: false, available: { value: null }, snapshot: { state: 'unsupported', bytes: 0 },
+      local: { taskCount: 1, inboxCount: 0 }, transports: { icloud: {}, webdav: {}, vault: {} }, syncEnabled: true, directAccess: r,
+    });
+    expect(text).toMatch(/conflict copies: 2\n    snapshot: dayglance-sync \(conflicted copy 2026-10-10 111717\).json\n    events: glance-events \(1\).json\n  last sweep: +2026-10-10T20:00:00.000Z \(1 merged, 1 removed, 1 needs-key\)/);
+    // An iPhone cannot list: no rows, no lines.
+    const ios = fakeDirectAccess({ read: async () => JSON.stringify({ version: 2, lastModified: 'x', data }) });
+    const ri = await probeDirectAccess({ directAccess: ios, buildSyncPayload: () => ({ data }), merge: (l, rr) => ({ data: rr, localChanged: false, remoteChanged: false }) });
+    expect(ri.conflicts).toBeNull();
+    expect(formatDiagnosticsReport({ platform: 'ios', icloud: false, available: { value: null }, snapshot: { state: 'unsupported', bytes: 0 }, local: { taskCount: 1, inboxCount: 0 }, transports: { icloud: {}, webdav: {}, vault: {} }, syncEnabled: true, directAccess: ri })).not.toMatch(/conflict copies/);
   });
 });

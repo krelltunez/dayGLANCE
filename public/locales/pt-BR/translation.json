@@ -2138,7 +2138,12 @@
     "encryptSwitch": "Criptografar neste dispositivo",
     "key": "Chave de sincronização",
     "keyReady": "pronta",
-    "keyNeeded": "falta (digite a frase secreta)"
+    "keyNeeded": "falta (digite a frase secreta)",
+    "conflictCopies": "Cópias em conflito",
+    "lastSweep": "Última varredura",
+    "sweep": "Mesclar e remover cópias",
+    "sweeping": "Mesclando…",
+    "sweepCounts": "{{merged}} mescladas, {{removed}} removidas, {{left}} restantes"
   },
   "icloudFirstRun": {
     "title": "Dados encontrados no iCloud",

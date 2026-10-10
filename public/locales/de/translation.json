@@ -2138,7 +2138,12 @@
     "encryptSwitch": "Auf diesem Gerät verschlüsseln",
     "key": "Sync-Schlüssel",
     "keyReady": "bereit",
-    "keyNeeded": "fehlt (Sync-Passphrase eingeben)"
+    "keyNeeded": "fehlt (Sync-Passphrase eingeben)",
+    "conflictCopies": "Konfliktkopien",
+    "lastSweep": "Letzter Durchlauf",
+    "sweep": "Kopien zusammenführen und entfernen",
+    "sweeping": "Wird zusammengeführt…",
+    "sweepCounts": "{{merged}} zusammengeführt, {{removed}} entfernt, {{left}} verbleibend"
   },
   "icloudFirstRun": {
     "title": "Daten in iCloud gefunden",
