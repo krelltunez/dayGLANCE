@@ -76,7 +76,7 @@ existing rules apply to it unchanged:
 | A recurring occurrence | Nothing. The next occurrence continues the work, and moving one occurrence is a series exception, not a continuation. |
 | A task already moved off the entry's day | "Next: Fri 9:00", with no button. It has been continued already, by hand or from another device. Only the day the task sits on offers Continue, so the time left is that day's. |
 | An unscheduled task (Inbox or a project's list) that has Do recorded | "Schedule…", which opens the editor on tomorrow, because there is no planned time to carry. |
-| An unlinked Do | Nothing for now. "Make a task" may follow later. |
+| An unlinked Do | "Make a task", unless it is marked completed. See "Make a task" below. |
 | A task since deleted or archived | Nothing. |
 
 ## Add follow-up
@@ -244,3 +244,26 @@ field is added. The group and the line are pure helpers beside
 3. **A browser check** on a seeded day: a past day with each kind of task,
    today before and after a task's end, each action and its undo, and the
    line reaching "Every task from this day has a next step".
+
+## Make a task
+
+Unplanned work sometimes turns out to need a task of its own. An unlinked
+manual Do that is not marked completed offers **Make a task**, on its Check
+entry and in the Do editor, while the ledger can be written.
+
+- **The form:** the normal new-task form, in the Inbox, with the Do's title,
+  tags included (`makeTaskDraft`). The form can still schedule it, give it a
+  project or make it recurring; cancelling changes nothing.
+- **The link:** saving creates the task and links the Do to it, as one more
+  step of the undo history after the add. The link is core's one exception to
+  `taskId` being captured (`linkDoRecord`): set once, from null, on a manual
+  Do that is not completed, as a newer version. The title, interval, progress
+  and `planSnapshot` stay as recorded, so the work done before the task
+  existed still reads as unplanned, and later sessions on the task join it.
+- **A Do that changed meanwhile** (edited, deleted or linked, here or on
+  another device) is left as it is: the task is still made, and a toast says
+  the Do was not linked.
+- **Not offered** on completion or Focus records, which are always linked, or
+  on completed unlinked work, which has nothing left to make. A linked manual
+  Do cannot be completed, so linking one would leave it in a state core does
+  not allow.

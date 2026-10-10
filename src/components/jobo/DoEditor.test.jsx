@@ -7,7 +7,7 @@ import { DayPlannerContext } from '../../context/DayPlannerContext.jsx';
 // Only the portal is flattened for server rendering; the editor and its
 // eligibility rules are real. Pointer/selection transitions run in Chromium.
 vi.mock('react-dom', async importOriginal => ({ ...await importOriginal(), createPortal: node => node }));
-import DoEditor from './DoEditor.jsx';
+import DoEditor, { makeTaskAfterClose } from './DoEditor.jsx';
 
 const date = '2026-09-28';
 const stamp = `${date}T10:00:00+08:00`;
@@ -98,6 +98,45 @@ describe('Complete task in the Do editor', () => {
   it('sits inside the form, so a read-only ledger disables it with the rest', () => {
     const html = render({ record: record({ taskId: 't1' }), onCompleteTask: () => {}, writable: false });
     expect(html).toMatch(/<fieldset disabled=""[\s\S]*data-jobo-complete-task[\s\S]*<\/fieldset>/);
+  });
+});
+
+// "Make a task" from an unlinked Do: offered when the hook passes it
+// (useJoboDoActions, from canLinkDo and the app's opener), inside the form.
+describe('Make a task in the Do editor', () => {
+  it('shows the action only when it is offered', () => {
+    const html = render({ record: record(), onMakeTask: () => {} });
+    expect(html).toContain('data-jobo-make-task');
+    expect(html).toContain('jobo.makeTask');
+    expect(html).toContain('jobo.makeTaskHint');
+    expect(render({ record: record() })).not.toContain('data-jobo-make-task');
+  });
+  it('opens the form at once from the dialog; from a sheet, after its back entry is popped', () => {
+    const order = [];
+    makeTaskAfterClose({ sheet: false, onClose: () => order.push('close'), onMakeTask: () => order.push('form') });
+    expect(order).toEqual(['close', 'form']);
+    // MUTATION: open the form at once from a sheet and the late pop closes it.
+    const listeners = {}; const timers = [];
+    const win = {
+      addEventListener: (type, fn) => { listeners[type] = fn; },
+      removeEventListener: (type) => { delete listeners[type]; },
+      setTimeout: (fn) => timers.push(fn),
+    };
+    const onMakeTask = vi.fn();
+    makeTaskAfterClose({ sheet: true, onClose: () => {}, onMakeTask, win });
+    expect(onMakeTask).not.toHaveBeenCalled();
+    listeners.popstate();
+    timers.forEach(fn => fn());
+    expect(onMakeTask).toHaveBeenCalledTimes(1);
+    expect(listeners.popstate).toBeUndefined();
+    // No entry to pop: the fallback opens it.
+    const late = vi.fn();
+    makeTaskAfterClose({ sheet: true, onClose: () => {}, onMakeTask: late, win: { ...win, setTimeout: fn => fn() } });
+    expect(late).toHaveBeenCalledTimes(1);
+  });
+  it('sits inside the form, so a read-only ledger disables it with the rest', () => {
+    const html = render({ record: record(), onMakeTask: () => {}, writable: false });
+    expect(html).toMatch(/<fieldset disabled=""[\s\S]*data-jobo-make-task[\s\S]*<\/fieldset>/);
   });
 });
 

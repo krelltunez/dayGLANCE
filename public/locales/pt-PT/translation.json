@@ -2217,6 +2217,9 @@
       "secondary": "Finais tardios: {{finish}} · Demorou mais: {{longer}}"
     },
     "title": "JOBO",
+    "makeTask": "Criar tarefa",
+    "makeTaskHint": "Abre uma nova tarefa na caixa de entrada a partir desta execução e associa-a à tarefa.",
+    "makeTaskNotLinked": "Tarefa adicionada. A execução mudou entretanto, por isso não foi associada.",
     "undo": {
       "changed": "Este Do mudou entretanto, por isso foi mantido como está.",
       "completionBlocked": "A tarefa já não está concluída, por isso o Do não pode voltar a Concluído. Foi mantido como está.",

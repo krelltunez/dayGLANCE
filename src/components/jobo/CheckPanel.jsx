@@ -65,6 +65,11 @@ function EntryCarry({ entry, date, today, carry, outcome, setOutcome, undoable, 
       return <p data-check-carry="schedule"><button type="button" data-check-schedule
         onClick={() => carry.editOn(action.task, action.date)}
         aria-label={label(t('jobo.check.schedule'))} className={linkButton}>{t('jobo.check.schedule')}</button></p>;
+    case CARRY_ACTION.MAKE_TASK:
+      if (!carry.makeTask) return null;
+      return <p data-check-carry="makeTask"><button type="button" data-check-make-task
+        onClick={() => carry.makeTask(action.record)}
+        aria-label={label(t('jobo.makeTask'))} className={linkButton}>{t('jobo.makeTask')}</button></p>;
     case CARRY_ACTION.MOVED:
       return <p data-check-carry="moved" className={`text-xs ${textSecondary}`}>{t('jobo.check.next', { slot: slotText(action.slot) })}</p>;
     default:

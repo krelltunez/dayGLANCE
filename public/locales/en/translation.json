@@ -2217,6 +2217,9 @@
       "secondary": "Late finishes: {{finish}} · Ran long: {{longer}}"
     },
     "title": "JOBO",
+    "makeTask": "Make a task",
+    "makeTaskHint": "Opens a new Inbox task from this Do and links the Do to it.",
+    "makeTaskNotLinked": "Task added. The Do changed in the meantime, so it was not linked.",
     "undo": {
       "changed": "This Do has changed since, so it was left as it is.",
       "completionBlocked": "Its task is no longer completed, so the Do can't return to Completed. It was left as it is.",

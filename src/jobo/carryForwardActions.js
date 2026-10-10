@@ -14,7 +14,7 @@ const sameId = (a, b) => String(a) === String(b);
 export function createCarryForwardActions({
   tasks = [], setTasks, pushUndo, getAdjustedTimeForImportedConflicts, playUISound,
   openMobileEditTask, setNewTask, setShowAddTask, setMobileEditingTask, swipeSchedulingInboxTaskId,
-  getNextQuarterHour, newTaskInputRef, projects = [], moveToInbox, moveToRecycleBin,
+  getNextQuarterHour, newTaskInputRef, projects = [], moveToInbox, moveToRecycleBin, openMakeTask,
   schedule = callback => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(callback) : setTimeout(callback, 0)),
 }) {
   /**
@@ -95,5 +95,9 @@ export function createCarryForwardActions({
     return { deleted: true };
   }
 
-  return { continueTask, editOn, openFollowUp, unscheduleTask, deleteTask };
+  // "Make a task" from an unlinked Do: the app's opener (App.jsx), offered
+  // only while the ledger can take the link, so it is absent otherwise.
+  const makeTask = typeof openMakeTask === 'function' ? record => openMakeTask(record) : null;
+
+  return { continueTask, editOn, openFollowUp, unscheduleTask, deleteTask, makeTask };
 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { completionMarker } from '../../jobo/completionMarker.js';
-import { CheckCircle2, Link2, Trash2, X } from 'lucide-react';
+import { CheckCircle2, Link2, ListPlus, Trash2, X } from 'lucide-react';
 import ClockTimePicker from '../ClockTimePicker.jsx';
 import DatePicker from '../DatePicker.jsx';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
@@ -37,7 +37,28 @@ export const endDateFor = (date, startTime, endTime) => {
  * from the bottom of the screen that the phone's back closes, and that opens
  * without bringing up the keyboard.
  */
-export default function DoEditor({ record, taskCompleted = false, onCompleteTask, initial, linkCandidates = [], records, writable, recordJobo, onClose, pendingIds = [], t, cardBg, textPrimary, textSecondary = '', borderClass, darkMode = false, sheet = false }) {
+/**
+ * Close the editor, then open the task form ("Make a task"). As a sheet the
+ * editor leaves through its back entry a tick after it closes
+ * (hooks/useBackClose.js); the form copies the state it opens on, so that
+ * late pop would land on the form and close it. Wait for the pop, with a
+ * short fallback for when there is none.
+ */
+export function makeTaskAfterClose({ sheet, onClose, onMakeTask, win = typeof window === 'undefined' ? null : window }) {
+  onClose();
+  if (!sheet || !win) { onMakeTask(); return; }
+  let done = false;
+  const open = () => {
+    if (done) return;
+    done = true;
+    win.removeEventListener('popstate', open);
+    onMakeTask();
+  };
+  win.addEventListener('popstate', open);
+  win.setTimeout(open, 500);
+}
+
+export default function DoEditor({ record, taskCompleted = false, onCompleteTask, onMakeTask, initial, linkCandidates = [], records, writable, recordJobo, onClose, pendingIds = [], t, cardBg, textPrimary, textSecondary = '', borderClass, darkMode = false, sheet = false }) {
   const [id] = useState(() => record?.id || `manual:${crypto.randomUUID()}`);
   const marker = completionMarker(record);
   const [draft, setDraft] = useState(() => ({
@@ -360,6 +381,22 @@ export default function DoEditor({ record, taskCompleted = false, onCompleteTask
                   <CheckCircle2 size={16} className="text-green-500" aria-hidden="true" />{t('jobo.view.completeTask')}
                 </button>
                 <p className={`mt-1 text-xs ${textSecondary}`}>{t(unsaved ? 'jobo.view.completeTaskSaveFirst' : 'jobo.view.completeTaskHint')}</p>
+              </div>
+            );
+          })()}
+          {/* "Make a task" from unlinked work: the new-task form, which links
+              this Do once the task is saved. It links the Do as opened, so
+              unsaved changes come first, as for Complete task. */}
+          {onMakeTask && (() => {
+            const unsaved = JSON.stringify(draft) !== JSON.stringify(openedDraft.current);
+            return (
+              <div data-jobo-make-task>
+                <button type="button" disabled={unsaved}
+                  className={`w-full px-4 py-2 border ${borderClass} rounded-lg flex items-center justify-center gap-2 ${textPrimary} ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} disabled:opacity-50 transition-colors`}
+                  onClick={() => makeTaskAfterClose({ sheet, onClose, onMakeTask })}>
+                  <ListPlus size={16} className="text-blue-500" aria-hidden="true" />{t('jobo.makeTask')}
+                </button>
+                <p className={`mt-1 text-xs ${textSecondary}`}>{t(unsaved ? 'jobo.view.completeTaskSaveFirst' : 'jobo.makeTaskHint')}</p>
               </div>
             );
           })()}

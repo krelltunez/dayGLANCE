@@ -5,6 +5,7 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { snapMinute } from '../components/jobo/DoColumn.jsx';
 import { doLinkCandidates } from '../jobo/linkCandidates.js';
 import { prepareDoEdit, commitDoEdit, offersCompleteTask } from '../jobo/viewActions.js';
+import { canLinkDo } from '../jobo/core.js';
 import useJoboViewWriter from './useJoboViewWriter.js';
 
 const clock = (minute) => `${String(Math.floor((minute % 1440) / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
@@ -144,6 +145,10 @@ export default function useJoboDoActions({ date, model, doItems, currentTime, no
     ...editor,
     taskCompleted: model.resolveRecordTask(editor.record)?.completed === true,
     onCompleteTask: completeTaskFor(editor.record),
+    // "Make a task" from an unlinked Do, where the app offers it (App.jsx
+    // openMakeTask, only while the ledger can take the link).
+    onMakeTask: editor.record && canLinkDo(editor.record) && typeof ctx.openMakeTask === 'function'
+      ? () => ctx.openMakeTask(editor.record) : undefined,
     linkCandidates: editor.record ? undefined : linkCandidates,
     records: joboRecords || [],
     writable: joboWritable,

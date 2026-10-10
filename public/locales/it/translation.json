@@ -2219,6 +2219,9 @@
       "secondary": "Fini in ritardo: {{finish}} · Durato di più: {{longer}}"
     },
     "title": "JOBO",
+    "makeTask": "Crea attività",
+    "makeTaskHint": "Apre una nuova attività in arrivo da questa esecuzione e vi collega l'esecuzione.",
+    "makeTaskNotLinked": "Attività aggiunta. L'esecuzione è cambiata nel frattempo, quindi non è stata collegata.",
     "undo": {
       "changed": "Questo Do è cambiato nel frattempo, quindi è stato lasciato com'è.",
       "completionBlocked": "Il suo compito non è più completato, quindi il Do non può tornare Completato. È stato lasciato com'è.",

@@ -79,6 +79,8 @@ export default function useTaskActions({
   frameScheduleModal, setFrameScheduleModal,
   focusBlockTasks, setFocusBlockTasks,
   focusCompletedTasks, setFocusCompletedTasks,
+  // "Make a task" from an unlinked Do: links the Do once the task is saved.
+  onTaskMadeFromDo,
   exitFocusModeRef,
   playFocusSound,
   // Obsidian integration.
@@ -191,7 +193,11 @@ export default function useTaskActions({
         ...(newTask.assignedUserSyncIds?.length ? { assignedUserSyncIds: newTask.assignedUserSyncIds } : {}),
       };
 
+      // The id a new task was saved under (null when the save moved an
+      // existing Inbox task instead), for a Do this task was made from.
+      let createdId = null;
       if (toInbox) {
+        createdId = taskId;
         const inboxTask = { ...task, priority: newTask.priority ?? 0 };
         if (newTask.deadline) {
           inboxTask.deadline = newTask.deadline;
@@ -199,6 +205,7 @@ export default function useTaskActions({
         setUnscheduledTasks(prev => [...prev, inboxTask]);
       } else if (newTask.keepUnscheduled && newTask.projectId) {
         // Save as unscheduled project task (no scheduling)
+        createdId = taskId;
         setUnscheduledTasks(prev => [...prev, task]);
       } else if (newTask.recurrence) {
         // Create recurring task template
@@ -224,6 +231,7 @@ export default function useTaskActions({
           lastModified: new Date().toISOString()
         };
         setRecurringTasks(prev => [...prev, template]);
+        createdId = taskId;
         if (!onboardingProgress.hasCreatedRecurring) {
           setOnboardingProgress(prev => ({ ...prev, hasCreatedRecurring: true }));
         }
@@ -269,6 +277,7 @@ export default function useTaskActions({
           : getAdjustedTimeForImportedConflicts(taskId, requestedStartTime, newTask.duration, taskDate);
 
         scheduledAdjustedStartTime = adjustedStartTime;
+        createdId = taskId;
         setTasks(prev => [...prev, {
           ...task,
           startTime: adjustedStartTime,
@@ -299,6 +308,10 @@ export default function useTaskActions({
           blockId: obsidianMeta.obsidianBlockId,
         });
       }
+
+      // "Make a task" from an unlinked Do (jobo/carryForward.js makeTaskDraft):
+      // link that Do to the task just saved. One more undo step, after the add.
+      if (newTask.linkDo && createdId != null) onTaskMadeFromDo?.(newTask.linkDo, createdId);
 
       setNewTask({ title: '', startTime: getNextQuarterHour(), duration: 30, date: dateToString(selectedDate), isAllDay: false, recurrence: null });
       setShowAddTask(false);

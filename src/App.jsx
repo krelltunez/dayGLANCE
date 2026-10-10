@@ -112,6 +112,8 @@ import useAudio from './hooks/useAudio.js';
 import useUndo from './hooks/useUndo.js';
 import useJoboUndo from './hooks/useJoboUndo.js';
 import { buildPastDaySlices, buildPastDayIndex, pastDayDisplay, doSessionsByTask } from './jobo/pastDay.js';
+import { makeTaskDraft } from './jobo/carryForward.js';
+import { prepareDoLink } from './jobo/viewActions.js';
 import useTodayEnded from './hooks/useTodayEnded.js';
 import { EVENT_NOTES_KEY, applyEventNotes, readEventNotes, withEventNote } from './utils/eventNotes.js';
 import { ZOOM_STORAGE_KEY, readZooms, withZoom } from './utils/timelineZoom.js';
@@ -3670,6 +3672,30 @@ const DayPlanner = () => {
     });
   };
 
+  // "Make a task" from an unlinked Do (the Do editor, the Check): the
+  // new-task form in the Inbox, pre-filled from the Do, which the save then
+  // links (linkDoToNewTask). Offered only while the ledger can take the link.
+  const openMakeTask = (record) => {
+    if (!record?.id) return;
+    if (swipeSchedulingInboxTaskId) swipeSchedulingInboxTaskId.current = null;
+    setMobileEditingTask(null);
+    setNewTask({
+      startTime: getNextQuarterHour(), duration: 30, date: dateToString(selectedDate), isAllDay: false, recurrence: null,
+      ...makeTaskDraft(record),
+    });
+    setShowAddTask(true);
+    // The Do editor hands focus back to the card it was opened from as it
+    // closes, after the form has taken it; take it back for the title, with
+    // the caret at the end, so typing adds to it and Enter saves.
+    requestAnimationFrame(() => setTimeout(() => {
+      const input = newTaskInputRef?.current;
+      if (!input?.isConnected) return;
+      input.focus();
+      const end = input.value.length;
+      input.setSelectionRange?.(end, end);
+    }, 0));
+  };
+
   const openMobileEditNativeEvent = (task) => {
     const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
     const override = (task.nativeEventId && overrides[String(task.nativeEventId)]) || {};
@@ -6940,6 +6966,24 @@ const DayPlanner = () => {
   const dialFramesForDate = useCallback((date) => getFrameInstancesForDate(date)
     .map(f => ({ ...f, slots: dialFrameSlots(f, date) })), [getFrameInstancesForDate, dialFrameSlots]);
 
+  // "Make a task" from an unlinked Do: once the task form saves, link the Do
+  // to the new task (jobo/viewActions.js prepareDoLink), as one more step of
+  // the undo history. A Do that changed since the form opened stays as it is,
+  // and the toast says so.
+  const linkDoToNewTask = async (linkDo, taskId) => {
+    const next = prepareDoLink({ records: joboRecords, record: linkDo, taskId, now: Date.now() });
+    if (!next) { setUndoToast({ message: t('jobo.makeTaskNotLinked') }); return; }
+    const before = joboRecords.find(record => record.id === linkDo.id) || null;
+    try {
+      const result = await recordJobo([next]);
+      if (result?.ok || result?.held) recordJoboUndo(before, next);
+      else setUndoToast({ message: t('jobo.makeTaskNotLinked') });
+    } catch (err) {
+      console.error('[jobo] link failed:', err);
+      setUndoToast({ message: t('jobo.makeTaskNotLinked') });
+    }
+  };
+
   const {
     setDeadline,
     postponeDeadlineTask,
@@ -7003,6 +7047,7 @@ const DayPlanner = () => {
     frameScheduleModal, setFrameScheduleModal,
     focusBlockTasks, setFocusBlockTasks,
     focusCompletedTasks, setFocusCompletedTasks,
+    onTaskMadeFromDo: linkDoToNewTask,
     exitFocusModeRef,
     playFocusSound,
     getObsidianTaskMeta: obsidianConfig?.enabled && obsidianVaultHandleRef.current
@@ -8211,6 +8256,7 @@ const DayPlanner = () => {
     // ── Undo / redo ───────────────────────────────────────────────────────────
     undoToast, setUndoToast,
     followUpTag, setFollowUpTag, openFollowUp,
+    openMakeTask: joboEnabled && joboWritable ? openMakeTask : null,
     joboFocus, setJoboFocus, openJoboAt,
 
     // ── Mobile editing ────────────────────────────────────────────────────────

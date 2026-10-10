@@ -15,8 +15,15 @@ import useSheetDismissal from '../../hooks/useSheetDismissal.js';
  * function given that same `dismiss`, for a close button of its own.
  *
  * It sits under the task form (z-[80]), so a Check action that opens the
- * form opens it over the sheet, and closing the form comes back to it.
+ * form opens it over the sheet, and closing the form comes back to it. For
+ * that the two must share a stacking context: the app shell is
+ * position: fixed, which makes it one, so the sheet is placed inside it
+ * (sheetHost) rather than on <body>, where z-[60] outranked the whole shell
+ * and every form in it.
  */
+export const sheetHost = (doc = typeof document === 'undefined' ? null : document) =>
+  (typeof doc?.querySelector === 'function' ? doc.querySelector('.app-shell') : null) || doc?.body || null;
+
 export default function JoboSheet({ historyKey, title, subtitle, onClose, children, ...rest }) {
   const { t } = useTranslation();
   const { cardBg, borderClass, textPrimary, textSecondary, hoverBg } = useDayPlannerCtx() || {};
@@ -53,6 +60,6 @@ export default function JoboSheet({ historyKey, title, subtitle, onClose, childr
         </div>
       </div>
     </div>,
-    document.body,
+    sheetHost(),
   );
 }
