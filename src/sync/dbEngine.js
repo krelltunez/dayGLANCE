@@ -159,6 +159,16 @@ const VAULT_KEY_SLOT = 'db';
 // returned false on every launch and the passphrase modal reappeared. iOS is
 // therefore detected by its explicit marker and routed to its REAL secure-store
 // methods; only Android (no marker, a real getSyncKey) uses the Keystore path.
+/** The native records are base64 JSON: the DB root key is {rootBytes, salt}, the file-tier key {rawKey, salt}. */
+const decodeKeyRecord = (b64) => {
+  if (!b64 || typeof b64 !== 'string') return null;
+  try { return JSON.parse(atob(b64)); } catch { return null; }
+};
+export const isRootKeyRecord = (b64) => {
+  const r = decodeKeyRecord(b64);
+  return !!(r && Array.isArray(r.rootBytes) && r.rootBytes.length > 0);
+};
+
 export function nativeKeyConfig() {
   if (secureStoreAvailable()) {
     return {
@@ -172,18 +182,29 @@ export function nativeKeyConfig() {
   if (!isAndroid) {
     return { cryptoDBName: CRYPTO_DB_NAME, nativeGetSyncKey: null, nativeStoreSyncKey: null };
   }
-  // Prefer the isolated per-slot bridge methods; fall back to the shared legacy
-  // slot on older shells (no isolation there, but no worse than before).
+  // Prefer the isolated per-slot bridge methods. A key written to the shared
+  // legacy slot by an older shell is read from there once (when it is a root
+  // key record, not the file tier's) so the upgrade does not re-prompt; it is
+  // written back under its own slot on the next derivation.
   if (bridge.getSyncKeyForSlot && bridge.storeSyncKeyForSlot) {
     return {
       cryptoDBName: CRYPTO_DB_NAME,
-      nativeGetSyncKey: () => bridge.getSyncKeyForSlot(VAULT_KEY_SLOT),
+      nativeGetSyncKey: () => {
+        const own = bridge.getSyncKeyForSlot(VAULT_KEY_SLOT);
+        if (own) return own;
+        const legacy = bridge.getSyncKey ? bridge.getSyncKey() : null;
+        return isRootKeyRecord(legacy) ? legacy : null;
+      },
       nativeStoreSyncKey: (val) => bridge.storeSyncKeyForSlot(VAULT_KEY_SLOT, val),
     };
   }
+  // The shared legacy slot (an older shell): the file tier writes here too.
+  // A record of the file tier's shape is not our key: reading it as one gave
+  // an empty root key that failed the account check as "passphrase doesn't
+  // match" (2026-10-10). No record means re-derive from the passphrase.
   return {
     cryptoDBName: CRYPTO_DB_NAME,
-    nativeGetSyncKey: bridge.getSyncKey ? () => bridge.getSyncKey() : null,
+    nativeGetSyncKey: bridge.getSyncKey ? () => { const v = bridge.getSyncKey(); return isRootKeyRecord(v) ? v : null; } : null,
     nativeStoreSyncKey: bridge.storeSyncKey ? (val) => bridge.storeSyncKey(val) : null,
   };
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { runSnapshotFileCycle } from '../sync/snapshotFileSync.js';
 import { mergeSyncData } from '../mergeSync.js';
 import { stripHealthSourcedLogs } from '../utils/healthLogFilter.js';
-import { decryptData, encryptData, isEncryptedEnvelope, hasEncryptionReady, getSyncPassphrase } from '../utils/crypto.js';
+import { decryptData, encryptData, isEncryptedEnvelope, hasEncryptionReady, getSyncPassphrase, initSessionKey } from '../utils/crypto.js';
 
 /**
  * Schedules snapshot-file sync (sync/snapshotFileSync.js) for one transport.
@@ -52,7 +52,8 @@ import { decryptData, encryptData, isEncryptedEnvelope, hasEncryptionReady, getS
  * @param {() => boolean} [args.io.isResetInProgress]
  * @param {(error: string) => void} [args.io.onUnavailable]  transport reported an error object
  * @param {() => void} [args.io.onEncryptedUnreadable]  the file is encrypted, this device cannot read it, and the transport forbids writing over it
- * @param {() => void} [args.io.onKeyNeeded]  the file is an envelope, or the device wants to write one, and no key or passphrase is in memory: prompt
+ * @param {() => void} [args.io.onKeyNeeded]  the file is an envelope, or the device wants to write one, and no key or passphrase is in memory, and the cached key could not be restored: prompt
+ * @param {() => Promise<boolean>} [args.io.restoreKey]  loads the file-tier key this device cached (default: crypto initSessionKey); tried once per session before any prompt
  * @param {() => number} [args.io.now]
  * @returns {{
  *   runSync: () => Promise<void>,
@@ -85,6 +86,13 @@ export default function useSnapshotFileSync({
 
   // Carried between cycles: the eviction clock and the write throttle stamp.
   const cycleStateRef = useRef({ missingSince: 0, lastWriteAt: 0 });
+  // The cached key is tried once per session before the passphrase is ever
+  // asked for. The launch gate (hooks/useCloudSync.js) restores the file-tier
+  // key only for the transports it knows need it (WebDAV encryption, this
+  // device's own encrypt switch); a device whose folder holds an envelope
+  // another device sealed has the key cached from its first unlock and
+  // nothing else to say so, and was asked again on every launch (2026-10-10).
+  const keyRestoreTriedRef = useRef(false);
   // Ref gates the loop synchronously; state drives the modal.
   const firstRunPendingRef = useRef(false);
   const [firstRun, setFirstRun] = useState(null);
@@ -120,6 +128,15 @@ export default function useSnapshotFileSync({
     pending.current = false;
     cloudSyncInProgressRef.current = true;
     startedAt.current = Date.now();
+    // A key is wanted and none is in memory: load the cached one before
+    // asking, and if it was there, run again at once with it.
+    const keyWanted = async () => {
+      if (keyRestoreTriedRef.current) return false;
+      keyRestoreTriedRef.current = true;
+      try { return !!(await (ioRef.current.restoreKey ?? initSessionKey)()); }
+      catch { return false; }
+    };
+    let rerunWithKey = false;
     try {
       const { state, outcome } = await runSnapshotFileCycle({
         transport,
@@ -151,11 +168,14 @@ export default function useSnapshotFileSync({
       } else if (outcome.kind === 'skipped' && outcome.reason === 'encrypted-unreadable') {
         // Nothing was written over the file we cannot read; the user has to
         // know, because nothing else will happen until they act. With no key
-        // in memory at all, acting means entering the passphrase.
-        if (outcome.needsKey) ioRef.current.onKeyNeeded?.();
-        else ioRef.current.onEncryptedUnreadable?.();
+        // in memory at all, acting means the cached key first, then the
+        // passphrase.
+        if (!outcome.needsKey) ioRef.current.onEncryptedUnreadable?.();
+        else if (await keyWanted()) rerunWithKey = true;
+        else ioRef.current.onKeyNeeded?.();
       } else if ((outcome.kind === 'skipped' && outcome.reason === 'key-needed') || outcome.keyNeeded) {
-        ioRef.current.onKeyNeeded?.();
+        if (await keyWanted()) rerunWithKey = true;
+        else ioRef.current.onKeyNeeded?.();
       }
     } catch (err) {
       // A transport that throws (rather than returning an error object) must
@@ -165,6 +185,7 @@ export default function useSnapshotFileSync({
     } finally {
       cloudSyncInProgressRef.current = false;
     }
+    if (rerunWithKey) await runCycleRef.current();
   };
 
   // Stable entry point: timers and the foreground listeners in App.jsx call

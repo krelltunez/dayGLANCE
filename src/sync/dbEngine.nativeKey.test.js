@@ -1,5 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { nativeKeyConfig } from './dbEngine.js';
+import { nativeKeyConfig, isRootKeyRecord } from './dbEngine.js';
+
+const rec = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64');
+const ROOT = rec({ rootBytes: [1, 2, 3], salt: [4] });
+const FILE = rec({ rawKey: [9, 9], salt: [4] });
 
 // Regression for the iOS-only "passphrase prompt on every launch" bug, plus
 // the iOS secure-store route.
@@ -61,8 +65,33 @@ describe('nativeKeyConfig — Android keystore, iOS secure store, IndexedDB on w
       storeSyncKeyForSlot: (slot, v) => { calls.push(['store', slot, v]); },
     } };
     const cfg = nativeKeyConfig();
-    cfg.nativeGetSyncKey();
+    expect(cfg.nativeGetSyncKey()).toBe('k');
     cfg.nativeStoreSyncKey('val');
     expect(calls).toEqual([['get', 'db'], ['store', 'db', 'val']]);
+  });
+
+  it('Android with per-slot methods: an empty own slot falls back to a ROOT key in the legacy slot (the upgrade), never to the file key there', () => {
+    const native = { getSyncKey: () => ROOT, storeSyncKey: () => {}, getSyncKeyForSlot: () => '', storeSyncKeyForSlot: () => {} };
+    global.window = { DayGlanceNative: native };
+    expect(nativeKeyConfig().nativeGetSyncKey()).toBe(ROOT);
+    native.getSyncKey = () => FILE;
+    expect(nativeKeyConfig().nativeGetSyncKey()).toBeNull();
+    native.getSyncKey = () => '';
+    expect(nativeKeyConfig().nativeGetSyncKey()).toBeNull();
+  });
+
+  it('guard (2026-10-10): on a shell with one shared slot, a record of the file tier\'s shape is "no key", not an empty root key', () => {
+    // The Direct Access unlock on the phone wrote the file-tier key over the
+    // vault's root key; read as a root key it imported empty and failed the
+    // account check as "passphrase doesn't match". Now it reads as absent, so
+    // the engine re-derives from the passphrase.
+    const native = { getSyncKey: () => FILE, storeSyncKey: () => {} };
+    global.window = { DayGlanceNative: native };
+    expect(nativeKeyConfig().nativeGetSyncKey()).toBeNull();
+    native.getSyncKey = () => ROOT;
+    expect(nativeKeyConfig().nativeGetSyncKey()).toBe(ROOT);
+    expect(isRootKeyRecord(rec({ rootBytes: [], salt: [] }))).toBe(false);
+    expect(isRootKeyRecord('not base64 json')).toBe(false);
+    expect(isRootKeyRecord(null)).toBe(false);
   });
 });

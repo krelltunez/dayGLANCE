@@ -35,12 +35,25 @@ function getDayGlanceConfig() {
   const isAndroid = typeof window !== 'undefined' &&
     !window.DayGlanceIOS &&
     !!window.DayGlanceNative?.getSyncKey;
+  // The legacy keystore slot is the file tier's. On a shell without per-slot
+  // methods the GLANCEvault root key ({rootBytes, salt}) lands here too, and
+  // reading it as ours (a {rawKey, salt} record) fails the import: say "no
+  // key" so the passphrase is asked for, rather than a broken one.
   return {
     cryptoDBName: CRYPTO_DB_NAME,
-    nativeGetSyncKey: isAndroid ? () => window.DayGlanceNative.getSyncKey() : null,
+    nativeGetSyncKey: isAndroid ? () => { const v = window.DayGlanceNative.getSyncKey(); return isFileKeyRecord(v) ? v : null; } : null,
     nativeStoreSyncKey: isAndroid ? (val) => window.DayGlanceNative.storeSyncKey(val) : null,
   };
 }
+
+/** The file-tier native record is base64 JSON {rawKey, salt}. */
+export const isFileKeyRecord = (b64) => {
+  if (!b64 || typeof b64 !== 'string') return false;
+  try {
+    const r = JSON.parse(atob(b64));
+    return !!(r && Array.isArray(r.rawKey) && r.rawKey.length > 0);
+  } catch { return false; }
+};
 
 // Existing iOS installs cached the key in IndexedDB before the Keychain mirror
 // existed. Move it once so the upgrade never re-prompts for the passphrase.

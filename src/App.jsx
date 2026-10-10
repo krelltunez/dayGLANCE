@@ -55,6 +55,7 @@ import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilin
 import { defaultUse24HourClock, defaultWeekStartDay, formatLocalizedDate, localizedList } from './utils/localeFormatting.js';
 import { ENGLISH_DAILY_NOTE_TEMPLATE, buildLocalizedDailyNoteTemplate, buildLocalizedTaskHeading, localizeDefaultDailyNoteTemplate } from './utils/dailyNoteTemplate.js';
 import { notBucketed, demoteToBucket, normalizeBucketConfig } from './utils/bucketList.js';
+import { getOverdueTasks as collectOverdueTasks } from './utils/getOverdueTasks.js';
 import { parseICS, parseDatetime, filterByDateWindow, expandMultiDayEvent } from './utils/icsParser.js';
 import { buildCalendarProxyUrl } from './utils/calendarProxyUrl.js';
 import { absorbCalendarDays, absorbCalendarWindow, readCalendarProjectionCache, writeCalendarProjectionCache } from './utils/calendarProjectionCache.js';
@@ -3170,84 +3171,17 @@ const DayPlanner = () => {
   const getTodayStr = () => dateToString(new Date());
 
   // Get overdue tasks: incomplete tasks past their end time + inbox tasks with past deadlines
-  // Includes recurring instances for today (matches dayGLANCE widget behavior)
-  const getOverdueTasks = () => {
-    const todayStr = getTodayStr();
-    const now = currentTime || new Date();
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-
-    const isOverdueToday = (t) => {
-      if (t.date !== todayStr || t.isAllDay) return false;
-      const [h, m] = (t.startTime || '00:00').split(':').map(Number);
-      const endMinutes = h * 60 + m + (t.duration || 30);
-      return endMinutes <= nowMinutes;
-    };
-
-    // Incomplete scheduled tasks from past dates (not imported events)
-    // + today's tasks whose end time has passed
-    const overdueScheduled = tasks.filter(t => {
-      if (t.completed || t.imported || t.isExample || !isVisibleForUser(t)) return false;
-      if (t.date < todayStr) return true;
-      return isOverdueToday(t);
-    }).map(t => ({ ...t, _overdueType: 'scheduled' }));
-
-    // Today's recurring instances past their end time
-    const todayRecurring = expandedRecurringTasks.filter(t =>
-      t.date === todayStr && !t.completed && !t.isExample && isVisibleForUser(t) && isOverdueToday(t)
-    ).map(t => ({ ...t, _overdueType: 'scheduled' }));
-
-    // Past uncompleted recurring all-day instances (look back up to 7 days)
-    const overdueRecurringAllDay = [];
-    for (let i = 1; i <= 7; i++) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const dateStr = dateToString(d);
-      for (const template of recurringTasks) {
-        if (template.isExample) continue;
-        if (!isVisibleForUser(template)) continue;
-        const isTemplateAllDay = template.isAllDay ?? false;
-        if (!isTemplateAllDay) continue;
-        const occs = getOccurrencesInRange(template, dateStr, dateStr);
-        if (occs.length === 0) continue;
-        if ((template.completedDates || []).includes(dateStr)) continue;
-        const exception = template.exceptions?.[dateStr];
-        if (exception?.completed) continue;
-        const instanceId = `recurring-${template.id}-${dateStr}`;
-        // Skip if already covered by overdueScheduled (shouldn't happen for recurring, but be safe)
-        if (overdueScheduled.some(t => t.id === instanceId)) continue;
-        overdueRecurringAllDay.push({
-          id: instanceId,
-          title: exception?.title ?? template.title,
-          startTime: null,
-          duration: exception?.duration ?? template.duration,
-          color: exception?.color ?? template.color,
-          completed: false,
-          isAllDay: true,
-          notes: template.notes || '',
-          subtasks: template.subtasks || [],
-          // Energy-axis override is series-level (see setTaskEnergy); the
-          // expansion is an explicit field list, so it must be carried here or
-          // instances silently fall back to auto-derivation.
-          energy: template.energy,
-          date: dateStr,
-          isRecurring: true,
-          recurringTemplateId: template.id,
-          recurrenceType: template.recurrence?.type,
-          // Project membership is series-level (stored on the template);
-          // instances inherit it so project-filtered views keep occurrences.
-          projectId: template.projectId,
-          _overdueType: 'scheduled',
-        });
-      }
-    }
-
-    // Inbox tasks with past deadlines (bucket items never nag)
-    const overdueDeadlines = unscheduledTasks.filter(t =>
-      notBucketed(t) && t.deadline && t.deadline < todayStr && !t.completed && !t.isExample && isVisibleForUser(t)
-    ).map(t => ({ ...t, _overdueType: 'deadline' }));
-
-    return [...overdueScheduled, ...todayRecurring, ...overdueRecurringAllDay, ...overdueDeadlines];
-  };
+  // Includes recurring instances for today (matches dayGLANCE widget behavior).
+  // Keep this lazy: expandedRecurringTasks is declared later in the component.
+  const getOverdueTasks = () => collectOverdueTasks({
+    todayStr: getTodayStr(),
+    now: currentTime || new Date(),
+    tasks,
+    expandedRecurringTasks,
+    recurringTasks,
+    unscheduledTasks,
+    isVisibleForUser,
+  });
 
   // Refs for functions/values defined after the useDragDrop call (TDZ-safe pattern).
   // moveToRecycleBin/clearDeadline: circular dep with useTaskActions (wired after useTaskActions).

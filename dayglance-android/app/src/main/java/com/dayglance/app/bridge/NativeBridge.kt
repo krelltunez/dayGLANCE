@@ -538,6 +538,18 @@ class NativeBridge(
     @JavascriptInterface
     fun getSyncKey(): String = cryptoKey.getSyncKey()
 
+    // Per-slot storage (CryptoKeyBridge): the GLANCEvault DB root key keeps its
+    // own slot so it and the file-tier key (the legacy slot above) cannot
+    // overwrite each other. The page prefers these when present; without
+    // them both keys shared one slot, and a Direct Access unlock on the phone
+    // replaced the vault key, which then failed its account check
+    // ("passphrase doesn't match", 2026-10-10).
+    @JavascriptInterface
+    fun storeSyncKeyForSlot(slot: String, b64: String?) = cryptoKey.storeSyncKeyForSlot(slot, b64)
+
+    @JavascriptInterface
+    fun getSyncKeyForSlot(slot: String): String = cryptoKey.getSyncKeyForSlot(slot)
+
     // ── Settings ─────────────────────────────────────────────────────────────
 
     /**

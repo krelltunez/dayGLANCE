@@ -22,9 +22,14 @@ vi.mock('react', () => ({
 // The real crypto module, with decryptData overridable per test: a device
 // with the wrong key (a failing decrypt) is distinct from one with none.
 let decryptImpl = null;
+let readyImpl = null;
 vi.mock('../utils/crypto.js', async (importOriginal) => {
   const real = await importOriginal();
-  return { ...real, decryptData: (...args) => (decryptImpl ? decryptImpl(...args) : real.decryptData(...args)) };
+  return {
+    ...real,
+    decryptData: (...args) => (decryptImpl ? decryptImpl(...args) : real.decryptData(...args)),
+    hasEncryptionReady: () => (readyImpl ? readyImpl() : real.hasEncryptionReady()),
+  };
 });
 
 const { default: useSnapshotFileSync } = await import('./useSnapshotFileSync.js');
@@ -248,7 +253,7 @@ describe('useSnapshotFileSync: synchronous guards', () => {
     expect(d.mutex.current).toBe(false);
   });
 
-  it('an encrypted file with no key in memory asks for the passphrase (onKeyNeeded), untouched', async () => {
+  it('an encrypted file with no key in memory tries the cached key once, then asks for the passphrase (onKeyNeeded), untouched', async () => {
     const folder = makeFolder();
     // The real envelope shape (@glance-apps/sync isEncryptedEnvelope); no key is cached here.
     folder.text = JSON.stringify({ v: 1, enc: 'AES-GCM-256', salt: 'abc', iv: 'def', data: 'ghi' });
@@ -256,15 +261,42 @@ describe('useSnapshotFileSync: synchronous guards', () => {
     d.transport.allowsPlaintextReseed = false;
     const encrypted = vi.fn();
     const keyNeeded = vi.fn();
+    const restore = vi.fn(async () => false);
     d.io.onEncryptedUnreadable = encrypted;
     d.io.onKeyNeeded = keyNeeded;
+    d.io.restoreKey = restore;
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     await d.sync();
+    await d.sync();
     warn.mockRestore();
-    expect(keyNeeded).toHaveBeenCalledTimes(1);
+    expect(restore).toHaveBeenCalledTimes(1);                         // once per session, not per cycle
+    expect(keyNeeded).toHaveBeenCalledTimes(2);
     expect(encrypted).not.toHaveBeenCalled();
     expect(folder.writes).toBe(0);
     expect(d.applied).toEqual([]);
+    expect(d.mutex.current).toBe(false);
+  });
+
+  it('guard (2026-10-10): a device whose cached key restores is never asked; the cycle runs again with it at once', async () => {
+    const folder = makeFolder();
+    folder.text = JSON.stringify({ v: 1, enc: 'AES-GCM-256', salt: 'abc', iv: 'def', data: 'ghi' });
+    const d = mountDevice('F2b', folder, { tasks: [task('t', 'x', '2026-10-01T00:00:00.000Z')] });
+    d.transport.allowsPlaintextReseed = false;
+    const keyNeeded = vi.fn();
+    d.io.onKeyNeeded = keyNeeded;
+    // The cached key: once restored, the envelope opens.
+    let restored = false;
+    d.io.restoreKey = vi.fn(async () => { restored = true; return true; });
+    readyImpl = () => restored;                                       // as initSessionKey leaves the real module
+    decryptImpl = async () => {
+      if (!restored) { const e = new Error('Encryption key not available'); e.code = 'PASSPHRASE_REQUIRED'; throw e; }
+      return { version: 2, lastModified: '2026-10-02T00:00:00.000Z', data: { tasks: [task('r', 'remote', '2026-10-02T00:00:00.000Z')], unscheduledTasks: [] } };
+    };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try { await d.sync(); } finally { warn.mockRestore(); decryptImpl = null; readyImpl = null; }
+    expect(keyNeeded).not.toHaveBeenCalled();
+    expect(d.io.restoreKey).toHaveBeenCalledTimes(1);
+    expect(d.applied.length).toBe(1);                                 // the second run, with the key, applied the file
     expect(d.mutex.current).toBe(false);
   });
 
@@ -292,6 +324,7 @@ describe('useSnapshotFileSync: synchronous guards', () => {
     d.transport.encryptsWrites = () => true;
     const keyNeeded = vi.fn();
     d.io.onKeyNeeded = keyNeeded;
+    d.io.restoreKey = async () => false;
     await d.sync();                                                   // seed wanted as an envelope
     expect(keyNeeded).toHaveBeenCalledTimes(1);
     expect(folder.writes).toBe(0);
