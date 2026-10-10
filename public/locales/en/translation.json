@@ -2191,7 +2191,18 @@
     "eventsForget": "Forget events file",
     "eventsChosen": "Events file: {{name}}",
     "eventsNotChosen": "Events file: not chosen on this device.",
-    "iosEventsHint": "Intents travel in glance-events.json in the shared folder's GLANCE/events. Choose the one your other devices made, or create it there."
+    "iosEventsHint": "Intents travel in glance-events.json in the shared folder's GLANCE/events. Choose the one your other devices made, or create it there.",
+    "removeEncryption": "Remove encryption from the file…",
+    "removeEncryptionConfirm": "This rewrites the file in the folder as plaintext, once, and turns the switch off here. Turn \"Encrypt the file in the folder\" off on your other devices first, or the next one to write seals it again.",
+    "removeEncryptionGo": "Remove encryption",
+    "removeEncryptionOutcome": {
+      "removed": "Done. The file is plaintext again; every device follows it from its next read.",
+      "already-plaintext": "The file is already plaintext. The switch is off here.",
+      "needs-key": "This device cannot open the file: {{detail}}",
+      "unavailable": "The folder is not available right now. {{detail}}",
+      "write-failed": "The file could not be written. Nothing changed.",
+      "no-file": "There is no file in the folder yet."
+    }
   },
   "aspire": {
     "title": "Aspire",

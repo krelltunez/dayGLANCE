@@ -612,9 +612,17 @@ leaves every file's modified time where it was.
 
 ### Phase 8 (optional, any order)
 
-- An explicit "remove encryption from the Direct Access file" action, the
-  only sanctioned downgrade: rewrites the file as plaintext once, from a device
-  that holds the key.
+- **Done:** an explicit "remove encryption from the Direct Access file"
+  action, the only sanctioned downgrade (`sync/directAccessEncryption.js`,
+  "Remove encryption from the file…" under the card's encryption switch, on a
+  device that holds the key, behind a confirmation). It reads the envelope,
+  opens it, writes the SAME payload back as plaintext once (same stamp, so no
+  device sees a new version to merge) and turns this device's switch off;
+  from then on the file decides again, in plaintext. The confirmation says
+  to turn the switch off on the other devices first: one whose switch is
+  still on seals the file again on its next write, since a plaintext file
+  with the switch on is exactly the upgrade case. A plaintext file is left as
+  it is; without the key, or on a failed write, nothing changes.
 - Merge sibling "conflicted copy" files that Dropbox or Drive leave beside the
   snapshot, then delete them.
 - A web/PWA transport via the File System Access API that `folderBackup.js`

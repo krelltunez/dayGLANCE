@@ -2191,7 +2191,18 @@
     "eventsForget": "忘记事件文件",
     "eventsChosen": "事件文件：{{name}}",
     "eventsNotChosen": "事件文件：本设备尚未选择。",
-    "iosEventsHint": "意图通过共享文件夹 GLANCE/events 中的 glance-events.json 传递。请选择其他设备创建的那个文件，或在那里创建它。"
+    "iosEventsHint": "意图通过共享文件夹 GLANCE/events 中的 glance-events.json 传递。请选择其他设备创建的那个文件，或在那里创建它。",
+    "removeEncryption": "移除文件加密…",
+    "removeEncryptionConfirm": "这会把文件夹中的文件一次性重写为明文，并关闭此处的开关。请先在其他设备上关闭“加密文件夹中的文件”，否则下一台写入的设备会再次加密它。",
+    "removeEncryptionGo": "移除加密",
+    "removeEncryptionOutcome": {
+      "removed": "完成。文件已恢复为明文；每台设备从下次读取起跟随它。",
+      "already-plaintext": "文件已经是明文。此处开关已关闭。",
+      "needs-key": "本设备无法打开该文件：{{detail}}",
+      "unavailable": "文件夹当前不可用。{{detail}}",
+      "write-failed": "无法写入文件。未做任何更改。",
+      "no-file": "文件夹中还没有文件。"
+    }
   },
   "aspire": {
     "title": "Aspire",

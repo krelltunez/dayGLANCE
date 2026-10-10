@@ -2284,7 +2284,18 @@
     "eventsForget": "Zapomnij plik zdarzeń",
     "eventsChosen": "Plik zdarzeń: {{name}}",
     "eventsNotChosen": "Plik zdarzeń: nie wybrano na tym urządzeniu.",
-    "iosEventsHint": "Intencje podróżują w pliku glance-events.json w GLANCE/events wspólnego folderu. Wybierz ten, który utworzyły Twoje inne urządzenia, albo utwórz go tam."
+    "iosEventsHint": "Intencje podróżują w pliku glance-events.json w GLANCE/events wspólnego folderu. Wybierz ten, który utworzyły Twoje inne urządzenia, albo utwórz go tam.",
+    "removeEncryption": "Usuń szyfrowanie z pliku…",
+    "removeEncryptionConfirm": "To jednorazowo zapisze plik w folderze jawnie i wyłączy przełącznik tutaj. Najpierw wyłącz „Szyfruj plik w folderze” na pozostałych urządzeniach, inaczej następne zapisujące znów go zaszyfruje.",
+    "removeEncryptionGo": "Usuń szyfrowanie",
+    "removeEncryptionOutcome": {
+      "removed": "Gotowe. Plik jest znów jawny; każde urządzenie podąża za nim od następnego odczytu.",
+      "already-plaintext": "Plik jest już jawny. Przełącznik jest tutaj wyłączony.",
+      "needs-key": "To urządzenie nie może otworzyć pliku: {{detail}}",
+      "unavailable": "Folder jest teraz niedostępny. {{detail}}",
+      "write-failed": "Nie udało się zapisać pliku. Nic się nie zmieniło.",
+      "no-file": "W folderze nie ma jeszcze pliku."
+    }
   },
   "aspire": {
     "title": "Aspire",

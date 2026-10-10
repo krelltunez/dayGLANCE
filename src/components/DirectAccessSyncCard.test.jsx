@@ -16,7 +16,7 @@ const fakeTransport = (over = {}) => {
   const snap = { supported: true, status: 'connected', name: 'GLANCE', path: '/x', connected: true, enabled: true, encrypt: false, pickError: null, roster: null, ...over };
   return { getSnapshot: () => snap, subscribe: () => () => {}, setEncryptsWrites: vi.fn() };
 };
-const crypto = (ready) => ({ hasEncryptionReady: () => ready, getSyncPassphrase: () => null, setupEncryptionKey: vi.fn(async () => {}) });
+const crypto = (ready) => ({ hasEncryptionReady: () => ready, getSyncPassphrase: () => null, setupEncryptionKey: vi.fn(async () => {}), decryptData: vi.fn(), isEncryptedEnvelope: () => false });
 const props = { darkMode: false, textPrimary: '', textSecondary: '', borderClass: '' };
 const t = (k) => k;
 
@@ -55,5 +55,17 @@ describe('DirectAccessSyncCard: the encryption switch', () => {
     const r = await turnOnEncryption({ passphrase: 'x', confirm: 'x', setupEncryptionKey: async () => { throw new Error('keystore unavailable'); }, transport: failing, t });
     expect(r).toEqual({ ok: false, error: 'keystore unavailable' });
     expect(failing.setEncryptsWrites).not.toHaveBeenCalled();
+  });
+});
+
+describe('DirectAccessSyncCard: remove encryption (Phase 8)', () => {
+  it('offers the action only to a device that holds the key, behind a confirmation', () => {
+    const withKey = renderToStaticMarkup(<DirectAccessSyncCard {...props} transport={fakeTransport({ encrypt: true })} crypto={crypto(true)} />);
+    expect(withKey).toContain('directAccess.removeEncryption');
+    expect(withKey).not.toContain('directAccess.removeEncryptionGo');            // the confirmation is a second step
+    const withoutKey = renderToStaticMarkup(<DirectAccessSyncCard {...props} transport={fakeTransport({ encrypt: true })} crypto={crypto(false)} />);
+    expect(withoutKey).not.toContain('directAccess.removeEncryption');
+    const disconnected = renderToStaticMarkup(<DirectAccessSyncCard {...props} transport={fakeTransport({ status: 'disconnected', connected: false, name: null })} crypto={crypto(true)} />);
+    expect(disconnected).not.toContain('directAccess.removeEncryption');
   });
 });

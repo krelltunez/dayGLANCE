@@ -2191,7 +2191,18 @@
     "eventsForget": "Esquecer arquivo de eventos",
     "eventsChosen": "Arquivo de eventos: {{name}}",
     "eventsNotChosen": "Arquivo de eventos: não escolhido neste dispositivo.",
-    "iosEventsHint": "Os intents viajam no glance-events.json, em GLANCE/events da pasta compartilhada. Escolha o que seus outros dispositivos criaram ou crie-o lá."
+    "iosEventsHint": "Os intents viajam no glance-events.json, em GLANCE/events da pasta compartilhada. Escolha o que seus outros dispositivos criaram ou crie-o lá.",
+    "removeEncryption": "Remover a criptografia do arquivo…",
+    "removeEncryptionConfirm": "Isso regrava o arquivo da pasta sem criptografia, uma vez, e desliga a chave aqui. Desligue antes \"Criptografar o arquivo na pasta\" nos seus outros dispositivos, ou o próximo a gravar vai selá-lo de novo.",
+    "removeEncryptionGo": "Remover criptografia",
+    "removeEncryptionOutcome": {
+      "removed": "Pronto. O arquivo voltou a ficar sem criptografia; cada dispositivo o segue a partir da próxima leitura.",
+      "already-plaintext": "O arquivo já está sem criptografia. A chave está desligada aqui.",
+      "needs-key": "Este dispositivo não consegue abrir o arquivo: {{detail}}",
+      "unavailable": "A pasta não está disponível agora. {{detail}}",
+      "write-failed": "Não foi possível gravar o arquivo. Nada mudou.",
+      "no-file": "Ainda não há arquivo na pasta."
+    }
   },
   "aspire": {
     "title": "Aspire",

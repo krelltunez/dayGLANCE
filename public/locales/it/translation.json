@@ -2193,7 +2193,18 @@
     "eventsForget": "Dimentica file eventi",
     "eventsChosen": "File eventi: {{name}}",
     "eventsNotChosen": "File eventi: non scelto su questo dispositivo.",
-    "iosEventsHint": "Gli intent viaggiano in glance-events.json, in GLANCE/events della cartella condivisa. Scegli quello creato dagli altri tuoi dispositivi, oppure crealo lì."
+    "iosEventsHint": "Gli intent viaggiano in glance-events.json, in GLANCE/events della cartella condivisa. Scegli quello creato dagli altri tuoi dispositivi, oppure crealo lì.",
+    "removeEncryption": "Rimuovi la cifratura dal file…",
+    "removeEncryptionConfirm": "Riscrive il file nella cartella in chiaro, una volta, e disattiva l'interruttore qui. Prima disattiva «Cifra il file nella cartella» sugli altri dispositivi, altrimenti il prossimo che scrive lo sigilla di nuovo.",
+    "removeEncryptionGo": "Rimuovi la cifratura",
+    "removeEncryptionOutcome": {
+      "removed": "Fatto. Il file è di nuovo in chiaro; ogni dispositivo lo segue dalla prossima lettura.",
+      "already-plaintext": "Il file è già in chiaro. L'interruttore è disattivato qui.",
+      "needs-key": "Questo dispositivo non può aprire il file: {{detail}}",
+      "unavailable": "La cartella non è disponibile al momento. {{detail}}",
+      "write-failed": "Non è stato possibile scrivere il file. Nulla è cambiato.",
+      "no-file": "Nella cartella non c'è ancora alcun file."
+    }
   },
   "aspire": {
     "title": "Aspire",
