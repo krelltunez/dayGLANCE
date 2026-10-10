@@ -74,6 +74,30 @@ enough for the folder's tool to deliver the originating device's own write, so
 the relay only happens when nobody else carried it. Seeding an absent file is
 never deferred.
 
+Two more rules on the relay, from the Macs' conflict copies of 2026-10-10
+(every one the snapshot; the diffs named the phone's Health Connect habit
+stamps and the midnight routine rollover):
+
+- **Relays are staggered across devices.** A change that arrives by another
+  road (the vault's push nudge, an edit from a phone whose folder tool
+  round-trips slowly) reaches every device on the folder within the same
+  second, so with one relay clock they all wrote the same file together 90 s
+  later, a conflict copy per pair. Every write now stamps `writtenBy` (the
+  device id) in the file header, each device ranks itself among the writers
+  it has seen there (`${lastSyncedKey}:writers`), and waits `RELAY_STAGGER_MS`
+  (a minute) more per rank (`relayWaitMs`). The first-ranked device writes at
+  90 s; the next sees the file catch up and drops its relay. A device that has
+  not seen the others ranks first, collides at most once, and learns them from
+  the file. The event-set cycle uses the same header, the same writers set
+  and the same wait, so retention drops, which every device computes at the
+  same moment, relay from one device too.
+- **Clock-driven bookkeeping is not an edit made here.** The midnight routine
+  rollover runs on every device at the same moment; each counted it as its
+  own edit and wrote at once (copies at 00:00:04 and 00:00:33). The rollover
+  marks `utils/localEditStamp.js`, and the persist pass that follows inside
+  the window does not stamp `day-planner-local-edit-at`, so the rollover
+  reaches the file by relay, from one device.
+
 **Device-local keys are not a write.** Each device keeps its own
 `use24HourClock`, `minimizedSections` and `obsidianConfig` (and, with multi-user
 on, the feature toggles and calendar URLs). The file holds whichever device
