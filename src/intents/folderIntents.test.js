@@ -89,7 +89,8 @@ describe('the event set', () => {
     expect(parseEventSetText('{"error":"gone"}')).toEqual({ kind: 'error', error: 'gone' });
     expect(parseEventSetText('{"version":2,"data":{}}')).toEqual({ kind: 'no-data' });
     const e = foreign('a');
-    expect(parseEventSetText(fileWith(e))).toEqual({ kind: 'set', events: [e] });
+    expect(parseEventSetText(fileWith(e))).toEqual({ kind: 'set', events: [e], writtenBy: null });
+    expect(parseEventSetText(serializeEventSet([e], 'mac-1'))).toEqual({ kind: 'set', events: [e], writtenBy: 'mac-1' });
     expect(relativeEventsPath(undefined)).toBe('GLANCE/events/glance-events.json');
     expect(relativeEventsPath('/Shared/ev/')).toBe('Shared/ev/glance-events.json');
   });
@@ -389,5 +390,26 @@ describe('SCENARIO: two devices on one file', () => {
     expect(idsIn(folder.text)).toEqual([]);
     expect(readLedger(mac.storage)).toEqual({});
     expect(await mac.run()).toMatchObject({ wrote: false, deferred: false });
+  });
+});
+
+describe('staggered relays across devices (2026-10-10)', () => {
+  it('a write carries writtenBy, a reader learns the writers it sees, and a drop relays a minute later per rank', async () => {
+    const old = foreign('old', RETENTION + DAY), a = foreign('a', 500);
+    const folder = { text: serializeEventSet([old, a], 'mac-a') };
+    const t = fakeTransport(folder);
+    const mem = memLocalStorage();
+    let clock = T0;
+    const io = { storage: mem, now: () => clock, retentionMs: RETENTION, deviceId: 'mac-b', log: { warn: vi.fn(), error: vi.fn() } };
+    let state = { lastWriteAt: 0, pendingWrite: null };
+    state = (await runEventSetCycle({ transport: t, io, state })).state;          // sees mac-a: rank 1 of [mac-a, mac-b]
+    clock += RELAY_CONFIRM_MS;
+    let r = await runEventSetCycle({ transport: t, io, state });
+    expect(r.outcome.wrote).toBe(false);                                          // mac-a's minute first
+    state = r.state;
+    clock += 60_000;
+    r = await runEventSetCycle({ transport: t, io, state });
+    expect(r.outcome.wrote).toBe(true);
+    expect(JSON.parse(folder.text).writtenBy).toBe('mac-b');
   });
 });

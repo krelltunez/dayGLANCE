@@ -3,6 +3,7 @@ import { hasNativeCalendar } from '../utils/nativeCalendar.js';
 import { stampTimestamps } from '../utils/stampTimestamps.js';
 import { stampOriginalPlan, applyBaselines } from '../utils/originalPlan.js';
 import { stampDeferrals, applyDeferrals } from '../utils/deferrals.js';
+import { inBookkeepingWindow, markBookkeepingChange } from '../utils/localEditStamp.js';
 import { stampPlanTrail, applyPlanTrail } from '../utils/planTrail.js';
 import { rolloverRemovedTodayRoutineIds, startOfTodayIso } from './useRoutines.js';
 
@@ -165,6 +166,7 @@ export default function useDataPersistence({
           storedChips = JSON.parse(todayRoutinesData || '[]') || [];
         } catch (_) { storedChips = []; }
         const rolled = rolloverRemovedTodayRoutineIds(storedRemoved, storedChips, startOfTodayIso());
+        markBookkeepingChange();
         setTodayRoutines([]);
         setRoutinesDate(todayStr);
         setRemovedTodayRoutineIds(rolled);
@@ -313,11 +315,12 @@ export default function useDataPersistence({
     if (!cloudSyncConfig?.enabled || cloudSyncInitialDoneRef.current) {
       safeSet('day-planner-cloud-sync-local-modified', new Date().toISOString());
       // When this device itself last changed its data, as opposed to taking a
-      // change in from a transport (an apply re-persists too). The snapshot
-      // file tiers write at once for a change made here and wait for the
-      // folder to catch up with one that arrived by another road
-      // (sync/snapshotFileSync.js, LOCAL_EDIT_KEY).
-      if (!isRemoteApply()) safeSet('day-planner-local-edit-at', new Date().toISOString());
+      // change in from a transport (an apply re-persists too) or doing the
+      // clock-driven bookkeeping every device does at once (the day rollover,
+      // utils/localEditStamp.js). The snapshot file tiers write at once for a
+      // change made here and wait for the folder to catch up with one that
+      // arrived by another road (sync/snapshotFileSync.js, LOCAL_EDIT_KEY).
+      if (!isRemoteApply() && !inBookkeepingWindow()) safeSet('day-planner-local-edit-at', new Date().toISOString());
     }
   };
 
