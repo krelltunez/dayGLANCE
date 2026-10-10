@@ -270,6 +270,35 @@ export function createDirectAccessTransport({ bridge = defaultBridge, storage = 
   const usersSlot = fileSlot('users', 'roster');
   const eventsSlot = fileSlot('events', 'event set');
 
+  // Files by path, confined to the folder in the shell: what the conflict
+  // copy sweep (sync/conflictCopies.js) lists, reads and removes. Desktop and
+  // Android only; an iPhone holds bookmarks to files and cannot list.
+  const files = {
+    supported: () => !!bridge()?.paths,
+    list: async (dir) => {
+      const b = bridge();
+      if (!b?.paths) return null;
+      try { const v = await b.paths.list(dir); return Array.isArray(v) ? v : null; } catch { return null; }
+    },
+    read: async (rel) => {
+      const b = bridge();
+      if (!b?.paths) return JSON.stringify({ error: 'files by path are not reachable on this platform' });
+      let r;
+      try { r = await b.paths.read(rel); } catch (err) { return JSON.stringify({ error: err?.message ?? String(err) }); }
+      switch (r?.kind) {
+        case 'absent': return null;
+        case 'downloading': return JSON.stringify({ downloading: true });
+        case 'text': return r.text;
+        default: return JSON.stringify({ error: r?.error ?? 'file unavailable' });
+      }
+    },
+    remove: async (rel) => {
+      const b = bridge();
+      if (!b?.paths) return false;
+      try { return (await b.paths.remove(rel)) === true; } catch { return false; }
+    },
+  };
+
   return {
     id: 'direct-access',
     pollMs: DIRECT_ACCESS_POLL_MS,
@@ -319,6 +348,8 @@ export function createDirectAccessTransport({ bridge = defaultBridge, storage = 
     eventsSupported: eventsSlot.supported,
     eventsRead: eventsSlot.read,
     eventsWrite: eventsSlot.write,
+    // ── Files by path (Phase 8: conflict copies). ──
+    files,
 
     // Push signals: the main process's folder watcher, a folder picked or
     // re-enabled in settings, and a folder that came back from unreachable.

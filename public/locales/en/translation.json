@@ -2138,7 +2138,12 @@
     "encryptSwitch": "Encrypt on this device",
     "key": "Sync key",
     "keyReady": "ready",
-    "keyNeeded": "needed (enter the sync passphrase)"
+    "keyNeeded": "needed (enter the sync passphrase)",
+    "conflictCopies": "Conflict copies",
+    "lastSweep": "Last sweep",
+    "sweep": "Merge and remove copies",
+    "sweeping": "Merging…",
+    "sweepCounts": "{{merged}} merged, {{removed}} removed, {{left}} left"
   },
   "icloudFirstRun": {
     "title": "Data found in iCloud",

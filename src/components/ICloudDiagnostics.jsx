@@ -28,6 +28,7 @@ const ICloudDiagnostics = ({ darkMode, textPrimary, textSecondary, borderClass }
   const [report, setReport] = useState(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [sweeping, setSweeping] = useState(false);
   // The dry-run merge needs this device's payload; the app hands a builder
   // through the sync context. Null outside the app tree (tests), which simply
   // leaves the dry-run rows out.
@@ -49,10 +50,20 @@ const ICloudDiagnostics = ({ darkMode, textPrimary, textSecondary, borderClass }
         directAccess: directAccessTransport,
         decryptData,
         encryptionReady: () => hasEncryptionReady() || !!getSyncPassphrase(),
+        usersPath: (() => { try { const raw = localStorage.getItem('dayglance-multi-user-config'); return raw ? (JSON.parse(raw).usersPath ?? undefined) : undefined; } catch { return undefined; } })(),
+        eventsPath: (() => { try { const raw = localStorage.getItem('dayglance-intent-config'); return raw ? (JSON.parse(raw).eventsPath ?? undefined) : undefined; } catch { return undefined; } })(),
       }));
     } finally {
       setBusy(false);
     }
+  };
+
+  // Phase 8: merge and remove the copies now, then look again.
+  const sweep = async () => {
+    if (!syncCtx?.sweepConflictCopies) return;
+    setSweeping(true);
+    try { await syncCtx.sweepConflictCopies(); await run(); }
+    finally { setSweeping(false); }
   };
 
   const copy = async () => {
@@ -289,6 +300,38 @@ const ICloudDiagnostics = ({ darkMode, textPrimary, textSecondary, borderClass }
                 />
               )}
               <MergeRows merge={report.directAccess.merge} />
+              {Array.isArray(report.directAccess.conflicts) && (
+                <>
+                  <Row
+                    label={t('icloudDiag.conflictCopies')}
+                    value={report.directAccess.conflicts.length === 0 ? t('icloudDiag.none') : String(report.directAccess.conflicts.length)}
+                    tone={report.directAccess.conflicts.length > 0 ? 'text-amber-600 dark:text-amber-400' : undefined}
+                  />
+                  {report.directAccess.conflicts.map((c) => (
+                    <p key={c.rel} className={`text-xs font-mono break-all pl-3 ${textSecondary}`}>{c.name}</p>
+                  ))}
+                  {report.directAccess.lastSweep && (
+                    <Row
+                      label={t('icloudDiag.lastSweep')}
+                      value={`${new Date(report.directAccess.lastSweep.at).toLocaleString()} · ${t('icloudDiag.sweepCounts', {
+                        merged: report.directAccess.lastSweep.copies.filter((c) => c.outcome === 'merged').length,
+                        removed: report.directAccess.lastSweep.copies.filter((c) => c.outcome === 'removed').length,
+                        left: report.directAccess.lastSweep.copies.filter((c) => !['merged', 'removed'].includes(c.outcome)).length,
+                      })}`}
+                    />
+                  )}
+                  {report.directAccess.conflicts.length > 0 && syncCtx?.sweepConflictCopies && (
+                    <button
+                      type="button"
+                      onClick={sweep}
+                      disabled={sweeping || busy}
+                      className={`mt-1 px-3 py-1.5 text-xs rounded-lg border ${borderClass} ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-stone-100'} ${textPrimary} disabled:opacity-50`}
+                    >
+                      {sweeping ? t('icloudDiag.sweeping') : t('icloudDiag.sweep')}
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           )}
 

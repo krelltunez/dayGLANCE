@@ -2140,7 +2140,12 @@
     "encryptSwitch": "Cifra su questo dispositivo",
     "key": "Chiave di sincronizzazione",
     "keyReady": "pronta",
-    "keyNeeded": "mancante (inserisci la passphrase)"
+    "keyNeeded": "mancante (inserisci la passphrase)",
+    "conflictCopies": "Copie in conflitto",
+    "lastSweep": "Ultima pulizia",
+    "sweep": "Unisci e rimuovi le copie",
+    "sweeping": "Unione in corso…",
+    "sweepCounts": "{{merged}} unite, {{removed}} rimosse, {{left}} rimaste"
   },
   "icloudFirstRun": {
     "title": "Dati trovati su iCloud",

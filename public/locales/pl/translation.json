@@ -2231,7 +2231,12 @@
     "encryptSwitch": "Szyfruj na tym urządzeniu",
     "key": "Klucz synchronizacji",
     "keyReady": "gotowy",
-    "keyNeeded": "brak (wpisz hasło synchronizacji)"
+    "keyNeeded": "brak (wpisz hasło synchronizacji)",
+    "conflictCopies": "Kopie konfliktowe",
+    "lastSweep": "Ostatnie czyszczenie",
+    "sweep": "Scal i usuń kopie",
+    "sweeping": "Scalanie…",
+    "sweepCounts": "{{merged}} scalono, {{removed}} usunięto, {{left}} pozostało"
   },
   "icloudFirstRun": {
     "title": "Znaleziono dane w iCloud",
