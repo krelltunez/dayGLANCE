@@ -39,7 +39,7 @@ import {
   parseEnvelope, parseEncryptedEnvelope, deriveEnvelopeKey,
   NoKeyError, WrongKeyError, NotEncryptedError, MalformedEnvelopeError, ACTIONS,
 } from '@glance-apps/intents';
-import { classifySnapshotText, relayDecision } from '../sync/snapshotFileSync.js';
+import { classifySnapshotText, relayDecision, relayWaitMs, noteWriter } from '../sync/snapshotFileSync.js';
 import { loadIntentsRootKey } from './intentsKeyStore.js';
 import { handleIntent as defaultHandleIntent } from './handleIntent.js';
 import { logActivity as defaultLogActivity } from './intentLog.js';
@@ -108,7 +108,8 @@ export function mergeEventSets(a, b, { now, retentionMs }) {
 
 /** What a write would change: the ids, in order. */
 export const eventSetKey = (events) => events.map((e) => e.event_id).join('\n');
-export const serializeEventSet = (events) => JSON.stringify({ version: 1, events });
+export const serializeEventSet = (events, writtenBy = null) =>
+  JSON.stringify(writtenBy ? { version: 1, writtenBy, events } : { version: 1, events });
 
 /**
  * The file's text as the cycle reads it: the snapshot classification (absent,
@@ -120,7 +121,7 @@ export function parseEventSetText(text) {
   if (read.kind !== 'snapshot') return read;
   const events = read.remote?.events;
   if (!Array.isArray(events)) return { kind: 'no-data' };
-  return { kind: 'set', events };
+  return { kind: 'set', events, writtenBy: typeof read.remote.writtenBy === 'string' ? read.remote.writtenBy : null };
 }
 
 // ─── the ledger and the cursor ───────────────────────────────────────────────
@@ -273,6 +274,8 @@ export async function receiveEnvelope(raw, context, deps = {}) {
  * @param {number} [args.io.retentionMs]
  * @param {string} [args.io.eventsPath]   the WebDAV-style events directory ('/GLANCE/events/')
  * @param {(raw: object) => Promise<void>} [args.io.receive]  absent: a sender-only cycle (the deliverer), no cursor moves
+ * @param {string|(() => string)} [args.io.deviceId]  stamped as `writtenBy`; ranks this device's relay (sync/snapshotFileSync.js relayWaitMs)
+ * @param {string} [args.io.writersKey]  where the writers seen are kept (default: the snapshot cycle's key for this transport, so the fleet is ranked once)
  * @param {() => number} [args.io.now]
  * @param {Console} [args.io.log]
  * @param {{lastWriteAt: number, pendingWrite: object|null}} args.state
@@ -296,6 +299,12 @@ export async function runEventSetCycle({ transport, io = {}, state }) {
   if (read.kind === 'error') return { state: next, outcome: { kind: 'error', reason: 'unavailable', error: read.error } };
   if (read.kind !== 'set' && read.kind !== 'absent') return { state: next, outcome: { kind: 'skipped', reason: read.kind } };
   const fileEvents = read.kind === 'absent' ? [] : read.events;
+  const deviceId = (() => {
+    try { const v = typeof io.deviceId === 'function' ? io.deviceId() : io.deviceId; return typeof v === 'string' && v ? v : null; }
+    catch { return null; }
+  })();
+  const writersKey = io.writersKey ?? `${transport.lastSyncedKey ?? transport.id ?? 'direct-access'}:writers`;
+  if (read.kind === 'set' && read.writtenBy !== deviceId) noteWriter(storage, writersKey, read.writtenBy);
 
   const own = ledgerLive(storage, now(), retentionMs);
   const merged = mergeEventSets(fileEvents, own, { now: now(), retentionMs });
@@ -325,7 +334,7 @@ export async function runEventSetCycle({ transport, io = {}, state }) {
   const throttledWrite = async () => {
     if (now() - next.lastWriteAt < (transport.writeThrottleMs ?? 0)) return false;
     next.lastWriteAt = now();
-    const ok = await transport.eventsWrite(relPath, serializeEventSet(merged));
+    const ok = await transport.eventsWrite(relPath, serializeEventSet(merged, deviceId));
     if (!ok) log.error(`[${transport.id ?? 'direct-access'}] event set write failed`);
     return ok;
   };
@@ -335,7 +344,7 @@ export async function runEventSetCycle({ transport, io = {}, state }) {
     wrote = await throttledWrite();
     next.pendingWrite = null;
   } else if (changed) {
-    const decision = relayDecision(next.pendingWrite, `${fileKey}\u0000${mergedKey}`, now());
+    const decision = relayDecision(next.pendingWrite, `${fileKey}\u0000${mergedKey}`, now(), relayWaitMs(storage, writersKey, deviceId));
     next.pendingWrite = decision.pending;
     if (decision.write) wrote = await throttledWrite();
     else deferred = true;

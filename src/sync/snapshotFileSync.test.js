@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { runSnapshotFileCycle, classifySnapshotText, LOCAL_MODIFIED_KEY, RELAY_CONFIRM_MS, relayDecision } from './snapshotFileSync.js';
+import { runSnapshotFileCycle, classifySnapshotText, LOCAL_MODIFIED_KEY, RELAY_CONFIRM_MS, RELAY_STAGGER_MS, relayDecision, relayWaitMs, noteWriter, readWriters } from './snapshotFileSync.js';
 import { MISSING_GRACE_MS } from '../utils/icloudSeedGuard.js';
 
 // Every guard the App.jsx iCloud loop carried, asserted at the one place a
@@ -794,5 +794,89 @@ describe('guard: the merge flags are necessary, not sufficient', () => {
     expect(outcome.applied).toBe(false);
     expect(io.applyEngineData).not.toHaveBeenCalled();
     expect(io.storage.getItem(LOCAL_MODIFIED_KEY)).toBeNull();
+  });
+});
+
+describe('staggered relays across devices (two Macs, 2026-10-10)', () => {
+  const realMerge = (local, remote) => {
+    const ids = new Set(local.tasks.map((t) => t.id));
+    const tasks = [...local.tasks, ...remote.tasks.filter((t) => !ids.has(t.id))];
+    return { data: { tasks, unscheduledTasks: [] }, localChanged: tasks.length > local.tasks.length, remoteChanged: tasks.length > remote.tasks.length };
+  };
+
+  it('relayWaitMs: 90 s alone, a minute more per writer that sorts before this device; writers are learned from the file, own id never recorded', () => {
+    const storage = makeStorage();
+    expect(relayWaitMs(storage, 'k', 'mac-b')).toBe(RELAY_CONFIRM_MS);
+    expect(noteWriter(storage, 'k', 'mac-a')).toBe(true);
+    expect(noteWriter(storage, 'k', 'mac-a')).toBe(false);
+    expect(noteWriter(storage, 'k', null)).toBe(false);
+    expect(readWriters(storage, 'k')).toEqual(['mac-a']);
+    expect(relayWaitMs(storage, 'k', 'mac-b')).toBe(RELAY_CONFIRM_MS + RELAY_STAGGER_MS);
+    expect(relayWaitMs(storage, 'k', 'mac-0')).toBe(RELAY_CONFIRM_MS);           // sorts first
+    noteWriter(storage, 'k', 'phone');
+    expect(relayWaitMs(storage, 'k', 'mac-b')).toBe(RELAY_CONFIRM_MS + RELAY_STAGGER_MS);
+    expect(relayWaitMs(storage, 'k', 'zzz')).toBe(RELAY_CONFIRM_MS + 2 * RELAY_STAGGER_MS);
+    expect(relayWaitMs(storage, 'k', null)).toBe(RELAY_CONFIRM_MS);               // no id: the old rule
+    storage.setItem('k', '{bad');
+    expect(readWriters(storage, 'k')).toEqual([]);
+  });
+
+  it('every write carries writtenBy (seed and merge), and a read records the writer', async () => {
+    const seedT = makeTransport();
+    const io = makeIo({ deviceId: 'mac-a', buildSyncPayload: () => ({ version: 2, data: data([task('mine')]) }) });
+    await runSnapshotFileCycle({ transport: seedT, io, state: fresh });
+    expect(written(seedT).writtenBy).toBe('mac-a');
+    const t = makeTransport({ read: async () => JSON.stringify({ version: 2, lastModified: '2026-10-02T00:00:00.000Z', writtenBy: 'mac-b', data: data([task('r')]) }) });
+    const io2 = makeIo({ deviceId: () => 'mac-a', buildSyncPayload: () => ({ version: 2, data: data([task('mine')]) }), mergeSyncData: realMerge });
+    await runSnapshotFileCycle({ transport: t, io: io2, state: fresh });
+    expect(written(t).writtenBy).toBe('mac-a');
+    expect(readWriters(io2.storage, `${t.lastSyncedKey}:writers`)).toEqual(['mac-b']);
+    // The content gate is unmoved by the header: a file differing only in writtenBy is not rewritten.
+    const same = makeTransport({ read: async () => JSON.stringify({ version: 2, lastModified: '2026-10-02T00:00:00.000Z', writtenBy: 'mac-b', data: data([task('r')]) }) });
+    const io3 = makeIo({ deviceId: 'mac-a', buildSyncPayload: () => ({ version: 2, data: data([task('r')]) }), mergeSyncData: realMerge });
+    expect((await runSnapshotFileCycle({ transport: same, io: io3, state: fresh })).outcome).toMatchObject({ kind: 'merged', wrote: false });
+  });
+
+  it('SCENARIO: a change reaches two Macs by the vault in the same second; one relays, the other sees the file catch up and never writes', async () => {
+    // The folder: the daemon delivers a write to the other Mac PROPAGATION_MS later.
+    const PROPAGATION_MS = 30_000;
+    const folder = { text: envelope(data([task('shared')])), pending: null };
+    const deliver = (at) => { if (folder.pending && at >= folder.pending.at) { folder.text = folder.pending.text; folder.pending = null; } };
+    const mac = (id, writers) => {
+      const dev = { id, clock: T0, state: { ...fresh }, storage: makeStorage() };
+      for (const w of writers) noteWriter(dev.storage, 'fake-last-synced:writers', w);
+      dev.transport = makeTransport({
+        id,
+        writeThrottleMs: 0,
+        read: async () => { deliver(dev.clock); return folder.text; },
+        write: vi.fn(async (text) => { folder.pending = { text, at: dev.clock + PROPAGATION_MS }; return true; }),
+      });
+      // Both already applied the vault's copy of the new task: local has it, the file lacks it, no edit was made here.
+      dev.io = makeIo({ deviceId: id, storage: dev.storage, now: () => dev.clock, lastLocalEditAt: () => null,
+        buildSyncPayload: () => ({ version: 2, data: data([task('shared'), task('from-phone')]) }), mergeSyncData: realMerge });
+      dev.run = async () => { const r = await runSnapshotFileCycle({ transport: dev.transport, io: dev.io, state: dev.state }); dev.state = r.state; return r.outcome; };
+      return dev;
+    };
+    const a = mac('mac-a', ['mac-b']);
+    const b = mac('mac-b', ['mac-a']);
+    const tick = async (ms) => { a.clock += ms; b.clock += ms; const ra = await a.run(); const rb = await b.run(); return [ra, rb]; };
+    let [ra, rb] = await tick(0);
+    expect(ra.deferred && rb.deferred).toBe(true);
+    [ra, rb] = await tick(RELAY_CONFIRM_MS);                     // 90 s: a (rank 0) writes, b (rank 1) still waiting
+    expect(ra.wrote).toBe(true);
+    expect(rb).toMatchObject({ wrote: false, deferred: true });
+    [ra, rb] = await tick(RELAY_STAGGER_MS);                     // 150 s: a's write reached b 30 s ago; nothing left to relay
+    expect(rb.wrote).toBe(false);
+    expect(b.transport.write).not.toHaveBeenCalled();
+    expect(a.transport.write).toHaveBeenCalledTimes(1);
+    // Without the stagger, b would have written at 90 s too (the mutation this guards).
+  });
+
+  it('a device that has not seen the others yet ranks first and learns them from the file it reads', async () => {
+    const t = makeTransport({ read: async () => JSON.stringify({ version: 2, lastModified: 'x', writtenBy: 'mac-a', data: data([task('r')]) }) });
+    const io = makeIo({ deviceId: 'mac-b', buildSyncPayload: () => ({ version: 2, data: data([task('r')]) }), mergeSyncData: realMerge });
+    expect(relayWaitMs(io.storage, `${t.lastSyncedKey}:writers`, 'mac-b')).toBe(RELAY_CONFIRM_MS);
+    await runSnapshotFileCycle({ transport: t, io, state: fresh });
+    expect(relayWaitMs(io.storage, `${t.lastSyncedKey}:writers`, 'mac-b')).toBe(RELAY_CONFIRM_MS + RELAY_STAGGER_MS);
   });
 });

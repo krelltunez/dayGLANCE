@@ -267,6 +267,21 @@ describe('saveData records the original plan', () => {
     expect(keys()).toContain('day-planner-cloud-sync-local-modified');
     expect(keys()).not.toContain('day-planner-local-edit-at');
   });
+
+  it('guard (2026-10-10): does not stamp a persist that follows clock-driven bookkeeping (the day rollover), which every device does at once', async () => {
+    const useDataPersistence = await loadHookAs('main');
+    const { markBookkeepingChange, _resetBookkeepingForTests } = await import('../utils/localEditStamp.js');
+    const keys = () => setItem.mock.calls.map(([k]) => k);
+    try {
+      markBookkeepingChange();
+      useDataPersistence(saveProps({ isRemoteApply: () => false })).saveData();
+      expect(keys()).toContain('day-planner-cloud-sync-local-modified');
+      expect(keys()).not.toContain('day-planner-local-edit-at');
+    } finally { _resetBookkeepingForTests(); }
+    setItem.mockClear();
+    useDataPersistence(saveProps({ isRemoteApply: () => false })).saveData();
+    expect(keys()).toContain('day-planner-local-edit-at');
+  });
 });
 
 // ── Regression: the baseline has to reach React STATE, not just storage ──────

@@ -87,11 +87,52 @@ export const RELAY_CONFIRM_MS = 90 * 1000;
  * @param {number} now
  * @returns {{write: boolean, pending: {fingerprint: string, at: number}}}
  */
-export function relayDecision(pending, fingerprint, now) {
-  if (pending && pending.fingerprint === fingerprint && now - pending.at >= RELAY_CONFIRM_MS) {
+export function relayDecision(pending, fingerprint, now, waitMs = RELAY_CONFIRM_MS) {
+  if (pending && pending.fingerprint === fingerprint && now - pending.at >= waitMs) {
     return { write: true, pending };
   }
   return { write: false, pending: (!pending || pending.fingerprint !== fingerprint) ? { fingerprint, at: now } : pending };
+}
+
+/**
+ * Relays are staggered across devices, a minute per rank. A change that
+ * arrives by another road (the vault's push nudge, an edit from a phone whose
+ * folder tool round-trips slowly) reaches every device on the folder within
+ * the same second, so with one relay clock they all wrote the same file
+ * together, 90 s later, and the folder kept a conflict copy per pair (two
+ * Macs, 2026-10-10). Each writer stamps its device id in the file header;
+ * each device ranks itself among the writers it has seen there, and waits an
+ * extra RELAY_STAGGER_MS per rank. The first-ranked device writes at 90 s;
+ * the next sees the file catch up before its own clock runs out and drops
+ * the relay. A device that has not seen the others yet ranks first, collides
+ * at most once, then learns them from the file.
+ */
+export const RELAY_STAGGER_MS = 60 * 1000;
+const WRITERS_LIMIT = 32;
+
+/** The writers seen in a transport's file, under `${transport.lastSyncedKey}:writers`. */
+export function readWriters(storage, key) {
+  try {
+    const v = JSON.parse(storage?.getItem(key) ?? '[]');
+    return Array.isArray(v) ? v.filter((w) => typeof w === 'string') : [];
+  } catch { return []; }
+}
+
+/** Records a writer id read from the file. Returns true when it was new. */
+export function noteWriter(storage, key, writer) {
+  if (typeof writer !== 'string' || !writer) return false;
+  const seen = readWriters(storage, key);
+  if (seen.includes(writer)) return false;
+  seen.push(writer);
+  try { storage?.setItem(key, JSON.stringify(seen.slice(-WRITERS_LIMIT))); } catch { /* ignore */ }
+  return true;
+}
+
+/** This device's relay wait: RELAY_CONFIRM_MS plus a minute per rank among the writers seen (its own id included). */
+export function relayWaitMs(storage, key, self) {
+  if (typeof self !== 'string' || !self) return RELAY_CONFIRM_MS;
+  const ids = [...new Set([...readWriters(storage, key), self])].sort();
+  return RELAY_CONFIRM_MS + ids.indexOf(self) * RELAY_STAGGER_MS;
 }
 
 /**
@@ -146,6 +187,7 @@ const count = (storage, key) => {
  * @param {() => boolean} [args.io.encryptionReady]  can encryptData succeed now (a key or the passphrase is in memory)
  * @param {Storage}  args.io.storage                        localStorage-like
  * @param {() => string|null} [args.io.lastLocalEditAt]      when this device itself last changed its data (default: LOCAL_EDIT_KEY in storage)
+ * @param {string|(() => string)} [args.io.deviceId]          stamped as `writtenBy` in the file header; ranks this device's relay (relayWaitMs)
  * @param {() => number} [args.io.now]
  * @param {Console}  [args.io.log]
  * @param {{missingSince: number, lastWriteAt: number, lastWrittenAt?: number, pendingWrite?: {fingerprint: string, at: number}|null}} args.state  carried between cycles
@@ -192,6 +234,13 @@ export async function runSnapshotFileCycle({ transport, io, state }) {
       return Number.isFinite(t) ? t : 0;
     } catch { return 0; }
   })();
+  const deviceId = (() => {
+    try { const v = typeof io.deviceId === 'function' ? io.deviceId() : io.deviceId; return typeof v === 'string' && v ? v : null; }
+    catch { return null; }
+  })();
+  const writersKey = `${transport.lastSyncedKey}:writers`;
+  // The header every write carries: who wrote it (relayWaitMs).
+  const header = () => (deviceId ? { writtenBy: deviceId } : {});
 
   // Writing faster than the daemon's round-trip piles conflict versions onto
   // the remote; skip writes inside the window. The next poll re-runs the merge
@@ -245,7 +294,7 @@ export async function runSnapshotFileCycle({ transport, io, state }) {
       return { state: next, outcome: { kind: 'skipped', reason: 'empty-state-guard' } };
     }
     if (keyNeeded) return { state: next, outcome: { kind: 'skipped', reason: 'key-needed' } };
-    const wrote = await throttledWrite(await outgoing(payload));
+    const wrote = await throttledWrite(await outgoing({ ...payload, ...header() }));
     return { state: next, outcome: { kind: 'seeded', wrote } };
   }
 
@@ -292,6 +341,7 @@ export async function runSnapshotFileCycle({ transport, io, state }) {
   io.storage.setItem(transport.lastSyncedKey, new Date(now()).toISOString());
   next.missingSince = 0;
   if (!next.lastWrittenAt) next.lastWrittenAt = previousRead;
+  if (remote.writtenBy !== deviceId) noteWriter(io.storage, writersKey, remote.writtenBy);
 
   // First launch on a device with no data of its own, facing a populated
   // remote copy. Ask instead of restoring silently (utils/icloudSyncPref.js).
@@ -335,6 +385,7 @@ export async function runSnapshotFileCycle({ transport, io, state }) {
   const outPayload = strip({
     version: 2,
     lastModified: new Date(now()).toISOString(),
+    ...header(),
     data: mergedData,
   });
   const applyNeeded = localChanged && sliceDiffs(mergedData, localData, { ignoreDropped: true }).length > 0;
@@ -369,7 +420,7 @@ export async function runSnapshotFileCycle({ transport, io, state }) {
     next.pendingWrite = null;
   } else if (writeNeeded) {
     const fingerprint = `${remote.lastModified ?? ''}\u0000${writable.map((d) => d.summary).join('\n')}`;
-    const decision = relayDecision(next.pendingWrite, fingerprint, now());
+    const decision = relayDecision(next.pendingWrite, fingerprint, now(), relayWaitMs(io.storage, writersKey, deviceId));
     next.pendingWrite = decision.pending;
     if (decision.write) {
       wrote = await throttledWrite(await encode(outPayload));
