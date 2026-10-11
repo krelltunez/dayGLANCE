@@ -33,6 +33,7 @@
 // second copy of the string literal is exactly how this module ended up reporting
 // a key that belonged to a different sync tier.
 import { ICLOUD_LAST_SYNCED_KEY } from './icloudSeedGuard.js';
+import { listConflictCopies, lastSweep } from '../sync/conflictCopies.js';
 import { isICloudSyncEnabled } from './icloudSyncPref.js';
 import { explainSnapshotMerge } from '../sync/snapshotMergeExplain.js';
 import { mergeSyncData } from '../mergeSync.js';
@@ -324,8 +325,12 @@ export async function probeDirectAccess(deps = {}) {
     try { native = await transport.probeStatus(); } catch (err) { native = { error: err?.message ?? String(err) }; }
   }
   const keyReady = typeof deps.encryptionReady === 'function' ? !!deps.encryptionReady() : null;
-  const head = { status: s?.status ?? 'unknown', name: s?.name ?? null, enabled: s?.enabled !== false, encrypt: s?.encrypt === true, keyReady, pickError: s?.pickError ?? null, native, roster: s?.roster ?? null, events: s?.events ?? null };
+  const head = { status: s?.status ?? 'unknown', name: s?.name ?? null, enabled: s?.enabled !== false, encrypt: s?.encrypt === true, keyReady, pickError: s?.pickError ?? null, native, roster: s?.roster ?? null, events: s?.events ?? null, conflicts: null, lastSweep: null };
   if (!s?.connected) return { ...head, snapshot: null, merge: null };
+  // Phase 8: the copies the syncing tool left beside the files, and what the
+  // last sweep did with them. Null where the folder cannot be listed (iPhone).
+  try { head.conflicts = await listConflictCopies(transport, { usersPath: deps.usersPath, eventsPath: deps.eventsPath }); } catch { head.conflicts = null; }
+  head.lastSweep = lastSweep(deps.localStorage, transport);
   let raw;
   try {
     raw = await transport.read();
@@ -540,6 +545,16 @@ export function formatDiagnosticsReport({ platform, icloud, available, snapshot,
     if (da.roster) lines.push(`  roster file:   ${da.roster.configured ? `${da.roster.reachable ? 'chosen' : 'chosen, unreachable'} (${da.roster.name ?? none})` : 'not chosen'}`);
     // Likewise the intents event set (Phase 7).
     if (da.events) lines.push(`  events file:   ${da.events.configured ? `${da.events.reachable ? 'chosen' : 'chosen, unreachable'} (${da.events.name ?? none})` : 'not chosen'}`);
+    // Phase 8: conflict copies beside the files, and the last sweep.
+    if (Array.isArray(da.conflicts)) {
+      lines.push(`  conflict copies: ${da.conflicts.length}`);
+      for (const c of da.conflicts) lines.push(`    ${c.kind}: ${c.name}`);
+    }
+    if (da.lastSweep) {
+      const counts = {};
+      for (const c of da.lastSweep.copies ?? []) counts[c.outcome] = (counts[c.outcome] ?? 0) + 1;
+      lines.push(`  last sweep:    ${da.lastSweep.at} (${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ') || 'nothing to do'})`);
+    }
     if (da.snapshot) {
       lines.push(...snapshotLines(da.snapshot, '  ', none));
       // Phase 6: what the file is, and whether this device could read or seal one.

@@ -623,8 +623,23 @@ leaves every file's modified time where it was.
   still on seals the file again on its next write, since a plaintext file
   with the switch on is exactly the upgrade case. A plaintext file is left as
   it is; without the key, or on a failed write, nothing changes.
-- Merge sibling "conflicted copy" files that Dropbox or Drive leave beside the
-  snapshot, then delete them.
+- **Done:** merge sibling "conflicted copy" files that the syncing tool leaves
+  beside the files, then delete them (`sync/conflictCopies.js`,
+  `hooks/useConflictCopySweep.js`). A snapshot copy is merged into this
+  device's data with the live file's own merge, applied when it changes
+  anything, and removed; the live file is never written by the sweep (the
+  merged data reaches it by the cycle's rules). A roster copy is reconciled
+  the way the roster sync reconciles the live file. An events copy is removed
+  without a merge: the set is a union and every sender re-adds its own. An
+  encrypted copy this device cannot open stays and is reported; one still
+  being delivered waits. The sweep runs 30 s after the folder connects, every
+  ten minutes while it is, and from Sync diagnostics ("Merge and remove
+  copies"), which also lists the copies and the last sweep's outcome.
+  Desktop and Android only: an iPhone cannot list a directory, so its folder
+  is swept by the Macs. The names recognised: Nextcloud's
+  "(conflicted copy …)", Dropbox's "(…'s conflicted copy …)", Drive's "(1)",
+  Syncthing's ".sync-conflict-…", OneDrive's "-DEVICE": the file's stem, then
+  a space, dot, dash or bracket, then `.json`.
 - A web/PWA transport via the File System Access API that `folderBackup.js`
   already demonstrates. (The diagnostics card exists since Phase 3 and runs on
   every platform since #1998.)
@@ -693,7 +708,10 @@ again. A device that opens an encrypted file without the key is prompted for
 the passphrase before anything is applied or written.
 
 Settings → Cloud Sync → Sync diagnostics → *Run check* reads the Direct
-Access file too, on any platform with the bridge: folder status, the file's
+Access file too, on any platform with the bridge, and on desktop and Android
+lists the conflict copies the syncing tool has left beside the files, with
+*Merge and remove copies* to deal with them now (they are also swept every ten
+minutes): folder status, the file's
 size, modified time and counts, and the dry run of this device's merge against
 it (*would write*, *would apply*, and the slices that differ). That is the tool
 for "why does the file keep changing": the slice it names is the one two

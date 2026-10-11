@@ -2138,7 +2138,12 @@
     "encryptSwitch": "在本设备上加密",
     "key": "同步密钥",
     "keyReady": "就绪",
-    "keyNeeded": "缺少（请输入同步口令）"
+    "keyNeeded": "缺少（请输入同步口令）",
+    "conflictCopies": "冲突副本",
+    "lastSweep": "上次清理",
+    "sweep": "合并并删除副本",
+    "sweeping": "合并中…",
+    "sweepCounts": "已合并 {{merged}}，已删除 {{removed}}，剩余 {{left}}"
   },
   "icloudFirstRun": {
     "title": "iCloud 中找到的数据",

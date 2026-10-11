@@ -359,7 +359,8 @@ describe('the household roster slot (Phase 5)', () => {
   const withPaths = (files = {}, over = {}) => {
     const dirs = new Set();
     const paths = {
-      list: vi.fn(async (d) => Object.keys(files).filter((k) => k.startsWith(d + '/')).map((k) => k.slice(d.length + 1))),
+      // The folder root is ''; a listing is the files directly in the directory.
+      list: vi.fn(async (d) => Object.keys(files).filter((k) => (d ? k.startsWith(d + '/') : true)).map((k) => (d ? k.slice(d.length + 1) : k)).filter((k) => !k.includes('/'))),
       read: vi.fn(async (p) => (p in files ? files[p] : { kind: 'absent' })),
       write: vi.fn(async (p, text) => {
         const dir = p.slice(0, p.lastIndexOf('/'));
@@ -405,6 +406,23 @@ describe('the household roster slot (Phase 5)', () => {
     expect(await transport.rosterRead(rel)).toBe('{"users":[]}');
     expect(await transport.rosterWrite(rel, 'x')).toBe(true);
     expect(users.write).toHaveBeenCalledWith('x');
+  });
+
+  it('files by path (Phase 8): list, read and remove through the paths bridge; absent on an iPhone', async () => {
+    const { bridge, files } = withPaths({ 'dayglance-sync (1).json': { kind: 'text', text: '{"version":2}' }, 'GLANCE/users/glance-users.json': { kind: 'text', text: '{}' } });
+    const { transport } = make({ bridge });
+    expect(transport.files.supported()).toBe(true);
+    expect(await transport.files.list('')).toEqual(['dayglance-sync (1).json']);
+    expect(await transport.files.list('GLANCE/users')).toEqual(['glance-users.json']);
+    expect(await transport.files.read('dayglance-sync (1).json')).toBe('{"version":2}');
+    expect(await transport.files.read('nope.json')).toBeNull();
+    expect(await transport.files.remove('dayglance-sync (1).json')).toBe(true);
+    expect(files['dayglance-sync (1).json']).toBeUndefined();
+    const iphone = make({ bridge: makeBridge({ users: { read: vi.fn(), write: vi.fn() } }) }).transport;
+    expect(iphone.files.supported()).toBe(false);
+    expect(await iphone.files.list('')).toBeNull();
+    expect(classifySnapshotText(await iphone.files.read('x')).kind).toBe('error');
+    expect(await iphone.files.remove('x')).toBe(false);
   });
 
   it('a bridge with neither is reported, not thrown, and never written', async () => {
