@@ -34,6 +34,8 @@
  * everyone already syncing.
  */
 
+import { shouldPromptFirstRun as packageShouldPromptFirstRun } from '@glance-apps/sync';
+
 export const ICLOUD_SYNC_PREF_KEY = 'dayglance-icloud-sync-enabled';
 
 const read = (storage) => {
@@ -84,17 +86,21 @@ export function setICloudSyncEnabled(enabled, storage = typeof window !== 'undef
  *     for no reason, which is the main risk this guard exists to avoid;
  *   • iCloud is actually reachable — otherwise there is no restore to decline.
  *
+ * The rule itself is `@glance-apps/sync`'s `shouldPromptFirstRun`; this keeps the
+ * iCloud-named argument its callers pass.
+ *
  * @param {{decided: boolean, remoteHasData: boolean, localHasData: boolean, icloudAvailable: boolean}} s
  * @returns {boolean}
  */
 export function shouldPromptFirstRun({ decided, remoteHasData, localHasData, icloudAvailable } = {}) {
-  return !!(!decided && remoteHasData && !localHasData && icloudAvailable);
+  return packageShouldPromptFirstRun({ decided, remoteHasData, localHasData, available: !!icloudAvailable });
 }
 
 /**
  * Does this payload carry anything worth restoring?
  *
- * Counts tasks and inbox items only. A snapshot can carry settings, tombstones and
+ * dayGLANCE's `io.hasData` for the package cycle (sync/snapshotFileSync.js):
+ * counts tasks and inbox items only. A snapshot can carry settings, tombstones and
  * empty collections while holding no actual content — offering to "restore" that
  * is a prompt with nothing behind it.
  */

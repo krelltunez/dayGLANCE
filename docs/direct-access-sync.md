@@ -156,7 +156,9 @@ cycle does, per transport.
 ## Shared snapshot-file sync (Phase 1 output)
 
 ```
-src/sync/snapshotFileSync.js      pure: one cycle over an injected transport + io
+src/sync/snapshotFileSync.js      dayGLANCE's seams over @glance-apps/sync 2.1.0's
+                                  runSnapshotFileCycle (one cycle over an
+                                  injected transport + io)
 src/hooks/useSnapshotFileSync.js  React wiring: poll, mutex, foreground kicks,
                                   change events, first-run prompt state
 src/sync/icloudSnapshotTransport.js   iCloud as the first transport
@@ -186,7 +188,11 @@ The pure cycle (`runSnapshotFileCycle`) takes the transport plus an `io` object
 cycle state (`missingSince`, `lastWriteAt`, `firstRunPending`), and returns the
 next state plus what it did (`seeded`, `applied`, `wrote`, `prompted`,
 `skipped: reason`). Every guard the App.jsx loop carries today is preserved and
-is tested in `snapshotFileSync.test.js` with a mutation check per guard.
+is tested in `snapshotFileSync.test.js` with a mutation check per guard. Since
+`@glance-apps/sync` 2.1.0 the cycle itself (and `snapshotMergeExplain.js`, the
+seed guard and the first-run rule) is the package's; the local modules keep
+the import paths and hand in what is dayGLANCE's: the two device-local stamps,
+tasks + inbox as "data", and the health strip on the transports that ask.
 
 The hook owns what needs React: the 15 s poll, the shared `cloudSyncInProgressRef`
 mutex with WebDAV, the stale-lock timestamp used on foreground resume, the
@@ -597,9 +603,10 @@ transport, in this order:
    is.
 2. **Snapshot sync through the folder**, using `snapshotFileSync.js` and the
    transport pattern, so the sibling's own data syncs there too and the
-   first-run and seed guards come with it. The cycle is pure and has no
-   dayGLANCE in it; it belongs in `@glance-apps/sync` beside the merge the
-   siblings already share, and this is the point to move it.
+   first-run and seed guards come with it. **Done:** the cycle is
+   `@glance-apps/sync` 2.1.0's `runSnapshotFileCycle` (with
+   `snapshotMergeExplain`, the seed guard and the first-run rule), and
+   dayGLANCE consumes it through `src/sync/snapshotFileSync.js`.
 3. **The roster** (Phase 5's file, same path) and **the intents transport**
    (7a's event set, same slot contract: by path on desktop and Android, a
    bookmarked file on iOS). Both are app-independent by construction; a
