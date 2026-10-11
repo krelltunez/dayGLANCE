@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import useDirectAccessStatus from '../hooks/useDirectAccessStatus.js';
 import { isNativeAndroid, isNativeIOS } from '../native.js';
 import { directAccessTransport, DIRECT_ACCESS_LAST_SYNCED_KEY } from '../sync/directAccessTransport.js';
-import { getSyncPassphrase, hasEncryptionReady, setupEncryptionKey } from '../utils/crypto.js';
+import { getSyncPassphrase, hasEncryptionReady, setupEncryptionKey, decryptData, isEncryptedEnvelope } from '../utils/crypto.js';
+import { removeDirectAccessEncryption } from '../sync/directAccessEncryption.js';
 import { getDirectAccessIntentsEnabledFlag } from '../intents/directAccessIntentsConfig.js';
 
 /**
@@ -45,10 +46,22 @@ export async function turnOnEncryption({ passphrase, confirm, setupEncryptionKey
   return { ok: true };
 }
 
-const DirectAccessSyncCard = ({ darkMode, textPrimary, textSecondary, borderClass, multiUserEnabled = false, transport = directAccessTransport, crypto = { getSyncPassphrase, hasEncryptionReady, setupEncryptionKey } }) => {
+const DirectAccessSyncCard = ({ darkMode, textPrimary, textSecondary, borderClass, multiUserEnabled = false, transport = directAccessTransport, crypto = { getSyncPassphrase, hasEncryptionReady, setupEncryptionKey, decryptData, isEncryptedEnvelope } }) => {
   const { t } = useTranslation();
   const status = useDirectAccessStatus(transport);
   const [busy, setBusy] = useState(false);
+
+  // Phase 8: the one sanctioned downgrade, behind a confirmation. Offered
+  // when this device holds the key; the action itself says whether the file
+  // was an envelope.
+  const [removeStep, setRemoveStep] = useState(null);   // null | 'confirm' | {outcome, detail}
+  const removeEncryption = async () => {
+    setBusy(true);
+    try {
+      const r = await removeDirectAccessEncryption({ transport, io: { decryptData: crypto.decryptData ?? decryptData, isEncryptedEnvelope: crypto.isEncryptedEnvelope ?? isEncryptedEnvelope } });
+      setRemoveStep(r);
+    } finally { setBusy(false); }
+  };
 
   const [askPassphrase, setAskPassphrase] = useState(false);
   const [passphrase, setPassphrase] = useState('');
@@ -248,6 +261,31 @@ const DirectAccessSyncCard = ({ darkMode, textPrimary, textSecondary, borderClas
                   <button type="button" disabled={busy} onClick={() => setAskPassphrase(false)} className={button}>{t('common.cancel')}</button>
                 </div>
               </form>
+            )}
+            {(crypto.hasEncryptionReady() || !!crypto.getSyncPassphrase()) && (
+              <div className="ml-7 space-y-2">
+                {removeStep === null && (
+                  <button type="button" onClick={() => setRemoveStep('confirm')} disabled={busy} className={`text-xs underline ${textSecondary}`}>
+                    {t('directAccess.removeEncryption')}
+                  </button>
+                )}
+                {removeStep === 'confirm' && (
+                  <>
+                    <p className={`text-xs ${textSecondary}`}>{t('directAccess.removeEncryptionConfirm')}</p>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={removeEncryption} disabled={busy} className={button}>{t('directAccess.removeEncryptionGo')}</button>
+                      <button type="button" onClick={() => setRemoveStep(null)} disabled={busy} className={button}>{t('common.cancel')}</button>
+                    </div>
+                  </>
+                )}
+                {removeStep && typeof removeStep === 'object' && (
+                  <p className={`text-xs ${removeStep.outcome === 'removed' || removeStep.outcome === 'already-plaintext' ? textSecondary : 'text-red-700 dark:text-red-300'}`} data-remove-outcome={removeStep.outcome}>
+                    {t(`directAccess.removeEncryptionOutcome.${removeStep.outcome}`, { detail: removeStep.detail ?? '' })}
+                    {' '}
+                    <button type="button" onClick={() => setRemoveStep(null)} className="underline">{t('common.ok')}</button>
+                  </p>
+                )}
+              </div>
             )}
           </div>
           {ios && multiUserEnabled && roster && (

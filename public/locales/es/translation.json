@@ -2196,7 +2196,18 @@
     "eventsForget": "Olvidar archivo de eventos",
     "eventsChosen": "Archivo de eventos: {{name}}",
     "eventsNotChosen": "Archivo de eventos: no elegido en este dispositivo.",
-    "iosEventsHint": "Los intents viajan en glance-events.json, en GLANCE/events de la carpeta compartida. Elige el que crearon tus otros dispositivos o créalo ahí."
+    "iosEventsHint": "Los intents viajan en glance-events.json, en GLANCE/events de la carpeta compartida. Elige el que crearon tus otros dispositivos o créalo ahí.",
+    "removeEncryption": "Quitar el cifrado del archivo…",
+    "removeEncryptionConfirm": "Esto reescribe el archivo de la carpeta sin cifrar, una vez, y desactiva el interruptor aquí. Desactiva antes «Cifrar el archivo en la carpeta» en tus otros dispositivos, o el siguiente en escribir lo volverá a cifrar.",
+    "removeEncryptionGo": "Quitar el cifrado",
+    "removeEncryptionOutcome": {
+      "removed": "Hecho. El archivo vuelve a estar sin cifrar; cada dispositivo lo sigue desde su próxima lectura.",
+      "already-plaintext": "El archivo ya está sin cifrar. El interruptor está desactivado aquí.",
+      "needs-key": "Este dispositivo no puede abrir el archivo: {{detail}}",
+      "unavailable": "La carpeta no está disponible ahora. {{detail}}",
+      "write-failed": "No se pudo escribir el archivo. No se cambió nada.",
+      "no-file": "Aún no hay ningún archivo en la carpeta."
+    }
   },
   "aspire": {
     "title": "Aspire",
