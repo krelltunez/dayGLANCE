@@ -314,7 +314,9 @@ describe('first-run restore prompt', () => {
     const transport = populated();
     const io = makeIo();
     const { outcome } = await runSnapshotFileCycle({ transport, io, state: fresh });
-    expect(outcome).toEqual({
+    // The package hands the prompt the remote `data` too, for apps whose
+    // slices it does not name; dayGLANCE's prompt reads the two counts.
+    expect(outcome).toMatchObject({
       kind: 'prompted',
       info: { taskCount: 2, inboxCount: 1, lastModified: '2026-10-03T00:00:00.000Z' },
     });

@@ -150,7 +150,7 @@ describe('useSnapshotFileSync: save → write → read → apply across two devi
     const b = mountDevice('B', folder, { decided: false });
     await b.sync();
     // The seeded envelope carries no lastModified; the prompt normalises it to null.
-    expect(b.firstRunSlot.value).toEqual({ taskCount: 1, inboxCount: 0, lastModified: null });
+    expect(b.firstRunSlot.value).toMatchObject({ taskCount: 1, inboxCount: 0, lastModified: null });
     expect(b.tasks).toEqual([]);
     // While the prompt is open, the poll must not merge behind it.
     const readsBefore = b.reads;

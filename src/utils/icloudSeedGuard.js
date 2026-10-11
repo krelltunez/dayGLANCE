@@ -39,40 +39,10 @@
 export const ICLOUD_LAST_SYNCED_KEY = 'dayglance-icloud-last-synced';
 
 /**
- * How long an absent snapshot is assumed to be a temporary eviction.
- *
- * ICloudBridge.readSync already calls startDownloadingUbiquitousItem when the
- * file is missing, so a restore is in flight from the first observation and
- * normally lands in seconds. Ten minutes is far past that while still being a
- * delay a user would sit through rather than a permanent stall.
+ * The grace window and the decision itself live in `@glance-apps/sync` 2.1.0
+ * (`evaluateMissingSnapshot`, `MISSING_GRACE_MS`), shared by every snapshot-file
+ * transport; re-exported here to keep the import path. Ten minutes: far past
+ * the seconds a restore normally takes while still a delay a user would sit
+ * through rather than a permanent stall.
  */
-export const MISSING_GRACE_MS = 10 * 60 * 1000;
-
-/**
- * @param {object} s
- * @param {boolean} s.hasSyncedBefore  this device has previously read a real snapshot
- * @param {number}  s.missingSince     epoch ms of the first consecutive sighting of
- *                                     the file as absent, or 0 if it was present last cycle
- * @param {number}  s.now              epoch ms
- * @param {number} [s.graceMs]
- * @returns {{skip: boolean, missingSince: number}}
- *   skip         — true to leave the container alone this cycle
- *   missingSince — the value to carry into the next cycle (0 clears the streak)
- */
-export function evaluateMissingSnapshot({ hasSyncedBefore, missingSince, now, graceMs = MISSING_GRACE_MS } = {}) {
-  // Never synced: nothing can have been evicted, so this is a real first run and
-  // seeding is the correct, necessary behaviour. Unchanged from before.
-  if (!hasSyncedBefore) return { skip: false, missingSince: 0 };
-
-  // First cycle seeing it absent. Start the clock and wait — this is the eviction
-  // case the original guard was written for.
-  if (!missingSince) return { skip: true, missingSince: now };
-
-  // Still inside the window: keep waiting, preserving the original sighting so the
-  // window measures the whole streak rather than restarting every cycle.
-  if (now - missingSince < graceMs) return { skip: true, missingSince };
-
-  // Gone long enough that eviction no longer explains it. Seed, and clear the
-  // streak so the next absence starts its own window.
-  return { skip: false, missingSince: 0 };
-}
+export { evaluateMissingSnapshot, MISSING_GRACE_MS } from '@glance-apps/sync';
