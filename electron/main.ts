@@ -745,7 +745,10 @@ ipcMain.handle('proxy-fetch', async (_event, method: string, url: string, header
   }
   try { await validateProxyUrl(url); } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Invalid URL';
-    return { status: 400, ok: false, statusText: 'Bad Request', body: msg };
+    // The reason rides in statusText as well as the body: callers that only
+    // report "status statusText" (the WebDAV providers' test and sync errors)
+    // would otherwise blame the server for a 400 it never sent (#2024).
+    return { status: 400, ok: false, statusText: msg, body: msg };
   }
   // 30-second hard timeout — net.fetch has no built-in timeout, so a slow or
   // unresponsive WebDAV server (e.g. a home server that went offline) would
