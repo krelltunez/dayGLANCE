@@ -6,12 +6,14 @@
 // (its resolved task, its group's measured coverage) are all it needs.
 import { tagsIn } from '../utils/taskUtils.js';
 import { validCivilDate } from './viewDates.js';
+import { canLinkDo } from './core.js';
 
 export const CARRY_ACTION = Object.freeze({
   CONTINUE: 'continue',
   FOLLOW_UP: 'followUp',
   MOVED: 'moved',
   SCHEDULE: 'schedule',
+  MAKE_TASK: 'makeTask',
   NONE: 'none',
 });
 
@@ -57,8 +59,15 @@ const slotOf = task => ({ date: task.date, startTime: task.startTime, isAllDay: 
  */
 export function checkEntryAction(entry, { date, today } = {}) {
   const task = entry?.sourceTask;
-  // Unlinked, deleted and archived work offers nothing for now.
-  if (!task || task.id == null || task.archived) return NONE;
+  // Unlinked work can become a task of its own ("Make a task"): one manual
+  // Do, not completed (core's canLinkDo). An unlinked record is its own
+  // execution, so the entry holds just that one.
+  if (!task) {
+    const record = entry?.sessions?.length === 1 ? entry.sessions[0] : null;
+    return canLinkDo(record) ? { kind: CARRY_ACTION.MAKE_TASK, record } : NONE;
+  }
+  // Deleted and archived work offers nothing for now.
+  if (task.id == null || task.archived) return NONE;
   if (recurring(task) || calendarEvent(task)) return NONE;
   // A finished task is grown from, never continued, whatever its last Do said.
   if (task.completed === true) return { kind: CARRY_ACTION.FOLLOW_UP, task };
@@ -103,6 +112,21 @@ export function followUpDraft(task, { projects = [] } = {}) {
     ...(project
       ? { projectId: project.id, keepUnscheduled: true }
       : { openInInbox: true, deadline: null, priority: 0 }),
+  };
+}
+
+/**
+ * The new-task form for "Make a task" from an unlinked Do: its title, tags
+ * included, in the Inbox, carrying the Do it came from. The save links that
+ * Do to the new task (useTaskActions → prepareDoLink) as the version the form
+ * was opened on, so a Do changed meanwhile, here or on another device, is
+ * left as it is. `linkDo` is read by the save and never stored on the task.
+ */
+export function makeTaskDraft(record) {
+  return {
+    title: typeof record?.title === 'string' ? record.title : '',
+    openInInbox: true, deadline: null, priority: 0,
+    linkDo: { id: record.id, updatedAt: record.updatedAt },
   };
 }
 

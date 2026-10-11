@@ -145,9 +145,11 @@ describe('checkEntryAction: the cases Continue does not cover', () => {
     expect(action).toMatchObject({ kind: CARRY_ACTION.SCHEDULE, date: '2026-10-01' });
     expect(action.task.id).toBe('t1');
   });
-  it('an unlinked Do offers nothing', () => {
+  it('an unlinked Do offers Make a task, unless it is completed (makeTask.test.js)', () => {
     const records = [session({ taskId: null, planSnapshot: null })];
-    expect(checkEntryAction(entryFor({ records, lookup: [] }), { date, today }).kind).toBe(CARRY_ACTION.NONE);
+    expect(checkEntryAction(entryFor({ records, lookup: [] }), { date, today }).kind).toBe(CARRY_ACTION.MAKE_TASK);
+    const done = [session({ taskId: null, planSnapshot: null, progress: 'completed' })];
+    expect(checkEntryAction(entryFor({ records: done, lookup: [] }), { date, today }).kind).toBe(CARRY_ACTION.NONE);
   });
   it('a task since deleted offers nothing', () => {
     expect(checkEntryAction(entryFor({ lookup: [] }), { date, today }).kind).toBe(CARRY_ACTION.NONE);

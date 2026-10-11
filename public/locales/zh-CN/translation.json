@@ -2233,6 +2233,9 @@
       "secondary": "结束偏晚：{{finish}} · 超时：{{longer}}"
     },
     "title": "JOBO",
+    "makeTask": "创建任务",
+    "makeTaskHint": "根据此执行记录在收件箱中新建任务，并将其关联到该任务。",
+    "makeTaskNotLinked": "任务已添加。该执行记录在此期间已更改，因此未关联。",
     "undo": {
       "changed": "这条执行记录之后已被修改，因此保持不变。",
       "completionBlocked": "对应任务已不再是已完成状态，因此执行记录无法恢复为“已完成”，保持不变。",

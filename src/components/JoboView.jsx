@@ -157,7 +157,7 @@ export default function JoboView() {
     ctx.handleSpotlightSelect({ task, source: task.archived ? 'archived' : isInbox ? 'inbox' : 'scheduled' });
     ctx.setExpandedNotesTaskId(task.id);
   };
-  // Continue, Schedule… and Add follow-up from the Check, through the app's
+  // Continue, Schedule…, Add follow-up and Make a task from the Check, through the app's
   // own task actions. Opening a form leaves the Check first, as notes do.
   const carryActions = createCarryForwardActions({ ...ctx, projects: goalsProjectsEnabled ? projects : [] });
   const carry = {
@@ -166,6 +166,8 @@ export default function JoboView() {
     openFollowUp: (task, on) => { setCheckOpen(false); carryActions.openFollowUp(task, on); },
     unscheduleTask: carryActions.unscheduleTask,
     deleteTask: carryActions.deleteTask,
+    // Absent while the app does not offer it (a read-only ledger).
+    makeTask: carryActions.makeTask && ((record) => { setCheckOpen(false); carryActions.makeTask(record); }),
   };
   const canOpenCheckNotes = typeof ctx.handleSpotlightSelect === 'function'
     && typeof ctx.setExpandedNotesTaskId === 'function';

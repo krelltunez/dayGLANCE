@@ -1,5 +1,5 @@
 // Form adapters above the settled core; no clock or persistence is read here.
-import { DO_PROGRESS, DO_TIMING, createDoRecord, canCompleteDo, reassessDoProgress, tombstoneDoRecord, updateDoRecord } from './core.js';
+import { DO_PROGRESS, DO_TIMING, createDoRecord, canCompleteDo, canLinkDo, linkDoRecord, reassessDoProgress, tombstoneDoRecord, updateDoRecord } from './core.js';
 import { resolveEditableDoRecord } from './viewModel.js';
 const DAY_MINUTES = 1440;
 const MIN_INTERVAL_MINUTES = 5;
@@ -176,6 +176,18 @@ export function prepareDoEdit({ records, record, patch = {}, progress, now, task
     next = reassessDoProgress(next, progress, new Date(version).toISOString(), { taskCompleted });
   }
   return next;
+}
+
+
+/**
+ * The link "Make a task" writes: `record`, as the ledger holds it now, linked
+ * to the new task. Null when the record is gone or changed since (the
+ * ledger's resolve), or can no longer be linked.
+ */
+export function prepareDoLink({ records, record, taskId, now } = {}) {
+  const current = resolveEditableDoRecord(records, record);
+  if (!current || !canLinkDo(current)) return null;
+  return linkDoRecord(current, taskId, new Date(monotonicEpoch(current, now)).toISOString());
 }
 
 

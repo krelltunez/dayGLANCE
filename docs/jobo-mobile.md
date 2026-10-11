@@ -256,7 +256,11 @@ ticks no longer puts the Plan side's line a minute ahead on desktop.
   history entry so no stale one swallows a later back.
 - **The Check** is the same journal (`CheckJournal`), with its next steps.
   The sheet stays open under the task form a next step may open, so closing
-  the form comes back to the Check.
+  the form comes back to the Check. The sheet is placed inside the app shell
+  (`sheetHost`), not on `<body>`: the shell is `position: fixed`, a stacking
+  context of its own, and a sheet on `<body>` covered every form in it, so
+  Add follow-up and Schedule… opened their forms behind the Check until the
+  "Make a task" change found it.
 - **The statistics** are the same panel with `sheet`: the four tabs and the
   figures in the sheet, without the desktop dialog's focus trap. Its inputs
   moved from the desktop's date-row tiles into `hooks/useJoboStatistics.js`,

@@ -2326,6 +2326,9 @@
       "secondary": "Późne zakończenia: {{finish}} · Trwało dłużej: {{longer}}"
     },
     "title": "JOBO",
+    "makeTask": "Utwórz zadanie",
+    "makeTaskHint": "Otwiera nowe zadanie w skrzynce na podstawie tego wykonania i łączy z nim to wykonanie.",
+    "makeTaskNotLinked": "Dodano zadanie. Wykonanie zmieniło się w międzyczasie, więc nie zostało połączone.",
     "undo": {
       "changed": "Ten Do zmienił się w międzyczasie, więc pozostał bez zmian.",
       "completionBlocked": "Jego zadanie nie jest już ukończone, więc Do nie może wrócić do stanu Ukończone. Pozostał bez zmian.",

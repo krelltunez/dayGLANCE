@@ -2233,6 +2233,9 @@
       "secondary": "Späte Enden: {{finish}} · Länger gedauert: {{longer}}"
     },
     "title": "JOBO",
+    "makeTask": "Aufgabe erstellen",
+    "makeTaskHint": "Öffnet aus dieser Ausführung eine neue Posteingangsaufgabe und verknüpft die Ausführung damit.",
+    "makeTaskNotLinked": "Aufgabe hinzugefügt. Die Ausführung wurde inzwischen geändert und daher nicht verknüpft.",
     "undo": {
       "changed": "Dieses Do wurde inzwischen geändert und bleibt, wie es ist.",
       "completionBlocked": "Die Aufgabe ist nicht mehr abgeschlossen, daher kann das Do nicht wieder „Abgeschlossen“ werden. Es bleibt, wie es ist.",

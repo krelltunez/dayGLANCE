@@ -2233,6 +2233,9 @@
       "secondary": "Fins tardives : {{finish}} · A duré plus longtemps : {{longer}}"
     },
     "title": "JOBO",
+    "makeTask": "Créer une tâche",
+    "makeTaskHint": "Ouvre une nouvelle tâche dans la boîte de réception à partir de cette exécution et l'y relie.",
+    "makeTaskNotLinked": "Tâche ajoutée. L'exécution a changé entre-temps ; elle n'a donc pas été reliée.",
     "undo": {
       "changed": "Ce Do a changé depuis ; il est laissé tel quel.",
       "completionBlocked": "Sa tâche n’est plus terminée, le Do ne peut donc pas redevenir Terminé. Il est laissé tel quel.",
