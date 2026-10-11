@@ -46,6 +46,12 @@ describe('balancedWidths', () => {
   it('never negative on a tiny screen', () => {
     expect(balancedWidths(10)).toEqual({ plan: 0, do: 0 });
   });
+
+  it("takes the caller's gutter: the upright tablet's 64px", () => {
+    const { plan, do: doWidth } = balancedWidths(390, 64);
+    expect({ plan, do: doWidth }).toEqual({ plan: 162, do: 162 });
+    expect(64 + plan + DIVIDER_PX + doWidth).toBe(390);
+  });
 });
 
 describe('laneWidths', () => {
@@ -55,6 +61,11 @@ describe('laneWidths', () => {
   });
   it('never goes negative before the view is measured', () => {
     expect(laneWidths(0, true).wide).toBe(0);
+  });
+  it("takes the caller's gutter: the upright tablet's 64px", () => {
+    const { wide, plan, do: doWidth } = laneWidths(390, true, 64);
+    expect(wide).toBe(390 - 64 - DIVIDER_PX - NARROW_LANE_PX);
+    expect(64 + plan + DIVIDER_PX + doWidth).toBe(390);
   });
 });
 

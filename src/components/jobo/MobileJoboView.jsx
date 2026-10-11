@@ -44,6 +44,8 @@ import {
 // It renders inside the timeline's own scroll area (the layout's
 // calendarRef), as MobileTimeGrid needs, under the layout's sticky date
 // header, whose element `stickyHeaderRef` names.
+// `gutterW` is the hour column's width: the phone's 48px, or the tablet's
+// 64px held upright, where its other views and the header's cell use 64.
 
 // The phone timeline's hour: 160px rows plus their 1px border
 // (hooks/useDragDrop.js), until the real rows are measured. On a screen with
@@ -135,7 +137,7 @@ function DoBars({ items, date, hourPx, selectedTaskId, onTap, ctx, t }) {
   );
 }
 
-export default function MobileJoboView({ stickyHeaderRef }) {
+export default function MobileJoboView({ stickyHeaderRef, gutterW = HOUR_GUTTER_PX }) {
   const { t, i18n } = useTranslation();
   const ctx = useDayPlannerCtx();
   const { joboLoaded, joboError, joboWritable, joboRecords, reloadJobo, goalsProjectsEnabled, projects } = useFeaturesCtx();
@@ -203,11 +205,11 @@ export default function MobileJoboView({ stickyHeaderRef }) {
     observer.observe(el);
     return () => observer.disconnect();
   }, [joboLoaded]);
-  const widths = laneWidths(width, planWide);
-  const sides = balanced ? balancedWidths(width) : widths;
+  const widths = laneWidths(width, planWide, gutterW);
+  const sides = balanced ? balancedWidths(width, gutterW) : widths;
   // Each side's content is laid out at its final width from the start of a
   // slide, so card text never reflows mid-slide.
-  const planInner = !planCards ? '100%' : `${HOUR_GUTTER_PX + (balanced ? sides.plan : widths.wide)}px`;
+  const planInner = !planCards ? '100%' : `${gutterW + (balanced ? sides.plan : widths.wide)}px`;
   const doInner = !doCards ? '100%' : `${balanced ? sides.do : widths.wide}px`;
   const { timeGridRef } = ctx;
   useLayoutEffect(() => {
@@ -318,7 +320,7 @@ export default function MobileJoboView({ stickyHeaderRef }) {
           lane has no room for one in every language) and, unless balanced,
           the swap button on the divider, sticking under the date header. */}
       <div className={`sticky z-30 flex items-stretch h-7 border-b text-[11px] font-semibold uppercase tracking-wide ${ctx.cardBg} ${ctx.borderClass}`} style={{ top: `${stickyTop}px` }}>
-        <div className={`flex-shrink-0 border-r ${ctx.borderClass}`} style={{ width: `${HOUR_GUTTER_PX}px` }} />
+        <div className={`flex-shrink-0 border-r ${ctx.borderClass}`} style={{ width: `${gutterW}px` }} />
         <div data-jobo-side-label="plan" className="flex-shrink-0 min-w-0 flex items-center px-2 overflow-hidden whitespace-nowrap" style={{ width: `${sides.plan}px`, transition: motion }}>
           {planCards && t('jobo.view.plan')}
         </div>
@@ -352,7 +354,7 @@ export default function MobileJoboView({ stickyHeaderRef }) {
             className="absolute w-2 h-2 bg-red-500 rounded-full pointer-events-none z-20"
             style={{
               top: `${1 + (currentTime.getHours() * 60 + currentTime.getMinutes()) * hourPx / 60}px`,
-              left: `${HOUR_GUTTER_PX + sides.plan + DIVIDER_PX - 4}px`,
+              left: `${gutterW + sides.plan + DIVIDER_PX - 4}px`,
               transition: motion === 'none' ? 'none' : `left ${SWAP_MS}ms ease-out`,
             }}
           />
@@ -361,7 +363,7 @@ export default function MobileJoboView({ stickyHeaderRef }) {
         <div
           data-jobo-plan
           className="flex-shrink-0 overflow-hidden"
-          style={{ width: `${HOUR_GUTTER_PX + sides.plan}px`, transition: motion }}
+          style={{ width: `${gutterW + sides.plan}px`, transition: motion }}
           // Capture: the timeline's cards stop their own clicks.
           onClickCapture={planCards ? (event) => {
             const id = event.target.closest?.('[data-task-id]')?.getAttribute('data-task-id');
@@ -374,6 +376,7 @@ export default function MobileJoboView({ stickyHeaderRef }) {
           <div style={{ width: planInner }}>
             <MobileTimeGrid
               planOnly
+              gutterW={gutterW}
               barsMode={!planCards}
               onLaneTap={onLaneTap}
               barsOverlay={planCards ? null : <PlanBars tasks={dayTasks} selectedTaskId={selectedTaskId} ctx={ctx} />}

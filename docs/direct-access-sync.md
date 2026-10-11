@@ -74,6 +74,30 @@ enough for the folder's tool to deliver the originating device's own write, so
 the relay only happens when nobody else carried it. Seeding an absent file is
 never deferred.
 
+Two more rules on the relay, from the Macs' conflict copies of 2026-10-10
+(every one the snapshot; the diffs named the phone's Health Connect habit
+stamps and the midnight routine rollover):
+
+- **Relays are staggered across devices.** A change that arrives by another
+  road (the vault's push nudge, an edit from a phone whose folder tool
+  round-trips slowly) reaches every device on the folder within the same
+  second, so with one relay clock they all wrote the same file together 90 s
+  later, a conflict copy per pair. Every write now stamps `writtenBy` (the
+  device id) in the file header, each device ranks itself among the writers
+  it has seen there (`${lastSyncedKey}:writers`), and waits `RELAY_STAGGER_MS`
+  (a minute) more per rank (`relayWaitMs`). The first-ranked device writes at
+  90 s; the next sees the file catch up and drops its relay. A device that has
+  not seen the others ranks first, collides at most once, and learns them from
+  the file. The event-set cycle uses the same header, the same writers set
+  and the same wait, so retention drops, which every device computes at the
+  same moment, relay from one device too.
+- **Clock-driven bookkeeping is not an edit made here.** The midnight routine
+  rollover runs on every device at the same moment; each counted it as its
+  own edit and wrote at once (copies at 00:00:04 and 00:00:33). The rollover
+  marks `utils/localEditStamp.js`, and the persist pass that follows inside
+  the window does not stamp `day-planner-local-edit-at`, so the rollover
+  reaches the file by relay, from one device.
+
 **Device-local keys are not a write.** Each device keeps its own
 `use24HourClock`, `minimizedSections` and `obsidianConfig` (and, with multi-user
 on, the feature toggles and calendar URLs). The file holds whichever device
@@ -132,7 +156,9 @@ cycle does, per transport.
 ## Shared snapshot-file sync (Phase 1 output)
 
 ```
-src/sync/snapshotFileSync.js      pure: one cycle over an injected transport + io
+src/sync/snapshotFileSync.js      dayGLANCE's seams over @glance-apps/sync 2.1.0's
+                                  runSnapshotFileCycle (one cycle over an
+                                  injected transport + io)
 src/hooks/useSnapshotFileSync.js  React wiring: poll, mutex, foreground kicks,
                                   change events, first-run prompt state
 src/sync/icloudSnapshotTransport.js   iCloud as the first transport
@@ -162,7 +188,11 @@ The pure cycle (`runSnapshotFileCycle`) takes the transport plus an `io` object
 cycle state (`missingSince`, `lastWriteAt`, `firstRunPending`), and returns the
 next state plus what it did (`seeded`, `applied`, `wrote`, `prompted`,
 `skipped: reason`). Every guard the App.jsx loop carries today is preserved and
-is tested in `snapshotFileSync.test.js` with a mutation check per guard.
+is tested in `snapshotFileSync.test.js` with a mutation check per guard. Since
+`@glance-apps/sync` 2.1.0 the cycle itself (and `snapshotMergeExplain.js`, the
+seed guard and the first-run rule) is the package's; the local modules keep
+the import paths and hand in what is dayGLANCE's: the two device-local stamps,
+tasks + inbox as "data", and the health strip on the transports that ask.
 
 The hook owns what needs React: the 15 s poll, the shared `cloudSyncInProgressRef`
 mutex with WebDAV, the stale-lock timestamp used on foreground resume, the
@@ -573,9 +603,10 @@ transport, in this order:
    is.
 2. **Snapshot sync through the folder**, using `snapshotFileSync.js` and the
    transport pattern, so the sibling's own data syncs there too and the
-   first-run and seed guards come with it. The cycle is pure and has no
-   dayGLANCE in it; it belongs in `@glance-apps/sync` beside the merge the
-   siblings already share, and this is the point to move it.
+   first-run and seed guards come with it. **Done:** the cycle is
+   `@glance-apps/sync` 2.1.0's `runSnapshotFileCycle` (with
+   `snapshotMergeExplain`, the seed guard and the first-run rule), and
+   dayGLANCE consumes it through `src/sync/snapshotFileSync.js`.
 3. **The roster** (Phase 5's file, same path) and **the intents transport**
    (7a's event set, same slot contract: by path on desktop and Android, a
    bookmarked file on iOS). Both are app-independent by construction; a
@@ -588,11 +619,34 @@ leaves every file's modified time where it was.
 
 ### Phase 8 (optional, any order)
 
-- An explicit "remove encryption from the Direct Access file" action, the
-  only sanctioned downgrade: rewrites the file as plaintext once, from a device
-  that holds the key.
-- Merge sibling "conflicted copy" files that Dropbox or Drive leave beside the
-  snapshot, then delete them.
+- **Done:** an explicit "remove encryption from the Direct Access file"
+  action, the only sanctioned downgrade (`sync/directAccessEncryption.js`,
+  "Remove encryption from the file…" under the card's encryption switch, on a
+  device that holds the key, behind a confirmation). It reads the envelope,
+  opens it, writes the SAME payload back as plaintext once (same stamp, so no
+  device sees a new version to merge) and turns this device's switch off;
+  from then on the file decides again, in plaintext. The confirmation says
+  to turn the switch off on the other devices first: one whose switch is
+  still on seals the file again on its next write, since a plaintext file
+  with the switch on is exactly the upgrade case. A plaintext file is left as
+  it is; without the key, or on a failed write, nothing changes.
+- **Done:** merge sibling "conflicted copy" files that the syncing tool leaves
+  beside the files, then delete them (`sync/conflictCopies.js`,
+  `hooks/useConflictCopySweep.js`). A snapshot copy is merged into this
+  device's data with the live file's own merge, applied when it changes
+  anything, and removed; the live file is never written by the sweep (the
+  merged data reaches it by the cycle's rules). A roster copy is reconciled
+  the way the roster sync reconciles the live file. An events copy is removed
+  without a merge: the set is a union and every sender re-adds its own. An
+  encrypted copy this device cannot open stays and is reported; one still
+  being delivered waits. The sweep runs 30 s after the folder connects, every
+  ten minutes while it is, and from Sync diagnostics ("Merge and remove
+  copies"), which also lists the copies and the last sweep's outcome.
+  Desktop and Android only: an iPhone cannot list a directory, so its folder
+  is swept by the Macs. The names recognised: Nextcloud's
+  "(conflicted copy …)", Dropbox's "(…'s conflicted copy …)", Drive's "(1)",
+  Syncthing's ".sync-conflict-…", OneDrive's "-DEVICE": the file's stem, then
+  a space, dot, dash or bracket, then `.json`.
 - A web/PWA transport via the File System Access API that `folderBackup.js`
   already demonstrates. (The diagnostics card exists since Phase 3 and runs on
   every platform since #1998.)
@@ -661,7 +715,10 @@ again. A device that opens an encrypted file without the key is prompted for
 the passphrase before anything is applied or written.
 
 Settings → Cloud Sync → Sync diagnostics → *Run check* reads the Direct
-Access file too, on any platform with the bridge: folder status, the file's
+Access file too, on any platform with the bridge, and on desktop and Android
+lists the conflict copies the syncing tool has left beside the files, with
+*Merge and remove copies* to deal with them now (they are also swept every ten
+minutes): folder status, the file's
 size, modified time and counts, and the dry run of this device's merge against
 it (*would write*, *would apply*, and the slices that differ). That is the tool
 for "why does the file keep changing": the slice it names is the one two

@@ -169,7 +169,7 @@ and confirming a test fails.
 
 # App.jsx — Ongoing Decomposition
 
-`App.jsx` started at ~30,000 lines and came down to ~9,600 across four refactor passes, then crept back to ~10,700 (October 2026). Extracted so far:
+`App.jsx` started at ~30,000 lines and came down to ~9,600 across four refactor passes, then crept back to ~10,700 (October 2026); it is ~10,200 after the extractions below. Extracted so far:
 
 - **ICS/CalDAV parser** → `src/utils/icsParser.js` (with tests)
 - **Voice input pipeline** → `src/hooks/useVoiceInput.js`
@@ -180,6 +180,7 @@ and confirming a test fails.
 - **Calendar file import** → `src/hooks/useCalendarFileImport.js` (with tests, #2016)
 - **Widget snapshot** → `src/utils/widgetSnapshot.js` (with tests); the effect in App.jsx gathers inputs and owns the push
 - **TRMNL push and auto-sync** → `src/hooks/useTrmnlSync.js` (with tests)
+- **Overdue tasks** → `src/utils/getOverdueTasks.js` (with tests, #2023)
 
 ## Next candidates
 

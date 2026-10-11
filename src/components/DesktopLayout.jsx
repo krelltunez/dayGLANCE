@@ -27,6 +27,7 @@ import SchedView from './sched/SchedView.jsx';
 import MonthView from './month/MonthView.jsx';
 import JoboView from './JoboView.jsx';
 import MobileJoboView from './jobo/MobileJoboView.jsx';
+import { HOUR_GUTTER_W } from '../constants/timeline.js';
 import InboxArchivedBar from './InboxArchivedBar.jsx';
 import GlanceSidebar from './GlanceSidebar.jsx';
 import InboxSidebar from './InboxSidebar.jsx';
@@ -873,9 +874,10 @@ const DesktopLayout = () => {
                   two-column timeline). tabletListView covers both LIST and
                   SCHED; the toggle's mode picks which one renders. */}
               {/* JOBO on a tablet held upright: the phone's layout (slice 8),
-                  since the timeline is phone-width beside the sidebar. */}
+                  since the timeline is phone-width beside the sidebar, with the
+                  tablet's 64px hour column so the header's cell meets it. */}
               {tabletJoboView
-                ? <MobileJoboView stickyHeaderRef={stickyHeaderRef} />
+                ? <MobileJoboView stickyHeaderRef={stickyHeaderRef} gutterW={HOUR_GUTTER_W} />
                 : tabletListView
                 ? (mobileViewMode === 'sched' ? <SchedView /> : mobileViewMode === 'month' ? <MonthView /> : (
                     <>

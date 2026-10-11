@@ -2138,7 +2138,12 @@
     "encryptSwitch": "Chiffrer sur cet appareil",
     "key": "Clé de synchronisation",
     "keyReady": "prête",
-    "keyNeeded": "manquante (saisir la phrase secrète)"
+    "keyNeeded": "manquante (saisir la phrase secrète)",
+    "conflictCopies": "Copies en conflit",
+    "lastSweep": "Dernier passage",
+    "sweep": "Fusionner et supprimer les copies",
+    "sweeping": "Fusion…",
+    "sweepCounts": "{{merged}} fusionnées, {{removed}} supprimées, {{left}} restantes"
   },
   "icloudFirstRun": {
     "title": "Données trouvées dans iCloud",
@@ -2191,7 +2196,18 @@
     "eventsForget": "Oublier le fichier d'événements",
     "eventsChosen": "Fichier d'événements : {{name}}",
     "eventsNotChosen": "Fichier d'événements : non choisi sur cet appareil.",
-    "iosEventsHint": "Les intents voyagent dans glance-events.json, dans GLANCE/events du dossier partagé. Choisissez celui que vos autres appareils ont créé, ou créez-le là."
+    "iosEventsHint": "Les intents voyagent dans glance-events.json, dans GLANCE/events du dossier partagé. Choisissez celui que vos autres appareils ont créé, ou créez-le là.",
+    "removeEncryption": "Retirer le chiffrement du fichier…",
+    "removeEncryptionConfirm": "Cela réécrit le fichier du dossier en clair, une fois, et désactive l'interrupteur ici. Désactivez d'abord « Chiffrer le fichier dans le dossier » sur vos autres appareils, sinon le prochain à écrire le scellera à nouveau.",
+    "removeEncryptionGo": "Retirer le chiffrement",
+    "removeEncryptionOutcome": {
+      "removed": "Terminé. Le fichier est de nouveau en clair ; chaque appareil le suit dès sa prochaine lecture.",
+      "already-plaintext": "Le fichier est déjà en clair. L'interrupteur est désactivé ici.",
+      "needs-key": "Cet appareil ne peut pas ouvrir le fichier : {{detail}}",
+      "unavailable": "Le dossier n'est pas disponible pour le moment. {{detail}}",
+      "write-failed": "Le fichier n'a pas pu être écrit. Rien n'a changé.",
+      "no-file": "Il n'y a pas encore de fichier dans le dossier."
+    }
   },
   "aspire": {
     "title": "Aspire",

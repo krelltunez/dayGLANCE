@@ -159,6 +159,7 @@ import { useNotifyEmitter } from './intents/useNotifyEmitter.js';
 import { useGoalNotifyEmitter } from './intents/useGoalNotifyEmitter.js';
 import { useOutboxFlush } from './intents/useOutboxFlush.js';
 import { useDirectAccessIntents } from './intents/useDirectAccessIntents.js';
+import useConflictCopySweep from './hooks/useConflictCopySweep.js';
 import { useAndroidIntentBridge } from './intents/useAndroidIntentBridge.js';
 import { useUrlActionHandler } from './intents/useUrlActionHandler.js';
 import { syncSharedUsers, syncSharedUsersViaICloud, syncSharedUsersViaDirectAccess } from './intents/sharedUsers.js';
@@ -2823,6 +2824,23 @@ const DayPlanner = () => {
         setDirectAccessKeyWanted(true);
         setSyncKeyReady(false);
       },
+    },
+  });
+
+  // Conflict copies the syncing tool left beside the Direct Access files
+  // (docs/direct-access-sync.md, Phase 8): merged into this device's data
+  // and removed, every ten minutes and from the diagnostics panel.
+  const conflictSweep = useConflictCopySweep({
+    active: !isTrayMode,
+    dataLoaded,
+    io: {
+      buildSyncPayload: () => engineCallbacksRef.current.buildPayload(),
+      applyEngineData: (data, opts) => engineCallbacksRef.current.applyPayload(data, opts),
+      syncRetentionDays,
+      localUsers: users,
+      applyUsers: (merged) => { localStorage.setItem('dayglance-users', JSON.stringify(merged)); setUsers(merged); },
+      usersPath: (() => { try { const raw = localStorage.getItem('dayglance-multi-user-config'); return raw ? (JSON.parse(raw).usersPath ?? undefined) : undefined; } catch { return undefined; } })(),
+      eventsPath: (() => { try { const raw = localStorage.getItem(INTENT_CONFIG_KEY); return raw ? (JSON.parse(raw).eventsPath ?? undefined) : undefined; } catch { return undefined; } })(),
     },
   });
 
@@ -8413,6 +8431,8 @@ const DayPlanner = () => {
     // callbacks ref so they are current whenever the check runs.
     buildSyncPayload:     () => engineCallbacksRef.current.buildPayload?.(),
     getSyncRetentionDays: () => engineCallbacksRef.current.syncRetentionDays ?? 90,
+    // The conflict copy sweep, on demand from the diagnostics panel (Phase 8).
+    sweepConflictCopies:  () => conflictSweep.sweepNow(),
     // Manual "Sync now" for the GLANCEvault DB tier + its surfaced status.
     vaultSyncNow: async () => {
       const eng = dbEngineRef.current;

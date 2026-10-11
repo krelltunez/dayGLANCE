@@ -16,6 +16,7 @@ import { getHGBarsForDate } from '../hooks/useHyperGlance.js';
 import HyperGlanceBar from './HyperGlanceBar.jsx';
 import PastDoCard from './jobo/PastDoCard.jsx';
 import { useTranslation } from 'react-i18next';
+import { MOBILE_HOUR_GUTTER_W } from '../constants/timeline.js';
 
 /**
  * The phone's timeline. JOBO on the phone (slice 8, docs/jobo-mobile.md)
@@ -28,8 +29,11 @@ import { useTranslation } from 'react-i18next';
  * Like DAY's column, it reads the day's display (JOBO slice 6): a past day,
  * and today up to the NOW line, show the recorded Do as striped read-only
  * cards. `planOnly` keeps to the plan, for JOBO's own Plan side.
+ *
+ * `gutterW` is the hour column's width: the phone's 48px unless the caller
+ * passes another (JOBO on the upright tablet takes the tablet's 64px).
  */
-const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planOnly = false }) => {
+const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planOnly = false, gutterW = MOBILE_HOUR_GUTTER_W }) => {
   const { t } = useTranslation();
   const {
     visibleDates, hours,
@@ -84,7 +88,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
   {hours.map((hour, index) => (
     <div key={hour} className="relative">
       <div className={`flex border-b ${index === 0 ? `border-t` : ''} ${borderClass} ${index % 2 === 1 ? (darkMode ? 'bg-white/[0.04]' : 'bg-stone-100/50') : ''}`}>
-        <div className={`w-12 flex-shrink-0 px-1 py-1 text-xs ${textSecondary} border-r ${borderClass} text-center ${!darkMode ? 'bg-stone-100/80' : ''}`}>
+        <div className={`flex-shrink-0 px-1 py-1 text-xs ${textSecondary} border-r ${borderClass} text-center ${!darkMode ? 'bg-stone-100/80' : ''}`} style={{ width: gutterW }}>
           {use24HourClock
             ? `${hour.toString().padStart(2, '0')}:00`
             : <>{hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}<span className="text-[9px] ml-0.5">{hour >= 12
@@ -123,7 +127,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
       {/* Half-hour dashed line */}
       <div className="absolute left-0 right-0 pointer-events-none" style={{ top: '80px' }}>
         <div className={`flex border-b border-dashed ${borderClass} opacity-50`}>
-          <div className="w-12 flex-shrink-0"></div>
+          <div className="flex-shrink-0" style={{ width: gutterW }}></div>
           {visibleDates.map((date, idx) => (
             <div key={dateToString(date)} className={`flex-1 ${idx > 0 ? `border-l ${borderClass}` : ''}`}></div>
           ))}
@@ -133,7 +137,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
   ))}
 
   {/* Task overlays */}
-  <div className="absolute top-0 left-12 right-0 bottom-0 pointer-events-none flex">
+  <div className="absolute top-0 right-0 bottom-0 pointer-events-none flex" style={{ left: gutterW }}>
     {visibleDates.map((date, dayIndex) => {
       const dateStr = dateToString(date);
       const isDateToday = dateStr === dateToString(new Date());

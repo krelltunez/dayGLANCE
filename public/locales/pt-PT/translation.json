@@ -2138,7 +2138,12 @@
     "encryptSwitch": "Cifrar neste dispositivo",
     "key": "Chave de sincronização",
     "keyReady": "pronta",
-    "keyNeeded": "em falta (introduza a frase-passe)"
+    "keyNeeded": "em falta (introduza a frase-passe)",
+    "conflictCopies": "Cópias em conflito",
+    "lastSweep": "Última limpeza",
+    "sweep": "Fundir e remover cópias",
+    "sweeping": "A fundir…",
+    "sweepCounts": "{{merged}} fundidas, {{removed}} removidas, {{left}} restantes"
   },
   "icloudFirstRun": {
     "title": "Dados encontrados no iCloud",
@@ -2191,7 +2196,18 @@
     "eventsForget": "Esquecer ficheiro de eventos",
     "eventsChosen": "Ficheiro de eventos: {{name}}",
     "eventsNotChosen": "Ficheiro de eventos: não escolhido neste dispositivo.",
-    "iosEventsHint": "Os intents viajam no glance-events.json, em GLANCE/events da pasta partilhada. Escolha o que os seus outros dispositivos criaram ou crie-o aí."
+    "iosEventsHint": "Os intents viajam no glance-events.json, em GLANCE/events da pasta partilhada. Escolha o que os seus outros dispositivos criaram ou crie-o aí.",
+    "removeEncryption": "Remover a cifra do ficheiro…",
+    "removeEncryptionConfirm": "Isto reescreve o ficheiro na pasta sem cifra, uma vez, e desliga o interruptor aqui. Desligue primeiro «Cifrar o ficheiro na pasta» nos seus outros dispositivos, ou o próximo a escrever volta a selá-lo.",
+    "removeEncryptionGo": "Remover a cifra",
+    "removeEncryptionOutcome": {
+      "removed": "Feito. O ficheiro voltou a estar sem cifra; cada dispositivo segue-o a partir da próxima leitura.",
+      "already-plaintext": "O ficheiro já está sem cifra. O interruptor está desligado aqui.",
+      "needs-key": "Este dispositivo não consegue abrir o ficheiro: {{detail}}",
+      "unavailable": "A pasta não está disponível neste momento. {{detail}}",
+      "write-failed": "Não foi possível escrever o ficheiro. Nada mudou.",
+      "no-file": "Ainda não há ficheiro na pasta."
+    }
   },
   "aspire": {
     "title": "Aspire",

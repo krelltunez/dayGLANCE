@@ -4,7 +4,8 @@
 // their widths, never their order. The balanced view, a choice in the date
 // header, gives each side half, both as cards, for comparing them.
 
-/** The narrow lane's width, and the phone timeline's hour gutter (MOBILE_HOUR_GUTTER_W). */
+/** The narrow lane's width, and the phone timeline's hour gutter (MOBILE_HOUR_GUTTER_W);
+    the upright tablet passes its own, HOUR_GUTTER_W, like its other views. */
 export const NARROW_LANE_PX = 44;
 export const HOUR_GUTTER_PX = 48;
 /** The divider between the sides: a blue line, wider than the hour lines. */
@@ -36,8 +37,8 @@ export const swapped = (swap, date, today) => ({ date, planWide: !planIsWide(swa
  * but the hour gutter, the divider and the narrow lane. Never negative on a
  * tiny screen.
  */
-export function laneWidths(total, planWide) {
-  const wide = Math.max(0, Math.round(total) - HOUR_GUTTER_PX - DIVIDER_PX - NARROW_LANE_PX);
+export function laneWidths(total, planWide, gutter = HOUR_GUTTER_PX) {
+  const wide = Math.max(0, Math.round(total) - gutter - DIVIDER_PX - NARROW_LANE_PX);
   return {
     wide,
     plan: planWide ? wide : NARROW_LANE_PX,
@@ -49,8 +50,8 @@ export function laneWidths(total, planWide) {
  * The two sides' widths in the balanced view: half each of what the gutter
  * and the divider leave, Plan taking the smaller half of an odd pixel.
  */
-export function balancedWidths(total) {
-  const room = Math.max(0, Math.round(total) - HOUR_GUTTER_PX - DIVIDER_PX);
+export function balancedWidths(total, gutter = HOUR_GUTTER_PX) {
+  const room = Math.max(0, Math.round(total) - gutter - DIVIDER_PX);
   const plan = Math.floor(room / 2);
   return { plan, do: room - plan };
 }

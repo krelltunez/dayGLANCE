@@ -2138,7 +2138,12 @@
     "encryptSwitch": "Auf diesem Gerät verschlüsseln",
     "key": "Sync-Schlüssel",
     "keyReady": "bereit",
-    "keyNeeded": "fehlt (Sync-Passphrase eingeben)"
+    "keyNeeded": "fehlt (Sync-Passphrase eingeben)",
+    "conflictCopies": "Konfliktkopien",
+    "lastSweep": "Letzter Durchlauf",
+    "sweep": "Kopien zusammenführen und entfernen",
+    "sweeping": "Wird zusammengeführt…",
+    "sweepCounts": "{{merged}} zusammengeführt, {{removed}} entfernt, {{left}} verbleibend"
   },
   "icloudFirstRun": {
     "title": "Daten in iCloud gefunden",
@@ -2191,7 +2196,18 @@
     "eventsForget": "Ereignisdatei vergessen",
     "eventsChosen": "Ereignisdatei: {{name}}",
     "eventsNotChosen": "Ereignisdatei: auf diesem Gerät nicht gewählt.",
-    "iosEventsHint": "Intents reisen in glance-events.json im Ordner GLANCE/events des geteilten Ordners. Wähle die Datei, die deine anderen Geräte angelegt haben, oder erstelle sie dort."
+    "iosEventsHint": "Intents reisen in glance-events.json im Ordner GLANCE/events des geteilten Ordners. Wähle die Datei, die deine anderen Geräte angelegt haben, oder erstelle sie dort.",
+    "removeEncryption": "Verschlüsselung der Datei entfernen…",
+    "removeEncryptionConfirm": "Dies schreibt die Datei im Ordner einmalig unverschlüsselt neu und schaltet den Schalter hier aus. Schalte zuerst „Datei im Ordner verschlüsseln“ auf deinen anderen Geräten aus, sonst versiegelt das nächste schreibende Gerät sie wieder.",
+    "removeEncryptionGo": "Verschlüsselung entfernen",
+    "removeEncryptionOutcome": {
+      "removed": "Erledigt. Die Datei ist wieder unverschlüsselt; jedes Gerät folgt ihr ab dem nächsten Lesen.",
+      "already-plaintext": "Die Datei ist bereits unverschlüsselt. Der Schalter ist hier aus.",
+      "needs-key": "Dieses Gerät kann die Datei nicht öffnen: {{detail}}",
+      "unavailable": "Der Ordner ist gerade nicht verfügbar. {{detail}}",
+      "write-failed": "Die Datei konnte nicht geschrieben werden. Nichts wurde geändert.",
+      "no-file": "Im Ordner gibt es noch keine Datei."
+    }
   },
   "aspire": {
     "title": "Aspire",

@@ -158,7 +158,7 @@ export async function syncSharedUsers(cloudSyncConfig, usersPath, localUsers) {
 }
 
 /** The roster's directory and file, relative to a folder root (no leading slash). */
-function relativeRosterPaths(usersPath) {
+export function relativeRosterPaths(usersPath) {
   const dirPath = (usersPath ?? DEFAULT_USERS_PATH).replace(/^\//, '').replace(/\/*$/, '') + '/';
   return { dirPath, filePath: dirPath + USERS_FILENAME };
 }

@@ -3,6 +3,7 @@ import { runSnapshotFileCycle } from '../sync/snapshotFileSync.js';
 import { mergeSyncData } from '../mergeSync.js';
 import { stripHealthSourcedLogs } from '../utils/healthLogFilter.js';
 import { decryptData, encryptData, isEncryptedEnvelope, hasEncryptionReady, getSyncPassphrase, initSessionKey } from '../utils/crypto.js';
+import { getDeviceId } from '../sync/deviceId.js';
 
 /**
  * Schedules snapshot-file sync (sync/snapshotFileSync.js) for one transport.
@@ -144,6 +145,7 @@ export default function useSnapshotFileSync({
           buildSyncPayload: ioRef.current.buildSyncPayload,
           applyEngineData: ioRef.current.applyEngineData,
           lastLocalEditAt: ioRef.current.lastLocalEditAt,
+          deviceId: ioRef.current.deviceId ?? getDeviceId,
           habits: ioRef.current.habits,
           syncRetentionDays: ioRef.current.syncRetentionDays,
           mergeSyncData,

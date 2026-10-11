@@ -5,6 +5,7 @@ import { runEventSetCycle, receiveEnvelope, withEventsLock, retentionMsFrom } fr
 import { INTENT_CONFIG_KEY } from './useIntentPoller.js';
 import { isTrayMode } from '../utils/trayMode.js';
 import { intentDrainAllowed } from './intentDrainGate.js';
+import { getDeviceId } from '../sync/deviceId.js';
 
 /**
  * Polls the Direct Access event set (intents/folderIntents.js) on the
@@ -47,6 +48,7 @@ export function useDirectAccessIntents(context, { transport = directAccessTransp
             storage: localStorage,
             retentionMs: retentionMsFrom(localStorage),
             eventsPath: config?.eventsPath,
+            deviceId: getDeviceId,
             receive: (raw) => receiveEnvelope(raw, contextRef.current),
           },
           state,

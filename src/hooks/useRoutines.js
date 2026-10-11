@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { dateToString } from '../utils/taskUtils.js';
+import { markBookkeepingChange } from '../utils/localEditStamp.js';
 
 // Local midnight (00:00:00) of the current day, as an ISO instant. This is the
 // moment routine completions "reset" each day, and the timestamp used to stamp
@@ -187,6 +188,9 @@ const useRoutines = ({ currentTime, onboardingProgress, setOnboardingProgress, h
       // same-chip re-placement made later today (handleRoutinesDone also
       // clears the tombstone on local re-add), so fresh placements still win.
       const midnightIso = startOfTodayIso();
+      // Every device does this at the same moment: not an edit made here
+      // (utils/localEditStamp.js), so the file tiers relay it from one device.
+      markBookkeepingChange();
       if (todayRoutines.length > 0) {
         const withCleared = rolloverRemovedTodayRoutineIds(removedTodayRoutineIds, todayRoutines, midnightIso);
         setRemovedTodayRoutineIds(withCleared);
