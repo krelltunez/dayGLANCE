@@ -14,6 +14,7 @@
 import { createVaultClient } from '@glance-apps/sync';
 import { defaultVaultFetch } from '../intents/dbIntentsTransport.js';
 import { adaptFetchForVaultClient } from '../intents/vaultIntentsSetup.js';
+import { defaultInspectProxyTrust, inspectPrivateAddress } from './proxyTrustPreflight.js';
 
 // Typed, DISTINCT outcomes. `ok: true` means the credentials are good enough to
 // save — that includes SALT_NOT_ESTABLISHED, which is a FRESH account before its
@@ -34,14 +35,6 @@ export const VAULT_TEST_OUTCOMES = {
   // permission prompt that clears it.
   BLOCKED_PRIVATE_ADDRESS: 'BLOCKED_PRIVATE_ADDRESS',
 };
-
-// The desktop proxy's private-address inspector, or null off desktop (where no
-// such block exists: the browser build and the mobile native HTTP bridge both
-// reach a private vault directly).
-const defaultInspectProxyTrust = () =>
-  (typeof window !== 'undefined' && window.electronAPI?.proxyTrust?.inspect)
-    ? (url) => window.electronAPI.proxyTrust.inspect(url)
-    : null;
 
 /**
  * Probe the vault with the entered credentials and classify the result.
@@ -70,25 +63,17 @@ export async function testVaultConnection(credentials = {}, opts = {}) {
   // refuse this URL before spending a request on it. Without this the guard's
   // synthetic 400 reached the user as "The vault rejected the request (status
   // 400)", which points at the wrong machine entirely (the vault never saw it).
-  const inspectProxyTrust = opts.inspectProxyTrust ?? defaultInspectProxyTrust();
-  if (inspectProxyTrust) {
-    try {
-      const verdict = await inspectProxyTrust(vaultUrl);
-      if (verdict?.blocked) {
-        return {
-          ok: false,
-          code: VAULT_TEST_OUTCOMES.BLOCKED_PRIVATE_ADDRESS,
-          message: verdict.canGrant
-            ? `${verdict.origin} is on a private network, so dayGLANCE needs your permission to connect to it.`
-            : `${verdict.origin} is a reserved address that dayGLANCE will not connect to.`,
-          canGrant: !!verdict.canGrant,
-          origin: verdict.origin,
-        };
-      }
-    } catch {
-      // The inspector is a diagnostic, never a gate. If it fails, fall through
-      // and let the real probe classify whatever happens.
-    }
+  const blocked = await inspectPrivateAddress(vaultUrl, opts.inspectProxyTrust ?? defaultInspectProxyTrust());
+  if (blocked) {
+    return {
+      ok: false,
+      code: VAULT_TEST_OUTCOMES.BLOCKED_PRIVATE_ADDRESS,
+      message: blocked.canGrant
+        ? `${blocked.origin} is on a private network, so dayGLANCE needs your permission to connect to it.`
+        : `${blocked.origin} is a reserved address that dayGLANCE will not connect to.`,
+      canGrant: blocked.canGrant,
+      origin: blocked.origin,
+    };
   }
 
   let client;
