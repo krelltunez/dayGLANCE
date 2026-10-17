@@ -1160,7 +1160,7 @@ const MobileGlanceSection = () => {
     const isDayDone = (todayAgenda.length > 0 && !agendaNowMarker.insideTask && agendaNowMarker.insertAfterIndex >= todayAgenda.length - 1) || todayAgenda.length === 0;
     const isEvening = currentTime.getHours() >= 19;
     if (!isDayDone && !isEvening) return null;
-    const { dayLabel, taskCount, eventCount, deadlineCount, firstStartTime, committedMinutes, isEmpty } = glanceAhead;
+    const { dayLabel, dateLabel, taskCount, eventCount, deadlineCount, firstStartTime, committedMinutes, isEmpty } = glanceAhead;
     const committedStr = committedMinutes > 0 ? formatDuration(committedMinutes, t) : null;
     // Device's next alarm clock (Android bridge; null everywhere else — iOS
     // has no API for Clock alarms). Read per render: this section re-renders
@@ -1189,7 +1189,7 @@ const MobileGlanceSection = () => {
         <div className={`text-xs font-semibold uppercase tracking-wide mb-2 ${textSecondary}`}>
           <span className="flex items-center gap-1.5">
             <span><span className="italic">GLANCE</span><span className="normal-case not-italic">ahead</span></span>
-            <span className="font-normal normal-case">— {dayLabel}</span>
+            <span className="font-normal normal-case">— {dateLabel || dayLabel}</span>
           </span>
         </div>
         {isEmpty ? (
@@ -1206,15 +1206,15 @@ const MobileGlanceSection = () => {
                 <span className={`text-sm ${textPrimary}`}>{t('app.dayStartsAt')} <span className="font-medium">{formatTime(firstStartTime)}</span></span>
               </div>
             )}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
               {taskCount > 0 && (
-                <span className={`text-sm ${textPrimary} flex items-center gap-1`}><CheckSquare size={12} className={textSecondary} />{t('glance.taskCount', { count: taskCount })}</span>
+                <span className={`text-sm ${textPrimary} flex items-center gap-2`}><CheckSquare size={13} className={textSecondary} />{t('glance.taskCount', { count: taskCount })}</span>
               )}
               {eventCount > 0 && (
-                <span className={`text-sm ${textPrimary} flex items-center gap-1`}><Calendar size={12} className={textSecondary} />{t('glance.eventCount', { count: eventCount })}</span>
+                <span className={`text-sm ${textPrimary} flex items-center gap-2`}><Calendar size={13} className={textSecondary} />{t('glance.eventCount', { count: eventCount })}</span>
               )}
               {deadlineCount > 0 && (
-                <span className={`text-sm font-medium ${darkMode ? 'text-orange-400' : 'text-orange-600'} flex items-center gap-1`}><AlertTriangle size={12} />{t('glance.deadlineCount', { count: deadlineCount })}</span>
+                <span className={`text-sm font-medium ${darkMode ? 'text-orange-400' : 'text-orange-600'} flex items-center gap-2`}><AlertTriangle size={13} />{t('glance.deadlineCount', { count: deadlineCount })}</span>
               )}
               {committedStr && (
                 <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>{t('glance.committedDuration', { duration: committedStr })}</span>
