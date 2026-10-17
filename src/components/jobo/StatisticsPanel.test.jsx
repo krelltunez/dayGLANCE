@@ -99,6 +99,16 @@ describe('Statistics panel with real reports', () => {
     expect(html).toMatch(/No Do recorded<\/dt><dd[^>]*>1<\/dd>/);
     expect(html).not.toContain('Not started');
   });
+
+  it('counts a skipped occurrence in the Overview and names how many', async () => {
+    const template = { id: 'tpl', title: 'Read', startTime: '11:00', duration: 30, recurrence: { type: 'daily', startDate: '2026-09-01' },
+      completedDates: [], exceptions: { [date]: { skipped: true, skip: { at: `${date}T09:00:00+02:00`, plan: { startTime: '11:00', duration: 30, isAllDay: false } } } } };
+    const { html } = await render('en', { buildReports: days => days.map(day => buildStatisticsDayReport({
+      date: day, records: [], recurringTasks: [template], now: { date: '2026-09-29', time: '12:00' } })) });
+    expect(html).toMatch(/data-statistics-skipped="true">\s*Skipped occurrences: 1\.</);
+    const none = await render('en');
+    expect(none.html).not.toContain('data-statistics-skipped');
+  });
 });
 
 // The phone's form (JOBO slice 8, step 3): the same tabs and figures, in a

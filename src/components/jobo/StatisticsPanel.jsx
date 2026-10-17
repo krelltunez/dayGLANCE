@@ -44,7 +44,7 @@ function Summary({ summary, textSecondary, borderClass }) {
         planned: mins(summary.stats.native.plannedMinutes),
         untimed: n(summary.stats.untimedCount),
         inferred: n(summary.stats.inferredCount),
-      })}</p>
+      })}{summary.stats.native.skipped > 0 && <span data-statistics-skipped>{` ${t('jobo.stats.skippedDetail', { count: summary.stats.native.skipped })}`}</span>}</p>
     </Section>
 
     <Section title={t('jobo.statistics.comparison')}>

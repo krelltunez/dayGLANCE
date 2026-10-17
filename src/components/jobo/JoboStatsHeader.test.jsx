@@ -102,6 +102,17 @@ describe('read-only JOBO date-header tiles', () => {
     expect(text(html)).toContain('Recorded time —');
   });
 
+  it('keeps a skipped occurrence in the native total and says so in its tooltip', async () => {
+    const template = { id: 'tpl', title: 'Read', startTime: '11:00', duration: 30, recurrence: { type: 'daily', startDate: '2026-09-01' },
+      completedDates: [], exceptions: { [date]: { skipped: true, skip: { at: stamp, plan: { startTime: '11:00', duration: 30, isAllDay: false } } } } };
+    const { html, resource } = await render({ planner: { recurringTasks: [template] } });
+    expect(text(html)).toContain('1 / 2');
+    const tile = html.match(/data-jobo-stat="native"[^>]*title="([^"]*)"/)[1];
+    expect(tile).toContain(resource.jobo.stats.skippedDetail.replace('{{count}}', '1'));
+    const plain = await render();
+    expect(plain.html.match(/data-jobo-stat="native"[^>]*title="([^"]*)"/)[1]).not.toContain(resource.jobo.stats.skippedDetail.split(':')[0]);
+  });
+
   it('uses the selected day and current task state, not a cached previous model', async () => {
     const tomorrow = new Date(2026, 8, 29, 12);
     const { html } = await render({ planner: { selectedDate: tomorrow } });

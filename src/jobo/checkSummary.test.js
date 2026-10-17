@@ -31,7 +31,7 @@ describe('Statistics seed from the existing day model', () => {
     const model = modelFor({ records: [record(), record({ id: 'r2', startTime: '09:40', endTime: '10:10' })] });
     const r = buildCheckSummary(model, { date });
     expect(r.stats).toEqual(summarizeJoboDayModel(model));
-    expect(r.stats.native).toEqual({ completed: 1, total: 1, plannedMinutes: 60 });
+    expect(r.stats.native).toEqual({ completed: 1, total: 1, plannedMinutes: 60, skipped: 0 });
     expect(r.stats.recordedMinutes).toBe(60);
     expect(r.rawMinutes).toBe(70);
     expect(r.overlapMinutes).toBe(10);

@@ -1,4 +1,5 @@
 import { buildCheckSummary, CHECK_PRIORITIES, groupSessionCount } from './checkSummary.js';
+import { skippedOccurrences } from './skipOccurrence.js';
 import { createJoboDayModelReader, buildJoboTaskResolver, projectJoboRecords, timedSliceOnDate } from './viewModel.js';
 import { completionMarker } from './completionMarker.js';
 import { validCivilDate } from './viewDates.js';
@@ -131,14 +132,17 @@ export function buildStatisticsReports({
     taskLookup: [...taskLookup, ...[...inputsByDate.values()].flatMap(input => input.occurrences)],
     recurringTasks, records, isVisibleForUser, dates,
   });
+  // A skip from the Check is evidence captured at the time, so every date
+  // reads its skipped occurrences (skipOccurrence.js); a move is still dropped.
   return dates.map(date => statisticsReportFromModel(readDay({
     date, tasks: inputsByDate.get(date).tasks, now,
-  }), { date, inboxTasks: inboxByDate.get(date) || [] }));
+  }), { date, inboxTasks: inboxByDate.get(date) || [], skips: skippedOccurrences(recurringTasks, date, { records, isVisibleForUser }) }));
 }
 
-export function statisticsReportFromModel(model, { date, inboxTasks = [], isVisibleForUser } = {}) {
+export function statisticsReportFromModel(model, { date, inboxTasks = [], isVisibleForUser, skips = [] } = {}) {
   const summary = buildCheckSummary(model, {
     date, inboxTasks: inboxTasks.filter(task => typeof isVisibleForUser !== 'function' || isVisibleForUser(task)),
+    skips,
   });
   if (!summary) return null;
   const items = [...new Map([...model.timedRecords, ...model.untimedRecords]
@@ -287,6 +291,7 @@ export function aggregateCheckSummaries(input = []) {
         completed: sum(reports.map((report) => report.stats?.native?.completed)),
         total: sum(reports.map((report) => report.stats?.native?.total)),
         plannedMinutes: sum(reports.map((report) => report.stats?.native?.plannedMinutes)),
+        skipped: sum(reports.map((report) => report.stats?.native?.skipped)),
       },
       recordedMinutes: exactSum(reports.map((report) => report.stats?.recordedMinutes)),
       untimedCount: sum(reports.map((report) => report.stats?.untimedCount)),

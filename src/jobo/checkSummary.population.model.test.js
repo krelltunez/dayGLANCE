@@ -30,7 +30,7 @@ describe('Check native and not-started populations use the same real day model',
     const { model, summary } = summarize({ tasks: [task(patch)] });
     expect(model.plans).toHaveLength(1);
     expect(model.plans[0].comparison.notStarted).toBe(true);
-    expect(summary.stats.native).toEqual({ completed: 0, total: 0, plannedMinutes: 0 });
+    expect(summary.stats.native).toEqual({ completed: 0, total: 0, plannedMinutes: 0, skipped: 0 });
     expect(priorityTotal(summary)).toBe(0);
     expect(summary.noDo).toBe(0);
   });
@@ -39,7 +39,7 @@ describe('Check native and not-started populations use the same real day model',
     const importedTask = task({ imported: true, isTaskCalendar: true });
     for (const [time, expected] of [['08:00', 0], ['12:00', 1]]) {
       const { summary } = summarize({ tasks: [importedTask], now: { date, time } });
-      expect(summary.stats.native).toEqual({ completed: 0, total: 1, plannedMinutes: 60 });
+      expect(summary.stats.native).toEqual({ completed: 0, total: 1, plannedMinutes: 60, skipped: 0 });
       expect(summary.priorities.high.total).toBe(1);
       expect(summary.noDo).toBe(expected);
     }
@@ -47,7 +47,7 @@ describe('Check native and not-started populations use the same real day model',
 
   it('counts each native task once even when its current plan is duplicated', () => {
     const { summary } = summarize({ tasks: [task(), task()] });
-    expect(summary.stats.native).toEqual({ completed: 0, total: 1, plannedMinutes: 60 });
+    expect(summary.stats.native).toEqual({ completed: 0, total: 1, plannedMinutes: 60, skipped: 0 });
     expect(priorityTotal(summary)).toBe(1);
     expect(summary.noDo).toBe(1);
   });
@@ -82,7 +82,7 @@ describe('Check native and not-started populations use the same real day model',
     const { model, summary } = summarize({ tasks: [task({ startTime: '11:00' })], records: [record()] });
     expect(model.plans).toHaveLength(2);
     expect(model.plans.filter(item => item.historical)).toHaveLength(1);
-    expect(summary.stats.native).toEqual({ completed: 0, total: 1, plannedMinutes: 60 });
+    expect(summary.stats.native).toEqual({ completed: 0, total: 1, plannedMinutes: 60, skipped: 0 });
     expect(priorityTotal(summary)).toBe(1);
     expect(summary.noDo).toBe(1);
     expect(summary.stats.recordedMinutes).toBe(60);
@@ -90,7 +90,7 @@ describe('Check native and not-started populations use the same real day model',
 
   it('keeps missing plan evidence separate from native task completion', () => {
     const { summary } = summarize({ tasks: [task({ completed: true })] });
-    expect(summary.stats.native).toEqual({ completed: 1, total: 1, plannedMinutes: 60 });
+    expect(summary.stats.native).toEqual({ completed: 1, total: 1, plannedMinutes: 60, skipped: 0 });
     expect(summary.noDo).toBe(1);
     expect(summary.doCount).toBe(0);
   });

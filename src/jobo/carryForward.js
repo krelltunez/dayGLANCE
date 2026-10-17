@@ -14,6 +14,7 @@ export const CARRY_ACTION = Object.freeze({
   MOVED: 'moved',
   SCHEDULE: 'schedule',
   MAKE_TASK: 'makeTask',
+  SKIP: 'skip',
   NONE: 'none',
 });
 
@@ -138,15 +139,22 @@ const dayMinute = (time) => {
 };
 
 /**
- * What a task in the Not started group offers. Nothing for a recurring
- * occurrence, which the next one carries on. Otherwise Continue to the day
+ * What a task in the Not started group offers. A recurring occurrence offers
+ * Skip on today's Check only (docs/jobo-skip-occurrence.md): today lists only
+ * timed occurrences whose plan has ended, while an all-day occurrence on a
+ * past day is read from the series' rule, which is no evidence to resolve it
+ * on. The next occurrence carries the work on either way. Otherwise Continue to the day
  * after today with its full duration, since nothing was recorded, and, for a
  * task of the app's own, moving it off the timeline or deleting it. A
  * task-calendar item belongs to its calendar, which a move or a delete here
  * would not reach, so it only continues.
  */
-export function notStartedAction(task, { today } = {}) {
-  if (!task || task.id == null || recurring(task)) return NONE;
+export function notStartedAction(task, { today, date } = {}) {
+  if (!task || task.id == null) return NONE;
+  if (recurring(task)) {
+    return task.recurringTemplateId != null && validCivilDate(today) && date === today && task.date === today
+      && task.isAllDay !== true ? { kind: CARRY_ACTION.SKIP, task } : NONE;
+  }
   const tomorrow = nextCivilDate(today);
   if (!tomorrow) return NONE;
   const own = !task.imported;
@@ -188,7 +196,7 @@ export function notStartedTasks(model, { date, today, entries = [], dayTasks = [
   }
   return [...found.values()]
     .sort((a, b) => a.startMinute - b.startMinute || String(a.task.title).localeCompare(String(b.task.title)) || (String(a.task.id) < String(b.task.id) ? -1 : 1))
-    .map(item => ({ ...item, id: String(item.task.id), recurring: recurring(item.task), action: notStartedAction(item.task, { today }) }));
+    .map(item => ({ ...item, id: String(item.task.id), recurring: recurring(item.task), action: notStartedAction(item.task, { today, date }) }));
 }
 
 /**

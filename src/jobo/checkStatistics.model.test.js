@@ -76,7 +76,7 @@ describe('statistics uses real day models and persisted evidence', () => {
     expect(expandRecurringTasks([template], { rangeStart: '2026-09-28', rangeEnd: '2026-10-04', today: now.date })
       .some(task => task.date === '2026-09-01')).toBe(false);
     const report = buildStatisticsDayReport({ date: '2026-09-01', recurringTasks: [template], now });
-    expect(report.stats.native).toEqual({ completed: 1, total: 1, plannedMinutes: 60 });
+    expect(report.stats.native).toEqual({ completed: 1, total: 1, plannedMinutes: 60, skipped: 0 });
   });
 
   it('retains saved completion if the current recurrence rule no longer names that day', () => {
@@ -92,7 +92,7 @@ describe('statistics uses real day models and persisted evidence', () => {
       endDate: '2026-09-01', endTime: '10:00', planSnapshot: { date: '2026-09-01', startTime: '09:00', duration: 60 },
     })] };
     const saved = buildStatisticsDayReport({ ...source, date: '2026-09-01' });
-    expect(saved.stats.native).toEqual({ completed: 0, total: 1, plannedMinutes: 60 });
+    expect(saved.stats.native).toEqual({ completed: 0, total: 1, plannedMinutes: 60, skipped: 0 });
     expect(saved.stats.recordedMinutes).toBe(60);
     const untouched = buildStatisticsDayReport({ ...source, date: '2026-09-02' });
     expect(untouched.stats.native.total).toBe(0);

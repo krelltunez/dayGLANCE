@@ -90,7 +90,7 @@ describe('range aggregation', () => {
       relations: { overlaps: 1, after: 1 }, withinPlan: 0, noDo: 2,
     });
     const value = aggregateCheckSummaries([report(), second]);
-    expect(value.stats.native).toEqual({ completed: 3, total: 5, plannedMinutes: 210 });
+    expect(value.stats.native).toEqual({ completed: 3, total: 5, plannedMinutes: 210, skipped: 0 });
     expect(value.stats.recordedMinutes).toBe(90);
     expect(value.stats.comparison.start).toEqual({ early: 1, onTime: 0, late: 1 });
     expect(value.stats.comparison.finish).toEqual({ early: 0, onTime: 1, late: 1 });

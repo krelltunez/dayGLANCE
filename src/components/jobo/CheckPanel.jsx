@@ -79,10 +79,11 @@ function EntryCarry({ entry, date, today, carry, outcome, setOutcome, undoable, 
 
 // One task in the Not started group (the addendum in
 // docs/jobo-carry-forward.md): planned for the day, never started. It offers
-// Continue, a move off the timeline and Delete, each the app's own action,
-// or nothing for a recurring occurrence. Once a task leaves the group (moved
-// or deleted), its row stays as the confirmation, with Undo while it is the
-// latest step.
+// Continue, a move off the timeline and Delete, each the app's own action.
+// A recurring occurrence offers Skip on today's Check only
+// (docs/jobo-skip-occurrence.md), or nothing. Once a task leaves the group
+// (moved, deleted or skipped), its row stays as the confirmation, with Undo
+// while it is the latest step.
 function NotStartedItem({ item, date, carry, outcome, setOutcome, undoable, onUndo, formatTime, language, textSecondary }) {
   const { t } = useTranslation();
   const { task, action } = item;
@@ -98,10 +99,18 @@ function NotStartedItem({ item, date, carry, outcome, setOutcome, undoable, onUn
     const text = outcome.kind === 'continued' ? t('jobo.check.continued', { slot: slotText(outcome.slot) })
       : outcome.kind === 'project' ? t('jobo.check.movedToProject')
       : outcome.kind === 'inbox' ? t('jobo.check.movedToInbox')
+      : outcome.kind === 'skipped' ? t('jobo.check.skipped')
       : t('jobo.check.deleted');
     body = <p role="status" data-check-carry={outcome.kind} className="text-xs flex flex-wrap items-center gap-x-2"><span>{text}</span>{undo}</p>;
   } else if (item.recurring) {
-    body = <p data-check-carry="recurring" className={`text-xs ${textSecondary}`}>{t('jobo.check.recurringNotStarted')}</p>;
+    const skip = carry?.skipTask && action.kind === CARRY_ACTION.SKIP;
+    body = <p data-check-carry="recurring" className="text-xs flex flex-wrap items-center gap-x-4 gap-y-1">
+      <span className={textSecondary}>{t('jobo.check.recurringNotStarted')}</span>
+      {skip && <button type="button" data-check-skip className={linkButton} aria-label={label(t('jobo.check.skip'))}
+        onClick={() => { if (carry.skipTask(task, date)?.skipped) setOutcome({ kind: 'skipped' }); }}>
+        {t('jobo.check.skip')}
+      </button>}
+    </p>;
   } else if (carry && action.kind === CARRY_ACTION.CONTINUE) {
     const clash = outcome?.kind === 'clash';
     const text = continueLabel(action.slot, t, slotText(action.slot));
@@ -141,6 +150,39 @@ function NotStartedItem({ item, date, carry, outcome, setOutcome, undoable, onUn
   </li>;
 }
 
+const SKIP_STATE_LABEL = { skipped: 'jobo.check.skipped', completed: 'jobo.check.completedLater', worked: 'jobo.check.workRecorded' };
+
+// One occurrence in the Skipped group (docs/jobo-skip-occurrence.md): the plan
+// frozen when it was skipped, what it is now, and Restore, which puts it back
+// on the timeline. A skip overtaken by later work keeps its row and Restore.
+function SkippedItem({ row, date, carry, outcome, setOutcome, undoable, onUndo, formatTime, language, textSecondary }) {
+  const { t } = useTranslation();
+  const color = taskColorToHex(row.color || 'bg-purple-500', row.nativeCalendarColor);
+  const planned = row.isAllDay ? t('task.allDay')
+    : journalPlanRange({ date: row.date, startTime: row.startTime, duration: Number(row.duration) }, date, formatTime, language);
+  const body = outcome?.kind === 'restored'
+    ? <p role="status" data-check-carry="restored" className="text-xs flex flex-wrap items-center gap-x-2">
+      <span>{t('jobo.check.restored')}</span>
+      {undoable && onUndo && <button type="button" data-check-undo onClick={onUndo} className={linkButton}>{t('shortcuts.undoAction')}</button>}
+    </p>
+    : <p data-check-carry="skipped" className="text-xs flex flex-wrap items-center gap-x-4 gap-y-1">
+      <span data-check-skip-state={row.skipState} className={textSecondary}>{t(SKIP_STATE_LABEL[row.skipState] || SKIP_STATE_LABEL.skipped)}</span>
+      {carry?.restoreSkip && <button type="button" data-check-restore className={linkButton}
+        aria-label={`${t('jobo.check.restore')}: ${stripWikilinks(row.title)}`}
+        onClick={() => { if (carry.restoreSkip(row)?.restored) setOutcome({ kind: 'restored' }); }}>
+        {t('jobo.check.restore')}
+      </button>}
+    </p>;
+  return <li data-check-skipped={row.id} className="py-3 first:pt-0 last:pb-0 space-y-1 min-w-0">
+    <div className="flex items-start gap-2 min-w-0">
+      <span aria-hidden="true" data-check-swatch className="mt-1 h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+      <h4 className="font-semibold min-w-0 break-words">{renderTitleWithoutTags(row.title)}</h4>
+    </div>
+    <p data-check-plan className={`text-xs ${textSecondary}`}>{planned}</p>
+    {body}
+  </li>;
+}
+
 // The journal reads existing executions. Its actions are navigation to the
 // task's native notes and, with `carry`, the task actions above; it never
 // edits a Do.
@@ -159,16 +201,27 @@ export function CheckJournal({ model, date, loaded, error, onOpenNotes, formatTi
   // latest step can be undone from here: the app's undo takes the newest one.
   const [outcomes, setOutcomes] = useState({});
   const [notStartedOutcomes, setNotStartedOutcomes] = useState({});
+  const [skippedOutcomes, setSkippedOutcomes] = useState({});
   const [lastAction, setLastAction] = useState(null);
+  // Occurrences skipped on this date, read from the series as they stand.
+  const skips = entries && carry?.skippedOn ? carry.skippedOn(date) : [];
   if (error) return <p role="alert">{t('jobo.check.unavailable')}</p>;
   if (!entries) return <p role="status">{t('common.loading')}</p>;
   const invalid = model.invalidRecordCount > 0;
   // A task moved or deleted leaves the group; its row stays as the
   // confirmation, where it was, until the next action.
+  // A skip or a restore moves an occurrence between the two groups; until the
+  // next step its confirmation stands in the group it left, and only there.
   const present = new Set(notStarted.map(item => item.id));
-  const notStartedRows = [...notStarted, ...Object.values(notStartedOutcomes)
+  const restoredHere = new Set(Object.keys(skippedOutcomes));
+  const notStartedRows = [...notStarted.filter(item => !restoredHere.has(item.id)), ...Object.values(notStartedOutcomes)
     .filter(({ item, outcome }) => !present.has(item.id) && outcome.kind !== 'clash').map(({ item }) => item)]
     .sort((a, b) => a.startMinute - b.startMinute || String(a.task.title).localeCompare(String(b.task.title)));
+  const skippedHere = new Set(Object.entries(notStartedOutcomes).filter(([, value]) => value.outcome.kind === 'skipped').map(([id]) => id));
+  const skipIds = new Set(skips.map(row => String(row.id)));
+  const skippedRows = [...skips.filter(row => !skippedHere.has(String(row.id))), ...Object.values(skippedOutcomes)
+    .filter(({ row }) => !skipIds.has(String(row.id))).map(({ row }) => row)]
+    .sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')) || String(a.title).localeCompare(String(b.title)));
   return <article data-jobo-check-journal className="space-y-4 text-sm leading-relaxed break-words">
     {summary && <p role="status" data-check-next-steps={summary.pending} className={`text-xs font-medium ${summary.pending ? 'text-amber-700 dark:text-amber-400' : 'text-green-700 dark:text-green-400'}`}>
       {summary.pending ? t('jobo.check.pending', { count: summary.pending }) : t('jobo.check.allHandled')}
@@ -272,7 +325,24 @@ export function CheckJournal({ model, date, loaded, error, onOpenNotes, formatTi
               ...(outcome.kind === 'clash' ? prev : Object.fromEntries(Object.entries(prev).filter(([, value]) => value.outcome.kind === 'clash'))),
               [item.id]: { item, outcome },
             }));
-            if (outcome.kind !== 'clash') setLastAction(`task:${item.id}`);
+            if (outcome.kind !== 'clash') { setSkippedOutcomes({}); setLastAction(`task:${item.id}`); }
+          }} />)}
+      </ol>
+    </section>}
+    {skippedRows.length > 0 && <section data-check-skipped-group aria-labelledby={`${date}-skipped`} className="space-y-2">
+      <h3 id={`${date}-skipped`} className={`text-xs font-semibold uppercase tracking-wide ${textSecondary}`}>{t('jobo.check.skippedGroup')}</h3>
+      <ol className={`divide-y ${borderClass}`}>
+        {skippedRows.map(row => <SkippedItem key={row.id} {...{ row, date, formatTime, language, textSecondary }}
+          carry={carry} outcome={skippedOutcomes[row.id]?.outcome} undoable={lastAction === `skip:${row.id}`}
+          onUndo={onUndo && (() => {
+            onUndo();
+            setSkippedOutcomes(({ [row.id]: _, ...rest }) => rest);
+            setLastAction(null);
+          })}
+          setOutcome={outcome => {
+            setSkippedOutcomes({ [row.id]: { row, outcome } });
+            setNotStartedOutcomes(prev => Object.fromEntries(Object.entries(prev).filter(([, value]) => value.outcome.kind === 'clash')));
+            setLastAction(`skip:${row.id}`);
           }} />)}
       </ol>
     </section>}

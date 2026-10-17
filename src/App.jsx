@@ -1495,6 +1495,11 @@ const DayPlanner = () => {
     setTasks, setUnscheduledTasks, setRecycleBin, setRecurringTasks, setGtdFrames,
     playUISound, t,
   });
+  // The series as they stand now, for an undo step that must check the
+  // current state rather than the one its button saw (the Check's Skip).
+  const recurringTasksNowRef = useRef(recurringTasks);
+  recurringTasksNowRef.current = recurringTasks;
+  const readRecurringTasks = useCallback(() => recurringTasksNowRef.current, []);
 
   // Kept updated every render so the URL action handler reads the latest task state,
   // including tasks that loaded from persistence after the initial render.
@@ -8255,7 +8260,7 @@ const DayPlanner = () => {
     saveMobileEditTask, saveMobileEditNativeEvent,
 
     // ── Functions – undo / recycle bin ────────────────────────────────────────
-    pushUndo, performUndo, performRedo,
+    pushUndo, pushUndoAction, readRecurringTasks, performUndo, performRedo,
     confirmEmptyBin, emptyRecycleBin,
   };
 

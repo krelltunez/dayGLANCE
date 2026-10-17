@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { dateToString } from '../utils/taskUtils.js';
 import { getOccurrencesInRange } from '../utils/recurrenceEngine.js';
 import { notBucketed } from '../utils/bucketList.js';
+import { skipTotals, skippedOccurrences } from '../jobo/skipOccurrence.js';
 
 export default function useStats({ tasks: rawTasks, unscheduledTasks: rawUnscheduled, recurringTasks: rawRecurring, goals: rawGoals = [], projects: rawProjects = [], isVisibleForUser = () => true }) {
   const todayStr = dateToString(new Date());
@@ -39,11 +40,13 @@ export default function useStats({ tasks: rawTasks, unscheduledTasks: rawUnsched
       const occs = getOccurrencesInRange(t, t.recurrence?.startDate || todayStr, todayStr);
       const completedSet = new Set(t.completedDates || []);
       const completed = occs.filter(d => completedSet.has(d)).length;
+      // Skips from the Check are hidden by the engine but stay planned.
+      const skips = skipTotals(t, t.recurrence?.startDate || '0000-01-01', todayStr);
       return {
-        scheduled: acc.scheduled + occs.length,
-        completed: acc.completed + completed,
-        scheduledMinutes: acc.scheduledMinutes + occs.length * (t.duration || 0),
-        completedMinutes: acc.completedMinutes + completed * (t.duration || 0),
+        scheduled: acc.scheduled + occs.length + skips.count,
+        completed: acc.completed + completed + skips.completed,
+        scheduledMinutes: acc.scheduledMinutes + occs.length * (t.duration || 0) + skips.minutes,
+        completedMinutes: acc.completedMinutes + completed * (t.duration || 0) + skips.completedMinutes,
       };
     }, { scheduled: 0, completed: 0, scheduledMinutes: 0, completedMinutes: 0 });
     return {
@@ -73,9 +76,13 @@ export default function useStats({ tasks: rawTasks, unscheduledTasks: rawUnsched
     }));
   });
   const todayDeadlineInboxTasks = unscheduledTasks.filter(t => notBucketed(t) && t.deadline === actualTodayStr);
+  // Today's skips from the Check: hidden by the engine, still planned.
+  const todaySkippedInstances = skippedOccurrences(recurringTasks, actualTodayStr)
+    .map(({ id, title, date, startTime, duration, color, completed }) => ({ id, title, date, startTime, duration, color, completed, isRecurring: true }));
   const actualTodayTasks = [
     ...tasks.filter(t => t.date === actualTodayStr),
     ...todayRecurringInstances,
+    ...todaySkippedInstances,
     ...todayDeadlineInboxTasks,
   ];
   const actualTodayNonImportedTasks = actualTodayTasks.filter(t => !t.imported);
