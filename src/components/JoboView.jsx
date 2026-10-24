@@ -57,7 +57,7 @@ export const toggleDetails = (open, item, anchor) => (open?.item?.id === item.id
 export default function JoboView() {
   const { t } = useTranslation();
   const ctx = useDayPlannerCtx();
-  const { joboRecords, joboLoaded, joboWritable, joboError, reloadJobo, goalsProjectsEnabled, projects } = useFeaturesCtx();
+  const { joboRecords, joboLoaded, joboWritable, joboError, reloadJobo, goalsProjectsEnabled, projects, isVisibleForUser } = useFeaturesCtx();
 
   const [checkOpen, setCheckOpen] = useState(false);
   const [details, setDetails] = useState(null);
@@ -159,7 +159,10 @@ export default function JoboView() {
   };
   // Continue, Schedule…, Add follow-up and Make a task from the Check, through the app's
   // own task actions. Opening a form leaves the Check first, as notes do.
-  const carryActions = createCarryForwardActions({ ...ctx, projects: goalsProjectsEnabled ? projects : [] });
+  const carryActions = createCarryForwardActions({
+    ...ctx, t, projects: goalsProjectsEnabled ? projects : [],
+    joboRecords: Array.isArray(joboRecords) ? joboRecords : [], isVisibleForUser: ctx.isVisibleForUser || isVisibleForUser,
+  });
   const carry = {
     continueTask: carryActions.continueTask,
     editOn: (task, on) => { setCheckOpen(false); carryActions.editOn(task, on); },
@@ -168,6 +171,10 @@ export default function JoboView() {
     deleteTask: carryActions.deleteTask,
     // Absent while the app does not offer it (a read-only ledger).
     makeTask: carryActions.makeTask && ((record) => { setCheckOpen(false); carryActions.makeTask(record); }),
+    // Skip this occurrence: no form, so the Check stays open.
+    skipTask: carryActions.skipTask,
+    restoreSkip: carryActions.restoreSkip,
+    skippedOn: carryActions.skippedOn,
   };
   const canOpenCheckNotes = typeof ctx.handleSpotlightSelect === 'function'
     && typeof ctx.setExpandedNotesTaskId === 'function';

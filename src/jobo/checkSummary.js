@@ -1,7 +1,7 @@
 // Dormant seed for the separately proposed Statistics view (#1882 review).
 // The Check journal does not import this rollup. No records or writes owned here.
 import { comparePlanAnchors } from './core.js';
-import { isNativeJoboTask, summarizeJoboDayModel } from './dayStats.js';
+import { isNativeJoboTask, summarizeJoboDayModel, timedSkips } from './dayStats.js';
 import { notBucketed } from '../utils/bucketList.js';
 
 export const CHECK_PRIORITIES = ['high', 'medium', 'low', 'none', 'unknown'];
@@ -29,11 +29,13 @@ export function checkPriority(task) {
     ? ['none', 'low', 'medium', 'high'][value] : 'unknown';
 }
 
-export function buildCheckSummary(model, { date, inboxTasks = [] } = {}) {
+export function buildCheckSummary(model, { date, inboxTasks = [], skips = [] } = {}) {
   if (!model) return null;
-  const stats = summarizeJoboDayModel(model);
+  const stats = summarizeJoboDayModel(model, { skips });
   const clean = stats.invalidCount === 0;
-  const current = unique(model.plans.map(item => item.currentTask).filter(isNativeJoboTask), task => String(task.id));
+  // Skipped occurrences count in each priority's total as they do overall.
+  const current = unique([...model.plans.map(item => item.currentTask).filter(isNativeJoboTask), ...timedSkips(skips)],
+    task => String(task.id));
   const items = unique([...model.timedRecords, ...model.untimedRecords], item => item.id);
   const measured = model.timedRecords.filter(item => item.record.timingBasis !== 'planDuration');
   const dayGroups = unique(items, item => item.groupKey);

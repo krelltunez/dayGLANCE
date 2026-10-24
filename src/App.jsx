@@ -1517,6 +1517,11 @@ const DayPlanner = () => {
     setTasks, setUnscheduledTasks, setRecycleBin, setRecurringTasks, setGtdFrames,
     playUISound, t,
   });
+  // The series as they stand now, for an undo step that must check the
+  // current state rather than the one its button saw (the Check's Skip).
+  const recurringTasksNowRef = useRef(recurringTasks);
+  recurringTasksNowRef.current = recurringTasks;
+  const readRecurringTasks = useCallback(() => recurringTasksNowRef.current, []);
 
   // The tag manager (#2136): rename, merge or remove a tag on every task.
   const [showTagManager, setShowTagManager] = useState(false);
@@ -7860,7 +7865,7 @@ const DayPlanner = () => {
     saveMobileEditTask, saveMobileEditNativeEvent,
 
     // ── Functions – undo / recycle bin ────────────────────────────────────────
-    pushUndo, performUndo, performRedo,
+    pushUndo, pushUndoAction, readRecurringTasks, performUndo, performRedo,
     confirmEmptyBin, emptyRecycleBin,
   };
 

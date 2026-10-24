@@ -21,6 +21,7 @@
 import { getOccurrencesInRange } from './recurrenceEngine.js';
 import { notBucketed } from './bucketList.js';
 import { daysInMonth } from './monthGrid.js';
+import { skipTotals } from '../jobo/skipOccurrence.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 const minutes = (t) => Number(t.duration) || 0;
@@ -58,10 +59,12 @@ export function monthStats({ tasks = [], unscheduledTasks = [], recurringTasks =
     const occurrences = getOccurrencesInRange(template, start, to);
     const done = new Set(template.completedDates || []);
     const doneCount = occurrences.filter((d) => done.has(d)).length;
-    recurringScheduled += occurrences.length;
-    recurringCompleted += doneCount;
-    recurringPlanned += occurrences.length * minutes(template);
-    recurringSpent += doneCount * minutes(template);
+    // Skips from the Check are hidden by the engine but stay planned.
+    const skips = skipTotals(template, start, to);
+    recurringScheduled += occurrences.length + skips.count;
+    recurringCompleted += doneCount + skips.completed;
+    recurringPlanned += occurrences.length * minutes(template) + skips.minutes;
+    recurringSpent += doneCount * minutes(template) + skips.completedMinutes;
   }
 
   const dated = [...own, ...deadlines];

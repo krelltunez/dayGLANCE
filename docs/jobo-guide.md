@@ -196,11 +196,27 @@ there once its day has passed. A task of your own offers:
 - **Delete**, to the Recycle Bin.
 
 A task from a task calendar offers Continue only, since a move or a delete
-here would not reach its calendar. A recurring occurrence offers nothing: the
-next occurrence carries the work on.
+here would not reach its calendar.
 
-Continue and the Not started actions can be undone from the entry itself, and
-each is one step of the app's normal undo history. A follow-up or a task made
+A recurring occurrence is never moved or deleted from here: the next
+occurrence carries the work on. On today's Check, a timed occurrence whose
+planned time is over also offers **Skip this occurrence**, to say you
+decided not to do it today. It leaves the timeline and moves to the
+**Skipped** group. Skip changes that one date only, never the series. It is
+not offered on past days, or for an all-day occurrence.
+
+### Skipped
+
+**Skipped** lists the day's skipped occurrences, each with the plan it had
+when you skipped it. A later change to the series does not rewrite that plan.
+If you complete the occurrence after all, or record work against it, its row
+says **Completed later** or **Work recorded**. Every row offers **Restore**,
+which puts the occurrence back on the timeline as it was.
+
+Continue, Skip, Restore and the Not started actions can be undone from the
+entry itself, and each is one step of the app's normal undo history. Undoing
+a skip or a restore changes nothing if the occurrence has changed since, for
+example on another device. A follow-up or a task made
 from a Do is undone like any new task. The Check never changes the times or
 progress of your Do records; the only change it makes to one is the link that
 Make a task adds.
@@ -229,7 +245,13 @@ How the numbers are counted:
   or days the work took. Work against a different plan, for example after the
   task was moved to another day, is compared separately.
 - **Missed recurring occurrences** on past days are not counted: only
-  occurrences that were completed, changed, or have work recorded.
+  occurrences that were completed, changed, skipped, or have work recorded.
+- **A skipped occurrence counts as planned and not done,** so skipping never
+  raises a completion rate, here, in MONTH or in the daily summary. It is not
+  counted under No Do recorded or compared with its plan. The Scheduled tasks
+  tile's tooltip and the Overview say how many occurrences were skipped. One
+  completed after the skip counts as done. A restored occurrence keeps its
+  place in the past day's figures.
 
 ---
 
@@ -296,6 +318,10 @@ shows the desktop view.
   tasks.
 - **Shared households:** with multi-user on, JOBO shows only the work visible
   to you, as the rest of the app does.
+- **A skip is saved on the recurring series.** If one device skips an
+  occurrence while another edits the same series before they sync, the newer
+  change to the series is kept and the other is lost, as with any two edits
+  to the same series.
 
 ---
 

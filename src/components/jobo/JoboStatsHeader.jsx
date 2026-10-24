@@ -40,7 +40,11 @@ export default function JoboStatsHeader({ className = '' }) {
   // the only place they can be read below xl, where their tiles step aside.
   const rowTitle = `${scope}\n${t('jobo.stats.secondary', { finish: ratio(c.finish.late), longer: ratio(c.duration.longer) })}`;
   const tiles = [
-    ['native', CheckCircle, t('jobo.stats.native'), `${count(stats.native.completed)} / ${count(stats.native.total)}`, t('jobo.stats.nativeScope'), 'text-green-500', false],
+    // A skipped occurrence is in the total as not done; the tooltip says how
+    // many (docs/jobo-skip-occurrence.md).
+    ['native', CheckCircle, t('jobo.stats.native'), `${count(stats.native.completed)} / ${count(stats.native.total)}`,
+      stats.native.skipped > 0 ? `${t('jobo.stats.nativeScope')} ${t('jobo.stats.skippedDetail', { count: stats.native.skipped })}` : t('jobo.stats.nativeScope'),
+      'text-green-500', false],
     ['time', Clock, t('jobo.stats.recorded'), duration(stats.recordedMinutes), `${t('jobo.stats.timeScope')} ${t('jobo.stats.timeDetails', {
       planned: duration(stats.native.plannedMinutes), untimed: count(stats.untimedCount), inferred: count(stats.inferredCount),
     })}`, 'text-orange-400', false],

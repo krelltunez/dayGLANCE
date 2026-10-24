@@ -17,7 +17,7 @@ const summarize = (records = [], tasks = [task], extra = {}) => summarizeJoboDay
 describe('the five day-model headline dimensions', () => {
   it('uses native completion separately from Do progress and counts a captured group once', () => {
     const stats = summarize([row(), row({ id: 'do:t1:b', startTime: '09:40', endTime: '10:10' })]);
-    expect(stats.native).toEqual({ total: 1, completed: 1, plannedMinutes: 60 });
+    expect(stats.native).toEqual({ total: 1, completed: 1, plannedMinutes: 60, skipped: 0 });
     expect(stats.recordedMinutes).toBe(60); // 40 + 30 - 10, never 70
     expect(stats.comparison.comparableCount).toBe(1);
     expect(stats.comparison.start.late).toBe(1);

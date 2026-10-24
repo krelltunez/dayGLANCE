@@ -6,6 +6,7 @@ import { buildJoboDayModel } from '../jobo/viewModel.js';
 import { summarizeJoboDayModel } from '../jobo/dayStats.js';
 import { buildStatisticsReports, statisticsEvidenceDates, statisticsReportFromModel } from '../jobo/checkStatistics.js';
 import { weekViewDatesFor } from '../utils/weekViewDates.js';
+import { skippedOccurrences } from '../jobo/skipOccurrence.js';
 
 /**
  * What JOBO's statistics read for the selected date, shared by the desktop's
@@ -36,7 +37,12 @@ export default function useJoboStatistics({ open = false } = {}) {
     });
   }, [date, selectedDate, getTasksForDate, tasks, unscheduledTasks, expandedRecurringTasks, recurringTasks,
     joboLoaded, joboRecords, isVisibleForUser, nowDate, nowTime]);
-  const stats = useMemo(() => summarizeJoboDayModel(model), [model]);
+  // Occurrences skipped from the Check on this date: hidden by the engine, so
+  // not in the model, but still planned, so still in the denominator.
+  const skips = useMemo(() => (Array.isArray(joboRecords)
+    ? skippedOccurrences(recurringTasks, date, { records: joboRecords, isVisibleForUser }) : []),
+  [recurringTasks, date, joboRecords, isVisibleForUser]);
+  const stats = useMemo(() => summarizeJoboDayModel(model, { skips }), [model, skips]);
   const weekDates = useMemo(() => weekViewDatesFor({
     viewMode: 'week', selectedDate, weekViewMode: planner.weekViewMode,
     weekStartDay: planner.weekStartDay, today: new Date(`${nowDate}T12:00:00`),
@@ -51,12 +57,12 @@ export default function useJoboStatistics({ open = false } = {}) {
     // Wider scopes reconstruct only saved history, independently of whatever
     // recurrence dates App currently has expanded for its visible window.
     if (scope === 'day') return [statisticsReportFromModel(model, {
-      date: reportDates[0], inboxTasks: unscheduledTasks, isVisibleForUser,
+      date: reportDates[0], inboxTasks: unscheduledTasks, isVisibleForUser, skips,
     })];
     return buildStatisticsReports({
       dates: reportDates, tasks, inboxTasks: unscheduledTasks, recurringTasks,
       records: joboRecords, isVisibleForUser, now: { date: nowDate, time: nowTime },
     });
-  }, [joboLoaded, joboError, joboRecords, model, tasks, unscheduledTasks, recurringTasks, isVisibleForUser, nowDate, nowTime]);
+  }, [joboLoaded, joboError, joboRecords, model, skips, tasks, unscheduledTasks, recurringTasks, isVisibleForUser, nowDate, nowTime]);
   return { date, model, stats, weekDates, evidenceDates, buildReports, loaded: joboLoaded, error: joboError };
 }

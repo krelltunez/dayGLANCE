@@ -11,13 +11,24 @@ export function isNativeJoboTask(task) {
     && !(task.imported && !task.isTaskCalendar);
 }
 
-export function summarizeJoboDayModel(model) {
+// Timed occurrences skipped from the Check (skipOccurrence.js). The engine
+// hides them, so the day model has no plan for them; they join the native
+// population here with their frozen plan, never the comparisons.
+export const timedSkips = skips => (Array.isArray(skips) ? skips : []).filter(task => task && !task.isAllDay && task.startTime);
+
+export function summarizeJoboDayModel(model, { skips = [] } = {}) {
   if (!model) return null;
   const native = new Map();
   for (const item of model.plans) {
     const task = item.currentTask;
     if (!isNativeJoboTask(task)) continue;
     native.set(String(task.id), { task, minutes: Math.max(0, item.endMinute - item.startMinute) });
+  }
+  // A skip stays in the denominator as planned and not done (completed only
+  // if a completion arrived after it), so skipping never raises the rate.
+  const skipped = timedSkips(skips);
+  for (const task of skipped) {
+    if (!native.has(String(task.id))) native.set(String(task.id), { task, minutes: Math.max(0, Number(task.duration) || 0) });
   }
   const current = [...native.values()];
   const measured = model.timedRecords.filter(item => item.record.timingBasis !== 'planDuration');
@@ -49,6 +60,8 @@ export function summarizeJoboDayModel(model) {
       completed: current.filter(({ task }) => task.completed === true).length,
       total: current.length,
       plannedMinutes: current.reduce((sum, item) => sum + item.minutes, 0),
+      // Still skipped: no completion and no Do arrived after the skip.
+      skipped: skipped.filter(task => task.skipState === 'skipped').length,
     },
     // No measured intervals means unknown recorded duration, not zero activity.
     recordedMinutes: clean && measured.length ? recordedMinutes : null,

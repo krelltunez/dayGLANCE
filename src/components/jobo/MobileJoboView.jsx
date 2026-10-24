@@ -140,7 +140,7 @@ function DoBars({ items, date, hourPx, selectedTaskId, onTap, ctx, t }) {
 export default function MobileJoboView({ stickyHeaderRef, gutterW = HOUR_GUTTER_PX }) {
   const { t, i18n } = useTranslation();
   const ctx = useDayPlannerCtx();
-  const { joboLoaded, joboError, joboWritable, joboRecords, reloadJobo, goalsProjectsEnabled, projects } = useFeaturesCtx();
+  const { joboLoaded, joboError, joboWritable, joboRecords, reloadJobo, goalsProjectsEnabled, projects, isVisibleForUser } = useFeaturesCtx();
   // The timeline's hour as drawn (see PHONE_HOUR_PX), measured from its
   // second row: the first carries the grid's top border as well.
   const [hourPx, setHourPx] = useState(PHONE_HOUR_PX);
@@ -175,7 +175,10 @@ export default function MobileJoboView({ stickyHeaderRef, gutterW = HOUR_GUTTER_
   // The Check's next steps, through the app's own task actions. The sheet
   // stays open under the task form they may open, so closing the form comes
   // back to the Check.
-  const carry = createCarryForwardActions({ ...ctx, projects: goalsProjectsEnabled ? projects : [] });
+  const carry = createCarryForwardActions({
+    ...ctx, t, projects: goalsProjectsEnabled ? projects : [],
+    joboRecords: Array.isArray(joboRecords) ? joboRecords : [], isVisibleForUser: ctx.isVisibleForUser || isVisibleForUser,
+  });
 
   // Which side is wide: the default for the date until a swap, which holds
   // while the date does.

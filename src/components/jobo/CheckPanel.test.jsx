@@ -148,9 +148,10 @@ describe('Check reads as the execution journal from #1726 / #1882', () => {
       const check = bundle(lng).jobo.check;
       // Plural forms differ by language (pl and uk have four); compare their base.
       const base = [...new Set(Object.keys(check).map(key => key.replace(/_(zero|one|two|few|many|other)$/, '')))].sort();
-      expect(base).toEqual(['actual', 'allHandled', 'button', 'clash', 'clashUnnamed', 'continue', 'continueAllDay', 'continued',
-        'deleted', 'followUp', 'invalid', 'moveToProject', 'movedToInbox', 'movedToProject', 'next', 'noRecords', 'notStarted',
-        'pending', 'recurringNotStarted', 'schedule', 'session', 'title', 'unavailable', 'untimed']);
+      expect(base).toEqual(['actual', 'allHandled', 'button', 'clash', 'clashUnnamed', 'completedLater', 'continue', 'continueAllDay',
+        'continued', 'deleted', 'followUp', 'invalid', 'moveToProject', 'movedToInbox', 'movedToProject', 'next', 'noRecords',
+        'notStarted', 'pending', 'recurringNotStarted', 'restore', 'restoreRedone', 'restoreUndone', 'restored', 'schedule', 'session',
+        'skip', 'skipChanged', 'skipRedone', 'skipUndone', 'skipped', 'skippedGroup', 'title', 'unavailable', 'untimed', 'workRecorded']);
     }
     expect(bundle('en').jobo.check.noRecords).toBe('No executions recorded for this day.');
     expect(bundle('zh-CN').jobo.check.noRecords).toBe('当天暂无执行记录。');
@@ -247,6 +248,32 @@ describe('the Check reviews the whole plan: Not started and the summary line (ad
     expect(html).toContain('data-check-carry="recurring"');
     expect(text(html)).toContain(t('jobo.check.recurringNotStarted'));
     expect(html).not.toMatch(/data-check-(continue|unschedule|delete)/);
+  });
+  it.each(locales)('offers Skip for today\'s ended occurrence, and lists the day\'s skips with Restore, in %s', async lng => {
+    const occurrence = plain(`recurring-tpl-${today}`, { date: today, recurringTemplateId: 'tpl', isRecurring: true });
+    const model = buildJoboDayModel({ date: today, records: [], tasks: [occurrence], taskLookup: [occurrence], now: { date: today, time: '18:00' } });
+    const skipRow = (id, skipState, startTime) => ({ ...plain(`recurring-${id}-${today}`, { date: today, startTime, recurringTemplateId: id, isRecurring: true }),
+      skippedAt: 'at', skipState });
+    const skippedOn = vi.fn(() => [skipRow('a', 'skipped', '07:00'), skipRow('b', 'completed', '08:00'), skipRow('c', 'worked', '10:00')]);
+    const { html, t } = await render(lng, { model, date: today, today, dayTasks: [occurrence],
+      carry: { ...carry, skipTask: vi.fn(), restoreSkip: vi.fn(), skippedOn } });
+    expect(skippedOn).toHaveBeenCalledWith(today);
+    expect(html).toMatch(/data-check-not-started="recurring-tpl-2026-09-30"[^]*data-check-skip=/);
+    expect(html).toContain(`aria-label="${t('jobo.check.skip')}: recurring-tpl-2026-09-30"`);
+    expect(text(html)).toContain(t('jobo.check.skippedGroup'));
+    expect([...html.matchAll(/data-check-skipped="([^"]+)"/g)].map(m => m[1])).toEqual(['recurring-a-2026-09-30', 'recurring-b-2026-09-30', 'recurring-c-2026-09-30']);
+    expect([...html.matchAll(/data-check-skip-state="(\w+)"[^>]*>([^<]+)</g)].map(m => [m[1], m[2]])).toEqual([
+      ['skipped', t('jobo.check.skipped')], ['completed', t('jobo.check.completedLater')], ['worked', t('jobo.check.workRecorded')]]);
+    // Every row keeps Restore, overtaken or not, with its frozen plan.
+    expect(html.match(/data-check-restore/g)).toHaveLength(3);
+    expect(html).toContain('07:00–08:00');
+    expect(html).not.toMatch(/jobo\.check\.|\{\{|NaN|undefined/);
+  });
+  it('offers no Skip on a past day, and no Skipped group without skips', async () => {
+    const occurrence = plain('recurring-tpl-2026-09-28', { recurringTemplateId: 'tpl', isRecurring: true });
+    const { html } = await view([occurrence], [], 'en', { carry: { ...carry, skipTask: vi.fn(), restoreSkip: vi.fn(), skippedOn: () => [] } });
+    expect(html).toContain('data-check-carry="recurring"');
+    expect(html).not.toMatch(/data-check-skip=|data-check-skipped-group/);
   });
   it('shows an all-day task on a past day as all day', async () => {
     const { html, t } = await view([plain('offsite', { isAllDay: true, startTime: '00:00' })]);
