@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupInboxProjects, projectIdsOf, selectionState, toggleProjectGroup } from './inboxProjectGroups.js';
+import { groupInboxProjects, projectIdsOf, projectOptionGroups, selectionState, toggleProjectGroup } from './inboxProjectGroups.js';
 
 // #2232: the Inbox filter's projects by area and goal, and the goal/area chips.
 const areas = [{ id: 'a-work', name: 'Work' }, { id: 'a-home', name: 'Home' }, { id: 'a-empty', name: 'Empty' }];
@@ -74,5 +74,32 @@ describe('selecting a goal or an area', () => {
     expect(toggleProjectGroup(['p-roof'], ['p-api', 'p-docs'])).toEqual(['p-roof', 'p-api', 'p-docs']);
     expect(toggleProjectGroup(['p-roof', 'p-api'], ['p-api', 'p-docs'])).toEqual(['p-roof', 'p-api', 'p-docs']);
     expect(toggleProjectGroup(['p-docs', 'p-roof', 'p-api'], ['p-api', 'p-docs'])).toEqual(['p-roof']);
+  });
+});
+
+// #2250: the Day Dial's complication picker, a native <select>, lists
+// projects by goal too: one labelled group per goal, then the standalone ones.
+describe('projectOptionGroups', () => {
+  it('one group per goal, area and goal named, in the space\'s order, standalone last', () => {
+    const groups = projectOptionGroups({ projects, goals, areas });
+    expect(groups.map(g => [g.key, g.area, g.goal, g.standalone, g.projects.map(p => p.id)])).toEqual([
+      ['goal-g-ship', 'Work', 'Ship v6', false, ['p-api', 'p-docs']],
+      ['goal-g-house', 'Home', 'Fix the house', false, ['p-roof']],
+      ['goal-g-loose', null, 'Read more', false, ['p-books']],
+      ['goal-g-gone-area', null, 'Orphan goal', false, ['p-orphan']],
+      ['standalone', null, null, true, ['p-legacy', 'p-solo']],
+    ]);
+  });
+
+  it('lists what the caller says: the dial\'s active projects, and the one a corner already shows', () => {
+    const shown = 'p-done';
+    const isListed = (p) => (p.status ?? 'active') === 'active' || p.id === shown;
+    const ship = projectOptionGroups({ projects, goals, areas }, { isListed }).find(g => g.key === 'goal-g-ship');
+    // p-done is completed: listed only because a corner shows it, so it can be taken off.
+    expect(ship.projects.map(p => p.id)).toEqual(['p-api', 'p-docs', 'p-done']);
+  });
+
+  it('nothing to list, no groups', () => {
+    expect(projectOptionGroups({ projects: [], goals, areas })).toEqual([]);
   });
 });
