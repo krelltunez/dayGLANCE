@@ -196,7 +196,7 @@ const MobileLayout = () => {
     timelineScrolledAway, setTimelineScrolledAway,
     isToday, currentTimeMinutes, currentHour, currentTimeTop, showCurrentTimeLine,
     bgClass, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
-    colors, durationOptions,
+    colors,
     todayTasks, incompleteTodayTasks,
     filteredUnscheduledTasks, filteredTodayTasks,
     taskWidths,

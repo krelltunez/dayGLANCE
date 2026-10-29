@@ -12,6 +12,7 @@ import RecurrencePicker from './RecurrencePicker.jsx';
 import LastGlanceBadge from './LastGlanceBadge.jsx';
 import TaskDeadlineField from './TaskDeadlineField.jsx';
 import TaskModalNotes from './TaskModalNotes.jsx';
+import { DurationField, EndTimeField } from './TaskTimeFields.jsx';
 import TaskMetadataLine from './TaskMetadataLine.jsx';
 import { extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
 import { formatLocalizedDate } from '../utils/localeFormatting.js';
@@ -28,7 +29,7 @@ const DesktopNewTaskModal = () => {
     mobileEditIsInbox, setMobileEditIsInbox,
     selectedDate,
     cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg, colors,
-    durationOptions, formatTime,
+    formatTime, use24HourClock,
     showNewTaskDeadlinePicker, setShowNewTaskDeadlinePicker,
     showRecurrencePicker, setShowRecurrencePicker,
     showDatePicker, setShowDatePicker,
@@ -313,15 +314,11 @@ const DesktopNewTaskModal = () => {
                     {isBucketItem && (
                       <div>
                         <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.duration')}</label>
-                        <select
+                        <DurationField
                           value={newTask.duration}
-                          onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
+                          onChange={(duration) => setNewTask(prev => ({ ...prev, duration }))}
                           className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
-                        >
-                          {durationOptions.map(minutes => (
-                            <option key={minutes} value={minutes}>{t('common.minutesShort', { count: minutes, defaultValue: '{{count}} min' })}</option>
-                          ))}
-                        </select>
+                        />
                       </div>
                     )}
                     {!isBucketItem && (<>
@@ -481,9 +478,9 @@ const DesktopNewTaskModal = () => {
                         </div>
                       </div>
                     )}
-                    {/* Row 2: Time, Duration, All Day */}
+                    {/* Row 2: Start, End, Duration (#2249); All Day opens the next row */}
                     <div>
-                      <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.time')}</label>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>{t('common.start')}</label>
                       <button
                         type="button"
                         onClick={() => !newTask.isAllDay && !newTask.keepUnscheduled && setShowTimePicker(true)}
@@ -494,19 +491,24 @@ const DesktopNewTaskModal = () => {
                       </button>
                     </div>
                     <div>
+                      <label className={`block text-sm ${textSecondary} mb-1`}>{t('common.end')}</label>
+                      <EndTimeField
+                        startTime={newTask.startTime}
+                        duration={newTask.duration}
+                        onChange={(duration) => setNewTask(prev => ({ ...prev, duration }))}
+                        disabled={newTask.isAllDay || newTask.keepUnscheduled}
+                        formatTime={formatTime} darkMode={darkMode} isTablet={isTablet} use24HourClock={use24HourClock}
+                        className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                      />
+                    </div>
+                    <div>
                       <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.duration')}</label>
-                      <select
+                      <DurationField
                         value={newTask.duration}
-                        onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
+                        onChange={(duration) => setNewTask(prev => ({ ...prev, duration }))}
                         disabled={newTask.isAllDay || newTask.keepUnscheduled}
                         className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay || newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        {durationOptions.map(minutes => (
-                          <option key={minutes} value={minutes}>
-                            {t('common.minutesShort', { count: minutes, defaultValue: '{{count}} min' })}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </div>
                     <div>
                       <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.allDay')}</label>
