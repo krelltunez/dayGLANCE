@@ -78,8 +78,9 @@ class ReminderReceiver : BroadcastReceiver() {
             .setContentIntent(tapIntent)
             .setAutoCancel(true)
 
-        // Snooze 15m — available for all types except "end"
-        if (type != "end") {
+        // Snooze 15m — available for all types except "end" and early notice
+        // ("ahead30" … "ahead720", hours before the start: snoozing moves the task)
+        if (type != "end" && !type.startsWith("ahead")) {
             val snoozeIntent = Intent(context, NotificationActionReceiver::class.java).apply {
                 action = NotificationActionReceiver.ACTION_SNOOZE
                 putExtra(NotificationActionReceiver.EXTRA_NOTIF_ID, notifId)

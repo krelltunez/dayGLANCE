@@ -1539,6 +1539,7 @@
     "hyperGlanceSessions": "Сеанси hyperGLANCE",
     "sessionReminder": "Нагадування про сеанс",
     "beforeMinutes": "за {{count}} хв",
+    "startsIn": "Починається за {{duration}}",
     "before15": "Починається за 15 хвилин",
     "before10": "Починається за 10 хвилин",
     "before5": "Починається за 5 хвилин",

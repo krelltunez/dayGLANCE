@@ -228,7 +228,8 @@ final class NotificationBridge {
     }
 
     private func category(for type: String, isCalendarEvent: Bool) -> String {
-        let hasSnooze   = type != "end"
+        // No Snooze on early notice ("ahead30" … "ahead720"): snoozing moves the task.
+        let hasSnooze   = type != "end" && !type.hasPrefix("ahead")
         let hasComplete = (type == "start" || type == "end") && !isCalendarEvent
         switch (hasSnooze, hasComplete) {
         case (true,  true):  return Self.catSnoozeComplete

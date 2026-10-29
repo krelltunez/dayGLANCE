@@ -1482,6 +1482,7 @@
     "hyperGlanceSessions": "hyperGLANCE-Sitzungen",
     "sessionReminder": "Sitzungserinnerung",
     "beforeMinutes": "{{count}} Min. vorher",
+    "startsIn": "Beginnt in {{duration}}",
     "before15": "Beginnt in 15 Minuten",
     "before10": "Beginnt in 10 Minuten",
     "before5": "Beginnt in 5 Minuten",
