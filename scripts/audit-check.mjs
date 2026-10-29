@@ -43,8 +43,10 @@ const ACK = {
   // GHSA-rmxm-3fg6-px4f (@hono/node-server serveStatic decodes the path twice,
   // published 2026-10-28) is FIXED the same way: the override's floor is now
   // >=2.1.3. GHSA-3cmx-xjww-583x and GHSA-9jhj-wvmw-cfx5 (i18next-http-backend
-  // query injection through lng, and a protocol-relative URL from ns) are
-  // FIXED by its range moving to ^4.0.4; it is a direct dependency.
+  // query injection through lng, and a protocol-relative URL from ns) are gone
+  // with the package: it loaded translations over HTTP for one day in June
+  // 2026 (189a11f6), until they were bundled at build time (d7f1ebe6), and
+  // nothing has imported it since.
   //
   // The vite 5 dev-server advisories (GHSA-fx2h-pf6j-xcff, GHSA-4w7w-66w2-5vf9,
   // GHSA-rq7h-c2jc-7f22, GHSA-9jrq-w75r-8gcw), the launch-editor ones it pulled
