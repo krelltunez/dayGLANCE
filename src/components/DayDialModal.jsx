@@ -12,6 +12,7 @@ import {
   ALARM_FROM_OPTIONS, AMBIENT_DELAY_OPTIONS, loadAlarmPrefs, loadAmbientPrefs, loadDialLayers, saveAlarmPrefs, saveAmbientPrefs, saveDialLayers,
 } from '../utils/dialPrefs.js';
 import { dialAlarmMark } from '../utils/nextAlarm.js';
+import { projectOptionGroups } from '../utils/inboxProjectGroups.js';
 import DayDial from './DayDial.jsx';
 import Wordmark from './Wordmark.jsx';
 
@@ -90,7 +91,7 @@ const DayDialModal = () => {
   const {
     getDayWindow, dialFramesForDate, routinesEnabled, todayRoutines, routineCompletions, toggleRoutineCompletion,
     habitsEnabled, activeHabits, getTodayHabitCount, setHabitCount, incrementHabit,
-    goalsProjectsEnabled, projects,
+    goalsProjectsEnabled, projects, goals, areas,
     focusLog, focusModeAvailable, enterFocusMode,
   } = useFeaturesCtx();
 
@@ -902,18 +903,27 @@ const DayDialModal = () => {
                       ))}
                     </optgroup>
                   )}
-                  {goalsProjectsEnabled && (projects || []).length > 0 && (
-                    <optgroup label={t('dial.projects', 'Projects')}>
-                      {(projects || [])
-                        // A finished or shelved project is not something to
-                        // watch ride the face; one already on stays listed so
-                        // it can be taken off again.
-                        .filter((p) => p.status === 'active' || key === `project:${p.id}`)
-                        .map((project) => (
-                          <option key={project.id} value={`project:${project.id}`}>{project.title}</option>
-                        ))}
+                  {/* Projects by goal, as the Goals & Projects space orders them
+                      (#2250): one group per goal, "Area › Goal", then the
+                      standalone ones. A flat list of every project was
+                      unsearchable once there were many. A finished or shelved
+                      project is not something to watch ride the face; one
+                      already on stays listed so it can be taken off again. */}
+                  {goalsProjectsEnabled && projectOptionGroups(
+                    { projects: projects || [], goals: goals || [], areas: areas || [] },
+                    { isListed: (p) => p.status === 'active' || key === `project:${p.id}` },
+                  ).map((group) => (
+                    <optgroup
+                      key={group.key}
+                      label={group.standalone
+                        ? `${t('dial.projects', 'Projects')} · ${t('sched.standalone', 'Standalone')}`
+                        : group.area ? `${group.area} › ${group.goal}` : group.goal}
+                    >
+                      {group.projects.map((project) => (
+                        <option key={project.id} value={`project:${project.id}`}>{project.title}</option>
+                      ))}
                     </optgroup>
-                  )}
+                  ))}
                 </select>
               </label>
             ))}
