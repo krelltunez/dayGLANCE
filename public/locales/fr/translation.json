@@ -1477,6 +1477,7 @@
     "hyperGlanceSessions": "Sessions hyperGLANCE",
     "sessionReminder": "Rappel de session",
     "beforeMinutes": "{{count}} min avant",
+    "startsIn": "Commence dans {{duration}}",
     "before15": "Commence dans 15 minutes",
     "before10": "Commence dans 10 minutes",
     "before5": "Commence dans 5 minutes",

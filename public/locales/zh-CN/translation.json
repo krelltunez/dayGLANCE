@@ -1474,6 +1474,7 @@
     "hyperGlanceSessions": "hyperGLANCE 专注时段",
     "sessionReminder": "时段提醒",
     "beforeMinutes": "提前 {{count}} 分钟",
+    "startsIn": "{{duration}}后开始",
     "before15": "15 分钟后开始",
     "before10": "10 分钟后开始",
     "before5": "5 分钟后开始",

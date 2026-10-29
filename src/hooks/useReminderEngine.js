@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 // imports it before anything fires, so t() is always initialized at runtime.
 import i18n from 'i18next';
 import { dateToString, stripWikilinks } from '../utils/taskUtils.js';
+import { formatDuration } from '../utils/formatDuration.js';
 import { isNativeAndroid, isNativeApp, nativeShowNotification, nativeShowTaskNotification, nativeSyncReminders } from '../native.js';
 
 // The tray popup runs the same App tree — skip the reminder engine there so
@@ -28,8 +29,23 @@ const minutesToTime = (minutes) => {
 // switch, since the scheduling effect below re-runs and nativeSyncReminders
 // replaces the pending set.
 const REMINDER_TYPES = ['before15', 'before10', 'before5', 'start', 'end', 'morning'];
-const reminderMessage = (type) =>
-  i18n.t(REMINDER_TYPES.includes(type) ? `reminders.${type}` : 'reminders.fallback');
+
+// Longer lead times (#2249): 30 minutes to 12 hours before the start, each a
+// category setting `ahead<minutes>` and a reminder type of the same name. A
+// lead past midnight lands the day before the task, so the engine reads
+// today's and tomorrow's tasks (reminderPointsToday). These reminders are
+// early notice: they offer no Snooze, which on every platform pushes the task
+// itself 15 minutes later (useless hours ahead). The native sides tell them
+// apart by the `ahead` prefix (nativeReminderActions.test.js).
+export const LEAD_AHEAD_MINUTES = Object.freeze([30, 60, 120, 240, 480, 720]);
+export const isAheadReminder = (type) => typeof type === 'string' && type.startsWith('ahead');
+
+export const reminderMessage = (type) => {
+  if (isAheadReminder(type)) {
+    return i18n.t('reminders.startsIn', { duration: formatDuration(Number(type.slice('ahead'.length)), i18n.t.bind(i18n)) });
+  }
+  return i18n.t(REMINDER_TYPES.includes(type) ? `reminders.${type}` : 'reminders.fallback');
+};
 const hgUpNextBody = (session, minutes) =>
   session.taskCount > 0
     ? i18n.t('reminders.hgUpNextWithTasks', { title: session.title, count: session.taskCount, minutes })
@@ -53,12 +69,46 @@ const getReminderPoints = (task, catSettings, morningTime) => {
   const startMin = timeToMinutes(task.startTime);
   const endMin = startMin + (task.duration || 0);
   const points = [];
+  for (const minutes of LEAD_AHEAD_MINUTES) {
+    if (catSettings[`ahead${minutes}`]) points.push({ key: `a${minutes}-${task.id}`, triggerMin: startMin - minutes, type: `ahead${minutes}` });
+  }
   if (catSettings.before15) points.push({ key: `b15-${task.id}`, triggerMin: startMin - 15, type: 'before15' });
   if (catSettings.before10) points.push({ key: `b10-${task.id}`, triggerMin: startMin - 10, type: 'before10' });
   if (catSettings.before5) points.push({ key: `b5-${task.id}`, triggerMin: startMin - 5, type: 'before5' });
   if (catSettings.atStart) points.push({ key: `start-${task.id}`, triggerMin: startMin, type: 'start' });
   if (catSettings.atEnd) points.push({ key: `end-${task.id}`, triggerMin: endMin, type: 'end' });
-  return points.filter(p => p.triggerMin >= 0);
+  return points;
+};
+
+/**
+ * Every reminder that lands today, from today's tasks and tomorrow's (a lead
+ * past midnight lands the evening before), each as the minute of today it
+ * fires at. Before a task, it is measured from the task's own day: a point
+ * before midnight belongs to the day before, after it to the day after, so
+ * one never fires twice. Completed tasks remind of nothing.
+ *
+ * @returns {Array<{ key: string, type: string, minute: number, task: object }>}
+ */
+export function reminderPointsToday({ todayTasks = [], tomorrowTasks = [], reminderSettings }) {
+  const out = [];
+  const add = (task, dayOffset) => {
+    if (task.completed) return;
+    const catSettings = reminderSettings?.categories?.[getTaskCategory(task)];
+    if (!catSettings) return;
+    for (const point of getReminderPoints(task, catSettings, reminderSettings.morningReminderTime)) {
+      const minute = point.triggerMin + dayOffset * 1440;
+      if (minute >= 0 && minute < 1440) out.push({ key: point.key, type: point.type, minute, task });
+    }
+  };
+  todayTasks.forEach((task) => add(task, 0));
+  tomorrowTasks.forEach((task) => add(task, 1));
+  return out;
+}
+
+const tomorrowOf = (date) => {
+  const d = new Date(date);
+  d.setDate(d.getDate() + 1);
+  return dateToString(d);
 };
 
 export default function useReminderEngine({
@@ -206,35 +256,32 @@ export default function useReminderEngine({
       lastReminderDateRef.current = todayStr;
     }
 
-    // Gather all today's tasks
-    const todayRegular = tasks.filter(t => t.date === todayStr && isVisibleForUser(t));
-    const todayRecurring = expandedRecurringTasks.filter(t => t.date === todayStr && isVisibleForUser(t));
-    const allTodayTasks = [...todayRegular, ...todayRecurring];
+    // Today's tasks, and tomorrow's for a lead that lands this evening.
+    const onDay = (dateStr) => [
+      ...tasks.filter(t => t.date === dateStr && isVisibleForUser(t)),
+      ...expandedRecurringTasks.filter(t => t.date === dateStr && isVisibleForUser(t)),
+    ];
+    const points = reminderPointsToday({
+      todayTasks: onDay(todayStr), tomorrowTasks: onDay(tomorrowOf(currentTime)), reminderSettings,
+    });
 
     const newReminders = [];
-    for (const task of allTodayTasks) {
-      if (task.completed) continue;
-      const category = getTaskCategory(task);
-      const catSettings = reminderSettings.categories[category];
-      if (!catSettings) continue;
-      const points = getReminderPoints(task, catSettings, reminderSettings.morningReminderTime);
-      for (const point of points) {
-        if (firedRemindersRef.current.has(point.key)) continue;
-        // Fire if current time is within a 2-minute window of the trigger
-        if (nowMin >= point.triggerMin && nowMin < point.triggerMin + 2) {
-          firedRemindersRef.current.add(point.key);
-          newReminders.push({
-            id: `${point.key}-${Date.now()}`,
-            taskId: task.id,
-            taskTitle: stripWikilinks(task.title),
-            taskColor: task.color,
-            startTime: task.startTime || null,
-            message: reminderMessage(point.type),
-            type: point.type,
-            isCalendarEvent: task.imported && !task.isTaskCalendar,
-            firedAt: Date.now(),
-          });
-        }
+    for (const { task, ...point } of points) {
+      if (firedRemindersRef.current.has(point.key)) continue;
+      // Fire if current time is within a 2-minute window of the trigger
+      if (nowMin >= point.minute && nowMin < point.minute + 2) {
+        firedRemindersRef.current.add(point.key);
+        newReminders.push({
+          id: `${point.key}-${Date.now()}`,
+          taskId: task.id,
+          taskTitle: stripWikilinks(task.title),
+          taskColor: task.color,
+          startTime: task.startTime || null,
+          message: reminderMessage(point.type),
+          type: point.type,
+          isCalendarEvent: task.imported && !task.isTaskCalendar,
+          firedAt: Date.now(),
+        });
       }
     }
 
@@ -280,7 +327,8 @@ export default function useReminderEngine({
     const timer = setInterval(() => {
       const now = Date.now();
       setActiveReminders(prev => prev.filter(r => {
-        const ttl = dismissMs[r.type];
+        // Early notice (#2249) stays up as long as a 15-minute reminder does.
+        const ttl = dismissMs[r.type] ?? (isAheadReminder(r.type) ? 870000 : undefined);
         if (!ttl) return true; // morning (all-day) — keep until manually dismissed
         return now - r.firedAt < ttl;
       }));
@@ -303,31 +351,28 @@ export default function useReminderEngine({
 
     // ── Task reminders (only when globally enabled) ────────────────────────
     if (reminderSettings.enabled) {
-      const todayRegular = tasks.filter(t => t.date === todayStr && !t.completed && isVisibleForUser(t));
-      const todayRecurring = expandedRecurringTasks.filter(t => t.date === todayStr && isVisibleForUser(t));
-      const allTodayTasks = [...todayRegular, ...todayRecurring];
+      const onDay = (dateStr) => [
+        ...tasks.filter(t => t.date === dateStr && isVisibleForUser(t)),
+        ...expandedRecurringTasks.filter(t => t.date === dateStr && isVisibleForUser(t)),
+      ];
+      const points = reminderPointsToday({
+        todayTasks: onDay(todayStr), tomorrowTasks: onDay(tomorrowOf(new Date())), reminderSettings,
+      });
 
-      for (const task of allTodayTasks) {
-        if (task.completed) continue;
-        const category = getTaskCategory(task);
-        const catSettings = reminderSettings.categories?.[category];
-        if (!catSettings) continue;
-        const points = getReminderPoints(task, catSettings, reminderSettings.morningReminderTime);
-        for (const point of points) {
-          const triggerAtMillis = todayMidnight.getTime() + point.triggerMin * 60 * 1000;
-          if (triggerAtMillis <= now) continue;
-          futureReminders.push({
-            id: point.key,
-            taskId: String(task.id),
-            // Same rule as the foreground path's taskTitle above: a notification
-            // shade cannot open a note, so the [[wikilink]] goes.
-            title: stripWikilinks(task.title),
-            body: reminderMessage(point.type),
-            type: point.type,
-            isCalendarEvent: !!(task.imported && !task.isTaskCalendar),
-            triggerAtMillis,
-          });
-        }
+      for (const { task, ...point } of points) {
+        const triggerAtMillis = todayMidnight.getTime() + point.minute * 60 * 1000;
+        if (triggerAtMillis <= now) continue;
+        futureReminders.push({
+          id: point.key,
+          taskId: String(task.id),
+          // Same rule as the foreground path's taskTitle above: a notification
+          // shade cannot open a note, so the [[wikilink]] goes.
+          title: stripWikilinks(task.title),
+          body: reminderMessage(point.type),
+          type: point.type,
+          isCalendarEvent: !!(task.imported && !task.isTaskCalendar),
+          triggerAtMillis,
+        });
       }
     }
 

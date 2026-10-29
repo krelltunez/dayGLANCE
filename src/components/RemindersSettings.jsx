@@ -119,6 +119,14 @@ const RemindersSettings = () => {
                     <p className={`text-xs font-medium ${textSecondary} mb-1.5`}>{catLabel}</p>
                     <div className="flex gap-1.5 flex-wrap">
                       {[
+                        // Longer leads (#2249) land the day before for an
+                        // early task; useReminderEngine reads tomorrow too.
+                        ['ahead720', '-12h'],
+                        ['ahead480', '-8h'],
+                        ['ahead240', '-4h'],
+                        ['ahead120', '-2h'],
+                        ['ahead60', '-1h'],
+                        ['ahead30', '-30m'],
                         ['before15', '-15m'],
                         ['before10', '-10m'],
                         ['before5', '-5m'],

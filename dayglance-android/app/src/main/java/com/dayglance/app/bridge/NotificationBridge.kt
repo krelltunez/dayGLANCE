@@ -98,14 +98,15 @@ class NotificationBridge(private val context: Context) {
     /**
      * Shows a rich task reminder notification with action buttons mirroring the in-app toasts:
      *
-     *   Snooze 15m    — available for all types except "end"
+     *   Snooze 15m    — available for all types except "end" and "ahead…"
      *   Mark Complete — available for "start" and "end" types on non-calendar tasks
      *
      * @param reminderId     Unique reminder ID (e.g. "before5-task42-1741342000000")
      * @param taskId         Task ID used by the Complete action to update app state
      * @param title          Notification title (task name)
      * @param body           Notification body (e.g. "Starts in 5 minutes")
-     * @param type           Reminder type: before15 | before10 | before5 | start | end | morning
+     * @param type           Reminder type: before15 | before10 | before5 | start | end | morning,
+     *                       or ahead30 … ahead720 (early notice; no Snooze)
      * @param isCalendarEvent  If true, the Complete action is omitted (read-only calendar events)
      */
     @Suppress("UNUSED_PARAMETER")
@@ -133,8 +134,9 @@ class NotificationBridge(private val context: Context) {
             .setContentIntent(tapPendingIntent())
             .setAutoCancel(true)
 
-        // Snooze 15m — available for all types except "end"
-        if (type != "end") {
+        // Snooze 15m — available for all types except "end" and early notice
+        // ("ahead30" … "ahead720", hours before the start: snoozing moves the task)
+        if (type != "end" && !type.startsWith("ahead")) {
             builder.addAction(0, context.getString(R.string.notif_snooze),
                 snoozePendingIntent(notifId, taskId, title, body, type, isCalendarEvent))
         }
