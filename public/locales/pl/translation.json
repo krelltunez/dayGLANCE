@@ -882,6 +882,8 @@
     "nowScheduled": "Teraz",
     "estimating": "Szacowanie...",
     "allDay": "Cały dzień",
+    "typeTime": "Wpisz godzinę",
+    "useClock": "Użyj zegara",
     "noTime": "Bez godziny",
     "repeat": "Powtarzaj",
     "repeatOn": "Powtarzaj w",

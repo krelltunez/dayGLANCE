@@ -859,6 +859,8 @@
     "nowScheduled": "Maintenant",
     "estimating": "Estimation en cours…",
     "allDay": "Toute la journée",
+    "typeTime": "Saisir l’heure",
+    "useClock": "Utiliser l’horloge",
     "noTime": "Sans heure",
     "repeat": "Répéter",
     "repeatOn": "Répéter le",
