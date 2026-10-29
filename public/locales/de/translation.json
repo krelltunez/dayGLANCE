@@ -859,6 +859,8 @@
     "nowScheduled": "Jetzt",
     "estimating": "Wird geschätzt…",
     "allDay": "Ganztägig",
+    "typeTime": "Uhrzeit eingeben",
+    "useClock": "Uhr verwenden",
     "noTime": "Keine Zeit",
     "repeat": "Wiederholen",
     "repeatOn": "Wiederholen am",

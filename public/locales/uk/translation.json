@@ -886,6 +886,8 @@
     "nowScheduled": "Зараз",
     "estimating": "Оцінювання...",
     "allDay": "Весь день",
+    "typeTime": "Ввести час",
+    "useClock": "Використати годинник",
     "noTime": "Без часу",
     "repeat": "Повтор",
     "repeatOn": "Повторювати в",

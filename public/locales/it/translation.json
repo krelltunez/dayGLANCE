@@ -859,6 +859,8 @@
     "nowScheduled": "Ora",
     "estimating": "Stima in corso…",
     "allDay": "Tutto il giorno",
+    "typeTime": "Digita l’ora",
+    "useClock": "Usa l’orologio",
     "noTime": "Nessuna ora",
     "repeat": "Ripeti",
     "repeatOn": "Ripeti di",

@@ -859,6 +859,8 @@
     "nowScheduled": "现在",
     "estimating": "正在估算…",
     "allDay": "全天",
+    "typeTime": "输入时间",
+    "useClock": "使用表盘",
     "noTime": "未设置时间",
     "repeat": "重复",
     "repeatOn": "重复日期",

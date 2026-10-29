@@ -859,6 +859,8 @@
     "nowScheduled": "Now",
     "estimating": "Estimating...",
     "allDay": "All Day",
+    "typeTime": "Type the time",
+    "useClock": "Use the clock",
     "noTime": "No time",
     "repeat": "Repeat",
     "repeatOn": "Repeat on",
