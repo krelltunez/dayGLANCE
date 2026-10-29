@@ -87,6 +87,21 @@ describe('buildLauncherSnapshot', () => {
     expect(buildLauncherSnapshot(base({ carryDeviceEvents: true })).carryDeviceEvents).toBe(true);
   });
 
+  it('sends projects in the order the Goals & Projects space draws them', () => {
+    const projects = [
+      { id: 'never-dragged', title: 'New', goalId: 'g1' },
+      { id: 'g1-second', title: 'B', goalId: 'g1', sortOrder: 10 },
+      { id: 'solo-second', title: 'Y', sortOrder: 10 },
+      { id: 'g1-first', title: 'A', goalId: 'g1', sortOrder: 0 },
+      { id: 'solo-first', title: 'X', sortOrder: 0 },
+      { id: 'solo-new', title: 'Z' },
+    ];
+    const rows = buildLauncherSnapshot(base({ goals: [{ id: 'g1', title: 'Fitness' }], projects })).projects;
+    const ids = (pick) => rows.filter(pick).map(p => p.id);
+    expect(ids(p => p.goalId === 'g1')).toEqual(['g1-first', 'g1-second', 'never-dragged']);
+    expect(ids(p => !p.goalId)).toEqual(['solo-first', 'solo-second', 'solo-new']);
+  });
+
   it('lists goals and projects only while the feature is on', () => {
     const goals = [{ id: 'g1', title: 'Half marathon', color: 'bg-green-500', targetDate: '2027-01-10', status: 'active' }];
     const projects = [{ id: 'p1', title: 'Base', goalId: 'g1', color: 'bg-green-500' }];
