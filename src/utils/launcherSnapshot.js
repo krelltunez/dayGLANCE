@@ -14,6 +14,7 @@ import { deriveBlockEnergy } from './energyAxis.js';
 import { getSunTimes } from './solar.js';
 import { dateToString } from './taskUtils.js';
 import { computeAvailableSlots } from './dayOccupancy.js';
+import { sortProjectsByOrder } from './projectOrder.js';
 
 export const LAUNCHER_SNAPSHOT_VERSION = 1;
 
@@ -184,8 +185,11 @@ export function buildLauncherSnapshot({
       colorHex: taskColorToHex(g.color), targetDate: g.targetDate || null, status: g.status || 'active',
     }))
     : [];
+  // In the order the Goals & Projects space draws them (sortProjectsByOrder):
+  // the launcher lists them as sent. One stable sort over every project keeps
+  // each group's own order, since sortOrder is numbered per group.
   const projectRows = goalsProjectsEnabled
-    ? projects.map(p => ({
+    ? sortProjectsByOrder(projects).map(p => ({
       id: String(p.id), title: p.title || '', goalId: p.goalId || null,
       colorHex: taskColorToHex(p.color), description: p.description || '', status: p.status || 'active',
       // The project's own target date (#2160), the same field and form a goal
