@@ -10,6 +10,7 @@ import QuickAddChips from './QuickAddChips.jsx';
 import TaskProjectField from './TaskProjectField.jsx';
 import RecurrencePicker from './RecurrencePicker.jsx';
 import TaskModalNotes from './TaskModalNotes.jsx';
+import { DurationField, EndTimeField } from './TaskTimeFields.jsx';
 import TaskMetadataLine from './TaskMetadataLine.jsx';
 import TaskDeadlineField from './TaskDeadlineField.jsx';
 import { extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
@@ -33,7 +34,7 @@ const MobileNewTaskModal = () => {
     mobileEditingNativeEvent, setMobileEditingNativeEvent,
     selectedDate,
     cardBg, borderClass, textPrimary, textSecondary, darkMode, hoverBg, colors,
-    durationOptions, formatTime,
+    formatTime, isTablet, use24HourClock,
     showNewTaskDeadlinePicker, setShowNewTaskDeadlinePicker,
     showRecurrencePicker, setShowRecurrencePicker,
     setShowDatePicker, setShowTimePicker, setShowRecurrenceEndDatePicker,
@@ -282,15 +283,11 @@ const MobileNewTaskModal = () => {
                   </>)}
                   <div className="col-span-2">
                     <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.duration')}</label>
-                    <select
+                    <DurationField
                       value={newTask.duration}
-                      onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
+                      onChange={(duration) => setNewTask(prev => ({ ...prev, duration }))}
                       className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-stone-900'}`}
-                    >
-                      {durationOptions.map(minutes => (
-                        <option key={minutes} value={minutes}>{t('common.minutesShort', { count: minutes })}</option>
-                      ))}
-                    </select>
+                    />
                   </div>
                 </div>
               ) : (
@@ -313,7 +310,16 @@ const MobileNewTaskModal = () => {
                     })()}
                   </div>
                   <div>
-                    <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.time')}</label>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.allDay')}</label>
+                    <label className={`flex items-center h-10 ${newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`} onClick={(e) => { e.preventDefault(); !newTask.keepUnscheduled && setNewTask(prev => ({ ...prev, isAllDay: !prev.isAllDay })); }}>
+                      <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-stone-300'}`}>
+                        {newTask.isAllDay && <Check size={14} className="text-white" strokeWidth={3} />}
+                      </div>
+                      <span className={`ml-2 text-sm ${textPrimary}`}>{t('task.allDay')}</span>
+                    </label>
+                  </div>
+                  <div>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>{t('common.start')}</label>
                     <button
                       type="button"
                       onClick={() => !newTask.isAllDay && !newTask.keepUnscheduled && setShowTimePicker(true)}
@@ -323,27 +329,26 @@ const MobileNewTaskModal = () => {
                       {newTask.isAllDay ? t('task.allDay') : formatTime(newTask.startTime)}
                     </button>
                   </div>
+                  {/* #2249: the end, beside the start; choosing it sets the duration. */}
                   <div>
-                    <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.duration')}</label>
-                    <select
-                      value={newTask.duration}
-                      onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
+                    <label className={`block text-sm ${textSecondary} mb-1`}>{t('common.end')}</label>
+                    <EndTimeField
+                      startTime={newTask.startTime}
+                      duration={newTask.duration}
+                      onChange={(duration) => setNewTask(prev => ({ ...prev, duration }))}
                       disabled={newTask.isAllDay || newTask.keepUnscheduled}
-                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay || newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      {durationOptions.map(minutes => (
-                        <option key={minutes} value={minutes}>{t('common.minutesShort', { count: minutes })}</option>
-                      ))}
-                    </select>
+                      formatTime={formatTime} darkMode={darkMode} isTablet={isTablet} use24HourClock={use24HourClock}
+                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                    />
                   </div>
                   <div>
-                    <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.allDay')}</label>
-                    <label className={`flex items-center h-10 ${newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`} onClick={(e) => { e.preventDefault(); !newTask.keepUnscheduled && setNewTask(prev => ({ ...prev, isAllDay: !prev.isAllDay })); }}>
-                      <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-stone-300'}`}>
-                        {newTask.isAllDay && <Check size={14} className="text-white" strokeWidth={3} />}
-                      </div>
-                      <span className={`ml-2 text-sm ${textPrimary}`}>{t('task.allDay')}</span>
-                    </label>
+                    <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.duration')}</label>
+                    <DurationField
+                      value={newTask.duration}
+                      onChange={(duration) => setNewTask(prev => ({ ...prev, duration }))}
+                      disabled={newTask.isAllDay || newTask.keepUnscheduled}
+                      className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay || newTask.keepUnscheduled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    />
                   </div>
                   {/* Shows only when the task stays unscheduled (a project
                       task kept in the inbox) and never for a series: a
@@ -578,7 +583,7 @@ const MobileNewTaskModal = () => {
                 </div>
               </div>
 
-              {/* Date / Time / Duration / All Day */}
+              {/* Date / All Day / Start / End / Duration (#2249) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.date')}</label>
@@ -591,7 +596,16 @@ const MobileNewTaskModal = () => {
                   </button>
                 </div>
                 <div>
-                  <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.time')}</label>
+                  <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.allDay')}</label>
+                  <label className="flex items-center h-10 cursor-pointer" onClick={(e) => { e.preventDefault(); setNewTask(prev => ({ ...prev, isAllDay: !prev.isAllDay })); }}>
+                    <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-stone-300'}`}>
+                      {newTask.isAllDay && <Check size={14} className="text-white" strokeWidth={3} />}
+                    </div>
+                    <span className={`ml-2 text-sm ${textPrimary}`}>{t('task.allDay')}</span>
+                  </label>
+                </div>
+                <div>
+                  <label className={`block text-sm ${textSecondary} mb-1`}>{t('common.start')}</label>
                   <button
                     type="button"
                     onClick={() => !newTask.isAllDay && setShowTimePicker(true)}
@@ -602,26 +616,24 @@ const MobileNewTaskModal = () => {
                   </button>
                 </div>
                 <div>
-                  <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.duration')}</label>
-                  <select
-                    value={newTask.duration}
-                    onChange={(e) => setNewTask({ ...newTask, duration: parseInt(e.target.value) })}
+                  <label className={`block text-sm ${textSecondary} mb-1`}>{t('common.end')}</label>
+                  <EndTimeField
+                    startTime={newTask.startTime}
+                    duration={newTask.duration}
+                    onChange={(duration) => setNewTask(prev => ({ ...prev, duration }))}
                     disabled={newTask.isAllDay}
-                    className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50' : ''}`}
-                  >
-                    {durationOptions.map(minutes => (
-                      <option key={minutes} value={minutes}>{t('common.minutesShort', { count: minutes })}</option>
-                    ))}
-                  </select>
+                    formatTime={formatTime} darkMode={darkMode} isTablet={isTablet} use24HourClock={use24HourClock}
+                    className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-left text-sm ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'}`}
+                  />
                 </div>
                 <div>
-                  <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.allDay')}</label>
-                  <label className="flex items-center h-10 cursor-pointer" onClick={(e) => { e.preventDefault(); setNewTask(prev => ({ ...prev, isAllDay: !prev.isAllDay })); }}>
-                    <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${newTask.isAllDay ? 'bg-blue-600 border-blue-600' : darkMode ? 'border-gray-500' : 'border-stone-300'}`}>
-                      {newTask.isAllDay && <Check size={14} className="text-white" strokeWidth={3} />}
-                    </div>
-                    <span className={`ml-2 text-sm ${textPrimary}`}>{t('task.allDay')}</span>
-                  </label>
+                  <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.duration')}</label>
+                  <DurationField
+                    value={newTask.duration}
+                    onChange={(duration) => setNewTask(prev => ({ ...prev, duration }))}
+                    disabled={newTask.isAllDay}
+                    className={`w-full px-3 py-2 border ${borderClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white'} ${newTask.isAllDay ? 'opacity-50' : ''}`}
+                  />
                 </div>
               </div>
 

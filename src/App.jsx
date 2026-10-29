@@ -1996,7 +1996,6 @@ const DayPlanner = () => {
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const firstHour = 0; // Always start at midnight for positioning
   const colors = TASK_COLORS;
-  const durationOptions = [15, 30, 45, 60, 90, 120];
 
   // Try to lock orientation to portrait on phones (works for installed PWAs)
   useEffect(() => {
@@ -7279,7 +7278,7 @@ const DayPlanner = () => {
     // ── Computed / derived values ─────────────────────────────────────────────
     isToday, currentTimeMinutes, currentHour, currentTimeTop, showCurrentTimeLine,
     bgClass, cardBg, borderClass, textPrimary, textSecondary, hoverBg,
-    colors, durationOptions,
+    colors,
     todayTasks, incompleteTodayTasks,
     filteredUnscheduledTasks, filteredTodayTasks,
     taskWidths,
