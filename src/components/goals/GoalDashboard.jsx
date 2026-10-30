@@ -56,6 +56,8 @@ import { useTranslation } from 'react-i18next';
 import GoalProgress from './GoalProgress.jsx';
 import ProjectCard from '../projects/ProjectCard.jsx';
 import ConfirmDialog from '../ConfirmDialog.jsx';
+import ArchivedProjectReview from './ArchivedProjectReview.jsx';
+import { groupArchivedProjects, restoredStatus } from '../../utils/archiveCascade.js';
 import AspireModal from '../AspireModal.jsx';
 import GoalsAddMenu from './GoalsAddMenu.jsx';
 import UserAssignmentPicker from '../UserAssignmentPicker.jsx';
@@ -2194,9 +2196,9 @@ const GoalControls = ({ onManageAreas }) => (
 // render above the toggle, capped and scrollable) — the desktop space.
 // `stacked`: goals above projects instead of side by side — the phone, where
 // two columns of titles with Restore buttons are too narrow to read.
-const ArchivedSection = ({ archivedGoals, archivedProjects, grid = false, anchored = false, stacked = false }) => {
+const ArchivedSection = ({ archivedGoals, archivedProjects, onReviewProject, grid = false, anchored = false, stacked = false }) => {
   const { darkMode, borderClass, textSecondary, hoverBg } = useDayPlannerCtx();
-  const { updateGoal, updateProject } = useFeaturesCtx();
+  const { goals = [], updateGoal, updateProject } = useFeaturesCtx();
   const { t } = useTranslation();
   const [showArchived, setShowArchived] = useState(false);
   const archivedCount = archivedGoals.length + archivedProjects.length;
@@ -2231,7 +2233,7 @@ const ArchivedSection = ({ archivedGoals, archivedProjects, grid = false, anchor
                   <div key={g.id} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg ${hoverBg} min-w-0`}>
                     <Flag size={11} className="text-blue-400 flex-shrink-0" />
                     <span className={`text-xs ${textSecondary} flex-1 min-w-0 truncate`}>{g.title}</span>
-                    <button onClick={() => updateGoal(g.id, { status: 'active' })} className={restoreClass}>
+                    <button onClick={() => updateGoal(g.id, { status: restoredStatus(g) })} className={restoreClass}>
                       <RotateCcw size={9} /> {t('common.restore')}
                     </button>
                   </div>
@@ -2245,14 +2247,31 @@ const ArchivedSection = ({ archivedGoals, archivedProjects, grid = false, anchor
             {archivedProjects.length === 0 ? (
               <p className={`text-xs ${textSecondary} opacity-40 px-2 py-1`}>{t('goals.noArchivedProjects')}</p>
             ) : (
-              <div className={listClass}>
-                {archivedProjects.map(p => (
-                  <div key={p.id} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg ${hoverBg} min-w-0`}>
-                    <Layers size={11} className="text-emerald-400 flex-shrink-0" />
-                    <span className={`text-xs ${textSecondary} flex-1 min-w-0 truncate`}>{p.title}</span>
-                    <button onClick={() => updateProject(p.id, { status: 'active' })} className={restoreClass}>
-                      <RotateCcw size={9} /> {t('common.restore')}
-                    </button>
+              // Grouped by goal (#2260); a project's title opens it for review.
+              <div className="flex flex-col gap-2">
+                {groupArchivedProjects(archivedProjects, goals).map(group => (
+                  <div key={group.goal?.id ?? 'none'} data-archived-group>
+                    <p className={`flex items-center gap-1 text-[11px] ${textSecondary} opacity-70 px-2 mb-0.5 min-w-0`}>
+                      {group.goal && <Flag size={9} className="text-blue-400 flex-shrink-0" />}
+                      <span className="truncate">{group.goal ? group.goal.title : t('goals.standalone')}</span>
+                    </p>
+                    <div className={listClass}>
+                      {group.projects.map(p => (
+                        <div key={p.id} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg ${hoverBg} min-w-0`}>
+                          <Layers size={11} className="text-emerald-400 flex-shrink-0" />
+                          <button
+                            onClick={() => onReviewProject?.(p.id)}
+                            title={t('goals.reviewArchived')}
+                            className={`text-xs ${textSecondary} flex-1 min-w-0 truncate text-left hover:underline`}
+                          >
+                            {p.title}
+                          </button>
+                          <button onClick={() => updateProject(p.id, { status: restoredStatus(p) })} className={restoreClass}>
+                            <RotateCcw size={9} /> {t('common.restore')}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -2644,6 +2663,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
   const [projectForm, setProjectForm] = useState(null);
   const [areaForm, setAreaForm] = useState(null); // { editing: area|null }
   const [confirmDialog, setConfirmDialog] = useState(null); // { title, message, onConfirm }
+  const [reviewProjectId, setReviewProjectId] = useState(null); // an archived project opened for review (#2260)
   const [showManageAreas, setShowManageAreas] = useState(false);
   const [selectedRoadmapGoalId, setSelectedRoadmapGoalId] = useState(null); // roadmap detail panel
   const [roadmapPeriod, setRoadmapPeriod] = useState(DEFAULT_PERIOD); // Range: the toolbar's on desktop
@@ -2899,23 +2919,8 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
   const handleSaveGoal = (fields) => {
     const { trackInLifeGlance, createNote, linkNotePath, ...goalFields } = fields;
     if (goalForm.editing) {
-      const wasArchived = goalForm.editing.status === 'archived';
-      const nowArchived = goalFields.status === 'archived';
-      if (nowArchived && !wasArchived) {
-        // Cascade: archive completed child projects; detach incomplete ones as standalone.
-        // Single atomic setProjects call so all changes land in one state update.
-        const goalId = goalForm.editing.id;
-        const now = new Date().toISOString();
-        setProjects(prev => prev.map(p => {
-          if (p.goalId !== goalId) return p;
-          if (p.status === 'completed') {
-            return { ...p, status: 'archived', updatedAt: now };
-          }
-          // Remove goalId entirely so the project becomes standalone
-          const { goalId: _removed, ...rest } = p;
-          return { ...rest, updatedAt: now };
-        }));
-      }
+      // Archiving cascades to the goal's projects inside updateGoal, and a
+      // restore puts them back (utils/archiveCascade.js, #2260).
       // Sharing an EXISTING, not-yet-shared goal: mark it synced and emit a
       // create so lifeGLANCE mirrors it. Guarded so we never re-emit for a goal
       // already shared or one that originated in lifeGLANCE.
@@ -2956,21 +2961,8 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
   const handleSaveProject = (allFields) => {
     const { createNote, linkNotePath, ...fields } = allFields;
     if (projectForm.editing) {
-      const wasArchived = projectForm.editing.status === 'archived';
-      const nowArchived = fields.status === 'archived';
-      if (nowArchived && !wasArchived) {
-        // Cascade: archive completed tasks; detach incomplete tasks from this project.
-        const projectId = projectForm.editing.id;
-        const cascadeTask = t => {
-          if (t.projectId !== projectId) return t;
-          if (t.completed) return { ...t, archived: true };
-          // Remove projectId entirely so the task becomes a plain inbox/timeline task
-          const { projectId: _removed, ...rest } = t;
-          return rest;
-        };
-        setTasks(prev => prev.map(cascadeTask));
-        setUnscheduledTasks(prev => prev.map(cascadeTask));
-      }
+      // Archiving cascades to the project's tasks inside updateProject, and a
+      // restore puts them back (utils/archiveCascade.js, #2260).
       updateProject(projectForm.editing.id, fields);
       if (linkNotePath) linkProjectNote?.('project', projectForm.editing.id, linkNotePath);
     } else {
@@ -3013,6 +3005,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
       // The PLANNER (z-70) sits above the space, below the editor: it closes
       // after the editor and before the forms.
       else if (plannerProjectId) close = () => setPlannerProjectId(null);
+      else if (reviewProjectId) close = () => setReviewProjectId(null);
       else if (goalForm) close = () => setGoalForm(null);
       else if (projectForm) close = () => setProjectForm(null);
       else if (areaForm) close = () => setAreaForm(null);
@@ -3027,7 +3020,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
     document.addEventListener('keydown', handler, true); // capture phase
     return () => document.removeEventListener('keydown', handler, true);
   }, [isActive, goalForm, projectForm, areaForm, showManageAreas, moveToProject, showAspire, showAddTask, expandedNotesTaskId,
-      plannerProjectId, setPlannerProjectId,
+      plannerProjectId, reviewProjectId, setPlannerProjectId,
       setShowAddTask, setShowNewTaskDeadlinePicker, setExpandedNotesTaskId]);
 
   if (!embedded && !desktop) return null;
@@ -3097,6 +3090,12 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
         <FormOverlay onClose={() => setShowManageAreas(false)} mobile={!desktop} cardBg={cardBg}>
           <ManageAreas onClose={() => setShowManageAreas(false)} />
         </FormOverlay>
+      )}
+      {reviewProjectId && (
+        <ArchivedProjectReview
+          project={archivedProjects.find(p => p.id === reviewProjectId)}
+          onClose={() => setReviewProjectId(null)}
+        />
       )}
       {confirmDialog && (
         <ConfirmDialog
@@ -3221,7 +3220,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
           )}
           {fabStack('absolute bottom-4 right-4')}
           </div>
-          <ArchivedSection archivedGoals={archivedGoals} archivedProjects={archivedProjects} stacked />
+          <ArchivedSection archivedGoals={archivedGoals} archivedProjects={archivedProjects} onReviewProject={setReviewProjectId} stacked />
         </div>
         {formOverlays}
         {showAspire && <AspireModal onClose={() => setShowAspire(false)} />}
@@ -3346,7 +3345,7 @@ const GoalDashboard = ({ embedded = false, desktop = false, isActive = false, in
             to the tab (Add Goal / Add Project, also `n`). Add more above it. */}
         {fabStack('absolute bottom-6 right-6')}
         </div>
-        <ArchivedSection archivedGoals={archivedGoals} archivedProjects={archivedProjects} grid anchored />
+        <ArchivedSection archivedGoals={archivedGoals} archivedProjects={archivedProjects} onReviewProject={setReviewProjectId} grid anchored />
       </div>
 
       {formOverlays}
