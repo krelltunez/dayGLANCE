@@ -83,7 +83,7 @@ describe('MonthGrid', () => {
   it('sizes cells from the area and gives wide cells a gutter, narrow cells none', async () => {
     const i18n = await i18nFor('en');
     const wide = render(i18n);
-    expect(wide).toContain('grid-template-columns:repeat(7, 140px)');
+    expect(wide).toContain('grid-template-columns:repeat(7, 138px)');
     expect(count(wide, /data-month-cell-gutter/g)).toBe(35);
     const phone = render(i18n, { width: 371, height: 480 });
     expect(phone).toContain('grid-template-columns:repeat(7, 53px)');
@@ -95,7 +95,7 @@ describe('MonthGrid', () => {
     const tall = render(await i18nFor('en'), { width: 2560, height: 1250 });
     expect(tall).toContain('grid-template-columns:repeat(7, 200px)');
     const short = render(await i18nFor('en'), { width: 2560, height: 700 });
-    expect(short).toContain('grid-template-columns:repeat(7, 140px)');
+    expect(short).toContain('grid-template-columns:repeat(7, 138px)');
   });
 
   it('highlights exactly the selected day, and none without a selection', async () => {
