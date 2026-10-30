@@ -954,7 +954,7 @@
     "assignmentEverybodyHint": "(порожньо = усі)",
     "clearDeadline": "Очистити дедлайн",
     "descriptionPlaceholder": "Додайте опис…",
-    "doubleClickToEdit": "Двічі клацніть, щоб редагувати",
+    "doubleClickToRename": "Двічі клацніть, щоб перейменувати",
     "renameTask": "Назва завдання",
     "clickToRename": "Натисніть, щоб перейменувати",
     "fromObsidian": "З Obsidian",

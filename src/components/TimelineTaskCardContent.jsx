@@ -6,7 +6,7 @@ import {
 import { isNativeAndroid, SOURCE_APPS } from '../native.js';
 import { renderTitleWithoutTags, renderTitleWithoutWikilinks, hasNotesOrSubtasks, isLinkOnlyTask, openNoteAction, NoteIcon, noteActionTarget, isTaskLinkOnlyTask } from '../utils/textFormatting.jsx';
 import { extractTags, extractWikilinks, stripWikilinks } from '../utils/taskUtils.js';
-import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
+import TaskTitleRenameField from './TaskTitleRenameField.jsx';
 import LastGlanceBadge from './LastGlanceBadge.jsx';
 import TaskPlanHistory from './TaskPlanHistory.jsx';
 import TaskStarButton from './TaskStarButton.jsx';
@@ -23,19 +23,14 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
   const {
     isTablet,
     darkMode,
-    cardBg, borderClass, textPrimary, hoverBg,
-    editingTaskId, editingTaskText,
-    showSuggestions, suggestions, selectedSuggestionIndex, suggestionContext,
-    editingInputRef,
+    editingTaskId,
     expandedNotesTaskId, setExpandedNotesTaskId,
     expandedTaskMenu, setExpandedTaskMenu,
     longPressTimerRef, longPressTriggeredRef,
     setEditingRecurrenceTaskId,
-    handleEditInputChange, handleEditKeyDown,
     openMobileEditTask,
     toggleComplete,
-    startEditingTask, saveTaskTitle,
-    applySuggestionForEdit,
+    startEditingTask,
     moveToInbox, moveToRecycleBin, postponeTask,
     formatTime, timeToMinutes,
     setTasks,
@@ -242,35 +237,7 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                 {multiUserEnabled && <UserAssignmentBadge users={users} assignedUserSyncIds={task.assignedUserSyncIds} size={14} />}
                 <div className="flex-1 min-w-0">
                   {!isTablet && editingTaskId === task.id ? (
-                    <div className="relative tag-autocomplete-container">
-                      <input
-                        type="text"
-                        value={editingTaskText}
-                        onChange={(e) => handleEditInputChange(e, false)}
-                        onKeyDown={(e) => handleEditKeyDown(e, false)}
-                        onBlur={() => {
-                          setTimeout(() => {
-                            if (!showSuggestions) {
-                              saveTaskTitle(false);
-                            }
-                          }, 100);
-                        }}
-                        autoFocus
-                        className="w-full bg-white/20 text-white font-semibold text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      {showSuggestions && suggestionContext === 'editing' && (
-                        <SuggestionAutocomplete
-                          suggestions={suggestions}
-                          selectedIndex={selectedSuggestionIndex}
-                          onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, false)}
-                          cardBg={cardBg}
-                          borderClass={borderClass}
-                          textPrimary={textPrimary}
-                          hoverBg={hoverBg}
-                        />
-                      )}
-                    </div>
+                    <TaskTitleRenameField />
                   ) : (
                     <div className="flex items-center gap-0.5">
                       <div
@@ -335,35 +302,7 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                 {multiUserEnabled && <UserAssignmentBadge users={users} assignedUserSyncIds={task.assignedUserSyncIds} size={14} />}
                 <div className="flex-1 min-w-0">
                   {!isTablet && editingTaskId === task.id ? (
-                    <div className="relative tag-autocomplete-container">
-                      <input
-                        type="text"
-                        value={editingTaskText}
-                        onChange={(e) => handleEditInputChange(e, false)}
-                        onKeyDown={(e) => handleEditKeyDown(e, false)}
-                        onBlur={() => {
-                          setTimeout(() => {
-                            if (!showSuggestions) {
-                              saveTaskTitle(false);
-                            }
-                          }, 100);
-                        }}
-                        autoFocus
-                        className="w-full bg-white/20 text-white font-semibold text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      {showSuggestions && suggestionContext === 'editing' && (
-                        <SuggestionAutocomplete
-                          suggestions={suggestions}
-                          selectedIndex={selectedSuggestionIndex}
-                          onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, false)}
-                          cardBg={cardBg}
-                          borderClass={borderClass}
-                          textPrimary={textPrimary}
-                          hoverBg={hoverBg}
-                        />
-                      )}
-                    </div>
+                    <TaskTitleRenameField />
                   ) : (
                     <div className="flex items-center gap-0.5">
                       <div
@@ -374,7 +313,7 @@ const CardContent = ({ task, height, isNarrowWidth, flipNotesPanel }) => {
                             startEditingTask(task, false);
                           }
                         } : undefined}
-                        title={!isImported && !isTablet ? t('task.doubleClickToEdit', { defaultValue: 'Double-click to edit' }) : undefined}
+                        title={!isImported && !isTablet ? t('task.doubleClickToRename') : undefined}
                       >
                         {renderTitleWithoutTags(task.title)}
                       </div>

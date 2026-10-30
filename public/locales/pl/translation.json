@@ -950,7 +950,7 @@
     "assignmentEverybodyHint": "(puste = wszyscy)",
     "clearDeadline": "Wyczyść termin",
     "descriptionPlaceholder": "Dodaj opis…",
-    "doubleClickToEdit": "Kliknij dwukrotnie, aby edytować",
+    "doubleClickToRename": "Kliknij dwukrotnie, aby zmienić nazwę",
     "renameTask": "Tytuł zadania",
     "clickToRename": "Kliknij, aby zmienić nazwę",
     "fromObsidian": "Z Obsidian",

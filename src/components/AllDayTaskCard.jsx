@@ -8,7 +8,8 @@ import { renderTitle, hasNotesOrSubtasks, isLinkOnlyTask, openNoteAction, NoteIc
 import LastGlanceBadge from './LastGlanceBadge.jsx';
 import UserAssignmentBadge from './UserAssignmentBadge.jsx';
 import { extractWikilinks, stripWikilinks } from '../utils/taskUtils.js';
-import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
+import TaskTitleRenameField from './TaskTitleRenameField.jsx';
+import { cardDoubleClickHandler } from '../utils/cardDoubleClick.js';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import EventNotesPanel, { editsDeviceCalendar } from './EventNotesPanel.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
@@ -20,19 +21,14 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
   const {
     isTablet,
     darkMode,
-    cardBg, borderClass, textPrimary, hoverBg,
-    editingTaskId, editingTaskText,
-    showSuggestions, suggestions, selectedSuggestionIndex, suggestionContext,
-    editingInputRef,
+    editingTaskId,
     expandedNotesTaskId, setExpandedNotesTaskId,
     expandedTaskMenu, setExpandedTaskMenu,
     longPressTimerRef, longPressTriggeredRef,
     setEditingRecurrenceTaskId,
-    handleEditInputChange, handleEditKeyDown,
     openMobileEditTask,
     toggleComplete,
-    startEditingTask, saveTaskTitle,
-    applySuggestionForEdit,
+    startEditingTask,
     moveToInbox, moveToRecycleBin, postponeTask,
     setTasks,
     taskWidths,
@@ -176,6 +172,9 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
           onTouchMove: (e) => handleMobileTaskTouchMove(e),
           onTouchEnd: (e) => handleMobileTaskTouchEnd(e, task.id, 'allday'),
         } : {})}
+        // A double-click on the card opens its editor, as on a timeline card
+        // (#2263); the title's own double-click renames it.
+        onDoubleClick={cardDoubleClickHandler({ task, isImported, isTablet, open: (target) => openMobileEditTask(target, false) })}
         className={`${!isTablet ? 'notes-panel-container' : 'select-none'} ${task.isTaskCalendar ? '' : task.color} rounded-lg shadow-sm ${isImported && !task.isTaskCalendar || isTablet ? 'cursor-default' : 'cursor-move'} relative ${task.isExample ? 'border-2 border-dashed border-white/50' : ''}`}
         style={{ ...(taskCalendarStyle || {}), ...(isTablet ? { touchAction: 'pan-y' } : {}) }}
       >
@@ -212,35 +211,7 @@ const AllDayTaskCard = ({ task, fillWidth = true }) => {
                 title={stripWikilinks(task.title)}
               >
                 {!isTablet && editingTaskId === task.id ? (
-                  <div className="relative tag-autocomplete-container">
-                    <input
-                      type="text"
-                      value={editingTaskText}
-                      onChange={(e) => handleEditInputChange(e, false)}
-                      onKeyDown={(e) => handleEditKeyDown(e, false)}
-                      onBlur={() => {
-                        setTimeout(() => {
-                          if (!showSuggestions) {
-                            saveTaskTitle(false);
-                          }
-                        }, 100);
-                      }}
-                      autoFocus
-                      className="w-full bg-white/20 text-white font-semibold text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                    {showSuggestions && suggestionContext === 'editing' && (
-                      <SuggestionAutocomplete
-                        suggestions={suggestions}
-                        selectedIndex={selectedSuggestionIndex}
-                        onSelect={(suggestion) => applySuggestionForEdit(suggestion, editingInputRef.current, false)}
-                        cardBg={cardBg}
-                        borderClass={borderClass}
-                        textPrimary={textPrimary}
-                        hoverBg={hoverBg}
-                      />
-                    )}
-                  </div>
+                  <TaskTitleRenameField />
                 ) : (
                   renderTitle(task.title)
                 )}
