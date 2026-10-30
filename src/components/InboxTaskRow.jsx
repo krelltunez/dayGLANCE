@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { renderTitle, hasNotesOrSubtasks, isLinkOnlyTask, openNoteAction, NoteIcon, noteActionTarget } from '../utils/textFormatting.jsx';
 import { dateToString, extractWikilinks, formatDeadlineDate } from '../utils/taskUtils.js';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
-import SuggestionAutocomplete from './SuggestionAutocomplete.jsx';
+import TaskTitleRenameField from './TaskTitleRenameField.jsx';
 import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
 
 /**
@@ -23,9 +23,9 @@ import DeadlinePickerPopover from './DeadlinePickerPopover.jsx';
  */
 function InboxTaskRow({
   task, actions,
-  isEditing, editingText, showSuggestions, suggestions, selectedSuggestionIndex, suggestionContext,
+  isEditing,
   notesOpen, deadlinePickerOpen, pendingPriority, project, projectFilterActive,
-  darkMode, cardBg, borderClass, textPrimary, hoverBg,
+  darkMode,
   aiConfig, aiSubtasksLoadingForTask,
 }) {
   const { t } = useTranslation();
@@ -80,35 +80,7 @@ function InboxTaskRow({
             </button>
             <div className="flex-1 min-w-0">
               {isEditing ? (
-                <div className="relative tag-autocomplete-container">
-                  <input
-                    type="text"
-                    value={editingText}
-                    onChange={(e) => call('handleEditInputChange')(e, true)}
-                    onKeyDown={(e) => call('handleEditKeyDown')(e, true)}
-                    onBlur={() => {
-                      setTimeout(() => {
-                        if (!showSuggestions) {
-                          call('saveTaskTitle')(true);
-                        }
-                      }, 100);
-                    }}
-                    autoFocus
-                    className="w-full bg-white/20 text-white font-medium text-sm px-1 py-0.5 rounded border border-white/30 outline-none focus:bg-white/30"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  {showSuggestions && suggestionContext === 'editing' && (
-                    <SuggestionAutocomplete
-                      suggestions={suggestions}
-                      selectedIndex={selectedSuggestionIndex}
-                      onSelect={(suggestion) => call('applySuggestionForEdit')(suggestion, actions.current.editingInputRef.current, true)}
-                      cardBg={cardBg}
-                      borderClass={borderClass}
-                      textPrimary={textPrimary}
-                      hoverBg={hoverBg}
-                    />
-                  )}
-                </div>
+                <TaskTitleRenameField isInbox weight="font-medium" />
               ) : (
                 <div
                   className={`font-medium text-sm ${task.completed ? 'line-through' : ''} cursor-text`}
@@ -116,7 +88,7 @@ function InboxTaskRow({
                     e.stopPropagation();
                     call('startEditingTask')(task, true);
                   }}
-                  title={t('task.doubleClickToEdit')}
+                  title={t('task.doubleClickToRename')}
                 >
                   {renderTitle(task.title)}
                 </div>

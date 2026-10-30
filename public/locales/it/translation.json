@@ -927,7 +927,7 @@
     "assignmentEverybodyHint": "(vuoto = tutti)",
     "clearDeadline": "Cancella scadenza",
     "descriptionPlaceholder": "Aggiungi descrizione…",
-    "doubleClickToEdit": "Doppio clic per modificare",
+    "doubleClickToRename": "Doppio clic per rinominare",
     "renameTask": "Titolo dell’attività",
     "clickToRename": "Fai clic per rinominare",
     "fromObsidian": "Da Obsidian",

@@ -927,7 +927,7 @@
     "assignmentEverybodyHint": "(empty = everybody)",
     "clearDeadline": "Clear deadline",
     "descriptionPlaceholder": "Add description…",
-    "doubleClickToEdit": "Double-click to edit",
+    "doubleClickToRename": "Double-click to rename",
     "renameTask": "Task title",
     "clickToRename": "Click to rename",
     "fromObsidian": "From Obsidian",

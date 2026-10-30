@@ -22,6 +22,7 @@ import { formatDuration } from '../utils/formatDuration.js';
 import { notBucketed } from '../utils/bucketList.js';
 import { formatLocalizedDate } from '../utils/localeFormatting.js';
 import { aiFeatureOn } from '../ai.js';
+import { cardDoubleClickHandler } from '../utils/cardDoubleClick.js';
 
 const GlanceSidebar = ({ variant = 'desktop' }) => {
   const {
@@ -36,6 +37,7 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
     tasks, setTasks,
     expandedRecurringTasks,
     unscheduledTasks, setUnscheduledTasks,
+    openMobileEditTask,
     recycleBin, setRecycleBin,
     recurringTasks, setRecurringTasks,
     selectedTags,
@@ -1072,6 +1074,13 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
             });
           }}
           className={`flex gap-2.5 py-2 ${task.completed ? 'opacity-50' : ''} cursor-pointer ${isDesktop ? 'hover:bg-white/5' : 'active:bg-white/5'} rounded-lg transition-colors`}
+          // A double-click opens the task's editor, as on a timeline card
+          // (#2263); a single click still finds it on the timeline. Desktop
+          // only, and never in the tray, which has no editor of its own.
+          onDoubleClick={cardDoubleClickHandler({
+            task, isImported: !!task.imported, isTablet: !isDesktop,
+            open: (target) => openMobileEditTask(target, unscheduledTasks.some(u => u.id === target.id)),
+          })}
           onClick={() => {
             const el = document.querySelector(`[data-task-id="${task.id}"]`);
             const applyRing = () => {

@@ -927,7 +927,7 @@
     "assignmentEverybodyHint": "（留空 = 所有人）",
     "clearDeadline": "清除截止日期",
     "descriptionPlaceholder": "添加描述…",
-    "doubleClickToEdit": "双击编辑",
+    "doubleClickToRename": "双击重命名",
     "renameTask": "任务标题",
     "clickToRename": "点击重命名",
     "fromObsidian": "来自 Obsidian",

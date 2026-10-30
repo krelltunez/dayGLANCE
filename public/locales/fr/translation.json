@@ -927,7 +927,7 @@
     "assignmentEverybodyHint": "(vide = tout le monde)",
     "clearDeadline": "Effacer l’échéance",
     "descriptionPlaceholder": "Ajouter une description…",
-    "doubleClickToEdit": "Double-cliquez pour modifier",
+    "doubleClickToRename": "Double-cliquez pour renommer",
     "renameTask": "Titre de la tâche",
     "clickToRename": "Cliquez pour renommer",
     "fromObsidian": "Depuis Obsidian",

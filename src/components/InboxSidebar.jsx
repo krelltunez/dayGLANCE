@@ -26,18 +26,14 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
     editingInputRef,
     darkMode,
     unscheduledTasks,
-    editingTaskId, editingTaskText,
+    editingTaskId,
     expandedNotesTaskId, setExpandedNotesTaskId,
     showDeadlinePicker, setShowDeadlinePicker,
     taskContextMenu, setTaskContextMenu,
     inboxPriorityFilter, setInboxPriorityFilter,
-    showSuggestions,
-    suggestions,
-    selectedSuggestionIndex,
-    suggestionContext,
     pendingPriorities,
     filteredUnscheduledTasks,
-    cardBg, borderClass, textPrimary, textSecondary, hoverBg,
+    textPrimary, textSecondary,
     playUISound,
     toggleComplete,
     openNewInboxTask,
@@ -186,22 +182,15 @@ const InboxSidebar = ({ variant = 'desktop' }) => {
           key={task.id}
           task={task}
           actions={rowActions}
+          // The rename field reads its text and suggestions from context
+          // (TaskTitleRenameField), so only the row being renamed re-renders.
           isEditing={editingTaskId === task.id}
-          editingText={editingTaskId === task.id ? editingTaskText : ''}
-          showSuggestions={editingTaskId === task.id && showSuggestions}
-          suggestions={editingTaskId === task.id ? suggestions : null}
-          selectedSuggestionIndex={editingTaskId === task.id ? selectedSuggestionIndex : 0}
-          suggestionContext={editingTaskId === task.id ? suggestionContext : null}
           notesOpen={expandedNotesTaskId === task.id}
           deadlinePickerOpen={showDeadlinePicker === task.id}
           pendingPriority={pendingPriorities[task.id]}
           project={goalsProjectsEnabled && task.projectId ? projectsById.get(task.projectId) || null : null}
           projectFilterActive={!!task.projectId && projectFilter === task.projectId}
           darkMode={darkMode}
-          cardBg={cardBg}
-          borderClass={borderClass}
-          textPrimary={textPrimary}
-          hoverBg={hoverBg}
           aiConfig={aiConfig}
           aiSubtasksLoadingForTask={expandedNotesTaskId === task.id ? aiSubtasksLoadingForTask : null}
         />
