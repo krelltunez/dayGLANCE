@@ -79,11 +79,17 @@ export function monthGridDates(year, month, weekStartDay = 0) {
  * nor past the absolute cap (the timeline encoding assumes a portrait cell,
  * so on a wide display the grid stops stretching and centres), and rows
  * never shrink below the minimum height (the area scrolls instead).
+ *
+ * The height budget includes the grid's 1px rules: MonthGrid draws a top
+ * border and each row a bottom border, so a month is rows × (height + 1) + 1
+ * tall. Dividing the bare area left the last row up to rows + 1 px short,
+ * clipped by the area's overflow-hidden on tablets.
  */
 export function monthCellSize(areaWidth, areaHeight, rows, { cell }) {
-  const height = Math.max(cell.minHeight, Math.floor(areaHeight / Math.max(1, rows)));
+  const r = Math.max(1, rows);
+  const height = Math.max(cell.minHeight, Math.floor((areaHeight - 1) / r) - 1);
   const width = Math.max(1, Math.min(Math.floor(areaWidth / 7), Math.floor(height * cell.maxAspect), cell.maxWidth));
-  return { width, height, scrolls: height * rows > areaHeight };
+  return { width, height, scrolls: r * (height + 1) + 1 > areaHeight };
 }
 
 /**
