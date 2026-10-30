@@ -73,6 +73,7 @@ import { readBinAutoEmptyDays, BIN_AUTO_EMPTY_KEY } from './utils/recycleBinRete
 import { backupFingerprint, readLastRemoteBackup, writeLastRemoteBackup, canSkipRemoteUpload } from './utils/backupDedupe.js';
 import { recordLoadFailure } from './utils/loadFailures.js';
 import { detachDeletedProject, reparentDeletedGoal, clearDeletedMemberRefs } from './utils/deleteCascade.js';
+import useArchiveCascade from './hooks/useArchiveCascade.js';
 import { parseICS, parseDatetime, filterByDateWindow, expandMultiDayEvent } from './utils/icsParser.js';
 import { absorbCalendarDays, readCalendarProjectionCache, writeCalendarProjectionCache } from './utils/calendarProjectionCache.js';
 import { ICS_CALENDARS_KEY, loadIcsCalendars, hasActiveIcsCalendars, stripIcsCalendarCredentials, applyRemoteIcsCalendars, PRIMARY_CAL_META_KEY, defaultPrimaryCalendarMeta, injectPrimaryStub, splitPrimaryStub } from './utils/icsFeedSync.js';
@@ -1215,10 +1216,16 @@ const DayPlanner = () => {
     desktopSpace, setDesktopSpace, toggleDesktopSpace,
     showGoalsDashboard, setShowGoalsDashboard,
     goalsProjectsEnabled, setGoalsProjectsEnabled,
-    addGoal, updateGoal, deleteGoal: deleteGoalEntity,
+    addGoal, updateGoal: updateGoalEntity, deleteGoal: deleteGoalEntity,
     addArea, updateArea, deleteArea, reorderAreas,
-    addProject, updateProject, deleteProject: deleteProjectEntity, moveProject,
+    addProject, updateProject: updateProjectEntity, deleteProject: deleteProjectEntity, moveProject,
   } = useGoalsProjects();
+  // Archive/restore cascades to the rows under a project or goal, and restore
+  // puts back exactly what the archive changed (#2260, hooks/useArchiveCascade.js).
+  const { updateProject, updateGoal } = useArchiveCascade({
+    projects, goals, tasksLiveRef, unscheduledLiveRef,
+    updateProjectEntity, updateGoalEntity, setTasks, setUnscheduledTasks, setProjects,
+  });
   // Deleting a project/goal must also clean the rows that point at it, or they
   // become invisible: a task keeps its projectId and the Inbox treats it as a
   // project task; a project keeps its goalId and belongs to neither the goal's
@@ -4601,18 +4608,7 @@ const DayPlanner = () => {
     const projectId = pendingEditProjectId;
     const project = projects.find(p => p.id === projectId);
     if (project) {
-      const wasArchived = project.status === 'archived';
-      const nowArchived = fields.status === 'archived';
-      if (nowArchived && !wasArchived) {
-        const cascadeTask = t => {
-          if (t.projectId !== projectId) return t;
-          if (t.completed) return { ...t, archived: true };
-          const { projectId: _removed, ...rest } = t;
-          return rest;
-        };
-        setTasks(prev => prev.map(cascadeTask));
-        setUnscheduledTasks(prev => prev.map(cascadeTask));
-      }
+      // An archive or restore cascades inside updateProject (utils/archiveCascade.js).
       updateProject(projectId, fields);
       if (linkNotePath) linkProjectNote?.('project', projectId, linkNotePath);
     }
