@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import i18n from 'i18next';
-import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, Flag, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
+import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, TextCursorInput, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, Flag, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
 import { hasNativeCalendar, electronGetCalendars, electronGetEventsByDate, electronRequestCalendarAccess, nativeEventToTask, nativeResultsToTasks, extendCalendarFilter } from './utils/nativeCalendar.js';
 import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeWriteDailyNote, nativeClearVault, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeGetWidgetPendingAction, triggerHaptic, nativeTouchLauncherHeartbeat } from './native.js';
@@ -72,6 +72,7 @@ import { getStoredDailyNotes, flushDailyNotes, restoreDailyNotesFromBackup } fro
 import { readBinAutoEmptyDays, BIN_AUTO_EMPTY_KEY } from './utils/recycleBinRetention.js';
 import { backupFingerprint, readLastRemoteBackup, writeLastRemoteBackup, canSkipRemoteUpload } from './utils/backupDedupe.js';
 import { recordLoadFailure } from './utils/loadFailures.js';
+import { renameFromMenu, selectTitleWhenReady } from './utils/taskMenuRename.js';
 import { detachDeletedProject, reparentDeletedGoal, clearDeletedMemberRefs } from './utils/deleteCascade.js';
 import useArchiveCascade from './hooks/useArchiveCascade.js';
 import { parseICS, parseDatetime, filterByDateWindow, expandMultiDayEvent } from './utils/icsParser.js';
@@ -8840,7 +8841,11 @@ const DayPlanner = () => {
         const ctxHasNotes = ctxTask?.notes && ctxTask.notes.trim();
         // Check if any menu items would be visible; if not, don't show the menu
         const hasEdit = !isImported;
-        const hasNotes = isImported ? !!ctxHasNotes : true;
+        // Rename (#2263): inline where the card draws its own field, else the
+        // editor with the title selected (utils/taskMenuRename.js).
+        const hasRename = !isImported && !!ctxTask;
+        // A surface whose items keep their notes in the editor (the Bucket List) leaves Notes out.
+        const hasNotes = taskContextMenu.hideNotes ? false : isImported ? !!ctxHasNotes : true;
         const isDaily = isRecurring && ctxTask?.recurrenceType === 'daily';
         const hasMoveTomorrow = !isImported && !isInbox && !isDaily;
         const hasMoveInbox = !isRecurring && !isImported && !isAllDay && !isInbox;
@@ -8853,7 +8858,7 @@ const DayPlanner = () => {
         const menuItemHeight = 36;
         const hasFollowUp = isCompleted && canFollowUp(ctxTask);
         const hasCopyLink = !!ctxTask && canLinkTask(ctxTask);
-        const menuItems = [hasEdit, hasNotes, hasEnergy, hasMoveTomorrow, hasMoveInbox, hasComplete, hasFollowUp, hasCopyLink, hasDelete].filter(Boolean).length;
+        const menuItems = [hasEdit, hasRename, hasNotes, hasEnergy, hasMoveTomorrow, hasMoveInbox, hasComplete, hasFollowUp, hasCopyLink, hasDelete].filter(Boolean).length;
         const menuHeight = menuItems * menuItemHeight + 8;
         const clampedX = Math.min(x, window.innerWidth - menuWidth - 8);
         const clampedY = Math.min(y, window.innerHeight - menuHeight - 8);
@@ -8877,9 +8882,26 @@ const DayPlanner = () => {
                   {t('common.edit')}
                 </button>
               )}
+              {hasRename && (
+                <button
+                  data-ctx-rename
+                  className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}
+                  onClick={() => {
+                    renameFromMenu(taskContextMenu, {
+                      task: ctxTask, isInbox, startEditingTask,
+                      openEditor: openMobileEditTask,
+                      selectEditorTitle: () => selectTitleWhenReady(newTaskInputRef),
+                    });
+                    setTaskContextMenu(null);
+                  }}
+                >
+                  <TextCursorInput size={14} />
+                  {t('common.rename')}
+                </button>
+              )}
               {/* Imported: only show Notes if the task actually has notes (no subtask support) */}
               {/* Non-imported: always show Notes / subtasks */}
-              {isImported ? (
+              {!hasNotes ? null : isImported ? (
                 ctxHasNotes && (
                   <button
                     className={`w-full text-left px-3 py-2 text-sm ${textPrimary} ${hoverBg} transition-colors flex items-center gap-2`}

@@ -73,7 +73,8 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
     recurringTasks,
     openMobileEditTask,
     getTodayStr, currentTimeMinutes,
-    darkMode, isMobile, use24HourClock,
+    darkMode, isMobile, isTablet, use24HourClock,
+    setTaskContextMenu,
     cardBg, borderClass, textPrimary, textSecondary, hoverBg,
     expandedNotesTaskId, setExpandedNotesTaskId,
     updateTaskNotes, addSubtask, toggleSubtask, deleteSubtask, updateSubtaskTitle,
@@ -99,6 +100,24 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
   const { goals, deleteProject, updateProject, setPlannerProjectId, generateAISubtasks, aiSubtasksLoadingForTask, aiConfig, showGoalsDashboard, enterHyperGlanceMode, isVisibleForUser } = useFeaturesCtx();
 
   const isScheduled = (t) => !!tasks.find(s => s.id === t.id);
+
+  // Right-click on a task row: the app's task menu, as on every other task
+  // surface (#2263). Edit and Rename open what the row's title opens (the
+  // project flavour of the editor, which keeps an unscheduled project task
+  // unscheduled). Pointer devices only: a long-press on touch drags the row.
+  const openRowMenu = (task) => (setTaskContextMenu && !isMobile && !isTablet ? (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTaskContextMenu({
+      x: e.clientX, y: e.clientY,
+      taskId: task.id,
+      isRecurring: false,
+      isImported: !!task.imported,
+      isAllDay: !!task.isAllDay,
+      dateStr: task.date || dateToString(new Date()),
+      onEdit: () => openMobileEditTask?.(task, false),
+    });
+  } : undefined);
 
   const toggleTaskComplete = (taskId) => {
     const scheduled = tasks.find(t => t.id === taskId);
@@ -631,6 +650,7 @@ const ProjectCard = forwardRef(({ project, onEditClick, compact, dragHandleProps
                       : ''
                   }`}
                   style={{ borderLeft: `2px solid ${projectHex}99` }}
+                  onContextMenu={openRowMenu(task)}
                 >
                   <button
                     onClick={() => toggleTaskComplete(task.id)}

@@ -452,6 +452,8 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
                     isImported: !!isImported,
                     isAllDay: false,
                     dateStr: col.dateStr,
+                    // The card draws its own rename field (desktop only).
+                    inlineRename: !isTablet,
                   });
                 }}
               >

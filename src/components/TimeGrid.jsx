@@ -484,6 +484,8 @@ const TimeGrid = () => {
                     isImported: !!isImported,
                     isAllDay: !!task.isAllDay,
                     dateStr,
+                    // The card draws its own rename field (desktop only).
+                    inlineRename: !isTablet,
                   });
                 }}
                 // A double-click opens the editor (utils/cardDoubleClick.js).

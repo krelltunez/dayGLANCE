@@ -108,6 +108,22 @@ const GroupChips = ({ tasks, deadlineTasks = [], date, dateStr, darkMode, border
   const shown = limit !== null ? allItems.slice(0, limit) : allItems;
   const overflowItems = limit !== null ? allItems.slice(limit) : [];
 
+  // Right-click on an all-day card: the app's task menu, as on the timeline
+  // and the multi-day header (#2263). AllDayTaskCard draws its own rename
+  // field on desktop, so the menu's Rename is inline there.
+  const openAllDayMenu = (e, task) => {
+    e.preventDefault();
+    setTaskContextMenu({
+      x: e.clientX, y: e.clientY,
+      taskId: task.id,
+      isRecurring: typeof task.id === 'string' && task.id.startsWith('recurring-'),
+      isImported: !!task.imported,
+      isAllDay: true,
+      dateStr,
+      inlineRename: !isTablet,
+    });
+  };
+
   // Renders the inner deadline card (shared between visible chips and overflow popover)
   const renderDeadlineCardInner = (task) => (
     <>
@@ -258,6 +274,8 @@ const GroupChips = ({ tasks, deadlineTasks = [], date, dateStr, darkMode, border
         {shown.map(item => item.type === 'task' ? (
           <div
             key={item.data.id}
+            data-ctx-menu
+            onContextMenu={(e) => openAllDayMenu(e, item.data)}
             draggable={(!item.data.imported || !!item.data.nativeEventId) && !isTablet}
             onDragStart={(e) => (!item.data.imported || !!item.data.nativeEventId) && handleDragStart(item.data, 'calendar', e)}
             onDragEnd={handleDragEnd}
@@ -304,6 +322,8 @@ const GroupChips = ({ tasks, deadlineTasks = [], date, dateStr, darkMode, border
               key={item.type === 'task' ? item.data.id : `deadline-${item.data.id}`}
               className={`notes-panel-container relative ${item.type === 'task' && item.data.completed && (!item.data.imported || item.data.isTaskCalendar) ? 'opacity-50' : ''}`}
               onClick={() => setOverflowOpen(false)}
+              data-ctx-menu={item.type === 'task' ? true : undefined}
+              onContextMenu={item.type === 'task' ? (e) => openAllDayMenu(e, item.data) : undefined}
             >
               {item.type === 'task' ? (
                 <AllDayTaskCard task={item.data} fillWidth={false} />
