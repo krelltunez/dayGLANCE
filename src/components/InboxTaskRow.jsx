@@ -57,6 +57,7 @@ function InboxTaskRow({
             isImported: false,
             isAllDay: false,
             dateStr: dateToString(new Date()),
+            inlineRename: true,
           });
         }}
         draggable

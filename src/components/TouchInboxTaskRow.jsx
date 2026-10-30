@@ -78,13 +78,10 @@ function TouchInboxTaskRow({
                 {task.completed && <Check size={10} strokeWidth={3} />}
               </button>
               <div className="flex-1 min-w-0">
-                <div
-                  className={`font-medium text-sm ${task.completed ? 'line-through' : ''}`}
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    call('startEditingTask')(task, true);
-                  }}
-                >
+                {/* No double-click rename: this row draws no rename field, so it
+                    left an invisible rename open (#2263). The menu's Rename and
+                    a swipe left open the editor instead. */}
+                <div className={`font-medium text-sm ${task.completed ? 'line-through' : ''}`}>
                   {renderTitle(task.title)}
                 </div>
                 <div className="text-xs opacity-90 mt-1 flex items-center gap-2 flex-wrap">

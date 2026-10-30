@@ -597,6 +597,8 @@ const CalendarHeader = () => {
                     isImported: !!isImported,
                     isAllDay: true,
                     dateStr,
+                    // AllDayTaskCard draws its own rename field (desktop only).
+                    inlineRename: !isTablet,
                   });
                 }}
                 draggable={(!isImported || !!task.nativeEventId) && !isTablet}

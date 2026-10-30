@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { BUCKET_LIST_IDS, promoteToInbox } from '../utils/bucketList.js';
+import { dateToString } from '../utils/taskUtils.js';
 import { beginLongPressReorder, isLongPressRowDevice } from '../utils/longPressReorder.js';
 import { renderFormattedText, renderTitleWithoutTags, hasNotesOrSubtasks, hasOnlySubtasks } from '../utils/textFormatting.jsx';
 import useBackClose from '../hooks/useBackClose.js';
@@ -41,7 +42,7 @@ const BucketListModal = () => {
     unscheduledTasks, setUnscheduledTasks, reorderUnscheduledTasks,
     scheduleTaskAtNextSlot, moveToRecycleBin, openMobileEditTask,
     bucketConfig, updateBucketConfig,
-    setShowBucketList,
+    setShowBucketList, setTaskContextMenu,
     pushUndo, setUndoToast,
     colors,
   } = useDayPlannerCtx();
@@ -131,6 +132,24 @@ const BucketListModal = () => {
     // save path spread-updates in place, preserving bucketId.
     openMobileEditTask(task, true);
   };
+
+  // Right-click on an item: the app's task menu, as on every other task
+  // surface (#2263). Edit and Rename open the item's own editor; the menu's
+  // Notes is left out, since the editor is where a Bucket item's notes live.
+  // Pointer devices only: a long-press on touch drags the row.
+  const openItemMenu = (task) => (setTaskContextMenu && !isMobile && !isTablet ? (e) => {
+    e.preventDefault();
+    setTaskContextMenu({
+      x: e.clientX, y: e.clientY,
+      taskId: task.id,
+      isRecurring: false,
+      isImported: false,
+      isAllDay: false,
+      dateStr: dateToString(new Date()),
+      onEdit: () => editItem(task),
+      hideNotes: true,
+    });
+  } : undefined);
 
   const handleQuickAdd = (e, listId) => {
     e.preventDefault();
@@ -274,6 +293,7 @@ const BucketListModal = () => {
         onDrop={draggable ? (e) => handleDrop(e, listId, idx) : undefined}
         onDragEnd={draggable ? () => setDrag({ listId: null, idx: null, overIdx: null }) : undefined}
         onTouchStart={draggable && IS_LONG_PRESS_ROW ? (e) => handleRowTouchStart(e, listId, idx) : undefined}
+        onContextMenu={openItemMenu(task)}
         className={`group flex items-center gap-2 px-2 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-700/40' : 'bg-stone-50'} ${isDragOver ? 'ring-2 ring-sky-400' : ''}`}
       >
         {draggable && (

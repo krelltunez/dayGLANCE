@@ -63,4 +63,10 @@ describe('TouchInboxTaskRow', () => {
     const { root } = mount(base({ current: {} }));
     expect(JSON.stringify(root.toJSON())).toContain('30 min');
   });
+
+  it('has no double-click rename, since it draws no rename field (#2263)', () => {
+    const startEditingTask = vi.fn();
+    const { root } = mount(base({ current: { startEditingTask } }));
+    expect(root.root.findAll((node) => typeof node.props?.onDoubleClick === 'function')).toHaveLength(0);
+  });
 });
