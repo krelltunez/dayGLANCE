@@ -164,6 +164,7 @@ import { useFileSyncEngine, useVaultSyncEngine, vaultEngineData } from './hooks/
 import { resolveSyncTarget } from './sync/syncTarget.js';
 import useCloudSyncAfterEdit from './hooks/useCloudSyncAfterEdit.js';
 import { createDbEngine, resetVaultSyncCursor } from './sync/dbEngine.js';
+import useRosterVaultSync from './hooks/useRosterVaultSync.js';
 import { deriveBlockEnergy } from './utils/energyAxis.js';
 import { isVaultEnabled } from './sync/vaultConfig.js';
 import { readThemePref, systemPrefersDark, resolveDarkMode, restoredThemePref, THEME_PREF_KEY } from './utils/themePref.js';
@@ -967,6 +968,8 @@ const DayPlanner = () => {
   // built further down (useVaultSyncEngine); declared here for the callbacks
   // set up before it.
   const dbEngineRef = useRef(null);
+  // The household roster every GLANCE app shares (glance-users on the vault).
+  const rosterEngineRef = useRef(null);
   // GLANCEvault status surfaced in the Cloud Sync settings (independent of the
   // WebDAV file-tier status).
   const [vaultStatus, setVaultStatus] = useState('idle');
@@ -1843,7 +1846,10 @@ const DayPlanner = () => {
   const obsidianSseNudgeRef = useRef(null);
   useVaultEventStream({
     dataLoaded,
-    drainSync: useCallback(() => dbEngineRef.current?.dbSyncCycle?.(), []),
+    drainSync: useCallback(() => {
+      rosterEngineRef.current?.dbSyncCycle?.().catch(() => { /* surfaced via onError */ });
+      return dbEngineRef.current?.dbSyncCycle?.();
+    }, []),
     // Ensure the vault intents key before the SSE-triggered inbound drain too, so a
     // nudge that arrives before the poller's first drain still decrypts.
     drainIntents: useCallback(async () => {
@@ -2671,6 +2677,18 @@ const DayPlanner = () => {
         if (window.__dayglance) delete window.__dayglance;
       };
     },
+  });
+
+  // The household roster on GLANCEvault: the glance-users app dayGLANCE,
+  // lastGLANCE and lifeGLANCE share, so members cross apps on a vault-only
+  // account (sync/rosterVault.js). The file roads below carry the same roster.
+  useRosterVaultSync({
+    active: !isTrayMode,
+    dataLoaded,
+    users,
+    multiUserEnabled,
+    setUsers,
+    engineRef: rosterEngineRef,
   });
 
   // ── Config field timestamp tracking ──────────────────────────────────────

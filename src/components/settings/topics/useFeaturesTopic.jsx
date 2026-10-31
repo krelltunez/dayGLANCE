@@ -9,6 +9,7 @@ import DirectAccessFileRow from '../../DirectAccessFileRow.jsx';
 import useDirectAccessStatus from '../../../hooks/useDirectAccessStatus.js';
 import { MULTI_USER_CONFIG_KEY } from '../../../intents/useIntentPoller.js';
 import { syncSharedUsers, syncSharedUsersViaDirectAccess, markRosterEdited } from '../../../intents/sharedUsers.js';
+import { syncRosterNow } from '../../../sync/rosterVault.js';
 import { isAvailable as isICloudAvailable } from '../../../intents/icloudFileTransport.js';
 import { multiUserToggleLocked, multiUserUnavailableReason, canSyncUserRoster } from '../../../utils/multiUserGate.js';
 import { useTranslation } from 'react-i18next';
@@ -194,9 +195,13 @@ export default function useFeaturesTopic({ intentForm }) {
                               localStorage.setItem('dayglance-users', JSON.stringify(merged));
                               setUsers(merged);
                             }
-                            // GLANCEvault carries the roster inside the synced data
-                            // (`users`), so a vault cycle is its roster sync.
-                            if (vaultEnabled) await vaultSyncNow?.();
+                            // GLANCEvault: the shared glance-users app (the roster
+                            // across apps), then dayGLANCE's own data, which carries
+                            // `users` across this app's devices.
+                            if (vaultEnabled) {
+                              await syncRosterNow();
+                              await vaultSyncNow?.();
+                            }
                             setUserSyncStatus('ok');
                             setTimeout(() => setUserSyncStatus(null), 2000);
                           } catch {
