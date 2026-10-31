@@ -45,8 +45,9 @@ vi.mock('../obsidian.js', () => ({
   },
   obsidianWindowCutoffDate: vi.fn(() => null),
 }));
+const nativeAndroid = { value: false };
 vi.mock('../native.js', () => ({
-  isNativeAndroid: () => false,
+  isNativeAndroid: () => nativeAndroid.value,
   isNativeApp: () => false,
   nativeGetVaultConfig: vi.fn(() => null),
   nativeGetNote: vi.fn(() => null),
@@ -152,7 +153,39 @@ beforeEach(() => {
   probeVaultAccess.mockReset(); probeVaultAccess.mockResolvedValue('ok');
   setObsidianSyncStatus.mockClear(); setObsidianVaultAccess.mockClear();
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); nativeAndroid.value = false; });
+
+// The Android splash is held until the startup sync's work is done. The cycle
+// then waits out a 2 s floor for the Sync button's spinner, and the splash
+// used to wait it out too: on a warm start that was half the time to the UI.
+describe('the Android splash', () => {
+  const pairedBeat = { paired: true, accountId: 'acct-1', deviceId: 'dev', tsMs: Date.now() };
+
+  // MUTATION: drop notifyNativeReady() from finishObsidianCycle and the splash
+  // is released only after the floor.
+  it('is released when the cycle finishes its work, before the spinner floor', async () => {
+    nativeAndroid.value = true;
+    readVaultHeartbeat.mockResolvedValue(pairedBeat);
+    const { api } = useMountedHook({ authoritative: true });
+    const notifyAppReady = vi.fn();
+    globalThis.window.DayGlanceNative = { notifyAppReady };
+    const floor = [];
+    vi.stubGlobal('setTimeout', (cb, ms) => {
+      if (ms >= 1000 && ms <= 2000) floor.push(cb);
+      else if (!ms || ms < 3000) cb();
+      return 1;
+    });
+
+    const cycle = api.performObsidianSync();
+    for (let i = 0; i < 200 && !floor.length; i++) await new Promise(r => setImmediate(r));
+    expect(floor).toHaveLength(1);
+    expect(notifyAppReady).toHaveBeenCalledTimes(1);
+
+    floor[0]();
+    await cycle;
+    expect(notifyAppReady).toHaveBeenCalledTimes(1); // once per session, not again from the finally
+  });
+});
 
 describe('writeback under plugin authority (gate a: emit-in-same-tick)', () => {
   it.each([[undefined, '## 任务'], ['## My Tasks', '## My Tasks']])('shares the localized heading with Bridge config and writeback (custom: %s)', async (taskHeading, expected) => {
