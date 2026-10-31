@@ -662,6 +662,10 @@ export default function useObsidianSync({
   // over a pairing flip and still clears (the channel is shared; only the
   // proof changed from "scan completed" to "bridge cycle completed").
   const finishObsidianCycle = async (syncStart, titleConflicts, binRestores = []) => {
+    // The cycle's work is done; the floor below only keeps the Sync button's
+    // spinner visible. Release the Android splash now: it waited out the full
+    // 2 s on every open, which was most of a warm start.
+    notifyNativeReady();
     const elapsed = Date.now() - syncStart;
     if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
     const now = new Date().toISOString();
