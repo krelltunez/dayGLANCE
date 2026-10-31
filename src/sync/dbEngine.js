@@ -288,34 +288,13 @@ function debugDiffLeaves(a, b, path = '', out = []) {
 }
 
 /**
- * Build the dayGLANCE DB sync engine, or null when the vault is disabled.
- *
- * @param {object} callbacks
- * @param {() => object}        callbacks.getData      - current payload `.data` (e.g. buildSyncPayload().data)
- * @param {(data:object)=>void} callbacks.commitData   - write merged `.data` back (e.g. applyPayload)
- * @param {(s:string)=>void}   [callbacks.onStatusChange]
- * @param {(m:string,c:string)=>void} [callbacks.onError]
- * @param {string}             [callbacks.storageKeyPrefix] - override (tests / multi-instance)
- * @param {object}             [callbacks.vaultClient]      - injected client (tests)
- * @param {Function}           [callbacks.nativeGetSyncKey]
- * @param {Function}           [callbacks.nativeStoreSyncKey]
- * @param {string}             [callbacks.deviceId]
+ * The fetchImpl a vault engine needs on this shell: the native HTTP bridge,
+ * the electron proxy, or undefined (global fetch). Shared by the dayGLANCE
+ * engine below and the household roster engine (sync/rosterVault.js).
  */
-export function createDbEngine(callbacks = {}) {
-  if (!callbacks.vaultClient && !isVaultEnabled()) return null;
-  const cfg = getVaultConfig() || {};
-  const storageKeyPrefix = callbacks.storageKeyPrefix || DEFAULT_STORAGE_KEY_PREFIX;
-  const SNAPSHOT_KEY = `${storageKeyPrefix}-db-sync-snapshot`;
-
-  // On native shells the root key is stored in the OS keystore (mirrors the file
-  // tier in adapter.js), elsewhere in IndexedDB. Default these from the bridge so
-  // callers (App wiring, save-time bootstrap) don't each have to pass them.
+export function vaultFetchImpl() {
   const nativeBridge = typeof window !== 'undefined' ? window.DayGlanceNative : null;
   const isNativeApp = !!nativeBridge?.httpRequest;
-  const nativeKeys = nativeKeyConfig();
-  const nativeGetSyncKey = callbacks.nativeGetSyncKey ?? nativeKeys.nativeGetSyncKey;
-  const nativeStoreSyncKey = callbacks.nativeStoreSyncKey ?? nativeKeys.nativeStoreSyncKey;
-
   // The vault client defaults to global fetch, which fails inside the Android
   // WebView (no CORS, restricted network) — the same reason the WebDAV file tier
   // routes through the native HTTP bridge (adapter.js / providers.js). Supply a
@@ -349,25 +328,54 @@ export function createDbEngine(callbacks = {}) {
       text: async () => r.body,
     };
   };
-  const fetchImpl = callbacks.fetchImpl
-    ?? (isNativeApp
+  return isNativeApp
+    ? async (url, { method = 'GET', headers = {}, body } = {}) => {
+      // Async on every shell that supports it (native.js, #2048): the old
+      // synchronous bridge froze the WebView for the whole request.
+      let r;
+      try { r = await nativeHttpRequest(method, url, headers, body ?? ''); }
+      catch { throw new TypeError('Failed to fetch'); }
+      return shapeResponse(r);
+    }
+    : electronProxyFetch
       ? async (url, { method = 'GET', headers = {}, body } = {}) => {
-        // Async on every shell that supports it (native.js, #2048): the old
-        // synchronous bridge froze the WebView for the whole request.
+        // electronProxyFetch is async (IPC) and returns the object directly.
         let r;
-        try { r = await nativeHttpRequest(method, url, headers, body ?? ''); }
+        try { r = await electronProxyFetch(method, url, headers, body ?? null); }
         catch { throw new TypeError('Failed to fetch'); }
         return shapeResponse(r);
       }
-      : electronProxyFetch
-        ? async (url, { method = 'GET', headers = {}, body } = {}) => {
-          // electronProxyFetch is async (IPC) and returns the object directly.
-          let r;
-          try { r = await electronProxyFetch(method, url, headers, body ?? null); }
-          catch { throw new TypeError('Failed to fetch'); }
-          return shapeResponse(r);
-        }
-        : undefined);
+      : undefined;
+}
+
+/**
+ * Build the dayGLANCE DB sync engine, or null when the vault is disabled.
+ *
+ * @param {object} callbacks
+ * @param {() => object}        callbacks.getData      - current payload `.data` (e.g. buildSyncPayload().data)
+ * @param {(data:object)=>void} callbacks.commitData   - write merged `.data` back (e.g. applyPayload)
+ * @param {(s:string)=>void}   [callbacks.onStatusChange]
+ * @param {(m:string,c:string)=>void} [callbacks.onError]
+ * @param {string}             [callbacks.storageKeyPrefix] - override (tests / multi-instance)
+ * @param {object}             [callbacks.vaultClient]      - injected client (tests)
+ * @param {Function}           [callbacks.nativeGetSyncKey]
+ * @param {Function}           [callbacks.nativeStoreSyncKey]
+ * @param {string}             [callbacks.deviceId]
+ */
+export function createDbEngine(callbacks = {}) {
+  if (!callbacks.vaultClient && !isVaultEnabled()) return null;
+  const cfg = getVaultConfig() || {};
+  const storageKeyPrefix = callbacks.storageKeyPrefix || DEFAULT_STORAGE_KEY_PREFIX;
+  const SNAPSHOT_KEY = `${storageKeyPrefix}-db-sync-snapshot`;
+
+  // On native shells the root key is stored in the OS keystore (mirrors the file
+  // tier in adapter.js), elsewhere in IndexedDB. Default these from the bridge so
+  // callers (App wiring, save-time bootstrap) don't each have to pass them.
+  const nativeKeys = nativeKeyConfig();
+  const nativeGetSyncKey = callbacks.nativeGetSyncKey ?? nativeKeys.nativeGetSyncKey;
+  const nativeStoreSyncKey = callbacks.nativeStoreSyncKey ?? nativeKeys.nativeStoreSyncKey;
+
+  const fetchImpl = callbacks.fetchImpl ?? vaultFetchImpl();
 
   // Diagnostic: wrap the transport so every vault request logs its method, full
   // URL path (which carries the entityId and route; the accountId query string is

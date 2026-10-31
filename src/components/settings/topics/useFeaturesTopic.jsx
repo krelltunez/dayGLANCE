@@ -8,7 +8,8 @@ import SettingsCard from '../SettingsCard.jsx';
 import DirectAccessFileRow from '../../DirectAccessFileRow.jsx';
 import useDirectAccessStatus from '../../../hooks/useDirectAccessStatus.js';
 import { MULTI_USER_CONFIG_KEY } from '../../../intents/useIntentPoller.js';
-import { syncSharedUsers, syncSharedUsersViaICloud, syncSharedUsersViaDirectAccess, markRosterEdited } from '../../../intents/sharedUsers.js';
+import { syncSharedUsers, syncSharedUsersViaDirectAccess, markRosterEdited } from '../../../intents/sharedUsers.js';
+import { syncRosterNow } from '../../../sync/rosterVault.js';
 import { isAvailable as isICloudAvailable } from '../../../intents/icloudFileTransport.js';
 import { multiUserToggleLocked, multiUserUnavailableReason, canSyncUserRoster } from '../../../utils/multiUserGate.js';
 import { useTranslation } from 'react-i18next';
@@ -23,7 +24,7 @@ export default function useFeaturesTopic({ intentForm }) {
     tasks, isMobile,
   } = useDayPlannerCtx();
   const {
-    cloudSyncConfig,
+    cloudSyncConfig, vaultEnabled, vaultSyncNow,
   } = useSyncCtx();
   const {
     habitsEnabled, setHabitsEnabled, joboEnabled, setJoboEnabled, aspireEnabled,
@@ -50,7 +51,7 @@ export default function useFeaturesTopic({ intentForm }) {
   const multiUserRosterSyncable = canSyncUserRoster({
     multiUserEnabled,
     cloudSyncEnabled: cloudSyncConfig?.enabled,
-    icloudAvailable: isICloudAvailable(),
+    vaultEnabled,
     directAccessConnected: directAccessRoster,
   });
   const [addingUser, setAddingUser] = useState(false);
@@ -182,16 +183,24 @@ export default function useFeaturesTopic({ intentForm }) {
                           try {
                             const raw = localStorage.getItem(MULTI_USER_CONFIG_KEY);
                             const uPath = raw ? (JSON.parse(raw).usersPath ?? undefined) : undefined;
-                            // Prefer WebDAV when configured, then a connected Direct
-                            // Access folder, then iCloud Drive (same-Apple-ID only).
+                            // The roster file: prefer WebDAV when configured, then a
+                            // connected Direct Access folder. Never iCloud: it is per
+                            // Apple ID, so it cannot reach other household members.
                             const merged = cloudSyncConfig?.enabled
                               ? await syncSharedUsers(cloudSyncConfig, uPath, users)
                               : directAccessRoster
                                 ? await syncSharedUsersViaDirectAccess(uPath, users)
-                                : await syncSharedUsersViaICloud(uPath, users);
+                                : null;
                             if (merged) {
                               localStorage.setItem('dayglance-users', JSON.stringify(merged));
                               setUsers(merged);
+                            }
+                            // GLANCEvault: the shared glance-users app (the roster
+                            // across apps), then dayGLANCE's own data, which carries
+                            // `users` across this app's devices.
+                            if (vaultEnabled) {
+                              await syncRosterNow();
+                              await vaultSyncNow?.();
                             }
                             setUserSyncStatus('ok');
                             setTimeout(() => setUserSyncStatus(null), 2000);

@@ -164,6 +164,7 @@ import { useFileSyncEngine, useVaultSyncEngine, vaultEngineData } from './hooks/
 import { resolveSyncTarget } from './sync/syncTarget.js';
 import useCloudSyncAfterEdit from './hooks/useCloudSyncAfterEdit.js';
 import { createDbEngine, resetVaultSyncCursor } from './sync/dbEngine.js';
+import useRosterVaultSync from './hooks/useRosterVaultSync.js';
 import { deriveBlockEnergy } from './utils/energyAxis.js';
 import { isVaultEnabled } from './sync/vaultConfig.js';
 import { readThemePref, systemPrefersDark, resolveDarkMode, restoredThemePref, THEME_PREF_KEY } from './utils/themePref.js';
@@ -187,7 +188,7 @@ import { useDirectAccessIntents } from './intents/useDirectAccessIntents.js';
 import useConflictCopySweep from './hooks/useConflictCopySweep.js';
 import { launcherWritesInFlight, useAndroidIntentBridge } from './intents/useAndroidIntentBridge.js';
 import { useUrlActionHandler } from './intents/useUrlActionHandler.js';
-import { syncSharedUsers, syncSharedUsersViaICloud, syncSharedUsersViaDirectAccess } from './intents/sharedUsers.js';
+import { syncSharedUsers, syncSharedUsersViaDirectAccess } from './intents/sharedUsers.js';
 import useVoiceAI from './hooks/useVoiceAI.js';
 import useNavigation from './hooks/useNavigation.js';
 import useStats from './hooks/useStats.js';
@@ -967,6 +968,8 @@ const DayPlanner = () => {
   // built further down (useVaultSyncEngine); declared here for the callbacks
   // set up before it.
   const dbEngineRef = useRef(null);
+  // The household roster every GLANCE app shares (glance-users on the vault).
+  const rosterEngineRef = useRef(null);
   // GLANCEvault status surfaced in the Cloud Sync settings (independent of the
   // WebDAV file-tier status).
   const [vaultStatus, setVaultStatus] = useState('idle');
@@ -1843,7 +1846,10 @@ const DayPlanner = () => {
   const obsidianSseNudgeRef = useRef(null);
   useVaultEventStream({
     dataLoaded,
-    drainSync: useCallback(() => dbEngineRef.current?.dbSyncCycle?.(), []),
+    drainSync: useCallback(() => {
+      rosterEngineRef.current?.dbSyncCycle?.().catch(() => { /* surfaced via onError */ });
+      return dbEngineRef.current?.dbSyncCycle?.();
+    }, []),
     // Ensure the vault intents key before the SSE-triggered inbound drain too, so a
     // nudge that arrives before the poller's first drain still decrypts.
     drainIntents: useCallback(async () => {
@@ -2673,6 +2679,18 @@ const DayPlanner = () => {
     },
   });
 
+  // The household roster on GLANCEvault: the glance-users app dayGLANCE,
+  // lastGLANCE and lifeGLANCE share, so members cross apps on a vault-only
+  // account (sync/rosterVault.js). The file roads below carry the same roster.
+  useRosterVaultSync({
+    active: !isTrayMode,
+    dataLoaded,
+    users,
+    multiUserEnabled,
+    setUsers,
+    engineRef: rosterEngineRef,
+  });
+
   // ── Config field timestamp tracking ──────────────────────────────────────
   // Tracks when habitsEnabled/routinesEnabled/goalsProjectsEnabled/obsidianConfig
   // last changed on this device, so mergeSyncData can do last-writer-wins instead
@@ -3031,8 +3049,8 @@ const DayPlanner = () => {
     },
   });
 
-  // Sync user list with glance-users.json on WebDAV, a connected Direct Access
-  // folder and iCloud, so dayGLANCE and lastGLANCE share the same roster
+  // Sync user list with glance-users.json on WebDAV and a connected Direct
+  // Access folder, so dayGLANCE and lastGLANCE share the same roster
   // regardless of which app is opened first. The transports run
   // simultaneously; whichever returns non-null is applied. Re-runs when users
   // change, cloud sync config changes, a WebDAV cycle completes, or (Direct
@@ -3075,10 +3093,6 @@ const DayPlanner = () => {
         .then(applyMerged)
         .catch(err => console.warn('[shared-users] Direct Access sync error:', err.message));
     }
-
-    syncSharedUsersViaICloud(usersPath, users)
-      .then(applyMerged)
-      .catch(err => console.warn('[shared-users] iCloud sync error:', err.message));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users, multiUserEnabled, cloudSyncConfig?.enabled, cloudSyncConfig?.nextcloudUrl, cloudSyncConfig?.webdavUrl, cloudSyncLastSynced, directAccessRoster, directAccessRosterTick]);
 

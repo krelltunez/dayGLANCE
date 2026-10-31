@@ -87,14 +87,21 @@ describe('canSyncUserRoster', () => {
     expect(canSyncUserRoster({ multiUserEnabled: true, cloudSyncEnabled: true, icloudAvailable: false })).toBe(true);
   });
 
-  // Never-trapped device: multi-user on, WebDAV off, iCloud reachable. The iCloud
-  // roster transport is the only way to reconcile users here, so keep it.
-  it('is shown for a never-trapped device where iCloud is the only transport', () => {
-    expect(canSyncUserRoster({ multiUserEnabled: true, cloudSyncEnabled: false, icloudAvailable: true })).toBe(true);
+  // GLANCEvault carries the roster inside the synced data, so a vault-only
+  // device gets the button (its Sync now runs a vault cycle).
+  it('is shown with multi-user on and GLANCEvault the only transport', () => {
+    expect(canSyncUserRoster({ multiUserEnabled: true, cloudSyncEnabled: false, vaultEnabled: true })).toBe(true);
+    expect(canSyncUserRoster({ multiUserEnabled: false, vaultEnabled: true })).toBe(false);
+  });
+
+  // iCloud is per Apple ID: it cannot carry a household roster, so it is not a
+  // roster transport even on a never-trapped device (multi-user on, nothing else).
+  it('is hidden when iCloud is the only sync', () => {
+    expect(canSyncUserRoster({ multiUserEnabled: true, cloudSyncEnabled: false, icloudAvailable: true })).toBe(false);
   });
 
   it('is hidden with multi-user on but no transport at all', () => {
-    expect(canSyncUserRoster({ multiUserEnabled: true, cloudSyncEnabled: false, icloudAvailable: false })).toBe(false);
+    expect(canSyncUserRoster({ multiUserEnabled: true, cloudSyncEnabled: false, vaultEnabled: false })).toBe(false);
   });
 
   it('defaults to hidden with no arguments', () => {
