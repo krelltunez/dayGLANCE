@@ -94,6 +94,19 @@ const ACK = {
   // GHSA-x562-297c-g43g (electron), published the same day, is FIXED by the
   // move to ^43.7.6; GHSA-jr5w-w6x2-84p9 (electron, high, the compromised
   // eMudhra intermediates), published hours later, by ^43.8.1 (43.8.3 resolved).
+  //
+  // Both build/dev-only (`npm ls glob minimatch --omit=dev` finds none), and
+  // neither has a fix inside the majors their parents depend on:
+  'GHSA-3g3m-2fjr-6pw4': {
+    disposition: 'accept', pkg: 'glob (via electron-builder: @electron/asar, temp/rimraf; vite-plugin-pwa: workbox-build)',
+    reason: 'An aborted glob can keep walking the filesystem after its timeout. Only the desktop packager and the PWA build glob, over our own build output on the build machine, never outside patterns. Fixed in 14.0.2, a major above the 7 and 13 their parents depend on.',
+    review: '2026-12-31',
+  },
+  'GHSA-g3hv-75wg-m249': {
+    disposition: 'accept', pkg: 'minimatch (via eslint, electron-builder, workbox-build glob)',
+    reason: 'Some patterns expand into a costly number of glob parts. Only eslint and the build tools match, against our own config and file globs on a dev or build machine, never outside input. Fixed in 11.0.1, a major above the 3, 5, 9 and 10 their parents depend on.',
+    review: '2026-12-31',
+  },
 };
 
 const res = spawnSync('npm', ['audit', '--json'], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
