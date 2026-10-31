@@ -187,7 +187,7 @@ import { useDirectAccessIntents } from './intents/useDirectAccessIntents.js';
 import useConflictCopySweep from './hooks/useConflictCopySweep.js';
 import { launcherWritesInFlight, useAndroidIntentBridge } from './intents/useAndroidIntentBridge.js';
 import { useUrlActionHandler } from './intents/useUrlActionHandler.js';
-import { syncSharedUsers, syncSharedUsersViaICloud, syncSharedUsersViaDirectAccess } from './intents/sharedUsers.js';
+import { syncSharedUsers, syncSharedUsersViaDirectAccess } from './intents/sharedUsers.js';
 import useVoiceAI from './hooks/useVoiceAI.js';
 import useNavigation from './hooks/useNavigation.js';
 import useStats from './hooks/useStats.js';
@@ -3031,8 +3031,8 @@ const DayPlanner = () => {
     },
   });
 
-  // Sync user list with glance-users.json on WebDAV, a connected Direct Access
-  // folder and iCloud, so dayGLANCE and lastGLANCE share the same roster
+  // Sync user list with glance-users.json on WebDAV and a connected Direct
+  // Access folder, so dayGLANCE and lastGLANCE share the same roster
   // regardless of which app is opened first. The transports run
   // simultaneously; whichever returns non-null is applied. Re-runs when users
   // change, cloud sync config changes, a WebDAV cycle completes, or (Direct
@@ -3075,10 +3075,6 @@ const DayPlanner = () => {
         .then(applyMerged)
         .catch(err => console.warn('[shared-users] Direct Access sync error:', err.message));
     }
-
-    syncSharedUsersViaICloud(usersPath, users)
-      .then(applyMerged)
-      .catch(err => console.warn('[shared-users] iCloud sync error:', err.message));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users, multiUserEnabled, cloudSyncConfig?.enabled, cloudSyncConfig?.nextcloudUrl, cloudSyncConfig?.webdavUrl, cloudSyncLastSynced, directAccessRoster, directAccessRosterTick]);
 

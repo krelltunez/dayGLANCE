@@ -1,10 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// sharedUsers.js pulls in webdavFetch (window-dependent) and the iCloud
-// transport at module level; neither is exercised by resolveWebDAV, so stub
-// them out to keep this a pure node test.
+// sharedUsers.js pulls in webdavFetch (window-dependent) at module level; it
+// is not exercised by resolveWebDAV, so stub it out to keep this a pure node
+// test.
 vi.mock('../utils/cloudSyncProviders.js', () => ({ webdavFetch: vi.fn() }));
-vi.mock('./icloudFileTransport.js', () => ({ isAvailable: () => false }));
 
 import { resolveWebDAV, reconcileRoster, syncSharedUsersViaDirectAccess, ROSTER_EDIT_KEY, markRosterEdited } from './sharedUsers.js';
 import { RELAY_CONFIRM_MS } from '../sync/snapshotFileSync.js';

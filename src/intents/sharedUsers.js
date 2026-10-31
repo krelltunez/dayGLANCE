@@ -1,5 +1,4 @@
 import { webdavFetch } from '../utils/cloudSyncProviders.js';
-import * as icloudFileTransport from './icloudFileTransport.js';
 import { directAccessTransport } from '../sync/directAccessTransport.js';
 import { canonicalJson } from '../sync/snapshotMergeExplain.js';
 import { RELAY_CONFIRM_MS } from '../sync/snapshotFileSync.js';
@@ -168,7 +167,7 @@ export function relativeRosterPaths(usersPath) {
  * and the body to write back, or null when the file is still downloading and
  * the caller should retry next cycle. `remoteRaw` follows the snapshot read
  * contract: null for an absent file, '{"downloading":true}', or the text.
- * Shared by the iCloud and Direct Access roster syncs.
+ * Used by the Direct Access roster sync.
  */
 export function reconcileRoster(remoteRaw, localUsers) {
   if (remoteRaw && typeof remoteRaw === 'string') {
@@ -193,44 +192,6 @@ export function reconcileRoster(remoteRaw, localUsers) {
   }
   const body = JSON.stringify({ version: 1, users: merged.map(toWireFormat), updated_at: new Date().toISOString() });
   return { merged, body };
-}
-
-/**
- * Sync the local user list with glance-users.json on iCloud Drive, using the
- * same directory structure as WebDAV: GLANCE/users/glance-users.json under
- * the Documents/ folder of the iCloud container.
- *
- * Returns the merged user array, or null if iCloud is not available or the
- * file is still downloading (caller should retry on next sync cycle).
- */
-export async function syncSharedUsersViaICloud(usersPath, localUsers) {
-  if (!icloudFileTransport.isAvailable()) return null;
-
-  const { dirPath, filePath } = relativeRosterPaths(usersPath);
-
-  let remoteRaw;
-  try {
-    remoteRaw = await icloudFileTransport.readFile(filePath);
-  } catch (err) {
-    console.warn('[shared-users/icloud] readFile error:', err.message);
-    return null;
-  }
-
-  const r = reconcileRoster(remoteRaw, localUsers);
-  if (!r) return null; // still downloading — caller should retry
-  const { merged, body } = r;
-
-  let ok = await icloudFileTransport.writeFile(filePath, body);
-  if (!ok) {
-    // Directory may not exist — create it and retry
-    await icloudFileTransport.makeDir(dirPath);
-    ok = await icloudFileTransport.writeFile(filePath, body);
-  }
-  if (!ok) {
-    console.warn('[shared-users/icloud] writeFile failed');
-  }
-
-  return merged;
 }
 
 /** The roster entries a file holds, for the write question; [] when absent or unreadable. */
@@ -260,7 +221,7 @@ export function _resetRosterSyncStateForTests() { rosterSyncState.clear(); }
  * uses, through the transport's roster slot: files by path on desktop and
  * Android, the roster's own bookmarked file on an iPhone.
  *
- * Unlike the WebDAV and iCloud roster syncs, which rewrite the file on every
+ * Unlike the WebDAV roster sync, which rewrites the file on every
  * run, this one follows the snapshot cycle's rules, because two devices
  * rewriting one file in a syncing folder is a conflict copy per run (two Macs,
  * 2026-10-09): it writes only when the roster the file holds would change,

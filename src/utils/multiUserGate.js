@@ -68,16 +68,14 @@ export function multiUserUnavailableReason({ cloudSyncConfigured, icloudAvailabl
  * on one screen. With multi-user off there is no roster to sync in the first
  * place, so the button has nothing to do.
  *
- * The iCloud transport stays supported for the never-trapped case: multi-user
- * enabled while WebDAV is off, where syncSharedUsersViaICloud is the only way to
- * reconcile the roster.
+ * The roads are the shared ones: WebDAV and a connected Direct Access folder
+ * (Phase 5 of docs/direct-access-sync.md) carry glance-users.json, and
+ * GLANCEvault carries the roster inside the synced data (`users`). iCloud is
+ * not one: it is per Apple ID, so it cannot reach other household members.
  *
- * A connected Direct Access folder carries the roster too (Phase 5 of
- * docs/direct-access-sync.md), so it is a transport here.
- *
- * @param {{multiUserEnabled?: boolean, cloudSyncEnabled?: boolean, icloudAvailable?: boolean, directAccessConnected?: boolean}} opts
+ * @param {{multiUserEnabled?: boolean, cloudSyncEnabled?: boolean, vaultEnabled?: boolean, directAccessConnected?: boolean}} opts
  * @returns {boolean}
  */
-export function canSyncUserRoster({ multiUserEnabled, cloudSyncEnabled, icloudAvailable, directAccessConnected } = {}) {
-  return !!(multiUserEnabled && (cloudSyncEnabled || icloudAvailable || directAccessConnected));
+export function canSyncUserRoster({ multiUserEnabled, cloudSyncEnabled, vaultEnabled, directAccessConnected } = {}) {
+  return !!(multiUserEnabled && (cloudSyncEnabled || vaultEnabled || directAccessConnected));
 }
