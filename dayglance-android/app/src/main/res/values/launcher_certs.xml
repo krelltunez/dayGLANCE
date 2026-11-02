@@ -6,20 +6,17 @@
   certificates, not dayGLANCE's.
 
   To read one:  keytool -list -v -keystore <keystore> -alias <alias> | grep SHA256
-  then strip the colons and lowercase. The debug keystore is
-  ~/.android/debug.keystore (alias androiddebugkey, password android).
+  then strip the colons and lowercase.
 
-  PLACEHOLDERS: every entry below is a placeholder and must be replaced before
-  the permission admits anything. The DEBUG entry is removed before any public
-  release; the PLAY entry is filled in once the launcher ships on Play (Play
-  Console → App integrity → App signing key certificate).
+  There is no debug entry: where the launcher's release key is present, its debug
+  builds carry that key too. The PLAY entry is a placeholder, filled in once the
+  launcher ships on Play (Play Console → App integrity → App signing key
+  certificate).
 -->
 <resources>
     <string-array name="launcher_known_certs">
-        <!-- GLANCElauncher release certificate (PLACEHOLDER: replace with the real digest) -->
-        <item>0000000000000000000000000000000000000000000000000000000000000001</item>
-        <!-- GLANCElauncher debug certificate (the Android debug key on the maintainer's Mac; REMOVE before any public release) -->
-        <item>72d984906c2e8974da1800fca30f221186be504b89b9f3a5331eae21d55e01b9</item>
+        <!-- GLANCElauncher release certificate -->
+        <item>7e6d39d03c5d4c4f4c947c4d7f9657e9ae6ab94d296c97d684333450c2b7791d</item>
         <!-- GLANCElauncher Play app signing certificate (PLACEHOLDER: fill in once the launcher ships on Play) -->
         <item>0000000000000000000000000000000000000000000000000000000000000003</item>
     </string-array>
