@@ -268,19 +268,20 @@ launcher writes; the launcher reads the outcome from the next snapshot.
 Both the provider and the receiver sit behind `com.dayglance.permission.LAUNCHER`,
 `protectionLevel="signature|knownSigner"`, with `knownCerts` naming the
 **launcher's** signing certificates (`res/values/launcher_certs.xml`): its
-release certificate, its debug certificate (removed before any public release)
-and its Play app signing certificate once it ships there. dayGLANCE's own
+release certificate, and its Play app signing certificate once it ships there. dayGLANCE's own
 signature satisfies the `signature` half, so the app can always reach its own
 provider. `knownSigner` exists from Android 12; on older devices the permission
 is signature-only and the launcher stays in demo mode. The launcher declares
 `<uses-permission android:name="com.dayglance.permission.LAUNCHER" />`.
 
-The digests in `launcher_certs.xml` are placeholders until read from the
-launcher's keystores (`keytool -list -v`, SHA-256, lowercase, no colons).
+A digest is read from the launcher's keystore (`keytool -list -v`, SHA-256,
+lowercase, no colons). The Play entry stays a placeholder until the launcher ships
+there. There is no debug entry: where the launcher's release key is present, its
+debug builds carry that key too.
 
 ## Verifying on a device
 
-With the launcher's real digests in `launcher_certs.xml` and both apps installed:
+With a launcher signed by the release key and both apps installed:
 
 1. Open dayGLANCE once so the web layer pushes. Then from a shell:
    `adb shell content query --uri content://com.dayglance.app.launcher/meta`
