@@ -157,3 +157,11 @@ describe('Do editor as a sheet', () => {
     expect(html).toContain('<kbd');
   });
 });
+
+describe('Do editor save shortcut (#2276)', () => {
+  it('says Ctrl/Cmd+Enter saves from any field, beside Enter and Esc', () => {
+    const html = render();
+    expect(html).toMatch(/<kbd[^>]*>(Ctrl|⌘)\+Enter<\/kbd> task\.fromAnyField/);
+    expect(html).toContain('>Enter</kbd> common.save');
+  });
+});

@@ -17,6 +17,7 @@ import TaskMetadataLine from './TaskMetadataLine.jsx';
 import { extractTags, getRecurrenceLabel } from '../utils/taskUtils.js';
 import { formatLocalizedDate } from '../utils/localeFormatting.js';
 import { aiFeatureOn } from '../ai.js';
+import { submitModifierLabel, submitShortcutHandler } from '../utils/submitShortcut.js';
 
 const DesktopNewTaskModal = () => {
   const { t, i18n } = useTranslation();
@@ -67,6 +68,9 @@ const DesktopNewTaskModal = () => {
   const isBucketItem = !!mobileEditingTask?.bucketId;
   // Where a key is text being typed: the title, the notes and the subtasks.
   const isTextField = (el) => el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' || !!el?.isContentEditable;
+  // Ctrl/Cmd+Enter saves from any field, the notes included (#2276). Plain
+  // Enter only submits from the title.
+  const onSubmitShortcut = submitShortcutHandler();
 
   if (!showAddTask || isMobile) return null;
 
@@ -86,6 +90,7 @@ const DesktopNewTaskModal = () => {
               }
               setShowNewTaskDeadlinePicker(false);
             }}
+            onKeyDownCapture={onSubmitShortcut}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 e.preventDefault();
@@ -588,12 +593,11 @@ const DesktopNewTaskModal = () => {
                   {t('common.cancel')}
                 </button>
               </div>
-              {!mobileEditingTask && (
-              <div className={`text-xs ${textSecondary} text-center`}>
-                <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded`}>Enter</kbd> {t('task.addToHint', { target: newTask.openInInbox ? t('task.inbox') : t('task.schedule') })}
+              <div className={`text-xs ${textSecondary} text-center`} data-task-form-hint>
+                <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded`}>Enter</kbd> {mobileEditingTask ? t('common.save') : t('task.addToHint', { target: newTask.openInInbox ? t('task.inbox') : t('task.schedule') })}
+                {' '} • <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded`}>{submitModifierLabel()}+Enter</kbd> {t('task.fromAnyField')}
                 {' '} • <kbd className={`px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded`}>Esc</kbd> {t('common.cancel')}
               </div>
-              )}
             </div>
           </form>
         </div>

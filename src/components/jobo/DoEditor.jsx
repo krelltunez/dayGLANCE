@@ -15,6 +15,7 @@ import { matchDoLinks, linkFor, doTagSuggestions, completeDoTag } from '../../jo
 import { stripWikilinks, stripWikilinksAndTags } from '../../utils/taskUtils.js';
 import useBackClose, { ABOVE_EDITORS } from '../../hooks/useBackClose.js';
 import { keyboardSheet } from '../../utils/keyboardInset.js';
+import { submitModifierLabel, submitShortcutHandler } from '../../utils/submitShortcut.js';
 
 // The phone sheet sits on the soft keyboard rather than under it, for a new
 // Do's title (an existing record's title is frozen, so it takes no keyboard).
@@ -255,6 +256,9 @@ export default function DoEditor({ record, taskCompleted = false, onCompleteTask
   const label = `block text-sm ${textSecondary} mb-1`;
   const kbd = `px-1.5 py-0.5 ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} rounded`;
   const busy = saving || waiting || !writable;
+  // Ctrl/Cmd+Enter saves from any field, a focused picker button included;
+  // plain Enter only submits from a text input (#2276).
+  const onSubmitShortcut = submitShortcutHandler({ disabled: () => busy });
 
   return createPortal(<div className={`fixed inset-0 bg-black/50 flex justify-center z-[80] ${sheet ? 'items-end' : 'items-center'}`} style={sheet ? DO_SHEET.overlay : undefined} onMouseDown={(event) => {
     if (event.target === event.currentTarget && !saving) onClose();
@@ -267,7 +271,7 @@ export default function DoEditor({ record, taskCompleted = false, onCompleteTask
       style={sheet ? { ...DO_SHEET.sheet, paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' } : undefined}>
       {sheet && <div className={`mx-auto mb-3 h-1 w-10 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-stone-300'}`} aria-hidden="true" />}
       <h3 id="jobo-do-editor-title" className={`font-semibold ${textPrimary} mb-4 text-lg`}>{record ? t('common.edit') : initial?.continuing ? t('jobo.view.continueDo') : t('jobo.view.addDo')}</h3>
-      <form onSubmit={(event) => { event.preventDefault(); save(); }}>
+      <form onSubmit={(event) => { event.preventDefault(); save(); }} onKeyDownCapture={onSubmitShortcut}>
         <fieldset disabled={busy} className="space-y-4">
           <div>
             <label className={label} htmlFor="jobo-do-title">{t('task.title')}</label>
@@ -425,7 +429,7 @@ export default function DoEditor({ record, taskCompleted = false, onCompleteTask
         </div>
         {!sheet && (
           <div className={`mt-3 text-xs ${textSecondary} text-center`}>
-            <kbd className={kbd}>Enter</kbd> {t('common.save')} • <kbd className={kbd}>Esc</kbd> {t('common.cancel')}
+            <kbd className={kbd}>Enter</kbd> {t('common.save')} • <kbd className={kbd}>{submitModifierLabel()}+Enter</kbd> {t('task.fromAnyField')} • <kbd className={kbd}>Esc</kbd> {t('common.cancel')}
           </div>
         )}
       </form>

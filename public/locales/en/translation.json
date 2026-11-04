@@ -924,6 +924,7 @@
     "lastUsedProject": "Last used",
     "lastUsedProjectLabel": "Last used: {{name}}",
     "addToHint": "add to {{target}}",
+    "fromAnyField": "from any field",
     "inbox": "inbox",
     "schedule": "Schedule",
     "dropToAllDay": "Drop here to make all-day",

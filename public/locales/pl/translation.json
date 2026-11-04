@@ -947,6 +947,7 @@
     "lastUsedProject": "Ostatnio używany",
     "lastUsedProjectLabel": "Ostatnio używany: {{name}}",
     "addToHint": "dodaj do: {{target}}",
+    "fromAnyField": "z dowolnego pola",
     "inbox": "skrzynka",
     "schedule": "Harmonogram",
     "dropToAllDay": "Upuść tutaj, aby ustawić jako całodniowe",
