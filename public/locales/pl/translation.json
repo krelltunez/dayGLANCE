@@ -943,6 +943,7 @@
     "chooseExistingProject": "Wybierz istniejący projekt",
     "newProjectHint": "Projekt zostanie utworzony po zapisaniu zadania.",
     "addToHint": "dodaj do: {{target}}",
+    "fromAnyField": "z dowolnego pola",
     "inbox": "skrzynka",
     "schedule": "Harmonogram",
     "dropToAllDay": "Upuść tutaj, aby ustawić jako całodniowe",

@@ -920,6 +920,7 @@
     "chooseExistingProject": "Escolher um projeto existente",
     "newProjectHint": "O projeto é criado quando você salva a tarefa.",
     "addToHint": "adicionar a {{target}}",
+    "fromAnyField": "de qualquer campo",
     "inbox": "caixa de entrada",
     "schedule": "Agendar",
     "dropToAllDay": "Largar aqui para dia inteiro",

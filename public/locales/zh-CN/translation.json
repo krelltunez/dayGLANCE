@@ -920,6 +920,7 @@
     "chooseExistingProject": "选择现有项目",
     "newProjectHint": "保存任务时会创建该项目。",
     "addToHint": "添加到{{target}}",
+    "fromAnyField": "在任意字段中",
     "inbox": "收件箱",
     "schedule": "日程",
     "dropToAllDay": "拖到此处设为全天任务",

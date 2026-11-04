@@ -920,6 +920,7 @@
     "chooseExistingProject": "Scegli un progetto esistente",
     "newProjectHint": "Il progetto viene creato quando salvi l’attività.",
     "addToHint": "aggiungi a {{target}}",
+    "fromAnyField": "da qualsiasi campo",
     "inbox": "posta in arrivo",
     "schedule": "Pianifica",
     "dropToAllDay": "Trascina qui per tutto il giorno",

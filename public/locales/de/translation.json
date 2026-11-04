@@ -920,6 +920,7 @@
     "chooseExistingProject": "Ein vorhandenes Projekt wählen",
     "newProjectHint": "Das Projekt wird angelegt, wenn du die Aufgabe speicherst.",
     "addToHint": "zu {{target}} hinzufügen",
+    "fromAnyField": "aus jedem Feld",
     "inbox": "Posteingang",
     "schedule": "Planen",
     "dropToAllDay": "Hier ablegen für ganztägig",
