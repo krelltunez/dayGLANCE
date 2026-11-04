@@ -12,6 +12,7 @@ import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import TimelineTaskCardContent from './TimelineTaskCardContent.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import DayWindowMarkers from './DayWindowMarkers.jsx';
+import ResizeGuides from './ResizeGuides.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getHGBarsForDate } from '../hooks/useHyperGlance.js';
@@ -44,7 +45,7 @@ const TimeGrid = () => {
     draggedTask,
     dragPreviewTime, setDragPreviewTime,
     dragPreviewDate, setDragPreviewDate,
-    isResizing,
+    isResizing, resizePreview,
     mobileDragPreviewTime, mobileDragPreviewDate, mobileDragTaskIdState,
     setTaskRef,
     setEditingRecurrenceTaskId,
@@ -307,6 +308,16 @@ const TimeGrid = () => {
             </div>
           )}
 
+          {/* Resize guides - start and end of the block being resized (#2273) */}
+          {resizePreview && resizePreview.dateStr === dateStr && (
+            <ResizeGuides
+              preview={resizePreview}
+              minToTop={minutesToPosition}
+              formatMinutes={(m) => formatTime(minutesToTime(m))}
+              darkMode={darkMode}
+            />
+          )}
+
           {/* HyperGLANCE project bars (left half, only within their scheduled time range) */}
           {hasBars && (
             <div className="absolute top-0 bottom-0 pointer-events-none" style={{ left: 0, width: '50%' }}>
@@ -557,14 +568,30 @@ const TimeGrid = () => {
                   onTouchMove: (e) => handleMobileTaskTouchMove(e),
                   onTouchEnd: (e) => handleMobileTaskTouchEnd(e, task.id, 'timeline'),
                 } : {})}
-                className={`h-full flex text-white rounded-lg relative ${isTablet && !task.isTaskCalendar && !task.nativeCalendarColor ? task.color : ''} ${isTablet ? 'select-none' : ''}`}
+                className={`group/card h-full flex text-white rounded-lg relative ${isTablet && !task.isTaskCalendar && !task.nativeCalendarColor ? task.color : ''} ${isTablet ? 'select-none' : ''}`}
                 style={{ ...(isTablet ? { touchAction: 'pan-y', ...taskCalendarStyle } : {}) }}
                 >
                   <TimelineTaskCardContent task={task} height={height} isNarrowWidth={isNarrowWidth} zoom={z} />
+                  {/* Resize handle at top - moves the start, keeps the end (#2273).
+                      Shown on hover on desktop so it stays off the title. */}
+                  {(!isImported || !!task.nativeEventId) && (
+                    <div
+                      data-no-card-dblclick
+                      data-resize-handle="top"
+                      onMouseDown={(e) => handleResizeStart(task, e, { edge: 'top' })}
+                      onTouchStart={(e) => handleTouchResizeStart(task, e, { edge: 'top' })}
+                      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                      className="absolute top-0 left-1/3 right-1/3 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center select-none"
+                      style={{ marginTop: '-4px', touchAction: 'none', WebkitTouchCallout: 'none' }}
+                    >
+                      <div className={`w-12 h-1 bg-white rounded-full ${isTablet ? '' : 'opacity-0 group-hover/card:opacity-100'}`}></div>
+                    </div>
+                  )}
                   {/* Resize handle at bottom - solid white for visibility */}
                   {(!isImported || !!task.nativeEventId) && (
                     <div
                       data-no-card-dblclick
+                      data-resize-handle="bottom"
                       onMouseDown={(e) => handleResizeStart(task, e)}
                       onTouchStart={(e) => handleTouchResizeStart(task, e)}
                       onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}

@@ -6,6 +6,7 @@ import { columnTimeFromEvent } from '../utils/dragUtils.js';
 import TimelineTaskCardContent from './TimelineTaskCardContent.jsx';
 import PastDoCard from './jobo/PastDoCard.jsx';
 import DayWindowMarkers from './DayWindowMarkers.jsx';
+import ResizeGuides from './ResizeGuides.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import useDayViewHourHeight from '../hooks/useDayViewHourHeight.js';
@@ -74,7 +75,8 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
     setHoverPreviewTime, setHoverPreviewDate,
     handleDragStart, handleDragEnd, handleDropOnCalendar,
     handleResizeStart, handleTouchResizeStart,
-    isResizing,
+    isResizing, resizePreview,
+    minutesToTime,
     setNewTask, setShowAddTask,
   } = useDayPlannerCtx();
 
@@ -264,6 +266,19 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
           </div>
         )}
 
+        {/* Resize guides - start and end of the block being resized (#2273) */}
+        {resizePreview && resizePreview.dateStr === col.dateStr && (
+          <ResizeGuides
+            preview={resizePreview}
+            minToTop={(m) => (m - colStartMin) * hourHeight / 60}
+            clipStartMin={colStartMin}
+            clipEndMin={colEndMin}
+            formatMinutes={(m) => formatTime(minutesToTime(m))}
+            darkMode={darkMode}
+            className="left-16 right-0"
+          />
+        )}
+
         {/* Day-window START/END marker lines */}
         <div className="absolute top-0 left-16 right-0 bottom-0 pointer-events-none">
           <DayWindowMarkers
@@ -301,8 +316,8 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
                       onContextMenu={(e) => { e.preventDefault(); setFrameContextMenu({ x: e.clientX, y: e.clientY, frameId: frame.frameId, dateStr: col.dateStr }); }}
                     >
                       <span className="absolute top-1 left-1.5 text-[10px] font-medium pointer-events-none select-none" style={{ color: border }}>{frame.label}</span>
-                      <div className="absolute top-0 left-0 right-0 h-2 cursor-n-resize" onMouseDown={(e) => handleFrameResizeStart(frame.frameId, col.dateStr, 'top', e)} />
-                      <div className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize" onMouseDown={(e) => handleFrameResizeStart(frame.frameId, col.dateStr, 'bottom', e)} />
+                      <div className="absolute top-0 left-0 right-0 h-2 cursor-n-resize" onMouseDown={(e) => handleFrameResizeStart(frame.frameId, col.dateStr, 'top', e, { hourHeight })} />
+                      <div className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize" onMouseDown={(e) => handleFrameResizeStart(frame.frameId, col.dateStr, 'bottom', e, { hourHeight })} />
                     </div>
                     {availableSlots.map((slot, si) => {
                       const sStart = Math.max(timeToMinutes(slot.start), colStartMin);
@@ -406,6 +421,9 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
             // When a task spans multiple columns the handle appears only
             // on its last visible slice, at the real bottom of the task.
             const canResize = (!isImported || !!task.nativeEventId) && !isTablet && !clippedBottom;
+            // The top handle likewise sits on the slice that holds the task's
+            // real start (#2273).
+            const canResizeTop = (!isImported || !!task.nativeEventId) && !isTablet && !clippedTop;
 
             // Same card rule as MULTI (TimeGrid): measure the rendered card
             // and switch to the compact layout under 300px; stay hidden
@@ -423,7 +441,7 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
                 draggable={taskDraggable}
                 onDragStart={taskDraggable ? (e) => handleDragStart(task, 'calendar', e) : undefined}
                 onDragEnd={taskDraggable ? handleDragEnd : undefined}
-                className={`absolute pointer-events-auto shadow-md notes-panel-container text-white
+                className={`group/card absolute pointer-events-auto shadow-md notes-panel-container text-white
                   ${task.isTaskCalendar ? '' : task.color}
                   ${radiusTop} ${radiusBot}
                   ${isCompleted && !isCalendarEvent ? 'opacity-50' : ''}
@@ -474,11 +492,26 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
                     <ChevronDown size={12} className="text-white/70" />
                   </div>
                 )}
+                {canResizeTop && (
+                  <div
+                    data-no-card-dblclick
+                    data-resize-handle="top"
+                    onMouseDown={(e) => handleResizeStart(task, e, { edge: 'top', hourHeight })}
+                    onTouchStart={(e) => handleTouchResizeStart(task, e, { edge: 'top', hourHeight })}
+                    onClick={(e) => e.stopPropagation()}
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    className="absolute top-0 left-1/3 right-1/3 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center select-none"
+                    style={{ marginTop: '-4px', touchAction: 'none' }}
+                  >
+                    <div className="w-12 h-1 bg-white rounded-full opacity-0 group-hover/card:opacity-100" />
+                  </div>
+                )}
                 {canResize && (
                   <div
                     data-no-card-dblclick
-                    onMouseDown={(e) => handleResizeStart(task, e)}
-                    onTouchStart={(e) => handleTouchResizeStart(task, e)}
+                    data-resize-handle="bottom"
+                    onMouseDown={(e) => handleResizeStart(task, e, { hourHeight })}
+                    onTouchStart={(e) => handleTouchResizeStart(task, e, { hourHeight })}
                     onClick={(e) => e.stopPropagation()}
                     onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                     className="absolute bottom-0 left-1/3 right-1/3 h-3 cursor-ns-resize hover:bg-white/20 flex items-center justify-center select-none"
@@ -561,7 +594,7 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
                   {!isTablet && (
                     <div
                       className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize flex justify-center items-center"
-                      onMouseDown={(e) => handleRoutineResizeStart(routine, e)}
+                      onMouseDown={(e) => handleRoutineResizeStart(routine, e, { hourHeight })}
                       style={{ marginBottom: '-4px' }}
                     >
                       <div className="w-8 h-1 rounded-full bg-white" />
@@ -569,7 +602,7 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
                   )}
                   {isTablet && (
                     <div
-                      onTouchStart={(e) => handleTouchRoutineResizeStart(routine, e)}
+                      onTouchStart={(e) => handleTouchRoutineResizeStart(routine, e, { hourHeight })}
                       className="absolute bottom-0 left-1/3 right-1/3 h-3 flex items-center justify-center select-none"
                       style={{ marginBottom: '-4px', touchAction: 'none', WebkitTouchCallout: 'none' }}
                     >
