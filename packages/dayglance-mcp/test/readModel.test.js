@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import {
   blockType,
@@ -12,7 +13,7 @@ import {
   inboxItem,
   projectItem,
   handleMcpRequest,
-} from './mcpReadModel.js';
+} from '../src/readModel.js';
 
 // The renderer half of the MCP read surface. The load-bearing assertions:
 // _native events carry the distinct type + read_only flag in ALL output

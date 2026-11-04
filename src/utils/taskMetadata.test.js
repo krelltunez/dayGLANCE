@@ -1,24 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { parseStamp, taskMoments, formatStamp, wireStamp } from './taskMetadata.js';
+import { taskMoments, formatStamp } from './taskMetadata.js';
 
-describe('parseStamp', () => {
-  it('reads a bare date as that LOCAL day, not UTC midnight', () => {
-    const { date, hasTime } = parseStamp('2026-10-19');
-    expect(hasTime).toBe(false);
-    expect([date.getFullYear(), date.getMonth(), date.getDate()]).toEqual([2026, 9, 19]);
-  });
-
-  it('reads local-offset and UTC stamps as instants', () => {
-    expect(parseStamp('2026-10-19T09:00:00-05:00').date.getTime()).toBe(Date.parse('2026-10-19T14:00:00Z'));
-    expect(parseStamp('2026-10-19T14:00:00.000Z').hasTime).toBe(true);
-  });
-
-  it('is null for nothing or nonsense', () => {
-    expect(parseStamp(null)).toBeNull();
-    expect(parseStamp('')).toBeNull();
-    expect(parseStamp('soon')).toBeNull();
-  });
-});
+// parseStamp is tested with agenda-core (stamps.test.js), wireStamp with
+// @glance-apps/dayglance-mcp (test/wireStamp.test.js).
 
 describe('taskMoments', () => {
   it('reports a concrete task\'s stamps, and no completion while it is open', () => {
@@ -50,13 +34,5 @@ describe('formatStamp', () => {
 
   it('is null when there is nothing to show', () => {
     expect(formatStamp(null, { formatTime, now })).toBeNull();
-  });
-});
-
-describe('wireStamp', () => {
-  it('gives the local date and HH:MM, or a null time for a bare date', () => {
-    expect(wireStamp('2026-10-19T09:14:59')).toEqual({ date: '2026-10-19', time: '09:14' });
-    expect(wireStamp('2026-08-01')).toEqual({ date: '2026-08-01', time: null });
-    expect(wireStamp(undefined)).toBeNull();
   });
 });

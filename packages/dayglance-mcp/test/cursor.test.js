@@ -1,6 +1,7 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { paginate, decodeCursor } from '@glance-apps/mcp-host';
-import { CURSOR_PREFIX } from './mcpReadTools.js';
+import { CURSOR_PREFIX } from '../src/readTools.js';
 
 // dayGLANCE's pagination cursors on the host kit's paginate (§5.1). The paging
 // rules are tested with @glance-apps/mcp-host

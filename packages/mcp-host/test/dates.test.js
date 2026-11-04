@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isValidLocalDate, localDateOf, dateEnvelope } from '../src/dates.js';
+import { isValidLocalDate, localDateOf, localMinutesOf, dateEnvelope } from '../src/dates.js';
 
 // §5.3 is the correctness core of the read tools: local calendar dates only, resolved
 // server-side, correct across DST boundaries in both directions. These tests
@@ -110,5 +110,28 @@ describe('dateEnvelope', () => {
       date: '2026-08-09',
       timezone: 'America/Chicago',
     });
+  });
+});
+
+describe('localMinutesOf — the wall clock in a zone, beside localDateOf', () => {
+  it('reads the same instant as different wall-clock times in different zones', () => {
+    const t = utc('2026-08-09T03:00:00Z');
+    expect(localMinutesOf(t, 'America/Chicago')).toBe(22 * 60); // 22:00 the day before
+    expect(localMinutesOf(t, 'Asia/Tokyo')).toBe(12 * 60);
+    expect(localMinutesOf(t, 'UTC')).toBe(3 * 60);
+    expect(localMinutesOf(utc('2026-08-09T03:00:00Z'), 'Asia/Kolkata')).toBe(8 * 60 + 30); // a half-hour zone
+  });
+
+  it('is 0 at local midnight, never 24:00', () => {
+    expect(localMinutesOf(utc('2026-03-08T06:00:00Z'), 'America/Chicago')).toBe(0);
+    expect(localMinutesOf(utc('2026-08-09T00:00:00Z'), 'UTC')).toBe(0);
+    expect(localMinutesOf(utc('2026-08-09T23:59:00Z'), 'UTC')).toBe(1439);
+  });
+
+  it('follows the clock across spring forward and fall back (America/Chicago)', () => {
+    expect(localMinutesOf(utc('2026-03-08T07:59:00Z'), 'America/Chicago')).toBe(1 * 60 + 59); // 01:59 CST
+    expect(localMinutesOf(utc('2026-03-08T08:00:00Z'), 'America/Chicago')).toBe(3 * 60);      // 03:00 CDT
+    expect(localMinutesOf(utc('2026-11-01T06:30:00Z'), 'America/Chicago')).toBe(1 * 60 + 30); // first 01:30
+    expect(localMinutesOf(utc('2026-11-01T07:30:00Z'), 'America/Chicago')).toBe(1 * 60 + 30); // second 01:30
   });
 });

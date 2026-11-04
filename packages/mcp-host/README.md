@@ -28,7 +28,7 @@ Everything is exported from the package root.
 | `idempotency.js` | `createIdempotencyStore` (TTL + LRU replay store), `isValidIdempotencyKey`, `makeStoreKey`. |
 | `pagination.js` | `paginate(items, { limit, cursor, filterKey, cursorPrefix })`: self-contained cursors bound to the filter they were minted under. `encodeCursor`, `decodeCursor`. |
 | `journal.js` | The session write journal: `appendEntry`, `journalGroups` / `journalSnapshot` (given the app's `groupKey`, and optionally `groupLabel`), `buildUndoPlan`, `summaryTitle`. |
-| `dates.js`, `localTime.js` | Local calendar dates and wall-clock times: `isValidLocalDate`, `localDateOf`, `dateEnvelope`, `isValidWallTime`, `resolveLocalTime`, `validateStartTime` (refuses DST-skipped and DST-repeated times). |
+| `dates.js`, `localTime.js` | Local calendar dates and wall-clock times: `isValidLocalDate`, `localDateOf`, `localMinutesOf`, `dateEnvelope`, `isValidWallTime`, `resolveLocalTime`, `validateStartTime` (refuses DST-skipped and DST-repeated times). |
 
 Types only: `HostBridge` and `BridgeResult`, the contract between the tools
 and the app's data. `request(method, params, timeoutMs)` resolves to

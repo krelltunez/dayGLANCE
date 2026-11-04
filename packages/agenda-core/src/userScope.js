@@ -1,6 +1,8 @@
 // Multi-user scoping, the two predicates every surface filters with. Shared
-// by App.jsx and the headless refresh root (src/headless/), whose launcher
-// snapshot must show exactly what the app's would.
+// by App.jsx, the headless refresh root (src/headless/), whose launcher
+// snapshot must show exactly what the app's would, and the MCP read state
+// (@glance-apps/dayglance-mcp buildMcpReadState), which must scope exactly as
+// the app does.
 
 /**
  * Tasks, goals and projects broadcast to everyone unless assigned: visible

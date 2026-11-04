@@ -4,7 +4,10 @@
 // expansion code, so the two can never disagree about what today holds).
 //
 // Pure: no app state, no storage, no DOM. Calendar math and agenda shaping
-// only — ownership policy stays in dayGLANCE.
+// only — ownership policy stays in dayGLANCE. Also the dayGLANCE domain rules
+// the app and the MCP read surface (@glance-apps/dayglance-mcp) must apply
+// identically: the Bucket List, frame instances, routine blocks and day
+// occupancy, multi-user scoping, stamps, and a note link as readers see it.
 export * from './recurrence.js';
 export * from './agenda.js';
 export * from './routines.js';
@@ -13,3 +16,10 @@ export * from './calendar.js';
 export * from './events.js';
 export * from './progress.js';
 export * from './noteBlock.js';
+export * from './bucketList.js';
+export * from './frameInstances.js';
+export * from './routineBlocks.js';
+export * from './dayOccupancy.js';
+export * from './userScope.js';
+export * from './stamps.js';
+export * from './noteLink.js';

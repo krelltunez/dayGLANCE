@@ -59,8 +59,7 @@ import { LAUNCHER_ACTIONS, LAUNCHER_ONLY, readLauncherLedger } from '../intents/
 import { drainLauncherQueue } from '../intents/useAndroidIntentBridge.js';
 import { expandRecurringTasks } from '../utils/expandRecurringTasks.js';
 import { computeRecurringExpansionRange } from '../utils/recurringExpansionRange.js';
-import { frameInstancesForDate } from '../utils/frameInstances.js';
-import { isTaskVisibleForUser, isOwnedBy } from '../utils/userScope.js';
+import { frameInstancesForDate, isTaskVisibleForUser, isOwnedBy } from '@glance-apps/agenda-core';
 import { readWeekStartDay, readCalendarFilter, readNativeTimeOverrides, readJoboEnabled } from '../utils/storedSlices.js';
 import { getStoredWeatherCoords } from '../utils/solar.js';
 import { fetchHourlyForecast } from '../utils/weatherForecast.js';

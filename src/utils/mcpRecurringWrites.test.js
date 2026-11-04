@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { handleMcpWrite, isWriteMethod } from './mcpWriteModel.js';
-import { buildDayBlocks } from './mcpReadModel.js';
+import { buildDayBlocks } from '@glance-apps/dayglance-mcp/model';
 import { applyCreateTask, applyUpdateRecurringTask, applyUndoOps } from './taskMutations.js';
 import { DELETED_TASK_IDS_KEY } from './deletedTaskTombstones.js';
 

@@ -15,7 +15,7 @@ import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { tombstoneCutoff, pruneCompletedTaskUids } from './sync/tombstoneRetention.js';
 import { readMinimizedSections, readUse24HourClock, readWeekStartDay, readBucketConfig, readDailyNotes, readMultiUserEnabled, readUsers, readMeUserSyncId, readCalendarFilter, readNativeTimeOverrides, readJoboEnabled } from './utils/storedSlices.js';
-import { isTaskVisibleForUser, isOwnedBy } from './utils/userScope.js';
+import { isTaskVisibleForUser, isOwnedBy, frameInstancesForDate } from '@glance-apps/agenda-core';
 import { preserveStickyFields } from './utils/preserveStickyFields.js';
 import { rescueUnsyncedTasks } from './utils/rescueUnsyncedTasks.js';
 import { withProjectMetadata } from '@glance-apps/obsidian-format';
@@ -60,7 +60,6 @@ import useStorageProjection from './hooks/useStorageProjection.js';
 import { URL_REGEX, isOnlyUrl, renderFormattedText, hasNotesOrSubtasks, isLinkOnlyTask, getLinkUrl, hasOnlySubtasks, renderTitle, highlightMatch, extractShareTitle } from './utils/textFormatting.jsx';
 import { msUntilMidnightRefresh, rememberViewsForMidnight, readMidnightViews, clearMidnightViews } from './utils/midnightRefresh.js';
 import { computeAvailableSlots as computeAvailableSlotsPure, adjustPastConflicts } from './utils/dayOccupancy.js';
-import { frameInstancesForDate } from './utils/frameInstances.js';
 import { dateToString, localDateStr, extractTags, extractWikilinks, stripWikilinks, stripWikilinksAndTags, getRecurrenceLabel, formatDate, formatDateRange, formatShortDate, formatDeadlineDate } from './utils/taskUtils.js';
 import { carryCreatedAt } from './utils/createdAt.js';
 import DaySummaryCallouts from './components/DaySummaryCallouts.jsx';
@@ -203,6 +202,7 @@ import useTaskFormHelpers from './hooks/useTaskFormHelpers.js';
 import useTaskActions from './hooks/useTaskActions.js';
 import useElectronBridge from './hooks/useElectronBridge.js';
 import useMcpBridge from './hooks/useMcpBridge.js';
+import { buildMcpReadState } from '@glance-apps/dayglance-mcp/model';
 import useRecycleBin from './hooks/useRecycleBin.js';
 import useReminderEngine from './hooks/useReminderEngine.js';
 import useReminders from './hooks/useReminders.js';
@@ -6193,36 +6193,32 @@ const DayPlanner = () => {
 
   // MCP read bridge (docs/mcp-server-spec.md §10 Phase 2): answers main-process
   // data requests from live state. Inert in the tray popup and outside Electron.
-  // Deliberately its own hook + tested pure model (src/utils/mcpReadModel.js),
+  // Deliberately its own hook + tested pure model (@glance-apps/dayglance-mcp),
   // NOT part of useElectronBridge — see the §11 risk register.
-  useMcpBridge({
+  //
+  // The state it answers from is assembled by buildMcpReadState, the same
+  // function a GLANCEvault-client host assembles its state with (#2280), so
+  // the two cannot scope or date anything differently. It is handed the
+  // UNSCOPED slices under their sync-payload names and does the scoping
+  // itself; the comments below say what each slice is for.
+  const mcpReadState = useMemo(() => buildMcpReadState({
     tasks,
     recurringTasks,
     unscheduledTasks,
-    // ROUTINES (read-only). `todayRoutines` here is the OWNER-SCOPED memo
-    // (filtered by ownedBy above), never `allTodayRoutines`. This is not a
-    // tidiness point: routines carry ownerSyncId, and isVisibleForUser (the
-    // filter every other slice below relies on) tests assignedUserSyncIds,
-    // which a routine does not have, so it returns true for every member's
-    // routines. Scoping has to happen HERE, before the bridge, or another
-    // member's routines leak onto this user's MCP read surface.
-    routines: todayRoutines,
+    // ROUTINES (read-only). Every member's placed routines: buildMcpReadState
+    // scopes them by owner. This is not a tidiness point: routines carry
+    // ownerSyncId, and isVisibleForUser (the filter every other slice relies
+    // on) tests assignedUserSyncIds, which a routine does not have, so it
+    // returns true for every member's routines. The scoping has to happen
+    // before the read model, or another member's routines leak onto this
+    // user's MCP read surface.
+    todayRoutines: allTodayRoutines,
     routinesDate,
     routineCompletions,
     routinesEnabled,
-    // Today per the ticking clock, so the read model can require that
-    // routinesDate really is today before reporting routines (see the date
-    // guard in mcpRoutines.js).
-    todayDate: dateToString(currentTime),
-    // FRAMES (read-only). `myFrames` is the OWNER-SCOPED memo, for exactly the
-    // reason routines above are: frames carry ownerSyncId and isVisibleForUser
-    // tests assignedUserSyncIds, so the generic filter would admit every
-    // member's frames. Both slices are scoped here, before the bridge.
-    frames: myFrames,
-    // Frame availability clips today's free slots to the present, so the model
-    // needs the current minute. Supplied rather than read inside the model,
-    // which stays pure.
-    nowMinutes: currentTime.getHours() * 60 + currentTime.getMinutes(),
+    // FRAMES (read-only). Every member's frames, scoped by owner the same way
+    // and for exactly the same reason as routines above.
+    gtdFrames,
     // Bulk undo moves undone creates to the recycle bin (the UI's own delete
     // shape), so the undo path needs the current bin to append to.
     recycleBin,
@@ -6233,14 +6229,27 @@ const DayPlanner = () => {
     // Read-only: the day's note rides get_day; the Bucket List has its own tool.
     dailyNotes,
     bucketConfig,
-    isVisibleForUser,
-    // Phase 4 week resource honors the user's week-start setting (0=Sunday).
-    weekStartDay,
     // Multi-user: the roster backs list_users and assignee validation in the
     // renderer; the flag is pushed to main to gate the tool schemas.
     users,
     multiUserEnabled,
   }, {
+    // Today per the ticking clock, on this device's own (the user's) clock:
+    // the read model requires that routinesDate really is today before
+    // reporting routines (the date guard in buildRoutineBlocks), and clips
+    // today's frame availability to the current minute. No time zone: a host
+    // on a server passes the user's.
+    now: currentTime,
+    // Whose read surface this is: owner scoping and isVisibleForUser.
+    userSyncId: meUserSyncId,
+    // Phase 4 week resource honors the user's week-start setting (0=Sunday).
+    weekStartDay,
+  }), [
+    tasks, recurringTasks, unscheduledTasks, allTodayRoutines, routinesDate, routineCompletions,
+    routinesEnabled, gtdFrames, recycleBin, goals, projects, areas, dailyNotes, bucketConfig, users,
+    multiUserEnabled, currentTime, meUserSyncId, weekStartDay,
+  ]);
+  useMcpBridge(mcpReadState, {
     // Write setters (Phase 3): handleMcpWrite applies the canonical shapes
     // from src/utils/taskMutations.js through these — the same store layer
     // every UI edit uses, so sync, tombstones, and tray:data-changed engage
@@ -6442,7 +6451,7 @@ const DayPlanner = () => {
       tasksForDate: widgetTasksForDate,
       deadlinesForDate: (dateStr) => unscheduledTasks.filter(t => notBucketed(t) && t.deadline === dateStr && !t.completed && !t.isExample && isVisibleForUser(t)),
       // Routines exist for today only; both halves of the date guard are the
-      // ones buildRoutineBlocks (utils/mcpRoutines.js) explains.
+      // ones buildRoutineBlocks (agenda-core's routineBlocks.js) explains.
       // Completion rides along for the extra-large widget's agenda, which
       // draws a done routine the way SCHED draws a done task.
       routinesForDate: (dateStr) => (routinesEnabled && routinesDate === dateStr && widgetTodayKey === dateStr)

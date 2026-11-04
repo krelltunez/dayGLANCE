@@ -22,7 +22,7 @@
 // rejects _native explicitly — and none of this module touches localStorage,
 // so no day-planner-native-time-overrides entry can ever be written from it.
 
-import { parseRoutineBlockId, routineBlockId } from './mcpRoutines.js';
+import { parseRoutineBlockId, routineBlockId } from '@glance-apps/agenda-core';
 import { findRoutineConflict, minutesToTime } from './dayOccupancy.js';
 import { completionTimestamp } from './taskUtils.js';
 import { createdTimestamp } from './createdAt.js';

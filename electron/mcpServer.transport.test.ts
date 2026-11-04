@@ -13,7 +13,7 @@ import {
   type HostBridge as RendererBridge,
   type BridgeResult as RendererResult,
 } from '@glance-apps/mcp-host';
-import type { ReadToolDeps } from './mcpReadTools.js';
+import type { ReadToolDeps } from '@glance-apps/dayglance-mcp';
 import type { WriteToolDeps } from './mcpWriteTools.js';
 
 // The seam the unit tests cannot see (2026-10-04). Every layer below the

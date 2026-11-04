@@ -1,28 +1,37 @@
 // Pure read models for the MCP tool surface (docs/mcp-server-spec.md §5.1),
 // following the trayFetchGate.js precedent from PR #1302: the React-coupled
-// part (src/hooks/useMcpBridge.js) stays a thin subscription, and every
-// decision that matters lives here, dependency-free and unit-tested.
+// part (the app's src/hooks/useMcpBridge.js) stays a thin subscription, and
+// every decision that matters lives here, dependency-free and unit-tested.
+// Formerly the app's src/utils/mcpReadModel.js; in this package so the desktop
+// app and a GLANCEvault-client host answer the same tools through the same
+// code (#2280).
 //
-// READ SOURCE: these functions take LIVE React state slices — what the user
-// sees in the main window right now — never localStorage. That is deliberate:
-// _native device-calendar events are never persisted (useDataPersistence.js
-// filters them out of every write), so a localStorage read could never include
-// them, and everything else would lag state by one commit for no benefit.
+// READ SOURCE: these functions take the state buildMcpReadState
+// (readState.js) assembles. In the app that is LIVE React state — what the
+// user sees in the main window right now — never localStorage. That is
+// deliberate: _native device-calendar events are never persisted
+// (useDataPersistence.js filters them out of every write), so a localStorage
+// read could never include them, and everything else would lag state by one
+// commit for no benefit. A host hands it its own reassembled copy.
 //
 // _native events (spec §5.1, revision 4): flagged with the distinct type
 // 'device_calendar_event' plus read_only: true in ALL output, and included
 // only when the caller (the Electron main process, which owns the consent
 // tier) asks for them via include_native. The tier decision never lives here.
 
-import { getOccurrencesInRange } from './recurrenceEngine.js';
-import { calculateGoalProgress } from './goalProgress.js';
-import { calculateProjectProgress } from './projectProgress.js';
-import { notBucketed, BUCKET_LIST_IDS, DEFAULT_BUCKET_CONFIG } from './bucketList.js';
-import { buildRoutineBlocks } from './mcpRoutines.js';
-import { buildFrames } from './mcpFrames.js';
-import { noteLinkOf } from './obsidianProjectNotes.js';
-import { recurrenceToWire } from './mcpRepeat.js';
-import { wireStamp } from './taskMetadata.js';
+import {
+  getOccurrencesInRange,
+  calculateGoalProgress,
+  calculateProjectProgress,
+  notBucketed,
+  BUCKET_LIST_IDS,
+  DEFAULT_BUCKET_CONFIG,
+  buildRoutineBlocks,
+  noteLinkOf,
+} from '@glance-apps/agenda-core';
+import { buildFrames } from './frames.js';
+import { recurrenceToWire } from './repeat.js';
+import { wireStamp } from './wireStamp.js';
 
 /**
  * Subtasks on the wire (2026-10-04): the task's own checklist, in order,
@@ -43,8 +52,13 @@ function wireNote(entity) {
   return { path: link.path, name: link.name, missing: link.missing };
 }
 
-/** Inbox-item wire shape, shared by the inbox read and the write responses. */
-export function inboxItem(t) {
+/**
+ * Inbox-item wire shape, shared by the inbox read and the write responses.
+ * `timeZone` (an IANA name) is the zone created_at and completed_at are
+ * reported in; omitted, they are on this machine's clock, as the app reports
+ * them. A host on a server passes the user's.
+ */
+export function inboxItem(t, { timeZone } = {}) {
   const item = {
     id: t.id,
     type: 'task',
@@ -54,8 +68,8 @@ export function inboxItem(t) {
   };
   // When it was created and completed (#2135), null when not known: tasks
   // from before createdAt existed have none, and an open task no completion.
-  item.created_at = wireStamp(t.createdAt);
-  item.completed_at = t.completed ? wireStamp(t.completedAt) : null;
+  item.created_at = wireStamp(t.createdAt, timeZone);
+  item.completed_at = t.completed ? wireStamp(t.completedAt, timeZone) : null;
   if (t.deadline) item.deadline = t.deadline;
   if (t.projectId) item.project_id = t.projectId;
   if (t.notes) item.notes = t.notes;
@@ -96,7 +110,7 @@ export function buildBucketList(state) {
       items: unscheduledTasks
         .filter((t) => t && t.bucketId === id && !t.archived && isVisibleForUser(t))
         .map((t) => {
-          const { priority: _p, deadline: _d, ...item } = inboxItem(t);
+          const { priority: _p, deadline: _d, ...item } = inboxItem(t, { timeZone: state.timeZone });
           return { ...item, bucket_id: id };
         }),
     })),
@@ -125,8 +139,11 @@ export function isImportedEvent(task) {
   return !!task?.imported && !task.nativeEventId && !task.isTaskCalendar;
 }
 
-/** One scheduled block in tool output. Field names are snake_case wire names. */
-export function toBlock(task) {
+/**
+ * One scheduled block in tool output. Field names are snake_case wire names.
+ * `timeZone` as for inboxItem.
+ */
+export function toBlock(task, { timeZone } = {}) {
   const type = blockType(task);
   const block = {
     id: task.id,
@@ -142,8 +159,8 @@ export function toBlock(task) {
   // When a task was created and completed (#2135), as on inbox items. Not on
   // events or routines: they are not tasks dayGLANCE created or completes.
   if (type === 'task' || type === 'recurring_task') {
-    block.created_at = wireStamp(task.createdAt);
-    block.completed_at = task.completed ? wireStamp(task.completedAt) : null;
+    block.created_at = wireStamp(task.createdAt, timeZone);
+    block.completed_at = task.completed ? wireStamp(task.completedAt, timeZone) : null;
   }
   // Notes and subtasks ride the block too (2026-10-04): the inbox shape has
   // carried notes since Phase 2, and a scheduled task's notes are no less
@@ -238,7 +255,7 @@ export function buildDayBlocks(state, params) {
     const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm ?? '');
     return m ? Number(m[1]) * 60 + Number(m[2]) : Number.MAX_SAFE_INTEGER;
   };
-  const blocks = [...concrete, ...recurring].map(toBlock).concat(routines).sort((a, b) => {
+  const blocks = [...concrete, ...recurring].map((t) => toBlock(t, { timeZone: state.timeZone })).concat(routines).sort((a, b) => {
     if (a.all_day !== b.all_day) return a.all_day ? -1 : 1;
     return toMinutes(a.start_time) - toMinutes(b.start_time);
   });
@@ -289,7 +306,7 @@ export function buildWeek(state, params) {
 export function buildUnscheduledItems(state, filter = {}) {
   const { unscheduledTasks = [], isVisibleForUser = () => true } = state;
   // Filter selection over structural fields, resolved by the main process
-  // (electron/mcpInboxFilter.ts) and applied HERE, before the array crosses
+  // (inboxFilter.js, in the tool layer) and applied HERE, before the array crosses
   // IPC to paginate — so total/truncated/next_cursor are computed against
   // the filtered set by construction, never by post-filtering a page. The
   // predicates are the app's own: 'standalone' is the TRMNL inbox-count
@@ -297,7 +314,7 @@ export function buildUnscheduledItems(state, filter = {}) {
   const { scope = 'all', includeCompleted = true } = filter;
   return {
     // Bucket List items never appear in Inbox output — the unconditional
-    // exclusion utils/bucketList.js documents for EVERY consumer feeding
+    // exclusion bucketList.js (agenda-core) documents for EVERY consumer feeding
     // inbox lists or counts. This was the one consumer that missed the
     // invariant (bucket items leaked into MCP results). Unconditional by
     // design: not a scope value, not behind an argument — a caller wanting
@@ -307,7 +324,7 @@ export function buildUnscheduledItems(state, filter = {}) {
       .filter(isVisibleForUser)
       .filter((t) => (scope === 'standalone' ? !t.projectId : scope === 'project' ? !!t.projectId : true))
       .filter((t) => includeCompleted || !t.completed)
-      .map(inboxItem),
+      .map((t) => inboxItem(t, { timeZone: state.timeZone })),
   };
 }
 
@@ -382,8 +399,8 @@ export function buildAreas(state) {
  *    turns into a typed error.
  *  - window: 'active' (default) or 'all' — goal/project status filter.
  *
- * Progress math reuses the exact functions the UI uses (goalProgress.js,
- * projectProgress.js), so MCP never reports numbers the window would not show.
+ * Progress math reuses the exact functions the UI uses (agenda-core's
+ * progress.js), so MCP never reports numbers the window would not show.
  */
 export function buildGoalProgress(state, params) {
   const {

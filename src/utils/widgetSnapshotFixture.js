@@ -18,8 +18,7 @@
 import { buildProjectedDay, projectionDates, dateToString } from './widgetDayProjection.js';
 import { DEFAULT_ALARM_PREFS } from './dialPrefs.js';
 import { buildWidgetMonthWindow } from './widgetMonthWindow.js';
-import { frameInstancesForDate } from './frameInstances.js';
-import { computeAvailableSlots } from './dayOccupancy.js';
+import { frameInstancesForDate, computeAvailableSlots } from '@glance-apps/agenda-core';
 import { buildWidgetDueOn } from './widgetGoalsProjects.js';
 
 export const LIVE_SNAPSHOT_TIMEZONE = 'America/Denver';

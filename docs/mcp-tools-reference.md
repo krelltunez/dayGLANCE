@@ -1,8 +1,9 @@
 # dayGLANCE MCP Tool Reference
 
 The complete tool and resource surface of the dayGLANCE MCP server, as registered by
-`electron/mcpServer.ts` (per-request factory), `mcpReadTools.ts`, `mcpWriteTools.ts`, and
-`mcpResources.ts`. This is the practical companion to the design spec (`mcp-server-spec.md` §5):
+`electron/mcpServer.ts` (per-request factory) and `electron/mcpWriteTools.ts`, with the read
+tools and resources from `@glance-apps/dayglance-mcp` (`packages/dayglance-mcp`: `readTools.js`,
+`resources.js`, answered by its read model). This is the practical companion to the design spec (`mcp-server-spec.md` §5):
 the spec explains *why*; this lists *what* — every tool, every parameter, every typed error.
 
 Transport: Streamable HTTP at `http://127.0.0.1:7893/mcp` (port configurable in Settings →

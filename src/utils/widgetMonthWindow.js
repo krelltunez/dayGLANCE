@@ -32,8 +32,8 @@
 // past midnight is clipped at 1440 and its remainder drawn at 0 on the next
 // day, so a late show still occupies the small hours it really occupies.
 // TODAY's placed routines are bars too: routines are a today-only construct
-// (useRoutines rolls them at midnight; see mcpRoutines.js), so no other day
-// can have one. Zero-length and example tasks are not bars.
+// (useRoutines rolls them at midnight; see agenda-core's routineBlocks.js), so
+// no other day can have one. Zero-length and example tasks are not bars.
 //
 // ── What is not a bar ──────────────────────────────────────────────────────
 // All-day items and deadlines have no time, so they cannot be placed on a
