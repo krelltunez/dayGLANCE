@@ -52,6 +52,8 @@ import com.dayglance.app.sse.VaultSseClient
 import com.dayglance.app.data.HealthRepository
 import com.dayglance.app.data.SharedDataStore
 import com.dayglance.app.databinding.ActivityMainBinding
+import com.dayglance.app.keyboard.KeyboardHeightProbe
+import com.dayglance.app.keyboard.KeyboardInset
 
 /**
  * Phase 1: WebView shell.
@@ -347,9 +349,21 @@ class MainActivity : AppCompatActivity() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
             val navBottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
             v.setPadding(0, 0, 0, navBottom)
-            reportKeyboardInset(insets.getInsets(WindowInsetsCompat.Type.ime()).bottom - navBottom)
+            imeOverlapPx = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom - navBottom
+            publishKeyboardInset()
             insets
         }
+        // Where the IME inset never arrives (#2272), a hidden popup that the
+        // keyboard does resize measures it instead. It needs the window
+        // attached, hence the post.
+        keyboardProbe = KeyboardHeightProbe(this) { visibleBottom ->
+            if (!::webView.isInitialized) return@KeyboardHeightProbe
+            val loc = IntArray(2)
+            webView.getLocationOnScreen(loc)
+            probeOverlapPx = KeyboardInset.probeOverlapPx(loc[1] + webView.height, visibleBottom)
+            publishKeyboardInset()
+        }
+        binding.root.post { if (!isFinishing && !isDestroyed) keyboardProbe?.start(binding.root) }
 
         backCallback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -648,6 +662,9 @@ class MainActivity : AppCompatActivity() {
         // used to be released by onStop's disconnect purely by accident;
         // without this call, every recreation would leak a service binding.
         if (::billingManager.isInitialized) billingManager.destroy()
+        // The keyboard probe is a window of its own: dismiss it or it leaks.
+        keyboardProbe?.stop()
+        keyboardProbe = null
         // Release the platform speech recognizer (no-op if never attached).
         if (::nativeBridge.isInitialized) nativeBridge.destroySpeechBridge()
         rendererAlive = false
@@ -725,6 +742,14 @@ class MainActivity : AppCompatActivity() {
     private var lastLocaleTag: String? = null
 
     private var lastKeyboardInset = -1
+    // The two readings of the keyboard (#2272): the window's IME inset less
+    // the navigation bar, and the hidden probe's. See keyboard/KeyboardInset.
+    private var imeOverlapPx = 0
+    private var probeOverlapPx = 0
+    private var keyboardProbe: KeyboardHeightProbe? = null
+
+    private fun publishKeyboardInset() =
+        reportKeyboardInset(KeyboardInset.combinedOverlapPx(imeOverlapPx, probeOverlapPx))
 
     /**
      * Tells the web UI how much of the WebView the soft keyboard covers, in CSS
@@ -732,11 +757,12 @@ class MainActivity : AppCompatActivity() {
      * the keyboard), so the WebView is never resized and its visualViewport
      * never learns the keyboard is up: without this, a field in a bottom sheet
      * or low on the page is typed into blind. [overlapPx] is the IME inset less
-     * the navigation bar the root's padding already keeps the WebView above.
+     * the navigation bar the root's padding already keeps the WebView above,
+     * or the keyboard probe's reading where that inset never arrives (#2272).
      * The web side is utils/keyboardInset.js.
      */
     private fun reportKeyboardInset(overlapPx: Int) {
-        val css = Math.round(maxOf(0, overlapPx) / resources.displayMetrics.density)
+        val css = KeyboardInset.toCssPx(overlapPx, resources.displayMetrics.density)
         if (css == lastKeyboardInset || !::webView.isInitialized) return
         lastKeyboardInset = css
         webView.post {
