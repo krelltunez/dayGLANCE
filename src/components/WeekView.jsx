@@ -7,7 +7,8 @@ import * as Icons from 'lucide-react';
 import { Zap } from 'lucide-react';
 import { dateToString } from '../utils/taskUtils.js';
 import { splitChipTitleTag } from '../utils/textFormatting.jsx';
-import { columnTimeFromEvent } from '../utils/dragUtils.js';
+import { columnTimeFromEvent, dragBlockRange } from '../utils/dragUtils.js';
+import DragBlockPreview from './DragBlockPreview.jsx';
 import TimelineTaskCardContent from './TimelineTaskCardContent.jsx';
 import { PastDoDetails, pastDoChipStyle, pastDoColor } from './jobo/PastDoCard.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
@@ -466,22 +467,24 @@ const WeekViewColumn = ({ date, dateStr, colIdx, hourHeight, zoom = 1, startHour
         })()}
       </div>
 
-      {/* Drag preview bar — shows target day + time during an active drag */}
+      {/* Drag preview — the block the task becomes on the target day, at the
+          cursor's time (#2277), placed and sized as its chip would be */}
       {isDraggingOverThisCol && dragPreviewTime && (() => {
-        const dragMin = timeToMinutes(dragPreviewTime);
-        const topPx = (dragMin - startMinute) * hourHeight / 60;
+        const block = dragBlockRange(timeToMinutes(dragPreviewTime), draggedTask.duration, {
+          minMinute: startMinute,
+          maxMinute: endHour * 60,
+        });
+        if (!block) return null;
+        const topPx = (block.startMinute - startMinute) * hourHeight / 60;
+        const heightPx = Math.max(22 * zoom, (block.endMinute - block.startMinute) * hourHeight / 60);
         return (
-          <div
-            className="absolute left-0 right-0 pointer-events-none z-30"
-            style={{ top: `${topPx}px` }}
-          >
-            <div className="relative">
-              <div className={`absolute bottom-0.5 right-0 px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${darkMode ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'}`}>
-                {dayName} {formatTime(dragPreviewTime)}
-              </div>
-              <div className="h-0.5 bg-blue-500" />
-            </div>
-          </div>
+          <DragBlockPreview
+            top={topPx}
+            height={heightPx}
+            label={`${dayName} ${formatTime(block.startTime)}–${formatTime(block.endTime)}`}
+            darkMode={darkMode}
+            className="left-0 right-0 z-30"
+          />
         );
       })()}
 
