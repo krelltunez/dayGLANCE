@@ -1,9 +1,11 @@
 # dayGLANCE MCP Server: Technical Specification
 
-**Status:** Draft for review, revision 6
+**Status:** Draft for review, revision 7
 **Target:** dayGLANCE Electron builds (macOS, Windows, Linux)
 **Sequencing:** After the 4.1.2 tray release ships
 **Spec baseline:** MCP specification 2026-07-28
+
+**Changes from revision 6:** §4.4 revisited for #2280. The Docker image still gets no MCP server, and GLANCEvault still never holds a key; but the "future headless option" r6 parked as out of scope is now the planned shape: an optional MCP host that is a GLANCEvault client, run by the user with their passphrase, as one more device. GLANCEvault only; the file tier gets none. Its design and sequencing are in `docs/mcp-vault-host.md`. §10's Deferred list gains it.
 
 **Changes from revision 5:** Phase 0.5 ran on hardware (findings in `docs/internal/mcp-phase0.5-findings.md`) and the result was worse than predicted: the TCC container-protection prompt is attributed to `node` — naming neither Claude nor dayGLANCE — with no revocation toggle anywhere in System Settings. §3.4 drops MAS container discovery entirely (was best-effort); MAS is manual token configuration only. §7's matrix and MAS notes updated to match. §10 marks Phase 0.5 done. §11's container-discovery risk row rewritten from contingency to outcome. Discovery on the three unsandboxed platforms is unchanged.
 
@@ -46,7 +48,7 @@ The second artifact is not optional. See §3.2.
 ### Non-goals for v1
 
 - Mobile (iOS, Android). Not a mobile feature. Zero revenue impact on the mobile tier.
-- Headless Docker variant. Resolved as "no." See §4.4.
+- Headless Docker variant. The image gets none; a GLANCEvault-client host is a separate component. See §4.4.
 - Destructive operations (delete task, delete block). Deliberately absent from the v1 tool surface.
 - Resource subscriptions and server-initiated notifications. Deferred.
 - lastGLANCE and lifeGLANCE. dayGLANCE only. The pattern generalizes later if it lands well.
@@ -209,13 +211,22 @@ Revisit if a delete tool is ever proposed. Delete would require in-app confirmat
 
 ### 4.4 Headless variant for the Docker image
 
-**Resolved: no.**
+**Resolved: not in the image. Revised in r7 (#2280): a GLANCEvault-client MCP host, as a separate component.**
 
-The Docker image serves the PWA. Task data lives in the visiting browser's localStorage, not on the server. There is nothing for a headless MCP server to read.
+The Docker image serves the PWA. Task data lives in the visiting browser's localStorage, not on the server, so there is still nothing in the image for an MCP server to read, and the image does not gain one.
 
-The apparent workaround, running the MCP server against GLANCEvault, is architecturally disqualified. GLANCEvault stores per-entity ciphertext and has no key. Giving it decryption capability would break "no server access to user data," which is load-bearing in the privacy policy, the store listings, and the positioning of the entire suite.
+Running the MCP server *inside* GLANCEvault stays disqualified. GLANCEvault stores per-entity ciphertext and has no key. Giving it decryption capability would break "no server access to user data," which is load-bearing in the privacy policy, the store listings, and the positioning of the entire suite. An opt-in does not change that: the promise is about the vault server, not about one user's choice.
 
-A future headless option exists in principle: a CLI that runs the sync client locally with a user-supplied passphrase, decrypts in that process, and serves MCP. That is a separate product with its own threat model. Out of scope.
+What r6 called "a future headless option" is now the planned shape: **an MCP host that is a GLANCEvault client.** It is a process the user runs, on a machine they control, holding their passphrase, and it is one more device: it pulls rows, decrypts them locally, answers the same tools and resources as the desktop server (§5, `docs/mcp-tools-reference.md`), and pushes its writes as timestamped rows through the same adapter and tombstone rules. The vault stays zero-knowledge.
+
+The constraints that make that acceptable:
+
+- **GLANCEvault only.** The `/events` stream is what makes reads current, and per-row encryption with cursor pulls means the host never reads and merges a whole file. The file tier (WebDAV, iCloud, Direct Access) is left as it is and gets no MCP host.
+- **A separate component.** Its own repository and package, never part of the PWA image or the GLANCEvault server.
+- **Shared code, not copied code.** It is built on packages extracted from this repo: the MCP transport and safety layer, the vault engine with injectable storage, and the vault read path. A second implementation of merge or conflict rules is exactly the divergence §3.1 exists to prevent.
+- **Safety parity with the desktop server.** Read-only first. Writes only behind the consent tiers (§6.3, minus the device calendar tier, which a server has no calendar for), the write journal with undo, the rate limit, and a kill switch.
+
+The design, the extraction inventory and the open questions are in `docs/mcp-vault-host.md`.
 
 ---
 
@@ -584,7 +595,8 @@ Privacy policy updates per §9. Umbrella paragraph. ToU confirmation. MAS descri
 
 ### Deferred
 - Resource subscriptions and change notifications
-- lastGLANCE and lifeGLANCE equivalents
+- lastGLANCE and lifeGLANCE equivalents (the host kit extracted for §4.4 is meant to serve them)
+- The GLANCEvault-client MCP host (§4.4, `docs/mcp-vault-host.md`)
 - Delete tools with in-app confirmation
 - MAS config-file writing via open panel
 
