@@ -16,14 +16,21 @@
 // its REAL vault client and the REAL per-entity crypto runs: nothing between
 // the adapter and the wire is stubbed.
 //
+// Then the change nudges (the last describe): the vault also serves its
+// /events stream over a real loopback HTTP server, and the host consumes it
+// the way the app does, with Node's own fetch: Device A's push nudges the
+// host, which pulls, with no pull called by the test.
+//
 // One account per process: the root key is module state in @glance-apps/sync.
 // The two devices take turns in this one process, and `endProcess()` drops the
 // in-memory key between turns (touching neither device's stored key), so each
 // turn has to get its key the way a fresh process would: from its own key slot,
 // or from the passphrase and the vault's salt.
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { createServer } from 'node:http';
 import {
   createDbSyncEngine,
+  createVaultClient,
   setSyncPassphrase,
   clearDbRootKey,
   hasDbRootKey,
@@ -37,19 +44,31 @@ import {
   reconcileCrossList,
   pruneAllTombstones,
   tombstoneCutoff,
+  openWebSseStream,
+  createVaultEventClient,
+  createNudgeCoalescer,
+  createKindFilter,
+  withOwnAckRecording,
+  isOwnWriteSeq,
 } from '../src/index.js';
+import { __resetOwnWritesForTests } from '../src/ownWrites.js';
 
 // ── The in-memory GLANCEvault ────────────────────────────────────────────────
 // The routes the vault client calls (glance-vault's routes/sync.ts and the
 // salt route, as the client contracts them): a monotonic per-server seq, rows
 // upserted by entityId, soft deletes carrying the deletedAt the pusher sent,
 // insert-only (first-write-wins) rows for the key verifier, and a
-// first-write-wins salt.
+// first-write-wins salt. Each write that advances the seq nudges the /events
+// subscribers as the server does: one `activity` per batch, carrying the
+// batch's maxSeq, and one per soft delete, carrying its seq, each tagged with
+// the route's namespace.
 function createMemoryVault() {
   let seq = 0;
   const tables = new Map(); // app -> Map(entityId -> row)
   const salts = new Map();
   const requests = [];
+  const subscribers = new Set();
+  const emit = (nudge) => { for (const fn of subscribers) fn(nudge); };
   const table = (app) => {
     if (!tables.has(app)) tables.set(app, new Map());
     return tables.get(app);
@@ -88,6 +107,7 @@ function createMemoryVault() {
         t.set(r.entityId, { entityId: r.entityId, envelope: r.envelope, seq: ++seq, deleted: false, createdAt: r.createdAt });
         written += 1;
       }
+      if (written > 0) emit({ seq, app: decodeURIComponent(m[1]) });
       return respond(200, { written, maxSeq: seq });
     }
     if (method === 'POST' && tail === 'device') return respond(200, { updated: true });
@@ -101,18 +121,25 @@ function createMemoryVault() {
       const prev = t.get(tail);
       const deletedAt = Number(u.searchParams.get('deletedAt')) || undefined;
       t.set(tail, { entityId: tail, envelope: null, seq: ++seq, deleted: true, deletedAt, createdAt: prev?.createdAt });
+      emit({ seq, app: decodeURIComponent(m[1]) });
       return respond(200, { seq });
     }
     return respond(404, { error: 'not found' });
   };
-  return { fetch, requests, rows: (app) => [...table(app).values()] };
+  return {
+    fetch,
+    requests,
+    rows: (app) => [...table(app).values()],
+    seq: () => seq,
+    subscribe: (fn) => { subscribers.add(fn); return () => subscribers.delete(fn); },
+  };
 }
 
 // ── A device: its own storage, key slot and data, over the shared vault ─────
 const ACCOUNT = 'acct-e2e';
 const PASSPHRASE = 'correct horse battery staple';
 
-function createDevice(name, vault, data) {
+function createDevice(name, vault, data, { ownAcks = false } = {}) {
   const store = new Map();
   const storage = {
     getItem: (k) => (store.has(k) ? store.get(k) : null),
@@ -132,6 +159,12 @@ function createDevice(name, vault, data) {
       vaultToken: `token-${name}`,
       fetchImpl: vault.fetch,
       deviceId: `device-${name}`,
+      // A device that consumes nudges records its own writes' acks, as the
+      // app's wrapper does (src/sync/dbEngine.js): the engine writes through a
+      // vault client whose batch and deleteRow acks land in the registry.
+      vaultClient: ownAcks
+        ? withOwnAckRecording(createVaultClient({ vaultUrl: 'https://vault.test', vaultToken: `token-${name}`, fetchImpl: vault.fetch }))
+        : undefined,
       cryptoDBName: 'unused-with-hooks',
       storage,
       nativeGetSyncKey: async () => keySlot.value,
@@ -422,5 +455,340 @@ describe('a GLANCEvault-client host, in plain Node', () => {
     // A tomorrow occurrence's edit made earlier is untouched by today's.
     expect(titles(got.tomorrow)).toContain('Standup (short)');
     await endProcess();
+  });
+});
+
+// ── The vault's /events stream, over real HTTP ───────────────────────────────
+// The wire contract of glance-vault's routes/events.ts (documented at the top
+// of src/vaultEvents.js): GET /events?accountId= with the device token as a
+// Bearer, else 401; `event: ready` with the account's latest seq once per
+// connection; `event: activity` with {seq, app} whenever a write advances the
+// seq; `: heartbeat` comments in between; the response never ends on its own.
+// Every activity frame goes out in two writes a few milliseconds apart, split
+// inside its data line, so the reader carries a partial frame across chunks.
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+const frame = (event, data) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+
+async function startEventsServer(vault, { accountId, tokens, heartbeatMs = 25 }) {
+  const open = new Set();
+  const seen = { ok: 0, unauthorized: 0, refused: 0 };
+  const state = { refusing: false };
+  const server = createServer((req, res) => {
+    const u = new URL(req.url, 'http://127.0.0.1');
+    if (req.method !== 'GET' || u.pathname !== '/events') { res.writeHead(404).end(); return; }
+    const token = /^Bearer (.+)$/.exec(req.headers.authorization || '')?.[1];
+    if (!tokens.includes(token) || u.searchParams.get('accountId') !== accountId) {
+      seen.unauthorized += 1;
+      res.writeHead(401, { 'content-type': 'application/json' }).end('{"error":"unauthorized"}');
+      return;
+    }
+    if (state.refusing) {
+      seen.refused += 1;
+      res.writeHead(503, { 'content-type': 'application/json' }).end('{"error":"unavailable"}');
+      return;
+    }
+    seen.ok += 1;
+    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
+    // One ordered queue per connection, so a split frame is never interleaved.
+    let queue = Promise.resolve();
+    const send = (...parts) => {
+      queue = queue.then(async () => {
+        for (let i = 0; i < parts.length; i += 1) {
+          if (i > 0) await sleep(5);
+          if (!res.writableEnded && !res.destroyed) res.write(parts[i]);
+        }
+      });
+    };
+    send(frame('ready', { seq: vault.seq() }));
+    const unsubscribe = vault.subscribe((nudge) => {
+      const f = frame('activity', nudge);
+      const cut = f.indexOf('"seq"') + 4;
+      send(f.slice(0, cut), f.slice(cut));
+    });
+    const heartbeat = setInterval(() => send(': heartbeat\n\n'), heartbeatMs);
+    const conn = { res, socket: req.socket };
+    open.add(conn);
+    res.on('close', () => { clearInterval(heartbeat); unsubscribe(); open.delete(conn); });
+  });
+  await new Promise((resolve) => { server.listen(0, '127.0.0.1', resolve); });
+  return {
+    url: `http://127.0.0.1:${server.address().port}`,
+    open,
+    seen,
+    state,
+    /** Cut every open stream as a network failure would. */
+    dropAll: () => { for (const c of open) c.socket.destroy(); },
+    close: () => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }),
+  };
+}
+
+/** setTimeout/clearTimeout that remember what is pending and every delay asked for. */
+function trackedTimers() {
+  const pending = new Set();
+  const delays = [];
+  return {
+    pending,
+    delays,
+    set: (fn, ms) => {
+      delays.push(ms);
+      const handle = setTimeout(() => { pending.delete(handle); fn(); }, ms);
+      pending.add(handle);
+      return handle;
+    },
+    clear: (handle) => { pending.delete(handle); clearTimeout(handle); },
+  };
+}
+
+/** Wait for `pred`, failing (never hanging) after `ms`. */
+async function until(pred, label, ms = 4000) {
+  const end = Date.now() + ms;
+  while (!pred()) {
+    if (Date.now() > end) throw new Error(`timed out waiting for ${label}`);
+    await sleep(5);
+  }
+}
+
+describe('change nudges: the host pulls when another device pushes, in plain Node', () => {
+  const DEBOUNCE_MS = 100;
+  const QUIET_MS = DEBOUNCE_MS * 3;
+  const vault = createMemoryVault();
+  const deviceA = createDevice('A', vault, deviceAData());
+  // The host records its own write acks (the app does the same).
+  const host = createDevice('host', vault, { ...HOST_SETTINGS }, { ownAcks: true });
+  let server;
+  let engineA;
+
+  // The host's wiring, as a host would write it: one cycle at a time (a
+  // nudge during a cycle runs one more after it), each a pull, the two
+  // post-pull steps, and a push of whatever those marked.
+  const cycles = [];
+  const cycleErrors = [];
+  let inflight = null;
+  let again = false;
+  const runCycle = () => {
+    if (inflight) { again = true; return inflight; }
+    inflight = (async () => {
+      do {
+        again = false;
+        const pull = await hostPull(host);
+        const push = await host.engine.pushDirtyRows();
+        cycles.push({ pull, push });
+      } while (again);
+    })().catch((err) => { cycleErrors.push(err); }).finally(() => { inflight = null; });
+    return inflight;
+  };
+
+  const frames = [];
+  const states = [];
+  const drains = [];
+  const echoes = [];
+  const coalescerTimers = trackedTimers();
+  const clientTimers = trackedTimers();
+  const coalescer = createNudgeCoalescer({
+    kinds: ['sync'],
+    kindFilter: createKindFilter({ sync: 'dayglance' }),
+    debounceMs: DEBOUNCE_MS,
+    isOwnSeq: isOwnWriteSeq,
+    onOwnEcho: (seq) => echoes.push(seq),
+    onDrain: (kind) => { drains.push(kind); runCycle(); },
+    setTimeoutFn: coalescerTimers.set,
+    clearTimeoutFn: coalescerTimers.clear,
+  });
+  let client;
+
+  /** Edit Device A's data and push what changed. */
+  const pushFromA = async (edit, opts) => {
+    const before = JSON.parse(JSON.stringify(deviceA.data));
+    edit(deviceA.data);
+    markChanges(engineA, before, deviceA.data, opts);
+    return engineA.pushDirtyRows();
+  };
+  const task = (id) => deviceA.data.tasks.find((t) => t.id === id);
+  const settled = async () => { await sleep(QUIET_MS); await inflight; };
+
+  beforeAll(async () => {
+    __resetOwnWritesForTests();
+    setSyncPassphrase(PASSPHRASE);
+    engineA = deviceA.start();
+    for (const row of shredState(deviceA.data)) engineA.markDirty(row.entityId);
+    await engineA.pushDirtyRows();
+    // The host's first sync is its own start-up, not a nudge.
+    await hostPull(host);
+    server = await startEventsServer(vault, { accountId: ACCOUNT, tokens: ['token-A', 'token-host'] });
+    client = createVaultEventClient({
+      getConnection: () => ({ vaultUrl: server.url, vaultToken: 'token-host', accountId: ACCOUNT }),
+      // Node's own fetch (undici): openWebSseStream's default fetchImpl.
+      openStream: openWebSseStream,
+      onEvent: (evt) => { frames.push(evt); coalescer.handleEvent(evt); },
+      onStateChange: (state, detail) => states.push({ state, detail }),
+      backoffBaseMs: 40,
+      backoffMaxMs: 320,
+      minStableMs: 60_000, // no connection here lasts long enough to reset the ladder
+      randomFn: () => 1, // the upper edge of the jitter: the plain doubling ladder
+      setTimeoutFn: clientTimers.set,
+      clearTimeoutFn: clientTimers.clear,
+    });
+  });
+
+  afterAll(async () => {
+    client?.stop();
+    coalescer.cancel();
+    await inflight;
+    await server?.close();
+    __resetOwnWritesForTests();
+    await endProcess();
+  });
+
+  it('runs with no browser globals at all', () => {
+    expect(typeof window).toBe('undefined');
+    expect(typeof document).toBe('undefined');
+    expect(typeof localStorage).toBe('undefined');
+    expect(typeof indexedDB).toBe('undefined');
+  });
+
+  it('opens the stream with Node\'s fetch, and the ready frame reconciles with one cycle', async () => {
+    client.start();
+    await until(() => states.some((s) => s.state === 'open'), 'the stream to open');
+    await until(() => cycles.length === 1, 'the ready frame\'s cycle');
+    expect(frames[0]).toEqual({ seq: vault.seq() }); // `ready`: seq only, no tag
+    expect(cycles[0].pull.applied).toBe(0); // the start-up pull already had everything
+    expect(server.open.size).toBe(1);
+  });
+
+  it('Device A\'s edit reaches the host\'s read model through a nudge, mid-stream', async () => {
+    const before = cycles.length;
+    const pushed = await pushFromA(() => {
+      Object.assign(task('t3'), { completed: true, completedAt: at(200), lastModified: at(200) });
+    });
+    await until(() => cycles.length === before + 1, 'the nudged cycle');
+    // The frame arrived while the response was still open: streamed, not buffered.
+    expect(server.open.size).toBe(1);
+    expect(frames.at(-1)).toEqual({ seq: pushed.maxSeq, app: 'dayglance' });
+    expect(frames.every((f) => typeof f.seq === 'number')).toBe(true); // heartbeats are not events
+    const got = answers(host.data);
+    expect(got).toEqual(answers(deviceA.data));
+    expect(got.today.data.blocks.find((b) => b.title === 'Groceries')).toMatchObject({ completed: true });
+  });
+
+  it('a burst of pushes is one cycle', async () => {
+    const before = { cycles: cycles.length, drains: drains.length };
+    await pushFromA(() => { Object.assign(task('t1'), { title: 'Write the report', lastModified: at(210) }); });
+    await pushFromA(() => { Object.assign(task('t3'), { startTime: '18:30', lastModified: at(211) }); });
+    await pushFromA(() => { Object.assign(task('t4'), { title: 'Call the plumber back', lastModified: at(212) }); });
+    await settled();
+    expect(drains.length - before.drains).toBe(1);
+    expect(cycles.length - before.cycles).toBe(1);
+    expect(answers(host.data)).toEqual(answers(deviceA.data));
+  });
+
+  it('a nudge from another namespace wakes no cycle', async () => {
+    const before = { cycles: cycles.length, drains: drains.length };
+    // The bridge plugin reports an observation: a write to its own namespace.
+    await vault.fetch('https://vault.test/sync/dayglance-bridge/batch', {
+      method: 'POST',
+      body: JSON.stringify({ accountId: ACCOUNT, rows: [{ entityId: 'obs:1', envelope: 'sealed' }] }),
+    });
+    const bridgeSeq = vault.seq();
+    await until(() => frames.some((f) => f.seq === bridgeSeq), 'the bridge\'s nudge');
+    expect(frames.at(-1)).toEqual({ seq: bridgeSeq, app: 'dayglance-bridge' });
+    await settled();
+    expect(drains.length).toBe(before.drains);
+    expect(cycles.length).toBe(before.cycles);
+  });
+
+  it('the host\'s own push is its own echo: no second cycle', async () => {
+    const before = cycles.length;
+    // Device A moves t4 to the bin, its snapshot guard holding the stale
+    // tasks:t4 row back; the host's cycle reconciles and pushes the delete.
+    await pushFromA((d) => {
+      const t4 = d.tasks.find((t) => t.id === 't4');
+      d.tasks = d.tasks.filter((t) => t.id !== 't4');
+      d.recycleBin = [...d.recycleBin, { ...t4, lastModified: at(220) }];
+    }, { holdDeletes: ['tasks:t4'] });
+    await until(() => cycles.length === before + 1, 'the nudged cycle');
+    const { push } = cycles.at(-1);
+    expect(push.deleted).toBe(1);
+    expect(vault.rows('dayglance').find((r) => r.entityId === 'tasks:t4')).toMatchObject({ deleted: true });
+    await until(() => frames.some((f) => f.seq === push.maxSeq), 'the host\'s own echo');
+    await settled();
+    expect(echoes).toContain(push.maxSeq);
+    expect(cycles.length).toBe(before + 1);
+    expect(host.data.recycleBin.map((t) => t.id)).toContain('t4');
+    expect(host.data.tasks.some((t) => t.id === 't4')).toBe(false);
+  });
+
+  it('a dropped connection reconnects with backoff, and the ready frame catches what it missed', async () => {
+    const before = cycles.length;
+    const delaysBefore = clientTimers.delays.length;
+    const opensBefore = server.seen.ok;
+    server.state.refusing = true;
+    server.dropAll();
+    await until(() => server.seen.refused >= 2, 'two refused reconnects');
+    expect(states.some((s) => s.state === 'error')).toBe(true);
+    // Missed: no stream is open while Device A pushes.
+    expect(server.open.size).toBe(0);
+    await pushFromA(() => { Object.assign(task('t1'), { completed: true, completedAt: at(230), lastModified: at(230) }); });
+    server.state.refusing = false;
+    await until(() => server.seen.ok === opensBefore + 1, 'the reconnect');
+    await until(() => cycles.length === before + 1, 'the ready frame\'s cycle');
+    // The ladder doubled through the failures and never reset.
+    expect(clientTimers.delays.slice(delaysBefore, delaysBefore + 3)).toEqual([40, 80, 160]);
+    expect(answers(host.data)).toEqual(answers(deviceA.data));
+    expect(answers(host.data).today.data.blocks.find((b) => b.title === 'Write the report')).toMatchObject({ completed: true });
+
+    // A reconnect that missed nothing: its ready frame repeats the seq the
+    // host already has, and wakes no cycle.
+    await settled();
+    const quiet = { cycles: cycles.length, opens: server.seen.ok, frames: frames.length };
+    server.dropAll();
+    await until(() => server.seen.ok === quiet.opens + 1 && frames.length > quiet.frames, 'the second reconnect\'s ready frame');
+    expect(frames.at(-1)).toEqual({ seq: vault.seq() });
+    await settled();
+    expect(cycles.length).toBe(quiet.cycles);
+  });
+
+  it('a refused token backs off instead of hammering, and says why', async () => {
+    const bad = trackedTimers();
+    const errors = [];
+    const unauthorizedBefore = server.seen.unauthorized;
+    const revoked = createVaultEventClient({
+      getConnection: () => ({ vaultUrl: server.url, vaultToken: 'revoked', accountId: ACCOUNT }),
+      openStream: openWebSseStream,
+      onEvent: () => { throw new Error('a refused stream delivers nothing'); },
+      onStateChange: (state, detail) => { if (state === 'error') errors.push(detail); },
+      backoffBaseMs: 40,
+      backoffMaxMs: 320,
+      randomFn: () => 1,
+      setTimeoutFn: bad.set,
+      clearTimeoutFn: bad.clear,
+    });
+    const startedAt = Date.now();
+    revoked.start();
+    await until(() => server.seen.unauthorized - unauthorizedBefore >= 4, 'four refused attempts');
+    // Four attempts take the first three waits of the ladder, 40 + 80 + 160 ms.
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(280);
+    expect(bad.delays.slice(0, 3)).toEqual([40, 80, 160]);
+    expect(errors[0]).toBeInstanceOf(Error);
+    expect(errors[0].message).toMatch(/\b401\b/);
+    revoked.stop();
+    expect(bad.pending.size).toBe(0);
+  });
+
+  it('stop() aborts the stream: the server sees it close, no timer is left, nothing more arrives', async () => {
+    expect(server.open.size).toBe(1);
+    client.stop();
+    coalescer.cancel();
+    expect(states.at(-1).state).toBe('stopped');
+    await until(() => server.open.size === 0, 'the server to see the stream close');
+    expect(clientTimers.pending.size).toBe(0);
+    expect(coalescerTimers.pending.size).toBe(0);
+    const framesBefore = frames.length;
+    const cyclesBefore = cycles.length;
+    await pushFromA(() => { Object.assign(task('t1'), { title: 'Report sent', lastModified: at(240) }); });
+    await settled();
+    expect(frames.length).toBe(framesBefore);
+    expect(cycles.length).toBe(cyclesBefore);
+    expect(clientTimers.pending.size).toBe(0);
+    expect(cycleErrors).toEqual([]);
   });
 });

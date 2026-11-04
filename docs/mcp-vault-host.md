@@ -1,6 +1,6 @@
 # GLANCEvault MCP host: design note
 
-**Status:** Draft, for the extraction work that precedes a prototype. Step 1 (the host kit), step 2 (`@glance-apps/sync` 2.4.0) and step 3 (3a: the read side's tools, read model and state; 3b: rows to slices) are done.
+**Status:** Draft, for the extraction work that precedes a prototype. Step 1 (the host kit), step 2 (`@glance-apps/sync` 2.4.0) and step 3 (3a: the read side's tools, read model and state; 3b: rows to slices; and the change-nudge client) are done.
 **Issue:** #2280. **Spec:** `docs/mcp-server-spec.md` §4.4 (r7).
 
 ## Decisions so far
@@ -166,11 +166,105 @@ the real vault client and the real crypto run. Breaking the cross-list
 reconcile, the routine-completion stamps' carry in `_extra`, or
 `getEntityLastModified` fails it.
 
-Remaining before a prototype:
+**Change nudges done:** the client for the vault's `/events` stream is in
+`@glance-apps/dayglance-vault` too (`vaultEvents.js`, `ownWrites.js`), so a
+host pulls within a moment of another device's push instead of waiting for a
+poll. Moved verbatim; the app imports it back and every existing test passed
+with only its imports changed.
 
-| Piece | Where | Node-ready? |
-|---|---|---|
-| Change nudges | `src/sync/vaultEventStream.js` (fetch-streaming SSE) | Probably; verify the streaming body under Node's `fetch`. |
+| Was | Now |
+|---|---|
+| `openWebSseStream`, `createVaultEventClient`, `createNudgeCoalescer`, `createKindFilter`, `backoffDelayMs` (`src/sync/vaultEventStream.js`) | `packages/dayglance-vault/src/vaultEvents.js` |
+| `src/sync/ownWrites.js` (whole: the own-write ack registry and `withOwnAckRecording`) and its test | `packages/dayglance-vault/src/ownWrites.js`, `test/ownEchoDamping.test.js` |
+
+What stays in the app is bound to the browser or the native shells:
+`detectSseTransport` (reads `window.DayGlanceNative`), `createBridgeSseClient`
+(the renderer half of the Android and iOS shells' bridge contract; a host has
+no shell), the per-device `sseNudgesEnabled` flag (localStorage) and the React
+hook `useVaultEventStream`. The frame parsers stay in
+`@glance-apps/obsidian-format` (one wire format, one parser, shared with the
+bridge plugin), which makes it the package's second peer dependency.
+
+**No change was needed for Node.** `openWebSseStream` defaults to
+`globalThis.fetch`, and Node 20+'s fetch (undici) streams the body through the
+same `getReader()`, decodes with the global `TextDecoder`, rejects a read when
+the `AbortController` aborts it, and resolves when the server ends the stream.
+
+What a host wires (`packages/dayglance-vault/test/hostPull.e2e.test.js`, the
+last describe, does exactly this):
+
+```js
+import { createDbSyncEngine, createVaultClient } from '@glance-apps/sync';
+import {
+  openWebSseStream, createVaultEventClient, createNudgeCoalescer, createKindFilter,
+  withOwnAckRecording, isOwnWriteSeq,
+} from '@glance-apps/dayglance-vault';
+
+// 1. Own-write acks, recorded at the source: the engine writes through a
+//    client whose batch and deleteRow acks land in the registry.
+const engine = createDbSyncEngine({ ...engineConfig,
+  vaultClient: withOwnAckRecording(createVaultClient({ vaultUrl, vaultToken })) });
+
+// 2. Nudges, coalesced: one cycle per burst, none for another namespace's
+//    write, none for the host's own echo.
+const coalescer = createNudgeCoalescer({
+  kinds: ['sync'],
+  kindFilter: createKindFilter({ sync: 'dayglance' }),
+  isOwnSeq: isOwnWriteSeq,
+  onDrain: () => runCycle(),
+});
+
+// 3. The stream: reconnects with backoff; each (re)connect's `ready` frame
+//    reconciles anything missed while it was down.
+const events = createVaultEventClient({
+  getConnection: () => ({ vaultUrl, vaultToken, accountId }),
+  openStream: openWebSseStream,
+  onEvent: coalescer.handleEvent,
+});
+events.start();
+// shutdown: events.stop(); coalescer.cancel();
+```
+
+- **The cycle** is the app's: pull, `reconcileCrossList`, `pruneAllTombstones`,
+  then push what those marked. One at a time; a nudge that lands during a cycle
+  runs one more after it.
+- **Own acks.** Without step 1 every push the host makes (a reconcile's
+  tombstone, later its writes) comes back as a nudge and costs a pointless
+  cycle. Wrap the client rather than record the push's folded `maxSeq`: a push
+  of upserts and deletes gets one nudge per batch and per delete, each with its
+  own seq (audit M13). The registry is module state, one per process, like the
+  engine's root key.
+- **The bridge namespace.** A host that reads note descriptions from the
+  bridge's observation stream adds a kind for `dayglance-bridge`
+  (`BRIDGE_VAULT_APP`) that re-lists it.
+- **Keep a poll.** Nudges only add a prompt pull on top. The poll covers a
+  backoff wait, a stream that is down, and a half-open connection: the client
+  has no read timeout, and heartbeats are comments that never reach `onEvent`.
+- **A refused token is not terminal.** A 401 rejects with
+  `vault SSE connect failed: 401` and the client keeps retrying on its backoff
+  ladder, capped at `backoffMaxMs` (30 s by default), as it does in the browser.
+  A host that wants to stop on a revoked token watches
+  `onStateChange('error', err)` and calls `stop()`, as the native shells and the
+  bridge plugin do.
+- **Restart with a new client.** `stop()` during a backoff wait leaves the
+  client unable to `start()` again (a defect shared with the browser, reported
+  separately); a host that stops and resumes builds a fresh client.
+
+The proof, in Node with no `window`, `document`, `localStorage` or
+`indexedDB`: the in-memory vault nudges on every write that advances its seq
+(one per batch, one per delete, tagged with the namespace) and serves
+`/events` over a real loopback HTTP server, authenticated like the real one,
+with a `ready` frame per connection, heartbeats, and each activity frame
+written in two pieces. The host's client reads it with Node's own fetch.
+Device A's edit reaches `handleMcpRequest` through the nudge alone while the
+response is still open; a burst of three pushes is one cycle; a bridge write
+wakes none; the host's own delete is suppressed as its echo; a dropped
+connection backs off 40, 80, 160 ms through refused reconnects and its `ready`
+frame catches the push it missed, and a reconnect that missed nothing wakes
+nothing; a revoked token backs off the same way; `stop()` closes the stream
+server-side and leaves no timer. Breaking the debounce, the seq cursor, the
+kind filter, the own-echo check, the deleteRow ack wrap, the backoff growth,
+the stream (reading the whole body) or `stop()`'s timer cleanup fails it.
 
 **What the host must supply that the app derives from the device.** The read
 model answers over the state `buildMcpReadState(data, { now, timeZone,
@@ -247,7 +341,7 @@ Either way: consent tiers from §6.3 (read; read + write; the device-calendar ti
 
 1. **Host kit package** from `electron/`; the Electron server switches to it with no behaviour change (`electron/mcpServer.transport.test.ts` stays green). Serves lastGLANCE too. **Done:** `packages/mcp-host` (`@glance-apps/mcp-host`).
 2. **`@glance-apps/sync`:** injectable storage for the vault engine; document the key hooks for Node. **Done:** 2.4.0, which dayGLANCE and the Obsidian plugin now use.
-3. **dayGLANCE MCP core package, read side:** tool and resource registration, the read model, the rows-to-slices path. The Electron server uses the shared registration. **3a done:** `packages/dayglance-mcp` (`@glance-apps/dayglance-mcp`): the tools, resources, read model and `buildMcpReadState`. **3b done:** `packages/dayglance-vault` (`@glance-apps/dayglance-vault`): the rows-to-slices path (was `src/sync/dbAdapter.js`) and the merge rules it shares with the file tier.
+3. **dayGLANCE MCP core package, read side:** tool and resource registration, the read model, the rows-to-slices path. The Electron server uses the shared registration. **3a done:** `packages/dayglance-mcp` (`@glance-apps/dayglance-mcp`): the tools, resources, read model and `buildMcpReadState`. **3b done:** `packages/dayglance-vault` (`@glance-apps/dayglance-vault`): the rows-to-slices path (was `src/sync/dbAdapter.js`) and the merge rules it shares with the file tier. **Change nudges done:** the `/events` client and the own-write ack registry, in the same package.
 4. **Read-only host prototype** (#2280's offer), in its own repository, against the packages.
 5. **Writes:** choose A or B, then journal, consent and rate-limit parity.
 
