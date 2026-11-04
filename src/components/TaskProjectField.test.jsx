@@ -8,6 +8,7 @@ import { DayPlannerContext } from '../context/DayPlannerContext.jsx';
 import { FeaturesContext } from '../context/FeaturesContext.jsx';
 import { NEW_PROJECT_ID, withPendingProject } from '../utils/pendingProject.js';
 import { getProjectColor } from '../utils/colorUtils.js';
+import { LAST_USED_PROJECT_KEY } from '../utils/lastUsedProject.js';
 import TaskProjectField from './TaskProjectField.jsx';
 
 // The task editor's project field (#2279): a picker that groups the projects
@@ -361,6 +362,77 @@ describe('the filter', () => {
     click(trigger());
     act(() => { find({ 'data-project-picker-filter': true })[0].props.onChange({ target: { value: 'zzz' } }); });
     expect(JSON.stringify(root.toJSON())).toContain('No matching projects');
+  });
+});
+
+// #2274: a new task starts with no project; the last project a task was
+// saved with is pinned on top of the list as a one-tap choice.
+describe('the last used project', () => {
+  const remember = (id) => store.set(LAST_USED_PROJECT_KEY, id);
+  const pinned = (h) => h.find({ 'data-project-picker-pinned': true })[0];
+
+  it('a new task still starts with no project', () => {
+    remember('p-books');
+    const { trigger, text, setNewTask } = setup();
+    expect(text(trigger())).toContain('No project');
+    expect(setNewTask).not.toHaveBeenCalled();
+  });
+
+  it('is pinned first, named with its goal, above No project and New project…', () => {
+    remember('p-books');
+    const h = setup();
+    h.click(h.trigger());
+    expect(h.rows()).toEqual(['last-used', 'none', 'new', '[area-a-work]', '[goal-g-ship]', '[area-none]', '[goal-g-read]', '[standalone]']);
+    expect(h.text(pinned(h))).toContain('Last used');
+    expect(h.text(pinned(h))).toContain('Books');
+    expect(h.text(pinned(h))).toContain('Read more');
+    expect(h.option('last-used').props['aria-label']).toBe('Last used: Books');
+  });
+
+  it('one tap sets what choosing it in its group sets', () => {
+    remember('p-api');
+    const viaPin = setup({ title: 'x', color: 'bg-blue-500' });
+    viaPin.click(viaPin.trigger());
+    viaPin.click(viaPin.option('last-used'));
+    const viaGroup = setup({ title: 'x', color: 'bg-blue-500' });
+    viaGroup.click(viaGroup.trigger());
+    viaGroup.click(viaGroup.group('goal-g-ship'));
+    viaGroup.click(viaGroup.option('p-api'));
+    expect(viaPin.lastTask()).toEqual(viaGroup.lastTask());
+    expect(viaPin.lastTask()).toMatchObject({ projectId: 'p-api', color: 'bg-rose-500', assignedUserSyncIds: ['u-1'] });
+  });
+
+  it('is not pinned when it is already the task\'s project', () => {
+    remember('p-books');
+    const h = setup({ title: 'x', projectId: 'p-books' });
+    h.click(h.trigger());
+    expect(pinned(h)).toBeUndefined();
+    expect(h.rows()[0]).toBe('none');
+  });
+
+  it('is not pinned once archived, completed or deleted, or while a filter is typed', () => {
+    for (const id of ['p-gone', 'p-done', 'p-deleted']) {
+      remember(id);
+      const h = setup();
+      h.click(h.trigger());
+      expect(pinned(h)).toBeUndefined();
+    }
+    remember('p-api');
+    const many = [...PROJECTS, ...Array.from({ length: 4 }, (_, i) => ({ id: `p-x${i}`, title: `Extra ${i}` }))];
+    const h = setup(undefined, { projects: many });
+    h.click(h.trigger());
+    expect(pinned(h)).toBeDefined();
+    act(() => { h.find({ 'data-project-picker-filter': true })[0].props.onChange({ target: { value: 'books' } }); });
+    expect(pinned(h)).toBeUndefined();
+  });
+
+  it('is a row the keys reach: Up from No project', () => {
+    remember('p-books');
+    const { trigger, key, panel } = setup();
+    key(trigger(), 'Enter');
+    expect(globalThis.document.activeElement.row).toBe('none');
+    key(panel(), 'ArrowUp');
+    expect(globalThis.document.activeElement.row).toBe('last-used');
   });
 });
 

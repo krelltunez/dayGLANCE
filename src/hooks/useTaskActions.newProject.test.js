@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import useTaskActions from './useTaskActions.js';
 import { NEW_PROJECT_ID } from '../utils/pendingProject.js';
+import { readLastUsedProject } from '../utils/lastUsedProject.js';
 import { TASK_COLORS } from '../utils/colorUtils.js';
 
 // "New project…" in the task modal: Add creates the project and the task in
@@ -55,5 +56,30 @@ describe('a task saved with a new project', () => {
     const { actions } = build(form({ title: 'Buy shoes #obsidian' }), { getObsidianTaskMeta });
     actions.addTask(false);
     expect(getObsidianTaskMeta).toHaveBeenCalledWith('Buy shoes', 'p-new', expect.objectContaining({ id: 'p-new', title: 'Run a 10k' }));
+  });
+});
+
+// #2274: a task saved from the editor makes its project the picker's
+// "last used" on this device; one saved without a project leaves it.
+describe('the last used project', () => {
+  const store = new Map();
+  beforeEach(() => {
+    store.clear();
+    globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) };
+  });
+  afterEach(() => { delete globalThis.localStorage; });
+
+  it('is the project the task was saved with, a new one by its real id', () => {
+    build(form({ openInInbox: true })).actions.addTask(true);
+    expect(readLastUsedProject()).toBe('p-new');
+    build(form({ projectId: 'p-other', newProject: undefined })).actions.addTask(false);
+    expect(readLastUsedProject()).toBe('p-other');
+  });
+
+  it('a task saved without a project, or not saved at all, leaves it', () => {
+    build(form({ projectId: 'p-other', newProject: undefined })).actions.addTask(false);
+    build(form({ projectId: null, newProject: undefined })).actions.addTask(false);
+    build(form({ title: ' ', projectId: 'p-third', newProject: undefined })).actions.addTask(false);
+    expect(readLastUsedProject()).toBe('p-other');
   });
 });

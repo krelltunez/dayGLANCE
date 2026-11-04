@@ -921,6 +921,8 @@
     "newProjectHint": "O projeto é criado quando guardar a tarefa.",
     "filterProjects": "Filtrar projetos",
     "noMatchingProjects": "Nenhum projeto correspondente",
+    "lastUsedProject": "Usado por último",
+    "lastUsedProjectLabel": "Usado por último: {{name}}",
     "addToHint": "adicionar a {{target}}",
     "inbox": "caixa de entrada",
     "schedule": "Agendar",

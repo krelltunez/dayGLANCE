@@ -944,6 +944,8 @@
     "newProjectHint": "Projekt zostanie utworzony po zapisaniu zadania.",
     "filterProjects": "Filtruj projekty",
     "noMatchingProjects": "Brak pasujących projektów",
+    "lastUsedProject": "Ostatnio używany",
+    "lastUsedProjectLabel": "Ostatnio używany: {{name}}",
     "addToHint": "dodaj do: {{target}}",
     "inbox": "skrzynka",
     "schedule": "Harmonogram",

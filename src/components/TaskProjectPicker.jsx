@@ -8,6 +8,7 @@ import { NEW_PROJECT_ID } from '../utils/pendingProject.js';
 import { filterProjectGroups, groupInboxProjects } from '../utils/inboxProjectGroups.js';
 import { projectPickerRows } from '../utils/projectPickerRows.js';
 import { readRememberedOpen, rememberOpen } from '../hooks/useRememberedOpen.js';
+import { pinnedLastUsedProject, readLastUsedProject } from '../utils/lastUsedProject.js';
 
 // The task editor's project picker (#2279), desktop and phone. A native
 // <select> could only group the projects one level, by goal, and could not
@@ -15,6 +16,8 @@ import { readRememberedOpen, rememberOpen } from '../hooks/useRememberedOpen.js'
 // groups them the way the Inbox filter does (#2232): areas, their goals, each
 // goal's projects, then the standalone ones, every group folding and the fold
 // remembered on the device (under its own keys, apart from the filter's).
+// The last project a task was saved with heads the list as a one-tap choice
+// (#2274, utils/lastUsedProject.js); the field itself never defaults to it.
 //
 // It opens in place, below the field, rather than as a popover: the phone's
 // editor is a scrolling bottom sheet, which would clip a floating list.
@@ -61,7 +64,13 @@ export default function TaskProjectPicker({ id, value, onChange }) {
   const selectedKey = selected ? `project-${selected.id}` : 'none';
 
   const isOpen = (key, defaultOpen) => folds[key] ?? readRememberedOpen(OPEN_KEY(key), defaultOpen);
+  // The last project a task was saved with, pinned on top as a one-tap
+  // choice (#2274): not while a filter is typed, and not when it is already
+  // the task's. It stays in its group too; the pin says it is the last used.
+  const lastUsed = open && !filtering ? pinnedLastUsedProject(readLastUsedProject(), projects) : null;
+  const pinned = lastUsed && lastUsed.id !== selectedId ? lastUsed : null;
   const rows = [
+    ...(pinned ? [{ type: 'pinned', key: 'last-used', project: pinned }] : []),
     { type: 'choice', key: 'none', value: '' },
     { type: 'choice', key: 'new', value: NEW_PROJECT_ID },
     ...projectPickerRows(shown, { isOpen, filtering, selectedId }),
@@ -87,7 +96,7 @@ export default function TaskProjectPicker({ id, value, onChange }) {
   };
   const activate = (row) => {
     if (row.type === 'group') toggleGroup(row);
-    else if (row.type === 'project') choose(row.project.id);
+    else if (row.type === 'project' || row.type === 'pinned') choose(row.project.id);
     else choose(row.value);
   };
 
@@ -223,6 +232,30 @@ export default function TaskProjectPicker({ id, value, onChange }) {
           {row.open ? <ChevronDown size={14} className="flex-shrink-0" /> : <ChevronRight size={14} className="flex-shrink-0" />}
           {label}
         </button>
+      );
+    }
+    if (row.type === 'pinned') {
+      const goal = row.project.goalId ? goals.find((g) => g.id === row.project.goalId) : null;
+      return (
+        <div key={row.key} data-project-picker-pinned className={`mb-1 pb-1 border-b ${borderClass}`}>
+          <div aria-hidden="true" className={`px-2 pt-0.5 text-[10px] font-semibold uppercase tracking-wide ${textSecondary}`}>
+            {t('task.lastUsedProject')}
+          </div>
+          <button
+            ref={nodeRef(row.key)}
+            type="button"
+            data-project-picker-option={row.key}
+            aria-label={t('task.lastUsedProjectLabel', { name: row.project.title })}
+            onClick={() => activate(row)}
+            onKeyDown={(e) => onRowKeyDown(e, row)}
+            className={`${rowBase} ${rowHover} ${textPrimary}`}
+            style={indent(0)}
+          >
+            {dot(getProjectColor(row.project, goal))}
+            <span className="truncate">{row.project.title}</span>
+            {goal && <span className={`truncate text-xs ${textSecondary}`}>{goal.title}</span>}
+          </button>
+        </div>
       );
     }
     const isSelected = row.key === selectedKey;
