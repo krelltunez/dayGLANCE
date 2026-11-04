@@ -919,6 +919,8 @@
     "newProjectName": "Nom du nouveau projet",
     "chooseExistingProject": "Choisir un projet existant",
     "newProjectHint": "Le projet est créé lorsque vous enregistrez la tâche.",
+    "filterProjects": "Filtrer les projets",
+    "noMatchingProjects": "Aucun projet correspondant",
     "addToHint": "ajouter à {{target}}",
     "inbox": "boîte de réception",
     "schedule": "Planifier",

@@ -919,6 +919,8 @@
     "newProjectName": "New project name",
     "chooseExistingProject": "Choose an existing project",
     "newProjectHint": "The project is created when you save the task.",
+    "filterProjects": "Filter projects",
+    "noMatchingProjects": "No matching projects",
     "addToHint": "add to {{target}}",
     "inbox": "inbox",
     "schedule": "Schedule",

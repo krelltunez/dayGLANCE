@@ -919,6 +919,8 @@
     "newProjectName": "Nombre del nuevo proyecto",
     "chooseExistingProject": "Elegir un proyecto existente",
     "newProjectHint": "El proyecto se crea al guardar la tarea.",
+    "filterProjects": "Filtrar proyectos",
+    "noMatchingProjects": "No hay proyectos que coincidan",
     "addToHint": "añadir a {{target}}",
     "inbox": "bandeja de entrada",
     "schedule": "Programar",

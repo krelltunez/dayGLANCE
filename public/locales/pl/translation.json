@@ -942,6 +942,8 @@
     "newProjectName": "Nazwa nowego projektu",
     "chooseExistingProject": "Wybierz istniejący projekt",
     "newProjectHint": "Projekt zostanie utworzony po zapisaniu zadania.",
+    "filterProjects": "Filtruj projekty",
+    "noMatchingProjects": "Brak pasujących projektów",
     "addToHint": "dodaj do: {{target}}",
     "inbox": "skrzynka",
     "schedule": "Harmonogram",
