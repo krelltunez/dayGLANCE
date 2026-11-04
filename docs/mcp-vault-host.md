@@ -1,6 +1,6 @@
 # GLANCEvault MCP host: design note
 
-**Status:** Draft, for the extraction work that precedes a prototype.
+**Status:** Draft, for the extraction work that precedes a prototype. Step 1 (the host kit) is done.
 **Issue:** #2280. **Spec:** `docs/mcp-server-spec.md` §4.4 (r7).
 
 ## Decisions so far
@@ -29,7 +29,33 @@ The seam already exists. The desktop server's tools talk to a `RendererBridge` (
 
 ### 1. The MCP host kit (generic; also for lastGLANCE)
 
-From `electron/` (line counts without tests):
+**Done:** `packages/mcp-host`, published as `@glance-apps/mcp-host` (see its
+README for the API). The Electron server runs on it with no behaviour change;
+`electron/mcpServer.transport.test.ts` is unchanged in what it asserts, and
+`electron/mcpServer.listener.test.ts` pins the log lines, realm and localhost
+guards the server had before. Where the code said otherwise than the table
+below:
+
+- `mcpAuth`: the 401's realm was dayGLANCE's; it is now an argument (the
+  listener's `realm`, default `<name> MCP`).
+- `mcpPort`: the default port (7893) and the "dayGLANCE will not scan" wording
+  were dayGLANCE's. The kit takes `defaultPort` and `appName`; `electron/mcpPort.ts`
+  keeps 7893 and the one-argument functions main.ts calls.
+- `mcpPagination`: the cursor prefix `dgc1.` was dayGLANCE's. The kit takes a
+  `cursorPrefix` (default `mhc1.`); the read tools pass `dgc1.`, so cursors are
+  byte-identical.
+- `mcpJournal`: the undo op union, `undoGroupKey` and the recurring-date label
+  are dayGLANCE's, not just the tray helpers. The kit's journal is generic over
+  the op and takes a `groupKey` (and optional `groupLabel`); `electron/mcpJournal.ts`
+  keeps the vocabulary, the grouping, and `journalGroups` / `journalSnapshot`
+  bound to it.
+- `mcpLocalTime`: `validateDurationMinutes` (the block bounds and the
+  `duration_minutes` argument) stays in Electron.
+- `RendererBridge`: the kit's types are `HostBridge` and `BridgeResult`. The
+  `renderer_unavailable` code and its message stay with the Electron
+  implementation; the tool contract (`docs/mcp-tools-reference.md`) still names it.
+
+From `electron/` (line counts without tests), as planned:
 
 | Module | Lines | Verdict |
 |---|---|---|
@@ -44,7 +70,7 @@ From `electron/` (line counts without tests):
 | `mcpRendererBridge.ts` | 121 | Stays in Electron. The `RendererBridge` *type* moves to the kit. |
 | `mcpDesktopConfig.ts`, `mcpDesktopSetup.ts`, `mcpDiscovery.ts` | 199, 90, 49 | Stay in Electron (client config writing and token discovery). |
 
-**One real change for a network host:** the listener uses the SDK's `localhostHostValidation` / `localhostOriginValidation`. A host on a LAN box or behind a reverse proxy is reached by name, so the kit takes a configured Host allowlist (localhost stays the default) and the Electron server keeps passing the localhost one. TLS is the reverse proxy's job; the kit should refuse a non-loopback bind without a token configured.
+**One real change for a network host:** the listener uses the SDK's `localhostHostValidation` / `localhostOriginValidation`. A host on a LAN box or behind a reverse proxy is reached by name, so the kit takes a configured Host allowlist (localhost stays the default) and the Electron server keeps passing the localhost one. TLS is the reverse proxy's job; the kit should refuse a non-loopback bind without a token configured. **Done as:** `startMcpListener({ host, allowedHosts, allowedOrigins })`, both lists defaulting to the SDK's localhost guards; a token is required on every bind, and a non-loopback one without it gets its own refusal. The Electron server passes neither list.
 
 ### 2. The vault engine under Node (`@glance-apps/sync`, glance-sync repository)
 
@@ -88,7 +114,7 @@ Either way: consent tiers from §6.3 (read; read + write; the device-calendar ti
 
 ## Sequence
 
-1. **Host kit package** from `electron/`; the Electron server switches to it with no behaviour change (`electron/mcpServer.transport.test.ts` stays green). Serves lastGLANCE too.
+1. **Host kit package** from `electron/`; the Electron server switches to it with no behaviour change (`electron/mcpServer.transport.test.ts` stays green). Serves lastGLANCE too. **Done:** `packages/mcp-host` (`@glance-apps/mcp-host`).
 2. **`@glance-apps/sync`:** injectable storage for the vault engine; document the key hooks for Node.
 3. **dayGLANCE MCP core package, read side:** tool and resource registration, the read model, the rows-to-slices path. The Electron server uses the shared registration.
 4. **Read-only host prototype** (#2280's offer), in its own repository, against the packages.

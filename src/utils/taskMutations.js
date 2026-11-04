@@ -854,7 +854,7 @@ export function applyUpdateSubtask(state, { taskId, subtaskId, set = {}, nowIso 
 
 /**
  * BULK UNDO (§4.3): apply a list of reversal ops produced by the main
- * process's write journal (electron/mcpJournal.ts buildUndoPlan). Ops arrive
+ * process's write journal (buildUndoPlan in @glance-apps/mcp-host). Ops arrive
  * in REVERSE chronological order, so compound histories unwind correctly:
  * create → schedule → move undoes as restore-fields → restore-to-inbox →
  * remove-created, each op finding exactly the state its write produced.

@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { isValidLocalDate, localDateOf, dateEnvelope } from './mcpDates.js';
+import { isValidLocalDate, localDateOf, dateEnvelope } from '../src/dates.js';
 
-// §5.3 is the correctness core of Phase 2: local calendar dates only, resolved
+// §5.3 is the correctness core of the read tools: local calendar dates only, resolved
 // server-side, correct across DST boundaries in both directions. These tests
 // pin the boundaries with fixed UTC instants so they never depend on the
 // machine's own clock or zone.
 
-const utc = (s: string) => Date.parse(s);
+const utc = (s) => Date.parse(s);
 
 describe('isValidLocalDate', () => {
   it('accepts real local calendar dates', () => {

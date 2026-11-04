@@ -19,7 +19,15 @@ import { APP_SCHEME, APP_HOST, APP_BASE_URL, resolveAppRequest } from './appProt
 import { shouldQuitOnAllWindowsClosed, shouldUnregisterShortcutsOnQuit } from './startupQuit.js';
 import { initStartupLog, logStartup } from './startupLog.js';
 import { startMcpServer } from './mcpServer.js';
-import { generateMcpToken } from './mcpAuth.js';
+import {
+  generateMcpToken,
+  appendEntry as appendJournalEntry,
+  buildUndoPlan,
+  createWriteGate,
+  createIdempotencyStore,
+  type HostBridge,
+  type WriteGate,
+} from '@glance-apps/mcp-host';
 import { resolveMcpPort, describeBindFailure, DEFAULT_MCP_PORT } from './mcpPort.js';
 import {
   defaultConfig as defaultIntegrationsConfig,
@@ -30,21 +38,17 @@ import {
   type LocalIntegrationsConfig,
   type TransitionAction,
 } from './localIntegrations.js';
-import { createRendererBridge, type RendererBridge } from './mcpRendererBridge.js';
+import { createRendererBridge } from './mcpRendererBridge.js';
 import type { WriteToolDeps } from './mcpWriteTools.js';
 import { discoveryFilePath, discoveryPayload } from './mcpDiscovery.js';
 import {
-  appendEntry as appendJournalEntry,
   journalSnapshot as buildJournalSnapshot,
-  buildUndoPlan,
   undoGroupKey,
   mcpIndicator,
   composeTrayTitle,
   type JournalEntry,
   type JournalRecord,
 } from './mcpJournal.js';
-import { createWriteGate } from './mcpWriteGate.js';
-import { createIdempotencyStore } from './mcpIdempotency.js';
 import {
   defaultTrustedHosts,
   parseTrustedHosts,
@@ -1264,8 +1268,8 @@ let mcpStatus: { running: boolean; error: string | null } = { running: false, er
 // registers an ipcMain listener (restarting must not stack another one), and
 // a long-lived gate + idempotency store mean toggling the port cannot be used
 // to reset rate-limit strikes or the write-replay window.
-let mcpBridge: RendererBridge | null = null;
-let mcpWriteGate: ReturnType<typeof createWriteGate> | null = null;
+let mcpBridge: HostBridge | null = null;
+let mcpWriteGate: WriteGate | null = null;
 let mcpIdempotencyStore: WriteToolDeps['store'] | null = null;
 
 function saveIntegrationsConfig(): void {
@@ -1356,7 +1360,8 @@ function registerMcpMultiUserHandler(): void {
 // ── §4.3 write journal — session-scoped BY DESIGN ────────────────────────────
 // Module scope in the main process (never on the McpServer instance, §3.7,
 // never on disk): it covers the runaway-agent case, so dying with the process
-// is correct. All decisions live in mcpJournal.ts, pure and tested.
+// is correct. All decisions live in mcpJournal.ts and @glance-apps/mcp-host,
+// pure and tested.
 let mcpJournalEntries: JournalEntry[] = [];
 
 function recordMcpJournal(record: JournalRecord): void {

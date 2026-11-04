@@ -1,10 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { summaryTitle } from '@glance-apps/mcp-host';
 import {
-  appendEntry,
   journalSnapshot,
-  buildUndoPlan,
   undoGroupKey,
-  summaryTitle,
   journalGroups,
   mcpIndicator,
   composeTrayTitle,
@@ -12,35 +10,18 @@ import {
   type UndoOp,
 } from './mcpJournal.js';
 
-// §4.3 write journal + §6.5 indicator. Load-bearing: the undo plan reverses
-// chronological order (compound histories must unwind), the snapshot never
-// leaks before-state copies to the display surface, and the MCP glyph is
-// distinct from and never displaced by the base tray states.
+// §4.3 write journal + §6.5 indicator, dayGLANCE's half. Load-bearing: the
+// per-task partition of dayGLANCE's undo ops, the snapshot never leaks
+// before-state copies to the display surface, and the MCP glyph is distinct
+// from and never displaced by the base tray states. The generic journal
+// (append, summary titles, undo plan order) is tested with
+// @glance-apps/mcp-host (packages/mcp-host/test/journal.test.js).
 
 const op = (taskId: string): UndoOp => ({ kind: 'remove_created', taskId });
 
 const entry = (over: Partial<JournalEntry> = {}): JournalEntry => ({
   seq: 1, at: '2026-08-12T10:00:00.000Z', tool: 'dayglance_create_task',
   summary: 'Created "x"', op: op('t1'), ...over,
-});
-
-describe('appendEntry', () => {
-  it('appends immutably with monotonically increasing seq', () => {
-    const first = appendEntry([], { tool: 'dayglance_create_task', summary: 'Created "a"', op: op('a') }, '2026-08-12T10:00:00.000Z');
-    const second = appendEntry(first, { tool: 'dayglance_move_block', summary: 'Moved "a"', op: op('a'), idempotencyKey: 'k1' }, '2026-08-12T10:01:00.000Z');
-    expect(first).toHaveLength(1);
-    expect(second).toHaveLength(2);
-    expect(second[0].seq).toBe(1);
-    expect(second[1]).toMatchObject({ seq: 2, at: '2026-08-12T10:01:00.000Z', idempotencyKey: 'k1' });
-    expect(second[1].tool).toBe('dayglance_move_block');
-  });
-
-  it('records tool, time, and what changed (exit criterion 3 fields)', () => {
-    const [e] = appendEntry([], { tool: 'dayglance_resize_block', summary: 'Resized "Standup" to 30 min', op: op('r') }, '2026-08-12T11:00:00.000Z');
-    expect(e.tool).toBe('dayglance_resize_block');
-    expect(e.at).toBe('2026-08-12T11:00:00.000Z');
-    expect(e.summary).toContain('Resized');
-  });
 });
 
 describe('journalSnapshot', () => {
@@ -131,26 +112,6 @@ describe('undoGroupKey — the per-task partition', () => {
   });
 });
 
-describe('summaryTitle — titles live only inside summaries, quoted “ ”', () => {
-  it('extracts the title from every summary shape the write model produces', () => {
-    expect(summaryTitle('Created “Buy milk”')).toBe('Buy milk');
-    expect(summaryTitle('Scheduled “Buy milk” at 2026-08-12 10:00')).toBe('Buy milk');
-    expect(summaryTitle('Moved “Buy milk” from 2026-08-12 10:00 to 2026-08-13 09:00')).toBe('Buy milk');
-    expect(summaryTitle('Resized “Buy milk” from 30 to 45 min')).toBe('Buy milk');
-    expect(summaryTitle('Marked “Buy milk” complete')).toBe('Buy milk');
-    expect(summaryTitle('Marked “Standup” (2026-08-12) incomplete')).toBe('Standup');
-  });
-
-  it('titles with embedded closing quotes survive (first “ to LAST ”)', () => {
-    expect(summaryTitle('Moved “say ”hi”” from 2026-08-12 10:00 to 2026-08-12 11:00')).toBe('say ”hi”');
-  });
-
-  it('no quoted span → null', () => {
-    expect(summaryTitle('write 12')).toBeNull();
-    expect(summaryTitle('')).toBeNull();
-  });
-});
-
 describe('journalGroups — per-task groups over the full journal', () => {
   const history = [
     entry({ seq: 1, summary: 'Created “Alpha”', op: { kind: 'remove_created', taskId: 'a' } }),
@@ -199,23 +160,6 @@ describe('journalGroups — per-task groups over the full journal', () => {
 
   it('empty journal → no groups', () => {
     expect(journalGroups([])).toEqual([]);
-  });
-});
-
-describe('buildUndoPlan', () => {
-  it('reverses chronological order so compound histories unwind', () => {
-    const entries = [
-      entry({ seq: 1, op: { kind: 'remove_created', taskId: 'a' } }),
-      entry({ seq: 2, op: { kind: 'restore_unscheduled', taskId: 'a', beforeTask: { id: 'a' } } }),
-      entry({ seq: 3, op: { kind: 'restore_block_fields', blockId: 'a', before: { date: '2026-08-12' } } }),
-    ];
-    const plan = buildUndoPlan(entries);
-    expect(plan.count).toBe(3);
-    expect(plan.ops.map((o) => o.kind)).toEqual(['restore_block_fields', 'restore_unscheduled', 'remove_created']);
-  });
-
-  it('empty journal → empty plan', () => {
-    expect(buildUndoPlan([])).toEqual({ count: 0, ops: [] });
   });
 });
 

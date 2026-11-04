@@ -16,13 +16,25 @@
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/server';
-import type { RendererBridge } from './mcpRendererBridge.js';
-import { isValidLocalDate, localDateOf, dateEnvelope } from './mcpDates.js';
-import { paginate, DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT } from './mcpPagination.js';
+import {
+  isValidLocalDate,
+  localDateOf,
+  dateEnvelope,
+  paginate,
+  DEFAULT_LIST_LIMIT,
+  MAX_LIST_LIMIT,
+  type HostBridge,
+} from '@glance-apps/mcp-host';
 import { resolveInboxFilter } from './mcpInboxFilter.js';
 
+/**
+ * dayGLANCE's pagination cursor prefix ("dayGLANCE cursor, version 1"). Part
+ * of the wire format: changing it invalidates every cursor a client holds.
+ */
+export const CURSOR_PREFIX = 'dgc1.';
+
 export interface ReadToolDeps {
-  bridge: RendererBridge;
+  bridge: HostBridge;
   /** Injectable clock, same idiom as calendarCache.ts. */
   now: () => number;
   /** The IANA timezone the server resolves — never inferred from the client (§5.3). */
@@ -169,7 +181,7 @@ export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
       });
       if (!r.ok) return bridgeError(r);
       const items = (r.data as { items: unknown[] }).items ?? [];
-      const page = paginate(items, { limit, cursor, filterKey: filter.key });
+      const page = paginate(items, { limit, cursor, filterKey: filter.key, cursorPrefix: CURSOR_PREFIX });
       if (!page.ok) return toolError('validation', page.reason);
       return ok({
         items: page.items,

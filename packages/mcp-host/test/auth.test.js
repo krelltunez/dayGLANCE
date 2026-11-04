@@ -3,7 +3,8 @@ import {
   generateMcpToken,
   checkBearerToken,
   unauthorizedResponse,
-} from './mcpAuth.js';
+  DEFAULT_AUTH_REALM,
+} from '../src/auth.js';
 
 // The MCP listener's whole auth story is this one pre-shared token (spec §3.5).
 // These tests pin both directions: a correct token is accepted in every shape
@@ -14,7 +15,7 @@ import {
 const TOKEN = 'a'.repeat(64);
 
 describe('generateMcpToken', () => {
-  it('produces 64 lowercase hex chars (32 CSPRNG bytes, the ws-server.ts idiom)', () => {
+  it('produces 64 lowercase hex chars (32 CSPRNG bytes)', () => {
     const token = generateMcpToken();
     expect(token).toMatch(/^[0-9a-f]{64}$/);
   });
@@ -93,9 +94,19 @@ describe('unauthorizedResponse', () => {
   });
 
   it('is identical no matter why auth failed (the function cannot even see a reason)', () => {
-    // Structural guarantee: zero parameters. If someone adds a reason
-    // parameter to vary the response, this test is the tripwire.
+    // Structural guarantee: no required parameters, and the only optional one
+    // is the host's fixed realm. If someone adds a reason parameter to vary
+    // the response, this test is the tripwire.
     expect(unauthorizedResponse.length).toBe(0);
     expect(unauthorizedResponse()).toEqual(unauthorizedResponse());
+    expect(unauthorizedResponse('dayGLANCE MCP')).toEqual(unauthorizedResponse('dayGLANCE MCP'));
+  });
+
+  it('names the host realm in the challenge, defaulting to a generic one', () => {
+    expect(DEFAULT_AUTH_REALM).toBe('MCP');
+    expect(unauthorizedResponse().headers['www-authenticate']).toBe('Bearer realm="MCP"');
+    expect(unauthorizedResponse('dayGLANCE MCP').headers['www-authenticate']).toBe('Bearer realm="dayGLANCE MCP"');
+    // The realm never changes the body.
+    expect(unauthorizedResponse('dayGLANCE MCP').body).toBe(unauthorizedResponse().body);
   });
 });

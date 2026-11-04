@@ -10,7 +10,7 @@
 // alone, present sets it, a name in clear_fields removes it, and clearing is
 // only ever the explicit list.
 
-import { isValidLocalDate } from './mcpDates.js';
+import { isValidLocalDate } from '@glance-apps/mcp-host';
 
 type Reject = { ok: false; code: 'validation'; message: string };
 const reject = (message: string): Reject => ({ ok: false, code: 'validation', message });

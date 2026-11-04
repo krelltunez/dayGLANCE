@@ -1,5 +1,5 @@
 // Argument-shape rules for the extended dayglance_create_task (spec §5.1),
-// extracted pure in the mcpDates.ts style: every accept/reject decision for
+// extracted pure in the host kit's dates.js style: every accept/reject decision for
 // the create arguments lives here, unit-tested and mutation-verified, so the
 // tool handler in mcpWriteTools.ts is wiring only.
 //
@@ -27,8 +27,8 @@
 // validated by mcpRepeatArgs.ts, which also carries the by-design rejection of
 // an interval the app cannot repeat on.
 
-import { isValidLocalDate } from './mcpDates.js';
-import { validateStartTime, validateDurationMinutes } from './mcpLocalTime.js';
+import { isValidLocalDate, validateStartTime } from '@glance-apps/mcp-host';
+import { validateDurationMinutes } from './mcpLocalTime.js';
 import { parseRepeat, type RecurrencePattern } from './mcpRepeatArgs.js';
 
 export interface CreateTaskArgs {

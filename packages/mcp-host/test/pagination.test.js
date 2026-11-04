@@ -5,7 +5,8 @@ import {
   decodeCursor,
   DEFAULT_LIST_LIMIT,
   MAX_LIST_LIMIT,
-} from './mcpPagination.js';
+  DEFAULT_CURSOR_PREFIX,
+} from '../src/pagination.js';
 
 // §5.1 under test: default cap 50, truncation flag, working cursor — and the
 // §5.2 direction that bad inputs are validation failures, not silent clamps.
@@ -15,7 +16,8 @@ import {
 
 const LIST = Array.from({ length: 120 }, (_, i) => ({ id: `t${i}` }));
 const F = 'scope=all;completed=1';
-const page = <T>(items: T[], opts: { limit?: unknown; cursor?: unknown; filterKey?: string }) =>
+const P = DEFAULT_CURSOR_PREFIX;
+const page = (items, opts) =>
   paginate(items, { filterKey: F, ...opts });
 
 describe('paginate — happy path', () => {
@@ -31,8 +33,8 @@ describe('paginate — happy path', () => {
   });
 
   it('walks the whole list through cursors without gaps or repeats', () => {
-    const seen: string[] = [];
-    let cursor: string | undefined;
+    const seen = [];
+    let cursor;
     for (let guard = 0; guard < 10; guard++) {
       const r = page(LIST, { cursor });
       if (!r.ok) throw new Error(r.reason);
@@ -41,7 +43,7 @@ describe('paginate — happy path', () => {
         expect(r.nextCursor).toBeNull();
         break;
       }
-      cursor = r.nextCursor!;
+      cursor = r.nextCursor;
     }
     expect(seen).toEqual(LIST.map((t) => t.id));
   });
@@ -51,9 +53,9 @@ describe('paginate — happy path', () => {
       [LIST.slice(0, 7), 1],
       [LIST, MAX_LIST_LIMIT],
       [LIST.slice(0, 40), 10], // exact multiple: final page full, then done
-    ] as const) {
-      const seen: string[] = [];
-      let cursor: string | undefined;
+    ]) {
+      const seen = [];
+      let cursor;
       let pages = 0;
       for (let guard = 0; guard < 200; guard++) {
         const r = page(items, { limit, cursor });
@@ -67,7 +69,7 @@ describe('paginate — happy path', () => {
           break;
         }
         expect(r.items).toHaveLength(limit); // no short intermediate pages
-        cursor = r.nextCursor!;
+        cursor = r.nextCursor;
       }
       expect(seen).toEqual(items.map((t) => t.id));
       expect(pages).toBe(Math.max(1, Math.ceil(items.length / limit)));
@@ -122,7 +124,7 @@ describe('paginate — filter binding', () => {
   it('a cursor from filter A replayed under filter B is a validation error naming both', () => {
     const first = page(LIST, { filterKey: 'scope=standalone;completed=0' });
     if (!first.ok) throw new Error(first.reason);
-    const r = page(LIST, { cursor: first.nextCursor!, filterKey: 'scope=all;completed=1' });
+    const r = page(LIST, { cursor: first.nextCursor, filterKey: 'scope=all;completed=1' });
     expect(r.ok).toBe(false);
     if (r.ok) throw new Error('expected failure');
     expect(r.reason).toContain('scope=standalone;completed=0');
@@ -134,12 +136,12 @@ describe('paginate — filter binding', () => {
     const key = 'scope=standalone;completed=0';
     const first = page(LIST, { limit: 50, filterKey: key });
     if (!first.ok) throw new Error(first.reason);
-    const second = page(LIST, { cursor: first.nextCursor!, limit: 50, filterKey: key });
+    const second = page(LIST, { cursor: first.nextCursor, limit: 50, filterKey: key });
     expect(second.ok).toBe(true);
   });
 
   it('pre-filter cursors (offset only, no filter key) are malformed, never an implicit all', () => {
-    const legacy = 'dgc1.' + Buffer.from(JSON.stringify({ o: 50 })).toString('base64url');
+    const legacy = P + Buffer.from(JSON.stringify({ o: 50 })).toString('base64url');
     const r = page(LIST, { cursor: legacy });
     expect(r.ok).toBe(false);
     if (r.ok) throw new Error('expected failure');
@@ -167,14 +169,14 @@ describe('paginate — validation failures, never silent clamps', () => {
   });
 
   it('rejects cursors it did not mint', () => {
-    for (const cursor of ['', 'abc', 'dgc1.!!!', 'dgc2.eyJvIjowfQ', 42, {}]) {
+    for (const cursor of ['', 'abc', `${P}!!!`, 'mhc2.eyJvIjowfQ', 42, {}]) {
       const r = page(LIST, { cursor });
       expect(r.ok, `cursor ${String(cursor)}`).toBe(false);
     }
   });
 
   it('rejects a hand-tampered cursor whose offset is negative or fractional, or whose filter key is not a string', () => {
-    const forge = (o: unknown, f: unknown = F) => 'dgc1.' + Buffer.from(JSON.stringify({ o, f })).toString('base64url');
+    const forge = (o, f = F) => P + Buffer.from(JSON.stringify({ o, f })).toString('base64url');
     for (const o of [-1, 1.5, '3', null]) {
       expect(page(LIST, { cursor: forge(o) }).ok, `offset ${String(o)}`).toBe(false);
     }
@@ -190,8 +192,8 @@ describe('filtered totals — the field never lies', () => {
     // reports the subset's size on every page and walks exactly that many rows.
     const population = Array.from({ length: 347 }, (_, i) => ({ id: `t${i}`, open: i % 5 === 0 }));
     const filtered = population.filter((t) => t.open); // 70 rows, standing in for the read-model filter
-    const seen: string[] = [];
-    let cursor: string | undefined;
+    const seen = [];
+    let cursor;
     for (let guard = 0; guard < 100; guard++) {
       const r = page(filtered, { limit: 7, cursor, filterKey: 'scope=standalone;completed=0' });
       if (!r.ok) throw new Error(r.reason);
@@ -199,7 +201,7 @@ describe('filtered totals — the field never lies', () => {
       expect(r.total).not.toBe(population.length);
       seen.push(...r.items.map((t) => t.id));
       if (!r.truncated) break;
-      cursor = r.nextCursor!;
+      cursor = r.nextCursor;
     }
     expect(seen).toEqual(filtered.map((t) => t.id));
   });
@@ -213,6 +215,28 @@ describe('cursor round-trip', () => {
   });
 
   it('cursors are opaque-prefixed and versioned', () => {
-    expect(encodeCursor(0, F).startsWith('dgc1.')).toBe(true);
+    expect(P).toBe('mhc1.');
+    expect(encodeCursor(0, F).startsWith(P)).toBe(true);
+  });
+});
+
+describe('cursor prefix — the host names its own', () => {
+  const OWN = 'abc1.';
+
+  it('a host prefix is used for minting and required for decoding', () => {
+    const first = paginate(LIST, { filterKey: F, cursorPrefix: OWN });
+    if (!first.ok) throw new Error(first.reason);
+    expect(first.nextCursor.startsWith(OWN)).toBe(true);
+    const second = paginate(LIST, { filterKey: F, cursorPrefix: OWN, cursor: first.nextCursor });
+    if (!second.ok) throw new Error(second.reason);
+    expect(second.items[0]).toEqual({ id: 't50' });
+    expect(decodeCursor(first.nextCursor, OWN)).toEqual({ offset: 50, filterKey: F });
+  });
+
+  it("one host's cursor never decodes under another's prefix", () => {
+    const foreign = encodeCursor(50, F, OWN);
+    expect(decodeCursor(foreign)).toBeNull();
+    expect(page(LIST, { cursor: foreign }).ok).toBe(false);
+    expect(paginate(LIST, { filterKey: F, cursorPrefix: OWN, cursor: encodeCursor(50, F) }).ok).toBe(false);
   });
 });

@@ -18,8 +18,8 @@
 // FIELD SEMANTICS as in update_task: absent leaves a field alone, present sets
 // it, and clear_fields (an explicit list, never null) removes it.
 
-import { isValidLocalDate } from './mcpDates.js';
-import { validateStartTime, validateDurationMinutes } from './mcpLocalTime.js';
+import { isValidLocalDate, validateStartTime } from '@glance-apps/mcp-host';
+import { validateDurationMinutes } from './mcpLocalTime.js';
 import { parseRepeat, type RecurrencePattern } from './mcpRepeatArgs.js';
 
 export interface UpdateRecurringArgs {

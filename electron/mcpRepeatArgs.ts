@@ -21,7 +21,7 @@
 // by-design rejection, never silently approximated, so a model reports the
 // design instead of creating a series the user did not ask for.
 
-import { isValidLocalDate } from './mcpDates.js';
+import { isValidLocalDate } from '@glance-apps/mcp-host';
 
 export const REPEAT_FREQUENCIES = ['daily', 'weekly', 'biweekly', 'monthly', 'yearly'] as const;
 export type RepeatFrequency = typeof REPEAT_FREQUENCIES[number];
