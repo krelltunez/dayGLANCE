@@ -11,6 +11,10 @@
 // The Day Dial's complication picker lists projects the same way (#2250),
 // through projectOptionGroups below: a native <select> cannot nest or fold,
 // so the tree is flattened into one labelled group per goal.
+//
+// The task editor's project picker (#2279) draws the whole tree, folding, as
+// a single choice (utils/projectPickerRows.js), and narrows it to a typed
+// filter through filterProjectGroups below.
 
 const activeProject = (p) => p && p.status !== 'archived' && p.status !== 'completed';
 
@@ -86,4 +90,28 @@ export function projectOptionGroups(lists, options) {
   })));
   if (standalone.length) groups.push({ key: 'standalone', area: null, goal: null, standalone: true, projects: standalone });
   return groups;
+}
+
+/**
+ * The grouping narrowed to what a typed `query` names (#2279, the task
+ * editor's project picker): a project whose title holds it, or every project
+ * of a goal or an area whose title does, ignoring case. Groups left empty are
+ * dropped. A blank query returns `groups` as they are.
+ *
+ * @param {ReturnType<typeof groupInboxProjects>} groups
+ * @param {string} query
+ */
+export function filterProjectGroups(groups, query) {
+  const q = (query || '').trim().toLocaleLowerCase();
+  if (!q) return groups;
+  const hit = (text) => typeof text === 'string' && text.toLocaleLowerCase().includes(q);
+  const areas = groups.areas
+    .map((area) => ({
+      ...area,
+      goals: area.goals
+        .map((goal) => ((hit(area.title) || hit(goal.title)) ? goal : { ...goal, projects: goal.projects.filter((p) => hit(p.title)) }))
+        .filter((goal) => goal.projects.length > 0),
+    }))
+    .filter((area) => area.goals.length > 0);
+  return { ...groups, areas, standalone: groups.standalone.filter((p) => hit(p.title)) };
 }

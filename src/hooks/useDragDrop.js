@@ -4,6 +4,7 @@ import { TASK_COLORS } from '../utils/colorUtils.js';
 import { nativeUpdateEvent, triggerHaptic } from '../native.js';
 import { describeObstacle } from '../utils/dayOccupancy.js';
 import { anchorDragImageAtTop } from '../utils/dragUtils.js';
+import { pixelsToSnappedMinutes, resizeBlockByPixels } from '../utils/taskResize.js';
 
 // Pure utilities used by position helpers
 const timeToMinutes = (time) => {
@@ -57,6 +58,9 @@ export default function useDragDrop({
   const [hoverPreviewTime, setHoverPreviewTime] = useState(null);
   const [hoverPreviewDate, setHoverPreviewDate] = useState(null);
   const [isResizing, setIsResizing] = useState(false);
+  // The block being resized, for the start/end guide lines: { taskId, dateStr,
+  // edge, startMinutes, endMinutes }, or null.
+  const [resizePreview, setResizePreview] = useState(null);
 
   // Mobile drag state
   const [mobileDragPreviewTime, setMobileDragPreviewTime] = useState(null);
@@ -294,6 +298,7 @@ export default function useDragDrop({
   useEffect(() => {
     const onBlur = () => {
       setIsResizing(false);
+      setResizePreview(null);
       frameResizingRef.current = false;
     };
     window.addEventListener('blur', onBlur);
@@ -766,54 +771,74 @@ export default function useDragDrop({
     setDragOverRecycleBin(false);
   };
 
-  const handleResizeStart = (task, e) => {
-    e.stopPropagation();
-    e.preventDefault();
+  // Resize a task card by either edge (#2273). The bottom edge moves the end;
+  // the top edge moves the start and keeps the end, so the duration changes
+  // inversely. The arithmetic is utils/taskResize.js; this wires the pointer to
+  // it and writes the result the way a move or the old bottom resize did.
+  //
+  // `hourHeight` is the height the view draws an hour at. MULTI (TimeGrid) and
+  // the phone grid measure their rows (getHourHeight); DAY and JOBO draw their
+  // columns at a height of their own and pass it. A fixed 80px used to stand
+  // in here, which made the edge run ~2x faster than the pointer.
+  const beginTaskResize = (task, { edge = 'bottom', hourHeight } = {}) => {
     pushUndo({ key: 'resized', taskId: task.id });
     setIsResizing(true);
 
-    const startY = e.clientY;
-    const startDuration = task.duration;
-    let finalDuration = startDuration;
+    const rowHeight = hourHeight > 0 ? hourHeight : getHourHeight();
+    const isTop = edge === 'top';
+    const origStartTime = task.startTime;
+    const origStart = timeToMinutes(origStartTime || '00:00');
+    const origDuration = task.duration;
+    let current = { startMinutes: origStart, duration: origDuration };
 
     const isRecurringTask = task.isRecurring;
     const recurringInfo = isRecurringTask ? parseRecurringId(task.id) : null;
+    const dateStr = recurringInfo?.dateStr || task.date || null;
 
-    // Prevent the browser from initiating a native drag on the parent draggable element
-    const preventDrag = (de) => de.preventDefault();
-    document.addEventListener('dragstart', preventDrag);
+    const showGuides = ({ startMinutes, duration }) => setResizePreview({
+      taskId: task.id, dateStr, edge,
+      startMinutes, endMinutes: startMinutes + duration,
+    });
+    showGuides(current);
 
-    const handleMouseMove = (moveEvent) => {
-      const deltaY = moveEvent.clientY - startY;
-      const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
-      const newDuration = Math.max(15, startDuration + deltaMinutes);
-      finalDuration = newDuration;
+    const move = (deltaY) => {
+      const next = resizeBlockByPixels({ startMinutes: origStart, duration: origDuration, edge, deltaY, hourHeight: rowHeight });
+      if (next.startMinutes === current.startMinutes && next.duration === current.duration) return;
+      current = next;
+      showGuides(next);
+      const newDuration = next.duration;
+      // Only the top edge writes the start; the bottom edge's write is the
+      // same { duration } it always was.
+      const startPatch = isTop ? { startTime: minutesToTime(next.startMinutes) } : {};
 
       if (isRecurringTask && recurringInfo) {
-        const { templateId, dateStr } = recurringInfo;
+        // One occurrence: its start and length go to that date's exception,
+        // as a same-date move writes startTime there.
+        const { templateId, dateStr: occDate } = recurringInfo;
         setRecurringTasks(prev => prev.map(t => {
           if (t.id !== templateId) return t;
-          return { ...t, exceptions: { ...t.exceptions, [dateStr]: { ...t.exceptions?.[dateStr], duration: newDuration } }, lastModified: new Date().toISOString() };
+          return { ...t, exceptions: { ...t.exceptions, [occDate]: { ...t.exceptions?.[occDate], ...startPatch, duration: newDuration } }, lastModified: new Date().toISOString() };
         }));
       } else {
         setTasks(prevTasks => prevTasks.map(t =>
-          t.id === task.id ? { ...t, duration: newDuration } : t
+          t.id === task.id ? { ...t, ...startPatch, duration: newDuration } : t
         ));
       }
     };
 
-    const handleMouseUp = () => {
+    const finish = () => {
       playUISound('tick');
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('dragstart', preventDrag);
       setIsResizing(false);
-      frameResizingRef.current = true;
-      setTimeout(() => { frameResizingRef.current = false; }, 0);
-      // Sync resize back to the device calendar for native events
-      if (task.nativeEventId && !isRecurringTask && task.startTime) {
-        const endMin = timeToMinutes(task.startTime) + finalDuration;
-        const newStart = `${task.date}T${task.startTime}:00`;
+      setResizePreview(null);
+      const final = current;
+      const changed = final.startMinutes !== origStart || final.duration !== origDuration;
+      // Sync resize back to the device calendar for native events: the new
+      // start and end both go, since the top edge moves the start.
+      if (changed && task.nativeEventId && !isRecurringTask && origStartTime) {
+        const finalStartTime = isTop ? minutesToTime(final.startMinutes) : origStartTime;
+        const finalDuration = final.duration;
+        const endMin = final.startMinutes + finalDuration;
+        const newStart = `${task.date}T${finalStartTime}:00`;
         const newEnd = `${task.date}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
         nativeUpdateEvent({
           id: task.nativeEventId, title: task.title,
@@ -821,99 +846,80 @@ export default function useDragDrop({
           notes: task.notes || '', location: task.location || '',
         }).then(result => {
           if (!result?.success) {
-            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: startDuration } : t));
+            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, startTime: origStartTime, duration: origDuration } : t));
           } else {
             // Keep the localStorage time-override in sync so a subsequent calendar
-            // re-fetch doesn't restore the stale pre-resize duration from the override.
+            // re-fetch doesn't restore the stale pre-resize start or duration.
             const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
             const key = String(task.nativeEventId);
             if (overrides[key]) {
-              overrides[key] = { ...overrides[key], duration: finalDuration };
+              overrides[key] = { ...overrides[key], startTime: finalStartTime, duration: finalDuration };
               localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
             }
           }
         });
       }
+    };
+
+    return { move, finish };
+  };
+
+  // Mouse resize of a task card. `options.edge` is 'bottom' (default) or
+  // 'top'; `options.hourHeight` is the view's hour height when it is not
+  // MULTI's measured rows.
+  const handleResizeStart = (task, e, options) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const startY = e.clientY;
+    const { move, finish } = beginTaskResize(task, options);
+
+    // Prevent the browser from initiating a native drag on the parent draggable element
+    const preventDrag = (de) => de.preventDefault();
+    document.addEventListener('dragstart', preventDrag);
+
+    const handleMouseMove = (moveEvent) => move(moveEvent.clientY - startY);
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('dragstart', preventDrag);
+      frameResizingRef.current = true;
+      setTimeout(() => { frameResizingRef.current = false; }, 0);
+      finish();
     };
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   };
 
-  const handleTouchResizeStart = (task, e) => {
+  const handleTouchResizeStart = (task, e, options) => {
     e.stopPropagation();
-    pushUndo({ key: 'resized', taskId: task.id });
-    setIsResizing(true);
-
     const startY = e.touches[0].clientY;
-    const startDuration = task.duration;
-    let finalDuration = startDuration;
-
-    const isRecurringTask = task.isRecurring;
-    const recurringInfo = isRecurringTask ? parseRecurringId(task.id) : null;
+    const { move, finish } = beginTaskResize(task, options);
 
     const handleTouchMove = (moveEvent) => {
       moveEvent.preventDefault();
-      const deltaY = moveEvent.touches[0].clientY - startY;
-      const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
-      const newDuration = Math.max(15, startDuration + deltaMinutes);
-      finalDuration = newDuration;
-
-      if (isRecurringTask && recurringInfo) {
-        const { templateId, dateStr } = recurringInfo;
-        setRecurringTasks(prev => prev.map(t => {
-          if (t.id !== templateId) return t;
-          return { ...t, exceptions: { ...t.exceptions, [dateStr]: { ...t.exceptions?.[dateStr], duration: newDuration } }, lastModified: new Date().toISOString() };
-        }));
-      } else {
-        setTasks(prevTasks => prevTasks.map(t =>
-          t.id === task.id ? { ...t, duration: newDuration } : t
-        ));
-      }
+      move(moveEvent.touches[0].clientY - startY);
     };
 
     const handleTouchEnd = () => {
-      playUISound('tick');
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
-      setIsResizing(false);
-      // Sync resize back to the device calendar for native events
-      if (task.nativeEventId && !isRecurringTask && task.startTime) {
-        const endMin = timeToMinutes(task.startTime) + finalDuration;
-        const newStart = `${task.date}T${task.startTime}:00`;
-        const newEnd = `${task.date}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
-        nativeUpdateEvent({
-          id: task.nativeEventId, title: task.title,
-          start: newStart, end: newEnd, allDay: false,
-          notes: task.notes || '', location: task.location || '',
-        }).then(result => {
-          if (!result?.success) {
-            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, duration: startDuration } : t));
-          } else {
-            // Keep the localStorage time-override in sync so a subsequent calendar
-            // re-fetch doesn't restore the stale pre-resize duration from the override.
-            const overrides = JSON.parse(localStorage.getItem('day-planner-native-time-overrides') || '{}');
-            const key = String(task.nativeEventId);
-            if (overrides[key]) {
-              overrides[key] = { ...overrides[key], duration: finalDuration };
-              localStorage.setItem('day-planner-native-time-overrides', JSON.stringify(overrides));
-            }
-          }
-        });
-      }
+      finish();
     };
 
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd);
   };
 
-  const handleRoutineResizeStart = (routine, e) => {
+  const handleRoutineResizeStart = (routine, e, { hourHeight } = {}) => {
     e.stopPropagation();
     e.preventDefault();
     setIsResizing(true);
 
     const startY = e.clientY;
     const startDuration = routine.duration;
+    const rowHeight = hourHeight > 0 ? hourHeight : getHourHeight();
 
     // Prevent the browser from initiating a native drag on the parent draggable element
     const preventDrag = (de) => de.preventDefault();
@@ -921,8 +927,7 @@ export default function useDragDrop({
 
     const handleMouseMove = (moveEvent) => {
       const deltaY = moveEvent.clientY - startY;
-      const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
-      const newDuration = Math.max(15, startDuration + deltaMinutes);
+      const newDuration = Math.max(15, startDuration + pixelsToSnappedMinutes(deltaY, rowHeight));
       setTodayRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, duration: newDuration, lastModified: new Date().toISOString() } : r));
     };
 
@@ -939,18 +944,18 @@ export default function useDragDrop({
     document.addEventListener('mouseup', handleMouseUp);
   };
 
-  const handleTouchRoutineResizeStart = (routine, e) => {
+  const handleTouchRoutineResizeStart = (routine, e, { hourHeight } = {}) => {
     e.stopPropagation();
     setIsResizing(true);
 
     const startY = e.touches[0].clientY;
     const startDuration = routine.duration;
+    const rowHeight = hourHeight > 0 ? hourHeight : getHourHeight();
 
     const handleTouchMove = (moveEvent) => {
       moveEvent.preventDefault();
       const deltaY = moveEvent.touches[0].clientY - startY;
-      const deltaMinutes = Math.round((deltaY / 80) * 60 / 15) * 15;
-      const newDuration = Math.max(15, startDuration + deltaMinutes);
+      const newDuration = Math.max(15, startDuration + pixelsToSnappedMinutes(deltaY, rowHeight));
       setTodayRoutines(prev => prev.map(r => r.id === routine.id ? { ...r, duration: newDuration, lastModified: new Date().toISOString() } : r));
     };
 
@@ -964,7 +969,7 @@ export default function useDragDrop({
     document.addEventListener('touchend', handleTouchEnd);
   };
 
-  const handleFrameResizeStart = (frameId, dateStr, edge, e) => {
+  const handleFrameResizeStart = (frameId, dateStr, edge, e, { hourHeight } = {}) => {
     e.preventDefault();
     e.stopPropagation();
     const frame = gtdFrames.find(f => f.id === frameId);
@@ -974,11 +979,12 @@ export default function useDragDrop({
     const origStart = timeToMinutes(exception?.start || frame.start);
     const origEnd = timeToMinutes(exception?.end || frame.end);
     const startY = e.clientY;
+    const rowHeight = hourHeight > 0 ? hourHeight : getHourHeight();
 
     const handleMouseMove = (moveEvent) => {
       frameResizingRef.current = true;
       const deltaY = moveEvent.clientY - startY;
-      const deltaMinutes = Math.round((deltaY / getHourHeight()) * 60 / 15) * 15;
+      const deltaMinutes = pixelsToSnappedMinutes(deltaY, rowHeight);
       let newStart = origStart;
       let newEnd = origEnd;
       if (edge === 'top') {
@@ -1617,6 +1623,7 @@ export default function useDragDrop({
     hoverPreviewTime, setHoverPreviewTime,
     hoverPreviewDate, setHoverPreviewDate,
     isResizing, setIsResizing,
+    resizePreview,
     // refs
     autoScrollInterval,
     frameResizingRef,

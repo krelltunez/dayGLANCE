@@ -5,12 +5,13 @@ import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { getProjectColor } from '../utils/colorUtils.js';
 import { NEW_PROJECT_ID, withPendingProject } from '../utils/pendingProject.js';
+import TaskProjectPicker from './TaskProjectPicker.jsx';
 
 /**
- * The task modals' project picker, desktop and phone: the active projects
- * grouped by goal, and "New project…", which turns the picker into a name
- * and an optional goal. That project is created when the task is saved
- * (utils/pendingProject.js).
+ * The task modals' project field, desktop and phone: the active projects by
+ * area and goal (TaskProjectPicker, #2279), and "New project…", which turns
+ * the field into a name and an optional goal. That project is created when
+ * the task is saved (utils/pendingProject.js).
  */
 export default function TaskProjectField({ newTask, setNewTask }) {
   const { t } = useTranslation();
@@ -72,60 +73,31 @@ export default function TaskProjectField({ newTask, setNewTask }) {
     );
   }
 
+  // A choice in the picker: '' for no project, NEW_PROJECT_ID for
+  // "New project…", or a project's id.
+  const choose = (value) => {
+    if (value === NEW_PROJECT_ID) {
+      setNewTask(pendingWith({ title: '', goalId: '' }));
+      return;
+    }
+    const pid = value || null;
+    const proj = pid ? projects.find(p => p.id === pid) : null;
+    const parentGoal = proj?.goalId ? goals.find(g => g.id === proj.goalId) : null;
+    // Copy-at-creation inheritance: adopting a project stamps its
+    // effective color and assigned users onto the draft task
+    // (deselecting clears the inherited users).
+    setNewTask({
+      ...newTask,
+      projectId: pid,
+      ...(proj ? { color: getProjectColor(proj, parentGoal) } : {}),
+      assignedUserSyncIds: proj?.assignedUserSyncIds || [],
+    });
+  };
+
   return (
     <div>
-      <label className={`block text-sm ${textSecondary} mb-1`}>{t('task.project')}</label>
-      <select
-        value={newTask.projectId || ''}
-        onChange={(e) => {
-          if (e.target.value === NEW_PROJECT_ID) {
-            setNewTask(pendingWith({ title: '', goalId: '' }));
-            return;
-          }
-          const pid = e.target.value || null;
-          const proj = pid ? projects.find(p => p.id === pid) : null;
-          const parentGoal = proj?.goalId ? goals.find(g => g.id === proj.goalId) : null;
-          // Copy-at-creation inheritance: adopting a project stamps its
-          // effective color and assigned users onto the draft task
-          // (deselecting clears the inherited users).
-          setNewTask({
-            ...newTask,
-            projectId: pid,
-            ...(proj ? { color: getProjectColor(proj, parentGoal) } : {}),
-            assignedUserSyncIds: proj?.assignedUserSyncIds || [],
-          });
-        }}
-        className={fieldClass}
-      >
-        <option value="">{t('task.noProject')}</option>
-        <option value={NEW_PROJECT_ID}>{t('task.newProjectOption')}</option>
-        {(() => {
-          const activeProjects = projects.filter(p => p.status !== 'archived' && p.status !== 'completed');
-          const withGoal = activeProjects.filter(p => p.goalId);
-          const standalone = activeProjects.filter(p => !p.goalId);
-          const goalGroups = goals
-            .filter(g => g.status !== 'archived' && withGoal.some(p => p.goalId === g.id))
-            .map(g => ({ goal: g, projs: withGoal.filter(p => p.goalId === g.id) }));
-          return (
-            <>
-              {goalGroups.map(({ goal, projs }) => (
-                <optgroup key={goal.id} label={goal.title}>
-                  {projs.map(p => (
-                    <option key={p.id} value={p.id}>{p.title}</option>
-                  ))}
-                </optgroup>
-              ))}
-              {standalone.length > 0 && (
-                <optgroup label={t('goals.standalone')}>
-                  {standalone.map(p => (
-                    <option key={p.id} value={p.id}>{p.title}</option>
-                  ))}
-                </optgroup>
-              )}
-            </>
-          );
-        })()}
-      </select>
+      <label className={`block text-sm ${textSecondary} mb-1`} htmlFor="task-project-picker">{t('task.project')}</label>
+      <TaskProjectPicker id="task-project-picker" value={newTask.projectId || ''} onChange={choose} />
     </div>
   );
 }

@@ -21,6 +21,7 @@ import { rescueUnsyncedTasks } from './utils/rescueUnsyncedTasks.js';
 import { withProjectMetadata } from '@glance-apps/obsidian-format';
 import { projectRefFor } from './utils/obsidianProjectNotes.js';
 import { createPendingProject } from './utils/pendingProject.js';
+import { rememberLastUsedProject } from './utils/lastUsedProject.js';
 import { readRetiredTaskIds, applyTaskRetirements, RETIRED_TASK_IDS_STORAGE_KEY } from './utils/retiredTaskIds.js';
 import { dropTombstonedObsidianTasks, dropTombstonedObsidianNotes } from './utils/obsidianDeletions.js';
 import { containObsidianGhostRows, persistDerivedGhostRetirements } from './utils/obsidianGhostRows.js';
@@ -3426,6 +3427,7 @@ const DayPlanner = () => {
     hoverPreviewTime, setHoverPreviewTime,
     hoverPreviewDate, setHoverPreviewDate,
     isResizing, setIsResizing,
+    resizePreview,
     // refs
     autoScrollInterval,
     frameResizingRef,
@@ -3959,7 +3961,10 @@ const DayPlanner = () => {
       return;
     }
     setRecurringEditConfirm(null);
-    saveMobileEditTaskFrom(createPendingProject(newTask, { addProject, goals }).newTask, scope);
+    const ready = createPendingProject(newTask, { addProject, goals }).newTask;
+    saveMobileEditTaskFrom(ready, scope);
+    // Its project becomes the picker's "last used" on this device (#2274).
+    rememberLastUsedProject(ready.projectId);
   };
   // The occurrence fields as the save writes them.
   const recurringInstanceEditFrom = (newTask) => ({
@@ -7280,6 +7285,7 @@ const DayPlanner = () => {
     hoverPreviewTime, setHoverPreviewTime,
     hoverPreviewDate, setHoverPreviewDate,
     isResizing, setIsResizing,
+    resizePreview,
     mobileDragTaskIdState, setMobileDragTaskIdState,
     mobileDragIsRoutine,
     mobileDragPreviewTime, setMobileDragPreviewTime,
