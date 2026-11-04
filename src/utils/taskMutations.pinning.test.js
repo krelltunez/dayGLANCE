@@ -499,7 +499,10 @@ describe('move pin: applyMoveBlock vs the canonical drop shape', () => {
 
 // ── RESIZE ──────────────────────────────────────────────────────────────────
 // Cited source: useDragDrop.js handleResizeStart's mousemove write
-// ({ ...t, duration }). The real snapping math runs: +80px = +60 minutes.
+// ({ ...t, duration }). The real snapping math runs at the measured hour
+// height: with no rows mounted that is getHourHeight's 161px, so +161px =
+// +60 minutes. (It was +80px until #2273: a fixed 80px/hour that made the
+// edge run twice as fast as the pointer on the real 161px rows.)
 // The UI's 15-minute floor lives in the delta math and MCP's minimum in tool
 // layer validation, so neither is part of the written shape.
 
@@ -516,8 +519,8 @@ describe('resize pin: applyResizeBlock vs the resize-loop write', () => {
 
   it('same shape for the same final duration (no transitionId passed)', () => {
     const block = blockFixture();
-    const uiTask = uiResize(block, 80); // 60 -> 120 minutes through the real snap math
-    expect(uiTask.duration, 'the resize snap math changed (80px no longer means +60 minutes)').toBe(120);
+    const uiTask = uiResize(block, 161); // 60 -> 120 minutes through the real snap math
+    expect(uiTask.duration, 'the resize snap math changed (one 161px hour row no longer means +60 minutes)').toBe(120);
 
     const res = applyResizeBlock({ tasks: [block] }, { blockId: 'b1', durationMinutes: 120 });
     pinShapes('resize', uiTask, res.task, {});
@@ -525,7 +528,7 @@ describe('resize pin: applyResizeBlock vs the resize-loop write', () => {
 
   it('documented divergence: MCP stamps transitionId; the UI resize does not', () => {
     const block = blockFixture();
-    const uiTask = uiResize(block, 80);
+    const uiTask = uiResize(block, 161);
     expect('transitionId' in uiTask, 'the resize write started stamping transitionId; update this pin and taskMutations').toBe(false);
 
     const res = applyResizeBlock({ tasks: [block] }, { blockId: 'b1', durationMinutes: 120, transitionId: 'tx-3' });

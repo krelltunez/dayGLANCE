@@ -3426,6 +3426,7 @@ const DayPlanner = () => {
     hoverPreviewTime, setHoverPreviewTime,
     hoverPreviewDate, setHoverPreviewDate,
     isResizing, setIsResizing,
+    resizePreview,
     // refs
     autoScrollInterval,
     frameResizingRef,
@@ -7280,6 +7281,7 @@ const DayPlanner = () => {
     hoverPreviewTime, setHoverPreviewTime,
     hoverPreviewDate, setHoverPreviewDate,
     isResizing, setIsResizing,
+    resizePreview,
     mobileDragTaskIdState, setMobileDragTaskIdState,
     mobileDragIsRoutine,
     mobileDragPreviewTime, setMobileDragPreviewTime,
