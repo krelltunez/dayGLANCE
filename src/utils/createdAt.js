@@ -35,11 +35,14 @@
 //    task at once, which stampTimestamps.js explains is read as a mass edit.
 //
 // Write-once: a task that already has `createdAt` is never touched, whatever
-// it arrived from. See normalizeField (not an edit), dbAdapter.js and
-// mergeSync.js (carried across last-writer-wins, earliest kept) and
-// preserveStickyFields.js (carried across an apply).
+// it arrived from. See normalizeField (not an edit), the vault adapter
+// (@glance-apps/dayglance-vault) and mergeSync.js (carried across
+// last-writer-wins, earliest kept) and preserveStickyFields.js (carried
+// across an apply).
 
-// No imports on purpose: the vault adapter and the file-tier merge use this.
+// The merge, earlierCreatedAt, lives in @glance-apps/dayglance-vault (#2280)
+// beside the vault adapter that applies it; re-exported here.
+export { earlierCreatedAt } from '@glance-apps/dayglance-vault';
 
 const idOf = (task) => String(task?.id);
 
@@ -125,21 +128,4 @@ export function createdTimestamp(d = new Date()) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
     `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
     `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
-}
-
-/**
- * The earlier of two `createdAt` values, for the merges. Both tiers may meet
- * the same task with a stamp on either side (or both, if two devices ever
- * stamped one id); taking the earlier is order-independent and idempotent,
- * which a "remote wins" carry would not be.
- */
-export function earlierCreatedAt(a, b) {
-  if (!a) return b || undefined;
-  if (!b) return a;
-  const ta = Date.parse(a);
-  const tb = Date.parse(b);
-  if (Number.isNaN(ta)) return b;
-  if (Number.isNaN(tb)) return a;
-  if (ta !== tb) return ta < tb ? a : b;
-  return a <= b ? a : b; // the same instant written two ways: pick one deterministically
 }

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { parseTasksFromMarkdown } from '@glance-apps/obsidian-format';
 import { buildExistingObsidianTaskContext, mergeParsedObsidianTasks } from './obsidian.js';
 import { mergeObsidianTasks } from './utils/mergeObsidianTasks.js';
-import { reconcileCrossList } from './sync/dbAdapter.js';
+import { reconcileCrossList } from '@glance-apps/dayglance-vault';
 import { restoreBinnedVaultTasks } from './utils/obsidianBinRestore.js';
 
 // THE y0bm31lo WAR (2026-09-01), replayed from the field data. §3.10 ruling 5

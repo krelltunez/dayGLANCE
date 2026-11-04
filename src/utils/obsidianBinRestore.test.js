@@ -6,7 +6,7 @@ import {
   binRestoreNoticeText,
   restoreBinnedVaultTasks,
 } from './obsidianBinRestore.js';
-import { reconcileCrossList } from '../sync/dbAdapter.js';
+import { reconcileCrossList } from '@glance-apps/dayglance-vault';
 import en from '../../public/locales/en/translation.json';
 import uk from '../../public/locales/uk/translation.json';
 

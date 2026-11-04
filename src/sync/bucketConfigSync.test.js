@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyRemoteEntity } from './dbAdapter.js';
+import { applyRemoteEntity } from '@glance-apps/dayglance-vault';
 import { mergeSyncData } from '../mergeSync.js';
 
 // Cross-tier wiring for the bucketConfig slice (Bucket List headings /

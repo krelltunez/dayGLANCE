@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mergeSyncData } from '../mergeSync.js';
-import { applyRemoteEntity } from './dbAdapter.js';
+import { applyRemoteEntity } from '@glance-apps/dayglance-vault';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Regression: the `archived` flag survives whole-entity last-writer-wins on BOTH

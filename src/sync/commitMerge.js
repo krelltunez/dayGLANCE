@@ -57,7 +57,7 @@ import {
   entityKind,
   SINGLETON_KIND,
   isDeviceLocalBundle,
-} from './dbAdapter.js';
+} from '@glance-apps/dayglance-vault';
 import { partitionSnapshotDeletes } from './snapshotDeleteGuard.js';
 
 // The one hash used for every snapshot/diff comparison in the DB tier. Both the

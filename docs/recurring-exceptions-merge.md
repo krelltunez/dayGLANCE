@@ -15,7 +15,7 @@ occurrence lives inside that row, in `exceptions[date]`:
 - a reminder snooze, a drag on the timeline, a tag rename.
 
 Both sync tiers resolve the row by whole-row last-writer-wins on
-`lastModified`: the vault in `applyRemoteRecurring` (`src/sync/dbAdapter.js`),
+`lastModified`: the vault in `applyRemoteRecurring` (`packages/dayglance-vault/src/adapter.js`),
 the file tier in `mergeSyncData` (`src/mergeSync.js`, used by iCloud, Direct
 Access and conflict copies). So two edits to the same series on two devices
 before they sync keep only the later row, and every occurrence edit in the

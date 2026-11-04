@@ -7,7 +7,7 @@ import {
   getEntityLastModified,
   COLLECTION_KINDS,
   makeEntityId,
-} from './dbAdapter.js';
+} from '@glance-apps/dayglance-vault';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STAGE 1 LOSSLESSNESS GATE

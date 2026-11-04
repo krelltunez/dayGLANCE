@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createVault, createDevice, syncToConvergence } from './dbVaultSim.js';
-import { makeEntityId, SINGLETON_KIND, applyRemoteEntity } from './dbAdapter.js';
-import { tombstoneCutoff } from './tombstoneRetention.js';
+import { makeEntityId, SINGLETON_KIND, applyRemoteEntity } from '@glance-apps/dayglance-vault';
+import { tombstoneCutoff } from '@glance-apps/dayglance-vault';
 import { mergeSyncData } from '../mergeSync.js';
 
 // ─────────────────────────────────────────────────────────────────────────────

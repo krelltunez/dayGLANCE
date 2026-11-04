@@ -1,7 +1,7 @@
 // Undo and redo for Frames. Pure: useUndo hands in the frames as they are,
 // the copy taken when the step was pushed, and the clock.
 //
-// Frames sync by last-writer-wins on `lastModified` (sync/dbAdapter.js) and,
+// Frames sync by last-writer-wins on `lastModified` (packages/dayglance-vault/src/adapter.js) and,
 // unlike tasks, nothing re-stamps them on persist. Writing the copy back as it
 // was would restore its OLD stamp, and the next sync would hand the newer,
 // undone version straight back. So a frame the step changed comes back with a

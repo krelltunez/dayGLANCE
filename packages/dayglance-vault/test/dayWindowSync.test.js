@@ -5,7 +5,7 @@ import {
   dayWindowMapsEqual,
   resolveDayWindow,
   DEFAULTS_KEY,
-} from './dayWindowSync.js';
+} from '../src/dayWindowSync.js';
 
 const EPOCH = '1970-01-01T00:00:00.000Z';
 const entry = (start, stop, lastModified) => ({ start, stop, lastModified });

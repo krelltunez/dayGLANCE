@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyExceptionStamps, mergeExceptions, stampExceptionChanges, stampExceptionDates, withMergedExceptions } from './recurringExceptions.js';
+import { applyExceptionStamps, mergeExceptions, stampExceptionChanges, stampExceptionDates, withMergedExceptions } from '../src/recurringExceptions.js';
 
 const T1 = '2026-10-20T09:00:00.000Z';
 const T2 = '2026-10-21T09:00:00.000Z';

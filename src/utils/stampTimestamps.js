@@ -87,7 +87,7 @@
 // task nobody edited (a fabricated stamp that could out-rank a real completion
 // elsewhere — see the resurrection note above). A date, cleared or changed,
 // still differs from `null` and still stamps.
-// `exceptionsTimestamps` (utils/recurringExceptions.js) is a series' per-date
+// `exceptionsTimestamps` (packages/dayglance-vault/src/recurringExceptions.js) is a series' per-date
 // record of when each occurrence edit last changed. The save pass derives it
 // from an edit that already re-stamps the row, and a merge moves it when it
 // takes a newer stamp from another device, which is nobody's edit. Stripped

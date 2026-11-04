@@ -20,7 +20,7 @@
 // Tombstones are stored in the synced `deletedObsidianKeys` map ({ key → deletedAt
 // ISO }, key = daily-note date or Obsidian task id), which merges grow-only by
 // newest-per-key and prunes at the 60-day horizon like every other tombstone
-// bundle (src/sync/tombstoneRetention.js). A later re-creation in Obsidian wins by
+// bundle (packages/dayglance-vault/src/tombstoneRetention.js). A later re-creation in Obsidian wins by
 // last-writer-wins: its `lastModified` beats the tombstone and the row resurrects.
 
 const ts = (v) => {

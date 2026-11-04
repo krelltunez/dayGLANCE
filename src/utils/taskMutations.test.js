@@ -684,7 +684,7 @@ describe('applyUndoOps — the §4.3 bulk undo (Phase 5b)', () => {
     // 'glitch', skips, and heals BACK from the vault: the undone task
     // reappeared seconds later on any machine with GLANCEvault active.
     const { partitionSnapshotDeletes } = await import('../sync/snapshotDeleteGuard.js');
-    const { TASK_KINDS } = await import('../sync/dbAdapter.js');
+    const { TASK_KINDS } = await import('@glance-apps/dayglance-vault');
 
     const state = { tasks: [], unscheduledTasks: [{ id: 'c1', title: 'Created', lastModified: NOW2 }], recycleBin: [] };
     const r = run(state, [{ kind: 'remove_created', taskId: 'c1' }]);

@@ -1,5 +1,10 @@
 // dayGLANCE → GLANCEvault entity-to-row adapter.
 //
+// Moved verbatim from the app's src/sync/dbAdapter.js (#2280) so that every
+// GLANCEvault client of dayGLANCE's data (the app, and a host the user runs)
+// shreds rows and applies pulled ones with this one copy. "App-side" below
+// means dayGLANCE's side of the engine, as opposed to @glance-apps/sync.
+//
 // Stage 1 (representability): pure shred/reassemble — proven lossless on one
 // device. Stage 2 (merge correctness): per-row APPLY logic that merges one
 // pulled row into a device's live state without losing concurrent edits made on
@@ -26,15 +31,16 @@
 // array inside its row, habitLogs stays a keyed map carried whole. No finer
 // per-completion remodeling.
 
-import { mergeHabitLogs, mergeRoutineDefinitions, mergeRoutineCompletions, mergeCompletedDates } from '../mergeSync.js';
-import { mergeDeferrals } from '../utils/deferrals.js';
-import { withMergedExceptions } from '../utils/recurringExceptions.js';
-import { mergePlanTrail, sameTrail } from '../utils/planTrail.js';
-import { earlierCreatedAt } from '../utils/createdAt.js';
+import { mergeHabitLogs, mergeRoutineCompletions, mergeCompletedDates } from './merges.js';
+import { mergeRoutineDefinitions } from '@glance-apps/sync';
+import { mergeDeferrals } from './deferrals.js';
+import { withMergedExceptions } from './recurringExceptions.js';
+import { mergePlanTrail, sameTrail } from './planTrail.js';
+import { earlierCreatedAt } from './createdAt.js';
 import { TOMBSTONE_BUNDLE_KEYS, tombstoneCutoff, pruneCompletedTaskUids } from './tombstoneRetention.js';
-import { mergeRetiredTaskIds } from '../utils/retiredTaskIds.js';
+import { mergeRetiredTaskIds } from './retiredTaskIds.js';
 import { mergeDayWindowMaps } from './dayWindowSync.js';
-import { pickJoboRecord } from '../jobo/core.js';
+import { pickJoboRecord } from './jobo.js';
 
 // ── Collection kinds: each array element is one row, keyed by a stable id, with
 // entity-grain last-writer-wins on tsField (the same grain the file-tier merge
@@ -325,7 +331,7 @@ export function getLocalEntity(data, entityId) {
 // across both copies (per-date LWW via completedDatesTimestamps) so a completion
 // made on one device is never dropped by a concurrent series edit on another,
 // and occurrence edits (exceptions) merge per date the same way
-// (utils/recurringExceptions.js, docs/recurring-exceptions-merge.md). Returns the row's entityId to re-push when our merged superset differs
+// (./recurringExceptions.js, docs/recurring-exceptions-merge.md). Returns the row's entityId to re-push when our merged superset differs
 // from the pulled row, so the vault converges (mirrors the bundle superset re-push).
 function applyRemoteRecurring(data, remote) {
   if (!Array.isArray(data.recurringTasks)) data.recurringTasks = [];
@@ -524,7 +530,7 @@ const MERGE = {
 
 // Grow-only during a single merge (unionNewerIso). Aging tombstones OUT to the
 // fixed 60-day window is a separate concern the DB engine handles on the mirror
-// (dbEngine.js) — see src/sync/tombstoneRetention.js — so this stays a pure,
+// (dbEngine.js) — see ./tombstoneRetention.js — so this stays a pure,
 // order-independent union and never loses an entry mid-merge.
 export const TOMBSTONE_BUNDLES = new Set(TOMBSTONE_BUNDLE_KEYS);
 // Device-local prefs: the file-tier merge keeps the local value (merge.js:900-901
@@ -652,7 +658,7 @@ function mergeBundle(data, key, value, extra) {
       // {date|'defaults' → {start, stop, lastModified}}: union by key, newer
       // lastModified wins per entry — concurrent edits to DIFFERENT days never
       // collide, and the sticky-forward 'defaults' entry merges like any date.
-      // Same shared merge as the file tier (sync/dayWindowSync.js).
+      // Same shared merge as the file tier (./dayWindowSync.js).
       data.dayWindows = mergeDayWindowMaps(data.dayWindows || {}, value || {});
       return;
     }

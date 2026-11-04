@@ -348,7 +348,7 @@ export function createNudgeCoalescer({
   // Coalesce a micro-burst of nudges into a single drain (debounce ONLY — no
   // throttle). The self-nudge loop that once needed a 5s throttle is fixed at the
   // root: a sync cycle with no content change no longer pushes anything, so it no
-  // longer advances the account seq or nudges (see utils/tombstoneHorizon.js).
+  // longer advances the account seq or nudges (see packages/dayglance-vault/src/tombstoneHorizon.js).
   // Drains therefore fire near-instantly on real changes, which is the point of
   // SSE. Polling remains the backstop for any coalesced nudge.
   const schedule = () => {

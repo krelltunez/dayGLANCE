@@ -40,7 +40,8 @@ const { default: useObsidianSync } = await import('../../src/hooks/useObsidianSy
 const { flushBridgeOutbox, emitBridgeIntent, __resetBridgeStreamForTests } = await import('../../src/utils/obsidianBridgeStream.js');
 const { NoteBlockWriter } = await import('../src/noteBlocks');
 const { parseYaml } = await import('obsidian');
-const { noteTextHash } = await import('@glance-apps/obsidian-format');
+const { noteTextHash, bridgeNoteDescriptionLoader, importBridgeSubkey, BRIDGE_VAULT_APP } = await import('@glance-apps/obsidian-format');
+const { readWikiNote } = await import('../../src/obsidian.js');
 const { topProjectOrder, sendToBottomIds, applyProjectReorder, sortByProjectOrder } = await import('../../src/utils/projectOrder.js');
 const { readRetiredTaskIds } = await import('../../src/utils/retiredTaskIds.js');
 
@@ -813,6 +814,33 @@ describe('project and goal notes: creation, the maintained map, the project fiel
     // clear on enqueue and the mark outlives the enqueue (the plugin's own
     // report clears it later, so the second-pass check alone would not see
     // it).
+  });
+
+  it('26. THE SECTION FROM THE STREAM (#2280, #2291): a reader with no vault folder reads a linked note\'s description from the plugin\'s own report of it and gets what the app\'s file loader gets, text and base; an edit reaches it when the plugin reports; a deletion reads as not found', async () => {
+    const project = await bootLinked();
+    await s.write(NOTE, s.text(NOTE)!.replace('One line on what done looks like.', 'Keep the roof dry.'));
+    await s.settle();
+    const subkey = await importBridgeSubkey(s.pairing.subkeyB64);
+    const fromStream = async (path: string): Promise<any> => (await bridgeNoteDescriptionLoader(s.vault.all(BRIDGE_VAULT_APP), { subkey }))(path);
+    // The app's loader over the file itself: the harness stubs readWikiNote,
+    // so this one read is fed the vault's text.
+    vi.mocked(readWikiNote).mockImplementationOnce(async (_handle: unknown, name: string) => ({ text: s.text(`${name}.md`), lastModified: null }) as any);
+    const fromFile: any = await A.api.loadNoteDescription(project.obsidianNotePath);
+    const streamed = await fromStream(project.obsidianNotePath);
+    expect(fromFile.text).toBe('Keep the roof dry.');
+    expect({ text: streamed.text, base: streamed.base }).toEqual({ text: fromFile.text, base: fromFile.base });
+    // As current as the plugin's last report: an edit not yet reported is not seen, and is once it is.
+    await s.write(NOTE, s.text(NOTE)!.replace('Keep the roof dry.', 'Gutters first.'));
+    expect((await fromStream(NOTE)).text).toBe('Keep the roof dry.');
+    await s.settle();
+    expect(await fromStream(NOTE)).toMatchObject({ text: 'Gutters first.', base: noteTextHash('Gutters first.') });
+    // Deleted in Obsidian: the plugin's report replaces the row, and the reader says not found.
+    await s.plugin.app.vault.delete(s.file(NOTE));
+    await s.settle();
+    expect(await fromStream(NOTE)).toEqual({ notFound: true });
+    // MUTATION: ignore the deleted flag and the last expectation fails. (The
+    // plugin upserts one row per path, so latest-wins across several copies
+    // is pinned in noteObservations.test.js, where a reader holds more.)
   });
 });
 
