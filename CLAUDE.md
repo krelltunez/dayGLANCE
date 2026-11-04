@@ -80,7 +80,11 @@ state it answers over. App.jsx hands `useMcpBridge` the state
 `buildMcpReadState` builds and nothing else: it scopes routines and frames by
 owner (`isVisibleForUser` cannot) and reads the clock in the user's zone. The
 renderer imports the `./model` entry, which must stay free of zod, the SDK and
-`node:http`. The write tools stay in `electron/` for now. The domain rules the
+`node:http`. The write tools stay in `electron/` for now. A linked goal's or
+project's description is filled by `enrichGoalTreeDescriptions` (the model
+entry) through an injected loader: the app's reads the vault file, a host's
+(`bridgeNoteDescriptionLoader` in `@glance-apps/obsidian-format`) reads the
+plugin's observation stream; both extract and hash the section the same way. The domain rules the
 read model shares with the app's UI (Bucket List, frame instances, routine
 blocks, day occupancy, multi-user scoping, stamps, note links) are in
 `packages/agenda-core`; `src/utils/bucketList.js` and `dayOccupancy.js` are

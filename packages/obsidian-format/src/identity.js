@@ -95,6 +95,22 @@ export function noteKeyForPath(path) {
   return String(path ?? '').normalize('NFC').replace(/\\/g, '/').replace(/^\/+/, '');
 }
 
+// Moved from the app's src/utils/obsidianProjectNotes.js (#2280), which
+// re-exports it: a linked note's path is normalized this way wherever it is
+// read, by the app's loader and by the observation-stream reader
+// (noteObservations.js) alike.
+/** A user-typed note reference → a normalized vault path ending in .md, or ''. */
+export function normalizeNotePath(input) {
+  let s = String(input ?? '').trim();
+  if (!s) return '';
+  s = s.replace(/^\[\[|\]\]$/g, '').trim();
+  const hashIdx = s.indexOf('#');
+  if (hashIdx > 0) s = s.slice(0, hashIdx).trim();
+  if (!s) return '';
+  if (!/\.md$/i.test(s)) s = `${s}.md`;
+  return noteKeyForPath(s);
+}
+
 /**
  * The provisional id of an UNTAGGED line in a non-daily note (the
  * counterpart of legacyObsidianId, whose date the note does not have).

@@ -21,21 +21,15 @@
 //                          the first authoritative pass with a stream asks
 //                          the plugin for the key and clears the mark.
 
-import { noteKeyForPath } from '@glance-apps/obsidian-format';
+import { normalizeNotePath } from '@glance-apps/obsidian-format';
 import { noteWikilink, noteDisplayName, noteLinkOf } from '@glance-apps/agenda-core';
 import { extractWikilinks, stripWikilinks } from './taskUtils.js';
 
-/** A user-typed note reference → a normalized vault path ending in .md, or ''. */
-export function normalizeNotePath(input) {
-  let s = String(input ?? '').trim();
-  if (!s) return '';
-  s = s.replace(/^\[\[|\]\]$/g, '').trim();
-  const hashIdx = s.indexOf('#');
-  if (hashIdx > 0) s = s.slice(0, hashIdx).trim();
-  if (!s) return '';
-  if (!/\.md$/i.test(s)) s = `${s}.md`;
-  return noteKeyForPath(s);
-}
+// normalizeNotePath (a user-typed note reference → a normalized vault path
+// ending in .md, or '') lives in @glance-apps/obsidian-format (identity.js,
+// #2280), so the observation-stream reader normalizes a linked note's path
+// exactly as this app does. Re-exported here for this module's importers.
+export { normalizeNotePath };
 
 // noteDisplayName and noteLinkOf, the link as every reader sees it, live in
 // @glance-apps/agenda-core (noteLink.js) so the MCP read surface

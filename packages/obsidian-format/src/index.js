@@ -24,3 +24,4 @@ export * from './noteDescription.js';
 export * from './bridgeSse.js';
 export * from './completionLog.js';
 export * from './noteScope.js';
+export * from './noteObservations.js';

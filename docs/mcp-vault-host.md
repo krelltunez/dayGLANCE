@@ -198,12 +198,35 @@ options are host configuration:
   scopes routines and frames by owner, because `isVisibleForUser` does not
   filter them (skipping this leaks another member's routines and frames); the
   host is configured as one user and gets the same scoping by construction.
-- **Obsidian-linked descriptions.** The goal tree read awaits the Obsidian
-  bridge for a linked goal's or project's description (`mcpNoteDescriptions.js`,
-  in the app). The host has no vault notes: it must report those descriptions
-  as unavailable, never as empty. Not done in 3a: today the read model alone
-  returns the record's (empty) description beside `obsidian_note`, as the app
-  does when the vault is unreachable.
+- **Obsidian-linked descriptions, from the observation stream.** A linked
+  goal's or project's description is its note's opening section, which the
+  goal tree read fills in through an injected `loadNoteDescription(path)`
+  (`enrichGoalTreeDescriptions`, now in `@glance-apps/dayglance-mcp/model`,
+  `noteDescriptions.js`, with its cap of 40 notes and 2-second budget; the
+  write half stays in the app's `mcpNoteDescriptions.js`). The app's loader
+  reads the vault file. The host has no vault folder, but it does not need
+  one: the Obsidian plugin reports every linked note into GLANCEvault as an
+  observation row with the note's full content (the link is the plugin's
+  scope), sealed under the bridge subkey (#2291). The host lists the
+  `dayglance-bridge` namespace beside its own and builds its loader with
+  `bridgeNoteDescriptionLoader(rows, { rootKey })` from
+  `@glance-apps/obsidian-format` (`noteObservations.js`): it derives the
+  subkey from the root key and the plaintext `meta:pairing` row's salt, opens
+  the observation rows, and answers per path, normalized as the app's loader
+  normalizes it (`normalizeNotePath`, moved to the same package). The latest
+  report of the path wins; `{ text, base }` uses the same extraction and hash
+  the app's loader uses, so a later description write can carry `base`. A
+  deleted or withdrawn note is `{ notFound: true }`; a path no report names
+  is `null`, no information, and the entity keeps its pointer either way.
+  **Freshness:** as current as the plugin's last report. An edit in Obsidian
+  reaches the host when the plugin reports the note (once the edit settles,
+  while Obsidian runs), and not while Obsidian is closed. The pure reader,
+  `noteDescriptionFromObservations(observations, path)`, is what #2291 will
+  wire into the app's planner; the app does not use it yet.
+  `dayglance-obsidian-plugin/test/projectNotes.scenarios.test.ts` scenario 26
+  holds it to the app's file loader over the real plugin's report, and
+  `packages/dayglance-mcp/test/noteDescriptionsStream.test.js` walks it
+  through the goal tree read.
 
 ## Writes (after the read side)
 

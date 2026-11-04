@@ -8,6 +8,8 @@ export function simpleHash(str: string): string;
 /** noteKey: the note's date for a daily note, noteKeyForPath(path) for any other note (companion §6, ruling A). */
 export function deriveBlockId(noteKey: string, rawTitle: string): string;
 export function noteKeyForPath(path: string): string;
+/** A user-typed note reference (`Goals/Home`, `[[Goals/Home#Plan]]`) → a normalized vault path ending in .md, or ''. */
+export function normalizeNotePath(input: unknown): string;
 export function noteTaskId(noteKey: string, rawTitle: string): string;
 export function appIdForBlockId(blockId: string): string;
 export function legacyObsidianId(taskDate: string, rawTitle: string): string;
@@ -256,3 +258,32 @@ export function extractNoteDescription(text: string): string;
 export function replaceNoteDescription(text: string, content: string): string;
 export function mergeNoteDescription(text: string, content: string): { text: string; changed: boolean };
 export function appendDescriptionConflict(text: string, content: string, at: string): { text: string; changed: boolean };
+
+// ── linked notes' descriptions from the observation stream (noteObservations.js) ──
+/** A decrypted observation payload (bridgeStream.js). */
+export interface NoteObservation {
+  v: 1;
+  kind: 'observation';
+  path: string;
+  content?: string | null;
+  deleted?: boolean;
+  withdrawn?: boolean;
+  scoped?: boolean;
+  link?: boolean;
+  mtime?: number | null;
+  observedAt?: string;
+}
+export type ObservedNoteDescription =
+  | { text: string; base: string; observedAt: string | null; lastModified: string | null }
+  | { notFound: true };
+export function latestNoteObservation(observations: ReadonlyArray<unknown> | null | undefined, path: string): NoteObservation | null;
+/** null when no observation names the path (no information); notFound when the latest says deleted or withdrawn. */
+export function noteDescriptionFromObservations(observations: ReadonlyArray<unknown> | null | undefined, path: string): ObservedNoteDescription | null;
+export function openNoteObservations(
+  rows: ReadonlyArray<{ entityId: string; envelope?: string | null; deleted?: boolean }> | null | undefined,
+  subkey: CryptoKey,
+): Promise<NoteObservation[]>;
+export function bridgeNoteDescriptionLoader(
+  rows: ReadonlyArray<{ entityId: string; envelope?: string | null; deleted?: boolean }> | null | undefined,
+  keys?: { rootKey?: CryptoKey | null; subkey?: CryptoKey | null },
+): Promise<(path: string) => Promise<ObservedNoteDescription | null>>;
