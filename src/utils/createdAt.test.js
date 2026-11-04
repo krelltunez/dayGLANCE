@@ -145,7 +145,7 @@ describe('createdAt survives save → state → push → apply', () => {
   });
 
   it('through the vault', async () => {
-    const { applyRemoteEntity } = await import('../sync/dbAdapter.js');
+    const { applyRemoteEntity } = await import('@glance-apps/dayglance-vault');
     const { persisted } = await saveAndState();
 
     // 3. PULL a newer row from a device that never had the field.
@@ -161,7 +161,7 @@ describe('createdAt survives save → state → push → apply', () => {
 
   it('a recurring series keeps its createdAt through both tiers too', async () => {
     const { mergeSyncData } = await import('../mergeSync.js');
-    const { applyRemoteEntity } = await import('../sync/dbAdapter.js');
+    const { applyRemoteEntity } = await import('@glance-apps/dayglance-vault');
     const series = { id: 'r1', title: 'Gym', recurrence: { type: 'daily' }, createdAt: NOW, lastModified: '2026-10-22T14:30:00.000Z' };
     const newer = { id: 'r1', title: 'Gym (evenings)', recurrence: { type: 'daily' }, lastModified: '2026-10-23T00:00:00.000Z' };
 

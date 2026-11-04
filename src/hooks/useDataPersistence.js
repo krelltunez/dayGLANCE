@@ -1,7 +1,7 @@
 import { dateToString } from '../utils/taskUtils.js';
 import { hasNativeCalendar } from '../utils/nativeCalendar.js';
 import { stampTimestamps } from '../utils/stampTimestamps.js';
-import { applyExceptionStamps, stampExceptionChanges } from '../utils/recurringExceptions.js';
+import { applyExceptionStamps, stampExceptionChanges } from '@glance-apps/dayglance-vault';
 import { stampOriginalPlan, applyBaselines } from '../utils/originalPlan.js';
 import { stampDeferrals, applyDeferrals } from '../utils/deferrals.js';
 import { inBookkeepingWindow, markBookkeepingChange } from '../utils/localEditStamp.js';
@@ -531,7 +531,7 @@ export default function useDataPersistence({
       stampTaskTimestamps(setter ? stampCreated(rows, setter) : rows, key, prev);
     // A series also stamps each date whose occurrence edit changed since the
     // stored copy, so sync merges its exceptions per date
-    // (utils/recurringExceptions.js). An apply wrote storage before state, so
+    // (packages/dayglance-vault/src/recurringExceptions.js). An apply wrote storage before state, so
     // it finds no difference here and stamps nothing.
     const stampSeries = (key, setter) => (rows, prev) => {
       if (suppressTimestampRef.current) return stampOnly(key, setter)(rows, prev);

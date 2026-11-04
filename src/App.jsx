@@ -13,7 +13,7 @@ import { loadAIConfig, saveAIConfig, aiComplete, aiJSON, testConnection, DEFAULT
 import { taskSuggestSystemPrompt, taskSuggestUserPrompt, frameNudgeSystemPrompt, frameNudgeUserPrompt, rescheduleSystemPrompt, rescheduleUserPrompt, aiSubtasksSystemPrompt, aiSubtasksUserPrompt, weeklySummarySystemPrompt, weeklySummaryUserPrompt, smartScheduleSystemPrompt, smartScheduleUserPrompt } from './ai-prompts.js';
 import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
-import { tombstoneCutoff, pruneCompletedTaskUids } from './sync/tombstoneRetention.js';
+import { tombstoneCutoff, pruneCompletedTaskUids } from '@glance-apps/dayglance-vault';
 import { readMinimizedSections, readUse24HourClock, readWeekStartDay, readBucketConfig, readDailyNotes, readMultiUserEnabled, readUsers, readMeUserSyncId, readCalendarFilter, readNativeTimeOverrides, readJoboEnabled } from './utils/storedSlices.js';
 import { isTaskVisibleForUser, isOwnedBy, frameInstancesForDate } from '@glance-apps/agenda-core';
 import { preserveStickyFields } from './utils/preserveStickyFields.js';

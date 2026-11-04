@@ -45,7 +45,7 @@
 // from THIS list is a move, not a loss.
 //
 // THE HORIZON GUARD (2026-10-06, the Android ghost): a tombstone only lives 60
-// days (src/sync/tombstoneRetention.js). A device offline longer than that still
+// days (packages/dayglance-vault/src/tombstoneRetention.js). A device offline longer than that still
 // holds the task in `prev`, its tombstone has been GC'd, and the merge drops the
 // task by its own fence (a local-only task older than the remote's
 // `tombstonePrunedBefore` is presumed deleted elsewhere, not uploaded). The

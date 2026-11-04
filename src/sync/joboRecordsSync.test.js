@@ -16,7 +16,7 @@ import { createMemoryKeyValue } from '../utils/idbKeyValue.js';
 import {
   shredState, reassembleState, applyRemoteEntity, applyRemoteDelete, getLocalEntity,
   isInsertOnly, makeEntityId, COLLECTION_KINDS, absentCollectionKinds, carryAbsentCollections,
-} from './dbAdapter.js';
+} from '@glance-apps/dayglance-vault';
 import { createVault, createDevice, syncToConvergence } from './dbVaultSim.js';
 import { mergeSyncData } from '../mergeSync.js';
 import { createLedger, mergeJoboCollections } from '../jobo/ledger.js';

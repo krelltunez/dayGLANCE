@@ -170,7 +170,7 @@ the payload. The rules:
   load (or for a session in which they could not) `dailyNotesSyncable()` is
   false: nothing is written, and the payload and backups omit `dailyNotes`
   rather than send `{}`. The vault diff carries an omitted map forward
-  (`absentCollectionKinds` in `src/sync/dbAdapter.js`).
+  (`absentCollectionKinds` in `packages/dayglance-vault/src/adapter.js`).
 - **The move never loses the only copy.** The old localStorage key is removed
   only after every date it held reads back from the database. Where IndexedDB
   is unavailable the notes stay in localStorage, as before.
@@ -192,14 +192,14 @@ on another device: the task resurrects. This is the dangerous one.
 
 **2. Do both transports carry it through last-writer-wins?** The merge keeps the
 newer copy WHOLE, so a copy from a device that never had the field wins and drops
-it. Carry it forward in `src/sync/dbAdapter.js` (vault) and `src/mergeSync.js`
+it. Carry it forward in `packages/dayglance-vault/src/adapter.js` (vault) and `src/mergeSync.js`
 (file tier). A field that accumulates needs a MERGE rather than a carry, or two
 devices that each saw something different keep only one side's: `deferrals` takes
 the max and `planTrail` takes the union. Either rule has to be order-independent
 and idempotent, since both tiers may apply it more than once and in either order.
 A recurring series' per-date state is merged per date with a stamp map beside it:
 `completedDates` (`completedDatesTimestamps`) and `exceptions`
-(`exceptionsTimestamps`, derived by the save pass; `src/utils/recurringExceptions.js`,
+(`exceptionsTimestamps`, derived by the save pass; `packages/dayglance-vault/src/recurringExceptions.js`,
 `docs/recurring-exceptions-merge.md`).
 
 **3. Does the apply carry it?** `src/utils/preserveStickyFields.js`, fed from the
@@ -220,6 +220,23 @@ boundary and still shipped in a state where it never survived a single sync
 cycle, because nothing tested the path between the modules. Write at least one scenario that
 walks save → state → push → apply, and mutation-check each guard by removing it
 and confirming a test fails.
+
+# Vault adapter package
+
+How dayGLANCE's data maps to GLANCEvault rows and how a pulled row merges in
+(`shredState`, `reassembleState`, `applyRemoteEntity`, the bundle merges,
+`reconcileCrossList`) live in `packages/dayglance-vault`
+(`@glance-apps/dayglance-vault`, #2280), so the app and a GLANCEvault-client
+host apply rows with one copy. So do the rules both tiers share: tombstone
+retention, the day-window map, recurring exceptions, and the merges of
+`deferrals`, `planTrail`, `createdAt`, `retiredTaskIds`, habit logs, routine
+completions, `completedDates` and the JOBO pick. The app modules they came
+from (`mergeSync.js`, `jobo/core.js`, `utils/deferrals.js`, `planTrail.js`,
+`createdAt.js`, `retiredTaskIds.js`) import them back: change a rule in the
+package, never beside it. The package stays pure (no storage, React or browser
+globals); the engine wiring, its guards and the hooks stay in `src/sync/`.
+`vaultEngineCallbacks` is the one binding of the adapter to the engine's
+callbacks, used by `dbEngine.js` and by a host.
 
 # Headless refresh
 

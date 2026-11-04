@@ -18,7 +18,7 @@
 
 import { dateToString } from '../utils/taskUtils.js';
 import { isNativeApp } from '../native.js';
-import { tombstoneCutoff, pruneCompletedTaskUids } from '../sync/tombstoneRetention.js';
+import { tombstoneCutoff, pruneCompletedTaskUids } from '@glance-apps/dayglance-vault';
 import { keepImportedTask } from '../sync/payloadExclusions.js';
 import { dropResurrectedTasks } from '../utils/dropResurrectedTasks.js';
 import { preserveStickyFields } from '../utils/preserveStickyFields.js';
@@ -75,7 +75,7 @@ export default function useSyncEngineData(deps) {
     // Task arrays need timestamp-stamping (mirrors saveData); tombstone maps that
     // have no React state counterpart still fall back to localStorage.
     // completedTaskUids prunes at the FIXED window every writer applies
-    // (sync/tombstoneRetention.js, audit fix M7) — not at syncRetentionDays,
+    // (packages/dayglance-vault/src/tombstoneRetention.js, audit fix M7) — not at syncRetentionDays,
     // which is per device and ping-ponged with the vault tier's union.
     const prunedUids = pruneCompletedTaskUids(completedTaskUids);
     // Imported-task sync rule — the actual predicate lives in
@@ -197,7 +197,7 @@ export default function useSyncEngineData(deps) {
         // The resurrection fence: local-only items older than this are presumed
         // pruned-and-deleted elsewhere and dropped rather than resurrected
         // (merge.js syncHorizon). It MUST equal the tombstone-GC window, because a
-        // tombstone only lives 60 days (src/sync/tombstoneRetention.js): <60d-old
+        // tombstone only lives 60 days (packages/dayglance-vault/src/tombstoneRetention.js): <60d-old
         // deletions are caught by the surviving tombstone, >60d ones by this fence,
         // and the two windows must abut with no gap. So the fence is the SAME fixed
         // tombstoneCutoff() — NOT syncRetentionDays.

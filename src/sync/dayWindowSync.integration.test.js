@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { shredState, applyRemoteEntity } from './dbAdapter.js';
+import { shredState, applyRemoteEntity } from '@glance-apps/dayglance-vault';
 import { mergeSyncData } from '../mergeSync.js';
-import { DEFAULTS_KEY } from './dayWindowSync.js';
+import { DEFAULTS_KEY } from '@glance-apps/dayglance-vault';
 
 // Cross-tier integration: the dayWindows slice through the two real transports.
 // The pure merge is covered in dayWindowSync.test.js; these prove the WIRING —

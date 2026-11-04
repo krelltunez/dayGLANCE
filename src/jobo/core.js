@@ -1,6 +1,15 @@
 // JOBO slice 2: pure record rules. No React, storage, clock or task mutation.
 // The caller owns identities, event/observation timestamps and task lookup.
 // See docs/jobo-ledger-persistence.md and docs/jobo-core.md.
+//
+// pickJoboRecord, the one pick rule both sync tiers use, lives in
+// @glance-apps/dayglance-vault (#2280) beside the vault adapter, with the
+// record primitives it is built from; this module imports them back.
+import {
+  own, plain, validDate, validStamp, canonicalJson, pickJoboRecord,
+} from '@glance-apps/dayglance-vault/src/jobo.js';
+
+export { pickJoboRecord };
 
 export const DO_SOURCES = Object.freeze(['completion', 'manual', 'focus']);
 export const DO_TIMING = Object.freeze({
@@ -17,28 +26,13 @@ export const TIMING = Object.freeze({
   WITHIN_PLAN: 'withinPlan', DELAYED: 'delayed', OVERRUN: 'overrun',
   INTERRUPTED: 'interrupted', NOT_STARTED: 'notStarted', UNPLANNED: 'unplanned',
 });
-const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
-const plain = value => value !== null && typeof value === 'object'
-  && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
 const taskIdValid = id => id === null || nonempty(id) || (typeof id === 'number' && Number.isSafeInteger(id));
 const progressValues = Object.values(DO_PROGRESS);
 const editable = new Set(['timing', 'date', 'startTime', 'endDate', 'endTime']);
 
-function validDate(value) {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const [year, month, day] = value.split('-').map(Number);
-  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  return year >= 1 && month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1];
-}
 function validTime(value) {
   return typeof value === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
-}
-function validStamp(value) {
-  if (typeof value !== 'string') return false;
-  const match = /^(\d{4}-\d{2}-\d{2})T((?:[01]\d|2[0-3]):[0-5]\d):[0-5]\d(?:\.\d{1,3})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.exec(value);
-  return !!match && validDate(match[1]) && Number.isFinite(Date.parse(value));
 }
 
 // Civil minutes are coordinates on the planner, NOT measured UTC elapsed time.
@@ -61,32 +55,6 @@ function planBounds(plan) {
   return { start, end };
 }
 
-/**
- * Canonical JSON for the final tie-break, including ALL nested keys. Arrays
- * retain their order. No localeCompare, top-level replacer whitelist, coercion
- * of undefined/NaN to null, or dependence on property insertion order.
- */
-function canonicalJson(value, ancestors = new Set()) {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
-  if (typeof value === 'number' && Number.isFinite(value)) return JSON.stringify(value);
-  if ((!plain(value) && !Array.isArray(value)) || ancestors.has(value)) {
-    throw new TypeError('Record must contain only acyclic JSON data');
-  }
-  ancestors.add(value);
-  let text;
-  if (Array.isArray(value)) {
-    const entries = [];
-    for (let index = 0; index < value.length; index += 1) {
-      if (!own(value, index)) throw new TypeError('Sparse arrays are not record data');
-      entries.push(canonicalJson(value[index], ancestors));
-    }
-    text = `[${entries.join(',')}]`;
-  } else {
-    text = `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(value[key], ancestors)}`).join(',')}}`;
-  }
-  ancestors.delete(value);
-  return text;
-}
 const copy = value => JSON.parse(canonicalJson(value));
 
 /** Validate a complete persisted record; never repair or invent history. */
@@ -290,39 +258,6 @@ export function classifyAgainstPlan(plan, records, options = {}) {
     recordedMinutes: comparison.metrics.recordedMinutes,
     attemptCount: comparison.metrics.attemptCount,
   };
-}
-
-// Compatibility with #1762's opaque transport rows and timestamp-less legacy
-// fixtures: a missing/invalid timestamp has the same epoch-zero rank as its
-// stand-in. Accept explicit-offset ISO strings or numeric epoch milliseconds,
-// never host-local date strings or coercible objects. Preserve the original row;
-// this is a comparison rank, not history repair. NEW full records require ISO.
-function versionTime(value) {
-  const time = typeof value === 'number' && Number.isFinite(value)
-    ? new Date(value).getTime()
-    : validStamp(value) ? Date.parse(value) : NaN;
-  return Number.isFinite(time) ? time : 0;
-}
-
-/**
- * Drop-in pick for createLedger({ store, pick: pickJoboRecord }) and
- * useJoboLedger({ pickRecord: pickJoboRecord }). Return a whole original operand,
- * including opaque fields/tombstones, without mutation, restamping or pruning.
- *
- * This rule is deliberately schema-agnostic. Legacy-schema migration must happen
- * before merge; the picker only resolves competing versions of one record.
- */
-export function pickJoboRecord(a, b) {
-  if (a == null) return b;
-  if (b == null) return a;
-  if (!plain(a) || !plain(b) || a.id == null || b.id == null || String(a.id) !== String(b.id)) {
-    throw new TypeError('pickJoboRecord requires two copies of the same id');
-  }
-  const ua = versionTime(a.updatedAt), ub = versionTime(b.updatedAt);
-  if (ua !== ub) return ua > ub ? a : b;
-  const oa = versionTime(a.observedAt), ob = versionTime(b.observedAt);
-  if (oa !== ob) return oa < ob ? a : b;
-  return canonicalJson(a) <= canonicalJson(b) ? a : b;
 }
 
 

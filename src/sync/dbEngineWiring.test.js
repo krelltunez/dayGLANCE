@@ -5,7 +5,7 @@ import { createMemoryKeyValue } from '../utils/idbKeyValue.js';
 import { getVaultConfig, setVaultConfig, isVaultEnabled } from './vaultConfig.js';
 import { getDeviceId } from './deviceId.js';
 import { registerDbEngine, markDirty, schedulePush } from './dirtyTracker.js';
-import { tombstoneCutoff } from './tombstoneRetention.js';
+import { tombstoneCutoff } from '@glance-apps/dayglance-vault';
 import { keepImportedTask } from './payloadExclusions.js';
 import { shouldSuppressReconcileDelete, consumeWarTripped, __resetWarGuardForTests } from './reconcileWarGuard.js';
 import { __resetGlitchHealLatchForTests, LATCH_MIN_MS } from './glitchHealLatch.js';

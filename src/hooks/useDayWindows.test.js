@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { DEFAULTS_KEY } from '../sync/dayWindowSync.js';
+import { DEFAULTS_KEY } from '@glance-apps/dayglance-vault';
 
 // Single-useState harness: the hook keeps all state in one useState, so a box
 // that applies functional updates lets each useDayWindows() call see current

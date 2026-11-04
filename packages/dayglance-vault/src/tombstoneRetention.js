@@ -40,8 +40,8 @@
 // resurrect a deleted item. Sixty days comfortably covers a device left offline
 // for weeks; keeping them longer only grows the payload with no benefit.
 
-import { floorToUtcDayIso } from '../utils/tombstoneHorizon.js';
-import { pruneRetiredTaskIds } from '../utils/retiredTaskIds.js';
+import { floorToUtcDayIso } from './tombstoneHorizon.js';
+import { pruneRetiredTaskIds } from './retiredTaskIds.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tombstoneHorizon, floorToUtcDayIso } from './tombstoneHorizon.js';
+import { tombstoneHorizon, floorToUtcDayIso } from '../src/tombstoneHorizon.js';
 
 // The horizon must be STABLE across the many sync cycles within a day. A value
 // that changed every call (the old `Date.now()`-per-build code) made the synced

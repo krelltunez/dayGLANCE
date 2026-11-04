@@ -25,7 +25,7 @@
 //
 // NOTE: as of the fence rework, the production resurrection fence
 // (tombstonePrunedBefore) no longer flows through tombstoneHorizon(syncRetentionDays).
-// It is computed by tombstoneCutoff() (src/sync/tombstoneRetention.js) — the fixed
+// It is computed by tombstoneCutoff() (./tombstoneRetention.js) — the fixed
 // 60-day GC window — and RECOMPUTED-AND-OVERWRITTEN on merge (dbAdapter.js,
 // mergeSync.js) rather than newerIso/max()-merged, which is what escapes the
 // monotonic-max() trap (PR #1142). tombstoneHorizon() remains only as the tested

@@ -1737,7 +1737,7 @@ export default function useObsidianSync({
     // theirs except the shim below.) The deletion DETECTOR still never infers
     // a deletion from a rename (the scanned-keys hints see to that): this is
     // the commit asserting a fact it holds. Entries prune at the shared 60-day
-    // retention (sync/tombstoneRetention.js).
+    // retention (packages/dayglance-vault/src/tombstoneRetention.js).
     //
     // RETIRED_ID_DUAL_WRITE (legacy-fleet shim — sunset condition documented
     // at the flag in utils/retiredTaskIds.js): the v4.7.x fleet's file-tier

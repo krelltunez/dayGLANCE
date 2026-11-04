@@ -4,7 +4,7 @@ import {
   consumeWarTripped,
   __resetWarGuardForTests,
 } from './reconcileWarGuard.js';
-import { reconcileCrossList } from './dbAdapter.js';
+import { reconcileCrossList } from '@glance-apps/dayglance-vault';
 
 // THE SAME-ENTITY DELETE-STREAK DETECTOR (#1455). The failure class: every
 // cycle of a delete/resupply war SUCCEEDS, so failure-armed braking never

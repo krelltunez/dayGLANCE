@@ -115,7 +115,7 @@ export function useVaultEventStream({ dataLoaded, drainSync, drainIntents, drain
 
     const coalescer = createNudgeCoalescer({
       // Debounce-only (no throttle). The self-nudge loop is fixed at the root — a
-      // no-content sync cycle no longer pushes/nudges (utils/tombstoneHorizon.js) —
+      // no-content sync cycle no longer pushes/nudges (packages/dayglance-vault/src/tombstoneHorizon.js) —
       // so drains fire near-instantly on real changes, restoring SSE's low latency.
       kinds: ['sync', 'intents', 'obsidian'],
       // THE APP TAG (glance-vault activity frames carry `app` since

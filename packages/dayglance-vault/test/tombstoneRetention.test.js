@@ -9,8 +9,8 @@ import {
   pruneCompletedTaskUids,
   completedUidCutoff,
   COMPLETED_UID_RETENTION_DAYS,
-} from './tombstoneRetention.js';
-import { applyRemoteEntity, makeEntityId, SINGLETON_KIND, TOMBSTONE_BUNDLES } from './dbAdapter.js';
+} from '../src/tombstoneRetention.js';
+import { applyRemoteEntity, makeEntityId, SINGLETON_KIND, TOMBSTONE_BUNDLES } from '../src/adapter.js';
 
 const DAY = 86400000;
 const daysAgo = (n) => new Date(Date.now() - n * DAY).toISOString();
