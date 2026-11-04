@@ -1,7 +1,8 @@
 // The Phase 3 write tools (spec §5.1) plus update_task, registered onto a per-request
-// McpServer instance by the mcpServer.ts factory. §3.7 discipline as in
-// mcpReadTools.ts: this module holds no state — the write gate, replay store,
-// consent tier, and renderer bridge all arrive as deps owned by main.ts.
+// McpServer instance by the mcpServer.ts factory. §3.7 discipline as in the
+// read tools (@glance-apps/dayglance-mcp): this module holds no state — the
+// write gate, replay store, consent tier, and renderer bridge all arrive as
+// deps owned by main.ts.
 //
 // PER-WRITE PIPELINE, in order:
 //   1. consent tier (read-write, §6.3) — off means a read_only_mode error

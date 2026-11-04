@@ -1,8 +1,11 @@
+// @vitest-environment node
+// Frames on the read surface: frame objects, their free slots, the consent
+// tier, owner scoping, and their place in the get_day envelope. Which frames
+// apply to a date is agenda-core's (packages/agenda-core/src/frameInstances.test.js).
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { dayOfWeekFor, frameAppliesTo, frameInstancesForDate } from './frameInstances.js';
-import { FRAME_ID_PREFIX, frameWireId, toFrameObject, buildFrames } from './mcpFrames.js';
-import { buildDayBlocks } from './mcpReadModel.js';
+import { frameInstancesForDate, isOwnedBy, isTaskVisibleForUser } from '@glance-apps/agenda-core';
+import { FRAME_ID_PREFIX, frameWireId, toFrameObject, buildFrames } from '../src/frames.js';
+import { buildDayBlocks } from '../src/readModel.js';
 
 // 2026-09-19 is a Saturday (day 6); 2026-09-21 a Monday (day 1).
 const SAT = '2026-09-19';
@@ -26,56 +29,6 @@ const state = (over = {}) => ({
   frames: [F()], tasks: [], recurringTasks: [],
   routines: [], routinesDate: MON, routineCompletions: {}, routinesEnabled: true,
   todayDate: MON, nowMinutes: 0, ...over,
-});
-
-describe('frameInstancesForDate', () => {
-  it('resolves a weekday rule', () => {
-    expect(frameInstancesForDate([F()], MON)).toHaveLength(1);
-    expect(frameInstancesForDate([F()], SAT)).toHaveLength(0);
-  });
-
-  it('honours enabled', () => {
-    expect(frameInstancesForDate([F({ enabled: false })], MON)).toEqual([]);
-  });
-
-  it('honours singleDate, which overrides the weekday rule entirely', () => {
-    const pinned = F({ singleDate: SAT, days: [1, 2, 3, 4, 5] });
-    expect(frameInstancesForDate([pinned], SAT)).toHaveLength(1);
-    // Monday is in `days`, but singleDate wins.
-    expect(frameInstancesForDate([pinned], MON)).toHaveLength(0);
-  });
-
-  it('applies a per-date start/end exception', () => {
-    const withException = F({ exceptions: { [MON]: { start: '10:00', end: '11:00' } } });
-    const [inst] = frameInstancesForDate([withException], MON);
-    expect([inst.start, inst.end]).toEqual(['10:00', '11:00']);
-    // Other dates are untouched.
-    expect(frameInstancesForDate([withException], '2026-09-22')[0].start).toBe('09:00');
-  });
-
-  it('drops an instance deleted for that date only', () => {
-    const withDelete = F({ exceptions: { [MON]: { deleted: true } } });
-    expect(frameInstancesForDate([withDelete], MON)).toEqual([]);
-    expect(frameInstancesForDate([withDelete], '2026-09-22')).toHaveLength(1);
-  });
-
-  it('defaults bufferMinutes to 5, energyLevel to medium, tagAffinity to []', () => {
-    const bare = { id: 'f2', label: 'Bare', enabled: true, days: [1], start: '09:00', end: '10:00' };
-    expect(frameInstancesForDate([bare], MON)[0]).toMatchObject({
-      bufferMinutes: 5, energyLevel: 'medium', tagAffinity: [],
-    });
-  });
-
-  it('keeps an explicit bufferMinutes of 0 rather than defaulting it', () => {
-    // ?? not ||, so a deliberate zero-buffer frame is not silently given 5.
-    expect(frameInstancesForDate([F({ bufferMinutes: 0 })], MON)[0].bufferMinutes).toBe(0);
-  });
-
-  it('tolerates a malformed date and a missing days array', () => {
-    expect(dayOfWeekFor('nonsense')).toBeNull();
-    expect(frameInstancesForDate([F()], 'nonsense')).toEqual([]);
-    expect(frameAppliesTo(F({ days: undefined }), MON, 1)).toBe(false);
-  });
 });
 
 describe('frame objects', () => {
@@ -196,15 +149,15 @@ describe('device calendar events follow the consent tier', () => {
 // ---------------------------------------------------------------------------
 // Same leak as routines, same shape of defence.
 // ---------------------------------------------------------------------------
-describe('frame ownership is scoped BEFORE the bridge', () => {
+describe('frame ownership is scoped BEFORE the read model', () => {
+  // buildMcpReadState does the scoping (readState.test.js pins it); these
+  // pin why it has to.
   const mine = F({ id: 'mine', label: 'My frame', ownerSyncId: 'user-me' });
   const theirs = F({ id: 'theirs', label: 'Their frame', ownerSyncId: 'user-other' });
 
-  const ownedBy = (item, syncId) => !item.ownerSyncId || item.ownerSyncId === syncId;
-  const isVisibleForUser = (t) => {
-    const assigned = t.assignedUserSyncIds ?? [];
-    return assigned.length === 0 || assigned.includes('user-me');
-  };
+  // The real predicates, in multi-user mode as user-me.
+  const ownedBy = (item, syncId) => isOwnedBy(item, true, 'user-me', syncId);
+  const isVisibleForUser = (t) => isTaskVisibleForUser(t, true, 'user-me');
 
   it('does not surface a frame owned by another user', () => {
     const scoped = [mine, theirs].filter((f) => ownedBy(f, 'user-me'));
@@ -216,27 +169,6 @@ describe('frame ownership is scoped BEFORE the bridge', () => {
     // every other slice uses admits BOTH.
     expect([mine, theirs].filter(isVisibleForUser)).toHaveLength(2);
     expect([mine, theirs].filter((f) => ownedBy(f, 'user-me'))).toHaveLength(1);
-  });
-
-  it('pins App.jsx to the SCOPED memo for frames', () => {
-    // The mutation this guards: `frames: myFrames` becoming `frames: gtdFrames`
-    // in the useMcpBridge call. That edit lives in wiring no unit test here can
-    // reach, and it leaks one member's frames to another with the suite green.
-    const app = readFileSync(new URL('../App.jsx', import.meta.url), 'utf8');
-    const bridgeCall = app.slice(app.indexOf('useMcpBridge({'));
-    const framesArg = /\n\s*frames:\s*(\w+),/.exec(bridgeCall);
-    expect(framesArg).not.toBeNull();
-    expect(framesArg[1]).toBe('myFrames');
-    expect(framesArg[1]).not.toBe('gtdFrames');
-  });
-
-  it('pins the frame wrapper in App.jsx to an owner-scoped list', () => {
-    // The UI path has the same exposure: getFrameInstancesForDate must filter
-    // by ownedBy before handing the roster to the pure module, which by
-    // contract does not scope.
-    const app = readFileSync(new URL('../App.jsx', import.meta.url), 'utf8');
-    const wrapper = app.slice(app.indexOf('const getFrameInstancesForDate'), app.indexOf('const getFrameInstancesForDate') + 500);
-    expect(wrapper).toContain('ownedBy(f, meUserSyncId)');
   });
 });
 

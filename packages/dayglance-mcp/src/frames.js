@@ -24,8 +24,7 @@
 // frame reported here carries read_only: true, the same flag device calendar
 // events and routines carry.
 
-import { frameInstancesForDate } from './frameInstances.js';
-import { computeAvailableSlots } from './dayOccupancy.js';
+import { frameInstancesForDate, computeAvailableSlots } from '@glance-apps/agenda-core';
 
 export const FRAME_ID_PREFIX = 'frame-';
 

@@ -62,6 +62,27 @@ export function localDateOf(epochMs, timeZone) {
 }
 
 /**
+ * The local wall-clock time of `epochMs` in `timeZone`, as minutes since that
+ * day's local midnight (0-1439). The companion of localDateOf: together they
+ * are "now" as the user's clock reads it, for a host whose own clock is in
+ * another zone. hourCycle h23 so midnight is 0, never 24.
+ *
+ * @param {number} epochMs
+ * @param {string} timeZone
+ * @returns {number}
+ */
+export function localMinutesOf(epochMs, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(epochMs));
+  const part = (type) => Number(parts.find((p) => p.type === type)?.value);
+  return part('hour') * 60 + part('minute');
+}
+
+/**
  * The `{date, timezone}` echo every dated tool response carries (§5.3).
  * Validation of caller-supplied dates happens BEFORE this — by construction an
  * envelope only ever contains a date this module produced or validated.

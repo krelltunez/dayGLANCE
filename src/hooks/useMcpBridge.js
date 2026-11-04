@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { isTrayMode } from '../utils/trayMode.js';
-import { handleMcpRequest, goalItem, projectItem } from '../utils/mcpReadModel.js';
+import { handleMcpRequest, goalItem, projectItem } from '@glance-apps/dayglance-mcp/model';
 import { handleMcpWrite, isWriteMethod, progressTasksOf } from '../utils/mcpWriteModel.js';
 import { readRetiredTaskIds } from '../utils/retiredTaskIds.js';
 import {
@@ -12,8 +12,9 @@ import { noteTextHash } from '@glance-apps/obsidian-format';
 // The renderer half of the MCP IPC channel (docs/mcp-server-spec.md §10
 // Phase 2), following the useTrayPopupVisible precedent from PR #1302: this
 // hook is a thin subscription and nothing else — every decision lives in the
-// unit-tested pure modules src/utils/mcpReadModel.js, mcpWriteModel.js and
-// mcpNoteDescriptions.js. Deliberately NOT in useElectronBridge.js, which
+// unit-tested pure modules: the read model (@glance-apps/dayglance-mcp, which
+// a GLANCEvault-client host answers through too), src/utils/mcpWriteModel.js
+// and mcpNoteDescriptions.js. Deliberately NOT in useElectronBridge.js, which
 // has no test coverage (§11 risk register).
 //
 // MAIN WINDOW ONLY. The tray popup runs this same App tree but holds a

@@ -1,5 +1,6 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { resolveInboxFilter } from './mcpInboxFilter.js';
+import { resolveInboxFilter, INBOX_SCOPES } from '../src/inboxFilter.js';
 
 // The canonicalization contract: defaults resolve BEFORE anything compares
 // or encodes, so semantically identical requests always produce identical
@@ -22,8 +23,8 @@ describe('resolveInboxFilter', () => {
   });
 
   it('each scope and completion combination has a distinct stable key', () => {
-    const keys = new Set<string>();
-    for (const scope of ['all', 'standalone', 'project'] as const) {
+    const keys = new Set();
+    for (const scope of ['all', 'standalone', 'project']) {
       for (const include_completed of [true, false]) {
         const r = resolveInboxFilter({ scope, include_completed });
         if (!r.ok) throw new Error(r.message);
@@ -46,5 +47,10 @@ describe('resolveInboxFilter', () => {
     for (const bad of ['true', 1, 0, null]) {
       expect(resolveInboxFilter({ include_completed: bad }).ok, String(bad)).toBe(false);
     }
+  });
+
+  it('names its scopes in one frozen list, the vocabulary the tool schema offers', () => {
+    expect(INBOX_SCOPES).toEqual(['all', 'standalone', 'project']);
+    expect(Object.isFrozen(INBOX_SCOPES)).toBe(true);
   });
 });

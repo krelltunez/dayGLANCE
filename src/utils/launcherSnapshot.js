@@ -113,7 +113,7 @@ const keep = (t, isVisibleForUser) => t && !t.archived && !t.isExample && isVisi
  *   user lens (utils/inboxFilter.js); the launcher's Inbox complication shows it. Null: left out.
  * @param {Array} input.todayRoutines @param {object} input.routineCompletions  id → the date completed
  * @param {boolean} input.routinesEnabled
- * @param {Function} input.frameInstancesForDate  (Date) → frame instances (utils/frameInstances.js)
+ * @param {Function} input.frameInstancesForDate  (Date) → frame instances (agenda-core's frameInstances.js)
  * @param {Function} input.getDayWindow    (dateStr) → { start, stop } as 'HH:MM' | null, or null
  * @param {?{lat:number, lon:number}} input.weatherCoords
  * @param {?object} input.weatherHourlyByDate  useWeather's hourlyByDate: { 'YYYY-MM-DD': { hour: {temp, code, uv} } }

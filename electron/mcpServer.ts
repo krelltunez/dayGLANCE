@@ -1,5 +1,7 @@
 // dayGLANCE's MCP server (docs/mcp-server-spec.md §10): the tools and
-// resources it registers, on the listener from @glance-apps/mcp-host.
+// resources it registers, on the listener from @glance-apps/mcp-host. The read
+// tools and resources are @glance-apps/dayglance-mcp's, shared with a
+// GLANCEvault-client host; the write tools are this app's (mcpWriteTools.ts).
 //
 // The listener (Streamable HTTP, one fixed port, the guard order path → Host →
 // Origin → bearer token, loud refusals, the per-request McpServer of §3.7) is
@@ -17,9 +19,8 @@ import type http from 'node:http';
 import { McpServer } from '@modelcontextprotocol/server';
 import { startMcpListener } from '@glance-apps/mcp-host';
 import { DEFAULT_MCP_PORT } from './mcpPort.js';
-import { registerReadTools, type ReadToolDeps } from './mcpReadTools.js';
+import { registerReadTools, registerResources, type ReadToolDeps } from '@glance-apps/dayglance-mcp';
 import { registerWriteTools, type WriteToolDeps } from './mcpWriteTools.js';
-import { registerResources } from './mcpResources.js';
 
 export const MCP_ENDPOINT_PATH = '/mcp';
 

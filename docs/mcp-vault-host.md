@@ -1,6 +1,6 @@
 # GLANCEvault MCP host: design note
 
-**Status:** Draft, for the extraction work that precedes a prototype. Step 1 (the host kit) is done.
+**Status:** Draft, for the extraction work that precedes a prototype. Step 1 (the host kit) and step 3a (the read side's tools, read model and state) are done; 3b (rows to slices) is next.
 **Issue:** #2280. **Spec:** `docs/mcp-server-spec.md` §4.4 (r7).
 
 ## Decisions so far
@@ -83,19 +83,70 @@ Note that the root key is module state (`_rootKey`): one account per process. Fi
 
 ### 3. The dayGLANCE read path (this repo)
 
+**3a done:** `packages/dayglance-mcp`, published as `@glance-apps/dayglance-mcp`
+(see its README). The Electron server registers the package's read tools and
+resources with no behaviour change: the registered tool and resource list
+(names, descriptions, input schemas) is byte-identical, and
+`electron/mcpServer.transport.test.ts` changed only an import. A host answers
+the same surface from its own copy of the slices through the same code;
+`packages/dayglance-mcp/test/host.test.js` does exactly that in plain Node, on
+the kit's listener, with no `window`, `document`, `localStorage` or
+`indexedDB`.
+
+What moved where:
+
+| Was | Now |
+|---|---|
+| `electron/mcpReadTools.ts`, `mcpResources.ts`, `mcpInboxFilter.ts` | `packages/dayglance-mcp/src/readTools.js`, `resources.js`, `inboxFilter.js` (TypeScript ported to JavaScript; types in `types/index.d.ts`) |
+| `src/utils/mcpReadModel.js`, `mcpFrames.js`, `mcpRepeat.js` | `packages/dayglance-mcp/src/readModel.js`, `frames.js`, `repeat.js` |
+| `wireStamp` (`src/utils/taskMetadata.js`) | `packages/dayglance-mcp/src/wireStamp.js` |
+| App.jsx's inline `useMcpBridge({...})` state | `buildMcpReadState` (`packages/dayglance-mcp/src/readState.js`), called by App.jsx in a memo |
+| `src/utils/bucketList.js`, `frameInstances.js`, `dayOccupancy.js`, `userScope.js` | `packages/agenda-core/src/` (same names) |
+| `src/utils/mcpRoutines.js` | `packages/agenda-core/src/routineBlocks.js` (the occupancy model is built on it) |
+| `parseStamp` (`taskMetadata.js`); `noteDisplayName`, `noteLinkOf` (`obsidianProjectNotes.js`) | `packages/agenda-core/src/stamps.js`, `noteLink.js` |
+
+`src/utils/bucketList.js` and `dayOccupancy.js` stay as one-line re-exports for
+their many importers; `obsidianProjectNotes.js` re-exports the two link
+functions and `taskMetadata.js` imports `parseStamp`. Everything else that
+imported a moved module imports the package. The write tools (`mcpWriteTools.ts`,
+`mcp*Args.ts`), the write model and `mcpNoteDescriptions.js` stay in the app.
+The host kit gained `localMinutesOf` beside `localDateOf`, the wall clock in a
+zone; the read model reaches both through `@glance-apps/mcp-host/src/dates.js`,
+since the kit's root also loads the HTTP listener, which a browser bundle
+cannot.
+
+Remaining for **3b**:
+
 | Piece | Where | Node-ready? |
 |---|---|---|
-| Tool and resource registration, argument schemas | `electron/mcpReadTools.ts`, `mcpResources.ts`, `mcpInboxFilter.ts` (writes later: `mcpWriteTools.ts`, `mcp*Args.ts`) | Yes, they only see the bridge. Move so both servers register the same schemas. |
-| Read model | `src/utils/mcpReadModel.js` → `recurrenceEngine`, `goalProgress`, `projectProgress`, `bucketList`, `mcpRoutines`, `mcpFrames` (→ `frameInstances`, `dayOccupancy`), `obsidianProjectNotes`, `mcpRepeat`, `taskMetadata`, plus `@glance-apps/agenda-core` and `@glance-apps/obsidian-format` | Yes. None of these touches `window`, `document`, `localStorage` or `indexedDB` (checked: the only matches are comments). |
 | Rows → slices | `src/sync/dbAdapter.js`: `reassembleState(rows)` for a full read, `applyRemoteEntity` / `applyRemoteDelete` for incremental pulls, `absentCollectionKinds` | Needs its own import graph checked when moved. |
 | Change nudges | `src/sync/vaultEventStream.js` (fetch-streaming SSE) | Probably; verify the streaming body under Node's `fetch`. |
 
-**What the host must supply that the app derives from the device.** `useMcpBridge` is handed (App.jsx, the `useMcpBridge({...})` call): `tasks`, `recurringTasks`, `unscheduledTasks`, `recycleBin`, `goals`, `projects`, `areas`, `dailyNotes`, `bucketConfig`, `users`, `multiUserEnabled`, `routines`, `routinesDate`, `routineCompletions`, `routinesEnabled`, `frames`, `todayDate`, `nowMinutes`, `weekStartDay`, `isVisibleForUser`. Most come from the reassembled rows. The rest are host configuration:
+**What the host must supply that the app derives from the device.** The read
+model answers over the state `buildMcpReadState(data, { now, timeZone,
+userSyncId, weekStartDay })` builds. `data` is the synced slices under their
+payload names (`tasks`, `recurringTasks`, `unscheduledTasks`, `recycleBin`,
+`goals`, `projects`, `areas`, `dailyNotes`, `bucketConfig`, `users`,
+`multiUserEnabled`, `todayRoutines`, `routinesDate`, `routineCompletions`,
+`routinesEnabled`, `gtdFrames`), which come from the reassembled rows. The
+options are host configuration:
 
-- **Time zone and clock.** `todayDate` and `nowMinutes` come from the device's local clock. A server is often on UTC, so the host needs the user's IANA zone configured, and dates computed in it.
+- **Time zone and clock.** `todayDate` and `nowMinutes` are read in `timeZone`
+  when it is given; the app gives none, since its clock is the user's. A
+  server is often on UTC, so the host must configure the user's IANA zone. The
+  zone also rides the state, so `created_at` and `completed_at` are reported in
+  it. The tools' own "today" (`deps.timeZone()`) must be the same zone.
 - **`weekStartDay`** is a per-device setting (`day-planner-week-start-day`), not synced. Host config.
-- **Which user, in a multi-user account.** The app scopes routines and frames by owner *before* the bridge, because `isVisibleForUser` does not filter them (see the comment at the call site: skipping this leaks another member's routines). The host must be configured as one user and apply the same scoping.
-- **Obsidian-linked descriptions.** The goal tree read awaits the Obsidian bridge for a linked goal's or project's description. The host has no vault notes: it must report those descriptions as unavailable, never as empty.
+- **Which user, in a multi-user account** (`userSyncId`). `buildMcpReadState`
+  scopes routines and frames by owner, because `isVisibleForUser` does not
+  filter them (skipping this leaks another member's routines and frames); the
+  host is configured as one user and gets the same scoping by construction.
+- **Obsidian-linked descriptions.** The goal tree read awaits the Obsidian
+  bridge for a linked goal's or project's description (`mcpNoteDescriptions.js`,
+  in the app). The host has no vault notes: it must report those descriptions
+  as unavailable, never as empty. Not done in 3a: today the read model alone
+  returns the record's (empty) description beside `obsidian_note`, as the app
+  does when the vault is unreachable.
 
 ## Writes (after the read side)
 
@@ -116,7 +167,7 @@ Either way: consent tiers from §6.3 (read; read + write; the device-calendar ti
 
 1. **Host kit package** from `electron/`; the Electron server switches to it with no behaviour change (`electron/mcpServer.transport.test.ts` stays green). Serves lastGLANCE too. **Done:** `packages/mcp-host` (`@glance-apps/mcp-host`).
 2. **`@glance-apps/sync`:** injectable storage for the vault engine; document the key hooks for Node.
-3. **dayGLANCE MCP core package, read side:** tool and resource registration, the read model, the rows-to-slices path. The Electron server uses the shared registration.
+3. **dayGLANCE MCP core package, read side:** tool and resource registration, the read model, the rows-to-slices path. The Electron server uses the shared registration. **3a done:** `packages/dayglance-mcp` (`@glance-apps/dayglance-mcp`): the tools, resources, read model and `buildMcpReadState`. **3b:** the rows-to-slices path (`src/sync/dbAdapter.js`).
 4. **Read-only host prototype** (#2280's offer), in its own repository, against the packages.
 5. **Writes:** choose A or B, then journal, consent and rate-limit parity.
 

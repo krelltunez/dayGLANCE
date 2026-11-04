@@ -1,11 +1,12 @@
 // The three Phase 4 read-only resources (spec §5.4), registered onto a
-// per-request McpServer instance by the mcpServer.ts factory.
+// per-request McpServer instance by the server's factory, beside the read
+// tools (readTools.js). Formerly electron/mcpResources.ts.
 //
 // NO SUBSCRIPTIONS — deferred per §5.4: they would add a stateful session
 // dimension to the HTTP transport, and §3.7 keeps this transport sessionless.
 //
-// SAME READ PATH AS THE TOOLS: every resource goes over the same renderer
-// bridge to the same pure read models (mcpReadModel.js) the Phase 2 tools
+// SAME READ PATH AS THE TOOLS: every resource goes over the same
+// bridge to the same pure read models (readModel.js) the Phase 2 tools
 // use — no second read path. §5.3 semantics: the server resolves today from
 // its own clock and timezone (never the client's), and every payload echoes
 // the resolved date and IANA timezone. _native device-calendar events ride
@@ -17,32 +18,28 @@
 // the tools use (e.g. "[renderer_unavailable] …"). Never empty contents — an
 // empty schedule payload is indistinguishable from an empty day (§3.3).
 
-import type { McpServer } from '@modelcontextprotocol/server';
-import type { ReadToolDeps } from './mcpReadTools.js';
 import { localDateOf, dateEnvelope } from '@glance-apps/mcp-host';
 
 const MIME = 'application/json';
 
-function resourceError(code: string, message: string): Error {
+function resourceError(code, message) {
   return new Error(`[${code}] ${message}`);
 }
 
-export function registerResources(server: McpServer, deps: ReadToolDeps): void {
-  /** Shared fetch: renderer request → JSON contents, or a typed throw. */
-  const read = async (
-    uri: string,
-    method: string,
-    params: Record<string, unknown>,
-    envelope: Record<string, unknown>,
-    timeoutMs?: number,
-  ) => {
+/**
+ * @param {import('@modelcontextprotocol/server').McpServer} server
+ * @param {import('../types/index.js').ReadToolDeps} deps
+ */
+export function registerResources(server, deps) {
+  /** Shared fetch: bridge request → JSON contents, or a typed throw. */
+  const read = async (uri, method, params, envelope, timeoutMs) => {
     const r = await deps.bridge.request(method, params, timeoutMs);
     if (!r.ok) throw resourceError(r.error.code, r.error.message);
     return {
       contents: [{
         uri,
         mimeType: MIME,
-        text: JSON.stringify({ ...envelope, ...(r.data as Record<string, unknown>) }),
+        text: JSON.stringify({ ...envelope, ...r.data }),
       }],
     };
   };
@@ -67,7 +64,7 @@ export function registerResources(server: McpServer, deps: ReadToolDeps): void {
       return read(uri.href, 'get_day', {
         date: today,
         include_native: deps.includeNativeEvents(),
-      }, dateEnvelope(today, deps.timeZone()) as unknown as Record<string, unknown>);
+      }, dateEnvelope(today, deps.timeZone()));
     },
   );
 

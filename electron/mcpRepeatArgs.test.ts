@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseRepeat, MAX_REPEAT_COUNT } from './mcpRepeatArgs.js';
+import { recurrenceToWire } from '@glance-apps/dayglance-mcp';
 
 // The repeat argument (#2066). Every pattern the app can repeat on is
 // accepted and stored exactly as the editor's presets store it; everything
@@ -93,5 +94,28 @@ describe('parseRepeat — by-design and shape rejections', () => {
     for (const count of [0, -1, 1.5, '3', MAX_REPEAT_COUNT + 1]) {
       expect(fail({ frequency: 'daily', count })).toMatch(/count must be an integer/);
     }
+  });
+});
+
+// recurrenceToWire (@glance-apps/dayglance-mcp) is the read side's inverse of
+// parseRepeat: what dayglance_get_day shows for a series is what the write
+// tools accept back.
+describe('recurrenceToWire round trip', () => {
+  // What the read surface reports must be accepted back unchanged by the write
+  // surface, and mean the same pattern.
+  it.each([
+    [{ frequency: 'daily' }],
+    [{ frequency: 'weekly', days_of_week: ['mon', 'wed', 'fri'] }],
+    [{ frequency: 'biweekly', days_of_week: ['tue'], until: '2027-01-01' }],
+    [{ frequency: 'monthly', day_of_month: 31, count: 12 }],
+    [{ frequency: 'monthly', nth_weekday: { week: 5, day: 'fri' } }],
+    [{ frequency: 'yearly' }],
+  ])('round-trips %j through parseRepeat', (repeat) => {
+    const anchor = '2026-10-12';
+    const parsed = parseRepeat(repeat, anchor);
+    expect(parsed.ok).toBe(true);
+    const wire = recurrenceToWire({ ...parsed.recurrence, startDate: anchor });
+    const again = parseRepeat(wire, anchor);
+    expect(again).toEqual(parsed);
   });
 });

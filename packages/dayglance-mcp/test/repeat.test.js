@@ -1,6 +1,9 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { recurrenceToWire } from './mcpRepeat.js';
-import { parseRepeat } from '../../electron/mcpRepeatArgs.ts';
+import { recurrenceToWire } from '../src/repeat.js';
+
+// The round trip through the write side's parseRepeat is tested with it
+// (electron/mcpRepeatArgs.test.ts), where the write tools live for now.
 
 describe('recurrenceToWire', () => {
   it('spells out the engine defaults taken from the start date', () => {
@@ -23,23 +26,5 @@ describe('recurrenceToWire', () => {
   it('is null without a pattern', () => {
     expect(recurrenceToWire(undefined)).toBeNull();
     expect(recurrenceToWire({})).toBeNull();
-  });
-
-  // What the read surface reports must be accepted back unchanged by the write
-  // surface, and mean the same pattern.
-  it.each([
-    [{ frequency: 'daily' }],
-    [{ frequency: 'weekly', days_of_week: ['mon', 'wed', 'fri'] }],
-    [{ frequency: 'biweekly', days_of_week: ['tue'], until: '2027-01-01' }],
-    [{ frequency: 'monthly', day_of_month: 31, count: 12 }],
-    [{ frequency: 'monthly', nth_weekday: { week: 5, day: 'fri' } }],
-    [{ frequency: 'yearly' }],
-  ])('round-trips %j through parseRepeat', (repeat) => {
-    const anchor = '2026-10-12';
-    const parsed = parseRepeat(repeat, anchor);
-    expect(parsed.ok).toBe(true);
-    const wire = recurrenceToWire({ ...parsed.recurrence, startDate: anchor });
-    const again = parseRepeat(wire, anchor);
-    expect(again).toEqual(parsed);
   });
 });

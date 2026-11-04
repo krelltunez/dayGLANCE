@@ -1,4 +1,8 @@
-// Routine blocks for the MCP read surface (docs/mcp-server-spec.md §5.1).
+// Routine blocks: what today's placed routines occupy, in the block shape the
+// MCP read surface reports (docs/mcp-server-spec.md §5.1). Formerly the app's
+// src/utils/mcpRoutines.js; here because the day-occupancy model
+// (dayOccupancy.js) is built on it, and both the app and
+// @glance-apps/dayglance-mcp read routines through it.
 //
 // WHY THIS IS A SEPARATE MODULE. A routine is not a task and is not a
 // recurring task, and the differences are exactly the kind that vanish when
@@ -11,7 +15,7 @@
 //   - ownership is single-owner `ownerSyncId`, not the broadcast-with-filter
 //     `assignedUserSyncIds` that isVisibleForUser understands
 //
-// Feed a routine to mcpReadModel's toBlock and every one of those is silently
+// Feed a routine to the read model's toBlock and every one of those is silently
 // wrong rather than loudly broken: blockType falls through to 'task', the
 // title reads as '', the date reads as null, and a model is handed something
 // it will try to complete. Hence a distinct type and a shaping function that
@@ -100,8 +104,9 @@ export function toRoutineBlock(routine, date, completed) {
  * OWNERSHIP IS NOT FILTERED HERE, and that is deliberate. `routines` must
  * arrive already scoped to the current user. The caller cannot fall back on
  * isVisibleForUser: it tests assignedUserSyncIds, which a routine does not
- * have, so it returns true for EVERY member's routines. See the ownership
- * test in mcpRoutines.test.js.
+ * have, so it returns true for EVERY member's routines. On the MCP read path
+ * the scoping is buildMcpReadState's (@glance-apps/dayglance-mcp), whose
+ * tests pin it; in the app's UI it is the todayRoutines memo in App.jsx.
  */
 export function buildRoutineBlocks(state, date) {
   const {

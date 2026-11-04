@@ -22,7 +22,7 @@
 //                          the plugin for the key and clears the mark.
 
 import { noteKeyForPath } from '@glance-apps/obsidian-format';
-import { noteWikilink } from '@glance-apps/agenda-core';
+import { noteWikilink, noteDisplayName, noteLinkOf } from '@glance-apps/agenda-core';
 import { extractWikilinks, stripWikilinks } from './taskUtils.js';
 
 /** A user-typed note reference → a normalized vault path ending in .md, or ''. */
@@ -37,21 +37,11 @@ export function normalizeNotePath(input) {
   return noteKeyForPath(s);
 }
 
-/** The note as Obsidian names it: the path without the .md extension. */
-export function noteDisplayName(path) {
-  return String(path ?? '').replace(/\.md$/i, '');
-}
-
-/**
- * The entity's link for display, or null when unlinked. `pending` is a link
- * the record holds alone, the note not yet carrying the key.
- * @returns {{ path: string, name: string, missing: boolean, pending: boolean } | null}
- */
-export function noteLinkOf(entity) {
-  const path = typeof entity?.obsidianNotePath === 'string' ? entity.obsidianNotePath : '';
-  if (!path) return null;
-  return { path, name: noteDisplayName(path), missing: !!entity.obsidianNoteMissingAt, pending: !!entity.obsidianNoteLinkPending };
-}
+// noteDisplayName and noteLinkOf, the link as every reader sees it, live in
+// @glance-apps/agenda-core (noteLink.js) so the MCP read surface
+// (@glance-apps/dayglance-mcp) reads a link exactly as the app does. Re-exported
+// here for this module's many importers.
+export { noteDisplayName, noteLinkOf };
 
 /**
  * A [[wikilink]] typed into a project's or goal's TITLE names its note

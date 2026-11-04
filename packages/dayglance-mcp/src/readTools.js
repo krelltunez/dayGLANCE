@@ -1,12 +1,13 @@
-// The four Phase 2 read tools (spec §5.1), registered onto a per-request
-// McpServer instance by the mcpServer.ts factory.
+// The Phase 2 read tools (spec §5.1), registered onto a per-request McpServer
+// instance by the server's factory: the desktop app's (electron/mcpServer.ts)
+// and a GLANCEvault-client host's. Formerly electron/mcpReadTools.ts.
 //
 // §3.7 DISCIPLINE: this module holds no state. Everything the tools need
-// arrives as `deps` — the renderer bridge, the clock, the timezone, and the
-// device-calendar consent tier — owned at module scope by main.ts and closed
-// over by the factory. Phase 5 swaps the tier's SOURCE (env var → settings)
-// without touching anything in this file: `includeNativeEvents` is already a
-// function, not a value.
+// arrives as `deps` — the bridge to the data, the clock, the timezone, and the
+// device-calendar consent tier — owned at module scope by the host (the
+// desktop app's main.ts) and closed over by the factory. Phase 5 swaps the
+// tier's SOURCE (env var → settings) without touching anything in this file:
+// `includeNativeEvents` is already a function, not a value.
 //
 // §5.2 ERRORS: every failure is a tool error (isError: true) with a JSON body
 // carrying { error: { code, message } } the model can branch on. Codes used
@@ -15,7 +16,6 @@
 // from an empty day, and the model would confidently report a clear schedule.
 
 import { z } from 'zod';
-import type { McpServer } from '@modelcontextprotocol/server';
 import {
   isValidLocalDate,
   localDateOf,
@@ -23,9 +23,8 @@ import {
   paginate,
   DEFAULT_LIST_LIMIT,
   MAX_LIST_LIMIT,
-  type HostBridge,
 } from '@glance-apps/mcp-host';
-import { resolveInboxFilter } from './mcpInboxFilter.js';
+import { resolveInboxFilter } from './inboxFilter.js';
 
 /**
  * dayGLANCE's pagination cursor prefix ("dayGLANCE cursor, version 1"). Part
@@ -33,42 +32,30 @@ import { resolveInboxFilter } from './mcpInboxFilter.js';
  */
 export const CURSOR_PREFIX = 'dgc1.';
 
-export interface ReadToolDeps {
-  bridge: HostBridge;
-  /** Injectable clock, same idiom as calendarCache.ts. */
-  now: () => number;
-  /** The IANA timezone the server resolves — never inferred from the client (§5.3). */
-  timeZone: () => string;
-  /** Device-calendar consent tier (§6.3). Phase 2 reads an env var behind this; Phase 5 swaps the source. */
-  includeNativeEvents: () => boolean;
-  /**
-   * Multi-user mode, pushed from the renderer (per-device toggle). Gates the
-   * EXISTENCE of dayglance_list_users — evaluated at registration time, which
-   * is per request (§3.7 factory), so a toggle mid-session changes the
-   * schema on the client's next request.
-   */
-  multiUserEnabled: () => boolean;
-}
+// ReadToolDeps (types/index.d.ts):
+//   bridge               the HostBridge the tools read through
+//   now()                injectable clock, same idiom as electron/calendarCache.ts
+//   timeZone()           the IANA timezone the server resolves, never
+//                        inferred from the client (§5.3)
+//   includeNativeEvents() device-calendar consent tier (§6.3)
+//   multiUserEnabled()   multi-user mode, pushed from the app (per-device
+//                        toggle). Gates the EXISTENCE of dayglance_list_users,
+//                        evaluated at registration time, which is per request
+//                        (§3.7 factory), so a toggle mid-session changes the
+//                        schema on the client's next request.
 
-type ToolResult = {
-  content: Array<{ type: 'text'; text: string }>;
-  structuredContent?: Record<string, unknown>;
-  isError?: boolean;
-};
-
-const ok = (data: Record<string, unknown>): ToolResult => ({
+const ok = (data) => ({
   content: [{ type: 'text', text: JSON.stringify(data) }],
   structuredContent: data,
 });
 
-const toolError = (code: string, message: string): ToolResult => ({
+const toolError = (code, message) => ({
   isError: true,
   content: [{ type: 'text', text: JSON.stringify({ error: { code, message } }) }],
 });
 
 /** Map a renderer bridge failure onto the §5.2 typed error, verbatim codes. */
-const bridgeError = (r: { ok: false; error: { code: string; message: string } }): ToolResult =>
-  toolError(r.error.code, r.error.message);
+const bridgeError = (r) => toolError(r.error.code, r.error.message);
 
 const NATIVE_NOTE =
   ' Items with type "device_calendar_event" are read-only device calendar events: ' +
@@ -100,15 +87,18 @@ const ROUTINE_NOTE =
   'routines are managed in the dayGLANCE routines dashboard. Routines exist only for the current ' +
   'day, so past and future dates never carry them.';
 
-export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
-  const getDay = async (date: string): Promise<ToolResult> => {
+/**
+ * @param {import('@modelcontextprotocol/server').McpServer} server
+ * @param {import('../types/index.js').ReadToolDeps} deps
+ */
+export function registerReadTools(server, deps) {
+  const getDay = async (date) => {
     const r = await deps.bridge.request('get_day', {
       date,
       include_native: deps.includeNativeEvents(),
     });
     if (!r.ok) return bridgeError(r);
-    const data = r.data as Record<string, unknown>;
-    return ok({ ...dateEnvelope(date, deps.timeZone()), ...data });
+    return ok({ ...dateEnvelope(date, deps.timeZone()), ...r.data });
   };
 
   server.registerTool(
@@ -180,7 +170,7 @@ export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
         filter: { scope: filter.scope, includeCompleted: filter.includeCompleted },
       });
       if (!r.ok) return bridgeError(r);
-      const items = (r.data as { items: unknown[] }).items ?? [];
+      const items = r.data.items ?? [];
       const page = paginate(items, { limit, cursor, filterKey: filter.key, cursorPrefix: CURSOR_PREFIX });
       if (!page.ok) return toolError('validation', page.reason);
       return ok({
@@ -210,7 +200,7 @@ export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
       async () => {
         const r = await deps.bridge.request('list_users', {});
         if (!r.ok) return bridgeError(r);
-        return ok({ ...(r.data as Record<string, unknown>) });
+        return ok({ ...r.data });
       },
     );
   }
@@ -228,7 +218,7 @@ export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
     async () => {
       const r = await deps.bridge.request('list_bucket_list', {});
       if (!r.ok) return bridgeError(r);
-      return ok({ ...(r.data as Record<string, unknown>), timezone: deps.timeZone() });
+      return ok({ ...r.data, timezone: deps.timeZone() });
     },
   );
 
@@ -243,7 +233,7 @@ export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
     async () => {
       const r = await deps.bridge.request('list_areas', {});
       if (!r.ok) return bridgeError(r);
-      return ok({ ...(r.data as Record<string, unknown>) });
+      return ok({ ...r.data });
     },
   );
 
@@ -268,13 +258,13 @@ export function registerReadTools(server: McpServer, deps: ReadToolDeps): void {
       }),
     },
     async ({ goal_id, window }) => {
-      const params: Record<string, unknown> = {};
+      const params = {};
       if (goal_id !== undefined) params['goal_id'] = goal_id;
       if (window !== undefined) params['window'] = window;
       // Opens the linked notes for their descriptions, so it gets longer than a state read.
       const r = await deps.bridge.request('goal_progress', params, 8000);
       if (!r.ok) return bridgeError(r);
-      return ok({ ...(r.data as Record<string, unknown>), timezone: deps.timeZone() });
+      return ok({ ...r.data, timezone: deps.timeZone() });
     },
   );
 }
