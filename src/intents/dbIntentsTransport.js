@@ -81,7 +81,7 @@ export class KeyUnavailableError extends Error {
 // The tray popup holds a read-only snapshot and must never poll — processing an
 // event would consume it before the main window can act (mirrors useIntentPoller).
 import { isTrayMode } from '../utils/trayMode.js';
-import { recordOwnWriteSeq } from '../sync/ownWrites.js';
+import { recordOwnWriteSeq } from '@glance-apps/dayglance-vault';
 // @glance-apps/sync 1.11.0: the client grew the /intents/* surface plus the
 // module-scope diagnostics (brake, budget meter, write-loop detector), so
 // db-intents now rides the SAME path as everything else — protection by
@@ -253,7 +253,7 @@ export async function sendIntentsDb(envelopes, opts = {}) {
     if (err?.code !== 'RATE_LIMITED') console.warn('[db-intent] batch POST failed:', err?.status ?? err?.message);
     return undefined;
   }
-  // Own-echo damping (#1455, sync/ownWrites.js): intent landings advance the
+  // Own-echo damping (#1455, @glance-apps/dayglance-vault's ownWrites.js): intent landings advance the
   // same per-account seq and nudge it — record our ack so the SSE coalescer
   // can tell our own echo from a peer's intent.
   if (ack && typeof ack.maxSeq === 'number') recordOwnWriteSeq(ack.maxSeq);

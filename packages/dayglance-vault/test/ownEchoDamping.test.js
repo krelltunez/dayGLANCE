@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { recordOwnWriteSeq, isOwnWriteSeq, withOwnAckRecording, __resetOwnWritesForTests, OWN_ACK_TTL_MS } from './ownWrites.js';
-import { createNudgeCoalescer } from './vaultEventStream.js';
+import { recordOwnWriteSeq, isOwnWriteSeq, withOwnAckRecording, __resetOwnWritesForTests, OWN_ACK_TTL_MS } from '../src/ownWrites.js';
+import { createNudgeCoalescer } from '../src/vaultEvents.js';
 
 // OWN-ECHO SSE DAMPING (#1455). The server emits each nudge with THE WRITING
 // OPERATION'S OWN resulting seq, so "is this our echo?" is exact set

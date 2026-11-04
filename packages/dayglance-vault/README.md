@@ -14,6 +14,11 @@ exceptions, and the merges of `deferrals`, `planTrail`, `createdAt`,
 `retiredTaskIds`, habit logs, routine completions, `completedDates` and the
 JOBO ledger's pick.
 
+And the client for the vault's `/events` change nudges, so a host pulls
+within a moment of another device's push, as the app does: the
+fetch-streaming reader, the reconnecting client, the nudge coalescer, and the
+own-write ack registry that keeps a device's own pushes from waking it.
+
 Plain ESM JavaScript for Node 20+ and the browser, with hand-written types in
 `types/`. No storage, no React, no browser globals: the engine, its
 bookkeeping and the device's guards are the caller's.
@@ -52,7 +57,47 @@ the apply and the delete in its own guards.
 
 `@glance-apps/sync` is a peer dependency: the engine keeps the root key and
 the vault client's brake in module state, so the adapter and the engine must
-share one copy.
+share one copy. So is `@glance-apps/obsidian-format`, whose SSE frame parser
+the event client reads the stream with.
+
+## Change nudges
+
+The vault's `GET /events` stream nudges a client whenever the account's seq
+advances (the wire contract is at the top of `src/vaultEvents.js`). A nudge
+only adds a prompt pull on top of a poll the caller keeps:
+
+```js
+import { createDbSyncEngine, createVaultClient } from '@glance-apps/sync';
+import {
+  openWebSseStream, createVaultEventClient, createNudgeCoalescer, createKindFilter,
+  withOwnAckRecording, isOwnWriteSeq,
+} from '@glance-apps/dayglance-vault';
+
+const engine = createDbSyncEngine({ ...config,
+  // Record every write's ack, so the nudge each one causes is known as ours.
+  vaultClient: withOwnAckRecording(createVaultClient({ vaultUrl, vaultToken })) });
+
+const coalescer = createNudgeCoalescer({
+  kinds: ['sync'],
+  kindFilter: createKindFilter({ sync: 'dayglance' }), // only dayGLANCE's rows wake it
+  isOwnSeq: isOwnWriteSeq,                              // our own echo wakes nothing
+  onDrain: () => runCycle(), // pull, reconcileCrossList, pruneAllTombstones, push; one at a time
+});
+
+const events = createVaultEventClient({
+  getConnection: () => ({ vaultUrl, vaultToken, accountId }),
+  openStream: openWebSseStream, // globalThis.fetch: browsers, Electron, Node 20+
+  onEvent: coalescer.handleEvent,
+});
+events.start();
+// shutdown: events.stop(); coalescer.cancel();
+```
+
+The client reconnects with capped, jittered exponential backoff, and each
+connection's `ready` frame reconciles anything missed while it was down. It
+treats a 401 like any failure and keeps backing off (the error's message
+names the status); a caller that wants to give up on a revoked token stops
+it from `onStateChange`.
 
 ## API
 
@@ -64,6 +109,8 @@ share one copy.
 | `dayWindowSync.js` | The day-window map: `migrateDayWindows`, `mergeDayWindowMaps`, `dayWindowMapsEqual`, `resolveDayWindow`, `DAY_WINDOWS_STORAGE_KEY`, `DEFAULTS_KEY`. |
 | `recurringExceptions.js` | A series' occurrence edits, merged per date: `mergeExceptions`, `withMergedExceptions`, `sameOccurrenceEdits`, and the save pass's `stampExceptionDates`, `stampExceptionChanges`, `applyExceptionStamps`. |
 | `merges.js` | `mergeHabitLogs`, `mergeRoutineCompletions`, `mergeCompletedDates`. |
+| `vaultEvents.js` | The `/events` client: `openWebSseStream`, `createVaultEventClient`, `createNudgeCoalescer`, `createKindFilter`, `backoffDelayMs`. |
+| `ownWrites.js` | The own-write ack registry (module state, one per process): `recordOwnWriteSeq`, `isOwnWriteSeq`, `withOwnAckRecording`, `OWN_ACK_TTL_MS`. |
 | `deferrals.js`, `planTrail.js`, `createdAt.js`, `retiredTaskIds.js`, `jobo.js` | `mergeDeferrals`; `mergePlanTrail`, `sameTrail`, `TRAIL_CAP`; `earlierCreatedAt`; `mergeRetiredTaskIds`, `pruneRetiredTaskIds`; `pickJoboRecord`. The rest of each rule (what a deferral is, recording a stop, stamping `createdAt`, recording a retirement, the JOBO record rules) stays in the app module of the same name, which imports these back. A few helpers those modules share are exported from the module files only, not from the package root. |
 
 Where each piece came from is recorded in `docs/mcp-vault-host.md` in the

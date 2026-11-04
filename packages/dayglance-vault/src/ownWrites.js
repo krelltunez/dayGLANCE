@@ -1,6 +1,11 @@
 // OWN-WRITE ACK REGISTRY — the identity half of own-echo SSE damping
 // (#1455, second instance: the reconcile war of 2026-08-30).
 //
+// Moved verbatim from the dayGLANCE app's src/sync/ownWrites.js (#2280) with
+// the coalescer it feeds (vaultEvents.js), so a host suppresses its own
+// echoes by the same rule: wrap the vault client the engine writes through
+// with withOwnAckRecording and give the coalescer isOwnSeq: isOwnWriteSeq.
+//
 // The vault emits one SSE nudge per content write, carrying THE WRITING
 // OPERATION'S OWN resulting seq (`emit(accountId, {seq: result.maxSeq})` in
 // glance-vault routes/sync.ts — verified, not assumed). Seqs are unique and

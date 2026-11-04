@@ -28,7 +28,7 @@
 
 import { getVaultConfig } from '../sync/vaultConfig.js';
 import { SENT_INTENTS_KEY, DELIVERY_STATE_KEY, recordSentIntents, pruneSentIntents, selectDeliveryProbes, deliveryVerdict } from './bridgeDelivery.js';
-import { recordOwnWriteSeq } from '../sync/ownWrites.js';
+import { recordOwnWriteSeq } from '@glance-apps/dayglance-vault';
 import { hasDbRootKey } from '@glance-apps/sync';
 import { verifiedBridgeRootKey } from './bridgeKeyGate.js';
 // Sanctioned deep import (vaultClient keeps the client constructible without the engine).

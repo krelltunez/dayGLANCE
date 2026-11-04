@@ -3,7 +3,7 @@ package com.dayglance.app.sse
 /**
  * Capped exponential backoff with equal jitter and a stability reset — the
  * Kotlin mirror of the reconnect policy in `createVaultEventClient`
- * (src/sync/vaultEventStream.js, see backoffDelayMs there). Change both
+ * (packages/dayglance-vault/src/vaultEvents.js, see backoffDelayMs there). Change both
  * together.
  *
  * A connection that stays open at least [minStableMs] is treated as healthy and

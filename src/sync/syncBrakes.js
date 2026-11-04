@@ -33,7 +33,7 @@
 // pathological loop for missed real nudges. The content dedup removes the
 // loop's fuel instead, at no freshness cost.
 
-import { backoffDelayMs } from './vaultEventStream.js';
+import { backoffDelayMs } from '@glance-apps/dayglance-vault';
 
 // A vault rate-limit, however it surfaces: a structured status on the error, or
 // the vaultClient's message text ("list failed: 429", "get row failed: 429").
