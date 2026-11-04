@@ -74,3 +74,15 @@ describe('drop-zone highlight', () => {
     expect(dd.dragOverRecycleBin).toBe(false);
   });
 });
+
+// #2277: the cursor's time becomes the dropped task's start, so the drag image
+// is held by the card's top edge, where the drop preview block starts.
+describe('drag image', () => {
+  it('a task drag holds its card by the top edge, at the point it was grabbed across', () => {
+    const card = { getBoundingClientRect: () => ({ left: 40, top: 200, width: 300, height: 120 }) };
+    const e = { currentTarget: card, target: card, clientX: 100, clientY: 260, dataTransfer: { setDragImage: vi.fn() } };
+    useRender().handleDragStart({ id: 't1', title: 'Scheduled one', duration: 60 }, 'calendar', e);
+    expect(e.dataTransfer.setDragImage).toHaveBeenCalledWith(card, 60, 0);
+    expect(e.dataTransfer.effectAllowed).toBe('move');
+  });
+});
