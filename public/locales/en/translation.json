@@ -921,6 +921,8 @@
     "newProjectHint": "The project is created when you save the task.",
     "filterProjects": "Filter projects",
     "noMatchingProjects": "No matching projects",
+    "lastUsedProject": "Last used",
+    "lastUsedProjectLabel": "Last used: {{name}}",
     "addToHint": "add to {{target}}",
     "inbox": "inbox",
     "schedule": "Schedule",

@@ -921,6 +921,8 @@
     "newProjectHint": "Il progetto viene creato quando salvi l’attività.",
     "filterProjects": "Filtra progetti",
     "noMatchingProjects": "Nessun progetto corrispondente",
+    "lastUsedProject": "Usato di recente",
+    "lastUsedProjectLabel": "Usato di recente: {{name}}",
     "addToHint": "aggiungi a {{target}}",
     "inbox": "posta in arrivo",
     "schedule": "Pianifica",

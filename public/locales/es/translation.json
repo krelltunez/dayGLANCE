@@ -921,6 +921,8 @@
     "newProjectHint": "El proyecto se crea al guardar la tarea.",
     "filterProjects": "Filtrar proyectos",
     "noMatchingProjects": "No hay proyectos que coincidan",
+    "lastUsedProject": "Usado por última vez",
+    "lastUsedProjectLabel": "Usado por última vez: {{name}}",
     "addToHint": "añadir a {{target}}",
     "inbox": "bandeja de entrada",
     "schedule": "Programar",

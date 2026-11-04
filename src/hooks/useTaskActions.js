@@ -9,6 +9,7 @@ import { triggerHaptic } from '../native.js';
 import { isCalendarEventRow } from '../utils/eventNotes.js';
 import { describeObstacle } from '../utils/dayOccupancy.js';
 import { createPendingProject } from '../utils/pendingProject.js';
+import { rememberLastUsedProject } from '../utils/lastUsedProject.js';
 import { canFollowUp, resolveTaskRef } from '../utils/followUp.js';
 import { editedSeriesStart } from '../utils/recurrenceEngine.js';
 import { moveSubtaskTo } from '../utils/subtaskOrder.js';
@@ -142,10 +143,12 @@ export default function useTaskActions({
 
   // A project named in the modal ("New project…") is created as the task is
   // saved, and the rest reads newTask with its real id (utils/pendingProject.js).
+  // Its project becomes the picker's "last used" on this device (#2274).
   const addTask = (toInbox = false) => {
     if (!newTask.title.trim()) return;
     const ready = createPendingProject(newTask, { addProject, goals });
     addTaskFrom(ready.newTask, toInbox, ready.project);
+    rememberLastUsedProject(ready.newTask.projectId);
   };
 
   const addTaskFrom = (newTask, toInbox, createdProject) => {

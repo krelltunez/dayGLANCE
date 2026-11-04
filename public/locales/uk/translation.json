@@ -948,6 +948,8 @@
     "newProjectHint": "Проєкт буде створено, коли ви збережете завдання.",
     "filterProjects": "Фільтрувати проєкти",
     "noMatchingProjects": "Немає відповідних проєктів",
+    "lastUsedProject": "Останній використаний",
+    "lastUsedProjectLabel": "Останній використаний: {{name}}",
     "addToHint": "додати до {{target}}",
     "inbox": "вхідні",
     "schedule": "Розклад",
