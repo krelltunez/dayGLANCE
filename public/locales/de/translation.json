@@ -919,6 +919,8 @@
     "newProjectName": "Name des neuen Projekts",
     "chooseExistingProject": "Ein vorhandenes Projekt wählen",
     "newProjectHint": "Das Projekt wird angelegt, wenn du die Aufgabe speicherst.",
+    "filterProjects": "Projekte filtern",
+    "noMatchingProjects": "Keine passenden Projekte",
     "addToHint": "zu {{target}} hinzufügen",
     "inbox": "Posteingang",
     "schedule": "Planen",

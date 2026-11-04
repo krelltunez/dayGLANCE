@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupInboxProjects, projectIdsOf, projectOptionGroups, selectionState, toggleProjectGroup } from './inboxProjectGroups.js';
+import { filterProjectGroups, groupInboxProjects, projectIdsOf, projectOptionGroups, selectionState, toggleProjectGroup } from './inboxProjectGroups.js';
 
 // #2232: the Inbox filter's projects by area and goal, and the goal/area chips.
 const areas = [{ id: 'a-work', name: 'Work' }, { id: 'a-home', name: 'Home' }, { id: 'a-empty', name: 'Empty' }];
@@ -101,5 +101,33 @@ describe('projectOptionGroups', () => {
 
   it('nothing to list, no groups', () => {
     expect(projectOptionGroups({ projects: [], goals, areas })).toEqual([]);
+  });
+});
+
+// #2279: the task editor's project picker narrows the tree to a typed filter.
+describe('filterProjectGroups', () => {
+  const groups = groupInboxProjects({ projects, goals, areas });
+  const ids = (g) => [g.areas.map(a => [a.id, a.goals.map(goal => [goal.id, goal.projects.map(p => p.id)])]), g.standalone.map(p => p.id)];
+
+  it('a blank filter keeps everything', () => {
+    expect(filterProjectGroups(groups, '  ')).toBe(groups);
+    expect(filterProjectGroups(groups, undefined)).toBe(groups);
+  });
+
+  it('keeps the projects whose title holds it, ignoring case, and drops the groups left empty', () => {
+    expect(ids(filterProjectGroups(groups, 'OO'))).toEqual([
+      [['a-home', [['g-house', ['p-roof']]]], [null, [['g-loose', ['p-books']]]]],
+      [],
+    ]);
+    expect(ids(filterProjectGroups(groups, 'sol'))).toEqual([[], ['p-solo']]);
+  });
+
+  it('a goal or an area that matches keeps all of its projects', () => {
+    expect(ids(filterProjectGroups(groups, 'ship'))).toEqual([[['a-work', [['g-ship', ['p-api', 'p-docs']]]]], []]);
+    expect(ids(filterProjectGroups(groups, 'home'))).toEqual([[['a-home', [['g-house', ['p-roof']]]]], []]);
+  });
+
+  it('nothing matching, nothing left', () => {
+    expect(ids(filterProjectGroups(groups, 'zzz'))).toEqual([[], []]);
   });
 });

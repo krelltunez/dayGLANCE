@@ -919,6 +919,8 @@
     "newProjectName": "Nome del nuovo progetto",
     "chooseExistingProject": "Scegli un progetto esistente",
     "newProjectHint": "Il progetto viene creato quando salvi l’attività.",
+    "filterProjects": "Filtra progetti",
+    "noMatchingProjects": "Nessun progetto corrispondente",
     "addToHint": "aggiungi a {{target}}",
     "inbox": "posta in arrivo",
     "schedule": "Pianifica",

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo, useState } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronRight, X } from 'lucide-react';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
@@ -6,24 +6,13 @@ import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { extractTags } from '../utils/taskUtils.js';
 import { useTranslation } from 'react-i18next';
 import { notBucketed } from '../utils/bucketList.js';
+import useRememberedOpen from '../hooks/useRememberedOpen.js';
 import { groupInboxProjects, projectIdsOf, selectionState, toggleProjectGroup } from '../utils/inboxProjectGroups.js';
 
 // Open or closed, remembered on this device per section and group, the way
-// the SCHED rail keeps its sections (#2232). Storage may be unavailable.
+// the SCHED rail keeps its sections (#2232).
 const OPEN_KEY = (key) => `day-planner-inbox-filter-open-${key}`;
-function useRemembered(key, defaultOpen) {
-  const [open, setOpen] = useState(() => {
-    try {
-      const saved = localStorage.getItem(OPEN_KEY(key));
-      return saved === null ? defaultOpen : saved === 'true';
-    } catch { return defaultOpen; }
-  });
-  const toggle = () => setOpen((was) => {
-    try { localStorage.setItem(OPEN_KEY(key), String(!was)); } catch { /* not remembered */ }
-    return !was;
-  });
-  return [open, toggle];
-}
+const useRemembered = (key, defaultOpen) => useRememberedOpen(OPEN_KEY(key), defaultOpen);
 
 /** A section of the popover (Status, Type, Projects, Tags): its header folds it. */
 const Section = ({ storageKey, title, count, textSecondary, hoverBg, children }) => {

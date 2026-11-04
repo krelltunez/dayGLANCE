@@ -946,6 +946,8 @@
     "newProjectName": "Назва нового проєкту",
     "chooseExistingProject": "Вибрати наявний проєкт",
     "newProjectHint": "Проєкт буде створено, коли ви збережете завдання.",
+    "filterProjects": "Фільтрувати проєкти",
+    "noMatchingProjects": "Немає відповідних проєктів",
     "addToHint": "додати до {{target}}",
     "inbox": "вхідні",
     "schedule": "Розклад",
