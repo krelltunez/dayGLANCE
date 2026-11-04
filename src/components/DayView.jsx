@@ -2,7 +2,8 @@ import React, { useRef } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { formatHourLabel } from '../utils/timeFormatting.jsx';
 import { dateToString } from '../utils/taskUtils.js';
-import { columnTimeFromEvent } from '../utils/dragUtils.js';
+import { columnTimeFromEvent, dragBlockRange } from '../utils/dragUtils.js';
+import DragBlockPreview from './DragBlockPreview.jsx';
 import TimelineTaskCardContent from './TimelineTaskCardContent.jsx';
 import PastDoCard from './jobo/PastDoCard.jsx';
 import DayWindowMarkers from './DayWindowMarkers.jsx';
@@ -633,11 +634,17 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
           );
         })()}
 
-        {/* Drag preview bar during an active drag */}
+        {/* Drag preview during an active drag: the block the task becomes
+            at the cursor's time (#2277). Every column of the date draws its
+            own slice of it, as it would the dropped task's card. */}
         {isDraggingOverThisCol && dragPreviewTime && (() => {
-          const dragMin = timeToMinutes(dragPreviewTime);
-          if (dragMin < colStartMin || dragMin > colEndMin) return null;
-          const topPx = (dragMin - colStartMin) * hourHeight / 60;
+          const block = dragBlockRange(timeToMinutes(dragPreviewTime), draggedTask.duration);
+          if (!block) return null;
+          const slice = getTaskSlice(
+            { startTime: block.startTime, duration: block.endMinute - block.startMinute },
+            col, hourHeight, timeToMinutes, zoom,
+          );
+          if (!slice) return null;
           const todayStr = dateToString(new Date());
           const tomorrowStr = dateToString(new Date(Date.now() + 24 * 60 * 60 * 1000));
           // Rolling-24 disambiguation: when multiple columns in this day
@@ -647,17 +654,14 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
             : col.dateStr === tomorrowStr ? ' (tomorrow)'
             : '';
           return (
-            <div
-              className="absolute left-16 right-0 pointer-events-none z-20"
-              style={{ top: `${topPx}px` }}
-            >
-              <div className="relative">
-                <div className={`absolute bottom-0.5 right-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${darkMode ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'}`}>
-                  {formatTime(dragPreviewTime)}{showDateLabel}
-                </div>
-                <div className="h-0.5 bg-blue-500" />
-              </div>
-            </div>
+            <DragBlockPreview
+              top={slice.top}
+              height={slice.height}
+              label={`${formatTime(block.startTime)}–${formatTime(block.endTime)}${showDateLabel}`}
+              darkMode={darkMode}
+              className="left-16 right-0 z-20"
+              showStart={!slice.clippedTop}
+            />
           );
         })()}
       </div>

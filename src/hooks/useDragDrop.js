@@ -3,6 +3,7 @@ import { dateToString } from '../utils/taskUtils.js';
 import { TASK_COLORS } from '../utils/colorUtils.js';
 import { nativeUpdateEvent, triggerHaptic } from '../native.js';
 import { describeObstacle } from '../utils/dayOccupancy.js';
+import { anchorDragImageAtTop } from '../utils/dragUtils.js';
 import { pixelsToSnappedMinutes, resizeBlockByPixels } from '../utils/taskResize.js';
 
 // Pure utilities used by position helpers
@@ -249,6 +250,9 @@ export default function useDragDrop({
     setDragPreviewTime(null);
     setExpandedNotesTaskId(null); // Close notes panel when dragging
     e.dataTransfer.effectAllowed = 'move';
+    // The cursor's time becomes the new start, so the card floats from its
+    // top edge, on the drop preview block (#2277).
+    anchorDragImageAtTop(e);
   };
 
   const handleDragEnd = () => {

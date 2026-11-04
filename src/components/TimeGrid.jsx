@@ -22,6 +22,8 @@ import PastDoCard from './jobo/PastDoCard.jsx';
 import useTimelineZoom from '../hooks/useTimelineZoom.js';
 import { SCROLLING_HOUR_PX } from '../utils/timelineZoom.js';
 import { cardDoubleClickHandler } from '../utils/cardDoubleClick.js';
+import { dragBlockRange } from '../utils/dragUtils.js';
+import DragBlockPreview from './DragBlockPreview.jsx';
 
 const TimeGrid = () => {
   const {
@@ -745,22 +747,22 @@ const TimeGrid = () => {
             </div>
           )}
 
-          {/* Drag preview - hover bar style */}
+          {/* Drag preview - the block the task becomes at the cursor's time (#2277) */}
           {dragPreviewTime && draggedTask && dragPreviewDate && dateToString(dragPreviewDate) === dateStr && (() => {
-            const dragMinutes = timeToMinutes(dragPreviewTime);
-            const dragTop = Math.round(minutesToPosition(dragMinutes));
+            const block = dragBlockRange(timeToMinutes(dragPreviewTime), draggedTask.duration);
+            if (!block) return null;
+            // Placed as calculateTaskPosition places a card. minutesToPosition
+            // reads hour rows 0-23, so the end of the day is read at the bottom
+            // of the last row rather than past it.
+            const top = Math.round(minutesToPosition(block.startMinute));
+            const bottom = Math.round(minutesToPosition(Math.min(block.endMinute, 24 * 60 - 0.001)));
             return (
-              <div
-                className="absolute left-0 right-0 pointer-events-none z-20"
-                style={{ top: `${dragTop}px` }}
-              >
-                <div className="relative">
-                  <div className={`absolute bottom-0.5 right-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${darkMode ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'}`}>
-                    {formatTime(dragPreviewTime)}
-                  </div>
-                  <div className="h-0.5 bg-blue-500"></div>
-                </div>
-              </div>
+              <DragBlockPreview
+                top={top}
+                height={bottom - top - 1}
+                label={`${formatTime(block.startTime)}–${formatTime(block.endTime)}`}
+                darkMode={darkMode}
+              />
             );
           })()}
 
