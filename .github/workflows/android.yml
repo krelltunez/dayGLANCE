@@ -10,6 +10,11 @@ name: Android
 #
 # The unit tests also read dayglance-ios/TestFixtures (the shared widget snapshot
 # fixture), so a change there runs this too.
+#
+# Run by hand (Actions → Android → Run workflow, on any branch), it also builds
+# an installable TEST APK for someone outside the team to try a fix on their own
+# device (#2272): the web assets plus the `github` flavor's debug build, attached
+# to the run as an artifact. See the test-apk job.
 on:
   pull_request:
     paths:
@@ -67,3 +72,79 @@ jobs:
           name: android-test-reports
           path: dayglance-android/app/build/reports/tests/
           if-no-files-found: ignore
+
+  # An installable debug APK of the chosen branch, for a tester whose device
+  # shows a bug we cannot reproduce (#2272). Only on a manual run: every PR
+  # still gets just the compile-and-test job above.
+  #
+  # - It bundles the web assets (`npm run build:android`), which the job above
+  #   leaves out, so the app actually runs.
+  # - The `github` flavor: no Google Play billing, so it works on phones without
+  #   Google services (Huawei, many phones sold in China).
+  # - A debug build installs as com.dayglance.app.debug, BESIDE the tester's own
+  #   app: nothing is replaced and their data is untouched. It is signed with
+  #   the runner's throwaway debug key and is for testing only.
+  #
+  # Testers download it from the run's page (a GitHub login is needed for
+  # artifacts). It is kept for 14 days.
+  test-apk:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: npm run build:android
+
+      - name: Verify web assets were produced
+        run: test -f dayglance-android/app/src/main/assets/web/index.html
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        working-directory: dayglance-android
+        run: ./gradlew --stacktrace :app:assembleGithubDebug
+
+      # Named for the branch and commit, so a tester can tell builds apart.
+      - name: Name the APK
+        id: apk
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          short_sha="$(git rev-parse --short HEAD)"
+          safe_ref="$(printf '%s' "$REF_NAME" | tr -c 'A-Za-z0-9._-' '-')"
+          name="dayglance-test-${safe_ref}-${short_sha}"
+          mkdir -p test-apk
+          cp dayglance-android/app/build/outputs/apk/github/debug/app-github-debug.apk "test-apk/${name}.apk"
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: test-apk/*.apk
+          if-no-files-found: error
+          retention-days: 14
