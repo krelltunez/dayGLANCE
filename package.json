@@ -40,7 +40,7 @@
     "@glance-apps/intents": "1.4.0",
     "@glance-apps/mcp-host": "file:packages/mcp-host",
     "@glance-apps/obsidian-format": "file:packages/obsidian-format",
-    "@glance-apps/sync": "2.3.0",
+    "@glance-apps/sync": "2.4.0",
     "@modelcontextprotocol/node": "2.1.1",
     "@modelcontextprotocol/server": "2.3.1",
     "hono": "^4.13.13",

@@ -26,6 +26,6 @@
   "dependencies": {
     "@glance-apps/agenda-core": "file:../packages/agenda-core",
     "@glance-apps/obsidian-format": "file:../packages/obsidian-format",
-    "@glance-apps/sync": "2.3.0"
+    "@glance-apps/sync": "2.4.0"
   }
 }
