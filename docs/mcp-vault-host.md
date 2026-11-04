@@ -147,6 +147,25 @@ host runs the engine with the package's callbacks and, after each pull, the
 same two calls the app's wrapper makes: `reconcileCrossList` and
 `pruneAllTombstones`.
 
+**The host path, proven in Node:** `packages/dayglance-vault/test/hostPull.e2e.test.js`,
+with `window`, `document`, `localStorage` and `indexedDB` all undefined. A
+device runs the real `createDbSyncEngine` (2.4.0) with Map-backed `storage`,
+its key from the passphrase kept through `nativeGetSyncKey` /
+`nativeStoreSyncKey`, and the package's callbacks over a realistic data
+object (multi-user, recurring series with per-date exceptions and
+completions, the inbox, goals, projects, areas, routines, frames, a daily
+note, a tombstone, a JOBO record), and pushes. A host, a fresh engine with
+its own storage and key slot and the same passphrase, pulls into an empty
+object, and `handleMcpRequest` over `buildMcpReadState` answers `get_day`,
+the goal tree and the inbox exactly as it does on the device's own data; a
+full read (every live row decrypted, `reassembleState`) answers the same.
+Then a completion, an occurrence change, a hard delete and a move to the bin
+whose stale row the vault still holds reach the host on its next pull, which
+resumes from its stored cursor. The vault is in memory behind a fetch shim, so
+the real vault client and the real crypto run. Breaking the cross-list
+reconcile, the routine-completion stamps' carry in `_extra`, or
+`getEntityLastModified` fails it.
+
 Remaining before a prototype:
 
 | Piece | Where | Node-ready? |
@@ -168,6 +187,13 @@ options are host configuration:
   zone also rides the state, so `created_at` and `completed_at` are reported in
   it. The tools' own "today" (`deps.timeZone()`) must be the same zone.
 - **`weekStartDay`** is a per-device setting (`day-planner-week-start-day`), not synced. Host config.
+- **Settings the vault never hands over.** The adapter keeps the receiving
+  device's value for `multiUserEnabled` always, and, while it is on, for the
+  feature toggles (`routinesEnabled`, `habitsEnabled`, `goalsProjectsEnabled`)
+  so one member's choice is not everyone's. A host starting from an empty
+  object would read multi-user off and, in a multi-user account, routines as
+  disabled, and show none. Host config, seeded into its data before the
+  first pull (the end-to-end test does exactly this).
 - **Which user, in a multi-user account** (`userSyncId`). `buildMcpReadState`
   scopes routines and frames by owner, because `isVisibleForUser` does not
   filter them (skipping this leaks another member's routines and frames); the
