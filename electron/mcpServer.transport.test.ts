@@ -6,12 +6,15 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { startMcpServer, MCP_ENDPOINT_PATH } from './mcpServer.js';
-import type { RendererBridge, RendererResult } from './mcpRendererBridge.js';
+import {
+  createWriteGate,
+  createIdempotencyStore,
+  generateMcpToken,
+  type HostBridge as RendererBridge,
+  type BridgeResult as RendererResult,
+} from '@glance-apps/mcp-host';
 import type { ReadToolDeps } from './mcpReadTools.js';
 import type { WriteToolDeps } from './mcpWriteTools.js';
-import { createWriteGate } from './mcpWriteGate.js';
-import { createIdempotencyStore } from './mcpIdempotency.js';
-import { generateMcpToken } from './mcpAuth.js';
 
 // The seam the unit tests cannot see (2026-10-04). Every layer below the
 // listener has its own tests: argument parsers, the write gate, the replay

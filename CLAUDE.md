@@ -64,6 +64,14 @@ schemas permissive where the planner carries a by-design message: the SDK
 validates the schema before the handler runs and answers with its own generic
 text, so a strict enum would hide the message the client is meant to read.
 
+The listener itself (path → Host → Origin → token, port policy, refusals) and
+the generic safety pieces (write gate, replay store, pagination, journal, date
+rules) live in `packages/mcp-host` (`@glance-apps/mcp-host`, #2280), shared with
+other GLANCE MCP hosts: keep it free of dayGLANCE and Electron specifics. A
+change to the listener or its guards is tested in
+`packages/mcp-host/test/listener.test.js`; `electron/mcpServer.ts` only
+registers dayGLANCE's tools on it.
+
 # Todoist integration
 
 `src/todoist/` is a read-source integration: Todoist supplies tasks, dayGLANCE

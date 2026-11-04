@@ -37,6 +37,7 @@
     "@glance-apps/agenda-core": "file:packages/agenda-core",
     "@glance-apps/billing": "0.2.2",
     "@glance-apps/intents": "1.4.0",
+    "@glance-apps/mcp-host": "file:packages/mcp-host",
     "@glance-apps/obsidian-format": "file:packages/obsidian-format",
     "@glance-apps/sync": "2.3.0",
     "@modelcontextprotocol/node": "2.1.1",

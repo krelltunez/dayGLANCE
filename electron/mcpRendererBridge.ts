@@ -15,16 +15,19 @@
 // (which runs the same App tree on a stale snapshot) can never answer even if
 // its renderer were subscribed. Same posture as the tray:data-changed guard.
 
+// The bridge CONTRACT (request/response shape; never rejects, never hangs; a
+// typed error when unavailable) is HostBridge in @glance-apps/mcp-host, so the
+// tools can be served by another implementation. This is the Electron one.
+
 import { BrowserWindow, ipcMain } from 'electron';
+import type { HostBridge, BridgeResult } from '@glance-apps/mcp-host';
 
 /** One-second ping ceiling: ~100x the expected reply latency of a live renderer. */
 export const PING_TIMEOUT_MS = 1000;
 /** Data requests get headroom for a large day payload or a GC pause. */
 export const REQUEST_TIMEOUT_MS = 3000;
 
-export type RendererResult =
-  | { ok: true; data: unknown; undo?: unknown }
-  | { ok: false; error: { code: string; message: string } };
+type RendererResult = BridgeResult;
 
 const UNAVAILABLE: RendererResult = {
   ok: false,
@@ -36,20 +39,15 @@ const UNAVAILABLE: RendererResult = {
   },
 };
 
-export interface RendererBridge {
-  /** Send one request; resolves with the renderer's answer or a typed unavailable error. Never rejects, never hangs. */
-  request(method: string, params?: unknown, timeoutMs?: number): Promise<RendererResult>;
-  /** The §3.3 health check: cheap, short-timeout round trip. */
-  ping(): Promise<boolean>;
-  dispose(): void;
-}
-
 /**
+ * The HostBridge answered by the main window's renderer over IPC. `ping` is
+ * the §3.3 health check: a cheap, short-timeout round trip.
+ *
  * Accepts a getter (never a captured window reference) for the same reason
  * ws-server.ts does: the main window can be recreated, and requests must
  * always target the current one.
  */
-export function createRendererBridge(getMainWindow: () => BrowserWindow | null): RendererBridge {
+export function createRendererBridge(getMainWindow: () => BrowserWindow | null): HostBridge {
   let nextId = 1;
   const pending = new Map<number, { resolve: (r: RendererResult) => void; timer: NodeJS.Timeout }>();
 

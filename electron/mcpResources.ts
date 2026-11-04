@@ -19,7 +19,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { ReadToolDeps } from './mcpReadTools.js';
-import { localDateOf, dateEnvelope } from './mcpDates.js';
+import { localDateOf, dateEnvelope } from '@glance-apps/mcp-host';
 
 const MIME = 'application/json';
 

@@ -81,4 +81,17 @@ describe('describeBindFailure', () => {
     expect(describeBindFailure(7893, { message: 'boom' })).toContain('boom');
     expect(describeBindFailure(7893, {})).toContain('unknown error');
   });
+
+  it('is the exact text the settings surface showed before the host kit (dayGLANCE, loopback)', () => {
+    expect(describeBindFailure(7893, { code: 'EADDRINUSE' })).toBe(
+      'MCP server could not start: port 7893 is already in use by another process. ' +
+      'Pick a different port explicitly; dayGLANCE will not scan for a free one, because ' +
+      'configured MCP clients point at a fixed port.',
+    );
+    expect(describeBindFailure(80, { code: 'EACCES' })).toBe(
+      'MCP server could not start: binding 127.0.0.1:80 was denied (EACCES). ' +
+      'Ports below 1024 may require elevated privileges; pick a higher port.',
+    );
+    expect(describeBindFailure(7893, { code: 'EADDRNOTAVAIL' })).toBe('MCP server could not start on 127.0.0.1:7893: EADDRNOTAVAIL');
+  });
 });

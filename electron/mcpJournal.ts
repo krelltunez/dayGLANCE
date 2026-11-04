@@ -1,8 +1,11 @@
-// The §4.3 write journal and §6.5 tray indicator, extracted as pure functions
-// (startupQuit.ts style). The journal is SESSION-SCOPED BY DESIGN: it lives in
-// a module-scope array in main.ts (never on the McpServer instance, §3.7, and
-// never on disk) — it covers the runaway-agent case, not audit history, so a
-// restart wiping it is correct behavior, not a limitation.
+// dayGLANCE's half of the §4.3 write journal, and the §6.5 tray indicator, as
+// pure functions (startupQuit.ts style). The journal itself (append, display
+// snapshot, per-entity groups, undo plan) is generic and lives in
+// @glance-apps/mcp-host; what is dayGLANCE's is the undo op vocabulary, how
+// each op groups, and the group label. The journal is SESSION-SCOPED BY
+// DESIGN: it lives in a module-scope array in main.ts (never on the McpServer
+// instance, §3.7, and never on disk) — it covers the runaway-agent case, not
+// audit history, so a restart wiping it is correct behavior, not a limitation.
 //
 // Undo works from per-entry before-state captured by the renderer at write
 // time, because the journal alone cannot reverse everything: scheduling a
@@ -10,6 +13,18 @@
 // deadline), and move/resize/completion overwrite values nothing else
 // remembers. Each entry therefore carries exactly the fields its reversal
 // needs — a full before-task for schedule, touched fields otherwise.
+
+import {
+  journalGroups as hostJournalGroups,
+  journalSnapshot as hostJournalSnapshot,
+  defaultGroupLabel,
+  summaryTitle,
+  type JournalEntry as HostJournalEntry,
+  type JournalRecord as HostJournalRecord,
+  type JournalGroup,
+  type JournalGrouping,
+  type JournalSnapshot,
+} from '@glance-apps/mcp-host';
 
 /** Reversal instruction, applied by taskMutations.js applyUndoOps in the renderer. */
 export type UndoOp =
@@ -52,43 +67,13 @@ export type UndoOp =
    */
   | { kind: 'restore_note_description'; entityKind: 'goal' | 'project'; entityId: string; path: string; before: string; afterBase?: string; fields?: UndoOp };
 
-export interface JournalEntry {
-  seq: number;
-  /** ISO timestamp of the write (main-process clock). */
-  at: string;
-  /** MCP tool that performed the write, e.g. 'dayglance_create_task'. */
-  tool: string;
-  /** Display-ready description of what changed, built by the renderer. */
-  summary: string;
-  /** The caller's idempotency key, when it sent one. */
-  idempotencyKey?: string;
-  op: UndoOp;
-}
-
-export interface JournalRecord {
-  tool: string;
-  summary: string;
-  idempotencyKey?: string;
-  op: UndoOp;
-}
-
 /**
- * Append one write to the journal. Immutable (returns a new array) so the
- * main-process store is a plain reassigned variable, and seq is monotonically
- * increasing within the session regardless of any future trimming.
+ * A journal entry whose op is one of dayGLANCE's undo ops: `at` is the
+ * main-process clock, `tool` e.g. 'dayglance_create_task', and `summary` is
+ * built by the renderer.
  */
-export function appendEntry(entries: JournalEntry[], record: JournalRecord, nowIso: string): JournalEntry[] {
-  const seq = entries.length > 0 ? entries[entries.length - 1].seq + 1 : 1;
-  const entry: JournalEntry = {
-    seq,
-    at: nowIso,
-    tool: record.tool,
-    summary: record.summary,
-    ...(record.idempotencyKey !== undefined ? { idempotencyKey: record.idempotencyKey } : {}),
-    op: record.op,
-  };
-  return [...entries, entry];
-}
+export type JournalEntry = HostJournalEntry<UndoOp>;
+export type JournalRecord = HostJournalRecord<UndoOp>;
 
 /**
  * PER-TASK grouping key: the single entity an op reverses. The per-task undo
@@ -143,93 +128,39 @@ export function undoGroupKey(op: UndoOp): string {
 }
 
 /**
- * The task title inside a journal summary. Titles live only in summaries —
- * the op payloads mostly lack them — always wrapped in “ ” by the renderer's
- * summary builder. First “ to LAST ” is exactly the title in every summary
- * shape (nothing after the closing quote contains ”: dates, times, and
- * fixed words only), so titles with embedded quotes survive intact.
- */
-export function summaryTitle(summary: string): string | null {
-  const start = summary.indexOf('“');
-  const end = summary.lastIndexOf('”');
-  return start !== -1 && end > start ? summary.slice(start + 1, end) : null;
-}
-
-export interface JournalGroup {
-  key: string;
-  label: string;
-  count: number;
-  /** seq of the group's newest entry, for newest-activity-first ordering. */
-  latestSeq: number;
-}
-
-/**
- * Per-task groups computed over the FULL journal — never the display trim,
- * whose last-50 window would undercount a busy task — ordered by newest
- * activity first. The label is the quoted title from the group's LATEST
- * entry, BY DESIGN: update_task can rename a task mid-session, and the group
- * represents the task as it now exists, so the newest entry's title must win.
- * Older entries keep the historical title in their own summaries, which is
- * correct per-entry history. (This replaces an earlier assumption that no
- * MCP write renames a task; latest-entry-wins was incidental then and is the
- * contract now.) The instance date is appended for recurring completions so
+ * The group label, taken from the group's LATEST entry (the kit's rule, BY
+ * DESIGN: update_task can rename a task mid-session, and the group represents
+ * the task as it now exists, so the newest entry's title must win; this
+ * replaces an earlier assumption that no MCP write renames a task). The
+ * quoted title, with the instance date appended for recurring completions so
  * two dates on the same series stay tellable apart. Falls back to the raw
  * summary if no quoted title is found.
  */
-export function journalGroups(entries: JournalEntry[]): JournalGroup[] {
-  const groups = new Map<string, JournalGroup>();
-  for (const e of entries) {
-    const key = undoGroupKey(e.op);
-    const title = summaryTitle(e.summary);
-    const label = e.op.kind === 'restore_recurring_completion'
-      ? `${title ?? e.op.templateId} (${e.op.dateStr})`
-      : (title ?? e.summary);
-    const existing = groups.get(key);
-    if (existing) {
-      existing.count += 1;
-      existing.latestSeq = e.seq;
-      existing.label = label;
-    } else {
-      groups.set(key, { key, label, count: 1, latestSeq: e.seq });
-    }
+export function journalGroupLabel(entry: JournalEntry): string {
+  if (entry.op.kind === 'restore_recurring_completion') {
+    return `${summaryTitle(entry.summary) ?? entry.op.templateId} (${entry.op.dateStr})`;
   }
-  return [...groups.values()].sort((a, b) => b.latestSeq - a.latestSeq);
+  return defaultGroupLabel(entry);
+}
+
+const GROUPING: JournalGrouping<UndoOp> = { groupKey: undoGroupKey, groupLabel: journalGroupLabel };
+
+/**
+ * Per-task groups over the FULL journal — never the display trim, whose
+ * last-50 window would undercount a busy task — newest activity first.
+ */
+export function journalGroups(entries: JournalEntry[]): JournalGroup[] {
+  return hostJournalGroups(entries, GROUPING);
 }
 
 /**
  * The display snapshot pushed to the tray and main windows: newest first,
- * bounded so a long agent session cannot flood the 320px popup — the TOTAL
- * always reports the full session count, so "Undo all (N)" stays honest even
- * when the list is trimmed for display. Each display row carries its
- * groupKey, and `groups` (counts, labels) is computed over the FULL journal
- * so per-task counts stay honest past the trim too.
+ * bounded so a long agent session cannot flood the 320px popup. The total and
+ * the per-task groups are computed over the FULL journal, and the display rows
+ * never carry the op (a full before-task for schedule entries).
  */
-export function journalSnapshot(entries: JournalEntry[], displayLimit = 50): {
-  total: number;
-  entries: Array<Omit<JournalEntry, 'op'> & { groupKey: string }>;
-  groups: JournalGroup[];
-} {
-  return {
-    total: entries.length,
-    groups: journalGroups(entries),
-    entries: entries
-      .slice(-displayLimit)
-      .reverse()
-      // The op carries a full before-task for schedule entries; the display
-      // surface has no use for it and no business holding user data copies.
-      .map(({ op, ...display }) => ({ ...display, groupKey: undoGroupKey(op) })),
-  };
-}
-
-/**
- * Bulk-undo reconstruction: every session write reversed in REVERSE
- * chronological order, so compound histories unwind correctly — e.g.
- * create → schedule → move unwinds as restore-fields, restore-to-inbox,
- * remove-created, each op finding the state its own write produced.
- */
-export function buildUndoPlan(entries: JournalEntry[]): { count: number; ops: UndoOp[] } {
-  const ops = entries.slice().reverse().map((e) => e.op);
-  return { count: entries.length, ops };
+export function journalSnapshot(entries: JournalEntry[], displayLimit = 50): JournalSnapshot {
+  return hostJournalSnapshot(entries, GROUPING, displayLimit);
 }
 
 /**

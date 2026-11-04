@@ -6,7 +6,8 @@ The complete tool and resource surface of the dayGLANCE MCP server, as registere
 the spec explains *why*; this lists *what* — every tool, every parameter, every typed error.
 
 Transport: Streamable HTTP at `http://127.0.0.1:7893/mcp` (port configurable in Settings →
-Local Integrations), bearer-token auth. Claude Desktop connects through
+Local Integrations), bearer-token auth; the listener is `@glance-apps/mcp-host`'s
+(`packages/mcp-host`). Claude Desktop connects through
 [`@glance-apps/mcp-bridge`](https://github.com/glance-apps/mcp-bridge); Claude Code connects
 directly (`claude mcp add --transport http`).
 

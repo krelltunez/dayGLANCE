@@ -1,28 +1,22 @@
-// MCP loopback listener — Phase 1 skeleton (docs/mcp-server-spec.md §10).
+// dayGLANCE's MCP server (docs/mcp-server-spec.md §10): the tools and
+// resources it registers, on the listener from @glance-apps/mcp-host.
 //
-// Streamable HTTP on 127.0.0.1:<port>/mcp, served by @modelcontextprotocol/*
-// v2. Per spec §3.7, NOTHING app-level lives on the McpServer instance: the
+// The listener (Streamable HTTP, one fixed port, the guard order path → Host →
+// Origin → bearer token, loud refusals, the per-request McpServer of §3.7) is
+// the host kit's, shared with every GLANCE app's MCP server. What is
+// dayGLANCE's is below: the server name, the default port, the endpoint path
+// client configs point at, and the registration of its tools. This listener
+// stays on 127.0.0.1 with the SDK's localhost Host and Origin guards (the
+// kit's defaults); nothing here configures a network bind.
+//
+// Per spec §3.7, NOTHING app-level lives on the McpServer instance: the
 // factory below builds a disposable server per request, closing over
-// module-level state. The only long-lived objects are the node:http server
-// and the handler wrapper.
-//
-// Guard order per request: endpoint path → Host header (SDK) → Origin header
-// (SDK) → bearer token (ours, mcpAuth.ts). MCP-Protocol-Version enforcement is
-// deliberately ABSENT here — the SDK transport handles it (Phase 0 finding;
-// do not duplicate it).
-//
-// Phase 1 scope: one stub tool returning static data, dev flag only. No
-// renderer IPC (Phase 2), no consent gate or UI (Phase 5), no discovery file.
+// module-level state.
 
-import http from 'node:http';
-import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
-import {
-  toNodeHandler,
-  localhostHostValidation,
-  localhostOriginValidation,
-} from '@modelcontextprotocol/node';
-import { checkBearerToken, unauthorizedResponse } from './mcpAuth.js';
-import { resolveMcpPort, describeBindFailure } from './mcpPort.js';
+import type http from 'node:http';
+import { McpServer } from '@modelcontextprotocol/server';
+import { startMcpListener } from '@glance-apps/mcp-host';
+import { DEFAULT_MCP_PORT } from './mcpPort.js';
 import { registerReadTools, type ReadToolDeps } from './mcpReadTools.js';
 import { registerWriteTools, type WriteToolDeps } from './mcpWriteTools.js';
 import { registerResources } from './mcpResources.js';
@@ -37,7 +31,7 @@ export interface McpServerOptions {
    * Empty is refused at start — the listener fails closed.
    */
   token: string | (() => string);
-  /** Raw user/env port override; resolution and validation are mcpPort.ts's job. */
+  /** Raw user/env port override; resolution and validation are the host kit's job. */
   portOverride?: unknown;
   /**
    * Dependencies for the read tools (Phase 2): renderer bridge, clock,
@@ -63,27 +57,19 @@ export interface McpServerOptions {
  * fall back to another port or an unauthenticated mode.
  */
 export function startMcpServer(opts: McpServerOptions): http.Server | null {
-  const log = opts.log ?? ((m: string) => console.log(m));
-  const logError = opts.logError ?? ((m: string) => console.error(m));
-
-  const getToken = typeof opts.token === 'function' ? opts.token : () => opts.token as string;
-  if (!getToken()) {
-    logError('[dayGLANCE] MCP server not started: no bearer token configured (refusing to listen unauthenticated).');
-    return null;
-  }
-  const resolved = resolveMcpPort(opts.portOverride);
-  if (!resolved.ok) {
-    logError(`[dayGLANCE] MCP server not started: ${resolved.reason}`);
-    return null;
-  }
-  const port = resolved.port;
-
-  // Fresh McpServer per request (spec §3.7). Tool registration is cheap; the
-  // instance is discarded when the response completes. Do not hoist the
-  // McpServer out of this factory — that is exactly the v1 cross-client
-  // leakage shape the v2 API exists to prevent.
-  const handler = createMcpHandler(
-    () => {
+  return startMcpListener({
+    name: 'dayGLANCE',
+    token: opts.token,
+    portOverride: opts.portOverride,
+    defaultPort: DEFAULT_MCP_PORT,
+    path: MCP_ENDPOINT_PATH,
+    log: opts.log,
+    logError: opts.logError,
+    // Fresh McpServer per request (spec §3.7). Tool registration is cheap; the
+    // instance is discarded when the response completes. Do not hoist the
+    // McpServer out of this factory — that is exactly the v1 cross-client
+    // leakage shape the v2 API exists to prevent.
+    createServer: () => {
       const server = new McpServer({ name: 'dayGLANCE', version: '0.0.1' });
       server.registerTool(
         'dayglance_ping',
@@ -110,56 +96,5 @@ export function startMcpServer(opts: McpServerOptions): http.Server | null {
       if (opts.writeDeps) registerWriteTools(server, opts.writeDeps);
       return server;
     },
-    { onerror: (err) => logError(`[dayGLANCE] MCP handler error: ${String(err)}`) },
-  );
-
-  const nodeHandler = toNodeHandler(handler, {
-    onerror: (err) => logError(`[dayGLANCE] MCP adapter error: ${String(err)}`),
   });
-  // DNS-rebinding defense is SDK configuration, not hand-rolled code (§3.5).
-  // Note these guards write their own 403 and return false when they reject.
-  const validateHost = localhostHostValidation();
-  const validateOrigin = localhostOriginValidation();
-
-  const srv = http.createServer((req, res) => {
-    let path: string;
-    try {
-      path = new URL(req.url ?? '/', `http://127.0.0.1:${port}`).pathname;
-    } catch {
-      path = '/';
-    }
-    if (path !== MCP_ENDPOINT_PATH) {
-      res.writeHead(404, { 'content-type': 'text/plain' });
-      res.end('not found');
-      return;
-    }
-    if (!validateHost(req, res)) return;
-    if (!validateOrigin(req, res)) return;
-
-    const auth = checkBearerToken(req.headers['authorization'], getToken());
-    if (!auth.ok) {
-      // One identical 401 for every rejection reason — see unauthorizedResponse().
-      const rejection = unauthorizedResponse();
-      res.writeHead(rejection.status, rejection.headers);
-      res.end(rejection.body);
-      return;
-    }
-
-    void nodeHandler(req, res);
-  });
-
-  // Same posture as ws-server.ts:30 — an unhandled 'error' on a fixed-port
-  // listener turns EADDRINUSE into an app-crashing exception. But louder than
-  // the WS server's log line, per §3.4: describeBindFailure names the port and
-  // the no-scan rule. (Phase 5 surfaces this in settings; log-only until then.)
-  srv.on('error', (err: NodeJS.ErrnoException) => {
-    logError(`[dayGLANCE] ${describeBindFailure(port, err)}`);
-  });
-
-  // Loopback only, never 0.0.0.0 (spec hard constraint).
-  srv.listen(port, '127.0.0.1', () => {
-    log(`[dayGLANCE] MCP server listening on http://127.0.0.1:${port}${MCP_ENDPOINT_PATH}`);
-  });
-
-  return srv;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createWriteGate, DEFAULT_VIOLATION_LIMIT } from './mcpWriteGate.js';
+import { createWriteGate, DEFAULT_VIOLATION_LIMIT } from '../src/writeGate.js';
 
 // §4.3 under test: exceed the limit → rate_limited tool error; keep hammering
 // → writes auto-disable exactly once (the notification edge), and stay off
@@ -7,10 +7,10 @@ import { createWriteGate, DEFAULT_VIOLATION_LIMIT } from './mcpWriteGate.js';
 
 function fakeClock(start = 1_000_000) {
   let t = start;
-  return { now: () => t, advance: (ms: number) => { t += ms; } };
+  return { now: () => t, advance: (ms) => { t += ms; } };
 }
 
-const drain = (gate: ReturnType<typeof createWriteGate>, key: string, n: number) => {
+const drain = (gate, key, n) => {
   for (let i = 0; i < n; i++) expect(gate.tryWrite(key)).toEqual({ allowed: true });
 };
 

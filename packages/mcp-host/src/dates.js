@@ -1,17 +1,16 @@
-// Local-calendar-date semantics for the MCP tool surface (spec §5.3), extracted
-// as pure functions so the correctness core of Phase 2 can be unit-tested
-// without booting Electron (same pattern as startupQuit.ts / calendarCache.ts).
+// Local-calendar-date semantics for an MCP tool surface (dayGLANCE MCP spec
+// §5.3), as pure functions so they can be unit-tested without a server.
 //
 // THE §5.3 RULES THIS ENCODES:
 //  - All dates in the tool surface are LOCAL calendar dates, YYYY-MM-DD, no
 //    time component, no UTC, no offsets, no `Z`.
 //  - Every response echoes the resolved date and the IANA timezone.
-//  - The server never infers the current date from the client: `get_today`
-//    resolves it here, from the machine clock and the machine timezone.
+//  - The server never infers the current date from the client: "today" is
+//    resolved here, from the host's clock and the host's configured timezone.
 //
-// Both functions take the clock reading and timezone as ARGUMENTS (injectable,
-// like calendarCache's `now`), so tests can cross DST boundaries in any zone
-// without touching process state.
+// Both functions take the clock reading and timezone as ARGUMENTS
+// (injectable), so tests can cross DST boundaries in any zone without
+// touching process state.
 
 /**
  * Strict local-calendar-date validation: exactly `YYYY-MM-DD`, and a date that
@@ -22,10 +21,13 @@
  *
  * Note DST does NOT shorten the calendar: every local date exists even when
  * one of its wall-clock hours does not (2026-03-08 in America/Chicago has no
- * 02:30, but the DATE is valid). Nonexistent/ambiguous TIMES matter only for
- * Phase 3 writes.
+ * 02:30, but the DATE is valid). Nonexistent/ambiguous TIMES are localTime.js's
+ * concern.
+ *
+ * @param {unknown} value
+ * @returns {boolean}
  */
-export function isValidLocalDate(value: unknown): value is string {
+export function isValidLocalDate(value) {
   if (typeof value !== 'string') return false;
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!m) return false;
@@ -43,10 +45,14 @@ export function isValidLocalDate(value: unknown): value is string {
  *
  * en-CA is the locale whose date format IS YYYY-MM-DD; Intl does the timezone
  * math (including DST) that hand-rolled offset arithmetic always gets wrong at
- * the boundaries. This is the ONLY place `get_today` resolves from — never the
- * client's idea of the date (§5.3).
+ * the boundaries. Resolve "today" from this — never from the client's idea of
+ * the date (§5.3).
+ *
+ * @param {number} epochMs
+ * @param {string} timeZone
+ * @returns {string}
  */
-export function localDateOf(epochMs: number, timeZone: string): string {
+export function localDateOf(epochMs, timeZone) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone,
     year: 'numeric',
@@ -59,14 +65,11 @@ export function localDateOf(epochMs: number, timeZone: string): string {
  * The `{date, timezone}` echo every dated tool response carries (§5.3).
  * Validation of caller-supplied dates happens BEFORE this — by construction an
  * envelope only ever contains a date this module produced or validated.
+ *
+ * @param {string} date
+ * @param {string} timeZone
+ * @returns {{ date: string, timezone: string }}
  */
-export interface DateEnvelope {
-  /** The resolved local calendar date the response is about. */
-  date: string;
-  /** The IANA timezone the server resolved (e.g. "America/Chicago"). */
-  timezone: string;
-}
-
-export function dateEnvelope(date: string, timeZone: string): DateEnvelope {
+export function dateEnvelope(date, timeZone) {
   return { date, timezone: timeZone };
 }

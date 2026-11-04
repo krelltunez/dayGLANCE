@@ -3,17 +3,17 @@ import {
   createWriteRateLimiter,
   DEFAULT_WRITE_LIMIT_PER_MINUTE,
   DEFAULT_WRITE_WINDOW_MS,
-} from './mcpRateLimit.js';
+} from '../src/rateLimit.js';
 
 // §4.3's damage bound under test. The limiter is the only thing standing
-// between a runaway agent loop and an unbounded write storm (plus the tray
+// between a runaway agent loop and an unbounded write storm (plus whatever
 // reload volume each write triggers per §3.6), so the denial direction
 // matters as much as the allow direction.
 
-// Injectable clock, same shape as calendarCache.test.ts.
+// Injectable clock.
 function fakeClock(start = 1_000_000) {
   let t = start;
-  return { now: () => t, advance: (ms: number) => { t += ms; }, rewind: (ms: number) => { t -= ms; } };
+  return { now: () => t, advance: (ms) => { t += ms; }, rewind: (ms) => { t -= ms; } };
 }
 
 describe('createWriteRateLimiter', () => {
