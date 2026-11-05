@@ -6,7 +6,23 @@
   "type": "module",
   "main": "src/index.js",
   "types": "types/index.d.ts",
-  "files": ["src", "types", "README.md", "LICENSE"],
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./dates": {
+      "types": "./types/dates.d.ts",
+      "default": "./src/dates.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "types",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=20"
   },

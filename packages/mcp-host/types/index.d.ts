@@ -224,26 +224,9 @@ export function journalSnapshot<Op>(
 /** Every op, newest first, so compound histories unwind. */
 export function buildUndoPlan<Op>(entries: JournalEntry<Op>[]): { count: number; ops: Op[] };
 
-// ── dates.js ─────────────────────────────────────────────────────────────────
+// ── dates.js (also the ./dates entry point) ──────────────────────────────────
 
-/** Strict YYYY-MM-DD of a date that exists. */
-export function isValidLocalDate(value: unknown): value is string;
-
-/** The local calendar date of `epochMs` in `timeZone`, as YYYY-MM-DD. */
-export function localDateOf(epochMs: number, timeZone: string): string;
-
-/** The local wall-clock time of `epochMs` in `timeZone`, as minutes since local midnight (0-1439). */
-export function localMinutesOf(epochMs: number, timeZone: string): number;
-
-/** The `{date, timezone}` echo every dated tool response carries (§5.3). */
-export interface DateEnvelope {
-  /** The resolved local calendar date the response is about. */
-  date: string;
-  /** The IANA timezone the server resolved (e.g. "America/Chicago"). */
-  timezone: string;
-}
-
-export function dateEnvelope(date: string, timeZone: string): DateEnvelope;
+export * from './dates';
 
 // ── localTime.js ─────────────────────────────────────────────────────────────
 

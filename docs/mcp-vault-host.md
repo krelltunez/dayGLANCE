@@ -115,9 +115,9 @@ functions and `taskMetadata.js` imports `parseStamp`. Everything else that
 imported a moved module imports the package. The write tools (`mcpWriteTools.ts`,
 `mcp*Args.ts`), the write model and `mcpNoteDescriptions.js` stay in the app.
 The host kit gained `localMinutesOf` beside `localDateOf`, the wall clock in a
-zone; the read model reaches both through `@glance-apps/mcp-host/src/dates.js`,
-since the kit's root also loads the HTTP listener, which a browser bundle
-cannot.
+zone; the read model reaches both through the kit's `./dates` entry point
+(`@glance-apps/mcp-host/dates`), since the kit's root also loads the HTTP
+listener, which a browser bundle cannot.
 
 **3b done:** `packages/dayglance-vault`, published as
 `@glance-apps/dayglance-vault` (see its README): how dayGLANCE's data maps to
