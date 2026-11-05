@@ -2132,6 +2132,7 @@
     "notesLoadFailed": "Impossible de lire la note liée : {{error}}",
     "notesNoteMissing": "La note liée n'a pas été trouvée dans le coffre. Vérifiez le nom de la note, ou créez la note dans Obsidian.",
     "notesChanged": "La note a changé dans Obsidian depuis son ouverture. Le texte le plus récent est chargé, votre texte non enregistré en dessous ; vérifiez et enregistrez à nouveau.",
+    "notesReportedByObsidian": "Telle que signalée par Obsidian, {{when}}.",
     "scheduled": "Planifiées",
     "nothingScheduledYet": "Rien de planifié pour l'instant.",
     "noUnscheduledTasks": "Aucune tâche non planifiée.",

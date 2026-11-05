@@ -2129,6 +2129,7 @@
     "notesLoadFailed": "无法读取关联的笔记：{{error}}",
     "notesNoteMissing": "在仓库中找不到关联的笔记。请检查笔记名称，或在 Obsidian 中创建该笔记。",
     "notesChanged": "自你打开以来，这条笔记已在 Obsidian 中被修改。已加载较新的文本，你未保存的文本在其下方；请检查后重新保存。",
+    "notesReportedByObsidian": "由 Obsidian 报告于{{when}}。",
     "scheduled": "已排程",
     "nothingScheduledYet": "还没有排程任务。",
     "noUnscheduledTasks": "没有未排程任务。",

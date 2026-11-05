@@ -2235,6 +2235,7 @@
     "notesLoadFailed": "Nie udało się odczytać powiązanej notatki: {{error}}",
     "notesNoteMissing": "Nie znaleziono powiązanej notatki w skarbcu. Sprawdź nazwę notatki lub utwórz notatkę w Obsidian.",
     "notesChanged": "Notatka zmieniła się w Obsidian od czasu jej otwarcia. Wczytano nowszy tekst, a Twój niezapisany tekst znajduje się poniżej; sprawdź go i zapisz ponownie.",
+    "notesReportedByObsidian": "Według zgłoszenia z Obsidian, {{when}}.",
     "scheduled": "Zaplanowane",
     "nothingScheduledYet": "Nic jeszcze nie zaplanowano.",
     "noUnscheduledTasks": "Brak niezaplanowanych zadań.",

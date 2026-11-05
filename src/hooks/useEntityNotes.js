@@ -7,8 +7,8 @@
 // Loaded from the vault when the box mounts, edited here, written back as that
 // section; refused and reloaded when the section moved in Obsidian meanwhile.
 // The record's description is empty for such an entity (it migrated into the
-// note). Where this device cannot read the vault, the box says where the
-// notes live instead of offering an editor.
+// note). Where this device can read the note neither from the vault nor from
+// the plugin's report of it, the box says where the notes live instead.
 //
 // The entity's identity is fixed for a mounted box: callers that switch
 // entities remount it (key by id), so the unmount flush writes to the entity
@@ -22,11 +22,24 @@
 // never over the user's work: not while the editor is open, and not while
 // the box holds text the note does not have yet (an unsaved edit, or a
 // conflict being settled).
+//
+// FROM THE PLUGIN'S REPORT (#2291): on a device that cannot read the folder,
+// or whose copy is behind, the loader answers with the section as the
+// Obsidian plugin last reported it (`source: 'report'`). The box shows it and
+// edits it like any other, and says when it was reported (`reportedAt`), the
+// only thing held about it, for as long as the box shows that text.
 
 import { useEffect, useRef, useState } from 'react';
 import { noteTextHash } from '@glance-apps/obsidian-format';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { noteLinkOf } from '../utils/obsidianProjectNotes.js';
+
+// What the box holds of a loaded section: its text and base, and when the
+// plugin reported it if that is where it came from.
+const shownFrom = (r) => ({
+  text: r.text, base: r.base, loading: false, unavailable: false, error: null, conflict: false,
+  reportedAt: r.source === 'report' && typeof r.observedAt === 'string' ? r.observedAt : null,
+});
 
 /**
  * @param {object} args
@@ -48,7 +61,7 @@ export default function useEntityNotes({ kind, entity, saveRecord, editWhenEmpty
   // preview; clicking the preview returns to editing. Starts in preview when
   // notes already exist.
   const [editing, setEditing] = useState(editWhenEmpty && !(entity.description || '').trim());
-  const [vault, setVault] = useState({ text: '', base: null, loading: vaultNotes, unavailable: false, error: null, conflict: false });
+  const [vault, setVault] = useState({ text: '', base: null, loading: vaultNotes, unavailable: false, error: null, conflict: false, reportedAt: null });
   const vaultRef = useRef(vault);
   vaultRef.current = vault;
   const editingRef = useRef(editing);
@@ -64,11 +77,11 @@ export default function useEntityNotes({ kind, entity, saveRecord, editWhenEmpty
     let cancelled = false;
     loadNoteDescription(noteLink.path).then((r) => {
       if (cancelled) return;
-      if (!r || r.notFound) { setVault({ text: '', base: null, loading: false, unavailable: true, error: r ? 'not_found' : null, conflict: false }); return; }
-      setVault({ text: r.text, base: r.base, loading: false, unavailable: false, error: null, conflict: false });
+      if (!r || r.notFound) { setVault({ text: '', base: null, loading: false, unavailable: true, error: r ? 'not_found' : null, conflict: false, reportedAt: null }); return; }
+      setVault(shownFrom(r));
       setNotes(r.text);
       setEditing(editWhenEmpty && !r.text.trim());
-    }).catch((err) => { if (!cancelled) setVault({ text: '', base: null, loading: false, unavailable: true, error: err?.message || String(err), conflict: false }); });
+    }).catch((err) => { if (!cancelled) setVault({ text: '', base: null, loading: false, unavailable: true, error: err?.message || String(err), conflict: false, reportedAt: null }); });
     return () => { cancelled = true; };
     // The link's path is the identity of what is loaded.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -84,11 +97,12 @@ export default function useEntityNotes({ kind, entity, saveRecord, editWhenEmpty
       // Checked again on arrival: the user may have started typing meanwhile.
       if (!mountedRef.current || !showsTheNote()) return;
       if (!r || r.notFound) {
-        if (!vaultRef.current.unavailable) setVault({ text: '', base: null, loading: false, unavailable: true, error: r ? 'not_found' : null, conflict: false });
+        if (!vaultRef.current.unavailable) setVault({ text: '', base: null, loading: false, unavailable: true, error: r ? 'not_found' : null, conflict: false, reportedAt: null });
         return;
       }
-      if (!vaultRef.current.unavailable && r.text === vaultRef.current.text) return;
-      setVault({ text: r.text, base: r.base, loading: false, unavailable: false, error: null, conflict: false });
+      const next = shownFrom(r);
+      if (!vaultRef.current.unavailable && r.text === vaultRef.current.text && next.reportedAt === vaultRef.current.reportedAt) return;
+      setVault(next);
       setNotes(r.text);
     }).catch(() => {});
   };
@@ -126,12 +140,13 @@ export default function useEntityNotes({ kind, entity, saveRecord, editWhenEmpty
           // The section moved in Obsidian: reload it, keep the unsaved text
           // below it for the user to settle, and say so.
           const merged = `${r.text}\n\n${notes}`.trim();
-          setVault({ text: r.text, base: noteTextHash(r.text), loading: false, unavailable: false, error: null, conflict: true });
+          setVault({ text: r.text, base: noteTextHash(r.text), loading: false, unavailable: false, error: null, conflict: true, reportedAt: r.source === 'report' ? (r.observedAt ?? null) : null });
           setNotes(merged);
           setEditing(true);
           return;
         }
-        if (r?.ok) setVault((prev) => ({ ...prev, text: notes, base: noteTextHash(notes), conflict: false }));
+        // Saved: the box shows what this device wrote, not a report's age.
+        if (r?.ok) setVault((prev) => ({ ...prev, text: notes, base: noteTextHash(notes), conflict: false, reportedAt: null }));
       }).catch(() => {});
       return;
     }
