@@ -1611,6 +1611,9 @@ export class BridgeTransport {
       this.scopedPaths.delete(oldPath);
       if (nowScoped) {
         this.adopted.add(newPath);
+        // Moved within the scope: the old path's row would otherwise keep
+        // reporting the note there forever (#2291 follow-up: task notes).
+        void this.emitMovedAway(oldPath);
       } else {
         // Left the scope by moving out: withdrawn (ruling C), not deleted.
         void this.emitWithdrawal(oldPath);
@@ -2100,6 +2103,34 @@ export class BridgeTransport {
       if (Number.isFinite(ackSeq)) this.sseGate.recordOwnSeq(ackSeq);
     } catch (e) {
       console.warn('dayGLANCE bridge: withdrawal report failed (the note is simply no longer reported)', e);
+    }
+  }
+
+  /**
+   * A scoped note moved to another path IN the scope: its old path's row is
+   * replaced with a gone report, so nothing reads the note there any more
+   * (a task panel resolving a name through dayGLANCE's index of reported
+   * paths would otherwise see the note twice, the old copy stale; #2291
+   * follow-up). NOT flagged scoped, on purpose: a scoped deletion feeds the
+   * app's note-scoped deletion inference, which would tombstone the moved
+   * tasks before the new path is observed (the 2026-09-04 field record).
+   * Unflagged and not a daily note, the app's merge leaves it unapplied;
+   * the tasks follow the new path by id. Best effort, like a withdrawal.
+   */
+  private async emitMovedAway(path: string): Promise<void> {
+    try {
+      const pairing = this.host.getPairing();
+      if (!pairing || this.rateLimited() || this.stalePairing) return;
+      const subkey = await this.subkeyFor(pairing);
+      const payload = { v: 1, kind: 'observation', path, content: null, deleted: true, moved: true, observedAt: new Date().toISOString() };
+      const ack = await this.client(pairing).batch(BRIDGE_VAULT_APP, {
+        accountId: pairing.accountId,
+        rows: [{ entityId: await observationEntityId(path), envelope: await sealBridgeEnvelope(subkey, payload, pairing.generation), createdAt: Date.now() }],
+      });
+      const ackSeq = Number((ack as { maxSeq?: unknown } | null)?.maxSeq);
+      if (Number.isFinite(ackSeq)) this.sseGate.recordOwnSeq(ackSeq);
+    } catch (e) {
+      console.warn('dayGLANCE bridge: moved-note report failed (the old path keeps its last report)', e);
     }
   }
 
