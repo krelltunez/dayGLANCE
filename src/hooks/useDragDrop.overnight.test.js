@@ -93,6 +93,28 @@ beforeEach(() => {
   for (const k of Object.keys(docListeners)) delete docListeners[k];
 });
 
+describe('the start-day card stops at 24:00', () => {
+  it('calculateTaskPosition clips a task running past midnight at the bottom of the last row', () => {
+    const { render } = setup();
+    const { top, height } = render().calculateTaskPosition(night());
+    expect(top).toBe(23 * ROW);
+    expect(top + height).toBeLessThanOrEqual(24 * ROW);
+    expect(top + height).toBeGreaterThan(24 * ROW - 3);
+  });
+
+  it('a task ending exactly at midnight reaches the same bottom, read from the rows', () => {
+    const { render } = setup();
+    const { top, height } = render().calculateTaskPosition(night({ duration: 60 }));
+    expect(top + height).toBeGreaterThan(24 * ROW - 3);
+    expect(top + height).toBeLessThanOrEqual(24 * ROW);
+  });
+
+  it('a piece placed from 00:00 for its spill sits at the top of the next date', () => {
+    const { render } = setup();
+    expect(render().calculateTaskPosition({ startTime: '00:00', duration: 60 })).toEqual({ top: 0, height: ROW - 1 });
+  });
+});
+
 describe('resizing the continuation\'s bottom edge changes the task\'s end', () => {
   it('one hour down on the next date adds an hour to the duration', () => {
     const { state, deps, render } = setup({ tasks: [night()] });
