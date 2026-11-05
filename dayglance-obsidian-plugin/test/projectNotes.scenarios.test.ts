@@ -905,6 +905,16 @@ describe('project and goal notes: creation, the maintained map, the project fiel
     const reportNow: any = await load();
     const reportMs = Date.parse(reportNow.lastModified);
     const staleCopy = (lastModifiedMs: number) => vi.mocked(readWikiNote).mockImplementationOnce(async () => ({ text: '# House\nStale copy here.\n\n## Tasks\n', lastModified: new Date(lastModifiedMs).toISOString() }) as any);
+    // A's own cycle recorded the 'plugin' posture (its Obsidian runs here):
+    // there the folder IS the live note, so a readable copy answers alone and
+    // GLANCEvault is not asked (no request burst from an MCP goal tree).
+    const recorded = A.api.bridgeHeartbeatRef.current;
+    staleCopy(reportMs - 60_000);
+    const live: any = await A.run(() => A.api.loadNoteDescription(NOTE));
+    expect(live).toMatchObject({ text: 'Stale copy here.' });
+    expect(live.source).toBeUndefined();
+    // Holding (Obsidian not running on this device): both are read.
+    A.api.bridgeHeartbeatRef.current = { ...recorded, vaultPosture: 'holding' };
     staleCopy(reportMs - 60_000);
     expect(await A.run(() => A.api.loadNoteDescription(NOTE))).toMatchObject({ text: 'Edited again in Obsidian.', source: 'report' });
     // A copy newer than the report (edited here since) is the one shown.

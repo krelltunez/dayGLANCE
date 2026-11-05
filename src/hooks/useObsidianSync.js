@@ -25,7 +25,7 @@ import { applyLateObservationGate, dropTasksOfSkippedNotes } from '../utils/late
 import { detectObsidianDeletions, addObsidianTombstones, commitObsidianTombstones } from '../utils/obsidianDeletions.js';
 import { reattachTasksMetadata } from '../utils/obsidianTasksMetadata.js';
 import { obsidianHeartbeatState } from '../utils/obsidianHeartbeat.js';
-import { vaultPosture, isStreamPosture } from '../utils/obsidianVaultPosture.js';
+import { vaultPosture, isStreamPosture, isPluginPosture } from '../utils/obsidianVaultPosture.js';
 import { isStalePairing } from '../utils/bridgeStatus.js';
 import { deriveBridgeFleet } from '../utils/bridgeFleet.js';
 import { inboundFailureNotice } from '../utils/bridgeInboundPolicy.js';
@@ -329,6 +329,17 @@ export default function useObsidianSync({
   // a reported deletion is not found. The rule is utils/linkedNoteDescription.js.
   // A reported section carries `source: 'report'` and its `observedAt`.
   const readNoteDescriptionSources = useCallback(async (notePath) => {
+    // With Obsidian running here (the 'plugin' posture) the folder IS the
+    // live note, so a readable file answers alone: no GLANCEvault request per
+    // box, or per linked entity in an MCP goal tree (up to 40 at once), on the
+    // device that needs it least. Elsewhere (holding, no folder) both are read
+    // and the newer wins.
+    if (isPluginPosture(bridgeHeartbeatRef.current)) {
+      const note = await loadWikiNote(noteDisplayName(notePath));
+      const fromFile = fileNoteDescription(note);
+      if (fromFile && !fromFile.notFound) return { note, shown: fromFile };
+      return { note, shown: newestNoteDescription(fromFile, await fetchReportedNoteDescription(notePath)) };
+    }
     const [note, reported] = await Promise.all([
       loadWikiNote(noteDisplayName(notePath)),
       fetchReportedNoteDescription(notePath),

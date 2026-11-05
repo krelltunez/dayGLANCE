@@ -189,10 +189,49 @@ export async function fetchBridgeObservations() {
  * per-read budget (DESCRIPTION_READ_BUDGET_MS, 2 s) hostage.
  */
 export const REPORTED_NOTE_READ_BUDGET_MS = 1500;
+/**
+ * At most this many report reads at once. An MCP goal tree asks for up to 40
+ * linked descriptions together, each one or two row reads; unchecked, that
+ * burst could draw a 429 from a self-hosted GLANCEvault, and the vault
+ * client's brake would then pause ALL vault traffic, sync included.
+ */
+export const REPORTED_NOTE_READ_CONCURRENCY = 4;
+
+/**
+ * A limiter for async jobs: at most `max` run at once, the rest wait in
+ * order. `run(job, { isCancelled })` resolves to the job's result, or to
+ * undefined without running it when isCancelled() is true by the time a
+ * slot frees (its caller already gave up), so a read whose budget ran out
+ * while it queued never reaches the vault.
+ */
+export function createReadLimiter(max) {
+  let active = 0;
+  const waiting = [];
+  const release = () => {
+    const next = waiting.shift();
+    if (next) next(); else active -= 1;
+  };
+  const acquire = () => {
+    if (active < max) { active += 1; return Promise.resolve(); }
+    return new Promise((resolve) => waiting.push(resolve));
+  };
+  return {
+    async run(job, { isCancelled = () => false } = {}) {
+      await acquire();
+      if (isCancelled()) { release(); return undefined; }
+      try { return await job(); } finally { release(); }
+    },
+    stats: () => ({ active, waiting: waiting.length }),
+  };
+}
+const reportedReads = createReadLimiter(REPORTED_NOTE_READ_CONCURRENCY);
+
 export function fetchReportedNoteDescription(path, { budgetMs = REPORTED_NOTE_READ_BUDGET_MS } = {}) {
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(null), budgetMs);
-    readReportedNoteDescription(path).then((r) => { clearTimeout(timer); resolve(r); });
+    let done = false;
+    const timer = setTimeout(() => { done = true; resolve(null); }, budgetMs);
+    reportedReads.run(() => readReportedNoteDescription(path), { isCancelled: () => done })
+      .then((r) => { if (done) return; done = true; clearTimeout(timer); resolve(r ?? null); });
   });
 }
 async function readReportedNoteDescription(path) {

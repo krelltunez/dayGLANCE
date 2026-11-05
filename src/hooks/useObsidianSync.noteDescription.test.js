@@ -320,3 +320,29 @@ describe('the link without a stream (owner 2026-10-03: the wikilink in the title
     expect(emitBridgeIntent).not.toHaveBeenCalledWith('project_note_unlink', expect.anything());
   });
 });
+
+describe('the plugin\'s report is not read where the folder is the live note (#2291)', () => {
+  const reported = { text: 'From another device.', base: noteTextHash('From another device.'), observedAt: '2026-11-05T09:00:00Z', lastModified: '2099-01-01T00:00:00Z' };
+  it('plugin posture with a readable file: the file answers alone, no GLANCEvault read', async () => {
+    readWikiNote.mockResolvedValue({ text: NOTE, lastModified: '2026-11-01T00:00:00Z' });
+    fetchReportedNoteDescription.mockResolvedValue(reported);
+    const { loadNoteDescription } = useMountedSync({ posture: 'plugin' });
+    await expect(loadNoteDescription('Projects/House.md')).resolves.toMatchObject({ text: 'Dry roof by spring.' });
+    expect(fetchReportedNoteDescription).not.toHaveBeenCalled();
+  });
+  it('plugin posture without the note in the folder still asks for the report', async () => {
+    readWikiNote.mockResolvedValue(null);
+    fetchReportedNoteDescription.mockResolvedValue(reported);
+    const { loadNoteDescription } = useMountedSync({ posture: 'plugin' });
+    await expect(loadNoteDescription('Projects/House.md')).resolves.toMatchObject({ text: 'From another device.' });
+    expect(fetchReportedNoteDescription).toHaveBeenCalledTimes(1);
+  });
+  it('holding posture reads both and the newer wins', async () => {
+    readWikiNote.mockResolvedValue({ text: NOTE, lastModified: '2026-11-01T00:00:00Z' });
+    fetchReportedNoteDescription.mockResolvedValue(reported);
+    const { loadNoteDescription } = useMountedSync({ posture: 'holding', stream: false });
+    await expect(loadNoteDescription('Projects/House.md')).resolves.toMatchObject({ text: 'From another device.' });
+    expect(fetchReportedNoteDescription).toHaveBeenCalledTimes(1);
+  });
+});
+

@@ -11,6 +11,8 @@ import {
 import {
   fetchReportedNoteDescription,
   REPORTED_NOTE_READ_BUDGET_MS,
+  REPORTED_NOTE_READ_CONCURRENCY,
+  createReadLimiter,
   fetchBridgeObservations,
   commitBridgeObservationCursor,
   applyBridgeObservations,
@@ -511,3 +513,46 @@ describe('AUDIT FIX M10 (revival half) — observation mtimes: real ones are evi
     });
   });
 });
+
+describe('createReadLimiter (the cap on report reads, #2291)', () => {
+  const deferred = () => { let resolve; const promise = new Promise((r) => { resolve = r; }); return { promise, resolve }; };
+  const tick = () => new Promise((r) => setImmediate(r));
+
+  it('runs at most `max` jobs at once, the rest in order as slots free', async () => {
+    const limiter = createReadLimiter(2);
+    const gates = [deferred(), deferred(), deferred(), deferred()];
+    const started = [];
+    const results = gates.map((g, i) => limiter.run(async () => { started.push(i); await g.promise; return i; }));
+    await tick();
+    expect(started).toEqual([0, 1]);
+    expect(limiter.stats()).toEqual({ active: 2, waiting: 2 });
+    gates[0].resolve(); await tick();
+    expect(started).toEqual([0, 1, 2]);
+    gates[1].resolve(); gates[2].resolve(); gates[3].resolve();
+    await expect(Promise.all(results)).resolves.toEqual([0, 1, 2, 3]);
+    expect(limiter.stats()).toEqual({ active: 0, waiting: 0 });
+  });
+
+  it('never runs a job whose caller gave up while it waited, and frees its slot', async () => {
+    const limiter = createReadLimiter(1);
+    const gate = deferred();
+    const ran = [];
+    const first = limiter.run(async () => { ran.push('first'); await gate.promise; });
+    let cancelled = false;
+    const second = limiter.run(async () => { ran.push('second'); }, { isCancelled: () => cancelled });
+    cancelled = true; // its budget ran out while queued
+    gate.resolve();
+    await first;
+    await expect(second).resolves.toBeUndefined();
+    expect(ran).toEqual(['first']);
+    expect(limiter.stats()).toEqual({ active: 0, waiting: 0 });
+    // A job that throws still frees its slot.
+    await expect(limiter.run(async () => { throw new Error('x'); })).rejects.toThrow('x');
+    await expect(limiter.run(async () => 'next')).resolves.toBe('next');
+  });
+
+  it('the report reads share one limiter of REPORTED_NOTE_READ_CONCURRENCY', () => {
+    expect(REPORTED_NOTE_READ_CONCURRENCY).toBe(4);
+  });
+});
+
