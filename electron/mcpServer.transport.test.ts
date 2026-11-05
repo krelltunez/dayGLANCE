@@ -567,6 +567,45 @@ describe('a task running past midnight, over the wire (#2278)', () => {
   });
 });
 
+// #2278, phase 1 gaps: frame availability counts what get_day lists as
+// blocks, recurring occurrences included (a recurring meeting in a frame used
+// to read as free time), and the night before's occurrence still running
+// after midnight. Through the real read model, as above.
+describe('frames net of recurring occurrences, over the wire (#2278)', () => {
+  const YESTERDAY = '2026-10-03';
+  const state = buildMcpReadState({
+    tasks: [],
+    recurringTasks: [{
+      id: 's1', title: 'Backup', startTime: '01:30', duration: 30, isAllDay: false,
+      recurrence: { type: 'daily', startDate: '2026-09-01' },
+      // Last night's ran late, into today.
+      exceptions: { [YESTERDAY]: { startTime: '23:30', duration: 60 } },
+    }],
+    gtdFrames: [{ id: 'f1', label: 'Early', enabled: true, days: [0, 1, 2, 3, 4, 5, 6], start: '00:00', end: '03:00', bufferMinutes: 0 }],
+  }, { now: Date.parse(`${TODAY}T00:00:00Z`), timeZone: TZ });
+  let h: Harness;
+  beforeAll(async () => {
+    const bridge = fakeBridge({ get_day: (params) => handleMcpRequest(state, { method: 'get_day', params }) as RendererResult });
+    h = await start({ readDeps: readDeps(bridge.bridge) });
+  });
+  afterAll(() => h.close());
+
+  it('get_today\'s frame is net of today\'s occurrence and of last night\'s piece', async () => {
+    const client = await h.connect();
+    const data = body(await client.callTool({ name: 'dayglance_get_today', arguments: {} })) as {
+      blocks: Array<Record<string, unknown>>; frames: Array<Record<string, unknown>>;
+    };
+    expect(data.blocks.map((b) => [b.id, b.start_time, b.duration_minutes, b.continues_from])).toEqual([
+      [`recurring-s1-${YESTERDAY}`, '00:00', 30, YESTERDAY],
+      [`recurring-s1-${TODAY}`, '01:30', 30, undefined],
+    ]);
+    expect(data.frames[0]).toMatchObject({
+      available_minutes: 120,
+      available_slots: [{ start: '00:30', end: '01:30', minutes: 60 }, { start: '02:00', end: '03:00', minutes: 60 }],
+    });
+  });
+});
+
 describe('the listener itself', () => {
   let h: Harness;
   beforeAll(async () => {

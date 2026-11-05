@@ -4,7 +4,23 @@
 // timeline shares, so MULTI, DAY (and JOBO's Plan side), WEEK and the phone
 // place and label a continuation the same way.
 
-import { DAY_MINUTES, shiftDateStr } from '@glance-apps/agenda-core';
+import { DAY_MINUTES, continuationsFromPreviousDay, shiftDateStr } from '@glance-apps/agenda-core';
+
+/**
+ * The pieces the previous date leaves on `date` (a Date) after midnight, as
+ * App.jsx's getContinuationsForDate hands them to the timelines: carried from
+ * the previous date's rows AS THAT DATE IS SHOWN (`readShown`, the past-day
+ * display), so a past night's completed task whose block gave way to its Do
+ * gives way on the next date too, where the Do's own slice is drawn. A Do item
+ * never carries: it is cut at its day's midnight. `asPlanned` reads the plan
+ * as it stood (`readPlanned`), for the views that show the plan whatever was
+ * done: JOBO's Plan side.
+ */
+export function continuationsForDate(date, { readShown, readPlanned, applyTagFilter = true, asPlanned = false }) {
+  const prev = new Date(date);
+  prev.setDate(prev.getDate() - 1);
+  return continuationsFromPreviousDay((asPlanned ? readPlanned : readShown)(prev, applyTagFilter));
+}
 
 /**
  * A continuation as a row for LAYOUT only: lane packing and overlap

@@ -947,7 +947,7 @@
     "movedVia": "Letzte Verschiebungen",
     "earlierMoves": "+1 früher",
     "earlierMoves_other": "+{{count}} frühere",
-    "continuesFrom": "ab {{day}}",
+    "continuesFrom": "von {{day}}",
     "continuesFromLabel": "{{title}}, fortgesetzt von {{day}}"
   },
   "recurrence": {

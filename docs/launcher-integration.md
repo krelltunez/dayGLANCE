@@ -52,7 +52,60 @@ task rows and today's routines, overlaps merged, with no now floor, so the
 launcher takes "still available" at its own minute, as the app's widget does.
 The hub's "N available" and the dial's frame readout come from it, so the two
 dials agree. A build that sends none leaves the launcher to work it out from
-the tasks it draws.
+the tasks it draws. A task still running from the night before is already
+netted out (below).
+
+### Tasks that run past midnight (#2278)
+
+A task row is one row on one `date`. When a timed row's start plus its
+duration passes 24:00, the part after midnight lands on the next date. The
+snapshot sends nothing extra for that part: the launcher derives it from the
+rows, by the app's rule (`packages/agenda-core/src/overnight.js`,
+`continuationsFromPreviousDay`), which every surface of the app uses:
+
+- **Which rows carry.** A timed block only: `isAllDay` false, a `startTime`
+  (`HH:MM`; seconds, if any, ignored) and a `duration` above 0. Completed rows
+  carry too (drawn as completed): the piece is the day's shape, not a todo.
+- **The piece.** With `start` the row's start in minutes since midnight,
+  `spill = min(1440, start + duration - 1440)`. A positive `spill` is drawn on
+  the date after the row's `date`, from 00:00 to `spill` minutes. A row that
+  ends exactly at 24:00 has `spill` 0 and leaves nothing. A user's own task is
+  at most 24 hours long; a longer imported event is clipped at the end of the
+  next date (how a block spans more than two dates is a later phase).
+- **Who owns it.** The start date. Its counts, its task list and every write
+  stay there: a tap, COMPLETE or MOVE on the piece acts on the row itself, by
+  its `id` (a recurring occurrence keeps its `recurring-<template>-<date>` id,
+  whose date is the one it started on). The next date only **shows** the piece
+  and **counts its time as busy**; it is not one of that date's tasks, so it is
+  never counted, listed or offered as that date's work.
+- **Where it ends.** A row is over at its real end, `date` + start + duration:
+  a 23:00 task of 120 minutes is still running at 00:30 the next day and has
+  ended at 01:00 (the app's overdue list and NOW line judge it so).
+- **Frames.** `frames[].slots` already net the piece out: a frame on the next
+  date is busy from 00:00 to the end of every piece. Do not subtract it again.
+- **The rows it needs.** To draw the pieces on the first date it shows
+  (today), the launcher needs the previous date's rows, and the snapshot
+  carries them: every scheduled task whatever its date, yesterday's recurring
+  occurrences that run past midnight (the app's recurring expansion opens a
+  day before the earliest date it covers, and keeps yesterday's occurrence
+  that crosses midnight even when it was not completed), and device-calendar
+  rows from a day before today (`deviceCalendar.daysBefore` is 1; the
+  provider's own read uses the same window). A device event's `duration` is
+  its full start to its full end, wall-clock, at most a whole day, so an event
+  from 23:00 to 01:00 is a 120-minute row on its start date.
+
+**Vectors.** `dayglance-ios/TestFixtures/overnight.vectors.json`
+(`overnight.vectors/1`, generated from the app's own functions by
+`src/utils/overnightVectors.js`, refreshed with `npm run ios:vectors`, and held
+to the code by `overnightVectors.test.js`) gives the rule's numbers over
+snapshot task rows: `spill` (each row's `spillMinutes` and real `end`),
+`continuations` (a date's pieces from the previous date's rows, in row order:
+`id`, `fromDate`, `startMinutes`, `endMinutes`, `minutes`) and `frameSlots`
+(a frame's slots on the next date). Each case is `{ name, input, expected }`.
+The launcher can copy the file into its test resources and assert its port
+against every case, as the Swift dial does with `dayDial.vectors.json`; a
+change to the rule regenerates the file, and the launcher picks up the new
+copy.
 
 **`inboxCount`** is the number the app's own Inbox badge and dial complication
 show: the Inbox through the user's filters (priority, project, tag, completed,

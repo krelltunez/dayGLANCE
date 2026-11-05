@@ -20,7 +20,6 @@
 // tier) asks for them via include_native. The tier decision never lives here.
 
 import {
-  getOccurrencesInRange,
   calculateGoalProgress,
   calculateProjectProgress,
   notBucketed,
@@ -32,8 +31,11 @@ import {
   shiftDateStr,
 } from '@glance-apps/agenda-core';
 import { buildFrames } from './frames.js';
+import { expandRecurringForDate, rowsForDate } from './dayRows.js';
 import { recurrenceToWire } from './repeat.js';
 import { wireStamp } from './wireStamp.js';
+
+export { expandRecurringForDate };
 
 /**
  * Subtasks on the wire (2026-10-04): the task's own checklist, in order,
@@ -188,60 +190,6 @@ export function toBlock(task, { timeZone } = {}) {
   // An imported calendar event is read-only the same way: the feed owns it.
   if (type === 'device_calendar_event' || type === 'calendar_event') block.read_only = true;
   return block;
-}
-
-/**
- * Expand recurring templates into instances for ONE date. Mirrors the
- * App.jsx expansion (exception overrides per field) with one deliberate
- * difference: no "hide past uncompleted" rule — that is a UI display choice,
- * and an MCP read of a past day should report what was scheduled.
- */
-export function expandRecurringForDate(recurringTasks, date) {
-  const instances = [];
-  for (const template of recurringTasks ?? []) {
-    const occurrences = getOccurrencesInRange(template, date, date);
-    for (const dateStr of occurrences) {
-      if (dateStr !== date) continue;
-      const exception = template.exceptions?.[dateStr];
-      instances.push({
-        id: `recurring-${template.id}-${dateStr}`,
-        title: exception?.title ?? template.title,
-        startTime: exception?.startTime ?? template.startTime,
-        duration: exception?.duration ?? template.duration,
-        completed: (template.completedDates || []).includes(dateStr),
-        // The series' creation, and this date's completion, which the
-        // template keeps per date (#2135).
-        createdAt: template.createdAt,
-        completedAt: template.completedDatesTimestamps?.[dateStr],
-        isAllDay: exception?.isAllDay ?? template.isAllDay ?? false,
-        assignedUserSyncIds: exception?.assignedUserSyncIds ?? template.assignedUserSyncIds,
-        // Series-level, like assignment: the template owns it and every
-        // instance inherits it, so toBlock can emit project_id for a
-        // recurring block the same as for a concrete task.
-        projectId: template.projectId,
-        // Series-level as well: one set of notes for every occurrence.
-        notes: template.notes,
-        date: dateStr,
-        isRecurring: true,
-        recurringTemplateId: template.id,
-        recurrence: template.recurrence,
-      });
-    }
-  }
-  return instances;
-}
-
-/**
- * The rows the day model reads for one date, under the same visibility and
- * consent rules: concrete tasks on it (device events only when includeNative)
- * and its recurring occurrences.
- */
-function rowsForDate(state, date, includeNative) {
-  const { tasks = [], recurringTasks = [], isVisibleForUser = () => true } = state;
-  const onDate = tasks.filter((t) => t.date === date && isVisibleForUser(t));
-  const concrete = includeNative ? onDate : onDate.filter((t) => !t._native);
-  const recurring = expandRecurringForDate(recurringTasks, date).filter(isVisibleForUser);
-  return { concrete, recurring };
 }
 
 /**

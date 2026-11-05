@@ -15,7 +15,8 @@ import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { tombstoneCutoff, pruneCompletedTaskUids } from '@glance-apps/dayglance-vault';
 import { readMinimizedSections, readUse24HourClock, readWeekStartDay, readBucketConfig, readDailyNotes, readMultiUserEnabled, readUsers, readMeUserSyncId, readCalendarFilter, readNativeTimeOverrides, readJoboEnabled } from './utils/storedSlices.js';
-import { isTaskVisibleForUser, isOwnedBy, frameInstancesForDate, continuationsFromPreviousDay, shiftDateStr } from '@glance-apps/agenda-core';
+import { isTaskVisibleForUser, isOwnedBy, frameInstancesForDate, shiftDateStr } from '@glance-apps/agenda-core';
+import { continuationsForDate } from './utils/continuations.js';
 import { preserveStickyFields } from './utils/preserveStickyFields.js';
 import { rescueUnsyncedTasks } from './utils/rescueUnsyncedTasks.js';
 import { withProjectMetadata } from '@glance-apps/obsidian-format';
@@ -5697,10 +5698,6 @@ const DayPlanner = () => {
     prev.setDate(prev.getDate() - 1);
     return getTasksForDate(prev, applyTagFilter);
   }, [getTasksForDate]);
-  const getContinuationsForDate = useCallback(
-    (date, applyTagFilter = true) => continuationsFromPreviousDay(getPrevDayTasks(date, applyTagFilter)),
-    [getPrevDayTasks],
-  );
 
   // JOBO slice 6: a date before today shows what was done
   // (docs/jobo-past-days.md, src/jobo/pastDay.js). Only the views' own
@@ -5737,6 +5734,14 @@ const DayPlanner = () => {
     tagFilter: applyTagFilter ? filterByTags : null,
     todayEnded,
   }), [getTasksForDate, pastDayIndex, isVisibleForUser, filterByTags, nowTodayStr, todayEnded]);
+  // The pieces the previous date leaves on `date` after midnight, for the
+  // timelines (#2278): carried from the previous date as it is SHOWN, so a
+  // past night's block that gave way to its Do (JOBO slice 6) gives way on
+  // the next date too; `asPlanned` (JOBO's Plan side) reads the plan as it
+  // stood. utils/continuations.js continuationsForDate.
+  const getContinuationsForDate = useCallback((date, applyTagFilter = true, { asPlanned = false } = {}) => continuationsForDate(date, {
+    readShown: getDayDisplayForDate, readPlanned: getTasksForDate, applyTagFilter, asPlanned,
+  }), [getTasksForDate, getDayDisplayForDate]);
   // SCHED's Do badge: a task's timed Do on its own date, from the same index
   // (src/jobo/pastDay.js, doSessionsByTask). Cached per date for as long as
   // the index stands, so a day's cards share one pass over its slices. Empty

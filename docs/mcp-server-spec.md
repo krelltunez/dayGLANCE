@@ -309,7 +309,7 @@ Half-open intervals throughout: a task ending exactly when a routine starts does
 
 **Beside, not inside.** A block is work on the day; a frame is a window set aside for a kind of work. Folding frames into `blocks` would make every existing caller that iterates blocks start treating windows as work, and the useful part of a frame is not the window but what is still empty in it.
 
-**Availability is computed, not left to the caller.** Each frame carries `available_slots` and `available_minutes`, already net of tasks, routines, today's elapsed time, and the frame's own buffer. A caller cannot reliably derive this from `blocks`: the buffer merging is non-obvious, and a caller that re-subtracts what it can already see double-counts.
+**Availability is computed, not left to the caller.** Each frame carries `available_slots` and `available_minutes`, already net of tasks and recurring occurrences (the rows `blocks` lists, a piece running on from the night before included), routines, today's elapsed time, and the frame's own buffer. A caller cannot reliably derive this from `blocks`: the buffer merging is non-obvious, and a caller that re-subtracts what it can already see double-counts.
 
 **Affinity is reported, not applied.** `tag_affinity` goes out as data and the model matches candidate tasks itself. A `suggest_tasks_for_frame` tool was the alternative and is deliberately not built: it would bake one ranking rule into the wire protocol, and choosing which open tasks suit a two-hour deep-work window is exactly what a model is good at. `filterFrameScheduleTasks` remains the app's own rule for the app's own modal.
 

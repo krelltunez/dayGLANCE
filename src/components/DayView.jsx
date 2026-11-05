@@ -141,7 +141,7 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
   // The previous date's tasks running past midnight (#2278): drawn from 00:00
   // in the columns their piece reaches, packed into lanes with this date's
   // own cards, but not among this date's tasks.
-  const colContinuations = (getContinuationsForDate ? getContinuationsForDate(col.date) : [])
+  const colContinuations = (getContinuationsForDate ? getContinuationsForDate(col.date, true, { asPlanned: planOnly }) : [])
     .filter(c => (!projectFilter || c.task.projectId === projectFilter) && c.minutes > colStartMin);
   const layoutTasks = colContinuations.length ? [...colTasks, ...colContinuations.map(continuationLayoutRow)] : colTasks;
 

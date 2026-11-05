@@ -25,7 +25,9 @@ export const FRAME_WINDOW = { daysBefore: 7, daysAfter: 34 };
 /**
  * Device-calendar events are listed over this window: the launcher's planning
  * and dial look at today and the days ahead, and every event is a row in the
- * provider, so the window is kept to what is drawn.
+ * provider, so the window is kept to what is drawn. It opens a day before
+ * today: an event last night that runs past midnight is yesterday's row, and
+ * the launcher draws its piece on today (#2278, docs/launcher-integration.md).
  */
 export const DEVICE_EVENT_WINDOW = { daysBefore: 1, daysAfter: 6 };
 
