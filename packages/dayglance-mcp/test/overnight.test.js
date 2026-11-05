@@ -111,3 +111,61 @@ describe('frames: availability counts a task still running from the night before
     expect(day.frames[0].available_minutes).toBe(120);
   });
 });
+
+// #2278, phase 1 gaps: frame availability counted only concrete tasks, so a
+// recurring occurrence in a frame (and its piece after midnight) was reported
+// free while get_day listed it as a block. It now counts the rows get_day
+// lists: the date's occurrences with each date's exception, the night
+// before's carried, under the same visibility.
+describe('frames: availability counts recurring occurrences, as get_day lists them', () => {
+  const F = { id: 'f1', label: 'Early', enabled: true, days: [2], start: '00:00', end: '03:00', bufferMinutes: 0 };
+  const series = (over = {}) => ({
+    id: 'r1', title: 'Backup', startTime: '01:00', duration: 30,
+    recurrence: { type: 'daily', startDate: '2026-01-01' }, ...over,
+  });
+  const state = (recurringTasks, over = {}) => ({
+    frames: [F], tasks: [], recurringTasks, routines: [], routinesDate: MON, routineCompletions: {},
+    routinesEnabled: true, todayDate: MON, nowMinutes: 0, ...over,
+  });
+
+  it('the date\'s own occurrence is busy time', () => {
+    const [frame] = buildFrames(state([series()]), TUE);
+    expect(frame.available_slots).toEqual([
+      { start: '00:00', end: '01:00', minutes: 60 },
+      { start: '01:30', end: '03:00', minutes: 90 },
+    ]);
+  });
+
+  it('with that date\'s exception', () => {
+    const moved = series({ exceptions: { [TUE]: { startTime: '02:00', duration: 60 } } });
+    expect(buildFrames(state([moved]), TUE)[0].available_slots).toEqual([{ start: '00:00', end: '02:00', minutes: 120 }]);
+  });
+
+  it('the night before\'s occurrence still running after midnight is busy from 00:00', () => {
+    // Monday's 23:30 occurrence (90m, by Monday's exception) holds Tuesday to
+    // 01:00; Tuesday's own 01:00 (30m) follows it.
+    const night = series({ exceptions: { [MON]: { startTime: '23:30', duration: 90 } } });
+    expect(buildFrames(state([night]), TUE)[0].available_slots).toEqual([{ start: '01:30', end: '03:00', minutes: 90 }]);
+  });
+
+  it('a series that skips the date leaves the frame free', () => {
+    const mondays = series({ recurrence: { type: 'weekly', daysOfWeek: [1], startDate: '2026-01-01' } });
+    // Monday-only: nothing on Tuesday, and Monday's 01:00 never reaches it.
+    expect(buildDayBlocks(state([mondays]), { date: MON }).blocks).toHaveLength(1);
+    expect(buildFrames(state([mondays]), TUE)[0].available_minutes).toBe(180);
+  });
+
+  it('an occurrence the viewer cannot see is not counted, as get_day does not list it', () => {
+    const s = state([series({ assignedUserSyncIds: ['someone-else'] })], {
+      isVisibleForUser: (t) => !(t.assignedUserSyncIds || []).includes('someone-else'),
+    });
+    expect(buildFrames(s, TUE)[0].available_minutes).toBe(180);
+    expect(buildDayBlocks(s, { date: TUE }).blocks).toEqual([]);
+  });
+
+  it('get_day\'s frames and blocks tell the same story', () => {
+    const day = buildDayBlocks(state([series()]), { date: TUE });
+    expect(day.blocks.map((b) => [b.id, b.start_time])).toEqual([[`recurring-r1-${TUE}`, '01:00']]);
+    expect(day.frames[0].available_minutes).toBe(150);
+  });
+});

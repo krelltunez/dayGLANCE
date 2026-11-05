@@ -25,6 +25,7 @@
 // events and routines carry.
 
 import { frameInstancesForDate, computeAvailableSlots, shiftDateStr } from '@glance-apps/agenda-core';
+import { rowsForDate } from './dayRows.js';
 
 export const FRAME_ID_PREFIX = 'frame-';
 
@@ -91,12 +92,18 @@ export function buildFrames(state, date, { includeNative = false } = {}) {
   // comparing free time against the blocks it CAN see could infer both the
   // existence and the span of every hidden event. Availability therefore
   // describes exactly the data the tier permits, no more.
-  const rowsOn = (d) => (state?.tasks ?? [])
-    .filter((t) => t.date === d)
-    .filter((t) => (includeNative ? true : !t._native));
+  //
+  // The rows are the ones get_day lists as blocks (dayRows.js): visible
+  // tasks and the date's recurring occurrences, each with that date's
+  // exception, as the app's own frame availability counts its expanded
+  // occurrences. A recurring meeting in a frame is busy time.
+  const rowsOn = (d) => {
+    const { concrete, recurring } = rowsForDate(state ?? {}, d, includeNative);
+    return [...concrete, ...recurring];
+  };
   const dayTasks = rowsOn(date);
-  // The previous date's tasks still running after midnight hold the start of
-  // this one (#2278), under the same consent tier.
+  // The previous date's tasks and occurrences still running after midnight
+  // hold the start of this one (#2278), under the same consent tier.
   const prevDayTasks = rowsOn(shiftDateStr(date, -1));
 
   return frameInstancesForDate(frames, date).map((instance) => toFrameObject(

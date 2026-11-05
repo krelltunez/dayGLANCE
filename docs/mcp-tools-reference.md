@@ -125,7 +125,7 @@ user set aside FOR a kind of work, so it is reported separately and never appear
 |---|---|
 | `id` | `frame-<id>-<date>`: a frame recurs, so the id names the instance |
 | `start` / `end` | the window itself |
-| `available_slots` | free gaps, **already net** of tasks (including one still running from the night before, see `continues_from`), routines, elapsed time (today), and the frame's buffer |
+| `available_slots` | free gaps, **already net** of every block the same read lists: tasks and recurring occurrences (including one still running from the night before, see `continues_from`), routines, elapsed time (today), and the frame's buffer. Device calendar events count only when `include_native` reads them |
 | `available_minutes` | the sum of those slots |
 | `tag_affinity` | the `#tags` this window is meant for |
 | `energy_level` | `low` / `medium` / `high`, as the user set it |

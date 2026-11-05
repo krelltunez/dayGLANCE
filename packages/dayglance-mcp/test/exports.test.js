@@ -56,6 +56,6 @@ describe('package.json', () => {
       }
     };
     walk('model.js');
-    expect([...seen].sort()).toEqual(['frames.js', 'model.js', 'noteDescriptions.js', 'readModel.js', 'readState.js', 'repeat.js', 'wireStamp.js']);
+    expect([...seen].sort()).toEqual(['dayRows.js', 'frames.js', 'model.js', 'noteDescriptions.js', 'readModel.js', 'readState.js', 'repeat.js', 'wireStamp.js']);
   });
 });
