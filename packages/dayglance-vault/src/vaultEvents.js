@@ -308,6 +308,11 @@ export function createVaultEventClient({
   let attempt = 0;
   let abortController = null;
   let reconnectTimer = null;
+  // Resolves the backoff wait early. stop() calls it: cancelling the timer
+  // alone left the loop awaiting a promise nothing would ever resolve, with
+  // `looping` still true, so a later start() saw a loop "running" and never
+  // reconnected (a tab hidden during a backoff lost live nudges until reload).
+  let wakeWait = null;
 
   const makeAbort = () => (typeof AbortController !== 'undefined' ? new AbortController() : { signal: undefined, abort() {} });
 
@@ -350,8 +355,12 @@ export function createVaultEventClient({
         attempt, baseMs: backoffBaseMs, maxMs: backoffMaxMs, random: randomFn,
       });
       attempt += 1;
-      await new Promise((resolve) => { reconnectTimer = setTimeoutFn(resolve, delay); });
+      await new Promise((resolve) => {
+        wakeWait = resolve;
+        reconnectTimer = setTimeoutFn(resolve, delay);
+      });
       reconnectTimer = null;
+      wakeWait = null;
     }
     looping = false;
   };
@@ -366,6 +375,9 @@ export function createVaultEventClient({
       stopped = true;
       if (abortController) { try { abortController.abort(); } catch { /* ignore */ } abortController = null; }
       if (reconnectTimer) { clearTimeoutFn(reconnectTimer); reconnectTimer = null; }
+      // Wake a loop sleeping in its backoff so it sees `stopped` and exits
+      // (a start() in the same tick finds it awake and simply carries on).
+      if (wakeWait) { const wake = wakeWait; wakeWait = null; wake(); }
       onStateChange?.('stopped');
     },
     isRunning: () => !stopped,
