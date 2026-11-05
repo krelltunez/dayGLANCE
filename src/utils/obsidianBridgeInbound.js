@@ -55,6 +55,7 @@ import { getBridgePairingMeta, bridgeRateLimited, bridgeVaultClientFor } from '.
 import { BRIDGE_COPIES_KEY, rememberBridgeCopies } from './bridgeFleet.js';
 import { resolveProjectRef } from './obsidianProjectNotes.js';
 import { getStoredDailyNotes } from './dailyNotesStore.js';
+import { observationPathReport, reportedNoteIndexKey } from './reportedNotePaths.js';
 
 const OBS_HWM_KEY = 'dayglance-bridge-obs-hwm';
 
@@ -97,34 +98,52 @@ let lastInboundFailure = null;
 export function lastBridgeInboundFailure() { return lastInboundFailure; }
 const fail = (reason) => { lastInboundFailure = reason; return null; };
 
+// The gates every listing of the stream passes, and what it reads with:
+// { cfg, meta, client, subkey }, or { fail: reason } (the reasons
+// lastBridgeInboundFailure reports). May throw on a failed request; the
+// caller's catch decides what that means.
+async function openBridgeStream() {
+  // The client's realm-wide brake (@glance-apps/sync 1.11.0): while the
+  // server is rate-limiting, sit the whole cycle out pre-flight — the
+  // cursor hasn't advanced, so nothing is lost, and the next cycle
+  // retries. (A braked client call would throw RATE_LIMITED anyway; this
+  // read just skips the ceremony for a multi-request cycle.)
+  if (bridgeRateLimited()) return { fail: 'rate-limited' };
+  const cfg = getVaultConfig();
+  if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId) return { fail: 'unconfigured' };
+  // The root key loads asynchronously after launch; a configured vault
+  // whose key is not in memory yet is a HOLD, not a dead stream. The first
+  // cycle after every launch used to land here and raise the dead-stream
+  // error on every open (the phone showed it on each foreground).
+  if (!hasDbRootKey()) return { fail: 'key-pending' };
+  const meta = await getBridgePairingMeta();
+  if (!meta) return { fail: 'unpaired' };
+  const client = bridgeVaultClientFor(cfg);
+  // A key not yet proven against the account is the same hold: opening
+  // rows under it would read nothing (bridgeKeyGate.js).
+  const rootKey = await verifiedBridgeRootKey(client, cfg.accountId);
+  if (!rootKey) return { fail: 'key-pending' };
+  const salt = Uint8Array.from(atob(meta.pairingSalt), (c) => c.charCodeAt(0));
+  const subkey = await deriveBridgeSubkey(rootKey, salt);
+  return { cfg, meta, client, subkey };
+}
+
 export async function fetchBridgeObservations() {
   try {
-    // The client's realm-wide brake (@glance-apps/sync 1.11.0): while the
-    // server is rate-limiting, sit the whole cycle out pre-flight — the
-    // cursor hasn't advanced, so nothing is lost, and the next cycle
-    // retries. (A braked client call would throw RATE_LIMITED anyway; this
-    // read just skips the ceremony for a multi-request cycle.)
-    if (bridgeRateLimited()) return fail('rate-limited');
-    const cfg = getVaultConfig();
-    if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId) return fail('unconfigured');
-    // The root key loads asynchronously after launch; a configured vault
-    // whose key is not in memory yet is a HOLD, not a dead stream. The first
-    // cycle after every launch used to land here and raise the dead-stream
-    // error on every open (the phone showed it on each foreground).
-    if (!hasDbRootKey()) return fail('key-pending');
-    const meta = await getBridgePairingMeta();
-    if (!meta) return fail('unpaired');
-    const client = bridgeVaultClientFor(cfg);
-    // A key not yet proven against the account is the same hold: opening
-    // rows under it would read nothing (bridgeKeyGate.js).
-    const rootKey = await verifiedBridgeRootKey(client, cfg.accountId);
-    if (!rootKey) return fail('key-pending');
-    const salt = Uint8Array.from(atob(meta.pairingSalt), (c) => c.charCodeAt(0));
-    const subkey = await deriveBridgeSubkey(rootKey, salt);
+    const access = await openBridgeStream();
+    if (access.fail) return fail(access.fail);
+    const { cfg, meta, client, subkey } = access;
 
     let since = 0;
     try { since = Number(localStorage.getItem(OBS_HWM_KEY)) || 0; } catch { /* fresh cursor */ }
+    const fromSeq = since;
     const byPath = new Map();
+    // What the batch says about which notes exist, for the index of
+    // reported note paths (utils/reportedNotePaths.js): the paths only,
+    // with each row's seq. The index keeps its own cursor and applies this
+    // only where it continues it (utils/reportedNoteIndexStore.js).
+    const pathReports = [];
+    let listedWhole = true;
     // Copy status rows (bridgeFleet.js): plaintext, one per plugin copy,
     // remembered here as they pass so every app instance can show the
     // fleet. A tombstone (the copy unpaired) forgets the copy.
@@ -154,18 +173,74 @@ export async function fetchBridgeObservations() {
         // Keyed by the ROW, not the path: a note's observation row and a
         // project-note LINK row (companion §4.3) can name the same path.
         byPath.set(String(row.entityId), payload);
+        const report = observationPathReport(payload, seq);
+        if (report) pathReports.push(report);
       }
-      if (!page.rows?.length) break;
+      if (!page.rows?.length) { listedWhole = !hasMore; break; }
     }
     if (copyUpdates.length) {
       try { localStorage.setItem(BRIDGE_COPIES_KEY, JSON.stringify(rememberBridgeCopies(readBridgeCopies(), copyUpdates))); } catch { /* storage unavailable */ }
     }
     lastInboundFailure = null;
-    return { observations: [...byPath.values()], maxSeq };
+    return {
+      observations: [...byPath.values()], maxSeq,
+      // A listing from cursor zero is a FULL one: it completes the index on
+      // its own. One whose pages ran out early is not handed to the index.
+      pathListing: listedWhole
+        ? { key: reportedNoteIndexKey(cfg, meta), since: fromSeq, maxSeq, reports: pathReports, full: fromSeq === 0 }
+        : null,
+    };
   } catch {
     // Rate-limited (the client armed the brake itself) or unreachable —
     // the unadvanced cursor retries next cycle either way.
     return fail(bridgeRateLimited() ? 'rate-limited' : 'unreachable');
+  }
+}
+
+/**
+ * Every observation row above `since`, read for the PATHS it reports (the
+ * index of reported note paths, utils/reportedNotePaths.js): { key, since,
+ * maxSeq, reports, full }, where `full` means it listed from zero and read
+ * every page, or null when any gate or page failed (a partial listing is
+ * never handed out as a whole one).
+ *
+ * The index's own lister, beside the cycle's fetch rather than through it:
+ * it reads from the INDEX's cursor (zero for the one bootstrap listing),
+ * never the cycle's, and it leaves everything the cycle owns alone: the
+ * persisted cursor (commitBridgeObservationCursor), the probe's held page,
+ * the copy status rows, and lastBridgeInboundFailure. No content is kept,
+ * and nothing here is applied to tasks or notes.
+ */
+export async function listReportedNotePaths({ since = 0 } = {}) {
+  try {
+    const access = await openBridgeStream();
+    if (access.fail) return null;
+    const { cfg, meta, client, subkey } = access;
+    const from = Math.max(0, Number(since) || 0);
+    let cursor = from;
+    let maxSeq = from;
+    const reports = [];
+    let hasMore = true;
+    while (hasMore) {
+      const page = await client.list(BRIDGE_VAULT_APP, { accountId: cfg.accountId, since: cursor });
+      hasMore = !!page?.hasMore;
+      const rows = page?.rows || [];
+      // A page that says more follow but carries none cannot be paged past:
+      // the listing is not whole, so it is not handed out at all.
+      if (!rows.length) { if (hasMore) return null; break; }
+      for (const row of rows) {
+        const seq = Number(row.seq) || 0;
+        if (seq > maxSeq) maxSeq = seq;
+        if (seq > cursor) cursor = seq;
+        if (row.deleted || !row.envelope || !String(row.entityId || '').startsWith(BRIDGE_OBSERVATION_PREFIX)) continue;
+        // Unreadable (a rotated-away generation, tamper): says nothing.
+        const report = observationPathReport(await openBridgeEnvelope(subkey, row.envelope), seq);
+        if (report) reports.push(report);
+      }
+    }
+    return { key: reportedNoteIndexKey(cfg, meta), since: from, maxSeq, reports, full: from === 0 };
+  } catch {
+    return null;
   }
 }
 

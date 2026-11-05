@@ -236,6 +236,25 @@ describe('vault task scope, end to end', () => {
     expect(A.all()[0]).toMatchObject({ id, obsidianNotePath: 'Projects/Home.md' });
   });
 
+  it('2b. a rename within the scope reports the old path gone WITHOUT the scoped flag (#2291 follow-up): Obsidian closed before the new path is reported, the old path\'s report alone never tombstones the moved task; the new path brings it back on the next run', async () => {
+    await bootWithScopedNote();
+    const id = A.byPath(NOTE)[0].id;
+    await s.plugin.app.vault.rename(s.file(NOTE), 'Projects/Home.md');
+    await s.advance(500);                 // the old path's gone report goes out at once
+    s.plugin.shutdown();                  // closed inside the new path's debounce
+    await A.sync();
+    await s.advance(95_000);              // past the deletion hold
+    await A.sync();
+    expect(A.all()).toHaveLength(1);
+    expect(A.all()[0]).toMatchObject({ id });
+    expect(JSON.parse(A.store.get('day-planner-deleted-obsidian-keys') ?? '{}')[id]).toBeUndefined();
+    s.plugin.reload();
+    await s.settle();
+    await A.sync();
+    expect(A.all()).toHaveLength(1);
+    expect(A.all()[0]).toMatchObject({ id, obsidianNotePath: 'Projects/Home.md' });
+  });
+
   it('3. a note moved OUT of the scope withdraws its tasks; moved BACK, they return under the same ids (the 2026-09-04 field bug)', async () => {
     await bootWithScopedNote();
     const id = A.byPath(NOTE)[0].id;

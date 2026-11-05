@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { noteTextHash } from '@glance-apps/obsidian-format';
 import {
-  parseTaskNoteLink, knownTaskNotePaths, taskNoteCandidates, resolveReportedTaskNote,
+  parseTaskNoteLink, knownTaskNotePaths, taskNoteCandidates, resolveReportedTaskNote, indexedTaskNote,
   newestTaskNote, newNotesFolderOutsideScope, TASK_NOTE_MAX_CANDIDATES,
 } from './taskNoteSources.js';
 
@@ -58,6 +58,10 @@ describe('taskNoteCandidates', () => {
     expect(plan.paths).toEqual(['Projects/House/gutter repair.md', 'Gutter repair.md', 'dayGLANCE/Gutter repair.md', 'Projects/Gutter repair.md']);
     expect([...plan.known]).toEqual(['projects/house/gutter repair.md']);
   });
+  it('while the index is incomplete, the daily-notes folder is a likely home too', () => {
+    const plan = taskNoteCandidates(parseTaskNoteLink('2026-09-04'), { newNotesFolder: 'dayGLANCE', dailyNotesFolder: '/Daily/', scopeFolders: ['Projects'] });
+    expect(plan.paths).toEqual(['2026-09-04.md', 'dayGLANCE/2026-09-04.md', 'Daily/2026-09-04.md', 'Projects/2026-09-04.md']);
+  });
   it('is bounded: never more than the cap; more known notes of the name than the cap is ambiguous outright', () => {
     const scopeFolders = Array.from({ length: 20 }, (_, i) => `Area ${i}`);
     expect(taskNoteCandidates(parseTaskNoteLink('Plan'), { scopeFolders }).paths).toHaveLength(TASK_NOTE_MAX_CANDIDATES);
@@ -112,6 +116,35 @@ describe('resolveReportedTaskNote', () => {
     expect(resolveReportedTaskNote(plan, [note('Projects/House/Gutter repair.md')])).toMatchObject({ source: 'report' });
     expect(resolveReportedTaskNote(plan, [NEVER])).toEqual({ unavailable: 'not_shared' });
     expect(resolveReportedTaskNote(plan, [{ status: 'deleted' }])).toEqual({ unavailable: 'deleted' });
+  });
+});
+
+describe('indexedTaskNote (a name resolved through the index of reported note paths)', () => {
+  it('the one matching note: its report, under the path Obsidian named it by', () => {
+    expect(indexedTaskNote({ path: 'Tags/Gutter repair.md' }, note('Tags/Gutter repair.md', 'Call the roofer.'))).toEqual({
+      text: 'Call the roofer.', base: noteTextHash('Call the roofer.'), lastModified: '2026-11-05T09:00:00.000Z',
+      observedAt: '2026-11-05T09:00:05.000Z', path: 'Tags/Gutter repair.md', source: 'report',
+    });
+  });
+  it('the match read now says otherwise (the index was behind): deleted, not shared, or could not ask', () => {
+    expect(indexedTaskNote({ path: 'A.md' }, { status: 'deleted' })).toEqual({ unavailable: 'deleted' });
+    expect(indexedTaskNote({ path: 'A.md' }, { status: 'withdrawn' })).toEqual({ unavailable: 'not_shared' });
+    expect(indexedTaskNote({ path: 'A.md' }, NEVER)).toEqual({ unavailable: 'not_shared' });
+    expect(indexedTaskNote({ path: 'A.md' }, { status: 'unavailable' })).toEqual({ unavailable: 'unreachable' });
+  });
+  it('ambiguous whatever was read', () => {
+    expect(indexedTaskNote({ ambiguous: true }, null)).toEqual({ unavailable: 'ambiguous' });
+    expect(indexedTaskNote({ ambiguous: true }, note('A.md'))).toEqual({ unavailable: 'ambiguous' });
+  });
+  it('no match: the index says why; a note at the link\'s own path reported since the index was brought up is shown', () => {
+    expect(indexedTaskNote({ none: 'unreported' }, null)).toEqual({ unavailable: 'not_shared' });
+    expect(indexedTaskNote({ none: 'withdrawn' }, null)).toEqual({ unavailable: 'not_shared' });
+    expect(indexedTaskNote({ none: 'deleted' }, null)).toEqual({ unavailable: 'deleted' });
+    expect(indexedTaskNote({ none: 'unreported' }, note('Gutter repair.md'))).toMatchObject({ source: 'report', path: 'Gutter repair.md' });
+    // The direct read adds what the index lacked; a failed one changes nothing.
+    expect(indexedTaskNote({ none: 'unreported' }, { status: 'deleted' })).toEqual({ unavailable: 'deleted' });
+    expect(indexedTaskNote({ none: 'deleted' }, { status: 'unavailable' })).toEqual({ unavailable: 'deleted' });
+    expect(indexedTaskNote({ none: 'withdrawn' }, { status: 'deleted' })).toEqual({ unavailable: 'not_shared' });
   });
 });
 
