@@ -77,6 +77,27 @@ carries a `type`. All of them occupy the time they cover.
 | `routine` | A routine block placed on today's timeline, id `routine-<id>`. Carries `read_only: true`. | no |
 
 Branch on `read_only` rather than on `type`: more than one type carries it, and more may later.
+
+**`continues_from`: a task running past midnight.** A timed task belongs to the date it starts on,
+and its block there carries its full `duration_minutes` (up to 24 hours), so its end may lie on the
+next date. That next date's `blocks` then include the part after midnight as a block of its own,
+marked with `continues_from`:
+
+| Field | Meaning |
+|---|---|
+| `continues_from` | the `YYYY-MM-DD` the task started on (the previous date) |
+| `id`, `type`, `title`, `completed`, … | the task's own, unchanged: it is the **same** task, not a second one |
+| `date` | the date being read |
+| `start_time` | `"00:00"` |
+| `duration_minutes` | the minutes it still runs after midnight (never past this date's own midnight) |
+
+Treat that time as busy: the task occupies it, and every frame's `available_slots` on that date is
+already net of it. Do not count it as another task on that date, and do not write to it as one: a
+write takes the task's `id` as usual, and acts on the task on the date it started. A recurring
+occurrence's continuation keeps its `recurring-<series>-<date>` id, whose date is the one it started
+on, so completing it completes that occurrence. A task ending exactly at midnight has no
+continuation. Only one date ahead: an event longer than a day (an imported one) shows its first
+24 hours after midnight.
 A `task` with `source: "caldav_tasks"` comes from a CalDAV task calendar: it is a task, but
 editing and completing it need a CalDAV write MCP does not perform, so those are rejected.
 
@@ -104,7 +125,7 @@ user set aside FOR a kind of work, so it is reported separately and never appear
 |---|---|
 | `id` | `frame-<id>-<date>`: a frame recurs, so the id names the instance |
 | `start` / `end` | the window itself |
-| `available_slots` | free gaps, **already net** of tasks, routines, elapsed time (today), and the frame's buffer |
+| `available_slots` | free gaps, **already net** of tasks (including one still running from the night before, see `continues_from`), routines, elapsed time (today), and the frame's buffer |
 | `available_minutes` | the sum of those slots |
 | `tag_affinity` | the `#tags` this window is meant for |
 | `energy_level` | `low` / `medium` / `high`, as the user set it |
@@ -129,7 +150,9 @@ Today's schedule; resolves the current **local** calendar date on the user's mac
 this instead of guessing the date.
 No parameters. Returns `blocks`, `frames` and `daily_note` with local times, completion state, the
 resolved date, and the IANA timezone. Blocks include `routine` blocks (today only), imported
-`calendar_event` items, and, under the calendar consent tier, `device_calendar_event` items.
+`calendar_event` items, and, under the calendar consent tier, `device_calendar_event` items. A
+task from yesterday still running after midnight appears as a block with `continues_from` (see
+Block types).
 
 ### `dayglance_get_day`
 One local calendar date's schedule, in the same shape as `dayglance_get_today`: `blocks`, `frames`
