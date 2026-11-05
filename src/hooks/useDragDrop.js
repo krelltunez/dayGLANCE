@@ -4,6 +4,7 @@ import { TASK_COLORS } from '../utils/colorUtils.js';
 import { nativeUpdateEvent, triggerHaptic } from '../native.js';
 import { describeObstacle } from '../utils/dayOccupancy.js';
 import { anchorDragImageAtTop, dropClampMinutes } from '../utils/dragUtils.js';
+import { nativeEventEndString } from '../utils/nativeCalendar.js';
 import { pixelsToSnappedMinutes, resizeBlockByPixels } from '../utils/taskResize.js';
 
 // Pure utilities used by position helpers
@@ -507,9 +508,8 @@ export default function useDragDrop({
         ));
         // If this is a native Android calendar event, write the change back to the device calendar
         if (draggedTask.nativeEventId) {
-          const endMin = timeToMinutes(startTime) + (draggedTask.duration || 60);
           const newStart = `${dropDateStr}T${startTime}:00`;
-          const newEnd = `${dropDateStr}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
+          const newEnd = nativeEventEndString(dropDateStr, startTime, draggedTask.duration || 60);
           nativeUpdateEvent({
             id: draggedTask.nativeEventId, title: draggedTask.title,
             start: newStart, end: newEnd, allDay: false,
@@ -848,9 +848,8 @@ export default function useDragDrop({
       if (changed && task.nativeEventId && !isRecurringTask && origStartTime) {
         const finalStartTime = isTop ? minutesToTime(final.startMinutes) : origStartTime;
         const finalDuration = final.duration;
-        const endMin = final.startMinutes + finalDuration;
         const newStart = `${task.date}T${finalStartTime}:00`;
-        const newEnd = `${task.date}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
+        const newEnd = nativeEventEndString(task.date, finalStartTime, finalDuration);
         nativeUpdateEvent({
           id: task.nativeEventId, title: task.title,
           start: newStart, end: newEnd, allDay: false,
@@ -1449,9 +1448,8 @@ export default function useDragDrop({
         } : t));
         // Sync native Android calendar events back to the device calendar
         if (task.nativeEventId && !droppingToAllDay && finalTime) {
-          const endMin = timeToMinutes(finalTime) + (task.duration || 60);
           const newStart = `${dropDateStr}T${finalTime}:00`;
-          const newEnd = `${dropDateStr}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
+          const newEnd = nativeEventEndString(dropDateStr, finalTime, task.duration || 60);
           nativeUpdateEvent({
             id: task.nativeEventId, title: task.title,
             start: newStart, end: newEnd, allDay: false,
