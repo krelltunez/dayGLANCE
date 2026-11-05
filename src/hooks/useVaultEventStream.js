@@ -5,7 +5,8 @@
 // (debounced), reconnects with backoff on any drop, reconciles via the server's
 // initial `ready` frame (the account's latest seq) on (re)connect, and tears the
 // connection down cleanly on background / unmount / vault-disabled. The pure transport lives in
-// ../sync/vaultEventStream.js; this file only wires it to React + the app.
+// @glance-apps/dayglance-vault (the client) and ../sync/vaultEventStream.js (the
+// browser and native-shell pieces); this file only wires it to React + the app.
 //
 // CORE INVARIANT: this is purely ADDITIVE. It never starts, stops, or slows the
 // existing poll cadences (the DB sync 5-min interval + focus in App.jsx, and the
@@ -16,18 +17,20 @@
 
 import { useEffect, useRef } from 'react';
 import { BRIDGE_VAULT_APP } from '@glance-apps/obsidian-format';
-import { createKindFilter } from '../sync/vaultEventStream.js';
-import { isVaultEnabled, getVaultConfig } from '../sync/vaultConfig.js';
 import {
+  createKindFilter,
   createNudgeCoalescer,
   createVaultEventClient,
+  openWebSseStream,
+  isOwnWriteSeq,
+} from '@glance-apps/dayglance-vault';
+import { isVaultEnabled, getVaultConfig } from '../sync/vaultConfig.js';
+import {
   createBridgeSseClient,
   detectSseTransport,
-  openWebSseStream,
   sseNudgesEnabled,
   SSE_NUDGES_FLAG_KEY,
 } from '../sync/vaultEventStream.js';
-import { isOwnWriteSeq } from '../sync/ownWrites.js';
 import { isTrayMode } from '../utils/trayMode.js';
 
 // The global the native shell invokes to push SSE messages into the renderer

@@ -3,16 +3,18 @@ import {
   parseSseFrame,
   drainSseBuffer,
   detectSseTransport,
-  openWebSseStream,
-  createNudgeCoalescer,
-  createVaultEventClient,
   createBridgeSseClient,
-  backoffDelayMs,
   sseNudgesEnabled,
   SSE_NUDGES_DEFAULT_ON,
   SSE_NUDGES_FLAG_KEY,
-  createKindFilter,
 } from './vaultEventStream.js';
+import {
+  openWebSseStream,
+  createNudgeCoalescer,
+  createVaultEventClient,
+  backoffDelayMs,
+  createKindFilter,
+} from '@glance-apps/dayglance-vault';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GLANCEvault SSE push client — pure transport core.

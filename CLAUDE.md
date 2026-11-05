@@ -242,6 +242,17 @@ globals); the engine wiring, its guards and the hooks stay in `src/sync/`.
 `vaultEngineCallbacks` is the one binding of the adapter to the engine's
 callbacks, used by `dbEngine.js` and by a host.
 
+The client for the vault's `/events` change nudges is there too
+(`vaultEvents.js`: the fetch-streaming reader, the reconnecting client, the
+coalescer, the kind filter, the backoff; `ownWrites.js`: the own-write ack
+registry that damps a device's own echoes). The app keeps only what is bound
+to the browser or the native shells, in `src/sync/vaultEventStream.js`
+(transport detection, the bridge-fed client, the per-device nudge flag) and
+`useVaultEventStream`. The host end-to-end test
+(`packages/dayglance-vault/test/hostPull.e2e.test.js`) drives the client over
+a real loopback `/events` stream with Node's fetch; extend it when the nudge
+path changes.
+
 # Headless refresh
 
 `src/headless/` is the root the Android shell mounts, in a WebView with no

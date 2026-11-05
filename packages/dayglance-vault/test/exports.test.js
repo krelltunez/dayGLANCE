@@ -31,16 +31,20 @@ describe('package', () => {
     expect(pkg.types).toBe('types/index.d.ts');
   });
 
-  it('imports nothing but its own modules and @glance-apps/sync, a peer', () => {
+  it('imports nothing but its own modules and its two peers', () => {
     // The app and a host must share ONE copy of the engine's module state
     // (the root key, the vault client's brake), so the package never brings
     // its own: it is a peer, as the adapter's mergeRoutineDefinitions comes
-    // from it.
-    expect(Object.keys(pkg.peerDependencies || {})).toEqual(['@glance-apps/sync']);
+    // from it. @glance-apps/obsidian-format is the one SSE frame parser the
+    // event client reads the /events stream with (the bridge plugin reads
+    // it with the same one); a peer too, since every consumer already has
+    // it and one wire format should have one parser in a process.
+    const PEERS = ['@glance-apps/obsidian-format', '@glance-apps/sync'];
+    expect(Object.keys(pkg.peerDependencies || {}).sort()).toEqual(PEERS);
     expect(pkg.dependencies).toBeUndefined();
     for (const f of readdirSync(fileURLToPath(new URL('../src', import.meta.url)))) {
       for (const [, spec] of read(`src/${f}`).matchAll(/^(?:import|export) [^;]*? from '([^']+)';/gms)) {
-        if (!spec.startsWith('./')) expect(spec, `${f} imports ${spec}`).toBe('@glance-apps/sync');
+        if (!spec.startsWith('./')) expect(PEERS, `${f} imports ${spec}`).toContain(spec);
       }
     }
   });

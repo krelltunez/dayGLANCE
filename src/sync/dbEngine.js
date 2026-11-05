@@ -56,7 +56,7 @@ import {
   shouldSuppressRetirementHeal, consumeRetirementHealTripped,
   isDeletePropagationLatched, recordDeletePropagation, consumeDeletePropagationTripped,
 } from './retirementHealBreaker.js';
-import { recordOwnWriteSeq, withOwnAckRecording } from './ownWrites.js';
+import { recordOwnWriteSeq, withOwnAckRecording } from '@glance-apps/dayglance-vault';
 import { isObsidianTombstoned } from '../utils/obsidianDeletions.js';
 import { ghostSuccessorId, persistDerivedGhostRetirements } from '../utils/obsidianGhostRows.js';
 import { createIdbKeyValue } from '../utils/idbKeyValue.js';
@@ -1216,7 +1216,7 @@ export function createDbEngine(callbacks = {}) {
       if (pushRes) {
         for (const { entityId, reason } of propagatedDeletes) recordDeletePropagation(entityId, reason);
       }
-      // Own-echo damping (#1455, sync/ownWrites.js): a push that WROTE gets a
+      // Own-echo damping (#1455, @glance-apps/dayglance-vault's ownWrites.js): a push that WROTE gets a
       // nudge back carrying exactly this maxSeq — record it so the SSE
       // coalescer can suppress our own echo by identity. Only on an actual
       // write: a no-op push returns the stale push-ack, which is not an

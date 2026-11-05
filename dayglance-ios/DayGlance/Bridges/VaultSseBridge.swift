@@ -3,7 +3,7 @@ import WebKit
 
 /// Native GLANCEvault SSE reader for iOS — the Swift mirror of Android's
 /// `VaultSseClient` (dayglance-android/.../sse/VaultSseClient.kt) and the renderer's
-/// `createVaultEventClient` (src/sync/vaultEventStream.js).
+/// `createVaultEventClient` (packages/dayglance-vault/src/vaultEvents.js).
 ///
 /// WHY A NATIVE READER: the WebView cannot stream `text/event-stream`. Its vault
 /// HTTP goes through the buffered `httpRequest` bridge (whole body as one string),

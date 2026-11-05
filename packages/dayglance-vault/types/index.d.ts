@@ -163,3 +163,119 @@ export function pruneRetiredTaskIds(
 ): Record<string, Retirement>;
 /** The JOBO ledger's one pick rule: newer updatedAt, then lower observedAt, then canonical JSON. */
 export function pickJoboRecord<T>(a: T | null | undefined, b: T | null | undefined): T;
+
+// ── vaultEvents.js ───────────────────────────────────────────────────────────
+
+/** Where and as whom to open the vault's /events stream. */
+export interface VaultEventConnection {
+  vaultUrl: string;
+  vaultToken: string;
+  accountId: string;
+}
+/**
+ * A parsed frame's data: `{ seq }`, plus `app` on an `activity` frame from a
+ * server that tags them (the namespace whose write advanced the seq).
+ */
+export interface VaultNudge {
+  seq: number;
+  app?: string;
+  [key: string]: unknown;
+}
+export interface OpenVaultEventStreamArgs {
+  connection: VaultEventConnection;
+  signal?: AbortSignal;
+  /** Called once the response is confirmed OK. */
+  onOpen?: () => void;
+  onEvent: (evt: VaultNudge) => void;
+  /** Defaults to `globalThis.fetch`; the response body must be a streaming ReadableStream. */
+  fetchImpl?: typeof fetch;
+}
+/**
+ * Read GET {vaultUrl}/events?accountId= with the device token as a Bearer,
+ * pumping each parsed frame to `onEvent`. Resolves when the server closes the
+ * stream; rejects on a non-OK response (`vault SSE connect failed: <status>`),
+ * a network error or an abort.
+ */
+export function openWebSseStream(args: OpenVaultEventStreamArgs): Promise<void>;
+
+export type TimerHandle = ReturnType<typeof setTimeout>;
+export interface NudgeCoalescerOptions<K extends string = string> {
+  /** Called per kind, in `kinds` order, once per coalesced burst. A throw is caught. */
+  onDrain?: (kind: K) => void;
+  /** Default 400. */
+  debounceMs?: number;
+  /** Default ['sync', 'intents']. */
+  kinds?: K[];
+  /** Which kinds one nudge wakes (default: all). See createKindFilter. */
+  kindFilter?: ((kind: K, evt: VaultNudge) => boolean) | null;
+  /** Exact identity against this device's own write acks: an echo advances the cursor and drains nothing. */
+  isOwnSeq?: (seq: number) => boolean;
+  onOwnEcho?: (seq: number) => void;
+  setTimeoutFn?: (fn: () => void, ms: number) => TimerHandle;
+  clearTimeoutFn?: (handle: TimerHandle) => void;
+  onDrainError?: (msg: string, err: unknown) => void;
+}
+export interface NudgeCoalescer {
+  /** Feed one frame; true when it scheduled a drain. */
+  handleEvent(evt: unknown): boolean;
+  /** The highest seq seen (-Infinity before the first). */
+  getCursor(): number;
+  /** Cancel a pending debounce (teardown). */
+  cancel(): void;
+}
+export function createNudgeCoalescer<K extends string = string>(options?: NudgeCoalescerOptions<K>): NudgeCoalescer;
+/**
+ * kind → server app tag. A tagged nudge wakes the kinds whose tag it names; an
+ * untagged one (an older server, or `ready`) wakes every kind.
+ */
+export function createKindFilter(namespaces: Record<string, string>): (kind: string, evt: VaultNudge) => boolean;
+/** Capped exponential with equal jitter: in [exp/2, exp), exp = min(maxMs, baseMs * 2^attempt). */
+export function backoffDelayMs(p: { attempt: number; baseMs: number; maxMs: number; random: () => number }): number;
+
+export type VaultEventClientState = 'connecting' | 'open' | 'closed' | 'error' | 'stopped' | 'unsupported';
+export interface VaultEventClientOptions {
+  /** Read at every (re)connect; null opens nothing. */
+  getConnection?: () => VaultEventConnection | null;
+  /** Usually openWebSseStream (wrap it to pass a `fetchImpl`). */
+  openStream?: (args: { connection: VaultEventConnection; signal?: AbortSignal; onOpen: () => void; onEvent: (evt: VaultNudge) => void }) => Promise<void>;
+  onEvent?: (evt: VaultNudge) => void;
+  /** Default true; false never opens. */
+  supported?: boolean;
+  /** Default 1000. */
+  backoffBaseMs?: number;
+  /** Default 30000. */
+  backoffMaxMs?: number;
+  /** A connection must stay open this long (default 5000) before the backoff resets. */
+  minStableMs?: number;
+  setTimeoutFn?: (fn: () => void, ms: number) => TimerHandle;
+  clearTimeoutFn?: (handle: TimerHandle) => void;
+  now?: () => number;
+  randomFn?: () => number;
+  /** 'error' carries the error; a non-OK connect's message names the status. */
+  onStateChange?: (state: VaultEventClientState, detail?: unknown) => void;
+}
+export interface VaultEventClient {
+  start(): void;
+  /** Abort the open stream and cancel a pending reconnect. */
+  stop(): void;
+  isRunning(): boolean;
+  isSupported(): boolean;
+}
+export function createVaultEventClient(options?: VaultEventClientOptions): VaultEventClient;
+
+// ── ownWrites.js ─────────────────────────────────────────────────────────────
+// One registry per process (module state): the seqs this process's own vault
+// writes were acked with, so their nudges are recognised by exact identity.
+
+/** How long an ack is remembered (its echo is long gone by then). */
+export const OWN_ACK_TTL_MS: number;
+/** Record a write ack's seq as ours; ignores anything but a positive finite number. */
+export function recordOwnWriteSeq(seq: unknown, nowMs?: number): void;
+/** True when `seq` is the ack of a write this process made within the TTL. */
+export function isOwnWriteSeq(seq: number, nowMs?: number): boolean;
+/**
+ * Wrap a vault client (`createVaultClient` from @glance-apps/sync) so every
+ * `batch` and `deleteRow` ack is recorded at the source; other methods pass
+ * through. Hand the result to createDbSyncEngine as `vaultClient`.
+ */
+export function withOwnAckRecording<T>(inner: T, record?: (seq: number) => void): T;
