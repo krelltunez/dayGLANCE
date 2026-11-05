@@ -41,7 +41,7 @@ const { flushBridgeOutbox, emitBridgeIntent, __resetBridgeStreamForTests } = awa
 const { NoteBlockWriter } = await import('../src/noteBlocks');
 const { parseYaml } = await import('obsidian');
 const { noteTextHash, bridgeNoteDescriptionLoader, importBridgeSubkey, openBridgeEnvelope, BRIDGE_VAULT_APP, BRIDGE_INTENT_PREFIX } = await import('@glance-apps/obsidian-format');
-const { readWikiNote } = await import('../../src/obsidian.js');
+const { readWikiNote, readVaultHeartbeat } = await import('../../src/obsidian.js');
 const { topProjectOrder, sendToBottomIds, applyProjectReorder, sortByProjectOrder } = await import('../../src/utils/projectOrder.js');
 const { readRetiredTaskIds } = await import('../../src/utils/retiredTaskIds.js');
 const { buildMcpReadState, handleMcpRequest } = await import('@glance-apps/dayglance-mcp/model');
@@ -1055,6 +1055,146 @@ describe('project and goal notes: creation, the maintained map, the project fiel
     await s.settle();
     expect(await load()).toEqual({ unavailable: 'deleted' });
     expect(await load('Projects/Gutter repair')).toEqual({ unavailable: 'deleted' });
+  });
+
+  // The index of reported note paths (src/utils/reportedNotePaths.js), kept
+  // per device in its own storage: IndexedDB in the app, localStorage here.
+  const NOTE_INDEX = 'dayglance-bridge-note-paths';
+  const OBS_CURSOR = 'dayglance-bridge-obs-hwm';
+  const pathIndexOf = (dev: ReturnType<typeof mountDevice>): any => JSON.parse(dev.store.get(NOTE_INDEX) ?? 'null');
+
+  it('30. THE INDEX OF REPORTED NOTE PATHS (#2291 follow-up): a phone without the folder resolves a task\'s link among EVERY note the plugin reports, as Obsidian resolves it: a note shared by a scope TAG in an unrelated folder by its bare name, a PARTIAL path by suffix on segment boundaries (its save goes out under the full path), a DAILY note by its date; two same-named shared notes are ambiguous and one deleted leaves the other; a renamed note is found at its new path, and one moved out of the scope is not shared', async () => {
+    await boot({});
+    await s.plugin.setScope({ folders: ['Projects'], tags: ['share'] });
+    const B = mountDevice('B', {}, { folder: false });
+    const load = (name: string): Promise<any> => B.run(() => B.api.loadTaskNote(name));
+    // Nothing of the name yet: the first read builds the index from zero, and finds nothing.
+    expect(await load('Gutter repair')).toEqual({ unavailable: 'not_shared', newNotesFolderOutsideScope: true, newNotesFolder: 'dayGLANCE' });
+    expect(pathIndexOf(B)).toMatchObject({ complete: true });
+
+    await s.write('Random/Deep/Gutter repair.md', 'Call the roofer. #share\n');
+    await s.write('Clients/Acme/Alpha/Plan.md', 'Ship it. #share\n');
+    await s.write('Daily/2026-09-04.md', 'Morning pages.\n');
+    await s.settle();
+
+    // (a) Shared by a TAG, in a folder no likely home names: found by its bare name.
+    expect(await load('Gutter repair')).toMatchObject({ path: 'Random/Deep/Gutter repair.md', text: 'Call the roofer. #share\n', source: 'report' });
+    // (b) A PARTIAL path, by suffix on segment boundaries, in any case.
+    expect(await load('Alpha/Plan')).toMatchObject({ path: 'Clients/Acme/Alpha/Plan.md', text: 'Ship it. #share\n', source: 'report' });
+    expect(await load('acme/alpha/PLAN')).toMatchObject({ path: 'Clients/Acme/Alpha/Plan.md' });
+    expect(await load('lpha/Plan')).toEqual({ unavailable: 'not_shared' });
+    // Its save goes out under the FULL path the report named, and lands on that note.
+    const plan = await load('Alpha/Plan');
+    const typed = 'Ship it. #share\nTyped on the phone.\n';
+    expect(await B.run(() => B.api.saveTaskNote('Alpha/Plan', typed, { base: plan.base }))).toEqual({ ok: true, mode: 'queued' });
+    await B.flush();
+    await s.plugin.transport.drain();
+    expect(s.text('Clients/Acme/Alpha/Plan.md')).toBe(typed);
+    expect(s.text('Alpha/Plan.md')).toBe(null);
+    // (c) A DAILY note, linked by its date.
+    expect(await load('2026-09-04')).toMatchObject({ path: 'Daily/2026-09-04.md', text: 'Morning pages.\n', source: 'report' });
+
+    // (d) Two shared notes of one name, neither in a likely home: ambiguous, never one of them.
+    await s.write('Elsewhere/Gutter repair.md', 'Another of the same name. #share\n');
+    await s.settle();
+    expect(await load('Gutter repair')).toEqual({ unavailable: 'ambiguous' });
+    expect(await load('Elsewhere/Gutter repair')).toMatchObject({ text: 'Another of the same name. #share\n', source: 'report' });
+    // One deleted: the other is the one note of the name again; the deleted one reads as deleted.
+    await s.plugin.app.vault.delete(s.file('Elsewhere/Gutter repair.md'));
+    await s.settle();
+    expect(await load('Gutter repair')).toMatchObject({ path: 'Random/Deep/Gutter repair.md', source: 'report' });
+    expect(await load('Elsewhere/Gutter repair')).toEqual({ unavailable: 'deleted' });
+    // A RENAME is the old path deleted and the new one reported: the name follows the note.
+    await s.write('Projects/Budget.md', 'Numbers.\n');
+    await s.settle();
+    expect(await load('Budget')).toMatchObject({ path: 'Projects/Budget.md', source: 'report' });
+    await s.plugin.app.vault.rename(s.file('Projects/Budget.md'), 'Projects/2027/Budget.md');
+    await s.settle();
+    expect(await load('Budget')).toMatchObject({ path: 'Projects/2027/Budget.md', text: 'Numbers.\n', source: 'report' });
+    // The plugin reports the old path gone (a move within the scope), so it is not a second note of the name.
+    expect(await load('Projects/Budget')).toEqual({ unavailable: 'deleted' });
+    // Moved OUT of the scope: withdrawn. The note exists, and is not shared (never "deleted").
+    await s.plugin.app.vault.rename(s.file('Projects/2027/Budget.md'), 'Archive/Budget.md');
+    await s.settle();
+    expect(await load('Budget')).toEqual({ unavailable: 'not_shared', newNotesFolderOutsideScope: true, newNotesFolder: 'dayGLANCE' });
+    expect(await load('Projects/2027/Budget')).toEqual({ unavailable: 'not_shared' });
+    // The phone runs no cycle: the index kept a cursor of its own, never the cycle's.
+    expect(B.store.has(OBS_CURSOR)).toBe(false);
+  });
+
+  it('31. THE BOOTSTRAP (#2291 follow-up): a phone mounted after the notes were reported builds the index by one listing from zero and finds them, with no cycle cursor of its own; a desktop HOLDING (Obsidian not running there) whose cycle cursor passed those rows long ago bootstraps it in the background and its cursor stays where its cycle put it; the desktop that ran from cursor zero has it from its own pull', async () => {
+    await boot({});
+    await s.plugin.setScope({ tags: ['share'] });
+    await s.write('Random/Deep/Gutter repair.md', 'Call the roofer. #share\n');
+    await s.settle();
+    await A.sync();
+    // The plugin-posture desktop: its first pull ran from cursor zero, so it completed the index.
+    expect(pathIndexOf(A)).toMatchObject({ complete: true });
+    expect(pathIndexOf(A).paths['Random/Deep/Gutter repair.md']).toEqual([expect.any(Number), 'n']);
+
+    // A fresh phone: rows written before it ran. One listing from zero finds the note.
+    const B = mountDevice('B', {}, { folder: false });
+    expect(pathIndexOf(B)).toBe(null);
+    expect(await B.run(() => B.api.loadTaskNote('Gutter repair'))).toMatchObject({ path: 'Random/Deep/Gutter repair.md', text: 'Call the roofer. #share\n', source: 'report' });
+    expect(pathIndexOf(B)).toMatchObject({ complete: true });
+    expect(B.store.has(OBS_CURSOR)).toBe(false);
+
+    // A desktop holding, its cycle long past these rows (it synced before the index existed).
+    const C = mountDevice('C');
+    const passed = s.vault.maxSeq;
+    C.store.set(OBS_CURSOR, String(passed));
+    const heartbeat = vi.mocked(readVaultHeartbeat);
+    const fresh = heartbeat.getMockImplementation();
+    heartbeat.mockImplementation(async () => ({ paired: true, tsMs: Date.now() - 3_600_000, accountId: ACCOUNT_ID, deviceId: 'plugin-dev' }));
+    try {
+      await C.sync();
+      expect(C.api.bridgeHeartbeatRef.current.vaultPosture).toBe('holding');
+      for (let i = 0; i < 200 && !pathIndexOf(C)?.complete; i++) await C.run(() => Promise.resolve());
+      expect(pathIndexOf(C)).toMatchObject({ complete: true });
+      expect(pathIndexOf(C).paths['Random/Deep/Gutter repair.md']).toEqual([expect.any(Number), 'n']);
+      expect(Number(C.store.get(OBS_CURSOR))).toBeGreaterThanOrEqual(passed);
+      // Its folder lacks the note (the copy is not current): the report, found through the index.
+      expect(await C.run(() => C.api.loadTaskNote('Gutter repair'))).toMatchObject({ path: 'Random/Deep/Gutter repair.md', source: 'report' });
+    } finally {
+      heartbeat.mockImplementation(fresh!);
+    }
+  });
+
+  it('32. NOT LOADED IS NOT EMPTY (#2291 follow-up): while the index cannot be built (the listing fails), the phone resolves a name as it did before the index, from the likely homes, and a note only the index could find is not shared; once a listing succeeds the index is complete and finds it; when it cannot catch up later, a link naming a newly reported path is still read there directly', async () => {
+    await boot({});
+    await s.plugin.setScope({ folders: ['Projects'], tags: ['share'] });
+    await s.write('Projects/Plan.md', 'In a scope folder.\n');
+    await s.write('Random/Deep/Gutter repair.md', 'Call the roofer. #share\n');
+    await s.write('Daily/2026-09-04.md', 'Morning pages.\n');
+    await s.settle();
+    const B = mountDevice('B', {}, { folder: false });
+    const load = (name: string): Promise<any> => B.run(() => B.api.loadTaskNote(name));
+    // Every listing fails; row reads still work.
+    vi.stubGlobal('fetch', async (url: string, init?: any) => (String(url).includes('/list')
+      ? { ok: false, status: 502, json: async () => ({ error: 'bad gateway' }), text: async () => 'bad gateway' }
+      : s.vault.fetch(url, init)));
+    expect(await load('Plan')).toMatchObject({ path: 'Projects/Plan.md', source: 'report' });
+    // The daily-notes folder is a likely home too.
+    expect(await load('2026-09-04')).toMatchObject({ path: 'Daily/2026-09-04.md', source: 'report' });
+    expect(await load('Gutter repair')).toEqual({ unavailable: 'not_shared', newNotesFolderOutsideScope: true, newNotesFolder: 'dayGLANCE' });
+    expect(pathIndexOf(B)).toBe(null);
+    // A stored value that cannot be read is no index either: still guessing, never "no notes".
+    B.store.set(NOTE_INDEX, '{not json');
+    expect(await load('Plan')).toMatchObject({ path: 'Projects/Plan.md', source: 'report' });
+    // The listing works again: one from zero completes the index, and the tag-shared note is found.
+    vi.stubGlobal('fetch', s.vault.fetch);
+    expect(await load('Gutter repair')).toMatchObject({ path: 'Random/Deep/Gutter repair.md', source: 'report' });
+    expect(pathIndexOf(B)).toMatchObject({ complete: true });
+    // A note reported since, while the index cannot catch up: a link naming its path is read there directly; a bare name the index lacks is not shared until it can.
+    await s.write('Projects/New idea.md', 'Just reported.\n');
+    await s.settle();
+    vi.stubGlobal('fetch', async (url: string, init?: any) => (String(url).includes('/list')
+      ? { ok: false, status: 502, json: async () => ({ error: 'bad gateway' }), text: async () => 'bad gateway' }
+      : s.vault.fetch(url, init)));
+    expect(await load('Projects/New idea')).toMatchObject({ path: 'Projects/New idea.md', text: 'Just reported.\n', source: 'report' });
+    expect(await load('New idea')).toEqual({ unavailable: 'not_shared', newNotesFolderOutsideScope: true, newNotesFolder: 'dayGLANCE' });
+    vi.stubGlobal('fetch', s.vault.fetch);
+    expect(await load('New idea')).toMatchObject({ path: 'Projects/New idea.md', source: 'report' });
   });
 });
 
