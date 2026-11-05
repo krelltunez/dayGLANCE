@@ -44,6 +44,8 @@ const { noteTextHash, bridgeNoteDescriptionLoader, importBridgeSubkey, openBridg
 const { readWikiNote } = await import('../../src/obsidian.js');
 const { topProjectOrder, sendToBottomIds, applyProjectReorder, sortByProjectOrder } = await import('../../src/utils/projectOrder.js');
 const { readRetiredTaskIds } = await import('../../src/utils/retiredTaskIds.js');
+const { buildMcpReadState, handleMcpRequest } = await import('@glance-apps/dayglance-mcp/model');
+const { enrichGoalTreeDescriptions, splitDescriptionWrite, writeLinkedDescription } = await import('../../src/utils/mcpNoteDescriptions.js');
 
 type Row = Record<string, any>;
 
@@ -925,6 +927,39 @@ describe('project and goal notes: creation, the maintained map, the project fiel
     // phone shows old text; read a missing report as not found and the last
     // expectation fails; carry the user's base instead of checking it against
     // the shown text and the stale edit is queued.
+  });
+
+  it('28. THE MCP WITHOUT THE FOLDER (#2291): the desktop server fills a linked goal\'s description through the app\'s loader, so a computer that cannot read the vault answers with the plugin\'s report, its base and when it was reported; a description write through it is queued as the replace intent and the plugin applies it', async () => {
+    const GOAL_NOTE = 'Goals/Home.md';
+    await boot({ goals: [{ id: 'g1', title: 'Home', status: 'active' }] });
+    expect(A.api.createProjectNote('goal', 'g1', { title: 'Home' })).toBe(true);
+    await A.flush();
+    await s.plugin.transport.drain();
+    await s.advance(3000);
+    await A.sync();
+    const goal = A.state.goals[0];
+    expect(goal.obsidianNotePath).toBe(GOAL_NOTE);
+    await s.write(GOAL_NOTE, s.text(GOAL_NOTE)!.replace(/^# Home\n[^#]*/m, '# Home\nA dry, warm house.\n\n'));
+    await s.settle();
+
+    const B = mountDevice('B', { goals: [{ ...goal }] }, { folder: false });
+    const notes = { loadNoteDescription: B.api.loadNoteDescription, saveNoteDescription: B.api.saveNoteDescription, noteWriteMode: () => 'written' };
+    const state = buildMcpReadState({ goals: B.state.goals, projects: [] }, { now: Date.now(), timeZone: 'UTC' });
+    const tree = handleMcpRequest(state, { method: 'goal_progress', params: { window: 'all' } });
+    expect(tree.ok).toBe(true);
+    const out: any = await B.run(() => enrichGoalTreeDescriptions(tree.data, notes));
+    const home = out.goals.find((g: Row) => g.id === 'g1');
+    expect(home).toMatchObject({ description: 'A dry, warm house.', description_source: 'obsidian_note', description_base: noteTextHash('A dry, warm house.') });
+    expect(Date.parse(home.description_reported_at)).toBeGreaterThan(0);
+
+    // The write tool's note half, with the base the read returned.
+    const split = splitDescriptionWrite({ goals: B.state.goals, projects: [] }, 'update_goal', { goalId: 'g1', set: { description: 'Warm by winter.', descriptionBase: home.description_base } });
+    const wrote: any = await B.run(() => writeLinkedDescription(split, notes));
+    expect(wrote).toEqual({ ok: true, text: 'Warm by winter.', mode: 'queued' });
+    await B.flush();
+    await s.plugin.transport.drain();
+    expect(s.text(GOAL_NOTE)).toContain('# Home\nWarm by winter.\n');
+    expect(s.text(GOAL_NOTE)).not.toContain('[!note] Edited in dayGLANCE');
   });
 });
 

@@ -50,6 +50,12 @@ describe('writeLinkedDescription', () => {
     expect(save).toHaveBeenCalledWith('goal', 'g1', 'Goals/Home.md', 'New', { base: 'h0' });
     await expect(writeLinkedDescription(split, { saveNoteDescription: save })).resolves.toMatchObject({ mode: 'written' });
   });
+  it('the save\'s own word on how it went wins over the posture: a section from the plugin\'s report is queued on a device whose posture says direct (#2291)', async () => {
+    const queued = vi.fn(async () => ({ ok: true, mode: 'queued' }));
+    await expect(writeLinkedDescription(split, { saveNoteDescription: queued, noteWriteMode: () => 'written' })).resolves.toEqual({ ok: true, text: 'New', mode: 'queued' });
+    const written = vi.fn(async () => ({ ok: true, mode: 'written' }));
+    await expect(writeLinkedDescription(split, { saveNoteDescription: written, noteWriteMode: () => 'queued' })).resolves.toMatchObject({ mode: 'written' });
+  });
   it('a refusal is note_changed; a failed write and a device without the vault are typed validation errors; a throw is internal', async () => {
     const refused = await writeLinkedDescription(split, { saveNoteDescription: async () => ({ refused: 'changed', text: 'Edited in Obsidian.' }) });
     expect(refused).toMatchObject({ ok: false, error: { code: 'note_changed' } });

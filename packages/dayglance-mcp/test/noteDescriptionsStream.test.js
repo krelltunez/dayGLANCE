@@ -49,7 +49,7 @@ describe('linked descriptions from the observation stream', () => {
     const out = await enrichGoalTreeDescriptions(tree.data, { loadNoteDescription });
 
     const home = out.goals.find((g) => g.id === 'g1');
-    expect(home).toMatchObject({ description: 'A dry, warm house.', description_source: 'obsidian_note', description_base: noteTextHash('A dry, warm house.') });
+    expect(home).toMatchObject({ description: 'A dry, warm house.', description_source: 'obsidian_note', description_base: noteTextHash('A dry, warm house.'), description_reported_at: '2026-10-21T10:00:00.000Z' });
     const house = home.projects.find((p) => p.id === 'p1');
     expect(house).toMatchObject({ description: 'Keep the roof dry.', description_source: 'obsidian_note', description_base: noteTextHash('Keep the roof dry.') });
     // Deleted in the vault: the pointer stays, nothing is filled in.

@@ -37,6 +37,15 @@ describe('enrichGoalTreeDescriptions', () => {
     expect(loadNoteDescription).not.toHaveBeenCalledWith('Projects/Attic.md');
     expect(loadNoteDescription).toHaveBeenCalledTimes(3);
   });
+  it('a section read from the plugin\'s report says when it was reported; one read from a file does not (#2291)', async () => {
+    const loadNoteDescription = async (path) => (path === 'Goals/Home.md'
+      ? { text: 'Reported.', base: 'h1', source: 'report', observedAt: '2026-11-05T10:00:00.000Z', lastModified: '2026-11-05T09:59:00.000Z' }
+      : { text: 'From a file.', base: 'h2', lastModified: '2026-11-05T09:00:00.000Z' });
+    const out = await enrichGoalTreeDescriptions(tree(), { loadNoteDescription });
+    expect(out.goals[0]).toMatchObject({ description: 'Reported.', description_source: 'obsidian_note', description_base: 'h1', description_reported_at: '2026-11-05T10:00:00.000Z' });
+    expect(out.standalone_projects[0]).toMatchObject({ description: 'From a file.', description_source: 'obsidian_note' });
+    expect('description_reported_at' in out.standalone_projects[0]).toBe(false);
+  });
   it('without a loader, or with nothing linked, returns the data unchanged in shape; the input is not mutated', async () => {
     const data = tree();
     const same = await enrichGoalTreeDescriptions(data, {});
