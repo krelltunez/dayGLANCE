@@ -193,7 +193,9 @@ export const DESCRIPTION_READ_BUDGET_MS: number;
 /**
  * A goal_progress result with each linked goal's and project's `description`
  * filled from its note (`description_source: 'obsidian_note'`, and
- * `description_base`, the section's hash). An entity whose note cannot be read
- * keeps what it had. Returns a new object; the input is not mutated.
+ * `description_base`, the section's hash; `description_reported_at` when the
+ * text is the plugin's report of the note, its `observedAt`). An entity whose
+ * note cannot be read keeps what it had. Returns a new object; the input is
+ * not mutated.
  */
 export function enrichGoalTreeDescriptions<T>(data: T, deps?: { loadNoteDescription?: LoadNoteDescription }): Promise<T>;

@@ -11,6 +11,8 @@ import { BookOpen, ExternalLink } from 'lucide-react';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { renderFormattedText } from '../../utils/textFormatting.jsx';
 import { autoSizeTextarea } from '../../utils/autoSizeTextarea.js';
+import { describeAgo } from '../../utils/bridgeStatus.js';
+import { activeLocale } from '../../utils/localeFormatting.js';
 
 /**
  * @param {object} props
@@ -30,6 +32,7 @@ export default function EntityNotesBox({ state, accentHex, label, showLabel = tr
   const finish = () => { save(); if (notes.trim() || !editWhenEmpty) setEditing(false); };
   const empty = !notes.trim();
   const maxH = 'max-h-[60vh]';
+  const reportedMs = vaultNotes && vault.reportedAt ? Date.parse(vault.reportedAt) : NaN;
 
   return (
     <div className={`flex flex-col gap-1 flex-shrink-0 ${className}`} data-notes-source={vaultNotes ? 'vault' : 'record'}>
@@ -96,6 +99,13 @@ export default function EntityNotesBox({ state, accentHex, label, showLabel = tr
         >
           {empty ? t('task.notesPlaceholder', 'Add notes...') : renderFormattedText(notes)}
         </div>
+      )}
+      {Number.isFinite(reportedMs) && !vault.loading && !vault.unavailable && (
+        // The section came from the plugin's report, not a file here (#2291):
+        // say how old it is.
+        <p data-notes-reported={vault.reportedAt} className={`text-xs italic ${textSecondary}`}>
+          {t('planner.notesReportedByObsidian', { when: describeAgo(reportedMs, Date.now(), activeLocale()) })}
+        </p>
       )}
       {vaultNotes && vault.conflict && (
         <p data-notes-conflict className="text-xs text-amber-500">{t('planner.notesChanged')}</p>

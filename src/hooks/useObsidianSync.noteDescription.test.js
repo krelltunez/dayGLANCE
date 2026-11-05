@@ -54,12 +54,20 @@ vi.mock('../utils/obsidianBridgeStream.js', () => ({
   getBridgePairingMeta: vi.fn(async () => null),
 }));
 
+// The plugin's report of a note (#2291): one row read on demand. Null (no
+// information) unless a test says otherwise.
+const fetchReportedNoteDescription = vi.fn(async () => null);
+vi.mock('../utils/obsidianBridgeInbound.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  fetchReportedNoteDescription: (...a) => fetchReportedNoteDescription(...a),
+}));
+
 const { default: useObsidianSync } = await import('./useObsidianSync.js');
 const { noteTextHash } = await import('@glance-apps/obsidian-format');
 
 const NOTE = '---\ncreated: 2026-10-03\nsource: dayGLANCE\n---\n# House\nDry roof by spring.\n\n## Tasks\n- [ ] Fix the gutter ^dg-abc12345\n';
 
-function useMountedSync({ stream = true, projects = [], enabled = true } = {}) {
+function useMountedSync({ stream = true, projects = [], enabled = true, folder = true, posture = undefined } = {}) {
   effects.length = 0;
   vi.stubGlobal('setTimeout', () => 1);
   vi.stubGlobal('setInterval', () => 1);
@@ -76,17 +84,18 @@ function useMountedSync({ stream = true, projects = [], enabled = true } = {}) {
     obsidianConfig: { enabled, dailyNotesPath: '', dailyNotePattern: 'yyyy-MM-dd', newNotesFolder: 'dayGLANCE' },
     setObsidianConfig: vi.fn(), obsidianLaunchOnWrite: null, obsidianSyncError: null,
     setObsidianSyncStatus: vi.fn(), setObsidianSyncError: vi.fn(), setObsidianLastSynced: vi.fn(), setObsidianSyncNotice: vi.fn(),
-    obsidianVaultHandleRef: { current: { kind: 'directory' } },
+    obsidianVaultHandleRef: { current: folder ? { kind: 'directory' } : null },
     obsidianSyncInProgressRef: { current: false }, obsidianPrevTaskStateRef: { current: {} },
     obsidianTasksRef: { current: [] }, obsidianInboxRef: { current: [] },
     projects, goals: [], updateProject, updateGoal: vi.fn(),
   });
-  api.bridgeHeartbeatRef.current = { obsidianRunning: stream, pluginAuthoritative: stream, vaultPosture: stream ? 'plugin' : 'direct' };
+  // No folder: no cycle runs, so no posture is ever recorded (the ref keeps its initial value).
+  if (posture !== null) api.bridgeHeartbeatRef.current = { obsidianRunning: stream, pluginAuthoritative: stream, vaultPosture: posture ?? (stream ? 'plugin' : 'direct') };
   return { ...api, updateProject, store };
 }
 const flushMicrotasks = () => new Promise((r) => setImmediate(r));
 
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); readWikiNote.mockReset(); writeWikiNote.mockClear(); emitBridgeIntent.mockReset(); emitBridgeIntent.mockReturnValue(true); });
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); readWikiNote.mockReset(); writeWikiNote.mockClear(); emitBridgeIntent.mockReset(); emitBridgeIntent.mockReturnValue(true); fetchReportedNoteDescription.mockReset(); fetchReportedNoteDescription.mockResolvedValue(null); });
 
 describe('loadNoteDescription', () => {
   it('returns the section under the title with its hash; absence and an unreadable vault pass through', async () => {
@@ -109,7 +118,7 @@ describe('saveNoteDescription (the editor over the section)', () => {
     readWikiNote.mockResolvedValue({ text: NOTE, lastModified: 'L' });
     const { saveNoteDescription } = useMountedSync();
     const base = noteTextHash('Dry roof by spring.');
-    await expect(saveNoteDescription('project', 'p1', 'Projects/House.md', 'Dry roof, and gutters.', { base })).resolves.toEqual({ ok: true });
+    await expect(saveNoteDescription('project', 'p1', 'Projects/House.md', 'Dry roof, and gutters.', { base })).resolves.toEqual({ ok: true, mode: 'queued' });
     expect(emitBridgeIntent).toHaveBeenCalledWith('project_note_description', expect.objectContaining({
       path: 'Projects/House.md', targetId: 'p1', content: 'Dry roof, and gutters.', mode: 'replace', base,
     }));
@@ -125,9 +134,93 @@ describe('saveNoteDescription (the editor over the section)', () => {
   it('direct access writes the whole note with the section replaced', async () => {
     readWikiNote.mockResolvedValue({ text: NOTE, lastModified: 'L' });
     const { saveNoteDescription } = useMountedSync({ stream: false });
-    await expect(saveNoteDescription('project', 'p1', 'Projects/House.md', 'New text.')).resolves.toEqual({ ok: true });
+    await expect(saveNoteDescription('project', 'p1', 'Projects/House.md', 'New text.')).resolves.toEqual({ ok: true, mode: 'written' });
     expect(emitBridgeIntent).not.toHaveBeenCalled();
     expect(writeWikiNote).toHaveBeenCalledWith({ kind: 'directory' }, 'Projects/House', NOTE.replace('Dry roof by spring.', 'New text.'), 'dayGLANCE');
+  });
+});
+
+// ── THE PLUGIN'S REPORT AS A SECOND SOURCE (#2291) ─────────────────────────
+// The owner's rulings: no folder → the report; both → the newer, file mtime
+// to file mtime; a reported deletion or withdrawal → not found; a path never
+// reported → no information. The save re-reads by the same rule.
+const reportOf = (text, { mtime = '2026-11-05T10:00:00.000Z', observedAt = '2026-11-05T10:00:05.000Z' } = {}) => (
+  { text, base: noteTextHash(text), observedAt, lastModified: mtime }
+);
+const fileAt = (section, lastModified) => ({ text: NOTE.replace('Dry roof by spring.', section), lastModified });
+
+describe('loadNoteDescription with the plugin\'s report', () => {
+  it('no folder here: the reported section, marked as a report with its time; never reported is no information', async () => {
+    fetchReportedNoteDescription.mockResolvedValue(reportOf('From Obsidian.'));
+    const { loadNoteDescription } = useMountedSync({ folder: false, posture: null });
+    await expect(loadNoteDescription('[[Projects/House]]')).resolves.toEqual({ ...reportOf('From Obsidian.'), source: 'report' });
+    expect(fetchReportedNoteDescription).toHaveBeenLastCalledWith('Projects/House.md');
+    expect(readWikiNote).not.toHaveBeenCalled();
+    fetchReportedNoteDescription.mockResolvedValue(null);
+    await expect(loadNoteDescription('Projects/House.md')).resolves.toBe(null);
+  });
+  it('a failed folder read, and a copy without the note, give way to the report', async () => {
+    fetchReportedNoteDescription.mockResolvedValue(reportOf('From Obsidian.'));
+    const { loadNoteDescription } = useMountedSync({ posture: 'holding', stream: false });
+    readWikiNote.mockRejectedValue(new Error('EACCES'));
+    await expect(loadNoteDescription('Projects/House.md')).resolves.toMatchObject({ text: 'From Obsidian.', source: 'report' });
+    readWikiNote.mockResolvedValue(null);
+    await expect(loadNoteDescription('Projects/House.md')).resolves.toMatchObject({ text: 'From Obsidian.', source: 'report' });
+  });
+  it('both: the newer wins, the report\'s file mtime against the local file\'s', async () => {
+    fetchReportedNoteDescription.mockResolvedValue(reportOf('Edited on the desktop.', { mtime: '2026-11-05T10:00:00.000Z' }));
+    const { loadNoteDescription } = useMountedSync({ posture: 'holding', stream: false });
+    // A copy that is behind (holding: Obsidian not running here).
+    readWikiNote.mockResolvedValue(fileAt('Old copy.', '2026-11-04T09:00:00.000Z'));
+    await expect(loadNoteDescription('Projects/House.md')).resolves.toMatchObject({ text: 'Edited on the desktop.', source: 'report' });
+    // A copy newer than the report.
+    readWikiNote.mockResolvedValue(fileAt('Edited here since.', '2026-11-05T11:00:00.000Z'));
+    await expect(loadNoteDescription('Projects/House.md')).resolves.toEqual({ text: 'Edited here since.', base: noteTextHash('Edited here since.'), lastModified: '2026-11-05T11:00:00.000Z' });
+  });
+  it('a reported deletion or withdrawal is not found, over a copy that still has the note', async () => {
+    fetchReportedNoteDescription.mockResolvedValue({ notFound: true });
+    readWikiNote.mockResolvedValue(fileAt('Still in my copy.', '2026-11-05T11:00:00.000Z'));
+    const { loadNoteDescription } = useMountedSync({ posture: 'holding', stream: false });
+    await expect(loadNoteDescription('Projects/House.md')).resolves.toEqual({ notFound: true });
+    const noFolder = useMountedSync({ folder: false, posture: null });
+    await expect(noFolder.loadNoteDescription('Projects/House.md')).resolves.toEqual({ notFound: true });
+  });
+});
+
+describe('saveNoteDescription with the plugin\'s report', () => {
+  it('no folder, no posture recorded: the save goes out as the replace intent under the base of the shown (reported) text', async () => {
+    fetchReportedNoteDescription.mockResolvedValue(reportOf('From Obsidian.'));
+    const { saveNoteDescription } = useMountedSync({ folder: false, posture: null });
+    const base = noteTextHash('From Obsidian.');
+    await expect(saveNoteDescription('project', 'p1', 'Projects/House.md', 'Typed on the phone.', { base })).resolves.toEqual({ ok: true, mode: 'queued' });
+    expect(emitBridgeIntent).toHaveBeenCalledWith('project_note_description', expect.objectContaining({
+      path: 'Projects/House.md', targetId: 'p1', content: 'Typed on the phone.', mode: 'replace', base,
+    }));
+    expect(writeWikiNote).not.toHaveBeenCalled();
+  });
+  it('no folder: a base the latest report no longer matches is refused here, with the reported text and its time', async () => {
+    fetchReportedNoteDescription.mockResolvedValue(reportOf('Edited in Obsidian since.'));
+    const { saveNoteDescription } = useMountedSync({ folder: false, posture: null });
+    await expect(saveNoteDescription('project', 'p1', 'Projects/House.md', 'Typed.', { base: noteTextHash('From Obsidian.') }))
+      .resolves.toEqual({ refused: 'changed', text: 'Edited in Obsidian since.', lastModified: '2026-11-05T10:00:00.000Z', source: 'report', observedAt: '2026-11-05T10:00:05.000Z' });
+    expect(emitBridgeIntent).not.toHaveBeenCalled();
+  });
+  it('a copy behind the report: a text edited from the report is NOT refused against the stale copy; one edited from the stale copy is', async () => {
+    fetchReportedNoteDescription.mockResolvedValue(reportOf('Edited on the desktop.', { mtime: '2026-11-05T10:00:00.000Z' }));
+    readWikiNote.mockResolvedValue(fileAt('Old copy.', '2026-11-04T09:00:00.000Z'));
+    const { saveNoteDescription } = useMountedSync({ posture: 'holding', stream: false });
+    await expect(saveNoteDescription('project', 'p1', 'Projects/House.md', 'Mine.', { base: noteTextHash('Edited on the desktop.') })).resolves.toEqual({ ok: true, mode: 'queued' });
+    expect(emitBridgeIntent).toHaveBeenCalledWith('project_note_description', expect.objectContaining({ base: noteTextHash('Edited on the desktop.') }));
+    emitBridgeIntent.mockClear();
+    await expect(saveNoteDescription('project', 'p1', 'Projects/House.md', 'Mine.', { base: noteTextHash('Old copy.') }))
+      .resolves.toMatchObject({ refused: 'changed', text: 'Edited on the desktop.' });
+    expect(emitBridgeIntent).not.toHaveBeenCalled();
+  });
+  it('not paired and no folder: unchanged, nothing is written or queued', async () => {
+    const { saveNoteDescription } = useMountedSync({ folder: false, posture: null });
+    await expect(saveNoteDescription('project', 'p1', 'Projects/House.md', 'Typed.', { base: noteTextHash('x') })).resolves.toEqual({ ok: false });
+    expect(emitBridgeIntent).not.toHaveBeenCalled();
+    expect(writeWikiNote).not.toHaveBeenCalled();
   });
 });
 
@@ -227,3 +320,29 @@ describe('the link without a stream (owner 2026-10-03: the wikilink in the title
     expect(emitBridgeIntent).not.toHaveBeenCalledWith('project_note_unlink', expect.anything());
   });
 });
+
+describe('the plugin\'s report is not read where the folder is the live note (#2291)', () => {
+  const reported = { text: 'From another device.', base: noteTextHash('From another device.'), observedAt: '2026-11-05T09:00:00Z', lastModified: '2099-01-01T00:00:00Z' };
+  it('plugin posture with a readable file: the file answers alone, no GLANCEvault read', async () => {
+    readWikiNote.mockResolvedValue({ text: NOTE, lastModified: '2026-11-01T00:00:00Z' });
+    fetchReportedNoteDescription.mockResolvedValue(reported);
+    const { loadNoteDescription } = useMountedSync({ posture: 'plugin' });
+    await expect(loadNoteDescription('Projects/House.md')).resolves.toMatchObject({ text: 'Dry roof by spring.' });
+    expect(fetchReportedNoteDescription).not.toHaveBeenCalled();
+  });
+  it('plugin posture without the note in the folder still asks for the report', async () => {
+    readWikiNote.mockResolvedValue(null);
+    fetchReportedNoteDescription.mockResolvedValue(reported);
+    const { loadNoteDescription } = useMountedSync({ posture: 'plugin' });
+    await expect(loadNoteDescription('Projects/House.md')).resolves.toMatchObject({ text: 'From another device.' });
+    expect(fetchReportedNoteDescription).toHaveBeenCalledTimes(1);
+  });
+  it('holding posture reads both and the newer wins', async () => {
+    readWikiNote.mockResolvedValue({ text: NOTE, lastModified: '2026-11-01T00:00:00Z' });
+    fetchReportedNoteDescription.mockResolvedValue(reported);
+    const { loadNoteDescription } = useMountedSync({ posture: 'holding', stream: false });
+    await expect(loadNoteDescription('Projects/House.md')).resolves.toMatchObject({ text: 'From another device.' });
+    expect(fetchReportedNoteDescription).toHaveBeenCalledTimes(1);
+  });
+});
+

@@ -39,6 +39,10 @@ import {
   noteKeyForPath,
   BRIDGE_COPY_PREFIX,
   decodePlainBridgeRow,
+  observationEntityId,
+  openNoteObservations,
+  noteDescriptionFromObservations,
+  normalizeNotePath,
 } from '@glance-apps/obsidian-format';
 import {
   buildExistingObsidianTaskContext,
@@ -160,6 +164,105 @@ export async function fetchBridgeObservations() {
     // Rate-limited (the client armed the brake itself) or unreachable —
     // the unadvanced cursor retries next cycle either way.
     return fail(bridgeRateLimited() ? 'rate-limited' : 'unreachable');
+  }
+}
+
+/**
+ * A linked note's description as the plugin last reported the note (#2291),
+ * for a device that cannot read the note from a vault folder, or whose copy
+ * may be behind. Read ON DEMAND, one note at a time: the observation row is
+ * upserted per path under a stable id (observationEntityId), so one GET of
+ * that row is the note's latest reported state. Nothing is kept: the
+ * cycle's incremental fetch above never holds rows (its cursor has long
+ * passed a note that has not changed), and the text has no second home
+ * (owner ruling 2026-10-03). The same gates as the cycle's fetch: a
+ * configured GLANCEvault, a paired vault, and a root key proven against the
+ * account (bridgeKeyGate.js).
+ *
+ * Resolves to what the shared reader (noteDescriptionFromObservations)
+ * returns: { text, base, observedAt, lastModified }, { notFound: true } for
+ * a deleted or withdrawn note, or null, which is NO INFORMATION: unpaired,
+ * no key yet, unreachable, braked, or the plugin never reported the path.
+ * Never throws, and never waits longer than the budget: a report slower
+ * than that is no information this time (the next read asks again), so a
+ * slow GLANCEvault holds neither a folder's own reading nor the MCP's
+ * per-read budget (DESCRIPTION_READ_BUDGET_MS, 2 s) hostage.
+ */
+export const REPORTED_NOTE_READ_BUDGET_MS = 1500;
+/**
+ * At most this many report reads at once. An MCP goal tree asks for up to 40
+ * linked descriptions together, each one or two row reads; unchecked, that
+ * burst could draw a 429 from a self-hosted GLANCEvault, and the vault
+ * client's brake would then pause ALL vault traffic, sync included.
+ */
+export const REPORTED_NOTE_READ_CONCURRENCY = 4;
+
+/**
+ * A limiter for async jobs: at most `max` run at once, the rest wait in
+ * order. `run(job, { isCancelled })` resolves to the job's result, or to
+ * undefined without running it when isCancelled() is true by the time a
+ * slot frees (its caller already gave up), so a read whose budget ran out
+ * while it queued never reaches the vault.
+ */
+export function createReadLimiter(max) {
+  let active = 0;
+  const waiting = [];
+  const release = () => {
+    const next = waiting.shift();
+    if (next) next(); else active -= 1;
+  };
+  const acquire = () => {
+    if (active < max) { active += 1; return Promise.resolve(); }
+    return new Promise((resolve) => waiting.push(resolve));
+  };
+  return {
+    async run(job, { isCancelled = () => false } = {}) {
+      await acquire();
+      if (isCancelled()) { release(); return undefined; }
+      try { return await job(); } finally { release(); }
+    },
+    stats: () => ({ active, waiting: waiting.length }),
+  };
+}
+const reportedReads = createReadLimiter(REPORTED_NOTE_READ_CONCURRENCY);
+
+export function fetchReportedNoteDescription(path, { budgetMs = REPORTED_NOTE_READ_BUDGET_MS } = {}) {
+  return new Promise((resolve) => {
+    let done = false;
+    const timer = setTimeout(() => { done = true; resolve(null); }, budgetMs);
+    reportedReads.run(() => readReportedNoteDescription(path), { isCancelled: () => done })
+      .then((r) => { if (done) return; done = true; clearTimeout(timer); resolve(r ?? null); });
+  });
+}
+async function readReportedNoteDescription(path) {
+  try {
+    const notePath = normalizeNotePath(path);
+    if (!notePath) return null;
+    if (bridgeRateLimited()) return null;
+    const cfg = getVaultConfig();
+    if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId) return null;
+    if (!hasDbRootKey()) return null;
+    const meta = await getBridgePairingMeta();
+    if (!meta?.pairingSalt) return null;
+    const client = bridgeVaultClientFor(cfg);
+    const rootKey = await verifiedBridgeRootKey(client, cfg.accountId);
+    if (!rootKey) return null;
+    const salt = Uint8Array.from(atob(meta.pairingSalt), (c) => c.charCodeAt(0));
+    const subkey = await deriveBridgeSubkey(rootKey, salt);
+    // The plugin keys the row on Obsidian's own path. The link's path is
+    // NFC-normalized (noteKeyForPath); a file named in decomposed form (a
+    // macOS-created accented name) has the other row id, so both are asked
+    // for when they differ, and the shared reader picks the latest report.
+    const variants = [...new Set([notePath, notePath.normalize('NFD')])];
+    const rows = await Promise.all(variants.map(async (p) => {
+      const entityId = await observationEntityId(p);
+      const row = await client.getRow(BRIDGE_VAULT_APP, entityId, cfg.accountId);
+      return row ? { ...row, entityId: row.entityId ?? entityId } : null;
+    }));
+    const observations = await openNoteObservations(rows.filter(Boolean), subkey);
+    return noteDescriptionFromObservations(observations, notePath);
+  } catch {
+    return null;
   }
 }
 

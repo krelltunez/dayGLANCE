@@ -40,14 +40,17 @@ const { default: useObsidianSync } = await import('../../src/hooks/useObsidianSy
 const { flushBridgeOutbox, emitBridgeIntent, __resetBridgeStreamForTests } = await import('../../src/utils/obsidianBridgeStream.js');
 const { NoteBlockWriter } = await import('../src/noteBlocks');
 const { parseYaml } = await import('obsidian');
-const { noteTextHash, bridgeNoteDescriptionLoader, importBridgeSubkey, BRIDGE_VAULT_APP } = await import('@glance-apps/obsidian-format');
+const { noteTextHash, bridgeNoteDescriptionLoader, importBridgeSubkey, openBridgeEnvelope, BRIDGE_VAULT_APP, BRIDGE_INTENT_PREFIX } = await import('@glance-apps/obsidian-format');
 const { readWikiNote } = await import('../../src/obsidian.js');
 const { topProjectOrder, sendToBottomIds, applyProjectReorder, sortByProjectOrder } = await import('../../src/utils/projectOrder.js');
 const { readRetiredTaskIds } = await import('../../src/utils/retiredTaskIds.js');
+const { buildMcpReadState, handleMcpRequest } = await import('@glance-apps/dayglance-mcp/model');
+const { enrichGoalTreeDescriptions, splitDescriptionWrite, writeLinkedDescription } = await import('../../src/utils/mcpNoteDescriptions.js');
 
 type Row = Record<string, any>;
 
-function mountDevice(name: string, lists: { projects?: Row[]; goals?: Row[] } = {}) {
+/** `folder: false` is a device that cannot read the vault folder: no handle, so no Obsidian cycle runs and no posture is recorded (a phone paired through GLANCEvault). */
+function mountDevice(name: string, lists: { projects?: Row[]; goals?: Row[] } = {}, { folder = true }: { folder?: boolean } = {}) {
   const store = new Map<string, string>();
   const ls = { getItem: (k: string) => (store.has(k) ? store.get(k)! : null), setItem: (k: string, v: string) => { store.set(k, String(v)); }, removeItem: (k: string) => { store.delete(k); }, clear: () => store.clear() };
   const activate = () => { (globalThis as any).localStorage = ls; };
@@ -70,15 +73,15 @@ function mountDevice(name: string, lists: { projects?: Row[]; goals?: Row[] } = 
     obsidianConfig: { enabled: true, dailyNotesPath: 'Daily', dailyNotePattern: 'yyyy-MM-dd', taskHeading: '## Tasks' },
     setObsidianConfig: vi.fn(), obsidianLaunchOnWrite: null, obsidianCompletionDates: false, obsidianSyncError: null,
     setObsidianSyncStatus: vi.fn(), setObsidianSyncError: vi.fn(), setObsidianLastSynced: vi.fn(), setObsidianSyncNotice: vi.fn(),
-    obsidianVaultHandleRef: { current: {} }, obsidianSyncInProgressRef: { current: false }, obsidianPrevTaskStateRef: { current: {} },
+    obsidianVaultHandleRef: { current: folder ? {} : null }, obsidianSyncInProgressRef: { current: false }, obsidianPrevTaskStateRef: { current: {} },
     obsidianTasksRef: tasksRef, obsidianInboxRef: inboxRef,
     recycleBin: state.recycleBin, setRecycleBin: vi.fn(),
     projects: state.projects, goals: state.goals, updateProject, updateGoal,
   });
   const myEffects = [...effects];
-  api.bridgeHeartbeatRef.current = { obsidianRunning: true, pluginAuthoritative: true };
+  if (folder) api.bridgeHeartbeatRef.current = { obsidianRunning: true, pluginAuthoritative: true };
   return {
-    name, state, api, store,
+    name, state, api, store, run,
     sync: () => run(() => until(api.performObsidianSync())),
     /** Push everything the app has queued: emitBridgeIntent's own flush is fire-and-forget and may have read the outbox before a later emit. */
     flush: () => run(async () => {
@@ -754,17 +757,20 @@ describe('project and goal notes: creation, the maintained map, the project fiel
     await s.plugin.transport.drain();
     const line = s.text(NOTE)!.match(lineFor('Fix the gutter'))![0];
     const base = noteTextHash('One line on what done looks like.');
-    // This device cannot read the vault (no handle in the harness), so the
-    // app-side re-read is inconclusive and the intent goes out with the base;
-    // the applier's check decides.
+    // This device's folder read finds nothing (readWikiNote is stubbed), so
+    // the app-side re-read is the plugin's report of the note (#2291), and
+    // the intent goes out with the base; the applier's check decides.
     await A.api.saveNoteDescription('project', 'p1', NOTE, 'Dry roof, and gutters.', { base });
     await A.flush();
     await s.plugin.transport.drain();
     expect(s.text(NOTE)).toContain('# House\nDry roof, and gutters.\n\n## Tasks\n');
     expect(s.text(NOTE)).toContain(line);
-    // Obsidian edits the section; dayGLANCE saves against the old base.
-    await s.write(NOTE, s.text(NOTE)!.replace('Dry roof, and gutters.', 'Edited in Obsidian.'));
     await s.settle();
+    // Obsidian edits the section and dayGLANCE saves against the old base
+    // before the plugin has reported the edit (the race of seconds): the
+    // app-side check passes on the last report, the applier's refuses.
+    // (Scenario 27 has the app-side refusal, once the edit is reported.)
+    await s.write(NOTE, s.text(NOTE)!.replace('Dry roof, and gutters.', 'Edited in Obsidian.'));
     await A.api.saveNoteDescription('project', 'p1', NOTE, 'Typed in dayGLANCE.', { base: noteTextHash('Dry roof, and gutters.') });
     await A.flush();
     await s.plugin.transport.drain();
@@ -841,6 +847,129 @@ describe('project and goal notes: creation, the maintained map, the project fiel
     // MUTATION: ignore the deleted flag and the last expectation fails. (The
     // plugin upserts one row per path, so latest-wins across several copies
     // is pinned in noteObservations.test.js, where a reader holds more.)
+  });
+
+  it('27. THE PLANNER WITHOUT THE FOLDER (#2291): a device that cannot read the vault shows the section the plugin reported, with its age; an edit in Obsidian reaches it when reported; its save goes out as the replace intent under the base of the text it showed and the plugin applies it; a reported edit since is refused here; a copy that is behind gives way to a newer report; a deletion is not found; a note never reported stays no information', async () => {
+    const project = await bootLinked();
+    await s.write(NOTE, s.text(NOTE)!.replace('One line on what done looks like.', 'Keep the roof dry.'));
+    await s.settle();
+    // The phone: paired through GLANCEvault, no vault folder, no Obsidian cycle.
+    const B = mountDevice('B', { projects: [{ ...project }] }, { folder: false });
+    // Reads of the report are awaited in real time, not through `until`: the
+    // read has a time budget (REPORTED_NOTE_READ_BUDGET_MS), and fake time
+    // stepped ahead of the real crypto would spend it.
+    const load = (path = NOTE): Promise<any> => B.run(() => B.api.loadNoteDescription(path));
+    const shown = await load();
+    expect(shown).toMatchObject({ text: 'Keep the roof dry.', base: noteTextHash('Keep the roof dry.'), source: 'report' });
+    // Its age, for the box: when the plugin reported it, and the file's own time.
+    expect(Date.parse(shown.observedAt)).toBeGreaterThan(0);
+    expect(Date.parse(shown.lastModified)).toBeGreaterThan(0);
+
+    // An edit in Obsidian reaches the phone when the plugin reports it, not before.
+    await s.write(NOTE, s.text(NOTE)!.replace('Keep the roof dry.', 'Gutters first.'));
+    expect((await load()).text).toBe('Keep the roof dry.');
+    await s.settle();
+    const reported = await load();
+    expect(reported).toMatchObject({ text: 'Gutters first.', base: noteTextHash('Gutters first.'), source: 'report' });
+
+    // The save: a replace intent under the base of the SHOWN text, applied by the plugin.
+    const subkey = await importBridgeSubkey(s.pairing.subkeyB64);
+    const saved = await B.run(() => B.api.saveNoteDescription('project', 'p1', NOTE, 'Typed on the phone.', { base: reported.base }));
+    expect(saved).toEqual({ ok: true, mode: 'queued' });
+    await B.flush();
+    const intents: any[] = [];
+    for (const row of s.vault.live(BRIDGE_VAULT_APP)) {
+      if (!row.entityId.startsWith(BRIDGE_INTENT_PREFIX) || !row.envelope) continue;
+      const payload: any = await openBridgeEnvelope(subkey, row.envelope);
+      if (payload?.type === 'project_note_description') intents.push(payload);
+    }
+    expect(intents).toHaveLength(1);
+    expect(intents[0]).toMatchObject({ path: NOTE, targetId: 'p1', content: 'Typed on the phone.', mode: 'replace', base: noteTextHash('Gutters first.') });
+    await s.plugin.transport.drain();
+    expect(s.text(NOTE)).toContain('# House\nTyped on the phone.\n\n## Tasks\n');
+    expect(s.text(NOTE)).not.toContain('[!note] Edited in dayGLANCE');
+    await s.settle();
+    expect((await load()).text).toBe('Typed on the phone.');
+
+    // Edited in Obsidian and reported since the phone loaded it: refused here, nothing queued, the newer text handed back.
+    await s.write(NOTE, s.text(NOTE)!.replace('Typed on the phone.', 'Edited again in Obsidian.'));
+    await s.settle();
+    const before = s.vault.maxSeq;
+    const refused = await B.run(() => B.api.saveNoteDescription('project', 'p1', NOTE, 'Stale edit.', { base: noteTextHash('Typed on the phone.') }));
+    expect(refused).toMatchObject({ refused: 'changed', text: 'Edited again in Obsidian.', source: 'report' });
+    await B.flush();
+    expect(s.vault.maxSeq).toBe(before);
+
+    // A device WITH a folder whose copy is behind (holding: Obsidian is not
+    // running there): the report is newer, file mtime to file mtime, so it wins.
+    const reportNow: any = await load();
+    const reportMs = Date.parse(reportNow.lastModified);
+    const staleCopy = (lastModifiedMs: number) => vi.mocked(readWikiNote).mockImplementationOnce(async () => ({ text: '# House\nStale copy here.\n\n## Tasks\n', lastModified: new Date(lastModifiedMs).toISOString() }) as any);
+    // A's own cycle recorded the 'plugin' posture (its Obsidian runs here):
+    // there the folder IS the live note, so a readable copy answers alone and
+    // GLANCEvault is not asked (no request burst from an MCP goal tree).
+    const recorded = A.api.bridgeHeartbeatRef.current;
+    staleCopy(reportMs - 60_000);
+    const live: any = await A.run(() => A.api.loadNoteDescription(NOTE));
+    expect(live).toMatchObject({ text: 'Stale copy here.' });
+    expect(live.source).toBeUndefined();
+    // Holding (Obsidian not running on this device): both are read.
+    A.api.bridgeHeartbeatRef.current = { ...recorded, vaultPosture: 'holding' };
+    staleCopy(reportMs - 60_000);
+    expect(await A.run(() => A.api.loadNoteDescription(NOTE))).toMatchObject({ text: 'Edited again in Obsidian.', source: 'report' });
+    // A copy newer than the report (edited here since) is the one shown.
+    staleCopy(reportMs + 60_000);
+    const fromFile: any = await A.run(() => A.api.loadNoteDescription(NOTE));
+    expect(fromFile).toMatchObject({ text: 'Stale copy here.' });
+    expect(fromFile.source).toBeUndefined();
+
+    // Deleted in Obsidian: not found on the phone, and over a copy that still has the note.
+    await s.plugin.app.vault.delete(s.file(NOTE));
+    await s.settle();
+    expect(await load()).toEqual({ notFound: true });
+    staleCopy(Date.now() + 60_000);
+    expect(await A.run(() => A.api.loadNoteDescription(NOTE))).toEqual({ notFound: true });
+
+    // A note the plugin never reported: no information, never "not found".
+    expect(await load('Projects/Never reported.md')).toBeNull();
+    // MUTATION (each checked): compare the report's mtime the wrong way and
+    // the holding copy shows its stale text; ignore the deleted flag and the
+    // phone shows old text; read a missing report as not found and the last
+    // expectation fails; carry the user's base instead of checking it against
+    // the shown text and the stale edit is queued.
+  });
+
+  it('28. THE MCP WITHOUT THE FOLDER (#2291): the desktop server fills a linked goal\'s description through the app\'s loader, so a computer that cannot read the vault answers with the plugin\'s report, its base and when it was reported; a description write through it is queued as the replace intent and the plugin applies it', async () => {
+    const GOAL_NOTE = 'Goals/Home.md';
+    await boot({ goals: [{ id: 'g1', title: 'Home', status: 'active' }] });
+    expect(A.api.createProjectNote('goal', 'g1', { title: 'Home' })).toBe(true);
+    await A.flush();
+    await s.plugin.transport.drain();
+    await s.advance(3000);
+    await A.sync();
+    const goal = A.state.goals[0];
+    expect(goal.obsidianNotePath).toBe(GOAL_NOTE);
+    await s.write(GOAL_NOTE, s.text(GOAL_NOTE)!.replace(/^# Home\n[^#]*/m, '# Home\nA dry, warm house.\n\n'));
+    await s.settle();
+
+    const B = mountDevice('B', { goals: [{ ...goal }] }, { folder: false });
+    const notes = { loadNoteDescription: B.api.loadNoteDescription, saveNoteDescription: B.api.saveNoteDescription, noteWriteMode: () => 'written' };
+    const state = buildMcpReadState({ goals: B.state.goals, projects: [] }, { now: Date.now(), timeZone: 'UTC' });
+    const tree = handleMcpRequest(state, { method: 'goal_progress', params: { window: 'all' } });
+    expect(tree.ok).toBe(true);
+    const out: any = await B.run(() => enrichGoalTreeDescriptions(tree.data, notes));
+    const home = out.goals.find((g: Row) => g.id === 'g1');
+    expect(home).toMatchObject({ description: 'A dry, warm house.', description_source: 'obsidian_note', description_base: noteTextHash('A dry, warm house.') });
+    expect(Date.parse(home.description_reported_at)).toBeGreaterThan(0);
+
+    // The write tool's note half, with the base the read returned.
+    const split = splitDescriptionWrite({ goals: B.state.goals, projects: [] }, 'update_goal', { goalId: 'g1', set: { description: 'Warm by winter.', descriptionBase: home.description_base } });
+    const wrote: any = await B.run(() => writeLinkedDescription(split, notes));
+    expect(wrote).toEqual({ ok: true, text: 'Warm by winter.', mode: 'queued' });
+    await B.flush();
+    await s.plugin.transport.drain();
+    expect(s.text(GOAL_NOTE)).toContain('# Home\nWarm by winter.\n');
+    expect(s.text(GOAL_NOTE)).not.toContain('[!note] Edited in dayGLANCE');
   });
 });
 

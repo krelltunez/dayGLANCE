@@ -77,7 +77,10 @@ export async function writeLinkedDescription(split, { saveNoteDescription, noteW
   if (!r?.ok) {
     return { ok: false, error: { code: 'validation', message: `The ${split.kind}'s linked note (${split.link.name}) could not be written on this device. The vault is not reachable here, or the note no longer exists.` } };
   }
-  const mode = typeof noteWriteMode === 'function' ? noteWriteMode() : 'written';
+  // The save says how it went when it knows (a device with no folder queues
+  // through the stream whatever the recorded posture, #2291); else the
+  // posture decides, as before.
+  const mode = r.mode === 'queued' || r.mode === 'written' ? r.mode : (typeof noteWriteMode === 'function' ? noteWriteMode() : 'written');
   return { ok: true, text: split.text, mode };
 }
 

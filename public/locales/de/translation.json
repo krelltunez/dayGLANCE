@@ -2132,6 +2132,7 @@
     "notesLoadFailed": "Die verknüpfte Notiz konnte nicht gelesen werden: {{error}}",
     "notesNoteMissing": "Die verknüpfte Notiz wurde im Vault nicht gefunden. Prüfen Sie den Namen der Notiz, oder erstellen Sie die Notiz in Obsidian.",
     "notesChanged": "Die Notiz wurde in Obsidian geändert, seit Sie sie geöffnet haben. Der neuere Text ist geladen, Ihr ungespeicherter Text steht darunter; prüfen Sie ihn und speichern Sie erneut.",
+    "notesReportedByObsidian": "Von Obsidian gemeldet, {{when}}.",
     "scheduled": "Geplant",
     "nothingScheduledYet": "Noch nichts geplant.",
     "noUnscheduledTasks": "Keine ungeplanten Aufgaben.",

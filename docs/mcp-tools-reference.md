@@ -219,8 +219,13 @@ Each goal: `id`, `title`, `status`, `description`, `start_date`, `target_date` (
 **A goal or project with `obsidian_note` keeps its description in that note's opening section**
 (companion spec §4.3). This tool reads it from the note: such an entity carries
 `description_source: "obsidian_note"` and `description_base`, the hash of the section as read, to
-pass back on a write. When this computer cannot read the vault (the vault folder was never chosen
-here), the pointer alone is returned and `description` is empty. Reads open the linked notes, at
+pass back on a write. When this computer cannot read the note from the vault folder (the folder was
+never chosen here, or the read fails), or its copy of the note is older than the one the bridge
+plugin last reported (file modification time against file modification time), the section is the
+plugin's report instead, and the entity also carries `description_reported_at`, when the plugin
+reported it: the text is as current as that report. A note the plugin reports deleted is not filled
+in. When neither is available (no folder, and the vault is not paired or the plugin has not reported
+the note), the pointer alone is returned and `description` is empty. Reads open the linked notes, at
 most 40 per call. Tasks carry `project_id`, so `dayglance_get_day` and
 `dayglance_list_unscheduled_tasks` give a project's tasks.
 
@@ -492,8 +497,10 @@ note is read again first and, when `description_base` was given and the section 
 written and the call fails with `note_changed` (read the entity again and retry with the new base).
 The rest of the note is never touched. The response carries `description_source`, the new
 `description_base`, and `note_write`: `"written"` when the file was written directly, `"queued"`
-when the bridge plugin will apply it the next time Obsidian is open, during which a read can still
-return the old text. The write journal reverses it by putting the previous section back under the
+when the bridge plugin will apply it the next time Obsidian is open (always the case for a section
+read from the plugin's report on a computer without the folder), during which a read can still
+return the old text. The re-read before the write uses the same source as the read: the newer of
+the file here and the plugin's report. The write journal reverses it by putting the previous section back under the
 same rule, so an undo never overwrites an edit made in Obsidian meanwhile; such an undo reports as
 skipped. Other fields in the same call are applied to the record as usual.
 

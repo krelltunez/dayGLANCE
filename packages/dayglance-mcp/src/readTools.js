@@ -256,8 +256,9 @@ export function registerReadTools(server, deps) {
         'projects; each project carries title, status, description, goal_id, assignee_ids, obsidian_note, ' +
         'progress and task counts. A goal or project with obsidian_note keeps its description in that ' +
         "note's opening section: it is read from the note here (description_source \"obsidian_note\", with " +
-        'description_base for a safe write through dayglance_update_goal or dayglance_update_project), or left ' +
-        'empty when this computer cannot read the vault. Scope with goal_id ' +
+        'description_base for a safe write through dayglance_update_goal or dayglance_update_project). Where the ' +
+        "vault folder cannot be read here, it is the bridge plugin's last report of the note instead, with " +
+        'description_reported_at saying when; left empty when neither is available. Scope with goal_id ' +
         "for one goal's tree; window is 'active' (default) or 'all' (includes archived/completed goals and " +
         'projects). Tasks carry project_id, so dayglance_get_day and dayglance_list_unscheduled_tasks give a ' +
         "project's tasks.",

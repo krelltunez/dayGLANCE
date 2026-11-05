@@ -2134,6 +2134,7 @@
     "notesLoadFailed": "Impossibile leggere la nota collegata: {{error}}",
     "notesNoteMissing": "La nota collegata non è stata trovata nel vault. Controlla il nome della nota o crea la nota in Obsidian.",
     "notesChanged": "La nota è cambiata in Obsidian da quando l'hai aperta. È stato caricato il testo più recente, con il tuo testo non salvato sotto; controlla e salva di nuovo.",
+    "notesReportedByObsidian": "Come riportato da Obsidian, {{when}}.",
     "scheduled": "Programmate",
     "nothingScheduledYet": "Ancora niente in programma.",
     "noUnscheduledTasks": "Nessuna attività non programmata.",

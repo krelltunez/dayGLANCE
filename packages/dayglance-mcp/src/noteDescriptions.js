@@ -5,7 +5,9 @@
 // (#2280), which keeps the write half and re-exports this.
 //
 // The loader is `loadNoteDescription(path)`, resolving to { text, base },
-// { notFound: true }, or null when the note cannot be read here. The desktop
+// plus `observedAt` when the text is the plugin's report of the note rather
+// than a file read, { notFound: true }, or null when the note cannot be read
+// here. The desktop
 // app passes its Obsidian hook's loader, which reads vault files; a
 // GLANCEvault-client host, which has no vault folder, passes one built from
 // the bridge's observation stream (@glance-apps/obsidian-format's
@@ -51,6 +53,10 @@ export async function enrichGoalTreeDescriptions(data, { loadNoteDescription } =
     entity.description = r.text;
     entity.description_source = 'obsidian_note';
     if (r.base) entity.description_base = r.base;
+    // Read from the plugin's report of the note rather than a file (a host
+    // with no folder; the app where its folder cannot read the note or is
+    // behind, #2291): as current as that report, which says when it was.
+    if (typeof r.observedAt === 'string' && r.observedAt) entity.description_reported_at = r.observedAt;
   });
   return { ...data, goals, standalone_projects: standalone };
 }

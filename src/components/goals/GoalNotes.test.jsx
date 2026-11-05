@@ -94,3 +94,30 @@ describe('the notes editor', () => {
     expect(editor(true)).toMatch(/<textarea[^>]*resize-none/);
   });
 });
+
+describe('a linked note\'s section from the plugin\'s report (#2291)', () => {
+  const box = (vault) => wrap(<EntityNotesBox state={{
+    notes: vault.text ?? '', setNotes: vi.fn(), editing: false, setEditing: vi.fn(), save: vi.fn(),
+    vault: { loading: false, unavailable: false, error: null, conflict: false, base: null, text: '', reportedAt: null, ...vault },
+    vaultNotes: true, noteLink: { path: 'Goals/Marathon.md', name: 'Marathon' },
+  }} />);
+
+  it('says when Obsidian reported the text it shows', () => {
+    const at = new Date(Date.now() - 2 * 3600_000).toISOString();
+    const html = box({ text: 'From Obsidian', reportedAt: at });
+    expect(html).toContain('From Obsidian');
+    expect(html).toContain(`data-notes-reported="${at}"`);
+    expect(html).toContain('As reported by Obsidian, 2 hours ago.');
+  });
+
+  it('says nothing of the kind for a section read from a file here', () => {
+    expect(box({ text: 'From my copy' })).not.toContain('data-notes-reported');
+  });
+
+  it('a reported deletion is the not-found state; a note never reported keeps "lives in Obsidian"', () => {
+    expect(box({ unavailable: true, error: 'not_found' })).toContain('data-notes-in-vault="missing"');
+    const never = box({ unavailable: true, error: null });
+    expect(never).toContain('Notes live in the linked note in Obsidian.');
+    expect(never).not.toContain('data-notes-reported');
+  });
+});

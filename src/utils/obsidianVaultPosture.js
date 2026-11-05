@@ -68,6 +68,18 @@ export function vaultPosture({ heartbeat, vaultPaired }) {
  * carries no posture yet (before the first cycle, or a test fixture) falls
  * back to the heartbeat's own authority claim, which is the pre-ruling rule.
  */
+/**
+ * Is Obsidian running HERE, owning this device's vault copy ('plugin')? Then
+ * the folder is the live note: nothing another device reported can be newer
+ * for long, so a reader need not ask GLANCEvault for the plugin's report of
+ * it (#2291). Reads the recorded posture, else the heartbeat's own claim, as
+ * isStreamPosture does.
+ */
+export function isPluginPosture(hbState) {
+  if (hbState && typeof hbState.vaultPosture === 'string') return hbState.vaultPosture === 'plugin';
+  return !!hbState?.pluginAuthoritative;
+}
+
 export function isStreamPosture(hbState) {
   if (hbState && typeof hbState.vaultPosture === 'string') return hbState.vaultPosture !== 'direct';
   return !!hbState?.pluginAuthoritative;
