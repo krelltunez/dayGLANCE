@@ -10,6 +10,8 @@ import {
 } from '@glance-apps/obsidian-format';
 import {
   fetchReportedNoteDescription,
+  fetchReportedNote,
+  reportedNotesAvailability,
   REPORTED_NOTE_READ_BUDGET_MS,
   REPORTED_NOTE_READ_CONCURRENCY,
   createReadLimiter,
@@ -194,6 +196,79 @@ describe('fetchReportedNoteDescription (#2291: a linked note\'s section from the
     localStorage.setItem(VAULT_CONFIG_KEY, JSON.stringify({ enabled: false }));
     expect(await fetchReportedNoteDescription('Projects/House.md')).toBe(null);
     expect(await fetchReportedNoteDescription('')).toBe(null);
+  });
+});
+
+describe('fetchReportedNote (#2291 follow-up: a task\'s whole note from the plugin\'s report)', () => {
+  const NOTE = '---\ncreated: 2026-11-01\n---\nCall the roofer.\n- [ ] Ask about gutters\n';
+  async function serve(observations, { meta = META } = {}) {
+    const subkey = await deriveBridgeSubkey(getDbRootKey(), SALT);
+    const rows = new Map();
+    for (const obs of observations) {
+      const id = await observationEntityId(obs.path);
+      rows.set(id, { entityId: id, seq: 1, deleted: false, envelope: await sealBridgeEnvelope(subkey, { v: 1, kind: 'observation', ...obs }) });
+    }
+    const requests = [];
+    globalThis.fetch = async (url) => {
+      requests.push(url);
+      const id = decodeURIComponent(new URL(url).pathname.split('/').pop());
+      if (id === 'meta:pairing') {
+        return meta ? { ok: true, status: 200, json: async () => ({ entityId: 'meta:pairing', envelope: encodePlainBridgeRow(meta) }) } : { ok: false, status: 404, json: async () => ({}) };
+      }
+      const row = rows.get(id);
+      return row ? { ok: true, status: 200, json: async () => row } : { ok: false, status: 404, json: async () => ({ error: 'not found' }) };
+    };
+    return requests;
+  }
+
+  it('answers the WHOLE note with its hash, the path Obsidian named it by, and both times; nothing is kept', async () => {
+    const nfd = 'Projects/Café.md'.normalize('NFD');
+    await serve([{ path: nfd, content: NOTE, mtime: Date.parse('2026-11-05T09:59:00.000Z'), observedAt: '2026-11-05T10:00:00.000Z' }]);
+    expect(await fetchReportedNote('Projects/Café.md')).toEqual({
+      status: 'note', path: nfd, text: NOTE, base: noteTextHash(NOTE),
+      lastModified: '2026-11-05T09:59:00.000Z', observedAt: '2026-11-05T10:00:00.000Z',
+    });
+    expect(localStorage.getItem(OBS_HWM_KEY)).toBe(null);
+  });
+
+  it('tells deleted, withdrawn (left the scope) and never reported apart, and all three from "could not ask"', async () => {
+    await serve([
+      { path: 'Gone.md', content: null, deleted: true, mtime: null, observedAt: '2026-11-05T10:00:00.000Z' },
+      { path: 'Archive/Old.md', content: null, withdrawn: true, mtime: null, observedAt: '2026-11-05T10:00:00.000Z' },
+    ]);
+    expect(await fetchReportedNote('Gone.md')).toEqual({ status: 'deleted' });
+    expect(await fetchReportedNote('Archive/Old.md')).toEqual({ status: 'withdrawn' });
+    expect(await fetchReportedNote('Never.md')).toEqual({ status: 'never' });
+    globalThis.fetch = async () => { throw new Error('offline'); };
+    localStorage.removeItem('dayglance-bridge-pairing-meta');
+    expect(await fetchReportedNote('Gone.md')).toEqual({ status: 'unavailable' });
+  });
+
+  it('shares the description read\'s budget: a slow vault is "could not ask", never a hang', async () => {
+    vi.useFakeTimers();
+    try {
+      globalThis.fetch = () => new Promise(() => {});
+      const pending = fetchReportedNote('Projects/House.md');
+      await vi.advanceTimersByTimeAsync(REPORTED_NOTE_READ_BUDGET_MS);
+      await expect(pending).resolves.toEqual({ status: 'unavailable' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('reportedNotesAvailability (can this device read the plugin\'s reports at all?)', () => {
+  it('unpaired without GLANCEvault or without a pairing; locked without the key; ready with the scope the plugin published', async () => {
+    globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ entityId: 'meta:pairing', envelope: encodePlainBridgeRow({ ...META, scope: { folders: ['Projects'], tags: [] } }) }) });
+    expect(await reportedNotesAvailability()).toEqual({ status: 'ready', scope: { folders: ['Projects'], tags: [] } });
+    await clearDbRootKey({ nativeGetSyncKey: nativeStub.get, nativeStoreSyncKey: nativeStub.store });
+    expect(await reportedNotesAvailability()).toMatchObject({ status: 'locked' });
+    localStorage.setItem(VAULT_CONFIG_KEY, JSON.stringify({ enabled: false }));
+    expect(await reportedNotesAvailability()).toEqual({ status: 'unpaired', scope: null });
+  });
+  it('a vault with no pairing row is unpaired', async () => {
+    globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
+    expect(await reportedNotesAvailability()).toEqual({ status: 'unpaired', scope: null });
   });
 });
 
