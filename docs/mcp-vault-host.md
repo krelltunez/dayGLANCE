@@ -337,6 +337,22 @@ Either way: consent tiers from §6.3 (read; read + write; the device-calendar ti
 - Decrypted content is never logged.
 - The privacy statement for the host is the device one: "this machine holds your key". Docs say plainly that running the host on the same box as a self-hosted GLANCEvault separates them by configuration, not by cryptography.
 
+## Reaching the host from Claude
+
+What decides whether a Claude client can reach the host is **which program opens the connection**, not which device the person is holding.
+
+**A local connection: Claude Desktop and Claude Code, on the person's own computer.** The MCP connection starts on that computer, so it can use the person's VPN (Tailscale, WireGuard) and reach a host that has no public address at all. The host's Host allowlist (`allowedHosts`, #2289) names the VPN hostname; the token is required as on any non-loopback bind.
+
+- **Claude Code** speaks Streamable HTTP directly, so it works today: `claude mcp add --transport http dayglance https://<vpn-name>/mcp --header "Authorization: Bearer <token>"`.
+- **Claude Desktop** launches only stdio commands, through `@glance-apps/mcp-bridge`, and the bridge is hard-wired to `http://127.0.0.1:<port>/mcp` (`bridge.js`). Reaching a host elsewhere needs a small bridge change: a `--url` option (and a matching env variable) that replaces the loopback endpoint, keeping the token handling as it is. Until then, Claude Desktop reaches only a host on the same machine.
+
+**A custom connector: Claude's web and mobile apps (and Claude Desktop, when used that way).** A connector is called by **Anthropic's servers**, not by the person's device. The phone app has no local connections, so this is the only way a phone can use the host. A VPN on the phone does not help, because the phone is not the one connecting. What it takes, none of which is designed yet:
+
+1. **A public HTTPS address.** Anthropic's servers must reach the host: a domain with TLS behind a reverse proxy, or a tunnel (Cloudflare Tunnel, Tailscale Funnel) so no router port opens. If Anthropic publishes the address ranges its connector traffic comes from, the host or the tunnel can admit only those.
+2. **Probably OAuth.** The host kit authenticates with a static bearer token. Remote connectors are built around OAuth sign-in (the MCP authorization spec), so a connector-facing host likely needs an OAuth layer. Check Anthropic's current custom-connector documentation before designing this; it is the least certain part.
+3. **The exposure, stated plainly.** The host holds the passphrase and decrypted data, and would be reachable from the internet. GLANCEvault stays zero-knowledge; the host becomes the thing to protect. And whatever Claude reads passes through Anthropic, as in any Claude conversation (true of the desktop app's server too). Both are acceptable choices; the docs a host ships with say them in these words.
+4. **Writes.** A phone is most useful for "move my 3 pm" or "add this to my inbox", which is the write phase (step 5 below).
+
 ## Sequence
 
 1. **Host kit package** from `electron/`; the Electron server switches to it with no behaviour change (`electron/mcpServer.transport.test.ts` stays green). Serves lastGLANCE too. **Done:** `packages/mcp-host` (`@glance-apps/mcp-host`).
@@ -344,10 +360,11 @@ Either way: consent tiers from §6.3 (read; read + write; the device-calendar ti
 3. **dayGLANCE MCP core package, read side:** tool and resource registration, the read model, the rows-to-slices path. The Electron server uses the shared registration. **3a done:** `packages/dayglance-mcp` (`@glance-apps/dayglance-mcp`): the tools, resources, read model and `buildMcpReadState`. **3b done:** `packages/dayglance-vault` (`@glance-apps/dayglance-vault`): the rows-to-slices path (was `src/sync/dbAdapter.js`) and the merge rules it shares with the file tier. **Change nudges done:** the `/events` client and the own-write ack registry, in the same package.
 4. **Read-only host prototype** (#2280's offer), in its own repository, against the packages.
 5. **Writes:** choose A or B, then journal, consent and rate-limit parity.
+6. **Reach beyond the host's network** (see "Reaching the host from Claude"): a `--url` option on `mcp-bridge` for Claude Desktop over a VPN; then, for phones, the connector path (public HTTPS, likely OAuth, writes).
 
 ## Open questions
 
-1. Where the packages live and what they are called (the glance-apps organization, next to `@glance-apps/mcp-bridge`?).
+1. ~~Where the packages live and what they are called.~~ **Decided:** in this repository under `packages/`, published to npm as `@glance-apps/*` (0.1.0, 2026-11-05) and linked into the app with `file:`, so the app never waits on a publish. `dayglance-mcp` and `dayglance-vault` stay separate packages.
 2. Does the host count as a device for the vault's device list and for billing (`@glance-apps/billing`)?
 3. Who owns the host repository: glance-apps, or the contributor who prototypes it?
 4. Writes: A or B (above).
