@@ -55,8 +55,9 @@ import { writebackTargetFor } from '../utils/obsidianWritebackTarget.js';
 // note over a few passes; a vault-wide burst of line writes is the shape
 // that has started wars (the declined-backfill cost record).
 const PLACEMENT_PER_PASS = 25;
-import { noteTaskId, withScheduledMetadata, withProjectMetadata, noteTextHash, extractNoteDescription, replaceNoteDescription, mergeNoteDescription } from '@glance-apps/obsidian-format';
-import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations, lastBridgeInboundFailure, readBridgeCopies } from '../utils/obsidianBridgeInbound.js';
+import { noteTaskId, withScheduledMetadata, withProjectMetadata, noteTextHash, replaceNoteDescription, mergeNoteDescription } from '@glance-apps/obsidian-format';
+import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations, lastBridgeInboundFailure, readBridgeCopies, fetchReportedNoteDescription } from '../utils/obsidianBridgeInbound.js';
+import { fileNoteDescription, newestNoteDescription, isReportedDescription } from '../utils/linkedNoteDescription.js';
 import {
   fetchBridgeActions, planBridgeActions, applyActionsToTasks, applyActionsToRecurring,
   deleteBridgeActions, commitBridgeActionCursor,
@@ -319,24 +320,48 @@ export default function useObsidianSync({
   // its extension on the way in or the file looked for is "Note.md.md" (the
   // 2026-10-04 field report: a linked project's planner said its note was
   // not found).
-  const loadNoteDescription = useCallback(async (path) => {
-    const note = await loadWikiNote(noteDisplayName(normalizeNotePath(path)));
-    if (!note) return null;
-    if (note.notFound) return { notFound: true };
-    const text = extractNoteDescription(note.text ?? '');
-    return { text, base: noteTextHash(text), lastModified: note.lastModified ?? null };
+  //
+  // TWO SOURCES (#2291): the vault file as this device reads it, and the
+  // note as the plugin last reported it on the bridge's observation stream
+  // (obsidianBridgeInbound.js fetchReportedNoteDescription, one row read on
+  // demand, nothing kept). A device without the folder shows the reported
+  // section; a device with both shows the newer, file mtime to file mtime;
+  // a reported deletion is not found. The rule is utils/linkedNoteDescription.js.
+  // A reported section carries `source: 'report'` and its `observedAt`.
+  const readNoteDescriptionSources = useCallback(async (notePath) => {
+    const [note, reported] = await Promise.all([
+      loadWikiNote(noteDisplayName(notePath)),
+      fetchReportedNoteDescription(notePath),
+    ]);
+    return { note, shown: newestNoteDescription(fileNoteDescription(note), reported) };
   }, [loadWikiNote]);
+  const loadNoteDescription = useCallback(async (path) => {
+    const notePath = normalizeNotePath(path);
+    if (!notePath) return null;
+    return (await readNoteDescriptionSources(notePath)).shown;
+  }, [readNoteDescriptionSources]);
   const saveNoteDescription = useCallback(async (kind, id, path, content, { base = null } = {}) => {
     const notePath = normalizeNotePath(path);
     if (!notePath) return { ok: false };
     const noteName = noteDisplayName(notePath);
-    const current = await loadWikiNote(noteName);
-    if (current && !current.notFound && typeof current.text === 'string') {
-      const section = extractNoteDescription(current.text);
-      if (base && noteTextHash(section) !== base) return { refused: 'changed', text: section, lastModified: current.lastModified ?? null };
+    // Refuse on change against the section as it would be SHOWN now, by the
+    // same newest-source rule the box loaded it under: a text the user
+    // edited from the plugin's report is checked against the report, not
+    // against a copy here that is behind it.
+    const { note: current, shown } = await readNoteDescriptionSources(notePath);
+    if (base && shown && !shown.notFound && typeof shown.text === 'string' && shown.base !== base) {
+      return {
+        refused: 'changed', text: shown.text, lastModified: shown.lastModified ?? null,
+        ...(isReportedDescription(shown) ? { source: 'report', observedAt: shown.observedAt ?? null } : {}),
+      };
     }
     const at = new Date().toISOString().slice(0, 16).replace('T', ' ');
-    if (isStreamPosture(bridgeHeartbeatRef.current)) {
+    // The stream carries the write in stream posture, and also on a device
+    // that read the section only from the plugin's report (no folder here,
+    // or a copy without the note): the plugin applies it inside Obsidian
+    // and refuses there if the note moved since `base`.
+    const fileReadable = !!current && !current.notFound && typeof current.text === 'string';
+    if (isStreamPosture(bridgeHeartbeatRef.current) || (!fileReadable && isReportedDescription(shown))) {
       const queued = emitBridgeIntent('project_note_description', {
         path: notePath, targetId: String(id), content, mode: 'replace', ...(base ? { base } : {}), at,
       });
@@ -345,7 +370,7 @@ export default function useObsidianSync({
         setObsidianSyncStatus('error');
         return { ok: false };
       }
-      return { ok: true };
+      return { ok: true, mode: 'queued' };
     }
     // Direct access (an unpaired vault): the whole note, with its section
     // replaced; the note must exist (a link names an existing note).
@@ -353,13 +378,13 @@ export default function useObsidianSync({
     if (!handle || handle === 'native' || !current || current.notFound) return { ok: false };
     try {
       await writeWikiNote(handle, noteName, replaceNoteDescription(current.text, content), obsidianConfig?.newNotesFolder ?? 'dayGLANCE');
-      return { ok: true };
+      return { ok: true, mode: 'written' };
     } catch (err) {
       setObsidianSyncError(err.message);
       setObsidianSyncStatus('error');
       return { ok: false };
     }
-  }, [obsidianConfig?.newNotesFolder, obsidianVaultHandleRef, setObsidianSyncError, setObsidianSyncStatus, loadWikiNote]);
+  }, [obsidianConfig?.newNotesFolder, obsidianVaultHandleRef, setObsidianSyncError, setObsidianSyncStatus, readNoteDescriptionSources]);
 
   // The one-time move of the notes box into the section, on direct access
   // (the stream's twin is the `merge` intent): the note as this device

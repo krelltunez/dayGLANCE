@@ -6,8 +6,11 @@ import {
   sealBridgeEnvelope,
   encodePlainBridgeRow,
   observationEntityId,
+  noteTextHash,
 } from '@glance-apps/obsidian-format';
 import {
+  fetchReportedNoteDescription,
+  REPORTED_NOTE_READ_BUDGET_MS,
   fetchBridgeObservations,
   commitBridgeObservationCursor,
   applyBridgeObservations,
@@ -17,9 +20,10 @@ import {
 // The key gate (bridgeKeyGate.js) proves the root key against the account's
 // verifier row; it has its own tests. Here the installed key is taken as
 // proven so these tests keep to the stream they cover.
+const keyGate = vi.hoisted(() => ({ verified: true }));
 vi.mock('./bridgeKeyGate.js', async () => {
   const { getDbRootKey } = await import('@glance-apps/sync/src/dbCrypto.js');
-  return { verifiedBridgeRootKey: async () => getDbRootKey(), resetBridgeKeyGate: () => {} };
+  return { verifiedBridgeRootKey: async () => (keyGate.verified ? getDbRootKey() : null), resetBridgeKeyGate: () => {} };
 });
 
 
@@ -54,6 +58,7 @@ beforeEach(async () => {
   });
 });
 afterEach(async () => {
+  keyGate.verified = true;
   await clearDbRootKey({ nativeGetSyncKey: nativeStub.get, nativeStoreSyncKey: nativeStub.store });
   delete globalThis.localStorage;
   delete globalThis.fetch;
@@ -100,6 +105,93 @@ describe('fetchBridgeObservations', () => {
   it('unpaired (no meta row) → null, and nothing touched', async () => {
     globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
     expect(await fetchBridgeObservations()).toBe(null);
+  });
+});
+
+describe('fetchReportedNoteDescription (#2291: a linked note\'s section from the plugin\'s report)', () => {
+  const NOTE = '---\ndayglance-id: p1\n---\n# House\nKeep the roof dry.\n\n## Tasks\n';
+  // A fake vault holding observation rows by entity id; records every request.
+  async function serve(observations) {
+    const subkey = await deriveBridgeSubkey(getDbRootKey(), SALT);
+    const rows = new Map();
+    for (const obs of observations) {
+      const id = await observationEntityId(obs.path);
+      rows.set(id, { entityId: id, seq: 1, deleted: false, envelope: await sealBridgeEnvelope(subkey, { v: 1, kind: 'observation', ...obs }) });
+    }
+    const requests = [];
+    globalThis.fetch = async (url) => {
+      requests.push(url);
+      const id = decodeURIComponent(new URL(url).pathname.split('/').pop());
+      if (id === 'meta:pairing') return { ok: true, status: 200, json: async () => ({ entityId: 'meta:pairing', envelope: encodePlainBridgeRow(META) }) };
+      const row = rows.get(id);
+      return row ? { ok: true, status: 200, json: async () => row } : { ok: false, status: 404, json: async () => ({ error: 'not found' }) };
+    };
+    return requests;
+  }
+
+  it('reads the ONE row the plugin keeps for the path, and answers what the shared reader answers', async () => {
+    const requests = await serve([{ path: 'Projects/House.md', content: NOTE, mtime: Date.parse('2026-11-05T09:59:00.000Z'), observedAt: '2026-11-05T10:00:00.000Z' }]);
+    expect(await fetchReportedNoteDescription('[[Projects/House]]')).toEqual({
+      text: 'Keep the roof dry.', base: noteTextHash('Keep the roof dry.'), observedAt: '2026-11-05T10:00:00.000Z', lastModified: '2026-11-05T09:59:00.000Z',
+    });
+    const obsId = await observationEntityId('Projects/House.md');
+    expect(requests.filter((u) => u.includes('/sync/dayglance-bridge/obs'))).toEqual([expect.stringContaining(encodeURIComponent(obsId))]);
+    // No list, and the cycle's cursor is untouched: nothing is kept.
+    expect(requests.some((u) => u.includes('/list'))).toBe(false);
+    expect(localStorage.getItem(OBS_HWM_KEY)).toBe(null);
+  });
+
+  it('a deletion reads as not found; a path never reported is no information (null)', async () => {
+    await serve([{ path: 'Projects/House.md', content: null, deleted: true, mtime: null, observedAt: '2026-11-05T10:00:00.000Z' }]);
+    expect(await fetchReportedNoteDescription('Projects/House.md')).toEqual({ notFound: true });
+    expect(await fetchReportedNoteDescription('Projects/Elsewhere.md')).toBe(null);
+  });
+
+  it('a report slower than the budget is no information this time: a slow vault never holds the reading hostage', async () => {
+    vi.useFakeTimers();
+    try {
+      globalThis.fetch = () => new Promise(() => {});
+      const pending = fetchReportedNoteDescription('Projects/House.md');
+      await vi.advanceTimersByTimeAsync(REPORTED_NOTE_READ_BUDGET_MS);
+      await expect(pending).resolves.toBe(null);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('finds a note Obsidian names in decomposed form (the plugin keys the row on its own path)', async () => {
+    const nfd = 'Projects/Café.md'.normalize('NFD');
+    await serve([{ path: nfd, content: NOTE, mtime: null, observedAt: '2026-11-05T10:00:00.000Z' }]);
+    expect(await fetchReportedNoteDescription('Projects/Café.md')).toMatchObject({ text: 'Keep the roof dry.' });
+  });
+
+  it('the cycle\'s gates: unpaired, a key not proven against the account, no key, an unconfigured vault, an unreachable one: null, never a throw', async () => {
+    const report = [{ path: 'Projects/House.md', content: NOTE, mtime: null, observedAt: '2026-11-05T10:00:00.000Z' }];
+    // Unpaired: the meta row is missing, no observation is asked for.
+    let requests = [];
+    globalThis.fetch = async (url) => { requests.push(url); return { ok: false, status: 404, json: async () => ({}) }; };
+    expect(await fetchReportedNoteDescription('Projects/House.md')).toBe(null);
+    expect(requests.some((u) => u.includes('/obs'))).toBe(false);
+    // Paired (the cached "unpaired" answer forgotten), but the key gate has
+    // not proven this device's key.
+    localStorage.removeItem('dayglance-bridge-pairing-meta');
+    requests = await serve(report);
+    keyGate.verified = false;
+    expect(await fetchReportedNoteDescription('Projects/House.md')).toBe(null);
+    expect(requests.some((u) => u.includes('/obs'))).toBe(false);
+    keyGate.verified = true;
+    expect(await fetchReportedNoteDescription('Projects/House.md')).toMatchObject({ text: 'Keep the roof dry.' });
+    // No root key in memory.
+    await clearDbRootKey({ nativeGetSyncKey: nativeStub.get, nativeStoreSyncKey: nativeStub.store });
+    expect(await fetchReportedNoteDescription('Projects/House.md')).toBe(null);
+    await setupDbRootKey('pw', new Uint8Array(16).fill(9), { nativeGetSyncKey: nativeStub.get, nativeStoreSyncKey: nativeStub.store });
+    // Unreachable.
+    globalThis.fetch = async () => { throw new Error('offline'); };
+    expect(await fetchReportedNoteDescription('Projects/House.md')).toBe(null);
+    // GLANCEvault not configured on this device.
+    localStorage.setItem(VAULT_CONFIG_KEY, JSON.stringify({ enabled: false }));
+    expect(await fetchReportedNoteDescription('Projects/House.md')).toBe(null);
+    expect(await fetchReportedNoteDescription('')).toBe(null);
   });
 });
 
