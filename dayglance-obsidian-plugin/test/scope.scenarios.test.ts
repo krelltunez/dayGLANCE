@@ -1042,6 +1042,259 @@ describe('vault task scope, end to end', () => {
   });
 });
 
+// THE SCOPE TAG REMOVED (companion §6, the tag-removal record): a note that
+// leaves the scope through its own metadata is withdrawn (ruling C) once it
+// has been out continuously for the leaving hold, two minutes, and never
+// for a transient (a tag being retyped, a frontmatter edit half done).
+describe('the scope tag removed: withdrawal after the leaving hold', () => {
+  const TNOTE = 'Areas/Garden.md';
+  const ROSES = 'Water the roses';
+  const tagged = (extra = '') => `---\n${extra}tags: [work]\n---\n# Garden\n\n- [ ] ${ROSES}\n`;
+  const withoutTag = (path: string) => s.write(path, s.text(path)!.replace('tags: [work]', 'tags: []'));
+  const withTag = (path: string) => s.write(path, s.text(path)!.replace('tags: []', 'tags: [work]'));
+  const tombstones = () => JSON.parse(A.store.get('day-planner-deleted-obsidian-keys') ?? '{}') as Record<string, unknown>;
+  const withdrawnNotes = () => JSON.parse(A.store.get('day-planner-withdrawn-obsidian-notes') ?? '{}') as Record<string, unknown>;
+  const adoptedScope = () => s.plugin.data.bridge!.adoptedScope ?? [];
+  // Calls through: the spy only counts which paths the transport withdrew.
+  const spyWithdrawals = () => vi.spyOn(s.plugin.transport as any, 'emitWithdrawal');
+  const withdrawalsOf = (spy: ReturnType<typeof spyWithdrawals>, path: string) => spy.mock.calls.filter(([p]) => p === path).length;
+
+  /** The folder-scoped boot, then the scope gains the tag `work` and a note carrying it is written, stamped and imported. */
+  async function bootWithTaggedNote(path = TNOTE, content = tagged()): Promise<void> {
+    await bootWithScopedNote();
+    await s.plugin.setScope({ folders: ['Projects'], tags: ['work'] });
+    await s.write(path, content);
+    await s.settle();
+    await A.sync();
+    expect(s.text(path)).toMatch(new RegExp(`${ROSES} \\^dg-[a-z0-9]{8}`));
+    expect(A.byPath(path)).toHaveLength(1);
+    // Entering by its own metadata adopts it on the spot (persisted).
+    expect(adoptedScope()).toContain(path);
+  }
+
+  it('T1. a note in scope only by its tag loses the tag: nothing changes for two minutes; then it is withdrawn, the app drops its tasks (the tombstone class), the stamps stay; the tag back re-imports under the same ids', async () => {
+    await bootWithTaggedNote();
+    const id = A.byPath(TNOTE)[0].id;
+    const stamped = s.text(TNOTE)!.match(/\^dg-[a-z0-9]{8}/)![0];
+    const spy = spyWithdrawals();
+    await withoutTag(TNOTE);
+    // Inside the hold: still adopted, nothing withdrawn, the task stands.
+    await s.advance(100_000);
+    await A.sync();
+    expect(withdrawalsOf(spy, TNOTE)).toBe(0);
+    expect(adoptedScope()).toContain(TNOTE);
+    expect(A.byPath(TNOTE).map((t) => t.id)).toEqual([id]);
+    expect(tombstones()[id]).toBeUndefined();
+    // Past it: withdrawn once, as every other way of leaving withdraws.
+    await s.advance(30_000);
+    expect(withdrawalsOf(spy, TNOTE)).toBe(1);
+    expect(adoptedScope()).not.toContain(TNOTE);
+    await A.sync();
+    expect(A.byPath(TNOTE)).toHaveLength(0);
+    expect(tombstones()[id]).toBeTruthy();
+    expect(withdrawnNotes()[TNOTE]).toBeTruthy();
+    expect(s.text(TNOTE)).toContain(stamped);   // a withdrawal deletes nothing in the vault
+    // Nothing more: one withdrawal, however long it stays out.
+    await s.advance(300_000);
+    expect(withdrawalsOf(spy, TNOTE)).toBe(1);
+
+    // The tag back: adopted at once, re-imported under the same id.
+    await withTag(TNOTE);
+    expect(adoptedScope()).toContain(TNOTE);
+    await s.settle();
+    await A.sync();
+    expect(A.byPath(TNOTE).map((t) => t.id)).toEqual([id]);
+    expect(s.text(TNOTE)!.match(/\^dg-[a-z0-9]{8}/g)).toEqual([stamped]);
+  });
+
+  it('T2. a tag removed and restored inside the hold: no withdrawal, and the task is untouched on the app', async () => {
+    await bootWithTaggedNote();
+    const id = A.byPath(TNOTE)[0].id;
+    const before = JSON.parse(JSON.stringify(A.byPath(TNOTE)[0]));
+    const spy = spyWithdrawals();
+    await withoutTag(TNOTE);          // #work → #wor → … : the retype passes through no tag
+    await s.advance(60_000);
+    await withTag(TNOTE);
+    await s.advance(180_000);          // well past where the first hold would have run out
+    await A.sync();
+    expect(withdrawalsOf(spy, TNOTE)).toBe(0);
+    expect(adoptedScope()).toContain(TNOTE);
+    expect(A.byPath(TNOTE).map((t) => t.id)).toEqual([id]);
+    expect(JSON.parse(JSON.stringify(A.byPath(TNOTE)[0]))).toEqual(before);
+    expect(tombstones()[id]).toBeUndefined();
+    expect(withdrawnNotes()[TNOTE]).toBeUndefined();
+  });
+
+  it('T2b. the hold measures time out CONTINUOUSLY: back in scope restarts the clock, so a second removal waits its own two minutes', async () => {
+    await bootWithTaggedNote();
+    const spy = spyWithdrawals();
+    await withoutTag(TNOTE);
+    await s.advance(60_000);
+    await withTag(TNOTE);
+    await s.advance(40_000);
+    await withoutTag(TNOTE);           // out again at 100s
+    await s.advance(40_000);           // 140s after the FIRST removal, 40s into this one
+    expect(withdrawalsOf(spy, TNOTE)).toBe(0);
+    expect(adoptedScope()).toContain(TNOTE);
+    await s.advance(90_000);           // this removal's own two minutes have passed
+    expect(withdrawalsOf(spy, TNOTE)).toBe(1);
+  });
+
+  it('T2c. back in scope another way during the hold (its folder added to the scope setting): the re-check at expiry keeps it', async () => {
+    await bootWithTaggedNote();
+    const id = A.byPath(TNOTE)[0].id;
+    const spy = spyWithdrawals();
+    await withoutTag(TNOTE);
+    await s.advance(30_000);
+    await s.plugin.setScope({ folders: ['Projects', 'Areas'], tags: ['work'] });
+    await s.advance(300_000);
+    await A.sync();
+    expect(withdrawalsOf(spy, TNOTE)).toBe(0);
+    expect(adoptedScope()).toContain(TNOTE);
+    expect(A.byPath(TNOTE).map((t) => t.id)).toEqual([id]);
+  });
+
+  it('T3. frontmatter briefly broken (no tags parse) and fixed inside the hold: no withdrawal', async () => {
+    await bootWithTaggedNote();
+    const id = A.byPath(TNOTE)[0].id;
+    const good = s.text(TNOTE)!;
+    const spy = spyWithdrawals();
+    // The closing fence deleted mid-edit: no frontmatter, so no tags at all.
+    await s.write(TNOTE, good.replace('tags: [work]\n---\n', 'tags: [work]\n'));
+    const file = s.file(TNOTE);
+    expect(s.plugin.app.metadataCache.getFileCache(file)?.frontmatter).toBeUndefined();
+    await s.advance(45_000);
+    await s.write(TNOTE, good);
+    await s.advance(180_000);
+    await A.sync();
+    expect(withdrawalsOf(spy, TNOTE)).toBe(0);
+    expect(adoptedScope()).toContain(TNOTE);
+    expect(A.byPath(TNOTE).map((t) => t.id)).toEqual([id]);
+    expect(tombstones()[id]).toBeUndefined();
+  });
+
+  it('T4. a note in scope by a folder AND the tag loses the tag: the folder keeps it, nothing is withdrawn', async () => {
+    const SHED = 'Projects/Shed.md';
+    await bootWithTaggedNote(SHED);
+    const id = A.byPath(SHED)[0].id;
+    const spy = spyWithdrawals();
+    await withoutTag(SHED);
+    await s.advance(300_000);
+    await A.sync();
+    expect(withdrawalsOf(spy, SHED)).toBe(0);
+    expect(adoptedScope()).toContain(SHED);
+    expect(A.byPath(SHED).map((t) => t.id)).toEqual([id]);
+    expect(tombstones()[id]).toBeUndefined();
+  });
+
+  it('T5. a LINKED project note loses the tag: the link is the scope (companion §4.3), nothing is withdrawn', async () => {
+    const PLAN = 'Areas/Plan.md';
+    await bootWithTaggedNote(PLAN, tagged('dayglance-id: p1\n'));
+    expect(s.plugin.transport.linkedNotes().has(PLAN)).toBe(true);
+    const id = A.byPath(PLAN)[0].id;
+    const spy = spyWithdrawals();
+    await withoutTag(PLAN);
+    await s.advance(300_000);
+    await A.sync();
+    expect(s.plugin.transport.linkedNotes().has(PLAN)).toBe(true);
+    expect(withdrawalsOf(spy, PLAN)).toBe(0);
+    expect(adoptedScope()).toContain(PLAN);
+    expect(A.byPath(PLAN).map((t) => t.id)).toEqual([id]);
+    expect(tombstones()[id]).toBeUndefined();
+  });
+
+  it('T6a. a note DELETED during the hold is reported deleted, never withdrawn: no stray withdrawal when the hold would have run out', async () => {
+    await bootWithTaggedNote();
+    const spy = spyWithdrawals();
+    await withoutTag(TNOTE);
+    await s.advance(30_000);
+    await s.plugin.app.vault.delete(s.file(TNOTE));
+    await s.advance(300_000);
+    expect(withdrawalsOf(spy, TNOTE)).toBe(0);
+    await A.sync();
+    expect(withdrawnNotes()[TNOTE]).toBeUndefined();
+    // The deletion path did its own job: the task goes after its hold.
+    await s.advance(95_000);
+    await A.sync();
+    expect(A.byPath(TNOTE)).toHaveLength(0);
+    // A new note at the same path, untagged, inherits nothing.
+    await s.write(TNOTE, '# Garden again\n');
+    await s.advance(300_000);
+    expect(withdrawalsOf(spy, TNOTE)).toBe(0);
+  });
+
+  it('T6b. a note RENAMED during the hold: the rename path withdraws the old path once, and the hold adds nothing for either path', async () => {
+    await bootWithTaggedNote();
+    const spy = spyWithdrawals();
+    await withoutTag(TNOTE);
+    await s.advance(30_000);
+    const MOVED = 'Areas/Garden (old).md';
+    await s.plugin.app.vault.rename(s.file(TNOTE), MOVED);
+    await s.advance(1_000);
+    expect(withdrawalsOf(spy, TNOTE)).toBe(1);   // the rename's own re-classification (still out of scope)
+    await s.advance(300_000);
+    expect(withdrawalsOf(spy, TNOTE)).toBe(1);
+    expect(withdrawalsOf(spy, MOVED)).toBe(0);
+    expect(adoptedScope()).not.toContain(TNOTE);
+    expect(adoptedScope()).not.toContain(MOVED);
+    await A.sync();
+    expect(A.all().filter((t) => t.title.startsWith(ROSES))).toHaveLength(0);
+  });
+
+  it('T7. the plugin disposed during the hold: no withdrawal', async () => {
+    await bootWithTaggedNote();
+    const id = A.byPath(TNOTE)[0].id;
+    const spy = spyWithdrawals();
+    await withoutTag(TNOTE);
+    await s.advance(30_000);
+    s.plugin.shutdown();
+    await s.advance(300_000);
+    expect(withdrawalsOf(spy, TNOTE)).toBe(0);
+    await A.sync();
+    expect(A.byPath(TNOTE).map((t) => t.id)).toEqual([id]);
+    expect(tombstones()[id]).toBeUndefined();
+  });
+
+  it('T8. a reload during the hold (or a tag gone while Obsidian was closed): the first adoption walk re-arms the hold; a note whose metadata is not parsed yet waits rather than reading as untagged', async () => {
+    await bootWithTaggedNote();
+    const id = A.byPath(TNOTE)[0].id;
+    await withoutTag(TNOTE);
+    await s.advance(30_000);
+    s.plugin.reload();                     // the hold is memory-only: lost here
+    const spy = spyWithdrawals();
+    // The metadata cache is still indexing the note when the walk runs, and
+    // stays so past the re-armed hold: no information, so no withdrawal.
+    const cache = s.plugin.app.metadataCache;
+    const real = cache.getFileCache.bind(cache);
+    const unparsed = vi.spyOn(cache, 'getFileCache').mockImplementation((f) => (f.path === TNOTE ? null : real(f)));
+    s.plugin.transport.adoptTick();        // main.ts: at layout ready
+    await s.advance(130_000);
+    expect(withdrawalsOf(spy, TNOTE)).toBe(0);
+    expect(adoptedScope()).toContain(TNOTE);
+    await A.sync();
+    expect(A.byPath(TNOTE).map((t) => t.id)).toEqual([id]);
+    // Parsed: the waiting hold re-checks and withdraws.
+    unparsed.mockRestore();
+    await s.advance(130_000);
+    expect(withdrawalsOf(spy, TNOTE)).toBe(1);
+    await A.sync();
+    expect(A.byPath(TNOTE)).toHaveLength(0);
+    expect(tombstones()[id]).toBeTruthy();
+  });
+
+  it('T9. a note that BECOMES a daily note (the daily-notes path moved onto its folder) is never withdrawn when it loses the tag', async () => {
+    const DAY = 'Areas/2026-09-20.md';
+    await bootWithTaggedNote(DAY);
+    const spy = spyWithdrawals();
+    // dayGLANCE's config row now puts daily notes in Areas/.
+    const t = s.plugin.transport as any;
+    t.config = { ...t.config, dailyNotesPath: 'Areas' };
+    await withoutTag(DAY);
+    await s.advance(300_000);
+    expect(withdrawalsOf(spy, DAY)).toBe(0);
+  });
+});
+
 describe('plugin resilience (the post-soak audit batch)', () => {
   const intentRows = () => s.vault.live(BRIDGE_VAULT_APP).filter((r) => r.entityId.startsWith('int:')).map((r) => r.entityId);
 
