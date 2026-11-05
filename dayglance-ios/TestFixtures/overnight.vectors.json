@@ -1,0 +1,511 @@
+{
+  "format": "overnight.vectors/1",
+  "description": "The overnight carry rule (#2278, agenda-core overnight.js) evaluated over launcher snapshot task rows. docs/launcher-integration.md \"Tasks that run past midnight\" states the rule; these are its numbers.",
+  "spill": {
+    "description": "overnightSpillMinutes: the minutes a row leaves on the next date (0: none). end: taskEnd, where the row really ends ({ date, minutes } since that date's midnight; null when all-day). taskEnd is the overdue rule's: a missing start reads as 00:00 and a missing duration as 30 minutes.",
+    "cases": [
+      {
+        "name": "crosses midnight: the minutes past 24:00 carry",
+        "input": {
+          "id": "t1",
+          "title": "Task",
+          "date": "2026-11-02",
+          "startTime": "23:00",
+          "duration": 120,
+          "isAllDay": false,
+          "completed": false,
+          "recurringId": null,
+          "native": false
+        },
+        "expected": {
+          "spillMinutes": 60,
+          "end": {
+            "date": "2026-11-03",
+            "minutes": 60
+          }
+        }
+      },
+      {
+        "name": "ends exactly at 24:00: carries nothing",
+        "input": {
+          "id": "t1",
+          "title": "Task",
+          "date": "2026-11-02",
+          "startTime": "23:00",
+          "duration": 60,
+          "isAllDay": false,
+          "completed": false,
+          "recurringId": null,
+          "native": false
+        },
+        "expected": {
+          "spillMinutes": 0,
+          "end": {
+            "date": "2026-11-03",
+            "minutes": 0
+          }
+        }
+      },
+      {
+        "name": "ends before midnight",
+        "input": {
+          "id": "t1",
+          "title": "Task",
+          "date": "2026-11-02",
+          "startTime": "09:00",
+          "duration": 60,
+          "isAllDay": false,
+          "completed": false,
+          "recurringId": null,
+          "native": false
+        },
+        "expected": {
+          "spillMinutes": 0,
+          "end": {
+            "date": "2026-11-02",
+            "minutes": 600
+          }
+        }
+      },
+      {
+        "name": "starts at 23:45, 30 minutes",
+        "input": {
+          "id": "t1",
+          "title": "Task",
+          "date": "2026-11-02",
+          "startTime": "23:45",
+          "duration": 30,
+          "isAllDay": false,
+          "completed": false,
+          "recurringId": null,
+          "native": false
+        },
+        "expected": {
+          "spillMinutes": 15,
+          "end": {
+            "date": "2026-11-03",
+            "minutes": 15
+          }
+        }
+      },
+      {
+        "name": "the longest a user task can be: 24 hours from 22:00",
+        "input": {
+          "id": "t1",
+          "title": "Task",
+          "date": "2026-11-02",
+          "startTime": "22:00",
+          "duration": 1440,
+          "isAllDay": false,
+          "completed": false,
+          "recurringId": null,
+          "native": false
+        },
+        "expected": {
+          "spillMinutes": 1320,
+          "end": {
+            "date": "2026-11-03",
+            "minutes": 1320
+          }
+        }
+      },
+      {
+        "name": "an imported event longer than a day is clipped at the next date's end",
+        "input": {
+          "id": "t1",
+          "title": "Task",
+          "date": "2026-11-02",
+          "startTime": "23:30",
+          "duration": 2000,
+          "isAllDay": false,
+          "completed": false,
+          "recurringId": null,
+          "native": true
+        },
+        "expected": {
+          "spillMinutes": 1440,
+          "end": {
+            "date": "2026-11-04",
+            "minutes": 530
+          }
+        }
+      },
+      {
+        "name": "all-day: never carries",
+        "input": {
+          "id": "t1",
+          "title": "Task",
+          "date": "2026-11-02",
+          "startTime": null,
+          "duration": 0,
+          "isAllDay": true,
+          "completed": false,
+          "recurringId": null,
+          "native": false
+        },
+        "expected": {
+          "spillMinutes": 0,
+          "end": null
+        }
+      },
+      {
+        "name": "no start time: never carries",
+        "input": {
+          "id": "t1",
+          "title": "Task",
+          "date": "2026-11-02",
+          "startTime": null,
+          "duration": 120,
+          "isAllDay": false,
+          "completed": false,
+          "recurringId": null,
+          "native": false
+        },
+        "expected": {
+          "spillMinutes": 0,
+          "end": {
+            "date": "2026-11-02",
+            "minutes": 120
+          }
+        }
+      },
+      {
+        "name": "no duration: never carries",
+        "input": {
+          "id": "t1",
+          "title": "Task",
+          "date": "2026-11-02",
+          "startTime": "23:00",
+          "duration": 0,
+          "isAllDay": false,
+          "completed": false,
+          "recurringId": null,
+          "native": false
+        },
+        "expected": {
+          "spillMinutes": 0,
+          "end": {
+            "date": "2026-11-02",
+            "minutes": 1410
+          }
+        }
+      },
+      {
+        "name": "completed still carries (shown completed)",
+        "input": {
+          "id": "t1",
+          "title": "Task",
+          "date": "2026-11-02",
+          "startTime": "23:00",
+          "duration": 120,
+          "isAllDay": false,
+          "completed": true,
+          "recurringId": null,
+          "native": false
+        },
+        "expected": {
+          "spillMinutes": 60,
+          "end": {
+            "date": "2026-11-03",
+            "minutes": 60
+          }
+        }
+      },
+      {
+        "name": "seconds in the start time are ignored",
+        "input": {
+          "id": "t1",
+          "title": "Task",
+          "date": "2026-11-02",
+          "startTime": "23:00:30",
+          "duration": 120,
+          "isAllDay": false,
+          "completed": false,
+          "recurringId": null,
+          "native": false
+        },
+        "expected": {
+          "spillMinutes": 60,
+          "end": {
+            "date": "2026-11-03",
+            "minutes": 60
+          }
+        }
+      },
+      {
+        "name": "a year end",
+        "input": {
+          "id": "t1",
+          "title": "Task",
+          "date": "2026-12-31",
+          "startTime": "23:30",
+          "duration": 90,
+          "isAllDay": false,
+          "completed": false,
+          "recurringId": null,
+          "native": false
+        },
+        "expected": {
+          "spillMinutes": 60,
+          "end": {
+            "date": "2027-01-01",
+            "minutes": 60
+          }
+        }
+      }
+    ]
+  },
+  "continuations": {
+    "description": "continuationsFromPreviousDay: the pieces the previous date's rows leave on the next date, in row order, each [startMinutes, endMinutes) from 00:00, naming the task by id and the date it started.",
+    "cases": [
+      {
+        "name": "the previous date's rows: only the ones past midnight carry, each the task itself",
+        "input": {
+          "prevDayRows": [
+            {
+              "id": "night",
+              "title": "Night shift",
+              "date": "2026-11-02",
+              "startTime": "23:00",
+              "duration": 120,
+              "isAllDay": false,
+              "completed": false,
+              "recurringId": null,
+              "native": false
+            },
+            {
+              "id": "to-midnight",
+              "title": "Task",
+              "date": "2026-11-02",
+              "startTime": "23:00",
+              "duration": 60,
+              "isAllDay": false,
+              "completed": false,
+              "recurringId": null,
+              "native": false
+            },
+            {
+              "id": "morning",
+              "title": "Task",
+              "date": "2026-11-02",
+              "startTime": "09:00",
+              "duration": 30,
+              "isAllDay": false,
+              "completed": false,
+              "recurringId": null,
+              "native": false
+            },
+            {
+              "id": "recurring-backup-2026-11-02",
+              "title": "Backup",
+              "date": "2026-11-02",
+              "startTime": "23:45",
+              "duration": 45,
+              "isAllDay": false,
+              "completed": false,
+              "recurringId": "backup",
+              "native": false
+            },
+            {
+              "id": "native-cal-7-2026-11-02",
+              "title": "Flight",
+              "date": "2026-11-02",
+              "startTime": "22:30",
+              "duration": 300,
+              "isAllDay": false,
+              "completed": false,
+              "recurringId": null,
+              "native": true
+            },
+            {
+              "id": "all-day",
+              "title": "Task",
+              "date": "2026-11-02",
+              "startTime": null,
+              "duration": 0,
+              "isAllDay": true,
+              "completed": false,
+              "recurringId": null,
+              "native": false
+            }
+          ]
+        },
+        "expected": [
+          {
+            "id": "night",
+            "fromDate": "2026-11-02",
+            "startMinutes": 0,
+            "endMinutes": 60,
+            "minutes": 60
+          },
+          {
+            "id": "recurring-backup-2026-11-02",
+            "fromDate": "2026-11-02",
+            "startMinutes": 0,
+            "endMinutes": 30,
+            "minutes": 30
+          },
+          {
+            "id": "native-cal-7-2026-11-02",
+            "fromDate": "2026-11-02",
+            "startMinutes": 0,
+            "endMinutes": 210,
+            "minutes": 210
+          }
+        ]
+      },
+      {
+        "name": "no rows: nothing",
+        "input": {
+          "prevDayRows": []
+        },
+        "expected": []
+      }
+    ]
+  },
+  "frameSlots": {
+    "description": "computeAvailableSlots with prevDayTasks, no routines and no now floor: a frame's free time on the next date, as the snapshot ships it in frames[].slots.",
+    "cases": [
+      {
+        "name": "a piece holds the frame from 00:00",
+        "input": {
+          "date": "2026-11-03",
+          "frame": {
+            "start": "00:00",
+            "end": "03:00",
+            "bufferMinutes": 0
+          },
+          "prevDayRows": [
+            {
+              "id": "t1",
+              "title": "Task",
+              "date": "2026-11-02",
+              "startTime": "23:00",
+              "duration": 120,
+              "isAllDay": false,
+              "completed": false,
+              "recurringId": null,
+              "native": false
+            }
+          ],
+          "dayRows": []
+        },
+        "expected": [
+          {
+            "start": "01:00",
+            "end": "03:00"
+          }
+        ]
+      },
+      {
+        "name": "a piece and the date's own task, with a buffer",
+        "input": {
+          "date": "2026-11-03",
+          "frame": {
+            "start": "00:00",
+            "end": "04:00",
+            "bufferMinutes": 10
+          },
+          "prevDayRows": [
+            {
+              "id": "t1",
+              "title": "Task",
+              "date": "2026-11-02",
+              "startTime": "23:00",
+              "duration": 90,
+              "isAllDay": false,
+              "completed": false,
+              "recurringId": null,
+              "native": false
+            }
+          ],
+          "dayRows": [
+            {
+              "id": "t2",
+              "title": "Task",
+              "date": "2026-11-03",
+              "startTime": "02:00",
+              "duration": 30,
+              "isAllDay": false,
+              "completed": false,
+              "recurringId": null,
+              "native": false
+            }
+          ]
+        },
+        "expected": [
+          {
+            "start": "00:40",
+            "end": "01:50"
+          },
+          {
+            "start": "02:40",
+            "end": "04:00"
+          }
+        ]
+      },
+      {
+        "name": "a task ending at midnight leaves the frame free",
+        "input": {
+          "date": "2026-11-03",
+          "frame": {
+            "start": "00:00",
+            "end": "02:00",
+            "bufferMinutes": 0
+          },
+          "prevDayRows": [
+            {
+              "id": "t1",
+              "title": "Task",
+              "date": "2026-11-02",
+              "startTime": "23:00",
+              "duration": 60,
+              "isAllDay": false,
+              "completed": false,
+              "recurringId": null,
+              "native": false
+            }
+          ],
+          "dayRows": []
+        },
+        "expected": [
+          {
+            "start": "00:00",
+            "end": "02:00"
+          }
+        ]
+      },
+      {
+        "name": "a frame that starts after the piece ends is untouched",
+        "input": {
+          "date": "2026-11-03",
+          "frame": {
+            "start": "06:00",
+            "end": "08:00",
+            "bufferMinutes": 0
+          },
+          "prevDayRows": [
+            {
+              "id": "t1",
+              "title": "Task",
+              "date": "2026-11-02",
+              "startTime": "22:00",
+              "duration": 420,
+              "isAllDay": false,
+              "completed": false,
+              "recurringId": null,
+              "native": false
+            }
+          ],
+          "dayRows": []
+        },
+        "expected": [
+          {
+            "start": "06:00",
+            "end": "08:00"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { buildLauncherSnapshot, launcherSnapshotFingerprint, FRAME_WINDOW, DEVICE_EVENT_WINDOW } from './launcherSnapshot.js';
+import { continuationsFromPreviousDay } from '@glance-apps/agenda-core';
+import { computeRecurringExpansionRange } from './recurringExpansionRange.js';
+import { expandRecurringTasks } from './expandRecurringTasks.js';
+import { nativeResultsToTasks } from './nativeCalendar.js';
+import { groupWidgetNativeEvents } from './widgetNativeEvents.js';
 
 // The GLANCElauncher's read model (utils/launcherSnapshot.js), built from plain
 // inputs the way the widget snapshot is. These pin what the launcher relies on:
@@ -222,5 +227,68 @@ describe('buildLauncherSnapshot', () => {
     expect(a).toMatchObject({ version: 1, today: TODAY, timezone: 'America/Denver' });
     expect(launcherSnapshotFingerprint(a)).toBe(launcherSnapshotFingerprint(b));
     expect(launcherSnapshotFingerprint(a)).not.toBe(launcherSnapshotFingerprint(buildLauncherSnapshot(base({ handledWrites: [] }))));
+  });
+
+  // #2278, phase 1 gaps: the launcher draws a task's after-midnight piece on
+  // the next date from the previous date's rows (docs/launcher-integration.md,
+  // "Tasks that run past midnight"). For today, the first date it shows, that
+  // is yesterday's rows: through the app's own expansion range and the device
+  // calendar's window, the snapshot carries them.
+  it("carries yesterday's rows that run past midnight, so the launcher can draw today's pieces (#2278)", () => {
+    const YESTERDAY = '2026-10-18';
+    const today = new Date(`${TODAY}T12:00:00`);
+    const template = (id, over = {}) => ({
+      id, title: id, startTime: '23:00', duration: 120, isAllDay: false,
+      recurrence: { type: 'daily', startDate: '2026-10-01' }, ...over,
+    });
+    const recurringTasks = [
+      template('open'),
+      template('done', { completedDates: [YESTERDAY] }),
+      template('early', { startTime: '21:00', duration: 60 }),
+    ];
+    // The range both the app and the headless refresh hand the expansion. A
+    // Monday with weeks starting on Monday: nothing else reaches back to
+    // yesterday, only the range's own day before.
+    const { rangeStart, rangeEnd } = computeRecurringExpansionRange({ selectedDate: today, today, schedDaysShown: 1, weekStartDay: 1 });
+    expect(rangeStart <= YESTERDAY).toBe(true);
+    const expandedRecurringTasks = expandRecurringTasks(recurringTasks, { rangeStart, rangeEnd, today: TODAY });
+
+    // A device event from 23:30 last night to 01:00, fetched as the app does.
+    const dates = [];
+    for (let d = -DEVICE_EVENT_WINDOW.daysBefore; d <= DEVICE_EVENT_WINDOW.daysAfter; d++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + d);
+      dates.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`);
+    }
+    expect(dates[0]).toBe(YESTERDAY);
+    const flight = { id: '9', title: 'Flight', start: `${YESTERDAY}T23:30:00`, end: `${TODAY}T01:00:00`, allDay: false, calendarId: '1', color: '#039BE5' };
+    const { tasks: native } = nativeResultsToTasks(dates.map((d) => (d === YESTERDAY || d === TODAY ? [flight] : [])), dates);
+
+    const frame = { frameId: 'f1', start: '00:00', end: '03:00', label: 'Night', color: '#c8c8d2' };
+    const snap = buildLauncherSnapshot(base({
+      tasks: [{ id: 'n', title: 'Night shift', date: YESTERDAY, startTime: '22:00', duration: 180 }],
+      expandedRecurringTasks,
+      deviceEvents: groupWidgetNativeEvents(dates, native),
+      frameInstancesForDate: (date) => (date.getDate() === 19 ? [frame] : []),
+    }));
+
+    const yesterdayRows = snap.tasks.filter((t) => t.date === YESTERDAY);
+    expect(yesterdayRows.map((t) => [t.id, t.startTime, t.duration])).toEqual(expect.arrayContaining([
+      ['n', '22:00', 180],
+      [`recurring-open-${YESTERDAY}`, '23:00', 120],
+      [`recurring-done-${YESTERDAY}`, '23:00', 120],
+      [`native-cal-9-${YESTERDAY}`, '23:30', 90],
+    ]));
+    // The rule the launcher applies to them, over the rows it receives.
+    expect(continuationsFromPreviousDay(yesterdayRows).map((c) => [c.task.id, c.endMinutes]).sort()).toEqual([
+      ['n', 60],
+      [`native-cal-9-${YESTERDAY}`, 60],
+      [`recurring-done-${YESTERDAY}`, 60],
+      [`recurring-open-${YESTERDAY}`, 60],
+    ]);
+    // An uncompleted occurrence that ended before midnight stays out, as in the app.
+    expect(snap.tasks.some((t) => t.id === `recurring-early-${YESTERDAY}`)).toBe(false);
+    // And today's frame is already net of them.
+    expect(snap.frames.find((f) => f.date === TODAY).slots).toEqual([{ start: '01:00', end: '03:00' }]);
   });
 });
