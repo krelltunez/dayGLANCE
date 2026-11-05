@@ -52,7 +52,7 @@ describe('package.json', () => {
       seen.add(f);
       for (const [, spec] of read(`src/${f}`).matchAll(/^(?:import|export) [^;]*? from '([^']+)';/gms)) {
         if (spec.startsWith('./')) walk(spec.slice(2));
-        else expect(['@glance-apps/agenda-core', '@glance-apps/mcp-host/src/dates.js'], `${f} imports ${spec}`).toContain(spec);
+        else expect(['@glance-apps/agenda-core', '@glance-apps/mcp-host/dates'], `${f} imports ${spec}`).toContain(spec);
       }
     };
     walk('model.js');

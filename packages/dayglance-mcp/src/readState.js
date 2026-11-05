@@ -24,7 +24,7 @@
 import { agendaClock, isTaskVisibleForUser, isOwnedBy } from '@glance-apps/agenda-core';
 // The dates module itself, not the kit's root: the root also carries the HTTP
 // listener (node:http), which a browser bundle of the read model cannot load.
-import { localDateOf, localMinutesOf } from '@glance-apps/mcp-host/src/dates.js';
+import { localDateOf, localMinutesOf } from '@glance-apps/mcp-host/dates';
 
 /**
  * "Now" on the user's clock: `{ todayDate: 'YYYY-MM-DD', nowMinutes }`.
