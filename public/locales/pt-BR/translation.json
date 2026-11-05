@@ -946,7 +946,9 @@
     "deferredTimes_other": "Adiada {{count}} vezes",
     "movedVia": "Adiamentos recentes",
     "earlierMoves": "+1 anterior",
-    "earlierMoves_other": "+{{count}} anteriores"
+    "earlierMoves_other": "+{{count}} anteriores",
+    "continuesFrom": "desde {{day}}",
+    "continuesFromLabel": "{{title}}, continua de {{day}}"
   },
   "recurrence": {
     "ordinal_ordinal_one": "{{count}}",

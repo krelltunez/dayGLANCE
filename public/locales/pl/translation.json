@@ -975,7 +975,9 @@
     "earlierMoves_one": "+{{count}} wcześniej",
     "earlierMoves_few": "+{{count}} wcześniej",
     "earlierMoves_many": "+{{count}} wcześniej",
-    "earlierMoves_other": "+{{count}} wcześniej"
+    "earlierMoves_other": "+{{count}} wcześniej",
+    "continuesFrom": "od {{day}}",
+    "continuesFromLabel": "{{title}}, kontynuacja z {{day}}"
   },
   "recurrence": {
     "ordinal_ordinal_other": "{{count}}.",

@@ -946,7 +946,9 @@
     "deferredTimes_other": "Reportée {{count}} fois",
     "movedVia": "Déplacements récents",
     "earlierMoves": "+1 antérieur",
-    "earlierMoves_other": "+{{count}} antérieurs"
+    "earlierMoves_other": "+{{count}} antérieurs",
+    "continuesFrom": "depuis {{day}}",
+    "continuesFromLabel": "{{title}}, suite de {{day}}"
   },
   "recurrence": {
     "ordinal_ordinal_one": "{{count}}er",

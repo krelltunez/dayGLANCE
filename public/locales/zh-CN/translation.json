@@ -946,7 +946,9 @@
     "deferredTimes_other": "推迟过 {{count}} 次",
     "movedVia": "最近的改期",
     "earlierMoves": "+1 次更早",
-    "earlierMoves_other": "+{{count}} 次更早"
+    "earlierMoves_other": "+{{count}} 次更早",
+    "continuesFrom": "自{{day}}",
+    "continuesFromLabel": "{{title}}，从{{day}}延续"
   },
   "recurrence": {
     "ordinal_ordinal_one": "{{count}}",

@@ -8,6 +8,8 @@
 // fixed 80px per hour for years while the rows were ~161px, so an edge ran
 // about twice as fast as the pointer.
 
+import { MAX_DURATION_MINUTES } from './taskDuration.js';
+
 export const RESIZE_SNAP_MINUTES = 15;
 export const MIN_BLOCK_MINUTES = 15;
 
@@ -29,15 +31,22 @@ export function pixelsToSnappedMinutes(deltaY, hourHeight, snap = RESIZE_SNAP_MI
 // closer than the minimum to the end. A block already shorter than the
 // minimum (an imported 5-minute event) can grow from either edge but does not
 // shrink further, and does not jump to the minimum before the pointer moves.
+//
+// Neither edge makes a block longer than a whole day (MAX_DURATION_MINUTES,
+// the task editor's cap). Since #2278 an end may lie past midnight, where the
+// next date draws it, so that cap is the only limit on the end. A block that
+// already runs longer (an imported multi-day event) can shrink but not grow.
 export function resizeBlock({ startMinutes, duration, edge, deltaMinutes }) {
   const delta = Number.isFinite(deltaMinutes) ? deltaMinutes : 0;
+  const longest = Math.max(MAX_DURATION_MINUTES, duration);
   if (edge === 'top') {
     const end = startMinutes + duration;
     const latestStart = Math.max(end - MIN_BLOCK_MINUTES, startMinutes);
-    const start = Math.max(0, Math.min(latestStart, startMinutes + delta));
+    const earliestStart = Math.max(0, end - longest);
+    const start = Math.max(earliestStart, Math.min(latestStart, startMinutes + delta));
     return { startMinutes: start, duration: end - start };
   }
-  return { startMinutes, duration: Math.max(Math.min(MIN_BLOCK_MINUTES, duration), duration + delta) };
+  return { startMinutes, duration: Math.min(longest, Math.max(Math.min(MIN_BLOCK_MINUTES, duration), duration + delta)) };
 }
 
 // One step of a resize gesture: the pointer has moved `deltaY` pixels from

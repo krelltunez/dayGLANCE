@@ -946,7 +946,9 @@
     "deferredTimes_other": "Deferred {{count}} times",
     "movedVia": "Recent moves",
     "earlierMoves": "+1 earlier",
-    "earlierMoves_other": "+{{count}} earlier"
+    "earlierMoves_other": "+{{count}} earlier",
+    "continuesFrom": "from {{day}}",
+    "continuesFromLabel": "{{title}}, continued from {{day}}"
   },
   "recurrence": {
     "ordinal_ordinal_one": "{{count}}st",
