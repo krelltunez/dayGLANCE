@@ -971,6 +971,91 @@ describe('project and goal notes: creation, the maintained map, the project fiel
     expect(s.text(GOAL_NOTE)).toContain('# Home\nWarm by winter.\n');
     expect(s.text(GOAL_NOTE)).not.toContain('[!note] Edited in dayGLANCE');
   });
+
+  it('29. A TASK\'S NOTE WITHOUT THE FOLDER (#2291 follow-up): a phone finds a task\'s [[linked note]] in the plugin\'s scope by name and shows it whole, with its age; an Obsidian edit reaches it when reported; its save goes out as wiki_note_write under the reported path and the shown text\'s base and the plugin applies it; a reported edit since is refused here, and an unreported one is refused by the plugin; two notes of one name are ambiguous; a note outside the scope is not shared; a deletion reads as deleted', async () => {
+    const TASK_NOTE = 'Projects/Gutter repair.md';
+    await boot({});
+    await s.plugin.setScope({ folders: ['Projects', 'Areas'] });
+    await s.write(TASK_NOTE, 'Call the roofer.\nQuotes: two so far.\n');
+    await s.write('Archive/Old idea.md', 'Not in the scope.\n');
+    await s.settle();
+
+    // The phone: paired through GLANCEvault, no vault folder, no Obsidian cycle.
+    const B = mountDevice('B', {}, { folder: false });
+    // Report reads are awaited in real time (their budget, scenario 27).
+    const load = (name = 'Gutter repair'): Promise<any> => B.run(() => B.api.loadTaskNote(name));
+    const shown = await load();
+    expect(shown).toMatchObject({ text: 'Call the roofer.\nQuotes: two so far.\n', path: TASK_NOTE, source: 'report' });
+    expect(shown.base).toBe(noteTextHash(shown.text));
+    expect(Date.parse(shown.observedAt)).toBeGreaterThan(0);
+    // The panel asks for it through the context's loader.
+    expect(await B.run(() => B.api.loadWikiNote('Gutter repair', { taskPanel: true }))).toMatchObject({ path: TASK_NOTE, source: 'report' });
+
+    // An edit in Obsidian reaches the phone when the plugin reports it, not before.
+    await s.write(TASK_NOTE, 'Call the roofer.\nQuotes: three now.\n');
+    expect((await load()).text).toBe('Call the roofer.\nQuotes: two so far.\n');
+    await s.settle();
+    const reported = await load();
+    expect(reported.text).toBe('Call the roofer.\nQuotes: three now.\n');
+
+    // The save: wiki_note_write under the REPORTED PATH and the base of the SHOWN text; the plugin applies it.
+    const subkey = await importBridgeSubkey(s.pairing.subkeyB64);
+    const wikiIntents = async (): Promise<any[]> => {
+      const out: any[] = [];
+      for (const row of s.vault.live(BRIDGE_VAULT_APP)) {
+        if (!row.entityId.startsWith(BRIDGE_INTENT_PREFIX) || !row.envelope) continue;
+        const payload: any = await openBridgeEnvelope(subkey, row.envelope);
+        if (payload?.type === 'wiki_note_write') out.push(payload);
+      }
+      return out;
+    };
+    const typed = `${reported.text}Typed on the phone.\n`;
+    expect(await B.run(() => B.api.saveWikiNote('Gutter repair', typed, { base: reported.base, taskPanel: true }))).toEqual({ ok: true, mode: 'queued' });
+    await B.flush();
+    const intents = await wikiIntents();
+    expect(intents).toHaveLength(1);
+    expect(intents[0]).toMatchObject({ noteName: 'Projects/Gutter repair', content: typed, base: noteTextHash(reported.text) });
+    await s.plugin.transport.drain();
+    expect(s.text(TASK_NOTE)).toBe(typed);
+    await s.settle();
+    expect((await load()).text).toBe(typed);
+
+    // Edited in Obsidian and REPORTED since the phone loaded it: refused here, nothing queued, the newer text handed back.
+    await s.write(TASK_NOTE, 'Edited again in Obsidian.\n');
+    await s.settle();
+    const before = s.vault.maxSeq;
+    const refused = await B.run(() => B.api.saveTaskNote('Gutter repair', 'Stale edit.', { base: noteTextHash(typed) }));
+    expect(refused).toMatchObject({ refused: 'changed', text: 'Edited again in Obsidian.\n', source: 'report' });
+    await B.flush();
+    expect(s.vault.maxSeq).toBe(before);
+
+    // Edited in Obsidian and NOT yet reported: the phone's check passes, the plugin refuses inside Obsidian.
+    const current = await load();
+    expect(await B.run(() => B.api.saveTaskNote('Gutter repair', 'Racing edit.', { base: current.base }))).toEqual({ ok: true, mode: 'queued' });
+    await B.flush();
+    await s.write(TASK_NOTE, 'Edited in Obsidian a moment ago.\n');
+    await s.plugin.transport.drain();
+    expect(s.text(TASK_NOTE)).toBe('Edited in Obsidian a moment ago.\n');
+    await s.settle();
+
+    // Two notes of one name, both shared: neither is shown.
+    await s.write('Areas/Gutter repair.md', 'Another note of the same name.\n');
+    await s.settle();
+    expect(await load()).toEqual({ unavailable: 'ambiguous' });
+    // Its folder disambiguates.
+    expect(await load('Areas/Gutter repair')).toMatchObject({ text: 'Another note of the same name.\n', source: 'report' });
+    await s.plugin.app.vault.delete(s.file('Areas/Gutter repair.md'));
+    await s.settle();
+
+    // A note outside the plugin's scope: not shared, and the new-notes folder is outside it too.
+    expect(await load('Old idea')).toEqual({ unavailable: 'not_shared', newNotesFolderOutsideScope: true, newNotesFolder: 'dayGLANCE' });
+
+    // Deleted in Obsidian: deleted, not "not shared", and not old text.
+    await s.plugin.app.vault.delete(s.file(TASK_NOTE));
+    await s.settle();
+    expect(await load()).toEqual({ unavailable: 'deleted' });
+    expect(await load('Projects/Gutter repair')).toEqual({ unavailable: 'deleted' });
+  });
 });
 
 // ── Daily-note templates (companion §4.4 build record, 2026-09-06) ──────────
