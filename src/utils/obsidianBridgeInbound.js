@@ -42,6 +42,8 @@ import {
   observationEntityId,
   openNoteObservations,
   noteDescriptionFromObservations,
+  latestNoteObservation,
+  noteTextHash,
   normalizeNotePath,
 } from '@glance-apps/obsidian-format';
 import {
@@ -226,15 +228,88 @@ export function createReadLimiter(max) {
 }
 const reportedReads = createReadLimiter(REPORTED_NOTE_READ_CONCURRENCY);
 
-export function fetchReportedNoteDescription(path, { budgetMs = REPORTED_NOTE_READ_BUDGET_MS } = {}) {
+// One budgeted, limited read of a note's latest report (the gates and the
+// row read in readReportedNoteObservation). Resolves to that reader's answer,
+// or to null once the budget runs out, never later.
+function budgetedReportRead(path, budgetMs) {
   return new Promise((resolve) => {
     let done = false;
     const timer = setTimeout(() => { done = true; resolve(null); }, budgetMs);
-    reportedReads.run(() => readReportedNoteDescription(path), { isCancelled: () => done })
+    reportedReads.run(() => readReportedNoteObservation(path), { isCancelled: () => done })
       .then((r) => { if (done) return; done = true; clearTimeout(timer); resolve(r ?? null); });
   });
 }
-async function readReportedNoteDescription(path) {
+
+export function fetchReportedNoteDescription(path, { budgetMs = REPORTED_NOTE_READ_BUDGET_MS } = {}) {
+  return budgetedReportRead(path, budgetMs).then((r) => (r?.observation
+    ? noteDescriptionFromObservations([r.observation], r.path)
+    : null));
+}
+
+/**
+ * A WHOLE note as the plugin last reported it (#2291 follow-up: a task's
+ * linked note, which the task panel shows whole), through the same gates,
+ * limiter and budget as fetchReportedNoteDescription. Nothing is kept. The
+ * answer is typed, because a task's note is found by name and the caller
+ * has to tell "never reported" from "could not ask":
+ *
+ *   { status: 'note', path, text, base, lastModified, observedAt }
+ *                       path is Obsidian's own (the report's), text the
+ *                       whole content, base its noteTextHash (the hash a
+ *                       wiki_note_write carries back)
+ *   { status: 'deleted' }     the latest report says the note is gone
+ *   { status: 'withdrawn' }   it left the plugin's scope: it exists, and is
+ *                             no longer reported
+ *   { status: 'never' }       no report of the path: no information
+ *   { status: 'unavailable' } the report could not be asked for (unpaired,
+ *                             no key yet, unreachable, braked, out of budget)
+ */
+export function fetchReportedNote(path, { budgetMs = REPORTED_NOTE_READ_BUDGET_MS } = {}) {
+  return budgetedReportRead(path, budgetMs).then((r) => {
+    if (!r) return { status: 'unavailable' };
+    const obs = r.observation;
+    if (!obs) return { status: 'never' };
+    if (obs.deleted) return { status: 'deleted' };
+    if (obs.withdrawn) return { status: 'withdrawn' };
+    if (typeof obs.content !== 'string') return { status: 'deleted' };
+    const mtime = obs.mtime != null ? new Date(obs.mtime) : null;
+    return {
+      status: 'note',
+      path: typeof obs.path === 'string' && obs.path ? obs.path : r.path,
+      text: obs.content,
+      base: noteTextHash(obs.content),
+      lastModified: mtime && Number.isFinite(mtime.getTime()) ? mtime.toISOString() : null,
+      observedAt: typeof obs.observedAt === 'string' ? obs.observedAt : null,
+    };
+  });
+}
+
+/**
+ * Can this device read the plugin's reports at all, and what does the plugin
+ * share? Cheap: the vault config, the key, and the pairing meta
+ * (getBridgePairingMeta, TTL-cached). 'unpaired' is no GLANCEvault or no
+ * paired vault on it; 'locked' a paired vault whose key is not in memory
+ * yet; 'ready' otherwise. `scope` is the task scope the plugin published on
+ * the pairing meta (folders and tags), or null when it published none.
+ */
+export async function reportedNotesAvailability() {
+  try {
+    const cfg = getVaultConfig();
+    if (!cfg?.enabled || !cfg.vaultUrl || !cfg.vaultToken || !cfg.accountId) return { status: 'unpaired', scope: null };
+    const meta = await getBridgePairingMeta();
+    if (!meta?.pairingSalt) return { status: 'unpaired', scope: null };
+    const scope = meta.scope && typeof meta.scope === 'object' ? meta.scope : null;
+    if (!hasDbRootKey()) return { status: 'locked', scope };
+    return { status: 'ready', scope };
+  } catch {
+    return { status: 'unpaired', scope: null };
+  }
+}
+
+// The latest observation of a path: { path, observation } (observation null
+// when the plugin never reported it), or null when the report could not be
+// asked for (the gates, a failed request).
+async function readReportedNoteObservation(path) {
   try {
     const notePath = normalizeNotePath(path);
     if (!notePath) return null;
@@ -260,7 +335,7 @@ async function readReportedNoteDescription(path) {
       return row ? { ...row, entityId: row.entityId ?? entityId } : null;
     }));
     const observations = await openNoteObservations(rows.filter(Boolean), subkey);
-    return noteDescriptionFromObservations(observations, notePath);
+    return { path: notePath, observation: latestNoteObservation(observations, notePath) };
   } catch {
     return null;
   }
