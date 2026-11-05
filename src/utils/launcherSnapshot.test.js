@@ -164,6 +164,17 @@ describe('buildLauncherSnapshot', () => {
     expect(byDate['2026-10-20']).toEqual([{ start: '09:30', end: '12:00' }]);
   });
 
+  it("counts last night's task running past midnight as busy in the next day's frame (#2278)", () => {
+    const frame = { frameId: 'f1', start: '00:00', end: '03:00', label: 'Night', color: '#c8c8d2' };
+    const snap = buildLauncherSnapshot(base({
+      tasks: [{ id: 'n', title: 'Night shift', date: TODAY, startTime: '23:00', duration: 120 }],
+      frameInstancesForDate: (date) => (date.getDate() === 20 ? [frame] : []),
+    }));
+    expect(snap.frames.find(f => f.date === '2026-10-20').slots).toEqual([{ start: '01:00', end: '03:00' }]);
+    // The task is still listed once, on the day it starts.
+    expect(snap.tasks.filter(t => t.id === 'n').map(t => t.date)).toEqual([TODAY]);
+  });
+
   it('shapes the day from the window and the sun, null where the app has neither', () => {
     const shaped = buildLauncherSnapshot(base({
       getDayWindow: (d) => (d === TODAY ? { start: '07:00', stop: '22:30' } : null),

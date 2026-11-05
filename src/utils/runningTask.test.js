@@ -35,6 +35,13 @@ describe('findRunningTask', () => {
     expect(findRunningTask([task({ date: '2026-03-11' })], NOW)).toBeUndefined();
   });
 
+  it('finds last night\'s task still running after midnight, until its real end (#2278)', () => {
+    const night = task({ date: '2026-03-09', startTime: '23:00', duration: 12 * 60 }); // to 11:00 today
+    expect(findRunningTask([night], NOW)?.id).toBe('t1');
+    expect(findRunningTask([task({ date: '2026-03-09', startTime: '23:00', duration: 11 * 60 + 30 })], NOW)).toBeUndefined();
+    expect(findRunningTask([{ ...night, completed: true }], NOW)).toBeUndefined();
+  });
+
   it('ignores all-day and completed tasks', () => {
     expect(findRunningTask([task({ isAllDay: true })], NOW)).toBeUndefined();
     expect(findRunningTask([task({ completed: true })], NOW)).toBeUndefined();

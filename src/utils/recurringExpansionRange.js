@@ -6,6 +6,7 @@
 // instances for today+1…today+N, and a dial with missing blocks looks
 // complete, just emptier. Silent. Hence the second anchor.
 
+import { shiftDateStr } from '@glance-apps/agenda-core';
 import { dateToString } from './taskUtils.js';
 import { schedRollingWindow } from './schedAgenda.js';
 import { WIDGET_PROJECTION_DAYS } from './widgetDayProjection.js';
@@ -71,5 +72,8 @@ export function computeRecurringExpansionRange({
     dateToString(monthDates[0]),
     dateToString(monthDates[monthDates.length - 1]),
   ].sort();
-  return { rangeStart: allDateStrs[0], rangeEnd: allDateStrs[allDateStrs.length - 1] };
+  // And the day before the earliest of them: an occurrence that starts there
+  // and runs past midnight draws its after-midnight piece on the first day
+  // shown and counts as busy there (#2278, agenda-core overnight.js).
+  return { rangeStart: shiftDateStr(allDateStrs[0], -1), rangeEnd: allDateStrs[allDateStrs.length - 1] };
 }

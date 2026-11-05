@@ -80,14 +80,16 @@ export function continuationsFromPreviousDay(prevDayTasks) {
 /**
  * Where a row really ends: `{ date, minutes }`, minutes since that date's
  * midnight. A timed row that ends exactly at 24:00 ends at 00:00 of the next
- * date. An all-day row (or one with no date) has no timed end: null.
+ * date. An all-day row (or one with no date, or a start time that is not a
+ * time) has no timed end: null.
  *
- * `defaultDuration` stands in for a missing duration, as the overdue list has
- * always assumed 30 minutes for one.
+ * A missing start time reads as midnight and `defaultDuration` stands in for a
+ * missing duration, as the overdue list has always assumed.
  */
 export function taskEnd(task, { defaultDuration = 30 } = {}) {
   if (!task?.date || task.isAllDay) return null;
-  const start = startMinutesOf(task.startTime || '00:00') ?? 0;
+  const start = task.startTime ? startMinutesOf(task.startTime) : 0;
+  if (start === null) return null;
   const duration = Number(task.duration) || defaultDuration;
   const total = start + duration;
   const days = Math.floor(total / DAY_MINUTES);
@@ -97,12 +99,14 @@ export function taskEnd(task, { defaultDuration = 30 } = {}) {
 /**
  * Has a timed row ended by `todayStr` at `nowMinutes`? Judged by its REAL end,
  * so a 23:00-01:00 row has not ended at 00:30 the next day, and has at 01:00.
- * An all-day row: ended once its date is past.
+ * A row with no timed end (all-day, or an unreadable start): ended once its
+ * date is past.
  */
 export function hasTaskEnded(task, { todayStr, nowMinutes, defaultDuration = 30 }) {
   if (!task?.date) return false;
-  if (task.isAllDay) return task.date < todayStr;
   const end = taskEnd(task, { defaultDuration });
+  // No timed end: over once its date is past.
+  if (!end) return task.date < todayStr;
   if (end.date !== todayStr) return end.date < todayStr;
   return end.minutes <= nowMinutes;
 }
