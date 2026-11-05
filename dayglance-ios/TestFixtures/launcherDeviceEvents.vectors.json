@@ -44,6 +44,9 @@
         "106": {
           "color": "bg-emerald-500"
         },
+        "110": {
+          "startTime": "22:00"
+        },
         "999": {
           "date": "2026-10-22"
         }
@@ -209,6 +212,18 @@
             "calendarId": "2",
             "calendarName": "Personal",
             "color": ""
+          },
+          {
+            "id": "110",
+            "title": "Gig",
+            "start": "2026-10-22T21:00:00",
+            "end": "2026-10-23T00:30:00",
+            "notes": "",
+            "location": "",
+            "calendarId": "1",
+            "calendarName": "Work",
+            "color": "#039BE5",
+            "allDay": false
           }
         ],
         "2026-10-27": [
@@ -223,6 +238,32 @@
             "calendarId": "1",
             "calendarName": "Work",
             "color": "#039BE5"
+          },
+          {
+            "id": "111",
+            "title": "Retreat",
+            "start": "2026-10-27T18:00:00",
+            "end": "2026-10-29T10:00:00",
+            "notes": "",
+            "location": "",
+            "calendarId": "1",
+            "calendarName": "Work",
+            "color": "#039BE5",
+            "allDay": false
+          }
+        ],
+        "2026-10-23": [
+          {
+            "id": "110",
+            "title": "Gig",
+            "start": "2026-10-22T21:00:00",
+            "end": "2026-10-23T00:30:00",
+            "notes": "",
+            "location": "",
+            "calendarId": "1",
+            "calendarName": "Work",
+            "color": "#039BE5",
+            "allDay": false
           }
         ]
       },
@@ -239,6 +280,9 @@
           },
           "106": {
             "colorHex": "#10b981"
+          },
+          "110": {
+            "startTime": "22:00"
           },
           "999": {
             "date": "2026-10-22"
@@ -373,7 +417,7 @@
           "title": "Night shift",
           "date": "2026-10-21",
           "startTime": "23:00",
-          "duration": 15,
+          "duration": 480,
           "isAllDay": false,
           "completed": false,
           "completedAt": null,
@@ -449,12 +493,52 @@
           "native": true
         },
         {
+          "id": "native-cal-110-2026-10-22",
+          "title": "Gig",
+          "date": "2026-10-22",
+          "startTime": "22:00",
+          "duration": 210,
+          "isAllDay": false,
+          "completed": false,
+          "completedAt": null,
+          "colorHex": "#039BE5",
+          "priority": 0,
+          "notes": "",
+          "projectId": null,
+          "deadline": null,
+          "source": "calendar",
+          "energy": "effort",
+          "clientId": null,
+          "recurringId": null,
+          "native": true
+        },
+        {
           "id": "native-cal-109-2026-10-27",
           "title": "Trip",
           "date": "2026-10-27",
           "startTime": null,
           "duration": 60,
           "isAllDay": true,
+          "completed": false,
+          "completedAt": null,
+          "colorHex": "#039BE5",
+          "priority": 0,
+          "notes": "",
+          "projectId": null,
+          "deadline": null,
+          "source": "calendar",
+          "energy": "effort",
+          "clientId": null,
+          "recurringId": null,
+          "native": true
+        },
+        {
+          "id": "native-cal-111-2026-10-27",
+          "title": "Retreat",
+          "date": "2026-10-27",
+          "startTime": "18:00",
+          "duration": 1440,
+          "isAllDay": false,
           "completed": false,
           "completedAt": null,
           "colorHex": "#039BE5",

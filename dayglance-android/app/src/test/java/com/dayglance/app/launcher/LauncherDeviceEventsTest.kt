@@ -78,6 +78,24 @@ class LauncherDeviceEventsTest {
         assertSame("not json", LauncherDeviceEvents.withLiveEvents("not json", LocalDate.parse("2026-10-21")) { emptyList() })
     }
 
+    /** nativeCalendar.test.js holds nativeEventDuration to the same values (#2278). */
+    @Test
+    fun `an event's duration runs from its full start to its full end, within a day`() {
+        assertEquals(120, LauncherDeviceEvents.eventDuration("2026-06-22T23:00:00", "2026-06-23T01:00:00"))
+        assertEquals(510, LauncherDeviceEvents.eventDuration("2026-06-22T22:00:00", "2026-06-23T06:30:00"))
+        assertEquals(75, LauncherDeviceEvents.eventDuration("2026-12-31T23:30:00", "2027-01-01T00:45:00"))
+        assertEquals(1440, LauncherDeviceEvents.eventDuration("2026-06-22T09:00:00", "2026-06-23T09:00:00"))
+        assertEquals(1440, LauncherDeviceEvents.eventDuration("2026-06-22T09:00:00", "2026-06-24T09:00:00"))
+        assertEquals(90, LauncherDeviceEvents.eventDuration("2026-06-22T09:00:00", "2026-06-22T10:30:00"))
+        assertEquals(15, LauncherDeviceEvents.eventDuration("2026-06-22T09:00:00", "2026-06-22T09:05:00"))
+        assertEquals(15, LauncherDeviceEvents.eventDuration("2026-06-22T09:00:00", "2026-06-21T09:00:00"))
+        assertEquals(60, LauncherDeviceEvents.eventDuration("2026-06-22T09:00:00", ""))
+        // Wall-clock across a DST change at midnight (America/Santiago's April and
+        // September nights): the strings carry no zone, so 23:00-01:00 is 120.
+        assertEquals(120, LauncherDeviceEvents.eventDuration("2026-04-04T23:00:00", "2026-04-05T01:00:00"))
+        assertEquals(120, LauncherDeviceEvents.eventDuration("2026-09-05T23:00:00", "2026-09-06T01:00:00"))
+    }
+
     @Test
     fun `energy is a restore keyword among the title's words, never a substring`() {
         assertEquals("restore", LauncherDeviceEvents.energy("Lunch with Sam"))

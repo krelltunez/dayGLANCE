@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { continuationsFromPreviousDay } from '@glance-apps/agenda-core';
 import {
   nativeEventToTask, nativeResultsToTasks, CALENDAR_FILTER_NONE, isCalendarFilterNone,
   isCalendarShown, toggleCalendarInFilter, extendCalendarFilter, nativeEventEndString,
+  nativeEventDuration,
 } from './nativeCalendar.js';
 
 // The Electron EventKit helper emits the exact same JSON shape as the mobile
@@ -117,6 +120,67 @@ describe('nativeEventToTask', () => {
     const overnight = ev({ start: '2026-06-22T23:00:00', end: '2026-06-23T01:00:00' });
     expect(nativeEventToTask({ ...overnight, _queryDate: '2026-06-22' }).id)
       .toBe(nativeEventToTask({ ...overnight, _queryDate: '2026-06-23' }).id);
+  });
+});
+
+// #2278: a timed event that runs past midnight is as long as it really is,
+// so it carries onto the next date like any task. The duration used to come
+// from the clock times alone, and a 23:00-01:00 event became 15 minutes.
+describe('a device event that crosses midnight (#2278)', () => {
+  const overnight = ev({ id: 'LATE', start: '2026-06-22T23:00:00', end: '2026-06-23T01:00:00' });
+
+  it('is as long as its full start to its full end, and carries the rest onto the next date', () => {
+    const dates = ['2026-06-22', '2026-06-23'];
+    // The provider returns it for both days it touches; it is one row.
+    const { tasks } = nativeResultsToTasks([[overnight], [overnight]], dates);
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]).toMatchObject({ date: '2026-06-22', startTime: '23:00', duration: 120 });
+    const pieces = continuationsFromPreviousDay(tasks.filter((t) => t.date === '2026-06-22'));
+    expect(pieces).toHaveLength(1);
+    expect(pieces[0]).toMatchObject({ fromDate: '2026-06-22', startMinutes: 0, endMinutes: 60 });
+    expect(pieces[0].task).toBe(tasks[0]);
+  });
+
+  it('is capped at a whole day, and a same-day event keeps its old duration', () => {
+    expect(nativeEventDuration('2026-06-22T09:00:00', '2026-06-24T09:00:00')).toBe(24 * 60);
+    expect(nativeEventDuration('2026-06-22T09:00:00', '2026-06-23T09:00:00')).toBe(24 * 60);
+    expect(nativeEventDuration('2026-06-22T22:00:00', '2026-06-23T06:30:00')).toBe(510);
+    expect(nativeEventDuration('2026-06-22T09:00:00', '2026-06-22T10:30:00')).toBe(90);
+    expect(nativeEventDuration('2026-06-22T09:00:00', '2026-06-22T09:05:00')).toBe(15);
+    // An end before the start is a broken event, not a negative block.
+    expect(nativeEventDuration('2026-06-22T09:00:00', '2026-06-21T09:00:00')).toBe(15);
+    expect(nativeEventDuration('2026-06-22T09:00:00', '')).toBe(60);
+    // Across a month and a year end.
+    expect(nativeEventDuration('2026-12-31T23:30:00', '2027-01-01T00:45:00')).toBe(75);
+  });
+
+  it('a user edit keeps its own duration, and an edit that moves the time keeps the real one', () => {
+    const dates = ['2026-06-22'];
+    const moved = nativeResultsToTasks([[overnight]], dates, { overrides: { LATE: { startTime: '22:00' } } }).tasks[0];
+    expect(moved).toMatchObject({ startTime: '22:00', duration: 120 });
+    const resized = nativeResultsToTasks([[overnight]], dates, { overrides: { LATE: { duration: 180 } } }).tasks[0];
+    expect(resized).toMatchObject({ startTime: '23:00', duration: 180 });
+    expect(continuationsFromPreviousDay([resized])[0].minutes).toBe(120);
+  });
+
+  // The strings are the device's local wall times. Elapsed time across a DST
+  // change differs from the wall-clock span: in America/Santiago the clocks
+  // change at midnight, so 23:00-01:00 is 3 hours on the April night and 1
+  // hour on the September one. The block is drawn by its wall times, so it is
+  // 120 minutes on both. A child process gives the case a real host zone.
+  it('is the wall-clock span across a DST change at midnight', () => {
+    const script = `
+      import { nativeEventDuration } from ${JSON.stringify(new URL('./nativeCalendar.js', import.meta.url).href)};
+      if (new Date('2026-04-05T01:00:00') - new Date('2026-04-04T23:00:00') !== 180 * 60000) throw new Error('not a DST night here');
+      process.stdout.write(JSON.stringify([
+        nativeEventDuration('2026-04-04T23:00:00', '2026-04-05T01:00:00'),
+        nativeEventDuration('2026-09-05T23:00:00', '2026-09-06T01:00:00'),
+      ]));
+    `;
+    const out = execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+      env: { ...process.env, TZ: 'America/Santiago' }, encoding: 'utf8', timeout: 10000,
+    });
+    expect(JSON.parse(out)).toEqual([120, 120]);
   });
 });
 
