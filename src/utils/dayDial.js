@@ -4,6 +4,7 @@ import { frameColorToHex, taskColorToHex } from './colorUtils.js';
 import { getMoonAltitude, getMoonIllumination } from './lunar.js';
 import { getPeakSunElevation, getSunElevation, getSunTimes, POLAR_DAY } from './solar.js';
 import { assignLanes } from './intervalLanes.js';
+import { continuationsFromPreviousDay } from '@glance-apps/agenda-core';
 import { extractTags, stripWikilinks } from './taskUtils.js';
 
 // Model + geometry for the Day Dial — the ambient 24-hour instrument view.
@@ -227,21 +228,16 @@ export function computeDialModel(dayTasks, dayWindow = null, prevDayTasks = null
   // (they come from computeDaySummary over dayTasks alone), because the
   // minutes belong to the day the task is filed under. In practice that
   // divergence is invisible: unblocked time is measured inside the declared
-  // day window, and an overnight spill lands before it.
-  const carried = (prevDayTasks || [])
-    .filter(timedOnly)
-    .map((t) => {
-      const startMin = timeToMin(t.startTime);
-      const rawEnd = startMin + (t.duration || 0);
-      return {
-        ...toBlock(t),
-        startMin: 0,
-        endMin: Math.min(DIAL_DAY_MINUTES, rawEnd - DIAL_DAY_MINUTES),
-        startedPrevDay: true,
-        startMinTrue: startMin,
-      };
-    })
-    .filter((b) => b.endMin > 0);
+  // day window, and an overnight spill lands before it. The carry itself is
+  // the one rule every timeline shares (agenda-core overnight.js, #2278).
+  const carried = continuationsFromPreviousDay(prevDayTasks)
+    .map(({ task: t, minutes }) => ({
+      ...toBlock(t),
+      startMin: 0,
+      endMin: minutes,
+      startedPrevDay: true,
+      startMinTrue: timeToMin(t.startTime),
+    }));
 
   const blocks = assignDialLanes([...carried, ...owned]
     .filter((b) => b.endMin > b.startMin)

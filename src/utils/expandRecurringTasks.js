@@ -4,6 +4,7 @@
 // same expansion the app renders with, not a stand-in for it. The range comes
 // from computeRecurringExpansionRange (recurringExpansionRange.js).
 
+import { overnightSpillMinutes, shiftDateStr } from '@glance-apps/agenda-core';
 import { getOccurrencesInRange } from './recurrenceEngine.js';
 
 // The same occurrence shape is also used by read-only historical statistics.
@@ -53,14 +54,21 @@ export function recurringTaskInstance(template, date) {
  */
 export function expandRecurringTasks(recurringTasks, { rangeStart, rangeEnd, today }) {
   const instances = [];
+  const yesterday = today ? shiftDateStr(today, -1) : null;
   for (const template of recurringTasks) {
     const occurrences = getOccurrencesInRange(template, rangeStart, rangeEnd);
     for (const dateStr of occurrences) {
       const completed = (template.completedDates || []).includes(dateStr);
       const exception = template.exceptions?.[dateStr];
-      // Don't show past uncompleted recurring instances (except all-day — those surface as overdue)
-      if (dateStr < today && !completed && !(exception?.isAllDay ?? template.isAllDay)) continue;
-      instances.push(recurringTaskInstance(template, dateStr));
+      const instance = recurringTaskInstance(template, dateStr);
+      // Don't show past uncompleted recurring instances (except all-day — those
+      // surface as overdue), nor one that started yesterday and ran past
+      // midnight: that one is still today's business until today ends (#2278).
+      // It draws its after-midnight piece on today's timeline and turns
+      // overdue at its real end (getOverdueTasks.js).
+      if (dateStr < today && !completed && !(exception?.isAllDay ?? template.isAllDay)
+        && !(dateStr === yesterday && overnightSpillMinutes(instance) > 0)) continue;
+      instances.push(instance);
     }
   }
   return instances;

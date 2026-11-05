@@ -946,7 +946,9 @@
     "deferredTimes_other": "Aplazada {{count}} veces",
     "movedVia": "Cambios recientes",
     "earlierMoves": "+1 anterior",
-    "earlierMoves_other": "+{{count}} anteriores"
+    "earlierMoves_other": "+{{count}} anteriores",
+    "continuesFrom": "desde {{day}}",
+    "continuesFromLabel": "{{title}}, continúa desde {{day}}"
   },
   "recurrence": {
     "ordinal_ordinal_one": "{{count}}",

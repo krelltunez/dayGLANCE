@@ -24,7 +24,7 @@
 // frame reported here carries read_only: true, the same flag device calendar
 // events and routines carry.
 
-import { frameInstancesForDate, computeAvailableSlots } from '@glance-apps/agenda-core';
+import { frameInstancesForDate, computeAvailableSlots, shiftDateStr } from '@glance-apps/agenda-core';
 
 export const FRAME_ID_PREFIX = 'frame-';
 
@@ -91,15 +91,20 @@ export function buildFrames(state, date, { includeNative = false } = {}) {
   // comparing free time against the blocks it CAN see could infer both the
   // existence and the span of every hidden event. Availability therefore
   // describes exactly the data the tier permits, no more.
-  const dayTasks = (state?.tasks ?? [])
-    .filter((t) => t.date === date)
+  const rowsOn = (d) => (state?.tasks ?? [])
+    .filter((t) => t.date === d)
     .filter((t) => (includeNative ? true : !t._native));
+  const dayTasks = rowsOn(date);
+  // The previous date's tasks still running after midnight hold the start of
+  // this one (#2278), under the same consent tier.
+  const prevDayTasks = rowsOn(shiftDateStr(date, -1));
 
   return frameInstancesForDate(frames, date).map((instance) => toFrameObject(
     instance,
     computeAvailableSlots(instance, {
       state,
       tasks: dayTasks,
+      prevDayTasks,
       dateStr: date,
       todayStr: state?.todayDate ?? '',
       nowMinutes: typeof state?.nowMinutes === 'number' ? state.nowMinutes : 0,

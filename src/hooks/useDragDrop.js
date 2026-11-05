@@ -3,7 +3,8 @@ import { dateToString } from '../utils/taskUtils.js';
 import { TASK_COLORS } from '../utils/colorUtils.js';
 import { nativeUpdateEvent, triggerHaptic } from '../native.js';
 import { describeObstacle } from '../utils/dayOccupancy.js';
-import { anchorDragImageAtTop } from '../utils/dragUtils.js';
+import { anchorDragImageAtTop, dropClampMinutes } from '../utils/dragUtils.js';
+import { nativeEventEndString } from '../utils/nativeCalendar.js';
 import { pixelsToSnappedMinutes, resizeBlockByPixels } from '../utils/taskResize.js';
 
 // Pure utilities used by position helpers
@@ -98,6 +99,10 @@ export default function useDragDrop({
   const mobileDateHeaderRef = useRef(null);
   const mobileAllDaySectionRef = useRef(null);
   const mobileDragSourceType = useRef(null); // 'timeline' or 'allday'
+  // Where a timeline drag is measured from when it is not the task's own start:
+  // a continuation (#2278) is dragged from 00:00 of the date it is drawn on.
+  // { startTime, date } or null.
+  const mobileDragAnchorRef = useRef(null);
   // Refs that mirror mobileDragPreviewTime/Date state — read in handleMobileLongPressEnd
   // to avoid stale-closure bugs when touchend fires before React commits the latest render.
   const mobileDragPreviewTimeRef = useRef(null);
@@ -188,7 +193,10 @@ export default function useDragDrop({
 
   const calculateTaskPosition = (task) => {
     const startMinutes = timeToMinutes(task.startTime);
-    const endMinutes = startMinutes + task.duration;
+    // A card ends at the bottom of its day (#2278): what runs past midnight is
+    // drawn on the next date as a continuation. minutesToPosition reads hour
+    // rows 0-23, so the end of the day is read at the bottom of the last row.
+    const endMinutes = Math.min(startMinutes + task.duration, 24 * 60 - 0.001);
     const top = Math.round(minutesToPosition(startMinutes));
     const endPos = Math.round(minutesToPosition(endMinutes));
     const height = endPos - top - 1; // -1 for consistent tiny gap between tasks
@@ -352,9 +360,11 @@ export default function useDragDrop({
 
     // Show preview time while dragging
     if (draggedTask && calendarRef.current) {
+      // As the drop computes it: a task may run past midnight (#2278); a
+      // routine (today only) still ends by midnight.
       const time = getTimeFromCursorPosition(e, {
         maxMinutes: 24 * 60,
-        taskDuration: draggedTask.duration
+        taskDuration: dragSource === 'routine' ? draggedTask.duration : dropClampMinutes(draggedTask.duration)
       });
       setDragPreviewTime(time);
 
@@ -421,9 +431,11 @@ export default function useDragDrop({
       return;
     }
 
+    // The cursor's quarter-hour is the new start, as late as 23:45: a task
+    // that then runs past midnight carries on the next date (#2278).
     const requestedStartTime = overrideTime || getTimeFromCursorPosition(e, {
       maxMinutes: 24 * 60,
-      taskDuration: draggedTask.duration
+      taskDuration: dropClampMinutes(draggedTask.duration)
     });
 
     // Use the target date from the column, falling back to dragPreviewDate or selectedDate
@@ -496,9 +508,8 @@ export default function useDragDrop({
         ));
         // If this is a native Android calendar event, write the change back to the device calendar
         if (draggedTask.nativeEventId) {
-          const endMin = timeToMinutes(startTime) + (draggedTask.duration || 60);
           const newStart = `${dropDateStr}T${startTime}:00`;
-          const newEnd = `${dropDateStr}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
+          const newEnd = nativeEventEndString(dropDateStr, startTime, draggedTask.duration || 60);
           nativeUpdateEvent({
             id: draggedTask.nativeEventId, title: draggedTask.title,
             start: newStart, end: newEnd, allDay: false,
@@ -837,9 +848,8 @@ export default function useDragDrop({
       if (changed && task.nativeEventId && !isRecurringTask && origStartTime) {
         const finalStartTime = isTop ? minutesToTime(final.startMinutes) : origStartTime;
         const finalDuration = final.duration;
-        const endMin = final.startMinutes + finalDuration;
         const newStart = `${task.date}T${finalStartTime}:00`;
-        const newEnd = `${task.date}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
+        const newEnd = nativeEventEndString(task.date, finalStartTime, finalDuration);
         nativeUpdateEvent({
           id: task.nativeEventId, title: task.title,
           start: newStart, end: newEnd, allDay: false,
@@ -1080,7 +1090,7 @@ export default function useDragDrop({
     const startY = mobileDragTouchStartPos.current.y - calendarRect.top + mobileDragStartScrollTop.current;
     const deltaPixels = currentY - startY;
     const deltaMinutes = (deltaPixels / getHourHeight()) * 60;
-    const originalMinutes = timeToMinutes(mobileDragOriginalTask.current.startTime);
+    const originalMinutes = timeToMinutes(mobileDragAnchorRef.current?.startTime ?? mobileDragOriginalTask.current.startTime);
     const newMinutes = originalMinutes + deltaMinutes;
     const roundedMinutes = Math.round(newMinutes / 15) * 15;
     const clampedMinutes = Math.max(0, Math.min(23 * 60 + 45, roundedMinutes));
@@ -1138,7 +1148,10 @@ export default function useDragDrop({
   };
 
   // --- Mobile swipe + long-press drag handlers ---
-  const handleMobileTaskTouchStart = (e, task, taskType) => {
+  // `options.anchor` ({ startTime, date }) measures a timeline drag from
+  // somewhere other than the task's own start: a continuation's piece at
+  // 00:00 of the next date (#2278). The task itself is still what moves.
+  const handleMobileTaskTouchStart = (e, task, taskType, options = {}) => {
     // Skip swipe for imported items that can't be moved; allow drag for native calendar events
     if (task.imported && !task.nativeEventId && !task.isTaskCalendar) return;
     const touch = e.touches[0];
@@ -1168,6 +1181,7 @@ export default function useDragDrop({
       mobileDragTaskId.current = task.id;
       mobileDragOriginalTask.current = task;
       mobileDragSourceType.current = taskType;
+      mobileDragAnchorRef.current = taskType === 'timeline' ? (options.anchor || null) : null;
       mobileDragTimer.current = setTimeout(() => {
         mobileDragActive.current = true;
         setMobileDragTaskIdState(task.id);
@@ -1178,8 +1192,9 @@ export default function useDragDrop({
           calendarRef.current.style.overflowY = 'hidden';
         }
         // Set initial preview based on source
-        const _initTime = (taskType === 'allday' || taskType === 'deadline') ? 'all-day' : task.startTime;
-        const _initDate = task.date || dateToString(selectedDate);
+        const anchor = mobileDragAnchorRef.current;
+        const _initTime = (taskType === 'allday' || taskType === 'deadline') ? 'all-day' : (anchor?.startTime ?? task.startTime);
+        const _initDate = anchor?.date || task.date || dateToString(selectedDate);
         mobileDragPreviewTimeRef.current = _initTime;
         mobileDragPreviewDateRef.current = _initDate;
         setMobileDragPreviewTime(_initTime);
@@ -1303,6 +1318,7 @@ export default function useDragDrop({
       mobileDragTaskId.current = null;
       mobileDragOriginalTask.current = null;
       mobileDragSourceType.current = null;
+      mobileDragAnchorRef.current = null;
       mobileDragPreviewTimeRef.current = null;
       mobileDragPreviewDateRef.current = null;
       mobileDragOverTrashRef.current = false;
@@ -1360,6 +1376,20 @@ export default function useDragDrop({
           // list omits would be lost for good (utils/createdAt.js).
           ...(task.createdAt !== undefined ? { createdAt: task.createdAt } : {}),
         }]);
+      } else if (typeof task.id === 'string' && task.id.startsWith('recurring-')
+        && !droppingToAllDay && parseRecurringId(task.id) && parseRecurringId(task.id).dateStr !== dropDateStr) {
+        // A recurring occurrence moved to another date, as the desktop drop
+        // does it: that date's occurrence is removed, and the moved one becomes
+        // its own task on the new date. Reached by dragging the continuation
+        // of last night's occurrence (#2278), or across the tablet's columns.
+        const { templateId, dateStr: origDateStr } = parseRecurringId(task.id);
+        pushUndo({ key: 'moved', taskId: task.id });
+        setRecurringTasks(prev => prev.map(t => {
+          if (t.id !== templateId) return t;
+          return { ...t, exceptions: { ...t.exceptions, [origDateStr]: { ...t.exceptions?.[origDateStr], deleted: true } }, lastModified: new Date().toISOString() };
+        }));
+        const { id, isRecurring, recurringTemplateId, ...taskData } = task;
+        setTasks(prev => [...prev, { ...taskData, id: crypto.randomUUID(), startTime: finalTime, date: dropDateStr, isAllDay: false }]);
       } else if (typeof task.id === 'string' && task.id.startsWith('recurring-')) {
         // Recurring task instances via exceptions
         const parsed = parseRecurringId(task.id);
@@ -1418,9 +1448,8 @@ export default function useDragDrop({
         } : t));
         // Sync native Android calendar events back to the device calendar
         if (task.nativeEventId && !droppingToAllDay && finalTime) {
-          const endMin = timeToMinutes(finalTime) + (task.duration || 60);
           const newStart = `${dropDateStr}T${finalTime}:00`;
-          const newEnd = `${dropDateStr}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
+          const newEnd = nativeEventEndString(dropDateStr, finalTime, task.duration || 60);
           nativeUpdateEvent({
             id: task.nativeEventId, title: task.title,
             start: newStart, end: newEnd, allDay: false,
@@ -1459,6 +1488,7 @@ export default function useDragDrop({
     mobileDragTaskId.current = null;
     mobileDragOriginalTask.current = null;
     mobileDragSourceType.current = null;
+    mobileDragAnchorRef.current = null;
     mobileDragPreviewTimeRef.current = null;
     mobileDragPreviewDateRef.current = null;
     mobileDragOverTrashRef.current = false;

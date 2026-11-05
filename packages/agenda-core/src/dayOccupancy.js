@@ -35,6 +35,7 @@
 // — computeAvailableSlots previously had six consumers and no unit tests.
 
 import { buildRoutineBlocks } from './routineBlocks.js';
+import { continuationsFromPreviousDay } from './overnight.js';
 
 /** Minutes since local midnight for `HH:MM`, or null when unparseable. */
 export function timeToMinutes(hhmm) {
@@ -83,6 +84,17 @@ export function taskInterval(task, { defaultDuration = 30 } = {}) {
 }
 
 /**
+ * The time the previous date's overnight rows still hold on this date, from
+ * 00:00 (#2278): the same carry rule the timelines draw (overnight.js). The
+ * minutes belong to the day the task started on, but nothing can be scheduled
+ * into them.
+ */
+export function continuationIntervals(prevDayTasks, { excludeId = null } = {}) {
+  return continuationsFromPreviousDay((prevDayTasks || []).filter((t) => t.id !== excludeId))
+    .map((c) => ({ start: 0, end: c.minutes, label: c.task.title ?? '', id: c.task.id, continuesFrom: c.fromDate }));
+}
+
+/**
  * Every interval occupying `date`: the caller's chosen tasks plus the day's
  * routines. Sorted by start, NOT merged — callers that need to name the thing
  * they collided with (the drop resolver) need the individual rows, and
@@ -91,13 +103,17 @@ export function taskInterval(task, { defaultDuration = 30 } = {}) {
  * `tasks` is whatever the caller decided counts. Routines are always folded
  * in, because no caller has a good reason to schedule over one: unlike a
  * task, the user cannot drag a routine out of the way from the other side.
+ *
+ * `prevDayTasks` are the previous date's rows of the same kind: the part of
+ * any of them that runs past midnight occupies this date from 00:00.
  */
-export function computeOccupiedIntervals(state, date, { tasks = [], excludeId = null, defaultDuration = 30 } = {}) {
+export function computeOccupiedIntervals(state, date, { tasks = [], prevDayTasks = [], excludeId = null, defaultDuration = 30 } = {}) {
   const fromTasks = tasks
     .filter((t) => t.id !== excludeId)
     .map((t) => taskInterval(t, { defaultDuration }))
     .filter(Boolean);
-  return [...fromTasks, ...routineIntervals(state, date)].sort((a, b) => a.start - b.start);
+  return [...continuationIntervals(prevDayTasks, { excludeId }), ...fromTasks, ...routineIntervals(state, date)]
+    .sort((a, b) => a.start - b.start);
 }
 
 /**
@@ -139,6 +155,7 @@ export function mergeIntervals(intervals, bufferMinutes = 0) {
 export function computeAvailableSlots(frameInstance, {
   state = {},
   tasks = [],
+  prevDayTasks = [],
   dateStr,
   todayStr,
   nowMinutes = 0,
@@ -161,7 +178,7 @@ export function computeAvailableSlots(frameInstance, {
 
   // Clip occupancy to the frame; anything outside it is not this frame's
   // business, and an interval spilling past the edge would eat the boundary.
-  const occupied = computeOccupiedIntervals(state, dateStr, { tasks, defaultDuration })
+  const occupied = computeOccupiedIntervals(state, dateStr, { tasks, prevDayTasks, defaultDuration })
     .filter((i) => i.end > frameStart && i.start < frameEnd)
     .map((i) => ({ start: Math.max(i.start, frameStart), end: Math.min(i.end, frameEnd) }));
 
@@ -201,8 +218,8 @@ export function availableMinutes(frameInstance, options) {
  * The iteration cap is inherited: obstacles are re-scanned after each slide,
  * and a pathological set could otherwise loop.
  */
-export function adjustPastConflicts(state, date, { startTime, duration, tasks = [], excludeId = null, maxIterations = 100 }) {
-  const obstacles = computeOccupiedIntervals(state, date, { tasks, excludeId });
+export function adjustPastConflicts(state, date, { startTime, duration, tasks = [], prevDayTasks = [], excludeId = null, maxIterations = 100 }) {
+  const obstacles = computeOccupiedIntervals(state, date, { tasks, prevDayTasks, excludeId });
   const startMin = timeToMinutes(startTime);
   if (startMin === null || obstacles.length === 0) {
     return { conflicted: false, adjustedStartTime: startTime, conflictingEvent: null };

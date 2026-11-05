@@ -41,6 +41,19 @@ export const columnTimeFromEvent = (e, colEl, {
   return minutesToTimeStr(clamped);
 };
 
+// How much of a dropped item has to stay on the column (#2278). A drop places
+// the START at the cursor's quarter-hour. A timed task may run past midnight
+// (the part after it is drawn on the next date), and past the end of a DAY
+// column (the next column draws the rest), so a drop is no longer pushed
+// earlier until the whole task fits: the start only has to leave one
+// quarter-hour, or the item's own shorter length, before the column's end. On
+// a full day that makes 23:45 the latest start, as the phone's drag has
+// always allowed. Pass the result as the column helpers' `taskDuration`.
+export const DROP_MIN_ON_COLUMN_MINUTES = 15;
+export const dropClampMinutes = (duration) => (
+  Number.isFinite(duration) && duration > 0 ? Math.min(DROP_MIN_ON_COLUMN_MINUTES, duration) : 0
+);
+
 // ── Drop block preview (#2277) ───────────────────────────────────────────────
 
 // Drawn length of the preview for a dragged item with no duration of its own.
@@ -59,22 +72,26 @@ const clockAt = (minutes) => {
 // the item's own duration.
 //
 // The start is clamped as the drop clamps it, to [minMinute, maxMinute -
-// duration], so the block shows where the item actually lands. A preview time
-// produced by the same handler as the drop is already clamped, and this is a
-// no-op on it. The end is clipped to maxMinute: an item longer than the window
-// starts at its top and runs off the bottom, as its card would.
+// dropClampMinutes(duration)], so the block shows where the item actually
+// lands. A preview time produced by the same handler as the drop is already
+// clamped, and this is a no-op on it. The drawn end is clipped to maxMinute;
+// `overflowMinutes` is how much runs on past it (into the next date, #2278),
+// and the end label is the item's real end.
 //
 // Returns null for a start that is not a number (nothing to draw).
 export const dragBlockRange = (startMinute, duration, { minMinute = 0, maxMinute = 24 * 60 } = {}) => {
   if (!Number.isFinite(startMinute)) return null;
   const own = Number.isFinite(duration) && duration > 0 ? duration : 0;
-  const start = Math.max(minMinute, Math.min(maxMinute - own, startMinute));
-  const end = Math.min(maxMinute, start + (own || DRAG_BLOCK_FALLBACK_MINUTES));
+  const start = Math.max(minMinute, Math.min(maxMinute - dropClampMinutes(own), startMinute));
+  const realEnd = start + (own || DRAG_BLOCK_FALLBACK_MINUTES);
+  const end = Math.min(maxMinute, realEnd);
   return {
     startMinute: start,
     endMinute: end,
+    // Only an item's own length runs on; the fallback is just how it looks.
+    overflowMinutes: own ? realEnd - end : 0,
     startTime: clockAt(start),
-    endTime: clockAt(end),
+    endTime: clockAt(realEnd),
   };
 };
 

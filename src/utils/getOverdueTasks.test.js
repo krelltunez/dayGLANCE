@@ -89,6 +89,39 @@ describe('getOverdueTasks', () => {
     expect(ids({ now: new Date(`${TODAY}T09:59:59`), [source]: [task('boundary')] })).toEqual([]);
   });
 
+  // #2278: a task that crosses midnight is judged by its REAL end, its own
+  // date + start + duration, not by its date.
+  describe('overnight tasks are overdue at their real end', () => {
+    const YESTERDAY = '2026-10-09';
+    const night = (id, patch = {}) => task(id, { date: YESTERDAY, startTime: '23:00', duration: 120, ...patch });
+
+    it.each(['tasks', 'expandedRecurringTasks'])('%s: not overdue at 00:30 the next day, overdue at 01:01', (source) => {
+      expect(ids({ now: at('00:30'), [source]: [night('n')] })).toEqual([]);
+      expect(ids({ now: at('00:59'), [source]: [night('n')] })).toEqual([]);
+      expect(ids({ now: at('01:00'), [source]: [night('n')] })).toEqual(['n']);
+      expect(ids({ now: at('01:01'), [source]: [night('n')] })).toEqual(['n']);
+    });
+
+    it('a recurring occurrence is judged by its own date + start + duration', () => {
+      // The occurrence that started yesterday at 22:30 (an exception) for 3h.
+      const occurrence = night(`recurring-s-${YESTERDAY}`, { startTime: '22:30', duration: 180, isRecurring: true });
+      expect(ids({ now: at('01:29'), expandedRecurringTasks: [occurrence] })).toEqual([]);
+      expect(ids({ now: at('01:30'), expandedRecurringTasks: [occurrence] })).toEqual([`recurring-s-${YESTERDAY}`]);
+    });
+
+    it('today\'s overnight task is not overdue today at all', () => {
+      expect(ids({ now: at('23:59'), tasks: [task('t', { startTime: '23:00', duration: 120 })] })).toEqual([]);
+    });
+
+    it('a task ending exactly at midnight is overdue from midnight', () => {
+      expect(ids({ now: at('00:00'), tasks: [night('m', { duration: 60 })] })).toEqual(['m']);
+    });
+
+    it('a recurring occurrence from an earlier date stays out (it leaves the expansion)', () => {
+      expect(ids({ now: at('10:00'), expandedRecurringTasks: [night('old', { date: '2026-10-08' })] })).toEqual([]);
+    });
+  });
+
   it.each(['tasks', 'expandedRecurringTasks'])('%s preserves midnight and 30-minute fallbacks', (source) => {
     const rows = [
       task('missing', { startTime: undefined, duration: undefined }),

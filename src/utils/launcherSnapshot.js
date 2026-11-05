@@ -14,6 +14,7 @@ import { deriveBlockEnergy } from './energyAxis.js';
 import { getSunTimes } from './solar.js';
 import { dateToString } from './taskUtils.js';
 import { computeAvailableSlots } from './dayOccupancy.js';
+import { shiftDateStr } from '@glance-apps/agenda-core';
 import { sortProjectsByOrder } from './projectOrder.js';
 
 export const LAUNCHER_SNAPSHOT_VERSION = 1;
@@ -231,6 +232,9 @@ export function buildLauncherSnapshot({
     for (const f of frameInstancesForDate(date)) {
       const slots = computeAvailableSlots(f, {
         state: routineState, tasks: timedByDate.get(dateStr) || [], dateStr, todayStr: dateStr, nowMinutes: 0,
+        // The night before's rows still running after midnight are busy here
+        // too (#2278), as the app's own frame availability counts them.
+        prevDayTasks: timedByDate.get(shiftDateStr(dateStr, -1)) || [],
       });
       frameRows.push({
         id: `${f.frameId}:${dateStr}`, frameId: String(f.frameId), date: dateStr,

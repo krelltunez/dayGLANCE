@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   nativeEventToTask, nativeResultsToTasks, CALENDAR_FILTER_NONE, isCalendarFilterNone,
-  isCalendarShown, toggleCalendarInFilter, extendCalendarFilter,
+  isCalendarShown, toggleCalendarInFilter, extendCalendarFilter, nativeEventEndString,
 } from './nativeCalendar.js';
 
 // The Electron EventKit helper emits the exact same JSON shape as the mobile
@@ -168,5 +168,14 @@ describe('device calendar filter', () => {
     expect(nativeResultsToTasks(results, dates, { calendarFilter: NONE }).tasks).toEqual([]);
     expect(nativeResultsToTasks(results, dates, { calendarFilter: [] }).tasks).toHaveLength(2);
     expect(nativeResultsToTasks(results, dates, { calendarFilter: ['cal-home'] }).tasks.map(t => t.nativeEventId)).toEqual(['XYZ']);
+  });
+});
+
+describe('nativeEventEndString (#2278)', () => {
+  it('ends on the same date, or on the next one past midnight', () => {
+    expect(nativeEventEndString('2026-06-22', '09:00', 90)).toBe('2026-06-22T10:30:00');
+    expect(nativeEventEndString('2026-06-22', '23:00', 60)).toBe('2026-06-23T00:00:00');
+    expect(nativeEventEndString('2026-06-22', '23:00', 120)).toBe('2026-06-23T01:00:00');
+    expect(nativeEventEndString('2026-12-31', '23:30', 60)).toBe('2027-01-01T00:30:00');
   });
 });

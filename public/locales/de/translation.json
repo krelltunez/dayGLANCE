@@ -946,7 +946,9 @@
     "deferredTimes_other": "{{count}}-mal verschoben",
     "movedVia": "Letzte Verschiebungen",
     "earlierMoves": "+1 früher",
-    "earlierMoves_other": "+{{count}} frühere"
+    "earlierMoves_other": "+{{count}} frühere",
+    "continuesFrom": "ab {{day}}",
+    "continuesFromLabel": "{{title}}, fortgesetzt von {{day}}"
   },
   "recurrence": {
     "ordinal_ordinal_one": "{{count}}",

@@ -40,7 +40,8 @@ describe('computeRecurringExpansionRange', () => {
       schedDaysShown: 3,
       today: TODAY,
     });
-    expect(r.rangeStart).toBe('2026-09-09');
+    // The day before the earliest date, for its overnight spill (#2278).
+    expect(r.rangeStart).toBe('2026-09-08');
     // today + N is inside; the end itself is the widget month window's last
     // payload day (Sun 13 Sep + 48), which reaches further.
     expect('2026-09-21' <= r.rangeEnd).toBe(true);
@@ -54,8 +55,9 @@ describe('computeRecurringExpansionRange', () => {
     const r = computeRecurringExpansionRange({
       visibleDates: [nextMonth], selectedDate: nextMonth, schedDaysShown: 1, today: TODAY,
     });
-    // Back to the start of today's week (Sunday), for the month window.
-    expect(r.rangeStart).toBe('2026-09-13');
+    // Back to the start of today's week (Sunday), for the month window, and
+    // the day before it.
+    expect(r.rangeStart).toBe('2026-09-12');
     expect(r.rangeEnd).toBe('2026-10-31');
   });
 
@@ -67,7 +69,7 @@ describe('computeRecurringExpansionRange', () => {
       schedDaysShown: 14,
       today: TODAY,
     });
-    expect(r.rangeStart).toBe('2026-08-31');
+    expect(r.rangeStart).toBe('2026-08-30');
     // The month range is still covered; the month window runs past it.
     expect('2026-10-04' <= r.rangeEnd).toBe(true);
     expect(r.rangeEnd).toBe('2026-10-31');
@@ -91,7 +93,8 @@ describe('computeRecurringExpansionRange', () => {
       });
       const [y, m, dd] = start.split('-').map(Number);
       const end = plus(d(y, m, dd), WIDGET_MONTH_PAYLOAD_DAYS - 1).toISOString().slice(0, 10);
-      expect(r.rangeStart).toBe(start);
+      // The range opens the day before the window, for its overnight spill.
+      expect(r.rangeStart).toBe(plus(d(y, m, dd), -1).toISOString().slice(0, 10));
       expect(r.rangeEnd).toBe(end);
     });
 

@@ -15,6 +15,9 @@ import HyperGlanceBar from './HyperGlanceBar.jsx';
 import PastDoCard from './jobo/PastDoCard.jsx';
 import { useTranslation } from 'react-i18next';
 import { MOBILE_HOUR_GUTTER_W } from '../constants/timeline.js';
+import ContinuationCard from './ContinuationCard.jsx';
+import { overnightSpillMinutes } from '@glance-apps/agenda-core';
+import { continuationLayoutRow } from '../utils/continuations.js';
 
 /**
  * The phone's timeline. JOBO on the phone (slice 8, docs/jobo-mobile.md)
@@ -59,7 +62,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
     toggleComplete,
     postponeTask,
     formatTime, timeToMinutes,
-    getTasksForDate, getDayDisplayForDate,
+    getTasksForDate, getDayDisplayForDate, getContinuationsForDate,
     getTaskCalendarStyle,
     minutesToPosition, positionToMinutes,
     calculateTaskPosition, calculateConflictPosition,
@@ -164,6 +167,11 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
       }
       const readDay = !planOnly && typeof getDayDisplayForDate === 'function' ? getDayDisplayForDate : getTasksForDate;
       const dayTasks = readDay(date).filter(t => !t.isAllDay && !t.isExample && (!projectFilter || t.projectId === projectFilter));
+      // The previous date's tasks running past midnight (#2278): drawn here
+      // from 00:00, packed with this date's cards, not among its tasks.
+      const continuations = (getContinuationsForDate ? getContinuationsForDate(date) : [])
+        .filter(c => !c.task.isExample && (!projectFilter || c.task.projectId === projectFilter));
+      const layoutTasks = continuations.length ? [...dayTasks, ...continuations.map(continuationLayoutRow)] : dayTasks;
       const frameInstances = getFrameInstancesForDate(date);
       const hgBars = getHGBarsForDate(hgVisibleProjects, dateStr, isDateToday ? new Date().getHours() * 60 + new Date().getMinutes() : undefined);
       const hasBars = hgBars.length > 0;
@@ -346,7 +354,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
             // A recorded Do: the striped read-only card, which shows its
             // details and "Open in JOBO" on a tap. No drag, swipe or menu.
             if (task.joboDo) {
-              const pos = calculateConflictPosition(task, dayTasks);
+              const pos = calculateConflictPosition(task, layoutTasks);
               return (
                 <PastDoCard
                   key={task.id}
@@ -374,7 +382,9 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
               const s2 = timeToMinutes(other.startTime), e2 = s2 + other.duration;
               return s1 < e2 && e1 > s2;
             });
-            const conflictPos = calculateConflictPosition(task, dayTasks);
+            const conflictPos = calculateConflictPosition(task, layoutTasks);
+            // Clipped at 24:00; its piece on the next date holds the end (#2278).
+            const runsPastMidnight = overnightSpillMinutes(task) > 0;
 
             // Layout tiers (matching desktop logic)
             const isMicroHeight = height <= 40;
@@ -658,8 +668,12 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
                 </div>{/* end swipe content */}
                 </div>{/* end inner overflow container */}
                 </div>{/* end data-swipe-container flex */}
-                {/* Touch resize handle at bottom */}
-                {(!isImported || (isCalendarEvent && task.nativeEventId)) && (
+                {runsPastMidnight && (
+                  <div data-continues-next-day="" className="absolute bottom-0 left-0 right-0 border-b-2 border-dashed border-white/60 pointer-events-none" />
+                )}
+                {/* Touch resize handle at bottom (on the next date's piece
+                    when the task runs past midnight) */}
+                {(!isImported || (isCalendarEvent && task.nativeEventId)) && !runsPastMidnight && (
                   <div
                     onTouchStart={(e) => handleTouchResizeStart(task, e)}
                     onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
@@ -672,6 +686,25 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
               </div>
               );
             })}
+
+          {/* The previous night's tasks, from midnight (#2278): a tap opens
+              the task, the checkbox completes it, the tab drags the whole
+              task, the bottom edge resizes its end. */}
+          {continuations.map(c => {
+            const { top, height } = calculateTaskPosition({ startTime: '00:00', duration: c.minutes });
+            const pos = calculateConflictPosition(continuationLayoutRow(c), layoutTasks);
+            return (
+              <ContinuationCard
+                key={`continuation-${c.task.id}`}
+                continuation={c}
+                dateStr={dateStr}
+                top={top}
+                height={height}
+                positionStyle={{ left: pos.left, right: pos.right, width: pos.width ?? undefined }}
+                variant="touch"
+              />
+            );
+          })}
 
           {/* Timeline routine pills (today only) */}
           {routinesEnabled && dateStr === dateToString(new Date()) && (() => {

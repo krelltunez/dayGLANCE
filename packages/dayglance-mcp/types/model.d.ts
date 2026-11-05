@@ -107,6 +107,12 @@ export function blockType(task: unknown): 'device_calendar_event' | 'calendar_ev
 export function isImportedEvent(task: unknown): boolean;
 export function toBlock(task: unknown, opts?: StampOptions): Record<string, unknown>;
 export function expandRecurringForDate(recurringTasks: unknown[] | null | undefined, date: string): Record<string, unknown>[];
+/** A previous-date task's after-midnight piece as a block on `date` (#2278). */
+export function continuationBlock(
+  continuation: { task: unknown; fromDate: string | null; minutes: number },
+  date: string,
+  opts?: StampOptions,
+): Record<string, unknown>;
 export function buildDayBlocks(
   state: Partial<McpReadState>,
   params: { date: string; include_native?: boolean },

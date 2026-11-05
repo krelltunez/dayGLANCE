@@ -20,6 +20,7 @@
  * entirely (consistent with the per-user calendar config work).
  */
 import { isNativeApp } from '../native.js';
+import { taskEnd } from '@glance-apps/agenda-core';
 
 const timeToMinutes = (time) => {
   if (!time) return 0;
@@ -265,4 +266,17 @@ export function nativeResultsToTasks(results, dates, { calendarFilter = [], over
       };
     });
   return { events, tasks };
+}
+
+/**
+ * The local `YYYY-MM-DDTHH:MM:00` a timed block written back to the device
+ * calendar ends at. A block that runs past midnight ends on the next date
+ * (#2278): `2026-11-04T25:00:00` is not a time the calendar can read, and a
+ * write that fails reverts the move.
+ */
+export function nativeEventEndString(dateStr, startTime, duration) {
+  const end = taskEnd({ date: dateStr, startTime, duration });
+  const hh = String(Math.floor(end.minutes / 60)).padStart(2, '0');
+  const mm = String(end.minutes % 60).padStart(2, '0');
+  return `${end.date}T${hh}:${mm}:00`;
 }

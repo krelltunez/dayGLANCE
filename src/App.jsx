@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallba
 import i18n from 'i18next';
 import { Plus, Clock, X, GripVertical, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Moon, Sun, Upload, Inbox, AlertCircle, Calendar, Check, RefreshCw, Palette, Trash2, Undo2, BarChart3, SkipForward, Hash, MoreHorizontal, Save, Menu, BrainCircuit, AlertTriangle, FileText, ExternalLink, CheckSquare, HelpCircle, Sparkles, Link, GripHorizontal, Play, Pause, Trophy, Cloud, Settings, Search, Bell, Target, TrendingUp, Zap, CalendarDays, Ban, Volume2, VolumeX, Pencil, TextCursorInput, Eye, Filter, Smartphone, CheckCircle, Pin, PinOff, NotebookPen, MapPin, BookOpen, Flag, FolderOpen, Droplets, Footprints, Dumbbell, Apple, Cigarette, Coffee, Flame, Heart, ListChecks, Minus, Wine, Candy, Pill, Activity, CupSoda, Mic, MicOff, Loader, Key, Server, Wifi, WifiOff, LayoutGrid, RotateCcw } from 'lucide-react';
 import { mergeTaskArrays, mergeSyncData } from './mergeSync.js';
-import { hasNativeCalendar, electronGetCalendars, electronGetEventsByDate, electronRequestCalendarAccess, nativeEventToTask, nativeResultsToTasks, extendCalendarFilter } from './utils/nativeCalendar.js';
+import { hasNativeCalendar, electronGetCalendars, electronGetEventsByDate, electronRequestCalendarAccess, nativeEventToTask, nativeResultsToTasks, extendCalendarFilter, nativeEventEndString } from './utils/nativeCalendar.js';
 import { isNativeAndroid, isNativeApp, isNativeIOS, nativeShareFile, nativeShowTaskNotification, nativeGetPendingAction, nativeSyncReminders, nativeGetEvents, nativeUpdateEvent, nativeGetCalendars, nativeWriteDailyNote, nativeClearVault, nativeEnterFocusMode, nativeExitFocusMode, nativeIsDndPermissionGranted, nativeRequestDndPermission, nativeGetWidgetPendingAction, triggerHaptic, nativeTouchLauncherHeartbeat } from './native.js';
 import { readDailyNoteFresh, readDailyNoteNative, simpleHash as obsidianSimpleHash, buildNewObsidianTaskMeta, dailyNoteFilename } from './obsidian.js';
 import { appendTaskDirect, writeDailyNoteDirect } from './utils/obsidianDirectWrites.js';
@@ -15,7 +15,7 @@ import { checkForUpdate } from './versionCheck.js';
 import { getStorageUsage, formatBytes } from './utils/storage.js';
 import { tombstoneCutoff, pruneCompletedTaskUids } from '@glance-apps/dayglance-vault';
 import { readMinimizedSections, readUse24HourClock, readWeekStartDay, readBucketConfig, readDailyNotes, readMultiUserEnabled, readUsers, readMeUserSyncId, readCalendarFilter, readNativeTimeOverrides, readJoboEnabled } from './utils/storedSlices.js';
-import { isTaskVisibleForUser, isOwnedBy, frameInstancesForDate } from '@glance-apps/agenda-core';
+import { isTaskVisibleForUser, isOwnedBy, frameInstancesForDate, continuationsFromPreviousDay, shiftDateStr } from '@glance-apps/agenda-core';
 import { preserveStickyFields } from './utils/preserveStickyFields.js';
 import { rescueUnsyncedTasks } from './utils/rescueUnsyncedTasks.js';
 import { withProjectMetadata } from '@glance-apps/obsidian-format';
@@ -3373,6 +3373,9 @@ const DayPlanner = () => {
       duration,
       excludeId: taskId,
       tasks: tasks.filter(t => t.date === dateStr && t.imported && !t.isAllDay),
+      // An imported event from the night before still holds the hours after
+      // midnight (#2278).
+      prevDayTasks: tasks.filter(t => t.date === shiftDateStr(dateStr, -1) && t.imported && !t.isAllDay),
     })
   );
 
@@ -3897,9 +3900,9 @@ const DayPlanner = () => {
     setMobileEditingNativeEvent(null);
 
     // Attempt to write back to the device calendar
-    const endMin = startTime ? timeToMinutes(startTime) + duration : 0;
     const newStart = isAllDay ? date : `${date}T${startTime}:00`;
-    const newEnd = isAllDay ? date : `${date}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}:00`;
+    // An end past midnight is on the next date (#2278).
+    const newEnd = isAllDay ? date : nativeEventEndString(date, startTime, duration);
     const result = await nativeUpdateEvent({
       id: orig.nativeEventId,
       title,
@@ -5685,6 +5688,20 @@ const DayPlanner = () => {
     return applyTagFilter ? filterByTags(dayTasks) : dayTasks;
   }, [filterByTags, tasksByDate]);
 
+  // The previous date's rows, for what they leave on `date` after midnight
+  // (#2278, agenda-core overnight.js). The previous date owns those tasks; the
+  // timelines draw their continuation and occupancy counts it as busy, but
+  // getTasksForDate(date) never lists it.
+  const getPrevDayTasks = useCallback((date, applyTagFilter = true) => {
+    const prev = new Date(date);
+    prev.setDate(prev.getDate() - 1);
+    return getTasksForDate(prev, applyTagFilter);
+  }, [getTasksForDate]);
+  const getContinuationsForDate = useCallback(
+    (date, applyTagFilter = true) => continuationsFromPreviousDay(getPrevDayTasks(date, applyTagFilter)),
+    [getPrevDayTasks],
+  );
+
   // JOBO slice 6: a date before today shows what was done
   // (docs/jobo-past-days.md, src/jobo/pastDay.js). Only the views' own
   // column and all-day reads take this; getTasksForDate stays as it is for
@@ -5862,11 +5879,13 @@ const DayPlanner = () => {
     return computeAvailableSlotsPure(frameInstance, {
       state: routineOccupancy,
       tasks: getTasksForDate(slotDate).filter(t => !t.isAllDay && t.startTime),
+      // Last night's task still running after midnight is busy time (#2278).
+      prevDayTasks: getPrevDayTasks(slotDate),
       dateStr: dateToString(slotDate),
       todayStr: dateToString(now),
       nowMinutes: now.getHours() * 60 + now.getMinutes(),
     });
-  }, [getTasksForDate, routineOccupancy]);
+  }, [getTasksForDate, getPrevDayTasks, routineOccupancy]);
 
   // A frame's free time as the Day Dial ships it: the same rule, with two
   // differences on purpose. No now floor (todayStr is the day itself and now
@@ -5878,11 +5897,12 @@ const DayPlanner = () => {
     return computeAvailableSlotsPure(frameInstance, {
       state: routineOccupancy,
       tasks: getTasksForDate(date, false).filter(t => !t.isAllDay && t.startTime),
+      prevDayTasks: getPrevDayTasks(date, false),
       dateStr,
       todayStr: dateStr,
       nowMinutes: 0,
     });
-  }, [getTasksForDate, routineOccupancy]);
+  }, [getTasksForDate, getPrevDayTasks, routineOccupancy]);
   const dialFramesForDate = useCallback((date) => getFrameInstancesForDate(date)
     .map(f => ({ ...f, slots: dialFrameSlots(f, date) })), [getFrameInstancesForDate, dialFrameSlots]);
 
@@ -7371,6 +7391,7 @@ const DayPlanner = () => {
     getConflictingTasks, calculateConflictPosition, wouldExceedMaxColumns,
     filterByTags,
     getTasksForDate, getDayDisplayForDate, getDoSessionsForTask, getDateIndicators, hasTasksOnDate,
+    getContinuationsForDate,
     getDayName, getMonthDays, getNextQuarterHour,
     getTodayStr, getOverdueTasks,
     getTaskCalendarStyle,

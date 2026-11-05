@@ -87,6 +87,15 @@ const ROUTINE_NOTE =
   'routines are managed in the dayGLANCE routines dashboard. Routines exist only for the current ' +
   'day, so past and future dates never carry them.';
 
+// A task that runs past midnight is the previous date's task (#2278); the
+// next date reports the part after midnight so a caller does not take that
+// time as free, and has to be told it is the same task, not a second one.
+const CONTINUATION_NOTE =
+  ' A block carrying continues_from (a YYYY-MM-DD) is the part of a task from that earlier date that ' +
+  'runs past midnight: the SAME task, same id, shown from 00:00 for the minutes it still runs. It ' +
+  'occupies that time, so treat it as busy, but it is not another task on this date: its own block, ' +
+  'with its full duration, is on the date it started, and a write targets it by its id there.';
+
 /**
  * @param {import('@modelcontextprotocol/server').McpServer} server
  * @param {import('../types/index.js').ReadToolDeps} deps
@@ -107,7 +116,7 @@ export function registerReadTools(server, deps) {
       description:
         "Today's schedule from dayGLANCE. Resolves the current LOCAL calendar date on the " +
         'user\'s machine. Use this instead of guessing the date. Response echoes the resolved ' +
-        'date and IANA timezone; times are local wall-clock HH:MM.' + NATIVE_NOTE + ROUTINE_NOTE + FRAME_NOTE,
+        'date and IANA timezone; times are local wall-clock HH:MM.' + NATIVE_NOTE + ROUTINE_NOTE + FRAME_NOTE + CONTINUATION_NOTE,
     },
     async () => getDay(localDateOf(deps.now(), deps.timeZone())),
   );
@@ -118,7 +127,7 @@ export function registerReadTools(server, deps) {
       description:
         'The dayGLANCE schedule for one LOCAL calendar date (YYYY-MM-DD, no time component, ' +
         'no UTC, no offsets). Response echoes the resolved date and IANA timezone; times are ' +
-        'local wall-clock HH:MM. For the current date, prefer dayglance_get_today.' + NATIVE_NOTE + ROUTINE_NOTE + FRAME_NOTE,
+        'local wall-clock HH:MM. For the current date, prefer dayglance_get_today.' + NATIVE_NOTE + ROUTINE_NOTE + FRAME_NOTE + CONTINUATION_NOTE,
       inputSchema: z.object({
         date: z.string().describe('Local calendar date, strict YYYY-MM-DD. Not a timestamp.'),
       }),

@@ -28,6 +28,8 @@ import {
   DEFAULT_BUCKET_CONFIG,
   buildRoutineBlocks,
   noteLinkOf,
+  continuationsFromPreviousDay,
+  shiftDateStr,
 } from '@glance-apps/agenda-core';
 import { buildFrames } from './frames.js';
 import { recurrenceToWire } from './repeat.js';
@@ -230,17 +232,50 @@ export function expandRecurringForDate(recurringTasks, date) {
 }
 
 /**
- * The blocks for one local calendar date: concrete tasks on that date,
- * recurring instances expanded for it, and (when include_native) device
- * calendar events. Sorted all-day first, then by wall-clock start.
+ * The rows the day model reads for one date, under the same visibility and
+ * consent rules: concrete tasks on it (device events only when includeNative)
+ * and its recurring occurrences.
  */
-export function buildDayBlocks(state, params) {
+function rowsForDate(state, date, includeNative) {
   const { tasks = [], recurringTasks = [], isVisibleForUser = () => true } = state;
-  const { date, include_native: includeNative = false } = params;
-
   const onDate = tasks.filter((t) => t.date === date && isVisibleForUser(t));
   const concrete = includeNative ? onDate : onDate.filter((t) => !t._native);
   const recurring = expandRecurringForDate(recurringTasks, date).filter(isVisibleForUser);
+  return { concrete, recurring };
+}
+
+/**
+ * A task from the previous date that runs past midnight, as a block on this
+ * date (#2278): the same task (same id, type and fields), placed at 00:00 for
+ * the minutes it still runs, and marked `continues_from: <the date it
+ * started>`. It occupies that time like any block. The task is the previous
+ * date's: its own block there is unchanged and carries the full duration, and
+ * a write targets it by its id as usual.
+ */
+export function continuationBlock(continuation, date, { timeZone } = {}) {
+  return {
+    ...toBlock(continuation.task, { timeZone }),
+    date,
+    start_time: '00:00',
+    duration_minutes: continuation.minutes,
+    continues_from: continuation.fromDate,
+  };
+}
+
+/**
+ * The blocks for one local calendar date: concrete tasks on that date,
+ * recurring instances expanded for it, and (when include_native) device
+ * calendar events. Sorted all-day first, then by wall-clock start. A task
+ * from the previous date that runs past midnight leads the timed blocks as a
+ * continuation (continuationBlock).
+ */
+export function buildDayBlocks(state, params) {
+  const { date, include_native: includeNative = false } = params;
+
+  const { concrete, recurring } = rowsForDate(state, date, includeNative);
+  const prev = rowsForDate(state, shiftDateStr(date, -1), includeNative);
+  const continuations = continuationsFromPreviousDay([...prev.concrete, ...prev.recurring])
+    .map((c) => continuationBlock(c, date, { timeZone: state.timeZone }));
 
   // Routines are already block-shaped and already owner-scoped (the renderer
   // passes the filtered list, since isVisibleForUser cannot judge them), so
@@ -255,7 +290,7 @@ export function buildDayBlocks(state, params) {
     const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm ?? '');
     return m ? Number(m[1]) * 60 + Number(m[2]) : Number.MAX_SAFE_INTEGER;
   };
-  const blocks = [...concrete, ...recurring].map((t) => toBlock(t, { timeZone: state.timeZone })).concat(routines).sort((a, b) => {
+  const blocks = continuations.concat([...concrete, ...recurring].map((t) => toBlock(t, { timeZone: state.timeZone }))).concat(routines).sort((a, b) => {
     if (a.all_day !== b.all_day) return a.all_day ? -1 : 1;
     return toMinutes(a.start_time) - toMinutes(b.start_time);
   });

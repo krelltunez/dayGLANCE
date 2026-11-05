@@ -160,11 +160,12 @@ export function toRoutineBlock(routine: unknown, date: string, completed: unknow
 export function buildRoutineBlocks(state: RoutineState | null | undefined, date: string | null | undefined): RoutineBlock[];
 
 // dayOccupancy.js: what occupies a day, and a frame's free slots.
-export interface OccupiedInterval { start: number; end: number; label?: string; id?: string }
+export interface OccupiedInterval { start: number; end: number; label?: string; id?: string; continuesFrom?: string | null }
 export interface AvailableSlot { start: string; end: string; minutes: number }
 export interface SlotOptions {
   state?: RoutineState;
   tasks?: unknown[];
+  prevDayTasks?: unknown[];
   dateStr?: string;
   todayStr?: string;
   nowMinutes?: number;
@@ -174,14 +175,15 @@ export function timeToMinutes(hhmm: string | null | undefined): number | null;
 export function minutesToTime(minutes: number): string;
 export function routineIntervals(state: RoutineState | null | undefined, date: string): OccupiedInterval[];
 export function taskInterval(task: unknown, opts?: { defaultDuration?: number }): OccupiedInterval | null;
-export function computeOccupiedIntervals(state: RoutineState | null | undefined, date: string, opts?: { tasks?: unknown[]; excludeId?: string | null; defaultDuration?: number }): OccupiedInterval[];
+export function continuationIntervals(prevDayTasks: unknown[] | null | undefined, opts?: { excludeId?: string | null }): OccupiedInterval[];
+export function computeOccupiedIntervals(state: RoutineState | null | undefined, date: string, opts?: { tasks?: unknown[]; prevDayTasks?: unknown[]; excludeId?: string | null; defaultDuration?: number }): OccupiedInterval[];
 export function mergeIntervals(intervals: OccupiedInterval[], bufferMinutes?: number): OccupiedInterval[];
 export function computeAvailableSlots(frameInstance: unknown, opts?: SlotOptions): AvailableSlot[];
 export function availableMinutes(frameInstance: unknown, opts?: SlotOptions): number;
 export function adjustPastConflicts(
   state: RoutineState | null | undefined,
   date: string,
-  opts: { startTime: string; duration: number; tasks?: unknown[]; excludeId?: string | null; maxIterations?: number },
+  opts: { startTime: string; duration: number; tasks?: unknown[]; prevDayTasks?: unknown[]; excludeId?: string | null; maxIterations?: number },
 ): { conflicted: boolean; adjustedStartTime: string; conflictingEvent: OccupiedInterval | null };
 export function obstacleName(obstacle: unknown): string | null;
 export function describeObstacle(obstacle: unknown): string;
@@ -190,6 +192,16 @@ export function findRoutineConflict(
   date: string,
   opts?: { startTime?: string | null; durationMinutes?: number; allDay?: boolean },
 ): OccupiedInterval | null;
+
+// overnight.js: a timed task's part after its own date's midnight (#2278).
+export interface OvernightTaskLike { date?: string | null; startTime?: string | null; duration?: number | null; isAllDay?: boolean; [key: string]: unknown }
+export interface Continuation<T = OvernightTaskLike> { task: T; fromDate: string | null; startMinutes: 0; endMinutes: number; minutes: number }
+export const DAY_MINUTES: number;
+export function isTimedBlock(task: OvernightTaskLike | null | undefined): boolean;
+export function overnightSpillMinutes(task: OvernightTaskLike | null | undefined): number;
+export function continuationsFromPreviousDay<T extends OvernightTaskLike>(prevDayTasks: T[] | null | undefined): Continuation<T>[];
+export function taskEnd(task: OvernightTaskLike | null | undefined, opts?: { defaultDuration?: number }): { date: string; minutes: number } | null;
+export function hasTaskEnded(task: OvernightTaskLike | null | undefined, opts: { todayStr: string; nowMinutes: number; defaultDuration?: number }): boolean;
 
 // userScope.js: multi-user scoping. Tasks, goals and projects are broadcast
 // unless assigned (isTaskVisibleForUser); routines, habits and frames have one

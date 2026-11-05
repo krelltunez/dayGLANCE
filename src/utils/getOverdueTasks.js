@@ -1,6 +1,7 @@
 // Assemble the overdue list without reading the clock, storage or React state.
 // App.jsx supplies both clocks: todayStr comes from the wall clock, while now
 // is currentTime (or its wall-clock fallback). Keep them separate at rollover.
+import { hasTaskEnded, taskEnd } from '@glance-apps/agenda-core';
 import { dateToString } from './taskUtils.js';
 import { getOccurrencesInRange } from './recurrenceEngine.js';
 import { notBucketed } from './bucketList.js';
@@ -20,25 +21,27 @@ export function getOverdueTasks({
   isVisibleForUser,
 }) {
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  // Judged by the REAL end, date + start + duration (#2278): a 23:00-01:00
+  // task is not overdue at 00:30 the next day, and is from 01:00. A missing
+  // duration counts 30 minutes, as it always has here.
+  const clock = { todayStr, nowMinutes };
+  const hasEnded = (t) => !!t.date && t.date <= todayStr && hasTaskEnded(t, clock);
 
-  const isOverdueToday = (t) => {
-    if (t.date !== todayStr || t.isAllDay) return false;
-    const [h, m] = (t.startTime || '00:00').split(':').map(Number);
-    const endMinutes = h * 60 + m + (t.duration || 30);
-    return endMinutes <= nowMinutes;
-  };
-
-  // Incomplete scheduled tasks from past dates (not imported events)
-  // + today's tasks whose end time has passed
+  // Incomplete scheduled tasks whose end has passed: every timed task of an
+  // earlier date that has ended (all of them but one still running past
+  // midnight), every all-day task of an earlier date, and today's timed tasks
+  // whose end time has passed.
   const overdueScheduled = tasks.filter(t => {
     if (t.completed || t.imported || t.isExample || !isVisibleForUser(t)) return false;
-    if (t.date < todayStr) return true;
-    return isOverdueToday(t);
+    return hasEnded(t);
   }).map(t => ({ ...t, _overdueType: 'scheduled' }));
 
-  // Today's recurring instances past their end time
+  // Recurring instances whose end fell today and has passed: today's, and
+  // yesterday's that ran past midnight (an occurrence's own date + start +
+  // duration). Timed occurrences of earlier dates leave the expansion instead.
   const todayRecurring = expandedRecurringTasks.filter(t =>
-    t.date === todayStr && !t.completed && !t.isExample && isVisibleForUser(t) && isOverdueToday(t)
+    !t.completed && !t.isExample && !t.isAllDay && isVisibleForUser(t)
+    && hasEnded(t) && taskEnd(t)?.date === todayStr
   ).map(t => ({ ...t, _overdueType: 'scheduled' }));
 
   // Past uncompleted recurring all-day instances (look back up to 7 days)

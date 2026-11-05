@@ -54,6 +54,22 @@ describe('pixelsToSnappedMinutes', () => {
 describe('resizeBlock: bottom edge', () => {
   const nine = 9 * 60;
 
+  // #2278: the end may lie past midnight (the next date draws it), so the only
+  // limit is the editor's whole-day cap.
+  it('runs past midnight, up to a whole day and no further', () => {
+    expect(resizeBlock({ startMinutes: 23 * 60, duration: 60, edge: 'bottom', deltaMinutes: 60 }))
+      .toEqual({ startMinutes: 23 * 60, duration: 120 });
+    expect(resizeBlock({ startMinutes: 8 * 60, duration: 23 * 60, edge: 'bottom', deltaMinutes: 120 }))
+      .toEqual({ startMinutes: 8 * 60, duration: 24 * 60 });
+  });
+
+  it('an imported block already longer than a day can shrink but not grow', () => {
+    expect(resizeBlock({ startMinutes: nine, duration: 3000, edge: 'bottom', deltaMinutes: 60 }))
+      .toEqual({ startMinutes: nine, duration: 3000 });
+    expect(resizeBlock({ startMinutes: nine, duration: 3000, edge: 'bottom', deltaMinutes: -60 }))
+      .toEqual({ startMinutes: nine, duration: 2940 });
+  });
+
   it('moves the end and keeps the start', () => {
     expect(resizeBlock({ startMinutes: nine, duration: 60, edge: 'bottom', deltaMinutes: 30 }))
       .toEqual({ startMinutes: nine, duration: 90 });
@@ -84,6 +100,12 @@ describe('resizeBlock: bottom edge', () => {
 describe('resizeBlock: top edge', () => {
   const nine = 9 * 60;
   const endOf = ({ startMinutes, duration }) => startMinutes + duration;
+
+  it('never makes the block longer than a whole day (#2278)', () => {
+    // 08:00 for 23h ends at 07:00 the next day; the start can move up to 07:00.
+    expect(resizeBlock({ startMinutes: 8 * 60, duration: 23 * 60, edge: 'top', deltaMinutes: -180 }))
+      .toEqual({ startMinutes: 7 * 60, duration: 24 * 60 });
+  });
 
   it('moves the start and keeps the end, so the duration changes inversely', () => {
     const up = resizeBlock({ startMinutes: nine, duration: 60, edge: 'top', deltaMinutes: -30 });

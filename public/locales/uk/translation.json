@@ -979,7 +979,9 @@
     "earlierMoves_one": "+{{count}} раніше",
     "earlierMoves_few": "+{{count}} раніше",
     "earlierMoves_many": "+{{count}} раніше",
-    "earlierMoves_other": "+{{count}} раніше"
+    "earlierMoves_other": "+{{count}} раніше",
+    "continuesFrom": "з {{day}}",
+    "continuesFromLabel": "{{title}}, продовження з {{day}}"
   },
   "recurrence": {
     "ordinal_ordinal_few": "{{count}}-го",

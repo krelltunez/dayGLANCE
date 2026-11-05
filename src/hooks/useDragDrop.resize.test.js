@@ -312,6 +312,18 @@ describe('device-calendar events', () => {
     }));
   });
 
+  it('an end resized past midnight is sent on the next date (#2278)', async () => {
+    nativeUpdateEvent.mockResolvedValue({ success: true });
+    const late = { ...event(), startTime: '23:00', duration: 60 };
+    const { render } = setup({ tasks: [late] });
+    render().handleResizeStart(late, mouseDown(500));
+    mouseMove(500 + 80); // half an hour later: 00:30 the next day
+    mouseUp();
+    expect(nativeUpdateEvent).toHaveBeenCalledWith(expect.objectContaining({
+      start: '2026-11-04T23:00:00', end: '2026-11-05T00:30:00',
+    }));
+  });
+
   it('a press that does not move writes nothing to the device', () => {
     const { state, render } = setup({ tasks: [event()] });
     render().handleResizeStart(event(), mouseDown(500), { edge: 'top' });
