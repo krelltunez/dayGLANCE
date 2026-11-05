@@ -57,7 +57,9 @@ import { writebackTargetFor } from '../utils/obsidianWritebackTarget.js';
 const PLACEMENT_PER_PASS = 25;
 import { noteTaskId, withScheduledMetadata, withProjectMetadata, noteTextHash, replaceNoteDescription, mergeNoteDescription, normalizeScope } from '@glance-apps/obsidian-format';
 import { fetchBridgeObservations, applyBridgeObservations, commitBridgeObservationCursor, pendingBridgeObservations, lastBridgeInboundFailure, readBridgeCopies, fetchReportedNoteDescription, fetchReportedNote, reportedNotesAvailability } from '../utils/obsidianBridgeInbound.js';
-import { parseTaskNoteLink, knownTaskNotePaths, taskNoteCandidates, resolveReportedTaskNote, newestTaskNote, newNotesFolderOutsideScope } from '../utils/taskNoteSources.js';
+import { parseTaskNoteLink, knownTaskNotePaths, taskNoteCandidates, resolveReportedTaskNote, indexedTaskNote, newestTaskNote, newNotesFolderOutsideScope } from '../utils/taskNoteSources.js';
+import { resolveIndexedTaskNote } from '../utils/reportedNotePaths.js';
+import { reportedNoteIndexForRead, noteCyclePathListing } from '../utils/reportedNoteIndexStore.js';
 import { fileNoteDescription, newestNoteDescription, isReportedDescription } from '../utils/linkedNoteDescription.js';
 import {
   fetchBridgeActions, planBridgeActions, applyActionsToTasks, applyActionsToRecurring,
@@ -415,26 +417,42 @@ export default function useObsidianSync({
   //       'read_failed' (a folder whose read failed, the report no help).
   // loadWikiNote keeps its own contract for every other caller; the panel
   // asks for this one through it ({ taskPanel: true }).
+  // THE NAME, RESOLVED ON THE STREAM: against the index of reported note
+  // paths (utils/reportedNotePaths.js) once it is complete, brought up to
+  // the stream first within a budget; a link that matches nothing in an
+  // index that could not be brought up just now is also read at its own
+  // path, in case the note was reported since. Until the index is complete,
+  // the likely homes and known paths are guessed (taskNoteCandidates), as
+  // before it existed.
   const reportedTaskNoteByName = useCallback(async (link, availability) => {
     if (availability.status === 'unpaired') return { unavailable: 'not_set_up' };
     if (availability.status !== 'ready') return { unavailable: 'unreachable' };
     const newNotesFolder = obsidianConfig?.newNotesFolder ?? 'dayGLANCE';
     const scope = normalizeScope(availability.scope);
-    const plan = taskNoteCandidates(link, {
-      knownPaths: knownTaskNotePaths({
-        tasks: [...(obsidianTasksRef.current || []), ...(obsidianInboxRef.current || []), ...(recurringTasksRef.current || [])],
-        projects: projectsRef.current || [], goals: goalsRef.current || [],
-      }),
-      newNotesFolder,
-      scopeFolders: scope.folders,
-    });
-    const readings = plan.ambiguous ? [] : await Promise.all(plan.paths.map((p) => fetchReportedNote(p)));
-    const resolved = resolveReportedTaskNote(plan, readings);
+    let resolved;
+    const { index, fresh } = await reportedNoteIndexForRead();
+    if (index?.complete) {
+      const match = resolveIndexedTaskNote(link, index);
+      const path = match.path ?? (match.none && !fresh ? link.path : null);
+      resolved = indexedTaskNote(match, path ? await fetchReportedNote(path) : null);
+    } else {
+      const plan = taskNoteCandidates(link, {
+        knownPaths: knownTaskNotePaths({
+          tasks: [...(obsidianTasksRef.current || []), ...(obsidianInboxRef.current || []), ...(recurringTasksRef.current || [])],
+          projects: projectsRef.current || [], goals: goalsRef.current || [],
+        }),
+        newNotesFolder,
+        dailyNotesFolder: obsidianConfig?.dailyNotesPath || '',
+        scopeFolders: scope.folders,
+      });
+      const readings = plan.ambiguous ? [] : await Promise.all(plan.paths.map((p) => fetchReportedNote(p)));
+      resolved = resolveReportedTaskNote(plan, readings);
+    }
     if (resolved.unavailable === 'not_shared' && newNotesFolderOutsideScope(link, newNotesFolder, scope)) {
       return { ...resolved, newNotesFolderOutsideScope: true, newNotesFolder: String(newNotesFolder).replace(/^\/+|\/+$/g, '') };
     }
     return resolved;
-  }, [obsidianConfig?.newNotesFolder, obsidianTasksRef, obsidianInboxRef]);
+  }, [obsidianConfig?.newNotesFolder, obsidianConfig?.dailyNotesPath, obsidianTasksRef, obsidianInboxRef]);
   const loadTaskNote = useCallback(async (noteName) => {
     const link = parseTaskNoteLink(noteName);
     if (!link) return { unavailable: 'read_failed' };
@@ -1111,6 +1129,13 @@ export default function useObsidianSync({
         await surfaceBridgeFleet();
         if (fetched) {
           inboundFailuresRef.current = 0;
+          // The index of reported note paths (utils/reportedNoteIndexStore.js)
+          // takes the paths this pull already decrypted, under its own
+          // cursor: the commit below is not touched, and the cycle does not
+          // wait. Holding, where a task panel reads the index, an index this
+          // pull does not continue (or one never completed) lists from its
+          // own seq, once from zero.
+          void noteCyclePathListing(fetched.pathListing, { catchUp: holding });
           const applied = fetched.observations.length
             ? applyBridgeObservations(fetched.observations, {
                 existingTasks: currentTasks,
