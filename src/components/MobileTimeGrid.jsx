@@ -169,7 +169,7 @@ const MobileTimeGrid = ({ barsMode = false, barsOverlay = null, onLaneTap, planO
       const dayTasks = readDay(date).filter(t => !t.isAllDay && !t.isExample && (!projectFilter || t.projectId === projectFilter));
       // The previous date's tasks running past midnight (#2278): drawn here
       // from 00:00, packed with this date's cards, not among its tasks.
-      const continuations = (getContinuationsForDate ? getContinuationsForDate(date) : [])
+      const continuations = (getContinuationsForDate ? getContinuationsForDate(date, true, { asPlanned: planOnly }) : [])
         .filter(c => !c.task.isExample && (!projectFilter || c.task.projectId === projectFilter));
       const layoutTasks = continuations.length ? [...dayTasks, ...continuations.map(continuationLayoutRow)] : dayTasks;
       const frameInstances = getFrameInstancesForDate(date);

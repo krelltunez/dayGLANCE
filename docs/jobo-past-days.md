@@ -207,6 +207,12 @@ So a plan block gives way to its Do only when the task is finished:
    neutral colour.
 6. **Only measured facts leave JOBO**, as before: timed Do only, never an
    estimate or a comparison.
+7. **A block that ran past midnight gives way on both dates** (#2278). Its
+   piece after midnight is carried from its start date as that date is
+   shown (`utils/continuations.js`, `continuationsForDate`), so where the
+   block gave way to its Do, the next date draws the Do's own slice from
+   00:00 and no plan piece; an unfinished task's piece still carries. JOBO's
+   Plan side carries the plan as it stood.
 
 It is the task's own state that decides, not the Do's progress, as in the
 Check: a task whose last session was Partial but which was checked off

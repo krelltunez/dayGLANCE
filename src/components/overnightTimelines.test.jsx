@@ -131,6 +131,24 @@ describe('the next date draws the continuation', () => {
       expect(continuations(renderToStaticMarkup(<TimeGrid />))).toEqual([]);
     }
   });
+
+  // A past night's block that gave way to its Do gives way on the next date
+  // too (utils/continuations.js continuationsForDate); JOBO's Plan side, which
+  // shows the plan whatever was done, asks for the plan as it stood.
+  it('JOBO\'s Plan side asks for the plan as it stood; DAY and the phone for the date as shown', () => {
+    const asked = (render) => {
+      setup();
+      const seen = [];
+      const carry = fixture.ctx.getContinuationsForDate;
+      fixture.ctx.getContinuationsForDate = (d, tag, opts) => { seen.push(!!opts?.asPlanned); return carry(d); };
+      render();
+      return seen;
+    };
+    expect(asked(() => renderToStaticMarkup(<DayViewColumn col={dayCol(WED, 0, 8)} colIdx={0} hourHeight={60} planOnly />))).toEqual([true]);
+    expect(asked(() => renderToStaticMarkup(<DayViewColumn col={dayCol(WED, 0, 8)} colIdx={0} hourHeight={60} />))).toEqual([false]);
+    expect(asked(() => renderToStaticMarkup(<MobileTimeGrid planOnly />))).toEqual([true]);
+    expect(asked(() => renderToStaticMarkup(<MobileTimeGrid />))).toEqual([false]);
+  });
 });
 
 describe('the start date clips the card at 24:00', () => {

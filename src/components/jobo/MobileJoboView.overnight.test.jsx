@@ -37,7 +37,7 @@ function render(tasks, date = WED, { records = [], now = '2026-11-10T12:00:00' }
     selectedDate: new Date(`${date}T12:00:00`), currentTime: new Date(now),
     tasks, unscheduledTasks: [], expandedRecurringTasks: [], recurringTasks: [],
     getTasksForDate: forDate,
-    getContinuationsForDate: (d) => continuationsFromPreviousDay(forDate(new Date(`${shiftDateStr(dateStrOf(d), -1)}T12:00:00`))),
+    getContinuationsForDate: (d, applyTagFilter, opts) => (fixture.asked = { applyTagFilter, ...opts }) && continuationsFromPreviousDay(forDate(new Date(`${shiftDateStr(dateStrOf(d), -1)}T12:00:00`))),
     calculateTaskPosition: (t) => {
       const s = toMin(t.startTime);
       const e = Math.min(s + t.duration, 1440);
@@ -70,6 +70,9 @@ describe('JOBO phone: the narrow Plan lane draws the night before\'s task (#2278
     expect(bar).toContain('top:0px');
     expect(bar).toContain(`height:${90 * HOUR / 60 - 1}px`);
     expect(bar).toContain('border-dashed');
+    // The Plan lane shows the plan as it stood, untouched by the tag filter,
+    // as JOBO's day model reads the day.
+    expect(fixture.asked).toEqual({ applyTagFilter: false, asPlanned: true });
   });
 
   it('is packed beside the date\'s own bar that it overlaps', () => {

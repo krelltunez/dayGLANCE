@@ -401,7 +401,7 @@ export default function MobileJoboView({ stickyHeaderRef, gutterW = HOUR_GUTTER_
               // The bars read the day as JOBO's day model does (useJoboDay):
               // untouched by the tag filter, the night before's pieces too.
               barsOverlay={planCards ? null : (
-                <PlanBars tasks={dayTasks} continuations={ctx.getContinuationsForDate?.(ctx.selectedDate, false) ?? []} selectedTaskId={selectedTaskId} ctx={ctx} />
+                <PlanBars tasks={dayTasks} continuations={ctx.getContinuationsForDate?.(ctx.selectedDate, false, { asPlanned: true }) ?? []} selectedTaskId={selectedTaskId} ctx={ctx} />
               )}
             />
           </div>
