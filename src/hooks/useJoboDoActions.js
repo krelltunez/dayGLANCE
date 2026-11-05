@@ -36,6 +36,17 @@ export function timedPatch(date, start, end) {
   };
 }
 
+/**
+ * The patch that moves a timed Do's end to `endMinute` of `date`, the date of
+ * the column it was resized on, which is the next date's for a Do that runs
+ * past midnight (#2278). Midnight is the next day's 00:00, the shape core
+ * expects. The start is left as it is.
+ */
+export function endPatch(date, endMinute) {
+  const { endDate, endTime } = timedPatch(date, 0, endMinute);
+  return { endDate, endTime };
+}
+
 // The toast's words for one accepted Do write live beside the writes
 // (jobo/viewActions.js), where the undo history reads them too.
 export { doWriteMessageKey };

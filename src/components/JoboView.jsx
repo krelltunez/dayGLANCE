@@ -18,7 +18,7 @@ import DoEditor from './jobo/DoEditor.jsx';
 import ExecutionDetails from './jobo/ExecutionDetails.jsx';
 import CheckPanel from './jobo/CheckPanel.jsx';
 import { intervalFromMarker } from '../jobo/completionMarker.js';
-import useJoboDoActions, { continueInitial, timedPatch } from '../hooks/useJoboDoActions.js';
+import useJoboDoActions, { continueInitial, endPatch, timedPatch } from '../hooks/useJoboDoActions.js';
 import { createCarryForwardActions } from '../jobo/carryForwardActions.js';
 
 // JOBO: Plan and Do for one day, side by side on one hour axis.
@@ -36,7 +36,6 @@ import { createCarryForwardActions } from '../jobo/carryForwardActions.js';
 
 // Plan's cell holds the 4rem hour gutter plus its half; Do gets the other half.
 const GRID = 'grid grid-cols-[calc(50%+2rem)_minmax(0,1fr)]';
-const clock = (minute) => `${String(Math.floor((minute % 1440) / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
 
 // A task id inside an attribute selector. CSS.escape where the platform has
 // it; otherwise quotes and backslashes, the only characters that can break
@@ -311,16 +310,9 @@ export default function JoboView() {
   }) : runGesture(event, {
     record: item.record,
     toRange: (minute) => (minute > item.startMinute ? { start: item.startMinute, end: minute } : null),
-    toPatch: (range) => {
-      if (range.end === item.endMinute) return null;
-      // Midnight is the next day's 00:00, the shape core expects.
-      if (range.end >= 1440) {
-        const next = new Date(`${item.record.date}T00:00:00Z`);
-        next.setUTCDate(next.getUTCDate() + 1);
-        return { endDate: next.toISOString().slice(0, 10), endTime: '00:00' };
-      }
-      return { endDate: item.record.date, endTime: clock(range.end) };
-    },
+    // On this column's date: for a Do past midnight, the handle is on the
+    // next date's piece, and the end it moves is that date's (#2278).
+    toPatch: (range) => (range.end === item.endMinute ? null : endPatch(date, range.end)),
   }));
 
   if (!joboLoaded) {

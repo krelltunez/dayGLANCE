@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BookOpen, Check, CheckCircle2, CheckSquare, Clock, FileText, Pencil, Plus } from 'lucide-react';
+import { BookOpen, Check, CheckCircle2, CheckSquare, ChevronUp, Clock, FileText, Pencil, Plus } from 'lucide-react';
 import { renderTitleWithoutTags, hasNotesOrSubtasks, hasOnlySubtasks, isObsidianNoteOnlyTask } from '../../utils/textFormatting.jsx';
 import DoNotesPanel from './DoNotesPanel.jsx';
 import { DO_STRIPES } from './PastDoCard.jsx';
 import { extractWikilinks, stripWikilinks } from '../../utils/taskUtils.js';
 import { timingRows } from './ExecutionAxes.jsx';
 import { completionMoment } from '../../jobo/completionMarker.js';
+import { formatLocalizedDate } from '../../utils/localeFormatting.js';
 
 // The Do side of JOBO, drawn with the same grid as the Plan side (DAY's own
 // column): alternating hour rows, the dashed half-hour line, the now line,
@@ -146,10 +147,20 @@ function DoCard({ item, hourHeight, zoom = 1, offsetMin = 0, limitMin = 1440, ct
   const { inline, rows: signals } = !item.point ? cardSignals(item.comparison, t) : { inline: null, rows: [] };
   const status = pending ? t('jobo.view.pendingSave') : item.estimate ? t('jobo.view.estimatedShort') : progressText(record.progress, t);
   const finished = !pending && finishedLater(item);
-  const continuable = writable && !pending && !item.estimate && canContinue(record);
-  // An interval that ends on another day is clipped here; resizing it from
-  // this column would move an end the column cannot show.
-  const canResize = gestures && writable && !pending && (item.estimate || (!item.point && record.endDate === record.date));
+  // A timed Do that runs past midnight is drawn on each date it touches, as
+  // the Plan side draws a task's after-midnight piece (#2278): the piece on
+  // the next date (clippedStart) has a dashed top edge, an up chevron and
+  // "from <day>"; the piece that stops at midnight (clippedEnd) a dashed
+  // bottom edge. Each piece is the same record: its details, its editor.
+  const continuesFrom = !item.point && item.clippedStart;
+  const continuesNext = !item.point && item.clippedEnd;
+  const fromDay = continuesFrom && record.date
+    ? formatLocalizedDate(new Date(`${record.date}T12:00:00`), { weekday: 'short' }) : '';
+  // Continuing follows the end, so it is offered on the piece that holds it.
+  const continuable = writable && !pending && !item.estimate && !continuesNext && canContinue(record);
+  // The end is resized on the piece that holds it, the next date's for a Do
+  // past midnight; the piece cut at midnight would move an end it cannot show.
+  const canResize = gestures && writable && !pending && (item.estimate || (!item.point && !continuesNext));
   const movable = gestures && writable && !pending && item.point;
   const startsGesture = (event) => !event.target.closest('button');
   // The task this attempt belongs to, as the Plan side shows it: the key for
@@ -168,7 +179,9 @@ function DoCard({ item, hourHeight, zoom = 1, offsetMin = 0, limitMin = 1440, ct
       data-jobo-record={record.id}
       data-jobo-point={item.point ? 'true' : undefined}
       data-jobo-estimate={item.estimate ? 'true' : undefined}
-      className={`absolute pointer-events-auto rounded-lg overflow-hidden text-white ${color}
+      data-jobo-continues-from={continuesFrom ? record.date : undefined}
+      data-jobo-continues-next={continuesNext ? 'true' : undefined}
+      className={`absolute pointer-events-auto ${continuesFrom ? (continuesNext ? '' : 'rounded-b-lg') : continuesNext ? 'rounded-t-lg' : 'rounded-lg'} overflow-hidden text-white ${color}
         ${item.estimate ? 'bg-opacity-60 border-2 border-dashed border-white/80' : 'shadow-md'}
         ${movable ? (item.estimate ? 'cursor-grab active:cursor-grabbing' : 'cursor-ns-resize') : 'cursor-pointer'}
         ${pending ? 'opacity-60' : ''}
@@ -189,12 +202,21 @@ function DoCard({ item, hourHeight, zoom = 1, offsetMin = 0, limitMin = 1440, ct
       {/* A completion is a moment: the white rule marks it exactly, at the
           top of a marker and at the bottom (its end) of an estimate. */}
       {item.point && <div className={`absolute ${item.estimate ? 'bottom-0' : 'top-0'} left-0 right-0 h-0.5 bg-white pointer-events-none`} aria-hidden="true" />}
+      {/* Midnight edges: dashed, as on the Plan side's pieces. */}
+      {continuesFrom && <div className="absolute top-0 left-0 right-0 border-t-2 border-dashed border-white/60 pointer-events-none" aria-hidden="true" />}
+      {continuesNext && <div className="absolute bottom-0 left-0 right-0 border-b-2 border-dashed border-white/60 pointer-events-none" aria-hidden="true" />}
       <div className="px-2 py-1 h-full flex flex-col min-w-0" style={zoom !== 1 ? { zoom } : undefined}>
         <div className="flex items-center gap-1 min-w-0">
           {item.point && <CheckCircle2 size={12} className="flex-shrink-0 opacity-90" aria-hidden="true" />}
+          {continuesFrom && <ChevronUp size={12} className="flex-shrink-0 opacity-75" aria-hidden="true" />}
           <div className="font-semibold text-sm leading-tight truncate flex-1 min-w-0" title={stripWikilinks(record.title)}>
             {renderTitleWithoutTags(record.title)}
           </div>
+          {fromDay && (
+            <span data-jobo-continues-label className="text-[10px] opacity-80 whitespace-nowrap flex-shrink-0">
+              {t('task.continuesFrom', { day: fromDay })}
+            </span>
+          )}
           {task && (
             <button
               type="button"
