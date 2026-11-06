@@ -39,12 +39,14 @@ export const FOLLOW_UP_MS = 10_000;
  * @param {object[]} p.projects @param {object[]} p.users
  * @param {boolean} p.multiUserEnabled
  * @param {Function} p.setUnscheduledTasks
+ * @param {number|null} [p.followUpMs]  the follow-up delay; null: none (the
+ *   bridge harness runs each device's passes itself)
  * @returns {{ consumeBridgeTaskCreates: () => Promise<object|null>, nudgeBridgeTaskCreates: () => void }}
  */
 export default function useBridgeTaskCreates({
   dataLoaded, isTrayMode = false,
   tasks, unscheduledTasks, recurringTasks, recycleBin, projects, users, multiUserEnabled,
-  setUnscheduledTasks,
+  setUnscheduledTasks, followUpMs = FOLLOW_UP_MS,
 }) {
   // The live state, read at pass time (a pass awaits the network).
   const stateRef = useRef(null);
@@ -74,8 +76,8 @@ export default function useBridgeTaskCreates({
       } catch (e) {
         console.warn('[Obsidian] add-task pass failed (retried next pass):', e);
       }
-      if (result?.applied && !st.disposed && !st.followUp) {
-        st.followUp = setTimeout(() => { st.followUp = null; void consumeBridgeTaskCreates(); }, FOLLOW_UP_MS);
+      if (result?.applied && followUpMs != null && !st.disposed && !st.followUp) {
+        st.followUp = setTimeout(() => { st.followUp = null; void consumeBridgeTaskCreates(); }, followUpMs);
       }
       return result;
     })();
@@ -85,7 +87,7 @@ export default function useBridgeTaskCreates({
       st.inFlight = null;
       if (st.again && !st.disposed) { st.again = false; void consumeBridgeTaskCreates(); }
     }
-  }, [isTrayMode]);
+  }, [isTrayMode, followUpMs]);
 
   const nudgeBridgeTaskCreates = useCallback(() => {
     const st = runRef.current;
