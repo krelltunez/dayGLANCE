@@ -498,6 +498,139 @@ veto. The veto lapsed unexercised: the owner verified the passphrase, used the
 view daily, and commissioned three features on top of it (routines, calendar
 projections, the viewer). The design is settled.
 
+### 4.2.1 Add to dayGLANCE: a selection becomes an inbox task (owner-approved, 2026-11-06)
+
+Text selected in a note becomes ONE dayGLANCE inbox task, titled with the
+selection and linked back to the note. Like the sidebar's completion it is
+an ACTION, applied by dayGLANCE; the plugin still never writes the data
+plane.
+
+**Plugin side.** The editor's context menu (`editor-menu`, desktop and
+mobile) offers **Add to dayGLANCE** while text is selected; the command
+**Add selection to dayGLANCE as a task** has an `editorCheckCallback`, so it
+is available only then and can take a hotkey. A form prefills the title from
+the selection (one line; list, checkbox, heading and quote syntax and a
+trailing block id dropped; editable; an empty title is refused) and offers
+the app's inbox fields: an optional deadline (`YYYY-MM-DD`, the app's
+`deadline`), the app's priority (0 none, 1 low, 2 medium, 3 high) and, when
+the mirror can list them (the passphrase is set on this device), the
+viewer's active projects (neither archived nor completed; goals do not own
+tasks, so they are not offered). As in the app's form, priority is off for a
+project task. The title becomes `<title> [[<link>]]`, the link being
+Obsidian's own link text for the note (`metadataCache.fileToLinktext(file,
+'', true)`: a bare name while unique, a path otherwise), always a wikilink
+whatever the markdown-link setting.
+
+**Link to the exact paragraph** (a setting, off by default). The link names
+the block holding the selection's start, `[[<link>#^<id>]]`:
+
+- an id already at the end of that block is reused. dayGLANCE's task stamps
+  are block ids, so a selection on a stamped task line reuses its `^dg-`
+  stamp and never adds a second id;
+- otherwise six random lowercase letters and digits (Obsidian's shape) are
+  added at the end of the paragraph or list item, through the editor
+  (`replaceRange`, selections restored), so undo works and the open buffer
+  is not overwritten. Never a `^dg-` id: the plugin reads `^dg-` content as
+  a dayGLANCE note, so it only ever reuses one;
+- never an id on an UNSTAMPED task line (or its continuation): dayGLANCE's
+  parser keeps a block id it does not own as part of the task's title
+  (`splitBlockId`), and the stamper refuses a line ending in one
+  (`hasForeignBlockId`, `planStampInsertions`), so the id would retitle the
+  task and keep its line unstamped for good. That selection links to the
+  note, and the notice says why;
+- frontmatter, headings, code, math, tables and quotes link to the note.
+
+A non-task paragraph with a new id changes nothing the parsers read: the
+harness re-parses the note after the id is added and gets the same tasks.
+
+**The row.** `act-create:<actionId>` (`BRIDGE_CREATE_ACTION_PREFIX`), sealed
+under the pairing subkey: `{v:1, kind:'action', type:'task_create',
+actionId, title, notePath, deadline?, priority?, projectId?, viewer?,
+createdAt}`. `actionId` is `mintIntentId()`; `createdAt` is local-offset
+ISO (the app's `createdAt` form); `viewer` is the plugin's viewer (decision
+9). Emitting needs only the pairing. The write honours the transport's 429
+brake (held back while it is on, armed by a 429), records its ack as the
+copy's own write so its SSE echo does not wake the drain, and is retried
+twice on a network failure under the same actionId (an upsert of one row).
+
+*Why not `act:`.* An app built before this feature runs `planBridgeActions`
+on every `act:` row: an unknown type is consumed as stale AT ONCE (not after
+`ACTION_STALE_MS`) and the row is deleted on that device's next Obsidian
+cycle, which the `act:` row itself wakes within seconds through the SSE
+probe. Any older folder device online would eat every create before a
+current device saw it. No older reader lists `act-create:` (each filters its
+own prefix: `obs:`, `act:`, `proj:`, `int:`, `meta:`), so the row waits for
+a current app. An old plugin never emits the type.
+
+**App side** (`src/utils/obsidianBridgeCreates.js`,
+`src/hooks/useBridgeTaskCreates.js`).
+
+- *Who consumes.* Any paired device with the account key, folder or not:
+  the gates are `fetchBridgeActionRows`' own (vault on, the pairing meta,
+  the verified key). Not inside `performObsidianSync`, which returns before
+  anything on a device without the folder handle. The pass runs at load,
+  every five minutes, on visibility, on the bridge-namespace SSE nudge
+  (leading-edge, at most one pass per 20 s), and as a follow-up ten seconds
+  after a pass that created something. The headless refresh root does not
+  compose it.
+- *Two consumers, one stream.* Creates are read under their own cursor
+  (`dayglance-bridge-act-create-hwm`) and their own prefix; completions keep
+  `ACT_HWM_KEY` and `act:`. Neither consumer lists, holds, deletes or
+  advances past the other's rows on the other's behalf, so a folderless
+  device consuming creates cannot skip a completion a folder device has yet
+  to apply, and the folder device's completion pass cannot drop a create.
+  `task_complete` is consumed where it was.
+- *One task per action.* The task's id is `bridge-add-<actionId>`: devices
+  racing one row build the same id and the same row, and sync merges them.
+  Never `obsidian-…`, so nothing that parses an Obsidian-import id
+  (`obsidian-<date>-`, `obsidian-dg-`) reads it as one.
+- *A plain app task.* No `importSource`, `obsidianBlockId`,
+  `obsidianNotePath` or `obsidianFileDate`: the note-scoped deletion
+  inference, the vault writeback and the Obsidian merges treat it as a task
+  typed into the app (a project task with a linked note is placed in that
+  note by the writeback, as any app-born project task is). The `#obsidian`
+  tag is stripped from the title outside the links: in dayGLANCE it means
+  "write this line to today's daily note", which selecting text did not ask
+  for. A stray `^dg-` token outside the links is stripped too. The path never
+  goes through `addTask`, so no vault write follows.
+- *The row* is the app's inbox task: title, `duration` 30, the default
+  colour, `priority` (0 unless 1-3), `deadline` when a real date, `projectId`
+  only when that project exists and is active (otherwise dropped, the task
+  still created), `assignedUserSyncIds: [viewer]` when multi-user is on and
+  the viewer is a live member (decision 10: a vault is one person's capture
+  surface), `createdAt` from the action, and `lastModified` at the action's
+  instant (never later than now). No new task field.
+- *No resurrection.* A tombstoned id (`deletedTaskIds`, the Obsidian
+  deletion keys), one in the recycle bin, one retired onto a successor, or
+  one present in any list is never created again; the row is consumed. The
+  stamp at the action's instant closes the remaining gap: a device that
+  applies the row late, before it hears of a deletion made since, builds a
+  copy older than the tombstone, which `dropResurrectedTasks` and the merge
+  drop everywhere. A row older than the tombstone window (60 days) is
+  consumed unapplied, since a deletion that old is no longer remembered.
+- *Delete after save.* A pass adds the task to state and HOLDS the row (the
+  cursor stops below it). A later pass deletes it only once the task reads
+  back from the saved task lists (`day-planner-unscheduled` and the other
+  task keys), so a crash between the apply and the persist pass replays the
+  create. The follow-up pass runs after the push-on-write debounce (3 s), so
+  the task has normally been pushed too; if that push failed, the task is
+  still saved locally and goes with the next cycle.
+- *Opening the note.* The task panel finds the note from the link
+  (`parseTaskNoteLink` drops `#…`; a path link resolves by path, a bare name
+  by the index of reported paths). "Open in Obsidian" names the file
+  without the block part on every platform (`obsidian://open` reads a `#`
+  as part of the file name), so it opens the note, not the paragraph.
+
+**Older versions.** An old app never sees the row (above). An old plugin
+never writes one. A current app with an older plugin simply has nothing to
+consume.
+
+Tests: `src/utils/obsidianBridgeCreates.test.js` (the planner, the row, the
+two cursors, delete after save), `src/hooks/useBridgeTaskCreates.test.js`
+(the cadence), `dayglance-obsidian-plugin/test/addTask.test.ts` (title,
+link, block rules) and the bridge harness's
+`dayglance-obsidian-plugin/test/addTask.scenarios.test.ts`.
+
 ---
 
 ### 4.3 Project and goal notes
