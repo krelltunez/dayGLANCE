@@ -521,6 +521,42 @@ Obsidian's own link text for the note (`metadataCache.fileToLinktext(file,
 '', true)`: a bare name while unique, a path otherwise), always a wikilink
 whatever the markdown-link setting.
 
+**Only when an app can receive it** (owner ruling, 2026-11-06; the
+mechanism is §4.2.2). The form opens whatever the fleet runs, so the
+feature can be found, and asks the stream whether some current app
+announces `task_create`. Until one does it explains instead of sending:
+"This needs a newer version of dayGLANCE on at least one of your devices.
+Update dayGLANCE, then try again." Add is disabled, Enter in the title is
+refused the same way, nothing is emitted, and with "Link to the exact
+paragraph" on no block id is written either: the check runs before
+anything touches the note (`addSelectionAsTask` refuses first, whoever
+calls it). A row sealed under another pairing generation says the app has
+not yet seen this pairing ("Open dayGLANCE on one of your devices, then
+try again."). A row that cannot be read (offline, a 429, the brake, a
+rejected credential) refuses too, saying GLANCEvault could not be reached:
+the send would meet the same wall. A sent task is reported as "Sent to
+dayGLANCE. It appears there once dayGLANCE picks it up.", not "added",
+since the task exists once an app applies the row.
+
+*Why.* Users update in any order, and the plugin often updates before the
+Play Store delivers the app. Before this check a new plugin with only old
+apps said "Added" and nothing appeared for days; each retry became a
+separate task once an app updated; and after 60 days the waiting rows were
+consumed unapplied, silently.
+
+**The waiting indicator.** The plugin remembers each create it sent
+(`actionId`, title, `sentAt`) in this copy's device-local store, never
+`data.json`, per account and pairing generation. On its 30-second tick it
+reads a few of those rows by id (at most three a tick, the
+longest-unchecked first; every five minutes while an entry is under a day
+old, hourly up to a week, then every six hours) and drops an entry whose
+row is gone: an app consumed it. An entry still on the stream an hour after
+it was sent is counted, and the agenda sidebar shows "1 task waiting for
+dayGLANCE. Open or update dayGLANCE on one of your devices to bring it in."
+under its status line (in the passphrase prompt too, since sending needs
+only the pairing). Entries older than the app's 60-day cutoff are dropped
+unread; the list is capped at 200.
+
 **Link to the exact paragraph** (a setting, off by default). The link names
 the block holding the selection's start, `[[<link>#^<id>]]`:
 
@@ -625,15 +661,73 @@ a current app. An old plugin never emits the type.
   without the block part on every platform (`obsidian://open` reads a `#`
   as part of the file name), so it opens the note, not the paragraph.
 
-**Older versions.** An old app never sees the row (above). An old plugin
-never writes one. A current app with an older plugin simply has nothing to
+**Older versions.** An old app never sees the row (above), and does not
+announce `task_create`, so a current plugin whose apps are all older sends
+nothing and says why. An old plugin never writes a create, and ignores the
+capability row. A current app with an older plugin simply has nothing to
 consume.
 
 Tests: `src/utils/obsidianBridgeCreates.test.js` (the planner, the row, the
 two cursors, delete after save), `src/hooks/useBridgeTaskCreates.test.js`
-(the cadence), `dayglance-obsidian-plugin/test/addTask.test.ts` (title,
-link, block rules) and the bridge harness's
-`dayglance-obsidian-plugin/test/addTask.scenarios.test.ts`.
+(the cadence, the announcement), `dayglance-obsidian-plugin/test/addTask.test.ts`
+(title, link, block rules), `appCapabilities.test.ts` and
+`sentCreates.test.ts` (the check and the waiting list), and the bridge
+harness's `dayglance-obsidian-plugin/test/addTask.scenarios.test.ts`
+(scenarios 8 to 12 open the real form and the real sidebar view).
+
+### 4.2.2 App capabilities: what the plugin may send (owner-approved, 2026-11-06)
+
+A plugin feature whose rows only a current app reads must not send them
+into a stream nothing reads. Every current app therefore announces, on the
+bridge stream, each kind of row it consumes; the plugin reads the
+announcement before it sends. `task_create` (§4.2.1) is the first; a later
+feature adds its name.
+
+**The rows.** One per capability: `meta:cap:<name>`
+(`bridgeCapabilityId`, `BRIDGE_CAPABILITY_PREFIX`), sealed under the
+pairing subkey like `meta:config`, tagged with the generation:
+`{v:1, kind:'capability', name, since}` (`since`: when the writing app
+published it). NEVER one combined row: a list would need read-modify-write,
+and an app that knows fewer names (an older build, or one racing a newer
+one) would drop the names it lacks. A row per name has nothing to drop.
+
+**Never erased.** No reader old or new lists `meta:cap:` (checked on both
+sides, back to the oldest history in the repository): the app's observation
+fetch matches `obs:` and `meta:copy:`, the completion and create consumers
+`act:` and `act-create:`, the SSE probe `obs:` and `act:`, the reported-path
+listing `obs:`; the plugin's drain matches the exact ids `meta:applier`,
+`meta:pairing` and `meta:config` and `int:`, skipping everything else
+without a delete (tombstones are cursor movement only), and its agenda
+matches `proj:`. The only meta rows anything deletes are the plugin's own
+`meta:pairing` and `meta:copy:<deviceId>` on unpair. Older apps never write
+the row; a current app writes only the names it lists and never deletes one.
+So once written, a capability is not withdrawn by any app's absence:
+retiring one would take an explicit row of its own.
+
+**The writer** (`publishBridgeCapabilities(names)` in
+`src/utils/obsidianBridgeStream.js`, names from `APP_BRIDGE_CAPABILITIES`).
+Once per name per app SESSION per pairing GENERATION, the `meta:config`
+guard's shape: a re-pair rotates the subkey, and a row sealed under the old
+one reads as nothing to the new stream, so the next pass after the app's
+pairing cache turns over (five minutes) rewrites it; a fresh session
+rewrites once, the reachable recovery lever. It sits the 429 brake out,
+records its ack as an own write, and is fail-silent (a name not written
+stays due). It runs at the head of every create-consumer pass
+(`useBridgeTaskCreates`), so the devices that announce are exactly those
+that can apply a create: any paired device holding the verified account
+key, folder or not, never the tray or the headless root.
+
+**The reader** (`dayglance-obsidian-plugin/src/appCapabilities.ts`,
+`AgendaStore.appSupports(name)`). `getRow` by id with the pairing subkey; no
+passphrase. Yes: the row opens and names the capability; cached in memory
+and in the copy's device-local store (never `data.json`) under
+`<accountId>|<generation>`, so a reload does not ask again and a re-pair or
+another account does. No: no row, a deleted one, or one that does not open;
+reason `pairing` when its clear generation tag differs from the copy's
+(the app has not seen this pairing yet), else `absent`; never cached, asked
+again each time the form opens. Unknown: the read failed (offline,
+rejected, a 429, which arms the brake, or the brake already on, which makes
+no request). A caller sends only on yes.
 
 ---
 
