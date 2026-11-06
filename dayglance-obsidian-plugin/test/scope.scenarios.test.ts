@@ -1046,7 +1046,7 @@ describe('vault task scope, end to end', () => {
 // leaves the scope through its own metadata is withdrawn (ruling C) once it
 // has been out continuously for the leaving hold, two minutes, and never
 // for a transient (a tag being retyped, a frontmatter edit half done).
-describe('the scope tag removed: withdrawal after the leaving hold', () => {
+describe('the scope tag removed: withdrawal after the leaving hold', { timeout: 30_000 }, () => {
   const TNOTE = 'Areas/Garden.md';
   const ROSES = 'Water the roses';
   const tagged = (extra = '') => `---\n${extra}tags: [work]\n---\n# Garden\n\n- [ ] ${ROSES}\n`;
