@@ -19,12 +19,23 @@
 //    push-on-write debounce has run). See DELETE AFTER SAVE.
 // Passes are serialised: one in flight, a request during it runs after it.
 //
+// THE CAPABILITY ANNOUNCEMENT (companion spec 4.2.2). Each pass first makes
+// sure this app's capability rows (APP_BRIDGE_CAPABILITIES, task_create
+// among them) are on the stream: the plugin sends a create only once it can
+// read that row, so a fleet of older apps makes it say "update dayGLANCE"
+// rather than "sent". It rides this pass because this pass is the consumer:
+// it runs on exactly the devices that can apply a create (paired, holding
+// the account key, folder or not; never the tray), behind the same gates.
+// Written once per session per pairing generation (the publisher's guard),
+// so every later pass costs nothing.
+//
 // The headless refresh root does not compose this hook (its allowlist,
 // CLAUDE.md "Headless refresh"): a create waits for the app, or another
 // device, to open.
 
 import { useEffect, useRef, useCallback } from 'react';
 import { runBridgeTaskCreatePass, addBridgeCreatedTasks } from '../utils/obsidianBridgeCreates.js';
+import { publishBridgeCapabilities, APP_BRIDGE_CAPABILITIES } from '../utils/obsidianBridgeStream.js';
 
 export const BRIDGE_CREATES_POLL_MS = 5 * 60 * 1000;
 export const NUDGE_MIN_GAP_MS = 20_000;
@@ -61,6 +72,11 @@ export default function useBridgeTaskCreates({
     if (st.inFlight) { st.again = true; return st.inFlight; }
     st.inFlight = (async () => {
       let result = null;
+      try {
+        // Fail-silent and independent of the pass: a failed announcement is
+        // retried by the next pass, and never holds a create back.
+        await publishBridgeCapabilities(APP_BRIDGE_CAPABILITIES);
+      } catch { /* retried next pass */ }
       try {
         result = await runBridgeTaskCreatePass({
           read: () => {

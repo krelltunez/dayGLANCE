@@ -17,6 +17,12 @@ vi.mock('../utils/obsidianBridgeCreates.js', () => ({
   addBridgeCreatedTasks: (list, created) => [...list, ...created],
 }));
 
+const publish = vi.fn(async () => true);
+vi.mock('../utils/obsidianBridgeStream.js', () => ({
+  publishBridgeCapabilities: (...args) => publish(...args),
+  APP_BRIDGE_CAPABILITIES: ['task_create'],
+}));
+
 const { default: useBridgeTaskCreates, FOLLOW_UP_MS, NUDGE_MIN_GAP_MS, BRIDGE_CREATES_POLL_MS } = await import('./useBridgeTaskCreates.js');
 
 const mount = (over = {}) => {
@@ -36,6 +42,8 @@ const mount = (over = {}) => {
 beforeEach(() => {
   vi.useFakeTimers();
   pass.mockReset();
+  publish.mockReset();
+  publish.mockResolvedValue(true);
   vi.stubGlobal('document', { addEventListener: vi.fn(), removeEventListener: vi.fn(), visibilityState: 'visible' });
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -52,6 +60,23 @@ describe('useBridgeTaskCreates', () => {
     expect(pass).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(FOLLOW_UP_MS * 3);
     expect(pass).toHaveBeenCalledTimes(2); // nothing created: no further follow-up
+  });
+
+  it('every pass announces the app capabilities first (the publisher keeps it to once per session), and a failed announcement never holds the pass back', async () => {
+    const order = [];
+    publish.mockImplementation(async (names) => { order.push(['publish', names]); return true; });
+    pass.mockImplementation(async () => { order.push(['pass']); return { applied: 0, held: 0, consumed: 0 }; });
+    const { api } = mount({ followUpMs: null });
+    await api.consumeBridgeTaskCreates();
+    expect(order).toEqual([['publish', ['task_create']], ['pass']]);
+    publish.mockRejectedValueOnce(new Error('unreachable'));
+    await api.consumeBridgeTaskCreates();
+    expect(pass).toHaveBeenCalledTimes(2);
+    // Never in the tray: no pass, no announcement.
+    publish.mockClear();
+    const tray = mount({ isTrayMode: true });
+    await tray.api.consumeBridgeTaskCreates();
+    expect(publish).not.toHaveBeenCalled();
   });
 
   it('the pass adds the created tasks through the inbox setter', async () => {
@@ -72,6 +97,7 @@ describe('useBridgeTaskCreates', () => {
     const first = api.consumeBridgeTaskCreates();
     const second = api.consumeBridgeTaskCreates();
     const third = api.consumeBridgeTaskCreates();
+    await vi.advanceTimersByTimeAsync(0); // past the announcement's await
     expect(pass).toHaveBeenCalledTimes(1);
     release({ applied: 0, held: 0, consumed: 0 });
     await Promise.all([first, second, third]);

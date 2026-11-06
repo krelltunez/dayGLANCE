@@ -177,6 +177,14 @@ How the plugin works, for whoever changes it. The user-facing description is
   subkey, the transport's 429 brake and own-seq record honoured, retried
   under one actionId); any paired dayGLANCE device with the account key
   builds the task, folder or not. Emitting needs only the pairing.
+  It sends only once some current app announces `task_create`
+  (companion §4.2.2, `src/appCapabilities.ts`: a sealed `meta:cap:<name>`
+  row read by id; a yes cached per account and pairing generation in the
+  device-local store, a no asked again on every open). Until then the form
+  explains, Add is disabled, and nothing is emitted or written to the note.
+  The creates it sent wait in a device-local list (`src/sentCreates.ts`)
+  that the 30-second tick checks a few rows at a time; one still unconsumed
+  after an hour shows as a waiting line in the agenda view.
 - Seven commands: **Sync now** (drains pending intents + refreshes the
   heartbeat), **Enter pairing code**, **Unpair from GLANCEvault**
   (forgets the local credentials and the account key; revoke the token
@@ -202,8 +210,10 @@ stream rows are AES-256-GCM under the pairing's bridge subkey.
 
 ## Tests
 
-Apart from the pure editor-hiding rules and the Add to dayGLANCE helpers
-(`test/addTask.test.ts`), the plugin has no unit tests of its own; it is
+Apart from the pure editor-hiding rules, the Add to dayGLANCE helpers
+(`test/addTask.test.ts`), the app capability reader
+(`test/appCapabilities.test.ts`) and the waiting list
+(`test/sentCreates.test.ts`), the plugin has no unit tests of its own; it is
 exercised end to end by the bridge scenario harness in `test/`,
 which runs from the repository root
 with the rest of the suite (`npx vitest run`). The harness stubs the

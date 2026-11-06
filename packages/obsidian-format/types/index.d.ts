@@ -178,6 +178,12 @@ export const BRIDGE_CREATE_ACTION_PREFIX: string;
 export const BRIDGE_PROJECTION_PREFIX: string;
 export const BRIDGE_COPY_PREFIX: string;
 export function bridgeCopyStatusId(deviceId: string): string;
+export const BRIDGE_CAPABILITY_PREFIX: string;
+export const BRIDGE_CAPABILITY_TASK_CREATE: string;
+export function bridgeCapabilityId(name: string): string;
+export interface BridgeCapabilityRow { v: 1; kind: 'capability'; name: string; since: string }
+export function bridgeCapabilityPayload(name: string, sinceIso?: string): BridgeCapabilityRow;
+export function isBridgeCapability(payload: unknown, name: string): boolean;
 export function bridgeCalendarProjectionId(deviceId: string): string;
 export function bridgeConfigAllowsStamping(config: { blockIdWrites?: unknown } | null | undefined): boolean;
 

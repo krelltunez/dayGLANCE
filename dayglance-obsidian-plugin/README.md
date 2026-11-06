@@ -32,7 +32,12 @@ plugin adds what a folder cannot do on its own: it runs inside Obsidian.
   the **Add selection to dayGLANCE as a task** command. The selection becomes
   one dayGLANCE inbox task, with an optional deadline, priority and project,
   linked back to the note with a `[[wikilink]]`. Any paired dayGLANCE device
-  adds it, including a phone without access to the vault folder.
+  adds it, including a phone without access to the vault folder. The task is
+  sent to dayGLANCE and appears there once dayGLANCE picks it up on one of
+  your devices. This needs a recent dayGLANCE on at least one device: until
+  one has run, the form says so and sends nothing (and does not touch the
+  note). If a task you sent has not been picked up after an hour, the agenda
+  sidebar says so, with a hint to open or update dayGLANCE.
 - **Tidy editor.** Optionally hide the `^dg-…` ids dayGLANCE adds to task
   lines, and hide completed tasks in linked project and goal notes. Both are
   display only and never change a note.
@@ -72,6 +77,10 @@ plugin adds what a folder cannot do on its own: it runs inside Obsidian.
 - **Add selection to dayGLANCE as a task**: available while text is selected,
   so you can give it a hotkey. The same form as the context-menu item. The
   project list appears once the sync passphrase is entered on this device.
+  The form checks that a dayGLANCE app new enough to receive the task has
+  run on one of your devices; until then (or while GLANCEvault cannot be
+  reached) it explains why and **Add** stays disabled. A sent task reads
+  "Sent to dayGLANCE".
 
 ## Settings for Add to dayGLANCE
 
@@ -124,6 +133,10 @@ plugin adds what a folder cannot do on its own: it runs inside Obsidian.
   - The account key derived from your passphrase stays on the device that
     entered it, in the plugin's IndexedDB store. Neither the passphrase nor
     the key is written to `data.json`.
+  - Per device, outside `data.json` (Obsidian's device-local storage): the
+    plugin's sync position, whether your dayGLANCE apps can receive tasks
+    added from Obsidian, and the tasks this device sent that dayGLANCE has
+    not picked up yet (their titles and when they were sent), until it does.
 - **No ads and no payments.** The plugin is free and open source (MIT).
 
 ## Development

@@ -335,12 +335,126 @@ export class App {
 export const Platform = { isDesktopApp: false, isMobile: false, isMobileApp: false };
 export class Notice { constructor(public message: string) { notices.push(message); } }
 export const notices: string[] = [];
-export class Modal { constructor(public app: App) {} open(): void {} close(): void {} contentEl = { empty() {}, createEl() { return {} as any; } }; }
+
+// ── a little DOM: Obsidian's element helpers, enough for the views and forms the tests open ──
+interface DomOpts { cls?: string | string[]; text?: string; attr?: Record<string, string>; type?: string }
+export class StubElement {
+  cls = new Set<string>();
+  text = '';
+  attrs: Record<string, string> = {};
+  children: StubElement[] = [];
+  listeners = new Map<string, Array<(evt: any) => void>>();
+  checked = false;
+  disabled = false;
+  type = '';
+  value = '';
+  rows = 0;
+  constructor(public tag = 'div', o: DomOpts = {}) {
+    for (const c of Array.isArray(o.cls) ? o.cls : o.cls ? o.cls.split(/\s+/) : []) this.cls.add(c);
+    if (o.text !== undefined) this.text = o.text;
+    if (o.attr) Object.assign(this.attrs, o.attr);
+    if (o.type) this.type = o.type;
+  }
+  empty(): void { this.children = []; this.text = ''; }
+  createEl(tag: string, o?: DomOpts): StubElement { const c = new StubElement(tag, o); this.children.push(c); return c; }
+  createDiv(o?: DomOpts): StubElement { return this.createEl('div', o); }
+  createSpan(o?: DomOpts): StubElement { return this.createEl('span', o); }
+  setText(t: string): void { this.text = t; }
+  appendText(t: string): void { this.children.push(new StubElement('#text', { text: t })); }
+  addClass(c: string): void { this.cls.add(c); }
+  removeClass(c: string): void { this.cls.delete(c); }
+  toggleClass(c: string, on: boolean): void { if (on) this.cls.add(c); else this.cls.delete(c); }
+  hasClass(c: string): boolean { return this.cls.has(c); }
+  setAttr(k: string, v: string): void { this.attrs[k] = v; }
+  setCssProps(_p: Record<string, string>): void {}
+  focus(): void {}
+  addEventListener(name: string, fn: (evt: any) => void): void { if (!this.listeners.has(name)) this.listeners.set(name, []); this.listeners.get(name)!.push(fn); }
+  dispatch(name: string, evt: any = {}): void { for (const fn of this.listeners.get(name) ?? []) fn({ preventDefault() {}, stopPropagation() {}, ...evt }); }
+  /** This element's text and all its descendants', in order. */
+  get textContent(): string { return this.text + this.children.map((c) => c.textContent).join(''); }
+  /** Every descendant carrying class `cls`, depth first. */
+  findAll(cls: string): StubElement[] { return this.children.flatMap((c) => [...(c.cls.has(cls) ? [c] : []), ...c.findAll(cls)]); }
+  find(cls: string): StubElement | null { return this.findAll(cls)[0] ?? null; }
+}
+
+export class ButtonComponent {
+  buttonEl = new StubElement('button');
+  label = '';
+  disabled = false;
+  private click: (() => void) | null = null;
+  setButtonText(t: string): this { this.label = t; this.buttonEl.text = t; return this; }
+  setCta(): this { return this; }
+  setWarning(): this { return this; }
+  setDisabled(d: boolean): this { this.disabled = d; this.buttonEl.disabled = d; return this; }
+  onClick(fn: () => void): this { this.click = fn; return this; }
+  /** A user's click: a disabled button does nothing, as in the real one. */
+  press(): void { if (!this.disabled) this.click?.(); }
+}
+class InputComponent {
+  inputEl: StubElement;
+  private change: ((v: string) => void) | null = null;
+  constructor(tag: string) { this.inputEl = new StubElement(tag); }
+  setValue(v: string): this { this.inputEl.value = v; return this; }
+  getValue(): string { return this.inputEl.value; }
+  setPlaceholder(_p: string): this { return this; }
+  onChange(fn: (v: string) => void): this { this.change = fn; return this; }
+  /** A user's edit. */
+  type(v: string): void { this.inputEl.value = v; this.change?.(v); }
+}
+export class TextComponent extends InputComponent { constructor() { super('input'); } }
+export class TextAreaComponent extends InputComponent { constructor() { super('textarea'); } }
+export class DropdownComponent {
+  options: Array<[string, string]> = [];
+  value = '';
+  disabled = false;
+  private change: ((v: string) => void) | null = null;
+  addOption(v: string, label: string): this { this.options.push([v, label]); return this; }
+  setValue(v: string): this { this.value = v; return this; }
+  setDisabled(d: boolean): this { this.disabled = d; return this; }
+  onChange(fn: (v: string) => void): this { this.change = fn; return this; }
+  select(v: string): void { this.value = v; this.change?.(v); }
+}
+
+export class Modal {
+  contentEl = new StubElement();
+  titleText = '';
+  isOpen = false;
+  constructor(public app: App) {}
+  setTitle(t: string): this { this.titleText = t; return this; }
+  open(): void { this.isOpen = true; (this as any).onOpen?.(); }
+  close(): void { if (!this.isOpen) return; this.isOpen = false; (this as any).onClose?.(); }
+}
 export class FuzzySuggestModal<T> extends Modal { getItems(): T[] { return []; } getItemText(_i: T): string { return ''; } onChooseItem(_i: T): void {} }
 export class Plugin { constructor(public app: App, public manifest: unknown) {} }
 export class PluginSettingTab { containerEl = {} as any; constructor(public app: App, public plugin: Plugin) {} }
-export class Setting { constructor(_el: unknown) {} setName() { return this; } setDesc() { return this; } addText() { return this; } addTextArea() { return this; } addToggle() { return this; } addDropdown() { return this; } addButton() { return this; } }
-export class ItemView { constructor(public leaf: WorkspaceLeaf) {} }
+/** A settings row: records its name and the components it was given, and hands each to its callback. */
+export class Setting {
+  settingEl: StubElement;
+  name = '';
+  desc = '';
+  disabled = false;
+  components: Array<ButtonComponent | TextComponent | TextAreaComponent | DropdownComponent> = [];
+  constructor(el: unknown) {
+    this.settingEl = el instanceof StubElement ? el.createDiv({ cls: 'setting-item' }) : new StubElement();
+    (this.settingEl as any).setting = this;
+  }
+  setName(n: string): this { this.name = String(n); return this; }
+  setDesc(d: string): this { this.desc = String(d); return this; }
+  setDisabled(d: boolean): this { this.disabled = d; return this; }
+  private add<C extends ButtonComponent | TextComponent | TextAreaComponent | DropdownComponent>(c: C, cb?: (c: C) => unknown): this { this.components.push(c); cb?.(c); return this; }
+  addText(cb?: (c: TextComponent) => unknown): this { return this.add(new TextComponent(), cb); }
+  addTextArea(cb?: (c: TextAreaComponent) => unknown): this { return this.add(new TextAreaComponent(), cb); }
+  addDropdown(cb?: (c: DropdownComponent) => unknown): this { return this.add(new DropdownComponent(), cb); }
+  addButton(cb?: (c: ButtonComponent) => unknown): this { return this.add(new ButtonComponent(), cb); }
+  addToggle(): this { return this; }
+}
+/** Every Setting row under an element, in order. */
+export const settingsIn = (el: StubElement): Setting[] => el.findAll('setting-item').map((e) => (e as any).setting as Setting);
+export class ItemView {
+  containerEl = new StubElement();
+  app: App | null = null;
+  constructor(public leaf: WorkspaceLeaf) { this.containerEl.createDiv(); this.containerEl.createDiv(); }
+}
 export const Keymap = { isModEvent: () => false };
 
 // ── requestUrl → the test's fake server ─────────────────────────────────────

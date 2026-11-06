@@ -2,7 +2,10 @@
 // real plugin (addSelectionAsTask, the agenda store's emit, the transport's
 // reports and stamps) against the real app (useBridgeTaskCreates on devices
 // with and without the vault folder, useObsidianSync for the completion path
-// and the task's note), over one in-memory GLANCEvault.
+// and the task's note), over one in-memory GLANCEvault. Since the app
+// capability check (companion 4.2.2) a create is sent only once a current app
+// has announced task_create, so `boot` runs one; scenarios 8 to 12 cover the
+// form, the announcement and the waiting indicator themselves.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -38,17 +41,23 @@ vi.mock('../../src/native.js', () => ({
 }));
 vi.mock('../../src/utils/obsidianBridgeMode.js', () => ({ recordBridgeMode: vi.fn(), reconcileArchivedBaseline: vi.fn(() => null) }));
 
-const { createScenario, VAULT_URL, ACCOUNT_ID, until, advanceFake } = await import('./harness');
+const { createScenario, VAULT_URL, ACCOUNT_ID, until, advanceFake, makePairing } = await import('./harness');
 const { default: useObsidianSync } = await import('../../src/hooks/useObsidianSync.js');
 const { default: useBridgeTaskCreates } = await import('../../src/hooks/useBridgeTaskCreates.js');
-const { __resetBridgeStreamForTests } = await import('../../src/utils/obsidianBridgeStream.js');
+const { __resetBridgeStreamForTests, publishBridgeCapabilities } = await import('../../src/utils/obsidianBridgeStream.js');
 const { extractWikilinks } = await import('../../src/utils/taskUtils.js');
 const { mergeTaskArrays } = await import('../../src/mergeSync.js');
 const { dropResurrectedTasks } = await import('../../src/utils/dropResurrectedTasks.js');
 const { AgendaStore } = await import('../src/agenda');
-const { addSelectionAsTask, titleFromSelection } = await import('../src/addTask');
-const { StubEditor } = await import('obsidian');
-const { importBridgeSubkey, openBridgeEnvelope, BRIDGE_VAULT_APP, BRIDGE_ACTION_PREFIX, BRIDGE_CREATE_ACTION_PREFIX } = await import('@glance-apps/obsidian-format');
+const { addSelectionAsTask, titleFromSelection, TASK_CREATE_CAPABILITY, CHECKING_APP_MESSAGE } = await import('../src/addTask');
+const { AddTaskModal } = await import('../src/addTaskModal');
+const { AgendaView } = await import('../src/agendaView');
+const { publishPairingMeta } = await import('../src/bridge');
+const { StubEditor, Notice, notices, settingsIn, WorkspaceLeaf, __setRequestHandler } = await import('obsidian');
+const {
+  importBridgeSubkey, openBridgeEnvelope, sealBridgeEnvelope, readBridgeEnvelopeGeneration,
+  BRIDGE_VAULT_APP, BRIDGE_ACTION_PREFIX, BRIDGE_CREATE_ACTION_PREFIX, BRIDGE_CONFIG_META_ID,
+} = await import('@glance-apps/obsidian-format');
 const { encryptEntity } = await import('@glance-apps/sync/src/dbCrypto.js');
 
 type Row = Record<string, any>;
@@ -131,14 +140,79 @@ let s: Awaited<ReturnType<typeof createScenario>>;
 let F: Device; // the desktop with the vault folder
 let agenda: InstanceType<typeof AgendaStore>;
 let viewer: string | null;
+let pairing: any; // the plugin's current pairing (scenario 11 re-pairs)
 
-async function boot(): Promise<void> {
+/**
+ * The plugin paired and armed, and the desktop's Obsidian cycle run. With
+ * `announce` (the default) the desktop runs as a CURRENT app: its create
+ * pass announces task_create. Without it, no app on the account has ever
+ * announced anything: every app is older than task_create, as far as the
+ * stream can tell.
+ */
+async function boot({ announce = true } = {}): Promise<void> {
   await s.plugin.transport.drain();
   F = mountDevice('F', { folder: true });
   await F.sync();
   for (let i = 0; i < 5 && s.plugin.transport.stampingState() !== 'armed'; i++) { await s.advance(1000); await s.plugin.transport.drain(); }
   if (s.plugin.transport.stampingState() !== 'armed') throw new Error('boot: plugin not armed');
   await s.advance(2500);
+  if (announce) await F.consume();
+}
+
+const newStore = () => new AgendaStore({
+  app: s.plugin.app as any,
+  getPairing: () => pairing,
+  getViewer: () => viewer,
+  getWriteGate: () => s.plugin.transport,
+});
+
+const CAP_ID = 'meta:cap:task_create';
+/** How many times the capability row has been read from the vault. */
+const capReads = () => s.vault.requests.filter((r) => r.method === 'GET' && decodeURIComponent(r.path).endsWith(`/${CAP_ID}`)).length;
+const capRow = () => s.vault.live(BRIDGE_VAULT_APP).find((r) => r.entityId === CAP_ID) ?? null;
+const NO_APP = 'This needs a newer version of dayGLANCE on at least one of your devices. Update dayGLANCE, then try again.';
+
+/**
+ * Open the real "Add to dayGLANCE" form on a selection, wired as main.ts
+ * wires it (openAddTask, one for one), and wait for its app check.
+ */
+async function openForm(path: string, sel: { from: { line: number; ch: number }; to: { line: number; ch: number } }, { linkToBlock = false, store = agenda } = {}) {
+  const file = s.file(path);
+  const editor = new StubEditor(file, s.text(path)!, sel);
+  const from = editor.getCursor('from');
+  const to = editor.getCursor('to');
+  const results: Row[] = [];
+  const modal = new AddTaskModal(s.plugin.app as any, {
+    title: titleFromSelection(editor.getSelection()),
+    projects: store.projectChoices(),
+    appKnown: store.appSupportKnown(TASK_CREATE_CAPABILITY),
+    checkApp: () => store.appSupports(TASK_CREATE_CAPABILITY),
+    onSubmit: async (values) => {
+      const r = await addSelectionAsTask({
+        app: s.plugin.app as any, editor: editor as any, file: file as any, from, to, values,
+        linkToBlock,
+        ready: () => store.appSupports(TASK_CREATE_CAPABILITY),
+        emit: (input) => store.createTask(input),
+      });
+      new Notice(`dayGLANCE bridge: ${r.message}`);
+      results.push(r);
+      return r.ok;
+    },
+  });
+  modal.open();
+  const status = modal.contentEl.find('dg-add-task-status')!;
+  for (let i = 0; i < 50 && status.text === CHECKING_APP_MESSAGE; i++) await advanceFake(100);
+  const rows = settingsIn(modal.contentEl as any);
+  const addButton = rows[rows.length - 1].components[1] as any;
+  const titleInput = rows[0].components[0] as any;
+  const settle = async () => { for (let i = 0; i < 50 && modal.isOpen && results.length === 0; i++) await advanceFake(100); await advanceFake(300); };
+  return {
+    modal, editor, status, addButton, results,
+    /** Click Add (a disabled button does nothing). */
+    pressAdd: async () => { addButton.press(); await settle(); },
+    /** Enter in the title, the form's other way to submit. */
+    pressEnter: async () => { titleInput.inputEl.dispatch('keydown', { key: 'Enter', shiftKey: false }); await settle(); },
+  };
 }
 
 /** Select [from, to] in a note's editor and press Add with `values` (the title is the form's prefill unless given). */
@@ -151,6 +225,7 @@ async function addFromObsidian(path: string, sel: { from: { line: number; ch: nu
     from: editor.getCursor('from'), to: editor.getCursor('to'),
     values: { title: prefill, deadline: null, priority: 0, projectId: null, ...values },
     linkToBlock,
+    ready: () => agenda.appSupports(TASK_CREATE_CAPABILITY),
     emit: (input) => agenda.createTask(input),
   }));
   return { r, editor, prefill };
@@ -178,12 +253,9 @@ beforeEach(async () => {
   __resetBridgeStreamForTests();
   s = await createScenario();
   viewer = null;
-  agenda = new AgendaStore({
-    app: s.plugin.app as any,
-    getPairing: () => s.pairing,
-    getViewer: () => viewer,
-    getWriteGate: () => s.plugin.transport,
-  });
+  pairing = s.pairing;
+  agenda = newStore();
+  notices.length = 0;
 });
 afterEach(() => { agenda.dispose(); s.plugin.shutdown(); vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
@@ -502,5 +574,199 @@ describe('Add to dayGLANCE: a selection in Obsidian becomes one inbox task', () 
     await P.consume();
     expect(P.state.inbox.map((t) => t.title)).toEqual(['Post the parcel [[Errands]]', 'Pick up the dry cleaning [[Errands]]']);
     expect(await liveRows(BRIDGE_CREATE_ACTION_PREFIX)).toEqual([]);
+  });
+});
+
+describe('Add to dayGLANCE waits for an app that can receive it (companion spec 4.2.2)', () => {
+  const DAILY = 'Daily/2026-11-06.md';
+  const BOILER = { from: { line: 2, ch: 4 }, to: { line: 2, ch: 10 } };
+  const writeBoiler = async () => {
+    await s.write(DAILY, '# Thursday\n\nThe boiler makes a noise\nwhen the heating starts.\n');
+    await s.settle();
+  };
+
+  it('8. NO CURRENT APP: the form explains instead of sending, Add is disabled and Enter cannot get round it; nothing is emitted, and with "Link to the exact paragraph" on the note is not touched; offline it says it could not reach GLANCEvault; a negative answer is asked again on every open', async () => {
+    await boot({ announce: false });
+    await writeBoiler();
+    const before = s.text(DAILY);
+    expect(capRow()).toBe(null);
+
+    const form = await openForm(DAILY, BOILER, { linkToBlock: true });
+    expect(form.modal.isOpen).toBe(true);
+    expect(form.status.text).toBe(NO_APP);
+    expect(form.status.hasClass('is-blocked')).toBe(true);
+    expect(form.addButton.disabled).toBe(true);
+    await form.pressAdd(); // disabled: nothing happens
+    await form.pressEnter(); // the other way in: refused the same way, aloud
+    expect(form.results).toEqual([]);
+    expect(notices.at(-1)).toBe(NO_APP);
+    expect(form.modal.isOpen).toBe(true);
+    expect(form.editor.edits).toEqual([]);
+
+    // The step that writes the block id refuses before it, whoever calls it.
+    const direct = await addFromObsidian(DAILY, BOILER, {}, { linkToBlock: true });
+    expect(direct.r).toMatchObject({ ok: false, message: NO_APP, blocked: { state: 'no', reason: 'absent' } });
+    expect(direct.editor.edits).toEqual([]);
+    expect(s.text(DAILY)).toBe(before);
+    expect(await liveRows(BRIDGE_CREATE_ACTION_PREFIX)).toEqual([]);
+    expect(agenda.sentCreates()).toEqual([]);
+
+    // Not cached: the next open asks the stream again.
+    const reads = capReads();
+    const again = await openForm(DAILY, BOILER);
+    expect(capReads()).toBe(reads + 1);
+    expect(again.addButton.disabled).toBe(true);
+
+    // Offline: the row cannot be read, so the form says so and sends nothing either.
+    __setRequestHandler(() => { throw new TypeError('Failed to fetch'); });
+    const offline = await openForm(DAILY, BOILER, { linkToBlock: true });
+    __setRequestHandler((req) => s.vault.handle(req.method, req.url, req.body, req.headers.Authorization ?? ''));
+    expect(offline.status.text).toBe('Couldn\'t reach GLANCEvault, so nothing was sent. Check the connection, then try again.');
+    expect(offline.addButton.disabled).toBe(true);
+    await offline.pressEnter();
+    expect(offline.results).toEqual([]);
+    expect(offline.editor.edits).toEqual([]);
+    expect(await liveRows(BRIDGE_CREATE_ACTION_PREFIX)).toEqual([]);
+  });
+
+  it('9. a current app on a FOLDERLESS device runs once: the row is there, the form sends ("Sent", not "Added"), the task is created as before, and the yes is remembered across a plugin reload', async () => {
+    await boot({ announce: false });
+    await writeBoiler();
+    const P = mountDevice('P');
+    await P.consume();
+    expect(capRow()).not.toBe(null);
+    const opened = await openBridgeEnvelope(await subkeyP(), capRow()!.envelope!);
+    expect(opened).toMatchObject({ v: 1, kind: 'capability', name: 'task_create' });
+
+    const form = await openForm(DAILY, BOILER);
+    expect(form.status.text).toBe('');
+    expect(form.addButton.disabled).toBe(false);
+    await form.pressAdd();
+    expect(form.results).toHaveLength(1);
+    expect(form.results[0]).toMatchObject({ ok: true, title: 'boiler [[2026-11-06]]', message: 'Sent to dayGLANCE. It appears there once dayGLANCE picks it up.' });
+    expect(notices.at(-1)).toBe('dayGLANCE bridge: Sent to dayGLANCE. It appears there once dayGLANCE picks it up.');
+    expect(form.modal.isOpen).toBe(false);
+    expect(await liveRows(BRIDGE_CREATE_ACTION_PREFIX)).toHaveLength(1);
+
+    await P.consume();
+    await P.consume();
+    expect(P.state.inbox.map((t) => t.title)).toEqual(['boiler [[2026-11-06]]']);
+    expect(await liveRows(BRIDGE_CREATE_ACTION_PREFIX)).toEqual([]);
+
+    // The yes is kept in this copy's device-local store (not data.json): a
+    // reloaded store opens the form ready, without reading the row again.
+    const reads = capReads();
+    const reloaded = newStore();
+    expect(reloaded.appSupportKnown(TASK_CREATE_CAPABILITY)).toBe(true);
+    const next = await openForm(DAILY, BOILER, { store: reloaded });
+    expect(next.addButton.disabled).toBe(false);
+    await next.pressAdd();
+    expect(next.results[0]).toMatchObject({ ok: true });
+    expect(capReads()).toBe(reads);
+    expect(s.plugin.data).not.toHaveProperty('appCapabilities');
+    reloaded.dispose();
+  });
+
+  it('10. NEVER ERASED: older apps running for sessions on end (their Obsidian cycle, meta:config written the old way), an app announcing other names, and the plugin\'s drains leave the capability row as it was', async () => {
+    await boot({ announce: false });
+    await writeBoiler();
+    const P = mountDevice('P');
+    await P.consume();
+    const written = capRow()!;
+    expect(written).toBeTruthy();
+
+    // An older app is the Obsidian cycle without the create pass: run it
+    // over several sessions (each resets the app's once-per-session guards).
+    for (let session = 0; session < 3; session++) {
+      __resetBridgeStreamForTests();
+      await F.sync();
+      await s.plugin.transport.drain();
+    }
+    // ...and the config row as an old build wrote it: no blockIdWrites, no generation tag.
+    s.vault.handle('POST', `${VAULT_URL}/sync/${BRIDGE_VAULT_APP}/batch`, JSON.stringify({ rows: [{
+      entityId: BRIDGE_CONFIG_META_ID,
+      envelope: await sealBridgeEnvelope(await subkeyP(), { v: 1, kind: 'config', dailyNotesPath: 'Daily', dailyNotePattern: 'yyyy-MM-dd', taskHeading: '## Tasks' }),
+    }] }));
+    await s.plugin.transport.drain();
+    // An app that announces other names (a later build without this one, or a
+    // different feature's consumer) adds its rows beside it, never over it.
+    __resetBridgeStreamForTests();
+    await P.run(() => publishBridgeCapabilities(['some_later_feature']));
+    expect(s.vault.live(BRIDGE_VAULT_APP).map((r) => r.entityId)).toContain('meta:cap:some_later_feature');
+
+    expect(capRow()).toEqual(written);
+    const fresh = newStore();
+    expect(await until(fresh.appSupports(TASK_CREATE_CAPABILITY))).toEqual({ state: 'yes' });
+    fresh.dispose();
+  });
+
+  it('11. A RE-PAIR: the old row reads as "not this pairing yet", the app republishes under the new generation on its next pass, and the plugin reads it and sends', async () => {
+    await boot({ announce: false });
+    await writeBoiler();
+    const P = mountDevice('P');
+    await P.consume();
+    expect(await until(agenda.appSupports(TASK_CREATE_CAPABILITY))).toEqual({ state: 'yes' });
+
+    // Re-paired: a new salt, so a new subkey and generation.
+    const next = await makePairing({ generation: 'gen-repaired', pairedAt: new Date().toISOString(), saltByte: 13 });
+    s.plugin.data.pairing = next;
+    pairing = next;
+    s.plugin.transport.recordOwnSeq(await publishPairingMeta(next, undefined, null, null));
+    expect(agenda.appSupportKnown(TASK_CREATE_CAPABILITY)).toBe(false);
+    expect(await until(agenda.appSupports(TASK_CREATE_CAPABILITY))).toEqual({ state: 'no', reason: 'pairing' });
+    const waiting = await openForm(DAILY, BOILER, { linkToBlock: true });
+    expect(waiting.status.text).toBe('dayGLANCE has not picked up this vault\'s pairing yet. Open dayGLANCE on one of your devices, then try again.');
+    expect(waiting.addButton.disabled).toBe(true);
+
+    // The app's pairing cache turns over (five minutes) and its next pass republishes.
+    vi.setSystemTime(Date.now() + 6 * 60_000);
+    await P.consume();
+    expect(readBridgeEnvelopeGeneration(capRow()!.envelope!)).toBe('gen-repaired');
+    const form = await openForm(DAILY, BOILER);
+    expect(form.addButton.disabled).toBe(false);
+    await form.pressAdd();
+    expect(form.results[0]).toMatchObject({ ok: true });
+    await P.consume();
+    await P.consume();
+    expect(P.state.inbox.map((t) => t.title)).toEqual(['boiler [[2026-11-06]]']);
+  });
+
+  it('12. THE WAITING INDICATOR: sent with no app consuming, the sidebar says nothing for the first hour, then "1 task waiting for dayGLANCE"; once an app consumes the row the line goes', async () => {
+    await boot();
+    await writeBoiler();
+    const view = new AgendaView(new WorkspaceLeaf(null) as any, agenda);
+    await view.onOpen();
+    const content = (view as any).containerEl.children[1];
+    const waitingEl = () => content.find('dg-agenda-waiting');
+
+    const { r } = await addFromObsidian(DAILY, BOILER);
+    expect(r).toMatchObject({ ok: true });
+    expect(agenda.sentCreates().map((e) => e.title)).toEqual(['boiler [[2026-11-06]]']);
+    await until(agenda.checkSentCreates());
+    expect(waitingEl()).toBe(null);
+
+    // 59 minutes: still nothing. The row is checked (and still there) along the way.
+    vi.setSystemTime(Date.now() + 59 * 60_000);
+    await until(agenda.checkSentCreates());
+    expect(waitingEl()).toBe(null);
+    expect(agenda.sentCreates()).toHaveLength(1);
+    // Past the hour: the line, with the hint.
+    vi.setSystemTime(Date.now() + 2 * 60_000);
+    await until(agenda.checkSentCreates());
+    expect(waitingEl()?.text).toBe('1 task waiting for dayGLANCE. Open or update dayGLANCE on one of your devices to bring it in.');
+    expect(agenda.getStatus().waitingCreates).toBe(1);
+
+    // dayGLANCE opens on the phone and picks it up; the row goes.
+    const P = mountDevice('P');
+    await P.consume();
+    await P.consume();
+    expect(P.state.inbox).toHaveLength(1);
+    expect(await liveRows(BRIDGE_CREATE_ACTION_PREFIX)).toEqual([]);
+    // The next due check sees the row gone and drops the entry; the line goes.
+    vi.setSystemTime(Date.now() + 5 * 60_000);
+    await until(agenda.checkSentCreates());
+    expect(agenda.sentCreates()).toEqual([]);
+    expect(waitingEl()).toBe(null);
+    await view.onClose();
   });
 });

@@ -164,6 +164,34 @@ export const BRIDGE_PROJECTION_PREFIX = 'proj:';
 // readers age out a row not renewed for a week.
 export const BRIDGE_COPY_PREFIX = 'meta:copy:';
 export const bridgeCopyStatusId = (deviceId) => `${BRIDGE_COPY_PREFIX}${String(deviceId)}`;
+// APP CAPABILITY rows (companion spec 4.2.2): what at least one current
+// dayGLANCE app on the account can consume, so the plugin can tell "no app
+// can apply this yet" from "sent". ONE ROW PER CAPABILITY,
+// `meta:cap:<name>`, sealed under the pairing subkey like meta:config, and
+// written by every current app once per session per pairing generation.
+// Payload `{v:1, kind:'capability', name, since}` (`since`: when the writing
+// app published it). One row per name, never a combined list: a list would
+// need read-modify-write, and an app that knows fewer capabilities (an older
+// build, or one racing a newer one) would drop the names it lacks. A row per
+// name has nothing to drop, and no reader old or new deletes or rewrites a
+// `meta:cap:` row (each lists its own exact ids or prefixes: `meta:pairing`,
+// `meta:config`, `meta:applier`, `meta:copy:`), so once a current app has
+// written it, nothing an older app or plugin does can erase it. A
+// capability is therefore never withdrawn by an app's absence; retiring one
+// would take an explicit row of its own.
+export const BRIDGE_CAPABILITY_PREFIX = 'meta:cap:';
+// The capability that "Add to dayGLANCE" needs: the app consumes task_create
+// action rows (BRIDGE_CREATE_ACTION_PREFIX).
+export const BRIDGE_CAPABILITY_TASK_CREATE = 'task_create';
+export const bridgeCapabilityId = (name) => `${BRIDGE_CAPABILITY_PREFIX}${String(name)}`;
+/** The sealed payload of one capability row. */
+export function bridgeCapabilityPayload(name, sinceIso = new Date().toISOString()) {
+  return { v: 1, kind: 'capability', name: String(name), since: String(sinceIso) };
+}
+/** True when an opened capability row announces `name`. */
+export function isBridgeCapability(payload, name) {
+  return !!payload && typeof payload === 'object' && payload.kind === 'capability' && payload.name === name;
+}
 // Project and goal notes (companion §4.3, ruling A): the frontmatter key that
 // holds the entity's dayGLANCE id — the durable identity of the link; the
 // path on the entity record is only the cached locator.
