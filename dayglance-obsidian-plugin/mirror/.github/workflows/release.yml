@@ -7,7 +7,9 @@ name: Release
 #
 # The tags come from the mirror workflow in krelltunez/dayGLANCE
 # (.github/workflows/bridge-mirror.yml), which pushes one when manifest.json
-# carries a version this repository has not tagged yet.
+# carries a version this repository has not tagged yet. The tag's commit is
+# one step past main and carries the new manifest.json; main keeps the
+# published one until this release is published (publish-manifest.yml).
 on:
   push:
     tags: ['*']

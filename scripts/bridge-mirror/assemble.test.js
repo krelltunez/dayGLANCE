@@ -63,6 +63,8 @@ describe('assemble (from this repository)', () => {
 
   it('adds the mirror-only files at the root', () => {
     expect(has('.github/workflows/release.yml')).toBe(true);
+    expect(has('.github/workflows/publish-manifest.yml')).toBe(true);
+    expect(has('.github/scripts/publish-manifest.sh')).toBe(true);
     expect(has('.gitignore')).toBe(true);
     expect(has('CONTRIBUTING.md')).toBe(true);
     expect(has('mirror')).toBe(false);
