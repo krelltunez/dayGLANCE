@@ -98,7 +98,11 @@ export class AppCapabilities {
     const key = `${pairingKeyOf(pairing)}|${name}`;
     const running = this.inFlight.get(key);
     if (running) return running;
-    const p = this.read(pairing, name).finally(() => { this.inFlight.delete(key); });
+    // Never rejects: anything unexpected (a subkey that will not import) is
+    // an answer the caller refuses on, like an unreachable vault.
+    const p = this.read(pairing, name)
+      .catch((): AppSupport => ({ state: 'unknown', reason: 'unreachable' }))
+      .finally(() => { this.inFlight.delete(key); });
     this.inFlight.set(key, p);
     return p;
   }

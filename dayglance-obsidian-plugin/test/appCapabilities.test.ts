@@ -29,7 +29,7 @@ async function setup({ rows = {} as Record<string, unknown>, braked = false, sto
   const caps = new AppCapabilities({
     getPairing: () => current,
     getRow,
-    subkeyOf: async (p) => keys[p.generation],
+    subkeyOf: async (p) => { if (!keys[p.generation]) throw new Error('the subkey does not import'); return keys[p.generation]; },
     isRateLimited: () => gate.braked,
     reportRateLimit: gate.reportRateLimit,
     reportRequestSuccess: gate.reportRequestSuccess,
@@ -119,6 +119,12 @@ describe('appSupports: the capability reader', () => {
     t.setPairing(pairing('gen-2'));
     expect(await p).toEqual({ state: 'yes' });
     expect(t.caps.known('task_create')).toBe(false);
+  });
+
+  it('never rejects: a subkey that will not import is an answer to refuse on, not a thrown error', async () => {
+    const t = await setup({ rows: { 'meta:cap:task_create': { envelope: 'x' } } });
+    t.setPairing(pairing('gen-unknown'));
+    expect(await t.caps.check('task_create')).toEqual({ state: 'unknown', reason: 'unreachable' });
   });
 
   it('checks running at once share one read', async () => {
