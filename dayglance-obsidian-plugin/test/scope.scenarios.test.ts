@@ -63,7 +63,7 @@ const { createScenario, VAULT_URL, ACCOUNT_ID, until, advanceFake, makePairing }
 const { default: useObsidianSync } = await import('../../src/hooks/useObsidianSync.js');
 const { flushBridgeOutbox, emitBridgeIntent, __resetBridgeStreamForTests } = await import('../../src/utils/obsidianBridgeStream.js');
 const { toInboxCopy } = await import('../../src/utils/inboxMove.js');
-const { PROJECT_NOTE_ID_KEY, BRIDGE_PAIRING_META_ID, BRIDGE_APPLIER_META_ID, BRIDGE_VAULT_APP, decodePlainBridgeRow, sealBridgeEnvelope, importBridgeSubkey, bridgeCopyStatusId } = await import('@glance-apps/obsidian-format');
+const { PROJECT_NOTE_ID_KEY, BRIDGE_PAIRING_META_ID, BRIDGE_APPLIER_META_ID, BRIDGE_VAULT_APP, decodePlainBridgeRow, sealBridgeEnvelope, importBridgeSubkey, bridgeCopyStatusId, openBridgeEnvelope, observationEntityId } = await import('@glance-apps/obsidian-format');
 void PROJECT_NOTE_ID_KEY;
 
 type Task = Record<string, any>;
@@ -1058,6 +1058,25 @@ describe('the scope tag removed: withdrawal after the leaving hold', { timeout: 
   // Calls through: the spy only counts which paths the transport withdrew.
   const spyWithdrawals = () => vi.spyOn(s.plugin.transport as any, 'emitWithdrawal');
   const withdrawalsOf = (spy: ReturnType<typeof spyWithdrawals>, path: string) => spy.mock.calls.filter(([p]) => p === path).length;
+  const withdrawnScope = () => s.plugin.data.bridge!.withdrawnScope ?? [];
+  /** The note's observation row as it stands in the vault, opened (what any device pulling now reads). */
+  const reportOf = async (path: string): Promise<Record<string, any> | null> => {
+    const entityId = await observationEntityId(path);
+    const row = s.vault.live(BRIDGE_VAULT_APP).find((r) => r.entityId === entityId);
+    if (!row?.envelope) return null;
+    return await openBridgeEnvelope(await importBridgeSubkey(s.pairing.subkeyB64), row.envelope) as Record<string, any>;
+  };
+  /** An edit in Obsidian that leaves the scope as it is (the note keeps its stamps). */
+  const edit = (path: string, line: string) => s.write(path, `${s.text(path)}\n${line}\n`);
+  const pathIndexOf = (dev: ReturnType<typeof mountDevice>): any => JSON.parse(dev.store.get('dayglance-bridge-note-paths') ?? 'null');
+  /** Tag removed and the hold run out: withdrawn, remembered. */
+  async function withdrawByTag(path = TNOTE): Promise<void> {
+    await withoutTag(path);
+    await s.advance(130_000);
+    expect(adoptedScope()).not.toContain(path);
+    expect(withdrawnScope()).toContain(path);
+    expect(await reportOf(path)).toMatchObject({ path, withdrawn: true });
+  }
 
   /** The folder-scoped boot, then the scope gains the tag `work` and a note carrying it is written, stamped and imported. */
   async function bootWithTaggedNote(path = TNOTE, content = tagged()): Promise<void> {
@@ -1333,6 +1352,170 @@ describe('the scope tag removed: withdrawal after the leaving hold', { timeout: 
     await s.plugin.setScope({ folders: ['Projects'], tags: ['home'] });
     await s.advance(1_000);
     expect(withdrawalsOf(spy, TNOTE)).toBe(1);
+  });
+
+  // THE STICKY WITHDRAWAL (owner ruling, 2026-11-06): a withdrawn note that
+  // keeps its stamps is still reported on every edit, and that unflagged
+  // report used to REPLACE its withdrawal row. Now its reports go out as the
+  // withdrawal while it stays out of scope.
+  it('T12. a tag removed, withdrawn, then the note edited BEFORE device B pulls: B still sees the withdrawal and drops the task; A, which pulled in between, neither re-imports nor churns; the phone index reads "not shared"', async () => {
+    await bootWithTaggedNote();
+    const id = A.byPath(TNOTE)[0].id;
+    const B = mountDevice('B');
+    await B.sync();
+    expect(B.byPath(TNOTE).map((t) => t.id)).toEqual([id]);
+    await withdrawByTag();
+    await A.sync();                              // A pulls the withdrawal
+    expect(A.byPath(TNOTE)).toHaveLength(0);
+    const tombsA = tombstones();
+    const tasksA = JSON.parse(JSON.stringify(A.all()));
+    await edit(TNOTE, 'Pruned the hedge.');      // the edit B has not seen the withdrawal before
+    await s.settle();
+    const report = await reportOf(TNOTE);
+    expect(report).toMatchObject({ kind: 'observation', path: TNOTE, withdrawn: true });
+    expect(report!.content).toBeUndefined();     // never the content over the withdrawal
+    expect(s.text(TNOTE)).toContain('Pruned the hedge.');
+    await B.sync();
+    expect(B.byPath(TNOTE)).toHaveLength(0);
+    expect(JSON.parse(B.store.get('day-planner-deleted-obsidian-keys') ?? '{}')[id]).toBeTruthy();
+    expect(pathIndexOf(B)?.paths?.[TNOTE]?.[1]).toBe('w');
+    await A.sync();
+    expect(JSON.parse(JSON.stringify(A.all()))).toEqual(tasksA);
+    expect(tombstones()).toEqual(tombsA);
+    expect(pathIndexOf(A)?.paths?.[TNOTE]?.[1]).toBe('w');
+  });
+
+  it('T13. the same for a scope SETTINGS change: a folder removed from the scope, the note edited before B pulls; B still drops the task', async () => {
+    await bootWithScopedNote();
+    const id = A.byPath(NOTE)[0].id;
+    const B = mountDevice('B');
+    await B.sync();
+    expect(B.byPath(NOTE).map((t) => t.id)).toEqual([id]);
+    await s.plugin.setScope({ folders: ['Elsewhere'] });
+    await s.advance(1_000);
+    expect(s.plugin.data.bridge!.withdrawnScope).toContain(NOTE);
+    await edit(NOTE, 'Asked for a quote.');
+    await s.settle();
+    expect(await reportOf(NOTE)).toMatchObject({ path: NOTE, withdrawn: true });
+    await B.sync();
+    expect(B.byPath(NOTE)).toHaveLength(0);
+    await A.sync();
+    expect(A.byPath(NOTE)).toHaveLength(0);
+    expect(JSON.parse(A.store.get('day-planner-deleted-obsidian-keys') ?? '{}')[id]).toBeTruthy();
+  });
+
+  it('T14. a withdrawn note re-tagged reports scoped and re-imports under the same id; it leaves the set, and a further edit reports normally', async () => {
+    await bootWithTaggedNote();
+    const id = A.byPath(TNOTE)[0].id;
+    await withdrawByTag();
+    await edit(TNOTE, 'Mulched.');
+    await s.settle();
+    await A.sync();
+    expect(A.byPath(TNOTE)).toHaveLength(0);
+    await withTag(TNOTE);
+    expect(withdrawnScope()).not.toContain(TNOTE);
+    await s.settle();
+    expect(await reportOf(TNOTE)).toMatchObject({ path: TNOTE, scoped: true });
+    await A.sync();
+    expect(A.byPath(TNOTE).map((t) => t.id)).toEqual([id]);
+    await edit(TNOTE, 'Watered.');
+    await s.settle();
+    const report = await reportOf(TNOTE);
+    expect(report).toMatchObject({ path: TNOTE, scoped: true });
+    expect(report!.withdrawn).toBeUndefined();
+    expect(report!.content).toContain('Watered.');
+    await A.sync();
+    expect(A.byPath(TNOTE).map((t) => t.id)).toEqual([id]);
+    // Out again: the old withdrawal does not skip the new hold. Inside it
+    // the note reports plainly, as any note in a hold does, and keeps its task.
+    await withoutTag(TNOTE);
+    await s.advance(5_000);
+    const inHold = await reportOf(TNOTE);
+    expect(inHold!.withdrawn).toBeUndefined();
+    expect(inHold!.content).toContain('tags: []');
+    await A.sync();
+    expect(A.byPath(TNOTE).map((t) => t.id)).toEqual([id]);
+  });
+
+  it('T15. a withdrawn note deleted, then a NEW untagged note with stamps at the same path: the new note inherits nothing and is reported plainly, as any stamped note outside the scope is', async () => {
+    await bootWithTaggedNote();
+    await withdrawByTag();
+    await s.plugin.app.vault.delete(s.file(TNOTE));
+    expect(withdrawnScope()).not.toContain(TNOTE);
+    s.plugin.reload();                            // the forgetting was persisted, not only held in memory
+    await s.advance(5_000);
+    expect(await reportOf(TNOTE)).toMatchObject({ withdrawn: true }); // nothing re-reported the gone note
+    await s.write(TNOTE, '# Another garden\n\n- [ ] Plant bulbs ^dg-bulb0015\n');
+    await s.settle();
+    const report = await reportOf(TNOTE);
+    expect(report).toMatchObject({ path: TNOTE });
+    expect(report!.withdrawn).toBeUndefined();
+    expect(report!.scoped).toBeUndefined();
+    expect(report!.content).toContain('Plant bulbs');
+  });
+
+  it('T15b. a withdrawn note RENAMED: its old path\'s row stays withdrawn (nothing re-reports it), the note at its new path reports plainly, and a new note later at the old path inherits nothing', async () => {
+    await bootWithTaggedNote();
+    await withdrawByTag();
+    const MOVED = 'Areas/Garden (2025).md';
+    await s.plugin.app.vault.rename(s.file(TNOTE), MOVED);
+    expect(withdrawnScope()).not.toContain(TNOTE);
+    expect(withdrawnScope()).not.toContain(MOVED);
+    await s.settle();
+    expect(await reportOf(TNOTE)).toMatchObject({ path: TNOTE, withdrawn: true });
+    const moved = await reportOf(MOVED);
+    expect(moved!.withdrawn).toBeUndefined();
+    expect(moved!.content).toContain(ROSES);
+    await s.write(TNOTE, '# Another garden\n\n- [ ] Plant bulbs ^dg-bulb015b\n');
+    await s.settle();
+    const fresh = await reportOf(TNOTE);
+    expect(fresh!.withdrawn).toBeUndefined();
+    expect(fresh!.content).toContain('Plant bulbs');
+  });
+
+  it('T16. the set survives a plugin reload: a withdrawn note edited after the reload still reports withdrawn', async () => {
+    await bootWithTaggedNote();
+    await withdrawByTag();
+    s.plugin.reload();
+    s.plugin.transport.adoptTick();               // main.ts: at layout ready
+    await edit(TNOTE, 'After the reload.');
+    await s.settle();
+    expect(await reportOf(TNOTE)).toMatchObject({ path: TNOTE, withdrawn: true });
+    expect(withdrawnScope()).toContain(TNOTE);
+  });
+
+  it('T16b. a withdrawn note that BECOMES a daily note (the daily-notes path moved onto its folder) reports as a daily note, never as the withdrawal', async () => {
+    const DAY = 'Areas/2026-09-20.md';
+    await bootWithTaggedNote(DAY);
+    await withdrawByTag(DAY);
+    const t = s.plugin.transport as any;
+    t.config = { ...t.config, dailyNotesPath: 'Areas' };
+    await edit(DAY, 'Now a journal.');
+    await s.settle();
+    const report = await reportOf(DAY);
+    expect(report!.withdrawn).toBeUndefined();
+    expect(report!.content).toContain('Now a journal.');
+  });
+
+  it('T17. a REPEATED withdrawal row is a no-op on the app: no new tombstones, the tasks unchanged', async () => {
+    await bootWithTaggedNote();
+    await withdrawByTag();
+    await A.sync();
+    const tasks = JSON.parse(JSON.stringify(A.all()));
+    const tombs = tombstones();
+    const seq = s.vault.maxSeq;
+    for (const line of ['First repeat.', 'Second repeat.']) {
+      await edit(TNOTE, line);
+      await s.settle();
+      await A.sync();
+    }
+    expect(s.vault.maxSeq).toBeGreaterThan(seq);  // the repeats did go out
+    expect(JSON.parse(JSON.stringify(A.all()))).toEqual(tasks);
+    expect(tombstones()).toEqual(tombs);
+    // The one thing a repeat does write: the device-local withdrawn-notes
+    // store takes the repeat's time (a localStorage write, nothing synced;
+    // re-entry's evidence lift still follows, being later). Not changed here.
+    expect(withdrawnNotes()[TNOTE]).toBeTruthy();
   });
 });
 

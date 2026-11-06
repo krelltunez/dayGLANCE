@@ -115,6 +115,12 @@ export interface BridgeState {
   // already reported since they entered scope. Adoption re-reports only what
   // is not here, so a plugin reload does not re-emit every note in scope.
   adoptedScope?: string[];
+  // Vault task scope (companion §6, the sticky withdrawal): the notes this
+  // copy WITHDREW that still exist out of scope. While a note stays here and
+  // out of scope, every report of it goes out as a withdrawal, so its row
+  // keeps saying "withdrawn" whatever order devices pull in. Re-entry and
+  // deletion take it out.
+  withdrawnScope?: string[];
   // Project and goal notes (companion §4.3, ruling A): the notes this vault
   // copy has reported as carrying a `dayglance-id` key, path → id. The
   // reconciliation walk compares the vault against this map and reports
@@ -463,6 +469,9 @@ export class BridgeTransport {
   // and the first adoption walk after load re-arms one for every adopted
   // note found out of scope (see adoptTick).
   private leaveHolds = new Map<string, number>();
+  // The sticky withdrawal (BridgeState.withdrawnScope), persisted with the
+  // adopted set.
+  private withdrawnPaths = new Set<string>();
   // The scope scopeChanged last applied (normalized, as JSON). The plugin
   // calls scopeChanged on EVERY synced data.json change, most of which leave
   // the scope as it was; only a real change withdraws at once.
@@ -568,6 +577,12 @@ export class BridgeTransport {
     for (const p of host.getBridgeState().adoptedScope ?? []) {
       if (typeof p === 'string') { this.adopted.add(p); this.scopedPaths.add(p); }
     }
+    // An unreadable set reads as empty: the note's content is reported as it
+    // was before the set existed, never anything worse.
+    const withdrawnScope = host.getBridgeState().withdrawnScope;
+    for (const p of Array.isArray(withdrawnScope) ? withdrawnScope : []) {
+      if (typeof p === 'string') this.withdrawnPaths.add(p);
+    }
     for (const [path, id] of Object.entries(host.getBridgeState().linkedNotes ?? {})) {
       if (typeof path === 'string' && typeof id === 'string' && id) this.linked.set(path, id);
     }
@@ -590,6 +605,7 @@ export class BridgeTransport {
       ...this.host.getBridgeState(),
       config: this.config,
       adoptedScope: [...this.adopted],
+      withdrawnScope: [...this.withdrawnPaths],
       linkedNotes: Object.fromEntries([...this.linked].sort(([a], [b]) => a.localeCompare(b))),
       unsupportedIds: [...this.unsupported].slice(-APPLIED_IDS_CAP),
       pendingObservations: [...this.pendingObs],
@@ -1582,6 +1598,7 @@ export class BridgeTransport {
     if (this.isDailyNote(path)) return;
     const scoped = this.scopedNote(path);
     if (scoped && !this.adopted.has(path)) {
+      this.forgetWithdrawn(path);
       this.adopted.add(path);
       this.armObserve(path, false, 0);
       void this.persistAdopted();
@@ -1619,6 +1636,7 @@ export class BridgeTransport {
     if (this.scopedNote(path)) {
       this.cancelLeaveHold(path);
       if (!this.adopted.has(path)) {
+        this.forgetWithdrawn(path);
         this.adopted.add(path);
         // The debounce, not 0: the change that added the tag is usually an
         // edit in progress, and its own modify event armed the same timer.
@@ -1698,6 +1716,12 @@ export class BridgeTransport {
     // scope after the move is withdrawn from its old path at once).
     this.cancelLeaveHold(oldPath);
     this.cancelLeaveHold(newPath);
+    // The sticky withdrawal stays with the old path's ROW (nothing reports
+    // that path again) and does not follow the note: the new path was never
+    // reported scoped, and no task is keyed to it. Nor does a note arriving
+    // at a remembered path inherit one.
+    const forgotOld = this.forgetWithdrawn(oldPath);
+    const forgot = this.forgetWithdrawn(newPath) || forgotOld;
     this.arrivedAt.set(newPath, Date.now());
     this.moveLink(oldPath, newPath);
     const wasScoped = this.scopedPaths.has(oldPath) || this.adopted.has(oldPath);
@@ -1717,6 +1741,8 @@ export class BridgeTransport {
       void this.persistAdopted();
     } else if (nowScoped) {
       this.adopted.add(newPath);
+      void this.persistAdopted();
+    } else if (forgot) {
       void this.persistAdopted();
     }
     this.reportDeleted(oldPath);
@@ -2159,6 +2185,7 @@ export class BridgeTransport {
     if (!batch.length) return;
     for (const path of batch) {
       if (this.adopted.has(path)) continue; // adopted meanwhile by its own metadata change
+      this.forgetWithdrawn(path);
       this.adopted.add(path);
       this.armObserve(path, false, 0);
     }
@@ -2199,14 +2226,17 @@ export class BridgeTransport {
     return JSON.stringify(this.host.getScope?.() ?? null);
   }
 
+  /** Persist the scope bookkeeping (the adopted set and the sticky
+   *  withdrawals) when either differs from what is stored. */
   private async persistAdopted(): Promise<void> {
     if (this.disposed) return;
     try {
       const state = this.host.getBridgeState();
+      const same = (prev: unknown, next: string[]) => Array.isArray(prev) && prev.length === next.length && prev.every((p, i) => p === next[i]);
       const next = [...this.adopted];
-      const prev = state.adoptedScope ?? [];
-      if (prev.length === next.length && prev.every((p, i) => p === next[i])) return;
-      await this.host.saveBridgeState(this.stateSnapshot({ adoptedScope: next }));
+      const nextWithdrawn = [...this.withdrawnPaths];
+      if (same(state.adoptedScope ?? [], next) && same(state.withdrawnScope ?? [], nextWithdrawn)) return;
+      await this.host.saveBridgeState(this.stateSnapshot({ adoptedScope: next, withdrawnScope: nextWithdrawn }));
     } catch (e) {
       console.error('dayGLANCE bridge: could not persist the adopted scope', e);
     }
@@ -2214,6 +2244,10 @@ export class BridgeTransport {
 
   /** A note left the scope: tell dayGLANCE to withdraw its tasks (no deletion anywhere). */
   private async emitWithdrawal(path: string): Promise<void> {
+    // THE STICKY WITHDRAWAL: remember it (every caller persists right
+    // after), so this note's later reports keep its row withdrawn. Only a
+    // note still AT the path: a move out leaves nothing there to report.
+    this.rememberWithdrawn(path);
     try {
       const pairing = this.host.getPairing();
       if (!pairing || this.rateLimited() || this.stalePairing) return;
@@ -2228,6 +2262,33 @@ export class BridgeTransport {
     } catch (e) {
       console.warn('dayGLANCE bridge: withdrawal report failed (the note is simply no longer reported)', e);
     }
+  }
+
+  /**
+   * THE STICKY WITHDRAWAL (companion §6, the tag-removal record). A note
+   * that keeps its `^dg-` stamps after leaving the scope is still reported
+   * on every edit (inScope admits it by content), and that unflagged report
+   * used to REPLACE its withdrawal row: a device that had not pulled in
+   * between never saw the withdrawal and kept the tasks. The paths this
+   * copy withdrew are remembered (persisted beside the adopted set); while
+   * one stays out of scope its reports go out as withdrawals. Re-entry
+   * reports it scoped again and forgets it; a deletion forgets it. Daily
+   * notes are never in the set.
+   */
+  private rememberWithdrawn(path: string): void {
+    if (this.isDailyNote(path)) return;
+    if (!(this.host.app.vault.getAbstractFileByPath(normalizePath(path)) instanceof TFile)) return;
+    this.withdrawnPaths.add(path);
+  }
+
+  /** Forget a sticky withdrawal; true when there was one (the caller persists). */
+  private forgetWithdrawn(path: string): boolean {
+    return this.withdrawnPaths.delete(path);
+  }
+
+  /** True when this report of `path` goes out as a withdrawal (see rememberWithdrawn). */
+  private reportsWithdrawn(path: string): boolean {
+    return this.withdrawnPaths.has(path) && !this.isDailyNote(path) && !this.scopedNote(path);
   }
 
   /**
@@ -2315,7 +2376,8 @@ export class BridgeTransport {
     // deletion report itself keys on scopedPaths, which stays until it goes.
     if (!(this.host.app.vault.getAbstractFileByPath(normalizePath(path)) instanceof TFile)) {
       this.cancelLeaveHold(path);
-      if (this.adopted.delete(path)) void this.persistAdopted();
+      const forgot = this.forgetWithdrawn(path);
+      if (this.adopted.delete(path) || forgot) void this.persistAdopted();
     }
     if (!this.host.getPairing()) return;
     void this.emitObservation(path, true);
@@ -2603,6 +2665,14 @@ export class BridgeTransport {
       const scoped = !this.isDailyNote(path) && (deleted ? this.scopedPaths.has(path) : this.scopedNote(path));
       if (scoped && !deleted) this.scopedPaths.add(path);
       if (deleted) { this.scopedPaths.delete(path); this.arrivedAt.delete(path); }
+      // Reported scoped again: a sticky withdrawal of it is over (re-entry).
+      if (scoped && !deleted && this.forgetWithdrawn(path)) void this.persistAdopted();
+      // THE STICKY WITHDRAWAL (see rememberWithdrawn): a note this copy
+      // withdrew, still out of scope, is reported as the withdrawal again,
+      // never as its content, so this report cannot replace the withdrawal
+      // row with one the app leaves unapplied. Same payload as emitWithdrawal;
+      // the send below (brake, retry, own-ack, pending) is the normal one.
+      const asWithdrawal = !deleted && !scoped && this.reportsWithdrawn(path);
       // A scoped note that arrived here by create or move is evidence as of
       // its arrival (see arrivedAt): revival after a withdrawal or a
       // deletion needs the note to be NEWER than the tombstone, and a move
@@ -2610,12 +2680,14 @@ export class BridgeTransport {
       const arrival = this.arrivedAt.get(path);
       if (scoped && !deleted && arrival !== undefined && (mtime === null || arrival > mtime)) mtime = arrival;
       const subkey = await this.subkeyFor(pairing);
-      const payload = {
-        v: 1, kind: 'observation', path,
-        content, deleted: deleted || undefined,
-        scoped: scoped || undefined,
-        mtime, observedAt: new Date().toISOString(),
-      };
+      const payload = asWithdrawal
+        ? { v: 1, kind: 'observation', path, withdrawn: true, observedAt: new Date().toISOString() }
+        : {
+          v: 1, kind: 'observation', path,
+          content, deleted: deleted || undefined,
+          scoped: scoped || undefined,
+          mtime, observedAt: new Date().toISOString(),
+        };
       const ack = await this.client(pairing).batch(BRIDGE_VAULT_APP, {
         accountId: pairing.accountId,
         rows: [{
