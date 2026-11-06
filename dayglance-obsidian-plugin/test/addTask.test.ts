@@ -71,7 +71,8 @@ describe('the block', () => {
     // it, as Markdown reads it, so the block's id is the one on line 11.
     expect(planBlockLink(note, 10, 10)).toEqual({ kind: 'reuse', id: 'q1' });
     const stamped = ['- [ ] Fix tap ^dg-8w230vhc', '', 'Quote me ^q1'];
-    expect(planBlockLink(stamped, 0, 0)).toEqual({ kind: 'reuse', id: 'dg-8w230vhc' });
+    // A dayGLANCE stamp is never named in a link: the writeback refuses to stamp a title holding `^dg-`.
+    expect(planBlockLink(stamped, 0, 0)).toEqual({ kind: 'none', reason: 'task-line' });
     expect(planBlockLink(stamped, 2, 2)).toEqual({ kind: 'reuse', id: 'q1' });
   });
 

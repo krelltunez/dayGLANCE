@@ -168,10 +168,11 @@ How the plugin works, for whoever changes it. The user-facing description is
   link text for the note (`fileToLinktext`), always a wikilink. With
   **Link to the exact paragraph** on (Editor settings, off by default) the
   link names the block holding the selection's start: an id already at
-  its end is reused (a task line's `^dg-` stamp included), otherwise six
-  random letters and digits are added through the editor. Never a `^dg-`
-  id, and never one on an unstamped task line (the parser would fold it
-  into the title, the stamper would refuse the line). The plugin emits a
+  its end is reused, otherwise six random letters and digits are added
+  through the editor. Never a `^dg-` id, written or linked (the writeback
+  refuses to stamp a title holding `^dg-`), and never one on an unstamped
+  task line (the parser would fold it into the title, the stamper would
+  refuse the line): a task line, stamped or not, links to the note. The plugin emits a
   `task_create` action row under `act-create:` (sealed under the pairing
   subkey, the transport's 429 brake and own-seq record honoured, retried
   under one actionId); any paired dayGLANCE device with the account key

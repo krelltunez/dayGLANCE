@@ -371,7 +371,7 @@ describe('Add to dayGLANCE: a selection in Obsidian becomes one inbox task', () 
     expect(agenda.projectChoices()).toBe(null);
   });
 
-  it('5. "Link to the exact paragraph": off, a plain link and the note untouched; on, a block id added once (through the editor, selection kept) and reused by a second task from the same paragraph; on a stamped task line the ^dg- stamp is reused and nothing added; an unstamped task line is never given one; the app parses the note as before', async () => {
+  it('5. "Link to the exact paragraph": off, a plain link and the note untouched; on, a block id added once (through the editor, selection kept) and reused by a second task from the same paragraph; a stamped task line links to the note, never by its ^dg- stamp, and nothing is added; an unstamped task line is never given one; the app parses the note as before', async () => {
     await boot();
     const DAILY = 'Daily/2026-11-06.md';
     await s.write(DAILY, '# Thursday\n\nThe boiler makes a noise\nwhen the heating starts.\n\n## Tasks\n- [ ] Book the service\n- [ ] Buy filters\n');
@@ -412,10 +412,12 @@ describe('Add to dayGLANCE: a selection in Obsidian becomes one inbox task', () 
     expect(again.r.title).toBe(`when the [[2026-11-06#^${minted}]]`);
     expect((s.text(DAILY)!.match(new RegExp(`\\^${minted}`, 'g')) || []).length).toBe(1);
 
-    // A stamped task line: its ^dg- stamp is the block id; nothing is added.
+    // A stamped task line: linked to the note, never by its ^dg- stamp (a
+    // title holding one is refused a stamp by the writeback); nothing is added.
     const onTask = await addFromObsidian(DAILY, { from: { line: lineOf('Book the service'), ch: 6 }, to: { line: lineOf('Book the service'), ch: 22 } }, {}, { linkToBlock: true });
     expect(onTask.editor.edits).toEqual([]);
-    expect(onTask.r.title).toBe(`Book the service [[2026-11-06#^dg-${stamp}]]`);
+    expect(onTask.r.title).toBe('Book the service [[2026-11-06]]');
+    expect(onTask.r.title).not.toContain('^dg-');
 
     // Every task line in this note is stamped by now; an unstamped one in an
     // unscoped note is never given an id, and the notice says so.

@@ -79,8 +79,8 @@ plugin adds what a folder cannot do on its own: it runs inside Obsidian.
   paragraph or list item the selection starts in, as `[[Note#^id]]`, instead
   of the whole note. A block id already at the end of that block is reused;
   otherwise the plugin adds a short one there, which edits the note (undo
-  removes it). A dayGLANCE task line is linked by its `^dg-…` id and never
-  gets a second one. Headings, code, quotes and tables link to the note.
+  removes it). A dayGLANCE task line, headings, code, quotes and tables link
+  to the note.
 
 ## Privacy, network use and what the plugin stores
 

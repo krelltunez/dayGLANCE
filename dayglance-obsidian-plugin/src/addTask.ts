@@ -11,14 +11,18 @@
 // THE LINK. Obsidian's own link text for the note (a bare name while it is
 // unique, a path otherwise), always as a wikilink, whatever the user's
 // markdown-link setting. With "Link to the exact paragraph" on, the link
-// names the block holding the selection's start: an id already at the end
-// of that block is reused (a dayGLANCE task line's `^dg-` stamp is one), and
-// otherwise a short random one is added there, through the editor so undo
-// works and the open buffer is not overwritten.
+// names the block holding the selection's start: an id of the user's already
+// at the end of that block is reused, and otherwise a short random one is
+// added there, through the editor so undo works and the open buffer is not
+// overwritten.
 //
-// NEVER A `^dg-` ID. dayGLANCE's stamps are block ids, and the plugin reads
-// `^dg-` content as a dayGLANCE note: it reuses one it finds, never writes
-// one. A minted id is six lowercase letters and digits, so it cannot.
+// NEVER A `^dg-` ID, NOT EVEN IN A LINK. dayGLANCE's stamps are block ids,
+// and the plugin reads `^dg-` content as a dayGLANCE note, so it never writes
+// one (a minted id is six lowercase letters and digits, so it cannot). Nor
+// does a link name one: a title holding `^dg-` is one the writeback refuses
+// to stamp (blockIdSuffix), so a task put into its project's linked note
+// would land there unstamped and could be imported twice. A stamped task
+// line therefore links to the note, as an unstamped one does.
 //
 // NEVER AN ID ON AN UNSTAMPED TASK LINE. dayGLANCE's parser keeps a block id
 // it does not own as part of a task's title, and the stamper refuses a line
@@ -129,6 +133,7 @@ export function planBlockLink(lines: string[], from: number, to: number): BlockP
   while (last + 1 < lines.length && !blank(lines[last + 1]) && !startsOwnBlock(lines[last + 1])) last += 1;
 
   const existing = BLOCK_ID_AT_END.exec(lines[last]);
+  if (existing && existing[1].startsWith('dg-')) return { kind: 'none', reason: 'task-line' };
   if (existing) return { kind: 'reuse', id: existing[1] };
   if (TASK_ITEM.test(lines[first])) return { kind: 'none', reason: 'task-line' };
   return { kind: 'mint', line: last };

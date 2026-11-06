@@ -524,14 +524,18 @@ whatever the markdown-link setting.
 **Link to the exact paragraph** (a setting, off by default). The link names
 the block holding the selection's start, `[[<link>#^<id>]]`:
 
-- an id already at the end of that block is reused. dayGLANCE's task stamps
-  are block ids, so a selection on a stamped task line reuses its `^dg-`
-  stamp and never adds a second id;
+- an id of the user's already at the end of that block is reused. A
+  dayGLANCE task line, stamped or not, links to the note instead: an
+  unstamped one must not gain an id (the parser would fold it into the
+  title, the stamper would refuse the line), and a link never names a
+  `^dg-` stamp, because a title holding `^dg-` is one the writeback refuses
+  to stamp, so a task put into its project's linked note would land there
+  unstamped and could be imported twice;
 - otherwise six random lowercase letters and digits (Obsidian's shape) are
   added at the end of the paragraph or list item, through the editor
   (`replaceRange`, selections restored), so undo works and the open buffer
   is not overwritten. Never a `^dg-` id: the plugin reads `^dg-` content as
-  a dayGLANCE note, so it only ever reuses one;
+  a dayGLANCE note;
 - never an id on an UNSTAMPED task line (or its continuation): dayGLANCE's
   parser keeps a block id it does not own as part of the task's title
   (`splitBlockId`), and the stamper refuses a line ending in one
