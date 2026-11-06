@@ -158,10 +158,30 @@ How the plugin works, for whoever changes it. The user-facing description is
   scope by virtue of the link, folder setting or not. The plugin applies
   `task_append` (note-task placement: section end, never sorted, never a
   missing note) and `task_remove` (the line carrying a block id) for this.
-- Six commands: **Sync now** (drains pending intents + refreshes the
+- **Add to dayGLANCE** (companion spec §4.2.1, `src/addTask.ts`,
+  `src/addTaskModal.ts`): the editor's context menu, while text is
+  selected, and the **Add selection to dayGLANCE as a task** command (an
+  `editorCheckCallback`, so only with a selection) open a form: the title
+  prefilled from the selection, an optional deadline, the app's priority
+  (none to high) and, when the mirror can list them, the active projects.
+  The task title is `<title> [[<link>]]`, the link being Obsidian's own
+  link text for the note (`fileToLinktext`), always a wikilink. With
+  **Link to the exact paragraph** on (Editor settings, off by default) the
+  link names the block holding the selection's start: an id already at
+  its end is reused, otherwise six random letters and digits are added
+  through the editor. Never a `^dg-` id, written or linked (the writeback
+  refuses to stamp a title holding `^dg-`), and never one on an unstamped
+  task line (the parser would fold it into the title, the stamper would
+  refuse the line): a task line, stamped or not, links to the note. The plugin emits a
+  `task_create` action row under `act-create:` (sealed under the pairing
+  subkey, the transport's 429 brake and own-seq record honoured, retried
+  under one actionId); any paired dayGLANCE device with the account key
+  builds the task, folder or not. Emitting needs only the pairing.
+- Seven commands: **Sync now** (drains pending intents + refreshes the
   heartbeat), **Enter pairing code**, **Unpair from GLANCEvault**
   (forgets the local credentials and the account key; revoke the token
-  server-side too), **Open agenda**, and the two link commands above.
+  server-side too), **Open agenda**, the two link commands above, and
+  **Add selection to dayGLANCE as a task**.
 
 Network access happens only while paired (plus pairing verification), only
 to the vault URL carried in the offer, via Obsidian's `requestUrl`. All
@@ -182,15 +202,17 @@ stream rows are AES-256-GCM under the pairing's bridge subkey.
 
 ## Tests
 
-Apart from the pure editor-hiding rules, the plugin has no unit tests of its
-own; it is exercised end to end by the bridge scenario harness in `test/`,
+Apart from the pure editor-hiding rules and the Add to dayGLANCE helpers
+(`test/addTask.test.ts`), the plugin has no unit tests of its own; it is
+exercised end to end by the bridge scenario harness in `test/`,
 which runs from the repository root
 with the rest of the suite (`npx vitest run`). The harness stubs the
 `obsidian` module (`test/obsidianStub.ts`), serves an in-memory GLANCEvault
 (`test/fakeGlanceVault.ts`), and drives the real transport plus the real
 dayGLANCE sync hook against it (`test/harness.ts`). Add a scenario to
 `test/scope.scenarios.test.ts` for any change to what the plugin stamps,
-reports, or applies.
+reports, or applies; Add to dayGLANCE has its own,
+`test/addTask.scenarios.test.ts`.
 
 ## Build
 

@@ -227,6 +227,12 @@ export class MetadataCache extends Events {
     if (!this.cache.has(f.path)) this.cache.set(f.path, this.compute(f));
     return this.cache.get(f.path)!;
   }
+  /** Obsidian's link text for a file: the bare name while no other note shares it, else the path (the "shortest" format). */
+  fileToLinktext(file: TFile, _sourcePath: string, omitMdExtension = true): string {
+    const unique = this.vault.getMarkdownFiles().filter((f) => f.basename === file.basename).length === 1;
+    if (unique && file.extension === 'md') return file.basename;
+    return omitMdExtension && file.extension === 'md' ? file.path.slice(0, -3) : file.path;
+  }
   getFirstLinkpathDest(linkpath: string, _from: string): TFile | null {
     const n = normalizePath(linkpath);
     const direct = this.vault.files.get(n.endsWith('.md') ? n : `${n}.md`);
@@ -243,6 +249,50 @@ export class MarkdownView {
   getViewData(): string { return this.data; }
   setViewData(d: string): void { this.data = d; }
   editor = { getCursor: () => ({ line: 0, ch: 0 }), hasFocus: () => false };
+}
+export interface EditorPosition { line: number; ch: number }
+export interface EditorSelection { anchor: EditorPosition; head: EditorPosition }
+/**
+ * An open editor on a file: a buffer the test edits on purpose, with the
+ * Editor methods "Add to dayGLANCE" uses. Edits stay in the buffer (as
+ * CodeMirror's do) until `save()` writes it to the vault (Obsidian's
+ * autosave); `edits` records every replaceRange, which is what undo would
+ * revert.
+ */
+export class StubEditor {
+  private text: string;
+  private sels: EditorSelection[];
+  edits: Array<{ text: string; from: EditorPosition; to?: EditorPosition }> = [];
+  constructor(public file: TFile, text: string, selection: { from: EditorPosition; to: EditorPosition }) {
+    this.text = text;
+    this.sels = [{ anchor: selection.from, head: selection.to }];
+  }
+  private offset(p: EditorPosition): number {
+    const lines = this.text.split('\n');
+    let o = 0;
+    for (let i = 0; i < p.line; i++) o += lines[i].length + 1;
+    return o + Math.min(p.ch, lines[p.line]?.length ?? 0);
+  }
+  getValue(): string { return this.text; }
+  getLine(n: number): string { return this.text.split('\n')[n] ?? ''; }
+  lineCount(): number { return this.text.split('\n').length; }
+  somethingSelected(): boolean { return this.sels.some((s) => s.anchor.line !== s.head.line || s.anchor.ch !== s.head.ch); }
+  getCursor(which: 'from' | 'to' | 'head' | 'anchor' = 'head'): EditorPosition {
+    const s = this.sels[0];
+    const [a, b] = this.offset(s.anchor) <= this.offset(s.head) ? [s.anchor, s.head] : [s.head, s.anchor];
+    return which === 'from' ? a : which === 'to' ? b : which === 'anchor' ? s.anchor : s.head;
+  }
+  getSelection(): string { return this.text.slice(this.offset(this.getCursor('from')), this.offset(this.getCursor('to'))); }
+  listSelections(): EditorSelection[] { return this.sels.map((s) => ({ anchor: { ...s.anchor }, head: { ...s.head } })); }
+  setSelections(sels: EditorSelection[]): void { this.sels = sels.map((s) => ({ anchor: { ...s.anchor }, head: { ...s.head } })); }
+  replaceRange(text: string, from: EditorPosition, to?: EditorPosition): void {
+    this.edits.push({ text, from, to });
+    const a = this.offset(from);
+    const b = to ? this.offset(to) : a;
+    this.text = this.text.slice(0, a) + text + this.text.slice(b);
+  }
+  /** Obsidian's autosave: the buffer reaches the file. */
+  async save(): Promise<void> { await this.file.vault.modify(this.file, this.text); }
 }
 export class WorkspaceLeaf { constructor(public view: unknown) {} }
 export class Workspace extends Events {

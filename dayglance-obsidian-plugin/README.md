@@ -27,6 +27,12 @@ plugin adds what a folder cannot do on its own: it runs inside Obsidian.
   tasks made in dayGLANCE are written into the right note. When the same
   vault is open on several computers, only one of them writes at a time, and
   the others receive the result through Obsidian Sync.
+- **Add to dayGLANCE.** Select text in any note and choose **Add to
+  dayGLANCE** from the editor's context menu (a long press on mobile), or run
+  the **Add selection to dayGLANCE as a task** command. The selection becomes
+  one dayGLANCE inbox task, with an optional deadline, priority and project,
+  linked back to the note with a `[[wikilink]]`. Any paired dayGLANCE device
+  adds it, including a phone without access to the vault folder.
 - **Tidy editor.** Optionally hide the `^dg-…` ids dayGLANCE adds to task
   lines, and hide completed tasks in linked project and goal notes. Both are
   display only and never change a note.
@@ -63,6 +69,18 @@ plugin adds what a folder cannot do on its own: it runs inside Obsidian.
 - **Open agenda**
 - **Link current note to a dayGLANCE project or goal**
 - **Unlink current note from dayGLANCE**
+- **Add selection to dayGLANCE as a task**: available while text is selected,
+  so you can give it a hotkey. The same form as the context-menu item. The
+  project list appears once the sync passphrase is entered on this device.
+
+## Settings for Add to dayGLANCE
+
+- **Link to the exact paragraph** (off by default): link the task to the
+  paragraph or list item the selection starts in, as `[[Note#^id]]`, instead
+  of the whole note. A block id already at the end of that block is reused;
+  otherwise the plugin adds a short one there, which edits the note (undo
+  removes it). A dayGLANCE task line, headings, code, quotes and tables link
+  to the note.
 
 ## Privacy, network use and what the plugin stores
 
@@ -94,8 +112,10 @@ plugin adds what a folder cannot do on its own: it runs inside Obsidian.
     deletes it after use.
   - Your notes: task lines, daily notes and project or goal notes the plugin
     writes on dayGLANCE's behalf, a `^dg-…` id at the end of each task line it
-    tracks, and the `dayglance-id` and `dayglance:` frontmatter keys on linked
-    notes. Nothing outside the vault is read or written.
+    tracks, the `dayglance-id` and `dayglance:` frontmatter keys on linked
+    notes, and, with **Link to the exact paragraph** on, a block id at the end
+    of a paragraph you add to dayGLANCE. Nothing outside the vault is read or
+    written.
 - **Settings and keys.**
   - The pairing (server address, device token and an encryption key) and your
     settings are stored in the plugin's `data.json`, which Obsidian Sync

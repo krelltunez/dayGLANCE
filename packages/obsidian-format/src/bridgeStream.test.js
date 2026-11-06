@@ -11,6 +11,10 @@ import {
   observationEntityId,
   BRIDGE_INTENT_PREFIX,
   BRIDGE_OBSERVATION_PREFIX,
+  BRIDGE_ACTION_PREFIX,
+  BRIDGE_CREATE_ACTION_PREFIX,
+  BRIDGE_PROJECTION_PREFIX,
+  BRIDGE_COPY_PREFIX,
   dailyNoteCreationBody,
 } from './bridgeStream.js';
 
@@ -89,6 +93,15 @@ describe('row envelopes', () => {
     expect(a).toBe(await observationEntityId('Daily/2026-08-29.md'));
     expect(a).not.toBe(await observationEntityId('Daily/2026-08-30.md'));
     expect(a.startsWith(BRIDGE_OBSERVATION_PREFIX)).toBe(true);
+  });
+
+  it('a task-create row is invisible to every older reader: no other prefix is a prefix of it', () => {
+    // An app built before task_create deletes every `act:` row whose type it
+    // does not know; the create rows must not start with any prefix an older
+    // reader filters on.
+    for (const other of [BRIDGE_ACTION_PREFIX, BRIDGE_OBSERVATION_PREFIX, BRIDGE_INTENT_PREFIX, BRIDGE_PROJECTION_PREFIX, BRIDGE_COPY_PREFIX, 'meta:']) {
+      expect(`${BRIDGE_CREATE_ACTION_PREFIX}x`.startsWith(other)).toBe(false);
+    }
   });
 });
 

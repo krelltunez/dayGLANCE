@@ -46,7 +46,17 @@ export const ACTION_STALE_MS = 7 * 24 * 60 * 60 * 1000;
  * delete and the cursor math) or null when the stream isn't available
  * (unpaired, no key, braked, unreachable). Never advances the cursor.
  */
-export async function fetchBridgeActions() {
+export function fetchBridgeActions() {
+  return fetchBridgeActionRows({ prefix: BRIDGE_ACTION_PREFIX, cursorKey: ACT_HWM_KEY });
+}
+
+/**
+ * The fetch behind fetchBridgeActions, for one prefix under one cursor key.
+ * The task-create consumer (obsidianBridgeCreates.js) reads its own prefix
+ * under its own cursor through this, so neither consumer's cursor can pass a
+ * row the other has yet to apply.
+ */
+export async function fetchBridgeActionRows({ prefix, cursorKey }) {
   try {
     if (bridgeRateLimited()) return null;
     const cfg = getVaultConfig();
@@ -59,7 +69,7 @@ export async function fetchBridgeActions() {
     const salt = Uint8Array.from(atob(meta.pairingSalt), (c) => c.charCodeAt(0));
     const subkey = await deriveBridgeSubkey(rootKey, salt);
 
-    let since = readActionCursor();
+    let since = readCursor(cursorKey);
     const byActionId = new Map();
     let maxSeq = since;
     let hasMore = true;
@@ -71,7 +81,7 @@ export async function fetchBridgeActions() {
         if (seq > maxSeq) maxSeq = seq;
         if (seq > since) since = seq;
         const entityId = String(row.entityId || '');
-        if (!entityId.startsWith(BRIDGE_ACTION_PREFIX)) continue;
+        if (!entityId.startsWith(prefix)) continue;
         if (row.deleted || !row.envelope) { byActionId.delete(entityId); continue; }
         const payload = await openBridgeEnvelope(subkey, row.envelope);
         // Unreadable rows (rotated-away generation, tamper) are skipped —
@@ -87,8 +97,8 @@ export async function fetchBridgeActions() {
   }
 }
 
-function readActionCursor() {
-  try { return Number(localStorage.getItem(ACT_HWM_KEY)) || 0; } catch { return 0; }
+function readCursor(key) {
+  try { return Number(localStorage.getItem(key)) || 0; } catch { return 0; }
 }
 
 /**
@@ -96,12 +106,12 @@ function readActionCursor() {
  * left on the stream for a later cycle: the cursor stops just below the
  * oldest of them so they are re-listed, never lost behind the cursor.
  */
-export function commitBridgeActionCursor(maxSeq, held = []) {
+export function commitBridgeActionCursor(maxSeq, held = [], cursorKey = ACT_HWM_KEY) {
   const floor = held.reduce((m, a) => Math.min(m, Number(a.seq) || 0), Infinity);
   const next = Number.isFinite(floor) ? Math.min(maxSeq, Math.max(0, floor - 1)) : maxSeq;
   try {
-    const prev = readActionCursor();
-    if (next > prev) localStorage.setItem(ACT_HWM_KEY, String(next));
+    const prev = readCursor(cursorKey);
+    if (next > prev) localStorage.setItem(cursorKey, String(next));
   } catch { /* retried next fetch */ }
 }
 

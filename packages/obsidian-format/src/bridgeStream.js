@@ -129,6 +129,18 @@ export const BRIDGE_OBSERVATION_PREFIX = 'obs:';
 // actionId, taskId | (templateId, instanceDate), completedAt, createdAt }.
 // dayGLANCE deletes an action row after applying it (idempotent by actionId).
 export const BRIDGE_ACTION_PREFIX = 'act:';
+// TASK-CREATE ACTION rows (companion spec 4.2.1, "Add to dayGLANCE"): the
+// same family as the completion above, under their OWN prefix. Payload:
+// { v:1, kind:'action', type:'task_create', actionId, title, notePath,
+// deadline?, priority?, projectId?, viewer?, createdAt }. Not `act:` on
+// purpose: an app built before task_create consumes every `act:` row whose
+// type it does not know as stale and DELETES it on its next Obsidian cycle,
+// which would eat a create before any device that understands it ran. No
+// older reader lists this prefix (each one filters its own: `obs:`, `act:`,
+// `proj:`, `int:`, `meta:`), so the row waits for a current app. Consumed by
+// any paired dayGLANCE device holding the account key, folder or not, under
+// its own cursor; deleted once the created task is saved.
+export const BRIDGE_CREATE_ACTION_PREFIX = 'act-create:';
 
 // Projection rows (companion 4.2, calendar events): dayGLANCE publishes a
 // derived, device-authored view of data it deliberately does NOT sync — the

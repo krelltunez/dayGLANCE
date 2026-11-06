@@ -795,8 +795,15 @@ export default function useObsidianSync({
   const openInObsidian = useCallback((noteName) => {
     const handle = obsidianVaultHandleRef.current;
     if (!handle) return;
+    // obsidian://open names a FILE: a heading or block part (`Note#^abc1`,
+    // which a task added from Obsidian with "Link to the exact paragraph"
+    // carries) would be read as part of the file name and match nothing.
+    // The note opens; the Electron main process strips it the same way
+    // (electron/obsidianUri.ts).
+    const fileName = String(noteName ?? '').split('#')[0].trim();
+    if (!fileName) return;
     if (handle === 'native') {
-      nativeOpenNote(noteName);
+      nativeOpenNote(fileName);
       return;
     }
     // Electron: hand the note name to the main process, which builds the
@@ -813,7 +820,7 @@ export default function useObsidianSync({
     const vaultName = handle.name;
     if (vaultName) {
       window.open(
-        `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(noteName)}`,
+        `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(fileName)}`,
         '_blank',
       );
     }

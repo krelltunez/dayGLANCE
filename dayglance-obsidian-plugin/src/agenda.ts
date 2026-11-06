@@ -37,6 +37,7 @@ import {
   mintIntentId,
   BRIDGE_VAULT_APP,
   BRIDGE_ACTION_PREFIX,
+  BRIDGE_CREATE_ACTION_PREFIX,
   BRIDGE_PROJECTION_PREFIX,
 } from '@glance-apps/obsidian-format';
 import {
@@ -55,6 +56,7 @@ import {
 } from '@glance-apps/sync/src/dbCrypto.js';
 import type { BridgePairing } from './pairing';
 import { asText } from './text';
+import { buildTaskCreatePayload, type TaskCreateInput } from './addTask';
 
 // The dayGLANCE sync engine's app id on the vault (its data plane).
 const DAYGLANCE_APP = 'dayglance';
@@ -76,8 +78,25 @@ const AGENDA_SINGLETONS = new Set(['routinesDate', 'routineCompletions']);
 // change behind it means nothing is consuming — show the box unchecked
 // again rather than lie indefinitely.
 const PENDING_TTL_MS = 15 * 60_000;
+// A create that fails on the network is tried again twice, a second and two
+// seconds later, under the same actionId (the row is an upsert).
+const CREATE_ATTEMPTS = 3;
+const CREATE_RETRY_MS = 1000;
 
 export type AgendaKeyState = 'unpaired' | 'no-key' | 'ready';
+
+/**
+ * The bridge transport's 429 brake and own-write record, shared with the
+ * action rows this store writes outside the transport: a create is not sent
+ * while the brake is on, a 429 arms it, and the row's ack is recorded so its
+ * SSE echo never wakes this copy's own drain.
+ */
+export interface BridgeWriteGate {
+  isRateLimited(): boolean;
+  reportRateLimit(): void;
+  reportRequestSuccess(): void;
+  recordOwnSeq(seq: number | null | undefined): void;
+}
 
 export interface AgendaHost {
   app: App;
@@ -90,6 +109,8 @@ export interface AgendaHost {
    * rules, applied at read time so a viewer change needs no re-fetch.
    */
   getViewer(): string | null;
+  /** The transport's brake (main.ts passes the transport); absent in older hosts. */
+  getWriteGate?(): BridgeWriteGate | null;
 }
 
 /** A synced dayGLANCE user, as the settings picker lists them. */
@@ -97,6 +118,9 @@ export interface AgendaUser { syncId: string; name: string }
 
 /** A project or goal the link picker can name (companion §4.3). */
 export interface LinkTarget { kind: 'project' | 'goal'; id: string; title: string; goalTitle?: string }
+
+/** An active project a task added from Obsidian can join (companion 4.2.1). */
+export interface ProjectChoice { id: string; title: string; goalTitle?: string }
 
 export interface AgendaStatus {
   key: AgendaKeyState;
@@ -240,6 +264,25 @@ export class AgendaStore {
       out.push({ kind: 'project', id: String(p.id), title: asText(p.title), goalTitle: goalId ? goalTitle.get(asText(goalId)) : undefined });
     }
     for (const g of goals) out.push({ kind: 'goal', id: String(g.id), title: asText(g.title) });
+    return out.sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  /**
+   * The active projects the viewer can see, for "Add to dayGLANCE", or null
+   * when there is no mirror to read them from (no passphrase on this
+   * device): the field is then hidden. Tasks belong to projects, never to
+   * goals directly, so goals are not offered. Active is the app's own rule
+   * (neither archived nor completed). Title-sorted.
+   */
+  projectChoices(): ProjectChoice[] | null {
+    if (this.getStatus().key !== 'ready') return null;
+    const goalTitle = new Map([...this.goalRows.values()].map((g) => [String(g.id), asText(g.title)]));
+    const out: ProjectChoice[] = [];
+    for (const p of this.projectRows.values()) {
+      if (p.status === 'archived' || p.status === 'completed' || !this.visibleTask(p)) continue;
+      const goalId = (p as { goalId?: unknown }).goalId;
+      out.push({ id: String(p.id), title: asText(p.title), goalTitle: goalId ? goalTitle.get(asText(goalId)) : undefined });
+    }
     return out.sort((a, b) => a.title.localeCompare(b.title));
   }
 
@@ -521,6 +564,51 @@ export class AgendaStore {
       this.emit();
       return { ok: false, message: this.status.lastError };
     }
+  }
+
+  /**
+   * Emit a task_create action row (companion spec 4.2.1) for dayGLANCE to
+   * build the task from. Needs only the pairing. One actionId per call: a
+   * retry after a dropped connection rewrites the same row, never a second
+   * task. Held back while the transport's 429 brake is on; a 429 arms it.
+   */
+  async createTask(input: Omit<TaskCreateInput, 'actionId' | 'createdAt' | 'viewer'>): Promise<{ ok: boolean; message: string }> {
+    const pairing = this.host.getPairing();
+    if (!pairing) return { ok: false, message: 'Not paired with GLANCEvault.' };
+    const gate = this.host.getWriteGate?.() ?? null;
+    if (gate?.isRateLimited()) return { ok: false, message: 'GLANCEvault is rate-limiting; try again in a minute.' };
+    const actionId = mintIntentId();
+    const payload = buildTaskCreatePayload({
+      ...input, actionId, viewer: this.host.getViewer(), createdAt: localOffsetIso(),
+    });
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < CREATE_ATTEMPTS; attempt++) {
+      if (attempt > 0) await new Promise((r) => window.setTimeout(r, CREATE_RETRY_MS * attempt));
+      try {
+        const subkey = await this.subkeyOf(pairing);
+        const ack = await this.client(pairing).batch(BRIDGE_VAULT_APP, {
+          accountId: pairing.accountId,
+          rows: [{
+            entityId: `${BRIDGE_CREATE_ACTION_PREFIX}${actionId}`,
+            envelope: await sealBridgeEnvelope(subkey, payload, pairing.generation),
+            createdAt: Date.now(),
+          }],
+        }) as { maxSeq?: unknown } | null;
+        gate?.recordOwnSeq(Number(ack?.maxSeq));
+        gate?.reportRequestSuccess();
+        this.status.lastError = null;
+        this.emit();
+        return { ok: true, message: 'Added to dayGLANCE. It appears there the next time dayGLANCE syncs.' };
+      } catch (e) {
+        lastError = e;
+        const status = statusOf(e);
+        if (status === 429) { gate?.reportRateLimit(); break; }
+        if (status === 401 || status === 403) break;
+      }
+    }
+    this.status.lastError = describeError(lastError);
+    this.emit();
+    return { ok: false, message: `Not added: ${this.status.lastError}` };
   }
 
   // ── internals ─────────────────────────────────────────────────────────────

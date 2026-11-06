@@ -63,6 +63,9 @@ export interface BridgeSettingsHost extends PairingHost {
   templateStatus?(): string | null;
   /** The vault's pairing this copy is behind (the pairing split, 2026-09-29), or null while current. */
   stalePairing?(): StalePairing | null;
+  /** "Add to dayGLANCE" (addTask.ts): link to the exact block rather than the note. */
+  getLinkToBlock(): boolean;
+  setLinkToBlock(on: boolean): Promise<void>;
   /** Editor hiding (display only, editorHiding.ts). */
   getEditorHiding(): EditorHidingSettings;
   setEditorHiding(s: EditorHidingSettings): Promise<void>;
@@ -369,6 +372,10 @@ export class BridgeSettingTab extends PluginSettingTab {
       .setName('Hide completed tasks in project and goal notes')
       .setDesc('In notes linked to a dayGLANCE project or goal, hide checked task lines in Live Preview and Reading view. The line stays in the note and shows again when the cursor is on it. Daily notes are not affected.')
       .addToggle((t) => t.setValue(cur.hideCompletedInLinkedNotes).onChange((v) => save({ hideCompletedInLinkedNotes: v })));
+    new Setting(this.containerEl)
+      .setName('Link to the exact paragraph')
+      .setDesc('When you add selected text to dayGLANCE, link the task to the paragraph or list item the selection starts in instead of the whole note. An ID already at the end of the block is reused; otherwise a short one is added there, which edits the note. A task line is linked by its dayGLANCE ID and never gets a second one.')
+      .addToggle((t) => t.setValue(this.host.getLinkToBlock()).onChange((v) => void this.host.setLinkToBlock(v)));
   }
 
   private displayUnpaired(): void {

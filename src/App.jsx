@@ -182,6 +182,7 @@ import { useDbIntentPoller, drainDbIntents } from './intents/dbIntentsTransport.
 import { ensureVaultIntentsKeyReady } from './intents/vaultIntentsSetup.js';
 import { getDbIntentsConnection, isDbIntentsEnabled } from './intents/dbIntentsConfig.js';
 import { useVaultEventStream } from './hooks/useVaultEventStream.js';
+import useBridgeTaskCreates from './hooks/useBridgeTaskCreates.js';
 import { useNotifyEmitter } from './intents/useNotifyEmitter.js';
 import { useGoalNotifyEmitter } from './intents/useGoalNotifyEmitter.js';
 import { useOutboxFlush } from './intents/useOutboxFlush.js';
@@ -1846,6 +1847,7 @@ const DayPlanner = () => {
   // the ordering costs nothing. All pacing — the observation probe, the min
   // gap, the plugin-authority gate — lives in the callee.
   const obsidianSseNudgeRef = useRef(null);
+  const bridgeCreatesNudgeRef = useRef(null);
   useVaultEventStream({
     dataLoaded,
     drainSync: useCallback(() => {
@@ -1862,7 +1864,13 @@ const DayPlanner = () => {
     // cycle — bridge rows advance the same account seq, so a plugin-observed
     // vault edit reaches dayGLANCE in seconds instead of waiting out the
     // 5-minute poll. See nudgeObsidianObservations in useObsidianSync.
-    drainObsidian: useCallback(() => obsidianSseNudgeRef.current?.(), []),
+    // The same bridge-namespace nudge wakes the consumer of tasks added from
+    // Obsidian (useBridgeTaskCreates), which runs on every paired device,
+    // folder or not, with its own pacing.
+    drainObsidian: useCallback(() => {
+      obsidianSseNudgeRef.current?.();
+      bridgeCreatesNudgeRef.current?.();
+    }, []),
   });
   // Proactively (re-)derive the GLANCEvault INTENTS root key the moment sync is
   // established with the passphrase in memory — the same trigger that re-derives
@@ -3233,6 +3241,15 @@ const DayPlanner = () => {
   // Late-bind the SSE → Obsidian nudge (declared beside useVaultEventStream
   // above, which mounts before this hook can exist).
   obsidianSseNudgeRef.current = nudgeObsidianObservations;
+  // Tasks added from Obsidian (companion spec 4.2.1): applied by any paired
+  // device with the account key, folder or not. Not inside useObsidianSync,
+  // whose cycle needs the vault folder.
+  const { nudgeBridgeTaskCreates } = useBridgeTaskCreates({
+    dataLoaded, isTrayMode,
+    tasks, unscheduledTasks, recurringTasks, recycleBin, projects, users, multiUserEnabled,
+    setUnscheduledTasks,
+  });
+  bridgeCreatesNudgeRef.current = nudgeBridgeTaskCreates;
 
   // Auto-backup timer
   useEffect(() => {
