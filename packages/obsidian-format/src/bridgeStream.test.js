@@ -15,6 +15,14 @@ import {
   BRIDGE_CREATE_ACTION_PREFIX,
   BRIDGE_PROJECTION_PREFIX,
   BRIDGE_COPY_PREFIX,
+  BRIDGE_PAIRING_META_ID,
+  BRIDGE_CONFIG_META_ID,
+  BRIDGE_APPLIER_META_ID,
+  BRIDGE_CAPABILITY_PREFIX,
+  BRIDGE_CAPABILITY_TASK_CREATE,
+  bridgeCapabilityId,
+  bridgeCapabilityPayload,
+  isBridgeCapability,
   dailyNoteCreationBody,
 } from './bridgeStream.js';
 
@@ -102,6 +110,34 @@ describe('row envelopes', () => {
     for (const other of [BRIDGE_ACTION_PREFIX, BRIDGE_OBSERVATION_PREFIX, BRIDGE_INTENT_PREFIX, BRIDGE_PROJECTION_PREFIX, BRIDGE_COPY_PREFIX, 'meta:']) {
       expect(`${BRIDGE_CREATE_ACTION_PREFIX}x`.startsWith(other)).toBe(false);
     }
+  });
+
+  it('a capability row is one no reader old or new mistakes for its own: no other id or prefix matches it, and it matches none of theirs', () => {
+    // Every listing on both sides matches an exact meta id or a longer
+    // prefix (`meta:copy:`); none filters on the bare `meta:`. A `meta:cap:`
+    // row must therefore neither start with any of those nor be one.
+    const id = bridgeCapabilityId(BRIDGE_CAPABILITY_TASK_CREATE);
+    expect(id).toBe('meta:cap:task_create');
+    expect(id.startsWith(BRIDGE_CAPABILITY_PREFIX)).toBe(true);
+    for (const exact of [BRIDGE_PAIRING_META_ID, BRIDGE_CONFIG_META_ID, BRIDGE_APPLIER_META_ID]) {
+      expect(id).not.toBe(exact);
+      expect(exact.startsWith(BRIDGE_CAPABILITY_PREFIX)).toBe(false);
+    }
+    for (const other of [BRIDGE_ACTION_PREFIX, BRIDGE_CREATE_ACTION_PREFIX, BRIDGE_OBSERVATION_PREFIX, BRIDGE_INTENT_PREFIX, BRIDGE_PROJECTION_PREFIX, BRIDGE_COPY_PREFIX]) {
+      expect(id.startsWith(other)).toBe(false);
+      expect(`${other}x`.startsWith(BRIDGE_CAPABILITY_PREFIX)).toBe(false);
+    }
+  });
+
+  it('a capability payload names one capability, and is recognised only for that name', async () => {
+    const p = bridgeCapabilityPayload('task_create', '2026-11-06T12:00:00.000Z');
+    expect(p).toEqual({ v: 1, kind: 'capability', name: 'task_create', since: '2026-11-06T12:00:00.000Z' });
+    const key = await subkey();
+    const opened = await openBridgeEnvelope(key, await sealBridgeEnvelope(key, p, 'gen-A'));
+    expect(isBridgeCapability(opened, 'task_create')).toBe(true);
+    expect(isBridgeCapability(opened, 'task_other')).toBe(false);
+    expect(isBridgeCapability({ kind: 'config', name: 'task_create' }, 'task_create')).toBe(false);
+    expect(isBridgeCapability(null, 'task_create')).toBe(false);
   });
 });
 
