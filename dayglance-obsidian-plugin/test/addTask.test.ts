@@ -5,8 +5,38 @@ import { describe, it, expect } from 'vitest';
 import { splitBlockId, hasForeignBlockId, blockIdSuffix } from '@glance-apps/obsidian-format';
 import {
   titleFromSelection, normalizeTitle, validDeadline, planBlockLink, mintBlockId,
-  wikilinkFor, buildTaskTitle, buildTaskCreatePayload,
+  wikilinkFor, buildTaskTitle, buildTaskCreatePayload, addTaskSource,
 } from '../src/addTask';
+
+describe('what the form starts from', () => {
+  const editorWith = (lines: string[], from: { line: number; ch: number }, to = from) => ({
+    somethingSelected: () => from.line !== to.line || from.ch !== to.ch,
+    getSelection: () => {
+      if (from.line === to.line) return lines[from.line].slice(from.ch, to.ch);
+      return [lines[from.line].slice(from.ch), ...lines.slice(from.line + 1, to.line), lines[to.line].slice(0, to.ch)].join('\n');
+    },
+    getCursor: (which?: string) => (which === 'to' ? to : from),
+    getLine: (n: number) => lines[n],
+  });
+
+  it('the selection, when there is one', () => {
+    const r = addTaskSource(editorWith(['Call the plumber about the gutter'], { line: 0, ch: 9 }, { line: 0, ch: 20 }));
+    expect(r.title).toBe('plumber abo');
+    expect(r.from).toEqual({ line: 0, ch: 9 });
+    expect(r.to).toEqual({ line: 0, ch: 20 });
+  });
+
+  it('with nothing selected, the line the cursor is on (mobile: the command from the toolbar)', () => {
+    const r = addTaskSource(editorWith(['# House', '- [ ] Fix the gutter ^dg-8w230vhc'], { line: 1, ch: 4 }));
+    expect(r.title).toBe('Fix the gutter');
+    expect(r.from).toEqual({ line: 1, ch: 4 });
+    expect(r.to).toEqual({ line: 1, ch: 4 });
+  });
+
+  it('an empty line starts the form empty (the form refuses an empty title)', () => {
+    expect(addTaskSource(editorWith(['', 'text'], { line: 0, ch: 0 })).title).toBe('');
+  });
+});
 
 describe('the title', () => {
   it('the prefill keeps the words: list and heading syntax and a trailing block id go, lines join', () => {

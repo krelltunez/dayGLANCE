@@ -374,7 +374,7 @@ export class BridgeSettingTab extends PluginSettingTab {
       .addToggle((t) => t.setValue(cur.hideCompletedInLinkedNotes).onChange((v) => save({ hideCompletedInLinkedNotes: v })));
     new Setting(this.containerEl)
       .setName('Link to the exact paragraph')
-      .setDesc('When you add selected text to dayGLANCE, link the task to the paragraph or list item the selection starts in instead of the whole note. An ID already at the end of the block is reused; otherwise a short one is added there, which edits the note. A task line is linked by its dayGLANCE ID and never gets a second one.')
+      .setDesc('When you add text to dayGLANCE, link the task to the paragraph or list item it starts in instead of the whole note. An ID you already have at the end of the block is reused; otherwise a short one is added there, which edits the note. A task line always links to the whole note.')
       .addToggle((t) => t.setValue(this.host.getLinkToBlock()).onChange((v) => void this.host.setLinkToBlock(v)));
   }
 

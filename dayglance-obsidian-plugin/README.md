@@ -28,9 +28,11 @@ plugin adds what a folder cannot do on its own: it runs inside Obsidian.
   vault is open on several computers, only one of them writes at a time, and
   the others receive the result through Obsidian Sync.
 - **Add to dayGLANCE.** Select text in any note and choose **Add to
-  dayGLANCE** from the editor's context menu (a long press on mobile), or run
-  the **Add selection to dayGLANCE as a task** command. The selection becomes
-  one dayGLANCE inbox task, with an optional deadline, priority and project,
+  dayGLANCE** from the editor's context menu, or run the **Add selection or current line to dayGLANCE as a task** command
+  (with nothing selected, it starts from the line the cursor is on). On a
+  phone or tablet, a long press shows the system's copy menu instead of
+  Obsidian's, so use the command: add it to the mobile toolbar (Settings,
+  Toolbar) for one tap. The text becomes one dayGLANCE inbox task, with an optional deadline, priority and project,
   linked back to the note with a `[[wikilink]]`. Any paired dayGLANCE device
   adds it, including a phone without access to the vault folder. The task is
   sent to dayGLANCE and appears there once dayGLANCE picks it up on one of
@@ -74,8 +76,8 @@ plugin adds what a folder cannot do on its own: it runs inside Obsidian.
 - **Open agenda**
 - **Link current note to a dayGLANCE project or goal**
 - **Unlink current note from dayGLANCE**
-- **Add selection to dayGLANCE as a task**: available while text is selected,
-  so you can give it a hotkey. The same form as the context-menu item. The
+- **Add selection or current line to dayGLANCE as a task**: the selection, or the line the cursor is on; give it a hotkey,
+  or a button in the mobile toolbar. The same form as the context-menu item. The
   project list appears once the sync passphrase is entered on this device.
   The form checks that a dayGLANCE app new enough to receive the task has
   run on one of your devices; until then (or while GLANCEvault cannot be
