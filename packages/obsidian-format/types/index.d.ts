@@ -174,6 +174,7 @@ export const BRIDGE_CONFIG_META_ID: string;
 export const BRIDGE_INTENT_PREFIX: string;
 export const BRIDGE_OBSERVATION_PREFIX: string;
 export const BRIDGE_ACTION_PREFIX: string;
+export const BRIDGE_CREATE_ACTION_PREFIX: string;
 export const BRIDGE_PROJECTION_PREFIX: string;
 export const BRIDGE_COPY_PREFIX: string;
 export function bridgeCopyStatusId(deviceId: string): string;
