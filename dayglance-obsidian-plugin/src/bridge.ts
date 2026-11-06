@@ -620,6 +620,11 @@ export class BridgeTransport {
     if (typeof seq === 'number' && Number.isFinite(seq)) this.sseGate.recordOwnSeq(seq);
   }
 
+  /** The 429 brake, for bridge writes made outside the transport (the agenda's action rows). */
+  isRateLimited(): boolean { return this.rateLimited(); }
+  reportRateLimit(): void { this.noteRateLimit(); }
+  reportRequestSuccess(): void { this.noteSuccess(); }
+
   /** True while this copy's pairing is older than the vault's: it applies and reports nothing (the heartbeat's `pairingStale`). */
   pairingStale(): boolean { return this.stalePairing !== null; }
   /** The intents this copy held unreadable on its last drain. */
