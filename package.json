@@ -16,6 +16,7 @@
     "ios:generate": "bash scripts/gen-ios-project.sh",
     "ios:icons": "bash scripts/gen-ios-icons.sh",
     "ios:vectors": "node scripts/export-dial-vectors.mjs",
+    "bridge:install": "node scripts/bridge-install.mjs",
     "ios": "npm run build:ios && npm run ios:generate",
     "preview": "vite preview",
     "reviewer-code": "node scripts/reviewer-code.js",
