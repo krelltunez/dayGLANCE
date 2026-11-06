@@ -160,9 +160,9 @@ How the plugin works, for whoever changes it. The user-facing description is
   missing note) and `task_remove` (the line carrying a block id) for this.
 - **Add to dayGLANCE** (companion spec §4.2.1, `src/addTask.ts`,
   `src/addTaskModal.ts`): the editor's context menu, while text is
-  selected, and the **Add selection to dayGLANCE as a task** command (an
-  `editorCheckCallback`, so only with a selection) open a form: the title
-  prefilled from the selection, an optional deadline, the app's priority
+  selected, and the **Add selection or current line to dayGLANCE as a task** command (an `editorCallback`, so it is in the
+  mobile toolbar's picker too; the selection or the cursor's line,
+  `addTaskSource`) open a form: the title prefilled from that text, an optional deadline, the app's priority
   (none to high) and, when the mirror can list them, the active projects.
   The task title is `<title> [[<link>]]`, the link being Obsidian's own
   link text for the note (`fileToLinktext`), always a wikilink. With
@@ -189,7 +189,7 @@ How the plugin works, for whoever changes it. The user-facing description is
   heartbeat), **Enter pairing code**, **Unpair from GLANCEvault**
   (forgets the local credentials and the account key; revoke the token
   server-side too), **Open agenda**, the two link commands above, and
-  **Add selection to dayGLANCE as a task**.
+  **Add selection or current line to dayGLANCE as a task**.
 
 Network access happens only while paired (plus pairing verification), only
 to the vault URL carried in the offer, via Obsidian's `requestUrl`. All

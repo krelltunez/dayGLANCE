@@ -47,6 +47,24 @@ import type { AppSupport } from './appCapabilities';
 /** The app capability "Add to dayGLANCE" needs (appCapabilities.ts). */
 export const TASK_CREATE_CAPABILITY: string = BRIDGE_CAPABILITY_TASK_CREATE;
 
+/**
+ * What the form starts from: the selection, or, with nothing selected, the
+ * line the cursor is on. Obsidian's mobile editor shows the system's
+ * cut/copy menu on a long press, never the editor menu, so on a phone the
+ * command (from the mobile toolbar or the palette) is the way in, and
+ * selecting text there is fiddly; the cursor's line is the natural default.
+ * The command is therefore always available in an editor: a command that
+ * needs a selection is missing from the toolbar's picker, which lists
+ * commands with no selection in hand.
+ */
+export function addTaskSource(editor: Pick<Editor, 'somethingSelected' | 'getSelection' | 'getCursor' | 'getLine'>): { title: string; from: EditorPosition; to: EditorPosition } {
+  if (editor.somethingSelected()) {
+    return { title: titleFromSelection(editor.getSelection()), from: editor.getCursor('from'), to: editor.getCursor('to') };
+  }
+  const at = editor.getCursor();
+  return { title: titleFromSelection(editor.getLine(at.line)), from: at, to: at };
+}
+
 /** The form's line while the capability is being checked. */
 export const CHECKING_APP_MESSAGE = 'Checking that dayGLANCE can receive it…';
 

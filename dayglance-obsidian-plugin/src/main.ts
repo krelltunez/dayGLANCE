@@ -52,7 +52,7 @@ import { localDateStr } from '@glance-apps/agenda-core';
 import { AgendaView, AGENDA_VIEW_TYPE } from './agendaView';
 import { LinkTargetModal } from './linkModal';
 import { AddTaskModal } from './addTaskModal';
-import { addSelectionAsTask, titleFromSelection, TASK_CREATE_CAPABILITY } from './addTask';
+import { addSelectionAsTask, addTaskSource, TASK_CREATE_CAPABILITY } from './addTask';
 import { NoteBlockWriter } from './noteBlocks';
 import { applyEditorHidingSettings, clearEditorHidingSettings, editorHidingExtension, markCompletedInReadingView, refreshEditorHiding, type EditorHidingHost } from './editorHiding';
 import { normalizeEditorHidingSettings, type EditorHidingSettings } from './editorHidingRules';
@@ -287,14 +287,16 @@ export default class DayGlanceBridgePlugin extends Plugin {
         .setIcon('list-plus')
         .onClick(() => this.openAddTask(editor, file)));
     }));
+    // Always available in an editor (the selection, or the cursor's line):
+    // a command that required a selection was missing from the mobile
+    // toolbar's picker, and on a phone the command is the only way in
+    // (addTaskSource). The id is unchanged, so hotkeys keep working.
     this.addCommand({
       id: 'add-selection-to-dayglance',
-      name: 'Add selection to dayGLANCE as a task',
-      editorCheckCallback: (checking, editor, ctx) => {
+      name: 'Add selection or current line to dayGLANCE as a task',
+      editorCallback: (editor, ctx) => {
         const file = ctx.file;
-        if (!editor.somethingSelected() || !file) return false;
-        if (!checking) this.openAddTask(editor, file);
-        return true;
+        if (file) this.openAddTask(editor, file);
       },
     });
 
@@ -568,10 +570,9 @@ export default class DayGlanceBridgePlugin extends Plugin {
   // explains when none can (companion spec 4.2.2).
   private openAddTask(editor: Editor, file: TFile): void {
     if (!this.data.pairing) { new Notice('dayGLANCE bridge: not paired.'); return; }
-    const from = editor.getCursor('from');
-    const to = editor.getCursor('to');
+    const { title, from, to } = addTaskSource(editor);
     new AddTaskModal(this.app, {
-      title: titleFromSelection(editor.getSelection()),
+      title,
       projects: this.agenda.projectChoices(),
       appKnown: this.agenda.appSupportKnown(TASK_CREATE_CAPABILITY),
       checkApp: () => this.agenda.appSupports(TASK_CREATE_CAPABILITY),

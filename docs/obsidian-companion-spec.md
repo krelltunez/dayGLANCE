@@ -505,11 +505,14 @@ selection and linked back to the note. Like the sidebar's completion it is
 an ACTION, applied by dayGLANCE; the plugin still never writes the data
 plane.
 
-**Plugin side.** The editor's context menu (`editor-menu`, desktop and
-mobile) offers **Add to dayGLANCE** while text is selected; the command
-**Add selection to dayGLANCE as a task** has an `editorCheckCallback`, so it
-is available only then and can take a hotkey. A form prefills the title from
-the selection (one line; list, checkbox, heading and quote syntax and a
+**Plugin side.** The editor's context menu (`editor-menu`) offers **Add to
+dayGLANCE** while text is selected. On Obsidian mobile a long press shows the
+system's text menu, never the editor menu, so the command is the way in
+there: **Add selection or current line to dayGLANCE as a task** is an `editorCallback`, always available in an editor (a
+command that needed a selection was missing from the mobile toolbar's
+picker, which lists commands with none in hand), and starts from the
+selection or, with none, the cursor's line (`addTaskSource`). A form prefills
+the title from that text (one line; list, checkbox, heading and quote syntax and a
 trailing block id dropped; editable; an empty title is refused) and offers
 the app's inbox fields: an optional deadline (`YYYY-MM-DD`, the app's
 `deadline`), the app's priority (0 none, 1 low, 2 medium, 3 high) and, when
