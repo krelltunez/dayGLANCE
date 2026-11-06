@@ -1490,6 +1490,56 @@ arrival. Daily notes are untouched. *Remaining gap, recorded:* an arrival is
 memory-only, so a note moved back while the plugin is closed and then left
 unedited reports its old mtime after the reload; an edit revives it.
 
+**Tag-removal record (2026-11-05, built; owner ruling).** Removing the
+scope tag from a note in scope only by that tag withdrew nothing: the
+metadata-change handler reconciled the project link and no more, so the
+note stayed adopted and its tasks stayed in dayGLANCE, frozen, while every
+other way of leaving (a settings change, a move out, a link removed)
+withdrew under ruling C. Now a note's own metadata change re-classifies its
+scope. Entering (a scope tag added) adopts it on the spot. Leaving withdraws
+it through the same withdrawal, **after a hold**: only once it has been out
+of scope continuously for two minutes, re-checked when the hold runs out;
+coming back in (a later change, or an observation that finds it scoped)
+cancels the hold, and a second removal starts a fresh one. *Why the hold:*
+Obsidian re-parses tags as the user types (renaming `#work` to
+`#work-projects` passes through `#wor`, and a half-typed frontmatter edit
+parses as no tags at all), and a withdrawal drops the note's tasks on every
+device, so a transient must never cause one. What still keeps a note in
+scope is unchanged: a folder or a project/goal link (`scopedNote`); daily
+notes are never withdrawn. A deleted note is reported deleted, never
+withdrawn, and its adoption goes with it, so a new note at the path inherits
+nothing; a rename's own re-classification decides both paths. The holds are
+memory-only: the first adoption walk after a load arms one for every adopted
+note found out of scope (a hold, never a withdrawal on the spot), and a note
+whose metadata is not parsed yet waits rather than reading as untagged.
+The settings path is held to the same standard: the plugin calls
+`scopeChanged` on every synced data.json change, most of which leave the
+scope as it was, and it used to withdraw every adopted note that looked out
+of scope at that moment, a tag mid-retype or a note whose metadata Obsidian
+had not parsed yet (startup) included, with no hold. It now acts only when
+the scope itself changed, and even then a note with unparsed metadata waits
+out the hold rather than reading as untagged.
+**The sticky withdrawal (owner ruling, 2026-11-06).** A note that keeps
+its `^dg-` stamps after leaving the scope is still reported on every edit
+(the observe path admits it by content), and that unflagged report replaced
+its withdrawal row: a device that had not pulled in between never saw the
+withdrawal and kept the tasks. Now the plugin remembers the notes it
+withdrew (`withdrawnScope`, persisted beside the adopted set, per copy), and
+while one stays out of scope every report of it goes out as the withdrawal
+again, through the normal report's send, so the row keeps saying
+"withdrawn" whatever order devices pull in, and the index of reported note
+paths reads it as not shared. A path is remembered only while a note is at
+it (a move out leaves nothing there to report), never for a daily note.
+Re-entry (any way: its tag, a link, the scope setting, a move in) reports it
+scoped and forgets it; so does a deletion, and a rename forgets the old path
+without carrying the withdrawal to the new one, so no note at either path
+inherits it. On the app a repeated withdrawal tombstones nothing new; it
+only re-stamps the device-local withdrawn-notes time. Scenarios T1 to T17 in
+`scope.scenarios.test.ts`. *Gaps, recorded:* a withdrawal row is still
+best-effort when no later report follows it (the same for every way of
+leaving). A scope cleared while Obsidian was closed still withdraws nothing
+until the settings next change.
+
 **The scenario harness (2026-09-04, built).** The field-test checklist is
 now scripted: `dayglance-obsidian-plugin/test/` holds a stub of the
 `obsidian` module (an in-memory vault with the plugin's events, a metadata
