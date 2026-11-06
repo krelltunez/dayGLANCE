@@ -12,7 +12,11 @@ name: Bridge mirror
 # On main (and on demand): the same, then commit the tree to the mirror and,
 # when manifest.json carries a version the mirror has not tagged, push that
 # tag. The mirror's own release workflow builds the tag into a DRAFT release;
-# publishing it is a manual step.
+# publishing it is a manual step. The mirror's main keeps the PUBLISHED
+# version's manifest.json and versions.json (which Obsidian's directory and
+# BRAT read) until the release is published, so a merged version bump never
+# advertises a draft (scripts/bridge-mirror/sync.sh; the mirror's
+# publish-manifest workflow moves them on publish).
 #
 # Needs the secret BRIDGE_MIRROR_DEPLOY_KEY: the private half of a deploy key
 # with write access on glance-apps/dayglance-bridge.
@@ -98,28 +102,9 @@ jobs:
           export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/bridge_mirror -o IdentitiesOnly=yes"
 
           git clone git@github.com:glance-apps/dayglance-bridge.git "$RUNNER_TEMP/mirror"
-          cd "$RUNNER_TEMP/mirror"
-          # The mirror's LICENSE is its own; everything else is replaced, so a
-          # file removed here is removed there too.
-          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name LICENSE -exec rm -rf {} +
-          cp -a "$RUNNER_TEMP/tree/." ./
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "The mirror is already up to date."
-          else
-            git commit -q -m "Mirror krelltunez/dayGLANCE@${GITHUB_SHA::12}" \
-              -m "https://github.com/krelltunez/dayGLANCE/commit/${GITHUB_SHA}"
-            git push origin HEAD:main
-          fi
-
-          version=$(node -p "require('./manifest.json').version")
-          if git ls-remote --exit-code --tags origin "refs/tags/$version" >/dev/null; then
-            echo "Version $version is already tagged."
-          else
-            git tag "$version"
-            git push origin "$version"
-            echo "Tagged $version: the mirror's release workflow builds it into a draft release."
-          fi
+          git -C "$RUNNER_TEMP/mirror" config user.name "github-actions[bot]"
+          git -C "$RUNNER_TEMP/mirror" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # The code follows main here; manifest.json and versions.json on the
+          # mirror's main change only when a release is published there (see
+          # the script and the mirror's publish-manifest workflow).
+          bash scripts/bridge-mirror/sync.sh "$RUNNER_TEMP/tree" "$RUNNER_TEMP/mirror" "$GITHUB_SHA"

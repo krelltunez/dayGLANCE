@@ -1,0 +1,40 @@
+name: Publish manifest
+
+# When a release is PUBLISHED, point main's manifest.json and versions.json at
+# it. Obsidian's community directory and BRAT read those files at the head of
+# main, so a version reaches users at the moment its release is published,
+# never while it is still a draft. Until then main keeps the last published
+# version's files: the mirror workflow in krelltunez/dayGLANCE
+# (.github/workflows/bridge-mirror.yml, scripts/bridge-mirror/sync.sh) puts a
+# new version's files on its tag's commit only.
+#
+# A pre-release changes nothing here.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-manifest
+  cancel-in-progress: false
+
+jobs:
+  manifest:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Point main at the published release
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          bash .github/scripts/publish-manifest.sh "$TAG"

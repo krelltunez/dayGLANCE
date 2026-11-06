@@ -295,6 +295,19 @@ which is generated from here and never edited directly:
   tagged, it pushes the tag, and the mirror's release workflow builds it into
   a draft release with `main.js`, `manifest.json` and `styles.css`.
   Publishing that draft is what ships the version, so it stays a manual step.
+- The mirror's `main` names the PUBLISHED version. Obsidian's directory and
+  BRAT read `manifest.json` at the head of `main` and install from the release
+  whose tag matches, so `manifest.json` and `versions.json` there change only
+  when a release is published: the code on `main` follows this repository,
+  those two files keep `main`'s copies (`scripts/bridge-mirror/sync.sh`), and
+  a new version's files sit on its tag's commit, one step past `main`. When
+  the release is published, the mirror's `publish-manifest` workflow copies
+  them to `main` (a pre-release, or a release not newer than `main`, changes
+  nothing). `scripts/bridge-mirror/sync.test.js` runs both scripts on
+  throwaway repositories.
 
-To release a version: bump it in `manifest.json`, `package.json` and
-`versions.json`, merge, then publish the draft release in the mirror.
+To release a version: bump it in `manifest.json`, `package.json`,
+`package-lock.json` and `versions.json`, and merge. Test the build first if
+you like (`npm run bridge:install` at the repo root builds it into a vault);
+nothing reaches users until you publish the draft release in the mirror,
+which also moves `main`'s `manifest.json` to the new version.
