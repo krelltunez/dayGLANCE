@@ -46,6 +46,9 @@ import {
   BRIDGE_INTENT_PREFIX,
   bridgeCalendarProjectionId,
   BRIDGE_APPLIER_META_ID,
+  BRIDGE_CAPABILITY_TASK_CREATE,
+  bridgeCapabilityId,
+  bridgeCapabilityPayload,
 } from '@glance-apps/obsidian-format';
 
 const OUTBOX_KEY = 'dayglance-bridge-outbox';
@@ -102,6 +105,9 @@ let publishedConfigHash = null;
 // Same session-scoped guard shape for the calendar projection row (see
 // publishBridgeCalendarProjection): once per (generation, content).
 let publishedProjectionHash = null;
+// And for the capability rows (publishBridgeCapabilities): name → the
+// pairing generation it was last written under, this session.
+const publishedCapabilities = new Map();
 
 // ── THE BRAKE (now inside the client) ────────────────────────────────────────
 // Born here as the bridge brake (#1481, decay semantics from the 2026-08-30
@@ -452,6 +458,58 @@ export async function publishBridgeCalendarProjection(payload, contentHash) {
   }
 }
 
+/**
+ * WHAT THIS APP CONSUMES from the plugin (companion spec 4.2.2): the
+ * capability rows every current app announces. A plugin feature that needs
+ * a current app (its rows wait unread on an older one) checks for its name
+ * before it sends anything, so an older app in the fleet makes the plugin
+ * say "update dayGLANCE" instead of "sent" into a stream nothing reads. A
+ * feature that adds such a row type adds its name here, in the same change
+ * that teaches the app to consume it.
+ */
+export const APP_BRIDGE_CAPABILITIES = Object.freeze([BRIDGE_CAPABILITY_TASK_CREATE]);
+
+/**
+ * Announce capabilities on the bridge stream: one sealed `meta:cap:<name>`
+ * row per name (never a combined row, so nothing that knows fewer names can
+ * drop one). Written once per name per SESSION per pairing GENERATION, the
+ * meta:config guard's shape: a re-pair rotates the subkey, so a row sealed
+ * under the old one reads as nothing to the new stream and is rewritten;
+ * and a fresh session rewrites once, the reachable recovery lever. Gated
+ * like every sealed write (vault on, paired, the verified account key); sits
+ * the brake out; the ack is recorded as an own write. Fail-silent: a failure
+ * leaves the names unrecorded, and the next call retries them. Resolves true
+ * when every name is published under the current generation.
+ */
+export async function publishBridgeCapabilities(names = APP_BRIDGE_CAPABILITIES) {
+  try {
+    if (bridgeRateLimited()) return false;
+    const meta = await getBridgePairingMeta();
+    if (!meta?.generation) return false; // unpaired: nothing reads them
+    const due = [...new Set(names || [])].filter((n) => typeof n === 'string' && n && publishedCapabilities.get(n) !== meta.generation);
+    if (!due.length) return true;
+    const ctx = vaultClientOrNull();
+    if (!ctx) return false;
+    const subkey = await getBridgeSubkey(meta, ctx);
+    if (!subkey) return false;
+    const since = new Date().toISOString();
+    const rows = [];
+    for (const name of due) {
+      rows.push({
+        entityId: bridgeCapabilityId(name),
+        envelope: await sealBridgeEnvelope(subkey, bridgeCapabilityPayload(name, since), meta.generation),
+        createdAt: Date.now(),
+      });
+    }
+    const ack = await ctx.client.batch(BRIDGE_VAULT_APP, { accountId: ctx.accountId, rows });
+    recordOwnWriteSeq(ack?.maxSeq);
+    for (const name of due) publishedCapabilities.set(name, meta.generation);
+    return true;
+  } catch {
+    return false; // rate-limited or unreachable: the names stay due
+  }
+}
+
 /** Test seam: reset module caches (subkey, in-flight flags) + the client's
  *  module-scope diagnostics (brake/meter/write-history). */
 export function __resetBridgeStreamForTests() {
@@ -461,5 +519,6 @@ export function __resetBridgeStreamForTests() {
   flushInFlight = null;
   metaFetchInFlight = null;
   publishedConfigHash = null;
+  publishedCapabilities.clear();
   resetVaultDiagnostics();
 }
