@@ -1490,6 +1490,35 @@ arrival. Daily notes are untouched. *Remaining gap, recorded:* an arrival is
 memory-only, so a note moved back while the plugin is closed and then left
 unedited reports its old mtime after the reload; an edit revives it.
 
+**Tag-removal record (2026-11-05, built; owner ruling).** Removing the
+scope tag from a note in scope only by that tag withdrew nothing: the
+metadata-change handler reconciled the project link and no more, so the
+note stayed adopted and its tasks stayed in dayGLANCE, frozen, while every
+other way of leaving (a settings change, a move out, a link removed)
+withdrew under ruling C. Now a note's own metadata change re-classifies its
+scope. Entering (a scope tag added) adopts it on the spot. Leaving withdraws
+it through the same withdrawal, **after a hold**: only once it has been out
+of scope continuously for two minutes, re-checked when the hold runs out;
+coming back in (a later change, or an observation that finds it scoped)
+cancels the hold, and a second removal starts a fresh one. *Why the hold:*
+Obsidian re-parses tags as the user types (renaming `#work` to
+`#work-projects` passes through `#wor`, and a half-typed frontmatter edit
+parses as no tags at all), and a withdrawal drops the note's tasks on every
+device, so a transient must never cause one. What still keeps a note in
+scope is unchanged: a folder or a project/goal link (`scopedNote`); daily
+notes are never withdrawn. A deleted note is reported deleted, never
+withdrawn, and its adoption goes with it, so a new note at the path inherits
+nothing; a rename's own re-classification decides both paths. The holds are
+memory-only: the first adoption walk after a load arms one for every adopted
+note found out of scope (a hold, never a withdrawal on the spot), and a note
+whose metadata is not parsed yet waits rather than reading as untagged.
+Scenarios T1 to T9 in `scope.scenarios.test.ts`. *Gaps, recorded:* a
+withdrawal is one best-effort row (the same for every way of leaving); a
+note that still carries `^dg-` stamps keeps being reported unflagged on its
+next edit, and that report replaces the withdrawal row, so a device that
+had not pulled in between never sees the withdrawal. A scope cleared while
+Obsidian was closed still withdraws nothing until the settings next change.
+
 **The scenario harness (2026-09-04, built).** The field-test checklist is
 now scripted: `dayglance-obsidian-plugin/test/` holds a stub of the
 `obsidian` module (an in-memory vault with the plugin's events, a metadata
