@@ -463,6 +463,10 @@ export class BridgeTransport {
   // and the first adoption walk after load re-arms one for every adopted
   // note found out of scope (see adoptTick).
   private leaveHolds = new Map<string, number>();
+  // The scope scopeChanged last applied (normalized, as JSON). The plugin
+  // calls scopeChanged on EVERY synced data.json change, most of which leave
+  // the scope as it was; only a real change withdraws at once.
+  private appliedScopeKey: string;
   private adoptQueue: string[] = [];
   private adoptScanned = false;
   // When a note ARRIVED at a path (create or rename), epoch ms. A move does
@@ -552,6 +556,7 @@ export class BridgeTransport {
 
   constructor(host: BridgeHost) {
     this.host = host;
+    this.appliedScopeKey = this.scopeKey();
     // Config survives plugin reloads via data.json (the 2026-08-31 fix): a
     // reloaded plugin resumes with the stamping decision it last knew instead
     // of silently reverting to config-null. Drains keep it fresh.
@@ -2167,8 +2172,20 @@ export class BridgeTransport {
    */
   scopeChanged(): void {
     if (this.disposed) return;
+    // Called on every synced data.json change: one that leaves the scope as
+    // it was withdraws nothing. A note out of scope then is a tag being
+    // edited, which its own metadata change holds (metaScopeChanged); an
+    // immediate withdrawal here would skip that hold.
+    const key = this.scopeKey();
+    if (key === this.appliedScopeKey) return;
+    this.appliedScopeKey = key;
     for (const path of [...this.adopted]) {
       if (this.scopedNote(path)) continue;
+      // Metadata not parsed yet reads as no tags: no information, so the
+      // note waits out the leaving hold, whose expiry re-checks it.
+      const file = this.host.app.vault.getAbstractFileByPath(normalizePath(path));
+      if (file instanceof TFile && !this.host.app.metadataCache.getFileCache(file)) { this.armLeaveHold(path); continue; }
+      this.cancelLeaveHold(path);
       this.adopted.delete(path);
       this.scopedPaths.delete(path);
       void this.emitWithdrawal(path);
@@ -2176,6 +2193,10 @@ export class BridgeTransport {
     this.adoptScanned = false;
     this.adoptQueue = [];
     void this.persistAdopted();
+  }
+
+  private scopeKey(): string {
+    return JSON.stringify(this.host.getScope?.() ?? null);
   }
 
   private async persistAdopted(): Promise<void> {

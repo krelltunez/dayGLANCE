@@ -1512,7 +1512,14 @@ nothing; a rename's own re-classification decides both paths. The holds are
 memory-only: the first adoption walk after a load arms one for every adopted
 note found out of scope (a hold, never a withdrawal on the spot), and a note
 whose metadata is not parsed yet waits rather than reading as untagged.
-Scenarios T1 to T9 in `scope.scenarios.test.ts`. *Gaps, recorded:* a
+The settings path is held to the same standard: the plugin calls
+`scopeChanged` on every synced data.json change, most of which leave the
+scope as it was, and it used to withdraw every adopted note that looked out
+of scope at that moment, a tag mid-retype or a note whose metadata Obsidian
+had not parsed yet (startup) included, with no hold. It now acts only when
+the scope itself changed, and even then a note with unparsed metadata waits
+out the hold rather than reading as untagged.
+Scenarios T1 to T11 in `scope.scenarios.test.ts`. *Gaps, recorded:* a
 withdrawal is one best-effort row (the same for every way of leaving); a
 note that still carries `^dg-` stamps keeps being reported unflagged on its
 next edit, and that report replaces the withdrawal row, so a device that

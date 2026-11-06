@@ -1293,6 +1293,47 @@ describe('the scope tag removed: withdrawal after the leaving hold', { timeout: 
     await s.advance(300_000);
     expect(withdrawalsOf(spy, DAY)).toBe(0);
   });
+
+  it('T10. a synced settings change that leaves the scope as it was (main.ts calls scopeChanged on every data.json sync) withdraws nothing during a hold; the hold still decides', async () => {
+    await bootWithTaggedNote();
+    const id = A.byPath(TNOTE)[0].id;
+    const spy = spyWithdrawals();
+    await withoutTag(TNOTE);              // a tag mid-retype
+    await s.advance(30_000);
+    s.plugin.transport.scopeChanged();    // another device's data.json arrives, scope unchanged
+    await s.advance(1_000);
+    expect(withdrawalsOf(spy, TNOTE)).toBe(0);
+    expect(adoptedScope()).toContain(TNOTE);
+    await withTag(TNOTE);                 // the retype finished
+    await s.advance(300_000);
+    await A.sync();
+    expect(withdrawalsOf(spy, TNOTE)).toBe(0);
+    expect(A.byPath(TNOTE).map((t) => t.id)).toEqual([id]);
+    expect(tombstones()[id]).toBeUndefined();
+  });
+
+  it('T11. a REAL scope change withdraws at once, but a note whose metadata is not parsed yet waits out the hold instead of reading as untagged', async () => {
+    await bootWithTaggedNote();
+    const id = A.byPath(TNOTE)[0].id;
+    const spy = spyWithdrawals();
+    const cache = s.plugin.app.metadataCache;
+    const real = cache.getFileCache.bind(cache);
+    const unparsed = vi.spyOn(cache, 'getFileCache').mockImplementation((f) => (f.path === TNOTE ? null : real(f)));
+    // The scope changes in a way that keeps the tag: with its tags unread
+    // the note looks out of scope, and must not be withdrawn on that.
+    await s.plugin.setScope({ folders: ['Projects'], tags: ['work', 'home'] });
+    await s.advance(1_000);
+    expect(withdrawalsOf(spy, TNOTE)).toBe(0);
+    unparsed.mockRestore();
+    await s.advance(130_000);             // parsed: the hold re-checks, the tag is there
+    await A.sync();
+    expect(withdrawalsOf(spy, TNOTE)).toBe(0);
+    expect(A.byPath(TNOTE).map((t) => t.id)).toEqual([id]);
+    // And a real change that drops the tag withdraws at once, no hold.
+    await s.plugin.setScope({ folders: ['Projects'], tags: ['home'] });
+    await s.advance(1_000);
+    expect(withdrawalsOf(spy, TNOTE)).toBe(1);
+  });
 });
 
 describe('plugin resilience (the post-soak audit batch)', () => {
