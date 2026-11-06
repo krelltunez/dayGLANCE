@@ -1519,12 +1519,26 @@ of scope at that moment, a tag mid-retype or a note whose metadata Obsidian
 had not parsed yet (startup) included, with no hold. It now acts only when
 the scope itself changed, and even then a note with unparsed metadata waits
 out the hold rather than reading as untagged.
-Scenarios T1 to T11 in `scope.scenarios.test.ts`. *Gaps, recorded:* a
-withdrawal is one best-effort row (the same for every way of leaving); a
-note that still carries `^dg-` stamps keeps being reported unflagged on its
-next edit, and that report replaces the withdrawal row, so a device that
-had not pulled in between never sees the withdrawal. A scope cleared while
-Obsidian was closed still withdraws nothing until the settings next change.
+**The sticky withdrawal (owner ruling, 2026-11-06).** A note that keeps
+its `^dg-` stamps after leaving the scope is still reported on every edit
+(the observe path admits it by content), and that unflagged report replaced
+its withdrawal row: a device that had not pulled in between never saw the
+withdrawal and kept the tasks. Now the plugin remembers the notes it
+withdrew (`withdrawnScope`, persisted beside the adopted set, per copy), and
+while one stays out of scope every report of it goes out as the withdrawal
+again, through the normal report's send, so the row keeps saying
+"withdrawn" whatever order devices pull in, and the index of reported note
+paths reads it as not shared. A path is remembered only while a note is at
+it (a move out leaves nothing there to report), never for a daily note.
+Re-entry (any way: its tag, a link, the scope setting, a move in) reports it
+scoped and forgets it; so does a deletion, and a rename forgets the old path
+without carrying the withdrawal to the new one, so no note at either path
+inherits it. On the app a repeated withdrawal tombstones nothing new; it
+only re-stamps the device-local withdrawn-notes time. Scenarios T1 to T17 in
+`scope.scenarios.test.ts`. *Gaps, recorded:* a withdrawal row is still
+best-effort when no later report follows it (the same for every way of
+leaving). A scope cleared while Obsidian was closed still withdraws nothing
+until the settings next change.
 
 **The scenario harness (2026-09-04, built).** The field-test checklist is
 now scripted: `dayglance-obsidian-plugin/test/` holds a stub of the
