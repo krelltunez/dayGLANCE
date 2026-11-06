@@ -15,6 +15,7 @@ import {
   type AgendaItem, type RoutineItem,
 } from '@glance-apps/agenda-core';
 import type { AgendaStore } from './agenda';
+import { waitingLine } from './sentCreates';
 
 export const AGENDA_VIEW_TYPE = 'dayglance-agenda';
 // The projection window: ±35 days around today covers the visible month
@@ -139,6 +140,8 @@ export class AgendaView extends ItemView {
       root.createDiv({ cls: 'dg-agenda-setup', text: status.key === 'unpaired'
         ? 'Pair this vault with dayGLANCE to see your agenda here (Settings, dayGLANCE Bridge).'
         : 'Enter your dayGLANCE sync passphrase in Settings, dayGLANCE Bridge, dayGLANCE account, to load your agenda on this device.' });
+      // Sending a task needs only the pairing, so the line shows here too.
+      this.renderWaiting(root, status);
       return;
     }
 
@@ -150,6 +153,14 @@ export class AgendaView extends ItemView {
     this.renderMonth(root, today, dotted, from, to);
     this.renderDay(root, today, agenda[this.selected] ?? [], from, to);
     this.renderStatus(root, status);
+    this.renderWaiting(root, status);
+  }
+
+  // Tasks sent with "Add to dayGLANCE" that no app has picked up for over
+  // an hour (sentCreates.ts): one line under the status, with the hint.
+  private renderWaiting(root: HTMLElement, status: ReturnType<AgendaStore['getStatus']>): void {
+    const line = waitingLine(status.waitingCreates);
+    if (line) root.createDiv({ cls: 'dg-agenda-waiting', text: line });
   }
 
   private renderMonth(root: HTMLElement, today: string, dotted: Set<string>, from: string, to: string): void {

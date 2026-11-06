@@ -24,6 +24,16 @@
 // would land there unstamped and could be imported twice. A stamped task
 // line therefore links to the note, as an unstamped one does.
 //
+// ONLY WHEN AN APP CAN RECEIVE IT (companion spec 4.2.2). An app built
+// before task_create never reads these rows, and the plugin often updates
+// before the app does: a create sent then would sit unread for days, and
+// each retry would become a task of its own once an app updated. So the
+// form asks first whether some current app announces task_create
+// (appCapabilities.ts). Until one does, the form explains instead of
+// sending: nothing is emitted, and no block id is written either, so the
+// note is not touched. A capability row that cannot be read (offline, the
+// brake) refuses the same way: the send would fail too.
+//
 // NEVER AN ID ON AN UNSTAMPED TASK LINE. dayGLANCE's parser keeps a block id
 // it does not own as part of a task's title, and the stamper refuses a line
 // that ends in one (identity.js, hasForeignBlockId), so an id added to
@@ -31,6 +41,30 @@
 // good. Such a selection links to the note instead, and the notice says so.
 
 import type { App, Editor, EditorPosition, TFile } from 'obsidian';
+import { BRIDGE_CAPABILITY_TASK_CREATE } from '@glance-apps/obsidian-format';
+import type { AppSupport } from './appCapabilities';
+
+/** The app capability "Add to dayGLANCE" needs (appCapabilities.ts). */
+export const TASK_CREATE_CAPABILITY: string = BRIDGE_CAPABILITY_TASK_CREATE;
+
+/** The form's line while the capability is being checked. */
+export const CHECKING_APP_MESSAGE = 'Checking that dayGLANCE can receive it…';
+
+/**
+ * Why the form cannot send, for an answer that is not yes; null for yes.
+ * The form shows it in place of sending, and keeps Add disabled.
+ */
+export function addTaskBlockedMessage(answer: AppSupport): string | null {
+  if (answer.state === 'yes') return null;
+  if (answer.state === 'no') {
+    return answer.reason === 'pairing'
+      ? 'dayGLANCE has not picked up this vault\'s pairing yet. Open dayGLANCE on one of your devices, then try again.'
+      : 'This needs a newer version of dayGLANCE on at least one of your devices. Update dayGLANCE, then try again.';
+  }
+  if (answer.reason === 'rate-limited') return 'Couldn\'t reach GLANCEvault: it is rate-limiting. Nothing was sent; try again in a minute.';
+  if (answer.reason === 'rejected') return 'GLANCEvault rejected the pairing credential. Nothing was sent.';
+  return 'Couldn\'t reach GLANCEvault, so nothing was sent. Check the connection, then try again.';
+}
 
 export interface AddTaskValues {
   title: string;
@@ -201,21 +235,34 @@ export interface AddSelectionContext {
   to: EditorPosition;
   values: AddTaskValues;
   linkToBlock: boolean;
+  /** Whether some current app can receive the create (AgendaStore.appSupports). Asked before anything else. */
+  ready: () => Promise<AppSupport>;
   /** Seal and send the payload (AgendaStore.createTask). */
   emit: (input: Omit<TaskCreateInput, 'actionId' | 'createdAt' | 'viewer'>) => Promise<{ ok: boolean; message: string }>;
 }
 
-export interface AddSelectionResult { ok: boolean; message: string; title?: string }
+export interface AddSelectionResult {
+  ok: boolean;
+  message: string;
+  title?: string;
+  /** Set when no app could receive it: nothing was emitted and the note was not touched. */
+  blocked?: AppSupport;
+}
 
 /**
- * Build the link (adding a block id first when the setting asks for one and
- * the block has none) and emit the action. The id is written before the
+ * Check that some current app can receive it, then build the link (adding a
+ * block id first when the setting asks for one and the block has none) and
+ * emit the action. The id is written before the
  * emit, so a failed send leaves an id the retry reuses rather than a task
  * that links to a block that does not exist.
  */
 export async function addSelectionAsTask(ctx: AddSelectionContext): Promise<AddSelectionResult> {
   const words = normalizeTitle(ctx.values.title);
   if (!words) return { ok: false, message: 'Enter a title for the task.' };
+  // Before the block id: a create no app can receive changes nothing.
+  const answer = await ctx.ready();
+  const blocked = addTaskBlockedMessage(answer);
+  if (blocked) return { ok: false, message: blocked, blocked: answer };
   const linktext = ctx.app.metadataCache.fileToLinktext(ctx.file, '', true);
   let blockId: string | null = null;
   let fallback: string | null = null;

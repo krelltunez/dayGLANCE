@@ -52,7 +52,7 @@ import { localDateStr } from '@glance-apps/agenda-core';
 import { AgendaView, AGENDA_VIEW_TYPE } from './agendaView';
 import { LinkTargetModal } from './linkModal';
 import { AddTaskModal } from './addTaskModal';
-import { addSelectionAsTask, titleFromSelection } from './addTask';
+import { addSelectionAsTask, titleFromSelection, TASK_CREATE_CAPABILITY } from './addTask';
 import { NoteBlockWriter } from './noteBlocks';
 import { applyEditorHidingSettings, clearEditorHidingSettings, editorHidingExtension, markCompletedInReadingView, refreshEditorHiding, type EditorHidingHost } from './editorHiding';
 import { normalizeEditorHidingSettings, type EditorHidingSettings } from './editorHidingRules';
@@ -426,6 +426,8 @@ export default class DayGlanceBridgePlugin extends Plugin {
         this.transport.adoptTick();
         this.transport.linkTick();
         void this.noteBlocks.tick();
+        // The waiting indicator: a few sent creates' rows per tick.
+        void this.agenda.checkSentCreates();
       }, HEARTBEAT_INTERVAL_MS),
     );
   }
@@ -561,7 +563,9 @@ export default class DayGlanceBridgePlugin extends Plugin {
 
   // The "Add to dayGLANCE" form for the editor's selection. The selection is
   // read when the form opens; the block id (when the setting asks for one) is
-  // decided on Add, against the editor as it is then.
+  // decided on Add, against the editor as it is then. The form opens whether
+  // or not an app can receive the task yet (so the feature can be found) and
+  // explains when none can (companion spec 4.2.2).
   private openAddTask(editor: Editor, file: TFile): void {
     if (!this.data.pairing) { new Notice('dayGLANCE bridge: not paired.'); return; }
     const from = editor.getCursor('from');
@@ -569,10 +573,13 @@ export default class DayGlanceBridgePlugin extends Plugin {
     new AddTaskModal(this.app, {
       title: titleFromSelection(editor.getSelection()),
       projects: this.agenda.projectChoices(),
+      appKnown: this.agenda.appSupportKnown(TASK_CREATE_CAPABILITY),
+      checkApp: () => this.agenda.appSupports(TASK_CREATE_CAPABILITY),
       onSubmit: async (values) => {
         const r = await addSelectionAsTask({
           app: this.app, editor, file, from, to, values,
           linkToBlock: this.data.addTask?.linkToBlock === true,
+          ready: () => this.agenda.appSupports(TASK_CREATE_CAPABILITY),
           emit: (input) => this.agenda.createTask(input),
         });
         new Notice(`dayGLANCE bridge: ${r.message}`);

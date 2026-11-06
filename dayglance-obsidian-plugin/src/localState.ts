@@ -52,8 +52,19 @@ export interface LocalStateStore {
 
 type LocalStorageApp = { loadLocalStorage?: (key: string) => unknown; saveLocalStorage?: (key: string, data: unknown) => void };
 
-/** The vault-scoped device-local store, or an unavailable stub on an old Obsidian. */
-export function localStateStoreFor(app: App): LocalStateStore {
+/** One object under one key of the vault-scoped device-local store. */
+export interface DeviceLocalStore<T> {
+  available: boolean;
+  load(): T | null;
+  save(data: T | null): void;
+}
+
+/**
+ * A device-local store for one key, or an unavailable stub on an old
+ * Obsidian (load null, save a no-op: the caller keeps its state in memory).
+ * Never data.json: what lives here is this copy's own.
+ */
+export function deviceLocalStore<T extends object>(app: App, key: string): DeviceLocalStore<T> {
   const a = app as unknown as LocalStorageApp;
   const available = typeof a.loadLocalStorage === 'function' && typeof a.saveLocalStorage === 'function';
   return {
@@ -61,17 +72,22 @@ export function localStateStoreFor(app: App): LocalStateStore {
     load: () => {
       if (!available) return null;
       try {
-        const raw = a.loadLocalStorage?.(LOCAL_STATE_KEY);
-        return raw && typeof raw === 'object' ? raw : null;
+        const raw = a.loadLocalStorage?.(key);
+        return raw && typeof raw === 'object' ? raw as T : null;
       } catch {
         return null;
       }
     },
     save: (data) => {
       if (!available) return;
-      try { a.saveLocalStorage!(LOCAL_STATE_KEY, data); } catch (e) { console.error('dayGLANCE bridge: local state save failed', e); }
+      try { a.saveLocalStorage!(key, data); } catch (e) { console.error('dayGLANCE bridge: local state save failed', e); }
     },
   };
+}
+
+/** The vault-scoped device-local store, or an unavailable stub on an old Obsidian. */
+export function localStateStoreFor(app: App): LocalStateStore {
+  return deviceLocalStore<LocalBridgeData>(app, LOCAL_STATE_KEY);
 }
 
 /** Split a transport-facing BridgeState into its per-copy half and the shared config cache. */

@@ -5,14 +5,26 @@
 // dayGLANCE, priority is not offered for a project task. The work is done by
 // the caller's onSubmit (addSelectionAsTask); the form stays open when it
 // refuses, so nothing typed is lost.
-import { App, Modal, Notice, Setting } from 'obsidian';
+//
+// THE APP CHECK (companion spec 4.2.2). The form opens with Add disabled
+// unless a current dayGLANCE app is already known to receive creates, and
+// asks the stream; until the answer is yes it shows why it cannot send
+// (no app new enough, the pairing not yet seen, GLANCEvault unreachable)
+// and Add stays disabled. Enter in the title cannot get round it: submit
+// checks the same flag. A negative answer is asked again on every open.
+import { App, Modal, Notice, Setting, type ButtonComponent } from 'obsidian';
 import type { ProjectChoice } from './agenda';
-import { PRIORITY_LABELS, normalizeTitle, validDeadline, type AddTaskValues } from './addTask';
+import type { AppSupport } from './appCapabilities';
+import { PRIORITY_LABELS, CHECKING_APP_MESSAGE, addTaskBlockedMessage, normalizeTitle, validDeadline, type AddTaskValues } from './addTask';
 
 export interface AddTaskModalOptions {
   title: string;
   /** Null: no mirror, so no project field. */
   projects: ProjectChoice[] | null;
+  /** True when a current app is already known to receive creates (no check needed). */
+  appKnown: boolean;
+  /** Ask whether a current app can receive creates (AgendaStore.appSupports). */
+  checkApp: () => Promise<AppSupport>;
   /** Resolves true when the task was sent (the form then closes). */
   onSubmit: (values: AddTaskValues) => Promise<boolean>;
 }
@@ -20,6 +32,12 @@ export interface AddTaskModalOptions {
 export class AddTaskModal extends Modal {
   private values: AddTaskValues;
   private busy = false;
+  private closed = false;
+  // Add is enabled only once a current app is known to receive the create.
+  private appReady = false;
+  private blockedMessage: string | null = null;
+  private addButton: ButtonComponent | null = null;
+  private statusEl: HTMLElement | null = null;
 
   constructor(app: App, private readonly opts: AddTaskModalOptions) {
     super(app);
@@ -29,6 +47,7 @@ export class AddTaskModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
+    this.closed = false;
     this.setTitle('Add to dayGLANCE');
 
     new Setting(contentEl)
@@ -73,17 +92,46 @@ export class AddTaskModal extends Modal {
         });
     }
 
+    this.statusEl = contentEl.createDiv({ cls: 'dg-add-task-status' });
     new Setting(contentEl)
       .addButton((btn) => btn.setButtonText('Cancel').onClick(() => this.close()))
-      .addButton((btn) => btn.setButtonText('Add').setCta().onClick(() => { void this.submit(); }));
+      .addButton((btn) => {
+        this.addButton = btn;
+        btn.setButtonText('Add').setCta().onClick(() => { void this.submit(); });
+      });
+
+    this.appReady = this.opts.appKnown;
+    if (this.appReady) {
+      this.showStatus(null);
+    } else {
+      this.showStatus(CHECKING_APP_MESSAGE);
+      void this.opts.checkApp()
+        .catch((): AppSupport => ({ state: 'unknown', reason: 'unreachable' }))
+        .then((answer) => this.applyAnswer(answer));
+    }
   }
 
   onClose(): void {
+    this.closed = true;
     this.contentEl.empty();
+  }
+
+  private applyAnswer(answer: AppSupport): void {
+    if (this.closed) return;
+    this.blockedMessage = addTaskBlockedMessage(answer);
+    this.appReady = this.blockedMessage === null;
+    this.showStatus(this.blockedMessage);
+  }
+
+  private showStatus(message: string | null): void {
+    this.statusEl?.setText(message ?? '');
+    this.statusEl?.toggleClass('is-blocked', !!message && message !== CHECKING_APP_MESSAGE);
+    this.addButton?.setDisabled(!this.appReady);
   }
 
   private async submit(): Promise<void> {
     if (this.busy) return;
+    if (!this.appReady) { new Notice(this.blockedMessage ?? CHECKING_APP_MESSAGE); return; }
     if (!normalizeTitle(this.values.title)) { new Notice('Enter a title for the task.'); return; }
     if (this.values.deadline && !validDeadline(this.values.deadline)) { new Notice('The deadline is not a valid date.'); return; }
     this.busy = true;

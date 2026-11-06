@@ -57,6 +57,9 @@ import {
 import type { BridgePairing } from './pairing';
 import { asText } from './text';
 import { buildTaskCreatePayload, type TaskCreateInput } from './addTask';
+import { deviceLocalStore } from './localState';
+import { AppCapabilities, APP_CAPABILITIES_KEY, pairingKeyOf, type AppSupport, type CapabilityCache } from './appCapabilities';
+import { SentCreates, SENT_CREATES_KEY, type SentCreate, type SentCreatesState } from './sentCreates';
 
 // The dayGLANCE sync engine's app id on the vault (its data plane).
 const DAYGLANCE_APP = 'dayglance';
@@ -134,6 +137,8 @@ export interface AgendaStatus {
   calendarAsOf: number | null;
   /** Per date, when the events shown for it were fetched (epoch ms) — from the publishers' caches. */
   calendarDayAsOf: Record<string, number>;
+  /** Tasks this copy sent to dayGLANCE that no app has picked up for over an hour (sentCreates.ts). */
+  waitingCreates: number;
 }
 
 interface TaskRow { id: string; [k: string]: unknown }
@@ -189,16 +194,32 @@ export class AgendaStore {
   private bridgeCursor = 0;
   private cursor = 0;
   private cursorAccount: string | null = null;
-  private status: AgendaStatus = { key: 'unpaired', refreshing: false, lastRefreshedAt: null, lastError: null, undecryptable: 0, calendarAsOf: null, calendarDayAsOf: {} };
+  private status: AgendaStatus = { key: 'unpaired', refreshing: false, lastRefreshedAt: null, lastError: null, undecryptable: 0, calendarAsOf: null, calendarDayAsOf: {}, waitingCreates: 0 };
   private pending = new Map<string, number>(); // item id → marked-at ms
   private listeners = new Set<() => void>();
   private refreshChain: Promise<void> = Promise.resolve();
   private subkey: CryptoKey | null = null;
   private subkeyFor: string | null = null;
   private disposed = false;
+  // What the app can receive (companion 4.2.2) and the creates still
+  // waiting for it (4.2.1): both in this copy's device-local store.
+  private caps: AppCapabilities;
+  private sent: SentCreates;
+  private sentCheck: Promise<void> | null = null;
 
   constructor(host: AgendaHost) {
     this.host = host;
+    const gate = () => this.host.getWriteGate?.() ?? null;
+    this.caps = new AppCapabilities({
+      getPairing: () => this.host.getPairing(),
+      getRow: (pairing, entityId) => this.client(pairing).getRow(BRIDGE_VAULT_APP, entityId, pairing.accountId),
+      subkeyOf: (pairing) => this.subkeyOf(pairing),
+      isRateLimited: () => gate()?.isRateLimited() ?? false,
+      reportRateLimit: () => gate()?.reportRateLimit(),
+      reportRequestSuccess: () => gate()?.reportRequestSuccess(),
+      store: deviceLocalStore<CapabilityCache>(host.app, APP_CAPABILITIES_KEY),
+    });
+    this.sent = new SentCreates(deviceLocalStore<SentCreatesState>(host.app, SENT_CREATES_KEY));
   }
 
   /** Restore a device-local root key (no passphrase needed once set up). */
@@ -228,7 +249,69 @@ export class AgendaStore {
 
   getStatus(): AgendaStatus {
     this.recomputeKeyState();
+    this.status.waitingCreates = this.waitingCreates();
     return { ...this.status };
+  }
+
+  // ── what dayGLANCE can receive, and what is waiting for it ──────────────
+
+  /**
+   * Whether at least one current dayGLANCE app on the account announces
+   * `name` (appCapabilities.ts). A positive answer is cached for this
+   * pairing; anything else is asked again on the next call.
+   */
+  appSupports(name: string): Promise<AppSupport> {
+    return this.caps.check(name);
+  }
+
+  /** A cached positive answer for `name`, without the network. */
+  appSupportKnown(name: string): boolean {
+    return this.caps.known(name);
+  }
+
+  /** The creates this copy sent that are still on the stream, as last checked. */
+  sentCreates(): SentCreate[] {
+    const pairing = this.host.getPairing();
+    return pairing ? this.sent.entries(pairingKeyOf(pairing)) : [];
+  }
+
+  private waitingCreates(): number {
+    const pairing = this.host.getPairing();
+    return pairing ? this.sent.waiting(pairingKeyOf(pairing), Date.now()) : 0;
+  }
+
+  /**
+   * The waiting indicator's tick (main.ts's 30-second interval): read the
+   * rows of a few sent creates (sentCreates.ts bounds and paces it), drop
+   * the ones the app consumed, and redraw when the waiting count changes,
+   * which it also does with no read at all once an entry turns an hour old.
+   */
+  checkSentCreates(): Promise<void> {
+    if (this.sentCheck) return this.sentCheck;
+    this.sentCheck = this.checkSentCreatesOnce().finally(() => { this.sentCheck = null; });
+    return this.sentCheck;
+  }
+
+  private async checkSentCreatesOnce(): Promise<void> {
+    const pairing = this.host.getPairing();
+    if (!pairing || this.disposed) return;
+    const before = this.status.waitingCreates;
+    const gate = this.host.getWriteGate?.() ?? null;
+    if (!gate?.isRateLimited()) {
+      const client = this.client(pairing);
+      await this.sent.checkSome(pairingKeyOf(pairing), async (actionId) => {
+        let row: { envelope?: unknown; deleted?: unknown } | null;
+        try {
+          row = await client.getRow(BRIDGE_VAULT_APP, `${BRIDGE_CREATE_ACTION_PREFIX}${actionId}`, pairing.accountId) as typeof row;
+        } catch (e) {
+          if (statusOf(e) === 429) gate?.reportRateLimit();
+          throw e;
+        }
+        return row && !row.deleted && row.envelope ? 'present' : 'gone';
+      }, Date.now());
+    }
+    this.status.waitingCreates = this.waitingCreates();
+    if (this.status.waitingCreates !== before) this.emit();
   }
 
   /** True when this item has an emitted, not-yet-mirrored completion. */
@@ -596,9 +679,12 @@ export class AgendaStore {
         }) as { maxSeq?: unknown } | null;
         gate?.recordOwnSeq(Number(ack?.maxSeq));
         gate?.reportRequestSuccess();
+        // Remembered until an app consumes the row (the waiting indicator).
+        this.sent.record(pairingKeyOf(pairing), { actionId, title: input.title, sentAt: Date.now() });
         this.status.lastError = null;
         this.emit();
-        return { ok: true, message: 'Added to dayGLANCE. It appears there the next time dayGLANCE syncs.' };
+        // "Sent", not "added": the task exists once an app picks the row up.
+        return { ok: true, message: 'Sent to dayGLANCE. It appears there once dayGLANCE picks it up.' };
       } catch (e) {
         lastError = e;
         const status = statusOf(e);
@@ -608,7 +694,7 @@ export class AgendaStore {
     }
     this.status.lastError = describeError(lastError);
     this.emit();
-    return { ok: false, message: `Not added: ${this.status.lastError}` };
+    return { ok: false, message: `Not sent: ${this.status.lastError}` };
   }
 
   // ── internals ─────────────────────────────────────────────────────────────
