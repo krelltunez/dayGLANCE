@@ -22,6 +22,8 @@ const { default: useBridgeTaskCreates, FOLLOW_UP_MS, NUDGE_MIN_GAP_MS, BRIDGE_CR
 const mount = (over = {}) => {
   effects.length = 0;
   const inbox = { list: [] };
+  // React is mocked: the hook runs as a plain function here.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const api = useBridgeTaskCreates({
     dataLoaded: true, isTrayMode: false,
     tasks: [], unscheduledTasks: inbox.list, recurringTasks: [], recycleBin: [], projects: [], users: [], multiUserEnabled: false,
