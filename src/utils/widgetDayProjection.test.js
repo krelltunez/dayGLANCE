@@ -67,7 +67,7 @@ describe('buildProjectedDay', () => {
     expect(deep.tags).toEqual(['deep']);
     expect(deep.projectName).toBe('Platform migration');
     expect(deep.title).toBe('Deep work');            // wikilink and #tag stripped from the title
-    const deepNext = day.upcomingTasks.find(r => r.id === 'a1');
+    const deepNext = [day.nextTask, ...day.upcomingTasks].find(r => r.id === 'a1');
     expect(deepNext.tags).toEqual(['deep']);
     expect(deepNext.projectName).toBe('Platform migration');
     expect(day.dial.blocks.find(b => b.id === 'a1').tag).toBe('deep');
