@@ -9,10 +9,11 @@
 // was verified byte-identical against the pre-extraction payload.
 
 import { taskColorToHex, TAILWIND_TO_HEX } from './colorUtils.js';
-import { dateToString, stripWikilinks } from './taskUtils.js';
+import { dateToString, extractWikilinks, stripWikilinks } from './taskUtils.js';
 import { calculateGoalProgress } from './goalProgress.js';
 import { calculateProjectProgress } from './projectProgress.js';
 import { PROTOCOL_VERSION, MSG_DAY_STATE } from '../../electron/protocol';
+import { agendaNowAndNext, blockAsTodayRow } from './todayAgenda.js';
 
 export const timeToMinutes = (time) => {
   if (!time) return 0;
@@ -32,6 +33,46 @@ function habitRingColor(habit, count) {
     return count <= habit.target ? '#22c55e' : '#ef4444';
   }
   return count === 0 ? '#d1d5db' : base;
+}
+
+/**
+ * What runs now and what is next for the desktop's glances (the Stream Deck's
+ * currentTask and nextTask, the tray's NOW bar): agendaNowAndNext over the
+ * agenda's incomplete timed items and today's hyperGLANCE sessions, so the
+ * night before's task still running after midnight is current (#2278).
+ */
+export function currentAndNextOnDeck({ nowMin, todayAgenda, todayHGSessions }) {
+  return agendaNowAndNext(todayAgenda, nowMin, { include: t => !t.completed, extraDayRows: todayHGSessions || [] });
+}
+
+// A block as the wire's Task carries it: startTime and duration on TODAY's
+// clock, from which the plugin counts "52m left" (start + duration - now). The
+// night before's task goes out as its piece, from 00:00 for the minutes it
+// runs into today; the task's own start and a duration past midnight would
+// read as tonight. Same fields, same shape: the contract is unchanged.
+const asTodayBlock = blockAsTodayRow;
+
+/**
+ * The task the tray popup's NOW bar shows (tray:push-current-task), or null.
+ * The task's OWN start and duration, not today's piece: the bar prints its
+ * range, and a task from 23:00 for two hours reads "11pm–1am" with the
+ * next-day mark (TrayNowBar, components/TimeRange.jsx), at 00:08 as at 23:30.
+ */
+export function buildTrayCurrentTask({ currentTime, todayAgenda, todayHGSessions }) {
+  const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
+  const { current } = currentAndNextOnDeck({ nowMin, todayAgenda, todayHGSessions });
+  if (!current) return null;
+  const task = current.task;
+  return {
+    id: task.id,
+    title: stripWikilinks(task.title),
+    // The task's vault note, when its title carries one: the tray's NOW bar
+    // shows an open-book button for it, the popup's one way to a note.
+    note: extractWikilinks(task.title)[0] ?? null,
+    startTime: task.startTime ?? null,
+    duration: task.duration || 0,
+    colorHex: task.colorHex || taskColorToHex(task.color, task.nativeCalendarColor),
+  };
 }
 
 /**
@@ -56,19 +97,12 @@ export function buildStreamDeckState({
 }) {
   const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
   const hgSessions = (todayHGSessions || []);
-  const scheduled = [
-    ...todayAgenda.filter(t => t._agendaType === 'scheduled' && !t.completed && t.startTime),
-    ...hgSessions,
-  ].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
-
-  const inProgress = scheduled.find(t => {
-    const start = timeToMinutes(t.startTime);
-    return start <= nowMin && start + (t.duration || 0) > nowMin;
-  }) || null;
-
-  const nextUpcoming = scheduled
-    .filter(t => timeToMinutes(t.startTime) > nowMin)
-    .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))[0] || null;
+  // What runs now and what is next, across midnight (#2278): the agenda's
+  // incomplete timed items and today's hyperGLANCE sessions, with the night
+  // before's task still running (agendaNowAndNext, agenda-core nowAndNext).
+  const { current, next } = currentAndNextOnDeck({ nowMin, todayAgenda, todayHGSessions: hgSessions });
+  const inProgress = current ? asTodayBlock(current) : null;
+  const nextUpcoming = next ? asTodayBlock(next) : null;
 
   const mapTask = (t) => t ? {
     id: t.id,

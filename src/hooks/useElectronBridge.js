@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { taskColorToHex } from '../utils/colorUtils.js';
-import { extractWikilinks, stripWikilinks } from '../utils/taskUtils.js';
-import { buildStreamDeckState, timeToMinutes } from '../utils/streamDeckPayload.js';
+import { buildStreamDeckState, buildTrayCurrentTask } from '../utils/streamDeckPayload.js';
 import { dispatchBackgroundAction } from '../utils/trayActionDispatch.js';
 import {
   MSG_DAY_FOCUS_START,
@@ -346,26 +344,9 @@ export default function useElectronBridge({
   // Push currently-in-progress task to tray popup whenever it changes. Guarded to main window only.
   useEffect(() => {
     if (isTrayMode || !window.electronAPI?.pushCurrentTask) return;
-    const nowMin = currentTime.getHours() * 60 + currentTime.getMinutes();
-    const hgSessions = todayHGSessions || [];
-    const scheduled = [
-      ...todayAgenda.filter(t => t._agendaType === 'scheduled' && !t.completed && t.startTime),
-      ...hgSessions,
-    ];
-    const inProgress = scheduled.find(t => {
-      const start = timeToMinutes(t.startTime);
-      return start <= nowMin && start + (t.duration || 0) > nowMin;
-    }) || null;
-    window.electronAPI.pushCurrentTask(inProgress ? {
-      id: inProgress.id,
-      title: stripWikilinks(inProgress.title),
-      // The task's vault note, when its title carries one: the tray's NOW bar
-      // shows an open-book button for it, the popup's one way to a note.
-      note: extractWikilinks(inProgress.title)[0] ?? null,
-      startTime: inProgress.startTime ?? null,
-      duration: inProgress.duration || 0,
-      colorHex: inProgress.colorHex || taskColorToHex(inProgress.color, inProgress.nativeCalendarColor),
-    } : null);
+    // The night before's task still running after midnight included (#2278):
+    // utils/streamDeckPayload.js buildTrayCurrentTask.
+    window.electronAPI.pushCurrentTask(buildTrayCurrentTask({ currentTime, todayAgenda, todayHGSessions }));
   }, [currentTime, todayAgenda, todayHGSessions]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Push state snapshot whenever relevant state changes.

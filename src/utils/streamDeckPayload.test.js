@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildStreamDeckState, timeToMinutes } from './streamDeckPayload.js';
+import { buildTodayAgenda } from './todayAgenda.js';
 import { fixtureInputs, FIXTURE_NOW } from './streamDeckPayload.fixture.js';
 import { PROTOCOL_VERSION, MSG_DAY_STATE } from '../../electron/protocol';
 
@@ -288,5 +289,39 @@ describe('project progress for an external plugin', () => {
     expect(p).toBeDefined();
     expect(p.progress).toBe(0);
     expect(p.progress).not.toBeNull();
+  });
+});
+
+describe('the night before’s task still running is the in-progress item (#2278)', () => {
+  // The owner's scenario: a Friday 23:00 task of two hours, Saturday 00:08.
+  // The agenda is the real one (utils/todayAgenda.js), as the app builds it.
+  const FRI = '2026-11-06';
+  const SAT = '2026-11-07';
+  const night = { id: 'night', title: 'Two-Hour Task', date: FRI, startTime: '23:00', duration: 120, color: 'bg-blue-500' };
+  const breakfast = { id: 'breakfast', title: 'Breakfast', date: SAT, startTime: '09:00', duration: 30, color: 'bg-green-500' };
+  const at = (hhmm) => build(i => {
+    i.currentTime = new Date(`${SAT}T${hhmm}:00`);
+    i.todayHGSessions = [];
+    i.todayAgenda = buildTodayAgenda({
+      todayStr: SAT, nowMinutes: i.currentTime.getHours() * 60 + i.currentTime.getMinutes(),
+      tasks: [night, breakfast], expandedRecurringTasks: [], unscheduledTasks: [], isVisibleForUser: () => true,
+    });
+  }).payload;
+
+  it('at 00:08 it is currentTask, as its piece on today’s clock, and breakfast is next', () => {
+    const payload = at('00:08');
+    // The wire's start + duration is today's block: the plugin counts 52m left from it.
+    expect(payload.currentTask).toMatchObject({ id: 'night', title: 'Two-Hour Task', startTime: '00:00', duration: 60, completed: false });
+    expect(payload.nextTask).toMatchObject({ id: 'breakfast', startTime: '09:00', duration: 30 });
+  });
+
+  it('at 01:30 it is over: nothing in progress, breakfast next', () => {
+    const payload = at('01:30');
+    expect(payload.currentTask).toBeNull();
+    expect(payload.nextTask).toMatchObject({ id: 'breakfast', startTime: '09:00' });
+  });
+
+  it('keeps the wire shape: the same Task fields as any other current task', () => {
+    expect(Object.keys(at('00:08').currentTask).sort()).toEqual(Object.keys(build().payload.currentTask).sort());
   });
 });

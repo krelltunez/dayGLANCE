@@ -67,8 +67,9 @@ describe('buildProjectedDay', () => {
     expect(deep.tags).toEqual(['deep']);
     expect(deep.projectName).toBe('Platform migration');
     expect(deep.title).toBe('Deep work');            // wikilink and #tag stripped from the title
-    expect(day.nextTask.tags).toEqual(['deep']);
-    expect(day.nextTask.projectName).toBe('Platform migration');
+    const deepNext = [day.nextTask, ...day.upcomingTasks].find(r => r.id === 'a1');
+    expect(deepNext.tags).toEqual(['deep']);
+    expect(deepNext.projectName).toBe('Platform migration');
     expect(day.dial.blocks.find(b => b.id === 'a1').tag).toBe('deep');
     expect(day.deadlines[0].projectName).toBe('Platform migration');
   });
@@ -94,22 +95,25 @@ describe('buildProjectedDay', () => {
     const day = build();
     expect(day.allDay.map(a => a.id)).toEqual(['a3']);
     const timedIds = day.sections.flatMap(s => s.tasks).map(t => t.id);
-    expect(timedIds).toEqual(['a1', 'a2', 'a4']);   // completed a4 still on the schedule
+    // The day before's Late show (23:00, two hours) opens the day (#2278);
+    // completed a4 is still on the schedule.
+    expect(timedIds).toEqual(['p0', 'a1', 'a2', 'a4']);
     expect(timedIds).not.toContain('ex');           // examples never ship
   });
 
   it('Up Next is the whole incomplete timed list in order, uncapped, first split out', () => {
     const day = build();
-    expect(day.nextTask.id).toBe('a1');
-    expect(day.upcomingTasks.map(t => t.id)).toEqual(['a2']);  // a4 is completed
+    expect(day.nextTask.id).toBe('p0');                             // the night before's, still running
+    expect(day.upcomingTasks.map(t => t.id)).toEqual(['a1', 'a2']);  // a4 is completed
   });
 
   it('frames: a task inside the frame goes under it, the rest unframed', () => {
     const day = build();
-    expect(day.sections.map(s => s.type)).toEqual(['frame', 'unframed']);
-    expect(day.sections[0].tasks.map(t => t.id)).toEqual(['a1']);
-    expect(day.sections[0].availableMinutes).toBe(120);
-    expect(day.sections[1].tasks.map(t => t.id)).toEqual(['a2', 'a4']);
+    expect(day.sections.map(s => s.type)).toEqual(['unframed', 'frame', 'unframed']);
+    expect(day.sections[0].tasks.map(t => t.id)).toEqual(['p0']);  // 00:00, before the frame
+    expect(day.sections[1].tasks.map(t => t.id)).toEqual(['a1']);
+    expect(day.sections[1].availableMinutes).toBe(120);
+    expect(day.sections[2].tasks.map(t => t.id)).toEqual(['a2', 'a4']);
   });
 
   it('sky and dial are built for THAT day, with the overnight carry from the day before', () => {
@@ -120,6 +124,25 @@ describe('buildProjectedDay', () => {
     expect(carried.startedPrevDay).toBe(true);
     expect(carried.startMin).toBe(0);
     expect(day.dial.blocks.filter(b => b.type === 'sleep')).toHaveLength(2);
+  });
+
+  // #2278: the night before's task still running after midnight. The widget
+  // switches to this day at midnight with the app closed and promotes Up Next
+  // by the clock through start + duration on the day's clock, so the piece has
+  // to be in the list as 00:00 for the minutes it runs into the day.
+  it('the night before’s task still running opens Up Next and the list, as its piece from 00:00', () => {
+    const day = build();
+    expect(day.nextTask).toMatchObject({ id: 'p0', title: 'Late show', startTime: '00:00', duration: 60 });
+    expect(day.sections[0].tasks[0]).toMatchObject({ id: 'p0', startTime: '00:00', duration: 60 });
+    // Only a task that crosses midnight, not done, not an example.
+    const other = build({ prevDayTasks: [
+      task({ id: 'evening', startTime: '20:00', duration: 60 }),
+      task({ id: 'to-midnight', startTime: '23:00', duration: 60 }),
+      task({ id: 'done', startTime: '23:00', duration: 120, completed: true }),
+      task({ id: 'example', startTime: '23:00', duration: 120, isExample: true }),
+    ] });
+    expect(other.nextTask.id).toBe('a1');
+    expect(other.sections.flatMap(s => s.tasks).map(t => t.id)).toEqual(['done', 'a1', 'a2', 'a4']);
   });
 
   it('no coords → no sky, and an empty day is still a complete, honest object', () => {

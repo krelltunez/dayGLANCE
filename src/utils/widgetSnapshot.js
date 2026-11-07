@@ -26,6 +26,7 @@ import { formatDuration } from './formatDuration.js';
 import { formatLocalizedDate } from './localeFormatting.js';
 import { getGlanceHGInstances } from '../hooks/useHyperGlance.js';
 import { HABIT_COLORS } from '../constants/habits.js';
+import { agendaItemAsTodayRow, agendaItemSpan, agendaNowAndNext, blockAsTodayRow } from './todayAgenda.js';
 
 // App.jsx's own HH:MM → minutes, kept identical so the snapshot is unchanged
 // (the shared ones in utils/ differ on malformed input).
@@ -156,7 +157,11 @@ export function buildWidgetSnapshot({
     f => timeToMinutes(f.end) > nowMin
   );
   const overdueIdSet = new Set([...overdueItems, ...overdueTodayItems].map(task => String(task.id)));
-  const scheduled = todayAgenda.filter(task => task._agendaType === 'scheduled' && !overdueIdSet.has(String(task.id)));
+  // The night before's task still running (#2278) is in today's list as its
+  // piece, from 00:00 for the minutes it runs into today, as GLANCE lists it.
+  const scheduled = todayAgenda
+    .filter(task => task._agendaType === 'scheduled' && !overdueIdSet.has(String(task.id)))
+    .map(agendaItemAsTodayRow);
 
   // Every title the widget draws goes through the same rule: no
   // [[wikilinks]] (a widget cannot open a note) and no #tags (they ride
@@ -195,15 +200,14 @@ export function buildWidgetSnapshot({
   // Scheduled, non-completed tasks that haven't ended yet (in progress or
   // upcoming), in chronological order. The first is the "Up Next" task; the
   // rest fill leftover widget space when the primary task is simple.
-  const sortedUpcoming = todayAgenda
-    .filter(task => task._agendaType === 'scheduled' && !task.completed && task.startTime)
-    .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
-    .filter(task => {
-      const start = timeToMinutes(task.startTime);
-      const end = start + (task.duration || 0);
-      // Include if not yet ended (covers "in progress" and "upcoming")
-      return end > nowMin || (task.duration === 0 && start >= nowMin);
-    });
+  //
+  // Across midnight (#2278): the night before's task still running is the
+  // first, as its piece on today's clock (00:00 for the minutes it runs into
+  // today), so the native side, which promotes through this list by today's
+  // clock (start + duration), keeps it up until it ends and then moves on.
+  // The shared rule: agendaNowAndNext's `ahead` (agenda-core nowAndNext).
+  const sortedUpcoming = agendaNowAndNext(todayAgenda, nowMin, { include: task => !task.completed })
+    .ahead.map(blockAsTodayRow);
   const nextTaskCandidate = sortedUpcoming[0] || null;
   const nextTaskItem = nextTaskCandidate ? {
     id: nextTaskCandidate.id,
@@ -252,9 +256,8 @@ export function buildWidgetSnapshot({
   const scheduledToday = todayAgenda.filter(task => task._agendaType === 'scheduled');
   const allPast = scheduledToday.length > 0 && scheduledToday.every(task => {
     if (!task.startTime) return true;
-    const parts = task.startTime.split(':').map(Number);
-    const endMin = parts[0] * 60 + (parts[1] || 0) + (task.duration || 0);
-    return nowMin >= endMin;
+    // Its block today: the night before's task ends at its piece's end (#2278).
+    return nowMin >= agendaItemSpan(task).end;
   });
   const isDayDone = (allPast && scheduledToday.length > 0) || scheduledToday.length === 0;
   const isEvening = today.getHours() >= 19;

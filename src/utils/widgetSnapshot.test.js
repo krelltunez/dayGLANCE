@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildWidgetSnapshot, readCachedSteps } from './widgetSnapshot.js';
+import { buildTodayAgenda } from './todayAgenda.js';
 
 // The home-screen widgets' snapshot (utils/widgetSnapshot.js), built from
 // plain inputs. App.jsx's effect only gathers them and pushes the result; a
@@ -159,6 +160,49 @@ describe('buildWidgetSnapshot', () => {
     ]);
     expect(snapshot.sky).toBeNull();
     expect(buildWidgetSnapshot(base({ weatherCoords: { lat: 41.88, lon: -87.63 } })).sky).toEqual(expect.objectContaining({ hours: expect.any(Array) }));
+  });
+});
+
+// #2278: the owner's scenario. A Friday 23:00 task of two hours, Saturday
+// 00:08: it is running until 01:00. The agenda is the real one
+// (utils/todayAgenda.js), as App builds it for the snapshot.
+describe('buildWidgetSnapshot: the night before’s task still running', () => {
+  const FRI = '2026-11-06';
+  const SAT = '2026-11-07';
+  const night = { id: 'night', title: 'Two-Hour Task #late', date: FRI, startTime: '23:00', duration: 120, color: 'bg-blue-500' };
+  const breakfast = { id: 'breakfast', title: 'Breakfast', date: SAT, startTime: '09:00', duration: 30, color: 'bg-green-500' };
+  const snapshotAt = (hhmm, patch = {}) => {
+    const now = new Date(`${SAT}T${hhmm}:00`);
+    const todayAgenda = buildTodayAgenda({
+      todayStr: SAT, nowMinutes: now.getHours() * 60 + now.getMinutes(),
+      tasks: [night, breakfast], expandedRecurringTasks: [], unscheduledTasks: [], isVisibleForUser: () => true,
+    });
+    return buildWidgetSnapshot(base({ now, todayStr: SAT, todayAgenda, ...patch }));
+  };
+
+  it('at 00:08 it is Up Next, in progress, as its piece on today’s clock; breakfast follows', () => {
+    const snapshot = snapshotAt('00:08');
+    // The native side promotes by start + duration on today's clock: 00:00 for 60 minutes.
+    expect(snapshot.nextTask).toMatchObject({ id: 'night', title: 'Two-Hour Task', startTime: '00:00', duration: 60 });
+    expect(snapshot.upcomingTasks.map(row => row.id)).toEqual(['breakfast']);
+    expect(snapshot.nextUpNext).toMatchObject({ title: 'Two-Hour Task', startTime: '00:00', duration: 60 });
+    expect(snapshot.daySummary.upNext).toMatchObject({ title: 'Two-Hour Task', inProgress: true, timeLabel: 'strip.until 01:00' });
+    // And today's list opens with it, as GLANCE lists it.
+    expect(snapshot.sections[0].tasks[0]).toMatchObject({ id: 'night', startTime: '00:00', duration: 60 });
+    expect(snapshot.glanceAhead).toBeNull();
+  });
+
+  it('at 01:30 it is over: breakfast is Up Next, upcoming, and the list no longer has it', () => {
+    const snapshot = snapshotAt('01:30', {
+      // Unfinished, it is the app's overdue list's now (utils/getOverdueTasks.js).
+      overdueTasks: [{ ...night, _overdueType: 'scheduled' }],
+    });
+    expect(snapshot.nextTask).toMatchObject({ id: 'breakfast', startTime: '09:00', duration: 30 });
+    expect(snapshot.upcomingTasks).toEqual([]);
+    expect(snapshot.nextUpNext).toMatchObject({ title: 'Breakfast', startTime: '09:00' });
+    expect(snapshot.daySummary.upNext).toMatchObject({ title: 'Breakfast', inProgress: false, timeLabel: 'strip.at 09:00' });
+    expect(snapshot.sections.flatMap(s => s.tasks).map(row => row.id)).toEqual(['breakfast']);
+    expect(snapshot.overdue.map(item => item.id)).toEqual(['night']);
   });
 });
 
