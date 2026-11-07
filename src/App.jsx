@@ -179,6 +179,7 @@ import useCalendarSync, { useCalendarSyncActions } from './hooks/useCalendarSync
 import useCalendarFileImport from './hooks/useCalendarFileImport.js';
 import useBackup from './hooks/useBackup.js';
 import useGTDFrames from './hooks/useGTDFrames.js';
+import useFrameSetActions from './hooks/useFrameSetActions.js';
 import { getGlanceHGInstances, isHGSessionReachable } from './hooks/useHyperGlance.js';
 import { useIntentPoller, INTENT_CONFIG_KEY } from './intents/useIntentPoller.js';
 import { useDbIntentPoller, drainDbIntents } from './intents/dbIntentsTransport.js';
@@ -1503,6 +1504,7 @@ const DayPlanner = () => {
   // GTD Frames state. Before useUndo, whose snapshots include Frames.
   const {
     gtdFrames, setGtdFrames,
+    frameSets, setFrameSets,
     showFramesModal, setShowFramesModal,
     framesModalTab, setFramesModalTab,
     editingFrame, setEditingFrame,
@@ -1537,15 +1539,15 @@ const DayPlanner = () => {
     if (deletedUserSyncIds.length === 0) return;
     clearDeletedMemberRefs(deletedUserSyncIds, {
       setTasks, setUnscheduledTasks, setRecurringTasks, setRecycleBin,
-      setProjects, setGoals, setHabits, setRoutineDefinitions, setTodayRoutines, setGtdFrames,
+      setProjects, setGoals, setHabits, setRoutineDefinitions, setTodayRoutines, setGtdFrames, setFrameSets,
     });
     // The setters are stable; this runs once per roster load, not per render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataLoaded, multiUserEnabled, users]);
 
   const { undoToast, setUndoToast, pushUndo, pushUndoAction, performUndo, performRedo } = useUndo({
-    tasks, unscheduledTasks, recycleBin, recurringTasks, gtdFrames,
-    setTasks, setUnscheduledTasks, setRecycleBin, setRecurringTasks, setGtdFrames,
+    tasks, unscheduledTasks, recycleBin, recurringTasks, gtdFrames, frameSets,
+    setTasks, setUnscheduledTasks, setRecycleBin, setRecurringTasks, setGtdFrames, setFrameSets,
     playUISound, t,
   });
   // The series as they stand now, for an undo step that must check the
@@ -2124,7 +2126,7 @@ const DayPlanner = () => {
     tasks, unscheduledTasks, recycleBin, recurringTasks, todayRoutines: allTodayRoutines,
     darkMode, syncUrl, taskCalendarUrl, syncRetentionDays, completedTaskUids,
     routineDefinitions, routinesDate, removedTodayRoutineIds,
-    habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
+    habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames, frameSets,
     goals, projects, areas, goalsProjectsEnabled,
     unscheduledOrderTimestamp,
     cloudSyncConfig, cloudSyncInitialDoneRef, suppressTimestampRef,
@@ -2147,7 +2149,7 @@ const DayPlanner = () => {
     suppressClearPendingRef, suppressCloudUploadRef, suppressTimestampRef,
     tasks, unscheduledTasks, recycleBin, taskCalendarUrl, syncUrl, syncRetentionDays,
     completedTaskUids, recurringTasks, routineDefinitions, todayRoutines: allTodayRoutines, routinesDate,
-    removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames,
+    removedTodayRoutineIds, habits, habitLogs, habitsEnabled, routinesEnabled, gtdFrames, frameSets,
     goals, projects, areas, goalsProjectsEnabled,
     dailyNotes, users, routineCompletions, multiUserEnabled,
   });
@@ -2630,7 +2632,7 @@ const DayPlanner = () => {
     enabled: !isTrayMode && !!cloudSyncConfig?.enabled,
     dataLoaded, syncKeyReady, syncKeyReadyRef,
     suppressCloudUploadRef, cloudSyncDebounceRef, cloudSyncDownloadRef,
-    changeKeys: [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, allTodayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, dayWindows, gtdFrames, bucketConfig, multiUserEnabled, users],
+    changeKeys: [tasks, unscheduledTasks, recycleBin, taskCalendarUrl, completedTaskUids, recurringTasks, routineDefinitions, allTodayRoutines, routinesDate, routineCompletions, removedTodayRoutineIds, use24HourClock, habits, habitLogs, habitsEnabled, routinesEnabled, dailyNotes, dayWindows, gtdFrames, frameSets, bucketConfig, multiUserEnabled, users],
   });
 
   // ── GLANCEvault DB transport ─────────────────────────────────────────────
@@ -5213,14 +5215,14 @@ const DayPlanner = () => {
   // The sync payload and apply (hooks/useSyncEngineData.js): every tier calls
   // through the two closures the hook returns, built from the state below.
   const { buildSyncPayload, applyEngineData } = useSyncEngineData({
-    allTodayRoutines, areas, bucketConfig, completedTaskUids, dailyNotes, dayWindowsRef,
+    allTodayRoutines, areas, bucketConfig, completedTaskUids, dailyNotes, dayWindowsRef, frameSets,
     goals, goalsProjectsEnabled, gtdFrames, habitLogs, habits, habitsEnabled,
     icsCalendars, joboRecordsRef, minimizedSections, multiUserEnabled, obsidianCompletionDates, obsidianConfig,
     primaryCalendarMeta, projects, recurringTasks, recycleBin, removedTodayRoutineIds, routineCompletionTimestamps,
     routineCompletions, routineDefinitions, routinesDate, routinesEnabled, syncUrl, taskCalendarUrl,
     tasks, tasksLiveRef, unscheduledLiveRef, unscheduledOrderTimestamp, unscheduledTasks, use24HourClock,
     users, weatherTempUnit, weatherZip, setAreas, setBucketConfig, setCompletedTaskUids,
-    setDailyNotes, setGoals, setGoalsProjectsEnabled, setGtdFrames, setHabitLogs, setHabits,
+    setDailyNotes, setFrameSets, setGoals, setGoalsProjectsEnabled, setGtdFrames, setHabitLogs, setHabits,
     setHabitsEnabled, setIcsCalendars, setMultiUserEnabled, setObsidianCompletionDates, setObsidianConfig, setPrimaryCalendarMeta,
     setProjects, setRecurringTasks, setRecycleBin, setRemovedTodayRoutineIds, setRoutineCompletionTimestamps, setRoutineCompletions,
     setRoutineDefinitions, setRoutinesDate, setRoutinesEnabled, setSyncUrl, setTaskCalendarAuth, setTaskCalendarUrl,
@@ -5795,12 +5797,15 @@ const DayPlanner = () => {
   // inside it: frames carry ownerSyncId (single-owner), which the shared
   // isVisibleForUser predicate does not understand, so the scoping cannot be
   // delegated to a generic filter without leaking other members' frames.
+  // The frame sets go in whole (#2305): a set is only looked up by a frame's
+  // setId, and without them every set's frames would show on every date.
   const getFrameInstancesForDate = useCallback(
     (date) => frameInstancesForDate(
       gtdFrames.filter(f => ownedBy(f, meUserSyncId)),
       dateToString(date),
+      { frameSets },
     ),
-    [gtdFrames, ownedBy, meUserSyncId],
+    [gtdFrames, frameSets, ownedBy, meUserSyncId],
   );
 
   // --- Frame Nudge --- (must be after getFrameInstancesForDate and getTasksForDate)
@@ -6204,6 +6209,9 @@ const DayPlanner = () => {
     // FRAMES (read-only). Every member's frames, scoped by owner the same way
     // and for exactly the same reason as routines above.
     gtdFrames,
+    // Frame sets (#2305): which frames apply on a date. Unscoped is fine, a
+    // set is only looked up by a frame's setId.
+    frameSets,
     // Bulk undo moves undone creates to the recycle bin (the UI's own delete
     // shape), so the undo path needs the current bin to append to.
     recycleBin,
@@ -6231,7 +6239,7 @@ const DayPlanner = () => {
     weekStartDay,
   }), [
     tasks, recurringTasks, unscheduledTasks, allTodayRoutines, routinesDate, routineCompletions,
-    routinesEnabled, gtdFrames, recycleBin, goals, projects, areas, dailyNotes, bucketConfig, users,
+    routinesEnabled, gtdFrames, frameSets, recycleBin, goals, projects, areas, dailyNotes, bucketConfig, users,
     multiUserEnabled, currentTime, meUserSyncId, weekStartDay,
   ]);
   useMcpBridge(mcpReadState, {
@@ -6652,6 +6660,13 @@ const DayPlanner = () => {
     }
     setEditingFrame(null);
   };
+
+  // Frame sets (#2305): the Frames UI's set actions (hooks/useFrameSetActions.js).
+  const {
+    frameSetsLoaded, createFrameSet, renameFrameSet, switchFrameSet, setFrameSetPeriods, deleteFrameSet,
+  } = useFrameSetActions({
+    frameSets, setFrameSets, setGtdFrames, getTodayStr, pushUndo, setUndoToast, ownerRef: hrOwnerRef,
+  });
 
   const deleteFrame = (frameId) => {
     setGtdFrames(prev => prev.filter(f => f.id !== frameId));
@@ -7617,6 +7632,7 @@ const DayPlanner = () => {
 
     // ── GTD Frames ────────────────────────────────────────────────────────────
     gtdFrames, setGtdFrames, myFrames,
+    frameSets, frameSetsLoaded, createFrameSet, renameFrameSet, switchFrameSet, setFrameSetPeriods, deleteFrameSet,
     showFramesModal, setShowFramesModal,
     framesModalTab, setFramesModalTab,
     editingFrame, setEditingFrame,

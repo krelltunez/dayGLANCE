@@ -1,13 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X, Plus, LayoutGrid } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import FrameEditor from './FrameEditor.jsx';
+import FrameSetsList from './FrameSetsList.jsx';
 import SmartSchedulePanel from './SmartSchedulePanel.jsx';
 import UserOwnerSwitcher from './UserOwnerSwitcher.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 import { notBucketed } from '../utils/bucketList.js';
-import { formatLocalizedDate, localizedWeekdays } from '../utils/localeFormatting.js';
+import { localizedWeekdays } from '../utils/localeFormatting.js';
 import { aiFeatureOn } from '../ai.js';
 
 const FramesModal = () => {
@@ -30,7 +31,12 @@ const FramesModal = () => {
     saveFrame, deleteFrame,
     multiUserEnabled, users, hrViewUserSyncId, setHrViewUserSyncId,
     managedBy, meUserSyncId, hasUnownedFrames, claimUnownedFrames,
+    frameSets, frameSetsLoaded, createFrameSet, renameFrameSet, switchFrameSet, setFrameSetPeriods, deleteFrameSet,
   } = useFeaturesCtx();
+  // The set a new frame starts in, when it was added from a set's section.
+  const [newFrameSetId, setNewFrameSetId] = useState(null);
+  // The sets this view manages, scoped like its frames (#2305).
+  const visibleSets = (frameSets ?? []).filter(s => managedBy(s, hrViewUserSyncId));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowFramesModal(false); setEditingFrame(null); }}>
@@ -84,6 +90,8 @@ const FramesModal = () => {
                   existingFrames={gtdFrames}
                   use24HourClock={use24HourClock}
                   isTablet={isTablet}
+                  frameSets={visibleSets}
+                  defaultSetId={editingFrame === 'new' ? newFrameSetId : null}
                 />
               ) : (
                 <>
@@ -118,7 +126,7 @@ const FramesModal = () => {
                   {(() => {
                     const todayStr = getTodayStr();
                     const visibleFrames = gtdFrames.filter(f => (!f.singleDate || f.singleDate >= todayStr) && managedBy(f, hrViewUserSyncId));
-                    return visibleFrames.length === 0 ? (
+                    return visibleFrames.length === 0 && visibleSets.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 gap-3">
                       <LayoutGrid size={48} className={textSecondary} />
                       <h3 className={`text-lg font-semibold ${textPrimary}`}>{t('frames.noFramesTitle')}</h3>
@@ -126,7 +134,7 @@ const FramesModal = () => {
                         {t('frames.noFramesDesc')}
                       </p>
                       <button
-                        onClick={() => setEditingFrame('new')}
+                        onClick={() => { setNewFrameSetId(null); setEditingFrame('new'); }}
                         className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
                       >
                         <Plus size={16} />
@@ -134,35 +142,27 @@ const FramesModal = () => {
                       </button>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {visibleFrames.map(frame => (
-                        <div
-                          key={frame.id}
-                          onClick={() => setEditingFrame(frame)}
-                          className={`p-3 rounded-lg border ${borderClass} cursor-pointer ${hoverBg} transition-colors`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-full ${frame.color}`} />
-                            <span className={`font-medium text-sm ${textPrimary}`}>{frame.label}</span>
-                            {frame.singleDate && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-700'}`}>{t('frames.oneTime')}</span>}
-                            {!frame.enabled && <span className={`text-[10px] px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700' : 'bg-stone-200'} ${textSecondary}`}>{t('frames.frameOff')}</span>}
-                          </div>
-                          <div className={`text-xs ${textSecondary} mt-1`}>
-                            {formatTime(frame.start)} – {formatTime(frame.end)} · {frame.singleDate
-                              ? formatLocalizedDate(new Date(frame.singleDate + 'T12:00:00'), { month: 'short', day: 'numeric' })
-                              : frame.days.map(d => dayLabels[d]).join(', ')}
-                            {frame.energyLevel !== 'medium' && ` · ${frame.energyLevel} energy`}
-                          </div>
-                        </div>
-                      ))}
-                      <button
-                        onClick={() => setEditingFrame('new')}
-                        className={`w-full p-3 rounded-lg border border-dashed ${borderClass} text-sm ${textSecondary} flex items-center justify-center gap-2 ${hoverBg} transition-colors`}
-                      >
-                        <Plus size={16} />
-                        {t('frames.addFrame')}
-                      </button>
-                    </div>
+                    <FrameSetsList
+                      frames={visibleFrames}
+                      frameSets={visibleSets}
+                      frameSetsLoaded={frameSetsLoaded}
+                      todayStr={todayStr}
+                      onEditFrame={setEditingFrame}
+                      onAddFrame={(setId) => { setNewFrameSetId(setId); setEditingFrame('new'); }}
+                      onSwitchSet={switchFrameSet}
+                      onRenameSet={renameFrameSet}
+                      onSetPeriods={setFrameSetPeriods}
+                      onDeleteSet={deleteFrameSet}
+                      onCreateSet={createFrameSet}
+                      darkMode={darkMode}
+                      textPrimary={textPrimary}
+                      textSecondary={textSecondary}
+                      borderClass={borderClass}
+                      hoverBg={hoverBg}
+                      formatTime={formatTime}
+                      dayLabels={dayLabels}
+                      offLabel={t('frames.frameOff')}
+                    />
                   );
                   })()}
                 </>

@@ -62,7 +62,8 @@ export const LIVE_FIXTURE_FRAMES = [
 /** The day's frames with their unfloored slots, as App.jsx's dialFramesForDate. */
 export function liveFixtureDialFrames(dateStr) {
   const tasks = liveFixtureTasks(dateStr);
-  return frameInstancesForDate(LIVE_FIXTURE_FRAMES, dateStr).map((f) => ({
+  // The fixture frames belong to no set, so the set list is empty (#2305).
+  return frameInstancesForDate(LIVE_FIXTURE_FRAMES, dateStr, { frameSets: [] }).map((f) => ({
     ...f,
     slots: computeAvailableSlots(f, { tasks, dateStr, todayStr: dateStr, nowMinutes: 0 }),
   }));

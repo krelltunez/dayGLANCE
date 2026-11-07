@@ -48,7 +48,7 @@ function memStore(initial) {
 // What buildSyncPayload puts in `data` for the ledger: the key only once loaded.
 const payloadData = (ledger) => (ledger.get().records === undefined ? {} : { joboRecords: ledger.get().records });
 const jid = (record) => makeEntityId('joboRecords', record.id);
-const EMPTY = { tasks: [], unscheduledTasks: [], recurringTasks: [], recycleBin: [], todayRoutines: [], habits: [], goals: [], projects: [], areas: [], gtdFrames: [], users: [], dailyNotes: {} };
+const EMPTY = { tasks: [], unscheduledTasks: [], recurringTasks: [], recycleBin: [], todayRoutines: [], habits: [], goals: [], projects: [], areas: [], gtdFrames: [], frameSets: [], users: [], dailyNotes: {} };
 
 describe('registration', () => {
   it('is a collection kind on updatedAt, and insert-only', () => {

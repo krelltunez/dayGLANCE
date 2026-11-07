@@ -143,8 +143,12 @@ function buildFixture() {
     routinesEnabledUpdatedAt: ts(5000),
     gtdFrames: [
       { id: 8001, title: 'Health', lastModified: ts(700), color: 'bg-red-500' },
-      { id: 8002, title: 'Work', lastModified: ts(650) },
+      { id: 8002, title: 'Work', lastModified: ts(650), setId: 'fs-1' },
     ],
+    frameSets: [
+      { id: 'fs-1', name: 'Work', periods: [{ from: null, until: '2026-06-17' }, { from: '2026-07-01', until: null }], lastModified: ts(640) },
+    ],
+    deletedFrameSetIds: { 'fs-9': ts(630) },
     goals: [
       { id: 9101, title: 'Run a marathon', updatedAt: ts(800), frameId: 8001, progress: 0.3, areaId: 6001, startDate: '2026-06-01' },
     ],

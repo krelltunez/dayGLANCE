@@ -24,6 +24,10 @@ describe('collectDeviceSettings', () => {
       'day-planner-sched-filter-presets': '[{"id":"1"}]',
       'day-planner-daily-notes': '{"2026-07-22":{"text":"hi"}}',
       'day-planner-deleted-task-ids': '{"t1":"2026-07-01"}',
+      // Frames and frame sets ride here, not as payload fields (#2305).
+      'day-planner-gtd-frames': '[{"id":"f1","setId":"s1"}]',
+      'day-planner-frame-sets': '[{"id":"s1","name":"Work","periods":[]}]',
+      'day-planner-deleted-frame-set-ids': '{"s2":"2026-07-01"}',
       // excluded: first-class payload fields
       'day-planner-tasks': '[{"id":"t1"}]',
       'day-planner-cloud-sync-config': '{"url":"x"}',
@@ -60,6 +64,10 @@ describe('collectDeviceSettings', () => {
     // Daily notes are a first-class backup field now (#2141), not a device setting.
     expect(out['day-planner-daily-notes']).toBeUndefined();
     expect(out['day-planner-deleted-task-ids']).toBe('{"t1":"2026-07-01"}');
+    // Frame sets are backed up and restored wherever frames are (#2305).
+    expect(out['day-planner-gtd-frames']).toBe('[{"id":"f1","setId":"s1"}]');
+    expect(out['day-planner-frame-sets']).toBe('[{"id":"s1","name":"Work","periods":[]}]');
+    expect(out['day-planner-deleted-frame-set-ids']).toBe('{"s2":"2026-07-01"}');
   });
 
   it('skips payload-owned blobs, volatile cursors, and foreign keys', () => {

@@ -272,7 +272,7 @@ userSyncId, weekStartDay })` builds. `data` is the synced slices under their
 payload names (`tasks`, `recurringTasks`, `unscheduledTasks`, `recycleBin`,
 `goals`, `projects`, `areas`, `dailyNotes`, `bucketConfig`, `users`,
 `multiUserEnabled`, `todayRoutines`, `routinesDate`, `routineCompletions`,
-`routinesEnabled`, `gtdFrames`), which come from the reassembled rows. The
+`routinesEnabled`, `gtdFrames`, `frameSets`), which come from the reassembled rows. The
 options are host configuration:
 
 - **Time zone and clock.** `todayDate` and `nowMinutes` are read in `timeZone`

@@ -18,6 +18,8 @@ export interface McpReadData {
   routinesEnabled?: boolean;
   /** Every member's frames: buildMcpReadState scopes them by owner. */
   gtdFrames?: unknown[];
+  /** Frame sets (#2305): which dates each set's frames apply on. Not scoped. */
+  frameSets?: unknown[];
   goals?: unknown[];
   projects?: unknown[];
   areas?: unknown[];
@@ -56,6 +58,8 @@ export interface McpReadState {
   todayDate: string;
   /** The user's frames only. */
   frames: unknown[];
+  /** Every frame set; absent reads every frame as having no set. */
+  frameSets?: unknown[];
   /** Minutes since the user's local midnight. */
   nowMinutes: number;
   recycleBin?: unknown[];

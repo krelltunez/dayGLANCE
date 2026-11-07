@@ -105,6 +105,7 @@ describe('clearDeletedMemberRefs', () => {
       routineDefinitions: { morning: [{ id: 'c1', ownerSyncId: 'u1', lastModified: 'old' }, { id: 'c2', ownerSyncId: 'u2' }] },
       todayRoutines: [{ id: 'c1', ownerSyncId: 'u1', lastModified: 'old' }],
       gtdFrames: [{ id: 'f1', ownerSyncId: 'u1' }],
+      frameSets: [{ id: 's1', name: 'Work', periods: [], ownerSyncId: 'u1' }, { id: 's2', name: 'Gym', periods: [], ownerSyncId: 'u2' }],
     });
 
     clearDeletedMemberRefs(['u1'], s.setters, 'now');
@@ -124,6 +125,9 @@ describe('clearDeletedMemberRefs', () => {
     expect(s.state.gtdFrames[0]).not.toHaveProperty('ownerSyncId');
     // no invented timestamp on frames
     expect(s.state.gtdFrames[0]).not.toHaveProperty('lastModified');
+    // Frame sets are owned like frames, and repaired the same way (#2305).
+    expect(s.state.frameSets[0]).not.toHaveProperty('ownerSyncId');
+    expect(s.state.frameSets[1].ownerSyncId).toBe('u2');
   });
 
   it('does nothing when no member is deleted', () => {

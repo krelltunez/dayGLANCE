@@ -5,7 +5,7 @@ import ClockTimePicker from './ClockTimePicker.jsx';
 import { useTranslation } from 'react-i18next';
 import { formatLocalizedDate, localizedWeekdays } from '../utils/localeFormatting.js';
 
-const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, textPrimary, textSecondary, borderClass, cardBg, hoverBg, existingFrames, use24HourClock, isTablet }) => {
+const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, textPrimary, textSecondary, borderClass, cardBg, hoverBg, existingFrames, use24HourClock, isTablet, frameSets = [], defaultSetId = null }) => {
   const { t } = useTranslation();
   const dayLabels = localizedWeekdays('short');
   const [label, setLabel] = useState(frame?.label || '');
@@ -19,6 +19,11 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
   const [bufferMinutes, setBufferMinutes] = useState(frame?.bufferMinutes ?? 5);
   const [enabled, setEnabled] = useState(frame?.enabled ?? true);
   const [singleDate, setSingleDate] = useState(frame?.singleDate || null);
+  // The frame's set (#2305): '' for none. A frame in a set this device does
+  // not know keeps that set unless the user picks another.
+  const [setId, setSetId] = useState(frame ? (frame.setId ?? '') : (defaultSetId ?? ''));
+  const pickableSets = Array.isArray(frameSets) ? frameSets : [];
+  const unknownSet = setId !== '' && !pickableSets.some(s => String(s.id) === String(setId));
   const [error, setError] = useState('');
 
   const energyLabels = {
@@ -49,8 +54,11 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
     if (!label.trim()) return t('frames.nameRequired', { defaultValue: 'Frame needs a name' });
     if (!singleDate && days.length === 0) return t('frames.dayRequired', { defaultValue: 'Select at least one day' });
     if (start >= end) return t('frames.endAfterStart', { defaultValue: 'End time must be after start time' });
-    // Check overlap with existing frames (same day)
-    const otherFrames = existingFrames.filter(f => f.id !== frame?.id && f.enabled);
+    // Check overlap with existing frames (same day). Frames in two DIFFERENT
+    // sets are alternatives (work and holiday on the same weekday), so they
+    // may overlap; a frame in no set can meet any other, so it is checked.
+    const inOtherSet = (other) => setId !== '' && other.setId != null && other.setId !== '' && String(other.setId) !== String(setId);
+    const otherFrames = existingFrames.filter(f => f.id !== frame?.id && f.enabled && !inOtherSet(f));
     for (const other of otherFrames) {
       if (singleDate) {
         // For single-date frames, check overlap on that specific date
@@ -98,6 +106,9 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
     } else {
       delete frameData.singleDate;
     }
+    // Absent, not null, for no set: the same shape a frame from before sets has.
+    if (setId !== '') frameData.setId = setId;
+    else delete frameData.setId;
     onSave(frameData);
   };
 
@@ -233,6 +244,24 @@ const FrameEditor = ({ frame, onSave, onDelete, onCancel, allTags, darkMode, tex
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Frame set (#2305) */}
+      {(pickableSets.length > 0 || unknownSet) && (
+        <div>
+          <label htmlFor="frame-editor-set" className={`text-xs font-medium ${textSecondary} block mb-1`}>{t('frames.sets.picker')}</label>
+          <select
+            id="frame-editor-set"
+            value={setId}
+            onChange={e => setSetId(e.target.value)}
+            className={`w-full px-3 py-2 rounded-lg border ${borderClass} ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-stone-900'} text-sm`}
+            data-frame-set-picker
+          >
+            <option value="">{t('frames.sets.noSet')}</option>
+            {pickableSets.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {unknownSet && <option value={setId}>{t('frames.sets.unknownSet')}</option>}
+          </select>
         </div>
       )}
 

@@ -29,22 +29,30 @@ import { dropTombstonedObsidianTasks, dropTombstonedObsidianNotes } from '../uti
 import { containObsidianGhostRows, persistDerivedGhostRetirements } from '../utils/obsidianGhostRows.js';
 import { ICS_CALENDARS_KEY, loadIcsCalendars, stripIcsCalendarCredentials, applyRemoteIcsCalendars, PRIMARY_CAL_META_KEY, injectPrimaryStub, splitPrimaryStub } from '../utils/icsFeedSync.js';
 import { normalizeBucketConfig } from '../utils/bucketList.js';
+import { FRAME_SETS_KEY, DELETED_FRAME_SET_IDS_KEY } from '../utils/storedSlices.js';
 import { dailyNotesSyncable, writeDailyNotes } from '../utils/dailyNotesStore.js';
 import { sanitizeMergedRoutineCompletions, startOfTodayIso } from './useRoutines.js';
 
 /** Every key the hook reads, by kind. */
 export const SYNC_ENGINE_DATA_DEPS = Object.freeze({
-  values: Object.freeze(['allTodayRoutines', 'areas', 'bucketConfig', 'completedTaskUids', 'dailyNotes', 'dayWindowsRef', 'goals', 'goalsProjectsEnabled', 'gtdFrames', 'habitLogs', 'habits', 'habitsEnabled', 'icsCalendars', 'joboRecordsRef', 'minimizedSections', 'multiUserEnabled', 'obsidianCompletionDates', 'obsidianConfig', 'primaryCalendarMeta', 'projects', 'recurringTasks', 'recycleBin', 'removedTodayRoutineIds', 'routineCompletionTimestamps', 'routineCompletions', 'routineDefinitions', 'routinesDate', 'routinesEnabled', 'syncUrl', 'taskCalendarUrl', 'tasks', 'tasksLiveRef', 'unscheduledLiveRef', 'unscheduledOrderTimestamp', 'unscheduledTasks', 'use24HourClock', 'users', 'weatherTempUnit', 'weatherZip']),
-  setters: Object.freeze(['setAreas', 'setBucketConfig', 'setCompletedTaskUids', 'setDailyNotes', 'setGoals', 'setGoalsProjectsEnabled', 'setGtdFrames', 'setHabitLogs', 'setHabits', 'setHabitsEnabled', 'setIcsCalendars', 'setMultiUserEnabled', 'setObsidianCompletionDates', 'setObsidianConfig', 'setPrimaryCalendarMeta', 'setProjects', 'setRecurringTasks', 'setRecycleBin', 'setRemovedTodayRoutineIds', 'setRoutineCompletionTimestamps', 'setRoutineCompletions', 'setRoutineDefinitions', 'setRoutinesDate', 'setRoutinesEnabled', 'setSyncUrl', 'setTaskCalendarAuth', 'setTaskCalendarUrl', 'setTasks', 'setTodayRoutines', 'setUnscheduledOrderTimestamp', 'setUnscheduledTasks', 'setUse24HourClock', 'setUsers', 'setWeatherTempUnit', 'setWeatherZip']),
+  values: Object.freeze(['allTodayRoutines', 'areas', 'bucketConfig', 'completedTaskUids', 'dailyNotes', 'dayWindowsRef', 'frameSets', 'goals', 'goalsProjectsEnabled', 'gtdFrames', 'habitLogs', 'habits', 'habitsEnabled', 'icsCalendars', 'joboRecordsRef', 'minimizedSections', 'multiUserEnabled', 'obsidianCompletionDates', 'obsidianConfig', 'primaryCalendarMeta', 'projects', 'recurringTasks', 'recycleBin', 'removedTodayRoutineIds', 'routineCompletionTimestamps', 'routineCompletions', 'routineDefinitions', 'routinesDate', 'routinesEnabled', 'syncUrl', 'taskCalendarUrl', 'tasks', 'tasksLiveRef', 'unscheduledLiveRef', 'unscheduledOrderTimestamp', 'unscheduledTasks', 'use24HourClock', 'users', 'weatherTempUnit', 'weatherZip']),
+  setters: Object.freeze(['setAreas', 'setBucketConfig', 'setCompletedTaskUids', 'setDailyNotes', 'setFrameSets', 'setGoals', 'setGoalsProjectsEnabled', 'setGtdFrames', 'setHabitLogs', 'setHabits', 'setHabitsEnabled', 'setIcsCalendars', 'setMultiUserEnabled', 'setObsidianCompletionDates', 'setObsidianConfig', 'setPrimaryCalendarMeta', 'setProjects', 'setRecurringTasks', 'setRecycleBin', 'setRemovedTodayRoutineIds', 'setRoutineCompletionTimestamps', 'setRoutineCompletions', 'setRoutineDefinitions', 'setRoutinesDate', 'setRoutinesEnabled', 'setSyncUrl', 'setTaskCalendarAuth', 'setTaskCalendarUrl', 'setTasks', 'setTodayRoutines', 'setUnscheduledOrderTimestamp', 'setUnscheduledTasks', 'setUse24HourClock', 'setUsers', 'setWeatherTempUnit', 'setWeatherZip']),
   refs: Object.freeze(['applyingRemoteDataRef', 'suppressClearPendingRef', 'suppressCloudUploadRef', 'suppressTimestampRef']),
   functions: Object.freeze(['applyRemoteDayWindows', 'applyRemoteJobo', 'stampTaskTimestamps']),
 });
 
 const ALL_DEPS = [...SYNC_ENGINE_DATA_DEPS.values, ...SYNC_ENGINE_DATA_DEPS.setters, ...SYNC_ENGINE_DATA_DEPS.refs, ...SYNC_ENGINE_DATA_DEPS.functions];
 
+// Values that are legitimately undefined while their slice has not loaded
+// (not loaded is not empty): the payload omits them then. A root still has
+// to pass the KEY, so a forgotten slice is caught; `in` checks for that.
+const MAY_BE_UNLOADED = new Set(['frameSets']);
+
 /** The keys a deps object leaves undefined (a wiring check for both roots). */
 export function missingSyncEngineDeps(deps) {
-  return ALL_DEPS.filter((key) => deps?.[key] === undefined);
+  return ALL_DEPS.filter((key) => (MAY_BE_UNLOADED.has(key)
+    ? !(deps && typeof deps === 'object' && key in deps)
+    : deps?.[key] === undefined));
 }
 
 export default function useSyncEngineData(deps) {
@@ -53,14 +61,14 @@ export default function useSyncEngineData(deps) {
     if (missing.length) console.error('[sync] useSyncEngineData is missing deps:', missing.join(', '));
   }
   const {
-    allTodayRoutines, areas, bucketConfig, completedTaskUids, dailyNotes, dayWindowsRef,
+    allTodayRoutines, areas, bucketConfig, completedTaskUids, dailyNotes, dayWindowsRef, frameSets,
     goals, goalsProjectsEnabled, gtdFrames, habitLogs, habits, habitsEnabled,
     icsCalendars, joboRecordsRef, minimizedSections, multiUserEnabled, obsidianCompletionDates, obsidianConfig,
     primaryCalendarMeta, projects, recurringTasks, recycleBin, removedTodayRoutineIds, routineCompletionTimestamps,
     routineCompletions, routineDefinitions, routinesDate, routinesEnabled, syncUrl, taskCalendarUrl,
     tasks, tasksLiveRef, unscheduledLiveRef, unscheduledOrderTimestamp, unscheduledTasks, use24HourClock,
     users, weatherTempUnit, weatherZip, setAreas, setBucketConfig, setCompletedTaskUids,
-    setDailyNotes, setGoals, setGoalsProjectsEnabled, setGtdFrames, setHabitLogs, setHabits,
+    setDailyNotes, setFrameSets, setGoals, setGoalsProjectsEnabled, setGtdFrames, setHabitLogs, setHabits,
     setHabitsEnabled, setIcsCalendars, setMultiUserEnabled, setObsidianCompletionDates, setObsidianConfig, setPrimaryCalendarMeta,
     setProjects, setRecurringTasks, setRecycleBin, setRemovedTodayRoutineIds, setRoutineCompletionTimestamps, setRoutineCompletions,
     setRoutineDefinitions, setRoutinesDate, setRoutinesEnabled, setSyncUrl, setTaskCalendarAuth, setTaskCalendarUrl,
@@ -175,6 +183,12 @@ export default function useSyncEngineData(deps) {
         routinesEnabled,
         routinesEnabledUpdatedAt: localStorage.getItem('day-planner-routines-enabled-updated-at') || null,
         gtdFrames,
+        // Frame sets (#2305), only once read: an unreadable stored copy is
+        // undefined, and both tiers treat an absent key as "does not carry
+        // it" where [] would mean every set deleted. Their tombstones always
+        // ride, like every other deletion bundle.
+        ...(Array.isArray(frameSets) ? { frameSets } : {}),
+        deletedFrameSetIds: JSON.parse(localStorage.getItem(DELETED_FRAME_SET_IDS_KEY) || '{}'),
         bucketConfig,
         goals,
         deletedGoalIds: JSON.parse(localStorage.getItem('day-planner-deleted-goal-ids') || '{}'),
@@ -506,6 +520,14 @@ export default function useSyncEngineData(deps) {
       localStorage.setItem('day-planner-gtd-frames', JSON.stringify(data.gtdFrames));
       setGtdFrames(data.gtdFrames);
     }
+    // Frame sets replace whole, like the frames above, and only when the
+    // payload carries the list: a merge with neither side holding it omits
+    // the key, which leaves this device's copy (or its unread state) alone.
+    if (Array.isArray(data.frameSets)) {
+      localStorage.setItem(FRAME_SETS_KEY, JSON.stringify(data.frameSets));
+      setFrameSets(data.frameSets);
+    }
+    if (data.deletedFrameSetIds) localStorage.setItem(DELETED_FRAME_SET_IDS_KEY, JSON.stringify(data.deletedFrameSetIds));
     if (data.bucketConfig) {
       const normalized = normalizeBucketConfig(data.bucketConfig);
       localStorage.setItem('day-planner-bucket-config', JSON.stringify(normalized));
