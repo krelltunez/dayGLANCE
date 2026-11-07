@@ -133,6 +133,11 @@ const SchedDashboard = () => {
                 <SchedDeadlineCard key={`deadline-${task.id}`} task={task} dateStr={day.dateStr} />
               ))}
               {day.dateStr === todayStr && <SchedRoutinePills />}
+              {/* The day before's tasks still running past midnight (#2278): shown
+                  first, as their piece from 00:00, and not counted as this day's. */}
+              {day.continuations.map(c => (
+                <SchedTaskCard key={`continuation-${c.task.id}`} task={c.task} continuation={c} showProject />
+              ))}
               {day.tasks.length > 0 ? (
                 day.tasks.map(task => <SchedTaskCard key={task.id} task={task} showProject />)
               ) : (

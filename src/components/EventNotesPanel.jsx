@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { isNativeApp, nativeUpdateEvent } from '../native.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
+import { nativeEventEndString } from '../utils/nativeCalendar.js';
 
 // Which notes panel an event gets. Every view uses the app's own notes panel
 // (NotesSubtasksPanel) for a calendar event, as for a task: a feed event's
@@ -25,10 +26,29 @@ const TONES = {
   }),
 };
 
+/**
+ * What a description edit writes back to the device calendar: the event as it
+ * stands with its new notes. An event that runs past midnight ends on the
+ * next date (#2278, nativeEventEndString): "…T25:00:00" is not a time the
+ * calendar can read, and the write would fail.
+ */
+export function deviceEventNotesWrite(task, notes, allDay = false) {
+  const start = task.startTime || '00:00';
+  return {
+    id: task.nativeEventId,
+    title: task.title,
+    start: `${task.date}T${start}:00`,
+    end: nativeEventEndString(task.date, start, task.duration || 0),
+    allDay,
+    notes,
+    location: task.location || '',
+  };
+}
+
 /** The notes of an event from this device's calendar (see editsDeviceCalendar). */
 export default function EventNotesPanel({ task, tone = 'onColor', rows = 3, allDay = false }) {
   const { t } = useTranslation();
-  const { setTasks, timeToMinutes, minutesToTime, darkMode } = useDayPlannerCtx();
+  const { setTasks, darkMode } = useDayPlannerCtx();
   const th = tone === 'themed' ? TONES.themed(darkMode) : TONES.onColor;
   const description = task.notes || '';
   return (
@@ -43,16 +63,7 @@ export default function EventNotesPanel({ task, tone = 'onColor', rows = 3, allD
           const newNotes = e.target.value;
           if (newNotes === description) return;
           setTasks(prev => prev.map(row => row.id === task.id ? { ...row, notes: newNotes, transitionId: crypto.randomUUID() } : row));
-          const start = task.startTime || '00:00';
-          await nativeUpdateEvent({
-            id: task.nativeEventId,
-            title: task.title,
-            start: `${task.date}T${start}:00`,
-            end: `${task.date}T${minutesToTime(timeToMinutes(start) + (task.duration || 0))}:00`,
-            allDay,
-            notes: newNotes,
-            location: task.location || '',
-          });
+          await nativeUpdateEvent(deviceEventNotesWrite(task, newNotes, allDay));
         }}
       />
     </div>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { continuationsFromPreviousDay, hasTaskEnded } from '@glance-apps/agenda-core';
 import { useDayPlannerCtx } from '../../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../../context/FeaturesContext.jsx';
 import { dateToString, extractTags } from '../../utils/taskUtils.js';
@@ -150,7 +151,14 @@ export default function useSchedAgendaState({ dateRange } = {}) {
           (a.startTime || '').localeCompare(b.startTime || '')
         );
       const dateStr = dateToString(date);
-      out.push({ date, dateStr, tasks: dayTasks, deadlineTasks: getDeadlineTasksForDate(dateStr) });
+      // The previous date's tasks still running after midnight (#2278): the
+      // previous date owns them, so they are not among this day's tasks; the
+      // day shows their piece, as the timelines draw it from 00:00.
+      const prev = new Date(date);
+      prev.setDate(prev.getDate() - 1);
+      const continuations = continuationsFromPreviousDay(getTasksForDate(prev))
+        .filter(c => !c.task.isExample);
+      out.push({ date, dateStr, tasks: dayTasks, continuations, deadlineTasks: getDeadlineTasksForDate(dateStr) });
     }
     return out;
     // getTasksForDate reads tasks + expandedRecurringTasks internally;
@@ -169,28 +177,6 @@ export default function useSchedAgendaState({ dateRange } = {}) {
     return { availableColors: colors, availableTags: [...tags].sort() };
   }, [rawDays]);
 
-  const days = useMemo(() => {
-    const base = nextInstanceOnly ? limitRecurringToNextInstance(rawDays) : rawDays;
-    return base.map(d => ({
-      ...d,
-      tasks: d.tasks.filter(task =>
-        taskMatchesSchedFilters(task, filters) &&
-        (!hideCompleted || !task.completed) &&
-        (!hidePastEvents || !isPastEvent(task, currentTime))),
-      deadlineTasks: d.deadlineTasks.filter(task =>
-        taskMatchesSchedFilters(task, filters) &&
-        (!hideCompleted || !task.completed)),
-    }));
-  }, [rawDays, filters, nextInstanceOnly, hideCompleted, hidePastEvents, currentTime]);
-
-  const filtersActive = hasActiveSchedFilters(filters);
-  // Today never counts as empty while routine pills are pending on it.
-  const todayHasRoutines = routinesEnabled && todayRoutines.length > 0;
-  const agendaTodayStr = dateToString(new Date());
-  const visibleDays = days.filter(d =>
-    scoped || showEmptyDays || d.tasks.length > 0 || d.deadlineTasks.length > 0 ||
-    (d.dateStr === agendaTodayStr && todayHasRoutines));
-
   // Incomplete tasks scheduled before today AND before the visible window, so
   // they never duplicate a rendered day group. Plain tasks only: imported
   // events just passed (nothing actionable), and recurring occurrences are
@@ -205,15 +191,22 @@ export default function useSchedAgendaState({ dateRange } = {}) {
   // (utils/getOverdueTasks.js), so an Inbox deadline task nagged in DAY and
   // vanished from SCHED. The deadline is the Inbox's own late signal, and
   // `_overdueType` says which kind a row is, because the card reads it.
+  //
+  // A task is late from its REAL end (#2278, agenda-core's hasTaskEnded): a
+  // 23:00 task of two hours is still running at 00:08 the next day, so it is
+  // not overdue until 01:00. Until then the day shows it as a continuation.
+  // todayStr is the wall clock's, the minute is currentTime's, as in
+  // utils/getOverdueTasks.js.
   const overdueTasks = useMemo(() => {
     const todayStr = dateToString(new Date());
     if (scoped && scopeFrom !== todayStr) return [];
     const windowStartStr = scoped ? scopeFrom : dateToString(selectedDate);
+    const clock = { todayStr, nowMinutes: currentTime.getHours() * 60 + currentTime.getMinutes() };
     const overdueScheduled = tasks
       .filter(task =>
         task.date && task.date < todayStr && task.date < windowStartStr &&
         !task.completed && !task.archived && !task.isExample && !task.imported &&
-        isVisibleForUser(task))
+        isVisibleForUser(task) && hasTaskEnded(task, clock))
       .filter(task => taskMatchesSchedFilters(task, filters))
       .sort((a, b) => a.date.localeCompare(b.date) || (a.startTime || '').localeCompare(b.startTime || ''));
     const overdueDeadlines = unscheduledTasks
@@ -225,7 +218,34 @@ export default function useSchedAgendaState({ dateRange } = {}) {
       .sort((a, b) => a.deadline.localeCompare(b.deadline))
       .map(task => ({ ...task, _overdueType: 'deadline' }));
     return [...overdueScheduled, ...overdueDeadlines];
-  }, [scoped, scopeFrom, tasks, unscheduledTasks, selectedDate, filters, isVisibleForUser]);
+  }, [scoped, scopeFrom, tasks, unscheduledTasks, selectedDate, filters, isVisibleForUser, currentTime]);
+
+  // A continuation is shown under the same filters as a task. One whose task
+  // sits in the Overdue section (it ended unfinished) is listed there, once.
+  const overdueIds = useMemo(() => new Set(overdueTasks.map(task => String(task.id))), [overdueTasks]);
+  const days = useMemo(() => {
+    const base = nextInstanceOnly ? limitRecurringToNextInstance(rawDays) : rawDays;
+    const shows = (task) =>
+      taskMatchesSchedFilters(task, filters) &&
+      (!hideCompleted || !task.completed) &&
+      (!hidePastEvents || !isPastEvent(task, currentTime));
+    return base.map(d => ({
+      ...d,
+      tasks: d.tasks.filter(shows),
+      continuations: (d.continuations || []).filter(c => shows(c.task) && !overdueIds.has(String(c.task.id))),
+      deadlineTasks: d.deadlineTasks.filter(task =>
+        taskMatchesSchedFilters(task, filters) &&
+        (!hideCompleted || !task.completed)),
+    }));
+  }, [rawDays, filters, nextInstanceOnly, hideCompleted, hidePastEvents, currentTime, overdueIds]);
+
+  const filtersActive = hasActiveSchedFilters(filters);
+  // Today never counts as empty while routine pills are pending on it.
+  const todayHasRoutines = routinesEnabled && todayRoutines.length > 0;
+  const agendaTodayStr = dateToString(new Date());
+  const visibleDays = days.filter(d =>
+    scoped || showEmptyDays || d.tasks.length > 0 || d.continuations.length > 0 || d.deadlineTasks.length > 0 ||
+    (d.dateStr === agendaTodayStr && todayHasRoutines));
 
   // Moves an overdue/agenda task to today's next open quarter-hour slot. An
   // Inbox row (the deadline kind) has to be scheduled AS an inbox task, or the

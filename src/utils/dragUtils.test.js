@@ -11,7 +11,7 @@ import {
 describe('dragBlockRange', () => {
   it('runs from the preview start for the item\'s duration', () => {
     expect(dragBlockRange(9 * 60, 45)).toEqual({
-      startMinute: 540, endMinute: 585, overflowMinutes: 0, startTime: '09:00', endTime: '09:45',
+      startMinute: 540, endMinute: 585, overflowMinutes: 0, startTime: '09:00', endTime: '09:45', endsNextDay: false,
     });
   });
 
@@ -22,7 +22,7 @@ describe('dragBlockRange', () => {
   it('clamps the start as the drop does: as late as 23:45, the rest running past midnight', () => {
     // MULTI's drop: getTimeFromCursorPosition(e, { maxMinutes: 24 * 60, taskDuration: dropClampMinutes(d) })
     expect(dragBlockRange(23 * 60 + 30, 60)).toMatchObject({
-      startMinute: 23 * 60 + 30, endMinute: 24 * 60, overflowMinutes: 30, startTime: '23:30', endTime: '00:30',
+      startMinute: 23 * 60 + 30, endMinute: 24 * 60, overflowMinutes: 30, startTime: '23:30', endTime: '00:30', endsNextDay: true,
     });
     expect(dragBlockRange(24 * 60, 60)).toMatchObject({ startMinute: 23 * 60 + 45, overflowMinutes: 45 });
     expect(dragBlockRange(-15, 30)).toMatchObject({ startMinute: 0, endMinute: 30 });
@@ -36,7 +36,9 @@ describe('dragBlockRange', () => {
   });
 
   it('labels a block ending at the end of the day as midnight', () => {
-    expect(dragBlockRange(23 * 60, 60)).toMatchObject({ startTime: '23:00', endTime: '00:00' });
+    // On the next date: the label carries the next-day mark (#2278).
+    expect(dragBlockRange(23 * 60, 60)).toMatchObject({ startTime: '23:00', endTime: '00:00', endsNextDay: true });
+    expect(dragBlockRange(22 * 60, 60)).toMatchObject({ endTime: '23:00', endsNextDay: false });
   });
 
   it('clamps to a window (WEEK\'s visible hours, a DAY column)', () => {
@@ -66,7 +68,7 @@ describe('dragBlockRange', () => {
     // The drop clamps such an item with a duration of 0; so does the block.
     for (const duration of [undefined, null, 0, NaN, -5]) {
       expect(dragBlockRange(23 * 60 + 45, duration)).toEqual({
-        startMinute: 23 * 60 + 45, endMinute: 24 * 60, overflowMinutes: 0, startTime: '23:45', endTime: '00:15',
+        startMinute: 23 * 60 + 45, endMinute: 24 * 60, overflowMinutes: 0, startTime: '23:45', endTime: '00:15', endsNextDay: true,
       });
       expect(dragBlockRange(600, duration).endMinute).toBe(600 + DRAG_BLOCK_FALLBACK_MINUTES);
     }

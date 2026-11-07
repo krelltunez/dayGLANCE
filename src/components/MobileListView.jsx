@@ -10,10 +10,12 @@ import {
 import * as LucideIcons from 'lucide-react';
 import TaskPlanHistory from './TaskPlanHistory.jsx';
 import TaskStarButton from './TaskStarButton.jsx';
+import TimeRange from './TimeRange.jsx';
 import { renderTitle, isLinkOnlyTask, hasNotesOrSubtasks, isObsidianNoteOnlyTask, openNoteAction, noteIconFor } from '../utils/textFormatting.jsx';
 import { dateToString, stripWikilinksAndTags } from '../utils/taskUtils.js';
 import { taskColorToHex } from '../utils/colorUtils.js';
 import { formatDuration } from '../utils/formatDuration.js';
+import { formatLocalizedDate } from '../utils/localeFormatting.js';
 import { triggerHaptic } from '../native.js';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
@@ -173,11 +175,18 @@ const TaskCard = React.memo(({
   item, accentHex, isCalendarEvent, isInProgress, isPast, darkMode, textPrimary, textSecondary,
   formatTime, minutesToTime, timeToMinutes,
   setExpandedNotesTaskId, postponeTask, moveToInbox, openMobileEditTask,
-  dateStr,
+  dateStr, continuation = null,
 }) => {
   const { t } = useTranslation();
-  const endMin = timeToMinutes(item.startTime) + (item.duration || 30);
-  const timeStr = `${formatTime(item.startTime)}–${formatTime(minutesToTime(endMin))} · ${durLabel(item.duration, t)}`;
+  // A continuation (#2278) is labelled as its piece: from 00:00 for the
+  // minutes it runs into this date, and "from <day>" as the timelines say.
+  const startTime = continuation ? '00:00' : item.startTime;
+  const duration = continuation ? continuation.minutes : item.duration;
+  // The end as a real clock time, "+1" on the next date (components/TimeRange.jsx).
+  const timeStr = <><TimeRange startTime={startTime} duration={duration || 30} formatTime={formatTime} />{` · ${durLabel(duration, t)}`}</>;
+  const fromDay = continuation?.fromDate
+    ? formatLocalizedDate(new Date(`${continuation.fromDate}T12:00:00`), { weekday: 'short' })
+    : '';
   const isRecurring = typeof item.id === 'string' && item.id.startsWith('recurring-');
   const notesLongPressTimer = useRef(null);
   const notesLongPressTriggered = useRef(false);
@@ -219,6 +228,12 @@ const TaskCard = React.memo(({
             title like the star. Absent unless the task has actually moved. */}
         <div className={`text-[10px] leading-none ${textSecondary} flex items-center gap-1`}>
           {timeStr}
+          {continuation && (
+            <span data-continuation-from={continuation.fromDate || ''} className="flex items-center gap-0.5 flex-shrink-0 opacity-80">
+              <ChevronUp size={9} aria-hidden="true" />
+              {t('task.continuesFrom', { day: fromDay })}
+            </span>
+          )}
           {isRecurring && <RefreshCw size={9} className="flex-shrink-0 opacity-60" />}
           {!isCalendarEvent && <TaskPlanHistory task={item} size={11} />}
         </div>
@@ -367,10 +382,7 @@ const HGSessionCard = React.memo(({
   const [startH, startM] = effectiveTime.split(':').map(Number);
   const durationMin = hg.scheduledDurationOverrides?.[date] || hg.scheduledDuration || 60;
   const normalizedTime = `${String(startH).padStart(2, '0')}:${String(startM || 0).padStart(2, '0')}`;
-  const endH = Math.floor((startH * 60 + (startM || 0) + durationMin) / 60);
-  const endM = (startH * 60 + (startM || 0) + durationMin) % 60;
-  const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
-  const timeStr = `${formatTime(normalizedTime)}–${formatTime(endTime)}`;
+  const timeStr = <TimeRange startTime={normalizedTime} duration={durationMin} formatTime={formatTime} />;
   const taskLabel = incompleteTaskCount > 0
     ? t('reminders.taskCount', { count: incompleteTaskCount })
     : null;
@@ -762,7 +774,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
     calendarRef, mobileDateHeaderRef, use24HourClock,
     darkMode, cardBg, borderClass, textPrimary, textSecondary,
     formatTime, timeToMinutes, minutesToTime,
-    getTasksForDate, getCalendarTasksForDate, getTaskCalendarStyle,
+    getTasksForDate, getCalendarTasksForDate, getContinuationsForDate, getTaskCalendarStyle,
     toggleComplete, postponeTask, moveToInbox, openMobileEditTask,
     setExpandedNotesTaskId,
     pushUndo, playUISound,
@@ -864,10 +876,34 @@ const MobileListView = ({ hideInboxHandle = false }) => {
     })),
   [getFrameInstancesForDate, selectedDate, timeToMinutes]);
 
+  // The previous date's tasks still running after midnight (#2278): drawn
+  // from 00:00 for the minutes they run into this date, as the other
+  // timelines draw them (App's getContinuationsForDate, the same filtered
+  // read as the rest of this list). Each is busy time: the gaps and the Now
+  // row step around it as around a task. Not this date's task: the item
+  // carries the real row in `_continuation.task`, and every action takes it.
+  const continuationItems = useMemo(() =>
+    (getContinuationsForDate ? getContinuationsForDate(selectedDate) : [])
+      .filter(c => !c.task.isExample)
+      .map(c => ({
+        _kind: 'continuation',
+        _continuation: c,
+        id: `continuation-${c.task.id}`,
+        title: c.task.title,
+        completed: !!c.task.completed,
+        startTime: '00:00',
+        duration: c.minutes,
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedDate, tasks, expandedRecurringTasks, getContinuationsForDate],
+  );
+
   // Combine and sort all scheduled items. Frames come first so the stable sort
-  // places a frame header BEFORE tasks that start at the same minute.
+  // places a frame header BEFORE tasks that start at the same minute; a
+  // continuation began the day before, so it comes before both.
   const allItems = useMemo(() => {
     const items = [
+      ...continuationItems,
       ...frameItems,
       ...scheduledTasks.map(t => ({ ...t, _kind: t.imported && !t.isTaskCalendar ? 'calendar-event' : 'task' })),
       ...scheduledRoutines.map(r => ({ ...r, _kind: 'routine', _routineId: r.id, id: `routine-${r.id}`, title: r.name, startTime: r.startTime })),
@@ -881,7 +917,7 @@ const MobileListView = ({ hideInboxHandle = false }) => {
       }),
     ];
     return items.sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
-  }, [frameItems, scheduledTasks, scheduledRoutines, hgBars, timeToMinutes]);
+  }, [continuationItems, frameItems, scheduledTasks, scheduledRoutines, hgBars, timeToMinutes]);
 
   const isItemPast = useCallback((item) => {
     if (!isToday) return false;
@@ -1782,6 +1818,74 @@ const MobileListView = ({ hideInboxHandle = false }) => {
                       incompleteTaskCount={incompleteTaskCount}
                       enterHyperGlanceMode={enterHyperGlanceMode}
                       setPendingEditProjectId={setPendingEditProjectId}
+                    />
+                  </div>
+                </Row>
+              </div>
+            );
+          }
+
+          // The night before's task, from 00:00 (#2278): the list's own task
+          // card, marked "from <day>", acting on the real row. In progress, it
+          // shows its time left as a running task does. Not dragged from here.
+          if (item._kind === 'continuation') {
+            const c = item._continuation;
+            const task = c.task;
+            const isCalendarEvent = !!task.imported && !task.isTaskCalendar;
+            const accent = getAccentHex({ ...task, _kind: isCalendarEvent ? 'calendar-event' : 'task' });
+            const isPast = isItemPast(item);
+            const isInProgress = item.id === inProgressItem?.id;
+            const remainingMin = isInProgress ? Math.max(0, c.minutes - nowMin) : 0;
+            return (
+              <div
+                key={seg.id}
+                data-item-startmin={startMin}
+                data-item-dur={c.minutes}
+                data-continuation-row={c.fromDate || ''}
+              >
+                <Row
+                  timeLabel={isInProgress
+                    ? t('dial.timeLeft', {
+                      left: remainingMin > 0
+                        ? durLabel(remainingMin, t)
+                        : `<${t('common.minutesShort', { count: 1 })}`,
+                    })
+                    : formatTime('00:00')}
+                  timeColour={isInProgress ? accent : undefined}
+                  spineColour={spineColorAt(startMin)}
+                  spineStyle="solid"
+                  marker={
+                    <SpineMarker
+                      kind={isCalendarEvent ? 'calendar-event' : 'task'}
+                      completed={isCalendarEvent ? isPast : task.completed}
+                      colour={accent}
+                      pageBg={pageBg}
+                    />
+                  }
+                  cardHeight={TASK_H}
+                  accentHex={accent}
+                  pageBg={pageBg}
+                  onMarkerClick={isCalendarEvent ? undefined : e => { e.stopPropagation(); toggleComplete(task.id); }}
+                >
+                  <div style={{ opacity: isPast ? 0.5 : 1, marginTop: 4, marginBottom: 4 }}>
+                    <TaskCard
+                      item={task}
+                      continuation={c}
+                      accentHex={accent}
+                      isCalendarEvent={isCalendarEvent}
+                      isInProgress={isInProgress}
+                      isPast={isPast}
+                      darkMode={darkMode}
+                      textPrimary={textPrimary}
+                      textSecondary={textSecondary}
+                      formatTime={formatTime}
+                      minutesToTime={minutesToTime}
+                      timeToMinutes={timeToMinutes}
+                      setExpandedNotesTaskId={setExpandedNotesTaskId}
+                      postponeTask={postponeTask}
+                      moveToInbox={moveToInbox}
+                      openMobileEditTask={openMobileEditTask}
+                      dateStr={c.fromDate}
                     />
                   </div>
                 </Row>

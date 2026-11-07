@@ -487,6 +487,25 @@ describe('handleIntent query execution', () => {
     expect(r['%dg_in_progress_title']).toBe('');
   });
 
+  // #2278: last night's 23:00 task of two hours runs until 01:00.
+  describe('a task running past midnight', () => {
+    const night = () => scheduledTask({ date: '2026-05-20', isAllDay: false, startTime: '23:00', duration: 120, title: 'Two-Hour Task' });
+
+    it('is not overdue, and is in progress, at 00:08', async () => {
+      const r = await handleIntent('query', {}, { tasks: [night()], unscheduledTasks: [], now: new Date(2026, 4, 21, 0, 8) });
+      expect(r['%dg_count_overdue']).toBe(0);
+      expect(r['%dg_in_progress_title']).toBe('Two-Hour Task');
+      expect(r['%dg_in_progress_end']).toBe('01:00');
+      expect(r['%dg_in_progress_remaining_min']).toBe(52);
+    });
+
+    it('is overdue, and no longer in progress, at 01:30', async () => {
+      const r = await handleIntent('query', {}, { tasks: [night()], unscheduledTasks: [], now: new Date(2026, 4, 21, 1, 30) });
+      expect(r['%dg_count_overdue']).toBe(1);
+      expect(r['%dg_in_progress_title']).toBe('');
+    });
+  });
+
   it('ignores all-day tasks when computing in-progress', async () => {
     const ctx = {
       tasks: [scheduledTask({ date: TODAY, isAllDay: true })],

@@ -24,6 +24,7 @@ import { SCROLLING_HOUR_PX } from '../utils/timelineZoom.js';
 import { cardDoubleClickHandler } from '../utils/cardDoubleClick.js';
 import { dragBlockRange } from '../utils/dragUtils.js';
 import DragBlockPreview from './DragBlockPreview.jsx';
+import { NextDayMark } from './TimeRange.jsx';
 import ContinuationCard from './ContinuationCard.jsx';
 import { overnightSpillMinutes } from '@glance-apps/agenda-core';
 import { continuationLayoutRow, dragPreviewSpillFor, resizePreviewForDate } from '../utils/continuations.js';
@@ -800,7 +801,7 @@ const TimeGrid = () => {
               <DragBlockPreview
                 top={top}
                 height={bottom - top - 1}
-                label={`${formatTime(block.startTime)}–${formatTime(block.endTime)}`}
+                label={<>{formatTime(block.startTime)}–{formatTime(block.endTime)}{block.endsNextDay && <NextDayMark />}</>}
                 darkMode={darkMode}
               />
             );
