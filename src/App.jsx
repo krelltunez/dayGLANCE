@@ -176,6 +176,7 @@ import useCalendarSync, { useCalendarSyncActions } from './hooks/useCalendarSync
 import useCalendarFileImport from './hooks/useCalendarFileImport.js';
 import useBackup from './hooks/useBackup.js';
 import useGTDFrames from './hooks/useGTDFrames.js';
+import useFrameSetActions from './hooks/useFrameSetActions.js';
 import { getGlanceHGInstances, isHGSessionReachable } from './hooks/useHyperGlance.js';
 import { useIntentPoller, INTENT_CONFIG_KEY } from './intents/useIntentPoller.js';
 import { useDbIntentPoller, drainDbIntents } from './intents/dbIntentsTransport.js';
@@ -1539,8 +1540,8 @@ const DayPlanner = () => {
   }, [dataLoaded, multiUserEnabled, users]);
 
   const { undoToast, setUndoToast, pushUndo, pushUndoAction, performUndo, performRedo } = useUndo({
-    tasks, unscheduledTasks, recycleBin, recurringTasks, gtdFrames,
-    setTasks, setUnscheduledTasks, setRecycleBin, setRecurringTasks, setGtdFrames,
+    tasks, unscheduledTasks, recycleBin, recurringTasks, gtdFrames, frameSets,
+    setTasks, setUnscheduledTasks, setRecycleBin, setRecurringTasks, setGtdFrames, setFrameSets,
     playUISound, t,
   });
   // The series as they stand now, for an undo step that must check the
@@ -6717,6 +6718,13 @@ const DayPlanner = () => {
     setEditingFrame(null);
   };
 
+  // Frame sets (#2305): the Frames UI's set actions (hooks/useFrameSetActions.js).
+  const {
+    frameSetsLoaded, createFrameSet, renameFrameSet, switchFrameSet, setFrameSetPeriods, deleteFrameSet,
+  } = useFrameSetActions({
+    frameSets, setFrameSets, setGtdFrames, getTodayStr, pushUndo, setUndoToast, ownerRef: hrOwnerRef,
+  });
+
   const deleteFrame = (frameId) => {
     setGtdFrames(prev => prev.filter(f => f.id !== frameId));
     // Record tombstone so cloud sync doesn't resurrect the frame from other devices
@@ -7712,6 +7720,7 @@ const DayPlanner = () => {
 
     // ── GTD Frames ────────────────────────────────────────────────────────────
     gtdFrames, setGtdFrames, myFrames,
+    frameSets, frameSetsLoaded, createFrameSet, renameFrameSet, switchFrameSet, setFrameSetPeriods, deleteFrameSet,
     showFramesModal, setShowFramesModal,
     framesModalTab, setFramesModalTab,
     editingFrame, setEditingFrame,
