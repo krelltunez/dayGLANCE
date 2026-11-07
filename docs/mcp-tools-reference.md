@@ -111,6 +111,39 @@ strict `YYYY-MM-DD`, `time` `HH:MM`, or `null` for an old completion recorded as
 times; they are never backfilled. A recurring occurrence reports the series' creation and that
 date's completion. `completed_at` is null on an open task.
 
+**Plan history: `original_plan`, `deferrals`, `plan_trail`, `plan_trail_omitted`.** A task that
+was rescheduled carries where it was first planned, how often it slipped, and where its recent
+slips landed: the same story the app's plan-history panel tells, by the same rules. They ride
+every inbox item, Bucket List item and `task` block (and the write responses, which use the same
+shapes), beside `created_at`. **Each is omitted when it has nothing to say**, and most tasks have
+none, so an absent field means "nothing recorded", never an error.
+
+| Field | Shape | Present when |
+|---|---|---|
+| `original_plan` | `{ date, start_time, duration_minutes? }`: the plan the task was first given, in the block's own field names and formats | the task's current plan differs from it (its date, its start, or a duration the plan recorded). An inbox task that was once scheduled always differs: it has no plan now |
+| `deferrals` | integer: how many times the task **slipped** | at least once |
+| `plan_trail` | array of `{ moved_at, date, start_time, duration_minutes? }`, **oldest first**: `moved_at` is when the move was made (a `{ date, time }` stamp, like `created_at`), the rest is where it moved the task to | at least one slip was recorded |
+| `plan_trail_omitted` | integer: slips counted in `deferrals` that `plan_trail` does not list, all older than its first entry | beside `plan_trail`, when the count exceeds it |
+
+Read them with their limits:
+
+- **`deferrals` counts slips, not moves.** A slip is a schedule change made after the task had
+  come due (its start had passed). Laying out tomorrow by dragging tasks around is planning and is
+  not counted, so a task moved five times the evening before reads `0`.
+- **`plan_trail` keeps only the last 6 slips.** The count keeps rising after the trail stops
+  growing; `plan_trail_omitted` says how many it no longer lists. Its newest (last) entry is usually
+  where the task sits now. A task that slipped before dayGLANCE recorded the trail has `deferrals`
+  with no `plan_trail`.
+- **`original_plan` appears only when the plan changed**, and only for tasks first scheduled since
+  dayGLANCE began recording it: older tasks are never backfilled, so no `original_plan` means "not
+  known" as often as "never moved". A plan recorded before durations were has no `duration_minutes`.
+  An all-day plan records its time as `"00:00"`.
+- **Not on events or routines**, which a calendar or the routines dashboard moves, and not on a
+  recurring occurrence: the app keeps plan history for one-off tasks, and an occurrence moved on
+  its own date is an edit to its series.
+- Stamps are written when the app saves a change, so a write's response reports the history as it
+  stood before that write's own slip was counted; the next read includes it.
+
 **`daily_note` rides every day read.** `dayglance_get_today`, `dayglance_get_day` and the
 schedule resources return `daily_note`: `{ text, last_modified }` for the user's note on that
 date as dayGLANCE shows it, or `null` when the date has no note. `last_modified` is present only
@@ -176,7 +209,9 @@ exclusion applies here, not a filter argument, and `bucketId` never appears on t
 
 Returns `{ items, truncated, next_cursor, total, timezone }`. Items carry `id`, `title`,
 `priority` (0–3), `completed`, `created_at`, `completed_at`, `duration_minutes`, and `deadline` /
-`project_id` / `notes` / `assignee_id` / `subtasks` when set.
+`project_id` / `notes` / `assignee_id` / `subtasks` when set, and the plan history (`original_plan`,
+`deferrals`, `plan_trail`, `plan_trail_omitted`, see Block types) when there is one: an inbox task
+keeps the history it gathered while it was scheduled.
 
 Filtering happens before pagination: `total`, `truncated`, and `next_cursor` always describe
 the **filtered** set. A filter matching nothing returns an empty list with `total: 0`, not an
@@ -190,8 +225,8 @@ count (the same predicate the TRMNL integration uses).
 ### `dayglance_list_bucket_list`
 The Bucket List: someday/maybe items kept out of the inbox on purpose, in two lists with the
 user's own headings (by default Anytime and Someday). No parameters. Returns
-`{ lists: [{ id, heading, items }], timezone }`; items are inbox-shaped plus `bucket_id` and
-carry no priority or deadline (demotion strips them). Archived items are left out, as the app
+`{ lists: [{ id, heading, items }], timezone }`; items are inbox-shaped plus `bucket_id` (plan
+history included) and carry no priority or deadline (demotion strips them). Archived items are left out, as the app
 leaves them out. Read-only over MCP: moving an item between the Bucket List and the inbox is
 done in dayGLANCE.
 

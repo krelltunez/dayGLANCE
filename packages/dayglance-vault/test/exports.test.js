@@ -31,7 +31,7 @@ describe('package', () => {
     expect(pkg.types).toBe('types/index.d.ts');
   });
 
-  it('imports nothing but its own modules and its two peers', () => {
+  it('imports nothing but its own modules and its three peers', () => {
     // The app and a host must share ONE copy of the engine's module state
     // (the root key, the vault client's brake), so the package never brings
     // its own: it is a peer, as the adapter's mergeRoutineDefinitions comes
@@ -39,7 +39,11 @@ describe('package', () => {
     // event client reads the /events stream with (the bridge plugin reads
     // it with the same one); a peer too, since every consumer already has
     // it and one wire format should have one parser in a process.
-    const PEERS = ['@glance-apps/obsidian-format', '@glance-apps/sync'];
+    // @glance-apps/agenda-core holds what counts as a recorded plan-trail
+    // stop (planTrailStops), which the trail merge cleans with and every
+    // reader of the trail (the app's panel, the MCP read surface) counts
+    // with: one rule, so a stop the merge keeps is one every reader shows.
+    const PEERS = ['@glance-apps/agenda-core', '@glance-apps/obsidian-format', '@glance-apps/sync'];
     expect(Object.keys(pkg.peerDependencies || {}).sort()).toEqual(PEERS);
     expect(pkg.dependencies).toBeUndefined();
     for (const f of readdirSync(fileURLToPath(new URL('../src', import.meta.url)))) {

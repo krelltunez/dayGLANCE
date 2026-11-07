@@ -239,6 +239,14 @@ export function isOwnedBy(item: { ownerSyncId?: string | null }, multiUserEnable
 // stamps.js: a stored createdAt / completedAt stamp.
 export function parseStamp(value: unknown): { date: Date; hasTime: boolean } | null;
 
+// planHistory.js: reading a task's plan history (originalPlan, deferrals,
+// planTrail), as the app's history panel and the MCP read surface tell it.
+export interface PlanBaseline { date?: string; startTime?: string; duration?: number }
+export interface PlanStop { at: number | string; date: string; startTime: string; duration?: number }
+export function planHistory(task: unknown): { plan: PlanBaseline; changed: { date: boolean; startTime: boolean; duration: boolean } } | null;
+export function planTrailStops(trail: unknown): PlanStop[];
+export function hiddenStops(task: unknown): number;
+
 // noteLink.js: a project's or goal's linked Obsidian note, as readers see it.
 export interface NoteLink { path: string; name: string; missing: boolean; pending: boolean }
 export function noteDisplayName(path: unknown): string;

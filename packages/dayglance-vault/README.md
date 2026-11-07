@@ -58,7 +58,9 @@ the apply and the delete in its own guards.
 `@glance-apps/sync` is a peer dependency: the engine keeps the root key and
 the vault client's brake in module state, so the adapter and the engine must
 share one copy. So is `@glance-apps/obsidian-format`, whose SSE frame parser
-the event client reads the stream with.
+the event client reads the stream with. And `@glance-apps/agenda-core`, whose
+`planTrailStops` says what counts as a recorded plan-trail stop: the trail
+merge cleans with it, and every reader of the trail counts with it.
 
 ## Change nudges
 

@@ -104,6 +104,19 @@ export interface StampOptions {
 }
 
 export function wireSubtasks(task: unknown): WireSubtask[] | undefined;
+/** A recorded plan in the block's field names. */
+export interface WirePlan { date: string; start_time: string; duration_minutes?: number }
+/** One recorded slip: when it was made, and where it moved the task to. */
+export interface WirePlanStop extends WirePlan { moved_at: WireStamp | null }
+/** A task's plan history on the wire; every field omitted when it has nothing to tell. */
+export interface WirePlanHistory {
+  original_plan?: WirePlan;
+  deferrals?: number;
+  /** Oldest first. */
+  plan_trail?: WirePlanStop[];
+  plan_trail_omitted?: number;
+}
+export function wirePlanHistory(task: unknown, timeZone?: string): WirePlanHistory;
 export function inboxItem(task: unknown, opts?: StampOptions): Record<string, unknown>;
 export function dailyNoteFor(state: Partial<McpReadState>, date: string): { text: string; last_modified?: string } | null;
 export function buildBucketList(state: Partial<McpReadState>): { lists: Array<{ id: string; heading: string; items: Record<string, unknown>[] }> };

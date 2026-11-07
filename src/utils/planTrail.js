@@ -26,11 +26,13 @@
 // earlier" under the oldest stop it kept because it has both.
 
 import { isDeferral } from './deferrals.js';
-// The merge (mergePlanTrail, sameTrail, TRAIL_CAP and the trail's cleaning)
-// lives in @glance-apps/dayglance-vault (#2280) beside the vault adapter that
-// applies it; imported back here.
+// The merge (mergePlanTrail, sameTrail, TRAIL_CAP) lives in
+// @glance-apps/dayglance-vault (#2280) beside the vault adapter that applies
+// it; the trail's cleaning (planTrailStops, what counts as a recorded stop)
+// in @glance-apps/agenda-core, which the merge and every reader share.
+// Imported back here.
 import { TRAIL_CAP, mergePlanTrail, sameTrail } from '@glance-apps/dayglance-vault';
-import { cleanTrail as clean } from '@glance-apps/dayglance-vault/src/planTrail.js';
+import { planTrailStops as clean } from '@glance-apps/agenda-core';
 
 export { TRAIL_CAP, mergePlanTrail, sameTrail };
 
@@ -114,17 +116,8 @@ export function intermediatePlans(task) {
   return atCurrent ? trail.slice(0, -1) : trail;
 }
 
-/**
- * How many slips happened before the ones the trail still holds.
- *
- * Measured against the count, which is uncapped, rather than against the trail,
- * which is not — that is the whole reason both exist. Every RECORDED stop is on
- * screen somewhere (the newest as "now", the rest as intermediates), so the gap
- * is the count minus the trail's length, not minus the intermediates.
- *
- * Never negative: a union can briefly leave the trail longer than a count that
- * has not merged yet.
- */
-export function hiddenStops(task) {
-  return Math.max(0, (Number(task?.deferrals) || 0) - clean(task?.planTrail).length);
-}
+// How many slips happened before the ones the trail still holds (hiddenStops,
+// the panel's "+N earlier") lives in @glance-apps/agenda-core, beside
+// planHistory, because the MCP read surface reports the same count; imported
+// back here.
+export { hiddenStops } from '@glance-apps/agenda-core';
