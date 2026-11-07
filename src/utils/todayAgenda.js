@@ -103,6 +103,23 @@ export function agendaNowAndNext(agenda, nowMinutes, { include = () => true, ext
 }
 
 /**
+ * A block (agendaNowAndNext, agenda-core dayTimedBlocks) as a row on today's
+ * clock: the task's fields with the block's `startTime` and `duration`, so the
+ * night before's task reads '00:00' for the minutes it runs into today. For a
+ * reader that takes start + duration as today's span (the Stream Deck's Task,
+ * the widgets' rows), never for an action: act on `block.task`.
+ */
+export const blockAsTodayRow = (block) => ({ ...block.task, startTime: block.startTime, duration: block.duration });
+
+/**
+ * An agenda item as a row on today's clock: itself, or for the night before's
+ * continuation the same copy from '00:00' for its minutes (as blockAsTodayRow).
+ */
+export const agendaItemAsTodayRow = (item) => (item._continuation
+  ? { ...item, startTime: '00:00', duration: item._continuation.minutes }
+  : item);
+
+/**
  * Where GLANCE's "now" marker goes and the free time it announces ("You have
  * free time at …"): moved verbatim from App.jsx, with each item's block read
  * through agendaItemSpan, so the night before's task running at 00:08 is

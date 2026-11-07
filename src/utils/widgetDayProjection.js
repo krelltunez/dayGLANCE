@@ -36,6 +36,8 @@
 import { stripWikilinksAndTags, dateToString } from './taskUtils.js';
 import { taskColorToHex, frameColorToHex } from './colorUtils.js';
 import { computeSkySnapshot, projectDialSnapshot } from './dayDial.js';
+import { dayTimedBlocks } from '@glance-apps/agenda-core';
+import { blockAsTodayRow } from './todayAgenda.js';
 
 // Local on purpose: streamDeckPayload.js exports one but pulls in an Electron
 // alias, and this module has to load in plain Node (tests, measurements).
@@ -207,9 +209,17 @@ export function buildProjectedDay({
       colorHex: taskColorToHex(t.color, t.nativeCalendarColor),
       projectName: projectNameFor(t),
     }));
-  const scheduled = live
-    .filter(t => !t.isAllDay)
-    .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+  // The day before's tasks still running after midnight (#2278) open the
+  // day, each as its piece on this day's clock (00:00 for the minutes it runs
+  // into it), as today's pushed list carries them: GLANCE lists them, and the
+  // native side promotes Up Next through them by the clock.
+  const carried = dayTimedBlocks([], prevDayTasks.filter(t => t && !t.isExample)).map(blockAsTodayRow);
+  const scheduled = [
+    ...carried,
+    ...live
+      .filter(t => !t.isAllDay)
+      .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || '')),
+  ];
   const deadlines = deadlineTasks.map(t => ({
     id: t.id,
     title: stripWikilinksAndTags(t.title),
@@ -225,6 +235,7 @@ export function buildProjectedDay({
   // pushed day this list is NOT capped at four — cutting it would leave the
   // widget empty by mid-afternoon with tasks still ahead. Notes and subtasks
   // are today-only richness and are trimmed; tags and project stay.
+  // Stable: a carried piece stays before a row of the day's own at 00:00.
   const upcoming = scheduled
     .filter(t => !t.completed && t.startTime)
     .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))

@@ -13,7 +13,7 @@ import { dateToString, extractWikilinks, stripWikilinks } from './taskUtils.js';
 import { calculateGoalProgress } from './goalProgress.js';
 import { calculateProjectProgress } from './projectProgress.js';
 import { PROTOCOL_VERSION, MSG_DAY_STATE } from '../../electron/protocol';
-import { agendaNowAndNext } from './todayAgenda.js';
+import { agendaNowAndNext, blockAsTodayRow } from './todayAgenda.js';
 
 export const timeToMinutes = (time) => {
   if (!time) return 0;
@@ -50,7 +50,7 @@ export function currentAndNextOnDeck({ nowMin, todayAgenda, todayHGSessions }) {
 // night before's task goes out as its piece, from 00:00 for the minutes it
 // runs into today; the task's own start and a duration past midnight would
 // read as tonight. Same fields, same shape: the contract is unchanged.
-const asTodayBlock = (block) => ({ ...block.task, startTime: block.startTime, duration: block.duration });
+const asTodayBlock = blockAsTodayRow;
 
 /**
  * The task the tray popup's NOW bar shows (tray:push-current-task), or null.
