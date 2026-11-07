@@ -8,4 +8,5 @@ export * from './readModel.js';
 export * from './frames.js';
 export * from './repeat.js';
 export * from './wireStamp.js';
+export * from './planHistory.js';
 export * from './noteDescriptions.js';

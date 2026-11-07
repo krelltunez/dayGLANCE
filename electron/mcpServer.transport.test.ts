@@ -606,6 +606,85 @@ describe('frames net of recurring occurrences, over the wire (#2278)', () => {
   });
 });
 
+// A task's plan history (original_plan, deferrals, plan_trail,
+// plan_trail_omitted) rides the task output the read tools already return.
+// Through the real read model over a fixture state, as above: a task that
+// slipped carries the fields in wire form, a task never moved carries none.
+describe('plan history on the task output, over the wire', () => {
+  const MON = '2026-09-28';
+  const WED = '2026-09-30';
+  const FRI = '2026-10-02';
+  const history = {
+    originalPlan: { date: MON, startTime: '09:00', duration: 60 },
+    deferrals: 4,
+    planTrail: [
+      { at: Date.parse('2026-09-28T10:15:00Z'), date: WED, startTime: '09:00' },
+      { at: Date.parse('2026-09-30T11:00:00Z'), date: TODAY, startTime: '14:00' },
+    ],
+  };
+  const state = buildMcpReadState({
+    tasks: [
+      { id: 'slid', title: 'Write the report', date: TODAY, startTime: '14:00', duration: 60, completed: false, isAllDay: false, ...history },
+      { id: 'fresh', title: 'Call the bank', date: TODAY, startTime: '10:00', duration: 30, completed: false, isAllDay: false },
+      // An imported feed event carrying the fields anyway: never reported on an event.
+      { id: 'feed', title: 'Standup', date: TODAY, startTime: '09:00', duration: 15, completed: false, imported: true, ...history },
+    ],
+    unscheduledTasks: [
+      { id: 'parked', title: 'Renew passport', date: null, startTime: null, completed: false, ...history, deferrals: 2, planTrail: [history.planTrail[0]] },
+    ],
+  }, { now: NOW, timeZone: TZ });
+  const HISTORY_KEYS = ['original_plan', 'deferrals', 'plan_trail', 'plan_trail_omitted'];
+  let h: Harness;
+  beforeAll(async () => {
+    const bridge = fakeBridge({
+      get_day: (params) => handleMcpRequest(state, { method: 'get_day', params }) as RendererResult,
+      list_unscheduled: (params) => handleMcpRequest(state, { method: 'list_unscheduled', params }) as RendererResult,
+    });
+    h = await start({ readDeps: readDeps(bridge.bridge) });
+  });
+  afterAll(() => h.close());
+
+  it('get_today: the slipped task carries its history in wire form; the task never moved and the event carry none', async () => {
+    const client = await h.connect();
+    const data = body(await client.callTool({ name: 'dayglance_get_today', arguments: {} })) as { blocks: Array<Record<string, unknown>> };
+    const byId = Object.fromEntries(data.blocks.map((b) => [b.id, b]));
+    expect(byId.slid).toMatchObject({
+      original_plan: { date: MON, start_time: '09:00', duration_minutes: 60 },
+      deferrals: 4,
+      plan_trail: [
+        { moved_at: { date: MON, time: '10:15' }, date: WED, start_time: '09:00' },
+        { moved_at: { date: WED, time: '11:00' }, date: TODAY, start_time: '14:00' },
+      ],
+      plan_trail_omitted: 2,
+    });
+    for (const id of ['fresh', 'feed']) {
+      for (const key of HISTORY_KEYS) expect(byId[id], `${id} ${key}`).not.toHaveProperty(key);
+    }
+  });
+
+  it('list_unscheduled_tasks: an inbox task keeps the history it gathered while scheduled', async () => {
+    const client = await h.connect();
+    const data = body(await client.callTool({ name: 'dayglance_list_unscheduled_tasks', arguments: {} })) as { items: Array<Record<string, unknown>> };
+    expect(data.items).toEqual([expect.objectContaining({
+      id: 'parked',
+      original_plan: { date: MON, start_time: '09:00', duration_minutes: 60 },
+      deferrals: 2,
+      plan_trail: [{ moved_at: { date: MON, time: '10:15' }, date: WED, start_time: '09:00' }],
+      plan_trail_omitted: 1,
+    })]);
+  });
+
+  it('the task-reading tools tell the model the fields and their limits, and the reference documents them', async () => {
+    const client = await h.connect();
+    const tools = (await client.listTools()).tools;
+    for (const name of ['dayglance_get_today', 'dayglance_get_day', 'dayglance_list_unscheduled_tasks', 'dayglance_list_bucket_list']) {
+      const description = tools.find((t) => t.name === name)!.description!;
+      for (const key of HISTORY_KEYS) expect(description, `${name} ${key}`).toContain(key);
+    }
+    for (const key of HISTORY_KEYS) expect(reference).toContain(`\`${key}\``);
+  });
+});
+
 describe('the listener itself', () => {
   let h: Harness;
   beforeAll(async () => {

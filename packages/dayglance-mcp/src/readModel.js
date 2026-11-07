@@ -34,6 +34,7 @@ import { buildFrames } from './frames.js';
 import { expandRecurringForDate, rowsForDate } from './dayRows.js';
 import { recurrenceToWire } from './repeat.js';
 import { wireStamp } from './wireStamp.js';
+import { wirePlanHistory } from './planHistory.js';
 
 export { expandRecurringForDate };
 
@@ -74,6 +75,10 @@ export function inboxItem(t, { timeZone } = {}) {
   // from before createdAt existed have none, and an open task no completion.
   item.created_at = wireStamp(t.createdAt, timeZone);
   item.completed_at = t.completed ? wireStamp(t.completedAt, timeZone) : null;
+  // Its plan history (original_plan, deferrals, plan_trail), each omitted
+  // when there is nothing to tell (planHistory.js). An inbox task keeps the
+  // history it gathered while it was scheduled.
+  Object.assign(item, wirePlanHistory(t, timeZone));
   if (t.deadline) item.deadline = t.deadline;
   if (t.projectId) item.project_id = t.projectId;
   if (t.notes) item.notes = t.notes;
@@ -165,6 +170,12 @@ export function toBlock(task, { timeZone } = {}) {
   if (type === 'task' || type === 'recurring_task') {
     block.created_at = wireStamp(task.createdAt, timeZone);
     block.completed_at = task.completed ? wireStamp(task.completedAt, timeZone) : null;
+    // And its plan history, on the same terms (planHistory.js). Not on
+    // events: a feed or the device calendar moves those, and the app keeps
+    // no history for them. A recurring occurrence carries none in practice:
+    // the app records it on one-off tasks, and an occurrence's moves are
+    // exceptions on its series (expandRecurringForDate copies no history).
+    Object.assign(block, wirePlanHistory(task, timeZone));
   }
   // Notes and subtasks ride the block too (2026-10-04): the inbox shape has
   // carried notes since Phase 2, and a scheduled task's notes are no less
