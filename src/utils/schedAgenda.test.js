@@ -159,6 +159,14 @@ describe('isPastEvent', () => {
     expect(isPastEvent(event({ startTime: '15:00', duration: 60 }), now)).toBe(false);  // upcoming
   });
 
+  it('an event from the day before is past only from its REAL end (#2278)', () => {
+    // 23:00 for 120 minutes on the 27th: running until 01:00 on the 28th.
+    const night = event({ date: '2026-07-27', startTime: '23:00', duration: 120 });
+    expect(isPastEvent(night, new Date('2026-07-28T00:08:00'))).toBe(false);
+    expect(isPastEvent(night, new Date('2026-07-28T01:00:00'))).toBe(true);
+    expect(isPastEvent(night, new Date('2026-07-28T01:30:00'))).toBe(true);
+  });
+
   it('all-day events last until the day ends', () => {
     expect(isPastEvent(event({ isAllDay: true, startTime: '00:00' }), now)).toBe(false);
     expect(isPastEvent(event({ isAllDay: true, startTime: '00:00', date: '2026-07-27' }), now)).toBe(true);

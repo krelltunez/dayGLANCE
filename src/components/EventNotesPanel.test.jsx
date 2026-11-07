@@ -12,7 +12,7 @@ let native = false;
 vi.mock('../native.js', () => ({ isNativeApp: () => native, nativeUpdateEvent: vi.fn() }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k) => k }) }));
 vi.mock('../context/DayPlannerContext.jsx', () => ({ useDayPlannerCtx: () => ({ setTasks: vi.fn(), timeToMinutes: () => 0, minutesToTime: () => '00:00', darkMode: false }) }));
-const { default: EventNotesPanel, editsDeviceCalendar } = await import('./EventNotesPanel.jsx');
+const { default: EventNotesPanel, editsDeviceCalendar, deviceEventNotesWrite } = await import('./EventNotesPanel.jsx');
 
 const event = (over = {}) => ({ id: 'uid-1-2026-09-30', title: 'Busy', date: '2026-09-30', startTime: '13:00', duration: 45, imported: true, notes: 'Room 4B', ...over });
 
@@ -67,5 +67,21 @@ describe('EventNotesPanel (device calendar)', () => {
     const html = renderToStaticMarkup(<EventNotesPanel task={event({ nativeEventId: 'dev-1' })} />);
     expect(html).toContain('data-event-notes="device"');
     expect(html).toMatch(/<textarea[^>]*>Room 4B<\/textarea>/);
+  });
+});
+
+describe('the description write-back', () => {
+  it('sends the event as it stands, with its new notes', () => {
+    expect(deviceEventNotesWrite(event({ nativeEventId: 'dev-1', location: 'HQ' }), 'Room 5')).toEqual({
+      id: 'dev-1', title: 'Busy', start: '2026-09-30T13:00:00', end: '2026-09-30T13:45:00', allDay: false, notes: 'Room 5', location: 'HQ',
+    });
+  });
+
+  // #2278. MUTATION: write the end as date + minutes again and it reads
+  // "2026-09-30T25:00:00", which the device calendar cannot read.
+  it('an event running past midnight ends on the next date', () => {
+    const write = deviceEventNotesWrite(event({ nativeEventId: 'dev-1', startTime: '23:00', duration: 120 }), 'x');
+    expect(write.start).toBe('2026-09-30T23:00:00');
+    expect(write.end).toBe('2026-10-01T01:00:00');
   });
 });

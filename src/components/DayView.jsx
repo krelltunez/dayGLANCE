@@ -4,6 +4,7 @@ import { formatHourLabel } from '../utils/timeFormatting.jsx';
 import { dateToString } from '../utils/taskUtils.js';
 import { columnTimeFromEvent, dragBlockRange, dropClampMinutes } from '../utils/dragUtils.js';
 import DragBlockPreview from './DragBlockPreview.jsx';
+import { NextDayMark } from './TimeRange.jsx';
 import ContinuationCard from './ContinuationCard.jsx';
 import { continuationLayoutRow, dragPreviewSpillFor, resizePreviewForDate } from '../utils/continuations.js';
 import TimelineTaskCardContent from './TimelineTaskCardContent.jsx';
@@ -713,7 +714,7 @@ export const DayViewColumn = ({ col, colIdx, hourHeight, planOnly = false, zoom 
             <DragBlockPreview
               top={slice.top}
               height={slice.height}
-              label={`${formatTime(block.startTime)}–${formatTime(block.endTime)}${showDateLabel}`}
+              label={<>{formatTime(block.startTime)}–{formatTime(block.endTime)}{block.endsNextDay && <NextDayMark />}{showDateLabel}</>}
               darkMode={darkMode}
               className="left-16 right-0 z-20"
               showStart={!slice.clippedTop}

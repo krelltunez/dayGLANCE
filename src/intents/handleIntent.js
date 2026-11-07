@@ -17,6 +17,7 @@ import {
   normalizeRecurring,
   createKey,
 } from '@glance-apps/intents';
+import { hasTaskEnded, overnightSpillMinutes, shiftDateStr } from '@glance-apps/agenda-core';
 
 export const DEFAULT_TASK_COLOR = 'bg-blue-500';
 
@@ -548,7 +549,10 @@ function handleQuery(payload, context) {
   const activeInbox = unscheduledTasks.filter(t => !t._native && !t.archived && !t.completed);
 
   const countToday = activeTasks.filter(t => t.date === todayStr).length;
-  const countOverdue = activeTasks.filter(t => t.date < todayStr).length;
+  // Overdue from a task's REAL end (#2278): last night's 23:00 task of two
+  // hours is still running at 00:30, and is overdue from 01:00.
+  const countOverdue = activeTasks.filter(t =>
+    t.date && t.date < todayStr && hasTaskEnded(t, { todayStr, nowMinutes })).length;
   const countWeek = activeTasks.filter(t => t.date >= todayStr && t.date <= weekEndStr).length;
   const countTotal = activeTasks.length + activeInbox.length;
   const countInbox = activeInbox.length;
@@ -559,7 +563,18 @@ function handleQuery(payload, context) {
   let inProgressEnd = '';
   let inProgressRemainingMin = 0;
 
-  for (const t of todayTimed) {
+  // Last night's task still running after midnight (#2278) is in progress
+  // first: it started before anything today did.
+  const yesterdayStr = shiftDateStr(todayStr, -1);
+  const overnight = activeTasks.find(t => t.date === yesterdayStr && nowMinutes < overnightSpillMinutes(t));
+  if (overnight) {
+    const end = overnightSpillMinutes(overnight);
+    inProgressTitle = overnight.title;
+    inProgressEnd = `${String(Math.floor(end / 60) % 24).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`;
+    inProgressRemainingMin = end - nowMinutes;
+  }
+
+  for (const t of overnight ? [] : todayTimed) {
     const start = toMinutes(t.startTime);
     const end = start + (t.duration ?? 30);
     if (nowMinutes >= start && nowMinutes < end) {

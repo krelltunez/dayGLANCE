@@ -5,13 +5,14 @@ import { isNativeAndroid, nativeIsDndPermissionGranted, nativeRequestDndPermissi
 import { stripWikilinks, extractWikilinks } from '../utils/taskUtils.js';
 import NotesSubtasksPanel from './NotesSubtasksPanel.jsx';
 import FocusDoReview from './FocusDoReview.jsx';
+import TimeRange from './TimeRange.jsx';
 import { useDayPlannerCtx } from '../context/DayPlannerContext.jsx';
 import { useSyncCtx } from '../context/SyncContext.jsx';
 import { useFeaturesCtx } from '../context/FeaturesContext.jsx';
 
 const FocusModeModal = () => {
   const { t } = useTranslation();
-  const { currentTime, formatTime, minutesToTime, timeToMinutes } = useDayPlannerCtx();
+  const { currentTime, formatTime } = useDayPlannerCtx();
   const { loadWikiNote, saveWikiNote, openInObsidian } = useSyncCtx();
   const {
     exitFocusMode, startFocusTimer, dismissFocusStats, skipFocusPhase,
@@ -173,7 +174,7 @@ const FocusModeModal = () => {
                     <div className={`w-3 h-3 rounded-full ${task.color} flex-shrink-0 mt-1`} />
                     <div className="flex-1 min-w-0">
                       <div className={`text-sm font-medium ${isDone ? 'text-gray-500 line-through' : 'text-gray-200'}`}>{stripWikilinks(task.title)}</div>
-                      <div className="text-xs text-gray-500">{formatTime(task.startTime)} - {formatTime(minutesToTime(timeToMinutes(task.startTime) + task.duration))}</div>
+                      <div className="text-xs text-gray-500"><TimeRange startTime={task.startTime} duration={task.duration} formatTime={formatTime} separator=" - " /></div>
                     </div>
                     {!isDone && (
                       <button

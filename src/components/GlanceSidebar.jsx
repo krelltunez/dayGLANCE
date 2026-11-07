@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { renderTitle } from '../utils/textFormatting.jsx';
 import TaskStarButton from './TaskStarButton.jsx';
+import TimeRange from './TimeRange.jsx';
 import { nativeGetNextAlarm } from '../native.js';
 import { nextAlarmWithinTomorrow, alarmHHMM } from '../utils/nextAlarm.js';
 import GoalRing from './GoalRing.jsx';
@@ -1067,9 +1068,8 @@ const GlanceSidebar = ({ variant = 'desktop' }) => {
         const [h, m] = (task.startTime || '0:0').split(':').map(Number);
         const startMin = h * 60 + m;
         const endMin = startMin + (task.duration || 0);
-        const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
-        const endM = String(endMin % 60).padStart(2, '0');
-        timeLabel = `${formatTime(task.startTime)}\u00A0–\u00A0${formatTime(endH + ':' + endM)}`;
+        // The end as a real clock time, "+1" past midnight (#2278).
+        timeLabel = <TimeRange startTime={task.startTime} duration={task.duration || 0} formatTime={formatTime} separator={'\u00A0–\u00A0'} />;
         const diff = startMin - nowMin;
         if (diff > 0) {
           relativeLabel = new Intl.RelativeTimeFormat(i18n.resolvedLanguage || i18n.language, { numeric: 'always', style: 'short' }).format(diff, 'minute');

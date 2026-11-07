@@ -1,3 +1,4 @@
+import { hasTaskEnded } from '@glance-apps/agenda-core';
 import { dateToString, extractTags } from './taskUtils.js';
 
 /**
@@ -106,11 +107,10 @@ export const groupProjectsForFilter = (projects, goals) => {
 export const isPastEvent = (task, now) => {
   if (!task.imported || task.isTaskCalendar || !task.date) return false;
   const todayStr = dateToString(now);
-  if (task.date < todayStr) return true;
-  if (task.date > todayStr || task.isAllDay || !task.startTime) return false;
-  const startMin = parseInt(task.startTime.slice(0, 2), 10) * 60 + parseInt(task.startTime.slice(3, 5), 10);
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  return startMin + (task.duration || 0) <= nowMin;
+  if (task.isAllDay || !task.startTime) return task.date < todayStr;
+  // Judged by its REAL end (#2278): an event from 23:00 to 01:00 has not
+  // ended at 00:30 the next day. No duration: over at its start.
+  return hasTaskEnded(task, { todayStr, nowMinutes: now.getHours() * 60 + now.getMinutes(), defaultDuration: 0 });
 };
 
 /** Matches expanded recurring-occurrence ids: recurring-<templateId>-YYYY-MM-DD */
